@@ -13,12 +13,18 @@
 	},
 	"dependencies": {
 		"@sinclair/typebox": "^0.34.0",
-		"elysia": "latest"
+		"dotenv": "^17.2.3",
+		"drizzle-orm": "^0.44.7",
+		"elysia": "latest",
+		"pg": "^8.16.3"
 	},
 	"devDependencies": {
 		"@sen-checkin/eslint-config": "*",
+		"@types/pg": "^8.15.6",
 		"bun-types": "latest",
+		"drizzle-kit": "^0.31.7",
 		"eslint": "^9.39.1",
+		"tsx": "^4.20.6",
 		"typescript": "5.9.2"
 	}
 }

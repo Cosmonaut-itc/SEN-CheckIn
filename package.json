@@ -1,34 +1,44 @@
 {
-  "name": "sen-checkin",
-  "private": true,
-  "scripts": {
-    "build": "turbo run build",
-    "dev": "turbo run dev",
-    "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
-    "check-types": "turbo run check-types",
-    "dev:api": "turbo run dev --filter=@sen-checkin/api",
-    "dev:mobile": "turbo run dev --filter=mobile",
-    "build:api": "turbo run build --filter=@sen-checkin/api",
-    "build:mobile": "turbo run build --filter=mobile",
-    "lint:api": "turbo run lint --filter=@sen-checkin/api",
-    "lint:mobile": "turbo run lint --filter=mobile",
-    "check-types:api": "turbo run check-types --filter=@sen-checkin/api",
-    "check-types:mobile": "turbo run check-types --filter=mobile"
-  },
-  "devDependencies": {
-    "eslint": "^9.39.1",
-    "prettier": "^3.6.2",
-    "turbo": "^2.6.1",
-    "typescript": "5.9.2"
-  },
-  "engines": {
-    "node": ">=18",
-    "bun": ">=1.2.14"
-  },
-  "packageManager": "bun@1.2.14",
-  "workspaces": ["apps/*", "packages/*"],
-  "trustedDependencies": [
-    "unrs-resolver"
-  ]
+	"name": "sen-checkin",
+	"private": true,
+	"scripts": {
+		"build": "turbo run build",
+		"dev": "turbo run dev",
+		"lint": "turbo run lint",
+		"format": "prettier --write \"**/*.{ts,tsx,md}\"",
+		"check-types": "turbo run check-types",
+		"dev:api": "turbo run dev --filter=@sen-checkin/api",
+		"dev:mobile": "turbo run dev --filter=mobile",
+		"build:api": "turbo run build --filter=@sen-checkin/api",
+		"build:mobile": "turbo run build --filter=mobile",
+		"lint:api": "turbo run lint --filter=@sen-checkin/api",
+		"lint:mobile": "turbo run lint --filter=mobile",
+		"check-types:api": "turbo run check-types --filter=@sen-checkin/api",
+		"check-types:mobile": "turbo run check-types --filter=mobile",
+		"add:api": "bun add --cwd apps/api",
+		"add:mobile": "bun add --cwd apps/mobile",
+		"db:gen": "bunx --bun drizzle-kit generate --config apps/api/drizzle.config.ts",
+		"db:mig": "bunx --bun drizzle-kit migrate --config apps/api/drizzle.config.ts"
+	},
+	"devDependencies": {
+		"eslint": "^9.39.1",
+		"prettier": "^3.6.2",
+		"turbo": "^2.6.1",
+		"typescript": "5.9.2"
+	},
+	"engines": {
+		"node": ">=18",
+		"bun": ">=1.2.14"
+	},
+	"packageManager": "bun@1.2.14",
+	"workspaces": [
+		"apps/*",
+		"packages/*"
+	],
+	"trustedDependencies": [
+		"unrs-resolver"
+	],
+	"dependencies": {
+		"better-auth": "^1.3.34"
+	}
 }

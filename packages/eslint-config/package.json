@@ -1,12 +1,12 @@
 {
-  "name": "@repo/eslint-config",
-  "version": "0.0.0",
+  "name": "@sen-checkin/eslint-config",
+  "version": "0.0.1",
   "type": "module",
   "private": true,
   "exports": {
     "./base": "./base.js",
-    "./next-js": "./next.js",
-    "./react-internal": "./react-internal.js"
+    "./expo": "./expo.js",
+    "./elysia": "./elysia.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

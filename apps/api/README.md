@@ -1,15 +1,9 @@
-# Elysia with Bun runtime
+# API (Bun + Elysia)
 
-## Getting Started
-To get started with this template, simply paste this command into your terminal:
-```bash
-bun create elysia ./elysia-example
-```
+Backend placeholder that will run on Bun using the Elysia framework. Following the Elysia quick start, future work will:
 
-## Development
-To start the development server run:
-```bash
-bun run dev
-```
+- instantiate an `Elysia` app and register routes,
+- expose the typed app to `@sen-checkin/api-contract` for Eden client generation,
+- add a proper dev server script once endpoints exist.
 
-Open http://localhost:3000/ with your browser to see the result.
+For this release no HTTP endpoints are implemented; this folder only defines the skeleton for upcoming work.

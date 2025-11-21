@@ -1,8 +1,17 @@
-// Contract package for Elysia + Eden clients.
-// Future additions:
-// - Export the typed Elysia server instance type (e.g., ServerApp).
-// - Provide a factory like createEdenClient(baseUrl) to build typed clients for the frontend.
-// - Re-export shared domain types from @sen-checkin/types when needed.
-// Implementation will be added in upcoming releases once the API is defined.
+import { edenTreaty } from '@elysiajs/eden';
+import type { App as ElysiaApp } from '@sen-checkin/api';
 
-export {};
+export type AppType = ElysiaApp;
+
+export const API_BASE_URL = 'http://localhost:3000';
+
+/**
+ * Builds a fully typed Eden Treaty client pointed at the Sen Checkin API.
+ * Defaults to the local dev server (http://localhost:3000).
+ */
+export const createApiClient = (baseUrl = API_BASE_URL) => edenTreaty<AppType>(baseUrl);
+
+/**
+ * Ready-to-use client instance for typical local development.
+ */
+export const apiClient = createApiClient();

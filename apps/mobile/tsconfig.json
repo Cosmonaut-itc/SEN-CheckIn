@@ -1,10 +1,23 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "baseUrl": ".",
     "strict": true,
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@sen-checkin/api-contract": [
+        "../../packages/api-contract/src"
+      ],
+      "@sen-checkin/api-contract/*": [
+        "../../packages/api-contract/src/*"
+      ],
+      "@sen-checkin/api": [
+        "../../apps/api/src"
+      ],
+      "@sen-checkin/api/*": [
+        "../../apps/api/src/*"
       ]
     }
   },

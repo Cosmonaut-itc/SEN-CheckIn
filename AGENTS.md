@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `apps/api`: Bun + Elysia service (`src/index.ts`). Local Postgres helper `docker-compose.yaml` (needs `SEN_CHECKIN_PG_PASSWORD`). Builds to `dist/`.
+- `apps/api`: Bun + Elysia service (`src/index.ts`). Postgres helper `docker-compose.yaml` (needs `SEN_CHECKIN_PG_PASSWORD`). Drizzle config `drizzle.config.ts`, migrations in `apps/api/drizzle/`. Builds to `dist/`.
 - `apps/mobile`: Expo Router app; screens in `app/`, shared UI in `components/`, assets in `assets/`, scripts in `scripts/`; alias `@/` points to the app root.
 - `packages/api-contract` & `packages/types`: shared contracts/domain types; add shapes here before duplicating in apps.
 - `packages/eslint-config` & `packages/typescript-config`: shared lint/TS presets (`base`, `expo`, `elysia`). Workspace aliases live in `tsconfig.base.json` (`@sen-checkin/*`).
@@ -12,7 +12,9 @@
 - Dev: `bun run dev` (all) or `bun run dev:api` / `bun run dev:mobile` (Expo bundler).
 - Build: `bun run build`, or scoped `bun run build:api` / `bun run build:mobile`.
 - Quality: `bun run lint`, `bun run check-types`, `bun run format` (Prettier on `ts/tsx/md`).
-- Expo per-platform: from `apps/mobile`, `bunx expo start --android|--ios|--web` for device/emulator/web.
+- Drizzle: `bun run drizzle:generate` then `bun run drizzle:migrate` (needs `SEN_DB_URL`).
+- Add deps: `bun run add:api -- <pkg>` or `bun run add:mobile -- <pkg>`.
+- Expo per-platform: from `apps/mobile`, `bunx expo start --android|--ios|--web`.
 - Optional DB: `docker compose -f apps/api/docker-compose.yaml up -d`.
 
 ## Coding Style & Naming Conventions
@@ -33,6 +35,6 @@
 - Keep PRs small; flag changes to shared types/contracts and downstream impact.
 
 ## Security & Configuration Notes
-- Do not commit `.env*` files or Expo secrets; keep them local.
-- Required secret: `SEN_CHECKIN_PG_PASSWORD` for local Postgres; store in `.env.local` or shell env.
+- Do not commit `.env*` files or secrets.
+- Required env: `SEN_DB_URL` for Drizzle generate/migrate; `SEN_CHECKIN_PG_PASSWORD` for local Postgres.
 - Prefer `bunx` over global installs; align with Expo SDK 54 and Bun 1.2.14.

@@ -1,5 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
+import { apiKey } from 'better-auth/plugins';
 import db from '../src/db/index.js';
 
 export const auth = betterAuth({
@@ -9,4 +10,5 @@ export const auth = betterAuth({
 	emailAndPassword: {
 		enabled: true,
 	},
+	plugins: [apiKey()],
 });

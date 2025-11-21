@@ -6,8 +6,7 @@
 			"@sen-checkin/types": ["packages/types/src"],
 			"@sen-checkin/api-contract": ["packages/api-contract/src"],
 			"@sen-checkin/eslint-config/*": ["packages/eslint-config/*"],
-			"@sen-checkin/typescript-config/*": ["packages/typescript-config/*"],
-			"@sen-checkin/ui": ["packages/ui/src"]
+			"@sen-checkin/typescript-config/*": ["packages/typescript-config/*"]
 		}
 	},
 	"include": ["apps", "packages", "documentacion"]

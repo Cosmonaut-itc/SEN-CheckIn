@@ -6,7 +6,15 @@
 		"dev": "turbo run dev",
 		"lint": "turbo run lint",
 		"format": "prettier --write \"**/*.{ts,tsx,md}\"",
-		"check-types": "turbo run check-types"
+		"check-types": "turbo run check-types",
+		"dev:api": "turbo run dev --filter=@sen-checkin/api",
+		"dev:mobile": "turbo run dev --filter=mobile",
+		"build:api": "turbo run build --filter=@sen-checkin/api",
+		"build:mobile": "turbo run build --filter=mobile",
+		"lint:api": "turbo run lint --filter=@sen-checkin/api",
+		"lint:mobile": "turbo run lint --filter=mobile",
+		"check-types:api": "turbo run check-types --filter=@sen-checkin/api",
+		"check-types:mobile": "turbo run check-types --filter=mobile"
 	},
 	"devDependencies": {
 		"eslint": "^9.39.1",
@@ -15,7 +23,8 @@
 		"typescript": "5.9.2"
 	},
 	"engines": {
-		"node": ">=18"
+		"node": ">=18",
+		"bun": ">=1.2.14"
 	},
 	"packageManager": "bun@1.2.14",
 	"workspaces": ["apps/*", "packages/*"]

@@ -1,15 +1,23 @@
 {
-  "name": "app",
+  "name": "@sen-checkin/api",
   "version": "1.0.50",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "bun run --watch src/index.ts"
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run dist/index.js",
+    "lint": "eslint src --ext .ts --max-warnings 0",
+    "check-types": "tsc --noEmit"
   },
   "dependencies": {
     "elysia": "latest"
   },
   "devDependencies": {
-    "bun-types": "latest"
-  },
-  "module": "src/index.js"
+    "@sen-checkin/eslint-config": "*",
+    "bun-types": "latest",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
 }

@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/**
+ * Custom CSS variables for shadcn/ui theming.
+ * Uses CSS custom properties for light and dark mode support.
+ */
+@theme inline {
+	--color-background: oklch(100% 0 0);
+	--color-foreground: oklch(14.5% 0.02 254.6);
+	--color-card: oklch(100% 0 0);
+	--color-card-foreground: oklch(14.5% 0.02 254.6);
+	--color-popover: oklch(100% 0 0);
+	--color-popover-foreground: oklch(14.5% 0.02 254.6);
+	--color-primary: oklch(20.5% 0.015 254.6);
+	--color-primary-foreground: oklch(98.5% 0.002 247.84);
+	--color-secondary: oklch(97% 0.003 247.84);
+	--color-secondary-foreground: oklch(20.5% 0.015 254.6);
+	--color-muted: oklch(97% 0.003 247.84);
+	--color-muted-foreground: oklch(55.6% 0.014 254.6);
+	--color-accent: oklch(97% 0.003 247.84);
+	--color-accent-foreground: oklch(20.5% 0.015 254.6);
+	--color-destructive: oklch(57.7% 0.245 27.33);
+	--color-destructive-foreground: oklch(98.5% 0.002 247.84);
+	--color-border: oklch(92.2% 0.006 254.6);
+	--color-input: oklch(92.2% 0.006 254.6);
+	--color-ring: oklch(70.8% 0.165 254.6);
+	--color-sidebar: oklch(98.5% 0.002 247.84);
+	--color-sidebar-foreground: oklch(14.5% 0.02 254.6);
+	--color-sidebar-primary: oklch(20.5% 0.015 254.6);
+	--color-sidebar-primary-foreground: oklch(98.5% 0.002 247.84);
+	--color-sidebar-accent: oklch(97% 0.003 247.84);
+	--color-sidebar-accent-foreground: oklch(20.5% 0.015 254.6);
+	--color-sidebar-border: oklch(92.2% 0.006 254.6);
+	--color-sidebar-ring: oklch(70.8% 0.165 254.6);
+	--radius-sm: 0.25rem;
+	--radius-md: 0.375rem;
+	--radius-lg: 0.5rem;
+	--radius-xl: 0.75rem;
+}
+
+@media (prefers-color-scheme: dark) {
+	@theme inline {
+		--color-background: oklch(14.5% 0.02 254.6);
+		--color-foreground: oklch(98.5% 0.002 247.84);
+		--color-card: oklch(14.5% 0.02 254.6);
+		--color-card-foreground: oklch(98.5% 0.002 247.84);
+		--color-popover: oklch(14.5% 0.02 254.6);
+		--color-popover-foreground: oklch(98.5% 0.002 247.84);
+		--color-primary: oklch(98.5% 0.002 247.84);
+		--color-primary-foreground: oklch(20.5% 0.015 254.6);
+		--color-secondary: oklch(26.9% 0.018 254.6);
+		--color-secondary-foreground: oklch(98.5% 0.002 247.84);
+		--color-muted: oklch(26.9% 0.018 254.6);
+		--color-muted-foreground: oklch(70.8% 0.013 254.6);
+		--color-accent: oklch(26.9% 0.018 254.6);
+		--color-accent-foreground: oklch(98.5% 0.002 247.84);
+		--color-destructive: oklch(57.7% 0.245 27.33);
+		--color-destructive-foreground: oklch(98.5% 0.002 247.84);
+		--color-border: oklch(26.9% 0.018 254.6);
+		--color-input: oklch(26.9% 0.018 254.6);
+		--color-ring: oklch(70.8% 0.165 254.6);
+		--color-sidebar: oklch(17.5% 0.017 254.6);
+		--color-sidebar-foreground: oklch(98.5% 0.002 247.84);
+		--color-sidebar-primary: oklch(70.8% 0.165 254.6);
+		--color-sidebar-primary-foreground: oklch(20.5% 0.015 254.6);
+		--color-sidebar-accent: oklch(26.9% 0.018 254.6);
+		--color-sidebar-accent-foreground: oklch(98.5% 0.002 247.84);
+		--color-sidebar-border: oklch(26.9% 0.018 254.6);
+		--color-sidebar-ring: oklch(70.8% 0.165 254.6);
+	}
+}
+
+/**
+ * Base layer styles for consistent look across the app.
+ */
+@layer base {
+	* {
+		@apply border-border;
+	}
+
+	body {
+		@apply bg-background text-foreground;
+		font-feature-settings:
+			"rlig" 1,
+			"calt" 1;
+	}
+}

@@ -1,0 +1,13 @@
+{
+	"extends": "@sen-checkin/typescript-config/nextjs",
+	"compilerOptions": {
+		"baseUrl": ".",
+		"paths": {
+			"@/*": ["./src/*"],
+			"@sen-checkin/api-contract": ["../../packages/api-contract/src"],
+			"@sen-checkin/types": ["../../packages/types/src"]
+		}
+	},
+	"include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+	"exclude": ["node_modules"]
+}

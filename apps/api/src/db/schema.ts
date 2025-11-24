@@ -75,6 +75,11 @@ export const employee = pgTable('employee', {
 	lastName: text('last_name').notNull(),
 	email: text('email'),
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/**
+	 * Rekognition user ID for face recognition.
+	 * Links the employee to their User Vector in the AWS Rekognition collection.
+	 */
+	rekognitionUserId: text('rekognition_user_id'),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

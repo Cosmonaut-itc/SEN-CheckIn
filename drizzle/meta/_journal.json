@@ -15,6 +15,13 @@
       "when": 1763766164123,
       "tag": "0001_handy_master_chief",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1764022692566,
+      "tag": "0002_icy_alice",
+      "breakpoints": true
     }
   ]
 }

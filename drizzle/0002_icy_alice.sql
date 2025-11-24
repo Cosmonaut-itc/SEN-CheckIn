@@ -1,0 +1,1 @@
+ALTER TABLE "employee" ADD COLUMN "rekognition_user_id" text;

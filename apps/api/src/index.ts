@@ -3,7 +3,14 @@ import { opentelemetry } from '@elysiajs/opentelemetry';
 
 import { type Context, Elysia } from 'elysia';
 import { auth } from '../utils/auth.js';
+
+// Route imports
+import { clientRoutes } from './routes/clients.js';
+import { locationRoutes } from './routes/locations.js';
+import { jobPositionRoutes } from './routes/job-positions.js';
 import { employeeRoutes } from './routes/employees.js';
+import { deviceRoutes } from './routes/devices.js';
+import { attendanceRoutes } from './routes/attendance.js';
 import { recognitionRoutes } from './routes/recognition.js';
 
 /**
@@ -24,7 +31,8 @@ const betterAuthView = (context: Context) => {
 
 /**
  * Main Elysia application instance.
- * Configured with OpenAPI documentation, OpenTelemetry, authentication, and face recognition routes.
+ * Configured with OpenAPI documentation, OpenTelemetry, authentication,
+ * CRUD routes for all domain entities, and face recognition routes.
  */
 const app = new Elysia()
 	.use(
@@ -32,14 +40,22 @@ const app = new Elysia()
 			documentation: {
 				info: {
 					title: 'Sen Checkin API Documentation',
-					version: '0.0.1',
+					version: '0.0.2',
 				},
 			},
 		}),
 	)
 	.use(opentelemetry())
+	// Authentication
 	.all('/api/auth/*', betterAuthView)
+	// Domain entity CRUD routes
+	.use(clientRoutes)
+	.use(locationRoutes)
+	.use(jobPositionRoutes)
 	.use(employeeRoutes)
+	.use(deviceRoutes)
+	.use(attendanceRoutes)
+	// Face recognition routes
 	.use(recognitionRoutes)
 	.listen(3000);
 

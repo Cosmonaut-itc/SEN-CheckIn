@@ -1,5 +1,9 @@
 import { boolean, integer, jsonb, pgEnum, pgTable, text, timestamp } from 'drizzle-orm/pg-core';
 
+// ============================================================================
+// Auth Tables (Managed by BetterAuth)
+// ============================================================================
+
 export const user = pgTable('user', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
@@ -60,73 +64,6 @@ export const verification = pgTable('verification', {
 		.notNull(),
 });
 
-/**
- * Enum for attendance record types
- */
-export const attendanceType = pgEnum('attendance_type', ['CHECK_IN', 'CHECK_OUT']);
-
-/**
- * Employee table - stores employee information
- */
-export const employee = pgTable('employee', {
-	id: text('id').primaryKey(),
-	code: text('code').notNull().unique(),
-	firstName: text('first_name').notNull(),
-	lastName: text('last_name').notNull(),
-	email: text('email'),
-	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
-	/**
-	 * Rekognition user ID for face recognition.
-	 * Links the employee to their User Vector in the AWS Rekognition collection.
-	 */
-	rekognitionUserId: text('rekognition_user_id'),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
-
-/**
- * Device table - stores kiosk/device information
- */
-export const device = pgTable('device', {
-	id: text('id').primaryKey(),
-	code: text('code').notNull().unique(),
-	name: text('name'),
-	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
-
-/**
- * AttendanceRecord table - stores attendance check-in/check-out records
- */
-export const attendanceRecord = pgTable('attendance_record', {
-	id: text('id').primaryKey(),
-	employeeId: text('employee_id')
-		.notNull()
-		.references(() => employee.id, { onDelete: 'cascade' }),
-	deviceId: text('device_id')
-		.notNull()
-		.references(() => device.id, { onDelete: 'cascade' }),
-	timestamp: timestamp('timestamp').notNull(),
-	type: attendanceType('type').notNull(),
-	/**
-	 * Additional metadata for future Rekognition integration
-	 * Can store match score, raw payload, face recognition data, etc.
-	 */
-	metadata: jsonb('metadata'),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
-
 export const apikey = pgTable('apikey', {
 	id: text('id').primaryKey(),
 	name: text('name'),
@@ -153,8 +90,31 @@ export const apikey = pgTable('apikey', {
 	metadata: text('metadata'),
 });
 
+// ============================================================================
+// Enums
+// ============================================================================
+
 /**
- * Client table - stores client information
+ * Enum for attendance record types
+ */
+export const attendanceType = pgEnum('attendance_type', ['CHECK_IN', 'CHECK_OUT']);
+
+/**
+ * Enum for employee status
+ */
+export const employeeStatus = pgEnum('employee_status', ['ACTIVE', 'INACTIVE', 'ON_LEAVE']);
+
+/**
+ * Enum for device status
+ */
+export const deviceStatus = pgEnum('device_status', ['ONLINE', 'OFFLINE', 'MAINTENANCE']);
+
+// ============================================================================
+// Domain Tables
+// ============================================================================
+
+/**
+ * Client table - stores client/company information
  */
 export const client = pgTable('client', {
 	id: text('id').primaryKey(),
@@ -178,6 +138,111 @@ export const location = pgTable('location', {
 	clientId: text('client_id')
 		.notNull()
 		.references(() => client.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * JobPosition table - stores job positions/roles for employees
+ */
+export const jobPosition = pgTable('job_position', {
+	id: text('id').primaryKey(),
+	/** Position name (e.g., "Software Engineer", "Manager") */
+	name: text('name').notNull(),
+	/** Optional description of the position */
+	description: text('description'),
+	/** Client this position belongs to (positions are client-specific) */
+	clientId: text('client_id')
+		.notNull()
+		.references(() => client.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Employee table - stores employee information
+ */
+export const employee = pgTable('employee', {
+	id: text('id').primaryKey(),
+	/** Unique employee code/badge number */
+	code: text('code').notNull().unique(),
+	firstName: text('first_name').notNull(),
+	lastName: text('last_name').notNull(),
+	email: text('email'),
+	/** Contact phone number */
+	phone: text('phone'),
+	/** Reference to employee's job position */
+	jobPositionId: text('job_position_id').references(() => jobPosition.id, {
+		onDelete: 'set null',
+	}),
+	/** Department name */
+	department: text('department'),
+	/** Employee status (ACTIVE, INACTIVE, ON_LEAVE) */
+	status: employeeStatus('status').default('ACTIVE').notNull(),
+	/** Date when employee was hired */
+	hireDate: timestamp('hire_date'),
+	/** Location where employee works */
+	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/**
+	 * Rekognition user ID for face recognition.
+	 * Links the employee to their User Vector in the AWS Rekognition collection.
+	 */
+	rekognitionUserId: text('rekognition_user_id'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Device table - stores kiosk/device information
+ */
+export const device = pgTable('device', {
+	id: text('id').primaryKey(),
+	/** Unique device code */
+	code: text('code').notNull().unique(),
+	/** Device name/label */
+	name: text('name'),
+	/** Type of device (TABLET, KIOSK, MOBILE) */
+	deviceType: text('device_type'),
+	/** Device status (ONLINE, OFFLINE, MAINTENANCE) */
+	status: deviceStatus('status').default('OFFLINE').notNull(),
+	/** Last time device sent a heartbeat */
+	lastHeartbeat: timestamp('last_heartbeat'),
+	/** Location where device is installed */
+	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * AttendanceRecord table - stores attendance check-in/check-out records
+ */
+export const attendanceRecord = pgTable('attendance_record', {
+	id: text('id').primaryKey(),
+	employeeId: text('employee_id')
+		.notNull()
+		.references(() => employee.id, { onDelete: 'cascade' }),
+	deviceId: text('device_id')
+		.notNull()
+		.references(() => device.id, { onDelete: 'cascade' }),
+	timestamp: timestamp('timestamp').notNull(),
+	type: attendanceType('type').notNull(),
+	/**
+	 * Additional metadata for Rekognition integration
+	 * Stores match score, raw payload, face recognition data, etc.
+	 */
+	metadata: jsonb('metadata'),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

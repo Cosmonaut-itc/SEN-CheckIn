@@ -22,6 +22,13 @@
       "when": 1764022692566,
       "tag": "0002_icy_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1764023954832,
+      "tag": "0003_sweet_moondragon",
+      "breakpoints": true
     }
   ]
 }

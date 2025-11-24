@@ -110,7 +110,7 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 				};
 			}
 
-			// Look up the matched employee in the database
+			// Look up the matched employee in the database using Rekognition user ID
 			const matchedEmployeeResults = await db
 				.select({
 					id: employee.id,
@@ -119,7 +119,7 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 					code: employee.code,
 				})
 				.from(employee)
-				.where(eq(employee.id, searchResult.userId))
+				.where(eq(employee.rekognitionUserId, searchResult.userId))
 				.limit(1);
 
 			const matchedEmployeeRecord = matchedEmployeeResults[0];

@@ -592,6 +592,7 @@ export interface ListFacesByExternalIdResult {
 /**
  * Lists all faces in the collection associated with a specific external image ID.
  * Useful for finding all faces indexed for a particular employee.
+ * Handles pagination to retrieve all faces across multiple pages (AWS returns max 100 per page).
  *
  * @param externalImageId - The external image ID (employee ID) to search for
  * @returns Promise resolving to the list of face IDs
@@ -601,19 +602,33 @@ export async function listFacesByExternalId(externalImageId: string): Promise<Li
 		const client = getClient();
 		const collectionId = getCollectionId();
 
-		const command = new ListFacesCommand({
-			CollectionId: collectionId,
-		});
+		const allFaceIds: string[] = [];
+		let nextToken: string | undefined;
 
-		const response = await client.send(command);
+		// Paginate through all faces in the collection
+		do {
+			const command = new ListFacesCommand({
+				CollectionId: collectionId,
+				NextToken: nextToken,
+			});
 
-		// Filter faces by external image ID
-		const faceIds =
-			response.Faces?.filter((face) => face.ExternalImageId === externalImageId).map((face) => face.FaceId ?? '') ?? [];
+			const response = await client.send(command);
+
+			// Filter faces by external image ID and collect face IDs
+			const pageFaceIds =
+				response.Faces?.filter((face) => face.ExternalImageId === externalImageId)
+					.map((face) => face.FaceId ?? '')
+					.filter((id) => id !== '') ?? [];
+
+			allFaceIds.push(...pageFaceIds);
+
+			// Check if there are more pages
+			nextToken = response.NextToken;
+		} while (nextToken);
 
 		return {
 			success: true,
-			faceIds: faceIds.filter((id) => id !== ''),
+			faceIds: allFaceIds,
 		};
 	} catch (error) {
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error listing faces';

@@ -4,8 +4,7 @@ import { createApiClient } from '@sen-checkin/api-contract';
  * Environment variable for the API base URL.
  * Falls back to localhost for local development.
  */
-const API_BASE_URL: string =
-	process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 /**
  * Typed Eden Treaty client for communicating with the Sen CheckIn API.
@@ -23,4 +22,3 @@ export const api = createApiClient(API_BASE_URL, {
 });
 
 export { API_BASE_URL };
-

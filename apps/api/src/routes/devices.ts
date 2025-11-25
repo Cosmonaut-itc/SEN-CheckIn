@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ilike, or } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { device, location } from '../db/schema.js';
@@ -34,7 +34,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	.get(
 		'/',
 		async ({ query }) => {
-			const { limit, offset, locationId, status } = query;
+			const { limit, offset, locationId, status, search } = query;
 
 			let baseQuery = db.select().from(device);
 
@@ -45,6 +45,15 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			}
 			if (status) {
 				conditions.push(eq(device.status, status));
+			}
+			if (search) {
+				conditions.push(
+					or(
+						ilike(device.code, `%${search}%`),
+						ilike(device.name, `%${search}%`),
+						ilike(device.deviceType, `%${search}%`),
+					),
+				);
 			}
 
 			if (conditions.length > 0) {
@@ -293,4 +302,3 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			params: idParamSchema,
 		},
 	);
-

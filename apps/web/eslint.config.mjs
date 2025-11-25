@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated or vendored assets we don't lint:
+    "types/**",
+    "aws/**",
+    "awscli-bundle/**",
   ]),
 ]);
 

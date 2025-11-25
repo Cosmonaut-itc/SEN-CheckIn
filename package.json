@@ -15,8 +15,13 @@
 		"lint:mobile": "turbo run lint --filter=mobile",
 		"check-types:api": "turbo run check-types --filter=@sen-checkin/api",
 		"check-types:mobile": "turbo run check-types --filter=mobile",
+		"dev:web": "turbo run dev --filter=@sen-checkin/web",
+		"build:web": "turbo run build --filter=@sen-checkin/web",
+		"lint:web": "turbo run lint --filter=@sen-checkin/web",
+		"check-types:web": "turbo run check-types --filter=@sen-checkin/web",
 		"add:api": "bun add --cwd apps/api",
 		"add:mobile": "bun add --cwd apps/mobile",
+		"add:web": "bun add --cwd apps/web",
 		"db:gen": "bunx --bun drizzle-kit generate --config apps/api/drizzle.config.ts",
 		"db:mig": "bunx --bun drizzle-kit migrate --config apps/api/drizzle.config.ts"
 	},

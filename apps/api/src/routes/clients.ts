@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, ilike } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 
 import db from '../db/index.js';
@@ -32,16 +32,26 @@ export const clientRoutes = new Elysia({ prefix: '/clients' })
 	.get(
 		'/',
 		async ({ query }) => {
-			const { limit, offset } = query;
+			const { limit, offset, search } = query;
 
-			const results = await db
-				.select()
-				.from(client)
-				.limit(limit)
-				.offset(offset)
-				.orderBy(client.name);
+			let baseQuery = db.select().from(client);
+			const conditions = [];
 
-			const countResult = await db.select().from(client);
+			if (search) {
+				conditions.push(ilike(client.name, `%${search}%`));
+			}
+
+			if (conditions.length > 0) {
+				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
+			}
+
+			const results = await baseQuery.limit(limit).offset(offset).orderBy(client.name);
+
+			let countQuery = db.select().from(client);
+			if (conditions.length > 0) {
+				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+			}
+			const countResult = await countQuery;
 			const total = countResult.length;
 
 			return {

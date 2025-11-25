@@ -19,7 +19,11 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "@sen-checkin/api-contract": ["../../packages/api-contract/src"],
+      "@sen-checkin/api-contract/*": ["../../packages/api-contract/src/*"],
+      "@sen-checkin/api": ["../../apps/api/src"],
+      "@sen-checkin/api/*": ["../../apps/api/src/*"]
     }
   },
   "include": [

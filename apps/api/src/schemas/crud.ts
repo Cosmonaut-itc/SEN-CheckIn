@@ -46,7 +46,9 @@ export const updateClientSchema = z.object({
 /**
  * Schema for client query filters.
  */
-export const clientQuerySchema = paginationSchema;
+export const clientQuerySchema = paginationSchema.extend({
+	search: z.string().optional(),
+});
 
 // ============================================================================
 // Location Schemas
@@ -76,6 +78,7 @@ export const updateLocationSchema = z.object({
  */
 export const locationQuerySchema = paginationSchema.extend({
 	clientId: z.string().uuid().optional(),
+	search: z.string().optional(),
 });
 
 // ============================================================================
@@ -194,6 +197,7 @@ export const updateDeviceSchema = z.object({
 export const deviceQuerySchema = paginationSchema.extend({
 	locationId: z.string().uuid().optional(),
 	status: deviceStatusEnum.optional(),
+	search: z.string().optional(),
 });
 
 // ============================================================================
@@ -274,4 +278,3 @@ export type AttendanceType = z.infer<typeof attendanceTypeEnum>;
 export type CreateAttendanceInput = z.infer<typeof createAttendanceSchema>;
 export type AttendanceQuery = z.infer<typeof attendanceQuerySchema>;
 export type EmployeeIdParam = z.infer<typeof employeeIdParamSchema>;
-

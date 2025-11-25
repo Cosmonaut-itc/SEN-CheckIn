@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq, ilike, or } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { location, client } from '../db/schema.js';
@@ -33,20 +33,30 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	.get(
 		'/',
 		async ({ query }) => {
-			const { limit, offset, clientId } = query;
+			const { limit, offset, clientId, search } = query;
 
 			let baseQuery = db.select().from(location);
+			const conditions = [];
 
 			if (clientId) {
-				baseQuery = baseQuery.where(eq(location.clientId, clientId)) as typeof baseQuery;
+				conditions.push(eq(location.clientId, clientId));
+			}
+			if (search) {
+				conditions.push(
+					or(ilike(location.name, `%${search}%`), ilike(location.code, `%${search}%`)),
+				);
+			}
+
+			if (conditions.length > 0) {
+				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
 			}
 
 			const results = await baseQuery.limit(limit).offset(offset).orderBy(location.name);
 
 			// Get total count
 			let countQuery = db.select().from(location);
-			if (clientId) {
-				countQuery = countQuery.where(eq(location.clientId, clientId)) as typeof countQuery;
+			if (conditions.length > 0) {
+				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
 			}
 			const countResult = await countQuery;
 			const total = countResult.length;
@@ -227,4 +237,3 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			params: idParamSchema,
 		},
 	);
-

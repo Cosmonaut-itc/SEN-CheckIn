@@ -13,6 +13,7 @@
 	},
 	"dependencies": {
 		"@aws-sdk/client-rekognition": "^3.700.0",
+		"@elysiajs/cors": "^1.4.0",
 		"@elysiajs/openapi": "^1.4.11",
 		"@elysiajs/opentelemetry": "^1.4.7",
 		"@sinclair/typebox": "^0.34.0",

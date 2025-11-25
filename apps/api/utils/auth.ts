@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { apiKey, admin, organization } from 'better-auth/plugins';
 import db from '../src/db/index.js';
+import * as schema from '../src/db/schema.js';
 
 /**
  * BetterAuth configuration for the Sen CheckIn API.
@@ -11,6 +12,7 @@ import db from '../src/db/index.js';
 export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: 'pg',
+		schema: schema,
 	}),
 	emailAndPassword: {
 		enabled: true,

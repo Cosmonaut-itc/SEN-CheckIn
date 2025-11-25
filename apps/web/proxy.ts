@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
 /**
- * Next.js middleware for handling authentication and route protection.
+ * Next.js proxy for handling authentication and route protection.
+ * Renamed from middleware to proxy as per Next.js 16 convention.
+ *
  * Redirects users based on their authentication status:
  * - Authenticated users accessing auth pages -> Dashboard
  * - Unauthenticated users accessing protected routes -> Sign In
@@ -10,14 +12,14 @@ import { getSessionCookie } from 'better-auth/cookies';
  * @param request - The incoming Next.js request
  * @returns NextResponse with appropriate redirect or continuation
  */
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
 	const sessionCookie = getSessionCookie(request);
 	const { pathname } = request.nextUrl;
 
 	/** Auth pages that authenticated users should be redirected away from */
 	const authPages: string[] = ['/sign-in', '/sign-up'];
 
-	/** Protected routes that require authentication */
+	/** Protected routes that require authentication (routes inside the (dashboard) group) */
 	const protectedPaths: string[] = [
 		'/dashboard',
 		'/employees',
@@ -30,7 +32,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 		'/organizations',
 	];
 
-	// Redirect authenticated users away from auth pages
+	// Redirect authenticated users away from auth pages to dashboard
 	if (sessionCookie && authPages.includes(pathname)) {
 		return NextResponse.redirect(new URL('/dashboard', request.url));
 	}
@@ -48,7 +50,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 /**
- * Middleware configuration - defines which routes the middleware applies to.
+ * Proxy configuration - defines which routes the proxy applies to.
  */
 export const config = {
 	matcher: [

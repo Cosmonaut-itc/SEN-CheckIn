@@ -1,5 +1,13 @@
 {
 	"$schema": "https://turborepo.com/schema.json",
+	"globalEnv": [
+		"NODE_ENV",
+		"LOG_LEVEL",
+		"CORS_ORIGIN",
+		"SEN_DB_URL",
+		"AWS_REGION",
+		"AWS_REKOGNITION_COLLECTION_ID"
+	],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import * as schema from './schema.js';
 
 /**
  * Gets the database connection URL from environment variables.
@@ -16,6 +17,10 @@ function getDatabaseUrl(): string {
 	return databaseUrl;
 }
 
-const db = drizzle(getDatabaseUrl());
+/**
+ * Drizzle ORM database instance configured with the full schema.
+ * Required for Better Auth's Drizzle adapter to work properly.
+ */
+const db = drizzle(getDatabaseUrl(), { schema });
 
 export default db;

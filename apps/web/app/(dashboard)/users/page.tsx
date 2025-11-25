@@ -65,6 +65,9 @@ export default function UsersPage(): React.ReactElement {
 
 	/**
 	 * Fetches users from better-auth admin API.
+	 * Note: We fetch all users without server-side filtering because the API
+	 * only supports searching by a single field (email or name), but the UI
+	 * needs to search by both. Client-side filtering handles this instead.
 	 */
 	const fetchUsers = useCallback(async (): Promise<void> => {
 		try {
@@ -72,8 +75,6 @@ export default function UsersPage(): React.ReactElement {
 				query: {
 					limit: 100,
 					offset: 0,
-					searchField: 'email',
-					searchValue: search || undefined,
 				},
 			});
 			if (response.data?.users) {
@@ -85,7 +86,7 @@ export default function UsersPage(): React.ReactElement {
 		} finally {
 			setIsLoading(false);
 		}
-	}, [search]);
+	}, []);
 
 	useEffect(() => {
 		fetchUsers();
@@ -181,10 +182,13 @@ export default function UsersPage(): React.ReactElement {
 	};
 
 	/**
-	 * Filters users by search term.
+	 * Filters users by search term (name or email).
+	 * Client-side filtering allows searching by both fields simultaneously,
+	 * which the server-side API doesn't support in a single query.
 	 */
 	const filteredUsers = users.filter(
 		(user) =>
+			search === '' ||
 			user.name.toLowerCase().includes(search.toLowerCase()) ||
 			user.email.toLowerCase().includes(search.toLowerCase())
 	);

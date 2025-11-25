@@ -286,6 +286,9 @@ export const client = pgTable('client', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
 	apiKeyId: text('api_key_id').references(() => apikey.id, { onDelete: 'set null' }),
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'set null',
+	}),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

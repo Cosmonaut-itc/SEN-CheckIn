@@ -6,10 +6,16 @@
  * do NOT await the prefetch, allowing Next.js to stream the response
  * as data becomes available.
  *
+ * IMPORTANT: These functions read cookies from `next/headers` and forward
+ * them to the API server. This is necessary because Server Components
+ * do not have access to the browser's cookie jar, so the BetterAuth
+ * session cookie must be explicitly forwarded.
+ *
  * @module server-functions
  */
 
 import type { QueryClient } from '@tanstack/react-query';
+import { cookies, headers } from 'next/headers';
 import {
 	queryKeys,
 	type ListQueryParams,
@@ -17,16 +23,45 @@ import {
 	type UsersQueryParams,
 } from '@/lib/query-keys';
 import {
-	fetchEmployeesList,
-	fetchDevicesList,
-	fetchLocationsList,
-	fetchClientsList,
-	fetchAttendanceRecords,
-	fetchDashboardCounts,
-	fetchApiKeys,
-	fetchOrganizations,
-	fetchUsers,
-} from '@/lib/client-functions';
+	fetchEmployeesListServer,
+	fetchDevicesListServer,
+	fetchLocationsListServer,
+	fetchClientsListServer,
+	fetchAttendanceRecordsServer,
+	fetchDashboardCountsServer,
+	fetchApiKeysServer,
+	fetchOrganizationsServer,
+	fetchUsersServer,
+} from '@/lib/server-client-functions';
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Retrieves the cookie header string from the incoming request.
+ *
+ * This function reads cookies from `next/headers` and converts them
+ * to a header string format that can be forwarded to API requests.
+ *
+ * @returns A promise resolving to the cookie header string
+ */
+async function getCookieHeader(): Promise<string> {
+	const cookieStore = await cookies();
+	return cookieStore.toString();
+}
+
+/**
+ * Retrieves the headers from the incoming request.
+ *
+ * This function reads headers from `next/headers` and returns them
+ * as a Headers object that can be forwarded to API requests.
+ *
+ * @returns A promise resolving to the Headers object
+ */
+async function getRequestHeaders(): Promise<Headers> {
+	return await headers();
+}
 
 // ============================================================================
 // Employee Prefetch Functions
@@ -37,6 +72,8 @@ import {
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
@@ -62,7 +99,10 @@ export function prefetchEmployeesList(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
-		queryFn: () => fetchEmployeesList(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchEmployeesListServer(cookieHeader, params);
+		},
 	});
 }
 
@@ -75,6 +115,8 @@ export function prefetchEmployeesList(
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
@@ -100,7 +142,10 @@ export function prefetchDevicesList(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.devices.list(params),
-		queryFn: () => fetchDevicesList(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDevicesListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchDevicesListServer(cookieHeader, params);
+		},
 	});
 }
 
@@ -113,6 +158,8 @@ export function prefetchDevicesList(
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
@@ -138,7 +185,10 @@ export function prefetchLocationsList(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.locations.list(params),
-		queryFn: () => fetchLocationsList(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchLocationsListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchLocationsListServer(cookieHeader, params);
+		},
 	});
 }
 
@@ -151,6 +201,8 @@ export function prefetchLocationsList(
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
@@ -176,7 +228,10 @@ export function prefetchClientsList(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.clients.list(params),
-		queryFn: () => fetchClientsList(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchClientsListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchClientsListServer(cookieHeader, params);
+		},
 	});
 }
 
@@ -189,6 +244,8 @@ export function prefetchClientsList(
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
@@ -217,7 +274,10 @@ export function prefetchAttendanceRecords(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.attendance.list(params),
-		queryFn: () => fetchAttendanceRecords(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchAttendanceRecordsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchAttendanceRecordsServer(cookieHeader, params);
+		},
 	});
 }
 
@@ -230,6 +290,8 @@ export function prefetchAttendanceRecords(
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  *
@@ -251,7 +313,10 @@ export function prefetchAttendanceRecords(
 export function prefetchDashboardCounts(queryClient: QueryClient): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.dashboard.counts(),
-		queryFn: fetchDashboardCounts,
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDashboardCountsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchDashboardCountsServer(cookieHeader);
+		},
 	});
 }
 
@@ -264,6 +329,8 @@ export function prefetchDashboardCounts(queryClient: QueryClient): void {
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Headers are forwarded from the incoming request to authenticate
+ * with the BetterAuth API.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  *
@@ -285,7 +352,10 @@ export function prefetchDashboardCounts(queryClient: QueryClient): void {
 export function prefetchApiKeys(queryClient: QueryClient): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.apiKeys.list(),
-		queryFn: fetchApiKeys,
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchApiKeysServer>>> => {
+			const requestHeaders: Headers = await getRequestHeaders();
+			return fetchApiKeysServer(requestHeaders);
+		},
 	});
 }
 
@@ -298,6 +368,8 @@ export function prefetchApiKeys(queryClient: QueryClient): void {
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Headers are forwarded from the incoming request to authenticate
+ * with the BetterAuth API.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  *
@@ -319,7 +391,10 @@ export function prefetchApiKeys(queryClient: QueryClient): void {
 export function prefetchOrganizations(queryClient: QueryClient): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.organizations.list(),
-		queryFn: fetchOrganizations,
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchOrganizationsServer>>> => {
+			const requestHeaders: Headers = await getRequestHeaders();
+			return fetchOrganizationsServer(requestHeaders);
+		},
 	});
 }
 
@@ -332,6 +407,8 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
+ * Headers are forwarded from the incoming request to authenticate
+ * with the BetterAuth API.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for pagination
@@ -357,7 +434,9 @@ export function prefetchUsers(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.users.list(params),
-		queryFn: () => fetchUsers(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchUsersServer>>> => {
+			const requestHeaders: Headers = await getRequestHeaders();
+			return fetchUsersServer(requestHeaders, params);
+		},
 	});
 }
-

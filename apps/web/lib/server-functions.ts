@@ -15,7 +15,7 @@
  */
 
 import type { QueryClient } from '@tanstack/react-query';
-import { cookies, headers } from 'next/headers';
+import { headers } from 'next/headers';
 import {
 	queryKeys,
 	type ListQueryParams,
@@ -41,14 +41,14 @@ import {
 /**
  * Retrieves the cookie header string from the incoming request.
  *
- * This function reads cookies from `next/headers` and converts them
- * to a header string format that can be forwarded to API requests.
+ * This function reads the cookie header from the incoming request headers
+ * and returns it as a string that can be forwarded to API requests.
  *
- * @returns A promise resolving to the cookie header string
+ * @returns A promise resolving to the cookie header string, or empty string if no cookies
  */
 async function getCookieHeader(): Promise<string> {
-	const cookieStore = await cookies();
-	return cookieStore.toString();
+	const requestHeaders = await headers();
+	return requestHeaders.get('cookie') ?? '';
 }
 
 /**

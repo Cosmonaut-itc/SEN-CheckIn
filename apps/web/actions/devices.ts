@@ -6,10 +6,14 @@
  * These actions are called from client components via useMutation
  * and execute on the server with full access to the API.
  *
+ * All actions forward the caller's session cookies to the API
+ * for proper authentication.
+ *
  * @module actions/devices
  */
 
-import { api } from '@/lib/api';
+import { cookies } from 'next/headers';
+import { createServerApiClient } from '@/lib/server-api';
 import type { DeviceStatus } from '@/lib/client-functions';
 
 /**
@@ -70,10 +74,12 @@ export interface MutationResult<T = unknown> {
  * });
  * ```
  */
-export async function createDevice(
-	input: CreateDeviceInput,
-): Promise<MutationResult> {
+export async function createDevice(input: CreateDeviceInput): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.devices.post({
 			code: input.code,
 			name: input.name || undefined,
@@ -117,10 +123,12 @@ export async function createDevice(
  * });
  * ```
  */
-export async function updateDevice(
-	input: UpdateDeviceInput,
-): Promise<MutationResult> {
+export async function updateDevice(input: UpdateDeviceInput): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.devices[input.id].put({
 			code: input.code,
 			name: input.name || undefined,
@@ -161,6 +169,10 @@ export async function updateDevice(
  */
 export async function deleteDevice(id: string): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.devices[id].delete();
 
 		if (response.error) {
@@ -181,4 +193,3 @@ export async function deleteDevice(id: string): Promise<MutationResult> {
 		};
 	}
 }
-

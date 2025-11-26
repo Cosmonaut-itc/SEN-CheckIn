@@ -6,10 +6,14 @@
  * These actions are called from client components via useMutation
  * and execute on the server with full access to the API.
  *
+ * All actions forward the caller's session cookies to the API
+ * for proper authentication.
+ *
  * @module actions/employees
  */
 
-import { api } from '@/lib/api';
+import { cookies } from 'next/headers';
+import { createServerApiClient } from '@/lib/server-api';
 import type { EmployeeStatus } from '@/lib/client-functions';
 
 /**
@@ -82,10 +86,12 @@ export interface MutationResult<T = unknown> {
  * });
  * ```
  */
-export async function createEmployee(
-	input: CreateEmployeeInput,
-): Promise<MutationResult> {
+export async function createEmployee(input: CreateEmployeeInput): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.employees.post({
 			code: input.code,
 			firstName: input.firstName,
@@ -133,10 +139,12 @@ export async function createEmployee(
  * });
  * ```
  */
-export async function updateEmployee(
-	input: UpdateEmployeeInput,
-): Promise<MutationResult> {
+export async function updateEmployee(input: UpdateEmployeeInput): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.employees[input.id].put({
 			code: input.code,
 			firstName: input.firstName,
@@ -180,6 +188,10 @@ export async function updateEmployee(
  */
 export async function deleteEmployee(id: string): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.employees[id].delete();
 
 		if (response.error) {
@@ -200,4 +212,3 @@ export async function deleteEmployee(id: string): Promise<MutationResult> {
 		};
 	}
 }
-

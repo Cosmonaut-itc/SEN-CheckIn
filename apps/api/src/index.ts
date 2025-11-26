@@ -6,22 +6,23 @@ import { type Context, Elysia } from 'elysia';
 import { auth } from '../utils/auth.js';
 
 // Plugin imports
+import { configureLogger, logger } from './logger/index.js';
+import { combinedAuthPlugin } from './plugins/auth.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import { loggerPlugin } from './plugins/logger.js';
-import { logger, configureLogger } from './logger/index.js';
 
 // Route imports
-import { clientRoutes } from './routes/clients.js';
-import { locationRoutes } from './routes/locations.js';
-import { jobPositionRoutes } from './routes/job-positions.js';
-import { employeeRoutes } from './routes/employees.js';
-import { deviceRoutes } from './routes/devices.js';
 import { attendanceRoutes } from './routes/attendance.js';
+import { clientRoutes } from './routes/clients.js';
+import { deviceRoutes } from './routes/devices.js';
+import { employeeRoutes } from './routes/employees.js';
+import { jobPositionRoutes } from './routes/job-positions.js';
+import { locationRoutes } from './routes/locations.js';
 import { recognitionRoutes } from './routes/recognition.js';
 
 // Configure logger based on environment
 configureLogger({
-	level: process.env.LOG_LEVEL as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT' ?? 'INFO',
+	level: (process.env.LOG_LEVEL as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') ?? 'INFO',
 	colorize: process.env.NODE_ENV !== 'production',
 });
 
@@ -45,10 +46,34 @@ const betterAuthView = (context: Context) => {
 };
 
 /**
+ * Protected routes plugin that requires authentication.
+ * Groups all domain entity CRUD routes under authentication middleware.
+ * Accepts both session-based authentication and API key authentication.
+ *
+ * All routes under this plugin require a valid session cookie or API key.
+ * The authenticated user/session or API key info is available in the route context.
+ */
+const protectedRoutes = new Elysia({ name: 'protected-routes' })
+	.use(combinedAuthPlugin)
+	// Domain entity CRUD routes (all require authentication)
+	.use(clientRoutes)
+	.use(locationRoutes)
+	.use(jobPositionRoutes)
+	.use(employeeRoutes)
+	.use(deviceRoutes)
+	.use(attendanceRoutes)
+	// Face recognition routes (requires authentication)
+	.use(recognitionRoutes);
+
+/**
  * Main Elysia application instance.
  * Configured with CORS, OpenAPI documentation, OpenTelemetry, authentication,
  * error handling, request logging, CRUD routes for all domain entities,
  * and face recognition routes.
+ *
+ * Route authentication:
+ * - `/api/auth/*` - Public routes for BetterAuth (sign-in, sign-up, etc.)
+ * - All other routes require authentication via session or API key
  */
 const app = new Elysia()
 	// Core plugins - order matters: CORS, error handler and logger should be first
@@ -57,7 +82,7 @@ const app = new Elysia()
 			origin: process.env.CORS_ORIGIN ?? 'http://localhost:3001',
 			methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 			credentials: true,
-			allowedHeaders: ['Content-Type', 'Authorization'],
+			allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
 		}),
 	)
 	.use(errorHandlerPlugin)
@@ -69,21 +94,30 @@ const app = new Elysia()
 					title: 'Sen Checkin API Documentation',
 					version: '0.0.2',
 				},
+				components: {
+					securitySchemes: {
+						bearerAuth: {
+							type: 'http',
+							scheme: 'bearer',
+							description: 'Session token or API key',
+						},
+						apiKey: {
+							type: 'apiKey',
+							in: 'header',
+							name: 'x-api-key',
+							description: 'API key for machine-to-machine authentication',
+						},
+					},
+				},
+				security: [{ bearerAuth: [] }, { apiKey: [] }],
 			},
 		}),
 	)
 	.use(opentelemetry())
-	// Authentication
+	// Public authentication routes (sign-in, sign-up, etc.)
 	.all('/api/auth/*', betterAuthView)
-	// Domain entity CRUD routes
-	.use(clientRoutes)
-	.use(locationRoutes)
-	.use(jobPositionRoutes)
-	.use(employeeRoutes)
-	.use(deviceRoutes)
-	.use(attendanceRoutes)
-	// Face recognition routes
-	.use(recognitionRoutes)
+	// All protected routes (require authentication)
+	.use(protectedRoutes)
 	.listen(3000);
 
 export type App = typeof app;

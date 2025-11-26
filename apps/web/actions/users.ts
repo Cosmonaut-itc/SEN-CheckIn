@@ -6,10 +6,13 @@
  * These actions are called from client components via useMutation
  * and execute on the server with full access to the auth client.
  *
+ * All actions forward the caller's session headers to the auth API
+ * for proper authentication.
+ *
  * @module actions/users
  */
 
-import { authClient } from '@/lib/auth-client';
+import { serverAuthClient, getServerFetchOptions } from '@/lib/server-auth-client';
 
 /**
  * User role type.
@@ -52,14 +55,16 @@ export interface MutationResult<T = unknown> {
  * });
  * ```
  */
-export async function setUserRole(
-	input: SetUserRoleInput,
-): Promise<MutationResult> {
+export async function setUserRole(input: SetUserRoleInput): Promise<MutationResult> {
 	try {
-		const response = await authClient.admin.setRole({
-			userId: input.userId,
-			role: input.role,
-		});
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.admin.setRole(
+			{
+				userId: input.userId,
+				role: input.role,
+			},
+			fetchOptions,
+		);
 
 		if (response.error) {
 			return {
@@ -94,9 +99,13 @@ export async function setUserRole(
  */
 export async function banUser(userId: string): Promise<MutationResult> {
 	try {
-		const response = await authClient.admin.banUser({
-			userId,
-		});
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.admin.banUser(
+			{
+				userId,
+			},
+			fetchOptions,
+		);
 
 		if (response.error) {
 			return {
@@ -130,9 +139,13 @@ export async function banUser(userId: string): Promise<MutationResult> {
  */
 export async function unbanUser(userId: string): Promise<MutationResult> {
 	try {
-		const response = await authClient.admin.unbanUser({
-			userId,
-		});
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.admin.unbanUser(
+			{
+				userId,
+			},
+			fetchOptions,
+		);
 
 		if (response.error) {
 			return {
@@ -152,4 +165,3 @@ export async function unbanUser(userId: string): Promise<MutationResult> {
 		};
 	}
 }
-

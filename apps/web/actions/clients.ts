@@ -6,10 +6,14 @@
  * These actions are called from client components via useMutation
  * and execute on the server with full access to the API.
  *
+ * All actions forward the caller's session cookies to the API
+ * for proper authentication.
+ *
  * @module actions/clients
  */
 
-import { api } from '@/lib/api';
+import { cookies } from 'next/headers';
+import { createServerApiClient } from '@/lib/server-api';
 
 /**
  * Input data for creating a new client.
@@ -54,10 +58,12 @@ export interface MutationResult<T = unknown> {
  * });
  * ```
  */
-export async function createClient(
-	input: CreateClientInput,
-): Promise<MutationResult> {
+export async function createClient(input: CreateClientInput): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.clients.post({
 			name: input.name,
 		});
@@ -96,10 +102,12 @@ export async function createClient(
  * });
  * ```
  */
-export async function updateClient(
-	input: UpdateClientInput,
-): Promise<MutationResult> {
+export async function updateClient(input: UpdateClientInput): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.clients[input.id].put({
 			name: input.name,
 		});
@@ -137,6 +145,10 @@ export async function updateClient(
  */
 export async function deleteClient(id: string): Promise<MutationResult> {
 	try {
+		const cookieStore = await cookies();
+		const cookieHeader = cookieStore.toString();
+		const api = createServerApiClient(cookieHeader);
+
 		const response = await api.clients[id].delete();
 
 		if (response.error) {
@@ -157,4 +169,3 @@ export async function deleteClient(id: string): Promise<MutationResult> {
 		};
 	}
 }
-

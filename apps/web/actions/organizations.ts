@@ -6,10 +6,13 @@
  * These actions are called from client components via useMutation
  * and execute on the server with full access to the auth client.
  *
+ * All actions forward the caller's session headers to the auth API
+ * for proper authentication.
+ *
  * @module actions/organizations
  */
 
-import { authClient } from '@/lib/auth-client';
+import { serverAuthClient, getServerFetchOptions } from '@/lib/server-auth-client';
 
 /**
  * Input data for creating a new organization.
@@ -47,14 +50,16 @@ export interface MutationResult<T = unknown> {
  * });
  * ```
  */
-export async function createOrganization(
-	input: CreateOrganizationInput,
-): Promise<MutationResult> {
+export async function createOrganization(input: CreateOrganizationInput): Promise<MutationResult> {
 	try {
-		const response = await authClient.organization.create({
-			name: input.name,
-			slug: input.slug,
-		});
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.organization.create(
+			{
+				name: input.name,
+				slug: input.slug,
+			},
+			fetchOptions,
+		);
 
 		if (response.error) {
 			return {
@@ -87,13 +92,15 @@ export async function createOrganization(
  * const result = await deleteOrganization('organization-id');
  * ```
  */
-export async function deleteOrganization(
-	organizationId: string,
-): Promise<MutationResult> {
+export async function deleteOrganization(organizationId: string): Promise<MutationResult> {
 	try {
-		const response = await authClient.organization.delete({
-			organizationId,
-		});
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.organization.delete(
+			{
+				organizationId,
+			},
+			fetchOptions,
+		);
 
 		if (response.error) {
 			return {
@@ -113,4 +120,3 @@ export async function deleteOrganization(
 		};
 	}
 }
-

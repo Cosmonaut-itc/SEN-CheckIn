@@ -68,6 +68,16 @@ export interface UserCreationResult {
 }
 
 /**
+ * Result of deleting a Rekognition user and associated faces.
+ */
+export interface RekognitionDeleteResult {
+	/** Whether the deletion completed successfully */
+	success: boolean;
+	/** Message providing additional context or error details */
+	message: string;
+}
+
+/**
  * Matched user information from a face search operation.
  */
 export interface UserMatch {

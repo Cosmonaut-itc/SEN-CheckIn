@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { jobPosition, client } from '../db/schema.js';

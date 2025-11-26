@@ -1,17 +1,17 @@
 import {
-	RekognitionClient,
+	AssociateFacesCommand,
 	CreateCollectionCommand,
 	CreateUserCommand,
-	DeleteUserCommand,
-	IndexFacesCommand,
-	AssociateFacesCommand,
-	DisassociateFacesCommand,
-	SearchUsersByImageCommand,
 	DeleteFacesCommand,
+	DeleteUserCommand,
+	DisassociateFacesCommand,
+	IndexFacesCommand,
 	ListFacesCommand,
+	RekognitionClient,
+	SearchUsersByImageCommand,
 	type FaceRecord,
-	type UserMatch,
 	type SearchedFaceDetails,
+	type UserMatch,
 } from '@aws-sdk/client-rekognition';
 
 import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
@@ -48,7 +48,9 @@ function getAwsRegion(): string {
 function getCollectionId(): string {
 	const collectionId = process.env.AWS_REKOGNITION_COLLECTION_ID;
 	if (!collectionId) {
-		throw new Error('AWS_REKOGNITION_COLLECTION_ID environment variable is required but not set.');
+		throw new Error(
+			'AWS_REKOGNITION_COLLECTION_ID environment variable is required but not set.',
+		);
 	}
 	return collectionId;
 }
@@ -121,7 +123,8 @@ export async function createCollection(): Promise<CreateCollectionResult> {
 			faceModelVersion: response.FaceModelVersion ?? null,
 		};
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error creating collection';
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error creating collection';
 		return {
 			success: false,
 			collectionArn: null,
@@ -285,7 +288,10 @@ function convertBoundingBox(awsBoundingBox: FaceRecord['Face']): BoundingBox {
  * }
  * ```
  */
-export async function indexFace(imageBytes: Uint8Array, employeeId: string): Promise<IndexFaceResult> {
+export async function indexFace(
+	imageBytes: Uint8Array,
+	employeeId: string,
+): Promise<IndexFaceResult> {
 	try {
 		const client = getClient();
 		const collectionId = getCollectionId();
@@ -357,7 +363,10 @@ export interface AssociateFacesResult {
  * }
  * ```
  */
-export async function associateFaces(userId: string, faceIds: string[]): Promise<AssociateFacesResult> {
+export async function associateFaces(
+	userId: string,
+	faceIds: string[],
+): Promise<AssociateFacesResult> {
 	try {
 		const client = getClient();
 		const collectionId = getCollectionId();
@@ -378,7 +387,8 @@ export async function associateFaces(userId: string, faceIds: string[]): Promise
 			message: associatedCount === 0 ? 'No faces were associated' : undefined,
 		};
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error associating faces';
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error associating faces';
 		return {
 			success: false,
 			associatedCount: 0,
@@ -406,7 +416,10 @@ export interface DisassociateFacesResult {
  * @param faceIds - Array of face IDs to disassociate
  * @returns Promise resolving to the disassociation result
  */
-export async function disassociateFaces(userId: string, faceIds: string[]): Promise<DisassociateFacesResult> {
+export async function disassociateFaces(
+	userId: string,
+	faceIds: string[],
+): Promise<DisassociateFacesResult> {
 	try {
 		const client = getClient();
 		const collectionId = getCollectionId();
@@ -421,12 +434,22 @@ export async function disassociateFaces(userId: string, faceIds: string[]): Prom
 
 		const disassociatedCount = response.DisassociatedFaces?.length ?? 0;
 
+		// Treat zero disassociations as a partial failure for better diagnostics
+		if (disassociatedCount === 0 && faceIds.length > 0) {
+			return {
+				success: false,
+				disassociatedCount: 0,
+				message: 'No faces were disassociated from the user',
+			};
+		}
+
 		return {
 			success: true,
 			disassociatedCount,
 		};
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error disassociating faces';
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error disassociating faces';
 		return {
 			success: false,
 			disassociatedCount: 0,
@@ -518,7 +541,8 @@ export async function searchUsersByImage(
 			message: 'No matching user found above similarity threshold',
 		};
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error searching faces';
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error searching faces';
 		return {
 			matched: false,
 			userId: null,
@@ -568,7 +592,8 @@ export async function deleteFaces(faceIds: string[]): Promise<DeleteFacesResult>
 			deletedFaceIds: response.DeletedFaces ?? [],
 		};
 	} catch (error) {
-		const errorMessage = error instanceof Error ? error.message : 'Unknown error deleting faces';
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error deleting faces';
 		return {
 			success: false,
 			deletedFaceIds: [],
@@ -597,7 +622,9 @@ export interface ListFacesByExternalIdResult {
  * @param externalImageId - The external image ID (employee ID) to search for
  * @returns Promise resolving to the list of face IDs
  */
-export async function listFacesByExternalId(externalImageId: string): Promise<ListFacesByExternalIdResult> {
+export async function listFacesByExternalId(
+	externalImageId: string,
+): Promise<ListFacesByExternalIdResult> {
 	try {
 		const client = getClient();
 		const collectionId = getCollectionId();
@@ -639,4 +666,3 @@ export async function listFacesByExternalId(externalImageId: string): Promise<Li
 		};
 	}
 }
-

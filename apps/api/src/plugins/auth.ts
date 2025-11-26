@@ -75,7 +75,7 @@ export interface AuthSession {
  */
 export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
 	{ as: 'scoped' },
-	async ({ request: { headers }, set }): Promise<{ user: AuthUser; session: AuthSession }> => {
+	async ({ request: { headers } }): Promise<{ user: AuthUser; session: AuthSession }> => {
 		const session = await auth.api.getSession({
 			headers,
 		});
@@ -110,7 +110,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
  */
 export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).derive(
 	{ as: 'scoped' },
-	async ({ request, set }): Promise<{ apiKeyId: string; apiKeyName: string | null }> => {
+	async ({ request }): Promise<{ apiKeyId: string; apiKeyName: string | null }> => {
 		// Extract API key from headers
 		const authHeader = request.headers.get('authorization');
 		const apiKeyHeader = request.headers.get('x-api-key');
@@ -169,7 +169,6 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
 	{ as: 'scoped' },
 	async ({
 		request,
-		set,
 	}): Promise<
 		| { authType: 'session'; user: AuthUser; session: AuthSession; apiKeyId: null; apiKeyName: null }
 		| { authType: 'apiKey'; user: null; session: null; apiKeyId: string; apiKeyName: string | null }

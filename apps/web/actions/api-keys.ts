@@ -6,10 +6,13 @@
  * These actions are called from client components via useMutation
  * and execute on the server with full access to the auth client.
  *
+ * All actions forward the caller's session headers to the auth API
+ * for proper authentication.
+ *
  * @module actions/api-keys
  */
 
-import { authClient } from '@/lib/auth-client';
+import { serverAuthClient, getServerFetchOptions } from '@/lib/server-auth-client';
 
 /**
  * Input data for creating a new API key.
@@ -59,9 +62,13 @@ export async function createApiKey(
 	input: CreateApiKeyInput,
 ): Promise<MutationResult<CreateApiKeyResult>> {
 	try {
-		const response = await authClient.apiKey.create({
-			name: input.name || undefined,
-		});
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.apiKey.create(
+			{
+				name: input.name || undefined,
+			},
+			fetchOptions,
+		);
 
 		if (response.error) {
 			return {
@@ -106,7 +113,8 @@ export async function createApiKey(
  */
 export async function deleteApiKey(keyId: string): Promise<MutationResult> {
 	try {
-		const response = await authClient.apiKey.delete({ keyId });
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.apiKey.delete({ keyId }, fetchOptions);
 
 		if (response.error) {
 			return {
@@ -126,4 +134,3 @@ export async function deleteApiKey(keyId: string): Promise<MutationResult> {
 		};
 	}
 }
-

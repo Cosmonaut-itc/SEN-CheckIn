@@ -81,10 +81,15 @@ export function DevicesPageClient(): React.ReactElement {
 	const [formData, setFormData] = useState<DeviceFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+	// Build query params - only include search if it has a value
+	const queryParams = search
+		? { search, limit: 100, offset: 0 }
+		: { limit: 100, offset: 0 };
+
 	// Query for devices list
 	const { data, isFetching } = useQuery({
-		queryKey: queryKeys.devices.list({ search: search || undefined, limit: 100, offset: 0 }),
-		queryFn: () => fetchDevicesList({ search: search || undefined, limit: 100, offset: 0 }),
+		queryKey: queryKeys.devices.list(queryParams),
+		queryFn: () => fetchDevicesList(queryParams),
 	});
 
 	const devices = data?.data ?? [];

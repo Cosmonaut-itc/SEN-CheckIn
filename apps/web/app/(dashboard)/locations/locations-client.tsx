@@ -64,10 +64,15 @@ export function LocationsPageClient(): React.ReactElement {
 	const [formData, setFormData] = useState<LocationFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+	// Build query params - only include search if it has a value
+	const queryParams = search
+		? { search, limit: 100, offset: 0 }
+		: { limit: 100, offset: 0 };
+
 	// Query for locations list
 	const { data, isFetching } = useQuery({
-		queryKey: queryKeys.locations.list({ search: search || undefined, limit: 100, offset: 0 }),
-		queryFn: () => fetchLocationsList({ search: search || undefined, limit: 100, offset: 0 }),
+		queryKey: queryKeys.locations.list(queryParams),
+		queryFn: () => fetchLocationsList(queryParams),
 	});
 
 	const locations = data?.data ?? [];

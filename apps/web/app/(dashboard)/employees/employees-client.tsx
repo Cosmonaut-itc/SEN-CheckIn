@@ -87,10 +87,15 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+	// Build query params - only include search if it has a value
+	const queryParams = search
+		? { search, limit: 100, offset: 0 }
+		: { limit: 100, offset: 0 };
+
 	// Query for employees list
 	const { data, isFetching } = useQuery({
-		queryKey: queryKeys.employees.list({ search: search || undefined, limit: 100, offset: 0 }),
-		queryFn: () => fetchEmployeesList({ search: search || undefined, limit: 100, offset: 0 }),
+		queryKey: queryKeys.employees.list(queryParams),
+		queryFn: () => fetchEmployeesList(queryParams),
 	});
 
 	const employees = data?.data ?? [];

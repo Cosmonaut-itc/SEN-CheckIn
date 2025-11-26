@@ -9,11 +9,7 @@
 
 import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
-import type {
-	ListQueryParams,
-	AttendanceQueryParams,
-	UsersQueryParams,
-} from '@/lib/query-keys';
+import type { AttendanceQueryParams, ListQueryParams, UsersQueryParams } from '@/lib/query-keys';
 
 // ============================================================================
 // Type Definitions
@@ -196,15 +192,26 @@ export interface DashboardCounts {
 export async function fetchEmployeesList(
 	params?: ListQueryParams,
 ): Promise<PaginatedResponse<Employee>> {
-	const response = await api.employees.get({
-		$query: {
-			limit: params?.limit ?? 100,
-			offset: params?.offset ?? 0,
-			search: params?.search || undefined,
-		},
-	});
+	// Build query object, only including defined values
+	// Eden Treaty converts undefined to string "undefined" which breaks search
+	const query: {
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	// Only add search if it has a non-empty value
+	if (params?.search) {
+		query.search = params.search;
+	}
+
+	const response = await api.employees.get({ $query: query });
 
 	if (response.error) {
+		console.error('Failed to fetch employees:', response.error, 'Status:', response.status);
 		throw new Error('Failed to fetch employees');
 	}
 
@@ -233,13 +240,21 @@ export async function fetchEmployeesList(
 export async function fetchDevicesList(
 	params?: ListQueryParams,
 ): Promise<PaginatedResponse<Device>> {
-	const response = await api.devices.get({
-		$query: {
-			limit: params?.limit ?? 100,
-			offset: params?.offset ?? 0,
-			search: params?.search || undefined,
-		},
-	});
+	// Build query object, only including defined values
+	const query: {
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.search) {
+		query.search = params.search;
+	}
+
+	const response = await api.devices.get({ $query: query });
 
 	if (response.error) {
 		throw new Error('Failed to fetch devices');
@@ -270,13 +285,21 @@ export async function fetchDevicesList(
 export async function fetchLocationsList(
 	params?: ListQueryParams,
 ): Promise<PaginatedResponse<Location>> {
-	const response = await api.locations.get({
-		$query: {
-			limit: params?.limit ?? 100,
-			offset: params?.offset ?? 0,
-			search: params?.search || undefined,
-		},
-	});
+	// Build query object, only including defined values
+	const query: {
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.search) {
+		query.search = params.search;
+	}
+
+	const response = await api.locations.get({ $query: query });
 
 	if (response.error) {
 		throw new Error('Failed to fetch locations');
@@ -307,13 +330,21 @@ export async function fetchLocationsList(
 export async function fetchClientsList(
 	params?: ListQueryParams,
 ): Promise<PaginatedResponse<Client>> {
-	const response = await api.clients.get({
-		$query: {
-			limit: params?.limit ?? 100,
-			offset: params?.offset ?? 0,
-			search: params?.search || undefined,
-		},
-	});
+	// Build query object, only including defined values
+	const query: {
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.search) {
+		query.search = params.search;
+	}
+
+	const response = await api.clients.get({ $query: query });
 
 	if (response.error) {
 		throw new Error('Failed to fetch clients');
@@ -398,14 +429,13 @@ export async function fetchAttendanceRecords(
  * ```
  */
 export async function fetchDashboardCounts(): Promise<DashboardCounts> {
-	const [employeesRes, devicesRes, locationsRes, clientsRes, attendanceRes] =
-		await Promise.all([
-			api.employees.get({ $query: { limit: 1, offset: 0 } }),
-			api.devices.get({ $query: { limit: 1, offset: 0 } }),
-			api.locations.get({ $query: { limit: 1, offset: 0 } }),
-			api.clients.get({ $query: { limit: 1, offset: 0 } }),
-			api.attendance.get({ $query: { limit: 1, offset: 0 } }),
-		]);
+	const [employeesRes, devicesRes, locationsRes, clientsRes, attendanceRes] = await Promise.all([
+		api.employees.get({ $query: { limit: 1, offset: 0 } }),
+		api.devices.get({ $query: { limit: 1, offset: 0 } }),
+		api.locations.get({ $query: { limit: 1, offset: 0 } }),
+		api.clients.get({ $query: { limit: 1, offset: 0 } }),
+		api.attendance.get({ $query: { limit: 1, offset: 0 } }),
+	]);
 
 	return {
 		employees: employeesRes.data?.pagination?.total ?? 0,
@@ -496,4 +526,3 @@ export async function fetchUsers(params?: UsersQueryParams): Promise<User[]> {
 
 	return (response.data?.users ?? []) as User[];
 }
-

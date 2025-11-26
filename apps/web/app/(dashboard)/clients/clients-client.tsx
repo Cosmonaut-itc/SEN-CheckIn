@@ -58,10 +58,15 @@ export function ClientsPageClient(): React.ReactElement {
 	const [formData, setFormData] = useState<ClientFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+	// Build query params - only include search if it has a value
+	const queryParams = search
+		? { search, limit: 100, offset: 0 }
+		: { limit: 100, offset: 0 };
+
 	// Query for clients list
 	const { data, isFetching } = useQuery({
-		queryKey: queryKeys.clients.list({ search: search || undefined, limit: 100, offset: 0 }),
-		queryFn: () => fetchClientsList({ search: search || undefined, limit: 100, offset: 0 }),
+		queryKey: queryKeys.clients.list(queryParams),
+		queryFn: () => fetchClientsList(queryParams),
 	});
 
 	const clients = data?.data ?? [];

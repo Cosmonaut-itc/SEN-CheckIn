@@ -96,22 +96,15 @@ export function AttendancePageClient(): React.ReactElement {
 	// Get the current date range for the query
 	const { start, end } = getDateRange(datePreset);
 
+	// Build query params - only include type if it's not 'all'
+	const queryParams = typeFilter !== 'all'
+		? { limit: 100, offset: 0, fromDate: start, toDate: end, type: typeFilter }
+		: { limit: 100, offset: 0, fromDate: start, toDate: end };
+
 	// Query for attendance records
 	const { data, isFetching, refetch } = useQuery({
-		queryKey: queryKeys.attendance.list({
-			limit: 100,
-			offset: 0,
-			fromDate: start,
-			toDate: end,
-			type: typeFilter !== 'all' ? typeFilter : undefined,
-		}),
-		queryFn: () => fetchAttendanceRecords({
-			limit: 100,
-			offset: 0,
-			fromDate: start,
-			toDate: end,
-			type: typeFilter !== 'all' ? typeFilter : undefined,
-		}),
+		queryKey: queryKeys.attendance.list(queryParams),
+		queryFn: () => fetchAttendanceRecords(queryParams),
 	});
 
 	const records = data?.data ?? [];

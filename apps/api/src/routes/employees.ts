@@ -1,28 +1,28 @@
+import { and, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
-import { eq, and, or, ilike } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { employee, location, jobPosition } from '../db/schema.js';
+import { employee, jobPosition, location } from '../db/schema.js';
 import {
-	imageBodySchema,
+	createEmployeeSchema,
+	employeeQuerySchema,
+	idParamSchema,
+	updateEmployeeSchema,
+} from '../schemas/crud.js';
+import {
 	employeeIdParamsSchema,
+	imageBodySchema,
 	type FaceEnrollmentResult,
 	type UserCreationResult,
 } from '../schemas/recognition.js';
 import {
-	idParamSchema,
-	employeeQuerySchema,
-	createEmployeeSchema,
-	updateEmployeeSchema,
-} from '../schemas/crud.js';
-import {
-	createUser,
-	deleteUser,
-	indexFace,
 	associateFaces,
-	disassociateFaces,
-	listFacesByExternalId,
+	createUser,
 	deleteFaces,
+	deleteUser,
+	disassociateFaces,
+	indexFace,
+	listFacesByExternalId,
 } from '../services/rekognition.js';
 
 /**
@@ -102,7 +102,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
 			}
 
-			const results = await baseQuery.limit(limit).offset(offset).orderBy(employee.lastName, employee.firstName);
+			const results = await baseQuery
+				.limit(limit)
+				.offset(offset)
+				.orderBy(employee.lastName, employee.firstName);
 
 			// Get total count with same filters
 			let countQuery = db.select().from(employee);
@@ -164,11 +167,26 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	.post(
 		'/',
 		async ({ body, set }) => {
-			const { code, firstName, lastName, email, phone, jobPositionId, department, status: empStatus, hireDate, locationId } = body;
+			const {
+				code,
+				firstName,
+				lastName,
+				email,
+				phone,
+				jobPositionId,
+				department,
+				status: empStatus,
+				hireDate,
+				locationId,
+			} = body;
 
 			// Verify location exists if provided
 			if (locationId) {
-				const locationExists = await db.select().from(location).where(eq(location.id, locationId)).limit(1);
+				const locationExists = await db
+					.select()
+					.from(location)
+					.where(eq(location.id, locationId))
+					.limit(1);
 				if (!locationExists[0]) {
 					set.status = 400;
 					return { error: 'Location not found' };
@@ -177,7 +195,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Verify job position exists if provided
 			if (jobPositionId) {
-				const positionExists = await db.select().from(jobPosition).where(eq(jobPosition.id, jobPositionId)).limit(1);
+				const positionExists = await db
+					.select()
+					.from(jobPosition)
+					.where(eq(jobPosition.id, jobPositionId))
+					.limit(1);
 				if (!positionExists[0]) {
 					set.status = 400;
 					return { error: 'Job position not found' };
@@ -185,7 +207,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Check if code is unique
-			const codeExists = await db.select().from(employee).where(eq(employee.code, code)).limit(1);
+			const codeExists = await db
+				.select()
+				.from(employee)
+				.where(eq(employee.code, code))
+				.limit(1);
 			if (codeExists[0]) {
 				set.status = 409;
 				return { error: 'Employee code already exists' };
@@ -246,7 +272,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Check if code is unique (if being updated)
 			if (body.code && body.code !== existing[0].code) {
-				const codeExists = await db.select().from(employee).where(eq(employee.code, body.code)).limit(1);
+				const codeExists = await db
+					.select()
+					.from(employee)
+					.where(eq(employee.code, body.code))
+					.limit(1);
 				if (codeExists[0]) {
 					set.status = 409;
 					return { error: 'Employee code already exists' };
@@ -255,7 +285,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Verify location exists if being updated
 			if (body.locationId) {
-				const locationExists = await db.select().from(location).where(eq(location.id, body.locationId)).limit(1);
+				const locationExists = await db
+					.select()
+					.from(location)
+					.where(eq(location.id, body.locationId))
+					.limit(1);
 				if (!locationExists[0]) {
 					set.status = 400;
 					return { error: 'Location not found' };
@@ -264,7 +298,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Verify job position exists if being updated
 			if (body.jobPositionId) {
-				const positionExists = await db.select().from(jobPosition).where(eq(jobPosition.id, body.jobPositionId)).limit(1);
+				const positionExists = await db
+					.select()
+					.from(jobPosition)
+					.where(eq(jobPosition.id, body.jobPositionId))
+					.limit(1);
 				if (!positionExists[0]) {
 					set.status = 400;
 					return { error: 'Job position not found' };
@@ -345,7 +383,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const { id: employeeId } = params;
 
 			// Verify employee exists in database
-			const existingEmployee = await db.select().from(employee).where(eq(employee.id, employeeId)).limit(1);
+			const existingEmployee = await db
+				.select()
+				.from(employee)
+				.where(eq(employee.id, employeeId))
+				.limit(1);
 
 			if (existingEmployee.length === 0) {
 				set.status = 404;
@@ -383,7 +425,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Update employee record with Rekognition user ID
-			await db.update(employee).set({ rekognitionUserId: employeeId }).where(eq(employee.id, employeeId));
+			await db
+				.update(employee)
+				.set({ rekognitionUserId: employeeId })
+				.where(eq(employee.id, employeeId));
 
 			return {
 				success: true,
@@ -413,7 +458,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const { image } = body;
 
 			// Verify employee exists and has a Rekognition user
-			const existingEmployee = await db.select().from(employee).where(eq(employee.id, employeeId)).limit(1);
+			const existingEmployee = await db
+				.select()
+				.from(employee)
+				.where(eq(employee.id, employeeId))
+				.limit(1);
 
 			if (existingEmployee.length === 0) {
 				set.status = 404;
@@ -471,7 +520,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const faceId = indexedFace.faceId;
 
 			// Associate the face with the user
-			const associateResult = await associateFaces(enrollEmployee.rekognitionUserId, [faceId]);
+			const associateResult = await associateFaces(enrollEmployee.rekognitionUserId, [
+				faceId,
+			]);
 
 			return {
 				success: true,
@@ -503,7 +554,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const { id: employeeId } = params;
 
 			// Verify employee exists
-			const existingEmployee = await db.select().from(employee).where(eq(employee.id, employeeId)).limit(1);
+			const existingEmployee = await db
+				.select()
+				.from(employee)
+				.where(eq(employee.id, employeeId))
+				.limit(1);
 
 			const deleteEmployeeRecord = existingEmployee[0];
 			if (!deleteEmployeeRecord) {
@@ -547,7 +602,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Clear the Rekognition user ID from the employee record
-			await db.update(employee).set({ rekognitionUserId: null }).where(eq(employee.id, employeeId));
+			await db
+				.update(employee)
+				.set({ rekognitionUserId: null })
+				.where(eq(employee.id, employeeId));
 
 			return {
 				success: true,

@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
 import { auth } from '../../utils/auth.js';
+import { UnauthorizedError } from '../errors/index.js';
 
 /**
  * Type definition for an authenticated user from BetterAuth session.
@@ -80,8 +81,7 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
 		});
 
 		if (!session) {
-			set.status = 401;
-			throw new Error('Unauthorized: No valid session found');
+			throw new UnauthorizedError('No valid session found');
 		}
 
 		return {
@@ -124,8 +124,7 @@ export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).deri
 		}
 
 		if (!apiKey) {
-			set.status = 401;
-			throw new Error('Unauthorized: No API key provided');
+			throw new UnauthorizedError('No API key provided');
 		}
 
 		// Validate the API key using BetterAuth
@@ -136,8 +135,7 @@ export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).deri
 		});
 
 		if (!result.valid || !result.key) {
-			set.status = 401;
-			throw new Error('Unauthorized: Invalid API key');
+			throw new UnauthorizedError('Invalid API key');
 		}
 
 		return {
@@ -222,8 +220,7 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
 		}
 
 		// Neither authentication method succeeded
-		set.status = 401;
-		throw new Error('Unauthorized: No valid session or API key found');
+		throw new UnauthorizedError('No valid session or API key found');
 	},
 );
 

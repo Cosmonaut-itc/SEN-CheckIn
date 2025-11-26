@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import React, { type ReactNode } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
+import { Providers } from './providers';
 import './globals.css';
 
 /**
@@ -49,8 +50,10 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
 			>
-				{children}
-				<Toaster richColors position="top-right" />
+				<Providers>
+					{children}
+					<Toaster richColors position="top-right" />
+				</Providers>
 			</body>
 		</html>
 	);

@@ -1,8 +1,8 @@
-import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchDashboardCounts } from '@/lib/server-functions';
-import { DashboardPageClient } from './dashboard-client';
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import React from 'react';
+import { DashboardPageClient } from './dashboard-client';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.

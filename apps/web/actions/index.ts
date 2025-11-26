@@ -63,3 +63,14 @@ export {
 
 // Export user actions and types (except MutationResult)
 export { banUser, setUserRole, unbanUser, type SetUserRoleInput, type UserRole } from './users';
+
+// Export employee Rekognition actions and types (except MutationResult)
+export {
+	createRekognitionUser,
+	deleteRekognitionUser,
+	enrollEmployeeFace,
+	fullEnrollmentFlow,
+	type FaceEnrollmentResult,
+	type RekognitionDeleteResult,
+	type UserCreationResult,
+} from './employees-rekognition';

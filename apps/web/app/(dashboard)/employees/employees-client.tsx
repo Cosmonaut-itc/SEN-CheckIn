@@ -21,6 +21,13 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Label } from '@/components/ui/label';
 import {
 	Select,
@@ -29,14 +36,22 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Loader2, MoreHorizontal, UserCheck, UserX, ScanFace } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchEmployeesList, type Employee, type EmployeeStatus } from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
+import { deleteRekognitionUser } from '@/actions/employees-rekognition';
+import { FaceEnrollmentDialog } from '@/components/face-enrollment-dialog';
 
 /**
  * Form data interface for creating/editing employees.
@@ -86,6 +101,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 	const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
+	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
+	const [deleteRekognitionConfirmId, setDeleteRekognitionConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
 	const queryParams = search
@@ -151,6 +169,24 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		onError: () => {
 			toast.error('Failed to delete employee');
+		},
+	});
+
+	// Delete Rekognition user mutation
+	const deleteRekognitionMutation = useMutation({
+		mutationKey: mutationKeys.employees.deleteRekognitionUser,
+		mutationFn: deleteRekognitionUser,
+		onSuccess: (result) => {
+			if (result.success && result.data?.success) {
+				toast.success('Face enrollment data removed');
+				setDeleteRekognitionConfirmId(null);
+				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+			} else {
+				toast.error(result.error ?? result.data?.message ?? 'Failed to remove face enrollment');
+			}
+		},
+		onError: () => {
+			toast.error('Failed to remove face enrollment');
 		},
 	});
 
@@ -223,6 +259,25 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const handleDelete = (id: string): void => {
 		deleteMutation.mutate(id);
+	};
+
+	/**
+	 * Opens the face enrollment dialog for an employee.
+	 *
+	 * @param employee - The employee to enroll
+	 */
+	const handleOpenEnrollDialog = (employee: Employee): void => {
+		setEnrollingEmployee(employee);
+		setIsEnrollDialogOpen(true);
+	};
+
+	/**
+	 * Handles Rekognition user deletion.
+	 *
+	 * @param id - The employee ID to remove Rekognition data for
+	 */
+	const handleDeleteRekognition = (id: string): void => {
+		deleteRekognitionMutation.mutate(id);
 	};
 
 	return (
@@ -395,6 +450,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							<TableHead>Email</TableHead>
 							<TableHead>Department</TableHead>
 							<TableHead>Status</TableHead>
+							<TableHead>Face</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead className="w-[100px]">Actions</TableHead>
 						</TableRow>
@@ -403,7 +459,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
+									{Array.from({ length: 8 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -412,7 +468,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							))
 						) : employees.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
+								<TableCell colSpan={8} className="h-24 text-center">
 									No employees found.
 								</TableCell>
 							</TableRow>
@@ -431,53 +487,154 @@ export function EmployeesPageClient(): React.ReactElement {
 										</Badge>
 									</TableCell>
 									<TableCell>
+										<TooltipProvider>
+											<Tooltip>
+												<TooltipTrigger asChild>
+													{employee.rekognitionUserId ? (
+														<Badge variant="default" className="gap-1">
+															<UserCheck className="h-3 w-3" />
+															Enrolled
+														</Badge>
+													) : (
+														<Badge variant="outline" className="gap-1 text-muted-foreground">
+															<UserX className="h-3 w-3" />
+															Not enrolled
+														</Badge>
+													)}
+												</TooltipTrigger>
+												<TooltipContent>
+													{employee.rekognitionUserId
+														? 'Face recognition is set up for this employee'
+														: 'Face recognition not yet configured'}
+												</TooltipContent>
+											</Tooltip>
+										</TooltipProvider>
+									</TableCell>
+									<TableCell>
 										{format(new Date(employee.createdAt), 'MMM d, yyyy')}
 									</TableCell>
 									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(employee)}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Dialog
-												open={deleteConfirmId === employee.id}
-												onOpenChange={(open) =>
-													setDeleteConfirmId(open ? employee.id : null)
-												}
-											>
-												<DialogTrigger asChild>
-													<Button variant="ghost" size="icon">
-														<Trash2 className="h-4 w-4 text-destructive" />
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button variant="ghost" size="icon">
+													<MoreHorizontal className="h-4 w-4" />
+													<span className="sr-only">Open menu</span>
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												<DropdownMenuItem onClick={() => handleEdit(employee)}>
+													<Pencil className="mr-2 h-4 w-4" />
+													Edit
+												</DropdownMenuItem>
+												<DropdownMenuItem onClick={() => handleOpenEnrollDialog(employee)}>
+													<ScanFace className="mr-2 h-4 w-4" />
+													{employee.rekognitionUserId ? 'Re-enroll face' : 'Enroll face'}
+												</DropdownMenuItem>
+												{employee.rekognitionUserId && (
+													<DropdownMenuItem
+														onClick={() => setDeleteRekognitionConfirmId(employee.id)}
+														className="text-orange-600 focus:text-orange-600"
+													>
+														<UserX className="mr-2 h-4 w-4" />
+														Remove face enrollment
+													</DropdownMenuItem>
+												)}
+												<DropdownMenuSeparator />
+												<DropdownMenuItem
+													onClick={() => setDeleteConfirmId(employee.id)}
+													className="text-destructive focus:text-destructive"
+												>
+													<Trash2 className="mr-2 h-4 w-4" />
+													Delete employee
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+
+										{/* Delete employee confirmation dialog */}
+										<Dialog
+											open={deleteConfirmId === employee.id}
+											onOpenChange={(open) =>
+												setDeleteConfirmId(open ? employee.id : null)
+											}
+										>
+											<DialogContent>
+												<DialogHeader>
+													<DialogTitle>Delete Employee</DialogTitle>
+													<DialogDescription>
+														Are you sure you want to delete {employee.firstName}{' '}
+														{employee.lastName}? This action cannot be undone.
+														{employee.rekognitionUserId && (
+															<span className="block mt-2 text-orange-600">
+																This will also remove their face enrollment data.
+															</span>
+														)}
+													</DialogDescription>
+												</DialogHeader>
+												<DialogFooter>
+													<Button
+														variant="outline"
+														onClick={() => setDeleteConfirmId(null)}
+													>
+														Cancel
 													</Button>
-												</DialogTrigger>
-												<DialogContent>
-													<DialogHeader>
-														<DialogTitle>Delete Employee</DialogTitle>
-														<DialogDescription>
-															Are you sure you want to delete {employee.firstName}{' '}
-															{employee.lastName}? This action cannot be undone.
-														</DialogDescription>
-													</DialogHeader>
-													<DialogFooter>
-														<Button
-															variant="outline"
-															onClick={() => setDeleteConfirmId(null)}
-														>
-															Cancel
-														</Button>
-														<Button
-															variant="destructive"
-															onClick={() => handleDelete(employee.id)}
-														>
-															Delete
-														</Button>
-													</DialogFooter>
-												</DialogContent>
-											</Dialog>
-										</div>
+													<Button
+														variant="destructive"
+														onClick={() => handleDelete(employee.id)}
+														disabled={deleteMutation.isPending}
+													>
+														{deleteMutation.isPending ? (
+															<>
+																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																Deleting...
+															</>
+														) : (
+															'Delete'
+														)}
+													</Button>
+												</DialogFooter>
+											</DialogContent>
+										</Dialog>
+
+										{/* Delete Rekognition confirmation dialog */}
+										<Dialog
+											open={deleteRekognitionConfirmId === employee.id}
+											onOpenChange={(open) =>
+												setDeleteRekognitionConfirmId(open ? employee.id : null)
+											}
+										>
+											<DialogContent>
+												<DialogHeader>
+													<DialogTitle>Remove Face Enrollment</DialogTitle>
+													<DialogDescription>
+														Are you sure you want to remove the face enrollment for{' '}
+														{employee.firstName} {employee.lastName}? They will need to
+														be re-enrolled to use face recognition.
+													</DialogDescription>
+												</DialogHeader>
+												<DialogFooter>
+													<Button
+														variant="outline"
+														onClick={() => setDeleteRekognitionConfirmId(null)}
+													>
+														Cancel
+													</Button>
+													<Button
+														variant="destructive"
+														onClick={() => handleDeleteRekognition(employee.id)}
+														disabled={deleteRekognitionMutation.isPending}
+													>
+														{deleteRekognitionMutation.isPending ? (
+															<>
+																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																Removing...
+															</>
+														) : (
+															'Remove Enrollment'
+														)}
+													</Button>
+												</DialogFooter>
+											</DialogContent>
+										</Dialog>
 									</TableCell>
 								</TableRow>
 							))
@@ -485,6 +642,13 @@ export function EmployeesPageClient(): React.ReactElement {
 					</TableBody>
 				</Table>
 			</div>
+
+			{/* Face Enrollment Dialog */}
+			<FaceEnrollmentDialog
+				open={isEnrollDialogOpen}
+				onOpenChange={setIsEnrollDialogOpen}
+				employee={enrollingEmployee}
+			/>
 		</div>
 	);
 }

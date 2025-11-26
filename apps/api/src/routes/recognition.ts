@@ -87,7 +87,7 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 			let imageBytes: Uint8Array;
 			try {
 				imageBytes = decodeBase64Image(image);
-			} catch (error) {
+			} catch {
 				set.status = 400;
 				return {
 					matched: false,

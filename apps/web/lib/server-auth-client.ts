@@ -8,8 +8,8 @@
  * @module server-auth-client
  */
 
+import { adminClient, apiKeyClient, organizationClient } from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
-import { apiKeyClient, adminClient, organizationClient } from 'better-auth/client/plugins';
 import { headers } from 'next/headers';
 
 /**
@@ -66,4 +66,3 @@ export async function getServerFetchOptions(): Promise<{ headers: Headers }> {
 		headers: headersList,
 	};
 }
-

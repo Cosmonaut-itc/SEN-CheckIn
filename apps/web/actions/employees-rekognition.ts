@@ -13,7 +13,7 @@
  * @module actions/employees-rekognition
  */
 
-import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { createServerApiClient } from '@/lib/server-api';
 
 // ============================================================================
@@ -95,8 +95,8 @@ export async function createRekognitionUser(
 	employeeId: string,
 ): Promise<MutationResult<UserCreationResult>> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees[employeeId]['create-rekognition-user'].post({});
@@ -145,8 +145,8 @@ export async function enrollEmployeeFace(
 	imageBase64: string,
 ): Promise<MutationResult<FaceEnrollmentResult>> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		// Remove data URL prefix if present (the API expects raw base64)
@@ -198,8 +198,8 @@ export async function deleteRekognitionUser(
 	employeeId: string,
 ): Promise<MutationResult<RekognitionDeleteResult>> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees[employeeId]['rekognition-user'].delete();

@@ -12,7 +12,7 @@
  * @module actions/api-keys
  */
 
-import { serverAuthClient, getServerFetchOptions } from '@/lib/server-auth-client';
+import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
 
 /**
  * Input data for creating a new API key.

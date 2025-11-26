@@ -76,4 +76,4 @@ For each dashboard-style page currently implemented as a client component with `
 - Ensure every new function, component, and exported value in `lib/`, `actions/`, and the refactored route files is explicitly typed and documented with JSDoc, respecting your existing patterns.
 - Reuse existing domain types from `@sen-checkin/api-contract` and `packages/types` wherever possible instead of redefining shapes.
 - Keep all date handling (e.g. attendance date presets and any new date transformations) implemented via `date-fns`, consistent with your current usage.
-- After implementation, run `bun run check-types` and `bun run lint` in `apps/web` and fix any introduced issues, including any React Query ESLint plugin rules, so that the refactor is fully type-safe and lint-clean.
+- After implementation, run `bun run check-types` and `bun run lint` in `apps/web` and fix any introduced issues, including any React Query ESLint plugin rules, so that the refactor is fully type-safe and lint-clean.@

@@ -12,8 +12,8 @@
  * @module actions/clients
  */
 
-import { cookies } from 'next/headers';
 import { createServerApiClient } from '@/lib/server-api';
+import { headers } from 'next/headers';
 
 /**
  * Input data for creating a new client.
@@ -60,8 +60,8 @@ export interface MutationResult<T = unknown> {
  */
 export async function createClient(input: CreateClientInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.clients.post({
@@ -104,8 +104,8 @@ export async function createClient(input: CreateClientInput): Promise<MutationRe
  */
 export async function updateClient(input: UpdateClientInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.clients[input.id].put({
@@ -145,8 +145,8 @@ export async function updateClient(input: UpdateClientInput): Promise<MutationRe
  */
 export async function deleteClient(id: string): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.clients[id].delete();

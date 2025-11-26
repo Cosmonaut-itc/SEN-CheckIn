@@ -12,9 +12,9 @@
  * @module actions/employees
  */
 
-import { cookies } from 'next/headers';
-import { createServerApiClient } from '@/lib/server-api';
 import type { EmployeeStatus } from '@/lib/client-functions';
+import { createServerApiClient } from '@/lib/server-api';
+import { headers } from 'next/headers';
 
 /**
  * Input data for creating a new employee.
@@ -88,8 +88,8 @@ export interface MutationResult<T = unknown> {
  */
 export async function createEmployee(input: CreateEmployeeInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees.post({
@@ -141,8 +141,8 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
  */
 export async function updateEmployee(input: UpdateEmployeeInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees[input.id].put({
@@ -188,8 +188,8 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
  */
 export async function deleteEmployee(id: string): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees[id].delete();

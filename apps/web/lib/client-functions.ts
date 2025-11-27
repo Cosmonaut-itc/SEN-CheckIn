@@ -391,7 +391,7 @@ export interface JobPositionQueryParams extends ListQueryParams {
  *
  * @example
  * ```ts
- * const { data, pagination } = await fetchJobPositionsList({ clientId: 'client-uuid' });
+ * const { data, pagination } = await fetchJobPositionsList({ clientId: 'client-uuid', search: 'engineer' });
  * ```
  */
 export async function fetchJobPositionsList(
@@ -403,6 +403,7 @@ export async function fetchJobPositionsList(
 		limit: number;
 		offset: number;
 		clientId?: string;
+		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
@@ -411,6 +412,11 @@ export async function fetchJobPositionsList(
 	// Only add clientId if it has a non-empty value
 	if (params?.clientId) {
 		query.clientId = params.clientId;
+	}
+
+	// Only add search if it has a non-empty value
+	if (params?.search) {
+		query.search = params.search;
 	}
 
 	const response = await api['job-positions'].get({ $query: query });

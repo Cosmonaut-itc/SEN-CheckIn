@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq, ilike, or } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { jobPosition, client } from '../db/schema.js';
@@ -22,31 +22,50 @@ import {
  */
 export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	/**
-	 * List all job positions with pagination and optional client filter.
+	 * List all job positions with pagination and optional filters.
 	 *
 	 * @route GET /job-positions
 	 * @param query.limit - Maximum number of results (default: 50)
 	 * @param query.offset - Number of results to skip (default: 0)
 	 * @param query.clientId - Filter by client ID (optional)
+	 * @param query.search - Search by name or description (optional)
 	 * @returns Array of job position records
 	 */
 	.get(
 		'/',
 		async ({ query }) => {
-			const { limit, offset, clientId } = query;
+			const { limit, offset, clientId, search } = query;
+
+			// Build conditions array
+			const conditions = [];
+			if (clientId) {
+				conditions.push(eq(jobPosition.clientId, clientId));
+			}
+			if (search) {
+				conditions.push(
+					or(
+						ilike(jobPosition.name, `%${search}%`),
+						ilike(jobPosition.description, `%${search}%`),
+					),
+				);
+			}
 
 			let baseQuery = db.select().from(jobPosition);
 
-			if (clientId) {
-				baseQuery = baseQuery.where(eq(jobPosition.clientId, clientId)) as typeof baseQuery;
+			if (conditions.length > 0) {
+				baseQuery = baseQuery.where(
+					conditions.length === 1 ? conditions[0] : and(...conditions),
+				) as typeof baseQuery;
 			}
 
 			const results = await baseQuery.limit(limit).offset(offset).orderBy(jobPosition.name);
 
-			// Get total count
+			// Get total count with same conditions
 			let countQuery = db.select().from(jobPosition);
-			if (clientId) {
-				countQuery = countQuery.where(eq(jobPosition.clientId, clientId)) as typeof countQuery;
+			if (conditions.length > 0) {
+				countQuery = countQuery.where(
+					conditions.length === 1 ? conditions[0] : and(...conditions),
+				) as typeof countQuery;
 			}
 			const countResult = await countQuery;
 			const total = countResult.length;

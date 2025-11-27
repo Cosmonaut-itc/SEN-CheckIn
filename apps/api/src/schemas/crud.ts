@@ -107,6 +107,7 @@ export const updateJobPositionSchema = z.object({
  */
 export const jobPositionQuerySchema = paginationSchema.extend({
 	clientId: z.string().uuid().optional(),
+	search: z.string().optional(),
 });
 
 // ============================================================================

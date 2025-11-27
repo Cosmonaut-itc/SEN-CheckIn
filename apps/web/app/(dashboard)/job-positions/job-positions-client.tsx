@@ -151,7 +151,8 @@ const form = useAppForm({
 			await updateMutation.mutateAsync({
 				id: editingJobPosition.id,
 				name: value.name,
-				description: value.description || undefined,
+				// Send null when description is empty string to clear the field
+				description: value.description.trim() === '' ? null : value.description || undefined,
 			});
 		} else {
 			// Use the active client ID (first available client)

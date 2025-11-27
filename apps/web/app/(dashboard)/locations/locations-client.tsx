@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@tanstack/react-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,24 +32,14 @@ import { fetchLocationsList, type Location } from '@/lib/client-functions';
 import { createLocation, updateLocation, deleteLocation } from '@/actions/locations';
 
 /**
- * Form data interface for creating/editing locations.
+ * Form values for creating/editing locations.
  */
-interface LocationFormData {
+interface LocationFormValues {
 	name: string;
 	code: string;
 	address: string;
 	clientId: string;
 }
-
-/**
- * Initial empty form data.
- */
-const initialFormData: LocationFormData = {
-	name: '',
-	code: '',
-	address: '',
-	clientId: '',
-};
 
 /**
  * Locations page client component.
@@ -61,7 +52,6 @@ export function LocationsPageClient(): React.ReactElement {
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-	const [formData, setFormData] = useState<LocationFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
@@ -133,55 +123,83 @@ export function LocationsPageClient(): React.ReactElement {
 
 	const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useForm({
+		defaultValues: {
+			name: '',
+			code: '',
+			address: '',
+			clientId: '',
+		},
+		onSubmit: async ({ value }: { value: LocationFormValues }) => {
+			if (editingLocation) {
+				updateMutation.mutate({
+					id: editingLocation.id,
+					name: value.name,
+					code: value.code,
+					address: value.address || undefined,
+				});
+			} else {
+				createMutation.mutate({
+					name: value.name,
+					code: value.code,
+					address: value.address || undefined,
+					clientId: value.clientId,
+				});
+			}
+		},
+	});
+
 	/**
 	 * Opens the dialog for creating a new location.
 	 */
-	const handleCreateNew = (): void => {
+	const handleCreateNew = useCallback((): void => {
 		setEditingLocation(null);
-		setFormData(initialFormData);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing location.
 	 *
 	 * @param location - The location to edit
 	 */
-	const handleEdit = (location: Location): void => {
-		setEditingLocation(location);
-		setFormData({
-			name: location.name,
-			code: location.code,
-			address: location.address ?? '',
-			clientId: location.clientId,
-		});
-		setIsDialogOpen(true);
-	};
+	const handleEdit = useCallback(
+		(location: Location): void => {
+			setEditingLocation(location);
+			form.setFieldValue('name', location.name);
+			form.setFieldValue('code', location.code);
+			form.setFieldValue('address', location.address ?? '');
+			form.setFieldValue('clientId', location.clientId);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles form submission for creating or updating a location.
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
-		if (editingLocation) {
-			updateMutation.mutate({
-				id: editingLocation.id,
-				name: formData.name,
-				code: formData.code,
-				address: formData.address || undefined,
-			});
-		} else {
-			createMutation.mutate({
-				name: formData.name,
-				code: formData.code,
-				address: formData.address || undefined,
-				clientId: formData.clientId,
-			});
-		}
-	};
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingLocation(null);
+				form.reset();
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles location deletion.
@@ -201,11 +219,11 @@ export function LocationsPageClient(): React.ReactElement {
 						Manage branches and office locations
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							Add Location
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<DialogTrigger asChild>
+				<Button onClick={handleCreateNew}>
+					<Plus className="mr-2 h-4 w-4" />
+					Add Location
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
@@ -220,68 +238,121 @@ export function LocationsPageClient(): React.ReactElement {
 										: 'Fill in the details to create a new location.'}
 								</DialogDescription>
 							</DialogHeader>
-							<div className="grid gap-4 py-4">
+					<div className="grid gap-4 py-4">
+						<form.Field
+							name="name"
+							validators={{
+								onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
+							}}
+						>
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Name
 									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
+									<div className="col-span-3">
+										<Input
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											required
+										/>
+										{field.state.meta.errors.length > 0 && (
+											<p className="mt-1 text-sm text-destructive">
+												{field.state.meta.errors.join(', ')}
+											</p>
+										)}
+									</div>
 								</div>
+							)}
+						</form.Field>
+						<form.Field
+							name="code"
+							validators={{
+								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
+							}}
+						>
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="code" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Code
 									</Label>
-									<Input
-										id="code"
-										value={formData.code}
-										onChange={(e) =>
-											setFormData({ ...formData, code: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
+									<div className="col-span-3">
+										<Input
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											required
+										/>
+										{field.state.meta.errors.length > 0 && (
+											<p className="mt-1 text-sm text-destructive">
+												{field.state.meta.errors.join(', ')}
+											</p>
+										)}
+									</div>
 								</div>
+							)}
+						</form.Field>
+						<form.Field name="address">
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="address" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Address
 									</Label>
-									<Input
-										id="address"
-										value={formData.address}
-										onChange={(e) =>
-											setFormData({ ...formData, address: e.target.value })
-										}
-										className="col-span-3"
-									/>
-								</div>
-								{!editingLocation && (
-									<div className="grid grid-cols-4 items-center gap-4">
-										<Label htmlFor="clientId" className="text-right">
-											Client ID
-										</Label>
+									<div className="col-span-3">
 										<Input
-											id="clientId"
-											value={formData.clientId}
-											onChange={(e) =>
-												setFormData({ ...formData, clientId: e.target.value })
-											}
-											className="col-span-3"
-											required
-											placeholder="Client UUID"
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											placeholder="Optional"
 										/>
 									</div>
+								</div>
+							)}
+						</form.Field>
+						{!editingLocation && (
+							<form.Field
+								name="clientId"
+								validators={{
+									onChange: ({ value }) => (!value.trim() ? 'Client ID is required' : undefined),
+								}}
+							>
+								{(field) => (
+									<div className="grid grid-cols-4 items-center gap-4">
+										<Label htmlFor={field.name} className="text-right">
+											Client ID
+										</Label>
+										<div className="col-span-3">
+											<Input
+												id={field.name}
+												name={field.name}
+												value={field.state.value}
+												onChange={(e) => field.handleChange(e.target.value)}
+												onBlur={field.handleBlur}
+												required
+												placeholder="Client UUID"
+											/>
+											{field.state.meta.errors.length > 0 && (
+												<p className="mt-1 text-sm text-destructive">
+													{field.state.meta.errors.join(', ')}
+												</p>
+											)}
+										</div>
+									</div>
 								)}
-							</div>
-							<DialogFooter>
-								<Button type="submit" disabled={isSubmitting}>
+							</form.Field>
+						)}
+					</div>
+					<DialogFooter>
+						<form.Subscribe selector={(state) => [state.canSubmit]}>
+							{([canSubmit]) => (
+								<Button type="submit" disabled={!canSubmit || isSubmitting}>
 									{isSubmitting ? (
 										<>
 											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -291,10 +362,12 @@ export function LocationsPageClient(): React.ReactElement {
 										'Save'
 									)}
 								</Button>
-							</DialogFooter>
-						</form>
-					</DialogContent>
-				</Dialog>
+							)}
+						</form.Subscribe>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 			</div>
 
 			<div className="flex items-center gap-4">
@@ -401,4 +474,3 @@ export function LocationsPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@tanstack/react-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,20 +32,12 @@ import { fetchOrganizations, type Organization } from '@/lib/client-functions';
 import { createOrganization, deleteOrganization } from '@/actions/organizations';
 
 /**
- * Form data interface for creating organizations.
+ * Form values for creating organizations.
  */
-interface OrganizationFormData {
+interface OrganizationFormValues {
 	name: string;
 	slug: string;
 }
-
-/**
- * Initial empty form data.
- */
-const initialFormData: OrganizationFormData = {
-	name: '',
-	slug: '',
-};
 
 /**
  * Organizations page client component.
@@ -56,7 +49,6 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
-	const [formData, setFormData] = useState<OrganizationFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	// Query for organizations list
@@ -101,13 +93,27 @@ export function OrganizationsPageClient(): React.ReactElement {
 		},
 	});
 
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useForm({
+		defaultValues: {
+			name: '',
+			slug: '',
+		},
+		onSubmit: async ({ value }: { value: OrganizationFormValues }) => {
+			createMutation.mutate({
+				name: value.name,
+				slug: value.slug,
+			});
+		},
+	});
+
 	/**
 	 * Opens the dialog for creating a new organization.
 	 */
-	const handleCreateNew = (): void => {
-		setFormData(initialFormData);
+	const handleCreateNew = useCallback((): void => {
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Generates a slug from the organization name.
@@ -127,25 +133,25 @@ export function OrganizationsPageClient(): React.ReactElement {
 	 *
 	 * @param name - The new name value
 	 */
-	const handleNameChange = (name: string): void => {
-		setFormData({
-			name,
-			slug: generateSlug(name),
-		});
-	};
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
-	/**
-	 * Handles form submission for creating an organization.
-	 *
-	 * @param e - The form submission event
-	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
-		createMutation.mutate({
-			name: formData.name,
-			slug: formData.slug,
-		});
-	};
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				form.reset();
+				setDeleteConfirmId(null);
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles organization deletion.
@@ -174,62 +180,101 @@ export function OrganizationsPageClient(): React.ReactElement {
 						Manage organizations and their members
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<DialogTrigger asChild>
+				<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
 							Create Organization
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
-						<form onSubmit={handleSubmit}>
-							<DialogHeader>
-								<DialogTitle>Create Organization</DialogTitle>
-								<DialogDescription>
-									Create a new organization to manage users and resources.
-								</DialogDescription>
-							</DialogHeader>
-							<div className="grid gap-4 py-4">
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
-										Name
-									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) => handleNameChange(e.target.value)}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="slug" className="text-right">
-										Slug
-									</Label>
-									<Input
-										id="slug"
-										value={formData.slug}
-										onChange={(e) =>
-											setFormData({ ...formData, slug: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-							</div>
-							<DialogFooter>
-								<Button type="submit" disabled={createMutation.isPending}>
-									{createMutation.isPending ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Creating...
-										</>
-									) : (
-										'Create'
-									)}
-								</Button>
-							</DialogFooter>
-						</form>
+					<form onSubmit={handleSubmit}>
+						<DialogHeader>
+							<DialogTitle>Create Organization</DialogTitle>
+							<DialogDescription>
+								Create a new organization to manage users and resources.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="grid gap-4 py-4">
+							<form.Field
+								name="name"
+								validators={{
+									onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
+								}}
+							>
+								{(field) => (
+									<div className="grid grid-cols-4 items-center gap-4">
+										<Label htmlFor={field.name} className="text-right">
+											Name
+										</Label>
+										<div className="col-span-3">
+											<Input
+												id={field.name}
+												name={field.name}
+												value={field.state.value}
+												onChange={(e) => {
+													field.handleChange(e.target.value);
+													form.setFieldValue('slug', generateSlug(e.target.value));
+												}}
+												onBlur={field.handleBlur}
+												required
+											/>
+											{field.state.meta.errors.length > 0 && (
+												<p className="mt-1 text-sm text-destructive">
+													{field.state.meta.errors.join(', ')}
+												</p>
+											)}
+										</div>
+									</div>
+								)}
+							</form.Field>
+							<form.Field
+								name="slug"
+								validators={{
+									onChange: ({ value }) => (!value.trim() ? 'Slug is required' : undefined),
+								}}
+							>
+								{(field) => (
+									<div className="grid grid-cols-4 items-center gap-4">
+										<Label htmlFor={field.name} className="text-right">
+											Slug
+										</Label>
+										<div className="col-span-3">
+											<Input
+												id={field.name}
+												name={field.name}
+												value={field.state.value}
+												onChange={(e) => field.handleChange(e.target.value)}
+												onBlur={field.handleBlur}
+												required
+											/>
+											{field.state.meta.errors.length > 0 && (
+												<p className="mt-1 text-sm text-destructive">
+													{field.state.meta.errors.join(', ')}
+												</p>
+											)}
+										</div>
+									</div>
+								)}
+							</form.Field>
+						</div>
+						<DialogFooter>
+							<form.Subscribe selector={(state) => [state.canSubmit]}>
+								{([canSubmit]) => (
+									<Button type="submit" disabled={!canSubmit || createMutation.isPending}>
+										{createMutation.isPending ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												Creating...
+											</>
+										) : (
+											'Create'
+										)}
+									</Button>
+								)}
+							</form.Subscribe>
+						</DialogFooter>
+					</form>
 					</DialogContent>
 				</Dialog>
 			</div>
@@ -332,4 +377,3 @@ export function OrganizationsPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

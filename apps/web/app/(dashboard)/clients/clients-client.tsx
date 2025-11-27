@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@tanstack/react-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,18 +32,12 @@ import { fetchClientsList, type Client } from '@/lib/client-functions';
 import { createClient, updateClient, deleteClient } from '@/actions/clients';
 
 /**
- * Form data interface for creating/editing clients.
+ * Form values for creating/editing clients.
  */
-interface ClientFormData {
+interface ClientFormValues {
+	/** Client name */
 	name: string;
 }
-
-/**
- * Initial empty form data.
- */
-const initialFormData: ClientFormData = {
-	name: '',
-};
 
 /**
  * Clients page client component.
@@ -55,7 +50,6 @@ export function ClientsPageClient(): React.ReactElement {
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingClient, setEditingClient] = useState<Client | null>(null);
-	const [formData, setFormData] = useState<ClientFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
@@ -127,47 +121,72 @@ export function ClientsPageClient(): React.ReactElement {
 
 	const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+	// TanStack Form instance (defined after mutations to avoid TDZ)
+	const form = useForm({
+		defaultValues: {
+			name: '',
+		},
+		onSubmit: async ({ value }: { value: ClientFormValues }) => {
+			if (editingClient) {
+				updateMutation.mutate({
+					id: editingClient.id,
+					name: value.name,
+				});
+			} else {
+				createMutation.mutate({
+					name: value.name,
+				});
+			}
+		},
+	});
+
 	/**
 	 * Opens the dialog for creating a new client.
 	 */
-	const handleCreateNew = (): void => {
+	const handleCreateNew = useCallback((): void => {
 		setEditingClient(null);
-		setFormData(initialFormData);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing client.
 	 *
 	 * @param client - The client to edit
 	 */
-	const handleEdit = (client: Client): void => {
-		setEditingClient(client);
-		setFormData({
-			name: client.name,
-		});
-		setIsDialogOpen(true);
-	};
+	const handleEdit = useCallback(
+		(client: Client): void => {
+			setEditingClient(client);
+			form.setFieldValue('name', client.name);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles form submission for creating or updating a client.
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
-		if (editingClient) {
-			updateMutation.mutate({
-				id: editingClient.id,
-				name: formData.name,
-			});
-		} else {
-			createMutation.mutate({
-				name: formData.name,
-			});
-		}
-	};
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingClient(null);
+				form.reset();
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles client deletion.
@@ -187,18 +206,18 @@ export function ClientsPageClient(): React.ReactElement {
 						Manage client organizations
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							Add Client
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-[425px]">
-						<form onSubmit={handleSubmit}>
-							<DialogHeader>
-								<DialogTitle>
-									{editingClient ? 'Edit Client' : 'Add Client'}
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<DialogTrigger asChild>
+				<Button onClick={handleCreateNew}>
+					<Plus className="mr-2 h-4 w-4" />
+					Add Client
+				</Button>
+			</DialogTrigger>
+			<DialogContent className="sm:max-w-[425px]">
+				<form onSubmit={handleSubmit}>
+					<DialogHeader>
+						<DialogTitle>
+							{editingClient ? 'Edit Client' : 'Add Client'}
 								</DialogTitle>
 								<DialogDescription>
 									{editingClient
@@ -206,24 +225,41 @@ export function ClientsPageClient(): React.ReactElement {
 										: 'Fill in the details to create a new client.'}
 								</DialogDescription>
 							</DialogHeader>
-							<div className="grid gap-4 py-4">
+					<div className="grid gap-4 py-4">
+						<form.Field
+							name="name"
+							validators={{
+								onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
+							}}
+						>
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Name
 									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
+									<div className="col-span-3">
+										<Input
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											required
+										/>
+										{field.state.meta.errors.length > 0 && (
+											<p className="mt-1 text-sm text-destructive">
+												{field.state.meta.errors.join(', ')}
+											</p>
+										)}
+									</div>
 								</div>
-							</div>
-							<DialogFooter>
-								<Button type="submit" disabled={isSubmitting}>
+							)}
+						</form.Field>
+					</div>
+					<DialogFooter>
+						<form.Subscribe selector={(state) => [state.canSubmit]}>
+							{([canSubmit]) => (
+								<Button type="submit" disabled={!canSubmit || isSubmitting}>
 									{isSubmitting ? (
 										<>
 											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -233,10 +269,12 @@ export function ClientsPageClient(): React.ReactElement {
 										'Save'
 									)}
 								</Button>
-							</DialogFooter>
-						</form>
-					</DialogContent>
-				</Dialog>
+							)}
+						</form.Subscribe>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 			</div>
 
 			<div className="flex items-center gap-4">
@@ -349,4 +387,3 @@ export function ClientsPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@tanstack/react-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -39,24 +40,14 @@ import { fetchDevicesList, type Device, type DeviceStatus } from '@/lib/client-f
 import { createDevice, updateDevice, deleteDevice } from '@/actions/devices';
 
 /**
- * Form data interface for creating/editing devices.
+ * Form values for creating/editing devices.
  */
-interface DeviceFormData {
+interface DeviceFormValues {
 	code: string;
 	name: string;
 	deviceType: string;
 	status: DeviceStatus;
 }
-
-/**
- * Initial empty form data.
- */
-const initialFormData: DeviceFormData = {
-	code: '',
-	name: '',
-	deviceType: '',
-	status: 'OFFLINE',
-};
 
 /**
  * Status badge variant mapping.
@@ -78,7 +69,6 @@ export function DevicesPageClient(): React.ReactElement {
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingDevice, setEditingDevice] = useState<Device | null>(null);
-	const [formData, setFormData] = useState<DeviceFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
@@ -150,56 +140,84 @@ export function DevicesPageClient(): React.ReactElement {
 
 	const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useForm({
+		defaultValues: {
+			code: '',
+			name: '',
+			deviceType: '',
+			status: 'OFFLINE',
+		},
+		onSubmit: async ({ value }: { value: DeviceFormValues }) => {
+			if (editingDevice) {
+				updateMutation.mutate({
+					id: editingDevice.id,
+					code: value.code,
+					name: value.name || undefined,
+					deviceType: value.deviceType || undefined,
+					status: value.status,
+				});
+			} else {
+				createMutation.mutate({
+					code: value.code,
+					name: value.name || undefined,
+					deviceType: value.deviceType || undefined,
+					status: value.status,
+				});
+			}
+		},
+	});
+
 	/**
 	 * Opens the dialog for creating a new device.
 	 */
-	const handleCreateNew = (): void => {
+	const handleCreateNew = useCallback((): void => {
 		setEditingDevice(null);
-		setFormData(initialFormData);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing device.
 	 *
 	 * @param device - The device to edit
 	 */
-	const handleEdit = (device: Device): void => {
-		setEditingDevice(device);
-		setFormData({
-			code: device.code,
-			name: device.name ?? '',
-			deviceType: device.deviceType ?? '',
-			status: device.status,
-		});
-		setIsDialogOpen(true);
-	};
+	const handleEdit = useCallback(
+		(device: Device): void => {
+			setEditingDevice(device);
+			form.setFieldValue('code', device.code);
+			form.setFieldValue('name', device.name ?? '');
+			form.setFieldValue('deviceType', device.deviceType ?? '');
+			form.setFieldValue('status', device.status);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles form submission for creating or updating a device.
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
-		if (editingDevice) {
-			updateMutation.mutate({
-				id: editingDevice.id,
-				code: formData.code,
-				name: formData.name || undefined,
-				deviceType: formData.deviceType || undefined,
-				status: formData.status,
-			});
-		} else {
-			createMutation.mutate({
-				code: formData.code,
-				name: formData.name || undefined,
-				deviceType: formData.deviceType || undefined,
-				status: formData.status,
-			});
-		}
-	};
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingDevice(null);
+				form.reset();
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles device deletion.
@@ -219,11 +237,11 @@ export function DevicesPageClient(): React.ReactElement {
 						Manage check-in kiosks and devices
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							Add Device
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<DialogTrigger asChild>
+				<Button onClick={handleCreateNew}>
+					<Plus className="mr-2 h-4 w-4" />
+					Add Device
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
@@ -238,57 +256,88 @@ export function DevicesPageClient(): React.ReactElement {
 										: 'Fill in the details to create a new device.'}
 								</DialogDescription>
 							</DialogHeader>
-							<div className="grid gap-4 py-4">
+					<div className="grid gap-4 py-4">
+						<form.Field
+							name="code"
+							validators={{
+								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
+							}}
+						>
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="code" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Code
 									</Label>
-									<Input
-										id="code"
-										value={formData.code}
-										onChange={(e) =>
-											setFormData({ ...formData, code: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
+									<div className="col-span-3">
+										<Input
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											required
+										/>
+										{field.state.meta.errors.length > 0 && (
+											<p className="mt-1 text-sm text-destructive">
+												{field.state.meta.errors.join(', ')}
+											</p>
+										)}
+									</div>
 								</div>
+							)}
+						</form.Field>
+						<form.Field name="name">
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Name
 									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
-										className="col-span-3"
-									/>
+									<div className="col-span-3">
+										<Input
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											placeholder="Optional"
+										/>
+									</div>
 								</div>
+							)}
+						</form.Field>
+						<form.Field name="deviceType">
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="deviceType" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Type
 									</Label>
-									<Input
-										id="deviceType"
-										value={formData.deviceType}
-										onChange={(e) =>
-											setFormData({ ...formData, deviceType: e.target.value })
-										}
-										className="col-span-3"
-										placeholder="TABLET, KIOSK, MOBILE"
-									/>
+									<div className="col-span-3">
+										<Input
+											id={field.name}
+											name={field.name}
+											value={field.state.value}
+											onChange={(e) => field.handleChange(e.target.value)}
+											onBlur={field.handleBlur}
+											placeholder="TABLET, KIOSK, MOBILE"
+										/>
+									</div>
 								</div>
+							)}
+						</form.Field>
+						<form.Field
+							name="status"
+							validators={{
+								onChange: ({ value }) => (!value ? 'Status is required' : undefined),
+							}}
+						>
+							{(field) => (
 								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="status" className="text-right">
+									<Label htmlFor={field.name} className="text-right">
 										Status
 									</Label>
 									<Select
-										value={formData.status}
-										onValueChange={(value: DeviceStatus) =>
-											setFormData({ ...formData, status: value })
-										}
+										value={field.state.value}
+										onValueChange={(value: DeviceStatus) => field.handleChange(value)}
 									>
 										<SelectTrigger className="col-span-3">
 											<SelectValue placeholder="Select status" />
@@ -300,9 +349,13 @@ export function DevicesPageClient(): React.ReactElement {
 										</SelectContent>
 									</Select>
 								</div>
-							</div>
-							<DialogFooter>
-								<Button type="submit" disabled={isSubmitting}>
+							)}
+						</form.Field>
+					</div>
+					<DialogFooter>
+						<form.Subscribe selector={(state) => [state.canSubmit]}>
+							{([canSubmit]) => (
+								<Button type="submit" disabled={!canSubmit || isSubmitting}>
 									{isSubmitting ? (
 										<>
 											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -312,10 +365,12 @@ export function DevicesPageClient(): React.ReactElement {
 										'Save'
 									)}
 								</Button>
-							</DialogFooter>
-						</form>
-					</DialogContent>
-				</Dialog>
+							)}
+						</form.Subscribe>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 			</div>
 
 			<div className="flex items-center gap-4">
@@ -434,4 +489,3 @@ export function DevicesPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

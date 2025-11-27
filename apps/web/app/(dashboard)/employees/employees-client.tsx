@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useForm } from '@tanstack/react-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -48,33 +49,43 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, Loader2, MoreHorizontal, UserCheck, UserX, ScanFace } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchEmployeesList, type Employee, type EmployeeStatus } from '@/lib/client-functions';
+import { fetchEmployeesList, fetchJobPositionsList, type Employee, type EmployeeStatus, type JobPosition } from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
 import { FaceEnrollmentDialog } from '@/components/face-enrollment-dialog';
 
 /**
- * Form data interface for creating/editing employees.
+ * Form values interface for creating/editing employees.
  */
-interface EmployeeFormData {
+interface EmployeeFormValues {
+	/** Unique employee code */
 	code: string;
+	/** Employee's first name */
 	firstName: string;
+	/** Employee's last name */
 	lastName: string;
+	/** Employee's email address */
 	email: string;
+	/** Employee's phone number */
 	phone: string;
+	/** Job position ID (required for new employees) */
+	jobPositionId: string;
+	/** Employee's department */
 	department: string;
+	/** Employee's status */
 	status: EmployeeStatus;
 }
 
 /**
- * Initial empty form data.
+ * Initial empty form values.
  */
-const initialFormData: EmployeeFormData = {
+const initialFormValues: EmployeeFormValues = {
 	code: '',
 	firstName: '',
 	lastName: '',
 	email: '',
 	phone: '',
+	jobPositionId: '',
 	department: '',
 	status: 'ACTIVE',
 };
@@ -99,7 +110,6 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
-	const [formData, setFormData] = useState<EmployeeFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
@@ -116,7 +126,14 @@ export function EmployeesPageClient(): React.ReactElement {
 		queryFn: () => fetchEmployeesList(queryParams),
 	});
 
+	// Query for job positions list (for the dropdown)
+	const { data: jobPositionsData, isLoading: isLoadingJobPositions } = useQuery({
+		queryKey: queryKeys.jobPositions.list({ limit: 100, offset: 0 }),
+		queryFn: () => fetchJobPositionsList({ limit: 100, offset: 0 }),
+	});
+
 	const employees = data?.data ?? [];
+	const jobPositions: JobPosition[] = jobPositionsData?.data ?? [];
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -192,65 +209,81 @@ export function EmployeesPageClient(): React.ReactElement {
 
 	const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
+	// TanStack Form instance for employee create/edit
+	const form = useForm({
+		defaultValues: initialFormValues,
+		onSubmit: async ({ value }) => {
+			if (editingEmployee) {
+				updateMutation.mutate({
+					id: editingEmployee.id,
+					code: value.code,
+					firstName: value.firstName,
+					lastName: value.lastName,
+					email: value.email || undefined,
+					phone: value.phone || undefined,
+					jobPositionId: value.jobPositionId || undefined,
+					department: value.department || undefined,
+					status: value.status,
+				});
+			} else {
+				// Validate that jobPositionId is selected for new employees
+				if (!value.jobPositionId) {
+					toast.error('Please select a job position');
+					return;
+				}
+				createMutation.mutate({
+					code: value.code,
+					firstName: value.firstName,
+					lastName: value.lastName,
+					email: value.email || undefined,
+					phone: value.phone || undefined,
+					jobPositionId: value.jobPositionId,
+					department: value.department || undefined,
+					status: value.status,
+				});
+			}
+		},
+	});
+
 	/**
 	 * Opens the dialog for creating a new employee.
 	 */
-	const handleCreateNew = (): void => {
+	const handleCreateNew = useCallback((): void => {
 		setEditingEmployee(null);
-		setFormData(initialFormData);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing employee.
 	 *
 	 * @param employee - The employee to edit
 	 */
-	const handleEdit = (employee: Employee): void => {
+	const handleEdit = useCallback((employee: Employee): void => {
 		setEditingEmployee(employee);
-		setFormData({
-			code: employee.code,
-			firstName: employee.firstName,
-			lastName: employee.lastName,
-			email: employee.email ?? '',
-			phone: employee.phone ?? '',
-			department: employee.department ?? '',
-			status: employee.status,
-		});
+		form.setFieldValue('code', employee.code);
+		form.setFieldValue('firstName', employee.firstName);
+		form.setFieldValue('lastName', employee.lastName);
+		form.setFieldValue('email', employee.email ?? '');
+		form.setFieldValue('phone', employee.phone ?? '');
+		form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
+		form.setFieldValue('department', employee.department ?? '');
+		form.setFieldValue('status', employee.status);
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
-	 * Handles form submission for creating or updating an employee.
+	 * Handles dialog close and resets form state.
 	 *
-	 * @param e - The form submission event
+	 * @param open - Whether the dialog should be open
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
-
-		if (editingEmployee) {
-			updateMutation.mutate({
-				id: editingEmployee.id,
-				code: formData.code,
-				firstName: formData.firstName,
-				lastName: formData.lastName,
-				email: formData.email || undefined,
-				phone: formData.phone || undefined,
-				department: formData.department || undefined,
-				status: formData.status,
-			});
-		} else {
-			createMutation.mutate({
-				code: formData.code,
-				firstName: formData.firstName,
-				lastName: formData.lastName,
-				email: formData.email || undefined,
-				phone: formData.phone || undefined,
-				department: formData.department || undefined,
-				status: formData.status,
-			});
+	const handleDialogOpenChange = useCallback((open: boolean): void => {
+		setIsDialogOpen(open);
+		if (!open) {
+			setEditingEmployee(null);
+			form.reset();
 		}
-	};
+	}, [form]);
 
 	/**
 	 * Handles employee deletion.
@@ -289,7 +322,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						Manage employee records and face enrollment
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
@@ -297,7 +330,13 @@ export function EmployeesPageClient(): React.ReactElement {
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
-						<form onSubmit={handleSubmit}>
+						<form
+							onSubmit={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								form.handleSubmit();
+							}}
+						>
 							<DialogHeader>
 								<DialogTitle>
 									{editingEmployee ? 'Edit Employee' : 'Add Employee'}
@@ -309,120 +348,249 @@ export function EmployeesPageClient(): React.ReactElement {
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="code" className="text-right">
-										Code
-									</Label>
-									<Input
-										id="code"
-										value={formData.code}
-										onChange={(e) =>
-											setFormData({ ...formData, code: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="firstName" className="text-right">
-										First Name
-									</Label>
-									<Input
-										id="firstName"
-										value={formData.firstName}
-										onChange={(e) =>
-											setFormData({ ...formData, firstName: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="lastName" className="text-right">
-										Last Name
-									</Label>
-									<Input
-										id="lastName"
-										value={formData.lastName}
-										onChange={(e) =>
-											setFormData({ ...formData, lastName: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="email" className="text-right">
-										Email
-									</Label>
-									<Input
-										id="email"
-										type="email"
-										value={formData.email}
-										onChange={(e) =>
-											setFormData({ ...formData, email: e.target.value })
-										}
-										className="col-span-3"
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="phone" className="text-right">
-										Phone
-									</Label>
-									<Input
-										id="phone"
-										value={formData.phone}
-										onChange={(e) =>
-											setFormData({ ...formData, phone: e.target.value })
-										}
-										className="col-span-3"
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="department" className="text-right">
-										Department
-									</Label>
-									<Input
-										id="department"
-										value={formData.department}
-										onChange={(e) =>
-											setFormData({ ...formData, department: e.target.value })
-										}
-										className="col-span-3"
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="status" className="text-right">
-										Status
-									</Label>
-									<Select
-										value={formData.status}
-										onValueChange={(value: EmployeeStatus) =>
-											setFormData({ ...formData, status: value })
-										}
-									>
-										<SelectTrigger className="col-span-3">
-											<SelectValue placeholder="Select status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="ACTIVE">Active</SelectItem>
-											<SelectItem value="INACTIVE">Inactive</SelectItem>
-											<SelectItem value="ON_LEAVE">On Leave</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
+								{/* Code field */}
+								<form.Field
+									name="code"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Code is required' : undefined,
+									}}
+								>
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Code
+											</Label>
+											<div className="col-span-3">
+												<Input
+													id={field.name}
+													name={field.name}
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+													placeholder="e.g., EMP001"
+												/>
+												{field.state.meta.errors.length > 0 && (
+													<p className="mt-1 text-sm text-destructive">
+														{field.state.meta.errors.join(', ')}
+													</p>
+												)}
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* First Name field */}
+								<form.Field
+									name="firstName"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'First name is required' : undefined,
+									}}
+								>
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												First Name
+											</Label>
+											<div className="col-span-3">
+												<Input
+													id={field.name}
+													name={field.name}
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+												{field.state.meta.errors.length > 0 && (
+													<p className="mt-1 text-sm text-destructive">
+														{field.state.meta.errors.join(', ')}
+													</p>
+												)}
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* Last Name field */}
+								<form.Field
+									name="lastName"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Last name is required' : undefined,
+									}}
+								>
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Last Name
+											</Label>
+											<div className="col-span-3">
+												<Input
+													id={field.name}
+													name={field.name}
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+												{field.state.meta.errors.length > 0 && (
+													<p className="mt-1 text-sm text-destructive">
+														{field.state.meta.errors.join(', ')}
+													</p>
+												)}
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* Email field */}
+								<form.Field name="email">
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Email
+											</Label>
+											<div className="col-span-3">
+												<Input
+													id={field.name}
+													name={field.name}
+													type="email"
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* Phone field */}
+								<form.Field name="phone">
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Phone
+											</Label>
+											<div className="col-span-3">
+												<Input
+													id={field.name}
+													name={field.name}
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* Job Position field */}
+								<form.Field
+									name="jobPositionId"
+									validators={{
+										onChange: ({ value }) =>
+											!editingEmployee && !value ? 'Job position is required' : undefined,
+									}}
+								>
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Job Position
+											</Label>
+											<div className="col-span-3">
+												<Select
+													value={field.state.value}
+													onValueChange={(value: string) => field.handleChange(value)}
+													disabled={isLoadingJobPositions}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder={isLoadingJobPositions ? 'Loading...' : 'Select job position'} />
+													</SelectTrigger>
+													<SelectContent>
+														{jobPositions.map((position) => (
+															<SelectItem key={position.id} value={position.id}>
+																{position.name}
+															</SelectItem>
+														))}
+														{jobPositions.length === 0 && !isLoadingJobPositions && (
+															<SelectItem value="" disabled>
+																No job positions available
+															</SelectItem>
+														)}
+													</SelectContent>
+												</Select>
+												{field.state.meta.errors.length > 0 && (
+													<p className="mt-1 text-sm text-destructive">
+														{field.state.meta.errors.join(', ')}
+													</p>
+												)}
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* Department field */}
+								<form.Field name="department">
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Department
+											</Label>
+											<div className="col-span-3">
+												<Input
+													id={field.name}
+													name={field.name}
+													value={field.state.value}
+													onChange={(e) => field.handleChange(e.target.value)}
+													onBlur={field.handleBlur}
+												/>
+											</div>
+										</div>
+									)}
+								</form.Field>
+
+								{/* Status field */}
+								<form.Field name="status">
+									{(field) => (
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label htmlFor={field.name} className="text-right">
+												Status
+											</Label>
+											<div className="col-span-3">
+												<Select
+													value={field.state.value}
+													onValueChange={(value: EmployeeStatus) => field.handleChange(value)}
+												>
+													<SelectTrigger>
+														<SelectValue placeholder="Select status" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value="ACTIVE">Active</SelectItem>
+														<SelectItem value="INACTIVE">Inactive</SelectItem>
+														<SelectItem value="ON_LEAVE">On Leave</SelectItem>
+													</SelectContent>
+												</Select>
+											</div>
+										</div>
+									)}
+								</form.Field>
 							</div>
 							<DialogFooter>
-								<Button type="submit" disabled={isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Saving...
-										</>
-									) : (
-										'Save'
+								<form.Subscribe
+									selector={(state) => [state.canSubmit, state.isSubmitting]}
+								>
+									{([canSubmit]) => (
+										<Button type="submit" disabled={!canSubmit || isSubmitting}>
+											{isSubmitting ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Saving...
+												</>
+											) : (
+												'Save'
+											)}
+										</Button>
 									)}
-								</Button>
+								</form.Subscribe>
 							</DialogFooter>
 						</form>
 					</DialogContent>
@@ -447,6 +615,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						<TableRow>
 							<TableHead>Code</TableHead>
 							<TableHead>Name</TableHead>
+							<TableHead>Job Position</TableHead>
 							<TableHead>Email</TableHead>
 							<TableHead>Department</TableHead>
 							<TableHead>Status</TableHead>
@@ -459,7 +628,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
+									{Array.from({ length: 9 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -468,7 +637,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							))
 						) : employees.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={8} className="h-24 text-center">
+								<TableCell colSpan={9} className="h-24 text-center">
 									No employees found.
 								</TableCell>
 							</TableRow>
@@ -479,6 +648,7 @@ export function EmployeesPageClient(): React.ReactElement {
 									<TableCell>
 										{employee.firstName} {employee.lastName}
 									</TableCell>
+									<TableCell>{employee.jobPositionName ?? '-'}</TableCell>
 									<TableCell>{employee.email ?? '-'}</TableCell>
 									<TableCell>{employee.department ?? '-'}</TableCell>
 									<TableCell>

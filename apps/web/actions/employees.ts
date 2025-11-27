@@ -30,6 +30,8 @@ export interface CreateEmployeeInput {
 	email?: string;
 	/** Employee's phone number */
 	phone?: string;
+	/** Job position ID (required for new employees) */
+	jobPositionId: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
@@ -52,6 +54,8 @@ export interface UpdateEmployeeInput {
 	email?: string;
 	/** Employee's phone number */
 	phone?: string;
+	/** Job position ID (optional for updates, but non-nullable when present) */
+	jobPositionId?: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
@@ -82,6 +86,7 @@ export interface MutationResult<T = unknown> {
  *   code: 'EMP001',
  *   firstName: 'John',
  *   lastName: 'Doe',
+ *   jobPositionId: 'job-position-uuid',
  *   status: 'ACTIVE',
  * });
  * ```
@@ -98,6 +103,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			lastName: input.lastName,
 			email: input.email || undefined,
 			phone: input.phone || undefined,
+			jobPositionId: input.jobPositionId,
 			department: input.department || undefined,
 			status: input.status,
 		});
@@ -151,6 +157,7 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			lastName: input.lastName,
 			email: input.email || undefined,
 			phone: input.phone || undefined,
+			jobPositionId: input.jobPositionId || undefined,
 			department: input.department || undefined,
 			status: input.status,
 		});

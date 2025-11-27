@@ -14,6 +14,7 @@ import {
 	Building,
 	LayoutDashboard,
 	LogOut,
+	Briefcase,
 } from 'lucide-react';
 import { signOut, useSession } from '@/lib/auth-client';
 import {
@@ -58,6 +59,11 @@ const mainNavItems: NavItem[] = [
 		title: 'Employees',
 		href: '/employees',
 		icon: Users,
+	},
+	{
+		title: 'Job Positions',
+		href: '/job-positions',
+		icon: Briefcase,
 	},
 	{
 		title: 'Devices',

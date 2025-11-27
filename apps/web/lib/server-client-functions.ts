@@ -9,26 +9,28 @@
  * @module server-client-functions
  */
 
-import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
 import { authClient } from '@/lib/auth-client';
 import type {
+	ApiKey,
+	AttendanceRecord,
+	AttendanceType,
+	Client,
+	DashboardCounts,
+	Device,
+	Employee,
+	JobPosition,
+	Location,
+	Organization,
+	PaginatedResponse,
+	User,
+} from '@/lib/client-functions';
+import type {
 	AttendanceQueryParams,
+	JobPositionQueryParams,
 	ListQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
-import type {
-	Employee,
-	Device,
-	Location,
-	Client,
-	AttendanceRecord,
-	AttendanceType,
-	DashboardCounts,
-	PaginatedResponse,
-	ApiKey,
-	Organization,
-	User,
-} from '@/lib/client-functions';
+import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
 
 // ============================================================================
 // Employee Functions
@@ -227,6 +229,55 @@ export async function fetchClientsListServer(
 }
 
 // ============================================================================
+// Job Position Functions
+// ============================================================================
+
+/**
+ * Fetches a paginated list of job positions from the API (server-side).
+ *
+ * @param cookieHeader - The cookie header string from the incoming request
+ * @param params - Optional query parameters for filtering and pagination
+ * @returns A promise resolving to the paginated job positions response
+ * @throws Error if the API request fails
+ */
+export async function fetchJobPositionsListServer(
+	cookieHeader: string,
+	params?: JobPositionQueryParams,
+): Promise<PaginatedResponse<JobPosition>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	const query: {
+		limit: number;
+		offset: number;
+		clientId?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.clientId) {
+		query.clientId = params.clientId;
+	}
+
+	const response = await api['job-positions'].get({ $query: query });
+
+	if (response.error) {
+		console.error(
+			'[Server] Failed to fetch job positions:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch job positions');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as JobPosition[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+// ============================================================================
 // Attendance Functions
 // ============================================================================
 
@@ -292,19 +343,16 @@ export async function fetchAttendanceRecordsServer(
  * @returns A promise resolving to the dashboard counts object
  * @throws Error if any API request fails
  */
-export async function fetchDashboardCountsServer(
-	cookieHeader: string,
-): Promise<DashboardCounts> {
+export async function fetchDashboardCountsServer(cookieHeader: string): Promise<DashboardCounts> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 
-	const [employeesRes, devicesRes, locationsRes, clientsRes, attendanceRes] =
-		await Promise.all([
-			api.employees.get({ $query: { limit: 1, offset: 0 } }),
-			api.devices.get({ $query: { limit: 1, offset: 0 } }),
-			api.locations.get({ $query: { limit: 1, offset: 0 } }),
-			api.clients.get({ $query: { limit: 1, offset: 0 } }),
-			api.attendance.get({ $query: { limit: 1, offset: 0 } }),
-		]);
+	const [employeesRes, devicesRes, locationsRes, clientsRes, attendanceRes] = await Promise.all([
+		api.employees.get({ $query: { limit: 1, offset: 0 } }),
+		api.devices.get({ $query: { limit: 1, offset: 0 } }),
+		api.locations.get({ $query: { limit: 1, offset: 0 } }),
+		api.clients.get({ $query: { limit: 1, offset: 0 } }),
+		api.attendance.get({ $query: { limit: 1, offset: 0 } }),
+	]);
 
 	return {
 		employees: employeesRes.data?.pagination?.total ?? 0,
@@ -334,10 +382,7 @@ export async function fetchApiKeysServer(headers: Headers): Promise<ApiKey[]> {
 	});
 
 	if (response.error) {
-		console.error(
-			'[Server] Failed to fetch API keys:',
-			response.error,
-		);
+		console.error('[Server] Failed to fetch API keys:', response.error);
 		throw new Error('Failed to fetch API keys');
 	}
 
@@ -355,9 +400,7 @@ export async function fetchApiKeysServer(headers: Headers): Promise<ApiKey[]> {
  * @returns A promise resolving to the array of organizations
  * @throws Error if the API request fails
  */
-export async function fetchOrganizationsServer(
-	headers: Headers,
-): Promise<Organization[]> {
+export async function fetchOrganizationsServer(headers: Headers): Promise<Organization[]> {
 	const response = await authClient.organization.list({
 		fetchOptions: {
 			headers,
@@ -365,10 +408,7 @@ export async function fetchOrganizationsServer(
 	});
 
 	if (response.error) {
-		console.error(
-			'[Server] Failed to fetch organizations:',
-			response.error,
-		);
+		console.error('[Server] Failed to fetch organizations:', response.error);
 		throw new Error('Failed to fetch organizations');
 	}
 
@@ -402,13 +442,9 @@ export async function fetchUsersServer(
 	});
 
 	if (response.error) {
-		console.error(
-			'[Server] Failed to fetch users:',
-			response.error,
-		);
+		console.error('[Server] Failed to fetch users:', response.error);
 		throw new Error('Failed to fetch users');
 	}
 
 	return (response.data?.users ?? []) as User[];
 }
-

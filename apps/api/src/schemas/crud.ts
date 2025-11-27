@@ -120,6 +120,7 @@ export const employeeStatusEnum = z.enum(['ACTIVE', 'INACTIVE', 'ON_LEAVE']);
 
 /**
  * Schema for creating a new employee.
+ * Note: jobPositionId is required for new employees.
  */
 export const createEmployeeSchema = z.object({
 	code: z.string().min(1, 'Code is required').max(50),
@@ -127,7 +128,7 @@ export const createEmployeeSchema = z.object({
 	lastName: z.string().min(1, 'Last name is required').max(100),
 	email: z.string().email().max(255).optional(),
 	phone: z.string().max(50).optional(),
-	jobPositionId: z.string().uuid().optional(),
+	jobPositionId: z.string().uuid('Invalid job position ID'),
 	department: z.string().max(100).optional(),
 	status: employeeStatusEnum.default('ACTIVE'),
 	hireDate: z.coerce.date().optional(),

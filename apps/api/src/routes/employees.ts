@@ -75,8 +75,6 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		async ({ query }) => {
 			const { limit, offset, locationId, jobPositionId, status, search } = query;
 
-			let baseQuery = db.select().from(employee);
-
 			// Build conditions array
 			const conditions = [];
 			if (locationId) {
@@ -97,6 +95,28 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					),
 				);
 			}
+
+			// Select employee fields and join job position to get the name
+			let baseQuery = db
+				.select({
+					id: employee.id,
+					code: employee.code,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
+					email: employee.email,
+					phone: employee.phone,
+					jobPositionId: employee.jobPositionId,
+					jobPositionName: jobPosition.name,
+					department: employee.department,
+					status: employee.status,
+					hireDate: employee.hireDate,
+					locationId: employee.locationId,
+					rekognitionUserId: employee.rekognitionUserId,
+					createdAt: employee.createdAt,
+					updatedAt: employee.updatedAt,
+				})
+				.from(employee)
+				.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id));
 
 			if (conditions.length > 0) {
 				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
@@ -142,7 +162,28 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		async ({ params, set }) => {
 			const { id } = params;
 
-			const results = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
+			const results = await db
+				.select({
+					id: employee.id,
+					code: employee.code,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
+					email: employee.email,
+					phone: employee.phone,
+					jobPositionId: employee.jobPositionId,
+					jobPositionName: jobPosition.name,
+					department: employee.department,
+					status: employee.status,
+					hireDate: employee.hireDate,
+					locationId: employee.locationId,
+					rekognitionUserId: employee.rekognitionUserId,
+					createdAt: employee.createdAt,
+					updatedAt: employee.updatedAt,
+				})
+				.from(employee)
+				.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id))
+				.where(eq(employee.id, id))
+				.limit(1);
 
 			const record = results[0];
 			if (!record) {
@@ -161,7 +202,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 * Create a new employee.
 	 *
 	 * @route POST /employees
-	 * @param body - Employee data
+	 * @param body - Employee data (jobPositionId is required)
 	 * @returns Created employee record
 	 */
 	.post(
@@ -193,17 +234,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				}
 			}
 
-			// Verify job position exists if provided
-			if (jobPositionId) {
-				const positionExists = await db
-					.select()
-					.from(jobPosition)
-					.where(eq(jobPosition.id, jobPositionId))
-					.limit(1);
-				if (!positionExists[0]) {
-					set.status = 400;
-					return { error: 'Job position not found' };
-				}
+			// Verify job position exists (required for new employees)
+			const positionExists = await db
+				.select()
+				.from(jobPosition)
+				.where(eq(jobPosition.id, jobPositionId))
+				.limit(1);
+			if (!positionExists[0]) {
+				set.status = 400;
+				return { error: 'Job position not found' };
 			}
 
 			// Check if code is unique
@@ -226,7 +265,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				lastName,
 				email: email ?? null,
 				phone: phone ?? null,
-				jobPositionId: jobPositionId ?? null,
+				jobPositionId,
 				department: department ?? null,
 				status: empStatus,
 				hireDate: hireDate ?? null,

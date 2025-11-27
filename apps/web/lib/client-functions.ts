@@ -41,6 +41,8 @@ export interface Employee {
 	email: string | null;
 	phone: string | null;
 	jobPositionId: string | null;
+	/** Job position name (from joined job_position table) */
+	jobPositionName: string | null;
 	department: string | null;
 	status: EmployeeStatus;
 	hireDate: Date | null;
@@ -85,6 +87,18 @@ export interface Client {
 	id: string;
 	name: string;
 	apiKeyId: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+/**
+ * Job position record interface.
+ */
+export interface JobPosition {
+	id: string;
+	name: string;
+	description: string | null;
+	clientId: string;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -352,6 +366,62 @@ export async function fetchClientsList(
 
 	return {
 		data: (response.data?.data ?? []) as Client[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+// ============================================================================
+// Job Position Functions
+// ============================================================================
+
+/**
+ * Query parameters specific to job positions.
+ */
+export interface JobPositionQueryParams extends ListQueryParams {
+	/** Filter by client ID */
+	clientId?: string;
+}
+
+/**
+ * Fetches a paginated list of job positions from the API.
+ *
+ * @param params - Optional query parameters for filtering and pagination
+ * @returns A promise resolving to the paginated job positions response
+ * @throws Error if the API request fails
+ *
+ * @example
+ * ```ts
+ * const { data, pagination } = await fetchJobPositionsList({ clientId: 'client-uuid' });
+ * ```
+ */
+export async function fetchJobPositionsList(
+	params?: JobPositionQueryParams,
+): Promise<PaginatedResponse<JobPosition>> {
+	// Build query object, only including defined values
+	// Eden Treaty converts undefined to string "undefined" which breaks search
+	const query: {
+		limit: number;
+		offset: number;
+		clientId?: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+	};
+
+	// Only add clientId if it has a non-empty value
+	if (params?.clientId) {
+		query.clientId = params.clientId;
+	}
+
+	const response = await api['job-positions'].get({ $query: query });
+
+	if (response.error) {
+		console.error('Failed to fetch job positions:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch job positions');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as JobPosition[],
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }

@@ -19,6 +19,7 @@ import { headers } from 'next/headers';
 import {
 	queryKeys,
 	type ListQueryParams,
+	type JobPositionQueryParams,
 	type AttendanceQueryParams,
 	type UsersQueryParams,
 } from '@/lib/query-keys';
@@ -27,6 +28,7 @@ import {
 	fetchDevicesListServer,
 	fetchLocationsListServer,
 	fetchClientsListServer,
+	fetchJobPositionsListServer,
 	fetchAttendanceRecordsServer,
 	fetchDashboardCountsServer,
 	fetchApiKeysServer,
@@ -231,6 +233,49 @@ export function prefetchClientsList(
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchClientsListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchClientsListServer(cookieHeader, params);
+		},
+	});
+}
+
+// ============================================================================
+// Job Position Prefetch Functions
+// ============================================================================
+
+/**
+ * Prefetches the job positions list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it,
+ * allowing Next.js to stream the response as data becomes available.
+ * Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for filtering and pagination
+ *
+ * @example
+ * ```tsx
+ * // In a Server Component (page.tsx)
+ * export default function JobPositionsPage() {
+ *   const queryClient = getQueryClient();
+ *   prefetchJobPositionsList(queryClient, { limit: 100 });
+ *
+ *   return (
+ *     <HydrationBoundary state={dehydrate(queryClient)}>
+ *       <JobPositionsPageClient />
+ *     </HydrationBoundary>
+ *   );
+ * }
+ * ```
+ */
+export function prefetchJobPositionsList(
+	queryClient: QueryClient,
+	params?: JobPositionQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.jobPositions.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchJobPositionsListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchJobPositionsListServer(cookieHeader, params);
 		},
 	});
 }

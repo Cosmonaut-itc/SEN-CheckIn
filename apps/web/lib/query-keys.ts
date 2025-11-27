@@ -34,6 +34,14 @@ export interface AttendanceQueryParams extends ListQueryParams {
 }
 
 /**
+ * Query parameters for job positions list.
+ */
+export interface JobPositionQueryParams extends ListQueryParams {
+	/** Filter by client ID */
+	clientId?: string;
+}
+
+/**
  * Query parameters for users list.
  */
 export interface UsersQueryParams {
@@ -186,6 +194,25 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for job position-related queries.
+	 */
+	jobPositions: {
+		/** Base key for all job position queries */
+		all: ['jobPositions'] as const,
+		/**
+		 * Generates a query key for the job positions list.
+		 * @param params - Optional job position query parameters
+		 */
+		list: (params?: JobPositionQueryParams) =>
+			queryKeyConstructor(['jobPositions', 'list'] as const, params),
+		/**
+		 * Generates a query key for a specific job position.
+		 * @param id - The job position ID
+		 */
+		detail: (id: string) => ['jobPositions', 'detail', id] as const,
+	},
+
+	/**
 	 * Query keys for attendance-related queries.
 	 */
 	attendance: {
@@ -313,6 +340,15 @@ export const mutationKeys = {
 		create: ['clients', 'create'] as const,
 		update: ['clients', 'update'] as const,
 		delete: ['clients', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for job position operations.
+	 */
+	jobPositions: {
+		create: ['jobPositions', 'create'] as const,
+		update: ['jobPositions', 'update'] as const,
+		delete: ['jobPositions', 'delete'] as const,
 	},
 
 	/**

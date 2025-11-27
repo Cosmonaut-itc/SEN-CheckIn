@@ -1,8 +1,9 @@
 import { Elysia } from 'elysia';
-import { and, eq, ilike, or } from 'drizzle-orm';
+import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { location, client } from '../db/schema.js';
+import { location, organization } from '../db/schema.js';
+import { combinedAuthPlugin } from '../plugins/auth.js';
 import {
 	idParamSchema,
 	locationQuerySchema,
@@ -21,43 +22,52 @@ import {
  * Location routes plugin for Elysia.
  */
 export const locationRoutes = new Elysia({ prefix: '/locations' })
+	.use(combinedAuthPlugin)
 	/**
-	 * List all locations with pagination and optional client filter.
+	 * List all locations with pagination and organization scoping.
 	 *
 	 * @route GET /locations
 	 * @param query.limit - Maximum number of results (default: 50)
 	 * @param query.offset - Number of results to skip (default: 0)
-	 * @param query.clientId - Filter by client ID (optional)
+	 * @param query.organizationId - Filter by organization ID (API key flow only)
 	 * @returns Array of location records
 	 */
 	.get(
 		'/',
-		async ({ query }) => {
-			const { limit, offset, clientId, search } = query;
+		async ({ query, authType, session, set }) => {
+			const { limit, offset, organizationId: organizationIdQuery, search } = query;
+			const organizationId =
+				authType === 'session'
+					? (session?.activeOrganizationId ?? organizationIdQuery ?? null)
+					: (organizationIdQuery ?? null);
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required' };
+			}
 
 			let baseQuery = db.select().from(location);
-			const conditions = [];
+			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
+				eq(location.organizationId, organizationId),
+			];
 
-			if (clientId) {
-				conditions.push(eq(location.clientId, clientId));
-			}
 			if (search) {
-				conditions.push(
-					or(ilike(location.name, `%${search}%`), ilike(location.code, `%${search}%`)),
-				);
+				const searchClause = or(
+					ilike(location.name, `%${search}%`),
+					ilike(location.code, `%${search}%`),
+				)!;
+				conditions.push(searchClause);
 			}
 
-			if (conditions.length > 0) {
-				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
-			}
+			const whereClause = and(...conditions)!;
+			baseQuery = baseQuery.where(whereClause) as typeof baseQuery;
 
 			const results = await baseQuery.limit(limit).offset(offset).orderBy(location.name);
 
 			// Get total count
 			let countQuery = db.select().from(location);
-			if (conditions.length > 0) {
-				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
-			}
+			const countWhere = and(...conditions)!;
+			countQuery = countQuery.where(countWhere) as typeof countQuery;
 			const countResult = await countQuery;
 			const total = countResult.length;
 
@@ -110,24 +120,41 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 * @param body.name - Location name
 	 * @param body.code - Unique location code
 	 * @param body.address - Physical address (optional)
-	 * @param body.clientId - Client ID this location belongs to
+	 * @param body.organizationId - Organization ID this location belongs to (API key flow only)
 	 * @returns Created location record
 	 */
 	.post(
 		'/',
-		async ({ body, set }) => {
-			const { name, code, address, clientId } = body;
+		async ({ body, set, authType, session }) => {
+			const { name, code, address, organizationId: organizationIdInput } = body;
+			const organizationId =
+				authType === 'session'
+					? (session?.activeOrganizationId ?? organizationIdInput ?? null)
+					: (organizationIdInput ?? null);
 
-			// Verify client exists
-			const clientExists = await db.select().from(client).where(eq(client.id, clientId)).limit(1);
-
-			if (!clientExists[0]) {
+			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Client not found' };
+				return { error: 'Organization is required' };
+			}
+
+			// Verify organization exists
+			const organizationExists = await db
+				.select()
+				.from(organization)
+				.where(eq(organization.id, organizationId))
+				.limit(1);
+
+			if (!organizationExists[0]) {
+				set.status = 400;
+				return { error: 'Organization not found' };
 			}
 
 			// Check if code is unique
-			const codeExists = await db.select().from(location).where(eq(location.code, code)).limit(1);
+			const codeExists = await db
+				.select()
+				.from(location)
+				.where(eq(location.code, code))
+				.limit(1);
 
 			if (codeExists[0]) {
 				set.status = 409;
@@ -141,7 +168,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				name,
 				code,
 				address: address ?? null,
-				clientId,
+				organizationId,
+				clientId: null,
 			};
 
 			await db.insert(location).values(newLocation);
@@ -170,8 +198,10 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set }) => {
+		async ({ params, body, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if location exists
 			const existing = await db.select().from(location).where(eq(location.id, id)).limit(1);
@@ -181,9 +211,22 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				return { error: 'Location not found' };
 			}
 
+			if (
+				activeOrgId &&
+				existing[0].organizationId &&
+				existing[0].organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this location' };
+			}
+
 			// Check if code is unique (if being updated)
 			if (body.code && body.code !== existing[0].code) {
-				const codeExists = await db.select().from(location).where(eq(location.code, body.code)).limit(1);
+				const codeExists = await db
+					.select()
+					.from(location)
+					.where(eq(location.code, body.code))
+					.limit(1);
 
 				if (codeExists[0]) {
 					set.status = 409;
@@ -218,8 +261,10 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if location exists
 			const existing = await db.select().from(location).where(eq(location.id, id)).limit(1);
@@ -227,6 +272,15 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Location not found' };
+			}
+
+			if (
+				activeOrgId &&
+				existing[0].organizationId &&
+				existing[0].organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this location' };
 			}
 
 			await db.delete(location).where(eq(location.id, id));

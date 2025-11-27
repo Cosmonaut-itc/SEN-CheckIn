@@ -37,15 +37,6 @@ export {
 	type UpdateLocationInput,
 } from './locations';
 
-// Export client actions and types (except MutationResult)
-export {
-	createClient,
-	deleteClient,
-	updateClient,
-	type CreateClientInput,
-	type UpdateClientInput,
-} from './clients';
-
 // Export job position actions and types (except MutationResult)
 export {
 	createJobPosition,

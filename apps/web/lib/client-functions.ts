@@ -75,29 +75,9 @@ export interface Location {
 	name: string;
 	code: string;
 	address: string | null;
-	clientId: string;
-	createdAt: Date;
-	updatedAt: Date;
-}
-
-/**
- * Client record interface.
- */
-export interface Client {
-	id: string;
-	name: string;
-	apiKeyId: string | null;
 	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
-}
-
-/**
- * Query parameters specific to clients.
- */
-export interface ClientQueryParams extends ListQueryParams {
-	/** Filter by organization ID */
-	organizationId?: string;
 }
 
 /**
@@ -107,7 +87,7 @@ export interface JobPosition {
 	id: string;
 	name: string;
 	description: string | null;
-	clientId: string;
+	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -192,7 +172,7 @@ export interface DashboardCounts {
 	employees: number;
 	devices: number;
 	locations: number;
-	clients: number;
+	organizations: number;
 	attendance: number;
 }
 
@@ -335,57 +315,6 @@ export async function fetchLocationsList(
 }
 
 // ============================================================================
-// Client Functions
-// ============================================================================
-
-/**
- * Fetches a paginated list of clients from the API.
- *
- * @param params - Optional query parameters for filtering and pagination
- * @returns A promise resolving to the paginated clients response
- * @throws Error if the API request fails
- *
- * @example
- * ```ts
- * const { data, pagination } = await fetchClientsList({ search: 'acme', organizationId: 'org-uuid' });
- * ```
- */
-export async function fetchClientsList(
-	params?: ClientQueryParams,
-): Promise<PaginatedResponse<Client>> {
-	// Build query object, only including defined values
-	const query: {
-		limit: number;
-		offset: number;
-		search?: string;
-		organizationId?: string;
-	} = {
-		limit: params?.limit ?? 100,
-		offset: params?.offset ?? 0,
-	};
-
-	if (params?.search) {
-		query.search = params.search;
-	}
-
-	// Only add organizationId if it has a non-empty value
-	if (params?.organizationId) {
-		query.organizationId = params.organizationId;
-	}
-
-	const response = await api.clients.get({ $query: query });
-
-	if (response.error) {
-		throw new Error('Failed to fetch clients');
-	}
-
-	return {
-		data: (response.data?.data ?? []) as Client[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
-	};
-}
-
-// ============================================================================
 // Job Position Functions
 // ============================================================================
 
@@ -393,8 +322,8 @@ export async function fetchClientsList(
  * Query parameters specific to job positions.
  */
 export interface JobPositionQueryParams extends ListQueryParams {
-	/** Filter by client ID */
-	clientId?: string;
+	/** Filter by organization ID (optional for API key usage) */
+	organizationId?: string;
 }
 
 /**
@@ -406,27 +335,38 @@ export interface JobPositionQueryParams extends ListQueryParams {
  *
  * @example
  * ```ts
- * const { data, pagination } = await fetchJobPositionsList({ clientId: 'client-uuid', search: 'engineer' });
+ * const { data, pagination } = await fetchJobPositionsList({ search: 'engineer' });
  * ```
  */
 export async function fetchJobPositionsList(
 	params?: JobPositionQueryParams,
 ): Promise<PaginatedResponse<JobPosition>> {
+	// Require organization context; avoid hitting API with missing org
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
 	// Build query object, only including defined values
 	// Eden Treaty converts undefined to string "undefined" which breaks search
 	const query: {
 		limit: number;
 		offset: number;
-		clientId?: string;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 	};
 
-	// Only add clientId if it has a non-empty value
-	if (params?.clientId) {
-		query.clientId = params.clientId;
+	// Only add organizationId if it has a non-empty value
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
 	}
 
 	// Only add search if it has a non-empty value
@@ -520,19 +460,20 @@ export async function fetchAttendanceRecords(
  * ```
  */
 export async function fetchDashboardCounts(): Promise<DashboardCounts> {
-	const [employeesRes, devicesRes, locationsRes, clientsRes, attendanceRes] = await Promise.all([
-		api.employees.get({ $query: { limit: 1, offset: 0 } }),
-		api.devices.get({ $query: { limit: 1, offset: 0 } }),
-		api.locations.get({ $query: { limit: 1, offset: 0 } }),
-		api.clients.get({ $query: { limit: 1, offset: 0 } }),
-		api.attendance.get({ $query: { limit: 1, offset: 0 } }),
-	]);
+	const [employeesRes, devicesRes, locationsRes, organizationsRes, attendanceRes] =
+		await Promise.all([
+			api.employees.get({ $query: { limit: 1, offset: 0 } }),
+			api.devices.get({ $query: { limit: 1, offset: 0 } }),
+			api.locations.get({ $query: { limit: 1, offset: 0 } }),
+			authClient.organization.list(),
+			api.attendance.get({ $query: { limit: 1, offset: 0 } }),
+		]);
 
 	return {
 		employees: employeesRes.data?.pagination?.total ?? 0,
 		devices: devicesRes.data?.pagination?.total ?? 0,
 		locations: locationsRes.data?.pagination?.total ?? 0,
-		clients: clientsRes.data?.pagination?.total ?? 0,
+		organizations: organizationsRes.data?.length ?? 0,
 		attendance: attendanceRes.data?.pagination?.total ?? 0,
 	};
 }

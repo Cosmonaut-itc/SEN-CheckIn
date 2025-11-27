@@ -37,8 +37,8 @@ export interface AttendanceQueryParams extends ListQueryParams {
  * Query parameters for job positions list.
  */
 export interface JobPositionQueryParams extends ListQueryParams {
-	/** Filter by client ID */
-	clientId?: string;
+	/** Filter by organization ID (optional for API key usage) */
+	organizationId?: string;
 }
 
 /**
@@ -82,10 +82,7 @@ export interface UsersQueryParams {
 export function queryKeyConstructor<
 	TKey extends string | readonly string[],
 	TParams extends Record<string, unknown> | undefined = undefined,
->(
-	qk: TKey,
-	params?: TParams,
-): readonly unknown[] {
+>(qk: TKey, params?: TParams): readonly unknown[] {
 	const baseKey = typeof qk === 'string' ? [qk] : [...qk];
 
 	if (params === undefined) {
@@ -172,25 +169,6 @@ export const queryKeys = {
 		 * @param id - The location ID
 		 */
 		detail: (id: string) => ['locations', 'detail', id] as const,
-	},
-
-	/**
-	 * Query keys for client-related queries.
-	 */
-	clients: {
-		/** Base key for all client queries */
-		all: ['clients'] as const,
-		/**
-		 * Generates a query key for the clients list.
-		 * @param params - Optional list query parameters
-		 */
-		list: (params?: ListQueryParams) =>
-			queryKeyConstructor(['clients', 'list'] as const, params),
-		/**
-		 * Generates a query key for a specific client.
-		 * @param id - The client ID
-		 */
-		detail: (id: string) => ['clients', 'detail', id] as const,
 	},
 
 	/**
@@ -334,15 +312,6 @@ export const mutationKeys = {
 	},
 
 	/**
-	 * Mutation keys for client operations.
-	 */
-	clients: {
-		create: ['clients', 'create'] as const,
-		update: ['clients', 'update'] as const,
-		delete: ['clients', 'delete'] as const,
-	},
-
-	/**
 	 * Mutation keys for job position operations.
 	 */
 	jobPositions: {
@@ -376,4 +345,3 @@ export const mutationKeys = {
 		unban: ['users', 'unban'] as const,
 	},
 } as const;
-

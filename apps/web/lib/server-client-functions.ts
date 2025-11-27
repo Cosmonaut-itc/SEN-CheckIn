@@ -14,7 +14,6 @@ import type {
 	ApiKey,
 	AttendanceRecord,
 	AttendanceType,
-	Client,
 	DashboardCounts,
 	Device,
 	Employee,
@@ -180,55 +179,6 @@ export async function fetchLocationsListServer(
 }
 
 // ============================================================================
-// Client Functions
-// ============================================================================
-
-/**
- * Fetches a paginated list of clients from the API (server-side).
- *
- * @param cookieHeader - The cookie header string from the incoming request
- * @param params - Optional query parameters for filtering and pagination
- * @returns A promise resolving to the paginated clients response
- * @throws Error if the API request fails
- */
-export async function fetchClientsListServer(
-	cookieHeader: string,
-	params?: ListQueryParams,
-): Promise<PaginatedResponse<Client>> {
-	const api: ServerApiClient = createServerApiClient(cookieHeader);
-
-	const query: {
-		limit: number;
-		offset: number;
-		search?: string;
-	} = {
-		limit: params?.limit ?? 100,
-		offset: params?.offset ?? 0,
-	};
-
-	if (params?.search) {
-		query.search = params.search;
-	}
-
-	const response = await api.clients.get({ $query: query });
-
-	if (response.error) {
-		console.error(
-			'[Server] Failed to fetch clients:',
-			response.error,
-			'Status:',
-			response.status,
-		);
-		throw new Error('Failed to fetch clients');
-	}
-
-	return {
-		data: (response.data?.data ?? []) as Client[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
-	};
-}
-
-// ============================================================================
 // Job Position Functions
 // ============================================================================
 
@@ -246,17 +196,24 @@ export async function fetchJobPositionsListServer(
 ): Promise<PaginatedResponse<JobPosition>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
+
 	const query: {
 		limit: number;
 		offset: number;
-		clientId?: string;
+		organizationId?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 	};
 
-	if (params?.clientId) {
-		query.clientId = params.clientId;
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
 	}
 
 	const response = await api['job-positions'].get({ $query: query });
@@ -345,20 +302,26 @@ export async function fetchAttendanceRecordsServer(
  */
 export async function fetchDashboardCountsServer(cookieHeader: string): Promise<DashboardCounts> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const forwardedHeaders: HeadersInit = cookieHeader ? { cookie: cookieHeader } : {};
 
-	const [employeesRes, devicesRes, locationsRes, clientsRes, attendanceRes] = await Promise.all([
-		api.employees.get({ $query: { limit: 1, offset: 0 } }),
-		api.devices.get({ $query: { limit: 1, offset: 0 } }),
-		api.locations.get({ $query: { limit: 1, offset: 0 } }),
-		api.clients.get({ $query: { limit: 1, offset: 0 } }),
-		api.attendance.get({ $query: { limit: 1, offset: 0 } }),
-	]);
+	const [employeesRes, devicesRes, locationsRes, organizationsRes, attendanceRes] =
+		await Promise.all([
+			api.employees.get({ $query: { limit: 1, offset: 0 } }),
+			api.devices.get({ $query: { limit: 1, offset: 0 } }),
+			api.locations.get({ $query: { limit: 1, offset: 0 } }),
+			authClient.organization.list({
+				fetchOptions: {
+					headers: forwardedHeaders,
+				},
+			}),
+			api.attendance.get({ $query: { limit: 1, offset: 0 } }),
+		]);
 
 	return {
 		employees: employeesRes.data?.pagination?.total ?? 0,
 		devices: devicesRes.data?.pagination?.total ?? 0,
 		locations: locationsRes.data?.pagination?.total ?? 0,
-		clients: clientsRes.data?.pagination?.total ?? 0,
+		organizations: organizationsRes.data?.length ?? 0,
 		attendance: attendanceRes.data?.pagination?.total ?? 0,
 	};
 }

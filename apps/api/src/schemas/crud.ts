@@ -26,32 +26,6 @@ export const paginationSchema = z.object({
 });
 
 // ============================================================================
-// Client Schemas
-// ============================================================================
-
-/**
- * Schema for creating a new client.
- */
-export const createClientSchema = z.object({
-	name: z.string().min(1, 'Name is required').max(255),
-});
-
-/**
- * Schema for updating a client.
- */
-export const updateClientSchema = z.object({
-	name: z.string().min(1).max(255).optional(),
-});
-
-/**
- * Schema for client query filters.
- */
-export const clientQuerySchema = paginationSchema.extend({
-	search: z.string().optional(),
-	organizationId: z.string().uuid().optional(),
-});
-
-// ============================================================================
 // Location Schemas
 // ============================================================================
 
@@ -62,7 +36,7 @@ export const createLocationSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	code: z.string().min(1, 'Code is required').max(50),
 	address: z.string().max(500).optional(),
-	clientId: z.string().uuid('Invalid client ID'),
+	organizationId: z.string().uuid('Invalid organization ID').optional(),
 });
 
 /**
@@ -78,7 +52,7 @@ export const updateLocationSchema = z.object({
  * Schema for location query filters.
  */
 export const locationQuerySchema = paginationSchema.extend({
-	clientId: z.string().uuid().optional(),
+	organizationId: z.string().uuid().optional(),
 	search: z.string().optional(),
 });
 
@@ -92,7 +66,7 @@ export const locationQuerySchema = paginationSchema.extend({
 export const createJobPositionSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	description: z.string().max(1000).optional(),
-	clientId: z.string().uuid('Invalid client ID'),
+	organizationId: z.string().uuid('Invalid organization ID').optional(),
 });
 
 /**
@@ -107,7 +81,7 @@ export const updateJobPositionSchema = z.object({
  * Schema for job position query filters.
  */
 export const jobPositionQuerySchema = paginationSchema.extend({
-	clientId: z.string().uuid().optional(),
+	organizationId: z.string().uuid().optional(),
 	search: z.string().optional(),
 });
 
@@ -248,11 +222,6 @@ export const employeeIdParamSchema = z.object({
 // Common
 export type IdParam = z.infer<typeof idParamSchema>;
 export type PaginationQuery = z.infer<typeof paginationSchema>;
-
-// Client
-export type CreateClientInput = z.infer<typeof createClientSchema>;
-export type UpdateClientInput = z.infer<typeof updateClientSchema>;
-export type ClientQuery = z.infer<typeof clientQuerySchema>;
 
 // Location
 export type CreateLocationInput = z.infer<typeof createLocationSchema>;

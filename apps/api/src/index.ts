@@ -13,7 +13,6 @@ import { loggerPlugin } from './plugins/logger.js';
 
 // Route imports
 import { attendanceRoutes } from './routes/attendance.js';
-import { clientRoutes } from './routes/clients.js';
 import { deviceRoutes } from './routes/devices.js';
 import { employeeRoutes } from './routes/employees.js';
 import { jobPositionRoutes } from './routes/job-positions.js';
@@ -56,7 +55,6 @@ const betterAuthView = (context: Context) => {
 const protectedRoutes = new Elysia({ name: 'protected-routes' })
 	.use(combinedAuthPlugin)
 	// Domain entity CRUD routes (all require authentication)
-	.use(clientRoutes)
 	.use(locationRoutes)
 	.use(jobPositionRoutes)
 	.use(employeeRoutes)

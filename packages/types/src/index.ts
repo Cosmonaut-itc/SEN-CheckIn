@@ -226,28 +226,8 @@ export interface Location {
 	code: string;
 	/** Physical address (optional) */
 	address: string | null;
-	/** Client ID reference */
-	clientId: string;
-	/** Record creation timestamp */
-	createdAt: Date;
-	/** Record last update timestamp */
-	updatedAt: Date;
-}
-
-// ============================================================================
-// Client Types
-// ============================================================================
-
-/**
- * Client entity.
- */
-export interface Client {
-	/** Unique identifier (UUID) */
-	id: string;
-	/** Client name */
-	name: string;
-	/** API key ID reference (optional) */
-	apiKeyId: string | null;
+	/** Owning organization ID reference */
+	organizationId: string | null;
 	/** Record creation timestamp */
 	createdAt: Date;
 	/** Record last update timestamp */

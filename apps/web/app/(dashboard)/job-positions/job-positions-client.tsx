@@ -26,10 +26,10 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchJobPositionsList, fetchClientsList, type JobPosition } from '@/lib/client-functions';
+import { fetchJobPositionsList, type JobPosition } from '@/lib/client-functions';
 import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
 import { useAppForm, TextField, TextareaField, SubmitButton } from '@/lib/forms';
-import { useSession } from '@/lib/auth-client';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Form values interface for job position create/edit form.
@@ -57,41 +57,27 @@ const initialFormValues: JobPositionFormValues = {
  */
 export function JobPositionsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { data: session } = useSession();
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingJobPosition, setEditingJobPosition] = useState<JobPosition | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-
-	// Get the active organization ID from the user's session
-	const activeOrganizationId = session?.session?.activeOrganizationId ?? undefined;
+	const isOrgSelected = Boolean(organizationId);
 
 	// Build query params - only include search if it has a value
-	const queryParams = search
-		? { search, limit: 100, offset: 0 }
-		: { limit: 100, offset: 0 };
+	const queryParams = {
+		limit: 100,
+		offset: 0,
+		...(search ? { search } : {}),
+		...(organizationId ? { organizationId } : {}),
+	};
 
 	// Query for job positions list
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.jobPositions.list(queryParams),
 		queryFn: () => fetchJobPositionsList(queryParams),
+		enabled: isOrgSelected,
 	});
-
-	// Build client query params - filter by active organization if available
-	const clientQueryParams = activeOrganizationId
-		? { organizationId: activeOrganizationId, limit: 1, offset: 0 }
-		: { limit: 1, offset: 0 };
-
-	// Query for clients list filtered by the user's active organization
-	const { data: clientsData } = useQuery({
-		queryKey: queryKeys.clients.list(clientQueryParams),
-		queryFn: () => fetchClientsList(clientQueryParams),
-		// Only enable the query when we have a session (to avoid unnecessary calls)
-		enabled: session !== undefined,
-	});
-
-	// Get the client ID associated with the user's active organization
-	const activeClientId = clientsData?.data?.[0]?.id ?? '';
 
 	const jobPositions = data?.data ?? [];
 
@@ -149,43 +135,39 @@ export function JobPositionsPageClient(): React.ReactElement {
 		},
 	});
 
-// TanStack Form instance
-const form = useAppForm({
-	defaultValues: editingJobPosition
-		? {
-				name: editingJobPosition.name,
-				description: editingJobPosition.description ?? '',
+	// TanStack Form instance
+	const form = useAppForm({
+		defaultValues: editingJobPosition
+			? {
+					name: editingJobPosition.name,
+					description: editingJobPosition.description ?? '',
+				}
+			: initialFormValues,
+		onSubmit: async ({ value }) => {
+			if (editingJobPosition) {
+				await updateMutation.mutateAsync({
+					id: editingJobPosition.id,
+					name: value.name,
+					// Send null when description is empty string to clear the field
+					description:
+						value.description.trim() === '' ? null : value.description || undefined,
+				});
+			} else {
+				if (!organizationId) {
+					toast.error('No active organization. Please select an organization first.');
+					return;
+				}
+				await createMutation.mutateAsync({
+					name: value.name,
+					description: value.description || undefined,
+					organizationId,
+				});
 			}
-		: initialFormValues,
-	onSubmit: async ({ value }) => {
-		if (editingJobPosition) {
-			await updateMutation.mutateAsync({
-				id: editingJobPosition.id,
-				name: value.name,
-				// Send null when description is empty string to clear the field
-				description: value.description.trim() === '' ? null : value.description || undefined,
-			});
-		} else {
-			// Use the client ID associated with the user's active organization
-			if (!activeClientId) {
-				toast.error(
-					activeOrganizationId
-						? 'No client found for your organization. Please create a client first.'
-						: 'No active organization. Please select an organization first.',
-				);
-				return;
-			}
-			await createMutation.mutateAsync({
-				name: value.name,
-				description: value.description || undefined,
-				clientId: activeClientId,
-			});
-		}
-		setIsDialogOpen(false);
-		setEditingJobPosition(null);
-		form.reset();
-	},
-});
+			setIsDialogOpen(false);
+			setEditingJobPosition(null);
+			form.reset();
+		},
+	});
 
 	/**
 	 * Opens the dialog for creating a new job position.
@@ -201,43 +183,61 @@ const form = useAppForm({
 	 *
 	 * @param jobPosition - The job position to edit
 	 */
-	const handleEdit = useCallback((jobPosition: JobPosition): void => {
-		setEditingJobPosition(jobPosition);
-		form.setFieldValue('name', jobPosition.name);
-		form.setFieldValue('description', jobPosition.description ?? '');
-		setIsDialogOpen(true);
-	}, [form]);
+	const handleEdit = useCallback(
+		(jobPosition: JobPosition): void => {
+			setEditingJobPosition(jobPosition);
+			form.setFieldValue('name', jobPosition.name);
+			form.setFieldValue('description', jobPosition.description ?? '');
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles job position deletion.
 	 *
 	 * @param id - The job position ID to delete
 	 */
-	const handleDelete = useCallback((id: string): void => {
-		deleteMutation.mutate(id);
-	}, [deleteMutation]);
+	const handleDelete = useCallback(
+		(id: string): void => {
+			deleteMutation.mutate(id);
+		},
+		[deleteMutation],
+	);
 
 	/**
 	 * Handles dialog close and resets form state.
 	 *
 	 * @param open - Whether the dialog should be open
 	 */
-	const handleDialogOpenChange = useCallback((open: boolean): void => {
-		setIsDialogOpen(open);
-		if (!open) {
-			setEditingJobPosition(null);
-			form.reset();
-		}
-	}, [form]);
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingJobPosition(null);
+				form.reset();
+			}
+		},
+		[form],
+	);
+
+	if (!isOrgSelected) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">Job Positions</h1>
+				<p className="text-muted-foreground">
+					Select an active organization to manage job positions.
+				</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Job Positions</h1>
-					<p className="text-muted-foreground">
-						Manage employee job positions and roles
-					</p>
+					<p className="text-muted-foreground">Manage employee job positions and roles</p>
 				</div>
 				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
@@ -264,29 +264,34 @@ const form = useAppForm({
 										: 'Fill in the details to create a new job position.'}
 								</DialogDescription>
 							</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<form.Field
-							name="name"
-							validators={{
-								onChange: ({ value }) =>
-									!value.trim() ? 'Name is required' : undefined,
-							}}
-						>
-							{() => <TextField label="Name" placeholder="e.g., Software Engineer" />}
-						</form.Field>
-						<form.Field name="description">
-							{() => (
-								<TextareaField
-									label="Description"
-									placeholder="Optional description of the job position"
-									rows={3}
-								/>
-							)}
-						</form.Field>
-					</div>
-					<DialogFooter>
-						<SubmitButton label="Save" loadingLabel="Saving..." />
-					</DialogFooter>
+							<div className="grid gap-4 py-4">
+								<form.Field
+									name="name"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Name is required' : undefined,
+									}}
+								>
+									{() => (
+										<TextField
+											label="Name"
+											placeholder="e.g., Software Engineer"
+										/>
+									)}
+								</form.Field>
+								<form.Field name="description">
+									{() => (
+										<TextareaField
+											label="Description"
+											placeholder="Optional description of the job position"
+											rows={3}
+										/>
+									)}
+								</form.Field>
+							</div>
+							<DialogFooter>
+								<SubmitButton label="Save" loadingLabel="Saving..." />
+							</DialogFooter>
 						</form>
 					</DialogContent>
 				</Dialog>
@@ -334,7 +339,9 @@ const form = useAppForm({
 						) : (
 							jobPositions.map((jobPosition) => (
 								<TableRow key={jobPosition.id}>
-									<TableCell className="font-medium">{jobPosition.name}</TableCell>
+									<TableCell className="font-medium">
+										{jobPosition.name}
+									</TableCell>
 									<TableCell className="max-w-xs truncate">
 										{jobPosition.description ?? '-'}
 									</TableCell>
@@ -363,10 +370,13 @@ const form = useAppForm({
 												</DialogTrigger>
 												<DialogContent>
 													<DialogHeader>
-														<DialogTitle>Delete Job Position</DialogTitle>
+														<DialogTitle>
+															Delete Job Position
+														</DialogTitle>
 														<DialogDescription>
-															Are you sure you want to delete &quot;{jobPosition.name}&quot;?
-															This action cannot be undone.
+															Are you sure you want to delete &quot;
+															{jobPosition.name}&quot;? This action
+															cannot be undone.
 														</DialogDescription>
 													</DialogHeader>
 													<DialogFooter>
@@ -378,7 +388,9 @@ const form = useAppForm({
 														</Button>
 														<Button
 															variant="destructive"
-															onClick={() => handleDelete(jobPosition.id)}
+															onClick={() =>
+																handleDelete(jobPosition.id)
+															}
 															disabled={deleteMutation.isPending}
 														>
 															{deleteMutation.isPending ? (

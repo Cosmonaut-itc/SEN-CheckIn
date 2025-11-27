@@ -3,6 +3,8 @@ import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchLocationsList } from '@/lib/server-functions';
 import { LocationsPageClient } from './locations-client';
 import React from 'react';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
+import { OrgProvider } from '@/lib/org-client-context';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -19,15 +21,24 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The locations page with hydrated query state
  */
-export default function LocationsPage(): React.ReactElement {
+export default async function LocationsPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
+	const orgContext = await getActiveOrganizationContext();
 
 	// Prefetch without await for streaming support
-	prefetchLocationsList(queryClient, { limit: 100, offset: 0 });
+	if (orgContext.organizationId) {
+		prefetchLocationsList(queryClient, {
+			limit: 100,
+			offset: 0,
+			organizationId: orgContext.organizationId,
+		});
+	}
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<LocationsPageClient />
+			<OrgProvider value={orgContext}>
+				<LocationsPageClient />
+			</OrgProvider>
 		</HydrationBoundary>
 	);
 }

@@ -29,6 +29,7 @@ import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchLocationsList, type Location } from '@/lib/client-functions';
 import { createLocation, updateLocation, deleteLocation } from '@/actions/locations';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Form values for creating/editing locations.
@@ -37,7 +38,6 @@ interface LocationFormValues {
 	name: string;
 	code: string;
 	address: string;
-	clientId: string;
 }
 
 /**
@@ -48,20 +48,26 @@ interface LocationFormValues {
  */
 export function LocationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+	const isOrgSelected = Boolean(organizationId);
 
 	// Build query params - only include search if it has a value
-	const queryParams = search
-		? { search, limit: 100, offset: 0 }
-		: { limit: 100, offset: 0 };
+	const queryParams = {
+		limit: 100,
+		offset: 0,
+		...(search ? { search } : {}),
+		...(organizationId ? { organizationId } : {}),
+	};
 
 	// Query for locations list
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.locations.list(queryParams),
 		queryFn: () => fetchLocationsList(queryParams),
+		enabled: isOrgSelected,
 	});
 
 	const locations = data?.data ?? [];
@@ -120,35 +126,38 @@ export function LocationsPageClient(): React.ReactElement {
 		},
 	});
 
-// TanStack Form instance (after mutations to avoid TDZ)
-const form = useAppForm({
-	defaultValues: {
-		name: '',
-		code: '',
-		address: '',
-		clientId: '',
-	},
-	onSubmit: async ({ value }: { value: LocationFormValues }) => {
-		if (editingLocation) {
-			await updateMutation.mutateAsync({
-				id: editingLocation.id,
-				name: value.name,
-				code: value.code,
-				address: value.address || undefined,
-			});
-		} else {
-			await createMutation.mutateAsync({
-				name: value.name,
-				code: value.code,
-				address: value.address || undefined,
-				clientId: value.clientId,
-			});
-		}
-		setIsDialogOpen(false);
-		setEditingLocation(null);
-		form.reset();
-	},
-});
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useAppForm({
+		defaultValues: {
+			name: '',
+			code: '',
+			address: '',
+		},
+		onSubmit: async ({ value }: { value: LocationFormValues }) => {
+			if (editingLocation) {
+				await updateMutation.mutateAsync({
+					id: editingLocation.id,
+					name: value.name,
+					code: value.code,
+					address: value.address || undefined,
+				});
+			} else {
+				if (!organizationId) {
+					toast.error('No active organization. Please select an organization first.');
+					return;
+				}
+				await createMutation.mutateAsync({
+					name: value.name,
+					code: value.code,
+					address: value.address || undefined,
+					organizationId,
+				});
+			}
+			setIsDialogOpen(false);
+			setEditingLocation(null);
+			form.reset();
+		},
+	});
 
 	/**
 	 * Opens the dialog for creating a new location.
@@ -170,7 +179,6 @@ const form = useAppForm({
 			form.setFieldValue('name', location.name);
 			form.setFieldValue('code', location.code);
 			form.setFieldValue('address', location.address ?? '');
-			form.setFieldValue('clientId', location.clientId);
 			setIsDialogOpen(true);
 		},
 		[form],
@@ -210,20 +218,29 @@ const form = useAppForm({
 		deleteMutation.mutate(id);
 	};
 
+	if (!isOrgSelected) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">Locations</h1>
+				<p className="text-muted-foreground">
+					Select an active organization to manage locations.
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Locations</h1>
-					<p className="text-muted-foreground">
-						Manage branches and office locations
-					</p>
+					<p className="text-muted-foreground">Manage branches and office locations</p>
 				</div>
-		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-			<DialogTrigger asChild>
-				<Button onClick={handleCreateNew}>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Location
+				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+					<DialogTrigger asChild>
+						<Button onClick={handleCreateNew}>
+							<Plus className="mr-2 h-4 w-4" />
+							Add Location
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
@@ -238,43 +255,35 @@ const form = useAppForm({
 										: 'Fill in the details to create a new location.'}
 								</DialogDescription>
 							</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<form.Field
-							name="name"
-							validators={{
-								onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
-							}}
-						>
-							{() => <TextField label="Name" />}
-						</form.Field>
-						<form.Field
-							name="code"
-							validators={{
-								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
-							}}
-						>
-							{() => <TextField label="Code" />}
-						</form.Field>
-						<form.Field name="address">
-							{() => <TextField label="Address" placeholder="Optional" />}
-						</form.Field>
-						{!editingLocation && (
-							<form.Field
-								name="clientId"
-								validators={{
-									onChange: ({ value }) => (!value.trim() ? 'Client ID is required' : undefined),
-								}}
-							>
-								{() => <TextField label="Client ID" placeholder="Client UUID" />}
-							</form.Field>
-						)}
-					</div>
-					<DialogFooter>
-						<SubmitButton label="Save" loadingLabel="Saving..." />
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+							<div className="grid gap-4 py-4">
+								<form.Field
+									name="name"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Name is required' : undefined,
+									}}
+								>
+									{() => <TextField label="Name" />}
+								</form.Field>
+								<form.Field
+									name="code"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Code is required' : undefined,
+									}}
+								>
+									{() => <TextField label="Code" />}
+								</form.Field>
+								<form.Field name="address">
+									{() => <TextField label="Address" placeholder="Optional" />}
+								</form.Field>
+							</div>
+							<DialogFooter>
+								<SubmitButton label="Save" loadingLabel="Saving..." />
+							</DialogFooter>
+						</form>
+					</DialogContent>
+				</Dialog>
 			</div>
 
 			<div className="flex items-center gap-4">
@@ -350,8 +359,9 @@ const form = useAppForm({
 													<DialogHeader>
 														<DialogTitle>Delete Location</DialogTitle>
 														<DialogDescription>
-															Are you sure you want to delete {location.name}?
-															This action cannot be undone.
+															Are you sure you want to delete{' '}
+															{location.name}? This action cannot be
+															undone.
 														</DialogDescription>
 													</DialogHeader>
 													<DialogFooter>
@@ -363,7 +373,9 @@ const form = useAppForm({
 														</Button>
 														<Button
 															variant="destructive"
-															onClick={() => handleDelete(location.id)}
+															onClick={() =>
+																handleDelete(location.id)
+															}
 														>
 															Delete
 														</Button>

@@ -23,8 +23,8 @@ export interface CreateJobPositionInput {
 	name: string;
 	/** Job position description (optional) */
 	description?: string;
-	/** Client ID this position belongs to */
-	clientId: string;
+	/** Optional organization override for API key flows (defaults to active org) */
+	organizationId?: string;
 }
 
 /**
@@ -72,7 +72,6 @@ async function getCookieHeader(): Promise<string> {
  * const result = await createJobPosition({
  *   name: 'Software Engineer',
  *   description: 'Develops software applications',
- *   clientId: 'client-uuid',
  * });
  * ```
  */
@@ -84,7 +83,7 @@ export async function createJobPosition(input: CreateJobPositionInput): Promise<
 		const response = await api['job-positions'].post({
 			name: input.name,
 			description: input.description || undefined,
-			clientId: input.clientId,
+			organizationId: input.organizationId,
 		});
 
 		if (response.error) {
@@ -194,4 +193,3 @@ export async function deleteJobPosition(id: string): Promise<MutationResult> {
 		};
 	}
 }
-

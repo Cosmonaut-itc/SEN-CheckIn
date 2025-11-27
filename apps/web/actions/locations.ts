@@ -25,8 +25,8 @@ export interface CreateLocationInput {
 	code: string;
 	/** Location address */
 	address?: string;
-	/** Client ID this location belongs to */
-	clientId: string;
+	/** Optional organization override for API key flows (defaults to active org) */
+	organizationId?: string;
 }
 
 /**
@@ -67,7 +67,6 @@ export interface MutationResult<T = unknown> {
  *   name: 'Main Office',
  *   code: 'LOC001',
  *   address: '123 Main St',
- *   clientId: 'client-id',
  * });
  * ```
  */
@@ -81,7 +80,7 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
 			name: input.name,
 			code: input.code,
 			address: input.address || undefined,
-			clientId: input.clientId,
+			organizationId: input.organizationId,
 		});
 
 		if (response.error) {

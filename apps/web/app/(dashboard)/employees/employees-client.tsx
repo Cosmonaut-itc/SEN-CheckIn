@@ -45,6 +45,7 @@ import { fetchEmployeesList, fetchJobPositionsList, type Employee, type Employee
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
 import { FaceEnrollmentDialog } from '@/components/face-enrollment-dialog';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Form values interface for creating/editing employees.
@@ -99,6 +100,7 @@ const statusVariants: Record<EmployeeStatus, 'default' | 'secondary' | 'outline'
  */
 export function EmployeesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
@@ -120,8 +122,14 @@ export function EmployeesPageClient(): React.ReactElement {
 
 	// Query for job positions list (for the dropdown)
 	const { data: jobPositionsData, isLoading: isLoadingJobPositions } = useQuery({
-		queryKey: queryKeys.jobPositions.list({ limit: 100, offset: 0 }),
-		queryFn: () => fetchJobPositionsList({ limit: 100, offset: 0 }),
+		queryKey: queryKeys.jobPositions.list(
+			organizationId ? { limit: 100, offset: 0, organizationId } : { limit: 100, offset: 0 },
+		),
+		queryFn: () =>
+			fetchJobPositionsList(
+				organizationId ? { limit: 100, offset: 0, organizationId } : { limit: 100, offset: 0 },
+			),
+		enabled: Boolean(organizationId),
 	});
 
 	const employees = data?.data ?? [];

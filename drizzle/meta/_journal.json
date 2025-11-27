@@ -50,6 +50,13 @@
       "when": 1764106664450,
       "tag": "0006_bored_cammi",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1764210465919,
+      "tag": "0007_remarkable_the_twelve",
+      "breakpoints": true
     }
   ]
 }

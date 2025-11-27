@@ -27,7 +27,6 @@ import {
 	fetchEmployeesListServer,
 	fetchDevicesListServer,
 	fetchLocationsListServer,
-	fetchClientsListServer,
 	fetchJobPositionsListServer,
 	fetchAttendanceRecordsServer,
 	fetchDashboardCountsServer,
@@ -95,10 +94,7 @@ async function getRequestHeaders(): Promise<Headers> {
  * }
  * ```
  */
-export function prefetchEmployeesList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
@@ -138,10 +134,7 @@ export function prefetchEmployeesList(
  * }
  * ```
  */
-export function prefetchDevicesList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchDevicesList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.devices.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDevicesListServer>>> => {
@@ -181,10 +174,7 @@ export function prefetchDevicesList(
  * }
  * ```
  */
-export function prefetchLocationsList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchLocationsList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.locations.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchLocationsListServer>>> => {
@@ -196,49 +186,6 @@ export function prefetchLocationsList(
 
 // ============================================================================
 // Client Prefetch Functions
-// ============================================================================
-
-/**
- * Prefetches the clients list for server-side streaming.
- *
- * This function initiates the prefetch but does NOT await it,
- * allowing Next.js to stream the response as data becomes available.
- * Cookies are forwarded from the incoming request to authenticate
- * with the API server.
- *
- * @param queryClient - The QueryClient instance from getQueryClient()
- * @param params - Optional query parameters for filtering and pagination
- *
- * @example
- * ```tsx
- * // In a Server Component (page.tsx)
- * export default function ClientsPage() {
- *   const queryClient = getQueryClient();
- *   prefetchClientsList(queryClient, { limit: 100 });
- *
- *   return (
- *     <HydrationBoundary state={dehydrate(queryClient)}>
- *       <ClientsPageClient />
- *     </HydrationBoundary>
- *   );
- * }
- * ```
- */
-export function prefetchClientsList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
-	queryClient.prefetchQuery({
-		queryKey: queryKeys.clients.list(params),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchClientsListServer>>> => {
-			const cookieHeader: string = await getCookieHeader();
-			return fetchClientsListServer(cookieHeader, params);
-		},
-	});
-}
-
-// ============================================================================
-// Job Position Prefetch Functions
 // ============================================================================
 
 /**
@@ -473,10 +420,7 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
  * }
  * ```
  */
-export function prefetchUsers(
-	queryClient: QueryClient,
-	params?: UsersQueryParams,
-): void {
+export function prefetchUsers(queryClient: QueryClient, params?: UsersQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.users.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchUsersServer>>> => {

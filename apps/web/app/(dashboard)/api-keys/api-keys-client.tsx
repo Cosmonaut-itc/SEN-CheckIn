@@ -2,9 +2,8 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from '@tanstack/react-form';
+import { useAppForm, TextField, SubmitButton } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
 	Table,
 	TableBody,
@@ -22,11 +21,10 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Trash2, Copy, Key, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Copy, Key, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchApiKeys, type ApiKey } from '@/lib/client-functions';
@@ -96,17 +94,18 @@ export function ApiKeysPageClient(): React.ReactElement {
 		},
 	});
 
-	// TanStack Form instance (after mutations to avoid TDZ)
-	const form = useForm({
-		defaultValues: {
-			name: '',
-		},
-		onSubmit: async ({ value }: { value: ApiKeyFormValues }) => {
-			createMutation.mutate({
-				name: value.name || undefined,
-			});
-		},
-	});
+// TanStack Form instance (after mutations to avoid TDZ)
+const form = useAppForm({
+	defaultValues: {
+		name: '',
+	},
+	onSubmit: async ({ value }: { value: ApiKeyFormValues }) => {
+		await createMutation.mutateAsync({
+			name: value.name || undefined,
+		});
+		form.reset();
+	},
+});
 
 	/**
 	 * Opens the dialog for creating a new API key.
@@ -232,40 +231,11 @@ export function ApiKeysPageClient(): React.ReactElement {
 						</DialogHeader>
 						<div className="grid gap-4 py-4">
 							<form.Field name="name">
-								{(field) => (
-									<div className="grid grid-cols-4 items-center gap-4">
-										<Label htmlFor={field.name} className="text-right">
-											Name
-										</Label>
-										<div className="col-span-3">
-											<Input
-												id={field.name}
-												name={field.name}
-												value={field.state.value}
-												onChange={(e) => field.handleChange(e.target.value)}
-												onBlur={field.handleBlur}
-												placeholder="My API Key"
-											/>
-										</div>
-									</div>
-								)}
+								{() => <TextField label="Name" placeholder="My API Key" />}
 							</form.Field>
 						</div>
 						<DialogFooter>
-							<form.Subscribe selector={(state) => [state.canSubmit]}>
-								{([canSubmit]) => (
-									<Button type="submit" disabled={!canSubmit || createMutation.isPending}>
-										{createMutation.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Creating...
-											</>
-										) : (
-											'Create Key'
-										)}
-									</Button>
-								)}
-							</form.Subscribe>
+							<SubmitButton label="Create Key" loadingLabel="Creating..." />
 						</DialogFooter>
 					</form>
 						)}

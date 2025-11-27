@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from '@tanstack/react-form';
+import { useAppForm, TextField, SelectField, SubmitButton } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,18 +22,10 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchDevicesList, type Device, type DeviceStatus } from '@/lib/client-functions';
@@ -138,35 +130,36 @@ export function DevicesPageClient(): React.ReactElement {
 		},
 	});
 
-	const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
-	// TanStack Form instance (after mutations to avoid TDZ)
-	const form = useForm({
-		defaultValues: {
-			code: '',
-			name: '',
-			deviceType: '',
-			status: 'OFFLINE',
-		},
-		onSubmit: async ({ value }: { value: DeviceFormValues }) => {
-			if (editingDevice) {
-				updateMutation.mutate({
-					id: editingDevice.id,
-					code: value.code,
-					name: value.name || undefined,
-					deviceType: value.deviceType || undefined,
-					status: value.status,
-				});
-			} else {
-				createMutation.mutate({
-					code: value.code,
-					name: value.name || undefined,
-					deviceType: value.deviceType || undefined,
-					status: value.status,
-				});
-			}
-		},
-	});
+// TanStack Form instance (after mutations to avoid TDZ)
+const form = useAppForm({
+	defaultValues: {
+		code: '',
+		name: '',
+		deviceType: '',
+		status: 'OFFLINE',
+	},
+	onSubmit: async ({ value }: { value: DeviceFormValues }) => {
+		if (editingDevice) {
+			await updateMutation.mutateAsync({
+				id: editingDevice.id,
+				code: value.code,
+				name: value.name || undefined,
+				deviceType: value.deviceType || undefined,
+				status: value.status,
+			});
+		} else {
+			await createMutation.mutateAsync({
+				code: value.code,
+				name: value.name || undefined,
+				deviceType: value.deviceType || undefined,
+				status: value.status,
+			});
+		}
+		setIsDialogOpen(false);
+		setEditingDevice(null);
+		form.reset();
+	},
+});
 
 	/**
 	 * Opens the dialog for creating a new device.
@@ -263,66 +256,13 @@ export function DevicesPageClient(): React.ReactElement {
 								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
 							}}
 						>
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Code
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											required
-										/>
-										{field.state.meta.errors.length > 0 && (
-											<p className="mt-1 text-sm text-destructive">
-												{field.state.meta.errors.join(', ')}
-											</p>
-										)}
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Code" />}
 						</form.Field>
 						<form.Field name="name">
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Name
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											placeholder="Optional"
-										/>
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Name" placeholder="Optional" />}
 						</form.Field>
 						<form.Field name="deviceType">
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Type
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											placeholder="TABLET, KIOSK, MOBILE"
-										/>
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />}
 						</form.Field>
 						<form.Field
 							name="status"
@@ -330,43 +270,21 @@ export function DevicesPageClient(): React.ReactElement {
 								onChange: ({ value }) => (!value ? 'Status is required' : undefined),
 							}}
 						>
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Status
-									</Label>
-									<Select
-										value={field.state.value}
-										onValueChange={(value: DeviceStatus) => field.handleChange(value)}
-									>
-										<SelectTrigger className="col-span-3">
-											<SelectValue placeholder="Select status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="ONLINE">Online</SelectItem>
-											<SelectItem value="OFFLINE">Offline</SelectItem>
-											<SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
+							{() => (
+								<SelectField
+									label="Status"
+									options={[
+										{ value: 'ONLINE', label: 'Online' },
+										{ value: 'OFFLINE', label: 'Offline' },
+										{ value: 'MAINTENANCE', label: 'Maintenance' },
+									]}
+									placeholder="Select status"
+								/>
 							)}
 						</form.Field>
 					</div>
 					<DialogFooter>
-						<form.Subscribe selector={(state) => [state.canSubmit]}>
-							{([canSubmit]) => (
-								<Button type="submit" disabled={!canSubmit || isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Saving...
-										</>
-									) : (
-										'Save'
-									)}
-								</Button>
-							)}
-						</form.Subscribe>
+						<SubmitButton label="Save" loadingLabel="Saving..." />
 					</DialogFooter>
 				</form>
 			</DialogContent>

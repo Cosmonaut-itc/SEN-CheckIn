@@ -4,9 +4,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signUp } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
 	Card,
 	CardContent,
@@ -16,6 +13,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { useAppForm, TextField, SubmitButton } from '@/lib/forms';
 
 /**
  * Sign Up page component.
@@ -26,13 +24,43 @@ import { Loader2 } from 'lucide-react';
  */
 export default function SignUpPage(): React.ReactElement {
 	const router = useRouter();
-	const [name, setName] = useState<string>('');
-	const [email, setEmail] = useState<string>('');
-	const [password, setPassword] = useState<string>('');
-	const [confirmPassword, setConfirmPassword] = useState<string>('');
 	const [error, setError] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const isProduction = process.env.NODE_ENV === 'production';
+
+	const form = useAppForm({
+		defaultValues: {
+			name: '',
+			email: '',
+			password: '',
+			confirmPassword: '',
+		},
+		onSubmit: async ({ value }) => {
+			setError(null);
+
+			if (value.password !== value.confirmPassword) {
+				setError('Passwords do not match');
+				return;
+			}
+
+			if (value.password.length < 8) {
+				setError('Password must be at least 8 characters');
+				return;
+			}
+
+			const result = await signUp.email({
+				name: value.name,
+				email: value.email,
+				password: value.password,
+			});
+
+			if (result.error) {
+				setError(result.error.message ?? 'Failed to create account');
+				return;
+			}
+
+			router.push('/dashboard');
+		},
+	});
 
 	/**
 	 * Check environment on mount to handle production redirect.
@@ -49,43 +77,10 @@ export default function SignUpPage(): React.ReactElement {
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
 		e.preventDefault();
-		setError(null);
-
-		// Validate passwords match
-		if (password !== confirmPassword) {
-			setError('Passwords do not match');
-			return;
-		}
-
-		// Validate password strength
-		if (password.length < 8) {
-			setError('Password must be at least 8 characters');
-			return;
-		}
-
-		setIsLoading(true);
-
-		try {
-			const result = await signUp.email({
-				name,
-				email,
-				password,
-			});
-
-			if (result.error) {
-				setError(result.error.message ?? 'Failed to create account');
-				setIsLoading(false);
-				return;
-			}
-
-			router.push('/dashboard');
-		} catch (err) {
-			console.error('Failed to sign up', err);
-			setError('An unexpected error occurred');
-			setIsLoading(false);
-		}
+		e.stopPropagation();
+		form.handleSubmit();
 	};
 
 	// Don't render in production
@@ -114,68 +109,35 @@ export default function SignUpPage(): React.ReactElement {
 							{error}
 						</div>
 					)}
-					<div className="space-y-2">
-						<Label htmlFor="name">Name</Label>
-						<Input
-							id="name"
-							type="text"
-							placeholder="John Doe"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							required
-							disabled={isLoading}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="admin@example.com"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-							disabled={isLoading}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="password">Password</Label>
-						<Input
-							id="password"
-							type="password"
-							placeholder="••••••••"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							required
-							disabled={isLoading}
-							minLength={8}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="confirmPassword">Confirm Password</Label>
-						<Input
-							id="confirmPassword"
-							type="password"
-							placeholder="••••••••"
-							value={confirmPassword}
-							onChange={(e) => setConfirmPassword(e.target.value)}
-							required
-							disabled={isLoading}
-							minLength={8}
-						/>
+					<div className="space-y-4">
+						<form.Field
+							name="name"
+							validators={{ onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined) }}
+						>
+							{() => <TextField label="Name" placeholder="John Doe" />}
+						</form.Field>
+						<form.Field
+							name="email"
+							validators={{ onChange: ({ value }) => (!value.trim() ? 'Email is required' : undefined) }}
+						>
+							{() => <TextField label="Email" type="email" placeholder="admin@example.com" />}
+						</form.Field>
+						<form.Field
+							name="password"
+							validators={{ onChange: ({ value }) => (!value.trim() ? 'Password is required' : undefined) }}
+						>
+							{() => <TextField label="Password" type="password" placeholder="••••••••" />}
+						</form.Field>
+						<form.Field
+							name="confirmPassword"
+							validators={{ onChange: ({ value }) => (!value.trim() ? 'Confirm password is required' : undefined) }}
+						>
+							{() => <TextField label="Confirm Password" type="password" placeholder="••••••••" />}
+						</form.Field>
 					</div>
 				</CardContent>
 				<CardFooter className="flex flex-col gap-4">
-					<Button type="submit" className="w-full" disabled={isLoading}>
-						{isLoading ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Creating account...
-							</>
-						) : (
-							'Create Account'
-						)}
-					</Button>
+					<SubmitButton label="Create Account" loadingLabel="Creating account..." className="w-full" />
 					<p className="text-center text-sm text-muted-foreground">
 						Already have an account?{' '}
 						<Link

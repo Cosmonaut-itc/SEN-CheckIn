@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from '@tanstack/react-form';
+import { useAppForm, TextField, SubmitButton } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,10 +22,9 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchLocationsList, type Location } from '@/lib/client-functions';
@@ -121,34 +120,35 @@ export function LocationsPageClient(): React.ReactElement {
 		},
 	});
 
-	const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
-	// TanStack Form instance (after mutations to avoid TDZ)
-	const form = useForm({
-		defaultValues: {
-			name: '',
-			code: '',
-			address: '',
-			clientId: '',
-		},
-		onSubmit: async ({ value }: { value: LocationFormValues }) => {
-			if (editingLocation) {
-				updateMutation.mutate({
-					id: editingLocation.id,
-					name: value.name,
-					code: value.code,
-					address: value.address || undefined,
-				});
-			} else {
-				createMutation.mutate({
-					name: value.name,
-					code: value.code,
-					address: value.address || undefined,
-					clientId: value.clientId,
-				});
-			}
-		},
-	});
+// TanStack Form instance (after mutations to avoid TDZ)
+const form = useAppForm({
+	defaultValues: {
+		name: '',
+		code: '',
+		address: '',
+		clientId: '',
+	},
+	onSubmit: async ({ value }: { value: LocationFormValues }) => {
+		if (editingLocation) {
+			await updateMutation.mutateAsync({
+				id: editingLocation.id,
+				name: value.name,
+				code: value.code,
+				address: value.address || undefined,
+			});
+		} else {
+			await createMutation.mutateAsync({
+				name: value.name,
+				code: value.code,
+				address: value.address || undefined,
+				clientId: value.clientId,
+			});
+		}
+		setIsDialogOpen(false);
+		setEditingLocation(null);
+		form.reset();
+	},
+});
 
 	/**
 	 * Opens the dialog for creating a new location.
@@ -245,28 +245,7 @@ export function LocationsPageClient(): React.ReactElement {
 								onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
 							}}
 						>
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Name
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											required
-										/>
-										{field.state.meta.errors.length > 0 && (
-											<p className="mt-1 text-sm text-destructive">
-												{field.state.meta.errors.join(', ')}
-											</p>
-										)}
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Name" />}
 						</form.Field>
 						<form.Field
 							name="code"
@@ -274,47 +253,10 @@ export function LocationsPageClient(): React.ReactElement {
 								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
 							}}
 						>
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Code
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											required
-										/>
-										{field.state.meta.errors.length > 0 && (
-											<p className="mt-1 text-sm text-destructive">
-												{field.state.meta.errors.join(', ')}
-											</p>
-										)}
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Code" />}
 						</form.Field>
 						<form.Field name="address">
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Address
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											placeholder="Optional"
-										/>
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Address" placeholder="Optional" />}
 						</form.Field>
 						{!editingLocation && (
 							<form.Field
@@ -323,47 +265,12 @@ export function LocationsPageClient(): React.ReactElement {
 									onChange: ({ value }) => (!value.trim() ? 'Client ID is required' : undefined),
 								}}
 							>
-								{(field) => (
-									<div className="grid grid-cols-4 items-center gap-4">
-										<Label htmlFor={field.name} className="text-right">
-											Client ID
-										</Label>
-										<div className="col-span-3">
-											<Input
-												id={field.name}
-												name={field.name}
-												value={field.state.value}
-												onChange={(e) => field.handleChange(e.target.value)}
-												onBlur={field.handleBlur}
-												required
-												placeholder="Client UUID"
-											/>
-											{field.state.meta.errors.length > 0 && (
-												<p className="mt-1 text-sm text-destructive">
-													{field.state.meta.errors.join(', ')}
-												</p>
-											)}
-										</div>
-									</div>
-								)}
+								{() => <TextField label="Client ID" placeholder="Client UUID" />}
 							</form.Field>
 						)}
 					</div>
 					<DialogFooter>
-						<form.Subscribe selector={(state) => [state.canSubmit]}>
-							{([canSubmit]) => (
-								<Button type="submit" disabled={!canSubmit || isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Saving...
-										</>
-									) : (
-										'Save'
-									)}
-								</Button>
-							)}
-						</form.Subscribe>
+						<SubmitButton label="Save" loadingLabel="Saving..." />
 					</DialogFooter>
 				</form>
 			</DialogContent>

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from '@tanstack/react-form';
+import { useAppForm, TextField, SubmitButton } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,10 +22,9 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchClientsList, type Client } from '@/lib/client-functions';
@@ -119,10 +118,8 @@ export function ClientsPageClient(): React.ReactElement {
 		},
 	});
 
-	const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
 	// TanStack Form instance (defined after mutations to avoid TDZ)
-	const form = useForm({
+	const form = useAppForm({
 		defaultValues: {
 			name: '',
 		},
@@ -193,9 +190,9 @@ export function ClientsPageClient(): React.ReactElement {
 	 *
 	 * @param id - The client ID to delete
 	 */
-	const handleDelete = (id: string): void => {
-		deleteMutation.mutate(id);
-	};
+const handleDelete = (id: string): void => {
+	deleteMutation.mutate(id);
+};
 
 	return (
 		<div className="space-y-6">
@@ -218,13 +215,13 @@ export function ClientsPageClient(): React.ReactElement {
 					<DialogHeader>
 						<DialogTitle>
 							{editingClient ? 'Edit Client' : 'Add Client'}
-								</DialogTitle>
-								<DialogDescription>
-									{editingClient
-										? 'Update the client details below.'
-										: 'Fill in the details to create a new client.'}
-								</DialogDescription>
-							</DialogHeader>
+						</DialogTitle>
+						<DialogDescription>
+							{editingClient
+								? 'Update the client details below.'
+								: 'Fill in the details to create a new client.'}
+						</DialogDescription>
+					</DialogHeader>
 					<div className="grid gap-4 py-4">
 						<form.Field
 							name="name"
@@ -232,45 +229,11 @@ export function ClientsPageClient(): React.ReactElement {
 								onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
 							}}
 						>
-							{(field) => (
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor={field.name} className="text-right">
-										Name
-									</Label>
-									<div className="col-span-3">
-										<Input
-											id={field.name}
-											name={field.name}
-											value={field.state.value}
-											onChange={(e) => field.handleChange(e.target.value)}
-											onBlur={field.handleBlur}
-											required
-										/>
-										{field.state.meta.errors.length > 0 && (
-											<p className="mt-1 text-sm text-destructive">
-												{field.state.meta.errors.join(', ')}
-											</p>
-										)}
-									</div>
-								</div>
-							)}
+							{() => <TextField label="Name" />}
 						</form.Field>
 					</div>
 					<DialogFooter>
-						<form.Subscribe selector={(state) => [state.canSubmit]}>
-							{([canSubmit]) => (
-								<Button type="submit" disabled={!canSubmit || isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Saving...
-										</>
-									) : (
-										'Save'
-									)}
-								</Button>
-							)}
-						</form.Subscribe>
+						<SubmitButton label="Save" loadingLabel="Saving..." />
 					</DialogFooter>
 				</form>
 			</DialogContent>

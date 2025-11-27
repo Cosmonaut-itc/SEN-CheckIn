@@ -2,10 +2,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useForm } from '@tanstack/react-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import {
 	Table,
 	TableBody,
@@ -23,7 +21,6 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
@@ -31,6 +28,7 @@ import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, fetchClientsList, type JobPosition } from '@/lib/client-functions';
 import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
+import { useAppForm, TextField, TextareaField, SubmitButton } from '@/lib/forms';
 
 /**
  * Form values interface for job position create/edit form.
@@ -140,38 +138,39 @@ export function JobPositionsPageClient(): React.ReactElement {
 		},
 	});
 
-	const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
-	// TanStack Form instance
-	const form = useForm({
-		defaultValues: editingJobPosition
-			? {
-					name: editingJobPosition.name,
-					description: editingJobPosition.description ?? '',
-				}
-			: initialFormValues,
-		onSubmit: async ({ value }) => {
-			if (editingJobPosition) {
-				updateMutation.mutate({
-					id: editingJobPosition.id,
-					name: value.name,
-					description: value.description || undefined,
-				});
-			} else {
-				// Use the active client ID (first available client)
-				// In production, this would come from auth context
-				if (!activeClientId) {
-					toast.error('No client available. Please create a client first.');
-					return;
-				}
-				createMutation.mutate({
-					name: value.name,
-					description: value.description || undefined,
-					clientId: activeClientId,
-				});
+// TanStack Form instance
+const form = useAppForm({
+	defaultValues: editingJobPosition
+		? {
+				name: editingJobPosition.name,
+				description: editingJobPosition.description ?? '',
 			}
-		},
-	});
+		: initialFormValues,
+	onSubmit: async ({ value }) => {
+		if (editingJobPosition) {
+			await updateMutation.mutateAsync({
+				id: editingJobPosition.id,
+				name: value.name,
+				description: value.description || undefined,
+			});
+		} else {
+			// Use the active client ID (first available client)
+			// In production, this would come from auth context
+			if (!activeClientId) {
+				toast.error('No client available. Please create a client first.');
+				return;
+			}
+			await createMutation.mutateAsync({
+				name: value.name,
+				description: value.description || undefined,
+				clientId: activeClientId,
+			});
+		}
+		setIsDialogOpen(false);
+		setEditingJobPosition(null);
+		form.reset();
+	},
+});
 
 	/**
 	 * Opens the dialog for creating a new job position.
@@ -250,76 +249,29 @@ export function JobPositionsPageClient(): React.ReactElement {
 										: 'Fill in the details to create a new job position.'}
 								</DialogDescription>
 							</DialogHeader>
-							<div className="grid gap-4 py-4">
-								<form.Field
-									name="name"
-									validators={{
-										onChange: ({ value }) =>
-											!value.trim() ? 'Name is required' : undefined,
-									}}
-								>
-									{(field) => (
-										<div className="grid grid-cols-4 items-center gap-4">
-											<Label htmlFor={field.name} className="text-right">
-												Name
-											</Label>
-											<div className="col-span-3">
-												<Input
-													id={field.name}
-													name={field.name}
-													value={field.state.value}
-													onChange={(e) => field.handleChange(e.target.value)}
-													onBlur={field.handleBlur}
-													placeholder="e.g., Software Engineer"
-												/>
-												{field.state.meta.errors.length > 0 && (
-													<p className="mt-1 text-sm text-destructive">
-														{field.state.meta.errors.join(', ')}
-													</p>
-												)}
-											</div>
-										</div>
-									)}
-								</form.Field>
-								<form.Field name="description">
-									{(field) => (
-										<div className="grid grid-cols-4 items-start gap-4">
-											<Label htmlFor={field.name} className="text-right pt-2">
-												Description
-											</Label>
-											<div className="col-span-3">
-												<Textarea
-													id={field.name}
-													name={field.name}
-													value={field.state.value}
-													onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => field.handleChange(e.target.value)}
-													onBlur={field.handleBlur}
-													placeholder="Optional description of the job position"
-													rows={3}
-												/>
-											</div>
-										</div>
-									)}
-								</form.Field>
-							</div>
-							<DialogFooter>
-								<form.Subscribe
-									selector={(state) => [state.canSubmit, state.isSubmitting]}
-								>
-									{([canSubmit]) => (
-										<Button type="submit" disabled={!canSubmit || isSubmitting}>
-											{isSubmitting ? (
-												<>
-													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													Saving...
-												</>
-											) : (
-												'Save'
-											)}
-										</Button>
-									)}
-								</form.Subscribe>
-							</DialogFooter>
+					<div className="grid gap-4 py-4">
+						<form.Field
+							name="name"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? 'Name is required' : undefined,
+							}}
+						>
+							{() => <TextField label="Name" placeholder="e.g., Software Engineer" />}
+						</form.Field>
+						<form.Field name="description">
+							{() => (
+								<TextareaField
+									label="Description"
+									placeholder="Optional description of the job position"
+									rows={3}
+								/>
+							)}
+						</form.Field>
+					</div>
+					<DialogFooter>
+						<SubmitButton label="Save" loadingLabel="Saving..." />
+					</DialogFooter>
 						</form>
 					</DialogContent>
 				</Dialog>
@@ -437,4 +389,3 @@ export function JobPositionsPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

@@ -48,6 +48,7 @@ export const updateClientSchema = z.object({
  */
 export const clientQuerySchema = paginationSchema.extend({
 	search: z.string().optional(),
+	organizationId: z.string().uuid().optional(),
 });
 
 // ============================================================================

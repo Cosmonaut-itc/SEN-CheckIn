@@ -87,8 +87,17 @@ export interface Client {
 	id: string;
 	name: string;
 	apiKeyId: string | null;
+	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+/**
+ * Query parameters specific to clients.
+ */
+export interface ClientQueryParams extends ListQueryParams {
+	/** Filter by organization ID */
+	organizationId?: string;
 }
 
 /**
@@ -338,17 +347,18 @@ export async function fetchLocationsList(
  *
  * @example
  * ```ts
- * const { data, pagination } = await fetchClientsList({ search: 'acme' });
+ * const { data, pagination } = await fetchClientsList({ search: 'acme', organizationId: 'org-uuid' });
  * ```
  */
 export async function fetchClientsList(
-	params?: ListQueryParams,
+	params?: ClientQueryParams,
 ): Promise<PaginatedResponse<Client>> {
 	// Build query object, only including defined values
 	const query: {
 		limit: number;
 		offset: number;
 		search?: string;
+		organizationId?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
@@ -356,6 +366,11 @@ export async function fetchClientsList(
 
 	if (params?.search) {
 		query.search = params.search;
+	}
+
+	// Only add organizationId if it has a non-empty value
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
 	}
 
 	const response = await api.clients.get({ $query: query });

@@ -29,6 +29,7 @@ import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, fetchClientsList, type JobPosition } from '@/lib/client-functions';
 import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
 import { useAppForm, TextField, TextareaField, SubmitButton } from '@/lib/forms';
+import { useSession } from '@/lib/auth-client';
 
 /**
  * Form values interface for job position create/edit form.
@@ -56,10 +57,14 @@ const initialFormValues: JobPositionFormValues = {
  */
 export function JobPositionsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { data: session } = useSession();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingJobPosition, setEditingJobPosition] = useState<JobPosition | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+	// Get the active organization ID from the user's session
+	const activeOrganizationId = session?.session?.activeOrganizationId ?? undefined;
 
 	// Build query params - only include search if it has a value
 	const queryParams = search
@@ -72,14 +77,20 @@ export function JobPositionsPageClient(): React.ReactElement {
 		queryFn: () => fetchJobPositionsList(queryParams),
 	});
 
-	// Query for clients list to get the active client ID
-	// In a production app, this would come from auth context
+	// Build client query params - filter by active organization if available
+	const clientQueryParams = activeOrganizationId
+		? { organizationId: activeOrganizationId, limit: 1, offset: 0 }
+		: { limit: 1, offset: 0 };
+
+	// Query for clients list filtered by the user's active organization
 	const { data: clientsData } = useQuery({
-		queryKey: queryKeys.clients.list({ limit: 1, offset: 0 }),
-		queryFn: () => fetchClientsList({ limit: 1, offset: 0 }),
+		queryKey: queryKeys.clients.list(clientQueryParams),
+		queryFn: () => fetchClientsList(clientQueryParams),
+		// Only enable the query when we have a session (to avoid unnecessary calls)
+		enabled: session !== undefined,
 	});
 
-	// Get the first available client ID for implicit client association
+	// Get the client ID associated with the user's active organization
 	const activeClientId = clientsData?.data?.[0]?.id ?? '';
 
 	const jobPositions = data?.data ?? [];
@@ -155,10 +166,13 @@ const form = useAppForm({
 				description: value.description.trim() === '' ? null : value.description || undefined,
 			});
 		} else {
-			// Use the active client ID (first available client)
-			// In production, this would come from auth context
+			// Use the client ID associated with the user's active organization
 			if (!activeClientId) {
-				toast.error('No client available. Please create a client first.');
+				toast.error(
+					activeOrganizationId
+						? 'No client found for your organization. Please create a client first.'
+						: 'No active organization. Please select an organization first.',
+				);
 				return;
 			}
 			await createMutation.mutateAsync({

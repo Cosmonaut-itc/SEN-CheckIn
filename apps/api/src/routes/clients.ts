@@ -27,18 +27,23 @@ export const clientRoutes = new Elysia({ prefix: '/clients' })
 	 * @route GET /clients
 	 * @param query.limit - Maximum number of results (default: 50)
 	 * @param query.offset - Number of results to skip (default: 0)
+	 * @param query.organizationId - Filter by organization ID (optional)
 	 * @returns Array of client records
 	 */
 	.get(
 		'/',
 		async ({ query }) => {
-			const { limit, offset, search } = query;
+			const { limit, offset, search, organizationId } = query;
 
 			let baseQuery = db.select().from(client);
 			const conditions = [];
 
 			if (search) {
 				conditions.push(ilike(client.name, `%${search}%`));
+			}
+
+			if (organizationId) {
+				conditions.push(eq(client.organizationId, organizationId));
 			}
 
 			if (conditions.length > 0) {

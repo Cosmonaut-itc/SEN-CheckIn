@@ -12,7 +12,7 @@
  * @module actions/users
  */
 
-import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import { API_BASE_URL, getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
 
 /**
  * User role type.
@@ -82,52 +82,39 @@ export async function createOrganizationUser(
 			};
 		}
 
-		// Type definitions for the organization client omit addMember; narrow with a local type.
-		const orgClient = serverAuthClient.organization as typeof serverAuthClient.organization & {
-			addMember: (
-				params: { userId: string; organizationId: string; role: string },
-				options: { fetchOptions: { headers: Headers } },
-			) => Promise<{ error?: unknown; data?: unknown }>;
-		};
+		// Compute API root (BetterAuth base strips /api/auth)
+		const apiRoot = API_BASE_URL.replace(/\/api\/auth$/, '');
 
-		const addMemberResponse = await orgClient.addMember(
-			{
+		// Add the user as a member of the organization via API (server-only BetterAuth bridge)
+		const headers = new Headers(fetchOptions.headers);
+		headers.set('content-type', 'application/json');
+
+		const addMemberResponse = await fetch(`${apiRoot}/organization/add-member-direct`, {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({
 				userId: createdUserId,
 				organizationId: input.organizationId,
 				role: input.role,
-			},
-			{ fetchOptions },
-		);
+			}),
+		});
 
-		if (addMemberResponse.error) {
-			// Fallback: call the endpoint directly to avoid any baseURL/path mismatch.
-			const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-			const url = apiOrigin.endsWith('/api/auth')
-				? `${apiOrigin}/organization/add-member`
-				: `${apiOrigin}/api/auth/organization/add-member`;
-
-			const direct = await fetch(url, {
-				method: 'POST',
-				headers: {
-					'content-type': 'application/json',
-					...(fetchOptions.headers ?? {}),
-				},
-				body: JSON.stringify({
-					userId: createdUserId,
-					organizationId: input.organizationId,
-					role: input.role,
-				}),
-				credentials: 'include',
-			});
-
-			if (!direct.ok) {
-				const bodyText = await direct.text();
-				console.error('addMember direct call failed', direct.status, direct.statusText, bodyText);
-				return {
-					success: false,
-					error: `Failed to add user to organization (status ${direct.status}): ${bodyText || direct.statusText}`,
-				};
+		if (!addMemberResponse.ok) {
+			let errorMessage = 'Failed to add user to organization';
+			try {
+				const body = (await addMemberResponse.json()) as { error?: string };
+				console.log('addMemberResponse', body);
+				if (body?.error) {
+					errorMessage = body.error;
+				}
+			} catch {
+				// ignore parse errors
 			}
+			console.error('Failed to add user to organization:', errorMessage);
+			return {
+				success: false,
+				error: errorMessage,
+			};
 		}
 
 		return {

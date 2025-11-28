@@ -22,7 +22,11 @@ import { headers } from 'next/headers';
  * Falls back to localhost for local development.
  */
 const API_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
+/**
+ * Base URL for BetterAuth API endpoints.
+ * Exported for use in server actions that need to make direct HTTP requests.
+ */
+export const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
 	? API_ORIGIN
 	: `${API_ORIGIN}/api/auth`;
 

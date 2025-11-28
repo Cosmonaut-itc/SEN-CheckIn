@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm, TextField, SelectField, SubmitButton } from '@/lib/forms';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -349,37 +349,37 @@ export function EmployeesPageClient(): React.ReactElement {
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-                        <form.Field name="code" validators={{ onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined) }}>
-                            {() => <TextField label="Code" />}
-                        </form.Field>
-                        <form.Field name="firstName" validators={{ onChange: ({ value }) => (!value.trim() ? 'First name is required' : undefined) }}>
-                            {() => <TextField label="First Name" />}
-                        </form.Field>
-                        <form.Field name="lastName" validators={{ onChange: ({ value }) => (!value.trim() ? 'Last name is required' : undefined) }}>
-                            {() => <TextField label="Last Name" />}
-                        </form.Field>
-                        <form.Field name="email">
-                            {() => <TextField label="Email" type="email" placeholder="Optional" />}
-                        </form.Field>
-                        <form.Field name="phone">
-                            {() => <TextField label="Phone" placeholder="Optional" />}
-                        </form.Field>
-                        <form.Field name="jobPositionId" validators={{ onChange: ({ value }) => (!editingEmployee && !value ? 'Job position is required' : undefined) }}>
-                            {() => (
-                                <SelectField
+                        <form.AppField name="code" validators={{ onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined) }}>
+                            {(field) => <field.TextField label="Code" />}
+                        </form.AppField>
+                        <form.AppField name="firstName" validators={{ onChange: ({ value }) => (!value.trim() ? 'First name is required' : undefined) }}>
+                            {(field) => <field.TextField label="First Name" />}
+                        </form.AppField>
+                        <form.AppField name="lastName" validators={{ onChange: ({ value }) => (!value.trim() ? 'Last name is required' : undefined) }}>
+                            {(field) => <field.TextField label="Last Name" />}
+                        </form.AppField>
+                        <form.AppField name="email">
+                            {(field) => <field.TextField label="Email" type="email" placeholder="Optional" />}
+                        </form.AppField>
+                        <form.AppField name="phone">
+                            {(field) => <field.TextField label="Phone" placeholder="Optional" />}
+                        </form.AppField>
+                        <form.AppField name="jobPositionId" validators={{ onChange: ({ value }) => (!editingEmployee && !value ? 'Job position is required' : undefined) }}>
+                            {(field) => (
+                                <field.SelectField
                                     label="Job Position"
                                     options={jobPositions.map((position) => ({ value: position.id, label: position.name }))}
                                     placeholder={isLoadingJobPositions ? 'Loading...' : 'Select job position'}
                                     disabled={isLoadingJobPositions}
                                 />
                             )}
-                        </form.Field>
-                        <form.Field name="department">
-                            {() => <TextField label="Department" placeholder="Optional" />}
-                        </form.Field>
-                        <form.Field name="status">
-                            {() => (
-                                <SelectField
+                        </form.AppField>
+                        <form.AppField name="department">
+                            {(field) => <field.TextField label="Department" placeholder="Optional" />}
+                        </form.AppField>
+                        <form.AppField name="status">
+                            {(field) => (
+                                <field.SelectField
                                     label="Status"
                                     options={[
                                         { value: 'ACTIVE', label: 'Active' },
@@ -389,10 +389,12 @@ export function EmployeesPageClient(): React.ReactElement {
                                     placeholder="Select status"
                                 />
                             )}
-                        </form.Field>
+                        </form.AppField>
                     </div>
                     <DialogFooter>
-                        <SubmitButton label="Save" loadingLabel="Saving..." />
+                        <form.AppForm>
+                            <form.SubmitButton label="Save" loadingLabel="Saving..." />
+                        </form.AppForm>
                     </DialogFooter>
 						</form>
 					</DialogContent>

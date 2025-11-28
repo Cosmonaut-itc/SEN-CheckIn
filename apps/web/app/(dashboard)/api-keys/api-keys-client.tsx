@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm, TextField, SubmitButton } from '@/lib/forms';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import {
 	Table,
@@ -230,12 +230,14 @@ const form = useAppForm({
 							</DialogDescription>
 						</DialogHeader>
 						<div className="grid gap-4 py-4">
-							<form.Field name="name">
-								{() => <TextField label="Name" placeholder="My API Key" />}
-							</form.Field>
+							<form.AppField name="name">
+								{(field) => <field.TextField label="Name" placeholder="My API Key" />}
+							</form.AppField>
 						</div>
 						<DialogFooter>
-							<SubmitButton label="Create Key" loadingLabel="Creating..." />
+							<form.AppForm>
+								<form.SubmitButton label="Create Key" loadingLabel="Creating..." />
+							</form.AppForm>
 						</DialogFooter>
 					</form>
 						)}

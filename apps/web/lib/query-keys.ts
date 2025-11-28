@@ -333,6 +333,7 @@ export const mutationKeys = {
 	 */
 	organizations: {
 		create: ['organizations', 'create'] as const,
+		update: ['organizations', 'update'] as const,
 		delete: ['organizations', 'delete'] as const,
 	},
 

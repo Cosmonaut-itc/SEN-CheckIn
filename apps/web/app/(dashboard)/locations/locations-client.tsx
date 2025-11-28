@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm, TextField, SubmitButton } from '@/lib/forms';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -256,30 +256,32 @@ export function LocationsPageClient(): React.ReactElement {
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-								<form.Field
+								<form.AppField
 									name="name"
 									validators={{
 										onChange: ({ value }) =>
 											!value.trim() ? 'Name is required' : undefined,
 									}}
 								>
-									{() => <TextField label="Name" />}
-								</form.Field>
-								<form.Field
+									{(field) => <field.TextField label="Name" />}
+								</form.AppField>
+								<form.AppField
 									name="code"
 									validators={{
 										onChange: ({ value }) =>
 											!value.trim() ? 'Code is required' : undefined,
 									}}
 								>
-									{() => <TextField label="Code" />}
-								</form.Field>
-								<form.Field name="address">
-									{() => <TextField label="Address" placeholder="Optional" />}
-								</form.Field>
+									{(field) => <field.TextField label="Code" />}
+								</form.AppField>
+								<form.AppField name="address">
+									{(field) => <field.TextField label="Address" placeholder="Optional" />}
+								</form.AppField>
 							</div>
 							<DialogFooter>
-								<SubmitButton label="Save" loadingLabel="Saving..." />
+								<form.AppForm>
+									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+								</form.AppForm>
 							</DialogFooter>
 						</form>
 					</DialogContent>

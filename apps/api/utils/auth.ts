@@ -14,6 +14,17 @@ export const auth = betterAuth({
 		provider: 'pg',
 		schema: schema,
 	}),
+	/**
+	 * Trusted origins are required for Better Auth to accept cross-origin requests
+	 * from the Next.js web app (dev runs on 3001). Update or extend as needed for
+	 * preview/staging hosts.
+	 */
+	trustedOrigins: [
+		'http://localhost:3000', // API host (fallback baseURL)
+		'http://localhost:3001', // Next.js web dev server origin
+		'http://127.0.0.1:3000',
+		'http://127.0.0.1:3001',
+	].filter(Boolean),
 	emailAndPassword: {
 		enabled: true,
 	},
@@ -32,10 +43,11 @@ export const auth = betterAuth({
 		}),
 		/**
 		 * Organization plugin for multi-tenant support.
-		 * Only admins can create organizations.
 		 */
 		organization({
-			allowUserToCreateOrganization: false,
+			// Allow any authenticated user to create an organization; downstream
+			// access is still governed by roles on the organization itself.
+			allowUserToCreateOrganization: true,
 		}),
 	],
 });

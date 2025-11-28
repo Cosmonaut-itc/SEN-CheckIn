@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm, TextField, SelectField, SubmitButton } from '@/lib/forms';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -250,28 +250,28 @@ const form = useAppForm({
 								</DialogDescription>
 							</DialogHeader>
 					<div className="grid gap-4 py-4">
-						<form.Field
+						<form.AppField
 							name="code"
 							validators={{
 								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
 							}}
 						>
-							{() => <TextField label="Code" />}
-						</form.Field>
-						<form.Field name="name">
-							{() => <TextField label="Name" placeholder="Optional" />}
-						</form.Field>
-						<form.Field name="deviceType">
-							{() => <TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />}
-						</form.Field>
-						<form.Field
+							{(field) => <field.TextField label="Code" />}
+						</form.AppField>
+						<form.AppField name="name">
+							{(field) => <field.TextField label="Name" placeholder="Optional" />}
+						</form.AppField>
+						<form.AppField name="deviceType">
+							{(field) => <field.TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />}
+						</form.AppField>
+						<form.AppField
 							name="status"
 							validators={{
 								onChange: ({ value }) => (!value ? 'Status is required' : undefined),
 							}}
 						>
-							{() => (
-								<SelectField
+							{(field) => (
+								<field.SelectField
 									label="Status"
 									options={[
 										{ value: 'ONLINE', label: 'Online' },
@@ -281,10 +281,12 @@ const form = useAppForm({
 									placeholder="Select status"
 								/>
 							)}
-						</form.Field>
+						</form.AppField>
 					</div>
 					<DialogFooter>
-						<SubmitButton label="Save" loadingLabel="Saving..." />
+						<form.AppForm>
+							<form.SubmitButton label="Save" loadingLabel="Saving..." />
+						</form.AppForm>
 					</DialogFooter>
 				</form>
 			</DialogContent>

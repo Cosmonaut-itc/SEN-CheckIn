@@ -61,8 +61,33 @@ export type ServerAuthClient = typeof serverAuthClient;
  * ```
  */
 export async function getServerFetchOptions(): Promise<{ headers: Headers }> {
-	const headersList = await headers();
-	return {
-		headers: headersList,
-	};
+	const incomingHeaders = await headers();
+	const filtered = new Headers();
+
+	// Only forward session/referer/origin context headers. Do NOT forward
+	// content-type/content-length from the server action request (Next uses
+	// multipart for server actions), or BetterAuth will reject the JSON body
+	// as invalid.
+	const allowList = new Set([
+		'cookie',
+		'authorization',
+		'origin',
+		'referer',
+		'user-agent',
+		'accept-language',
+		'x-forwarded-for',
+		'x-forwarded-proto',
+		'x-forwarded-host',
+		'x-real-ip',
+	]);
+
+	incomingHeaders.forEach((value, key) => {
+		const lower = key.toLowerCase();
+		if (!allowList.has(lower)) {
+			return;
+		}
+		filtered.set(lower, value);
+	});
+
+	return { headers: filtered };
 }

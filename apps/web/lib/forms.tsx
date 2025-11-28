@@ -25,6 +25,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // ============================================================================
 // Form Contexts
@@ -46,6 +47,8 @@ type CommonFieldProps = {
 	placeholder?: string;
 	description?: string;
 	disabled?: boolean;
+	orientation?: 'horizontal' | 'vertical';
+	startIcon?: React.ComponentType<{ className?: string }>;
 };
 
 /**
@@ -58,8 +61,47 @@ export function TextField({
 	disabled,
 	type = 'text',
 	onValueChange,
+	orientation = 'horizontal',
+	startIcon: StartIcon,
 }: CommonFieldProps & { type?: string; onValueChange?: (value: string) => string }): React.ReactElement {
 	const field = useFieldContext();
+
+	if (orientation === 'vertical') {
+		return (
+			<div className="grid gap-2">
+				<Label htmlFor={field.name}>{label}</Label>
+				<div className="relative">
+					{StartIcon && (
+						<div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+							<StartIcon className="h-4 w-4" />
+						</div>
+					)}
+					<Input
+						id={field.name}
+						name={field.name}
+						type={type}
+						value={field.state.value as string}
+						onChange={(e) => {
+							const next = onValueChange ? onValueChange(e.target.value) : e.target.value;
+							field.handleChange(next);
+						}}
+						onBlur={field.handleBlur}
+						placeholder={placeholder}
+						disabled={disabled}
+						className={cn(StartIcon && 'pl-10')}
+					/>
+				</div>
+				{description && (
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		);
+	}
 
 	return (
 		<div className="grid grid-cols-4 items-center gap-4">

@@ -28,7 +28,7 @@ import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, type JobPosition } from '@/lib/client-functions';
 import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
-import { useAppForm, TextField, TextareaField, SubmitButton } from '@/lib/forms';
+import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 
 /**
@@ -265,32 +265,34 @@ export function JobPositionsPageClient(): React.ReactElement {
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-								<form.Field
+								<form.AppField
 									name="name"
 									validators={{
 										onChange: ({ value }) =>
 											!value.trim() ? 'Name is required' : undefined,
 									}}
 								>
-									{() => (
-										<TextField
+									{(field) => (
+										<field.TextField
 											label="Name"
 											placeholder="e.g., Software Engineer"
 										/>
 									)}
-								</form.Field>
-								<form.Field name="description">
-									{() => (
-										<TextareaField
+								</form.AppField>
+								<form.AppField name="description">
+									{(field) => (
+										<field.TextareaField
 											label="Description"
 											placeholder="Optional description of the job position"
 											rows={3}
 										/>
 									)}
-								</form.Field>
+								</form.AppField>
 							</div>
 							<DialogFooter>
-								<SubmitButton label="Save" loadingLabel="Saving..." />
+								<form.AppForm>
+									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+								</form.AppForm>
 							</DialogFooter>
 						</form>
 					</DialogContent>

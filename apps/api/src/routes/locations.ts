@@ -91,12 +91,14 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 *
 	 * @route GET /locations/:id
 	 * @param id - Location UUID
-	 * @returns Location record or 404 error
+	 * @returns Location record or 404/403 error
 	 */
 	.get(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			const results = await db.select().from(location).where(eq(location.id, id)).limit(1);
 
@@ -104,6 +106,16 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			if (!record) {
 				set.status = 404;
 				return { error: 'Location not found' };
+			}
+
+			// Enforce organization scoping for session-based auth
+			if (
+				activeOrgId &&
+				record.organizationId &&
+				record.organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this location' };
 			}
 
 			return { data: record };

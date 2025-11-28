@@ -93,12 +93,14 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 *
 	 * @route GET /job-positions/:id
 	 * @param id - Job position UUID
-	 * @returns Job position record or 404 error
+	 * @returns Job position record or 404/403 error
 	 */
 	.get(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			const results = await db
 				.select()
@@ -110,6 +112,16 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			if (!record) {
 				set.status = 404;
 				return { error: 'Job position not found' };
+			}
+
+			// Enforce organization scoping for session-based auth
+			if (
+				activeOrgId &&
+				record.organizationId &&
+				record.organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this job position' };
 			}
 
 			return { data: record };

@@ -37,6 +37,10 @@ export const user = pgTable('user', {
 	banReason: text('ban_reason'),
 	/** When the ban expires (null = permanent) */
 	banExpires: timestamp('ban_expires'),
+	/** Unique username for the user */
+	username: text('username').unique(),
+	/** Display username (can differ from username) */
+	displayUsername: text('display_username'),
 });
 
 /**
@@ -363,6 +367,10 @@ export const employee = pgTable('employee', {
 	hireDate: timestamp('hire_date'),
 	/** Location where employee works */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/** Organization that the employee belongs to */
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'cascade',
+	}),
 	/**
 	 * Rekognition user ID for face recognition.
 	 * Links the employee to their User Vector in the AWS Rekognition collection.
@@ -392,6 +400,10 @@ export const device = pgTable('device', {
 	lastHeartbeat: timestamp('last_heartbeat'),
 	/** Location where device is installed */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/** Organization that owns the device */
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'cascade',
+	}),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

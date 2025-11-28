@@ -10,6 +10,7 @@
  */
 
 import { authClient } from '@/lib/auth-client';
+import { serverAuthClient } from '@/lib/server-auth-client';
 import type {
 	ApiKey,
 	AttendanceRecord,
@@ -20,6 +21,7 @@ import type {
 	JobPosition,
 	Location,
 	Organization,
+	OrganizationMember,
 	PaginatedResponse,
 	User,
 } from '@/lib/client-functions';
@@ -45,13 +47,32 @@ import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
  */
 export async function fetchEmployeesListServer(
 	cookieHeader: string,
-	params?: ListQueryParams,
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Employee>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	// Resolve organization ID from params or BetterAuth session
+	let organizationId = params?.organizationId ?? null;
+	if (!organizationId && cookieHeader) {
+		const session = await serverAuthClient.getSession({
+			fetchOptions: { headers: new Headers({ cookie: cookieHeader }) },
+		});
+		if (!session.error) {
+			organizationId = session.data?.session?.activeOrganizationId ?? null;
+		}
+	}
+
+	if (!organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
 
 	const query: {
 		limit: number;
 		offset: number;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
@@ -61,6 +82,8 @@ export async function fetchEmployeesListServer(
 	if (params?.search) {
 		query.search = params.search;
 	}
+
+	query.organizationId = organizationId;
 
 	const response = await api.employees.get({ $query: query });
 
@@ -94,18 +117,30 @@ export async function fetchEmployeesListServer(
  */
 export async function fetchDevicesListServer(
 	cookieHeader: string,
-	params?: ListQueryParams,
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Device>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
 
 	const query: {
 		limit: number;
 		offset: number;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
 
 	if (params?.search) {
 		query.search = params.search;
@@ -143,18 +178,30 @@ export async function fetchDevicesListServer(
  */
 export async function fetchLocationsListServer(
 	cookieHeader: string,
-	params?: ListQueryParams,
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Location>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
 
 	const query: {
 		limit: number;
 		offset: number;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
 
 	if (params?.search) {
 		query.search = params.search;
@@ -196,7 +243,18 @@ export async function fetchJobPositionsListServer(
 ): Promise<PaginatedResponse<JobPosition>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 
-	if (!params?.organizationId) {
+	// Resolve organization ID from params or session (fallback for server prefetch)
+	let organizationId = params?.organizationId ?? null;
+	if (!organizationId && cookieHeader) {
+		const session = await serverAuthClient.getSession({
+			fetchOptions: { headers: new Headers({ cookie: cookieHeader }) },
+		});
+		if (!session.error) {
+			organizationId = session.data?.session?.activeOrganizationId ?? null;
+		}
+	}
+
+	if (!organizationId) {
 		return {
 			data: [],
 			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
@@ -207,13 +265,16 @@ export async function fetchJobPositionsListServer(
 		limit: number;
 		offset: number;
 		organizationId?: string;
+		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 	};
 
-	if (params?.organizationId) {
-		query.organizationId = params.organizationId;
+	query.organizationId = organizationId;
+
+	if (params?.search) {
+		query.search = params.search;
 	}
 
 	const response = await api['job-positions'].get({ $query: query });
@@ -248,9 +309,27 @@ export async function fetchJobPositionsListServer(
  */
 export async function fetchAttendanceRecordsServer(
 	cookieHeader: string,
-	params?: AttendanceQueryParams,
+	params?: AttendanceQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<AttendanceRecord>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	// Resolve organization ID from params or BetterAuth session
+	let organizationId = params?.organizationId ?? null;
+	if (!organizationId && cookieHeader) {
+		const session = await serverAuthClient.getSession({
+			fetchOptions: { headers: new Headers({ cookie: cookieHeader }) },
+		});
+		if (!session.error) {
+			organizationId = session.data?.session?.activeOrganizationId ?? null;
+		}
+	}
+
+	if (!organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
 
 	const query: {
 		limit: number;
@@ -258,6 +337,7 @@ export async function fetchAttendanceRecordsServer(
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
+		organizationId?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
@@ -268,6 +348,8 @@ export async function fetchAttendanceRecordsServer(
 	if (params?.type) {
 		query.type = params.type;
 	}
+
+	query.organizationId = organizationId;
 
 	const response = await api.attendance.get({ $query: query });
 
@@ -291,30 +373,40 @@ export async function fetchAttendanceRecordsServer(
 // Dashboard Functions
 // ============================================================================
 
-/**
- * Fetches dashboard entity counts from the API (server-side).
- *
- * This function fetches all entity counts in parallel for optimal performance.
- *
- * @param cookieHeader - The cookie header string from the incoming request
- * @returns A promise resolving to the dashboard counts object
- * @throws Error if any API request fails
- */
-export async function fetchDashboardCountsServer(cookieHeader: string): Promise<DashboardCounts> {
+export async function fetchDashboardCountsServer(
+	cookieHeader: string,
+	organizationId?: string | null,
+): Promise<DashboardCounts> {
+	if (organizationId === null) {
+		return {
+			employees: 0,
+			devices: 0,
+			locations: 0,
+			organizations: 0,
+			attendance: 0,
+		};
+	}
+
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 	const forwardedHeaders: HeadersInit = cookieHeader ? { cookie: cookieHeader } : {};
 
+	const baseQuery = {
+		limit: 1,
+		offset: 0,
+		...(organizationId ? { organizationId } : {}),
+	};
+
 	const [employeesRes, devicesRes, locationsRes, organizationsRes, attendanceRes] =
 		await Promise.all([
-			api.employees.get({ $query: { limit: 1, offset: 0 } }),
-			api.devices.get({ $query: { limit: 1, offset: 0 } }),
-			api.locations.get({ $query: { limit: 1, offset: 0 } }),
+			api.employees.get({ $query: baseQuery }),
+			api.devices.get({ $query: baseQuery }),
+			api.locations.get({ $query: baseQuery }),
 			authClient.organization.list({
 				fetchOptions: {
 					headers: forwardedHeaders,
 				},
 			}),
-			api.attendance.get({ $query: { limit: 1, offset: 0 } }),
+			api.attendance.get({ $query: baseQuery }),
 		]);
 
 	return {
@@ -376,6 +468,44 @@ export async function fetchOrganizationsServer(headers: Headers): Promise<Organi
 	}
 
 	return (response.data ?? []) as Organization[];
+}
+
+/**
+ * Fetches organization members for the current user (server-side).
+ *
+ * @param headers - The headers object from the incoming request
+ * @param params - Organization ID and optional pagination
+ * @returns A promise resolving to the members response
+ * @throws Error if the API request fails
+ */
+export async function fetchOrganizationMembersServer(
+	headers: Headers,
+	params: { organizationId: string | null; limit?: number; offset?: number },
+): Promise<{ members: OrganizationMember[]; total: number }> {
+	if (!params.organizationId) {
+		return { members: [], total: 0 };
+	}
+
+	const response = await authClient.organization.listMembers({
+		query: {
+			organizationId: params.organizationId,
+			limit: params.limit ?? 100,
+			offset: params.offset ?? 0,
+		},
+		fetchOptions: {
+			headers,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch organization members:', response.error);
+		throw new Error('Failed to fetch organization members');
+	}
+
+	return {
+		members: (response.data?.members ?? []) as OrganizationMember[],
+		total: response.data?.total ?? 0,
+	};
 }
 
 // ============================================================================

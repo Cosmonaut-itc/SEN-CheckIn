@@ -32,6 +32,7 @@ import {
 	fetchDashboardCountsServer,
 	fetchApiKeysServer,
 	fetchOrganizationsServer,
+	fetchOrganizationMembersServer,
 	fetchUsersServer,
 } from '@/lib/server-client-functions';
 
@@ -302,12 +303,15 @@ export function prefetchAttendanceRecords(
  * }
  * ```
  */
-export function prefetchDashboardCounts(queryClient: QueryClient): void {
+export function prefetchDashboardCounts(
+	queryClient: QueryClient,
+	params?: { organizationId?: string | null },
+): void {
 	queryClient.prefetchQuery({
-		queryKey: queryKeys.dashboard.counts(),
+		queryKey: queryKeys.dashboard.counts(params?.organizationId),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDashboardCountsServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
-			return fetchDashboardCountsServer(cookieHeader);
+			return fetchDashboardCountsServer(cookieHeader, params?.organizationId);
 		},
 	});
 }
@@ -386,6 +390,28 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchOrganizationsServer>>> => {
 			const requestHeaders: Headers = await getRequestHeaders();
 			return fetchOrganizationsServer(requestHeaders);
+		},
+	});
+}
+
+/**
+ * Prefetches organization members list for server-side streaming.
+ *
+ * Skips prefetch if no organization ID is provided.
+ */
+export function prefetchOrganizationMembers(
+	queryClient: QueryClient,
+	params: { organizationId: string | null; limit?: number; offset?: number },
+): void {
+	if (!params.organizationId) {
+		return;
+	}
+
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.organizationMembers.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchOrganizationMembersServer>>> => {
+			const requestHeaders: Headers = await getRequestHeaders();
+			return fetchOrganizationMembersServer(requestHeaders, params);
 		},
 	});
 }

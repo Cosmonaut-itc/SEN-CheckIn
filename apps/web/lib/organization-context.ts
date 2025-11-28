@@ -18,7 +18,7 @@ export interface ActiveOrganizationContext {
  */
 export async function getActiveOrganizationContext(): Promise<ActiveOrganizationContext> {
 	const fetchOptions = await getServerFetchOptions();
-	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
+	const sessionResult = await serverAuthClient.getSession({ fetchOptions });
 
 	const organizationId = sessionResult.error
 		? null
@@ -28,7 +28,7 @@ export async function getActiveOrganizationContext(): Promise<ActiveOrganization
 		return { organizationId: null, organizationSlug: null, organizationName: null };
 	}
 
-	const organizations = await serverAuthClient.organization.list(undefined, fetchOptions);
+	const organizations = await serverAuthClient.organization.list({ fetchOptions });
 	const activeOrg = organizations.data?.find((org) => org.id === organizationId);
 
 	return {

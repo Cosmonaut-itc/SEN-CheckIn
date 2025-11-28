@@ -57,6 +57,20 @@
       "when": 1764210465919,
       "tag": "0007_remarkable_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1764353940534,
+      "tag": "0008_worthless_anita_blake",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1764355584770,
+      "tag": "0009_brave_namora",
+      "breakpoints": true
     }
   ]
 }

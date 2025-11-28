@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { apiKey, admin, organization } from 'better-auth/plugins';
+import { apiKey, admin, organization, username } from 'better-auth/plugins';
 import db from '../src/db/index.js';
 import * as schema from '../src/db/schema.js';
 
@@ -49,5 +49,9 @@ export const auth = betterAuth({
 			// access is still governed by roles on the organization itself.
 			allowUserToCreateOrganization: true,
 		}),
+		/**
+		 * Username plugin to enable username-based sign-in.
+		 */
+		username(),
 	],
 });

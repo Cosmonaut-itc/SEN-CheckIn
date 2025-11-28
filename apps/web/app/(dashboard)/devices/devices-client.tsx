@@ -30,6 +30,7 @@ import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchDevicesList, type Device, type DeviceStatus } from '@/lib/client-functions';
 import { createDevice, updateDevice, deleteDevice } from '@/actions/devices';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Form values for creating/editing devices.
@@ -58,20 +59,21 @@ const statusVariants: Record<DeviceStatus, 'default' | 'secondary' | 'destructiv
  */
 export function DevicesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingDevice, setEditingDevice] = useState<Device | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
-	const queryParams = search
-		? { search, limit: 100, offset: 0 }
-		: { limit: 100, offset: 0 };
+	const baseParams = { limit: 100, offset: 0, organizationId };
+	const queryParams = search ? { ...baseParams, search } : baseParams;
 
 	// Query for devices list
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.devices.list(queryParams),
 		queryFn: () => fetchDevicesList(queryParams),
+		enabled: Boolean(organizationId),
 	});
 
 	const devices = data?.data ?? [];

@@ -54,6 +54,13 @@ export interface UsersQueryParams {
 }
 
 /**
+ * Query parameters for organization members.
+ */
+export interface OrganizationMembersQueryParams extends UsersQueryParams {
+	organizationId?: string | null;
+}
+
+/**
  * Constructs a query key array from a base key and optional parameters.
  *
  * This utility function creates consistent, type-safe query keys that can be used
@@ -213,7 +220,10 @@ export const queryKeys = {
 		/**
 		 * Generates a query key for dashboard entity counts.
 		 */
-		counts: () => ['dashboard', 'counts'] as const,
+		counts: (organizationId?: string | null) =>
+			queryKeyConstructor(['dashboard', 'counts'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
 	},
 
 	/**
@@ -262,6 +272,15 @@ export const queryKeys = {
 		 * @param id - The user ID
 		 */
 		detail: (id: string) => ['users', 'detail', id] as const,
+	},
+
+	/**
+	 * Query keys for organization member-related queries.
+	 */
+	organizationMembers: {
+		all: ['organizationMembers'] as const,
+		list: (params?: OrganizationMembersQueryParams) =>
+			queryKeyConstructor(['organizationMembers', 'list'] as const, params),
 	},
 } as const;
 
@@ -344,5 +363,12 @@ export const mutationKeys = {
 		setRole: ['users', 'setRole'] as const,
 		ban: ['users', 'ban'] as const,
 		unban: ['users', 'unban'] as const,
+	},
+
+	/**
+	 * Mutation keys for organization member operations.
+	 */
+	organizationMembers: {
+		create: ['organizationMembers', 'create'] as const,
 	},
 } as const;

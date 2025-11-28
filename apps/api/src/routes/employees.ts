@@ -1,8 +1,9 @@
-import { and, eq, ilike, or } from 'drizzle-orm';
+import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 
 import db from '../db/index.js';
-import { employee, jobPosition, location } from '../db/schema.js';
+import { employee, jobPosition, location, organization } from '../db/schema.js';
+import { combinedAuthPlugin } from '../plugins/auth.js';
 import {
 	createEmployeeSchema,
 	employeeQuerySchema,
@@ -54,6 +55,7 @@ function decodeBase64Image(base64String: string): Uint8Array {
  * Provides CRUD operations and Rekognition face enrollment endpoints.
  */
 export const employeeRoutes = new Elysia({ prefix: '/employees' })
+	.use(combinedAuthPlugin)
 	// =========================================================================
 	// CRUD Operations
 	// =========================================================================
@@ -72,11 +74,31 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.get(
 		'/',
-		async ({ query }) => {
-			const { limit, offset, locationId, jobPositionId, status, search } = query;
+		async ({ query, authType, session, set }) => {
+			const {
+				limit,
+				offset,
+				locationId,
+				jobPositionId,
+				status,
+				search,
+				organizationId: organizationIdQuery,
+			} = query;
+
+			const organizationId =
+				authType === 'session'
+					? (session?.activeOrganizationId ?? organizationIdQuery ?? null)
+					: (organizationIdQuery ?? null);
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required' };
+			}
 
 			// Build conditions array
-			const conditions = [];
+			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
+				eq(employee.organizationId, organizationId),
+			];
 			if (locationId) {
 				conditions.push(eq(employee.locationId, locationId));
 			}
@@ -87,13 +109,12 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				conditions.push(eq(employee.status, status));
 			}
 			if (search) {
-				conditions.push(
-					or(
-						ilike(employee.firstName, `%${search}%`),
-						ilike(employee.lastName, `%${search}%`),
-						ilike(employee.code, `%${search}%`),
-					),
-				);
+				const searchClause = or(
+					ilike(employee.firstName, `%${search}%`),
+					ilike(employee.lastName, `%${search}%`),
+					ilike(employee.code, `%${search}%`),
+				)!;
+				conditions.push(searchClause);
 			}
 
 			// Select employee fields and join job position to get the name
@@ -111,6 +132,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					hireDate: employee.hireDate,
 					locationId: employee.locationId,
+					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
 					createdAt: employee.createdAt,
 					updatedAt: employee.updatedAt,
@@ -118,9 +140,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.from(employee)
 				.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id));
 
-			if (conditions.length > 0) {
-				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
-			}
+			const whereClause = and(...conditions)!;
+			baseQuery = baseQuery.where(whereClause) as typeof baseQuery;
 
 			const results = await baseQuery
 				.limit(limit)
@@ -129,9 +150,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Get total count with same filters
 			let countQuery = db.select().from(employee);
-			if (conditions.length > 0) {
-				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
-			}
+			const countWhere = and(...conditions)!;
+			countQuery = countQuery.where(countWhere) as typeof countQuery;
 			const countResult = await countQuery;
 			const total = countResult.length;
 
@@ -159,8 +179,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			const results = await db
 				.select({
@@ -176,6 +198,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					hireDate: employee.hireDate,
 					locationId: employee.locationId,
+					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
 					createdAt: employee.createdAt,
 					updatedAt: employee.updatedAt,
@@ -189,6 +212,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			if (!record) {
 				set.status = 404;
 				return { error: 'Employee not found' };
+			}
+
+			if (
+				activeOrgId &&
+				record.organizationId &&
+				record.organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this employee' };
 			}
 
 			return { data: record };
@@ -207,7 +239,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.post(
 		'/',
-		async ({ body, set }) => {
+		async ({ body, set, authType, session }) => {
 			const {
 				code,
 				firstName,
@@ -219,7 +251,30 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				status: empStatus,
 				hireDate,
 				locationId,
+				organizationId: organizationIdInput,
 			} = body;
+
+			const organizationId =
+				authType === 'session'
+					? (session?.activeOrganizationId ?? organizationIdInput ?? null)
+					: (organizationIdInput ?? null);
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required' };
+			}
+
+			// Verify organization exists
+			const organizationExists = await db
+				.select()
+				.from(organization)
+				.where(eq(organization.id, organizationId))
+				.limit(1);
+
+			if (!organizationExists[0]) {
+				set.status = 400;
+				return { error: 'Organization not found' };
+			}
 
 			// Verify location exists if provided
 			if (locationId) {
@@ -232,6 +287,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					set.status = 400;
 					return { error: 'Location not found' };
 				}
+
+				if (
+					locationExists[0].organizationId &&
+					locationExists[0].organizationId !== organizationId
+				) {
+					set.status = 403;
+					return { error: 'Location does not belong to this organization' };
+				}
 			}
 
 			// Verify job position exists (required for new employees)
@@ -243,6 +306,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			if (!positionExists[0]) {
 				set.status = 400;
 				return { error: 'Job position not found' };
+			}
+
+			if (
+				positionExists[0].organizationId &&
+				positionExists[0].organizationId !== organizationId
+			) {
+				set.status = 403;
+				return { error: 'Job position does not belong to this organization' };
 			}
 
 			// Check if code is unique
@@ -270,6 +341,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				status: empStatus,
 				hireDate: hireDate ?? null,
 				locationId: locationId ?? null,
+				organizationId,
 			};
 
 			await db.insert(employee).values(newEmployee);
@@ -299,8 +371,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set }) => {
+		async ({ params, body, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if employee exists
 			const existing = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
@@ -308,6 +382,17 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				set.status = 404;
 				return { error: 'Employee not found' };
 			}
+
+			if (
+				activeOrgId &&
+				existing[0].organizationId &&
+				existing[0].organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this employee' };
+			}
+
+			const targetOrgId = existing[0].organizationId ?? activeOrgId;
 
 			// Check if code is unique (if being updated)
 			if (body.code && body.code !== existing[0].code) {
@@ -333,6 +418,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					set.status = 400;
 					return { error: 'Location not found' };
 				}
+
+				if (
+					targetOrgId &&
+					locationExists[0].organizationId &&
+					locationExists[0].organizationId !== targetOrgId
+				) {
+					set.status = 403;
+					return { error: 'Location does not belong to this organization' };
+				}
 			}
 
 			// Verify job position exists if being updated
@@ -345,6 +439,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				if (!positionExists[0]) {
 					set.status = 400;
 					return { error: 'Job position not found' };
+				}
+
+				if (
+					targetOrgId &&
+					positionExists[0].organizationId &&
+					positionExists[0].organizationId !== targetOrgId
+				) {
+					set.status = 403;
+					return { error: 'Job position does not belong to this organization' };
 				}
 			}
 
@@ -375,14 +478,25 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session }) => {
 			const { id } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if employee exists
 			const existing = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Employee not found' };
+			}
+
+			if (
+				activeOrgId &&
+				existing[0].organizationId &&
+				existing[0].organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this employee' };
 			}
 
 			// If employee has Rekognition user, clean up first
@@ -418,8 +532,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.post(
 		'/:id/create-rekognition-user',
-		async ({ params, set }): Promise<UserCreationResult> => {
+		async ({ params, set, authType, session }): Promise<UserCreationResult> => {
 			const { id: employeeId } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Verify employee exists in database
 			const existingEmployee = await db
@@ -438,8 +554,23 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				};
 			}
 
+			const employeeRecord = existingEmployee[0]!;
+
+			if (
+				activeOrgId &&
+				employeeRecord.organizationId &&
+				employeeRecord.organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return {
+					success: false,
+					userId: null,
+					employeeId,
+					message: 'You do not have access to this employee',
+				};
+			}
+
 			// Check if employee already has a Rekognition user
-			const employeeRecord = existingEmployee[0];
 			if (employeeRecord?.rekognitionUserId) {
 				set.status = 409;
 				return {
@@ -492,9 +623,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.post(
 		'/:id/enroll-face',
-		async ({ params, body, set }): Promise<FaceEnrollmentResult> => {
+		async ({ params, body, set, authType, session }): Promise<FaceEnrollmentResult> => {
 			const { id: employeeId } = params;
 			const { image } = body;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Verify employee exists and has a Rekognition user
 			const existingEmployee = await db
@@ -514,7 +647,23 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				};
 			}
 
-			const enrollEmployee = existingEmployee[0];
+			const enrollEmployee = existingEmployee[0]!;
+
+			if (
+				activeOrgId &&
+				enrollEmployee.organizationId &&
+				enrollEmployee.organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return {
+					success: false,
+					faceId: null,
+					employeeId,
+					associated: false,
+					message: 'You do not have access to this employee',
+				};
+			}
+
 			if (!enrollEmployee?.rekognitionUserId) {
 				set.status = 400;
 				return {
@@ -589,8 +738,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.delete(
 		'/:id/rekognition-user',
-		async ({ params, set }): Promise<{ success: boolean; message: string }> => {
+		async ({ params, set, authType, session }): Promise<{ success: boolean; message: string }> => {
 			const { id: employeeId } = params;
+			const activeOrgId =
+				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Verify employee exists
 			const existingEmployee = await db
@@ -605,6 +756,18 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return {
 					success: false,
 					message: 'Employee not found',
+				};
+			}
+
+			if (
+				activeOrgId &&
+				deleteEmployeeRecord.organizationId &&
+				deleteEmployeeRecord.organizationId !== activeOrgId
+			) {
+				set.status = 403;
+				return {
+					success: false,
+					message: 'You do not have access to this employee',
 				};
 			}
 

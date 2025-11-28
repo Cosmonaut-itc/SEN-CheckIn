@@ -23,10 +23,14 @@ export const dynamic = 'force-dynamic';
  */
 export default async function EmployeesPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
- const orgContext = await getActiveOrganizationContext();
+	const orgContext = await getActiveOrganizationContext();
 
 	// Prefetch without await for streaming support
-	prefetchEmployeesList(queryClient, { limit: 100, offset: 0 });
+	prefetchEmployeesList(queryClient, {
+		limit: 100,
+		offset: 0,
+		organizationId: orgContext.organizationId,
+	});
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

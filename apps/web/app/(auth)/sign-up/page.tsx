@@ -8,10 +8,7 @@ import { User, Mail, Lock, ShieldCheck } from 'lucide-react';
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardFooter,
-	CardHeader,
-	CardTitle,
 } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 import { useAppForm } from '@/lib/forms';

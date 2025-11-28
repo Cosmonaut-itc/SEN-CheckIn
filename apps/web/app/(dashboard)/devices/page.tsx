@@ -3,6 +3,7 @@ import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchDevicesList } from '@/lib/server-functions';
 import { DevicesPageClient } from './devices-client';
 import React from 'react';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -19,11 +20,16 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The devices page with hydrated query state
  */
-export default function DevicesPage(): React.ReactElement {
+export default async function DevicesPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
+	const orgContext = await getActiveOrganizationContext();
 
 	// Prefetch without await for streaming support
-	prefetchDevicesList(queryClient, { limit: 100, offset: 0 });
+	prefetchDevicesList(queryClient, {
+		limit: 100,
+		offset: 0,
+		organizationId: orgContext.organizationId,
+	});
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

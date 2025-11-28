@@ -8,6 +8,7 @@ import { ArrowRight, Building, ClipboardList, MapPin, Smartphone, Users } from '
 import Link from 'next/link';
 import React from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Entity count card configuration interface.
@@ -76,9 +77,10 @@ const entityCards: EntityCardConfig[] = [
  * @returns The dashboard page JSX element
  */
 export function DashboardPageClient(): React.ReactElement {
+	const { organizationId } = useOrgContext();
 	const { data: counts, isFetching } = useSuspenseQuery({
-		queryKey: queryKeys.dashboard.counts(),
-		queryFn: fetchDashboardCounts,
+		queryKey: queryKeys.dashboard.counts(organizationId),
+		queryFn: () => fetchDashboardCounts({ organizationId }),
 	});
 
 	return (

@@ -110,14 +110,16 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [deleteRekognitionConfirmId, setDeleteRekognitionConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
-	const queryParams = search
-		? { search, limit: 100, offset: 0 }
-		: { limit: 100, offset: 0 };
+	const baseParams = { limit: 100, offset: 0, organizationId };
+	const queryParams = search ? { ...baseParams, search } : baseParams;
+
+	const isOrgSelected = Boolean(organizationId);
 
 	// Query for employees list
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.employees.list(queryParams),
 		queryFn: () => fetchEmployeesList(queryParams),
+		enabled: isOrgSelected,
 	});
 
 	// Query for job positions list (for the dropdown)
@@ -294,6 +296,17 @@ export function EmployeesPageClient(): React.ReactElement {
 	const handleDelete = (id: string): void => {
 		deleteMutation.mutate(id);
 	};
+
+	if (!isOrgSelected) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">Employees</h1>
+				<p className="text-muted-foreground">
+					Select an active organization to manage employees.
+				</p>
+			</div>
+		);
+	}
 
 	/**
 	 * Opens the face enrollment dialog for an employee.

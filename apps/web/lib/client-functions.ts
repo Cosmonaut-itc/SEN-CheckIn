@@ -47,6 +47,7 @@ export interface Employee {
 	status: EmployeeStatus;
 	hireDate: Date | null;
 	locationId: string | null;
+	organizationId: string | null;
 	rekognitionUserId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
@@ -63,6 +64,7 @@ export interface Device {
 	status: DeviceStatus;
 	lastHeartbeat: Date | null;
 	locationId: string | null;
+	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -135,6 +137,23 @@ export interface Organization {
 }
 
 /**
+ * Organization member record from better-auth organization plugin.
+ */
+export interface OrganizationMember {
+	id: string;
+	userId: string;
+	organizationId: string;
+	role: string;
+	createdAt: Date;
+	user: {
+		id: string;
+		name: string;
+		email: string;
+		image: string | null;
+	};
+}
+
+/**
  * User record interface from better-auth admin.
  */
 export interface User {
@@ -193,13 +212,25 @@ export interface DashboardCounts {
  * ```
  */
 export async function fetchEmployeesList(
-	params?: ListQueryParams,
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Employee>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
 	// Build query object, only including defined values
 	// Eden Treaty converts undefined to string "undefined" which breaks search
 	const query: {
 		limit: number;
 		offset: number;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
@@ -209,6 +240,10 @@ export async function fetchEmployeesList(
 	// Only add search if it has a non-empty value
 	if (params?.search) {
 		query.search = params.search;
+	}
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
 	}
 
 	const response = await api.employees.get({ $query: query });
@@ -241,17 +276,33 @@ export async function fetchEmployeesList(
  * ```
  */
 export async function fetchDevicesList(
-	params?: ListQueryParams,
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Device>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
 	// Build query object, only including defined values
 	const query: {
 		limit: number;
 		offset: number;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
 
 	if (params?.search) {
 		query.search = params.search;
@@ -286,12 +337,24 @@ export async function fetchDevicesList(
  * ```
  */
 export async function fetchLocationsList(
-	params?: ListQueryParams,
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Location>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
 	// Build query object, only including defined values
 	const query: {
 		limit: number;
 		offset: number;
+		organizationId?: string;
 		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
@@ -300,6 +363,10 @@ export async function fetchLocationsList(
 
 	if (params?.search) {
 		query.search = params.search;
+	}
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
 	}
 
 	const response = await api.locations.get({ $query: query });
@@ -408,8 +475,19 @@ export async function fetchJobPositionsList(
  * ```
  */
 export async function fetchAttendanceRecords(
-	params?: AttendanceQueryParams,
+	params?: AttendanceQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<AttendanceRecord>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
 	// Build query object, only including type if it's defined
 	const query: {
 		limit: number;
@@ -417,6 +495,7 @@ export async function fetchAttendanceRecords(
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
+		organizationId?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
@@ -427,6 +506,10 @@ export async function fetchAttendanceRecords(
 	// Only add type if it's a valid enum value (not undefined)
 	if (params?.type) {
 		query.type = params.type;
+	}
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
 	}
 
 	const response = await api.attendance.get({ $query: query });
@@ -459,14 +542,34 @@ export async function fetchAttendanceRecords(
  * console.log(`Total employees: ${counts.employees}`);
  * ```
  */
-export async function fetchDashboardCounts(): Promise<DashboardCounts> {
+export async function fetchDashboardCounts(params?: {
+	organizationId?: string | null;
+}): Promise<DashboardCounts> {
+	if (params?.organizationId === null) {
+		return {
+			employees: 0,
+			devices: 0,
+			locations: 0,
+			organizations: 0,
+			attendance: 0,
+		};
+	}
+
+	const organizationId = params?.organizationId ?? undefined;
+
+	const baseQuery = {
+		limit: 1,
+		offset: 0,
+		...(organizationId ? { organizationId } : {}),
+	};
+
 	const [employeesRes, devicesRes, locationsRes, organizationsRes, attendanceRes] =
 		await Promise.all([
-			api.employees.get({ $query: { limit: 1, offset: 0 } }),
-			api.devices.get({ $query: { limit: 1, offset: 0 } }),
-			api.locations.get({ $query: { limit: 1, offset: 0 } }),
+			api.employees.get({ $query: baseQuery }),
+			api.devices.get({ $query: baseQuery }),
+			api.locations.get({ $query: baseQuery }),
 			authClient.organization.list(),
-			api.attendance.get({ $query: { limit: 1, offset: 0 } }),
+			api.attendance.get({ $query: baseQuery }),
 		]);
 
 	return {
@@ -526,6 +629,42 @@ export async function fetchOrganizations(): Promise<Organization[]> {
 	}
 
 	return (response.data ?? []) as Organization[];
+}
+
+// ============================================================================
+// Organization Member Functions (via better-auth organization plugin)
+// ============================================================================
+
+export interface OrganizationMembersResponse {
+	members: OrganizationMember[];
+	total: number;
+}
+
+export async function fetchOrganizationMembers(params: {
+	organizationId: string | null;
+	limit?: number;
+	offset?: number;
+}): Promise<OrganizationMembersResponse> {
+	if (!params.organizationId) {
+		return { members: [], total: 0 };
+	}
+
+	const response = await authClient.organization.listMembers({
+		query: {
+			organizationId: params.organizationId,
+			limit: params.limit ?? 100,
+			offset: params.offset ?? 0,
+		},
+	});
+
+	if (response.error) {
+		throw new Error('Failed to fetch organization members');
+	}
+
+	return {
+		members: (response.data?.members ?? []) as OrganizationMember[],
+		total: response.data?.total ?? 0,
+	};
 }
 
 // ============================================================================

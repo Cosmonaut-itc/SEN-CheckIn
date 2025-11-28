@@ -36,7 +36,8 @@ export const createLocationSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	code: z.string().min(1, 'Code is required').max(50),
 	address: z.string().max(500).optional(),
-	organizationId: z.string().uuid('Invalid organization ID').optional(),
+	// BetterAuth organization IDs are text (not UUID)
+	organizationId: z.string().optional(),
 });
 
 /**
@@ -52,7 +53,7 @@ export const updateLocationSchema = z.object({
  * Schema for location query filters.
  */
 export const locationQuerySchema = paginationSchema.extend({
-	organizationId: z.string().uuid().optional(),
+	organizationId: z.string().optional(),
 	search: z.string().optional(),
 });
 
@@ -66,7 +67,7 @@ export const locationQuerySchema = paginationSchema.extend({
 export const createJobPositionSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	description: z.string().max(1000).optional(),
-	organizationId: z.string().uuid('Invalid organization ID').optional(),
+	organizationId: z.string().optional(),
 });
 
 /**
@@ -81,7 +82,7 @@ export const updateJobPositionSchema = z.object({
  * Schema for job position query filters.
  */
 export const jobPositionQuerySchema = paginationSchema.extend({
-	organizationId: z.string().uuid().optional(),
+	organizationId: z.string().optional(),
 	search: z.string().optional(),
 });
 
@@ -109,6 +110,7 @@ export const createEmployeeSchema = z.object({
 	status: employeeStatusEnum.default('ACTIVE'),
 	hireDate: z.coerce.date().optional(),
 	locationId: z.string().uuid().optional(),
+	organizationId: z.string().optional(),
 });
 
 /**
@@ -135,6 +137,8 @@ export const employeeQuerySchema = paginationSchema.extend({
 	jobPositionId: z.string().uuid().optional(),
 	status: employeeStatusEnum.optional(),
 	search: z.string().optional(),
+	// BetterAuth organization IDs are text (not UUID)
+	organizationId: z.string().optional(),
 });
 
 // ============================================================================
@@ -155,6 +159,7 @@ export const createDeviceSchema = z.object({
 	deviceType: z.string().max(50).optional(),
 	status: deviceStatusEnum.default('OFFLINE'),
 	locationId: z.string().uuid().optional(),
+	organizationId: z.string().optional(),
 });
 
 /**
@@ -175,6 +180,7 @@ export const deviceQuerySchema = paginationSchema.extend({
 	locationId: z.string().uuid().optional(),
 	status: deviceStatusEnum.optional(),
 	search: z.string().optional(),
+	organizationId: z.string().optional(),
 });
 
 // ============================================================================
@@ -206,6 +212,8 @@ export const attendanceQuerySchema = paginationSchema.extend({
 	type: attendanceTypeEnum.optional(),
 	fromDate: z.coerce.date().optional(),
 	toDate: z.coerce.date().optional(),
+	// BetterAuth organization IDs are text (not UUID)
+	organizationId: z.string().optional(),
 });
 
 /**

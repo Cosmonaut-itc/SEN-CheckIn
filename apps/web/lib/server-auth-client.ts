@@ -8,7 +8,12 @@
  * @module server-auth-client
  */
 
-import { adminClient, apiKeyClient, organizationClient } from 'better-auth/client/plugins';
+import {
+	adminClient,
+	apiKeyClient,
+	organizationClient,
+	usernameClient,
+} from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 import { headers } from 'next/headers';
 
@@ -16,7 +21,10 @@ import { headers } from 'next/headers';
  * Environment variable for the API base URL.
  * Falls back to localhost for local development.
  */
-const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
+	? API_ORIGIN
+	: `${API_ORIGIN}/api/auth`;
 
 /**
  * Server auth client for use in server actions.
@@ -38,7 +46,7 @@ const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhos
  */
 export const serverAuthClient = createAuthClient({
 	baseURL: API_BASE_URL,
-	plugins: [apiKeyClient(), adminClient(), organizationClient()],
+	plugins: [apiKeyClient(), adminClient(), organizationClient(), usernameClient()],
 });
 
 /**

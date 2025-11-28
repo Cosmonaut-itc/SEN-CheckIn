@@ -1,8 +1,10 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
-import { prefetchUsers } from '@/lib/server-functions';
+import { prefetchOrganizationMembers } from '@/lib/server-functions';
 import { UsersPageClient } from './users-client';
 import React from 'react';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
+import { OrgProvider } from '@/lib/org-client-context';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -19,15 +21,24 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The users page with hydrated query state
  */
-export default function UsersPage(): React.ReactElement {
+export default async function UsersPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
+	const orgContext = await getActiveOrganizationContext();
 
 	// Prefetch without await for streaming support
-	prefetchUsers(queryClient, { limit: 100, offset: 0 });
+	if (orgContext.organizationId) {
+		prefetchOrganizationMembers(queryClient, {
+			organizationId: orgContext.organizationId,
+			limit: 100,
+			offset: 0,
+		});
+	}
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<UsersPageClient />
+			<OrgProvider value={orgContext}>
+				<UsersPageClient />
+			</OrgProvider>
 		</HydrationBoundary>
 	);
 }

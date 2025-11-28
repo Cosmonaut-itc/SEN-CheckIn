@@ -1,344 +1,280 @@
-<!-- 43fad91d-42d2-4bd7-a581-04542425744e 8931f588-807b-4531-b8d2-f1b0242bd3e8 -->
-# Mobile App Implementation Plan
+<!-- 43fad91d-42d2-4bd7-a581-04542425744e 86c0584d-3295-483c-bd61-5e4ecc5336f8 -->
+# Device Code Authentication Flow Implementation
 
-## Prerequisites and Documentation References
+## Overview
 
-The agent implementing this plan MUST use Context7 MCP to fetch up-to-date documentation for:
-
-- HeroUI Native (`/heroui-inc/heroui-native`)
-- Uniwind (https://docs.uniwind.dev/quickstart)
-- Better Auth Expo (`/better-auth/better-auth`, topic: expo)
-- TanStack Query React Native (`/websites/tanstack_query`, topic: react native)
-- TanStack Form (`/tanstack/form`)
-- Expo Camera (`/expo/expo`, topic: expo-camera)
+BetterAuth provides a built-in `deviceAuthorization` plugin implementing OAuth 2.0 Device Authorization Grant (RFC 8628). This plan integrates the plugin into the existing API and Web app infrastructure.
 
 ---
 
-## Phase 1: Dependencies and Configuration
+## Reference Documentation
 
-### 1.1 Install HeroUI Native and Dependencies
+The agent MUST consult these sources using Context7 MCP:
 
-From [HeroUI Native README](https://github.com/heroui-inc/heroui-native):
+| Library | Context7 ID | Topics |
 
-```bash
-# In apps/mobile
-bun add heroui-native
-bun add tailwind-variants@^3.1.0 tailwind-merge@^3.3.1 @gorhom/bottom-sheet@^5 react-native-svg@^15.12.1
-```
+|---------|-------------|--------|
 
-Note: `react-native-screens`, `react-native-reanimated`, `react-native-worklets`, `react-native-safe-area-context`, and `react-native-gesture-handler` are already installed.
+| Better Auth | `/better-auth/better-auth` | device authorization, deviceAuthorization plugin |
 
-### 1.2 Install Uniwind
+### Key BetterAuth Device Authorization Endpoints
 
-Per https://docs.uniwind.dev/quickstart:
+| Endpoint | Method | Description |
 
-```bash
-bun add uniwind @tailwindcss/postcss tailwindcss postcss
-```
+|----------|--------|-------------|
 
-Create `apps/mobile/global.css`:
+| `/api/auth/device/code` | POST | Request device code and user code |
 
-```css
-@import 'tailwindcss';
-@import 'uniwind';
-@import 'heroui-native/styles';
-@source './node_modules/heroui-native/lib';
-```
+| `/api/auth/device` | GET | Verify user code validity |
 
-### 1.3 Install BetterAuth Expo Client
+| `/api/auth/device/token` | POST | Poll for access token |
 
-```bash
-bun add @better-auth/expo expo-secure-store expo-crypto expo-linking
-```
+| `/api/auth/device/approve` | POST | Approve device (requires auth) |
 
-### 1.4 Install TanStack Query and Form
-
-```bash
-bun add @tanstack/react-query @tanstack/react-form @react-native-community/netinfo
-```
-
-### 1.5 Install Expo Camera
-
-```bash
-bunx expo install expo-camera
-```
-
-Update `apps/mobile/app.json` - add camera plugin configuration:
-
-```json
-{
-  "plugins": [
-    ["expo-camera", {
-      "cameraPermission": "Allow SEN-CheckIn to access your camera for attendance verification"
-    }]
-  ]
-}
-```
-
-### 1.6 Update app.json Scheme
-
-Change `"scheme": "mobile"` to `"scheme": "sen-checkin"` for deep linking.
+| `/api/auth/device/deny` | POST | Deny device (requires auth) |
 
 ---
 
-## Phase 2: Core Library Setup
+## Phase 1: API Configuration
 
-### 2.1 Create API Client
+### 1.1 Add deviceAuthorization Plugin
 
-File: `apps/mobile/lib/api.ts`
+File: `apps/api/utils/auth.ts`
 
-Mirror the web implementation from [apps/web/lib/api.ts](apps/web/lib/api.ts), using the shared `@sen-checkin/api-contract` package.
+```typescript
+import { deviceAuthorization } from 'better-auth/plugins';
 
-### 2.2 Create Auth Client
+export const auth = betterAuth({
+  // ... existing config
+  plugins: [
+    apiKey(),
+    admin({ defaultRole: 'user', adminRoles: ['admin'] }),
+    organization({ allowUserToCreateOrganization: true }),
+    username(),
+    // ADD: Device Authorization plugin
+    deviceAuthorization({
+      verificationUri: '/device',  // Web app route for verification
+      expiresIn: '10m',            // Device code valid for 10 minutes
+      interval: '5s',              // Polling interval
+      userCodeLength: 8,           // User-friendly code length
+    }),
+  ],
+});
+```
+
+### 1.2 Update Trusted Origins
+
+Add mobile app deep link scheme to trusted origins:
+
+```typescript
+trustedOrigins: [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'sen-checkin://',  // Mobile app deep link
+].filter(Boolean),
+```
+
+### 1.3 Generate Database Migration (if needed)
+
+Check if `deviceAuthorization` plugin requires additional tables. If so:
+
+```bash
+bun run drizzle:generate
+bun run drizzle:migrate
+```
+
+---
+
+## Phase 2: Web Admin Client Configuration
+
+### 2.1 Add deviceAuthorizationClient Plugin
+
+File: `apps/web/lib/auth-client.ts`
+
+```typescript
+import { deviceAuthorizationClient } from 'better-auth/client/plugins';
+
+export const authClient = createAuthClient({
+  baseURL: API_BASE_URL,
+  plugins: [
+    apiKeyClient(),
+    adminClient(),
+    organizationClient(),
+    usernameClient(),
+    // ADD: Device Authorization client plugin
+    deviceAuthorizationClient(),
+  ],
+});
+```
+
+---
+
+## Phase 3: Web Device Verification Page
+
+### 3.1 Create Device Verification Route
+
+File: `apps/web/app/(auth)/device/page.tsx`
+
+Server component that renders the device verification UI:
+
+```
+URL: /device?user_code=XXXX-XXXX (optional pre-filled code)
+```
+
+Features:
+
+- Input field for user code (8 characters, formatted as XXXX-XXXX)
+- "Verify Code" button to check code validity
+- On valid code: Show device info and approve/deny buttons
+- On invalid code: Show error message
+
+### 3.2 Create Device Verification Client Component
+
+File: `apps/web/app/(auth)/device/device-client.tsx`
+
+UI Flow:
+
+1. User enters code (or uses pre-filled from URL)
+2. Call `authClient.device()` to verify code
+3. If valid: Show approval screen with device details
+4. User clicks "Approve" → `authClient.device.approve(deviceCode)`
+5. User clicks "Deny" → `authClient.device.deny(deviceCode)`
+6. Show success/error message and redirect
+
+### 3.3 Add Navigation Link (Optional)
+
+Add "Authorize Device" link to dashboard sidebar for easy access.
+
+---
+
+## Phase 4: Update Mobile Plan Integration
+
+The mobile app plan already references device code authentication. With BetterAuth's plugin:
+
+### Mobile Auth Client Configuration
 
 File: `apps/mobile/lib/auth-client.ts`
 
-Configure BetterAuth with `expoClient` plugin and `expo-secure-store`. Reference the web's [auth-client.ts](apps/web/lib/auth-client.ts) for plugins (organization, username).
+```typescript
+import { createAuthClient } from 'better-auth/react';
+import { expoClient } from '@better-auth/expo/client';
+import { deviceAuthorizationClient } from 'better-auth/client/plugins';
+import * as SecureStore from 'expo-secure-store';
 
-### 2.3 Create Query Client Provider
-
-File: `apps/mobile/lib/query-client.ts`
-
-Configure QueryClient with:
-
-- React Native `onlineManager` using `@react-native-community/netinfo`
-- React Native `focusManager` using `AppState`
-- Appropriate `staleTime` (60s as per web)
-
-File: `apps/mobile/providers/query-provider.tsx`
-
-Wrap app with `QueryClientProvider`.
-
-### 2.4 Create Query Keys
-
-File: `apps/mobile/lib/query-keys.ts`
-
-Copy relevant query keys from [apps/web/lib/query-keys.ts](apps/web/lib/query-keys.ts):
-
-- `locations` (for settings dropdown)
-- `devices` (for device registration)
-- `attendance` (for recording check-ins)
-
-Add mobile-specific keys:
-
-- `deviceSettings` - for local device configuration
-
-### 2.5 Create Client Functions
-
-File: `apps/mobile/lib/client-functions.ts`
-
-Create fetchers following the pattern from [apps/web/lib/client-functions.ts](apps/web/lib/client-functions.ts):
-
-- `fetchLocationsList()` - for settings page location picker
-- `fetchDeviceDetail()` - get device configuration
-- `createAttendanceRecord()` - record face verification results
-
-### 2.6 Create TanStack Form Setup
-
-File: `apps/mobile/lib/forms.tsx`
-
-Create mobile form toolkit following [release-06-form-architecture.md](documentacion/release-06-form-architecture.md):
-
-- Use `createFormHookContexts` and `createFormHook`
-- Create HeroUI Native-compatible field components (TextField using HeroUI `TextField`)
-- Create SubmitButton component using HeroUI `Button`
-
----
-
-## Phase 3: App Structure and Navigation
-
-### 3.1 Update Root Layout
-
-File: `apps/mobile/app/_layout.tsx`
-
-- Wrap with `GestureHandlerRootView`
-- Add `HeroUINativeProvider`
-- Add `QueryClientProvider`
-- Add `AuthProvider` context for session state
-- Import `global.css` for Uniwind styles
-
-### 3.2 Create Navigation Structure
-
-Replace current `(tabs)` structure with stack navigation:
-
-```
-app/
-  _layout.tsx          # Root with providers
-  (auth)/
-    _layout.tsx        # Auth group layout
-    login.tsx          # Device code login screen
-  (main)/
-    _layout.tsx        # Main group layout (requires auth)
-    scanner.tsx        # Face scanning screen (default)
-    settings.tsx       # Device settings screen
+export const authClient = createAuthClient({
+  baseURL: 'https://your-api.com',
+  plugins: [
+    expoClient({
+      scheme: 'sen-checkin',
+      storagePrefix: 'sen-checkin',
+      storage: SecureStore,
+    }),
+    deviceAuthorizationClient(),
+  ],
+});
 ```
 
-Use Expo Router's `redirect` to handle auth state transitions.
+### Mobile Login Flow
 
----
+```typescript
+// 1. Request device code
+const { data } = await authClient.device.code({
+  client_id: 'sen-checkin-mobile',
+  scope: 'openid profile',
+});
 
-## Phase 4: Authentication Flow (Device Code)
+// 2. Display to user
+console.log(`Code: ${data.user_code}`);
+console.log(`URL: ${data.verification_uri_complete}`);
 
-### 4.1 Backend Requirement (Note for API team)
-
-The device code flow requires new API endpoints:
-
-- `POST /api/auth/device-code` - Generate a new device code
-- `GET /api/auth/device-code/:code/status` - Poll for authorization status
-- `POST /api/auth/device-code/:code/authorize` (web admin) - Authorize a device code
-
-If these don't exist, the agent should create placeholder UI with a TODO note.
-
-### 4.2 Login Screen Implementation
-
-File: `apps/mobile/app/(auth)/login.tsx`
-
-UI Elements (HeroUI Native):
-
-- Large device code display (6-8 character code)
-- QR code containing authorization URL
-- "Waiting for authorization..." status
-- Refresh code button
-
-Logic:
-
-- On mount, generate device code via API
-- Poll for authorization status
-- On success, store session and redirect to scanner
-
----
-
-## Phase 5: Face Scanning View
-
-### 5.1 Scanner Screen
-
-File: `apps/mobile/app/(main)/scanner.tsx`
-
-Full-screen camera view with overlay:
-
-```
-+----------------------------------+
-| [CHECK-IN v] ⚙️ Settings         |  <- Top bar overlay
-|                                    |
-|                                    |
-|           [Camera Feed]            |
-|                                    |
-|        +----------------+          |
-|        |  Face Outline  |          |  <- Face guide overlay
-|        +----------------+          |
-|                                    |
-|    "Look at the camera"            |  <- Instruction text
-+----------------------------------+
+// 3. Poll for authorization
+const tokenResult = await pollForToken(data.device_code, data.interval);
 ```
 
-Components:
-
-- `CameraView` from `expo-camera` (front-facing)
-- Attendance type selector (top-left): HeroUI `Select` with CHECK_IN/CHECK_OUT options
-- Settings button (top-right): HeroUI `Button` with icon, navigates to settings
-- Face outline overlay: SVG or View with border
-- Status text: Shows instructions or recognition result
-
-Logic:
-
-- Capture frame periodically or on button press
-- Send to face verification endpoint
-- Show success (employee name) or failure message
-- Record attendance on successful verification
-
-### 5.2 Face Verification Integration
-
-Create helper: `apps/mobile/lib/face-recognition.ts`
-
-- `verifyFace(imageBase64: string)` - Call API to verify face against Rekognition
-- `recordAttendance(employeeId: string, type: 'CHECK_IN' | 'CHECK_OUT')` - Record attendance
-
 ---
 
-## Phase 6: Settings View
+## Phase 5: Database Schema Update
 
-### 6.1 Settings Screen
+### 5.1 Check Plugin Schema Requirements
 
-File: `apps/mobile/app/(main)/settings.tsx`
+The `deviceAuthorization` plugin may require a `device_code` table. Check BetterAuth docs:
 
-Form fields (using TanStack Form + HeroUI Native):
+```typescript
+// Expected schema (if auto-generated by plugin)
+export const deviceCode = pgTable('device_code', {
+  id: text('id').primaryKey(),
+  deviceCode: text('device_code').notNull().unique(),
+  userCode: text('user_code').notNull().unique(),
+  clientId: text('client_id').notNull(),
+  scope: text('scope'),
+  userId: text('user_id').references(() => user.id),
+  status: text('status').default('pending'), // pending, approved, denied, expired
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+```
 
-- Device Name (TextField)
-- Location (Select - populated from API)
-- Organization display (read-only, from session)
-
-Actions:
-
-- Save button - Updates device settings via API
-- Sign out button - Clears session, returns to login
-
-### 6.2 Device Settings Context
-
-File: `apps/mobile/lib/device-context.tsx`
-
-React context providing:
-
-- Current device settings (name, locationId, organizationId)
-- `updateSettings()` mutation
-- Loading state
-
-Settings are fetched from server on app start and cached locally.
-
----
-
-## Phase 7: UX Optimizations for Attendance Verification
-
-### 7.1 Visual Feedback
-
-- Success: Green flash + haptic feedback + employee name display
-- Failure: Red flash + shake animation + "Face not recognized" message
-- Loading: Pulsing overlay during verification
-
-### 7.2 Audio Feedback (optional)
-
-- Success/failure sounds using `expo-av`
-
-### 7.3 Accessibility
-
-- Large, high-contrast UI elements
-- Clear status announcements
-- Works in various lighting conditions (camera exposure hints)
+If plugin auto-manages schema, no action needed. Otherwise, add to `apps/api/auth-schema.ts`.
 
 ---
 
 ## Key Files Summary
 
-| File | Purpose |
+| File | Changes |
 
 |------|---------|
 
-| `apps/mobile/lib/api.ts` | Eden Treaty API client |
+| `apps/api/utils/auth.ts` | Add `deviceAuthorization` plugin |
 
-| `apps/mobile/lib/auth-client.ts` | BetterAuth Expo client |
+| `apps/web/lib/auth-client.ts` | Add `deviceAuthorizationClient` plugin |
 
-| `apps/mobile/lib/query-client.ts` | TanStack Query client + RN config |
+| `apps/web/app/(auth)/device/page.tsx` | New - Device verification page |
 
-| `apps/mobile/lib/query-keys.ts` | Query key factories |
+| `apps/web/app/(auth)/device/device-client.tsx` | New - Verification UI component |
 
-| `apps/mobile/lib/client-functions.ts` | API fetchers/mutations |
+| `apps/api/auth-schema.ts` | Possibly add `deviceCode` table |
 
-| `apps/mobile/lib/forms.tsx` | TanStack Form + HeroUI components |
+---
 
-| `apps/mobile/lib/face-recognition.ts` | Face verification helpers |
+## Post-Implementation Validation
 
-| `apps/mobile/lib/device-context.tsx` | Device settings context |
+After completing all implementation tasks:
 
-| `apps/mobile/providers/query-provider.tsx` | QueryClientProvider wrapper |
+```bash
+# From project root
+bun run lint          # Verify ESLint passes
+bun run check-types   # Verify TypeScript compilation
+```
 
-| `apps/mobile/app/_layout.tsx` | Root layout with all providers |
+Fix any errors before considering the implementation complete.
 
-| `apps/mobile/app/(auth)/login.tsx` | Device code login |
+---
 
-| `apps/mobile/app/(main)/scanner.tsx` | Face scanning camera view |
+## Documentation Requirements
 
-| `apps/mobile/app/(main)/settings.tsx` | Device settings form |
+Upon completion, update or create documentation:
 
-| `apps/mobile/global.css` | Tailwind/Uniwind styles |
+**File**: `documentacion/release-09-mobile-app.md` (update existing plan file)
+
+Add section documenting:
+
+- Device code authentication flow
+- BetterAuth plugin configuration
+- Web verification page usage
+- Mobile integration details
+
+---
+
+## Testing Checklist
+
+1. API: `POST /api/auth/device/code` returns device_code and user_code
+2. Web: `/device` page loads and accepts user codes
+3. Web: Approve button successfully authorizes device
+4. Web: Deny button rejects device authorization
+5. API: Token polling returns tokens after approval
+6. API: Token polling returns error after denial
 
 ### To-dos
 
@@ -355,3 +291,5 @@ Settings are fetched from server on app start and cached locally.
 - [ ] Implement face scanning view with camera, attendance type selector, settings button
 - [ ] Implement face verification API integration and attendance recording
 - [ ] Implement settings screen with device name, location select, save/logout
+- [ ] Run bun run lint and bun run check-types, fix any errors
+- [ ] Create documentacion/release-09-mobile-app.md with implementation details and pending work

@@ -27,13 +27,15 @@ export default async function AttendancePage(): Promise<React.ReactElement> {
 
 	// Prefetch today's attendance records without await for streaming support
 	const today = new Date();
-	prefetchAttendanceRecords(queryClient, {
-		limit: 100,
-		offset: 0,
-		fromDate: startOfDay(today),
-		toDate: endOfDay(today),
-		organizationId: orgContext.organizationId,
-	});
+	if (orgContext.organizationId) {
+		prefetchAttendanceRecords(queryClient, {
+			limit: 100,
+			offset: 0,
+			fromDate: startOfDay(today),
+			toDate: endOfDay(today),
+			organizationId: orgContext.organizationId,
+		});
+	}
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

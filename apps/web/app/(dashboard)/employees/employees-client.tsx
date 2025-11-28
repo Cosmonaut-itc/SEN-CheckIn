@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm } from '@/lib/forms';
+import { useAppForm, useStore } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -108,6 +108,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
 	const [deleteRekognitionConfirmId, setDeleteRekognitionConfirmId] = useState<string | null>(null);
+	const [hasCustomCode, setHasCustomCode] = useState<boolean>(false);
 
 	// Build query params - only include search if it has a value
 	const baseParams = { limit: 100, offset: 0, organizationId };
@@ -248,12 +249,36 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 	});
 
+	const firstName = useStore(form.store, (state) => state.values.firstName);
+	const lastName = useStore(form.store, (state) => state.values.lastName);
+	const codeValue = useStore(form.store, (state) => state.values.code);
+
+	const generateEmployeeCode = (first: string, last: string): string => {
+		const random = Math.floor(1000 + Math.random() * 9000).toString();
+		const base = [first, last]
+			.filter(Boolean)
+			.join('.')
+			.replace(/[^a-zA-Z0-9.]/g, '')
+			.toUpperCase();
+		return (base || 'EMP') + `-${random}`;
+	};
+
+	useEffect(() => {
+		if (editingEmployee) return;
+		if (hasCustomCode) return;
+		// Only auto-generate when the code field is empty to avoid update loops
+		if (codeValue.trim() !== '') return;
+		const generated = generateEmployeeCode(firstName, lastName);
+		form.setFieldValue('code', generated);
+	}, [editingEmployee, hasCustomCode, firstName, lastName, codeValue, form]);
+
 	/**
 	 * Opens the dialog for creating a new employee.
 	 */
 	const handleCreateNew = useCallback((): void => {
 		setEditingEmployee(null);
 		form.reset();
+		setHasCustomCode(false);
 		setIsDialogOpen(true);
 	}, [form]);
 
@@ -272,6 +297,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
 		form.setFieldValue('department', employee.department ?? '');
 		form.setFieldValue('status', employee.status);
+		setHasCustomCode(true);
 		setIsDialogOpen(true);
 	}, [form]);
 
@@ -285,6 +311,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		if (!open) {
 			setEditingEmployee(null);
 			form.reset();
+			setHasCustomCode(false);
 		}
 	}, [form]);
 
@@ -362,9 +389,20 @@ export function EmployeesPageClient(): React.ReactElement {
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-                        <form.AppField name="code" validators={{ onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined) }}>
-                            {(field) => <field.TextField label="Code" />}
-                        </form.AppField>
+						<form.AppField
+							name="code"
+							validators={{ onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined) }}
+						>
+							{(field) => (
+								<field.TextField
+									label="Code"
+									onValueChange={(next) => {
+										setHasCustomCode(true);
+										return next;
+									}}
+								/>
+							)}
+						</form.AppField>
                         <form.AppField name="firstName" validators={{ onChange: ({ value }) => (!value.trim() ? 'First name is required' : undefined) }}>
                             {(field) => <field.TextField label="First Name" />}
                         </form.AppField>

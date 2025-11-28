@@ -28,6 +28,8 @@ export interface CreateDeviceInput {
 	deviceType?: string;
 	/** Device status */
 	status: DeviceStatus;
+	/** Optional location assignment */
+	locationId?: string;
 }
 
 /**
@@ -44,6 +46,8 @@ export interface UpdateDeviceInput {
 	deviceType?: string;
 	/** Device status */
 	status: DeviceStatus;
+	/** Optional location assignment */
+	locationId?: string | null;
 }
 
 /**
@@ -85,6 +89,7 @@ export async function createDevice(input: CreateDeviceInput): Promise<MutationRe
 			name: input.name || undefined,
 			deviceType: input.deviceType || undefined,
 			status: input.status,
+			locationId: input.locationId,
 		});
 
 		if (response.error) {
@@ -134,6 +139,7 @@ export async function updateDevice(input: UpdateDeviceInput): Promise<MutationRe
 			name: input.name || undefined,
 			deviceType: input.deviceType || undefined,
 			status: input.status,
+			locationId: input.locationId ?? undefined,
 		});
 
 		if (response.error) {

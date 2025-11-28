@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,13 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchDevicesList, type Device, type DeviceStatus } from '@/lib/client-functions';
+import {
+	fetchDevicesList,
+	fetchLocationsList,
+	type Device,
+	type DeviceStatus,
+	type Location,
+} from '@/lib/client-functions';
 import { createDevice, updateDevice, deleteDevice } from '@/actions/devices';
 import { useOrgContext } from '@/lib/org-client-context';
 
@@ -40,7 +46,10 @@ interface DeviceFormValues {
 	name: string;
 	deviceType: string;
 	status: DeviceStatus;
+	locationId: string;
 }
+
+const NONE_LOCATION_VALUE = '__none__';
 
 /**
  * Status badge variant mapping.
@@ -75,6 +84,33 @@ export function DevicesPageClient(): React.ReactElement {
 		queryFn: () => fetchDevicesList(queryParams),
 		enabled: Boolean(organizationId),
 	});
+
+	// Locations for select options
+	const { data: locationsData } = useQuery({
+		queryKey: queryKeys.locations.list(baseParams),
+		queryFn: () => fetchLocationsList(baseParams),
+		enabled: Boolean(organizationId),
+	});
+
+	const locations = useMemo(
+		() => (locationsData?.data ?? []) as Location[],
+		[locationsData],
+	);
+	const locationOptions = useMemo(
+		() => [
+			{ value: NONE_LOCATION_VALUE, label: 'No location' },
+			...locations.map((loc) => ({
+				value: loc.id,
+				label: loc.name || loc.code,
+			})),
+		],
+		[locations],
+	);
+
+	const locationLookup = useMemo(
+		() => new Map(locations.map((loc) => [loc.id, loc.name ?? loc.code])),
+		[locations],
+	);
 
 	const devices = data?.data ?? [];
 
@@ -139,8 +175,13 @@ const form = useAppForm({
 		name: '',
 		deviceType: '',
 		status: 'OFFLINE',
+		locationId: NONE_LOCATION_VALUE,
 	},
 	onSubmit: async ({ value }: { value: DeviceFormValues }) => {
+		const locationId =
+			value.locationId && value.locationId !== NONE_LOCATION_VALUE
+				? value.locationId
+				: undefined;
 		if (editingDevice) {
 			await updateMutation.mutateAsync({
 				id: editingDevice.id,
@@ -148,6 +189,7 @@ const form = useAppForm({
 				name: value.name || undefined,
 				deviceType: value.deviceType || undefined,
 				status: value.status,
+				locationId,
 			});
 		} else {
 			await createMutation.mutateAsync({
@@ -155,6 +197,7 @@ const form = useAppForm({
 				name: value.name || undefined,
 				deviceType: value.deviceType || undefined,
 				status: value.status,
+				locationId,
 			});
 		}
 		setIsDialogOpen(false);
@@ -184,6 +227,7 @@ const form = useAppForm({
 			form.setFieldValue('name', device.name ?? '');
 			form.setFieldValue('deviceType', device.deviceType ?? '');
 			form.setFieldValue('status', device.status);
+			form.setFieldValue('locationId', device.locationId ?? NONE_LOCATION_VALUE);
 			setIsDialogOpen(true);
 		},
 		[form],
@@ -284,6 +328,15 @@ const form = useAppForm({
 								/>
 							)}
 						</form.AppField>
+						<form.AppField name="locationId">
+							{(field) => (
+								<field.SelectField
+									label="Location"
+									options={locationOptions}
+									placeholder="Select location (optional)"
+								/>
+							)}
+						</form.AppField>
 					</div>
 					<DialogFooter>
 						<form.AppForm>
@@ -314,6 +367,7 @@ const form = useAppForm({
 							<TableHead>Code</TableHead>
 							<TableHead>Name</TableHead>
 							<TableHead>Type</TableHead>
+							<TableHead>Location</TableHead>
 							<TableHead>Status</TableHead>
 							<TableHead>Last Heartbeat</TableHead>
 							<TableHead>Created</TableHead>
@@ -343,6 +397,11 @@ const form = useAppForm({
 									<TableCell className="font-medium">{device.code}</TableCell>
 									<TableCell>{device.name ?? '-'}</TableCell>
 									<TableCell>{device.deviceType ?? '-'}</TableCell>
+									<TableCell>
+										{device.locationId
+											? locationLookup.get(device.locationId) ?? device.locationId
+											: '-'}
+									</TableCell>
 									<TableCell>
 										<Badge variant={statusVariants[device.status]}>
 											{device.status}

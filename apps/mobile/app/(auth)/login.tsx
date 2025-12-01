@@ -245,14 +245,26 @@ export default function LoginScreen(): JSX.Element {
 				default: {
 					const fallback =
 						errorBody.error_description ?? errorDetails?.message ?? 'Polling failed';
-					setStatus({ state: 'error', message: fallback });
 					setLastError(fallback);
+					// Keep polling on transient/unknown errors until the code actually expires to allow the full window (e.g., 10 minutes).
+					setStatus({
+						state: 'waiting',
+						message: 'Polling failed. Retrying…',
+					});
+					setPollDelayMs((prev) => Math.min((prev || codeState.intervalMs) + 5000, 30000));
 				}
 			}
 		} catch (error) {
 			const message = deriveErrorMessage(error);
-			setStatus({ state: 'error', message });
 			setLastError(message);
+			setStatus({
+				state: 'waiting',
+				message: 'Polling failed. Retrying…',
+			});
+			setPollDelayMs((prev) => {
+				const base = codeState?.intervalMs ?? prev ?? 5000;
+				return Math.min(base + 5000, 30000);
+			});
 		}
 	}, [codeState, router]);
 
@@ -358,6 +370,12 @@ export default function LoginScreen(): JSX.Element {
 					>
 						<Button.Label>Open in browser</Button.Label>
 					</Button>
+					{!ENV.webVerifyUrl ? (
+						<Text className="text-xs text-warning-600 mt-2 text-center">
+							Set EXPO_PUBLIC_WEB_VERIFY_URL (or VERIFY_URL) to your web app host
+							(e.g., http://localhost:3001/device) so admins open the right page.
+						</Text>
+					) : null}
 				</View>
 
 				<View className="flex-row items-center gap-2">

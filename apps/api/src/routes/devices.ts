@@ -1,16 +1,16 @@
+import { type SQL, and, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
-import { eq, and, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { device, location, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
-import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
-	idParamSchema,
-	deviceQuerySchema,
 	createDeviceSchema,
+	deviceQuerySchema,
+	idParamSchema,
 	updateDeviceSchema,
 } from '../schemas/crud.js';
+import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 
 /**
  * Device routes for managing kiosk/device records.
@@ -45,8 +45,14 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { limit, offset, locationId, status, search, organizationId: organizationIdQuery } =
-				query;
+			const {
+				limit,
+				offset,
+				locationId,
+				status,
+				search,
+				organizationId: organizationIdQuery,
+			} = query;
 
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -119,7 +125,14 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			const results = await db.select().from(device).where(eq(device.id, id)).limit(1);
@@ -326,7 +339,11 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			// Check if code is unique (if being updated)
 			if (body.code && body.code !== existing[0].code) {
-				const codeExists = await db.select().from(device).where(eq(device.code, body.code)).limit(1);
+				const codeExists = await db
+					.select()
+					.from(device)
+					.where(eq(device.code, body.code))
+					.limit(1);
 
 				if (codeExists[0]) {
 					set.status = 409;
@@ -383,7 +400,14 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -426,7 +450,14 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.post(
 		'/:id/heartbeat',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if device exists

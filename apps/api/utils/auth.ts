@@ -65,7 +65,8 @@ export const auth = betterAuth({
 		 * See RFC 8628. Verification page served by web app at /device.
 		 */
 		deviceAuthorization({
-			expiresIn: '10m',
+			// Extend validity to reduce premature expirations seen during manual approval.
+			expiresIn: '30m',
 			interval: '5s',
 			userCodeLength: 8,
 		}),

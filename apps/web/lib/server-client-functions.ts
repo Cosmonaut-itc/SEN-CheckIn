@@ -17,6 +17,7 @@ import type {
 	AttendanceType,
 	DashboardCounts,
 	Device,
+	DeviceClient,
 	Employee,
 	JobPosition,
 	Location,
@@ -33,6 +34,11 @@ import type {
 } from '@/lib/query-keys';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
+
+const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
+	? AUTH_ORIGIN
+	: `${AUTH_ORIGIN}/api/auth`;
 
 // ============================================================================
 // Employee Functions
@@ -551,24 +557,29 @@ export async function verifyDeviceCodeServer(
 	headers: Headers,
 	userCode: string,
 ): Promise<DeviceVerificationResult> {
-	const deviceClient = (serverAuthClient as unknown as { device: any }).device;
 	const normalized = normalizeUserCode(userCode);
 
-	const response = await deviceClient.verify(
-		{
-			query: { user_code: normalized },
-		},
-		{ headers },
-	);
+	const url = new URL(`${AUTH_BASE_URL}/device`);
+	url.searchParams.set('user_code', normalized);
 
-	if (response.error || !response.data) {
-		const message = response.error?.body?.error_description ?? 'Invalid or expired code';
+	const response = await fetch(url.toString(), {
+		method: 'GET',
+		headers,
+	});
+
+	const data = (await response.json().catch(() => null)) as {
+		user_code?: string;
+		status?: DeviceAuthStatus;
+	} | null;
+
+	if (!response.ok || !data) {
+		const message = 'Invalid or expired code';
 		throw new Error(message);
 	}
 
 	return {
-		userCode: normalizeUserCode(response.data.user_code ?? normalized),
-		status: (response.data.status as DeviceAuthStatus) ?? 'pending',
+		userCode: normalizeUserCode(data.user_code ?? normalized),
+		status: (data.status as DeviceAuthStatus) ?? 'pending',
 	};
 }
 
@@ -576,7 +587,7 @@ export async function verifyDeviceCodeServer(
  * Approve a device authorization request server-side.
  */
 export async function approveDeviceCodeServer(headers: Headers, userCode: string): Promise<boolean> {
-	const deviceClient = (serverAuthClient as unknown as { device: any }).device;
+	const deviceClient = (serverAuthClient as unknown as { device: DeviceClient }).device;
 	const normalized = normalizeUserCode(userCode);
 	const response = await deviceClient.approve({ userCode: normalized }, { headers });
 
@@ -591,7 +602,7 @@ export async function approveDeviceCodeServer(headers: Headers, userCode: string
  * Deny a device authorization request server-side.
  */
 export async function denyDeviceCodeServer(headers: Headers, userCode: string): Promise<boolean> {
-	const deviceClient = (serverAuthClient as unknown as { device: any }).device;
+	const deviceClient = (serverAuthClient as unknown as { device: DeviceClient }).device;
 	const normalized = normalizeUserCode(userCode);
 	const response = await deviceClient.deny({ userCode: normalized }, { headers });
 

@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	AlertCircle,
 	CheckCircle2,
@@ -12,7 +11,9 @@ import {
 	ShieldX,
 	XCircle,
 } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
+import type React from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,15 +21,13 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/componen
 import { Input } from '@/components/ui/input';
 import { useSession } from '@/lib/auth-client';
 import {
+	type DeviceVerificationResult,
 	approveDeviceCode,
 	denyDeviceCode,
 	verifyDeviceCode,
-	type DeviceVerificationResult,
 } from '@/lib/client-functions';
 import { formatUserCode, normalizeUserCode } from '@/lib/device-code-utils';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
-
-type VerificationStatus = 'pending' | 'approved' | 'denied';
 
 interface DeviceClientProps {
 	initialCode?: string;
@@ -42,7 +41,10 @@ interface DeviceClientProps {
  */
 function getErrorMessage(error: unknown): string {
 	if (!error) return 'Unable to process request';
-	const maybe = error as { message?: string; body?: { error_description?: string; error?: string } };
+	const maybe = error as {
+		message?: string;
+		body?: { error_description?: string; error?: string };
+	};
 	return maybe.body?.error_description ?? maybe.message ?? 'Unable to process request';
 }
 
@@ -63,6 +65,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 
 	const isAuthenticated = Boolean(session.data?.session);
 	const normalizedCode = normalizeUserCode(userCode);
+
 	const verifyQuery = useQuery({
 		queryKey: queryKeys.deviceAuth.verify(normalizedCode),
 		queryFn: () => verifyDeviceCode(normalizedCode),
@@ -71,10 +74,10 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 	});
 
 	useEffect(() => {
-		if (!initialCode) return;
-		void handleVerify();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [initialCode]);
+		// Clear stale verification/error when the code changes
+		setVerification(null);
+		setError(null);
+	}, [normalizedCode]);
 
 	/**
 	 * Verify the user code by calling GET /device.
@@ -94,11 +97,10 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 			if (result.error) {
 				throw result.error;
 			}
-			const data = result.data;
-			if (data) {
+			if (result.data) {
 				setVerification({
-					userCode: formatUserCode(data.userCode),
-					status: data.status,
+					userCode: formatUserCode(result.data.userCode),
+					status: result.data.status,
 				});
 			}
 		} catch (err) {
@@ -117,10 +119,15 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 		mutationFn: async (code: string) => approveDeviceCode(code),
 		onSuccess: () => {
 			if (verification) {
-				setVerification({ userCode: verification.userCode, status: 'approved' });
+				setVerification({
+					userCode: verification.userCode,
+					status: 'approved',
+				});
 			}
 			setError(null);
-			void queryClient.invalidateQueries({ queryKey: queryKeys.deviceAuth.all });
+			void queryClient.invalidateQueries({
+				queryKey: queryKeys.deviceAuth.all,
+			});
 		},
 		onError: (err: unknown) => setError(getErrorMessage(err)),
 		onSettled: () => setAction('idle'),
@@ -137,7 +144,9 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				setVerification({ userCode: verification.userCode, status: 'denied' });
 			}
 			setError(null);
-			void queryClient.invalidateQueries({ queryKey: queryKeys.deviceAuth.all });
+			void queryClient.invalidateQueries({
+				queryKey: queryKeys.deviceAuth.all,
+			});
 		},
 		onError: (err: unknown) => setError(getErrorMessage(err)),
 		onSettled: () => setAction('idle'),
@@ -161,19 +170,28 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 		switch (verification?.status) {
 			case 'approved':
 				return (
-					<Badge variant="outline" className="gap-1 text-green-700 border-green-200 bg-green-50">
+					<Badge
+						variant="outline"
+						className="gap-1 text-green-700 border-green-200 bg-green-50"
+					>
 						<CheckCircle2 className="h-4 w-4" /> Approved
 					</Badge>
 				);
 			case 'denied':
 				return (
-					<Badge variant="outline" className="gap-1 text-red-700 border-red-200 bg-red-50">
+					<Badge
+						variant="outline"
+						className="gap-1 text-red-700 border-red-200 bg-red-50"
+					>
 						<XCircle className="h-4 w-4" /> Denied
 					</Badge>
 				);
 			case 'pending':
 				return (
-					<Badge variant="outline" className="gap-1 text-amber-700 border-amber-200 bg-amber-50">
+					<Badge
+						variant="outline"
+						className="gap-1 text-amber-700 border-amber-200 bg-amber-50"
+					>
 						<Clock3 className="h-4 w-4" /> Pending approval
 					</Badge>
 				);
@@ -192,8 +210,8 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 					</div>
 					<CardTitle className="text-2xl">Enter the device code</CardTitle>
 					<p className="text-muted-foreground">
-						Type the 8-character code displayed on the kiosk. If you opened this page from the
-						device link, the code is pre-filled.
+						Type the 8-character code displayed on the kiosk. If you opened this page
+						from the device link, the code is pre-filled.
 					</p>
 				</CardHeader>
 				<CardContent className="space-y-4">
@@ -221,7 +239,9 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 						<div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
 							<div>
 								<p className="text-sm text-muted-foreground">Code</p>
-								<p className="font-mono text-lg font-semibold">{verification.userCode}</p>
+								<p className="font-mono text-lg font-semibold">
+									{verification.userCode}
+								</p>
 							</div>
 							{statusBadge}
 						</div>
@@ -271,7 +291,10 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 									<AlertCircle className="h-4 w-4" />
 									<span>
 										Sign in to approve devices.{' '}
-										<Link href="/sign-in" className="text-primary underline underline-offset-4">
+										<Link
+											href="/sign-in"
+											className="text-primary underline underline-offset-4"
+										>
 											Go to sign-in
 										</Link>
 									</span>
@@ -292,9 +315,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 					<CardTitle className="text-base">How this works</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-2 text-sm text-muted-foreground">
-					<p>
-						1. The kiosk/mobile app requests a device code and shows it on screen.
-					</p>
+					<p>1. The kiosk/mobile app requests a device code and shows it on screen.</p>
 					<p>
 						2. You enter the code here to verify it, then approve or deny the request.
 					</p>

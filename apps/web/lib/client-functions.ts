@@ -209,15 +209,53 @@ export interface DeviceVerificationResult {
 	status: DeviceAuthStatus;
 }
 
+interface DeviceVerifyPayload {
+	user_code: string;
+	status: DeviceAuthStatus;
+}
+
+const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
+	? AUTH_ORIGIN
+	: `${AUTH_ORIGIN}/api/auth`;
+
+interface BetterAuthErrorBody {
+	error?: string;
+	error_description?: string;
+}
+
+interface BetterAuthError {
+	body?: BetterAuthErrorBody;
+	message?: string;
+	status?: number;
+}
+
+interface BetterAuthResult<TData> {
+	data?: TData;
+	error?: BetterAuthError;
+	status?: number;
+}
+
+export interface DeviceClient {
+	verify: (
+		input: { query: { user_code: string } },
+		init?: { headers?: HeadersInit },
+	) => Promise<BetterAuthResult<{ user_code: string; status: DeviceAuthStatus }>>;
+	approve: (
+		input: { userCode: string },
+		init?: { headers?: HeadersInit },
+	) => Promise<BetterAuthResult<{ success?: boolean }>>;
+	deny: (
+		input: { userCode: string },
+		init?: { headers?: HeadersInit },
+	) => Promise<BetterAuthResult<{ success?: boolean }>>;
+}
+
 /**
  * Convenience accessor for the BetterAuth device client.
  */
-function getDeviceClient(): {
-	verify: (input: { query: { user_code: string } }) => Promise<{ data?: any; error?: any }>;
-	approve: (input: { userCode: string }) => Promise<{ data?: any; error?: any }>;
-	deny: (input: { userCode: string }) => Promise<{ data?: any; error?: any }>;
-} {
-	return (authClient as unknown as { device: any }).device;
+function getDeviceClient(): DeviceClient {
+	return (authClient as unknown as { device: DeviceClient }).device;
 }
 
 // ============================================================================
@@ -231,18 +269,29 @@ function getDeviceClient(): {
  * @returns Verification result containing normalized user code and status
  */
 export async function verifyDeviceCode(userCode: string): Promise<DeviceVerificationResult> {
-	const deviceClient = getDeviceClient();
 	const normalized = normalizeUserCode(userCode);
 
-	const response = await deviceClient.verify({ query: { user_code: normalized } });
-	if (response.error || !response.data) {
-		const message = response.error?.body?.error_description ?? 'Invalid or expired code';
+	const url = new URL(`${AUTH_BASE_URL}/device`);
+	url.searchParams.set('user_code', normalized);
+
+	const response = await fetch(url.toString(), {
+		method: 'GET',
+		credentials: 'include',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+	});
+
+	const data = (await response.json().catch(() => null)) as DeviceVerifyPayload | null;
+
+	if (!response.ok || !data) {
+		const message = data?.status ? `Invalid status: ${data.status}` : 'Invalid or expired code';
 		throw new Error(message);
 	}
 
 	return {
-		userCode: normalizeUserCode(response.data.user_code ?? normalized),
-		status: (response.data.status as DeviceAuthStatus) ?? 'pending',
+		userCode: normalizeUserCode(data.user_code ?? normalized),
+		status: data.status ?? 'pending',
 	};
 }
 

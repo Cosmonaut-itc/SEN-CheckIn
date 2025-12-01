@@ -282,6 +282,17 @@ export const queryKeys = {
 		list: (params?: OrganizationMembersQueryParams) =>
 			queryKeyConstructor(['organizationMembers', 'list'] as const, params),
 	},
+
+	/**
+	 * Query keys for device authorization (BetterAuth device flow).
+	 */
+	deviceAuth: {
+		all: ['deviceAuth'] as const,
+		verify: (userCode: string) =>
+			queryKeyConstructor(['deviceAuth', 'verify'] as const, {
+				userCode,
+			}),
+	},
 } as const;
 
 /**
@@ -370,5 +381,10 @@ export const mutationKeys = {
 	 */
 	organizationMembers: {
 		create: ['organizationMembers', 'create'] as const,
+	},
+
+	deviceAuth: {
+		approve: ['deviceAuth', 'approve'] as const,
+		deny: ['deviceAuth', 'deny'] as const,
 	},
 } as const;

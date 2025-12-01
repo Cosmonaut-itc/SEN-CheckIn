@@ -24,13 +24,18 @@
       ],
       "@sen-checkin/types/*": [
         "../../packages/types/src/*"
+      ],
+      "heroui-native": [
+        "./node_modules/heroui-native/lib/typescript/src/index.d.ts"
       ]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "types/**/*.d.ts",
     ".expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    "app/uniwind-types.d.ts"
   ]
 }

@@ -2,6 +2,7 @@ import { createAuthClient } from 'better-auth/react';
 import {
 	apiKeyClient,
 	adminClient,
+	deviceAuthorizationClient,
 	organizationClient,
 	usernameClient,
 } from 'better-auth/client/plugins';
@@ -21,7 +22,13 @@ const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
  */
 export const authClient = createAuthClient({
 	baseURL: API_BASE_URL,
-	plugins: [apiKeyClient(), adminClient(), organizationClient(), usernameClient()],
+	plugins: [
+		apiKeyClient(),
+		adminClient(),
+		organizationClient(),
+		usernameClient(),
+		deviceAuthorizationClient(),
+	],
 });
 
 /**

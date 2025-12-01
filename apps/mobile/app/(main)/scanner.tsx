@@ -134,7 +134,8 @@ export default function ScannerScreen(): JSX.Element {
                 label: attendanceType === 'CHECK_IN' ? 'Check-in' : 'Check-out',
               }
             }
-            onValueChange={(opt) => setAttendanceType((opt?.value as AttendanceType) ?? 'CHECK_IN')}
+            onValueChange={(opt: { value: AttendanceType } | null) =>
+              setAttendanceType(opt?.value ?? 'CHECK_IN')}
           >
             <Select.Trigger className="bg-white/80 rounded-full px-3 py-2">
               <Select.Value placeholder="Attendance type" />

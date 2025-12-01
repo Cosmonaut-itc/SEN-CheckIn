@@ -1,6 +1,6 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { apiKey, admin, organization, username } from 'better-auth/plugins';
+import { apiKey, admin, deviceAuthorization, organization, username } from 'better-auth/plugins';
 import db from '../src/db/index.js';
 import * as schema from '../src/db/schema.js';
 
@@ -14,17 +14,24 @@ export const auth = betterAuth({
 		provider: 'pg',
 		schema: schema,
 	}),
-	/**
-	 * Trusted origins are required for Better Auth to accept cross-origin requests
-	 * from the Next.js web app (dev runs on 3001). Update or extend as needed for
-	 * preview/staging hosts.
-	 */
-	trustedOrigins: [
-		'http://localhost:3000', // API host (fallback baseURL)
-		'http://localhost:3001', // Next.js web dev server origin
-		'http://127.0.0.1:3000',
-		'http://127.0.0.1:3001',
-	].filter(Boolean),
+		/**
+		 * Trusted origins are required for Better Auth to accept cross-origin requests
+		 * from the Next.js web app (dev runs on 3001). Update or extend as needed for
+		 * preview/staging hosts.
+		 */
+		trustedOrigins: [
+			'http://localhost:3000', // API host (fallback baseURL)
+			'http://localhost:3001', // Next.js web dev server origin
+			'http://127.0.0.1:3000',
+			'http://127.0.0.1:3001',
+			'http://10.0.2.2:3000', // Android emulator
+			'http://10.0.3.2:3000', // Genymotion
+			'http://0.0.0.0:3000',
+			'http://localhost:19000', // Expo dev (metro)
+			'http://127.0.0.1:19000',
+			'sen-checkin://',
+			'null', // allow native/Expo fetches with null Origin header
+		].filter(Boolean),
 	emailAndPassword: {
 		enabled: true,
 	},
@@ -53,5 +60,14 @@ export const auth = betterAuth({
 		 * Username plugin to enable username-based sign-in.
 		 */
 		username(),
+		/**
+		 * Device Authorization plugin for kiosk/mobile login.
+		 * See RFC 8628. Verification page served by web app at /device.
+		 */
+		deviceAuthorization({
+			expiresIn: '10m',
+			interval: '5s',
+			userCodeLength: 8,
+		}),
 	],
 });

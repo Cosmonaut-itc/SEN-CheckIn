@@ -11,6 +11,8 @@ export interface AttendanceQueryParams extends ListQueryParams {
   type?: AttendanceType;
   deviceId?: string;
   employeeId?: string;
+  fromDate?: Date;
+  toDate?: Date;
 }
 
 export function queryKeyConstructor<

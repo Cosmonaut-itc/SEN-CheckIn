@@ -76,7 +76,8 @@ export function SelectField<TValue extends string>({
         value={
           currentOption ? { value: currentOption.value, label: currentOption.label } : undefined
         }
-        onValueChange={(opt) => field.handleChange((opt?.value as TValue) ?? null)}
+        onValueChange={(opt: { value: TValue } | null) =>
+          field.handleChange((opt?.value as TValue) ?? null)}
         isDisabled={disabled}
       >
         <Select.Trigger className="border border-default-200 rounded-xl px-3 py-3 bg-content1">

@@ -31,6 +31,7 @@ import type {
 	ListQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
+import { normalizeUserCode } from '@/lib/device-code-utils';
 import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
 
 // ============================================================================
@@ -529,5 +530,74 @@ export async function fetchUsersServer(
 		throw new Error('Failed to fetch users');
 	}
 
-	return (response.data?.users ?? []) as User[];
+return (response.data?.users ?? []) as User[];
+}
+
+// ============================================================================
+// Device Authorization (BetterAuth device flow)
+// ============================================================================
+
+export type DeviceAuthStatus = 'pending' | 'approved' | 'denied';
+
+export interface DeviceVerificationResult {
+	userCode: string;
+	status: DeviceAuthStatus;
+}
+
+/**
+ * Verify a device code server-side using BetterAuth and forwarded cookies.
+ */
+export async function verifyDeviceCodeServer(
+	headers: Headers,
+	userCode: string,
+): Promise<DeviceVerificationResult> {
+	const deviceClient = (serverAuthClient as unknown as { device: any }).device;
+	const normalized = normalizeUserCode(userCode);
+
+	const response = await deviceClient.verify(
+		{
+			query: { user_code: normalized },
+		},
+		{ headers },
+	);
+
+	if (response.error || !response.data) {
+		const message = response.error?.body?.error_description ?? 'Invalid or expired code';
+		throw new Error(message);
+	}
+
+	return {
+		userCode: normalizeUserCode(response.data.user_code ?? normalized),
+		status: (response.data.status as DeviceAuthStatus) ?? 'pending',
+	};
+}
+
+/**
+ * Approve a device authorization request server-side.
+ */
+export async function approveDeviceCodeServer(headers: Headers, userCode: string): Promise<boolean> {
+	const deviceClient = (serverAuthClient as unknown as { device: any }).device;
+	const normalized = normalizeUserCode(userCode);
+	const response = await deviceClient.approve({ userCode: normalized }, { headers });
+
+	if (response.error) {
+		const message = response.error?.body?.error_description ?? 'Failed to approve device';
+		throw new Error(message);
+	}
+	return Boolean(response.data?.success ?? true);
+}
+
+/**
+ * Deny a device authorization request server-side.
+ */
+export async function denyDeviceCodeServer(headers: Headers, userCode: string): Promise<boolean> {
+	const deviceClient = (serverAuthClient as unknown as { device: any }).device;
+	const normalized = normalizeUserCode(userCode);
+	const response = await deviceClient.deny({ userCode: normalized }, { headers });
+
+	if (response.error) {
+		const message = response.error?.body?.error_description ?? 'Failed to deny device';
+		throw new Error(message);
+	}
+	return Boolean(response.data?.success ?? true);
 }

@@ -1,6 +1,8 @@
 import type { AttendanceRecord, AttendanceType, Device, Location } from '@sen-checkin/types';
 
 import { API_BASE_URL } from './api';
+import { authedFetch } from './auth-client';
+import type { AttendanceQueryParams, ListQueryParams } from './query-keys';
 
 type PaginatedResponse<T> = {
   data: T[];
@@ -14,18 +16,43 @@ type PaginatedResponse<T> = {
 
 type DeviceDetail = Device & { organizationId?: string | null };
 
-export async function fetchLocationsList(
-  params?: { search?: string; limit?: number; offset?: number; organizationId?: string | null },
-): Promise<PaginatedResponse<Location>> {
+/**
+ * Build a URLSearchParams instance from a key/value object while skipping empty values.
+ *
+ * @param params - Map of query keys to values
+ * @returns URLSearchParams populated with non-empty entries
+ */
+function buildSearchParams(params: Record<string, string | number | undefined | null>): URLSearchParams {
   const searchParams = new URLSearchParams();
-  searchParams.set('limit', String(params?.limit ?? 100));
-  searchParams.set('offset', String(params?.offset ?? 0));
-  if (params?.search) searchParams.set('search', params.search);
-  if (params?.organizationId) searchParams.set('organizationId', params.organizationId);
 
-  const response = await fetch(`${API_BASE_URL}/locations?${searchParams.toString()}`, {
-    credentials: 'include',
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return;
+    searchParams.set(key, String(value));
   });
+
+  return searchParams;
+}
+
+/**
+ * Fetch a paginated list of locations.
+ *
+ * @param params - Optional filters for search, organization, and pagination
+ * @returns Locations with pagination metadata
+ * @throws Error when the API response is not OK
+ */
+export async function fetchLocationsList(
+  params?: ListQueryParams & { organizationId?: string | null },
+): Promise<PaginatedResponse<Location>> {
+  const searchParams = buildSearchParams({
+    limit: params?.limit ?? 100,
+    offset: params?.offset ?? 0,
+    search: params?.search,
+    organizationId: params?.organizationId ?? undefined,
+  });
+
+  const response = (await authedFetch(`${API_BASE_URL}/locations?${searchParams.toString()}`, {
+    credentials: 'include',
+  })) as Response;
 
   if (!response.ok) {
     throw new Error('Failed to load locations');
@@ -46,10 +73,63 @@ export async function fetchLocationsList(
   };
 }
 
-export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail | null> {
-  const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
-    credentials: 'include',
+/**
+ * Fetch the list of devices with optional filters.
+ *
+ * @param params - Filter and pagination options
+ * @returns Devices with pagination metadata
+ */
+export async function fetchDevicesList(
+  params?: ListQueryParams & {
+    search?: string;
+    locationId?: string;
+    status?: 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
+    organizationId?: string | null;
+  },
+): Promise<PaginatedResponse<Device>> {
+  const searchParams = buildSearchParams({
+    limit: params?.limit ?? 100,
+    offset: params?.offset ?? 0,
+    search: params?.search,
+    locationId: params?.locationId,
+    status: params?.status,
+    organizationId: params?.organizationId ?? undefined,
   });
+
+  const response = (await authedFetch(`${API_BASE_URL}/devices?${searchParams.toString()}`, {
+    credentials: 'include',
+  })) as Response;
+
+  if (!response.ok) {
+    throw new Error('Failed to load devices');
+  }
+
+  const json = (await response.json()) as {
+    data?: Device[];
+    pagination?: PaginatedResponse<Device>['pagination'];
+  };
+
+  return {
+    data: json.data ?? [],
+    pagination: json.pagination ?? {
+      total: 0,
+      limit: params?.limit ?? 100,
+      offset: params?.offset ?? 0,
+    },
+  };
+}
+
+/**
+ * Retrieve a single device by ID.
+ *
+ * @param deviceId - Device identifier
+ * @returns Device detail or null if not found
+ * @throws Error when the API response is not OK
+ */
+export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail | null> {
+  const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}`, {
+    credentials: 'include',
+  })) as Response;
 
   if (!response.ok) {
     throw new Error('Failed to load device');
@@ -59,18 +139,26 @@ export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail 
   return json.data ?? null;
 }
 
+/**
+ * Update device metadata (name/location).
+ *
+ * @param deviceId - Device identifier
+ * @param payload - Fields to update
+ * @returns Updated device payload
+ * @throws Error when the API response is not OK
+ */
 export async function updateDeviceSettings(
   deviceId: string,
   payload: Partial<Pick<Device, 'name' | 'locationId'>>,
 ): Promise<DeviceDetail> {
-  const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
+  const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),
     credentials: 'include',
-  });
+  })) as Response;
 
   if (!response.ok) {
     throw new Error('Failed to update device settings');
@@ -83,6 +171,56 @@ export async function updateDeviceSettings(
   return json.data;
 }
 
+/**
+ * Fetch attendance records with optional filters for employee/device/type/date.
+ *
+ * @param params - Attendance query filters
+ * @returns Attendance records with pagination info
+ */
+export async function fetchAttendanceList(
+  params?: AttendanceQueryParams & { organizationId?: string | null },
+): Promise<PaginatedResponse<AttendanceRecord>> {
+  const searchParams = buildSearchParams({
+    limit: params?.limit ?? 50,
+    offset: params?.offset ?? 0,
+    employeeId: params?.employeeId,
+    deviceId: params?.deviceId,
+    type: params?.type,
+    fromDate: params?.fromDate ? params.fromDate.toISOString() : undefined,
+    toDate: params?.toDate ? params.toDate.toISOString() : undefined,
+    organizationId: params?.organizationId ?? undefined,
+  });
+
+  const response = (await authedFetch(`${API_BASE_URL}/attendance?${searchParams.toString()}`, {
+    credentials: 'include',
+  })) as Response;
+
+  if (!response.ok) {
+    throw new Error('Failed to load attendance records');
+  }
+
+  const json = (await response.json()) as {
+    data?: AttendanceRecord[];
+    pagination?: PaginatedResponse<AttendanceRecord>['pagination'];
+  };
+
+  return {
+    data: json.data ?? [],
+    pagination: json.pagination ?? {
+      total: 0,
+      limit: params?.limit ?? 50,
+      offset: params?.offset ?? 0,
+    },
+  };
+}
+
+/**
+ * Create an attendance record after successful face verification.
+ *
+ * @param input - Attendance payload
+ * @returns The created attendance record
+ * @throws Error when the API response is not OK
+ */
 export async function createAttendanceRecord(
   input: {
     employeeId: string;
@@ -92,7 +230,7 @@ export async function createAttendanceRecord(
     timestamp?: Date;
   },
 ): Promise<AttendanceRecord> {
-  const response = await fetch(`${API_BASE_URL}/attendance`, {
+  const response = (await authedFetch(`${API_BASE_URL}/attendance`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -105,7 +243,7 @@ export async function createAttendanceRecord(
       timestamp: (input.timestamp ?? new Date()).toISOString(),
     }),
     credentials: 'include',
-  });
+  })) as Response;
 
   if (!response.ok) {
     throw new Error('Failed to create attendance record');

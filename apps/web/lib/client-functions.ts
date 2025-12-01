@@ -10,6 +10,7 @@
 import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import type { AttendanceQueryParams, ListQueryParams, UsersQueryParams } from '@/lib/query-keys';
+import { normalizeUserCode } from '@/lib/device-code-utils';
 
 // ============================================================================
 // Type Definitions
@@ -193,6 +194,92 @@ export interface DashboardCounts {
 	locations: number;
 	organizations: number;
 	attendance: number;
+}
+
+/**
+ * Device authorization status values.
+ */
+export type DeviceAuthStatus = 'pending' | 'approved' | 'denied';
+
+/**
+ * Verification result from BetterAuth device authorization.
+ */
+export interface DeviceVerificationResult {
+	userCode: string;
+	status: DeviceAuthStatus;
+}
+
+/**
+ * Convenience accessor for the BetterAuth device client.
+ */
+function getDeviceClient(): {
+	verify: (input: { query: { user_code: string } }) => Promise<{ data?: any; error?: any }>;
+	approve: (input: { userCode: string }) => Promise<{ data?: any; error?: any }>;
+	deny: (input: { userCode: string }) => Promise<{ data?: any; error?: any }>;
+} {
+	return (authClient as unknown as { device: any }).device;
+}
+
+// ============================================================================
+// Device Authorization (BetterAuth Device Flow)
+// ============================================================================
+
+/**
+ * Verifies a device user code via BetterAuth.
+ *
+ * @param userCode - Raw or formatted user code (dashes allowed)
+ * @returns Verification result containing normalized user code and status
+ */
+export async function verifyDeviceCode(userCode: string): Promise<DeviceVerificationResult> {
+	const deviceClient = getDeviceClient();
+	const normalized = normalizeUserCode(userCode);
+
+	const response = await deviceClient.verify({ query: { user_code: normalized } });
+	if (response.error || !response.data) {
+		const message = response.error?.body?.error_description ?? 'Invalid or expired code';
+		throw new Error(message);
+	}
+
+	return {
+		userCode: normalizeUserCode(response.data.user_code ?? normalized),
+		status: (response.data.status as DeviceAuthStatus) ?? 'pending',
+	};
+}
+
+/**
+ * Approves a pending device authorization request.
+ *
+ * @param userCode - User-facing code (formatted or raw)
+ * @returns Success boolean from BetterAuth
+ */
+export async function approveDeviceCode(userCode: string): Promise<boolean> {
+	const deviceClient = getDeviceClient();
+	const normalized = normalizeUserCode(userCode);
+	const response = await deviceClient.approve({ userCode: normalized });
+
+	if (response.error) {
+		const message = response.error?.body?.error_description ?? 'Failed to approve device';
+		throw new Error(message);
+	}
+	return Boolean(response.data?.success ?? true);
+}
+
+/**
+ * Denies a pending device authorization request.
+ *
+ * @param userCode - User-facing code (formatted or raw)
+ * @returns Success boolean from BetterAuth
+ */
+export async function denyDeviceCode(userCode: string): Promise<boolean> {
+	const deviceClient = getDeviceClient();
+	const normalized = normalizeUserCode(userCode);
+	const response = await deviceClient.deny({ userCode: normalized });
+
+	if (response.error) {
+		const message = response.error?.body?.error_description ?? 'Failed to deny device';
+		throw new Error(message);
+	}
+	return Boolean(response.data?.success ?? true);
 }
 
 // ============================================================================

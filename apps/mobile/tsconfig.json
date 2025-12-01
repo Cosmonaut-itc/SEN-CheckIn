@@ -1,5 +1,5 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "../../packages/typescript-config/expo.json",
   "compilerOptions": {
     "baseUrl": ".",
     "strict": true,
@@ -18,6 +18,12 @@
       ],
       "@sen-checkin/api/*": [
         "../../apps/api/src/*"
+      ],
+      "@sen-checkin/types": [
+        "../../packages/types/src"
+      ],
+      "@sen-checkin/types/*": [
+        "../../packages/types/src/*"
       ]
     }
   },

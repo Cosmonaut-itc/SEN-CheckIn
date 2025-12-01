@@ -35,11 +35,20 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.get(
 		'/',
-		async ({ query, authType, session, set, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { limit, offset, organizationId: organizationIdQuery, search } = query;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdQuery ?? null,
@@ -99,7 +108,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			const results = await db.select().from(location).where(eq(location.id, id)).limit(1);
@@ -112,7 +121,13 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 			// Enforce organization scoping
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, record.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this location' };
@@ -137,11 +152,20 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.post(
 		'/',
-		async ({ body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { name, code, address, organizationId: organizationIdInput } = body;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdInput ?? null,
@@ -213,7 +237,16 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if location exists
@@ -225,7 +258,13 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this location' };
@@ -234,6 +273,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			const resolvedOrganizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: existing[0].organizationId,
@@ -285,7 +325,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if location exists
@@ -297,7 +337,13 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this location' };

@@ -36,13 +36,22 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.get(
 		'/',
-		async ({ query, authType, session, set, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { limit, offset, locationId, status, search, organizationId: organizationIdQuery } =
 				query;
 
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdQuery ?? null,
@@ -110,7 +119,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			const results = await db.select().from(device).where(eq(device.id, id)).limit(1);
@@ -122,7 +131,13 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, record.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this device' };
@@ -148,7 +163,15 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.post(
 		'/',
-		async ({ body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const {
 				code,
 				name,
@@ -161,6 +184,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdInput ?? null,
@@ -252,7 +276,16 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -264,7 +297,13 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this device' };
@@ -274,6 +313,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			const resolvedOrganizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: targetOrgId,
@@ -343,7 +383,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -355,7 +395,13 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this device' };
@@ -380,7 +426,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.post(
 		'/:id/heartbeat',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -392,7 +438,13 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this device' };

@@ -3,6 +3,7 @@ import type { AuthSession } from '../plugins/auth.js';
 export interface ResolveOrganizationInput {
 	authType: 'session' | 'apiKey';
 	session: AuthSession | null;
+	sessionOrganizationIds: string[];
 	apiKeyOrganizationId: string | null;
 	apiKeyOrganizationIds: string[];
 	requestedOrganizationId?: string | null;
@@ -19,6 +20,7 @@ export interface ResolveOrganizationInput {
 export function resolveOrganizationId({
 	authType,
 	session,
+	sessionOrganizationIds,
 	apiKeyOrganizationId,
 	apiKeyOrganizationIds,
 	requestedOrganizationId,
@@ -26,7 +28,20 @@ export function resolveOrganizationId({
 	const requested = requestedOrganizationId ?? null;
 
 	if (authType === 'session') {
-		return session?.activeOrganizationId ?? requested ?? null;
+		const active = session?.activeOrganizationId ?? null;
+		if (active) {
+			return active;
+		}
+
+		if (requested) {
+			return sessionOrganizationIds.includes(requested) ? requested : null;
+		}
+
+		if (sessionOrganizationIds.length === 1) {
+			return sessionOrganizationIds[0] ?? null;
+		}
+
+		return null;
 	}
 
 	// API key callers
@@ -54,6 +69,7 @@ export function resolveOrganizationId({
 export function hasOrganizationAccess(
 	authType: 'session' | 'apiKey',
 	session: AuthSession | null,
+	sessionOrganizationIds: string[],
 	apiKeyOrganizationIds: string[],
 	targetOrganizationId: string | null | undefined,
 ): boolean {
@@ -63,7 +79,10 @@ export function hasOrganizationAccess(
 
 	if (authType === 'session') {
 		const activeOrgId = session?.activeOrganizationId ?? null;
-		return !activeOrgId || activeOrgId === targetOrganizationId;
+		if (activeOrgId) {
+			return activeOrgId === targetOrganizationId;
+		}
+		return sessionOrganizationIds.includes(targetOrganizationId);
 	}
 
 	return apiKeyOrganizationIds.includes(targetOrganizationId);

@@ -36,11 +36,20 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.get(
 		'/',
-		async ({ query, authType, session, set, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { limit, offset, organizationId: organizationIdQuery, search } = query;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdQuery ?? null,
@@ -101,7 +110,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			const results = await db
@@ -118,7 +127,13 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			// Enforce organization scoping
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, record.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this job position' };
@@ -142,11 +157,20 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.post(
 		'/',
-		async ({ body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { name, description, organizationId: organizationIdInput } = body;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdInput ?? null,
@@ -205,7 +229,16 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if position exists
@@ -221,7 +254,13 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this job position' };
@@ -230,6 +269,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			const resolvedOrganizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: existing[0].organizationId,
@@ -271,7 +311,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if position exists
@@ -287,7 +327,13 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this job position' };

@@ -75,7 +75,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.get(
 		'/',
-		async ({ query, authType, session, set, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const {
 				limit,
 				offset,
@@ -89,6 +97,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdQuery ?? null,
@@ -183,7 +192,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			const results = await db
@@ -217,7 +226,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, record.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this employee' };
@@ -239,7 +254,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.post(
 		'/',
-		async ({ body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const {
 				code,
 				firstName,
@@ -257,6 +280,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: organizationIdInput ?? null,
@@ -374,7 +398,16 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if employee exists
@@ -385,7 +418,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this employee' };
@@ -395,6 +434,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const resolvedOrganizationId = resolveOrganizationId({
 				authType,
 				session,
+				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
 				requestedOrganizationId: targetOrgId,
@@ -489,7 +529,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if employee exists
@@ -500,7 +540,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this employee' };
@@ -539,7 +585,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.post(
 		'/:id/create-rekognition-user',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }): Promise<UserCreationResult> => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}): Promise<UserCreationResult> => {
 			const { id: employeeId } = params;
 
 			// Verify employee exists in database
@@ -562,7 +615,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const employeeRecord = existingEmployee[0]!;
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, employeeRecord.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
 			) {
 				set.status = 403;
 				return {
@@ -626,7 +685,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.post(
 		'/:id/enroll-face',
-		async ({ params, body, set, authType, session, apiKeyOrganizationIds }): Promise<FaceEnrollmentResult> => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}): Promise<FaceEnrollmentResult> => {
 			const { id: employeeId } = params;
 			const { image } = body;
 
@@ -651,7 +718,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const enrollEmployee = existingEmployee[0]!;
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, enrollEmployee.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					enrollEmployee.organizationId,
+				)
 			) {
 				set.status = 403;
 				return {
@@ -737,7 +810,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.delete(
 		'/:id/rekognition-user',
-		async ({ params, set, authType, session, apiKeyOrganizationIds }): Promise<{ success: boolean; message: string }> => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}): Promise<{ success: boolean; message: string }> => {
 			const { id: employeeId } = params;
 
 			// Verify employee exists
@@ -757,7 +837,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			if (
-				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, deleteEmployeeRecord.organizationId)
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					deleteEmployeeRecord.organizationId,
+				)
 			) {
 				set.status = 403;
 				return {

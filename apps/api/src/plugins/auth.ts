@@ -230,48 +230,60 @@ export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).deri
  * ```
  */
 export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).derive(
-    { as: 'scoped' },
-    async ({
-        request,
-    }): Promise<
-        | {
-              authType: 'session';
-              user: AuthUser;
-              session: AuthSession;
-              apiKeyId: null;
-              apiKeyName: null;
-              apiKeyUserId: null;
-              apiKeyOrganizationId: null;
-              apiKeyOrganizationIds: [];
-          }
-        | {
-              authType: 'apiKey';
-              user: null;
-              session: null;
-              apiKeyId: string;
-              apiKeyName: string | null;
-              apiKeyUserId: string;
-              apiKeyOrganizationId: string | null;
-              apiKeyOrganizationIds: string[];
-          }
-    > => {
+	{ as: 'scoped' },
+	async ({
+		request,
+	}): Promise<
+		| {
+		      authType: 'session';
+		      user: AuthUser;
+		      session: AuthSession;
+		      sessionOrganizationIds: string[];
+		      apiKeyId: null;
+		      apiKeyName: null;
+		      apiKeyUserId: null;
+		      apiKeyOrganizationId: null;
+		      apiKeyOrganizationIds: [];
+		  }
+		| {
+		      authType: 'apiKey';
+		      user: null;
+		      session: null;
+		      sessionOrganizationIds: [];
+		      apiKeyId: string;
+		      apiKeyName: string | null;
+		      apiKeyUserId: string;
+		      apiKeyOrganizationId: string | null;
+		      apiKeyOrganizationIds: string[];
+		  }
+	> => {
 		// First, try session authentication
 		const session = await auth.api.getSession({
 			headers: request.headers,
 		});
 
-            if (session) {
-                return {
-                    authType: 'session',
-                    user: session.user as AuthUser,
-                    session: session.session as AuthSession,
-                    apiKeyId: null,
-                    apiKeyName: null,
-                    apiKeyUserId: null,
-                    apiKeyOrganizationId: null,
-                    apiKeyOrganizationIds: [],
-                };
-            }
+		if (session) {
+			const memberships = await db
+				.select({ organizationId: member.organizationId })
+				.from(member)
+				.where(eq(member.userId, session.user.id));
+
+			const sessionOrganizationIds = memberships
+				.map(({ organizationId }) => organizationId)
+				.filter((orgId): orgId is string => Boolean(orgId));
+
+			return {
+				authType: 'session',
+				user: session.user as AuthUser,
+				session: session.session as AuthSession,
+				sessionOrganizationIds,
+				apiKeyId: null,
+				apiKeyName: null,
+				apiKeyUserId: null,
+				apiKeyOrganizationId: null,
+				apiKeyOrganizationIds: [],
+			};
+		}
 
 		// If no session, try API key authentication
 		const authHeader = request.headers.get('authorization');
@@ -292,16 +304,17 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
                     },
                 });
 
-                if (result.valid && result.key) {
-                    const apiKeyContext = await buildApiKeyContext(result.key);
+				if (result.valid && result.key) {
+					const apiKeyContext = await buildApiKeyContext(result.key);
 
-                    return {
-                        authType: 'apiKey',
-                        user: null,
-                        session: null,
-                        ...apiKeyContext,
-                    };
-                }
+					return {
+						authType: 'apiKey',
+						user: null,
+						session: null,
+						sessionOrganizationIds: [],
+						...apiKeyContext,
+					};
+				}
             }
 
 		// Neither authentication method succeeded

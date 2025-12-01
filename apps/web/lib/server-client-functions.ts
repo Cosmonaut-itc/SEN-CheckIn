@@ -54,9 +54,10 @@ export async function fetchEmployeesListServer(
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession({
-			fetchOptions: { headers: new Headers({ cookie: cookieHeader }) },
-		});
+		const session = await serverAuthClient.getSession(
+			undefined,
+			{ headers: new Headers({ cookie: cookieHeader }) },
+		);
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -246,9 +247,10 @@ export async function fetchJobPositionsListServer(
 	// Resolve organization ID from params or session (fallback for server prefetch)
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession({
-			fetchOptions: { headers: new Headers({ cookie: cookieHeader }) },
-		});
+		const session = await serverAuthClient.getSession(
+			undefined,
+			{ headers: new Headers({ cookie: cookieHeader }) },
+		);
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -316,9 +318,10 @@ export async function fetchAttendanceRecordsServer(
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession({
-			fetchOptions: { headers: new Headers({ cookie: cookieHeader }) },
-		});
+		const session = await serverAuthClient.getSession(
+			undefined,
+			{ headers: new Headers({ cookie: cookieHeader }) },
+		);
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -401,10 +404,8 @@ export async function fetchDashboardCountsServer(
 			api.employees.get({ $query: baseQuery }),
 			api.devices.get({ $query: baseQuery }),
 			api.locations.get({ $query: baseQuery }),
-			authClient.organization.list({
-				fetchOptions: {
-					headers: forwardedHeaders,
-				},
+			authClient.organization.list(undefined, {
+				headers: forwardedHeaders,
 			}),
 			api.attendance.get({ $query: baseQuery }),
 		]);
@@ -430,11 +431,7 @@ export async function fetchDashboardCountsServer(
  * @throws Error if the API request fails
  */
 export async function fetchApiKeysServer(headers: Headers): Promise<ApiKey[]> {
-	const response = await authClient.apiKey.list({
-		fetchOptions: {
-			headers,
-		},
-	});
+	const response = await authClient.apiKey.list(undefined, { headers });
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch API keys:', response.error);
@@ -456,11 +453,7 @@ export async function fetchApiKeysServer(headers: Headers): Promise<ApiKey[]> {
  * @throws Error if the API request fails
  */
 export async function fetchOrganizationsServer(headers: Headers): Promise<Organization[]> {
-	const response = await authClient.organization.list({
-		fetchOptions: {
-			headers,
-		},
-	});
+	const response = await authClient.organization.list(undefined, { headers });
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch organizations:', response.error);
@@ -492,10 +485,7 @@ export async function fetchOrganizationMembersServer(
 			limit: params.limit ?? 100,
 			offset: params.offset ?? 0,
 		},
-		fetchOptions: {
-			headers,
-		},
-	});
+	}, { headers });
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch organization members:', response.error);
@@ -524,15 +514,15 @@ export async function fetchUsersServer(
 	headers: Headers,
 	params?: UsersQueryParams,
 ): Promise<User[]> {
-	const response = await authClient.admin.listUsers({
-		query: {
-			limit: params?.limit ?? 100,
-			offset: params?.offset ?? 0,
+	const response = await authClient.admin.listUsers(
+		{
+			query: {
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
 		},
-		fetchOptions: {
-			headers,
-		},
-	});
+		{ headers },
+	);
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch users:', response.error);

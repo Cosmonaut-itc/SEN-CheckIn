@@ -8,7 +8,7 @@
 - `documentacion`: release notes; keep entries per release.
 
 ## Build, Test, and Development Commands
-- Install: `bun install` (bun@1.2.14, Node ≥18).
+- Install: `bun install` (bun@1.3.3, Node ≥18).
 - Dev: `bun run dev` (all) or `bun run dev:api` / `bun run dev:mobile` (Expo bundler).
 - Build: `bun run build`, or scoped `bun run build:api` / `bun run build:mobile`.
 - Quality: `bun run lint`, `bun run check-types`, `bun run format` (Prettier on `ts/tsx/md`).
@@ -37,4 +37,4 @@
 ## Security & Configuration Notes
 - Do not commit `.env*` files or secrets.
 - Required env: `SEN_DB_URL` for Drizzle generate/migrate; `SEN_CHECKIN_PG_PASSWORD` for local Postgres.
-- Prefer `bunx` over global installs; align with Expo SDK 54 and Bun 1.2.14.
+- Prefer `bunx` over global installs; align with Expo SDK 54 and Bun 1.3.3.

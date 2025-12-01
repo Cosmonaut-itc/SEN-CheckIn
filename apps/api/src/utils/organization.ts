@@ -67,15 +67,15 @@ export function resolveOrganizationId({
  * Check if the caller has access to a specific organization.
  */
 export function hasOrganizationAccess(
-	authType: 'session' | 'apiKey',
-	session: AuthSession | null,
-	sessionOrganizationIds: string[],
-	apiKeyOrganizationIds: string[],
-	targetOrganizationId: string | null | undefined,
+        authType: 'session' | 'apiKey',
+        session: AuthSession | null,
+        sessionOrganizationIds: string[],
+        apiKeyOrganizationIds: string[],
+        targetOrganizationId: string | null | undefined,
 ): boolean {
-	if (!targetOrganizationId) {
-		return true;
-	}
+        if (!targetOrganizationId) {
+                return false;
+        }
 
 	if (authType === 'session') {
 		const activeOrgId = session?.activeOrganizationId ?? null;

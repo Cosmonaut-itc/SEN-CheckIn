@@ -111,6 +111,17 @@ export async function createOrganizationUser(
 				// ignore parse errors
 			}
 			console.error('Failed to add user to organization:', errorMessage);
+
+			// Best-effort rollback to avoid orphaned users
+			try {
+				const deleteFn = (serverAuthClient.admin as { deleteUser?: (args: { userId: string }, opts: typeof fetchOptions) => Promise<unknown> }).deleteUser;
+				if (typeof deleteFn === 'function') {
+					await deleteFn({ userId: createdUserId }, fetchOptions);
+				}
+			} catch (rollbackError) {
+				console.error('Rollback (delete user) failed:', rollbackError);
+			}
+
 			return {
 				success: false,
 				error: errorMessage,

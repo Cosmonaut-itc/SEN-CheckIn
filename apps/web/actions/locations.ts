@@ -12,7 +12,7 @@
  * @module actions/locations
  */
 
-import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { createServerApiClient } from '@/lib/server-api';
 
 /**
@@ -25,8 +25,8 @@ export interface CreateLocationInput {
 	code: string;
 	/** Location address */
 	address?: string;
-	/** Client ID this location belongs to */
-	clientId: string;
+	/** Optional organization override for API key flows (defaults to active org) */
+	organizationId?: string;
 }
 
 /**
@@ -67,21 +67,20 @@ export interface MutationResult<T = unknown> {
  *   name: 'Main Office',
  *   code: 'LOC001',
  *   address: '123 Main St',
- *   clientId: 'client-id',
  * });
  * ```
  */
 export async function createLocation(input: CreateLocationInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.locations.post({
 			name: input.name,
 			code: input.code,
 			address: input.address || undefined,
-			clientId: input.clientId,
+			organizationId: input.organizationId,
 		});
 
 		if (response.error) {
@@ -122,8 +121,8 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
  */
 export async function updateLocation(input: UpdateLocationInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.locations[input.id].put({
@@ -165,8 +164,8 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Mutati
  */
 export async function deleteLocation(id: string): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.locations[id].delete();

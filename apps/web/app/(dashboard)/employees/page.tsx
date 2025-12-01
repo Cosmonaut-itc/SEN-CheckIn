@@ -3,6 +3,8 @@ import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchEmployeesList } from '@/lib/server-functions';
 import { EmployeesPageClient } from './employees-client';
 import React from 'react';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
+import { OrgProvider } from '@/lib/org-client-context';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -19,15 +21,22 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The employees page with hydrated query state
  */
-export default function EmployeesPage(): React.ReactElement {
+export default async function EmployeesPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
+	const orgContext = await getActiveOrganizationContext();
 
 	// Prefetch without await for streaming support
-	prefetchEmployeesList(queryClient, { limit: 100, offset: 0 });
+	prefetchEmployeesList(queryClient, {
+		limit: 100,
+		offset: 0,
+		organizationId: orgContext.organizationId,
+	});
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<EmployeesPageClient />
+			<OrgProvider value={orgContext}>
+				<EmployeesPageClient />
+			</OrgProvider>
 		</HydrationBoundary>
 	);
 }

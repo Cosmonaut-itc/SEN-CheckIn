@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,34 +22,23 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchLocationsList, type Location } from '@/lib/client-functions';
 import { createLocation, updateLocation, deleteLocation } from '@/actions/locations';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
- * Form data interface for creating/editing locations.
+ * Form values for creating/editing locations.
  */
-interface LocationFormData {
+interface LocationFormValues {
 	name: string;
 	code: string;
 	address: string;
-	clientId: string;
 }
-
-/**
- * Initial empty form data.
- */
-const initialFormData: LocationFormData = {
-	name: '',
-	code: '',
-	address: '',
-	clientId: '',
-};
 
 /**
  * Locations page client component.
@@ -58,21 +48,26 @@ const initialFormData: LocationFormData = {
  */
 export function LocationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-	const [formData, setFormData] = useState<LocationFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+	const isOrgSelected = Boolean(organizationId);
 
 	// Build query params - only include search if it has a value
-	const queryParams = search
-		? { search, limit: 100, offset: 0 }
-		: { limit: 100, offset: 0 };
+	const queryParams = {
+		limit: 100,
+		offset: 0,
+		...(search ? { search } : {}),
+		...(organizationId ? { organizationId } : {}),
+	};
 
 	// Query for locations list
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.locations.list(queryParams),
 		queryFn: () => fetchLocationsList(queryParams),
+		enabled: isOrgSelected,
 	});
 
 	const locations = data?.data ?? [];
@@ -131,57 +126,88 @@ export function LocationsPageClient(): React.ReactElement {
 		},
 	});
 
-	const isSubmitting = createMutation.isPending || updateMutation.isPending;
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useAppForm({
+		defaultValues: {
+			name: '',
+			code: '',
+			address: '',
+		},
+		onSubmit: async ({ value }: { value: LocationFormValues }) => {
+			if (editingLocation) {
+				await updateMutation.mutateAsync({
+					id: editingLocation.id,
+					name: value.name,
+					code: value.code,
+					address: value.address || undefined,
+				});
+			} else {
+				if (!organizationId) {
+					toast.error('No active organization. Please select an organization first.');
+					return;
+				}
+				await createMutation.mutateAsync({
+					name: value.name,
+					code: value.code,
+					address: value.address || undefined,
+					organizationId,
+				});
+			}
+			setIsDialogOpen(false);
+			setEditingLocation(null);
+			form.reset();
+		},
+	});
 
 	/**
 	 * Opens the dialog for creating a new location.
 	 */
-	const handleCreateNew = (): void => {
+	const handleCreateNew = useCallback((): void => {
 		setEditingLocation(null);
-		setFormData(initialFormData);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing location.
 	 *
 	 * @param location - The location to edit
 	 */
-	const handleEdit = (location: Location): void => {
-		setEditingLocation(location);
-		setFormData({
-			name: location.name,
-			code: location.code,
-			address: location.address ?? '',
-			clientId: location.clientId,
-		});
-		setIsDialogOpen(true);
-	};
+	const handleEdit = useCallback(
+		(location: Location): void => {
+			setEditingLocation(location);
+			form.setFieldValue('name', location.name);
+			form.setFieldValue('code', location.code);
+			form.setFieldValue('address', location.address ?? '');
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles form submission for creating or updating a location.
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
-		if (editingLocation) {
-			updateMutation.mutate({
-				id: editingLocation.id,
-				name: formData.name,
-				code: formData.code,
-				address: formData.address || undefined,
-			});
-		} else {
-			createMutation.mutate({
-				name: formData.name,
-				code: formData.code,
-				address: formData.address || undefined,
-				clientId: formData.clientId,
-			});
-		}
-	};
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingLocation(null);
+				form.reset();
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles location deletion.
@@ -192,16 +218,25 @@ export function LocationsPageClient(): React.ReactElement {
 		deleteMutation.mutate(id);
 	};
 
+	if (!isOrgSelected) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">Locations</h1>
+				<p className="text-muted-foreground">
+					Select an active organization to manage locations.
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">Locations</h1>
-					<p className="text-muted-foreground">
-						Manage branches and office locations
-					</p>
+					<p className="text-muted-foreground">Manage branches and office locations</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
@@ -221,76 +256,32 @@ export function LocationsPageClient(): React.ReactElement {
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
-										Name
-									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="code" className="text-right">
-										Code
-									</Label>
-									<Input
-										id="code"
-										value={formData.code}
-										onChange={(e) =>
-											setFormData({ ...formData, code: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="address" className="text-right">
-										Address
-									</Label>
-									<Input
-										id="address"
-										value={formData.address}
-										onChange={(e) =>
-											setFormData({ ...formData, address: e.target.value })
-										}
-										className="col-span-3"
-									/>
-								</div>
-								{!editingLocation && (
-									<div className="grid grid-cols-4 items-center gap-4">
-										<Label htmlFor="clientId" className="text-right">
-											Client ID
-										</Label>
-										<Input
-											id="clientId"
-											value={formData.clientId}
-											onChange={(e) =>
-												setFormData({ ...formData, clientId: e.target.value })
-											}
-											className="col-span-3"
-											required
-											placeholder="Client UUID"
-										/>
-									</div>
-								)}
+								<form.AppField
+									name="name"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Name is required' : undefined,
+									}}
+								>
+									{(field) => <field.TextField label="Name" />}
+								</form.AppField>
+								<form.AppField
+									name="code"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Code is required' : undefined,
+									}}
+								>
+									{(field) => <field.TextField label="Code" />}
+								</form.AppField>
+								<form.AppField name="address">
+									{(field) => <field.TextField label="Address" placeholder="Optional" />}
+								</form.AppField>
 							</div>
 							<DialogFooter>
-								<Button type="submit" disabled={isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Saving...
-										</>
-									) : (
-										'Save'
-									)}
-								</Button>
+								<form.AppForm>
+									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+								</form.AppForm>
 							</DialogFooter>
 						</form>
 					</DialogContent>
@@ -370,8 +361,9 @@ export function LocationsPageClient(): React.ReactElement {
 													<DialogHeader>
 														<DialogTitle>Delete Location</DialogTitle>
 														<DialogDescription>
-															Are you sure you want to delete {location.name}?
-															This action cannot be undone.
+															Are you sure you want to delete{' '}
+															{location.name}? This action cannot be
+															undone.
 														</DialogDescription>
 													</DialogHeader>
 													<DialogFooter>
@@ -383,7 +375,9 @@ export function LocationsPageClient(): React.ReactElement {
 														</Button>
 														<Button
 															variant="destructive"
-															onClick={() => handleDelete(location.id)}
+															onClick={() =>
+																handleDelete(location.id)
+															}
 														>
 															Delete
 														</Button>
@@ -401,4 +395,3 @@ export function LocationsPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

@@ -4,18 +4,13 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Mail, Lock, ShieldCheck } from 'lucide-react';
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardFooter,
-	CardHeader,
-	CardTitle,
 } from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
+import { useAppForm } from '@/lib/forms';
 
 /**
  * Sign In page component.
@@ -25,10 +20,28 @@ import { Loader2 } from 'lucide-react';
  */
 export default function SignInPage(): React.ReactElement {
 	const router = useRouter();
-	const [email, setEmail] = useState<string>('');
-	const [password, setPassword] = useState<string>('');
 	const [error, setError] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState<boolean>(false);
+
+	const form = useAppForm({
+		defaultValues: {
+			email: '',
+			password: '',
+		},
+		onSubmit: async ({ value }) => {
+			setError(null);
+			const result = await signIn.email({
+				email: value.email,
+				password: value.password,
+			});
+
+			if (result.error) {
+				setError(result.error.message ?? 'Failed to sign in');
+				return;
+			}
+
+			router.push('/dashboard');
+		},
+	});
 
 	/**
 	 * Handles form submission for sign in.
@@ -36,97 +49,85 @@ export default function SignInPage(): React.ReactElement {
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
 		e.preventDefault();
-		setError(null);
-		setIsLoading(true);
-
-		try {
-			const result = await signIn.email({
-				email,
-				password,
-			});
-
-			if (result.error) {
-				setError(result.error.message ?? 'Failed to sign in');
-				setIsLoading(false);
-				return;
-			}
-
-			router.push('/dashboard');
-		} catch (err) {
-			console.error('Failed to sign in', err);
-			setError('An unexpected error occurred');
-			setIsLoading(false);
-		}
+		e.stopPropagation();
+		form.handleSubmit();
 	};
 
 	return (
-		<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
-			<CardHeader className="space-y-1">
-				<CardTitle className="text-2xl font-bold tracking-tight">
-					Sign In
-				</CardTitle>
-				<CardDescription>
+		<div className="flex flex-col gap-6 w-full max-w-sm mx-auto">
+			<div className="flex flex-col items-center gap-2 text-center">
+				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+					<ShieldCheck className="h-6 w-6" />
+				</div>
+				<h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+				<p className="text-balance text-sm text-muted-foreground">
 					Enter your credentials to access the admin portal
-				</CardDescription>
-			</CardHeader>
-			<form onSubmit={handleSubmit}>
-				<CardContent className="space-y-4">
-					{error && (
-						<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-							{error}
-						</div>
-					)}
-					<div className="space-y-2">
-						<Label htmlFor="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="admin@example.com"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-							disabled={isLoading}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="password">Password</Label>
-						<Input
-							id="password"
-							type="password"
-							placeholder="••••••••"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							required
-							disabled={isLoading}
-						/>
-					</div>
-				</CardContent>
-				<CardFooter className="flex flex-col gap-4">
-					<Button type="submit" className="w-full" disabled={isLoading}>
-						{isLoading ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Signing in...
-							</>
-						) : (
-							'Sign In'
+				</p>
+			</div>
+			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+				{/* <CardHeader> removed as we have header outside */}
+				<form onSubmit={handleSubmit}>
+					<CardContent className="space-y-4 pt-6">
+						{error && (
+							<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+								{error}
+							</div>
 						)}
-					</Button>
-					{process.env.NODE_ENV === 'development' && (
-						<p className="text-center text-sm text-muted-foreground">
-							Don&apos;t have an account?{' '}
-							<Link
-								href="/sign-up"
-								className="text-primary underline-offset-4 hover:underline"
+						<div className="space-y-4">
+							<form.AppField
+								name="email"
+								validators={{
+									onChange: ({ value }) => (!value.trim() ? 'Email is required' : undefined),
+								}}
 							>
-								Sign up
-							</Link>
-						</p>
-					)}
-				</CardFooter>
-			</form>
-		</Card>
+								{(field) => (
+									<field.TextField
+										label="Email"
+										type="email"
+										placeholder="m@example.com"
+										orientation="vertical"
+										startIcon={Mail}
+									/>
+								)}
+							</form.AppField>
+							<form.AppField
+								name="password"
+								validators={{
+									onChange: ({ value }) => (!value.trim() ? 'Password is required' : undefined),
+								}}
+							>
+								{(field) => (
+									<field.TextField
+										label="Password"
+										type="password"
+										placeholder="••••••••"
+										orientation="vertical"
+										startIcon={Lock}
+									/>
+								)}
+							</form.AppField>
+						</div>
+					</CardContent>
+					<CardFooter className="flex flex-col gap-4 pb-6 mt-6">
+						<form.AppForm>
+							<form.SubmitButton label="Sign In" loadingLabel="Signing in..." className="w-full" />
+						</form.AppForm>
+						{process.env.NODE_ENV === 'development' && (
+							<p className="text-center text-sm text-muted-foreground">
+								Don&apos;t have an account?{' '}
+								<Link
+									href="/sign-up"
+									className="text-primary underline-offset-4 hover:underline"
+								>
+									Sign up
+								</Link>
+							</p>
+						)}
+					</CardFooter>
+				</form>
+			</Card>
+		</div>
 	);
 }

@@ -12,9 +12,9 @@
  * @module actions/employees
  */
 
-import { cookies } from 'next/headers';
-import { createServerApiClient } from '@/lib/server-api';
 import type { EmployeeStatus } from '@/lib/client-functions';
+import { createServerApiClient } from '@/lib/server-api';
+import { headers } from 'next/headers';
 
 /**
  * Input data for creating a new employee.
@@ -30,6 +30,8 @@ export interface CreateEmployeeInput {
 	email?: string;
 	/** Employee's phone number */
 	phone?: string;
+	/** Job position ID (required for new employees) */
+	jobPositionId: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
@@ -52,6 +54,8 @@ export interface UpdateEmployeeInput {
 	email?: string;
 	/** Employee's phone number */
 	phone?: string;
+	/** Job position ID (optional for updates, but non-nullable when present) */
+	jobPositionId?: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
@@ -82,14 +86,15 @@ export interface MutationResult<T = unknown> {
  *   code: 'EMP001',
  *   firstName: 'John',
  *   lastName: 'Doe',
+ *   jobPositionId: 'job-position-uuid',
  *   status: 'ACTIVE',
  * });
  * ```
  */
 export async function createEmployee(input: CreateEmployeeInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees.post({
@@ -98,6 +103,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			lastName: input.lastName,
 			email: input.email || undefined,
 			phone: input.phone || undefined,
+			jobPositionId: input.jobPositionId,
 			department: input.department || undefined,
 			status: input.status,
 		});
@@ -141,8 +147,8 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
  */
 export async function updateEmployee(input: UpdateEmployeeInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees[input.id].put({
@@ -151,6 +157,7 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			lastName: input.lastName,
 			email: input.email || undefined,
 			phone: input.phone || undefined,
+			jobPositionId: input.jobPositionId || undefined,
 			department: input.department || undefined,
 			status: input.status,
 		});
@@ -188,8 +195,8 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
  */
 export async function deleteEmployee(id: string): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.employees[id].delete();

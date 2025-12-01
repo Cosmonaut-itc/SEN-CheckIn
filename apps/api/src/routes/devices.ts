@@ -1,8 +1,10 @@
 import { Elysia } from 'elysia';
-import { eq, and, ilike, or } from 'drizzle-orm';
+import { eq, and, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { device, location } from '../db/schema.js';
+import { device, location, organization } from '../db/schema.js';
+import { combinedAuthPlugin } from '../plugins/auth.js';
+import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
 	idParamSchema,
 	deviceQuerySchema,
@@ -21,6 +23,7 @@ import {
  * Device routes plugin for Elysia.
  */
 export const deviceRoutes = new Elysia({ prefix: '/devices' })
+	.use(combinedAuthPlugin)
 	/**
 	 * List all devices with pagination and optional filters.
 	 *
@@ -33,13 +36,38 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.get(
 		'/',
-		async ({ query }) => {
-			const { limit, offset, locationId, status, search } = query;
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { limit, offset, locationId, status, search, organizationId: organizationIdQuery } =
+				query;
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
 
 			let baseQuery = db.select().from(device);
 
 			// Build conditions array
-			const conditions = [];
+			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
+				eq(device.organizationId, organizationId),
+			];
 			if (locationId) {
 				conditions.push(eq(device.locationId, locationId));
 			}
@@ -47,26 +75,23 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				conditions.push(eq(device.status, status));
 			}
 			if (search) {
-				conditions.push(
-					or(
-						ilike(device.code, `%${search}%`),
-						ilike(device.name, `%${search}%`),
-						ilike(device.deviceType, `%${search}%`),
-					),
-				);
+				const searchClause = or(
+					ilike(device.code, `%${search}%`),
+					ilike(device.name, `%${search}%`),
+					ilike(device.deviceType, `%${search}%`),
+				)!;
+				conditions.push(searchClause);
 			}
 
-			if (conditions.length > 0) {
-				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
-			}
+			const whereClause = and(...conditions)!;
+			baseQuery = baseQuery.where(whereClause) as typeof baseQuery;
 
 			const results = await baseQuery.limit(limit).offset(offset).orderBy(device.name);
 
 			// Get total count with same filters
 			let countQuery = db.select().from(device);
-			if (conditions.length > 0) {
-				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
-			}
+			const countWhere = and(...conditions)!;
+			countQuery = countQuery.where(countWhere) as typeof countQuery;
 			const countResult = await countQuery;
 			const total = countResult.length;
 
@@ -94,7 +119,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			const results = await db.select().from(device).where(eq(device.id, id)).limit(1);
@@ -103,6 +128,19 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			if (!record) {
 				set.status = 404;
 				return { error: 'Device not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this device' };
 			}
 
 			return { data: record };
@@ -125,16 +163,69 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.post(
 		'/',
-		async ({ body, set }) => {
-			const { code, name, deviceType, status: deviceStatus, locationId } = body;
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const {
+				code,
+				name,
+				deviceType,
+				status: deviceStatus,
+				locationId,
+				organizationId: organizationIdInput,
+			} = body;
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdInput ?? null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			// Verify organization exists
+			const organizationExists = await db
+				.select()
+				.from(organization)
+				.where(eq(organization.id, organizationId))
+				.limit(1);
+
+			if (!organizationExists[0]) {
+				set.status = 400;
+				return { error: 'Organization not found' };
+			}
 
 			// Verify location exists if provided
 			if (locationId) {
-				const locationExists = await db.select().from(location).where(eq(location.id, locationId)).limit(1);
+				const locationExists = await db
+					.select()
+					.from(location)
+					.where(eq(location.id, locationId))
+					.limit(1);
 
 				if (!locationExists[0]) {
 					set.status = 400;
 					return { error: 'Location not found' };
+				}
+
+				if (
+					locationExists[0].organizationId &&
+					locationExists[0].organizationId !== organizationId
+				) {
+					set.status = 403;
+					return { error: 'Location does not belong to this organization' };
 				}
 			}
 
@@ -155,6 +246,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				deviceType: deviceType ?? null,
 				status: deviceStatus,
 				locationId: locationId ?? null,
+				organizationId,
 			};
 
 			await db.insert(device).values(newDevice);
@@ -184,7 +276,16 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set }) => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -193,6 +294,34 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Device not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this device' };
+			}
+
+			const targetOrgId = existing[0].organizationId ?? null;
+			const resolvedOrganizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: targetOrgId,
+			});
+
+			if (!resolvedOrganizationId) {
+				set.status = 403;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Check if code is unique (if being updated)
@@ -207,11 +336,23 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			// Verify location exists if being updated
 			if (body.locationId) {
-				const locationExists = await db.select().from(location).where(eq(location.id, body.locationId)).limit(1);
+				const locationExists = await db
+					.select()
+					.from(location)
+					.where(eq(location.id, body.locationId))
+					.limit(1);
 
 				if (!locationExists[0]) {
 					set.status = 400;
 					return { error: 'Location not found' };
+				}
+
+				if (
+					locationExists[0].organizationId &&
+					locationExists[0].organizationId !== resolvedOrganizationId
+				) {
+					set.status = 403;
+					return { error: 'Location does not belong to this organization' };
 				}
 			}
 
@@ -242,7 +383,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -251,6 +392,19 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Device not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this device' };
 			}
 
 			await db.delete(device).where(eq(device.id, id));
@@ -272,7 +426,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	 */
 	.post(
 		'/:id/heartbeat',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if device exists
@@ -281,6 +435,19 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Device not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this device' };
 			}
 
 			const now = new Date();

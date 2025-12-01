@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/select';
 import { queryKeys } from '@/lib/query-keys';
 import { fetchAttendanceRecords, type AttendanceRecord, type AttendanceType } from '@/lib/client-functions';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Date filter preset options.
@@ -46,6 +47,7 @@ const typeVariants: Record<AttendanceType, 'default' | 'secondary'> = {
  * @returns The attendance page JSX element
  */
 export function AttendancePageClient(): React.ReactElement {
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [datePreset, setDatePreset] = useState<DatePreset>('today');
 	const [startDate, setStartDate] = useState<string>(format(startOfDay(new Date()), 'yyyy-MM-dd'));
@@ -97,14 +99,15 @@ export function AttendancePageClient(): React.ReactElement {
 	const { start, end } = getDateRange(datePreset);
 
 	// Build query params - only include type if it's not 'all'
-	const queryParams = typeFilter !== 'all'
-		? { limit: 100, offset: 0, fromDate: start, toDate: end, type: typeFilter }
-		: { limit: 100, offset: 0, fromDate: start, toDate: end };
+	const baseParams = { limit: 100, offset: 0, fromDate: start, toDate: end, organizationId };
+	const queryParams =
+		typeFilter !== 'all' ? { ...baseParams, type: typeFilter } : baseParams;
 
 	// Query for attendance records
 	const { data, isFetching, refetch } = useQuery({
 		queryKey: queryKeys.attendance.list(queryParams),
 		queryFn: () => fetchAttendanceRecords(queryParams),
+		enabled: Boolean(organizationId),
 	});
 
 	const records = data?.data ?? [];
@@ -129,6 +132,17 @@ export function AttendancePageClient(): React.ReactElement {
 	const filteredRecords = records.filter((record: AttendanceRecord) =>
 		search ? record.employeeId.toLowerCase().includes(search.toLowerCase()) : true
 	);
+
+	if (!organizationId) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">Attendance</h1>
+				<p className="text-muted-foreground">
+					Select an active organization to view attendance records.
+				</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className="space-y-6">
@@ -268,4 +282,3 @@ export function AttendancePageClient(): React.ReactElement {
 		</div>
 	);
 }
-

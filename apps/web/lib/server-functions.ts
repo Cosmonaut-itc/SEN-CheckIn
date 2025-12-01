@@ -19,6 +19,7 @@ import { headers } from 'next/headers';
 import {
 	queryKeys,
 	type ListQueryParams,
+	type JobPositionQueryParams,
 	type AttendanceQueryParams,
 	type UsersQueryParams,
 } from '@/lib/query-keys';
@@ -26,11 +27,12 @@ import {
 	fetchEmployeesListServer,
 	fetchDevicesListServer,
 	fetchLocationsListServer,
-	fetchClientsListServer,
+	fetchJobPositionsListServer,
 	fetchAttendanceRecordsServer,
 	fetchDashboardCountsServer,
 	fetchApiKeysServer,
 	fetchOrganizationsServer,
+	fetchOrganizationMembersServer,
 	fetchUsersServer,
 } from '@/lib/server-client-functions';
 
@@ -93,10 +95,7 @@ async function getRequestHeaders(): Promise<Headers> {
  * }
  * ```
  */
-export function prefetchEmployeesList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
@@ -136,10 +135,7 @@ export function prefetchEmployeesList(
  * }
  * ```
  */
-export function prefetchDevicesList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchDevicesList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.devices.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDevicesListServer>>> => {
@@ -179,10 +175,7 @@ export function prefetchDevicesList(
  * }
  * ```
  */
-export function prefetchLocationsList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchLocationsList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.locations.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchLocationsListServer>>> => {
@@ -197,7 +190,7 @@ export function prefetchLocationsList(
 // ============================================================================
 
 /**
- * Prefetches the clients list for server-side streaming.
+ * Prefetches the job positions list for server-side streaming.
  *
  * This function initiates the prefetch but does NOT await it,
  * allowing Next.js to stream the response as data becomes available.
@@ -210,27 +203,27 @@ export function prefetchLocationsList(
  * @example
  * ```tsx
  * // In a Server Component (page.tsx)
- * export default function ClientsPage() {
+ * export default function JobPositionsPage() {
  *   const queryClient = getQueryClient();
- *   prefetchClientsList(queryClient, { limit: 100 });
+ *   prefetchJobPositionsList(queryClient, { limit: 100 });
  *
  *   return (
  *     <HydrationBoundary state={dehydrate(queryClient)}>
- *       <ClientsPageClient />
+ *       <JobPositionsPageClient />
  *     </HydrationBoundary>
  *   );
  * }
  * ```
  */
-export function prefetchClientsList(
+export function prefetchJobPositionsList(
 	queryClient: QueryClient,
-	params?: ListQueryParams,
+	params?: JobPositionQueryParams,
 ): void {
 	queryClient.prefetchQuery({
-		queryKey: queryKeys.clients.list(params),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchClientsListServer>>> => {
+		queryKey: queryKeys.jobPositions.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchJobPositionsListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
-			return fetchClientsListServer(cookieHeader, params);
+			return fetchJobPositionsListServer(cookieHeader, params);
 		},
 	});
 }
@@ -310,12 +303,15 @@ export function prefetchAttendanceRecords(
  * }
  * ```
  */
-export function prefetchDashboardCounts(queryClient: QueryClient): void {
+export function prefetchDashboardCounts(
+	queryClient: QueryClient,
+	params?: { organizationId?: string | null },
+): void {
 	queryClient.prefetchQuery({
-		queryKey: queryKeys.dashboard.counts(),
+		queryKey: queryKeys.dashboard.counts(params?.organizationId),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDashboardCountsServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
-			return fetchDashboardCountsServer(cookieHeader);
+			return fetchDashboardCountsServer(cookieHeader, params?.organizationId);
 		},
 	});
 }
@@ -398,6 +394,28 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
 	});
 }
 
+/**
+ * Prefetches organization members list for server-side streaming.
+ *
+ * Skips prefetch if no organization ID is provided.
+ */
+export function prefetchOrganizationMembers(
+	queryClient: QueryClient,
+	params: { organizationId: string | null; limit?: number; offset?: number },
+): void {
+	if (!params.organizationId) {
+		return;
+	}
+
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.organizationMembers.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchOrganizationMembersServer>>> => {
+			const requestHeaders: Headers = await getRequestHeaders();
+			return fetchOrganizationMembersServer(requestHeaders, params);
+		},
+	});
+}
+
 // ============================================================================
 // User Prefetch Functions
 // ============================================================================
@@ -428,10 +446,7 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
  * }
  * ```
  */
-export function prefetchUsers(
-	queryClient: QueryClient,
-	params?: UsersQueryParams,
-): void {
+export function prefetchUsers(queryClient: QueryClient, params?: UsersQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.users.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchUsersServer>>> => {

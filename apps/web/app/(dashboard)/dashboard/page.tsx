@@ -3,6 +3,7 @@ import { prefetchDashboardCounts } from '@/lib/server-functions';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import React from 'react';
 import { DashboardPageClient } from './dashboard-client';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -19,11 +20,12 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The dashboard page with hydrated query state
  */
-export default function DashboardPage(): React.ReactElement {
+export default async function DashboardPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
+	const orgContext = await getActiveOrganizationContext();
 
 	// Prefetch without await for streaming support
-	prefetchDashboardCounts(queryClient);
+	prefetchDashboardCounts(queryClient, { organizationId: orgContext.organizationId });
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

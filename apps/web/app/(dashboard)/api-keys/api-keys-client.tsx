@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
 	Table,
 	TableBody,
@@ -21,20 +21,19 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Trash2, Copy, Key, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Copy, Key, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchApiKeys, type ApiKey } from '@/lib/client-functions';
 import { createApiKey, deleteApiKey } from '@/actions/api-keys';
 
 /**
- * Form data interface for creating API keys.
+ * Form values for creating API keys.
  */
-interface ApiKeyFormData {
+interface ApiKeyFormValues {
 	name: string;
 }
 
@@ -47,7 +46,6 @@ interface ApiKeyFormData {
 export function ApiKeysPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
-	const [formData, setFormData] = useState<ApiKeyFormData>({ name: '' });
 	const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set());
@@ -96,26 +94,41 @@ export function ApiKeysPageClient(): React.ReactElement {
 		},
 	});
 
+// TanStack Form instance (after mutations to avoid TDZ)
+const form = useAppForm({
+	defaultValues: {
+		name: '',
+	},
+	onSubmit: async ({ value }: { value: ApiKeyFormValues }) => {
+		await createMutation.mutateAsync({
+			name: value.name || undefined,
+		});
+		form.reset();
+	},
+});
+
 	/**
 	 * Opens the dialog for creating a new API key.
 	 */
-	const handleCreateNew = (): void => {
-		setFormData({ name: '' });
+	const handleCreateNew = useCallback((): void => {
+		form.reset();
 		setNewKeyValue(null);
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Handles form submission for creating an API key.
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
-		createMutation.mutate({
-			name: formData.name || undefined,
-		});
-	};
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
 	/**
 	 * Handles API key deletion.
@@ -166,14 +179,18 @@ export function ApiKeysPageClient(): React.ReactElement {
 						Manage API keys for authentication
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={(open) => {
-					setIsDialogOpen(open);
-					if (!open) {
-						setNewKeyValue(null);
-					}
-				}}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
+		<Dialog
+			open={isDialogOpen}
+			onOpenChange={(open) => {
+				setIsDialogOpen(open);
+				if (!open) {
+					setNewKeyValue(null);
+					form.reset();
+				}
+			}}
+		>
+			<DialogTrigger asChild>
+				<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
 							Create API Key
 						</Button>
@@ -205,42 +222,24 @@ export function ApiKeysPageClient(): React.ReactElement {
 								</DialogFooter>
 							</>
 						) : (
-							<form onSubmit={handleSubmit}>
-								<DialogHeader>
-									<DialogTitle>Create API Key</DialogTitle>
-									<DialogDescription>
-										Create a new API key for accessing the API.
-									</DialogDescription>
-								</DialogHeader>
-								<div className="grid gap-4 py-4">
-									<div className="grid grid-cols-4 items-center gap-4">
-										<Label htmlFor="name" className="text-right">
-											Name
-										</Label>
-										<Input
-											id="name"
-											value={formData.name}
-											onChange={(e) =>
-												setFormData({ ...formData, name: e.target.value })
-											}
-											className="col-span-3"
-											placeholder="My API Key"
-										/>
-									</div>
-								</div>
-								<DialogFooter>
-									<Button type="submit" disabled={createMutation.isPending}>
-										{createMutation.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Creating...
-											</>
-										) : (
-											'Create Key'
-										)}
-									</Button>
-								</DialogFooter>
-							</form>
+					<form onSubmit={handleSubmit}>
+						<DialogHeader>
+							<DialogTitle>Create API Key</DialogTitle>
+							<DialogDescription>
+								Create a new API key for accessing the API.
+							</DialogDescription>
+						</DialogHeader>
+						<div className="grid gap-4 py-4">
+							<form.AppField name="name">
+								{(field) => <field.TextField label="Name" placeholder="My API Key" />}
+							</form.AppField>
+						</div>
+						<DialogFooter>
+							<form.AppForm>
+								<form.SubmitButton label="Create Key" loadingLabel="Creating..." />
+							</form.AppForm>
+						</DialogFooter>
+					</form>
 						)}
 					</DialogContent>
 				</Dialog>
@@ -367,4 +366,3 @@ export function ApiKeysPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

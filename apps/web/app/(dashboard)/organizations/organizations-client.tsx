@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,30 +22,25 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Trash2, Search, Loader2, Users } from 'lucide-react';
+import { Plus, Trash2, Search, Users, Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchOrganizations, type Organization } from '@/lib/client-functions';
-import { createOrganization, deleteOrganization } from '@/actions/organizations';
+import {
+	createOrganization,
+	updateOrganization,
+	deleteOrganization,
+} from '@/actions/organizations';
 
 /**
- * Form data interface for creating organizations.
+ * Form values for creating organizations.
  */
-interface OrganizationFormData {
+interface OrganizationFormValues {
 	name: string;
 	slug: string;
 }
-
-/**
- * Initial empty form data.
- */
-const initialFormData: OrganizationFormData = {
-	name: '',
-	slug: '',
-};
 
 /**
  * Organizations page client component.
@@ -56,8 +52,10 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
-	const [formData, setFormData] = useState<OrganizationFormData>(initialFormData);
+	const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+	const NAME_LIMITS = { min: 3, max: 80 };
+	const SLUG_LIMITS = { min: 3, max: 50 };
 
 	// Query for organizations list
 	const { data: organizations = [], isFetching } = useQuery({
@@ -83,6 +81,25 @@ export function OrganizationsPageClient(): React.ReactElement {
 		},
 	});
 
+	// Update mutation
+	const updateMutation = useMutation({
+		mutationKey: mutationKeys.organizations.update,
+		mutationFn: updateOrganization,
+		onSuccess: (result) => {
+			if (result.success) {
+				toast.success('Organization updated successfully');
+				setIsDialogOpen(false);
+				setEditingOrganization(null);
+				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+			} else {
+				toast.error(result.error ?? 'Failed to update organization');
+			}
+		},
+		onError: () => {
+			toast.error('Failed to update organization');
+		},
+	});
+
 	// Delete mutation
 	const deleteMutation = useMutation({
 		mutationKey: mutationKeys.organizations.delete,
@@ -101,13 +118,64 @@ export function OrganizationsPageClient(): React.ReactElement {
 		},
 	});
 
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const initialFormValues: OrganizationFormValues = {
+		name: '',
+		slug: '',
+	};
+
+	const form = useAppForm({
+		defaultValues: editingOrganization
+			? {
+					name: editingOrganization.name,
+					slug: editingOrganization.slug,
+				}
+			: initialFormValues,
+		onSubmit: async ({ value }: { value: OrganizationFormValues }) => {
+			const name = value.name.trim();
+			const slug = value.slug.trim();
+
+			if (editingOrganization) {
+				await updateMutation.mutateAsync({
+					organizationId: editingOrganization.id,
+					name,
+					slug,
+				});
+			} else {
+				await createMutation.mutateAsync({
+					name,
+					slug,
+				});
+			}
+			setIsDialogOpen(false);
+			setEditingOrganization(null);
+			form.reset();
+		},
+	});
+
 	/**
 	 * Opens the dialog for creating a new organization.
 	 */
-	const handleCreateNew = (): void => {
-		setFormData(initialFormData);
+	const handleCreateNew = useCallback((): void => {
+		setEditingOrganization(null);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
+
+	/**
+	 * Opens the dialog for editing an existing organization.
+	 *
+	 * @param org - The organization to edit
+	 */
+	const handleEdit = useCallback(
+		(org: Organization): void => {
+			setEditingOrganization(org);
+			form.setFieldValue('name', org.name);
+			form.setFieldValue('slug', org.slug);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Generates a slug from the organization name.
@@ -122,30 +190,45 @@ export function OrganizationsPageClient(): React.ReactElement {
 			.replace(/^-|-$/g, '');
 	};
 
-	/**
-	 * Handles name input change and auto-generates slug.
-	 *
-	 * @param name - The new name value
-	 */
-	const handleNameChange = (name: string): void => {
-		setFormData({
-			name,
-			slug: generateSlug(name),
-		});
+	const validateName = (value: string): string | undefined => {
+		const trimmed = value.trim();
+		if (!trimmed) return 'Name is required';
+		if (trimmed.length < NAME_LIMITS.min) {
+			return `Name must be at least ${NAME_LIMITS.min} characters`;
+		}
+		if (trimmed.length > NAME_LIMITS.max) {
+			return `Name must be at most ${NAME_LIMITS.max} characters`;
+		}
+		return undefined;
 	};
 
-	/**
-	 * Handles form submission for creating an organization.
-	 *
-	 * @param e - The form submission event
-	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
-		createMutation.mutate({
-			name: formData.name,
-			slug: formData.slug,
-		});
+	const validateSlug = (value: string): string | undefined => {
+		const trimmed = value.trim();
+		if (!trimmed) return 'Slug is required';
+		if (trimmed.length < SLUG_LIMITS.min) {
+			return `Slug must be at least ${SLUG_LIMITS.min} characters`;
+		}
+		if (trimmed.length > SLUG_LIMITS.max) {
+			return `Slug must be at most ${SLUG_LIMITS.max} characters`;
+		}
+		if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmed)) {
+			return 'Use lowercase letters, numbers, and hyphens only';
+		}
+		return undefined;
 	};
+
+
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingOrganization(null);
+				form.reset();
+				setDeleteConfirmId(null);
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles organization deletion.
@@ -174,7 +257,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 						Manage organizations and their members
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
@@ -182,52 +265,65 @@ export function OrganizationsPageClient(): React.ReactElement {
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
-						<form onSubmit={handleSubmit}>
+						<form
+							onSubmit={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								form.handleSubmit();
+							}}
+						>
 							<DialogHeader>
-								<DialogTitle>Create Organization</DialogTitle>
+								<DialogTitle>
+									{editingOrganization ? 'Edit Organization' : 'Create Organization'}
+								</DialogTitle>
 								<DialogDescription>
-									Create a new organization to manage users and resources.
+									{editingOrganization
+										? 'Update the organization details below.'
+										: 'Create a new organization to manage users and resources.'}
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
-										Name
-									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) => handleNameChange(e.target.value)}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="slug" className="text-right">
-										Slug
-									</Label>
-									<Input
-										id="slug"
-										value={formData.slug}
-										onChange={(e) =>
-											setFormData({ ...formData, slug: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
+								<form.AppField
+									name="name"
+									validators={{
+										onChange: ({ value }) => validateName(value),
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label="Name"
+											description={`Between ${NAME_LIMITS.min}-${NAME_LIMITS.max} characters.`}
+											onValueChange={(val) => {
+												if (!editingOrganization) {
+													form.setFieldValue('slug', generateSlug(val));
+												}
+												return val;
+											}}
+										/>
+									)}
+								</form.AppField>
+								<form.AppField
+									name="slug"
+									validators={{
+										onChange: ({ value }) => validateSlug(value),
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label="Slug"
+											description={`Lowercase, ${SLUG_LIMITS.min}-${SLUG_LIMITS.max} characters; letters, numbers, and hyphens only.`}
+											onValueChange={(val) => generateSlug(val)}
+										/>
+									)}
+								</form.AppField>
 							</div>
 							<DialogFooter>
-								<Button type="submit" disabled={createMutation.isPending}>
-									{createMutation.isPending ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Creating...
-										</>
-									) : (
-										'Create'
-									)}
-								</Button>
+								<form.AppForm>
+									<form.SubmitButton
+										label={editingOrganization ? 'Save' : 'Create'}
+										loadingLabel={editingOrganization ? 'Saving...' : 'Creating...'}
+									/>
+								</form.AppForm>
 							</DialogFooter>
 						</form>
 					</DialogContent>
@@ -287,41 +383,50 @@ export function OrganizationsPageClient(): React.ReactElement {
 										{format(new Date(org.createdAt), 'MMM d, yyyy')}
 									</TableCell>
 									<TableCell>
-										<Dialog
-											open={deleteConfirmId === org.id}
-											onOpenChange={(open) =>
-												setDeleteConfirmId(open ? org.id : null)
-											}
-										>
-											<DialogTrigger asChild>
-												<Button variant="ghost" size="icon">
-													<Trash2 className="h-4 w-4 text-destructive" />
-												</Button>
-											</DialogTrigger>
-											<DialogContent>
-												<DialogHeader>
-													<DialogTitle>Delete Organization</DialogTitle>
-													<DialogDescription>
-														Are you sure you want to delete {org.name}?
-														This will remove all members and cannot be undone.
-													</DialogDescription>
-												</DialogHeader>
-												<DialogFooter>
-													<Button
-														variant="outline"
-														onClick={() => setDeleteConfirmId(null)}
-													>
-														Cancel
+										<div className="flex items-center gap-2">
+											<Button
+												variant="ghost"
+												size="icon"
+												onClick={() => handleEdit(org)}
+											>
+												<Edit className="h-4 w-4" />
+											</Button>
+											<Dialog
+												open={deleteConfirmId === org.id}
+												onOpenChange={(open) =>
+													setDeleteConfirmId(open ? org.id : null)
+												}
+											>
+												<DialogTrigger asChild>
+													<Button variant="ghost" size="icon">
+														<Trash2 className="h-4 w-4 text-destructive" />
 													</Button>
-													<Button
-														variant="destructive"
-														onClick={() => handleDelete(org.id)}
-													>
-														Delete
-													</Button>
-												</DialogFooter>
-											</DialogContent>
-										</Dialog>
+												</DialogTrigger>
+												<DialogContent>
+													<DialogHeader>
+														<DialogTitle>Delete Organization</DialogTitle>
+														<DialogDescription>
+															Are you sure you want to delete {org.name}?
+															This will remove all members and cannot be undone.
+														</DialogDescription>
+													</DialogHeader>
+													<DialogFooter>
+														<Button
+															variant="outline"
+															onClick={() => setDeleteConfirmId(null)}
+														>
+															Cancel
+														</Button>
+														<Button
+															variant="destructive"
+															onClick={() => handleDelete(org.id)}
+														>
+															Delete
+														</Button>
+													</DialogFooter>
+												</DialogContent>
+											</Dialog>
+										</div>
 									</TableCell>
 								</TableRow>
 							))
@@ -332,4 +437,3 @@ export function OrganizationsPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

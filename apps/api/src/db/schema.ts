@@ -37,6 +37,10 @@ export const user = pgTable('user', {
 	banReason: text('ban_reason'),
 	/** When the ban expires (null = permanent) */
 	banExpires: timestamp('ban_expires'),
+	/** Unique username for the user */
+	username: text('username').unique(),
+	/** Display username (can differ from username) */
+	displayUsername: text('display_username'),
 });
 
 /**
@@ -280,7 +284,7 @@ export const deviceStatus = pgEnum('device_status', ['ONLINE', 'OFFLINE', 'MAINT
 // ============================================================================
 
 /**
- * Client table - stores client/company information
+ * @deprecated Client table - kept for legacy data only. New code should use `organization`.
  */
 export const client = pgTable('client', {
 	id: text('id').primaryKey(),
@@ -297,16 +301,19 @@ export const client = pgTable('client', {
 });
 
 /**
- * Location table - stores location/branch information
+ * Location table - stores location/branch information scoped to an organization.
  */
 export const location = pgTable('location', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
 	code: text('code').notNull().unique(),
 	address: text('address'),
-	clientId: text('client_id')
-		.notNull()
-		.references(() => client.id, { onDelete: 'cascade' }),
+	/** Organization that owns the location (primary tenant foreign key) */
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'cascade',
+	}),
+	/** @deprecated Legacy client reference. Use organizationId instead. */
+	clientId: text('client_id').references(() => client.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -315,7 +322,7 @@ export const location = pgTable('location', {
 });
 
 /**
- * JobPosition table - stores job positions/roles for employees
+ * JobPosition table - stores job positions/roles for employees within an organization.
  */
 export const jobPosition = pgTable('job_position', {
 	id: text('id').primaryKey(),
@@ -323,10 +330,12 @@ export const jobPosition = pgTable('job_position', {
 	name: text('name').notNull(),
 	/** Optional description of the position */
 	description: text('description'),
-	/** Client this position belongs to (positions are client-specific) */
-	clientId: text('client_id')
-		.notNull()
-		.references(() => client.id, { onDelete: 'cascade' }),
+	/** Organization this position belongs to (replaces legacy client linkage) */
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'cascade',
+	}),
+	/** @deprecated Legacy client reference. Use organizationId instead. */
+	clientId: text('client_id').references(() => client.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -358,6 +367,10 @@ export const employee = pgTable('employee', {
 	hireDate: timestamp('hire_date'),
 	/** Location where employee works */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/** Organization that the employee belongs to */
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'cascade',
+	}),
 	/**
 	 * Rekognition user ID for face recognition.
 	 * Links the employee to their User Vector in the AWS Rekognition collection.
@@ -387,6 +400,10 @@ export const device = pgTable('device', {
 	lastHeartbeat: timestamp('last_heartbeat'),
 	/** Location where device is installed */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/** Organization that owns the device */
+	organizationId: text('organization_id').references(() => organization.id, {
+		onDelete: 'cascade',
+	}),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

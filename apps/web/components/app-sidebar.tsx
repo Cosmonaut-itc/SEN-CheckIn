@@ -7,13 +7,13 @@ import {
 	Users,
 	Smartphone,
 	MapPin,
-	Building2,
 	ClipboardList,
 	Key,
 	UserCog,
 	Building,
 	LayoutDashboard,
 	LogOut,
+	Briefcase,
 } from 'lucide-react';
 import { signOut, useSession } from '@/lib/auth-client';
 import {
@@ -60,6 +60,11 @@ const mainNavItems: NavItem[] = [
 		icon: Users,
 	},
 	{
+		title: 'Job Positions',
+		href: '/job-positions',
+		icon: Briefcase,
+	},
+	{
 		title: 'Devices',
 		href: '/devices',
 		icon: Smartphone,
@@ -68,11 +73,6 @@ const mainNavItems: NavItem[] = [
 		title: 'Locations',
 		href: '/locations',
 		icon: MapPin,
-	},
-	{
-		title: 'Clients',
-		href: '/clients',
-		icon: Building2,
 	},
 	{
 		title: 'Attendance',
@@ -141,9 +141,7 @@ export function AppSidebar(): React.ReactElement {
 					<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
 						<ClipboardList className="h-4 w-4" />
 					</div>
-					<span className="text-lg font-semibold tracking-tight">
-						SEN CheckIn
-					</span>
+					<span className="text-lg font-semibold tracking-tight">SEN CheckIn</span>
 				</Link>
 			</SidebarHeader>
 
@@ -156,7 +154,10 @@ export function AppSidebar(): React.ReactElement {
 								<SidebarMenuItem key={item.href}>
 									<SidebarMenuButton
 										asChild
-										isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+										isActive={
+											pathname === item.href ||
+											pathname.startsWith(`${item.href}/`)
+										}
 										tooltip={item.title}
 									>
 										<Link href={item.href}>
@@ -180,7 +181,10 @@ export function AppSidebar(): React.ReactElement {
 								<SidebarMenuItem key={item.href}>
 									<SidebarMenuButton
 										asChild
-										isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+										isActive={
+											pathname === item.href ||
+											pathname.startsWith(`${item.href}/`)
+										}
 										tooltip={item.title}
 									>
 										<Link href={item.href}>
@@ -237,4 +241,3 @@ export function AppSidebar(): React.ReactElement {
 		</Sidebar>
 	);
 }
-

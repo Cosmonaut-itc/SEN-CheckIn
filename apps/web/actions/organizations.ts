@@ -12,12 +12,24 @@
  * @module actions/organizations
  */
 
-import { serverAuthClient, getServerFetchOptions } from '@/lib/server-auth-client';
+import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
 
 /**
  * Input data for creating a new organization.
  */
 export interface CreateOrganizationInput {
+	/** Organization name */
+	name: string;
+	/** URL-friendly slug */
+	slug: string;
+}
+
+/**
+ * Input data for updating an organization.
+ */
+export interface UpdateOrganizationInput {
+	/** Organization ID to update */
+	organizationId: string;
 	/** Organization name */
 	name: string;
 	/** URL-friendly slug */
@@ -62,9 +74,15 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
 		);
 
 		if (response.error) {
+			console.error('[organizations:create] BetterAuth error:', response.error);
 			return {
 				success: false,
-				error: 'Failed to create organization',
+				error:
+					(typeof response.error === 'object' &&
+						'message' in response.error &&
+						typeof response.error.message === 'string'
+						? response.error.message
+						: 'Failed to create organization'),
 			};
 		}
 
@@ -77,6 +95,61 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
 		return {
 			success: false,
 			error: 'Failed to create organization',
+		};
+	}
+}
+
+/**
+ * Updates an existing organization.
+ *
+ * @param input - The organization data to update
+ * @returns A promise resolving to the mutation result
+ *
+ * @example
+ * ```ts
+ * const result = await updateOrganization({
+ *   organizationId: 'org-123',
+ *   name: 'Updated Corp',
+ *   slug: 'updated-corp',
+ * });
+ * ```
+ */
+export async function updateOrganization(input: UpdateOrganizationInput): Promise<MutationResult> {
+	try {
+		const fetchOptions = await getServerFetchOptions();
+		const response = await serverAuthClient.organization.update(
+			{
+				organizationId: input.organizationId,
+				data: {
+					name: input.name,
+					slug: input.slug,
+				},
+			},
+			fetchOptions,
+		);
+
+		if (response.error) {
+			console.error('[organizations:update] BetterAuth error:', response.error);
+			return {
+				success: false,
+				error:
+					(typeof response.error === 'object' &&
+						'message' in response.error &&
+						typeof response.error.message === 'string'
+						? response.error.message
+						: 'Failed to update organization'),
+			};
+		}
+
+		return {
+			success: true,
+			data: response.data,
+		};
+	} catch (error) {
+		console.error('Failed to update organization:', error);
+		return {
+			success: false,
+			error: 'Failed to update organization',
 		};
 	}
 }
@@ -103,9 +176,15 @@ export async function deleteOrganization(organizationId: string): Promise<Mutati
 		);
 
 		if (response.error) {
+			console.error('[organizations:delete] BetterAuth error:', response.error);
 			return {
 				success: false,
-				error: 'Failed to delete organization',
+				error:
+					(typeof response.error === 'object' &&
+						'message' in response.error &&
+						typeof response.error.message === 'string'
+						? response.error.message
+						: 'Failed to delete organization'),
 			};
 		}
 

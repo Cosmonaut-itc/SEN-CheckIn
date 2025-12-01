@@ -8,15 +8,27 @@
  * @module server-auth-client
  */
 
+import {
+	adminClient,
+	apiKeyClient,
+	organizationClient,
+	usernameClient,
+} from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
-import { apiKeyClient, adminClient, organizationClient } from 'better-auth/client/plugins';
 import { headers } from 'next/headers';
 
 /**
  * Environment variable for the API base URL.
  * Falls back to localhost for local development.
  */
-const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+/**
+ * Base URL for BetterAuth API endpoints.
+ * Exported for use in server actions that need to make direct HTTP requests.
+ */
+export const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
+	? API_ORIGIN
+	: `${API_ORIGIN}/api/auth`;
 
 /**
  * Server auth client for use in server actions.
@@ -38,7 +50,7 @@ const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhos
  */
 export const serverAuthClient = createAuthClient({
 	baseURL: API_BASE_URL,
-	plugins: [apiKeyClient(), adminClient(), organizationClient()],
+	plugins: [apiKeyClient(), adminClient(), organizationClient(), usernameClient()],
 });
 
 /**
@@ -61,9 +73,33 @@ export type ServerAuthClient = typeof serverAuthClient;
  * ```
  */
 export async function getServerFetchOptions(): Promise<{ headers: Headers }> {
-	const headersList = await headers();
-	return {
-		headers: headersList,
-	};
-}
+	const incomingHeaders = await headers();
+	const filtered = new Headers();
 
+	// Only forward session/referer/origin context headers. Do NOT forward
+	// content-type/content-length from the server action request (Next uses
+	// multipart for server actions), or BetterAuth will reject the JSON body
+	// as invalid.
+	const allowList = new Set([
+		'cookie',
+		'authorization',
+		'origin',
+		'referer',
+		'user-agent',
+		'accept-language',
+		'x-forwarded-for',
+		'x-forwarded-proto',
+		'x-forwarded-host',
+		'x-real-ip',
+	]);
+
+	incomingHeaders.forEach((value, key) => {
+		const lower = key.toLowerCase();
+		if (!allowList.has(lower)) {
+			return;
+		}
+		filtered.set(lower, value);
+	});
+
+	return { headers: filtered };
+}

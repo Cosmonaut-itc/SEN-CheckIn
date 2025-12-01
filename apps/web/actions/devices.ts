@@ -12,7 +12,7 @@
  * @module actions/devices
  */
 
-import { cookies } from 'next/headers';
+import { headers } from 'next/headers';
 import { createServerApiClient } from '@/lib/server-api';
 import type { DeviceStatus } from '@/lib/client-functions';
 
@@ -28,6 +28,8 @@ export interface CreateDeviceInput {
 	deviceType?: string;
 	/** Device status */
 	status: DeviceStatus;
+	/** Optional location assignment */
+	locationId?: string;
 }
 
 /**
@@ -44,6 +46,8 @@ export interface UpdateDeviceInput {
 	deviceType?: string;
 	/** Device status */
 	status: DeviceStatus;
+	/** Optional location assignment */
+	locationId?: string | null;
 }
 
 /**
@@ -76,8 +80,8 @@ export interface MutationResult<T = unknown> {
  */
 export async function createDevice(input: CreateDeviceInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.devices.post({
@@ -85,6 +89,7 @@ export async function createDevice(input: CreateDeviceInput): Promise<MutationRe
 			name: input.name || undefined,
 			deviceType: input.deviceType || undefined,
 			status: input.status,
+			locationId: input.locationId,
 		});
 
 		if (response.error) {
@@ -125,8 +130,8 @@ export async function createDevice(input: CreateDeviceInput): Promise<MutationRe
  */
 export async function updateDevice(input: UpdateDeviceInput): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.devices[input.id].put({
@@ -134,6 +139,7 @@ export async function updateDevice(input: UpdateDeviceInput): Promise<MutationRe
 			name: input.name || undefined,
 			deviceType: input.deviceType || undefined,
 			status: input.status,
+			locationId: input.locationId ?? undefined,
 		});
 
 		if (response.error) {
@@ -169,8 +175,8 @@ export async function updateDevice(input: UpdateDeviceInput): Promise<MutationRe
  */
 export async function deleteDevice(id: string): Promise<MutationResult> {
 	try {
-		const cookieStore = await cookies();
-		const cookieHeader = cookieStore.toString();
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
 		const response = await api.devices[id].delete();

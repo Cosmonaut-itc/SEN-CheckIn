@@ -25,11 +25,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 		'/employees',
 		'/devices',
 		'/locations',
-		'/clients',
 		'/attendance',
 		'/api-keys',
 		'/users',
 		'/organizations',
+		'/job-positions',
 	];
 
 	// Redirect authenticated users away from auth pages to dashboard
@@ -39,7 +39,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 	// Redirect unauthenticated users from protected routes to sign in
 	const isProtectedRoute = protectedPaths.some(
-		(path) => pathname === path || pathname.startsWith(`${path}/`)
+		(path) => pathname === path || pathname.startsWith(`${path}/`),
 	);
 
 	if (!sessionCookie && isProtectedRoute) {
@@ -60,11 +60,10 @@ export const config = {
 		'/employees/:path*',
 		'/devices/:path*',
 		'/locations/:path*',
-		'/clients/:path*',
 		'/attendance/:path*',
 		'/api-keys/:path*',
 		'/users/:path*',
 		'/organizations/:path*',
+		'/job-positions/:path*',
 	],
 };
-

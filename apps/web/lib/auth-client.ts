@@ -3,14 +3,17 @@ import {
 	apiKeyClient,
 	adminClient,
 	organizationClient,
+	usernameClient,
 } from 'better-auth/client/plugins';
 
 /**
  * Environment variable for the API base URL.
  * Falls back to localhost for local development.
  */
-const API_BASE_URL: string =
-	process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
+	? API_ORIGIN
+	: `${API_ORIGIN}/api/auth`;
 
 /**
  * Better Auth client configured with Admin, Organization, and API Key plugins.
@@ -18,7 +21,7 @@ const API_BASE_URL: string =
  */
 export const authClient = createAuthClient({
 	baseURL: API_BASE_URL,
-	plugins: [apiKeyClient(), adminClient(), organizationClient()],
+	plugins: [apiKeyClient(), adminClient(), organizationClient(), usernameClient()],
 });
 
 /**
@@ -34,4 +37,3 @@ export const {
 	/** Organization plugin methods for org management */
 	organization,
 } = authClient;
-

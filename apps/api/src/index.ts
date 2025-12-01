@@ -13,12 +13,12 @@ import { loggerPlugin } from './plugins/logger.js';
 
 // Route imports
 import { attendanceRoutes } from './routes/attendance.js';
-import { clientRoutes } from './routes/clients.js';
 import { deviceRoutes } from './routes/devices.js';
 import { employeeRoutes } from './routes/employees.js';
 import { jobPositionRoutes } from './routes/job-positions.js';
 import { locationRoutes } from './routes/locations.js';
 import { recognitionRoutes } from './routes/recognition.js';
+import { organizationRoutes } from './routes/organization.js';
 
 // Configure logger based on environment
 configureLogger({
@@ -56,12 +56,12 @@ const betterAuthView = (context: Context) => {
 const protectedRoutes = new Elysia({ name: 'protected-routes' })
 	.use(combinedAuthPlugin)
 	// Domain entity CRUD routes (all require authentication)
-	.use(clientRoutes)
 	.use(locationRoutes)
 	.use(jobPositionRoutes)
 	.use(employeeRoutes)
 	.use(deviceRoutes)
 	.use(attendanceRoutes)
+	.use(organizationRoutes)
 	// Face recognition routes (requires authentication)
 	.use(recognitionRoutes);
 

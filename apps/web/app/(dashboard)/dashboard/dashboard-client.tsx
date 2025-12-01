@@ -4,10 +4,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Skeleton } from '@/components/ui/skeleton';
 import { queryKeys } from '@/lib/query-keys';
 import { fetchDashboardCounts, type DashboardCounts } from '@/lib/client-functions';
-import { ArrowRight, Building2, ClipboardList, MapPin, Smartphone, Users } from 'lucide-react';
+import { ArrowRight, Building, ClipboardList, MapPin, Smartphone, Users } from 'lucide-react';
 import Link from 'next/link';
 import React from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Entity count card configuration interface.
@@ -51,11 +52,11 @@ const entityCards: EntityCardConfig[] = [
 		key: 'locations',
 	},
 	{
-		title: 'Clients',
-		description: 'Manage client organizations',
-		href: '/clients',
-		icon: Building2,
-		key: 'clients',
+		title: 'Organizations',
+		description: 'Manage BetterAuth organizations',
+		href: '/organizations',
+		icon: Building,
+		key: 'organizations',
 	},
 	{
 		title: 'Attendance',
@@ -76,9 +77,10 @@ const entityCards: EntityCardConfig[] = [
  * @returns The dashboard page JSX element
  */
 export function DashboardPageClient(): React.ReactElement {
+	const { organizationId } = useOrgContext();
 	const { data: counts, isFetching } = useSuspenseQuery({
-		queryKey: queryKeys.dashboard.counts(),
-		queryFn: fetchDashboardCounts,
+		queryKey: queryKeys.dashboard.counts(organizationId),
+		queryFn: () => fetchDashboardCounts({ organizationId }),
 	});
 
 	return (
@@ -118,4 +120,3 @@ export function DashboardPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

@@ -3,6 +3,7 @@
 import React, { type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { ThemeProvider } from '@/components/theme-provider';
 import { getQueryClient } from '@/lib/get-query-client';
 
 /**
@@ -49,12 +50,13 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
 	const queryClient = getQueryClient();
 
 	return (
-		<QueryClientProvider client={queryClient}>
-			{children}
-			{process.env.NODE_ENV === 'development' && (
-				<ReactQueryDevtools initialIsOpen={false} />
-			)}
-		</QueryClientProvider>
+		<ThemeProvider defaultTheme="system" enableSystem>
+			<QueryClientProvider client={queryClient}>
+				{children}
+				{process.env.NODE_ENV === 'development' && (
+					<ReactQueryDevtools initialIsOpen={false} />
+				)}
+			</QueryClientProvider>
+		</ThemeProvider>
 	);
 }
-

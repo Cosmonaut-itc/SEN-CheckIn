@@ -4,18 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signUp } from '@/lib/auth-client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { User, Mail, Lock, ShieldCheck } from 'lucide-react';
 import {
 	Card,
 	CardContent,
-	CardDescription,
 	CardFooter,
-	CardHeader,
-	CardTitle,
 } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
+import { useAppForm } from '@/lib/forms';
 
 /**
  * Sign Up page component.
@@ -26,13 +22,43 @@ import { Loader2 } from 'lucide-react';
  */
 export default function SignUpPage(): React.ReactElement {
 	const router = useRouter();
-	const [name, setName] = useState<string>('');
-	const [email, setEmail] = useState<string>('');
-	const [password, setPassword] = useState<string>('');
-	const [confirmPassword, setConfirmPassword] = useState<string>('');
 	const [error, setError] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState<boolean>(false);
 	const isProduction = process.env.NODE_ENV === 'production';
+
+	const form = useAppForm({
+		defaultValues: {
+			name: '',
+			email: '',
+			password: '',
+			confirmPassword: '',
+		},
+		onSubmit: async ({ value }) => {
+			setError(null);
+
+			if (value.password !== value.confirmPassword) {
+				setError('Passwords do not match');
+				return;
+			}
+
+			if (value.password.length < 8) {
+				setError('Password must be at least 8 characters');
+				return;
+			}
+
+			const result = await signUp.email({
+				name: value.name,
+				email: value.email,
+				password: value.password,
+			});
+
+			if (result.error) {
+				setError(result.error.message ?? 'Failed to create account');
+				return;
+			}
+
+			router.push('/dashboard');
+		},
+	});
 
 	/**
 	 * Check environment on mount to handle production redirect.
@@ -49,43 +75,10 @@ export default function SignUpPage(): React.ReactElement {
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
+	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
 		e.preventDefault();
-		setError(null);
-
-		// Validate passwords match
-		if (password !== confirmPassword) {
-			setError('Passwords do not match');
-			return;
-		}
-
-		// Validate password strength
-		if (password.length < 8) {
-			setError('Password must be at least 8 characters');
-			return;
-		}
-
-		setIsLoading(true);
-
-		try {
-			const result = await signUp.email({
-				name,
-				email,
-				password,
-			});
-
-			if (result.error) {
-				setError(result.error.message ?? 'Failed to create account');
-				setIsLoading(false);
-				return;
-			}
-
-			router.push('/dashboard');
-		} catch (err) {
-			console.error('Failed to sign up', err);
-			setError('An unexpected error occurred');
-			setIsLoading(false);
-		}
+		e.stopPropagation();
+		form.handleSubmit();
 	};
 
 	// Don't render in production
@@ -98,95 +91,98 @@ export default function SignUpPage(): React.ReactElement {
 	}
 
 	return (
-		<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
-			<CardHeader className="space-y-1">
-				<CardTitle className="text-2xl font-bold tracking-tight">
-					Create Account
-				</CardTitle>
-				<CardDescription>
-					Register a new admin account (development only)
-				</CardDescription>
-			</CardHeader>
-			<form onSubmit={handleSubmit}>
-				<CardContent className="space-y-4">
-					{error && (
-						<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-							{error}
-						</div>
-					)}
-					<div className="space-y-2">
-						<Label htmlFor="name">Name</Label>
-						<Input
-							id="name"
-							type="text"
-							placeholder="John Doe"
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							required
-							disabled={isLoading}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="email">Email</Label>
-						<Input
-							id="email"
-							type="email"
-							placeholder="admin@example.com"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
-							disabled={isLoading}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="password">Password</Label>
-						<Input
-							id="password"
-							type="password"
-							placeholder="••••••••"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							required
-							disabled={isLoading}
-							minLength={8}
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label htmlFor="confirmPassword">Confirm Password</Label>
-						<Input
-							id="confirmPassword"
-							type="password"
-							placeholder="••••••••"
-							value={confirmPassword}
-							onChange={(e) => setConfirmPassword(e.target.value)}
-							required
-							disabled={isLoading}
-							minLength={8}
-						/>
-					</div>
-				</CardContent>
-				<CardFooter className="flex flex-col gap-4">
-					<Button type="submit" className="w-full" disabled={isLoading}>
-						{isLoading ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Creating account...
-							</>
-						) : (
-							'Create Account'
+		<div className="flex flex-col gap-6 w-full max-w-sm mx-auto">
+			<div className="flex flex-col items-center gap-2 text-center">
+				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+					<ShieldCheck className="h-6 w-6" />
+				</div>
+				<h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
+				<p className="text-balance text-sm text-muted-foreground">
+					Enter your details below to create your admin account
+				</p>
+			</div>
+			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+				<form onSubmit={handleSubmit}>
+					<CardContent className="space-y-4 pt-6">
+						{error && (
+							<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+								{error}
+							</div>
 						)}
-					</Button>
-					<p className="text-center text-sm text-muted-foreground">
-						Already have an account?{' '}
-						<Link
-							href="/sign-in"
-							className="text-primary underline-offset-4 hover:underline"
-						>
-							Sign in
-						</Link>
-					</p>
-				</CardFooter>
-			</form>
-		</Card>
+						<div className="space-y-4">
+							<form.AppField
+								name="name"
+								validators={{ onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined) }}
+							>
+								{(field) => (
+									<field.TextField
+										label="Name"
+										placeholder="John Doe"
+										orientation="vertical"
+										startIcon={User}
+									/>
+								)}
+							</form.AppField>
+							<form.AppField
+								name="email"
+								validators={{ onChange: ({ value }) => (!value.trim() ? 'Email is required' : undefined) }}
+							>
+								{(field) => (
+									<field.TextField
+										label="Email"
+										type="email"
+										placeholder="admin@example.com"
+										orientation="vertical"
+										startIcon={Mail}
+									/>
+								)}
+							</form.AppField>
+							<form.AppField
+								name="password"
+								validators={{ onChange: ({ value }) => (!value.trim() ? 'Password is required' : undefined) }}
+							>
+								{(field) => (
+									<field.TextField
+										label="Password"
+										type="password"
+										placeholder="••••••••"
+										orientation="vertical"
+										startIcon={Lock}
+									/>
+								)}
+							</form.AppField>
+							<form.AppField
+								name="confirmPassword"
+								validators={{ onChange: ({ value }) => (!value.trim() ? 'Confirm password is required' : undefined) }}
+							>
+								{(field) => (
+									<field.TextField
+										label="Confirm Password"
+										type="password"
+										placeholder="••••••••"
+										orientation="vertical"
+										startIcon={Lock}
+									/>
+								)}
+							</form.AppField>
+						</div>
+					</CardContent>
+					<CardFooter className="flex flex-col gap-4 pb-6 mt-6">
+						<form.AppForm>
+							<form.SubmitButton label="Create Account" loadingLabel="Creating account..." className="w-full" />
+						</form.AppForm>
+						<p className="text-center text-sm text-muted-foreground">
+							Already have an account?{' '}
+							<Link
+								href="/sign-in"
+								className="text-primary underline-offset-4 hover:underline"
+							>
+								Sign in
+							</Link>
+						</p>
+					</CardFooter>
+				</form>
+			</Card>
+		</div>
 	);
 }

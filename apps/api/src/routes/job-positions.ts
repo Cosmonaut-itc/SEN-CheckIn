@@ -1,8 +1,10 @@
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { jobPosition, client } from '../db/schema.js';
+import { jobPosition, organization } from '../db/schema.js';
+import { combinedAuthPlugin } from '../plugins/auth.js';
+import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
 	idParamSchema,
 	jobPositionQuerySchema,
@@ -21,33 +23,66 @@ import {
  * Job Position routes plugin for Elysia.
  */
 export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
+	.use(combinedAuthPlugin)
 	/**
-	 * List all job positions with pagination and optional client filter.
+	 * List all job positions with pagination and optional filters.
 	 *
 	 * @route GET /job-positions
 	 * @param query.limit - Maximum number of results (default: 50)
 	 * @param query.offset - Number of results to skip (default: 0)
-	 * @param query.clientId - Filter by client ID (optional)
+	 * @param query.organizationId - Filter by organization ID (optional)
+	 * @param query.search - Search by name or description (optional)
 	 * @returns Array of job position records
 	 */
 	.get(
 		'/',
-		async ({ query }) => {
-			const { limit, offset, clientId } = query;
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { limit, offset, organizationId: organizationIdQuery, search } = query;
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			// Build conditions array
+			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
+				eq(jobPosition.organizationId, organizationId),
+			];
+			if (search) {
+				const searchClause = or(
+					ilike(jobPosition.name, `%${search}%`),
+					ilike(jobPosition.description, `%${search}%`),
+				)!;
+				conditions.push(searchClause);
+			}
 
 			let baseQuery = db.select().from(jobPosition);
 
-			if (clientId) {
-				baseQuery = baseQuery.where(eq(jobPosition.clientId, clientId)) as typeof baseQuery;
-			}
+			const whereClause = and(...conditions)!;
+			baseQuery = baseQuery.where(whereClause) as typeof baseQuery;
 
 			const results = await baseQuery.limit(limit).offset(offset).orderBy(jobPosition.name);
 
-			// Get total count
+			// Get total count with same conditions
 			let countQuery = db.select().from(jobPosition);
-			if (clientId) {
-				countQuery = countQuery.where(eq(jobPosition.clientId, clientId)) as typeof countQuery;
-			}
+			const countWhere = and(...conditions)!;
+			countQuery = countQuery.where(countWhere) as typeof countQuery;
 			const countResult = await countQuery;
 			const total = countResult.length;
 
@@ -71,19 +106,37 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 *
 	 * @route GET /job-positions/:id
 	 * @param id - Job position UUID
-	 * @returns Job position record or 404 error
+	 * @returns Job position record or 404/403 error
 	 */
 	.get(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
-			const results = await db.select().from(jobPosition).where(eq(jobPosition.id, id)).limit(1);
+			const results = await db
+				.select()
+				.from(jobPosition)
+				.where(eq(jobPosition.id, id))
+				.limit(1);
 
 			const record = results[0];
 			if (!record) {
 				set.status = 404;
 				return { error: 'Job position not found' };
+			}
+
+			// Enforce organization scoping
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this job position' };
 			}
 
 			return { data: record };
@@ -99,20 +152,45 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 * @route POST /job-positions
 	 * @param body.name - Position name
 	 * @param body.description - Position description (optional)
-	 * @param body.clientId - Client ID this position belongs to
+	 * @param body.organizationId - Organization ID this position belongs to
 	 * @returns Created job position record
 	 */
 	.post(
 		'/',
-		async ({ body, set }) => {
-			const { name, description, clientId } = body;
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { name, description, organizationId: organizationIdInput } = body;
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdInput ?? null,
+			});
 
-			// Verify client exists
-			const clientExists = await db.select().from(client).where(eq(client.id, clientId)).limit(1);
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
 
-			if (!clientExists[0]) {
+			// Verify organization exists
+			const organizationExists = await db
+				.select()
+				.from(organization)
+				.where(eq(organization.id, organizationId))
+				.limit(1);
+
+			if (!organizationExists[0]) {
 				set.status = 400;
-				return { error: 'Client not found' };
+				return { error: 'Organization not found' };
 			}
 
 			const id = crypto.randomUUID();
@@ -121,7 +199,8 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				id,
 				name,
 				description: description ?? null,
-				clientId,
+				organizationId,
+				clientId: null,
 			};
 
 			await db.insert(jobPosition).values(newPosition);
@@ -150,15 +229,55 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set }) => {
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if position exists
-			const existing = await db.select().from(jobPosition).where(eq(jobPosition.id, id)).limit(1);
+			const existing = await db
+				.select()
+				.from(jobPosition)
+				.where(eq(jobPosition.id, id))
+				.limit(1);
 
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Job position not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this job position' };
+			}
+
+			const resolvedOrganizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: existing[0].organizationId,
+			});
+
+			if (!resolvedOrganizationId) {
+				set.status = 403;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Only update if there are fields to update
@@ -169,7 +288,11 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			await db.update(jobPosition).set(body).where(eq(jobPosition.id, id));
 
 			// Fetch updated record
-			const updated = await db.select().from(jobPosition).where(eq(jobPosition.id, id)).limit(1);
+			const updated = await db
+				.select()
+				.from(jobPosition)
+				.where(eq(jobPosition.id, id))
+				.limit(1);
 
 			return { data: updated[0] };
 		},
@@ -188,15 +311,32 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set }) => {
+		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
 			const { id } = params;
 
 			// Check if position exists
-			const existing = await db.select().from(jobPosition).where(eq(jobPosition.id, id)).limit(1);
+			const existing = await db
+				.select()
+				.from(jobPosition)
+				.where(eq(jobPosition.id, id))
+				.limit(1);
 
 			if (!existing[0]) {
 				set.status = 404;
 				return { error: 'Job position not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existing[0].organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this job position' };
 			}
 
 			await db.delete(jobPosition).where(eq(jobPosition.id, id));
@@ -207,4 +347,3 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			params: idParamSchema,
 		},
 	);
-

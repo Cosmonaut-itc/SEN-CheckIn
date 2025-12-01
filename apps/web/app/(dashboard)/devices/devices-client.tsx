@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -21,42 +22,34 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchDevicesList, type Device, type DeviceStatus } from '@/lib/client-functions';
+import {
+	fetchDevicesList,
+	fetchLocationsList,
+	type Device,
+	type DeviceStatus,
+	type Location,
+} from '@/lib/client-functions';
 import { createDevice, updateDevice, deleteDevice } from '@/actions/devices';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
- * Form data interface for creating/editing devices.
+ * Form values for creating/editing devices.
  */
-interface DeviceFormData {
+interface DeviceFormValues {
 	code: string;
 	name: string;
 	deviceType: string;
 	status: DeviceStatus;
+	locationId: string;
 }
 
-/**
- * Initial empty form data.
- */
-const initialFormData: DeviceFormData = {
-	code: '',
-	name: '',
-	deviceType: '',
-	status: 'OFFLINE',
-};
+const NONE_LOCATION_VALUE = '__none__';
 
 /**
  * Status badge variant mapping.
@@ -75,22 +68,49 @@ const statusVariants: Record<DeviceStatus, 'default' | 'secondary' | 'destructiv
  */
 export function DevicesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { organizationId } = useOrgContext();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingDevice, setEditingDevice] = useState<Device | null>(null);
-	const [formData, setFormData] = useState<DeviceFormData>(initialFormData);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
 	// Build query params - only include search if it has a value
-	const queryParams = search
-		? { search, limit: 100, offset: 0 }
-		: { limit: 100, offset: 0 };
+	const baseParams = { limit: 100, offset: 0, organizationId };
+	const queryParams = search ? { ...baseParams, search } : baseParams;
 
 	// Query for devices list
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.devices.list(queryParams),
 		queryFn: () => fetchDevicesList(queryParams),
+		enabled: Boolean(organizationId),
 	});
+
+	// Locations for select options
+	const { data: locationsData } = useQuery({
+		queryKey: queryKeys.locations.list(baseParams),
+		queryFn: () => fetchLocationsList(baseParams),
+		enabled: Boolean(organizationId),
+	});
+
+	const locations = useMemo(
+		() => (locationsData?.data ?? []) as Location[],
+		[locationsData],
+	);
+	const locationOptions = useMemo(
+		() => [
+			{ value: NONE_LOCATION_VALUE, label: 'No location' },
+			...locations.map((loc) => ({
+				value: loc.id,
+				label: loc.name || loc.code,
+			})),
+		],
+		[locations],
+	);
+
+	const locationLookup = useMemo(
+		() => new Map(locations.map((loc) => [loc.id, loc.name ?? loc.code])),
+		[locations],
+	);
 
 	const devices = data?.data ?? [];
 
@@ -148,58 +168,95 @@ export function DevicesPageClient(): React.ReactElement {
 		},
 	});
 
-	const isSubmitting = createMutation.isPending || updateMutation.isPending;
+// TanStack Form instance (after mutations to avoid TDZ)
+const form = useAppForm({
+	defaultValues: {
+		code: '',
+		name: '',
+		deviceType: '',
+		status: 'OFFLINE',
+		locationId: NONE_LOCATION_VALUE,
+	},
+	onSubmit: async ({ value }: { value: DeviceFormValues }) => {
+		const locationId =
+			value.locationId && value.locationId !== NONE_LOCATION_VALUE
+				? value.locationId
+				: undefined;
+		if (editingDevice) {
+			await updateMutation.mutateAsync({
+				id: editingDevice.id,
+				code: value.code,
+				name: value.name || undefined,
+				deviceType: value.deviceType || undefined,
+				status: value.status,
+				locationId,
+			});
+		} else {
+			await createMutation.mutateAsync({
+				code: value.code,
+				name: value.name || undefined,
+				deviceType: value.deviceType || undefined,
+				status: value.status,
+				locationId,
+			});
+		}
+		setIsDialogOpen(false);
+		setEditingDevice(null);
+		form.reset();
+	},
+});
 
 	/**
 	 * Opens the dialog for creating a new device.
 	 */
-	const handleCreateNew = (): void => {
+	const handleCreateNew = useCallback((): void => {
 		setEditingDevice(null);
-		setFormData(initialFormData);
+		form.reset();
 		setIsDialogOpen(true);
-	};
+	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing device.
 	 *
 	 * @param device - The device to edit
 	 */
-	const handleEdit = (device: Device): void => {
-		setEditingDevice(device);
-		setFormData({
-			code: device.code,
-			name: device.name ?? '',
-			deviceType: device.deviceType ?? '',
-			status: device.status,
-		});
-		setIsDialogOpen(true);
-	};
+	const handleEdit = useCallback(
+		(device: Device): void => {
+			setEditingDevice(device);
+			form.setFieldValue('code', device.code);
+			form.setFieldValue('name', device.name ?? '');
+			form.setFieldValue('deviceType', device.deviceType ?? '');
+			form.setFieldValue('status', device.status);
+			form.setFieldValue('locationId', device.locationId ?? NONE_LOCATION_VALUE);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles form submission for creating or updating a device.
 	 *
 	 * @param e - The form submission event
 	 */
-	const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
-		e.preventDefault();
+	const handleSubmit = useCallback(
+		(e: React.FormEvent<HTMLFormElement>): void => {
+			e.preventDefault();
+			e.stopPropagation();
+			form.handleSubmit();
+		},
+		[form],
+	);
 
-		if (editingDevice) {
-			updateMutation.mutate({
-				id: editingDevice.id,
-				code: formData.code,
-				name: formData.name || undefined,
-				deviceType: formData.deviceType || undefined,
-				status: formData.status,
-			});
-		} else {
-			createMutation.mutate({
-				code: formData.code,
-				name: formData.name || undefined,
-				deviceType: formData.deviceType || undefined,
-				status: formData.status,
-			});
-		}
-	};
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingDevice(null);
+				form.reset();
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles device deletion.
@@ -219,11 +276,11 @@ export function DevicesPageClient(): React.ReactElement {
 						Manage check-in kiosks and devices
 					</p>
 				</div>
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							Add Device
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<DialogTrigger asChild>
+				<Button onClick={handleCreateNew}>
+					<Plus className="mr-2 h-4 w-4" />
+					Add Device
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
@@ -238,84 +295,57 @@ export function DevicesPageClient(): React.ReactElement {
 										: 'Fill in the details to create a new device.'}
 								</DialogDescription>
 							</DialogHeader>
-							<div className="grid gap-4 py-4">
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="code" className="text-right">
-										Code
-									</Label>
-									<Input
-										id="code"
-										value={formData.code}
-										onChange={(e) =>
-											setFormData({ ...formData, code: e.target.value })
-										}
-										className="col-span-3"
-										required
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="name" className="text-right">
-										Name
-									</Label>
-									<Input
-										id="name"
-										value={formData.name}
-										onChange={(e) =>
-											setFormData({ ...formData, name: e.target.value })
-										}
-										className="col-span-3"
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="deviceType" className="text-right">
-										Type
-									</Label>
-									<Input
-										id="deviceType"
-										value={formData.deviceType}
-										onChange={(e) =>
-											setFormData({ ...formData, deviceType: e.target.value })
-										}
-										className="col-span-3"
-										placeholder="TABLET, KIOSK, MOBILE"
-									/>
-								</div>
-								<div className="grid grid-cols-4 items-center gap-4">
-									<Label htmlFor="status" className="text-right">
-										Status
-									</Label>
-									<Select
-										value={formData.status}
-										onValueChange={(value: DeviceStatus) =>
-											setFormData({ ...formData, status: value })
-										}
-									>
-										<SelectTrigger className="col-span-3">
-											<SelectValue placeholder="Select status" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="ONLINE">Online</SelectItem>
-											<SelectItem value="OFFLINE">Offline</SelectItem>
-											<SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-							</div>
-							<DialogFooter>
-								<Button type="submit" disabled={isSubmitting}>
-									{isSubmitting ? (
-										<>
-											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-											Saving...
-										</>
-									) : (
-										'Save'
-									)}
-								</Button>
-							</DialogFooter>
-						</form>
-					</DialogContent>
-				</Dialog>
+					<div className="grid gap-4 py-4">
+						<form.AppField
+							name="code"
+							validators={{
+								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
+							}}
+						>
+							{(field) => <field.TextField label="Code" />}
+						</form.AppField>
+						<form.AppField name="name">
+							{(field) => <field.TextField label="Name" placeholder="Optional" />}
+						</form.AppField>
+						<form.AppField name="deviceType">
+							{(field) => <field.TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />}
+						</form.AppField>
+						<form.AppField
+							name="status"
+							validators={{
+								onChange: ({ value }) => (!value ? 'Status is required' : undefined),
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label="Status"
+									options={[
+										{ value: 'ONLINE', label: 'Online' },
+										{ value: 'OFFLINE', label: 'Offline' },
+										{ value: 'MAINTENANCE', label: 'Maintenance' },
+									]}
+									placeholder="Select status"
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="locationId">
+							{(field) => (
+								<field.SelectField
+									label="Location"
+									options={locationOptions}
+									placeholder="Select location (optional)"
+								/>
+							)}
+						</form.AppField>
+					</div>
+					<DialogFooter>
+						<form.AppForm>
+							<form.SubmitButton label="Save" loadingLabel="Saving..." />
+						</form.AppForm>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 			</div>
 
 			<div className="flex items-center gap-4">
@@ -337,6 +367,7 @@ export function DevicesPageClient(): React.ReactElement {
 							<TableHead>Code</TableHead>
 							<TableHead>Name</TableHead>
 							<TableHead>Type</TableHead>
+							<TableHead>Location</TableHead>
 							<TableHead>Status</TableHead>
 							<TableHead>Last Heartbeat</TableHead>
 							<TableHead>Created</TableHead>
@@ -366,6 +397,11 @@ export function DevicesPageClient(): React.ReactElement {
 									<TableCell className="font-medium">{device.code}</TableCell>
 									<TableCell>{device.name ?? '-'}</TableCell>
 									<TableCell>{device.deviceType ?? '-'}</TableCell>
+									<TableCell>
+										{device.locationId
+											? locationLookup.get(device.locationId) ?? device.locationId
+											: '-'}
+									</TableCell>
 									<TableCell>
 										<Badge variant={statusVariants[device.status]}>
 											{device.status}
@@ -434,4 +470,3 @@ export function DevicesPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

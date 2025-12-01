@@ -34,6 +34,14 @@ export interface AttendanceQueryParams extends ListQueryParams {
 }
 
 /**
+ * Query parameters for job positions list.
+ */
+export interface JobPositionQueryParams extends ListQueryParams {
+	/** Filter by organization ID (optional for API key usage) */
+	organizationId?: string;
+}
+
+/**
  * Query parameters for users list.
  */
 export interface UsersQueryParams {
@@ -43,6 +51,13 @@ export interface UsersQueryParams {
 	offset?: number;
 	/** Index signature for compatibility with Record<string, unknown> */
 	[key: string]: unknown;
+}
+
+/**
+ * Query parameters for organization members.
+ */
+export interface OrganizationMembersQueryParams extends UsersQueryParams {
+	organizationId?: string | null;
 }
 
 /**
@@ -74,10 +89,7 @@ export interface UsersQueryParams {
 export function queryKeyConstructor<
 	TKey extends string | readonly string[],
 	TParams extends Record<string, unknown> | undefined = undefined,
->(
-	qk: TKey,
-	params?: TParams,
-): readonly unknown[] {
+>(qk: TKey, params?: TParams): readonly unknown[] {
 	const baseKey = typeof qk === 'string' ? [qk] : [...qk];
 
 	if (params === undefined) {
@@ -167,22 +179,22 @@ export const queryKeys = {
 	},
 
 	/**
-	 * Query keys for client-related queries.
+	 * Query keys for job position-related queries.
 	 */
-	clients: {
-		/** Base key for all client queries */
-		all: ['clients'] as const,
+	jobPositions: {
+		/** Base key for all job position queries */
+		all: ['jobPositions'] as const,
 		/**
-		 * Generates a query key for the clients list.
-		 * @param params - Optional list query parameters
+		 * Generates a query key for the job positions list.
+		 * @param params - Optional job position query parameters
 		 */
-		list: (params?: ListQueryParams) =>
-			queryKeyConstructor(['clients', 'list'] as const, params),
+		list: (params?: JobPositionQueryParams) =>
+			queryKeyConstructor(['jobPositions', 'list'] as const, params),
 		/**
-		 * Generates a query key for a specific client.
-		 * @param id - The client ID
+		 * Generates a query key for a specific job position.
+		 * @param id - The job position ID
 		 */
-		detail: (id: string) => ['clients', 'detail', id] as const,
+		detail: (id: string) => ['jobPositions', 'detail', id] as const,
 	},
 
 	/**
@@ -208,7 +220,10 @@ export const queryKeys = {
 		/**
 		 * Generates a query key for dashboard entity counts.
 		 */
-		counts: () => ['dashboard', 'counts'] as const,
+		counts: (organizationId?: string | null) =>
+			queryKeyConstructor(['dashboard', 'counts'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
 	},
 
 	/**
@@ -257,6 +272,15 @@ export const queryKeys = {
 		 * @param id - The user ID
 		 */
 		detail: (id: string) => ['users', 'detail', id] as const,
+	},
+
+	/**
+	 * Query keys for organization member-related queries.
+	 */
+	organizationMembers: {
+		all: ['organizationMembers'] as const,
+		list: (params?: OrganizationMembersQueryParams) =>
+			queryKeyConstructor(['organizationMembers', 'list'] as const, params),
 	},
 } as const;
 
@@ -307,12 +331,12 @@ export const mutationKeys = {
 	},
 
 	/**
-	 * Mutation keys for client operations.
+	 * Mutation keys for job position operations.
 	 */
-	clients: {
-		create: ['clients', 'create'] as const,
-		update: ['clients', 'update'] as const,
-		delete: ['clients', 'delete'] as const,
+	jobPositions: {
+		create: ['jobPositions', 'create'] as const,
+		update: ['jobPositions', 'update'] as const,
+		delete: ['jobPositions', 'delete'] as const,
 	},
 
 	/**
@@ -328,6 +352,7 @@ export const mutationKeys = {
 	 */
 	organizations: {
 		create: ['organizations', 'create'] as const,
+		update: ['organizations', 'update'] as const,
 		delete: ['organizations', 'delete'] as const,
 	},
 
@@ -339,5 +364,11 @@ export const mutationKeys = {
 		ban: ['users', 'ban'] as const,
 		unban: ['users', 'unban'] as const,
 	},
-} as const;
 
+	/**
+	 * Mutation keys for organization member operations.
+	 */
+	organizationMembers: {
+		create: ['organizationMembers', 'create'] as const,
+	},
+} as const;

@@ -4,6 +4,7 @@ import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import db from '../db/index.js';
 import { jobPosition, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
 	idParamSchema,
 	jobPositionQuerySchema,
@@ -35,16 +36,19 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.get(
 		'/',
-		async ({ query, authType, session, set }) => {
+		async ({ query, authType, session, set, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
 			const { limit, offset, organizationId: organizationIdQuery, search } = query;
-			const organizationId =
-				authType === 'session'
-					? (session?.activeOrganizationId ?? organizationIdQuery ?? null)
-					: (organizationIdQuery ?? null);
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
 
 			if (!organizationId) {
-				set.status = 400;
-				return { error: 'Organization is required' };
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Build conditions array
@@ -97,10 +101,8 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session }) => {
+		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
 			const { id } = params;
-			const activeOrgId =
-				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			const results = await db
 				.select()
@@ -114,11 +116,9 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				return { error: 'Job position not found' };
 			}
 
-			// Enforce organization scoping for session-based auth
+			// Enforce organization scoping
 			if (
-				activeOrgId &&
-				record.organizationId &&
-				record.organizationId !== activeOrgId
+				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, record.organizationId)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this job position' };
@@ -142,16 +142,19 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.post(
 		'/',
-		async ({ body, set, authType, session }) => {
+		async ({ body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
 			const { name, description, organizationId: organizationIdInput } = body;
-			const organizationId =
-				authType === 'session'
-					? (session?.activeOrganizationId ?? organizationIdInput ?? null)
-					: (organizationIdInput ?? null);
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdInput ?? null,
+			});
 
 			if (!organizationId) {
-				set.status = 400;
-				return { error: 'Organization is required' };
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Verify organization exists
@@ -202,10 +205,8 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set, authType, session }) => {
+		async ({ params, body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
 			const { id } = params;
-			const activeOrgId =
-				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if position exists
 			const existing = await db
@@ -220,12 +221,23 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			if (
-				activeOrgId &&
-				existing[0].organizationId &&
-				existing[0].organizationId !== activeOrgId
+				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this job position' };
+			}
+
+			const resolvedOrganizationId = resolveOrganizationId({
+				authType,
+				session,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: existing[0].organizationId,
+			});
+
+			if (!resolvedOrganizationId) {
+				set.status = 403;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Only update if there are fields to update
@@ -259,10 +271,8 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session }) => {
+		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
 			const { id } = params;
-			const activeOrgId =
-				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if position exists
 			const existing = await db
@@ -277,9 +287,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			if (
-				activeOrgId &&
-				existing[0].organizationId &&
-				existing[0].organizationId !== activeOrgId
+				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this job position' };

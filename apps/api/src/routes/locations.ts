@@ -4,6 +4,7 @@ import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import db from '../db/index.js';
 import { location, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
 	idParamSchema,
 	locationQuerySchema,
@@ -34,16 +35,19 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.get(
 		'/',
-		async ({ query, authType, session, set }) => {
+		async ({ query, authType, session, set, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
 			const { limit, offset, organizationId: organizationIdQuery, search } = query;
-			const organizationId =
-				authType === 'session'
-					? (session?.activeOrganizationId ?? organizationIdQuery ?? null)
-					: (organizationIdQuery ?? null);
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
 
 			if (!organizationId) {
-				set.status = 400;
-				return { error: 'Organization is required' };
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			let baseQuery = db.select().from(location);
@@ -95,10 +99,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session }) => {
+		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
 			const { id } = params;
-			const activeOrgId =
-				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			const results = await db.select().from(location).where(eq(location.id, id)).limit(1);
 
@@ -108,11 +110,9 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				return { error: 'Location not found' };
 			}
 
-			// Enforce organization scoping for session-based auth
+			// Enforce organization scoping
 			if (
-				activeOrgId &&
-				record.organizationId &&
-				record.organizationId !== activeOrgId
+				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, record.organizationId)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this location' };
@@ -137,16 +137,19 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.post(
 		'/',
-		async ({ body, set, authType, session }) => {
+		async ({ body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
 			const { name, code, address, organizationId: organizationIdInput } = body;
-			const organizationId =
-				authType === 'session'
-					? (session?.activeOrganizationId ?? organizationIdInput ?? null)
-					: (organizationIdInput ?? null);
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdInput ?? null,
+			});
 
 			if (!organizationId) {
-				set.status = 400;
-				return { error: 'Organization is required' };
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Verify organization exists
@@ -210,10 +213,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.put(
 		'/:id',
-		async ({ params, body, set, authType, session }) => {
+		async ({ params, body, set, authType, session, apiKeyOrganizationId, apiKeyOrganizationIds }) => {
 			const { id } = params;
-			const activeOrgId =
-				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if location exists
 			const existing = await db.select().from(location).where(eq(location.id, id)).limit(1);
@@ -224,12 +225,23 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			}
 
 			if (
-				activeOrgId &&
-				existing[0].organizationId &&
-				existing[0].organizationId !== activeOrgId
+				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this location' };
+			}
+
+			const resolvedOrganizationId = resolveOrganizationId({
+				authType,
+				session,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: existing[0].organizationId,
+			});
+
+			if (!resolvedOrganizationId) {
+				set.status = 403;
+				return { error: 'Organization is required or not permitted' };
 			}
 
 			// Check if code is unique (if being updated)
@@ -273,10 +285,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session }) => {
+		async ({ params, set, authType, session, apiKeyOrganizationIds }) => {
 			const { id } = params;
-			const activeOrgId =
-				authType === 'session' ? (session?.activeOrganizationId ?? null) : null;
 
 			// Check if location exists
 			const existing = await db.select().from(location).where(eq(location.id, id)).limit(1);
@@ -287,9 +297,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			}
 
 			if (
-				activeOrgId &&
-				existing[0].organizationId &&
-				existing[0].organizationId !== activeOrgId
+				!hasOrganizationAccess(authType, session, apiKeyOrganizationIds, existing[0].organizationId)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this location' };

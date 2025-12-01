@@ -29,6 +29,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 		'/api-keys',
 		'/users',
 		'/organizations',
+		'/job-positions',
 	];
 
 	// Redirect authenticated users away from auth pages to dashboard
@@ -63,5 +64,6 @@ export const config = {
 		'/api-keys/:path*',
 		'/users/:path*',
 		'/organizations/:path*',
+		'/job-positions/:path*',
 	],
 };

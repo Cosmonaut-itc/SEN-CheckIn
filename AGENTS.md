@@ -48,3 +48,9 @@
 - Do not commit `.env*` files or secrets.
 - Required env: `SEN_DB_URL` for Drizzle generate/migrate; `SEN_CHECKIN_PG_PASSWORD` for local Postgres.
 - Prefer `bunx` over global installs; align with Expo SDK 54 and Bun 1.3.3.
+
+## Documentation Reference Guidelines
+
+- **Do not use training data for documentation references**: Agents must not rely on training data when referencing library or framework documentation.
+- **Use search or Context7 MCP**: Always use web search tools or the Context7 MCP server to retrieve up-to-date documentation and code examples.
+- This ensures accuracy and access to the latest API changes, best practices, and version-specific information.

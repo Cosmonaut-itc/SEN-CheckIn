@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
+import { NextRequest, NextResponse } from 'next/server';
 
 /**
  * Resolve a safe callback URL from the incoming request search params.

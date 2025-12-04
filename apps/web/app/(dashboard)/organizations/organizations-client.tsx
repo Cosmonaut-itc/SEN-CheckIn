@@ -1,18 +1,11 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm } from '@/lib/forms';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+	createOrganization,
+	deleteOrganization,
+	updateOrganization,
+} from '@/actions/organizations';
+import { Button } from '@/components/ui/button';
 import {
 	Dialog,
 	DialogContent,
@@ -22,17 +15,24 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
-import { AlertCircle, Edit, Plus, Search, Trash2, Users } from 'lucide-react';
-import { format } from 'date-fns';
-import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchOrganizations, type Organization } from '@/lib/client-functions';
 import {
-	createOrganization,
-	updateOrganization,
-	deleteOrganization,
-} from '@/actions/organizations';
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table';
+import { fetchOrganizations, type Organization } from '@/lib/client-functions';
+import { useAppForm } from '@/lib/forms';
+import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { Edit, Plus, Search, Trash2, Users } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Form values for creating organizations.
@@ -265,29 +265,6 @@ export function OrganizationsPageClient(): React.ReactElement {
 						</Button>
 					</DialogTrigger>
 				</div>
-
-				{hasNoOrganizations ? (
-					<div className="rounded-lg border border-dashed bg-muted/40 p-4">
-						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div className="flex items-start gap-3">
-								<AlertCircle className="mt-0.5 h-5 w-5 text-primary" />
-								<div className="space-y-1">
-									<p className="font-medium text-foreground">
-										Create an organization to access the dashboard.
-									</p>
-									<p className="text-sm text-muted-foreground">
-										You need at least one organization before using other sections. Create
-										your first one to continue.
-									</p>
-								</div>
-							</div>
-							<Button onClick={handleCreateNew} size="sm">
-								<Plus className="mr-2 h-4 w-4" />
-								Create organization
-							</Button>
-						</div>
-					</div>
-				) : null}
 
 			<div className="flex items-center gap-4">
 				<div className="relative flex-1 max-w-sm">

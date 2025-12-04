@@ -55,7 +55,7 @@ export function NoOrganizationState({
 								Once set, all dashboard data will be scoped to that organization.
 							</p>
 							<Button asChild>
-								<Link href="/dashboard/organizations">Go to organizations</Link>
+								<Link href="/organizations">Go to organizations</Link>
 							</Button>
 						</>
 					) : (

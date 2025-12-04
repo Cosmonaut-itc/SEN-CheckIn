@@ -1,4 +1,5 @@
 import React, { type ReactNode } from 'react';
+import { headers } from 'next/headers';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
 import { Separator } from '@/components/ui/separator';
@@ -17,6 +18,28 @@ interface DashboardLayoutProps {
 }
 
 /**
+ * Retrieves the pathname for the current request from Next.js headers.
+ *
+ * @returns The request pathname or an empty string when unavailable
+ */
+async function getRequestPathname(): Promise<string> {
+	const headerList = await headers();
+	const requestUrl = headerList.get('next-url');
+	const host = headerList.get('host') ?? 'localhost';
+	const protocol = headerList.get('x-forwarded-proto') ?? 'http';
+
+	if (!requestUrl) {
+		return '';
+	}
+
+	try {
+		return new URL(requestUrl, `${protocol}://${host}`).pathname;
+	} catch {
+		return '';
+	}
+}
+
+/**
  * Dashboard layout component with sidebar navigation.
  * Provides the main structure for all dashboard pages.
  *
@@ -30,9 +53,12 @@ export default async function DashboardLayout({
 	const fetchOptions = await getServerFetchOptions();
 	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
 	const userRole = sessionResult.data?.user?.role ?? 'user';
+	const pathname = await getRequestPathname();
+	const isOrganizationsRoute =
+		pathname === '/organizations' || pathname.startsWith('/organizations/');
 
 	const content =
-		orgContext.organizationId === null ? (
+		orgContext.organizationId === null && !isOrganizationsRoute ? (
 			<NoOrganizationState role={userRole} />
 		) : (
 			<OrgProvider value={orgContext}>{children}</OrgProvider>

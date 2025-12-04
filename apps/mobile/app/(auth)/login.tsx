@@ -3,9 +3,10 @@ import { useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Linking, Text, View } from 'react-native';
+import { Animated, Easing, Linking, Text, View } from 'react-native';
+import QRCode from 'react-qr-code';
 
-import { authClient } from '@/lib/auth-client';
+import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
 import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAuthContext } from '@/providers/auth-provider';
@@ -39,6 +40,13 @@ type AuthorizationPhase = 'requesting' | 'waiting' | 'approved' | 'denied' | 'ex
 interface AuthorizationStatus {
 	state: AuthorizationPhase;
 	message: string;
+}
+
+interface DeviceTokenResponse {
+	access_token: string;
+	expires_in?: number;
+	refresh_token?: string;
+	token_type?: string;
 }
 
 /**
@@ -97,10 +105,61 @@ function deriveErrorMessage(error: unknown): string {
 	return fetchError.body?.error_description ?? fetchError.message ?? 'Unexpected error';
 }
 
+/**
+ * Animated dots component for loading states.
+ */
+function AnimatedDots(): JSX.Element {
+	const [dots, setDots] = useState('');
+
+	useEffect(() => {
+		const interval = setInterval(() => {
+			setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
+		}, 400);
+		return () => clearInterval(interval);
+	}, []);
+
+	return <Text className="text-primary font-bold">{dots || '   '}</Text>;
+}
+
+/**
+ * Pulsing animation wrapper for approved state.
+ */
+function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Element {
+	const pulseAnim = useRef(new Animated.Value(1)).current;
+
+	useEffect(() => {
+		const pulse = Animated.loop(
+			Animated.sequence([
+				Animated.timing(pulseAnim, {
+					toValue: 1.05,
+					duration: 800,
+					easing: Easing.inOut(Easing.ease),
+					useNativeDriver: true,
+				}),
+				Animated.timing(pulseAnim, {
+					toValue: 1,
+					duration: 800,
+					easing: Easing.inOut(Easing.ease),
+					useNativeDriver: true,
+				}),
+			]),
+		);
+		pulse.start();
+		return () => pulse.stop();
+	}, [pulseAnim]);
+
+	return (
+		<Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+			{children}
+		</Animated.View>
+	);
+}
+
 export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
-	const { session, isLoading } = useAuthContext();
+	const { session, isLoading, setSession } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
+	const accentColor = '#6366f1';
 
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);
 	const [status, setStatus] = useState<AuthorizationStatus>({
@@ -117,6 +176,8 @@ export default function LoginScreen(): JSX.Element {
 		() => ['approved', 'denied', 'expired', 'error'].includes(status.state),
 		[status.state],
 	);
+
+	const isApproved = status.state === 'approved';
 
 	/**
 	 * Cancel any outstanding polling timers.
@@ -136,10 +197,9 @@ export default function LoginScreen(): JSX.Element {
 		if (!API_ENV_VALID) {
 			setStatus({
 				state: 'error',
-				message:
-					'Set EXPO_PUBLIC_API_URL to a reachable API host (e.g., http://10.0.2.2:3000 on Android emulator).',
+				message: 'API URL not configured',
 			});
-			setLastError('EXPO_PUBLIC_API_URL missing or invalid.');
+			setLastError('Set EXPO_PUBLIC_API_URL to a reachable API host.');
 			setHasRequestedOnce(true);
 			return;
 		}
@@ -197,12 +257,69 @@ export default function LoginScreen(): JSX.Element {
 			});
 
 			if (result.data) {
+				const tokenResponse = result.data as DeviceTokenResponse;
+				const accessToken = tokenResponse?.access_token;
+
+				if (!accessToken) {
+					setLastError('Device approved but access token missing.');
+					setStatus({
+						state: 'error',
+						message: 'Access token missing from response.',
+					});
+					return;
+				}
+
 				setStatus({
 					state: 'approved',
-					message: 'Device approved. Finalizing sign-in…',
+					message: 'Device approved!',
 				});
-				await authClient.getSession();
-				router.replace('/(main)/scanner');
+				setLastError(null);
+
+				// Store the access token for future API requests
+				await saveAccessToken(accessToken);
+
+				try {
+					console.log('[login] Device approved, establishing session with token');
+					const sessionResult = await refreshSession(accessToken);
+
+					console.log('[login] Session result:', {
+						hasData: !!sessionResult.data,
+						hasSession: !!sessionResult.data?.session,
+						hasUser: !!sessionResult.data?.user,
+						error: sessionResult.error,
+					});
+
+					if (sessionResult.error || !sessionResult.data?.session) {
+						console.warn('[login] Session establishment failed');
+						setLastError('Could not establish session. Please try again.');
+						setStatus({
+							state: 'error',
+							message: 'Session failed. Please refresh.',
+						});
+						return;
+					}
+
+					console.log('[login] Session established for user:', sessionResult.data.user?.name);
+
+					// Directly set the session in auth context - no server round-trip needed
+					// since we already have the valid session data
+					console.log('[login] Setting session in auth context');
+					setSession(sessionResult.data);
+					console.log('[login] Session set, navigating to scanner');
+
+					// Navigate after state is synced
+					setTimeout(() => {
+						router.replace('/(main)/scanner');
+					}, 300);
+				} catch (error) {
+					const message = deriveErrorMessage(error);
+					console.error('[login] Failed to establish session:', error);
+					setLastError(message);
+					setStatus({
+						state: 'error',
+						message: 'Session failed. Please refresh.',
+					});
+				}
 				return;
 			}
 
@@ -224,49 +341,45 @@ export default function LoginScreen(): JSX.Element {
 					setPollDelayMs(nextDelay);
 					setStatus({
 						state: 'waiting',
-						message: 'Server asked to slow down. Retrying…',
+						message: 'Slowing down, please wait…',
 					});
 					return;
 				}
 				case 'access_denied': {
 					setStatus({
 						state: 'denied',
-						message: 'Request denied. Generate a new code to try again.',
+						message: 'Request denied by administrator.',
 					});
 					return;
 				}
 				case 'expired_token': {
 					setStatus({
 						state: 'expired',
-						message: 'Code expired. Refresh to request a new one.',
+						message: 'Code expired. Please refresh.',
 					});
 					return;
 				}
 				default: {
-					const fallback =
-						errorBody.error_description ?? errorDetails?.message ?? 'Polling failed';
-					setLastError(fallback);
-					// Keep polling on transient/unknown errors until the code actually expires to allow the full window (e.g., 10 minutes).
+					// Keep polling on transient errors - don't show error banner
 					setStatus({
 						state: 'waiting',
-						message: 'Polling failed. Retrying…',
+						message: 'Connecting…',
 					});
 					setPollDelayMs((prev) => Math.min((prev || codeState.intervalMs) + 5000, 30000));
 				}
 			}
-		} catch (error) {
-			const message = deriveErrorMessage(error);
-			setLastError(message);
+		} catch {
+			// Network errors - keep polling silently
 			setStatus({
 				state: 'waiting',
-				message: 'Polling failed. Retrying…',
+				message: 'Reconnecting…',
 			});
 			setPollDelayMs((prev) => {
 				const base = codeState?.intervalMs ?? prev ?? 5000;
 				return Math.min(base + 5000, 30000);
 			});
 		}
-	}, [codeState, router]);
+	}, [codeState, setSession, router]);
 
 	// Start polling whenever we have a code and the state is still waiting/requesting.
 	useEffect(() => {
@@ -304,125 +417,194 @@ export default function LoginScreen(): JSX.Element {
 		router.replace('/(main)/scanner');
 	}, [router, updateLocalSettings]);
 
-	const verificationLinkLabel = useMemo(
-		() => {
-			const fallback = 'https://sen-checkin.app/device';
-			const apiLink =
-				codeState?.verificationUriComplete ?? codeState?.verificationUri ?? fallback;
+	const verificationUrl = useMemo(() => {
+		if (ENV.webVerifyUrl && codeState?.userCode) {
+			const base = ENV.webVerifyUrl.replace(/\/$/, '');
+			return `${base}?user_code=${codeState.userCode}`;
+		}
+		return codeState?.verificationUriComplete ?? codeState?.verificationUri ?? '';
+	}, [codeState?.userCode, codeState?.verificationUri, codeState?.verificationUriComplete]);
 
-			if (ENV.webVerifyUrl && codeState?.userCode) {
-				const base = ENV.webVerifyUrl.replace(/\/$/, '');
-				const url = `${base}?user_code=${codeState.userCode}`;
-				return url;
-			}
+	// Status indicator component
+	const StatusIndicator = useMemo(() => {
+		if (isApproved) {
+			return (
+				<PulseAnimation>
+					<View className="bg-success-100 border-2 border-success-500 rounded-2xl p-6 items-center">
+						<Text className="text-4xl mb-2">✓</Text>
+						<Text className="text-2xl font-bold text-success-700">
+							Device Approved<AnimatedDots />
+						</Text>
+						<Text className="text-success-600 mt-2">Redirecting to scanner</Text>
+					</View>
+				</PulseAnimation>
+			);
+		}
 
-			// If BetterAuth returned localhost:3000/device, prefer replacing origin with webVerifyUrl host when provided.
-			return apiLink;
-		},
-		[
-			codeState?.userCode,
-			codeState?.verificationUri,
-			codeState?.verificationUriComplete,
-		],
-	);
+		if (status.state === 'waiting' || status.state === 'requesting') {
+			return (
+				<View className="flex-row items-center justify-center gap-3 py-3">
+					<Spinner size="sm" color={accentColor} />
+					<Text className="text-foreground-500 text-base">{status.message}</Text>
+				</View>
+			);
+		}
+
+		if (status.state === 'denied') {
+			return (
+				<View className="bg-danger-100 border border-danger-300 rounded-xl p-4 items-center">
+					<Text className="text-xl mb-1">✕</Text>
+					<Text className="text-danger-700 font-semibold">{status.message}</Text>
+				</View>
+			);
+		}
+
+		if (status.state === 'expired') {
+			return (
+				<View className="bg-warning-100 border border-warning-300 rounded-xl p-4 items-center">
+					<Text className="text-xl mb-1">⏱</Text>
+					<Text className="text-warning-700 font-semibold">{status.message}</Text>
+				</View>
+			);
+		}
+
+		if (status.state === 'error') {
+			return (
+				<View className="bg-danger-100 border border-danger-300 rounded-xl p-4 items-center">
+					<Text className="text-xl mb-1">⚠</Text>
+					<Text className="text-danger-700 font-semibold">{status.message}</Text>
+				</View>
+			);
+		}
+
+		return null;
+	}, [accentColor, isApproved, status.message, status.state]);
 
 	return (
-		<View className="flex-1 bg-background px-5 pt-16">
-			<Text className="text-3xl font-bold text-foreground mb-3">Device Login</Text>
-			<Text className="text-base text-foreground-500 mb-6">
-				Show this code to an administrator. They will open the verification link and approve
-				the device. This screen will refresh automatically once the request is approved.
-			</Text>
+		<View className="flex-1 bg-background px-5 pt-12">
+			{/* Header */}
+			<View className="mb-6">
+				<Text className="text-3xl font-bold text-foreground mb-2">Device Login</Text>
+				<Text className="text-base text-foreground-500 leading-relaxed">
+					Show the code below to an administrator, or scan the QR code on another device to approve.
+				</Text>
+			</View>
 
-			{envErrors ? (
+			{/* Environment Warning - only show for actual config errors */}
+			{envErrors && status.state === 'error' ? (
 				<View className="bg-warning-100 border border-warning-300 rounded-xl p-3 mb-4">
-					<Text className="text-warning-800 font-semibold mb-1">Environment warning</Text>
-					<Text className="text-warning-800 text-sm">
-						EXPO_PUBLIC_API_URL is not set or invalid. Using {API_BASE_URL}. Ensure the device can
-						reach this URL (use LAN IP or a tunnel when not on the same host).
+					<Text className="text-warning-800 font-semibold mb-1">Configuration Required</Text>
+					<Text className="text-warning-700 text-sm">
+						EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
 					</Text>
 				</View>
 			) : null}
 
-			<Card className="p-6 gap-4">
-				<Text className="text-sm font-medium text-foreground-500 uppercase tracking-wide">
-					User Code
-				</Text>
-				<Text className="text-5xl font-extrabold tracking-widest text-center">
-					{codeState?.formattedUserCode ?? '— — — —'}
-				</Text>
-
-				<View className="border border-dashed border-default-200 rounded-2xl p-6 gap-2 items-center justify-center">
-					<Text className="text-sm text-foreground-500 mb-1">Verification URL</Text>
-					<Text className="text-xs text-foreground-400 text-center" numberOfLines={2}>
-						{verificationLinkLabel}
+			{/* Main Card */}
+			<Card className="p-6 gap-5">
+				{/* User Code Display */}
+				<View className="items-center">
+					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest mb-3">
+						Verification Code
 					</Text>
+					<View className="bg-default-100 rounded-2xl px-8 py-4">
+						<Text className="text-5xl font-black tracking-[0.3em] text-foreground">
+							{codeState?.formattedUserCode ?? '————'}
+						</Text>
+					</View>
+				</View>
+
+				{/* QR Code Section */}
+				{verificationUrl && !isApproved ? (
+					<View className="items-center py-4">
+						<View className="bg-white p-4 rounded-2xl shadow-sm">
+							<QRCode
+								value={verificationUrl}
+								size={160}
+								bgColor="white"
+								fgColor="#18181b"
+								level="M"
+							/>
+						</View>
+						<Text className="text-xs text-foreground-400 mt-3 text-center">
+							Scan to open verification page
+						</Text>
+					</View>
+				) : null}
+
+				{/* Status Indicator */}
+				{StatusIndicator}
+
+				{/* Action Buttons - hide when approved */}
+				{!isApproved ? (
+					<View className="flex-row gap-3 mt-2">
+						<Button
+							onPress={requestDeviceCode}
+							isDisabled={isRequestingCode}
+							className="flex-1"
+							variant="secondary"
+							size="lg"
+						>
+							<Button.Label>
+								{isRequestingCode ? 'Refreshing…' : 'New Code'}
+							</Button.Label>
+						</Button>
+						{verificationUrl ? (
+							<Button
+								variant="primary"
+								className="flex-1"
+								size="lg"
+								onPress={() => {
+									void Linking.openURL(verificationUrl);
+								}}
+							>
+								<Button.Label>Open Link</Button.Label>
+							</Button>
+						) : null}
+					</View>
+				) : null}
+
+				{/* Developer Bypass */}
+				{__DEV__ && !isApproved ? (
 					<Button
+						variant="ghost"
 						size="sm"
-						variant="flat"
+						onPress={handleDevBypass}
 						className="mt-2"
-						onPress={() => {
-							if (codeState?.verificationUriComplete) {
-								void Linking.openURL(codeState.verificationUriComplete);
-							}
-						}}
-						isDisabled={!codeState?.verificationUriComplete}
 					>
-						<Button.Label>Open in browser</Button.Label>
+						<Button.Label className="text-foreground-400">Skip (Dev Only)</Button.Label>
 					</Button>
-					{!ENV.webVerifyUrl ? (
-						<Text className="text-xs text-warning-600 mt-2 text-center">
-							Set EXPO_PUBLIC_WEB_VERIFY_URL (or VERIFY_URL) to your web app host
-							(e.g., http://localhost:3001/device) so admins open the right page.
+				) : null}
+			</Card>
+
+			{/* Error Details - only show for actual errors, not during normal polling */}
+			{lastError && status.state === 'error' ? (
+				<View className="bg-danger-50 border border-danger-200 rounded-xl p-4 mt-4">
+					<Text className="text-danger-700 font-semibold mb-1">Error Details</Text>
+					<Text className="text-danger-600 text-sm">{lastError}</Text>
+					{!API_ENV_VALID ? (
+						<Text className="text-danger-500 mt-2 text-xs">
+							Tip: On Android emulators use http://10.0.2.2:3000, on iOS simulators use
+							http://127.0.0.1:3000 or your LAN IP.
 						</Text>
 					) : null}
 				</View>
+			) : null}
 
-				<View className="flex-row items-center gap-2">
-					{status.state === 'waiting' || status.state === 'requesting' ? (
-						<Spinner size="sm" />
-					) : null}
-					<Text className="text-foreground">{status.message}</Text>
-				</View>
-
-				<View className="flex-row gap-3">
+			{/* Terminal State Actions */}
+			{isTerminal && !isApproved ? (
+				<View className="mt-4">
 					<Button
 						onPress={requestDeviceCode}
 						isDisabled={isRequestingCode}
-						className="flex-1"
-						variant="flat"
+						variant="tertiary"
+						size="lg"
+						className="w-full"
 					>
-						<Button.Label>
-							{isRequestingCode ? 'Refreshing…' : 'Refresh code'}
-						</Button.Label>
-					</Button>
-					<Button variant="secondary" className="flex-1" onPress={handleDevBypass}>
-						<Button.Label>Skip (dev)</Button.Label>
+						<Button.Label>Try Again</Button.Label>
 					</Button>
 				</View>
-
-				{lastError ? (
-					<View className="bg-warning-50 border border-warning-200 rounded-xl p-3">
-						<Text className="text-warning-700 font-semibold mb-1">Troubleshooting</Text>
-						<Text className="text-warning-700">{lastError}</Text>
-						<Text className="text-warning-600 mt-1 text-sm">
-							Check that the device can reach {API_BASE_URL}. On Android emulators use http://10.0.2.2:3000,
-							on iOS simulators use http://127.0.0.1:3000 or your LAN IP.
-						</Text>
-					</View>
-				) : null}
-
-				{isTerminal ? (
-					<View className="bg-default-100 border border-default-200 rounded-xl p-3">
-						<Text className="text-foreground font-semibold mb-1">Next steps</Text>
-						<Text className="text-foreground-500">
-							{status.state === 'approved'
-								? 'Redirecting to the scanner…'
-								: 'Tap “Refresh code” to restart the device login flow.'}
-						</Text>
-					</View>
-				) : null}
-			</Card>
+			) : null}
 		</View>
 	);
 }

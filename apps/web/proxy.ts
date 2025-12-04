@@ -2,17 +2,43 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionCookie } from 'better-auth/cookies';
 
 /**
- * Next.js proxy for handling authentication and route protection.
- * Renamed from middleware to proxy as per Next.js 16 convention.
+ * Resolve a safe callback URL from the incoming request search params.
  *
- * Redirects users based on their authentication status:
- * - Authenticated users accessing auth pages -> Dashboard
- * - Unauthenticated users accessing protected routes -> Sign In
+ * @param request - The incoming Next.js request with potential callbackUrl
+ * @returns Sanitized callback path that remains within the application
+ */
+function getCallbackTarget(request: NextRequest): string {
+	const callbackParam = request.nextUrl.searchParams.get('callbackUrl');
+
+	if (!callbackParam) {
+		return '/dashboard';
+	}
+
+	if (callbackParam.startsWith('/')) {
+		return callbackParam;
+	}
+
+	try {
+		const parsed = new URL(callbackParam, request.nextUrl.origin);
+		if (parsed.origin === request.nextUrl.origin) {
+			return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+		}
+	} catch {
+		// ignore malformed callback values
+	}
+
+	return '/dashboard';
+}
+
+/**
+ * Next.js proxy for handling authentication and route protection.
+ * Redirects authenticated users away from auth pages and unauthenticated users
+ * away from protected dashboard routes.
  *
  * @param request - The incoming Next.js request
- * @returns NextResponse with appropriate redirect or continuation
+ * @returns A NextResponse that redirects or allows the request to proceed
  */
-export async function proxy(request: NextRequest): Promise<NextResponse> {
+export default async function proxy(request: NextRequest): Promise<NextResponse> {
 	const sessionCookie = getSessionCookie(request);
 	const { pathname } = request.nextUrl;
 
@@ -34,7 +60,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
 	// Redirect authenticated users away from auth pages to dashboard
 	if (sessionCookie && authPages.includes(pathname)) {
-		return NextResponse.redirect(new URL('/dashboard', request.url));
+		const target = getCallbackTarget(request);
+		return NextResponse.redirect(new URL(target, request.url));
 	}
 
 	// Redirect unauthenticated users from protected routes to sign in

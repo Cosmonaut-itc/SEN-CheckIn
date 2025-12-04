@@ -5,6 +5,7 @@ import {
 	AlertCircle,
 	CheckCircle2,
 	Clock3,
+	Home,
 	Loader2,
 	RefreshCw,
 	ShieldCheck,
@@ -65,6 +66,19 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 
 	const isAuthenticated = Boolean(session.data?.session);
 	const normalizedCode = normalizeUserCode(userCode);
+	const codeIsValid = /^[A-Z0-9]{8}$/.test(normalizedCode);
+	const deviceReturnPath = useMemo(() => {
+		if (!normalizedCode) {
+			return '/device';
+		}
+
+		const search = new URLSearchParams({ user_code: normalizedCode });
+		return `/device?${search.toString()}`;
+	}, [normalizedCode]);
+	const signInHref = useMemo(() => {
+		const search = new URLSearchParams({ callbackUrl: deviceReturnPath });
+		return `/sign-in?${search.toString()}`;
+	}, [deviceReturnPath]);
 
 	const verifyQuery = useQuery({
 		queryKey: queryKeys.deviceAuth.verify(normalizedCode),
@@ -84,8 +98,8 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 	 */
 	const handleVerify = useCallback(async () => {
 		const normalized = normalizeUserCode(userCode);
-		if (!normalized || normalized.length < 4) {
-			setError('Enter the 8-character code shown on the device');
+		if (!normalized || normalized.length !== 8 || !/^[A-Z0-9]{8}$/.test(normalized)) {
+			setError('Enter the full 8-character code (letters/numbers only, no dash)');
 			return;
 		}
 
@@ -153,14 +167,14 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 	});
 
 	const handleApprove = useCallback(async () => {
-		if (!verification) return;
+		if (!verification || verification.status === 'approved') return;
 		setAction('approving');
 		setError(null);
 		await approveMutation.mutateAsync(verification.userCode);
 	}, [approveMutation, verification]);
 
 	const handleDeny = useCallback(async () => {
-		if (!verification) return;
+		if (!verification || verification.status === 'approved') return;
 		setAction('denying');
 		setError(null);
 		await denyMutation.mutateAsync(verification.userCode);
@@ -223,7 +237,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 							placeholder="ABCD-EFGH"
 							className="text-lg font-mono"
 						/>
-						<Button onClick={handleVerify} disabled={action !== 'idle'}>
+						<Button onClick={handleVerify} disabled={action !== 'idle' || !codeIsValid}>
 							{action === 'verifying' ? (
 								<>
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying
@@ -258,7 +272,12 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 						<div className="flex flex-wrap items-center gap-3">
 							<Button
 								onClick={handleApprove}
-								disabled={!isAuthenticated || action !== 'idle'}
+								disabled={
+									!isAuthenticated ||
+									action !== 'idle' ||
+									!verification ||
+									verification.status === 'approved'
+								}
 								variant="default"
 							>
 								{action === 'approving' ? (
@@ -273,7 +292,12 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 							</Button>
 							<Button
 								onClick={handleDeny}
-								disabled={!isAuthenticated || action !== 'idle'}
+								disabled={
+									!isAuthenticated ||
+									action !== 'idle' ||
+									!verification ||
+									verification.status === 'approved'
+								}
 								variant="secondary"
 							>
 								{action === 'denying' ? (
@@ -292,7 +316,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 									<span>
 										Sign in to approve devices.{' '}
 										<Link
-											href="/sign-in"
+											href={signInHref}
 											className="text-primary underline underline-offset-4"
 										>
 											Go to sign-in
@@ -307,6 +331,17 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 							Awaiting a valid code to approve or deny.
 						</div>
 					)}
+					<Button
+						asChild
+						variant="outline"
+						className="self-center mt-2 px-6"
+						aria-label="Return to dashboard"
+					>
+						<Link href="/dashboard" className="flex items-center gap-2">
+							<Home className="h-4 w-4" />
+							<span>Return to dashboard</span>
+						</Link>
+					</Button>
 				</CardFooter>
 			</Card>
 

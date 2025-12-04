@@ -1,6 +1,13 @@
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { apiKey, admin, deviceAuthorization, organization, username } from 'better-auth/plugins';
+import {
+	admin,
+	apiKey,
+	bearer,
+	deviceAuthorization,
+	organization,
+	username,
+} from 'better-auth/plugins';
 import db from '../src/db/index.js';
 import * as schema from '../src/db/schema.js';
 
@@ -29,6 +36,7 @@ export const auth = betterAuth({
 			'http://0.0.0.0:3000',
 			'http://localhost:19000', // Expo dev (metro)
 			'http://127.0.0.1:19000',
+			'http://100.110.215.102:3000',
 			'sen-checkin://',
 			'null', // allow native/Expo fetches with null Origin header
 		].filter(Boolean),
@@ -70,5 +78,11 @@ export const auth = betterAuth({
 			interval: '5s',
 			userCodeLength: 8,
 		}),
+		/**
+		 * Bearer plugin to enable Authorization header authentication.
+		 * Required for device authorization flow to work - allows mobile clients
+		 * to authenticate using the access_token returned by /device/token.
+		 */
+		bearer(),
 	],
 });

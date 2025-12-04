@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/lib/auth-client';
 import { Mail, Lock, ShieldCheck } from 'lucide-react';
@@ -20,7 +20,16 @@ import { useAppForm } from '@/lib/forms';
  */
 export default function SignInPage(): React.ReactElement {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [error, setError] = useState<string | null>(null);
+	const callbackParam = searchParams.get('callbackUrl');
+	const callbackUrl = useMemo(() => {
+		if (!callbackParam) {
+			return '/dashboard';
+		}
+
+		return callbackParam.startsWith('/') ? callbackParam : '/dashboard';
+	}, [callbackParam]);
 
 	const form = useAppForm({
 		defaultValues: {
@@ -39,7 +48,7 @@ export default function SignInPage(): React.ReactElement {
 				return;
 			}
 
-			router.push('/dashboard');
+			router.push(callbackUrl);
 		},
 	});
 

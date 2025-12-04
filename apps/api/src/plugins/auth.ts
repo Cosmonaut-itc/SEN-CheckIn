@@ -7,6 +7,53 @@ import { auth } from '../../utils/auth.js';
 import { UnauthorizedError } from '../errors/index.js';
 
 /**
+ * Session resolution result shape from BetterAuth.
+ */
+type AuthSessionResult = Awaited<ReturnType<typeof auth.api.getSession>>;
+
+/**
+ * Construct a Headers object that only carries authentication-related entries.
+ *
+ * This ensures we forward bearer tokens produced by the device authorization flow
+ * and session cookies without leaking unrelated headers into BetterAuth internals.
+ *
+ * @param request - Incoming HTTP request
+ * @returns Headers containing authorization and cookie data when present
+ */
+const buildSessionHeaders = (request: Request): Headers => {
+	const sessionHeaders = new Headers();
+	const authHeader = request.headers.get('authorization');
+	const cookieHeader = request.headers.get('cookie');
+
+	if (authHeader) {
+		sessionHeaders.set('authorization', authHeader);
+	}
+
+	if (cookieHeader) {
+		sessionHeaders.set('cookie', cookieHeader);
+	}
+
+	return sessionHeaders;
+};
+
+/**
+ * Resolve a BetterAuth session from either a cookie-backed session or a bearer token.
+ *
+ * The bearer token path is required for OAuth 2.0 device code flows, where the client
+ * receives an access token instead of a browser cookie.
+ *
+ * @param request - Incoming HTTP request
+ * @returns Session result when authenticated, otherwise null
+ */
+const resolveSessionFromRequest = async (request: Request): Promise<AuthSessionResult | null> => {
+	const session = await auth.api.getSession({
+		headers: buildSessionHeaders(request),
+	});
+
+	return session ?? null;
+};
+
+/**
  * Type definition for an authenticated user from BetterAuth session.
  */
 export interface AuthUser {
@@ -79,10 +126,8 @@ export interface AuthSession {
  */
 export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
 	{ as: 'scoped' },
-	async ({ request: { headers } }): Promise<{ user: AuthUser; session: AuthSession }> => {
-		const session = await auth.api.getSession({
-			headers,
-		});
+	async ({ request }): Promise<{ user: AuthUser; session: AuthSession }> => {
+		const session = await resolveSessionFromRequest(request);
 
 		if (!session) {
 			throw new UnauthorizedError('No valid session found');
@@ -258,9 +303,7 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
 		  }
 	> => {
 		// First, try session authentication
-		const session = await auth.api.getSession({
-			headers: request.headers,
-		});
+		const session = await resolveSessionFromRequest(request);
 
 		if (session) {
 			const memberships = await db

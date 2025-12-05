@@ -1,6 +1,6 @@
 import type { AttendanceRecord, AttendanceType, Device, Location } from '@sen-checkin/types';
 
-import { API_BASE_URL } from './api';
+import { API_BASE_URL, api } from './api';
 import { authedFetch } from './auth-client';
 import type { AttendanceQueryParams, ListQueryParams } from './query-keys';
 
@@ -49,7 +49,7 @@ function buildSearchParams(
 }
 
 /**
- * Fetch a paginated list of locations.
+ * Fetch a paginated list of locations using the Eden Treaty client.
  *
  * @param params - Optional filters for search, organization, and pagination
  * @returns Locations with pagination metadata
@@ -58,32 +58,36 @@ function buildSearchParams(
 export async function fetchLocationsList(
 	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Location>> {
-	const searchParams = buildSearchParams({
-		limit: params?.limit ?? 100,
-		offset: params?.offset ?? 0,
-		search: params?.search,
-		organizationId: params?.organizationId ?? undefined,
+	const limit = params?.limit ?? 100;
+	const offset = params?.offset ?? 0;
+
+	const { data, error } = await api.locations.get({
+		$query: {
+			limit,
+			offset,
+			search: params?.search,
+			organizationId: params?.organizationId ?? undefined,
+		},
 	});
 
-	const response = (await authedFetch(`${API_BASE_URL}/locations?${searchParams.toString()}`, {
-		credentials: 'include',
-	})) as Response;
-
-	if (!response.ok) {
+	if (error) {
+		console.error('[fetchLocationsList] Eden Treaty error:', error);
 		throw new Error('Failed to load locations');
 	}
 
-	const json = (await response.json()) as {
-		data?: Location[];
-		pagination?: PaginatedResponse<Location>['pagination'];
-	};
+	// Type guard: check if data has the expected shape
+	if (!data || 'error' in data) {
+		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
+		console.error('[fetchLocationsList] API error:', errorMessage);
+		throw new Error('Failed to load locations');
+	}
 
 	return {
-		data: json.data ?? [],
-		pagination: json.pagination ?? {
+		data: (data.data ?? []) as Location[],
+		pagination: data.pagination ?? {
 			total: 0,
-			limit: params?.limit ?? 100,
-			offset: params?.offset ?? 0,
+			limit,
+			offset,
 		},
 	};
 }

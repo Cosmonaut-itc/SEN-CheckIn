@@ -66,11 +66,9 @@ export default function DeviceSetupScreen(): JSX.Element {
 	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
 		queryKey: queryKeys.locations.list({ organizationId: organizationId ?? undefined }),
 		queryFn: () =>
-			fetchLocationsList({ limit: 200, organizationId: organizationId ?? undefined }),
+			fetchLocationsList({ limit: 100, organizationId: organizationId ?? undefined }),
 		enabled: Boolean(organizationId),
 	});
-
-	console.log('locationsResponse', locationsResponse);
 
 	const locationOptions = useMemo(
 		() =>

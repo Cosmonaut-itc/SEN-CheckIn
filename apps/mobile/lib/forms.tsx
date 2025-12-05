@@ -1,8 +1,15 @@
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
 import { Button, Select, Spinner, TextField } from 'heroui-native';
 import type { JSX } from 'react';
-import { useMemo } from 'react';
-import { Text, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import {
+	Modal,
+	ScrollView,
+	Text,
+	TouchableOpacity,
+	TouchableWithoutFeedback,
+	View,
+} from 'react-native';
 
 export const { fieldContext, formContext, useFieldContext, useFormContext } =
 	createFormHookContexts();
@@ -46,6 +53,7 @@ export function AppTextField({
 				}}
 				placeholder={placeholder}
 				keyboardType={keyboardType}
+				className="px-4 py-3 rounded-xl border border-default-200 bg-content1 text-foreground"
 			/>
 			{description ? <TextField.Description>{description}</TextField.Description> : null}
 			{errors.length > 0 ? (
@@ -96,11 +104,7 @@ export function SelectField<TValue extends string>({
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
 			<Select
-				value={
-					currentOption
-						? { value: currentOption.value, label: currentOption.label }
-						: undefined
-				}
+				value={currentOption?.value}
 				onValueChange={handleValueChange}
 				isDisabled={disabled}
 			>
@@ -160,6 +164,140 @@ export function SelectField<TValue extends string>({
 	);
 }
 
+/**
+ * Native select alternative using ActionSheet (iOS) or a simple modal list (other platforms).
+ *
+ * @param props - Field configuration including label, options, and placeholder text
+ * @returns JSX Element rendering a native-friendly picker with validation support
+ */
+export function NativeSelectField<TValue extends string>({
+	label,
+	placeholder,
+	description,
+	disabled,
+	options,
+}: CommonFieldProps & {
+	/** Array of options with value and label pairs */
+	options: { value: TValue; label: string }[];
+}): JSX.Element {
+	const field = useFieldContext();
+	const errors = field.state.meta.errors;
+	const [isModalVisible, setIsModalVisible] = useState(false);
+
+	/** Currently selected option derived from the form value */
+	const currentOption = useMemo(
+		() => options.find((opt) => opt.value === field.state.value) ?? null,
+		[field.state.value, options],
+	);
+
+	/**
+	 * Apply the selected value and close any open picker UI.
+	 *
+	 * @param value - Selected option value
+	 */
+	const handleSelectValue = useCallback(
+		(value: TValue): void => {
+			field.handleChange(value);
+			setIsModalVisible(false);
+		},
+		[field],
+	);
+
+	/**
+	 * Open the picker modal.
+	 */
+	const handleOpenPicker = useCallback((): void => {
+		if (disabled) {
+			return;
+		}
+
+		setIsModalVisible(true);
+	}, [disabled]);
+
+	const placeholderText = placeholder ?? 'Select an option';
+	const displayLabel = currentOption?.label ?? placeholderText;
+	const isPlaceholder = !currentOption;
+
+	return (
+		<View className="gap-1.5">
+			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
+			<TouchableOpacity
+				activeOpacity={0.82}
+				className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1"
+				disabled={disabled}
+				onPress={handleOpenPicker}
+				hitSlop={8}
+			>
+				<Text
+					className={`text-base ${isPlaceholder ? 'text-foreground-400' : 'text-foreground'}`}
+				>
+					{displayLabel}
+				</Text>
+			</TouchableOpacity>
+			{description ? (
+				<Text className="text-sm text-foreground-400 leading-5">{description}</Text>
+			) : null}
+			{errors.length > 0 ? (
+				<Text className="text-sm text-danger-500 font-medium">{errors.join(', ')}</Text>
+			) : null}
+
+			<Modal
+				transparent
+				animationType="fade"
+				visible={isModalVisible}
+				onRequestClose={() => setIsModalVisible(false)}
+			>
+				<View className="flex-1 bg-black/50 px-6 justify-center">
+					<TouchableWithoutFeedback onPress={() => setIsModalVisible(false)}>
+						<View className="absolute inset-0" />
+					</TouchableWithoutFeedback>
+
+					<View className="bg-background rounded-2xl p-4" style={{ maxHeight: '70%' }}>
+						<Text className="text-base font-semibold text-foreground mb-3">
+							{label}
+						</Text>
+						<ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
+							{options.length === 0 ? (
+								<Text className="text-foreground-400 py-4">
+									No options available
+								</Text>
+							) : (
+								options.map((opt) => {
+									const isSelected = opt.value === field.state.value;
+									return (
+										<TouchableOpacity
+											key={opt.value}
+											activeOpacity={0.85}
+											className="py-3 px-2 rounded-lg flex-row items-center justify-between"
+											onPress={() => handleSelectValue(opt.value)}
+										>
+											<Text className="text-base text-foreground">
+												{opt.label}
+											</Text>
+											{isSelected ? (
+												<Text className="text-primary font-semibold">
+													●
+												</Text>
+											) : null}
+										</TouchableOpacity>
+									);
+								})
+							)}
+						</ScrollView>
+						<TouchableOpacity
+							activeOpacity={0.85}
+							className="mt-3 py-3 rounded-xl border border-default-200 items-center"
+							onPress={() => setIsModalVisible(false)}
+						>
+							<Text className="text-foreground font-semibold">Cancel</Text>
+						</TouchableOpacity>
+					</View>
+				</View>
+			</Modal>
+		</View>
+	);
+}
+
 export function SubmitButton({
 	label,
 	loadingLabel = 'Saving...',
@@ -199,6 +337,7 @@ export const { useAppForm, withForm } = createFormHook({
 	fieldComponents: {
 		TextField: AppTextField,
 		SelectField,
+		NativeSelectField,
 	},
 	formComponents: {
 		SubmitButton,

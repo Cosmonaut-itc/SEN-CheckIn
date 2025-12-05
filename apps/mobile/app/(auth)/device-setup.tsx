@@ -2,8 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import * as ExpoDevice from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
-import { type JSX, useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { type JSX, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+	Modal,
+	ScrollView,
+	Text,
+	TouchableOpacity,
+	TouchableWithoutFeedback,
+	View,
+} from 'react-native';
 
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
@@ -78,6 +85,9 @@ export default function DeviceSetupScreen(): JSX.Element {
 			})),
 		[locationsResponse?.data],
 	);
+
+	// State for location picker modal
+	const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
 
 	/**
 	 * Submit handler that updates device metadata and persists it locally.
@@ -238,23 +248,131 @@ export default function DeviceSetupScreen(): JSX.Element {
 						)}
 					</form.AppField>
 
+					{/* Simple Location Picker */}
 					<form.AppField
 						name="locationId"
 						validators={{
 							onChange: ({ value }) => (!value ? 'Location is required' : undefined),
 						}}
 					>
-						{(field) => (
-							<field.SelectField
-								label="Assigned Location"
-								placeholder={
-									isLocationsPending ? 'Loading locations…' : 'Choose a location'
-								}
-								options={locationOptions}
-								disabled={isLocationsPending}
-								presentation="dialog"
-							/>
-						)}
+						{(field) => {
+							const selectedOption = locationOptions.find(
+								(opt) => opt.value === field.state.value,
+							);
+							const displayText =
+								selectedOption?.label ??
+								(isLocationsPending ? 'Loading locations…' : 'Choose a location');
+							const hasError = field.state.meta.errors.length > 0;
+
+							return (
+								<View className="gap-1.5">
+									<Text className="text-sm font-semibold text-foreground tracking-wide">
+										Assigned Location
+									</Text>
+									<TouchableOpacity
+										activeOpacity={0.82}
+										className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1"
+										disabled={isLocationsPending}
+										onPress={() => setIsLocationPickerOpen(true)}
+									>
+										<Text
+											className={`text-base ${
+												selectedOption
+													? 'text-foreground'
+													: 'text-foreground-400'
+											}`}
+										>
+											{displayText}
+										</Text>
+									</TouchableOpacity>
+									{hasError ? (
+										<Text className="text-sm text-danger-500 font-medium">
+											{field.state.meta.errors.join(', ')}
+										</Text>
+									) : null}
+
+									{/* Location Picker Modal */}
+									<Modal
+										transparent
+										animationType="fade"
+										visible={isLocationPickerOpen}
+										onRequestClose={() => setIsLocationPickerOpen(false)}
+									>
+										<View className="flex-1 bg-black/50 px-6 justify-center">
+											<TouchableWithoutFeedback
+												onPress={() => setIsLocationPickerOpen(false)}
+											>
+												<View className="absolute inset-0" />
+											</TouchableWithoutFeedback>
+
+											<View
+												className="bg-background rounded-2xl p-4"
+												style={{ maxHeight: '70%' }}
+											>
+												<Text className="text-base font-semibold text-foreground mb-3">
+													Select Location
+												</Text>
+												<ScrollView keyboardShouldPersistTaps="handled">
+													{locationOptions.length === 0 ? (
+														<Text className="text-foreground-400 py-4 text-center">
+															No locations available
+														</Text>
+													) : (
+														locationOptions.map((opt) => {
+															const isSelected =
+																opt.value === field.state.value;
+															return (
+																<TouchableOpacity
+																	key={opt.value}
+																	activeOpacity={0.85}
+																	className={`py-3 px-3 rounded-xl mb-1 flex-row items-center justify-between ${
+																		isSelected
+																			? 'bg-primary/10'
+																			: ''
+																	}`}
+																	onPress={() => {
+																		field.handleChange(
+																			opt.value,
+																		);
+																		setIsLocationPickerOpen(
+																			false,
+																		);
+																	}}
+																>
+																	<Text
+																		className={`text-base ${
+																			isSelected
+																				? 'text-primary font-semibold'
+																				: 'text-foreground'
+																		}`}
+																	>
+																		{opt.label}
+																	</Text>
+																	{isSelected ? (
+																		<Text className="text-primary font-bold">
+																			✓
+																		</Text>
+																	) : null}
+																</TouchableOpacity>
+															);
+														})
+													)}
+												</ScrollView>
+												<TouchableOpacity
+													activeOpacity={0.85}
+													className="mt-3 py-3 rounded-xl border border-default-200 items-center"
+													onPress={() => setIsLocationPickerOpen(false)}
+												>
+													<Text className="text-foreground font-semibold">
+														Cancel
+													</Text>
+												</TouchableOpacity>
+											</View>
+										</View>
+									</Modal>
+								</View>
+							);
+						}}
 					</form.AppField>
 
 					<form.AppForm>

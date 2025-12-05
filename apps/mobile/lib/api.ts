@@ -19,12 +19,16 @@ export const API_ENV_VALID = envIsValid;
 /**
  * Custom fetch wrapper that injects Bearer token from device authorization.
  * Used by the Eden Treaty client for all API requests.
+ * Also exported for direct use in cases where Eden Treaty doesn't support the route pattern.
  *
  * @param input - Request URL or Request object
  * @param init - Optional fetch init options
  * @returns Fetch response promise
  */
-async function authedFetchForEden(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+export async function authedFetchForEden(
+	input: RequestInfo | URL,
+	init?: RequestInit,
+): Promise<Response> {
 	const headers = new Headers(init?.headers);
 
 	// Add Bearer token if available from device authorization

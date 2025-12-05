@@ -14,7 +14,20 @@ type PaginatedResponse<T> = {
   };
 };
 
-type DeviceDetail = Device & { organizationId?: string | null };
+export type DeviceDetail = Device & { organizationId?: string | null };
+
+export interface RegisterDeviceInput {
+  code: string;
+  name?: string;
+  deviceType?: string;
+  platform?: string;
+  organizationId?: string | null;
+}
+
+export interface RegisterDeviceResponse {
+  device: DeviceDetail;
+  isNew: boolean;
+}
 
 /**
  * Build a URLSearchParams instance from a key/value object while skipping empty values.
@@ -135,8 +148,46 @@ export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail 
     throw new Error('Failed to load device');
   }
 
-  const json = (await response.json()) as { data?: DeviceDetail };
-  return json.data ?? null;
+	const json = (await response.json()) as { data?: DeviceDetail };
+	return json.data ?? null;
+}
+
+/**
+ * Register or upsert a device using a stable device code.
+ *
+ * @param input - Registration payload including stable code and metadata
+ * @returns Registered device payload and creation flag from the API
+ * @throws Error when the API call fails or returns no data
+ */
+export async function registerDevice(input: RegisterDeviceInput): Promise<RegisterDeviceResponse> {
+  const response = (await authedFetch(`${API_BASE_URL}/devices/register`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      code: input.code,
+      name: input.name,
+      deviceType: input.deviceType,
+      platform: input.platform,
+      organizationId: input.organizationId ?? undefined,
+    }),
+    credentials: 'include',
+  })) as Response;
+
+  if (!response.ok) {
+    throw new Error('Failed to register device');
+  }
+
+  const json = (await response.json()) as { data?: DeviceDetail; isNew?: boolean };
+  if (!json.data) {
+    throw new Error('Device registration returned no data');
+  }
+
+  return {
+    device: json.data,
+    isNew: Boolean(json.isNew),
+  };
 }
 
 /**
@@ -165,9 +216,34 @@ export async function updateDeviceSettings(
   }
 
   const json = (await response.json()) as { data?: DeviceDetail };
-  if (!json.data) {
-    throw new Error('Device update returned no data');
+	if (!json.data) {
+		throw new Error('Device update returned no data');
+	}
+	return json.data;
+}
+
+/**
+ * Send a heartbeat to mark the device as online.
+ *
+ * @param deviceId - Device identifier to ping
+ * @returns Updated device payload with the latest heartbeat timestamp
+ * @throws Error when the API response is not OK or lacks data
+ */
+export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetail> {
+  const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}/heartbeat`, {
+    method: 'POST',
+    credentials: 'include',
+  })) as Response;
+
+  if (!response.ok) {
+    throw new Error('Failed to send device heartbeat');
   }
+
+  const json = (await response.json()) as { data?: DeviceDetail };
+  if (!json.data) {
+    throw new Error('Heartbeat response missing data');
+  }
+
   return json.data;
 }
 

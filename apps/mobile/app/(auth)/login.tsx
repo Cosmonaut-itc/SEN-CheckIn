@@ -3,12 +3,14 @@ import { useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Text, View } from 'react-native';
+import { Animated, Easing, Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-qr-code';
+import * as ExpoDevice from 'expo-device';
 
 import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
 import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
-import { useDeviceContext } from '@/lib/device-context';
+import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
+import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
 import { useAuthContext } from '@/providers/auth-provider';
 import { envErrors, ENV } from '@/constants/env';
 
@@ -190,6 +192,35 @@ export default function LoginScreen(): JSX.Element {
 	}, []);
 
 	/**
+ * Register the current device after approval and persist the returned ID locally.
+ *
+ * @param organizationId - Active organization ID from the session, if available
+ * @returns Registered device response including creation flag
+ */
+	const registerApprovedDevice = useCallback(
+		async (organizationId: string | null): Promise<RegisterDeviceResponse> => {
+			const stableCode = await getStableDeviceCode();
+			const registered = await registerDevice({
+				code: stableCode,
+				name: ExpoDevice.deviceName ?? ExpoDevice.modelName ?? 'Attendance Device',
+				deviceType: ExpoDevice.modelName ?? 'MOBILE',
+				platform: Platform.OS,
+				organizationId,
+			});
+
+			await updateLocalSettings({
+				deviceId: registered.device.id,
+				name: registered.device.name ?? registered.device.code,
+				locationId: registered.device.locationId ?? null,
+				organizationId: registered.device.organizationId ?? organizationId,
+			});
+
+			return registered;
+		},
+		[updateLocalSettings],
+	);
+
+	/**
 	 * Request a new device code from BetterAuth.
 	 * Resets polling state and schedules the next poll when successful.
 	 */
@@ -305,6 +336,30 @@ export default function LoginScreen(): JSX.Element {
 					// since we already have the valid session data
 					console.log('[login] Setting session in auth context');
 					setSession(sessionResult.data);
+					console.log('[login] Registering device with stable code');
+					const registration = await registerApprovedDevice(
+						sessionResult.data.session?.activeOrganizationId ?? null,
+					);
+					console.log('[login] Registration complete', {
+						isNew: registration.isNew,
+						hasLocation: Boolean(registration.device.locationId),
+					});
+
+					if (registration.isNew && !registration.device.locationId) {
+						console.log('[login] Device requires setup, redirecting to setup screen');
+						router.replace({
+							pathname: '/(auth)/device-setup',
+							params: {
+								deviceId: registration.device.id,
+								organizationId:
+									registration.device.organizationId ??
+									sessionResult.data.session?.activeOrganizationId ??
+									'',
+							},
+						});
+						return;
+					}
+
 					console.log('[login] Session set, navigating to scanner');
 
 					// Navigate after state is synced
@@ -313,11 +368,11 @@ export default function LoginScreen(): JSX.Element {
 					}, 300);
 				} catch (error) {
 					const message = deriveErrorMessage(error);
-					console.error('[login] Failed to establish session:', error);
+					console.error('[login] Failed to establish session or register device:', error);
 					setLastError(message);
 					setStatus({
 						state: 'error',
-						message: 'Session failed. Please refresh.',
+						message: 'Session or device registration failed. Please refresh.',
 					});
 				}
 				return;
@@ -379,7 +434,7 @@ export default function LoginScreen(): JSX.Element {
 				return Math.min(base + 5000, 30000);
 			});
 		}
-	}, [codeState, setSession, router]);
+	}, [codeState, registerApprovedDevice, setSession, router]);
 
 	// Start polling whenever we have a code and the state is still waiting/requesting.
 	useEffect(() => {
@@ -409,7 +464,7 @@ export default function LoginScreen(): JSX.Element {
 		}
 	}, [isLoading, router, session]);
 
-	/**
+  /**
 	 * Developer bypass for local testing without the device approval flow.
 	 */
 	const handleDevBypass = useCallback(async () => {

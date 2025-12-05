@@ -1,0 +1,266 @@
+import { expoClient } from '@better-auth/expo/client';
+import type { BetterAuthClientPlugin } from 'better-auth/client';
+import {
+	deviceAuthorizationClient,
+	organizationClient,
+	usernameClient,
+} from 'better-auth/client/plugins';
+import { createAuthClient } from 'better-auth/react';
+import * as SecureStore from 'expo-secure-store';
+
+import { API_BASE_URL } from './api';
+
+const AUTH_BASE_URL = API_BASE_URL.endsWith('/api/auth')
+	? API_BASE_URL
+	: `${API_BASE_URL}/api/auth`;
+const AUTH_ORIGIN = new URL(AUTH_BASE_URL).origin;
+const STORAGE_PREFIX = 'sen-checkin';
+
+/** SecureStore key for persisting the device authorization access token */
+const ACCESS_TOKEN_KEY = `${STORAGE_PREFIX}_access_token`;
+
+/**
+ * In-memory cache for auth storage values.
+ * SecureStore is async but the expoClient plugin sometimes reads synchronously.
+ */
+const secureCache: Record<string, string> = {};
+let bootstrapPromise: Promise<void> | null = null;
+
+/**
+ * In-memory cache for the device authorization access token.
+ * Used by authedFetch to include the token in API requests.
+ */
+let cachedAccessToken: string | null = null;
+
+/**
+ * Preload BetterAuth cookie/session values from SecureStore into a synchronous cache.
+ * Expo's SecureStore is async, but the Expo client plugin reads synchronously in a few places.
+ * Also loads the device authorization access token for API requests.
+ *
+ * @returns Promise that resolves when storage is primed
+ */
+export function primeAuthStorage(): Promise<void> {
+	if (bootstrapPromise) {
+		return bootstrapPromise;
+	}
+
+	bootstrapPromise = (async () => {
+		try {
+			const isAvailable = (await SecureStore.isAvailableAsync?.()) ?? true;
+			if (!isAvailable) {
+				console.warn('[auth-client] SecureStore not available');
+				return;
+			}
+
+			// Load all keys that might have been stored by expoClient
+			// The plugin uses: {storagePrefix}_cookie and {storagePrefix}_session_data
+			const keysToLoad = [
+				`${STORAGE_PREFIX}_cookie`,
+				`${STORAGE_PREFIX}_session_data`,
+			];
+
+			for (const key of keysToLoad) {
+				const value = await SecureStore.getItemAsync(key);
+				if (value !== null) {
+					secureCache[key] = value;
+					console.log(`[auth-client] Loaded ${key} from SecureStore`);
+				}
+			}
+
+			// Load the access token for device authorization flow
+			const storedToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
+			if (storedToken) {
+				cachedAccessToken = storedToken;
+				console.log('[auth-client] Loaded access token from SecureStore');
+			}
+		} catch (error) {
+			console.warn('[auth-client] Failed to prime auth storage', error);
+		}
+	})();
+
+	return bootstrapPromise;
+}
+
+/**
+ * Clear the auth storage cache and SecureStore.
+ * Useful for logout or debugging.
+ *
+ * @returns Promise that resolves when storage is cleared
+ */
+export async function clearAuthStorage(): Promise<void> {
+	const keysToClear = [
+		`${STORAGE_PREFIX}_cookie`,
+		`${STORAGE_PREFIX}_session_data`,
+		ACCESS_TOKEN_KEY,
+	];
+
+	for (const key of keysToClear) {
+		delete secureCache[key];
+		try {
+			await SecureStore.deleteItemAsync(key);
+		} catch {
+			// Ignore errors during clear
+		}
+	}
+
+	// Also clear the in-memory access token cache
+	cachedAccessToken = null;
+	console.log('[auth-client] Auth storage cleared');
+}
+
+/**
+ * Store the device authorization access token for API requests.
+ * The token is persisted in SecureStore and cached in memory for performance.
+ *
+ * @param token - The access token received from device authorization flow
+ * @returns Promise that resolves when the token is stored
+ */
+export async function saveAccessToken(token: string): Promise<void> {
+	cachedAccessToken = token;
+	try {
+		await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
+		console.log('[auth-client] Access token saved to SecureStore');
+	} catch (error) {
+		console.warn('[auth-client] Failed to persist access token:', error);
+	}
+}
+
+/**
+ * Retrieve the cached access token for API requests.
+ * Returns the in-memory cached value for performance.
+ *
+ * @returns The cached access token or null if not available
+ */
+export function getAccessToken(): string | null {
+	return cachedAccessToken;
+}
+
+/**
+ * Storage adapter that bridges async SecureStore with sync in-memory cache.
+ * The expoClient plugin uses this for cookie/session storage.
+ */
+const storageAdapter = {
+	/**
+	 * Get an item from the cache.
+	 *
+	 * @param key - Storage key
+	 * @returns Cached value or null
+	 */
+	getItem: (key: string): string | null => {
+		const value = secureCache[key] ?? null;
+		return value;
+	},
+
+	/**
+	 * Set an item in both cache and SecureStore.
+	 *
+	 * @param key - Storage key
+	 * @param value - Value to store
+	 */
+	setItem: (key: string, value: string): void => {
+		console.log(`[auth-client] setItem called: ${key}`);
+		secureCache[key] = value;
+		void SecureStore.setItemAsync(key, value).catch((err) => {
+			console.warn(`[auth-client] Failed to persist ${key}:`, err);
+		});
+	},
+};
+
+export const authClient = createAuthClient({
+	baseURL: AUTH_BASE_URL,
+	fetchOptions: {
+		credentials: 'include',
+		mode: 'cors',
+		headers: {
+			Origin: AUTH_ORIGIN,
+		},
+	},
+	plugins: [
+		expoClient({
+			scheme: 'sen-checkin',
+			storagePrefix: STORAGE_PREFIX,
+			storage: storageAdapter,
+		}) as unknown as BetterAuthClientPlugin,
+		organizationClient(),
+		usernameClient(),
+		deviceAuthorizationClient(),
+	],
+});
+
+export const { useSession, signIn, signOut } = authClient;
+
+/**
+ * Force a fresh session fetch from the server.
+ * Useful after device authorization to ensure session state is up-to-date.
+ *
+ * @param accessToken - Optional Bearer token to include in the request
+ * @returns The session result from the server
+ */
+export async function refreshSession(accessToken?: string): Promise<ReturnType<typeof authClient.getSession>> {
+	const headers: Record<string, string> = {};
+	if (accessToken) {
+		headers.Authorization = `Bearer ${accessToken}`;
+	}
+
+	return authClient.getSession({
+		query: {
+			disableCookieCache: true,
+		},
+		fetchOptions: {
+			headers,
+		},
+	});
+}
+
+/**
+ * Fetch helper that includes authentication for API requests.
+ * Automatically adds the Bearer token from device authorization flow if available.
+ * Also includes credentials for cookie-based auth as fallback.
+ *
+ * @param input - URL or Request object
+ * @param init - Optional fetch init options
+ * @returns Fetch response
+ */
+export async function authedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+	// Extract headers from init to merge properly (don't let ...rest overwrite)
+	const { headers: initHeaders, ...restInit } = init ?? {};
+
+	const headers: Record<string, string> = {
+		Origin: AUTH_ORIGIN,
+	};
+
+	// Add Bearer token if available (from device authorization flow)
+	const accessToken = getAccessToken();
+	if (accessToken) {
+		headers.Authorization = `Bearer ${accessToken}`;
+		console.log('[authedFetch] Including Bearer token in request');
+	} else {
+		console.warn('[authedFetch] No access token available for request');
+	}
+
+	// Merge headers: our auth headers first, then caller's headers
+	const mergedHeaders: Record<string, string> = {
+		...headers,
+	};
+
+	// Handle initHeaders which could be Headers, array, or object
+	if (initHeaders) {
+		if (initHeaders instanceof Headers) {
+			initHeaders.forEach((value, key) => {
+				mergedHeaders[key] = value;
+			});
+		} else if (Array.isArray(initHeaders)) {
+			for (const [key, value] of initHeaders) {
+				mergedHeaders[key] = value;
+			}
+		} else {
+			Object.assign(mergedHeaders, initHeaders);
+		}
+	}
+
+	return fetch(input, {
+		credentials: 'include',
+		...restInit,
+		headers: mergedHeaders,
+	});
+}

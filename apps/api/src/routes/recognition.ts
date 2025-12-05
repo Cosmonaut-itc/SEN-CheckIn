@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { employee } from '../db/schema.js';
+import { logger } from '../logger/index.js';
 import { imageBodySchema, type RecognitionResult } from '../schemas/recognition.js';
 import { searchUsersByImage } from '../services/rekognition.js';
 
@@ -83,11 +84,20 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 		async ({ body, set }): Promise<RecognitionResult> => {
 			const { image } = body;
 
+			logger.debug('Recognition identify request received', {
+				imageLength: image?.length ?? 0,
+				hasImage: !!image,
+			});
+
 			// Decode base64 image to bytes
 			let imageBytes: Uint8Array;
 			try {
 				imageBytes = decodeBase64Image(image);
-			} catch {
+				logger.debug('Image decoded successfully', {
+					bytesLength: imageBytes.length,
+				});
+			} catch (error) {
+				logger.error('Failed to decode base64 image', error);
 				set.status = 400;
 				return {
 					matched: false,
@@ -98,10 +108,24 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 			}
 
 			// Search for matching user in Rekognition
+			logger.debug('Searching for face in Rekognition', {
+				threshold: DEFAULT_SIMILARITY_THRESHOLD,
+			});
+
 			const searchResult = await searchUsersByImage(imageBytes, DEFAULT_SIMILARITY_THRESHOLD);
+
+			logger.debug('Rekognition search completed', {
+				matched: searchResult.matched,
+				userId: searchResult.userId ?? null,
+				similarity: searchResult.similarity ?? null,
+				searchedFaceConfidence: searchResult.searchedFaceConfidence ?? null,
+			});
 
 			// If no match found, return early
 			if (!searchResult.matched || !searchResult.userId) {
+				logger.info('No face match found in Rekognition', {
+					searchedFaceConfidence: searchResult.searchedFaceConfidence ?? null,
+				});
 				return {
 					matched: false,
 					match: null,
@@ -111,6 +135,10 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 			}
 
 			// Look up the matched employee in the database using Rekognition user ID
+			logger.debug('Looking up employee by Rekognition user ID', {
+				rekognitionUserId: searchResult.userId,
+			});
+
 			const matchedEmployeeResults = await db
 				.select({
 					id: employee.id,
@@ -126,6 +154,10 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 
 			// If employee not found in DB (data inconsistency), still return the match info
 			if (!matchedEmployeeRecord) {
+				logger.warn('Rekognition matched but employee not found in database', {
+					rekognitionUserId: searchResult.userId,
+					similarity: searchResult.similarity ?? 0,
+				});
 				return {
 					matched: true,
 					match: {
@@ -136,6 +168,14 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 					searchedFaceConfidence: searchResult.searchedFaceConfidence,
 				};
 			}
+
+			logger.info('Face recognition successful', {
+				employeeId: matchedEmployeeRecord.id,
+				employeeCode: matchedEmployeeRecord.code,
+				employeeName: `${matchedEmployeeRecord.firstName} ${matchedEmployeeRecord.lastName}`,
+				similarity: searchResult.similarity ?? 0,
+				searchedFaceConfidence: searchResult.searchedFaceConfidence ?? null,
+			});
 
 			// Return full match result with employee details
 			return {

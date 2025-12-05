@@ -1,0 +1,68 @@
+@import 'tailwindcss';
+@import 'uniwind';
+@import 'heroui-native/styles';
+
+@source '../../node_modules/heroui-native/lib';
+
+:root {
+	/* Base primitives */
+	--background: #f7f7f8;
+	--foreground: #11181c;
+	--foreground-500: #687076;
+	--foreground-400: #9ba1a6;
+	--success: #16a34a;
+	--warning: #f59e0b;
+	--danger: #dc2626;
+	--accent: #2563eb;
+	--field-background: #ffffff;
+	--field-foreground: #11181c;
+
+	/* Derived tokens consumed by HeroUI */
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-foreground-500: var(--foreground-500);
+	--color-foreground-400: var(--foreground-400);
+	--color-content1: #f4f4f5;
+	--color-content2: #e4e4e7;
+	--color-default-100: #f4f4f5;
+	--color-default-200: #e4e4e7;
+	--color-accent: var(--accent);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-danger: var(--danger);
+	--color-surface: #ffffff;
+	--color-surface-secondary: #f1f5f9;
+	--color-surface-tertiary: #e8edf3;
+	--color-surface-quaternary: #dfe5ed;
+}
+
+.dark,
+[data-theme='dark'] {
+	--background: #0f1115;
+	--foreground: #ecedee;
+	--foreground-500: #9ba1a6;
+	--foreground-400: #71767a;
+	--success: #22c55e;
+	--warning: #fbbf24;
+	--danger: #f87171;
+	--accent: #60a5fa;
+	--field-background: #1c1f23;
+	--field-foreground: #ecedee;
+
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-foreground-500: var(--foreground-500);
+	--color-foreground-400: var(--foreground-400);
+	--color-content1: #27272a;
+	--color-content2: #3f3f46;
+	--color-default-100: #27272a;
+	--color-default-200: #3f3f46;
+	--color-accent: var(--accent);
+	--color-success: var(--success);
+	--color-warning: var(--warning);
+	--color-danger: var(--danger);
+	--color-surface: #1c1f23;
+	--color-surface-secondary: #24292e;
+	--color-surface-tertiary: #2e343a;
+	--color-surface-quaternary: #383f46;
+}

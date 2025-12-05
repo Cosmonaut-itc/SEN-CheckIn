@@ -25,7 +25,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Pencil, Trash2, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import {
@@ -35,7 +35,7 @@ import {
 	type DeviceStatus,
 	type Location,
 } from '@/lib/client-functions';
-import { createDevice, updateDevice, deleteDevice } from '@/actions/devices';
+import { updateDevice, deleteDevice } from '@/actions/devices';
 import { useOrgContext } from '@/lib/org-client-context';
 
 /**
@@ -114,24 +114,6 @@ export function DevicesPageClient(): React.ReactElement {
 
 	const devices = data?.data ?? [];
 
-	// Create mutation
-	const createMutation = useMutation({
-		mutationKey: mutationKeys.devices.create,
-		mutationFn: createDevice,
-		onSuccess: (result) => {
-			if (result.success) {
-				toast.success('Device created successfully');
-				setIsDialogOpen(false);
-				queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
-			} else {
-				toast.error(result.error ?? 'Failed to create device');
-			}
-		},
-		onError: () => {
-			toast.error('Failed to create device');
-		},
-	});
-
 	// Update mutation
 	const updateMutation = useMutation({
 		mutationKey: mutationKeys.devices.update,
@@ -173,47 +155,34 @@ const form = useAppForm({
 	defaultValues: {
 		code: '',
 		name: '',
-		deviceType: '',
-		status: 'OFFLINE',
-		locationId: NONE_LOCATION_VALUE,
+	deviceType: '',
+	status: 'OFFLINE',
+	locationId: NONE_LOCATION_VALUE,
 	},
 	onSubmit: async ({ value }: { value: DeviceFormValues }) => {
+		if (!editingDevice) {
+			toast.error('Select a device to edit before saving changes.');
+			return;
+		}
+
 		const locationId =
 			value.locationId && value.locationId !== NONE_LOCATION_VALUE
 				? value.locationId
 				: undefined;
-		if (editingDevice) {
-			await updateMutation.mutateAsync({
-				id: editingDevice.id,
-				code: value.code,
-				name: value.name || undefined,
-				deviceType: value.deviceType || undefined,
-				status: value.status,
-				locationId,
-			});
-		} else {
-			await createMutation.mutateAsync({
-				code: value.code,
-				name: value.name || undefined,
-				deviceType: value.deviceType || undefined,
-				status: value.status,
-				locationId,
-			});
-		}
+
+		await updateMutation.mutateAsync({
+			id: editingDevice.id,
+			code: value.code,
+			name: value.name || undefined,
+			deviceType: value.deviceType || undefined,
+			status: value.status,
+			locationId,
+		});
 		setIsDialogOpen(false);
 		setEditingDevice(null);
 		form.reset();
 	},
 });
-
-	/**
-	 * Opens the dialog for creating a new device.
-	 */
-	const handleCreateNew = useCallback((): void => {
-		setEditingDevice(null);
-		form.reset();
-		setIsDialogOpen(true);
-	}, [form]);
 
 	/**
 	 * Opens the dialog for editing an existing device.
@@ -234,7 +203,7 @@ const form = useAppForm({
 	);
 
 	/**
-	 * Handles form submission for creating or updating a device.
+	 * Handles form submission for updating a device.
 	 *
 	 * @param e - The form submission event
 	 */
@@ -269,84 +238,77 @@ const form = useAppForm({
 
 	return (
 		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
+			<div className="flex items-start justify-between">
+				<div className="space-y-1.5">
 					<h1 className="text-3xl font-bold tracking-tight">Devices</h1>
-					<p className="text-muted-foreground">
-						Manage check-in kiosks and devices
+					<p className="text-muted-foreground">Manage check-in kiosks and devices.</p>
+					<p className="text-sm text-muted-foreground">
+						Devices are registered automatically from the mobile app after OAuth approval.
+						Use this page to rename devices, assign locations, or remove hardware that is no longer in use.
 					</p>
 				</div>
-		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-			<DialogTrigger asChild>
-				<Button onClick={handleCreateNew}>
-					<Plus className="mr-2 h-4 w-4" />
-					Add Device
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-[425px]">
-						<form onSubmit={handleSubmit}>
-							<DialogHeader>
-								<DialogTitle>
-									{editingDevice ? 'Edit Device' : 'Add Device'}
-								</DialogTitle>
-								<DialogDescription>
-									{editingDevice
-										? 'Update the device details below.'
-										: 'Fill in the details to create a new device.'}
-								</DialogDescription>
-							</DialogHeader>
-					<div className="grid gap-4 py-4">
-						<form.AppField
-							name="code"
-							validators={{
-								onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
-							}}
-						>
-							{(field) => <field.TextField label="Code" />}
-						</form.AppField>
-						<form.AppField name="name">
-							{(field) => <field.TextField label="Name" placeholder="Optional" />}
-						</form.AppField>
-						<form.AppField name="deviceType">
-							{(field) => <field.TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />}
-						</form.AppField>
-						<form.AppField
-							name="status"
-							validators={{
-								onChange: ({ value }) => (!value ? 'Status is required' : undefined),
-							}}
-						>
-							{(field) => (
-								<field.SelectField
-									label="Status"
-									options={[
-										{ value: 'ONLINE', label: 'Online' },
-										{ value: 'OFFLINE', label: 'Offline' },
-										{ value: 'MAINTENANCE', label: 'Maintenance' },
-									]}
-									placeholder="Select status"
-								/>
-							)}
-						</form.AppField>
-						<form.AppField name="locationId">
-							{(field) => (
-								<field.SelectField
-									label="Location"
-									options={locationOptions}
-									placeholder="Select location (optional)"
-								/>
-							)}
-						</form.AppField>
-					</div>
-					<DialogFooter>
-						<form.AppForm>
-							<form.SubmitButton label="Save" loadingLabel="Saving..." />
-						</form.AppForm>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
 			</div>
+
+			<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+				<DialogContent className="sm:max-w-[425px]">
+					<form onSubmit={handleSubmit}>
+						<DialogHeader>
+							<DialogTitle>Edit Device</DialogTitle>
+							<DialogDescription>Update the device details below.</DialogDescription>
+						</DialogHeader>
+						<div className="grid gap-4 py-4">
+							<form.AppField
+								name="code"
+								validators={{
+									onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
+								}}
+							>
+								{(field) => <field.TextField label="Code" />}
+							</form.AppField>
+							<form.AppField name="name">
+								{(field) => <field.TextField label="Name" placeholder="Optional" />}
+							</form.AppField>
+							<form.AppField name="deviceType">
+								{(field) => (
+									<field.TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />
+								)}
+							</form.AppField>
+							<form.AppField
+								name="status"
+								validators={{
+									onChange: ({ value }) => (!value ? 'Status is required' : undefined),
+								}}
+							>
+								{(field) => (
+									<field.SelectField
+										label="Status"
+										options={[
+											{ value: 'ONLINE', label: 'Online' },
+											{ value: 'OFFLINE', label: 'Offline' },
+											{ value: 'MAINTENANCE', label: 'Maintenance' },
+										]}
+										placeholder="Select status"
+									/>
+								)}
+							</form.AppField>
+							<form.AppField name="locationId">
+								{(field) => (
+									<field.SelectField
+										label="Location"
+										options={locationOptions}
+										placeholder="Select location (optional)"
+									/>
+								)}
+							</form.AppField>
+						</div>
+						<DialogFooter>
+							<form.AppForm>
+								<form.SubmitButton label="Save changes" loadingLabel="Saving..." />
+							</form.AppForm>
+						</DialogFooter>
+					</form>
+				</DialogContent>
+			</Dialog>
 
 			<div className="flex items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
@@ -378,7 +340,7 @@ const form = useAppForm({
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
+									{Array.from({ length: 8 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -387,7 +349,7 @@ const form = useAppForm({
 							))
 						) : devices.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
+								<TableCell colSpan={8} className="h-24 text-center">
 									No devices found.
 								</TableCell>
 							</TableRow>

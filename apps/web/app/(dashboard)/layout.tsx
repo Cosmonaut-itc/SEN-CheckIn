@@ -1,12 +1,12 @@
-import React, { type ReactNode } from 'react';
-import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { AppSidebar } from '@/components/app-sidebar';
-import { Separator } from '@/components/ui/separator';
+import { OrganizationGate } from '@/components/organization-gate';
 import { ThemeModeToggle } from '@/components/theme-mode-toggle';
+import { Separator } from '@/components/ui/separator';
+import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { OrgProvider } from '@/lib/org-client-context';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
-import { NoOrganizationState } from '@/components/no-organization-state';
 import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import React, { type ReactNode } from 'react';
 
 /**
  * Props for the DashboardLayout component.
@@ -31,13 +31,6 @@ export default async function DashboardLayout({
 	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
 	const userRole = sessionResult.data?.user?.role ?? 'user';
 
-	const content =
-		orgContext.organizationId === null ? (
-			<NoOrganizationState role={userRole} />
-		) : (
-			<OrgProvider value={orgContext}>{children}</OrgProvider>
-		);
-
 	return (
 		<SidebarProvider>
 			<AppSidebar />
@@ -49,7 +42,14 @@ export default async function DashboardLayout({
 						<ThemeModeToggle />
 					</div>
 				</header>
-				<main className="flex-1 overflow-auto p-6">{content}</main>
+				<main className="flex-1 overflow-auto p-6">
+					<OrganizationGate
+						role={userRole}
+						hasOrganization={orgContext.organizationId !== null}
+					>
+						<OrgProvider value={orgContext}>{children}</OrgProvider>
+					</OrganizationGate>
+				</main>
 			</SidebarInset>
 		</SidebarProvider>
 	);

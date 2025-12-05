@@ -1,16 +1,16 @@
+import { type SQL, and, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
-import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { location, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
-import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
+	createLocationSchema,
 	idParamSchema,
 	locationQuerySchema,
-	createLocationSchema,
 	updateLocationSchema,
 } from '../schemas/crud.js';
+import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 
 /**
  * Location routes for managing location/branch records.
@@ -108,7 +108,14 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			const results = await db.select().from(location).where(eq(location.id, id)).limit(1);
@@ -325,7 +332,14 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if location exists

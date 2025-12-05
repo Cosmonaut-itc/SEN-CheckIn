@@ -71,6 +71,13 @@
       "when": 1764355584770,
       "tag": "0009_brave_namora",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1764628018432,
+      "tag": "0010_acoustic_greymalkin",
+      "breakpoints": true
     }
   ]
 }

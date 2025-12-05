@@ -1,18 +1,11 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm } from '@/lib/forms';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+	createOrganization,
+	deleteOrganization,
+	updateOrganization,
+} from '@/actions/organizations';
+import { Button } from '@/components/ui/button';
 import {
 	Dialog,
 	DialogContent,
@@ -22,17 +15,24 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
-import { Plus, Trash2, Search, Users, Edit } from 'lucide-react';
-import { format } from 'date-fns';
-import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchOrganizations, type Organization } from '@/lib/client-functions';
 import {
-	createOrganization,
-	updateOrganization,
-	deleteOrganization,
-} from '@/actions/organizations';
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table';
+import { fetchOrganizations, type Organization } from '@/lib/client-functions';
+import { useAppForm } from '@/lib/forms';
+import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format } from 'date-fns';
+import { Edit, Plus, Search, Trash2, Users } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Form values for creating organizations.
@@ -217,7 +217,6 @@ export function OrganizationsPageClient(): React.ReactElement {
 		return undefined;
 	};
 
-
 	const handleDialogOpenChange = useCallback(
 		(open: boolean): void => {
 			setIsDialogOpen(open);
@@ -247,88 +246,25 @@ export function OrganizationsPageClient(): React.ReactElement {
 			org.name.toLowerCase().includes(search.toLowerCase()) ||
 			org.slug.toLowerCase().includes(search.toLowerCase())
 	);
+	const hasNoOrganizations = !isFetching && organizations.length === 0;
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-					<p className="text-muted-foreground">
-						Manage organizations and their members
-					</p>
-				</div>
-				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<div className="space-y-6">
+				<div className="flex items-center justify-between">
+					<div>
+						<h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
+						<p className="text-muted-foreground">
+							Manage organizations and their members
+						</p>
+					</div>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
 							Create Organization
 						</Button>
 					</DialogTrigger>
-					<DialogContent className="sm:max-w-[425px]">
-						<form
-							onSubmit={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-								form.handleSubmit();
-							}}
-						>
-							<DialogHeader>
-								<DialogTitle>
-									{editingOrganization ? 'Edit Organization' : 'Create Organization'}
-								</DialogTitle>
-								<DialogDescription>
-									{editingOrganization
-										? 'Update the organization details below.'
-										: 'Create a new organization to manage users and resources.'}
-								</DialogDescription>
-							</DialogHeader>
-							<div className="grid gap-4 py-4">
-								<form.AppField
-									name="name"
-									validators={{
-										onChange: ({ value }) => validateName(value),
-									}}
-								>
-									{(field) => (
-										<field.TextField
-											label="Name"
-											description={`Between ${NAME_LIMITS.min}-${NAME_LIMITS.max} characters.`}
-											onValueChange={(val) => {
-												if (!editingOrganization) {
-													form.setFieldValue('slug', generateSlug(val));
-												}
-												return val;
-											}}
-										/>
-									)}
-								</form.AppField>
-								<form.AppField
-									name="slug"
-									validators={{
-										onChange: ({ value }) => validateSlug(value),
-									}}
-								>
-									{(field) => (
-										<field.TextField
-											label="Slug"
-											description={`Lowercase, ${SLUG_LIMITS.min}-${SLUG_LIMITS.max} characters; letters, numbers, and hyphens only.`}
-											onValueChange={(val) => generateSlug(val)}
-										/>
-									)}
-								</form.AppField>
-							</div>
-							<DialogFooter>
-								<form.AppForm>
-									<form.SubmitButton
-										label={editingOrganization ? 'Save' : 'Create'}
-										loadingLabel={editingOrganization ? 'Saving...' : 'Creating...'}
-									/>
-								</form.AppForm>
-							</DialogFooter>
-						</form>
-					</DialogContent>
-				</Dialog>
-			</div>
+				</div>
 
 			<div className="flex items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
@@ -366,9 +302,22 @@ export function OrganizationsPageClient(): React.ReactElement {
 						) : filteredOrganizations.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={4} className="h-24 text-center">
-									<div className="flex flex-col items-center gap-2">
+									<div className="flex flex-col items-center gap-3">
 										<Users className="h-8 w-8 text-muted-foreground" />
-										<p>No organizations found.</p>
+										<div className="space-y-1">
+											<p className="font-medium text-foreground">
+												No organizations found.
+											</p>
+											<p className="text-sm text-muted-foreground">
+												Start by creating your first organization.
+											</p>
+										</div>
+										<DialogTrigger asChild>
+											<Button onClick={handleCreateNew} size="sm">
+												<Plus className="mr-2 h-4 w-4" />
+												Create organization
+											</Button>
+										</DialogTrigger>
 									</div>
 								</TableCell>
 							</TableRow>
@@ -434,6 +383,71 @@ export function OrganizationsPageClient(): React.ReactElement {
 					</TableBody>
 				</Table>
 			</div>
-		</div>
+			</div>
+
+			<DialogContent className="sm:max-w-[425px]">
+				<form
+					onSubmit={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						form.handleSubmit();
+					}}
+				>
+					<DialogHeader>
+						<DialogTitle>
+							{editingOrganization ? 'Edit Organization' : 'Create Organization'}
+						</DialogTitle>
+					<DialogDescription>
+						{editingOrganization
+							? 'Update the organization details below.'
+							: 'Create a new organization to manage users and resources.'}
+					</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 py-4">
+						<form.AppField
+							name="name"
+							validators={{
+								onChange: ({ value }) => validateName(value),
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label="Name"
+									description={`Between ${NAME_LIMITS.min}-${NAME_LIMITS.max} characters.`}
+									onValueChange={(val) => {
+										if (!editingOrganization) {
+											form.setFieldValue('slug', generateSlug(val));
+										}
+										return val;
+									}}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="slug"
+							validators={{
+								onChange: ({ value }) => validateSlug(value),
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label="Slug"
+									description={`Lowercase, ${SLUG_LIMITS.min}-${SLUG_LIMITS.max} characters; letters, numbers, and hyphens only.`}
+									onValueChange={(val) => generateSlug(val)}
+								/>
+							)}
+						</form.AppField>
+					</div>
+					<DialogFooter>
+						<form.AppForm>
+							<form.SubmitButton
+								label={editingOrganization ? 'Save' : 'Create'}
+								loadingLabel={editingOrganization ? 'Saving...' : 'Creating...'}
+							/>
+						</form.AppForm>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 	);
 }

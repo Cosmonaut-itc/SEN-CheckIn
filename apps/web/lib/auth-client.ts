@@ -2,6 +2,7 @@ import { createAuthClient } from 'better-auth/react';
 import {
 	apiKeyClient,
 	adminClient,
+	deviceAuthorizationClient,
 	organizationClient,
 	usernameClient,
 } from 'better-auth/client/plugins';
@@ -18,10 +19,21 @@ const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
 /**
  * Better Auth client configured with Admin, Organization, and API Key plugins.
  * Provides authentication methods and hooks for the admin portal.
+ * Ensures cookies are forwarded for session-aware endpoints.
  */
 export const authClient = createAuthClient({
 	baseURL: API_BASE_URL,
-	plugins: [apiKeyClient(), adminClient(), organizationClient(), usernameClient()],
+	fetchOptions: {
+		credentials: 'include',
+		mode: 'cors',
+	},
+	plugins: [
+		apiKeyClient(),
+		adminClient(),
+		organizationClient(),
+		usernameClient(),
+		deviceAuthorizationClient(),
+	],
 });
 
 /**

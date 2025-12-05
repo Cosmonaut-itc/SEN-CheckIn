@@ -6,9 +6,13 @@
 	"module": "dist/index.js",
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",
-		"build": "bun build src/index.ts --outdir dist --target bun",
+		"build": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace",
+		"build:prod": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace",
 		"start": "bun run dist/index.js",
+		"start:prod": "NODE_ENV=production bun run dist/index.js",
 		"lint": "eslint src --ext .ts --max-warnings 0",
+		"db:mig": "bunx --bun drizzle-kit migrate --config drizzle.config.ts",
+		"db:gen": "bunx --bun drizzle-kit generate --config drizzle.config.ts",
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {

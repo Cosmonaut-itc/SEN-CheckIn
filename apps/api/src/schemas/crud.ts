@@ -183,6 +183,18 @@ export const deviceQuerySchema = paginationSchema.extend({
 	organizationId: z.string().optional(),
 });
 
+/**
+ * Schema for registering a device via the mobile client.
+ * Uses a stable device code and optional metadata to upsert devices.
+ */
+export const registerDeviceSchema = z.object({
+	code: z.string().min(1, 'Code is required').max(50),
+	name: z.string().max(255).optional(),
+	deviceType: z.string().max(50).optional(),
+	platform: z.string().max(50).optional(),
+	organizationId: z.string().optional(),
+});
+
 // ============================================================================
 // Attendance Schemas
 // ============================================================================
@@ -252,6 +264,7 @@ export type DeviceStatus = z.infer<typeof deviceStatusEnum>;
 export type CreateDeviceInput = z.infer<typeof createDeviceSchema>;
 export type UpdateDeviceInput = z.infer<typeof updateDeviceSchema>;
 export type DeviceQuery = z.infer<typeof deviceQuerySchema>;
+export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
 
 // Attendance
 export type AttendanceType = z.infer<typeof attendanceTypeEnum>;

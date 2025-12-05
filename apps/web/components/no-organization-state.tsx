@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
 import { Building2, Clock3 } from 'lucide-react';
+import Link from 'next/link';
+import React from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -55,7 +55,7 @@ export function NoOrganizationState({
 								Once set, all dashboard data will be scoped to that organization.
 							</p>
 							<Button asChild>
-								<Link href="/dashboard/organizations">Go to organizations</Link>
+								<Link href="/organizations">Go to organizations</Link>
 							</Button>
 						</>
 					) : (

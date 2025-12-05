@@ -115,12 +115,12 @@ export const authClient = createAuthClient({
 
 ### 3.1 Create Device Verification Route
 
-File: `apps/web/app/(auth)/device/page.tsx`
+File: `apps/web/app/(auth)/device/[code]/page.tsx`
 
 Server component that renders the device verification UI:
 
 ```
-URL: /device?user_code=XXXX-XXXX (optional pre-filled code)
+URL: /device/XXXX-XXXX (optional pre-filled code)
 ```
 
 Features:

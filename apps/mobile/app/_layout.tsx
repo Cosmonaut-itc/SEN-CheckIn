@@ -19,13 +19,13 @@ import '../global.css';
  * @returns {JSX.Element} Wrapped provider tree with gesture support
  */
 export default function RootLayout(): JSX.Element {
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AppProviders />
-      </ThemeProvider>
-    </GestureHandlerRootView>
-  );
+	return (
+		<GestureHandlerRootView style={{ flex: 1 }}>
+			<ThemeProvider>
+				<AppProviders />
+			</ThemeProvider>
+		</GestureHandlerRootView>
+	);
 }
 
 /**
@@ -34,27 +34,34 @@ export default function RootLayout(): JSX.Element {
  * @returns {JSX.Element} Provider stack including navigation and status bar
  */
 function AppProviders(): JSX.Element {
-  const { colorScheme, isDarkMode } = useTheme();
-  const statusBarStyle = isDarkMode ? 'light' : 'dark';
+	const { colorScheme, isDarkMode } = useTheme();
+	const statusBarStyle = isDarkMode ? 'light' : 'dark';
 
-  return (
-    <View
-      style={{ flex: 1 }}
-      className={isDarkMode ? 'dark' : undefined}
-    >
-      <HeroUINativeProvider theme={colorScheme}>
-        <QueryProvider>
-          <AuthProvider>
-            <DeviceProvider>
-              <Stack screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="(auth)" />
-                <Stack.Screen name="(main)" />
-              </Stack>
-              <StatusBar style={statusBarStyle} />
-            </DeviceProvider>
-          </AuthProvider>
-        </QueryProvider>
-      </HeroUINativeProvider>
-    </View>
-  );
+	return (
+		<View
+			style={{ flex: 1 }}
+			className={isDarkMode ? 'dark' : undefined}
+			dataSet={{ theme: colorScheme }}
+		>
+			<HeroUINativeProvider theme={colorScheme}>
+				<QueryProvider>
+					<AuthProvider>
+						<DeviceProvider>
+							<Stack
+								screenOptions={{
+									headerShown: false,
+									// Use right-to-left slide animation for navigation transitions
+									animation: 'slide_from_right',
+								}}
+							>
+								<Stack.Screen name="(auth)" />
+								<Stack.Screen name="(main)" />
+							</Stack>
+							<StatusBar style={statusBarStyle} />
+						</DeviceProvider>
+					</AuthProvider>
+				</QueryProvider>
+			</HeroUINativeProvider>
+		</View>
+	);
 }

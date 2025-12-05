@@ -143,12 +143,17 @@ export function SelectField<TValue extends string>({
 								key={opt.value}
 								value={opt.value}
 								label={opt.label}
-								className="px-4 py-3 rounded-xl active:bg-content2"
+								className="px-4 py-3.5 rounded-xl active:bg-content2 mb-1"
 							>
-								<View className="flex-row items-center justify-between flex-1">
-									<Select.ItemLabel className="text-base text-foreground" />
-									<Select.ItemIndicator />
+								<View className="flex-row items-center gap-3 flex-1">
+									<Select.ItemLabel className="text-base text-foreground flex-1" />
 								</View>
+								<Select.ItemIndicator
+									iconProps={{
+										size: 20,
+										color: 'var(--color-primary)',
+									}}
+								/>
 							</Select.Item>
 						))}
 					</Select.Content>

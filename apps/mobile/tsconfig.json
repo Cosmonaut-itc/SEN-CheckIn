@@ -24,9 +24,6 @@
       ],
       "@sen-checkin/types/*": [
         "../../packages/types/src/*"
-      ],
-      "heroui-native": [
-        "./node_modules/heroui-native/lib/typescript/src/index.d.ts"
       ]
     }
   },

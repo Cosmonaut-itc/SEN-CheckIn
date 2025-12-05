@@ -5,15 +5,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-	Animated,
-	Platform,
-	StyleSheet,
-	Text,
-	TouchableOpacity,
-	View,
-	useWindowDimensions,
-} from 'react-native';
+import { Animated, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { Colors, type ThemeColors } from '@/constants/theme';
 import { useDeviceContext } from '@/lib/device-context';
@@ -89,9 +81,8 @@ export default function ScannerScreen(): JSX.Element {
 	const attendanceAccent =
 		attendanceType === 'CHECK_IN' ? themeColors.success : themeColors.error;
 	const neutralGuideColor = 'rgba(255, 255, 255, 0.8)';
-	const primaryContentColor = isDarkMode ? themeColors.foreground : themeColors.background;
-	const ctaContentColor =
-		attendanceType === 'CHECK_IN' ? primaryContentColor : themeColors.foreground;
+	const ctaBackground = attendanceType === 'CHECK_IN' ? themeColors.success : themeColors.error;
+	const ctaContentColor = '#ffffff';
 
 	/**
 	 * Toggles between CHECK_IN and CHECK_OUT attendance types
@@ -306,16 +297,22 @@ export default function ScannerScreen(): JSX.Element {
 	if (!permission.granted) {
 		return (
 			<View style={styles.centeredContainer}>
-				<View style={styles.permissionCard}>
-					<Ionicons name="camera-outline" size={64} color={themeColors.primary} />
-					<Text style={styles.permissionTitle}>Camera Access Required</Text>
-					<Text style={styles.permissionDescription}>
-						We need camera permission to scan faces for attendance verification.
-					</Text>
-					<Button onPress={requestPermission} className="mt-6 w-full">
-						<Button.Label>Grant Permission</Button.Label>
-					</Button>
-				</View>
+				<Card variant="default" className="max-w-xs w-full border-default-200">
+					<Card.Body className="gap-4 p-6 items-center">
+						<Ionicons name="camera-outline" size={64} color={themeColors.primary} />
+						<View className="gap-2">
+							<Card.Label className="text-center text-xl">
+								Camera Access Required
+							</Card.Label>
+							<Card.Description className="text-center text-base">
+								We need camera permission to scan faces for attendance verification.
+							</Card.Description>
+						</View>
+						<Button onPress={requestPermission} className="w-full">
+							<Button.Label>Grant Permission</Button.Label>
+						</Button>
+					</Card.Body>
+				</Card>
 			</View>
 		);
 	}
@@ -337,28 +334,30 @@ export default function ScannerScreen(): JSX.Element {
 
 			{/* Top Bar - Attendance Type Toggle & Settings */}
 			<View style={styles.topBar}>
-				<TouchableOpacity
-					style={[
-						styles.attendanceToggle,
-						attendanceType === 'CHECK_IN'
-							? styles.checkInToggle
-							: styles.checkOutToggle,
-					]}
+				<Button
+					variant="secondary"
+					size="md"
+					className="flex-1 mr-3 flex-row items-center gap-2 justify-center rounded-full"
 					onPress={toggleAttendanceType}
-					activeOpacity={0.8}
 				>
 					<View style={styles.toggleIndicator}>
 						<View style={[styles.toggleDot, { backgroundColor: attendanceAccent }]} />
 					</View>
-					<Text style={styles.toggleText}>
+					<Button.Label className="text-base font-semibold">
 						{attendanceType === 'CHECK_IN' ? 'Check-in' : 'Check-out'}
-					</Text>
+					</Button.Label>
 					<Ionicons name="swap-horizontal" size={18} color={themeColors.foreground500} />
-				</TouchableOpacity>
+				</Button>
 
-				<TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
-					<Ionicons name="settings-outline" size={24} color={themeColors.foreground} />
-				</TouchableOpacity>
+				<Button
+					variant="secondary"
+					isIconOnly
+					size="sm"
+					className="rounded-full"
+					onPress={handleOpenSettings}
+				>
+					<Ionicons name="settings-outline" size={20} color={themeColors.foreground} />
+				</Button>
 			</View>
 
 			{/* Face Guide Overlay */}
@@ -414,7 +413,10 @@ export default function ScannerScreen(): JSX.Element {
 
 			{/* Bottom Status Card */}
 			<View style={styles.bottomContainer}>
-				<Card className="bg-background/90 backdrop-blur-md border-default-200">
+				<Card
+					variant="default"
+					className="bg-background/90 backdrop-blur-md border-default-200"
+				>
 					<Card.Body className="p-4">
 						{/* Device status row */}
 						<View className="flex-row items-center justify-between mb-4">
@@ -448,8 +450,12 @@ export default function ScannerScreen(): JSX.Element {
 						<Button
 							onPress={handleCapture}
 							isDisabled={isProcessing || !settings?.deviceId}
-							variant={attendanceType === 'CHECK_IN' ? 'primary' : 'secondary'}
+							variant="primary"
 							className="w-full h-14"
+							style={{
+								backgroundColor: ctaBackground,
+								borderColor: ctaBackground,
+							}}
 						>
 							{isProcessing ? (
 								<View className="flex-row items-center gap-3">
@@ -459,7 +465,10 @@ export default function ScannerScreen(): JSX.Element {
 							) : (
 								<View className="flex-row items-center gap-2">
 									<Ionicons name="scan" size={22} color={ctaContentColor} />
-									<Button.Label className="text-lg">
+									<Button.Label
+										className="text-lg"
+										style={{ color: ctaContentColor }}
+									>
 										{attendanceType === 'CHECK_IN'
 											? 'Scan Check-in'
 											: 'Scan Check-out'}
@@ -470,15 +479,19 @@ export default function ScannerScreen(): JSX.Element {
 
 						{/* Link device prompt */}
 						{!settings?.deviceId && (
-							<TouchableOpacity
+							<Button
+								variant="light"
+								size="sm"
+								className="mt-3"
 								onPress={handleOpenSettings}
-								className="mt-3 flex-row items-center justify-center gap-1"
 							>
-								<Ionicons name="link" size={16} color={themeColors.warning} />
-								<Text className="text-warning-500 text-sm font-medium">
-									Tap to link this device
-								</Text>
-							</TouchableOpacity>
+								<View className="flex-row items-center gap-2">
+									<Ionicons name="link" size={16} color={themeColors.warning} />
+									<Button.Label className="text-warning-500 font-semibold">
+										Tap to link this device
+									</Button.Label>
+								</View>
+							</Button>
 						)}
 					</Card.Body>
 				</Card>

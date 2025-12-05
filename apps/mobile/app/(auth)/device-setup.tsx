@@ -1,16 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import * as ExpoDevice from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Button, Card, Spinner } from 'heroui-native';
-import { type JSX, useCallback, useEffect, useMemo, useState } from 'react';
-import {
-	Modal,
-	ScrollView,
-	Text,
-	TouchableOpacity,
-	TouchableWithoutFeedback,
-	View,
-} from 'react-native';
+import { Button, Card, Select, Spinner } from 'heroui-native';
+import { type JSX, useCallback, useEffect, useMemo } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
@@ -86,9 +79,6 @@ export default function DeviceSetupScreen(): JSX.Element {
 		[locationsResponse?.data],
 	);
 
-	// State for location picker modal
-	const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
-
 	/**
 	 * Submit handler that updates device metadata and persists it locally.
 	 *
@@ -148,7 +138,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 	if (!deviceId) {
 		return (
 			<View className="flex-1 bg-background items-center justify-center px-6">
-				<Card className="p-8 w-full max-w-md items-center gap-5 rounded-3xl border border-default-200 bg-content1">
+				<Card
+					variant="default"
+					className="p-8 w-full max-w-md items-center gap-5 rounded-3xl border border-default-200 bg-content1"
+				>
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
 						<Text className="text-3xl">⚠️</Text>
@@ -231,7 +224,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</View>
 
 				{/* Form Card */}
-				<Card className="p-6 gap-6 bg-content1 border border-default-200 rounded-3xl">
+				<Card
+					variant="default"
+					className="p-6 gap-6 bg-content1 border border-default-200 rounded-3xl"
+				>
 					<form.AppField
 						name="name"
 						validators={{
@@ -248,7 +244,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 						)}
 					</form.AppField>
 
-					{/* Simple Location Picker */}
+					{/* Location Select using HeroUI Native Select */}
 					<form.AppField
 						name="locationId"
 						validators={{
@@ -259,117 +255,87 @@ export default function DeviceSetupScreen(): JSX.Element {
 							const selectedOption = locationOptions.find(
 								(opt) => opt.value === field.state.value,
 							);
-							const displayText =
-								selectedOption?.label ??
-								(isLocationsPending ? 'Loading locations…' : 'Choose a location');
 							const hasError = field.state.meta.errors.length > 0;
+
+							/**
+							 * Handles location selection from the HeroUI Native Select component.
+							 *
+							 * @param option - The selected option object or null when cleared
+							 */
+							const handleLocationChange = (
+								option: { value: string; label: string } | null,
+							): void => {
+								if (option?.value) {
+									field.handleChange(option.value);
+								}
+							};
 
 							return (
 								<View className="gap-1.5">
 									<Text className="text-sm font-semibold text-foreground tracking-wide">
 										Assigned Location
 									</Text>
-									<TouchableOpacity
-										activeOpacity={0.82}
-										className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1"
-										disabled={isLocationsPending}
-										onPress={() => setIsLocationPickerOpen(true)}
+									<Select
+										value={selectedOption}
+										onValueChange={handleLocationChange}
+										isDisabled={isLocationsPending}
 									>
-										<Text
-											className={`text-base ${
-												selectedOption
-													? 'text-foreground'
-													: 'text-foreground-400'
-											}`}
-										>
-											{displayText}
-										</Text>
-									</TouchableOpacity>
+										<Select.Trigger asChild>
+											<Button variant="tertiary" size="sm">
+												{selectedOption ? (
+													<View className="flex-row items-center gap-2">
+														<Text className="text-sm text-foreground">
+															{selectedOption.label}
+														</Text>
+													</View>
+												) : (
+													<Text className="text-foreground">
+														{isLocationsPending
+															? 'Loading locations…'
+															: 'Choose a location'}
+													</Text>
+												)}
+											</Button>
+										</Select.Trigger>
+										<Select.Portal>
+											<Select.Overlay />
+											<Select.Content
+												width={280}
+												className="rounded-2xl"
+												placement="bottom"
+											>
+												{locationOptions.length === 0 ? (
+													<View className="py-4">
+														<Text className="text-foreground-400 text-center">
+															No locations available
+														</Text>
+													</View>
+												) : (
+													<ScrollView>
+														{locationOptions.map((opt) => (
+															<Select.Item
+																key={opt.value}
+																value={opt.value}
+																label={opt.label}
+															>
+																<View className="flex-row items-center gap-3 flex-1">
+																	<Text className="text-base text-foreground flex-1">
+																		{opt.label}
+																	</Text>
+																</View>
+																<Select.ItemIndicator />
+															</Select.Item>
+														))}
+													</ScrollView>
+												)}
+											</Select.Content>
+										</Select.Portal>
+									</Select>
 									{hasError ? (
 										<Text className="text-sm text-danger-500 font-medium">
 											{field.state.meta.errors.join(', ')}
 										</Text>
 									) : null}
-
-									{/* Location Picker Modal */}
-									<Modal
-										transparent
-										animationType="fade"
-										visible={isLocationPickerOpen}
-										onRequestClose={() => setIsLocationPickerOpen(false)}
-									>
-										<View className="flex-1 bg-black/50 px-6 justify-center">
-											<TouchableWithoutFeedback
-												onPress={() => setIsLocationPickerOpen(false)}
-											>
-												<View className="absolute inset-0" />
-											</TouchableWithoutFeedback>
-
-											<View
-												className="bg-background rounded-2xl p-4"
-												style={{ maxHeight: '70%' }}
-											>
-												<Text className="text-base font-semibold text-foreground mb-3">
-													Select Location
-												</Text>
-												<ScrollView keyboardShouldPersistTaps="handled">
-													{locationOptions.length === 0 ? (
-														<Text className="text-foreground-400 py-4 text-center">
-															No locations available
-														</Text>
-													) : (
-														locationOptions.map((opt) => {
-															const isSelected =
-																opt.value === field.state.value;
-															return (
-																<TouchableOpacity
-																	key={opt.value}
-																	activeOpacity={0.85}
-																	className={`py-3 px-3 rounded-xl mb-1 flex-row items-center justify-between ${
-																		isSelected
-																			? 'bg-primary/10'
-																			: ''
-																	}`}
-																	onPress={() => {
-																		field.handleChange(
-																			opt.value,
-																		);
-																		setIsLocationPickerOpen(
-																			false,
-																		);
-																	}}
-																>
-																	<Text
-																		className={`text-base ${
-																			isSelected
-																				? 'text-primary font-semibold'
-																				: 'text-foreground'
-																		}`}
-																	>
-																		{opt.label}
-																	</Text>
-																	{isSelected ? (
-																		<Text className="text-primary font-bold">
-																			✓
-																		</Text>
-																	) : null}
-																</TouchableOpacity>
-															);
-														})
-													)}
-												</ScrollView>
-												<TouchableOpacity
-													activeOpacity={0.85}
-													className="mt-3 py-3 rounded-xl border border-default-200 items-center"
-													onPress={() => setIsLocationPickerOpen(false)}
-												>
-													<Text className="text-foreground font-semibold">
-														Cancel
-													</Text>
-												</TouchableOpacity>
-											</View>
-										</View>
-									</Modal>
 								</View>
 							);
 						}}

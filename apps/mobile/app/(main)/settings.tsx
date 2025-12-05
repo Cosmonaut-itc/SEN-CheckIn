@@ -1,24 +1,17 @@
-import type { JSX } from 'react';
-import { useEffect, useMemo, useState } from 'react';
-import {
-	Modal,
-	ScrollView,
-	Text,
-	TouchableOpacity,
-	TouchableWithoutFeedback,
-	View,
-} from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Divider } from 'heroui-native';
 import { useRouter } from 'expo-router';
+import { Button, Card, Divider, Select, useToast } from 'heroui-native';
+import type { JSX } from 'react';
+import { useEffect, useMemo } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 
-import { useTheme } from '@/providers/theme-provider';
-import { useAppForm } from '@/lib/forms';
-import { queryKeys } from '@/lib/query-keys';
+import { signOut } from '@/lib/auth-client';
 import { fetchLocationsList } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
+import { useAppForm } from '@/lib/forms';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
-import { signOut } from '@/lib/auth-client';
+import { useTheme } from '@/providers/theme-provider';
 
 /**
  * Settings screen for configuring device metadata and linkage.
@@ -28,6 +21,7 @@ import { signOut } from '@/lib/auth-client';
 export default function SettingsScreen(): JSX.Element {
 	const router = useRouter();
 	const { isDarkMode } = useTheme();
+	const { toast } = useToast();
 	const { session } = useAuthContext();
 	const {
 		settings,
@@ -52,9 +46,6 @@ export default function SettingsScreen(): JSX.Element {
 		[locationsResponse?.data],
 	);
 
-	// State for location picker modal
-	const [isLocationPickerOpen, setIsLocationPickerOpen] = useState(false);
-
 	const form = useAppForm({
 		defaultValues: {
 			name: settings?.name ?? '',
@@ -65,17 +56,39 @@ export default function SettingsScreen(): JSX.Element {
 				return;
 			}
 
-			const updated = await saveRemoteSettings({
-				name: value.name,
-				locationId: value.locationId || undefined,
-			});
+			try {
+				const updated = await saveRemoteSettings({
+					name: value.name,
+					locationId: value.locationId || undefined,
+				});
 
-			if (updated) {
-				await updateLocalSettings({
-					name: updated.name,
-					locationId: updated.locationId,
-					organizationId: updated.organizationId,
-					deviceId: updated.deviceId,
+				if (updated) {
+					await updateLocalSettings({
+						name: updated.name,
+						locationId: updated.locationId,
+						organizationId: updated.organizationId,
+						deviceId: updated.deviceId,
+					});
+				}
+
+				toast.show({
+					variant: 'success',
+					label: 'Settings saved',
+					description: 'Device details updated successfully.',
+					actionLabel: 'OK',
+					onActionPress: ({ hide }: { hide: () => void }) => hide(),
+				});
+			} catch (error: unknown) {
+				const message =
+					error instanceof Error
+						? error.message
+						: 'Unable to save changes. Please try again.';
+				toast.show({
+					variant: 'danger',
+					label: 'Save failed',
+					description: message,
+					actionLabel: 'Dismiss',
+					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
 			}
 		},
@@ -88,7 +101,9 @@ export default function SettingsScreen(): JSX.Element {
 	}, [form, settings]);
 
 	const organizationId = session?.session?.activeOrganizationId ?? '—';
-	const organizationName = (session as any)?.session?.organization?.name ?? 'Organization';
+	const organizationName =
+		(session?.session as { organization?: { name?: string } })?.organization?.name ??
+		'Organization';
 
 	return (
 		<ScrollView
@@ -118,184 +133,191 @@ export default function SettingsScreen(): JSX.Element {
 				</View>
 			</View>
 
-			<Card className="p-5 gap-3 mb-4 border border-default-200 bg-content1">
-				<Text className="text-xs text-foreground-400 uppercase tracking-wide">
-					Organization
-				</Text>
-				<Text className="text-lg font-semibold text-foreground">{organizationName}</Text>
-				<Text
-					className="text-foreground-500 font-mono text-sm"
-					numberOfLines={1}
-					ellipsizeMode="middle"
-				>
-					ID: {organizationId}
-				</Text>
-			</Card>
-
-			<Card className="p-5 gap-5 mb-10 border border-default-200 bg-content1">
-				<form.AppField
-					name="name"
-					validators={{
-						onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
-					}}
-				>
-					{(field) => (
-						<field.TextField
-							label="Device name"
-							placeholder="Front desk tablet"
-							description="Shown in dashboards and audit logs."
-						/>
-					)}
-				</form.AppField>
-
-				<form.AppField name="locationId">
-					{(field) => {
-						const selectedOption = locationOptions.find(
-							(opt) => opt.value === field.state.value,
-						);
-						const displayText =
-							selectedOption?.label ??
-							(isLocationsPending ? 'Loading locations...' : 'Select location');
-						const hasError = field.state.meta.errors.length > 0;
-
-						return (
-							<View className="gap-1.5">
-								<Text className="text-sm font-semibold text-foreground tracking-wide">
-									Location
-								</Text>
-								<TouchableOpacity
-									activeOpacity={0.82}
-									className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1"
-									disabled={isLocationsPending}
-									onPress={() => setIsLocationPickerOpen(true)}
-								>
-									<Text
-										className={`text-base ${
-											selectedOption
-												? 'text-foreground'
-												: 'text-foreground-400'
-										}`}
-									>
-										{displayText}
-									</Text>
-								</TouchableOpacity>
-								{hasError ? (
-									<Text className="text-sm text-danger-500 font-medium">
-										{field.state.meta.errors.join(', ')}
-									</Text>
-								) : null}
-
-								<Modal
-									transparent
-									animationType="fade"
-									visible={isLocationPickerOpen}
-									onRequestClose={() => setIsLocationPickerOpen(false)}
-								>
-									<View className="flex-1 bg-black/50 px-6 justify-center">
-										<TouchableWithoutFeedback
-											onPress={() => setIsLocationPickerOpen(false)}
-										>
-											<View className="absolute inset-0" />
-										</TouchableWithoutFeedback>
-
-										<View
-											className="bg-background rounded-2xl p-4"
-											style={{ maxHeight: '70%' }}
-										>
-											<Text className="text-base font-semibold text-foreground mb-3">
-												Select Location
-											</Text>
-											<ScrollView keyboardShouldPersistTaps="handled">
-												{locationOptions.length === 0 ? (
-													<Text className="text-foreground-400 py-4 text-center">
-														No locations available
-													</Text>
-												) : (
-													locationOptions.map((opt) => {
-														const isSelected =
-															opt.value === field.state.value;
-														return (
-															<TouchableOpacity
-																key={opt.value}
-																activeOpacity={0.85}
-																className={`py-3 px-3 rounded-xl mb-1 flex-row items-center justify-between ${
-																	isSelected
-																		? 'bg-primary/10'
-																		: ''
-																}`}
-																onPress={() => {
-																	field.handleChange(opt.value);
-																	setIsLocationPickerOpen(false);
-																}}
-															>
-																<Text
-																	className={`text-base ${
-																		isSelected
-																			? 'text-primary font-semibold'
-																			: 'text-foreground'
-																	}`}
-																>
-																	{opt.label}
-																</Text>
-																{isSelected ? (
-																	<Text className="text-primary font-bold">
-																		✓
-																	</Text>
-																) : null}
-															</TouchableOpacity>
-														);
-													})
-												)}
-											</ScrollView>
-											<TouchableOpacity
-												activeOpacity={0.85}
-												className="mt-3 py-3 rounded-xl border border-default-200 items-center"
-												onPress={() => setIsLocationPickerOpen(false)}
-											>
-												<Text className="text-foreground font-semibold">
-													Cancel
-												</Text>
-											</TouchableOpacity>
-										</View>
-									</View>
-								</Modal>
-							</View>
-						);
-					}}
-				</form.AppField>
-
-				<form.AppForm>
-					<form.SubmitButton
-						label={settings?.deviceId ? 'Save changes' : 'Link device first'}
-						loadingLabel="Saving..."
-						className="mt-2"
-					/>
-				</form.AppForm>
-
-				<View className="gap-1">
-					<Text className="text-sm text-foreground-500">Device ID</Text>
+			<Card variant="default" className="mb-4 border border-default-200 bg-content1">
+				<Card.Header className="flex-row items-center gap-3 px-5 pt-5 pb-2">
+					<View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
+						<Text className="text-lg">🏢</Text>
+					</View>
+					<View className="flex-1">
+						<Card.Label className="text-foreground text-lg">
+							{organizationName}
+						</Card.Label>
+						<Card.Description className="text-foreground-500">
+							Organization context is set by your session.
+						</Card.Description>
+					</View>
+				</Card.Header>
+				<Card.Body className="px-5 pb-5 pt-1">
 					<Text
-						className="text-foreground font-mono text-sm"
+						className="text-foreground-500 font-mono text-sm"
 						numberOfLines={1}
 						ellipsizeMode="middle"
 					>
-						{settings?.deviceId ?? 'Not set. Use login screen.'}
+						ID: {organizationId}
 					</Text>
-					{!isHydrated ? (
-						<Text className="text-foreground-500">Loading saved device settings…</Text>
-					) : null}
-				</View>
+				</Card.Body>
+			</Card>
 
-				<Divider />
+			<Card variant="default" className="mb-10 border border-default-200 bg-content1">
+				<Card.Body className="p-5 gap-5">
+					<form.AppField
+						name="name"
+						validators={{
+							onChange: ({ value }) =>
+								!value.trim() ? 'Name is required' : undefined,
+						}}
+					>
+						{(field) => (
+							<field.TextField
+								label="Device name"
+								placeholder="Front desk tablet"
+								description="Shown in dashboards and audit logs."
+							/>
+						)}
+					</form.AppField>
 
-				<View className="flex-row gap-3">
+					<form.AppField name="locationId">
+						{(field) => {
+							const selectedOption = locationOptions.find(
+								(opt) => opt.value === field.state.value,
+							);
+							const hasError = field.state.meta.errors.length > 0;
+
+							const handleLocationChange = (
+								option: { value: string; label: string } | null,
+							): void => {
+								if (option?.value) {
+									field.handleChange(option.value);
+								}
+							};
+
+							return (
+								<View className="gap-1.5">
+									<Text className="text-sm font-semibold text-foreground tracking-wide">
+										Location
+									</Text>
+									<Select
+										value={selectedOption}
+										onValueChange={handleLocationChange}
+										isDisabled={isLocationsPending}
+									>
+										<Select.Trigger asChild>
+											<Button variant="tertiary" size="sm">
+												{selectedOption ? (
+													<View className="flex-row items-center gap-2">
+														<Text className="text-sm text-foreground">
+															{selectedOption.label}
+														</Text>
+													</View>
+												) : (
+													<Text className="text-foreground">
+														{isLocationsPending
+															? 'Loading locations...'
+															: 'Select location'}
+													</Text>
+												)}
+											</Button>
+										</Select.Trigger>
+										<Select.Portal>
+											<Select.Overlay />
+											<Select.Content
+												width={280}
+												className="rounded-2xl"
+												placement="bottom"
+											>
+												{locationOptions.length === 0 ? (
+													<View className="py-4">
+														<Text className="text-foreground-400 text-center">
+															No locations available
+														</Text>
+													</View>
+												) : (
+													<ScrollView>
+														{locationOptions.map((opt) => (
+															<Select.Item
+																key={opt.value}
+																value={opt.value}
+																label={opt.label}
+															>
+																<View className="flex-row items-center gap-3 flex-1">
+																	<Text className="text-base text-foreground flex-1">
+																		{opt.label}
+																	</Text>
+																</View>
+																<Select.ItemIndicator />
+															</Select.Item>
+														))}
+													</ScrollView>
+												)}
+											</Select.Content>
+										</Select.Portal>
+									</Select>
+									{hasError ? (
+										<Text className="text-sm text-danger-500 font-medium">
+											{field.state.meta.errors.join(', ')}
+										</Text>
+									) : null}
+								</View>
+							);
+						}}
+					</form.AppField>
+
+					<form.AppForm>
+						<form.SubmitButton
+							label={settings?.deviceId ? 'Save changes' : 'Link device first'}
+							loadingLabel="Saving..."
+							className="mt-2"
+						/>
+					</form.AppForm>
+
+					<View className="gap-1">
+						<Text className="text-sm text-foreground-500">Device ID</Text>
+						<Text
+							className="text-foreground font-mono text-sm"
+							numberOfLines={1}
+							ellipsizeMode="middle"
+						>
+							{settings?.deviceId ?? 'Not set. Use login screen.'}
+						</Text>
+						{!isHydrated ? (
+							<Text className="text-foreground-500">
+								Loading saved device settings…
+							</Text>
+						) : null}
+					</View>
+				</Card.Body>
+
+				<Divider className="mx-5" />
+
+				<Card.Footer className="flex-row gap-3 px-5 pb-5 pt-3">
 					<Button
 						variant="destructive"
 						className="flex-1"
 						isDisabled={isUpdating}
 						onPress={async () => {
-							await signOut();
-							await clearSettings();
+							try {
+								await signOut();
+								await clearSettings();
+								toast.show({
+									variant: 'success',
+									label: 'Signed out',
+									description: 'Session cleared on this device.',
+									actionLabel: 'OK',
+									onActionPress: ({ hide }: { hide: () => void }) => hide(),
+								});
+							} catch (error: unknown) {
+								const message =
+									error instanceof Error
+										? error.message
+										: 'Sign out failed. Please try again.';
+								toast.show({
+									variant: 'danger',
+									label: 'Sign out failed',
+									description: message,
+									actionLabel: 'Dismiss',
+									onActionPress: ({ hide }: { hide: () => void }) => hide(),
+								});
+							}
 						}}
 					>
 						<Button.Label>Sign out</Button.Label>
@@ -303,7 +325,7 @@ export default function SettingsScreen(): JSX.Element {
 					<Button variant="secondary" className="flex-1" onPress={() => clearSettings()}>
 						<Button.Label>Clear device cache</Button.Label>
 					</Button>
-				</View>
+				</Card.Footer>
 			</Card>
 		</ScrollView>
 	);

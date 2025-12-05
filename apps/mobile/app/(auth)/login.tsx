@@ -1,20 +1,20 @@
 import type { BetterFetchError } from '@better-fetch/fetch';
+import * as ExpoDevice from 'expo-device';
 import { useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Linking, Platform, Text, View } from 'react-native';
 import QRCode from 'react-qr-code';
-import * as ExpoDevice from 'expo-device';
 
-import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
-import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
-import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
-import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
-import { useAuthContext } from '@/providers/auth-provider';
-import { envErrors, ENV } from '@/constants/env';
-import { useThemeColor } from '@/hooks/use-theme-color';
+import { ENV, envErrors } from '@/constants/env';
 import { Colors } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
+import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
+import { type RegisterDeviceResponse, registerDevice } from '@/lib/client-functions';
+import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
+import { useAuthContext } from '@/providers/auth-provider';
 
 const DEVICE_CLIENT_ID = 'sen-checkin-mobile';
 const DEVICE_SCOPE = 'openid profile';
@@ -117,7 +117,7 @@ function AnimatedDots(): JSX.Element {
 
 	useEffect(() => {
 		const interval = setInterval(() => {
-			setDots((prev) => (prev.length >= 3 ? '' : prev + '.'));
+			setDots((prev) => (prev.length >= 3 ? '' : `${prev}.`));
 		}, 400);
 		return () => clearInterval(interval);
 	}, []);
@@ -152,11 +152,7 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 		return () => pulse.stop();
 	}, [pulseAnim]);
 
-	return (
-		<Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-			{children}
-		</Animated.View>
-	);
+	return <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>{children}</Animated.View>;
 }
 
 export default function LoginScreen(): JSX.Element {
@@ -200,11 +196,11 @@ export default function LoginScreen(): JSX.Element {
 	}, []);
 
 	/**
- * Register the current device after approval and persist the returned ID locally.
- *
- * @param organizationId - Active organization ID from the session, if available
- * @returns Registered device response including creation flag
- */
+	 * Register the current device after approval and persist the returned ID locally.
+	 *
+	 * @param organizationId - Active organization ID from the session, if available
+	 * @returns Registered device response including creation flag
+	 */
 	const registerApprovedDevice = useCallback(
 		async (organizationId: string | null): Promise<RegisterDeviceResponse> => {
 			const stableCode = await getStableDeviceCode();
@@ -352,61 +348,64 @@ export default function LoginScreen(): JSX.Element {
 						return;
 					}
 
-				console.log('[login] Session established for user:', sessionResult.data.user?.name);
+					console.log(
+						'[login] Session established for user:',
+						sessionResult.data.user?.name,
+					);
 
-				// Register device BEFORE setting session to avoid race condition
-				// with auto-navigation effect that triggers on session change
-				console.log('[login] Registering device with stable code');
-				const registration = await registerApprovedDevice(
-					sessionResult.data.session?.activeOrganizationId ?? null,
-				);
-				console.log('[login] Registration complete', {
-					isNew: registration.isNew,
-					hasLocation: Boolean(registration.device.locationId),
-					locationId: registration.device.locationId,
-				});
+					// Register device BEFORE setting session to avoid race condition
+					// with auto-navigation effect that triggers on session change
+					console.log('[login] Registering device with stable code');
+					const registration = await registerApprovedDevice(
+						sessionResult.data.session?.activeOrganizationId ?? null,
+					);
+					console.log('[login] Registration complete', {
+						isNew: registration.isNew,
+						hasLocation: Boolean(registration.device.locationId),
+						locationId: registration.device.locationId,
+					});
 
-				if (!registration.device.locationId) {
-					console.log('[login] Device requires setup, redirecting to setup screen', {
-						deviceId: registration.device.id,
-						organizationId:
-							registration.device.organizationId ??
-							sessionResult.data.session?.activeOrganizationId ??
-							null,
-					});
-					// Set routing flags BEFORE session to prevent auto-navigation race
-					setPendingSetup({
-						deviceId: registration.device.id,
-						organizationId:
-							registration.device.organizationId ??
-							sessionResult.data.session?.activeOrganizationId ??
-							null,
-					});
-					setIsRoutingToSetup(true);
-					// Now safe to set session - routing flags are already set
-					router.replace({
-						pathname: '/(auth)/device-setup',
-						params: {
+					if (!registration.device.locationId) {
+						console.log('[login] Device requires setup, redirecting to setup screen', {
 							deviceId: registration.device.id,
 							organizationId:
 								registration.device.organizationId ??
 								sessionResult.data.session?.activeOrganizationId ??
-								'',
-						},
-					});
-					// Auth layout allows device-setup even with session, but keep session set
+								null,
+						});
+						// Set routing flags BEFORE session to prevent auto-navigation race
+						setPendingSetup({
+							deviceId: registration.device.id,
+							organizationId:
+								registration.device.organizationId ??
+								sessionResult.data.session?.activeOrganizationId ??
+								null,
+						});
+						setIsRoutingToSetup(true);
+						// Now safe to set session - routing flags are already set
+						router.replace({
+							pathname: '/(auth)/device-setup',
+							params: {
+								deviceId: registration.device.id,
+								organizationId:
+									registration.device.organizationId ??
+									sessionResult.data.session?.activeOrganizationId ??
+									'',
+							},
+						});
+						// Auth layout allows device-setup even with session, but keep session set
+						setSession(sessionResult.data);
+						return;
+					}
+
+					console.log('[login] Device configured, navigating to scanner');
+					// Set session in context before navigation
 					setSession(sessionResult.data);
-					return;
-				}
 
-				console.log('[login] Device configured, navigating to scanner');
-				// Set session in context before navigation
-				setSession(sessionResult.data);
-
-				// Navigate after state is synced
-				setTimeout(() => {
-					router.replace('/(main)/scanner');
-				}, 300);
+					// Navigate after state is synced
+					setTimeout(() => {
+						router.replace('/(main)/scanner');
+					}, 300);
 				} catch (error) {
 					const message = deriveErrorMessage(error);
 					console.error('[login] Failed to establish session or register device:', error);
@@ -461,7 +460,9 @@ export default function LoginScreen(): JSX.Element {
 						state: 'waiting',
 						message: 'Connecting…',
 					});
-					setPollDelayMs((prev) => Math.min((prev || codeState.intervalMs) + 5000, 30000));
+					setPollDelayMs((prev) =>
+						Math.min((prev || codeState.intervalMs) + 5000, 30000),
+					);
 				}
 			}
 		} catch {
@@ -508,7 +509,10 @@ export default function LoginScreen(): JSX.Element {
 
 	useEffect(() => {
 		if (pendingSetup && !isRoutingToSetup) {
-			console.log('[login] Pending setup detected, ensuring navigation to device-setup', pendingSetup);
+			console.log(
+				'[login] Pending setup detected, ensuring navigation to device-setup',
+				pendingSetup,
+			);
 			setIsRoutingToSetup(true);
 			router.replace({
 				pathname: '/(auth)/device-setup',
@@ -520,7 +524,7 @@ export default function LoginScreen(): JSX.Element {
 		}
 	}, [isRoutingToSetup, pendingSetup, router]);
 
-  /**
+	/**
 	 * Developer bypass for local testing without the device approval flow.
 	 */
 	const handleDevBypass = useCallback(async () => {
@@ -541,50 +545,69 @@ export default function LoginScreen(): JSX.Element {
 		if (isApproved) {
 			return (
 				<PulseAnimation>
-					<View className="bg-success-100 border-2 border-success-500 rounded-2xl p-6 items-center">
-						<Text className="text-4xl mb-2">✓</Text>
-						<Text className="text-2xl font-bold text-success-700">
-							Device Approved<AnimatedDots />
-						</Text>
-						<Text className="text-success-600 mt-2">Redirecting to scanner</Text>
-					</View>
+					<Card variant="default" className="border-success-500 border-2 bg-success-100">
+						<Card.Body className="gap-1 items-center py-6">
+							<Text className="text-4xl mb-1">✓</Text>
+							<Card.Label className="text-success-700 text-2xl">
+								Device Approved
+								<AnimatedDots />
+							</Card.Label>
+							<Card.Description className="text-success-600 mt-1">
+								Redirecting to scanner
+							</Card.Description>
+						</Card.Body>
+					</Card>
 				</PulseAnimation>
 			);
 		}
 
 		if (status.state === 'waiting' || status.state === 'requesting') {
 			return (
-				<View className="flex-row items-center justify-center gap-3 py-3">
-					<Spinner size="sm" color={accentColor} />
-					<Text className="text-foreground-500 text-base">{status.message}</Text>
-				</View>
+				<Card variant="default" className="bg-content1 border-default-200">
+					<Card.Body className="flex-row items-center justify-center gap-3 py-3">
+						<Spinner size="sm" color={accentColor} />
+						<Card.Description className="text-base">{status.message}</Card.Description>
+					</Card.Body>
+				</Card>
 			);
 		}
 
 		if (status.state === 'denied') {
 			return (
-				<View className="bg-danger-100 border border-danger-300 rounded-xl p-4 items-center">
-					<Text className="text-xl mb-1">✕</Text>
-					<Text className="text-danger-700 font-semibold">{status.message}</Text>
-				</View>
+				<Card variant="default" className="bg-danger-100 border border-danger-300">
+					<Card.Body className="items-center gap-1 py-4">
+						<Text className="text-xl mb-1">✕</Text>
+						<Card.Label className="text-danger-700 text-base">
+							{status.message}
+						</Card.Label>
+					</Card.Body>
+				</Card>
 			);
 		}
 
 		if (status.state === 'expired') {
 			return (
-				<View className="bg-warning-100 border border-warning-300 rounded-xl p-4 items-center">
-					<Text className="text-xl mb-1">⏱</Text>
-					<Text className="text-warning-700 font-semibold">{status.message}</Text>
-				</View>
+				<Card variant="default" className="bg-warning-100 border border-warning-300">
+					<Card.Body className="items-center gap-1 py-4">
+						<Text className="text-xl mb-1">⏱</Text>
+						<Card.Label className="text-warning-700 text-base">
+							{status.message}
+						</Card.Label>
+					</Card.Body>
+				</Card>
 			);
 		}
 
 		if (status.state === 'error') {
 			return (
-				<View className="bg-danger-100 border border-danger-300 rounded-xl p-4 items-center">
-					<Text className="text-xl mb-1">⚠</Text>
-					<Text className="text-danger-700 font-semibold">{status.message}</Text>
-				</View>
+				<Card variant="default" className="bg-danger-100 border border-danger-300">
+					<Card.Body className="items-center gap-1 py-4">
+						<Text className="text-xl mb-1">⚠</Text>
+						<Card.Label className="text-danger-700 text-base">
+							{status.message}
+						</Card.Label>
+					</Card.Body>
+				</Card>
 			);
 		}
 
@@ -597,22 +620,27 @@ export default function LoginScreen(): JSX.Element {
 			<View className="mb-6">
 				<Text className="text-3xl font-bold text-foreground mb-2">Device Login</Text>
 				<Text className="text-base text-foreground-500 leading-relaxed">
-					Show the code below to an administrator, or scan the QR code on another device to approve.
+					Show the code below to an administrator, or scan the QR code on another device
+					to approve.
 				</Text>
 			</View>
 
 			{/* Environment Warning - only show for actual config errors */}
 			{envErrors && status.state === 'error' ? (
-				<View className="bg-warning-100 border border-warning-300 rounded-xl p-3 mb-4">
-					<Text className="text-warning-800 font-semibold mb-1">Configuration Required</Text>
-					<Text className="text-warning-700 text-sm">
-						EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
-					</Text>
-				</View>
+				<Card variant="default" className="bg-warning-100 border border-warning-300 mb-4">
+					<Card.Body className="gap-2 p-4">
+						<Card.Label className="text-warning-800 text-base">
+							Configuration Required
+						</Card.Label>
+						<Card.Description className="text-warning-700 text-sm">
+							EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
+						</Card.Description>
+					</Card.Body>
+				</Card>
 			) : null}
 
 			{/* Main Card */}
-			<Card className="p-6 gap-5">
+			<Card variant="tertiary" className="p-6 gap-5 border border-default-200 bg-content1">
 				{/* User Code Display */}
 				<View className="items-center">
 					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest mb-3">
@@ -628,15 +656,15 @@ export default function LoginScreen(): JSX.Element {
 				{/* QR Code Section */}
 				{verificationUrl && !isApproved ? (
 					<View className="items-center py-4">
-				<View className="bg-white p-4 rounded-2xl shadow-sm">
-					<QRCode
-						value={verificationUrl}
-						size={160}
-						bgColor="white"
-						fgColor={qrForeground}
-						level="M"
-					/>
-				</View>
+						<View className="bg-white p-4 rounded-2xl shadow-sm">
+							<QRCode
+								value={verificationUrl}
+								size={160}
+								bgColor="white"
+								fgColor={qrForeground}
+								level="M"
+							/>
+						</View>
 						<Text className="text-xs text-foreground-400 mt-3 text-center">
 							Scan to open verification page
 						</Text>
@@ -677,12 +705,7 @@ export default function LoginScreen(): JSX.Element {
 
 				{/* Developer Bypass */}
 				{__DEV__ && !isApproved ? (
-					<Button
-						variant="ghost"
-						size="sm"
-						onPress={handleDevBypass}
-						className="mt-2"
-					>
+					<Button variant="ghost" size="sm" onPress={handleDevBypass} className="mt-2">
 						<Button.Label className="text-foreground-400">Skip (Dev Only)</Button.Label>
 					</Button>
 				) : null}
@@ -690,16 +713,20 @@ export default function LoginScreen(): JSX.Element {
 
 			{/* Error Details - only show for actual errors, not during normal polling */}
 			{lastError && status.state === 'error' ? (
-				<View className="bg-danger-50 border border-danger-200 rounded-xl p-4 mt-4">
-					<Text className="text-danger-700 font-semibold mb-1">Error Details</Text>
-					<Text className="text-danger-600 text-sm">{lastError}</Text>
-					{!API_ENV_VALID ? (
-						<Text className="text-danger-500 mt-2 text-xs">
-							Tip: On Android emulators use http://10.0.2.2:3000, on iOS simulators use
-							http://127.0.0.1:3000 or your LAN IP.
-						</Text>
-					) : null}
-				</View>
+				<Card variant="default" className="bg-danger-50 border border-danger-200 mt-4">
+					<Card.Body className="gap-1 p-4">
+						<Card.Label className="text-danger-700 text-base">Error Details</Card.Label>
+						<Card.Description className="text-danger-600 text-sm">
+							{lastError}
+						</Card.Description>
+						{!API_ENV_VALID ? (
+							<Card.Description className="text-danger-500 mt-1 text-xs">
+								Tip: On Android emulators use http://10.0.2.2:3000, on iOS
+								simulators use http://127.0.0.1:3000 or your LAN IP.
+							</Card.Description>
+						) : null}
+					</Card.Body>
+				</Card>
 			) : null}
 
 			{/* Terminal State Actions */}

@@ -23,8 +23,8 @@
 		"add:api": "bun add --cwd apps/api",
 		"add:mobile": "bun add --cwd apps/mobile",
 		"add:web": "bun add --cwd apps/web",
-		"db:gen": "bunx --bun drizzle-kit generate --config apps/api/drizzle.config.ts",
-		"db:mig": "bunx --bun drizzle-kit migrate --config apps/api/drizzle.config.ts"
+		"db:gen": "cd apps/api && bunx --bun drizzle-kit generate --config drizzle.config.ts",
+		"db:mig": "cd apps/api && bunx --bun drizzle-kit migrate --config drizzle.config.ts"
 	},
 	"devDependencies": {
 		"eslint": "^9.39.1",

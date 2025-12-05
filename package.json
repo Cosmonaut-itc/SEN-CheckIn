@@ -10,6 +10,7 @@
 		"dev:api": "turbo run dev --filter=@sen-checkin/api",
 		"dev:mobile": "turbo run dev --filter=mobile",
 		"build:api": "turbo run build --filter=@sen-checkin/api",
+		"start:api": "turbo run start --filter=@sen-checkin/api",
 		"build:mobile": "turbo run build --filter=mobile",
 		"lint:api": "turbo run lint --filter=@sen-checkin/api",
 		"lint:mobile": "turbo run lint --filter=mobile",

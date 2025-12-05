@@ -138,10 +138,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 	if (!deviceId) {
 		return (
 			<View className="flex-1 bg-background items-center justify-center px-6">
-				<Card
-					variant="default"
-					className="p-8 w-full max-w-md items-center gap-5 rounded-3xl border border-default-200 bg-content1"
-				>
+				<Card variant="default" className="p-8 w-full max-w-md items-center gap-5 rounded-3xl">
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
 						<Text className="text-3xl">⚠️</Text>
@@ -224,10 +221,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</View>
 
 				{/* Form Card */}
-				<Card
-					variant="default"
-					className="p-6 gap-6 bg-content1 border border-default-200 rounded-3xl"
-				>
+				<Card variant="default" className="p-6 gap-6 rounded-3xl">
 					<form.AppField
 						name="name"
 						validators={{

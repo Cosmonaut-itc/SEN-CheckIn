@@ -133,7 +133,7 @@ export default function SettingsScreen(): JSX.Element {
 				</View>
 			</View>
 
-			<Card variant="default" className="mb-4 border border-default-200 bg-content1">
+		<Card variant="default" className="mb-4">
 				<Card.Header className="flex-row items-center gap-3 px-5 pt-5 pb-2">
 					<View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
 						<Text className="text-lg">🏢</Text>
@@ -158,7 +158,7 @@ export default function SettingsScreen(): JSX.Element {
 				</Card.Body>
 			</Card>
 
-			<Card variant="default" className="mb-10 border border-default-200 bg-content1">
+		<Card variant="default" className="mb-10">
 				<Card.Body className="p-5 gap-5">
 					<form.AppField
 						name="name"

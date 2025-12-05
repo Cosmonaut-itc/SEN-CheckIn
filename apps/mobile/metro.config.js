@@ -5,9 +5,13 @@ const { withUniwindConfig } = require('uniwind/metro');
 const config = getDefaultConfig(__dirname);
 
 config.resolver = config.resolver ?? {};
-// Force Metro to resolve React from the workspace root to avoid duplicate React copies in monorepo installs.
-config.resolver.disableHierarchicalLookup = true;
-config.resolver.nodeModulesPaths = [path.resolve(__dirname, '../../node_modules')];
+
+// Ensure Expo defaults remain, while also allowing workspace root resolutions to avoid duplicate React copies.
+const workspaceNodeModules = path.resolve(__dirname, '../../node_modules');
+config.resolver.nodeModulesPaths = Array.from(
+  new Set([...(config.resolver.nodeModulesPaths ?? []), workspaceNodeModules])
+);
+config.resolver.disableHierarchicalLookup = false;
 config.resolver.extraNodeModules = {
   react: path.resolve(__dirname, '../../node_modules/react'),
   'react-dom': path.resolve(__dirname, '../../node_modules/react-dom'),

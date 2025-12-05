@@ -1,14 +1,14 @@
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, type JSX } from 'react';
-import { ScrollView, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Card, Divider, Spinner } from 'heroui-native';
 import * as ExpoDevice from 'expo-device';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Button, Card, Spinner } from 'heroui-native';
+import { type JSX, useCallback, useEffect, useMemo } from 'react';
+import { ScrollView, Text, View } from 'react-native';
 
-import { useAppForm } from '@/lib/forms';
-import { queryKeys } from '@/lib/query-keys';
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
+import { useAppForm } from '@/lib/forms';
+import { queryKeys } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type SearchParams = {
@@ -29,7 +29,7 @@ type SetupFormValues = {
  */
 function normalizeParam(value: string | string[] | undefined): string | null {
 	if (!value) return null;
-	return Array.isArray(value) ? value[0] ?? null : value;
+	return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 /**
@@ -58,15 +58,19 @@ export default function DeviceSetupScreen(): JSX.Element {
 	);
 
 	const defaultName = useMemo(
-		() => settings?.name || ExpoDevice.deviceName || ExpoDevice.modelName || 'Attendance Device',
+		() =>
+			settings?.name || ExpoDevice.deviceName || ExpoDevice.modelName || 'Attendance Device',
 		[settings?.name],
 	);
 
 	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
 		queryKey: queryKeys.locations.list({ organizationId: organizationId ?? undefined }),
-		queryFn: () => fetchLocationsList({ limit: 200, organizationId: organizationId ?? undefined }),
+		queryFn: () =>
+			fetchLocationsList({ limit: 200, organizationId: organizationId ?? undefined }),
 		enabled: Boolean(organizationId),
 	});
+
+	console.log('locationsResponse', locationsResponse);
 
 	const locationOptions = useMemo(
 		() =>
@@ -136,12 +140,25 @@ export default function DeviceSetupScreen(): JSX.Element {
 	if (!deviceId) {
 		return (
 			<View className="flex-1 bg-background items-center justify-center px-6">
-				<Card className="p-6 w-full max-w-md items-center gap-3">
-					<Text className="text-2xl font-bold text-foreground">Device not found</Text>
-					<Text className="text-foreground-500 text-center">
-						We could not determine a device to configure. Please return to login and try again.
-					</Text>
-					<Button className="w-full" onPress={() => router.replace('/(auth)/login')}>
+				<Card className="p-8 w-full max-w-md items-center gap-5 rounded-3xl border border-default-200 bg-content1">
+					{/* Error Icon */}
+					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
+						<Text className="text-3xl">⚠️</Text>
+					</View>
+					<View className="gap-2 items-center">
+						<Text className="text-2xl font-bold text-foreground text-center">
+							Device not found
+						</Text>
+						<Text className="text-foreground-400 text-center text-base leading-6">
+							We could not determine a device to configure. Please return to login and
+							try again.
+						</Text>
+					</View>
+					<Button
+						className="w-full mt-2"
+						size="lg"
+						onPress={() => router.replace('/(auth)/login')}
+					>
 						<Button.Label>Back to Login</Button.Label>
 					</Button>
 				</Card>
@@ -150,43 +167,75 @@ export default function DeviceSetupScreen(): JSX.Element {
 	}
 
 	return (
-		<ScrollView className="flex-1 bg-gradient-to-b from-background via-background to-background px-5 pt-12">
-			<View className="gap-4 max-w-3xl w-full self-center">
-				<View className="gap-2">
-					<Text className="text-3xl font-bold text-foreground">Set up this device</Text>
-					<Text className="text-foreground-500 text-base leading-6">
-						Name your terminal and assign a location so attendance records stay organized. This step only appears the first time a device is registered.
-					</Text>
-				</View>
-
-				<Card className="p-5 gap-5 bg-content1/80 border border-default-200">
-					<View className="flex-row items-center justify-between">
-						<View className="gap-1">
-							<Text className="text-sm uppercase tracking-wide text-foreground-400">
-								Device ID
-							</Text>
-							<Text className="text-foreground font-semibold">{deviceId}</Text>
+		<ScrollView
+			className="flex-1 bg-background"
+			contentContainerClassName="px-5 pt-14 pb-10"
+			showsVerticalScrollIndicator={false}
+		>
+			<View className="gap-8 max-w-lg w-full self-center">
+				{/* Header Section */}
+				<View className="gap-3">
+					<View className="flex-row items-center gap-3 mb-1">
+						<View className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center">
+							<Text className="text-2xl">📱</Text>
 						</View>
-						<View className="items-end">
-							<Text className="text-sm text-foreground-500">Organization</Text>
-							<Text className="text-foreground font-medium">
-								{organizationId ?? 'Not set'}
+						<View className="flex-1">
+							<Text className="text-xs uppercase tracking-widest text-primary font-bold">
+								Device Setup
 							</Text>
 						</View>
 					</View>
-					<Divider />
+					<Text className="text-3xl font-extrabold text-foreground tracking-tight">
+						Configure Terminal
+					</Text>
+					<Text className="text-foreground-400 text-base leading-6">
+						Name this device and assign it to a location. Attendance records will be
+						linked to the selected location.
+					</Text>
+				</View>
 
+				{/* Device Info Badge */}
+				<View className="flex-row gap-3">
+					<View className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200">
+						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold mb-1">
+							Device ID
+						</Text>
+						<Text
+							className="text-foreground font-mono text-sm"
+							numberOfLines={1}
+							ellipsizeMode="middle"
+						>
+							{deviceId}
+						</Text>
+					</View>
+					<View className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200">
+						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold mb-1">
+							Organization
+						</Text>
+						<Text
+							className="text-foreground font-mono text-sm"
+							numberOfLines={1}
+							ellipsizeMode="middle"
+						>
+							{organizationId ?? '—'}
+						</Text>
+					</View>
+				</View>
+
+				{/* Form Card */}
+				<Card className="p-6 gap-6 bg-content1 border border-default-200 rounded-3xl">
 					<form.AppField
 						name="name"
 						validators={{
-							onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
+							onChange: ({ value }) =>
+								!value.trim() ? 'Name is required' : undefined,
 						}}
 					>
 						{(field) => (
 							<field.TextField
-								label="Device name"
-								placeholder="Front desk kiosk"
-								description="Pick a clear label so admins can recognize this device."
+								label="Device Name"
+								placeholder="e.g., Front Desk Kiosk"
+								description="A memorable name helps admins identify this terminal."
 							/>
 						)}
 					</form.AppField>
@@ -199,37 +248,56 @@ export default function DeviceSetupScreen(): JSX.Element {
 					>
 						{(field) => (
 							<field.SelectField
-								label="Location"
-								placeholder={isLocationsPending ? 'Loading locations…' : 'Select a location'}
+								label="Assigned Location"
+								placeholder={
+									isLocationsPending ? 'Loading locations…' : 'Choose a location'
+								}
 								options={locationOptions}
 								disabled={isLocationsPending}
+								presentation="dialog"
 							/>
 						)}
 					</form.AppField>
 
 					<form.AppForm>
 						<Button
-							className="mt-2"
+							className="mt-3"
 							size="lg"
+							variant="primary"
 							isDisabled={isLocationsPending}
 							onPress={handleSubmit}
 						>
 							{isLocationsPending ? (
 								<View className="flex-row items-center gap-2">
-									<Spinner size="sm" />
-									<Button.Label>Loading…</Button.Label>
+									<Spinner size="sm" color="white" />
+									<Button.Label className="text-white font-semibold">
+										Loading…
+									</Button.Label>
 								</View>
 							) : (
-								<Button.Label>Save and continue</Button.Label>
+								<Button.Label className="text-white font-semibold">
+									Save & Continue
+								</Button.Label>
 							)}
 						</Button>
 					</form.AppForm>
 				</Card>
 
-				<View className="p-4 bg-content2/70 rounded-2xl border border-default-200">
-					<Text className="text-sm text-foreground-500">
-						Tip: If this device moves to another site later, visit Settings to update its location and name. Heartbeats keep its status online while the app is active.
-					</Text>
+				{/* Tip Section */}
+				<View className="p-5 bg-content2/60 rounded-2xl border border-default-200/60">
+					<View className="flex-row items-start gap-3">
+						<Text className="text-lg">💡</Text>
+						<View className="flex-1">
+							<Text className="text-sm font-semibold text-foreground mb-1">
+								Pro Tip
+							</Text>
+							<Text className="text-sm text-foreground-400 leading-5">
+								If this device moves to another site later, visit Settings to update
+								its location. The app sends heartbeats to keep the device status
+								online.
+							</Text>
+						</View>
+					</View>
 				</View>
 			</View>
 		</ScrollView>

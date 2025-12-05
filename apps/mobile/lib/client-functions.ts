@@ -5,28 +5,28 @@ import { authedFetch } from './auth-client';
 import type { AttendanceQueryParams, ListQueryParams } from './query-keys';
 
 type PaginatedResponse<T> = {
-  data: T[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-    hasMore?: boolean;
-  };
+	data: T[];
+	pagination: {
+		total: number;
+		limit: number;
+		offset: number;
+		hasMore?: boolean;
+	};
 };
 
 export type DeviceDetail = Device & { organizationId?: string | null };
 
 export interface RegisterDeviceInput {
-  code: string;
-  name?: string;
-  deviceType?: string;
-  platform?: string;
-  organizationId?: string | null;
+	code: string;
+	name?: string;
+	deviceType?: string;
+	platform?: string;
+	organizationId?: string | null;
 }
 
 export interface RegisterDeviceResponse {
-  device: DeviceDetail;
-  isNew: boolean;
+	device: DeviceDetail;
+	isNew: boolean;
 }
 
 /**
@@ -35,15 +35,17 @@ export interface RegisterDeviceResponse {
  * @param params - Map of query keys to values
  * @returns URLSearchParams populated with non-empty entries
  */
-function buildSearchParams(params: Record<string, string | number | undefined | null>): URLSearchParams {
-  const searchParams = new URLSearchParams();
+function buildSearchParams(
+	params: Record<string, string | number | undefined | null>,
+): URLSearchParams {
+	const searchParams = new URLSearchParams();
 
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || value === '') return;
-    searchParams.set(key, String(value));
-  });
+	Object.entries(params).forEach(([key, value]) => {
+		if (value === undefined || value === null || value === '') return;
+		searchParams.set(key, String(value));
+	});
 
-  return searchParams;
+	return searchParams;
 }
 
 /**
@@ -54,36 +56,36 @@ function buildSearchParams(params: Record<string, string | number | undefined | 
  * @throws Error when the API response is not OK
  */
 export async function fetchLocationsList(
-  params?: ListQueryParams & { organizationId?: string | null },
+	params?: ListQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<Location>> {
-  const searchParams = buildSearchParams({
-    limit: params?.limit ?? 100,
-    offset: params?.offset ?? 0,
-    search: params?.search,
-    organizationId: params?.organizationId ?? undefined,
-  });
+	const searchParams = buildSearchParams({
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		search: params?.search,
+		organizationId: params?.organizationId ?? undefined,
+	});
 
-  const response = (await authedFetch(`${API_BASE_URL}/locations?${searchParams.toString()}`, {
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/locations?${searchParams.toString()}`, {
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to load locations');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to load locations');
+	}
 
-  const json = (await response.json()) as {
-    data?: Location[];
-    pagination?: PaginatedResponse<Location>['pagination'];
-  };
+	const json = (await response.json()) as {
+		data?: Location[];
+		pagination?: PaginatedResponse<Location>['pagination'];
+	};
 
-  return {
-    data: json.data ?? [],
-    pagination: json.pagination ?? {
-      total: 0,
-      limit: params?.limit ?? 100,
-      offset: params?.offset ?? 0,
-    },
-  };
+	return {
+		data: json.data ?? [],
+		pagination: json.pagination ?? {
+			total: 0,
+			limit: params?.limit ?? 100,
+			offset: params?.offset ?? 0,
+		},
+	};
 }
 
 /**
@@ -93,43 +95,43 @@ export async function fetchLocationsList(
  * @returns Devices with pagination metadata
  */
 export async function fetchDevicesList(
-  params?: ListQueryParams & {
-    search?: string;
-    locationId?: string;
-    status?: 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
-    organizationId?: string | null;
-  },
+	params?: ListQueryParams & {
+		search?: string;
+		locationId?: string;
+		status?: 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
+		organizationId?: string | null;
+	},
 ): Promise<PaginatedResponse<Device>> {
-  const searchParams = buildSearchParams({
-    limit: params?.limit ?? 100,
-    offset: params?.offset ?? 0,
-    search: params?.search,
-    locationId: params?.locationId,
-    status: params?.status,
-    organizationId: params?.organizationId ?? undefined,
-  });
+	const searchParams = buildSearchParams({
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		search: params?.search,
+		locationId: params?.locationId,
+		status: params?.status,
+		organizationId: params?.organizationId ?? undefined,
+	});
 
-  const response = (await authedFetch(`${API_BASE_URL}/devices?${searchParams.toString()}`, {
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/devices?${searchParams.toString()}`, {
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to load devices');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to load devices');
+	}
 
-  const json = (await response.json()) as {
-    data?: Device[];
-    pagination?: PaginatedResponse<Device>['pagination'];
-  };
+	const json = (await response.json()) as {
+		data?: Device[];
+		pagination?: PaginatedResponse<Device>['pagination'];
+	};
 
-  return {
-    data: json.data ?? [],
-    pagination: json.pagination ?? {
-      total: 0,
-      limit: params?.limit ?? 100,
-      offset: params?.offset ?? 0,
-    },
-  };
+	return {
+		data: json.data ?? [],
+		pagination: json.pagination ?? {
+			total: 0,
+			limit: params?.limit ?? 100,
+			offset: params?.offset ?? 0,
+		},
+	};
 }
 
 /**
@@ -140,13 +142,13 @@ export async function fetchDevicesList(
  * @throws Error when the API response is not OK
  */
 export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail | null> {
-  const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}`, {
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}`, {
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to load device');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to load device');
+	}
 
 	const json = (await response.json()) as { data?: DeviceDetail };
 	return json.data ?? null;
@@ -160,34 +162,34 @@ export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail 
  * @throws Error when the API call fails or returns no data
  */
 export async function registerDevice(input: RegisterDeviceInput): Promise<RegisterDeviceResponse> {
-  const response = (await authedFetch(`${API_BASE_URL}/devices/register`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      code: input.code,
-      name: input.name,
-      deviceType: input.deviceType,
-      platform: input.platform,
-      organizationId: input.organizationId ?? undefined,
-    }),
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/devices/register`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			code: input.code,
+			name: input.name,
+			deviceType: input.deviceType,
+			platform: input.platform,
+			organizationId: input.organizationId ?? undefined,
+		}),
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to register device');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to register device');
+	}
 
-  const json = (await response.json()) as { data?: DeviceDetail; isNew?: boolean };
-  if (!json.data) {
-    throw new Error('Device registration returned no data');
-  }
+	const json = (await response.json()) as { data?: DeviceDetail; isNew?: boolean };
+	if (!json.data) {
+		throw new Error('Device registration returned no data');
+	}
 
-  return {
-    device: json.data,
-    isNew: Boolean(json.isNew),
-  };
+	return {
+		device: json.data,
+		isNew: Boolean(json.isNew),
+	};
 }
 
 /**
@@ -199,23 +201,23 @@ export async function registerDevice(input: RegisterDeviceInput): Promise<Regist
  * @throws Error when the API response is not OK
  */
 export async function updateDeviceSettings(
-  deviceId: string,
-  payload: Partial<Pick<Device, 'name' | 'locationId'>>,
+	deviceId: string,
+	payload: Partial<Pick<Device, 'name' | 'locationId'>>,
 ): Promise<DeviceDetail> {
-  const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payload),
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(payload),
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to update device settings');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to update device settings');
+	}
 
-  const json = (await response.json()) as { data?: DeviceDetail };
+	const json = (await response.json()) as { data?: DeviceDetail };
 	if (!json.data) {
 		throw new Error('Device update returned no data');
 	}
@@ -230,21 +232,21 @@ export async function updateDeviceSettings(
  * @throws Error when the API response is not OK or lacks data
  */
 export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetail> {
-  const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}/heartbeat`, {
-    method: 'POST',
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/devices/${deviceId}/heartbeat`, {
+		method: 'POST',
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to send device heartbeat');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to send device heartbeat');
+	}
 
-  const json = (await response.json()) as { data?: DeviceDetail };
-  if (!json.data) {
-    throw new Error('Heartbeat response missing data');
-  }
+	const json = (await response.json()) as { data?: DeviceDetail };
+	if (!json.data) {
+		throw new Error('Heartbeat response missing data');
+	}
 
-  return json.data;
+	return json.data;
 }
 
 /**
@@ -254,40 +256,40 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
  * @returns Attendance records with pagination info
  */
 export async function fetchAttendanceList(
-  params?: AttendanceQueryParams & { organizationId?: string | null },
+	params?: AttendanceQueryParams & { organizationId?: string | null },
 ): Promise<PaginatedResponse<AttendanceRecord>> {
-  const searchParams = buildSearchParams({
-    limit: params?.limit ?? 50,
-    offset: params?.offset ?? 0,
-    employeeId: params?.employeeId,
-    deviceId: params?.deviceId,
-    type: params?.type,
-    fromDate: params?.fromDate ? params.fromDate.toISOString() : undefined,
-    toDate: params?.toDate ? params.toDate.toISOString() : undefined,
-    organizationId: params?.organizationId ?? undefined,
-  });
+	const searchParams = buildSearchParams({
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+		employeeId: params?.employeeId,
+		deviceId: params?.deviceId,
+		type: params?.type,
+		fromDate: params?.fromDate ? params.fromDate.toISOString() : undefined,
+		toDate: params?.toDate ? params.toDate.toISOString() : undefined,
+		organizationId: params?.organizationId ?? undefined,
+	});
 
-  const response = (await authedFetch(`${API_BASE_URL}/attendance?${searchParams.toString()}`, {
-    credentials: 'include',
-  })) as Response;
+	const response = (await authedFetch(`${API_BASE_URL}/attendance?${searchParams.toString()}`, {
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to load attendance records');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to load attendance records');
+	}
 
-  const json = (await response.json()) as {
-    data?: AttendanceRecord[];
-    pagination?: PaginatedResponse<AttendanceRecord>['pagination'];
-  };
+	const json = (await response.json()) as {
+		data?: AttendanceRecord[];
+		pagination?: PaginatedResponse<AttendanceRecord>['pagination'];
+	};
 
-  return {
-    data: json.data ?? [],
-    pagination: json.pagination ?? {
-      total: 0,
-      limit: params?.limit ?? 50,
-      offset: params?.offset ?? 0,
-    },
-  };
+	return {
+		data: json.data ?? [],
+		pagination: json.pagination ?? {
+			total: 0,
+			limit: params?.limit ?? 50,
+			offset: params?.offset ?? 0,
+		},
+	};
 }
 
 /**
@@ -297,38 +299,36 @@ export async function fetchAttendanceList(
  * @returns The created attendance record
  * @throws Error when the API response is not OK
  */
-export async function createAttendanceRecord(
-  input: {
-    employeeId: string;
-    deviceId: string;
-    type: AttendanceType;
-    metadata?: Record<string, unknown>;
-    timestamp?: Date;
-  },
-): Promise<AttendanceRecord> {
-  const response = (await authedFetch(`${API_BASE_URL}/attendance`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      employeeId: input.employeeId,
-      deviceId: input.deviceId,
-      type: input.type,
-      metadata: input.metadata,
-      timestamp: (input.timestamp ?? new Date()).toISOString(),
-    }),
-    credentials: 'include',
-  })) as Response;
+export async function createAttendanceRecord(input: {
+	employeeId: string;
+	deviceId: string;
+	type: AttendanceType;
+	metadata?: Record<string, unknown>;
+	timestamp?: Date;
+}): Promise<AttendanceRecord> {
+	const response = (await authedFetch(`${API_BASE_URL}/attendance`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify({
+			employeeId: input.employeeId,
+			deviceId: input.deviceId,
+			type: input.type,
+			metadata: input.metadata,
+			timestamp: (input.timestamp ?? new Date()).toISOString(),
+		}),
+		credentials: 'include',
+	})) as Response;
 
-  if (!response.ok) {
-    throw new Error('Failed to create attendance record');
-  }
+	if (!response.ok) {
+		throw new Error('Failed to create attendance record');
+	}
 
-  const json = (await response.json()) as { data?: AttendanceRecord };
-  if (!json.data) {
-    throw new Error('Attendance response missing data');
-  }
+	const json = (await response.json()) as { data?: AttendanceRecord };
+	if (!json.data) {
+		throw new Error('Attendance response missing data');
+	}
 
-  return json.data;
+	return json.data;
 }

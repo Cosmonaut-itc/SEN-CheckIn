@@ -15,9 +15,11 @@ import * as Haptics from 'expo-haptics';
 import { Button, Spinner, Card } from 'heroui-native';
 import { Ionicons } from '@expo/vector-icons';
 
+import { Colors, type ThemeColors } from '@/constants/theme';
 import { verifyFace, recordAttendance } from '@/lib/face-recognition';
 import type { AttendanceType } from '@/lib/query-keys';
 import { useDeviceContext } from '@/lib/device-context';
+import { useTheme } from '@/providers/theme-provider';
 
 /** Represents the current status of the face scanning operation */
 type ScanStatus =
@@ -51,6 +53,15 @@ export default function ScannerScreen(): JSX.Element {
   const cameraRef = useRef<CameraView | null>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const { settings } = useDeviceContext();
+  const { colorScheme, isDarkMode } = useTheme();
+  const themeColors = useMemo<ThemeColors>(
+    () => (colorScheme === 'dark' ? Colors.dark : Colors.light),
+    [colorScheme],
+  );
+  const styles = useMemo(
+    () => createScannerStyles(themeColors, isDarkMode),
+    [isDarkMode, themeColors],
+  );
 
   // Use state for camera facing to ensure proper initialization
   // This fixes a race condition where the camera may initialize with the wrong facing direction
@@ -75,6 +86,11 @@ export default function ScannerScreen(): JSX.Element {
     state: 'idle',
     message: 'Position your face within the circle',
   });
+  const attendanceAccent = attendanceType === 'CHECK_IN' ? themeColors.success : themeColors.error;
+  const neutralGuideColor =
+    colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.65)' : 'rgba(17, 24, 28, 0.6)';
+  const primaryContentColor = isDarkMode ? themeColors.foreground : themeColors.background;
+  const ctaContentColor = attendanceType === 'CHECK_IN' ? primaryContentColor : themeColors.foreground;
 
   /**
    * Toggles between CHECK_IN and CHECK_OUT attendance types
@@ -272,14 +288,14 @@ export default function ScannerScreen(): JSX.Element {
   // Interpolate border color based on animation value
   const borderColor = borderColorAnim.interpolate({
     inputRange: [0, 1, 2],
-    outputRange: ['rgba(255, 255, 255, 0.6)', 'rgba(34, 197, 94, 0.9)', 'rgba(239, 68, 68, 0.9)'],
+    outputRange: [neutralGuideColor, themeColors.success, themeColors.error],
   });
 
   // Loading state while permissions are being determined
   if (!permission) {
     return (
       <View style={styles.centeredContainer}>
-        <Spinner size="lg" />
+        <Spinner size="lg" color={themeColors.primary} />
         <Text style={styles.loadingText}>Initializing camera...</Text>
       </View>
     );
@@ -290,7 +306,7 @@ export default function ScannerScreen(): JSX.Element {
     return (
       <View style={styles.centeredContainer}>
         <View style={styles.permissionCard}>
-          <Ionicons name="camera-outline" size={64} color="#6366f1" />
+          <Ionicons name="camera-outline" size={64} color={themeColors.primary} />
           <Text style={styles.permissionTitle}>Camera Access Required</Text>
           <Text style={styles.permissionDescription}>
             We need camera permission to scan faces for attendance verification.
@@ -332,18 +348,18 @@ export default function ScannerScreen(): JSX.Element {
             <View
               style={[
                 styles.toggleDot,
-                { backgroundColor: attendanceType === 'CHECK_IN' ? '#22c55e' : '#ef4444' },
+                { backgroundColor: attendanceAccent },
               ]}
             />
           </View>
           <Text style={styles.toggleText}>
             {attendanceType === 'CHECK_IN' ? 'Check-in' : 'Check-out'}
           </Text>
-          <Ionicons name="swap-horizontal" size={18} color="rgba(255,255,255,0.7)" />
+          <Ionicons name="swap-horizontal" size={18} color={themeColors.foreground500} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingsButton} onPress={handleOpenSettings}>
-          <Ionicons name="settings-outline" size={24} color="white" />
+          <Ionicons name="settings-outline" size={24} color={themeColors.foreground} />
         </TouchableOpacity>
       </View>
 
@@ -382,13 +398,13 @@ export default function ScannerScreen(): JSX.Element {
         <Animated.View style={[styles.instructionContainer, { opacity: statusOpacity }]}>
           {scanStatus.state === 'success' && scanStatus.employeeName ? (
             <>
-              <Ionicons name="checkmark-circle" size={28} color="#22c55e" />
+              <Ionicons name="checkmark-circle" size={28} color={themeColors.success} />
               <Text style={styles.employeeName}>{scanStatus.employeeName}</Text>
             </>
           ) : scanStatus.state === 'error' ? (
-            <Ionicons name="close-circle" size={28} color="#ef4444" />
+            <Ionicons name="close-circle" size={28} color={themeColors.error} />
           ) : scanStatus.state === 'scanning' ? (
-            <Spinner size="sm" color="white" />
+            <Spinner size="sm" color={themeColors.foreground} />
           ) : null}
           <Text style={styles.instructionText}>{scanStatus.message}</Text>
         </Animated.View>
@@ -414,7 +430,7 @@ export default function ScannerScreen(): JSX.Element {
                 <Ionicons
                   name={settings?.deviceId ? 'checkmark-circle' : 'alert-circle'}
                   size={14}
-                  color={settings?.deviceId ? '#22c55e' : '#f59e0b'}
+                  color={settings?.deviceId ? themeColors.success : themeColors.warning}
                 />
                 <Text className="text-foreground-400 text-xs">
                   {settings?.deviceId ? 'Connected' : 'Setup Required'}
@@ -431,12 +447,12 @@ export default function ScannerScreen(): JSX.Element {
             >
               {isProcessing ? (
                 <View className="flex-row items-center gap-3">
-                  <Spinner size="sm" color="white" />
+                  <Spinner size="sm" color={ctaContentColor} />
                   <Button.Label className="text-lg">Verifying...</Button.Label>
                 </View>
               ) : (
                 <View className="flex-row items-center gap-2">
-                  <Ionicons name="scan" size={22} color="white" />
+                  <Ionicons name="scan" size={22} color={ctaContentColor} />
                   <Button.Label className="text-lg">
                     {attendanceType === 'CHECK_IN' ? 'Scan Check-in' : 'Scan Check-out'}
                   </Button.Label>
@@ -450,7 +466,7 @@ export default function ScannerScreen(): JSX.Element {
                 onPress={handleOpenSettings}
                 className="mt-3 flex-row items-center justify-center gap-1"
               >
-                <Ionicons name="link" size={16} color="#f59e0b" />
+                <Ionicons name="link" size={16} color={themeColors.warning} />
                 <Text className="text-warning-500 text-sm font-medium">
                   Tap to link this device
                 </Text>
@@ -463,186 +479,198 @@ export default function ScannerScreen(): JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  centeredContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0a0a0a',
-    padding: 24,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#a1a1aa',
-  },
-  permissionCard: {
-    alignItems: 'center',
-    backgroundColor: '#18181b',
-    borderRadius: 24,
-    padding: 32,
-    width: '100%',
-    maxWidth: 340,
-  },
-  permissionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#fafafa',
-    marginTop: 20,
-    textAlign: 'center',
-  },
-  permissionDescription: {
-    fontSize: 15,
-    color: '#a1a1aa',
-    marginTop: 12,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 56 : 40,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-  },
-  attendanceToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 28,
-    borderWidth: 1,
-  },
-  checkInToggle: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderColor: 'rgba(34, 197, 94, 0.6)',
-  },
-  checkOutToggle: {
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderColor: 'rgba(239, 68, 68, 0.6)',
-  },
-  toggleIndicator: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  toggleDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  toggleText: {
-    color: 'white',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  settingsButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  faceGuideContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 160,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  faceGuideWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  faceGuide: {
-    borderWidth: 3,
-    backgroundColor: 'transparent',
-    position: 'relative',
-  },
-  cornerAccent: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: 'white',
-    borderWidth: 3,
-  },
-  cornerTopLeft: {
-    top: 20,
-    left: 20,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-    borderTopLeftRadius: 8,
-  },
-  cornerTopRight: {
-    top: 20,
-    right: 20,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-    borderTopRightRadius: 8,
-  },
-  cornerBottomLeft: {
-    bottom: 20,
-    left: 20,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-    borderBottomLeftRadius: 8,
-  },
-  cornerBottomRight: {
-    bottom: 20,
-    right: 20,
-    borderLeftWidth: 0,
-    borderTopWidth: 0,
-    borderBottomRightRadius: 8,
-  },
-  instructionContainer: {
-    marginTop: 24,
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 24,
-  },
-  employeeName: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#22c55e',
-    textAlign: 'center',
-  },
-  instructionText: {
-    fontSize: 16,
-    color: 'white',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  bottomContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
-  },
-});
+/**
+ * Builds themed styles for the scanner screen.
+ *
+ * @param themeColors - Palette derived from the active color scheme
+ * @param isDarkMode - Whether dark mode is currently enabled
+ * @returns StyleSheet configured with theme-aware values
+ */
+const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: themeColors.background,
+    },
+    camera: {
+      flex: 1,
+      width: '100%',
+      height: '100%',
+    },
+    centeredContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: themeColors.background,
+      padding: 24,
+    },
+    loadingText: {
+      marginTop: 16,
+      fontSize: 16,
+      color: themeColors.foreground500,
+    },
+    permissionCard: {
+      alignItems: 'center',
+      backgroundColor: themeColors.content1,
+      borderRadius: 24,
+      padding: 32,
+      width: '100%',
+      maxWidth: 340,
+      borderWidth: 1,
+      borderColor: themeColors.border,
+    },
+    permissionTitle: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: themeColors.text,
+      marginTop: 20,
+      textAlign: 'center',
+    },
+    permissionDescription: {
+      fontSize: 15,
+      color: themeColors.foreground400,
+      marginTop: 12,
+      textAlign: 'center',
+      lineHeight: 22,
+    },
+    topBar: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: Platform.OS === 'ios' ? 56 : 40,
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+    },
+    attendanceToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 28,
+      borderWidth: 1,
+      backgroundColor: themeColors.overlay,
+    },
+    checkInToggle: {
+      borderColor: themeColors.success,
+    },
+    checkOutToggle: {
+      borderColor: themeColors.error,
+    },
+    toggleIndicator: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      backgroundColor: themeColors.overlayMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    toggleDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+    },
+    toggleText: {
+      color: themeColors.foreground,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    settingsButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: themeColors.overlay,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: themeColors.border,
+    },
+    faceGuideContainer: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 160,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    faceGuideWrapper: {
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    faceGuide: {
+      borderWidth: 3,
+      backgroundColor: 'transparent',
+      position: 'relative',
+      borderColor: themeColors.foreground500,
+    },
+    cornerAccent: {
+      position: 'absolute',
+      width: 30,
+      height: 30,
+      borderColor: themeColors.foreground,
+      borderWidth: 3,
+    },
+    cornerTopLeft: {
+      top: 20,
+      left: 20,
+      borderRightWidth: 0,
+      borderBottomWidth: 0,
+      borderTopLeftRadius: 8,
+    },
+    cornerTopRight: {
+      top: 20,
+      right: 20,
+      borderLeftWidth: 0,
+      borderBottomWidth: 0,
+      borderTopRightRadius: 8,
+    },
+    cornerBottomLeft: {
+      bottom: 20,
+      left: 20,
+      borderRightWidth: 0,
+      borderTopWidth: 0,
+      borderBottomLeftRadius: 8,
+    },
+    cornerBottomRight: {
+      bottom: 20,
+      right: 20,
+      borderLeftWidth: 0,
+      borderTopWidth: 0,
+      borderBottomRightRadius: 8,
+    },
+    instructionContainer: {
+      marginTop: 24,
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 24,
+    },
+    employeeName: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: themeColors.success,
+      textAlign: 'center',
+    },
+    instructionText: {
+      fontSize: 16,
+      color: themeColors.foreground,
+      textAlign: 'center',
+      textShadowColor: isDarkMode
+        ? 'rgba(0, 0, 0, 0.8)'
+        : 'rgba(255, 255, 255, 0.65)',
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 4,
+    },
+    bottomContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 16,
+      paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    },
+  });

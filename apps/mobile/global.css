@@ -3,3 +3,26 @@
 @import 'heroui-native/styles';
 
 @source '../../node_modules/heroui-native/lib';
+
+:root {
+  --color-background: #ffffff;
+  --color-foreground: #11181c;
+  --color-foreground-500: #687076;
+  --color-foreground-400: #9ba1a6;
+  --color-content1: #f4f4f5;
+  --color-content2: #e4e4e7;
+  --color-default-100: #f4f4f5;
+  --color-default-200: #e4e4e7;
+}
+
+.dark,
+[data-theme='dark'] {
+  --color-background: #151718;
+  --color-foreground: #ecedee;
+  --color-foreground-500: #9ba1a6;
+  --color-foreground-400: #71767a;
+  --color-content1: #27272a;
+  --color-content2: #3f3f46;
+  --color-default-100: #27272a;
+  --color-default-200: #3f3f46;
+}

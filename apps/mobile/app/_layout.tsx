@@ -3,18 +3,46 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HeroUINativeProvider } from 'heroui-native';
+import { View } from 'react-native';
 import 'react-native-reanimated';
 
 import { QueryProvider } from '@/providers/query-provider';
 import { AuthProvider } from '@/providers/auth-provider';
+import { ThemeProvider, useTheme } from '@/providers/theme-provider';
 import { DeviceProvider } from '@/lib/device-context';
 
 import '../global.css';
 
+/**
+ * Root layout entry point for the Expo Router app.
+ *
+ * @returns {JSX.Element} Wrapped provider tree with gesture support
+ */
 export default function RootLayout(): JSX.Element {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <HeroUINativeProvider>
+      <ThemeProvider>
+        <AppProviders />
+      </ThemeProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+/**
+ * Composes app-wide providers with theme-aware configuration.
+ *
+ * @returns {JSX.Element} Provider stack including navigation and status bar
+ */
+function AppProviders(): JSX.Element {
+  const { colorScheme, isDarkMode } = useTheme();
+  const statusBarStyle = isDarkMode ? 'light' : 'dark';
+
+  return (
+    <View
+      style={{ flex: 1 }}
+      className={isDarkMode ? 'dark' : undefined}
+    >
+      <HeroUINativeProvider theme={colorScheme}>
         <QueryProvider>
           <AuthProvider>
             <DeviceProvider>
@@ -22,11 +50,11 @@ export default function RootLayout(): JSX.Element {
                 <Stack.Screen name="(auth)" />
                 <Stack.Screen name="(main)" />
               </Stack>
-              <StatusBar style="light" />
+              <StatusBar style={statusBarStyle} />
             </DeviceProvider>
           </AuthProvider>
         </QueryProvider>
       </HeroUINativeProvider>
-    </GestureHandlerRootView>
+    </View>
   );
 }

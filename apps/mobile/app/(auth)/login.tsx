@@ -13,6 +13,8 @@ import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
 import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
 import { useAuthContext } from '@/providers/auth-provider';
 import { envErrors, ENV } from '@/constants/env';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { Colors } from '@/constants/theme';
 
 const DEVICE_CLIENT_ID = 'sen-checkin-mobile';
 const DEVICE_SCOPE = 'openid profile';
@@ -161,7 +163,8 @@ export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
 	const { session, isLoading, setSession } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
-	const accentColor = '#6366f1';
+	const accentColor = useThemeColor({}, 'primary');
+	const qrForeground = Colors.light.text;
 
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);
 	const [status, setStatus] = useState<AuthorizationStatus>({
@@ -173,6 +176,11 @@ export default function LoginScreen(): JSX.Element {
 	const [pollDelayMs, setPollDelayMs] = useState<number>(5000);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [lastError, setLastError] = useState<string | null>(null);
+	const [pendingSetup, setPendingSetup] = useState<{
+		deviceId: string;
+		organizationId: string | null;
+	} | null>(null);
+	const [isRoutingToSetup, setIsRoutingToSetup] = useState(false);
 
 	const isTerminal = useMemo(
 		() => ['approved', 'denied', 'expired', 'error'].includes(status.state),
@@ -200,6 +208,13 @@ export default function LoginScreen(): JSX.Element {
 	const registerApprovedDevice = useCallback(
 		async (organizationId: string | null): Promise<RegisterDeviceResponse> => {
 			const stableCode = await getStableDeviceCode();
+			console.log('[login] registerApprovedDevice payload', {
+				stableCode,
+				organizationId,
+				deviceName: ExpoDevice.deviceName ?? ExpoDevice.modelName ?? 'Attendance Device',
+				deviceType: ExpoDevice.modelName ?? 'MOBILE',
+				platform: Platform.OS,
+			});
 			const registered = await registerDevice({
 				code: stableCode,
 				name: ExpoDevice.deviceName ?? ExpoDevice.modelName ?? 'Attendance Device',
@@ -213,6 +228,13 @@ export default function LoginScreen(): JSX.Element {
 				name: registered.device.name ?? registered.device.code,
 				locationId: registered.device.locationId ?? null,
 				organizationId: registered.device.organizationId ?? organizationId,
+			});
+
+			console.log('[login] registerApprovedDevice response', {
+				isNew: registered.isNew,
+				deviceId: registered.device.id,
+				locationId: registered.device.locationId,
+				deviceOrg: registered.device.organizationId,
 			});
 
 			return registered;
@@ -330,42 +352,61 @@ export default function LoginScreen(): JSX.Element {
 						return;
 					}
 
-					console.log('[login] Session established for user:', sessionResult.data.user?.name);
+				console.log('[login] Session established for user:', sessionResult.data.user?.name);
 
-					// Directly set the session in auth context - no server round-trip needed
-					// since we already have the valid session data
-					console.log('[login] Setting session in auth context');
-					setSession(sessionResult.data);
-					console.log('[login] Registering device with stable code');
-					const registration = await registerApprovedDevice(
-						sessionResult.data.session?.activeOrganizationId ?? null,
-					);
-					console.log('[login] Registration complete', {
-						isNew: registration.isNew,
-						hasLocation: Boolean(registration.device.locationId),
+				// Register device BEFORE setting session to avoid race condition
+				// with auto-navigation effect that triggers on session change
+				console.log('[login] Registering device with stable code');
+				const registration = await registerApprovedDevice(
+					sessionResult.data.session?.activeOrganizationId ?? null,
+				);
+				console.log('[login] Registration complete', {
+					isNew: registration.isNew,
+					hasLocation: Boolean(registration.device.locationId),
+					locationId: registration.device.locationId,
+				});
+
+				if (!registration.device.locationId) {
+					console.log('[login] Device requires setup, redirecting to setup screen', {
+						deviceId: registration.device.id,
+						organizationId:
+							registration.device.organizationId ??
+							sessionResult.data.session?.activeOrganizationId ??
+							null,
 					});
+					// Set routing flags BEFORE session to prevent auto-navigation race
+					setPendingSetup({
+						deviceId: registration.device.id,
+						organizationId:
+							registration.device.organizationId ??
+							sessionResult.data.session?.activeOrganizationId ??
+							null,
+					});
+					setIsRoutingToSetup(true);
+					// Now safe to set session - routing flags are already set
+					router.replace({
+						pathname: '/(auth)/device-setup',
+						params: {
+							deviceId: registration.device.id,
+							organizationId:
+								registration.device.organizationId ??
+								sessionResult.data.session?.activeOrganizationId ??
+								'',
+						},
+					});
+					// Auth layout allows device-setup even with session, but keep session set
+					setSession(sessionResult.data);
+					return;
+				}
 
-					if (registration.isNew && !registration.device.locationId) {
-						console.log('[login] Device requires setup, redirecting to setup screen');
-						router.replace({
-							pathname: '/(auth)/device-setup',
-							params: {
-								deviceId: registration.device.id,
-								organizationId:
-									registration.device.organizationId ??
-									sessionResult.data.session?.activeOrganizationId ??
-									'',
-							},
-						});
-						return;
-					}
+				console.log('[login] Device configured, navigating to scanner');
+				// Set session in context before navigation
+				setSession(sessionResult.data);
 
-					console.log('[login] Session set, navigating to scanner');
-
-					// Navigate after state is synced
-					setTimeout(() => {
-						router.replace('/(main)/scanner');
-					}, 300);
+				// Navigate after state is synced
+				setTimeout(() => {
+					router.replace('/(main)/scanner');
+				}, 300);
 				} catch (error) {
 					const message = deriveErrorMessage(error);
 					console.error('[login] Failed to establish session or register device:', error);
@@ -459,10 +500,25 @@ export default function LoginScreen(): JSX.Element {
 
 	// Redirect to the scanner when a session already exists.
 	useEffect(() => {
-		if (!isLoading && session) {
+		if (!isLoading && session && !pendingSetup && !isRoutingToSetup) {
+			console.log('[login] Auto-navigation to scanner (session present, no pending setup)');
 			router.replace('/(main)/scanner');
 		}
-	}, [isLoading, router, session]);
+	}, [isLoading, isRoutingToSetup, pendingSetup, router, session]);
+
+	useEffect(() => {
+		if (pendingSetup && !isRoutingToSetup) {
+			console.log('[login] Pending setup detected, ensuring navigation to device-setup', pendingSetup);
+			setIsRoutingToSetup(true);
+			router.replace({
+				pathname: '/(auth)/device-setup',
+				params: {
+					deviceId: pendingSetup.deviceId,
+					organizationId: pendingSetup.organizationId ?? '',
+				},
+			});
+		}
+	}, [isRoutingToSetup, pendingSetup, router]);
 
   /**
 	 * Developer bypass for local testing without the device approval flow.
@@ -572,15 +628,15 @@ export default function LoginScreen(): JSX.Element {
 				{/* QR Code Section */}
 				{verificationUrl && !isApproved ? (
 					<View className="items-center py-4">
-						<View className="bg-white p-4 rounded-2xl shadow-sm">
-							<QRCode
-								value={verificationUrl}
-								size={160}
-								bgColor="white"
-								fgColor="#18181b"
-								level="M"
-							/>
-						</View>
+				<View className="bg-white p-4 rounded-2xl shadow-sm">
+					<QRCode
+						value={verificationUrl}
+						size={160}
+						bgColor="white"
+						fgColor={qrForeground}
+						level="M"
+					/>
+				</View>
 						<Text className="text-xs text-foreground-400 mt-3 text-center">
 							Scan to open verification page
 						</Text>

@@ -1,4 +1,4 @@
-import type { BetterFetchError } from '@better-fetch/fetch';
+import type { BetterFetchError } from 'better-auth/client';
 import * as ExpoDevice from 'expo-device';
 import { useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
@@ -542,74 +542,74 @@ export default function LoginScreen(): JSX.Element {
 
 	// Status indicator component
 	const StatusIndicator = useMemo(() => {
-	if (isApproved) {
-		return (
-			<PulseAnimation>
+		if (isApproved) {
+			return (
+				<PulseAnimation>
+					<Card variant="default">
+						<Card.Body className="gap-1 items-center py-6">
+							<Text className="text-4xl mb-1">✓</Text>
+							<Card.Label className="text-success-700 text-2xl">
+								Device Approved
+								<AnimatedDots />
+							</Card.Label>
+							<Card.Description className="text-success-600 mt-1">
+								Redirecting to scanner
+							</Card.Description>
+						</Card.Body>
+					</Card>
+				</PulseAnimation>
+			);
+		}
+
+		if (status.state === 'waiting' || status.state === 'requesting') {
+			return (
 				<Card variant="default">
-					<Card.Body className="gap-1 items-center py-6">
-						<Text className="text-4xl mb-1">✓</Text>
-						<Card.Label className="text-success-700 text-2xl">
-							Device Approved
-							<AnimatedDots />
-						</Card.Label>
-						<Card.Description className="text-success-600 mt-1">
-							Redirecting to scanner
-						</Card.Description>
+					<Card.Body className="flex-row items-center justify-center gap-3 py-3">
+						<Spinner size="sm" color={accentColor} />
+						<Card.Description className="text-base">{status.message}</Card.Description>
 					</Card.Body>
 				</Card>
-			</PulseAnimation>
-		);
-	}
+			);
+		}
 
-	if (status.state === 'waiting' || status.state === 'requesting') {
-		return (
-			<Card variant="default">
-				<Card.Body className="flex-row items-center justify-center gap-3 py-3">
-					<Spinner size="sm" color={accentColor} />
-					<Card.Description className="text-base">{status.message}</Card.Description>
-				</Card.Body>
-			</Card>
-		);
-	}
+		if (status.state === 'denied') {
+			return (
+				<Card variant="default">
+					<Card.Body className="items-center gap-1 py-4">
+						<Text className="text-xl mb-1">✕</Text>
+						<Card.Label className="text-danger-700 text-base">
+							{status.message}
+						</Card.Label>
+					</Card.Body>
+				</Card>
+			);
+		}
 
-	if (status.state === 'denied') {
-		return (
-			<Card variant="default">
-				<Card.Body className="items-center gap-1 py-4">
-					<Text className="text-xl mb-1">✕</Text>
-					<Card.Label className="text-danger-700 text-base">
-						{status.message}
-					</Card.Label>
-				</Card.Body>
-			</Card>
-		);
-	}
+		if (status.state === 'expired') {
+			return (
+				<Card variant="default">
+					<Card.Body className="items-center gap-1 py-4">
+						<Text className="text-xl mb-1">⏱</Text>
+						<Card.Label className="text-warning-700 text-base">
+							{status.message}
+						</Card.Label>
+					</Card.Body>
+				</Card>
+			);
+		}
 
-	if (status.state === 'expired') {
-		return (
-			<Card variant="default">
-				<Card.Body className="items-center gap-1 py-4">
-					<Text className="text-xl mb-1">⏱</Text>
-					<Card.Label className="text-warning-700 text-base">
-						{status.message}
-					</Card.Label>
-				</Card.Body>
-			</Card>
-		);
-	}
-
-	if (status.state === 'error') {
-		return (
-			<Card variant="default">
-				<Card.Body className="items-center gap-1 py-4">
-					<Text className="text-xl mb-1">⚠</Text>
-					<Card.Label className="text-danger-700 text-base">
-						{status.message}
-					</Card.Label>
-				</Card.Body>
-			</Card>
-		);
-	}
+		if (status.state === 'error') {
+			return (
+				<Card variant="default">
+					<Card.Body className="items-center gap-1 py-4">
+						<Text className="text-xl mb-1">⚠</Text>
+						<Card.Label className="text-danger-700 text-base">
+							{status.message}
+						</Card.Label>
+					</Card.Body>
+				</Card>
+			);
+		}
 
 		return null;
 	}, [accentColor, isApproved, status.message, status.state]);
@@ -626,21 +626,21 @@ export default function LoginScreen(): JSX.Element {
 			</View>
 
 			{/* Environment Warning - only show for actual config errors */}
-	{envErrors && status.state === 'error' ? (
-		<Card variant="default" className="mb-4">
-			<Card.Body className="gap-2 p-4">
-				<Card.Label className="text-warning-800 text-base">
-					Configuration Required
-				</Card.Label>
-				<Card.Description className="text-warning-700 text-sm">
-					EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
-				</Card.Description>
-			</Card.Body>
-		</Card>
-	) : null}
+			{envErrors && status.state === 'error' ? (
+				<Card variant="default" className="mb-4">
+					<Card.Body className="gap-2 p-4">
+						<Card.Label className="text-warning-800 text-base">
+							Configuration Required
+						</Card.Label>
+						<Card.Description className="text-warning-700 text-sm">
+							EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
+						</Card.Description>
+					</Card.Body>
+				</Card>
+			) : null}
 
-	{/* Main Card */}
-	<Card variant="tertiary" className="p-6 gap-5">
+			{/* Main Card */}
+			<Card variant="tertiary" className="p-6 gap-5">
 				{/* User Code Display */}
 				<View className="items-center">
 					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest mb-3">
@@ -712,22 +712,22 @@ export default function LoginScreen(): JSX.Element {
 			</Card>
 
 			{/* Error Details - only show for actual errors, not during normal polling */}
-	{lastError && status.state === 'error' ? (
-		<Card variant="default" className="mt-4">
-			<Card.Body className="gap-1 p-4">
-				<Card.Label className="text-danger-700 text-base">Error Details</Card.Label>
-				<Card.Description className="text-danger-600 text-sm">
-					{lastError}
-				</Card.Description>
-				{!API_ENV_VALID ? (
-					<Card.Description className="text-danger-500 mt-1 text-xs">
-						Tip: On Android emulators use http://10.0.2.2:3000, on iOS
-						simulators use http://127.0.0.1:3000 or your LAN IP.
-					</Card.Description>
-				) : null}
-			</Card.Body>
-		</Card>
-	) : null}
+			{lastError && status.state === 'error' ? (
+				<Card variant="default" className="mt-4">
+					<Card.Body className="gap-1 p-4">
+						<Card.Label className="text-danger-700 text-base">Error Details</Card.Label>
+						<Card.Description className="text-danger-600 text-sm">
+							{lastError}
+						</Card.Description>
+						{!API_ENV_VALID ? (
+							<Card.Description className="text-danger-500 mt-1 text-xs">
+								Tip: On Android emulators use http://10.0.2.2:3000, on iOS
+								simulators use http://127.0.0.1:3000 or your LAN IP.
+							</Card.Description>
+						) : null}
+					</Card.Body>
+				</Card>
+			) : null}
 
 			{/* Terminal State Actions */}
 			{isTerminal && !isApproved ? (

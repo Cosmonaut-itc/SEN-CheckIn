@@ -16,13 +16,13 @@ import * as schema from '../src/db/schema.js';
  * Provides authentication with email/password, API keys, admin management,
  * and organization support.
  */
-export const auth = betterAuth({
+export const auth: ReturnType<typeof betterAuth> = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: 'pg',
 		schema: schema,
 	}),
 	/**
-	 * Trusted origins are required for Better Auth to accept cross-origin requests
+	 * Trusted origins are required for Better Auth to accept -origin requests
 	 * from the Next.js web app (dev runs on 3001). Update or extend as needed for
 	 * preview/staging hosts.
 	 */

@@ -117,12 +117,17 @@ const app = new Elysia()
 	// Public authentication routes (sign-in, sign-up, etc.)
 	.all('/api/auth/*', betterAuthView)
 	// All protected routes (require authentication)
-	.use(protectedRoutes)
-	.listen(3000);
+	.use(protectedRoutes);
+
+const hostname = process.env.HOST ?? '0.0.0.0';
+const parsedPort = Number.parseInt(process.env.PORT ?? '', 10);
+const port = Number.isNaN(parsedPort) ? 3000 : parsedPort;
+
+const server = app.listen({ hostname, port });
 
 export type App = typeof app;
 
 // Export error classes for use in routes
 export * from './errors/index.js';
 
-logger.info(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
+logger.info(`🦊 Elysia is running at ${hostname}:${server.server?.port ?? port}`);

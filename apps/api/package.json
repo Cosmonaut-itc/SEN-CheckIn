@@ -6,8 +6,8 @@
 	"module": "dist/index.js",
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",
-		"build": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace",
-		"build:prod": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace",
+		"build": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace --external pg-native",
+		"build:prod": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace --external pg-native",
 		"start": "bun run scripts/start.js",
 		"start:prod": "NODE_ENV=production bun run scripts/start.js",
 		"lint": "eslint src --ext .ts --max-warnings 0",

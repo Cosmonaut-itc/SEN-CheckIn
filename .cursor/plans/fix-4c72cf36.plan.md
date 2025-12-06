@@ -1,4 +1,12 @@
-<!-- 4c72cf36-1d94-4aec-bd36-fc70441820a0 0bd2c35c-d552-4a59-af29-66a04c0a1c07 -->
+---
+name: Fix Organization Creation Flow for Users Without Organizations
+overview: ""
+todos:
+  - id: 34fc42ed-c1fb-404f-9551-aac65c717671
+    content: Modify dashboard layout to allow /organizations route when no active organization exists
+    status: pending
+---
+
 # Fix Organization Creation Flow for Users Without Organizations
 
 ## Problem Summary
@@ -40,8 +48,3 @@ After the fix:
 - Admin users without an organization can click "Go to organizations" and be taken to `/organizations`
 - The organizations page will render properly, showing the table (empty) with the "Create Organization" button
 - Users can create their first organization
-
-### To-dos
-
-- [ ] Change redirect URL in no-organization-state.tsx from /dashboard/organizations to /organizations
-- [ ] Modify dashboard layout to allow /organizations route when no active organization exists

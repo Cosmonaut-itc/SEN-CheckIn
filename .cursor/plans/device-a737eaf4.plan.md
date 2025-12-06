@@ -1,4 +1,12 @@
-<!-- a737eaf4-17be-4575-b322-e918e29a9f52 798ecfd0-18f4-4aaf-970a-58173c6774fa -->
+---
+name: Device Verification Fixes Plan
+overview: ""
+todos:
+  - id: 6e524f07-13bc-4d52-8c35-5d74d9289b9b
+    content: Update proxy.ts to preserve callbackUrl when redirecting from auth pages
+    status: pending
+---
+
 # Device Verification Fixes Plan
 
 ## Problem Analysis
@@ -96,10 +104,3 @@ After implementation:
 1. Run `bun run lint` and `bun run check-types`
 2. Test mobile flow: Generate device code, approve on web, verify session is established and redirect to scanner works
 3. Test web flow: Open device verification link while logged out, sign in, verify redirect back to device page with code preserved
-
-### To-dos
-
-- [ ] Fix mobile polling: pass access_token to getSession() after device approval
-- [ ] Update device-client.tsx sign-in link to include returnUrl parameter
-- [ ] Update sign-in page to read callbackUrl and redirect after login
-- [ ] Update proxy.ts to preserve callbackUrl when redirecting from auth pages

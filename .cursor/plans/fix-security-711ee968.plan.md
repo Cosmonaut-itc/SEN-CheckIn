@@ -1,4 +1,12 @@
-<!-- 711ee968-fd14-472c-8f61-dde53ae59e5e 29f777cb-ecea-4722-abd8-c520129d5af7 -->
+---
+name: Fix Security Vulnerability - Proxy Middleware Not Executing
+overview: ""
+todos:
+  - id: 3eaf39b5-2603-4091-8e75-472297a5ca61
+    content: Test that unauthenticated users are redirected to sign-in page
+    status: pending
+---
+
 # Fix Security Vulnerability - Proxy Middleware Not Executing
 
 ## Problem Analysis
@@ -70,8 +78,3 @@ After applying the fix:
 3. Navigate directly to `/employees` - should redirect to `/sign-in`
 4. Sign in with valid credentials - should redirect to `/dashboard`
 5. Sign out and verify protected routes redirect again
-
-### To-dos
-
-- [ ] Change proxy function from named export to default export in proxy.ts
-- [ ] Test that unauthenticated users are redirected to sign-in page

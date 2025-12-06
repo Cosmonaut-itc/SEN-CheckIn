@@ -1,6 +1,8 @@
 import 'dotenv/config';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import '../utils/disable-pg-native.js';
 import * as schema from './schema.js';
+
+const { drizzle } = await import('drizzle-orm/node-postgres');
 
 /**
  * Gets the database connection URL from environment variables.

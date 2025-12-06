@@ -1,0 +1,9 @@
+{
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"buildCommand": "cd ../.. && bun install && bun run build:web",
+	"outputDirectory": ".next",
+	"devCommand": "cd ../.. && bun run dev:web",
+	"installCommand": "cd ../.. && bun install",
+	"framework": "nextjs",
+	"ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web/ packages/api-contract/ packages/types/"
+}

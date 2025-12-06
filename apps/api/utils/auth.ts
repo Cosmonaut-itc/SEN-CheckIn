@@ -43,6 +43,7 @@ export const auth = betterAuth({
 		'http://127.0.0.1:19000',
 		'http://100.110.215.102:3000',
 		'http://100.89.145.51:3000',
+		'https://sen-check-in.vercel.app',
 		'sen-checkin://',
 		'https://sen-check-in.vercel.app/',
 		'null', // allow native/Expo fetches with null Origin header

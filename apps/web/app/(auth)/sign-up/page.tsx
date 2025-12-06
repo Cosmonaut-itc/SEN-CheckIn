@@ -1,17 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { signUp } from '@/lib/auth-client';
-import { User, Mail, Lock, ShieldCheck } from 'lucide-react';
-import {
-	Card,
-	CardContent,
-	CardFooter,
-} from '@/components/ui/card';
-import { Loader2 } from 'lucide-react';
 import { useAppForm } from '@/lib/forms';
+import { Loader2, Lock, Mail, ShieldCheck, User } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 /**
  * Sign Up page component.
@@ -115,7 +110,10 @@ export default function SignUpPage(): React.ReactElement {
 						<div className="space-y-4">
 							<form.AppField
 								name="name"
-								validators={{ onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined) }}
+								validators={{
+									onChange: ({ value }) =>
+										!value.trim() ? 'Name is required' : undefined,
+								}}
 							>
 								{(field) => (
 									<field.TextField
@@ -128,7 +126,10 @@ export default function SignUpPage(): React.ReactElement {
 							</form.AppField>
 							<form.AppField
 								name="email"
-								validators={{ onChange: ({ value }) => (!value.trim() ? 'Email is required' : undefined) }}
+								validators={{
+									onChange: ({ value }) =>
+										!value.trim() ? 'Email is required' : undefined,
+								}}
 							>
 								{(field) => (
 									<field.TextField
@@ -142,7 +143,10 @@ export default function SignUpPage(): React.ReactElement {
 							</form.AppField>
 							<form.AppField
 								name="password"
-								validators={{ onChange: ({ value }) => (!value.trim() ? 'Password is required' : undefined) }}
+								validators={{
+									onChange: ({ value }) =>
+										!value.trim() ? 'Password is required' : undefined,
+								}}
 							>
 								{(field) => (
 									<field.TextField
@@ -156,7 +160,10 @@ export default function SignUpPage(): React.ReactElement {
 							</form.AppField>
 							<form.AppField
 								name="confirmPassword"
-								validators={{ onChange: ({ value }) => (!value.trim() ? 'Confirm password is required' : undefined) }}
+								validators={{
+									onChange: ({ value }) =>
+										!value.trim() ? 'Confirm password is required' : undefined,
+								}}
 							>
 								{(field) => (
 									<field.TextField
@@ -172,7 +179,11 @@ export default function SignUpPage(): React.ReactElement {
 					</CardContent>
 					<CardFooter className="flex flex-col gap-4 pb-6 mt-6">
 						<form.AppForm>
-							<form.SubmitButton label="Create Account" loadingLabel="Creating account..." className="w-full" />
+							<form.SubmitButton
+								label="Create Account"
+								loadingLabel="Creating account..."
+								className="w-full"
+							/>
 						</form.AppForm>
 						<p className="text-center text-sm text-muted-foreground">
 							Already have an account?{' '}

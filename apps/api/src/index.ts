@@ -6,6 +6,24 @@ import { opentelemetry } from '@elysiajs/opentelemetry';
 import { type Context, Elysia } from 'elysia';
 import { auth } from '../utils/auth.js';
 
+const defaultCorsOrigins: string[] = [
+	'http://localhost:3001',
+	'http://localhost:3000',
+	'http://127.0.0.1:3001',
+	'http://127.0.0.1:3000',
+	'https://sen-check-in.vercel.app',
+];
+
+const envCorsOrigins: string[] = (process.env.CORS_ORIGIN ?? '')
+	.split(',')
+	.map((origin) => origin.trim())
+	.filter(Boolean)
+	.map((origin) => origin.replace(/\/$/, ''));
+
+const corsAllowedOrigins: string[] = Array.from(
+	new Set([...defaultCorsOrigins, ...envCorsOrigins]),
+);
+
 // Plugin imports
 import { configureLogger, logger } from './logger/index.js';
 import { combinedAuthPlugin } from './plugins/auth.js';
@@ -47,6 +65,20 @@ const betterAuthView = (context: Context) => {
 };
 
 /**
+ * Validates whether the incoming request origin is in the configured allowlist.
+ *
+ * @param origin - Origin header value from the incoming request
+ * @returns True when the origin is permitted for CORS responses
+ */
+const isOriginAllowed = (origin?: string | null): boolean => {
+	if (!origin) {
+		return false;
+	}
+	const normalizedOrigin = origin.replace(/\/$/, '');
+	return corsAllowedOrigins.includes(normalizedOrigin);
+};
+
+/**
  * Protected routes plugin that requires authentication.
  * Groups all domain entity CRUD routes under authentication middleware.
  * Accepts both session-based authentication and API key authentication.
@@ -80,7 +112,7 @@ const app = new Elysia()
 	// Core plugins - order matters: CORS, error handler and logger should be first
 	.use(
 		cors({
-			origin: process.env.CORS_ORIGIN ?? 'http://localhost:3001',
+			origin: (requestOrigin) => isOriginAllowed(requestOrigin),
 			methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 			credentials: true,
 			allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],

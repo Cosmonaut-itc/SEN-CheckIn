@@ -15,8 +15,13 @@ import * as schema from '../src/db/schema.js';
  * BetterAuth configuration for the Sen CheckIn API.
  * Provides authentication with email/password, API keys, admin management,
  * and organization support.
+ *
+ * @remarks
+ * Type inference is intentionally left to TypeScript to capture plugin-specific
+ * API methods (e.g., `verifyApiKey` from apiKey plugin, `addMember` from organization plugin).
+ * Do not add an explicit type annotation here.
  */
-export const auth: ReturnType<typeof betterAuth> = betterAuth({
+export const auth = betterAuth({
 	database: drizzleAdapter(db, {
 		provider: 'pg',
 		schema: schema,
@@ -39,6 +44,7 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
 		'http://100.110.215.102:3000',
 		'http://100.89.145.51:3000',
 		'sen-checkin://',
+		'https://sen-check-in.vercel.app/',
 		'null', // allow native/Expo fetches with null Origin header
 	].filter(Boolean),
 	emailAndPassword: {

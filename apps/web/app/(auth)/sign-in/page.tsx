@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { Suspense, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/lib/auth-client';
-import { Mail, Lock, ShieldCheck } from 'lucide-react';
+import { Mail, Lock, ShieldCheck, Loader2 } from 'lucide-react';
 import {
 	Card,
 	CardContent,
@@ -13,12 +13,38 @@ import {
 import { useAppForm } from '@/lib/forms';
 
 /**
- * Sign In page component.
- * Provides email/password authentication form using better-auth.
+ * Loading fallback component for the sign-in form.
  *
- * @returns The sign in page JSX element
+ * @returns A loading skeleton for the sign-in page
  */
-export default function SignInPage(): React.ReactElement {
+function SignInLoading(): React.ReactElement {
+	return (
+		<div className="flex flex-col gap-6 w-full max-w-sm mx-auto">
+			<div className="flex flex-col items-center gap-2 text-center">
+				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
+					<ShieldCheck className="h-6 w-6" />
+				</div>
+				<h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
+				<p className="text-balance text-sm text-muted-foreground">
+					Enter your credentials to access the admin portal
+				</p>
+			</div>
+			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+				<CardContent className="flex items-center justify-center py-12">
+					<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+
+/**
+ * Sign In content component containing the actual form logic.
+ * Uses useSearchParams which requires Suspense boundary.
+ *
+ * @returns The sign in form content
+ */
+function SignInContent(): React.ReactElement {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [error, setError] = useState<string | null>(null);
@@ -138,5 +164,20 @@ export default function SignInPage(): React.ReactElement {
 				</form>
 			</Card>
 		</div>
+	);
+}
+
+/**
+ * Sign In page component.
+ * Provides email/password authentication form using better-auth.
+ * Wrapped in Suspense to support useSearchParams hook.
+ *
+ * @returns The sign in page JSX element
+ */
+export default function SignInPage(): React.ReactElement {
+	return (
+		<Suspense fallback={<SignInLoading />}>
+			<SignInContent />
+		</Suspense>
 	);
 }

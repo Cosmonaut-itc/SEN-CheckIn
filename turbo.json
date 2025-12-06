@@ -6,8 +6,11 @@
 		"CORS_ORIGIN",
 		"SEN_DB_URL",
 		"AWS_REGION",
-		"AWS_REKOGNITION_COLLECTION_ID"
+		"AWS_REKOGNITION_COLLECTION_ID",
+		"BETTER_AUTH_SECRET",
+		"BETTER_AUTH_URL"
 	],
+	"globalPassThroughEnv": ["*"],
 	"tasks": {
 		"build": {
 			"dependsOn": ["^build"],

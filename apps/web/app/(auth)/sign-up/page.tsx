@@ -15,15 +15,18 @@ import { useAppForm } from '@/lib/forms';
 
 /**
  * Sign Up page component.
- * DEV ONLY - This page is only accessible in development mode.
  * Provides registration form for new admin users.
+ *
+ * TODO: After initial setup, re-add production guard:
+ * const isProduction = process.env.NODE_ENV === 'production';
  *
  * @returns The sign up page JSX element
  */
 export default function SignUpPage(): React.ReactElement {
 	const router = useRouter();
 	const [error, setError] = useState<string | null>(null);
-	const isProduction = process.env.NODE_ENV === 'production';
+	// TODO: Re-enable after initial setup: const isProduction = process.env.NODE_ENV === 'production';
+	const isProduction = false; // Temporarily disabled for initial setup
 
 	const form = useAppForm({
 		defaultValues: {

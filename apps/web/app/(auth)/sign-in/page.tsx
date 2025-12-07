@@ -48,6 +48,7 @@ function SignInContent(): React.ReactElement {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [error, setError] = useState<string | null>(null);
+	const isProduction = process.env.NODE_ENV === 'production';
 	const callbackParam = searchParams.get('callbackUrl');
 	const callbackUrl = useMemo(() => {
 		if (!callbackParam) {
@@ -152,12 +153,16 @@ function SignInContent(): React.ReactElement {
 						{/* TODO: Remove this after initial setup - re-add: process.env.NODE_ENV === 'development' && */}
 						<p className="text-center text-sm text-muted-foreground">
 							Don&apos;t have an account?{' '}
-							<Link
-								href="/sign-up"
-								className="text-primary underline-offset-4 hover:underline"
-							>
-								Sign up
-							</Link>
+							{isProduction ? (
+								<span className="text-muted-foreground">Sign up disabled</span>
+							) : (
+								<Link
+									href="/sign-up"
+									className="text-primary underline-offset-4 hover:underline"
+								>
+									Sign up
+								</Link>
+							)}
 						</p>
 					</CardFooter>
 				</form>

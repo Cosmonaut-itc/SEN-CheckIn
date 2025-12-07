@@ -20,8 +20,7 @@ import { useEffect, useState } from 'react';
 export default function SignUpPage(): React.ReactElement {
 	const router = useRouter();
 	const [error, setError] = useState<string | null>(null);
-	// TODO: Re-enable after initial setup: const isProduction = process.env.NODE_ENV === 'production';
-	const isProduction = false; // Temporarily disabled for initial setup
+	const isProduction = process.env.NODE_ENV === 'production';
 
 	const form = useAppForm({
 		defaultValues: {
@@ -82,8 +81,16 @@ export default function SignUpPage(): React.ReactElement {
 	// Don't render in production
 	if (isProduction) {
 		return (
-			<div className="flex items-center justify-center">
-				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+			<div className="flex items-center justify-center text-center">
+				<div className="flex flex-col items-center gap-3">
+					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+					<p className="text-sm text-muted-foreground">
+						Sign up is disabled in production.
+					</p>
+					<Link href="/sign-in" className="text-primary underline-offset-4 hover:underline">
+						Return to sign in
+					</Link>
+				</div>
 			</div>
 		);
 	}

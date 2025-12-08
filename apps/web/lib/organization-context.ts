@@ -20,16 +20,43 @@ export async function getActiveOrganizationContext(): Promise<ActiveOrganization
 	const fetchOptions = await getServerFetchOptions();
 	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
 
-	const organizationId = sessionResult.error
+	const organizationIdFromSession = sessionResult.error
 		? null
 		: (sessionResult.data?.session?.activeOrganizationId ?? null);
 
-	if (!organizationId) {
+	const organizationsResponse = await serverAuthClient.organization.list(undefined, fetchOptions);
+
+	if (organizationsResponse.error) {
+		console.error('[organization-context] Failed to list organizations', organizationsResponse.error);
 		return { organizationId: null, organizationSlug: null, organizationName: null };
 	}
 
-	const organizations = await serverAuthClient.organization.list(undefined, fetchOptions);
-	const activeOrg = organizations.data?.find((org) => org.id === organizationId);
+	const organizations = organizationsResponse.data ?? [];
+
+	let organizationId = organizationIdFromSession;
+	let activeOrg = organizations.find((org) => org.id === organizationId) ?? null;
+
+	// Clear stale active organization ids that no longer exist
+	if (organizationId && !activeOrg) {
+		organizationId = null;
+	}
+
+	// Default to the first available organization and persist it on the session
+	if (!organizationId && organizations.length > 0) {
+		const fallback = organizations[0] ?? null;
+		if (fallback) {
+			try {
+				await serverAuthClient.organization.setActive(
+					{ organizationId: fallback.id },
+					fetchOptions,
+				);
+			} catch (error) {
+				console.error('[organization-context] Failed to set active organization', error);
+			}
+			organizationId = fallback.id;
+			activeOrg = fallback;
+		}
+	}
 
 	return {
 		organizationId,

@@ -86,6 +86,22 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
 			};
 		}
 
+		const createdOrganizationId =
+			typeof response.data === 'object' && response.data && 'id' in response.data
+				? (response.data as { id?: unknown }).id
+				: null;
+
+		if (typeof createdOrganizationId === 'string') {
+			try {
+				await serverAuthClient.organization.setActive(
+					{ organizationId: createdOrganizationId },
+					fetchOptions,
+				);
+			} catch (error) {
+				console.error('[organizations:create] Failed to set active organization', error);
+			}
+		}
+
 		return {
 			success: true,
 			data: response.data,

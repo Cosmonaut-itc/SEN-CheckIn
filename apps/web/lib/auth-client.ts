@@ -1,20 +1,35 @@
-import { createAuthClient } from 'better-auth/react';
 import {
-	apiKeyClient,
 	adminClient,
+	apiKeyClient,
 	deviceAuthorizationClient,
 	organizationClient,
 	usernameClient,
 } from 'better-auth/client/plugins';
+import { createAuthClient } from 'better-auth/react';
 
 /**
- * Environment variable for the API base URL.
- * Falls back to localhost for local development.
+ * Resolve an absolute BetterAuth base URL that points to the web-host proxy.
+ * BetterAuth requires an absolute URL; we build it from the current origin
+ * on the client, or from NEXT_PUBLIC_WEB_URL on the server (SSG/SSR).
+ *
+ * @returns Absolute auth base URL (e.g., https://app.example.com/api/auth)
  */
-const API_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-const API_BASE_URL: string = API_ORIGIN.endsWith('/api/auth')
-	? API_ORIGIN
-	: `${API_ORIGIN}/api/auth`;
+function resolveAuthBaseUrl(): string {
+	const envWebUrl = process.env.NEXT_PUBLIC_WEB_URL?.replace(/\/$/, '') ?? null;
+
+	if (typeof window !== 'undefined' && window.location?.origin) {
+		return `${window.location.origin}/api/auth`;
+	}
+
+	if (envWebUrl) {
+		return `${envWebUrl}/api/auth`;
+	}
+
+	// Safe fallback for local dev/preview; should be overridden in production.
+	return 'http://localhost:3001/api/auth';
+}
+
+const API_BASE_URL: string = resolveAuthBaseUrl();
 
 /**
  * Better Auth client configured with Admin, Organization, and API Key plugins.

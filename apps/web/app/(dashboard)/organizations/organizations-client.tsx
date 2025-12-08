@@ -31,6 +31,7 @@ import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Edit, Plus, Search, Trash2, Users } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import React, { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -50,6 +51,7 @@ interface OrganizationFormValues {
  */
 export function OrganizationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const router = useRouter();
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
@@ -72,6 +74,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 				toast.success('Organization created successfully');
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+				router.refresh();
 			} else {
 				toast.error(result.error ?? 'Failed to create organization');
 			}

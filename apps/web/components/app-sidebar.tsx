@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
 	Users,
 	Smartphone,
@@ -111,12 +111,21 @@ const adminNavItems: NavItem[] = [
 export function AppSidebar(): React.ReactElement {
 	const pathname = usePathname();
 	const { data: session, isPending } = useSession();
+	const router = useRouter();
 
 	/**
 	 * Handles user sign out.
+	 *
+	 * @returns Promise that resolves when the sign-out flow completes
 	 */
 	const handleSignOut = async (): Promise<void> => {
-		await signOut();
+		const result = await signOut();
+		if (result?.error) {
+			console.error('Failed to sign out', result.error);
+			return;
+		}
+		router.push('/sign-in');
+		router.refresh();
 	};
 
 	/**

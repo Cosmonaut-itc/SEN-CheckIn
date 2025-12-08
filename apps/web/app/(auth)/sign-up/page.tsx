@@ -6,14 +6,11 @@ import { useAppForm } from '@/lib/forms';
 import { Loader2, Lock, Mail, ShieldCheck, User } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 /**
  * Sign Up page component.
  * Provides registration form for new admin users.
- *
- * TODO: After initial setup, re-add production guard:
- * const isProduction = process.env.NODE_ENV === 'production';
  *
  * @returns The sign up page JSX element
  */
@@ -58,15 +55,6 @@ export default function SignUpPage(): React.ReactElement {
 	});
 
 	/**
-	 * Check environment on mount to handle production redirect.
-	 */
-	useEffect(() => {
-		if (isProduction) {
-			router.replace('/sign-in');
-		}
-	}, [isProduction, router]);
-
-	/**
 	 * Handles form submission for sign up.
 	 * Creates a new user account via better-auth.
 	 *
@@ -78,7 +66,7 @@ export default function SignUpPage(): React.ReactElement {
 		form.handleSubmit();
 	};
 
-	// Don't render in production
+	// Disable sign up in production environments
 	if (isProduction) {
 		return (
 			<div className="flex items-center justify-center text-center">

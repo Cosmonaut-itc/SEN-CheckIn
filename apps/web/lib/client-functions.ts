@@ -916,9 +916,19 @@ export async function fetchPayrollRunDetail(
 	if (!payload) {
 		return null;
 	}
+	const normalizedEmployees = payload.employees.map((employee) => ({
+		...employee,
+		hoursWorked: Number(employee.hoursWorked ?? 0),
+		hourlyPay: Number(employee.hourlyPay ?? 0),
+		totalPay: Number(employee.totalPay ?? 0),
+		periodStart: new Date(employee.periodStart),
+		periodEnd: new Date(employee.periodEnd),
+		createdAt: new Date(employee.createdAt),
+		updatedAt: new Date(employee.updatedAt),
+	}));
 	return {
 		run: { ...payload.run, totalAmount: Number(payload.run.totalAmount ?? 0) },
-		employees: payload.employees,
+		employees: normalizedEmployees,
 	};
 }
 

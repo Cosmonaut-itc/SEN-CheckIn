@@ -1,4 +1,4 @@
-import { betterAuth } from 'better-auth';
+import { betterAuth, type Auth, type UnionToIntersection } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import {
 	admin,
@@ -15,13 +15,25 @@ import * as schema from '../src/db/schema.js';
  * BetterAuth configuration for the Sen CheckIn API.
  * Provides authentication with email/password, API keys, admin management,
  * and organization support.
- *
- * @remarks
- * Type inference is intentionally left to TypeScript to capture plugin-specific
- * API methods (e.g., `verifyApiKey` from apiKey plugin, `addMember` from organization plugin).
- * Do not add an explicit type annotation here.
  */
-export const auth = betterAuth({
+type AuthPlugins = [
+	ReturnType<typeof apiKey>,
+	ReturnType<typeof admin>,
+	ReturnType<typeof organization>,
+	ReturnType<typeof username>,
+	ReturnType<typeof deviceAuthorization>,
+	ReturnType<typeof bearer>,
+];
+
+type AuthOptions = Omit<Parameters<typeof betterAuth>[0], 'plugins'> & {
+	plugins: AuthPlugins;
+};
+
+type PluginEndpoints = AuthPlugins[number]['endpoints'];
+
+type AuthApi = Auth<AuthOptions>['api'] & UnionToIntersection<PluginEndpoints>;
+
+const authOptions: AuthOptions = {
 	database: drizzleAdapter(db, {
 		provider: 'pg',
 		schema: schema,
@@ -92,5 +104,11 @@ export const auth = betterAuth({
 		 * to authenticate using the access_token returned by /device/token.
 		 */
 		bearer(),
-	],
-});
+	] as AuthPlugins,
+};
+
+export const auth = betterAuth(authOptions) as Auth<typeof authOptions> & {
+	api: AuthApi;
+};
+
+export type AuthInstance = typeof auth;

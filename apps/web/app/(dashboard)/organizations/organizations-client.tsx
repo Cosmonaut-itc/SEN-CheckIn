@@ -249,7 +249,6 @@ export function OrganizationsPageClient(): React.ReactElement {
 			org.name.toLowerCase().includes(search.toLowerCase()) ||
 			org.slug.toLowerCase().includes(search.toLowerCase())
 	);
-	const hasNoOrganizations = !isFetching && organizations.length === 0;
 
 	return (
 		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>

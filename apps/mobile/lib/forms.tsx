@@ -1,7 +1,8 @@
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
 import { Button, Select, Spinner, TextField } from 'heroui-native';
-import type { JSX } from 'react';
+import type { Context, JSX } from 'react';
 import { useCallback, useMemo, useState } from 'react';
+import type { AnyFieldApi, AnyFormApi } from '@tanstack/form-core';
 import {
 	Modal,
 	ScrollView,
@@ -11,8 +12,12 @@ import {
 	View,
 } from 'react-native';
 
-export const { fieldContext, formContext, useFieldContext, useFormContext } =
-	createFormHookContexts();
+const formContexts = createFormHookContexts();
+
+export const fieldContext: Context<AnyFieldApi> = formContexts.fieldContext;
+export const formContext: Context<AnyFormApi> = formContexts.formContext;
+export const useFieldContext = formContexts.useFieldContext;
+export const useFormContext = formContexts.useFormContext;
 
 type CommonFieldProps = {
 	label: string;
@@ -336,15 +341,29 @@ export function SubmitButton({
 	);
 }
 
-export const { useAppForm, withForm } = createFormHook({
+const fieldComponents = {
+	TextField: AppTextField,
+	SelectField,
+	NativeSelectField,
+} as const;
+
+const formComponents = {
+	SubmitButton,
+} as const;
+
+type FormHook = ReturnType<
+	typeof createFormHook<typeof fieldComponents, typeof formComponents>
+>;
+
+const formHook: FormHook = createFormHook<
+	typeof fieldComponents,
+	typeof formComponents
+>({
 	fieldContext,
 	formContext,
-	fieldComponents: {
-		TextField: AppTextField,
-		SelectField,
-		NativeSelectField,
-	},
-	formComponents: {
-		SubmitButton,
-	},
+	fieldComponents,
+	formComponents,
 });
+
+export const useAppForm: FormHook['useAppForm'] = formHook.useAppForm;
+export const withForm: FormHook['withForm'] = formHook.withForm;

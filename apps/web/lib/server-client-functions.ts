@@ -10,7 +10,6 @@
  */
 
 import { authClient } from '@/lib/auth-client';
-import { serverAuthClient } from '@/lib/server-auth-client';
 import type {
 	ApiKey,
 	AttendanceRecord,
@@ -26,9 +25,11 @@ import type {
 	PaginatedResponse,
 	PayrollCalculationResult,
 	PayrollRun,
+	PayrollRunEmployee,
 	PayrollSettings,
 	User,
 } from '@/lib/client-functions';
+import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
 	AttendanceQueryParams,
 	JobPositionQueryParams,
@@ -36,8 +37,8 @@ import type {
 	PayrollCalculateParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
-import { normalizeUserCode } from '@/lib/device-code-utils';
-import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
+import { type ServerApiClient, createServerApiClient } from '@/lib/server-api';
+import { serverAuthClient } from '@/lib/server-auth-client';
 
 const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
@@ -65,10 +66,9 @@ export async function fetchEmployeesListServer(
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession(
-			undefined,
-			{ headers: new Headers({ cookie: cookieHeader }) },
-		);
+		const session = await serverAuthClient.getSession(undefined, {
+			headers: new Headers({ cookie: cookieHeader }),
+		});
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -258,10 +258,9 @@ export async function fetchJobPositionsListServer(
 	// Resolve organization ID from params or session (fallback for server prefetch)
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession(
-			undefined,
-			{ headers: new Headers({ cookie: cookieHeader }) },
-		);
+		const session = await serverAuthClient.getSession(undefined, {
+			headers: new Headers({ cookie: cookieHeader }),
+		});
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -303,7 +302,8 @@ export async function fetchJobPositionsListServer(
 	}
 
 	const positions =
-		(response.data?.data as (JobPosition & { hourlyPay?: number | string })[] | undefined) ?? [];
+		(response.data?.data as (JobPosition & { hourlyPay?: number | string })[] | undefined) ??
+		[];
 
 	return {
 		data: positions.map((jp) => ({
@@ -335,10 +335,9 @@ export async function fetchAttendanceRecordsServer(
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession(
-			undefined,
-			{ headers: new Headers({ cookie: cookieHeader }) },
-		);
+		const session = await serverAuthClient.getSession(undefined, {
+			headers: new Headers({ cookie: cookieHeader }),
+		});
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -496,13 +495,16 @@ export async function fetchOrganizationMembersServer(
 		return { members: [], total: 0 };
 	}
 
-	const response = await authClient.organization.listMembers({
-		query: {
-			organizationId: params.organizationId,
-			limit: params.limit ?? 100,
-			offset: params.offset ?? 0,
+	const response = await authClient.organization.listMembers(
+		{
+			query: {
+				organizationId: params.organizationId,
+				limit: params.limit ?? 100,
+				offset: params.offset ?? 0,
+			},
 		},
-	}, { headers });
+		{ headers },
+	);
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch organization members:', response.error);
@@ -546,7 +548,7 @@ export async function fetchUsersServer(
 		throw new Error('Failed to fetch users');
 	}
 
-return (response.data?.users ?? []) as User[];
+	return (response.data?.users ?? []) as User[];
 }
 
 // ============================================================================
@@ -615,7 +617,7 @@ export async function fetchPayrollRunsServer(
 export async function fetchPayrollRunDetailServer(
 	cookieHeader: string,
 	id: string,
-): Promise<{ run: PayrollRun; employees: unknown[] } | null> {
+): Promise<{ run: PayrollRun; employees: PayrollRunEmployee[] } | null> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 	const response = await api.payroll.runs[id].get();
 
@@ -627,15 +629,42 @@ export async function fetchPayrollRunDetailServer(
 	const payload = response.data?.data as
 		| {
 				run: PayrollRun & { totalAmount?: number | string };
-				employees: unknown[];
+				employees: (PayrollRunEmployee & {
+					hoursWorked?: number | string;
+					hourlyPay?: number | string;
+					totalPay?: number | string;
+					periodStart: string | Date;
+					periodEnd: string | Date;
+					createdAt: string | Date;
+					updatedAt: string | Date;
+				})[];
 		  }
 		| undefined;
 	if (!payload) {
 		return null;
 	}
+	const normalizedRun: PayrollRun = {
+		...payload.run,
+		totalAmount: Number(payload.run.totalAmount ?? 0),
+		periodStart: new Date(payload.run.periodStart),
+		periodEnd: new Date(payload.run.periodEnd),
+		processedAt: payload.run.processedAt ? new Date(payload.run.processedAt) : null,
+		createdAt: new Date(payload.run.createdAt),
+		updatedAt: new Date(payload.run.updatedAt),
+	};
+	const normalizedEmployees: PayrollRunEmployee[] = payload.employees.map((employee) => ({
+		...employee,
+		hoursWorked: Number(employee.hoursWorked ?? 0),
+		hourlyPay: Number(employee.hourlyPay ?? 0),
+		totalPay: Number(employee.totalPay ?? 0),
+		periodStart: new Date(employee.periodStart),
+		periodEnd: new Date(employee.periodEnd),
+		createdAt: new Date(employee.createdAt),
+		updatedAt: new Date(employee.updatedAt),
+	}));
 	return {
-		run: { ...payload.run, totalAmount: Number(payload.run.totalAmount ?? 0) },
-		employees: payload.employees,
+		run: normalizedRun,
+		employees: normalizedEmployees,
 	};
 }
 
@@ -686,7 +715,10 @@ export async function verifyDeviceCodeServer(
 /**
  * Approve a device authorization request server-side.
  */
-export async function approveDeviceCodeServer(headers: Headers, userCode: string): Promise<boolean> {
+export async function approveDeviceCodeServer(
+	headers: Headers,
+	userCode: string,
+): Promise<boolean> {
 	const deviceClient = (serverAuthClient as unknown as { device: DeviceClient }).device;
 	const normalized = normalizeUserCode(userCode);
 	const response = await deviceClient.approve({ userCode: normalized }, { headers });

@@ -916,6 +916,18 @@ export async function fetchPayrollRunDetail(
 	if (!payload) {
 		return null;
 	}
+	const normalizedRun: PayrollRun = {
+		...payload.run,
+		totalAmount: Number(payload.run.totalAmount ?? 0),
+		periodStart: new Date(payload.run.periodStart),
+		periodEnd: new Date(payload.run.periodEnd),
+		paymentFrequency: payload.run.paymentFrequency,
+		status: payload.run.status,
+		employeeCount: payload.run.employeeCount,
+		processedAt: payload.run.processedAt ? new Date(payload.run.processedAt) : null,
+		createdAt: new Date(payload.run.createdAt),
+		updatedAt: new Date(payload.run.updatedAt),
+	};
 	const normalizedEmployees = payload.employees.map((employee) => ({
 		...employee,
 		hoursWorked: Number(employee.hoursWorked ?? 0),
@@ -927,7 +939,7 @@ export async function fetchPayrollRunDetail(
 		updatedAt: new Date(employee.updatedAt),
 	}));
 	return {
-		run: { ...payload.run, totalAmount: Number(payload.run.totalAmount ?? 0) },
+		run: normalizedRun,
 		employees: normalizedEmployees,
 	};
 }

@@ -99,11 +99,13 @@ export function PayrollPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
+	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
 		const next = computePeriod(settings?.weekStartDay ?? 1, paymentFrequency);
 		setPeriodStart(next.periodStart);
 		setPeriodEnd(next.periodEnd);
 	}, [settings?.weekStartDay, paymentFrequency]);
+	/* eslint-enable react-hooks/set-state-in-effect */
 
 	const calculationKey = useMemo(
 		() => ({

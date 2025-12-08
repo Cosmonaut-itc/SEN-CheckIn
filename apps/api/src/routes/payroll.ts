@@ -280,6 +280,7 @@ const calculatePayroll = async (args: {
 		let normalHours = 0;
 		let overtimeFromDaily = 0;
 		let sundayHoursWorked = 0;
+		let sundaysWorkedCount = 0;
 		const warnings: PayrollCalculationRow['warnings'] = [];
 
 		for (const [dateKey, dayHours] of dailyHoursMap.entries()) {
@@ -293,6 +294,9 @@ const calculatePayroll = async (args: {
 			const dayOfWeek = dayDate.getUTCDay();
 			if (dayOfWeek === 0) {
 				sundayHoursWorked += dayHours;
+				if (dayHours > 0) {
+					sundaysWorkedCount += 1;
+				}
 			}
 
 			if (dayOvertime > OVERTIME_LIMITS.MAX_DAILY_HOURS) {
@@ -336,7 +340,8 @@ const calculatePayroll = async (args: {
 			overtimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER;
 		const overtimeTriplePay =
 			overtimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER;
-		const sundayPremiumAmount = sundayHoursWorked > 0 ? effectiveDailyPay * SUNDAY_PREMIUM_RATE : 0;
+		const sundayPremiumAmount =
+			sundaysWorkedCount > 0 ? sundaysWorkedCount * effectiveDailyPay * SUNDAY_PREMIUM_RATE : 0;
 
 		const totalPay = normalPay + overtimeDoublePay + overtimeTriplePay + sundayPremiumAmount;
 		totalAmount += totalPay;

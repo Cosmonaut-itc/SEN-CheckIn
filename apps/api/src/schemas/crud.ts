@@ -25,6 +25,16 @@ export const paginationSchema = z.object({
 	offset: z.coerce.number().int().min(0).default(0),
 });
 
+/**
+ * Shift type enumeration (LFT)
+ */
+export const shiftTypeEnum = z.enum(['DIURNA', 'NOCTURNA', 'MIXTA']);
+
+/**
+ * Geographic zone enumeration (CONASAMI)
+ */
+export const geographicZoneEnum = z.enum(['GENERAL', 'ZLFN']);
+
 // ============================================================================
 // Location Schemas
 // ============================================================================
@@ -38,6 +48,7 @@ export const createLocationSchema = z.object({
 	address: z.string().max(500).optional(),
 	// BetterAuth organization IDs are text (not UUID)
 	organizationId: z.string().optional(),
+	geographicZone: geographicZoneEnum.optional(),
 });
 
 /**
@@ -47,6 +58,7 @@ export const updateLocationSchema = z.object({
 	name: z.string().min(1).max(255).optional(),
 	code: z.string().min(1).max(50).optional(),
 	address: z.string().max(500).nullable().optional(),
+	geographicZone: geographicZoneEnum.optional(),
 });
 
 /**
@@ -64,15 +76,31 @@ export const locationQuerySchema = paginationSchema.extend({
 /**
  * Schema for creating a new job position.
  */
-export const createJobPositionSchema = z.object({
-	name: z.string().min(1, 'Name is required').max(255),
-	description: z.string().max(1000).optional(),
-	hourlyPay: z.coerce.number().positive('Hourly pay must be greater than 0').optional(),
-	paymentFrequency: z
-		.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY'])
-		.optional(),
-	organizationId: z.string().optional(),
-});
+export const createJobPositionSchema = z
+	.object({
+		name: z.string().min(1, 'Name is required').max(255),
+		description: z.string().max(1000).optional(),
+		dailyPay: z.coerce.number().positive('Daily pay must be greater than 0').optional(),
+		hourlyPay: z.coerce.number().positive('Hourly pay must be greater than 0').optional(),
+		paymentFrequency: z
+			.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY'])
+			.optional(),
+		organizationId: z.string().optional(),
+	})
+	.superRefine((value, ctx) => {
+		if (value.dailyPay === undefined && value.hourlyPay === undefined) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['dailyPay'],
+				message: 'Either dailyPay or hourlyPay must be provided',
+			});
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['hourlyPay'],
+				message: 'Either dailyPay or hourlyPay must be provided',
+			});
+		}
+	});
 
 /**
  * Schema for updating a job position.
@@ -80,6 +108,7 @@ export const createJobPositionSchema = z.object({
 export const updateJobPositionSchema = z.object({
 	name: z.string().min(1).max(255).optional(),
 	description: z.string().max(1000).nullable().optional(),
+	dailyPay: z.coerce.number().positive().optional(),
 	hourlyPay: z.coerce.number().positive().optional(),
 	paymentFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
 });
@@ -117,6 +146,7 @@ export const createEmployeeSchema = z.object({
 	hireDate: z.coerce.date().optional(),
 	locationId: z.string().uuid().optional(),
 	organizationId: z.string().optional(),
+	shiftType: shiftTypeEnum.default('DIURNA').optional(),
 	schedule: z
 		.array(
 			z.object({
@@ -143,6 +173,7 @@ export const updateEmployeeSchema = z.object({
 	status: employeeStatusEnum.optional(),
 	hireDate: z.coerce.date().nullable().optional(),
 	locationId: z.string().uuid().nullable().optional(),
+	shiftType: shiftTypeEnum.optional(),
 	schedule: z
 		.array(
 			z.object({
@@ -273,6 +304,7 @@ export type PaginationQuery = z.infer<typeof paginationSchema>;
 export type CreateLocationInput = z.infer<typeof createLocationSchema>;
 export type UpdateLocationInput = z.infer<typeof updateLocationSchema>;
 export type LocationQuery = z.infer<typeof locationQuerySchema>;
+export type GeographicZone = z.infer<typeof geographicZoneEnum>;
 
 // Job Position
 export type CreateJobPositionInput = z.infer<typeof createJobPositionSchema>;
@@ -286,6 +318,7 @@ export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeQuery = z.infer<typeof employeeQuerySchema>;
 export type EmployeeScheduleInput = NonNullable<CreateEmployeeInput['schedule']>[number];
+export type ShiftType = z.infer<typeof shiftTypeEnum>;
 
 // Device
 export type DeviceStatus = z.infer<typeof deviceStatusEnum>;

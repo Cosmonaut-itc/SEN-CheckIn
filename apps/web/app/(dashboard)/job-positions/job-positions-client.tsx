@@ -39,6 +39,8 @@ interface JobPositionFormValues {
 	name: string;
 	/** Job position description */
 	description: string;
+	/** Daily pay rate */
+	dailyPay: number;
 	/** Hourly pay rate */
 	hourlyPay: number;
 	/** Payment frequency */
@@ -51,6 +53,7 @@ interface JobPositionFormValues {
 const initialFormValues: JobPositionFormValues = {
 	name: '',
 	description: '',
+	dailyPay: 0,
 	hourlyPay: 0,
 	paymentFrequency: 'MONTHLY',
 };
@@ -147,6 +150,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 			? {
 					name: editingJobPosition.name,
 					description: editingJobPosition.description ?? '',
+				dailyPay: editingJobPosition.dailyPay,
 				hourlyPay: editingJobPosition.hourlyPay,
 				paymentFrequency: editingJobPosition.paymentFrequency,
 				}
@@ -159,6 +163,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 					// Send null when description is empty string to clear the field
 					description:
 						value.description.trim() === '' ? null : value.description || undefined,
+				dailyPay: value.dailyPay,
 				hourlyPay: value.hourlyPay,
 				paymentFrequency: value.paymentFrequency,
 				});
@@ -170,6 +175,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 				await createMutation.mutateAsync({
 					name: value.name,
 					description: value.description || undefined,
+				dailyPay: value.dailyPay,
 				hourlyPay: value.hourlyPay,
 				paymentFrequency: value.paymentFrequency,
 					organizationId,
@@ -303,6 +309,23 @@ export function JobPositionsPageClient(): React.ReactElement {
 									)}
 								</form.AppField>
 								<form.AppField
+									name="dailyPay"
+									validators={{
+										onChange: ({ value }) =>
+											Number(value) <= 0
+												? 'Daily pay must be greater than 0'
+												: undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label="Salario Diario (MXN)"
+											type="number"
+											placeholder="e.g., 278.80"
+										/>
+									)}
+								</form.AppField>
+								<form.AppField
 									name="hourlyPay"
 									validators={{
 										onChange: ({ value }) =>
@@ -359,6 +382,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 						<TableRow>
 							<TableHead>Name</TableHead>
 							<TableHead>Description</TableHead>
+							<TableHead>Daily Pay</TableHead>
 							<TableHead>Hourly Pay</TableHead>
 							<TableHead>Frequency</TableHead>
 							<TableHead>Created</TableHead>
@@ -369,7 +393,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
+									{Array.from({ length: 7 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -378,7 +402,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 							))
 						) : jobPositions.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={4} className="h-24 text-center">
+								<TableCell colSpan={7} className="h-24 text-center">
 									No job positions found.
 								</TableCell>
 							</TableRow>
@@ -391,6 +415,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 									<TableCell className="max-w-xs truncate">
 										{jobPosition.description ?? '-'}
 									</TableCell>
+									<TableCell>${Number(jobPosition.dailyPay).toFixed(2)}</TableCell>
 									<TableCell>${Number(jobPosition.hourlyPay).toFixed(2)}</TableCell>
 									<TableCell>{jobPosition.paymentFrequency}</TableCell>
 									<TableCell>

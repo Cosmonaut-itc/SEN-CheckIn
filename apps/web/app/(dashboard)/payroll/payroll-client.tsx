@@ -1,25 +1,23 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-	addDays,
-	endOfMonth,
-	endOfWeek,
-	format,
-	startOfMonth,
-	startOfWeek,
-} from 'date-fns';
-import { toast } from 'sonner';
+import { addDays, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns';
 import { Loader2 } from 'lucide-react';
+import type React from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
+import { processPayrollAction } from '@/actions/payroll';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import {
 	Table,
 	TableBody,
@@ -28,23 +26,19 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { mutationKeys, queryKeys, type PayrollCalculateParams } from '@/lib/query-keys';
 import {
+	type PayrollSettings,
 	calculatePayroll,
 	fetchPayrollRuns,
 	fetchPayrollSettings,
-	type PayrollSettings,
 } from '@/lib/client-functions';
-import { processPayrollAction } from '@/actions/payroll';
 import { useOrgContext } from '@/lib/org-client-context';
+import { type PayrollCalculateParams, mutationKeys, queryKeys } from '@/lib/query-keys';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
 const formatCurrency = (value: number): string =>
-	new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+	new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
 
 /**
  * Computes period boundaries based on week start and frequency.
@@ -65,12 +59,19 @@ function computePeriod(
 		};
 	}
 
-	const start = startOfWeek(today, { weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6 });
+	const start = startOfWeek(today, {
+		weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+	});
 	if (frequency === 'BIWEEKLY') {
 		return { periodStart: start, periodEnd: addDays(start, 13) };
 	}
 
-	return { periodStart: start, periodEnd: endOfWeek(today, { weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6 }) };
+	return {
+		periodStart: start,
+		periodEnd: endOfWeek(today, {
+			weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+		}),
+	};
 }
 
 export function PayrollPageClient(): React.ReactElement {
@@ -80,28 +81,29 @@ export function PayrollPageClient(): React.ReactElement {
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
 
-	const [periodStart, setPeriodStart] = useState<Date>(() =>
-		computePeriod(1, defaultFrequency).periodStart,
+	const [periodStart, setPeriodStart] = useState<Date>(
+		() => computePeriod(1, defaultFrequency).periodStart,
 	);
-	const [periodEnd, setPeriodEnd] = useState<Date>(() =>
-		computePeriod(1, defaultFrequency).periodEnd,
+	const [periodEnd, setPeriodEnd] = useState<Date>(
+		() => computePeriod(1, defaultFrequency).periodEnd,
 	);
 
 	const { data: settings } = useQuery<
 		PayrollSettings | null,
 		Error,
 		PayrollSettings | null,
-		unknown[]
+		readonly unknown[]
 	>({
 		queryKey: queryKeys.payrollSettings.current(organizationId),
 		queryFn: () => fetchPayrollSettings(organizationId ?? undefined),
 		enabled: Boolean(organizationId),
-		onSuccess: (data) => {
-			const next = computePeriod(data?.weekStartDay ?? 1, paymentFrequency);
-			setPeriodStart(next.periodStart);
-			setPeriodEnd(next.periodEnd);
-		},
 	});
+
+	useEffect(() => {
+		const next = computePeriod(settings?.weekStartDay ?? 1, paymentFrequency);
+		setPeriodStart(next.periodStart);
+		setPeriodEnd(next.periodEnd);
+	}, [settings?.weekStartDay, paymentFrequency]);
 
 	const calculationKey = useMemo(
 		() => ({
@@ -125,13 +127,23 @@ export function PayrollPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
+	const hasBlockingWarnings =
+		calculation?.overtimeEnforcement === 'BLOCK' &&
+		(calculation?.employees ?? []).some((emp) =>
+			emp.warnings.some((w) => w.severity === 'error'),
+		);
+
 	const processMutation = useMutation({
 		mutationKey: mutationKeys.payroll.process,
 		mutationFn: processPayrollAction,
 		onSuccess: (result) => {
 			if (result.success) {
 				toast.success('Payroll processed');
-				queryClient.invalidateQueries({ queryKey: queryKeys.payroll.runs({ organizationId: organizationId ?? undefined }) });
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.payroll.runs({
+						organizationId: organizationId ?? undefined,
+					}),
+				});
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
 				toast.error(result.error ?? 'Failed to process payroll');
@@ -143,7 +155,9 @@ export function PayrollPageClient(): React.ReactElement {
 	});
 
 	const runsQuery = useQuery({
-		queryKey: queryKeys.payroll.runs({ organizationId: organizationId ?? undefined }),
+		queryKey: queryKeys.payroll.runs({
+			organizationId: organizationId ?? undefined,
+		}),
 		queryFn: () => fetchPayrollRuns({ organizationId: organizationId ?? undefined }),
 		enabled: Boolean(organizationId),
 	});
@@ -171,6 +185,16 @@ export function PayrollPageClient(): React.ReactElement {
 
 			<Card>
 				<CardHeader>
+					<CardTitle>Reglas legales (LFT México)</CardTitle>
+					<CardDescription>
+						Límites de jornada: Diurna 8h/48h, Nocturna 7h/42h, Mixta 7.5h/45h. Primeras
+						9h extra al doble, posteriores al triple. Prima dominical: +25%.
+					</CardDescription>
+				</CardHeader>
+			</Card>
+
+			<Card>
+				<CardHeader>
 					<CardTitle>Pay Period</CardTitle>
 					<CardDescription>
 						Period start/end are auto-derived from settings. Adjust if needed.
@@ -182,7 +206,8 @@ export function PayrollPageClient(): React.ReactElement {
 						<Select
 							value={paymentFrequency}
 							onValueChange={(value: string) => {
-								const typedValue = value as PayrollCalculateParams['paymentFrequency'];
+								const typedValue =
+									value as PayrollCalculateParams['paymentFrequency'];
 								setPaymentFrequency(typedValue);
 								const next = computePeriod(settings?.weekStartDay ?? 1, typedValue);
 								setPeriodStart(next.periodStart);
@@ -219,7 +244,12 @@ export function PayrollPageClient(): React.ReactElement {
 						<Button
 							className="w-full"
 							onClick={onProcess}
-							disabled={isCalculating || processMutation.isPending || !calculation}
+							disabled={
+								isCalculating ||
+								processMutation.isPending ||
+								!calculation ||
+								hasBlockingWarnings
+							}
 						>
 							{processMutation.isPending ? (
 								<>
@@ -230,6 +260,12 @@ export function PayrollPageClient(): React.ReactElement {
 								'Process Payroll'
 							)}
 						</Button>
+						{hasBlockingWarnings && (
+							<p className="mt-2 text-sm text-destructive">
+								Overtime limits exceeded. Ajusta horarios o cambia la política a
+								Advertir.
+							</p>
+						)}
 					</div>
 				</CardContent>
 			</Card>
@@ -237,7 +273,9 @@ export function PayrollPageClient(): React.ReactElement {
 			<Card>
 				<CardHeader>
 					<CardTitle>Payroll Preview</CardTitle>
-					<CardDescription>Calculated from attendance between the selected dates.</CardDescription>
+					<CardDescription>
+						Calculated from attendance between the selected dates.
+					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{isCalculating ? (
@@ -262,25 +300,78 @@ export function PayrollPageClient(): React.ReactElement {
 									<TableHeader>
 										<TableRow>
 											<TableHead>Employee</TableHead>
-											<TableHead>Hours</TableHead>
-											<TableHead>Expected</TableHead>
-											<TableHead>Hourly</TableHead>
+											<TableHead>Horas normales</TableHead>
+											<TableHead>Horas extra (x2)</TableHead>
+											<TableHead>Horas extra (x3)</TableHead>
+											<TableHead>Prima dominical</TableHead>
 											<TableHead>Total</TableHead>
+											<TableHead>Alertas</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
 										{calculation.employees.map((row) => (
 											<TableRow key={row.employeeId}>
 												<TableCell>{row.name}</TableCell>
-												<TableCell>{row.hoursWorked.toFixed(2)}</TableCell>
-												<TableCell>{row.expectedHours.toFixed(2)}</TableCell>
-												<TableCell>{formatCurrency(row.hourlyPay)}</TableCell>
-												<TableCell>{formatCurrency(row.totalPay)}</TableCell>
+												<TableCell>{row.normalHours.toFixed(2)}</TableCell>
+												<TableCell>
+													{row.overtimeDoubleHours.toFixed(2)}
+												</TableCell>
+												<TableCell>
+													{row.overtimeTripleHours.toFixed(2)}
+												</TableCell>
+												<TableCell>
+													{row.sundayPremiumAmount > 0
+														? formatCurrency(row.sundayPremiumAmount)
+														: '-'}
+												</TableCell>
+												<TableCell>
+													{formatCurrency(row.totalPay)}
+												</TableCell>
+												<TableCell>
+													{row.warnings.length === 0 ? (
+														<span className="text-xs text-muted-foreground">
+															0
+														</span>
+													) : (
+														<span
+															className={`text-xs ${
+																row.warnings.some(
+																	(w) => w.severity === 'error',
+																)
+																	? 'text-destructive'
+																	: 'text-amber-600'
+															}`}
+														>
+															{row.warnings.length} alerta(s)
+														</span>
+													)}
+												</TableCell>
 											</TableRow>
 										))}
 									</TableBody>
 								</Table>
 							</div>
+							{calculation.employees.some((emp) => emp.warnings.length > 0) && (
+								<div className="mt-4 rounded-md border bg-muted/50 p-3">
+									<p className="text-sm font-medium">Alertas de cumplimiento</p>
+									<div className="mt-2 space-y-2 text-sm">
+										{calculation.employees.map((emp) =>
+											emp.warnings.map((w, idx) => (
+												<div
+													key={`${emp.employeeId}-${idx}`}
+													className={
+														w.severity === 'error'
+															? 'text-destructive'
+															: ''
+													}
+												>
+													<strong>{emp.name}:</strong> {w.message}
+												</div>
+											)),
+										)}
+									</div>
+								</div>
+							)}
 						</>
 					)}
 				</CardContent>
@@ -318,10 +409,15 @@ export function PayrollPageClient(): React.ReactElement {
 											</TableCell>
 											<TableCell>{run.paymentFrequency}</TableCell>
 											<TableCell>{run.status}</TableCell>
-											<TableCell>{formatCurrency(Number(run.totalAmount ?? 0))}</TableCell>
+											<TableCell>
+												{formatCurrency(Number(run.totalAmount ?? 0))}
+											</TableCell>
 											<TableCell>
 												{run.processedAt
-													? format(new Date(run.processedAt), 'MMM d, yyyy')
+													? format(
+															new Date(run.processedAt),
+															'MMM d, yyyy',
+														)
 													: '-'}
 											</TableCell>
 										</TableRow>
@@ -337,4 +433,3 @@ export function PayrollPageClient(): React.ReactElement {
 		</div>
 	);
 }
-

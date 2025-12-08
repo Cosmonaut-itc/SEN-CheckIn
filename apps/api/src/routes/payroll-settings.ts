@@ -82,21 +82,28 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const updatePayload = {
-				weekStartDay: body.weekStartDay,
-				organizationId,
-			};
-
 			const existing = await db
 				.select()
 				.from(payrollSetting)
 				.where(eq(payrollSetting.organizationId, organizationId))
 				.limit(1);
 
+			const resolvedOvertimeEnforcement =
+				body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
+
+			const updatePayload = {
+				weekStartDay: body.weekStartDay,
+				overtimeEnforcement: resolvedOvertimeEnforcement,
+				organizationId,
+			};
+
 			if (existing[0]) {
 				await db
 					.update(payrollSetting)
-					.set({ weekStartDay: updatePayload.weekStartDay })
+					.set({
+						weekStartDay: updatePayload.weekStartDay,
+						overtimeEnforcement: updatePayload.overtimeEnforcement,
+					})
 					.where(eq(payrollSetting.organizationId, organizationId));
 			} else {
 				await db.insert(payrollSetting).values(updatePayload);

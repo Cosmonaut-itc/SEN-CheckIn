@@ -76,6 +76,8 @@ interface EmployeeFormValues {
 	department: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee shift type */
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 }
 
 /**
@@ -90,6 +92,7 @@ const initialFormValues: EmployeeFormValues = {
 	jobPositionId: '',
 	department: '',
 	status: 'ACTIVE',
+	shiftType: 'DIURNA',
 };
 
 const daysOfWeek: { label: string; value: number }[] = [
@@ -100,6 +103,12 @@ const daysOfWeek: { label: string; value: number }[] = [
 	{ label: 'Thursday', value: 4 },
 	{ label: 'Friday', value: 5 },
 	{ label: 'Saturday', value: 6 },
+];
+
+const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; label: string; hint: string }[] = [
+	{ value: 'DIURNA', label: 'Diurna (06:00-20:00)', hint: '8h máximo, 48h semanales' },
+	{ value: 'NOCTURNA', label: 'Nocturna (20:00-06:00)', hint: '7h máximo, 42h semanales' },
+	{ value: 'MIXTA', label: 'Mixta', hint: '7.5h máximo, 45h semanales' },
 ];
 
 /**
@@ -260,6 +269,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					jobPositionId: value.jobPositionId || undefined,
 					department: value.department || undefined,
 					status: value.status,
+					shiftType: value.shiftType,
 					schedule,
 				});
 			} else {
@@ -277,6 +287,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					jobPositionId: value.jobPositionId,
 					department: value.department || undefined,
 					status: value.status,
+					shiftType: value.shiftType,
 					schedule,
 				});
 			}
@@ -361,6 +372,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
 			form.setFieldValue('department', employee.department ?? '');
 			form.setFieldValue('status', employee.status);
+			form.setFieldValue('shiftType', employee.shiftType ?? 'DIURNA');
 			setHasCustomCode(true);
 
 			const detail = await fetchEmployeeById(employee.id);
@@ -567,6 +579,20 @@ export function EmployeesPageClient(): React.ReactElement {
 										)}
 									</form.AppField>
 								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="shiftType">
+										{(field) => (
+											<field.SelectField
+												label="Shift Type"
+												options={shiftTypeOptions.map((option) => ({
+													value: option.value,
+													label: `${option.label} — ${option.hint}`,
+												}))}
+												placeholder="Select shift type"
+											/>
+										)}
+									</form.AppField>
+								</div>
 
 								<div className="col-span-2 space-y-2 rounded-md border p-3">
 									<div className="flex items-center justify-between">
@@ -677,6 +703,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							<TableHead>Job Position</TableHead>
 							<TableHead>Email</TableHead>
 							<TableHead>Department</TableHead>
+							<TableHead>Shift</TableHead>
 							<TableHead>Status</TableHead>
 							<TableHead>Face</TableHead>
 							<TableHead>Created</TableHead>
@@ -687,7 +714,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 9 }).map((_, j) => (
+									{Array.from({ length: 10 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -696,7 +723,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							))
 						) : employees.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={9} className="h-24 text-center">
+								<TableCell colSpan={10} className="h-24 text-center">
 									No employees found.
 								</TableCell>
 							</TableRow>
@@ -710,6 +737,7 @@ export function EmployeesPageClient(): React.ReactElement {
 									<TableCell>{employee.jobPositionName ?? '-'}</TableCell>
 									<TableCell>{employee.email ?? '-'}</TableCell>
 									<TableCell>{employee.department ?? '-'}</TableCell>
+									<TableCell>{employee.shiftType ?? '-'}</TableCell>
 									<TableCell>
 										<Badge variant={statusVariants[employee.status]}>
 											{employee.status}

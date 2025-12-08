@@ -45,9 +45,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 	});
 
 	const form = useAppForm({
-		defaultValues: { weekStartDay: '1' },
+		defaultValues: { weekStartDay: '1', overtimeEnforcement: 'WARN' },
 		onSubmit: async ({ value }) => {
-			await mutation.mutateAsync({ weekStartDay: Number(value.weekStartDay) });
+			await mutation.mutateAsync({
+				weekStartDay: Number(value.weekStartDay),
+				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
+			});
 		},
 	});
 
@@ -55,14 +58,17 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.weekStartDay !== undefined) {
 			form.setFieldValue('weekStartDay', String(data.weekStartDay));
 		}
-	}, [data?.weekStartDay, form]);
+		if (data?.overtimeEnforcement !== undefined) {
+			form.setFieldValue('overtimeEnforcement', data.overtimeEnforcement);
+		}
+	}, [data?.weekStartDay, data?.overtimeEnforcement, form]);
 
 	return (
 		<div className="space-y-4">
 			<div>
 				<h1 className="text-3xl font-bold tracking-tight">Payroll Settings</h1>
 				<p className="text-muted-foreground">
-					Configure the start of the week to align weekly and biweekly payroll periods.
+					Configure the start of the week to align weekly and biweekly payroll periods and set overtime enforcement.
 				</p>
 			</div>
 
@@ -89,6 +95,28 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
+						<form.AppField name="overtimeEnforcement">
+							{(field) => (
+								<field.SelectField
+									label="Overtime enforcement"
+									options={[
+										{ value: 'WARN', label: 'Advertir (permitir con avisos)' },
+										{ value: 'BLOCK', label: 'Bloquear si excede límites' },
+									]}
+									placeholder={isLoading ? 'Loading...' : 'Select enforcement'}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+							<p className="font-medium text-foreground">Reglas legales de horas extra</p>
+							<ul className="list-disc pl-4">
+								<li>Máximo 3 horas extra por día (3 días por semana)</li>
+								<li>Primeras 9 horas extra semanales: pago doble</li>
+								<li>Horas extra adicionales: pago triple</li>
+								<li>Prima dominical: 25% adicional si se trabaja en domingo</li>
+							</ul>
+						</div>
 						<form.AppForm>
 							<form.SubmitButton
 								label="Save"

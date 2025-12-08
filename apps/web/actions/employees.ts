@@ -36,6 +36,8 @@ export interface CreateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee shift type */
+	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	/** Weekly schedule entries */
 	schedule?: EmployeeScheduleEntry[];
 }
@@ -62,6 +64,8 @@ export interface UpdateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee shift type */
+	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	/** Weekly schedule entries */
 	schedule?: EmployeeScheduleEntry[];
 }
@@ -110,12 +114,13 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			jobPositionId: input.jobPositionId,
 			department: input.department || undefined,
 			status: input.status,
-		schedule: input.schedule?.map((entry) => ({
-			dayOfWeek: entry.dayOfWeek,
-			startTime: entry.startTime,
-			endTime: entry.endTime,
-			isWorkingDay: entry.isWorkingDay,
-		})),
+			shiftType: input.shiftType ?? 'DIURNA',
+			schedule: input.schedule?.map((entry) => ({
+				dayOfWeek: entry.dayOfWeek,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				isWorkingDay: entry.isWorkingDay,
+			})),
 		});
 
 		if (response.error) {
@@ -170,12 +175,13 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			jobPositionId: input.jobPositionId || undefined,
 			department: input.department || undefined,
 			status: input.status,
-		schedule: input.schedule?.map((entry) => ({
-			dayOfWeek: entry.dayOfWeek,
-			startTime: entry.startTime,
-			endTime: entry.endTime,
-			isWorkingDay: entry.isWorkingDay,
-		})),
+			shiftType: input.shiftType,
+			schedule: input.schedule?.map((entry) => ({
+				dayOfWeek: entry.dayOfWeek,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				isWorkingDay: entry.isWorkingDay,
+			})),
 		});
 
 		if (response.error) {

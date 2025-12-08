@@ -143,6 +143,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					jobPositionName: jobPosition.name,
 					department: employee.department,
 					status: employee.status,
+					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -208,6 +209,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					jobPositionName: jobPosition.name,
 					department: employee.department,
 					status: employee.status,
+					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -284,6 +286,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				locationId,
 				organizationId: organizationIdInput,
 				schedule,
+				shiftType,
 			} = body;
 
 			const organizationId = resolveOrganizationId({
@@ -378,6 +381,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				hireDate: hireDate ?? null,
 				locationId: locationId ?? null,
 				organizationId,
+				shiftType: shiftType ?? 'DIURNA',
 			};
 
 			await db.insert(employee).values(newEmployee);

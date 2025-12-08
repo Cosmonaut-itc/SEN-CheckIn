@@ -13,7 +13,7 @@ todos:
     status: completed
   - id: migration
     content: Generate and apply Drizzle migration for all schema changes
-    status: pending
+    status: completed
   - id: labor-constants
     content: Create mexico-labor-constants.ts with CONASAMI wages, shift limits, OT rules
     status: completed
@@ -25,28 +25,28 @@ todos:
     status: completed
   - id: api-payroll-calc
     content: Refactor payroll calculation with Mexican labor law logic (OT double/triple, Sunday premium)
-    status: in_progress
+    status: completed
   - id: api-payroll-validation
     content: Add minimum wage validation and overtime limit warnings/blocking
-    status: in_progress
+    status: completed
   - id: web-types
     content: Update client-functions.ts with new types (ShiftType, GeographicZone, PayrollBreakdown)
     status: completed
   - id: web-job-positions
     content: Update job positions page with dailyPay field and auto-calculation info
-    status: pending
+    status: completed
   - id: web-employees
     content: Update employees page with shiftType selector and info tooltips
-    status: pending
+    status: completed
   - id: web-locations
     content: Update locations page with geographicZone selector and minimum wage info
-    status: pending
+    status: completed
   - id: web-payroll-settings
     content: Update payroll settings with overtimeEnforcement toggle and rules info card
-    status: pending
+    status: completed
   - id: web-payroll-page
     content: Refactor payroll page with detailed breakdown, warnings section, and info panel
-    status: pending
+    status: completed
 ---
 
 # Mexico Labor Law Payroll Adaptation
@@ -265,7 +265,7 @@ File: [`apps/web/lib/query-keys.ts`](apps/web/lib/query-keys.ts)
 
 ### 5.1 Update Job Positions Page
 
-File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\\\(dashboard)/job-positions/job-positions-client.tsx)
+File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\\\\\(dashboard)/job-positions/job-positions-client.tsx)
 
 - Add `dailyPay` number input field with label "Salario Diario (MXN)"
 - Add helper text explaining relationship: "El pago por hora se calcula automáticamente según el tipo de jornada"
@@ -273,7 +273,7 @@ File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/w
 
 ### 5.2 Update Employees Page
 
-File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx)
+File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\\\\(dashboard)/employees/employees-client.tsx)
 
 - Add shift type selector with options:
   - Diurna (06:00-20:00, 8h máx)
@@ -283,7 +283,7 @@ File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\
 
 ### 5.3 Update Locations Page
 
-File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\\\(dashboard)/locations/locations-client.tsx)
+File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\\\\\(dashboard)/locations/locations-client.tsx)
 
 - Add geographic zone selector:
   - General (Salario mínimo: $278.80 MXN)
@@ -292,7 +292,7 @@ File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\
 
 ### 5.4 Update Payroll Settings Page
 
-File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
+File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\\\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
 
 - Add overtime enforcement toggle:
   - Advertir (mostrar avisos pero permitir procesar)
@@ -305,7 +305,7 @@ File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](
 
 ### 5.5 Refactor Payroll Page
 
-File: [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\\(dashboard)/payroll/payroll-client.tsx)
+File: [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\\\\(dashboard)/payroll/payroll-client.tsx)
 
 **Add Information Panel:**
 

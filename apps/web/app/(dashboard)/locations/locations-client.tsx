@@ -38,6 +38,7 @@ interface LocationFormValues {
 	name: string;
 	code: string;
 	address: string;
+	geographicZone: 'GENERAL' | 'ZLFN';
 }
 
 /**
@@ -132,6 +133,7 @@ export function LocationsPageClient(): React.ReactElement {
 			name: '',
 			code: '',
 			address: '',
+		geographicZone: 'GENERAL',
 		},
 		onSubmit: async ({ value }: { value: LocationFormValues }) => {
 			if (editingLocation) {
@@ -140,6 +142,7 @@ export function LocationsPageClient(): React.ReactElement {
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
+				geographicZone: value.geographicZone,
 				});
 			} else {
 				if (!organizationId) {
@@ -150,6 +153,7 @@ export function LocationsPageClient(): React.ReactElement {
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
+				geographicZone: value.geographicZone,
 					organizationId,
 				});
 			}
@@ -179,6 +183,7 @@ export function LocationsPageClient(): React.ReactElement {
 			form.setFieldValue('name', location.name);
 			form.setFieldValue('code', location.code);
 			form.setFieldValue('address', location.address ?? '');
+			form.setFieldValue('geographicZone', location.geographicZone ?? 'GENERAL');
 			setIsDialogOpen(true);
 		},
 		[form],
@@ -274,6 +279,21 @@ export function LocationsPageClient(): React.ReactElement {
 								>
 									{(field) => <field.TextField label="Code" />}
 								</form.AppField>
+								<form.AppField name="geographicZone">
+									{(field) => (
+										<field.SelectField
+											label="Geographic Zone"
+											options={[
+												{ value: 'GENERAL', label: 'General – Salario mínimo $278.80' },
+												{
+													value: 'ZLFN',
+													label: 'Zona Libre de la Frontera Norte – Salario mínimo $419.88',
+												},
+											]}
+											placeholder="Select zone"
+										/>
+									)}
+								</form.AppField>
 								<form.AppField name="address">
 									{(field) => <field.TextField label="Address" placeholder="Optional" />}
 								</form.AppField>
@@ -307,6 +327,7 @@ export function LocationsPageClient(): React.ReactElement {
 							<TableHead>Code</TableHead>
 							<TableHead>Name</TableHead>
 							<TableHead>Address</TableHead>
+							<TableHead>Zone</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead className="w-[100px]">Actions</TableHead>
 						</TableRow>
@@ -315,7 +336,7 @@ export function LocationsPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 5 }).map((_, j) => (
+									{Array.from({ length: 6 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -324,7 +345,7 @@ export function LocationsPageClient(): React.ReactElement {
 							))
 						) : locations.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={5} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">
 									No locations found.
 								</TableCell>
 							</TableRow>
@@ -334,6 +355,7 @@ export function LocationsPageClient(): React.ReactElement {
 									<TableCell className="font-medium">{location.code}</TableCell>
 									<TableCell>{location.name}</TableCell>
 									<TableCell>{location.address ?? '-'}</TableCell>
+									<TableCell>{location.geographicZone}</TableCell>
 									<TableCell>
 										{format(new Date(location.createdAt), 'MMM d, yyyy')}
 									</TableCell>

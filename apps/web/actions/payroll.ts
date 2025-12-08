@@ -6,6 +6,7 @@ import { createServerApiClient } from '@/lib/server-api';
 
 export interface UpdatePayrollSettingsInput {
 	weekStartDay: number;
+	overtimeEnforcement?: 'WARN' | 'BLOCK';
 	organizationId?: string;
 }
 
@@ -42,6 +43,7 @@ export async function updatePayrollSettingsAction(
 		const api = createServerApiClient(await getCookieHeader());
 		const response = await api['payroll-settings'].put({
 			weekStartDay: input.weekStartDay,
+			overtimeEnforcement: input.overtimeEnforcement,
 			organizationId: input.organizationId,
 		});
 

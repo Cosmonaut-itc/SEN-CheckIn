@@ -326,6 +326,21 @@ export const deviceStatus = pgEnum('device_status', ['ONLINE', 'OFFLINE', 'MAINT
 export const paymentFrequency = pgEnum('payment_frequency', ['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
 
 /**
+ * Enum for shift types per Mexican labor law (LFT Art. 60-61)
+ */
+export const shiftType = pgEnum('shift_type', ['DIURNA', 'NOCTURNA', 'MIXTA']);
+
+/**
+ * Enum for geographic zones (CONASAMI)
+ */
+export const geographicZone = pgEnum('geographic_zone', ['GENERAL', 'ZLFN']);
+
+/**
+ * Enum for overtime enforcement behavior
+ */
+export const overtimeEnforcement = pgEnum('overtime_enforcement', ['WARN', 'BLOCK']);
+
+/**
  * Enum for payroll run status
  */
 export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
@@ -363,6 +378,8 @@ export const location = pgTable('location', {
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
 	}),
+	/** Geographic zone for minimum wage validation (CONASAMI) */
+	geographicZone: geographicZone('geographic_zone').default('GENERAL').notNull(),
 	/** @deprecated Legacy client reference. Use organizationId instead. */
 	clientId: text('client_id').references(() => client.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -381,6 +398,8 @@ export const jobPosition = pgTable('job_position', {
 	name: text('name').notNull(),
 	/** Optional description of the position */
 	description: text('description'),
+	/** Daily pay rate for payroll calculations (salario diario) */
+	dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	/** Hourly pay rate for payroll calculations */
 	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	/** Payment frequency for this position */
@@ -418,6 +437,8 @@ export const employee = pgTable('employee', {
 	department: text('department'),
 	/** Employee status (ACTIVE, INACTIVE, ON_LEAVE) */
 	status: employeeStatus('status').default('ACTIVE').notNull(),
+	/** Employee shift type used for hour limits */
+	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
 	/** Date when employee was hired */
 	hireDate: timestamp('hire_date'),
 	/** Location where employee works */
@@ -536,6 +557,8 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.unique()
 		.references(() => organization.id, { onDelete: 'cascade' }),
 	weekStartDay: integer('week_start_day').default(1).notNull(), // default Monday
+	/** Behavior when overtime limits are exceeded */
+	overtimeEnforcement: overtimeEnforcement('overtime_enforcement').default('WARN').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -583,6 +606,23 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 	hoursWorked: numeric('hours_worked', { precision: 10, scale: 2 }).default('0').notNull(),
 	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	totalPay: numeric('total_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	normalHours: numeric('normal_hours', { precision: 10, scale: 2 }).default('0').notNull(),
+	normalPay: numeric('normal_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	overtimeDoubleHours: numeric('overtime_double_hours', { precision: 10, scale: 2 })
+		.default('0')
+		.notNull(),
+	overtimeDoublePay: numeric('overtime_double_pay', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	overtimeTripleHours: numeric('overtime_triple_hours', { precision: 10, scale: 2 })
+		.default('0')
+		.notNull(),
+	overtimeTriplePay: numeric('overtime_triple_pay', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	sundayPremiumAmount: numeric('sunday_premium_amount', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
 	periodStart: timestamp('period_start').notNull(),
 	periodEnd: timestamp('period_end').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),

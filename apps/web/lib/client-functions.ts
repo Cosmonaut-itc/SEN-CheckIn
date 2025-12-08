@@ -52,6 +52,7 @@ export interface Employee {
 	rekognitionUserId: string | null;
 	lastPayrollDate?: Date | null;
 	schedule?: EmployeeScheduleEntry[];
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -88,6 +89,7 @@ export interface Location {
 	code: string;
 	address: string | null;
 	organizationId: string | null;
+	geographicZone: 'GENERAL' | 'ZLFN';
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -99,6 +101,7 @@ export interface JobPosition {
 	id: string;
 	name: string;
 	description: string | null;
+	dailyPay: number;
 	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId: string | null;
@@ -624,6 +627,7 @@ export async function fetchJobPositionsList(
 		data: positions.map((jp) => ({
 			...jp,
 			hourlyPay: Number(jp.hourlyPay ?? 0),
+			dailyPay: Number((jp as unknown as { dailyPay?: string | number }).dailyPay ?? 0),
 		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
@@ -707,18 +711,36 @@ export interface PayrollSettings {
 	id: string;
 	organizationId: string;
 	weekStartDay: number;
+	overtimeEnforcement: 'WARN' | 'BLOCK';
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+export interface PayrollWarning {
+	type: 'OVERTIME_DAILY_EXCEEDED' | 'OVERTIME_WEEKLY_EXCEEDED' | 'BELOW_MINIMUM_WAGE';
+	message: string;
+	severity: 'warning' | 'error';
 }
 
 export interface PayrollCalculationEmployee {
 	employeeId: string;
 	name: string;
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	dailyPay: number;
 	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	hoursWorked: number;
 	expectedHours: number;
+	normalHours: number;
+	overtimeDoubleHours: number;
+	overtimeTripleHours: number;
+	sundayHoursWorked: number;
+	normalPay: number;
+	overtimeDoublePay: number;
+	overtimeTriplePay: number;
+	sundayPremiumAmount: number;
 	totalPay: number;
+	warnings: PayrollWarning[];
 }
 
 export interface PayrollCalculationResult {
@@ -726,6 +748,7 @@ export interface PayrollCalculationResult {
 	totalAmount: number;
 	periodStart: Date;
 	periodEnd: Date;
+	overtimeEnforcement?: 'WARN' | 'BLOCK';
 }
 
 export interface PayrollRun {

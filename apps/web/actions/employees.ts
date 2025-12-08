@@ -12,7 +12,7 @@
  * @module actions/employees
  */
 
-import type { EmployeeStatus } from '@/lib/client-functions';
+import type { EmployeeScheduleEntry, EmployeeStatus } from '@/lib/client-functions';
 import { createServerApiClient } from '@/lib/server-api';
 import { headers } from 'next/headers';
 
@@ -36,6 +36,8 @@ export interface CreateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Weekly schedule entries */
+	schedule?: EmployeeScheduleEntry[];
 }
 
 /**
@@ -60,6 +62,8 @@ export interface UpdateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Weekly schedule entries */
+	schedule?: EmployeeScheduleEntry[];
 }
 
 /**
@@ -106,6 +110,12 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			jobPositionId: input.jobPositionId,
 			department: input.department || undefined,
 			status: input.status,
+		schedule: input.schedule?.map((entry) => ({
+			dayOfWeek: entry.dayOfWeek,
+			startTime: entry.startTime,
+			endTime: entry.endTime,
+			isWorkingDay: entry.isWorkingDay,
+		})),
 		});
 
 		if (response.error) {
@@ -160,6 +170,12 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			jobPositionId: input.jobPositionId || undefined,
 			department: input.department || undefined,
 			status: input.status,
+		schedule: input.schedule?.map((entry) => ({
+			dayOfWeek: entry.dayOfWeek,
+			startTime: entry.startTime,
+			endTime: entry.endTime,
+			isWorkingDay: entry.isWorkingDay,
+		})),
 		});
 
 		if (response.error) {

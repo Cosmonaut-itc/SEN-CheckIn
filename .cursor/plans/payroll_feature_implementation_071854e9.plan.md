@@ -4,49 +4,49 @@ overview: Add a payroll calculation feature with job position pay configuration,
 todos:
   - id: schema-updates
     content: "Update database schema: add paymentFrequency enum, job position fields, employee lastPayrollDate"
-    status: pending
+    status: completed
   - id: new-tables
     content: "Create new tables: payrollSettings, payrollRun, payrollRunEmployee"
-    status: pending
+    status: completed
   - id: migration
     content: Generate and apply Drizzle migration
-    status: pending
+    status: in_progress
   - id: api-schemas
     content: Create/update Zod schemas for job positions and payroll
-    status: pending
+    status: completed
   - id: job-position-routes
     content: Update job position routes to handle hourlyPay and paymentFrequency
-    status: pending
+    status: completed
   - id: payroll-settings-routes
     content: Create payroll settings API routes (GET/PUT)
-    status: pending
+    status: completed
   - id: payroll-routes
     content: Create payroll API routes (calculate, process, history)
-    status: pending
+    status: completed
   - id: web-query-keys
     content: Add payroll query/mutation keys to query-keys.ts
-    status: pending
+    status: completed
   - id: web-client-functions
     content: Add payroll types and fetchers to client-functions.ts
-    status: pending
+    status: completed
   - id: web-server-functions
     content: Add payroll server fetchers and prefetch helpers
-    status: pending
+    status: completed
   - id: web-actions
     content: Create payroll server actions
-    status: pending
+    status: completed
   - id: job-positions-page
     content: Update job positions page with hourlyPay and paymentFrequency fields
-    status: pending
+    status: completed
   - id: payroll-settings-page
     content: Create payroll settings page with week start configuration
-    status: pending
+    status: completed
   - id: payroll-page
     content: Create payroll page with calculate/review/process workflow
-    status: pending
+    status: completed
   - id: sidebar-navigation
     content: Add payroll navigation items to app sidebar
-    status: pending
+    status: completed
 ---
 
 # Payroll Feature Implementation
@@ -231,7 +231,7 @@ Add `prefetchPayrollSettings`, `prefetchPayrollRuns`.
 
 ### 3.5 Update Job Positions Page
 
-File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\(dashboard)/job-positions/job-positions-client.tsx)
+File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\\(dashboard)/job-positions/job-positions-client.tsx)
 
 Add form fields for:
 
@@ -248,7 +248,7 @@ Update create/update inputs to include new fields.
 
 ### 3.7 New Payroll Settings Page
 
-Create [`apps/web/app/(dashboard)/payroll-settings/`](apps/web/app/\\(dashboard)/payroll-settings/):
+Create [`apps/web/app/(dashboard)/payroll-settings/`](apps/web/app/\\\(dashboard)/payroll-settings/):
 
 - `page.tsx` - Server component with prefetch
 - `payroll-settings-client.tsx` - Client component with form
@@ -268,7 +268,7 @@ Create [`apps/web/actions/payroll.ts`](apps/web/actions/payroll.ts):
 
 ### 3.9 New Payroll Page
 
-Create [`apps/web/app/(dashboard)/payroll/`](apps/web/app/\\(dashboard)/payroll/):
+Create [`apps/web/app/(dashboard)/payroll/`](apps/web/app/\\\(dashboard)/payroll/):
 
 - `page.tsx` - Server component with prefetch
 - `payroll-client.tsx` - Client component with full workflow

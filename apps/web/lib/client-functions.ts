@@ -9,8 +9,8 @@
 
 import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
-import type { AttendanceQueryParams, ListQueryParams, UsersQueryParams } from '@/lib/query-keys';
 import { normalizeUserCode } from '@/lib/device-code-utils';
+import type { AttendanceQueryParams, ListQueryParams, UsersQueryParams } from '@/lib/query-keys';
 
 // ============================================================================
 // Type Definitions
@@ -50,8 +50,17 @@ export interface Employee {
 	locationId: string | null;
 	organizationId: string | null;
 	rekognitionUserId: string | null;
+	lastPayrollDate?: Date | null;
+	schedule?: EmployeeScheduleEntry[];
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+export interface EmployeeScheduleEntry {
+	dayOfWeek: number;
+	startTime: string;
+	endTime: string;
+	isWorkingDay: boolean;
 }
 
 /**
@@ -90,6 +99,8 @@ export interface JobPosition {
 	id: string;
 	name: string;
 	description: string | null;
+	hourlyPay: number;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
@@ -395,6 +406,28 @@ export async function fetchEmployeesList(
 	};
 }
 
+/**
+ * Fetches a single employee by ID (includes schedule).
+ *
+ * @param id - Employee ID
+ * @returns Employee record or null when not found
+ */
+export async function fetchEmployeeById(id: string): Promise<Employee | null> {
+	const response = await api.employees[id].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch employee detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	return (response.data?.data as Employee) ?? null;
+}
+
 // ============================================================================
 // Device Functions
 // ============================================================================
@@ -584,8 +617,14 @@ export async function fetchJobPositionsList(
 		throw new Error('Failed to fetch job positions');
 	}
 
+	const positions =
+		(response.data?.data as (JobPosition & { hourlyPay: string | number })[] | undefined) ?? [];
+
 	return {
-		data: (response.data?.data ?? []) as JobPosition[],
+		data: positions.map((jp) => ({
+			...jp,
+			hourlyPay: Number(jp.hourlyPay ?? 0),
+		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
@@ -657,6 +696,206 @@ export async function fetchAttendanceRecords(
 	return {
 		data: (response.data?.data ?? []) as AttendanceRecord[],
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+// ============================================================================
+// Payroll Functions
+// ============================================================================
+
+export interface PayrollSettings {
+	id: string;
+	organizationId: string;
+	weekStartDay: number;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PayrollCalculationEmployee {
+	employeeId: string;
+	name: string;
+	hourlyPay: number;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	hoursWorked: number;
+	expectedHours: number;
+	totalPay: number;
+}
+
+export interface PayrollCalculationResult {
+	employees: PayrollCalculationEmployee[];
+	totalAmount: number;
+	periodStart: Date;
+	periodEnd: Date;
+}
+
+export interface PayrollRun {
+	id: string;
+	organizationId: string;
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	status: 'DRAFT' | 'PROCESSED';
+	totalAmount: number;
+	employeeCount: number;
+	processedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PayrollRunEmployee {
+	id: string;
+	payrollRunId: string;
+	employeeId: string;
+	hoursWorked: number;
+	hourlyPay: number;
+	totalPay: number;
+	periodStart: Date;
+	periodEnd: Date;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export async function fetchPayrollSettings(
+	organizationId?: string,
+): Promise<PayrollSettings | null> {
+	const response = await api['payroll-settings'].get({
+		$query: organizationId ? { organizationId } : undefined,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch payroll settings:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	return (response.data?.data as PayrollSettings) ?? null;
+}
+
+export async function calculatePayroll(params: {
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	organizationId?: string;
+}): Promise<PayrollCalculationResult> {
+	const response = await api.payroll.calculate.post({
+		periodStart: params.periodStart,
+		periodEnd: params.periodEnd,
+		paymentFrequency: params.paymentFrequency,
+		organizationId: params.organizationId,
+	});
+
+	if (response.error) {
+		console.error('Failed to calculate payroll:', response.error, 'Status:', response.status);
+		throw new Error('Failed to calculate payroll');
+	}
+
+	return response.data?.data as PayrollCalculationResult;
+}
+
+export async function processPayroll(params: {
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	organizationId?: string;
+}): Promise<{ run: PayrollRun; calculation: PayrollCalculationResult }> {
+	const response = await api.payroll.process.post({
+		periodStart: params.periodStart,
+		periodEnd: params.periodEnd,
+		paymentFrequency: params.paymentFrequency,
+		organizationId: params.organizationId,
+	});
+
+	if (response.error) {
+		console.error('Failed to process payroll:', response.error, 'Status:', response.status);
+		throw new Error('Failed to process payroll');
+	}
+
+	const payload = response.data?.data as unknown as
+		| { run: PayrollRun; calculation: PayrollCalculationResult }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to process payroll: empty response');
+	}
+	const runTotalAmount =
+		typeof payload.run.totalAmount === 'string'
+			? Number(payload.run.totalAmount)
+			: payload.run.totalAmount;
+	return {
+		run: { ...payload.run, totalAmount: runTotalAmount ?? 0 },
+		calculation: payload.calculation,
+	};
+}
+
+/**
+ * Retrieves payroll runs list.
+ *
+ * @param params - Filters for organization and pagination
+ * @returns Array of payroll runs with numeric totalAmount
+ */
+export async function fetchPayrollRuns(params?: {
+	organizationId?: string;
+	limit?: number;
+	offset?: number;
+}): Promise<PayrollRun[]> {
+	const response = await api.payroll.runs.get({
+		$query: {
+			limit: params?.limit ?? 100,
+			offset: params?.offset ?? 0,
+			organizationId: params?.organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('Failed to fetch payroll runs:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch payroll runs');
+	}
+
+	const runs =
+		(response.data?.data as (PayrollRun & { totalAmount?: number | string })[] | undefined) ??
+		[];
+	return runs.map((run) => ({
+		...run,
+		totalAmount: Number(run.totalAmount ?? 0),
+	}));
+}
+
+/**
+ * Retrieves a payroll run and its employees by ID.
+ *
+ * @param id - Payroll run ID
+ * @returns Payroll run detail or null when missing
+ */
+export async function fetchPayrollRunDetail(
+	id: string,
+): Promise<{ run: PayrollRun; employees: PayrollRunEmployee[] } | null> {
+	const response = await api.payroll.runs[id].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch payroll run detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = response.data?.data as unknown as
+		| {
+				run: PayrollRun & { totalAmount?: number | string };
+				employees: PayrollRunEmployee[];
+		  }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+	return {
+		run: { ...payload.run, totalAmount: Number(payload.run.totalAmount ?? 0) },
+		employees: payload.employees,
 	};
 }
 

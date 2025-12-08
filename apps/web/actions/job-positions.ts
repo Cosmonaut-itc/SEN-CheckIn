@@ -23,6 +23,10 @@ export interface CreateJobPositionInput {
 	name: string;
 	/** Job position description (optional) */
 	description?: string;
+	/** Hourly pay rate */
+	hourlyPay: number;
+	/** Payment frequency */
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional organization override for API key flows (defaults to active org) */
 	organizationId?: string;
 }
@@ -37,6 +41,10 @@ export interface UpdateJobPositionInput {
 	name?: string;
 	/** Job position description (optional, can be null to clear) */
 	description?: string | null;
+	/** Hourly pay rate */
+	hourlyPay?: number;
+	/** Payment frequency */
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 }
 
 /**
@@ -83,6 +91,8 @@ export async function createJobPosition(input: CreateJobPositionInput): Promise<
 		const response = await api['job-positions'].post({
 			name: input.name,
 			description: input.description || undefined,
+			hourlyPay: input.hourlyPay,
+			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});
 
@@ -125,7 +135,12 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 		const cookieHeader = await getCookieHeader();
 		const api = createServerApiClient(cookieHeader);
 
-		const updatePayload: { name?: string; description?: string | null } = {};
+		const updatePayload: {
+			name?: string;
+			description?: string | null;
+			hourlyPay?: number;
+			paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+		} = {};
 
 		if (input.name !== undefined) {
 			updatePayload.name = input.name;
@@ -133,6 +148,14 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 
 		if (input.description !== undefined) {
 			updatePayload.description = input.description;
+		}
+
+		if (input.hourlyPay !== undefined) {
+			updatePayload.hourlyPay = input.hourlyPay;
+		}
+
+		if (input.paymentFrequency !== undefined) {
+			updatePayload.paymentFrequency = input.paymentFrequency;
 		}
 
 		const response = await api['job-positions'][input.id].put(updatePayload);

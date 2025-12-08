@@ -166,7 +166,8 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { name, description, organizationId: organizationIdInput } = body;
+			const { name, description, organizationId: organizationIdInput, hourlyPay, paymentFrequency } =
+				body;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -199,6 +200,8 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				id,
 				name,
 				description: description ?? null,
+				hourlyPay: hourlyPay !== undefined ? hourlyPay.toString() : '0',
+				paymentFrequency: paymentFrequency ?? 'MONTHLY',
 				organizationId,
 				clientId: null,
 			};
@@ -285,7 +288,21 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				return { data: existing[0] };
 			}
 
-			await db.update(jobPosition).set(body).where(eq(jobPosition.id, id));
+			const updatePayload: Partial<typeof jobPosition.$inferInsert> = {};
+			if (body.name !== undefined) {
+				updatePayload.name = body.name;
+			}
+			if (body.description !== undefined) {
+				updatePayload.description = body.description;
+			}
+			if (body.hourlyPay !== undefined) {
+				updatePayload.hourlyPay = body.hourlyPay.toString();
+			}
+			if (body.paymentFrequency !== undefined) {
+				updatePayload.paymentFrequency = body.paymentFrequency;
+			}
+
+			await db.update(jobPosition).set(updatePayload).where(eq(jobPosition.id, id));
 
 			// Fetch updated record
 			const updated = await db

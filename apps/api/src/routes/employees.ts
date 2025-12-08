@@ -2,7 +2,7 @@ import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 
 import db from '../db/index.js';
-import { employee, jobPosition, location, organization } from '../db/schema.js';
+import { employee, jobPosition, location, organization, employeeSchedule } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
@@ -147,6 +147,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
+					lastPayrollDate: employee.lastPayrollDate,
 					createdAt: employee.createdAt,
 					updatedAt: employee.updatedAt,
 				})
@@ -211,6 +212,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
+					lastPayrollDate: employee.lastPayrollDate,
 					createdAt: employee.createdAt,
 					updatedAt: employee.updatedAt,
 				})
@@ -238,7 +240,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { error: 'You do not have access to this employee' };
 			}
 
-			return { data: record };
+			const schedule = await db
+				.select()
+				.from(employeeSchedule)
+				.where(eq(employeeSchedule.employeeId, id))
+				.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
+
+			return { data: { ...record, schedule } };
 		},
 		{
 			params: idParamSchema,
@@ -275,6 +283,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				hireDate,
 				locationId,
 				organizationId: organizationIdInput,
+				schedule,
 			} = body;
 
 			const organizationId = resolveOrganizationId({
@@ -372,6 +381,17 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			};
 
 			await db.insert(employee).values(newEmployee);
+
+			if (schedule && schedule.length > 0) {
+				const scheduleRows = schedule.map((entry) => ({
+					employeeId: id,
+					dayOfWeek: entry.dayOfWeek,
+					startTime: entry.startTime,
+					endTime: entry.endTime,
+					isWorkingDay: entry.isWorkingDay ?? true,
+				}));
+				await db.insert(employeeSchedule).values(scheduleRows);
+			}
 
 			set.status = 201;
 			return {
@@ -507,12 +527,34 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { data: existing[0] };
 			}
 
-			await db.update(employee).set(body).where(eq(employee.id, id));
+			// Extract schedule updates separately to avoid passing to employee table
+			const { schedule, ...employeeUpdate } = body;
+
+			await db.update(employee).set(employeeUpdate).where(eq(employee.id, id));
+
+			if (schedule) {
+				await db.delete(employeeSchedule).where(eq(employeeSchedule.employeeId, id));
+				if (schedule.length > 0) {
+					const scheduleRows = schedule.map((entry) => ({
+						employeeId: id,
+						dayOfWeek: entry.dayOfWeek,
+						startTime: entry.startTime,
+						endTime: entry.endTime,
+						isWorkingDay: entry.isWorkingDay ?? true,
+					}));
+					await db.insert(employeeSchedule).values(scheduleRows);
+				}
+			}
 
 			// Fetch updated record
 			const updated = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
+			const updatedSchedule = await db
+				.select()
+				.from(employeeSchedule)
+				.where(eq(employeeSchedule.employeeId, id))
+				.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
 
-			return { data: updated[0] };
+			return { data: { ...updated[0], schedule: updatedSchedule } };
 		},
 		{
 			params: idParamSchema,

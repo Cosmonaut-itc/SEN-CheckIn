@@ -41,11 +41,20 @@ import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, Loader2, MoreHorizontal, UserCheck, UserX, ScanFace } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchEmployeesList, fetchJobPositionsList, type Employee, type EmployeeStatus, type JobPosition } from '@/lib/client-functions';
+import {
+	fetchEmployeesList,
+	fetchJobPositionsList,
+	fetchEmployeeById,
+	type Employee,
+	type EmployeeScheduleEntry,
+	type EmployeeStatus,
+	type JobPosition,
+} from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
 import { FaceEnrollmentDialog } from '@/components/face-enrollment-dialog';
 import { useOrgContext } from '@/lib/org-client-context';
+import { Label } from '@/components/ui/label';
 
 /**
  * Form values interface for creating/editing employees.
@@ -83,6 +92,30 @@ const initialFormValues: EmployeeFormValues = {
 	status: 'ACTIVE',
 };
 
+const daysOfWeek: { label: string; value: number }[] = [
+	{ label: 'Sunday', value: 0 },
+	{ label: 'Monday', value: 1 },
+	{ label: 'Tuesday', value: 2 },
+ 	{ label: 'Wednesday', value: 3 },
+	{ label: 'Thursday', value: 4 },
+	{ label: 'Friday', value: 5 },
+	{ label: 'Saturday', value: 6 },
+];
+
+/**
+ * Generates a default Monday-Friday schedule 09:00-17:00.
+ *
+ * @returns Default schedule entries for the week
+ */
+function createDefaultSchedule(): EmployeeScheduleEntry[] {
+	return daysOfWeek.map((day) => ({
+		dayOfWeek: day.value,
+		startTime: '09:00',
+		endTime: '17:00',
+		isWorkingDay: day.value >= 1 && day.value <= 5,
+	}));
+}
+
 /**
  * Status badge variant mapping.
  */
@@ -109,6 +142,8 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
 	const [deleteRekognitionConfirmId, setDeleteRekognitionConfirmId] = useState<string | null>(null);
 	const [hasCustomCode, setHasCustomCode] = useState<boolean>(false);
+	const [schedule, setSchedule] = useState<EmployeeScheduleEntry[]>(createDefaultSchedule());
+	const [isScheduleLoading, setIsScheduleLoading] = useState<boolean>(false);
 
 	// Build query params - only include search if it has a value
 	const baseParams = { limit: 100, offset: 0, organizationId };
@@ -225,6 +260,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					jobPositionId: value.jobPositionId || undefined,
 					department: value.department || undefined,
 					status: value.status,
+					schedule,
 				});
 			} else {
 				// Validate that jobPositionId is selected for new employees
@@ -241,6 +277,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					jobPositionId: value.jobPositionId,
 					department: value.department || undefined,
 					status: value.status,
+					schedule,
 				});
 			}
 			setIsDialogOpen(false);
@@ -273,12 +310,37 @@ export function EmployeesPageClient(): React.ReactElement {
 	}, [editingEmployee, hasCustomCode, firstName, lastName, codeValue, form]);
 
 	/**
+	 * Upserts a schedule entry for a specific day.
+	 *
+	 * @param dayOfWeek - Day index (0=Sunday)
+	 * @param updates - Partial entry updates
+	 */
+	const upsertScheduleEntry = useCallback(
+		(dayOfWeek: number, updates: Partial<EmployeeScheduleEntry>): void => {
+			setSchedule((prev) => {
+				const existing = prev.find((entry) => entry.dayOfWeek === dayOfWeek);
+				if (existing) {
+					return prev.map((entry) =>
+						entry.dayOfWeek === dayOfWeek ? { ...entry, ...updates } : entry,
+					);
+				}
+				return [
+					...prev,
+					{ dayOfWeek, startTime: '09:00', endTime: '17:00', isWorkingDay: true, ...updates },
+				];
+			});
+		},
+		[],
+	);
+
+	/**
 	 * Opens the dialog for creating a new employee.
 	 */
 	const handleCreateNew = useCallback((): void => {
 		setEditingEmployee(null);
 		form.reset();
 		setHasCustomCode(false);
+		setSchedule(createDefaultSchedule());
 		setIsDialogOpen(true);
 	}, [form]);
 
@@ -287,19 +349,38 @@ export function EmployeesPageClient(): React.ReactElement {
 	 *
 	 * @param employee - The employee to edit
 	 */
-	const handleEdit = useCallback((employee: Employee): void => {
-		setEditingEmployee(employee);
-		form.setFieldValue('code', employee.code);
-		form.setFieldValue('firstName', employee.firstName);
-		form.setFieldValue('lastName', employee.lastName);
-		form.setFieldValue('email', employee.email ?? '');
-		form.setFieldValue('phone', employee.phone ?? '');
-		form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
-		form.setFieldValue('department', employee.department ?? '');
-		form.setFieldValue('status', employee.status);
-		setHasCustomCode(true);
-		setIsDialogOpen(true);
-	}, [form]);
+	const handleEdit = useCallback(
+		async (employee: Employee): Promise<void> => {
+			setIsScheduleLoading(true);
+			setEditingEmployee(employee);
+			form.setFieldValue('code', employee.code);
+			form.setFieldValue('firstName', employee.firstName);
+			form.setFieldValue('lastName', employee.lastName);
+			form.setFieldValue('email', employee.email ?? '');
+			form.setFieldValue('phone', employee.phone ?? '');
+			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
+			form.setFieldValue('department', employee.department ?? '');
+			form.setFieldValue('status', employee.status);
+			setHasCustomCode(true);
+
+			const detail = await fetchEmployeeById(employee.id);
+			if (detail?.schedule && detail.schedule.length > 0) {
+				setSchedule(
+					detail.schedule.map((entry) => ({
+						dayOfWeek: entry.dayOfWeek,
+						startTime: entry.startTime,
+						endTime: entry.endTime,
+						isWorkingDay: entry.isWorkingDay,
+					})),
+				);
+			} else {
+				setSchedule(createDefaultSchedule());
+			}
+			setIsScheduleLoading(false);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
 
 	/**
 	 * Handles dialog close and resets form state.
@@ -312,6 +393,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			setEditingEmployee(null);
 			form.reset();
 			setHasCustomCode(false);
+			setSchedule(createDefaultSchedule());
 		}
 	}, [form]);
 
@@ -370,7 +452,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							Add Employee
 						</Button>
 					</DialogTrigger>
-					<DialogContent className="sm:max-w-[425px]">
+					<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl lg:max-w-6xl">
 						<form
 							onSubmit={(e) => {
 								e.preventDefault();
@@ -388,65 +470,187 @@ export function EmployeesPageClient(): React.ReactElement {
 										: 'Fill in the details to create a new employee.'}
 								</DialogDescription>
 							</DialogHeader>
-							<div className="grid gap-4 py-4">
-						<form.AppField
-							name="code"
-							validators={{ onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined) }}
-						>
-							{(field) => (
-								<field.TextField
-									label="Code"
-									onValueChange={(next) => {
-										setHasCustomCode(true);
-										return next;
-									}}
-								/>
-							)}
-						</form.AppField>
-                        <form.AppField name="firstName" validators={{ onChange: ({ value }) => (!value.trim() ? 'First name is required' : undefined) }}>
-                            {(field) => <field.TextField label="First Name" />}
-                        </form.AppField>
-                        <form.AppField name="lastName" validators={{ onChange: ({ value }) => (!value.trim() ? 'Last name is required' : undefined) }}>
-                            {(field) => <field.TextField label="Last Name" />}
-                        </form.AppField>
-                        <form.AppField name="email">
-                            {(field) => <field.TextField label="Email" type="email" placeholder="Optional" />}
-                        </form.AppField>
-                        <form.AppField name="phone">
-                            {(field) => <field.TextField label="Phone" placeholder="Optional" />}
-                        </form.AppField>
-                        <form.AppField name="jobPositionId" validators={{ onChange: ({ value }) => (!editingEmployee && !value ? 'Job position is required' : undefined) }}>
-                            {(field) => (
-                                <field.SelectField
-                                    label="Job Position"
-                                    options={jobPositions.map((position) => ({ value: position.id, label: position.name }))}
-                                    placeholder={isLoadingJobPositions ? 'Loading...' : 'Select job position'}
-                                    disabled={isLoadingJobPositions}
-                                />
-                            )}
-                        </form.AppField>
-                        <form.AppField name="department">
-                            {(field) => <field.TextField label="Department" placeholder="Optional" />}
-                        </form.AppField>
-                        <form.AppField name="status">
-                            {(field) => (
-                                <field.SelectField
-                                    label="Status"
-                                    options={[
-                                        { value: 'ACTIVE', label: 'Active' },
-                                        { value: 'INACTIVE', label: 'Inactive' },
-                                        { value: 'ON_LEAVE', label: 'On Leave' },
-                                    ]}
-                                    placeholder="Select status"
-                                />
-                            )}
-                        </form.AppField>
-                    </div>
-                    <DialogFooter>
-                        <form.AppForm>
-                            <form.SubmitButton label="Save" loadingLabel="Saving..." />
-                        </form.AppForm>
-                    </DialogFooter>
+							<div className="grid gap-4 py-4 sm:grid-cols-2">
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField
+										name="code"
+										validators={{
+											onChange: ({ value }) =>
+												!value.trim() ? 'Code is required' : undefined,
+										}}
+									>
+										{(field) => (
+											<field.TextField
+												label="Code"
+												onValueChange={(next) => {
+													setHasCustomCode(true);
+													return next;
+												}}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField
+										name="firstName"
+										validators={{
+											onChange: ({ value }) =>
+												!value.trim() ? 'First name is required' : undefined,
+										}}
+									>
+										{(field) => <field.TextField label="First Name" />}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField
+										name="lastName"
+										validators={{
+											onChange: ({ value }) =>
+												!value.trim() ? 'Last name is required' : undefined,
+										}}
+									>
+										{(field) => <field.TextField label="Last Name" />}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="email">
+										{(field) => (
+											<field.TextField label="Email" type="email" placeholder="Optional" />
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="phone">
+										{(field) => <field.TextField label="Phone" placeholder="Optional" />}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField
+										name="jobPositionId"
+										validators={{
+											onChange: ({ value }) =>
+												!editingEmployee && !value ? 'Job position is required' : undefined,
+										}}
+									>
+										{(field) => (
+											<field.SelectField
+												label="Job Position"
+												options={jobPositions.map((position) => ({
+													value: position.id,
+													label: position.name,
+												}))}
+												placeholder={
+													isLoadingJobPositions ? 'Loading...' : 'Select job position'
+												}
+												disabled={isLoadingJobPositions}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="department">
+										{(field) => <field.TextField label="Department" placeholder="Optional" />}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="status">
+										{(field) => (
+											<field.SelectField
+												label="Status"
+												options={[
+													{ value: 'ACTIVE', label: 'Active' },
+													{ value: 'INACTIVE', label: 'Inactive' },
+													{ value: 'ON_LEAVE', label: 'On Leave' },
+												]}
+												placeholder="Select status"
+											/>
+										)}
+									</form.AppField>
+								</div>
+
+								<div className="col-span-2 space-y-2 rounded-md border p-3">
+									<div className="flex items-center justify-between">
+										<div>
+											<p className="text-sm font-medium">Schedule</p>
+											<p className="text-xs text-muted-foreground">
+												Set working days and shift times
+											</p>
+										</div>
+										{isScheduleLoading && (
+											<div className="flex items-center gap-2 text-xs text-muted-foreground">
+												<Loader2 className="h-4 w-4 animate-spin" />
+												Loading schedule...
+											</div>
+										)}
+									</div>
+									<div className="grid gap-2">
+										{daysOfWeek.map((day) => {
+											const entry =
+												schedule.find((item) => item.dayOfWeek === day.value) ?? {
+													dayOfWeek: day.value,
+													startTime: '09:00',
+													endTime: '17:00',
+													isWorkingDay: day.value >= 1 && day.value <= 5,
+												};
+											return (
+												<div
+													key={day.value}
+													className="grid grid-cols-12 items-center gap-2 rounded-md border p-2"
+												>
+													<div className="col-span-3 flex items-center gap-2">
+														<input
+															type="checkbox"
+															className="h-4 w-4 accent-primary"
+															checked={entry.isWorkingDay}
+															onChange={(e) =>
+																upsertScheduleEntry(day.value, {
+																	isWorkingDay: e.target.checked,
+																})
+															}
+														/>
+														<span className="text-sm">{day.label}</span>
+													</div>
+													<div className="col-span-4">
+														<Label className="text-xs text-muted-foreground">
+															Start
+														</Label>
+														<Input
+															type="time"
+															value={entry.startTime}
+															disabled={!entry.isWorkingDay}
+															onChange={(e) =>
+																upsertScheduleEntry(day.value, {
+																	startTime: e.target.value,
+																})
+															}
+														/>
+													</div>
+													<div className="col-span-4">
+														<Label className="text-xs text-muted-foreground">
+															End
+														</Label>
+														<Input
+															type="time"
+															value={entry.endTime}
+															disabled={!entry.isWorkingDay}
+															onChange={(e) =>
+																upsertScheduleEntry(day.value, {
+																	endTime: e.target.value,
+																})
+															}
+														/>
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								</div>
+							</div>
+							<DialogFooter>
+								<form.AppForm>
+									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+								</form.AppForm>
+							</DialogFooter>
 						</form>
 					</DialogContent>
 				</Dialog>

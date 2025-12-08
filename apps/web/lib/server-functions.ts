@@ -34,6 +34,8 @@ import {
 	fetchOrganizationsServer,
 	fetchOrganizationMembersServer,
 	fetchUsersServer,
+	fetchPayrollSettingsServer,
+	fetchPayrollRunsServer,
 } from '@/lib/server-client-functions';
 
 // ============================================================================
@@ -72,8 +74,9 @@ async function getRequestHeaders(): Promise<Headers> {
 /**
  * Prefetches the employees list for server-side streaming.
  *
- * This function initiates the prefetch but does NOT await it,
- * allowing Next.js to stream the response as data becomes available.
+ * This function initiates the prefetch; await the returned promise in
+ * Server Components that render data-dependent HTML to keep SSR and
+ * client markup aligned and avoid hydration mismatches.
  * Cookies are forwarded from the incoming request to authenticate
  * with the API server.
  *
@@ -192,20 +195,21 @@ export function prefetchLocationsList(queryClient: QueryClient, params?: ListQue
 /**
  * Prefetches the job positions list for server-side streaming.
  *
- * This function initiates the prefetch but does NOT await it,
- * allowing Next.js to stream the response as data becomes available.
- * Cookies are forwarded from the incoming request to authenticate
+ * Await the returned promise in Server Components that render job position
+ * data server-side to keep SSR and client markup aligned and avoid hydration
+ * mismatches. Cookies are forwarded from the incoming request to authenticate
  * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
+ * @returns Promise that resolves once the prefetch completes
  *
  * @example
  * ```tsx
  * // In a Server Component (page.tsx)
  * export default function JobPositionsPage() {
  *   const queryClient = getQueryClient();
- *   prefetchJobPositionsList(queryClient, { limit: 100 });
+ *   await prefetchJobPositionsList(queryClient, { limit: 100 });
  *
  *   return (
  *     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -218,14 +222,16 @@ export function prefetchLocationsList(queryClient: QueryClient, params?: ListQue
 export function prefetchJobPositionsList(
 	queryClient: QueryClient,
 	params?: JobPositionQueryParams,
-): void {
-	queryClient.prefetchQuery({
-		queryKey: queryKeys.jobPositions.list(params),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchJobPositionsListServer>>> => {
-			const cookieHeader: string = await getCookieHeader();
-			return fetchJobPositionsListServer(cookieHeader, params);
-		},
-	});
+): Promise<void> {
+	return queryClient
+		.prefetchQuery({
+			queryKey: queryKeys.jobPositions.list(params),
+			queryFn: async (): Promise<Awaited<ReturnType<typeof fetchJobPositionsListServer>>> => {
+				const cookieHeader: string = await getCookieHeader();
+				return fetchJobPositionsListServer(cookieHeader, params);
+			},
+		})
+		.then(() => undefined);
 }
 
 // ============================================================================
@@ -390,6 +396,33 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchOrganizationsServer>>> => {
 			const requestHeaders: Headers = await getRequestHeaders();
 			return fetchOrganizationsServer(requestHeaders);
+		},
+	});
+}
+
+// ============================================================================
+// Payroll Prefetch Functions
+// ============================================================================
+
+export function prefetchPayrollSettings(queryClient: QueryClient): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.payrollSettings.current(undefined),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchPayrollSettingsServer(cookieHeader);
+		},
+	});
+}
+
+export function prefetchPayrollRuns(
+	queryClient: QueryClient,
+	params?: { organizationId?: string; limit?: number; offset?: number },
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.payroll.runs(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollRunsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchPayrollRunsServer(cookieHeader, params);
 		},
 	});
 }

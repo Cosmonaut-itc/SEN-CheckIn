@@ -67,6 +67,10 @@ export const locationQuerySchema = paginationSchema.extend({
 export const createJobPositionSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	description: z.string().max(1000).optional(),
+	hourlyPay: z.coerce.number().positive('Hourly pay must be greater than 0').optional(),
+	paymentFrequency: z
+		.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY'])
+		.optional(),
 	organizationId: z.string().optional(),
 });
 
@@ -76,6 +80,8 @@ export const createJobPositionSchema = z.object({
 export const updateJobPositionSchema = z.object({
 	name: z.string().min(1).max(255).optional(),
 	description: z.string().max(1000).nullable().optional(),
+	hourlyPay: z.coerce.number().positive().optional(),
+	paymentFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
 });
 
 /**
@@ -111,6 +117,16 @@ export const createEmployeeSchema = z.object({
 	hireDate: z.coerce.date().optional(),
 	locationId: z.string().uuid().optional(),
 	organizationId: z.string().optional(),
+	schedule: z
+		.array(
+			z.object({
+				dayOfWeek: z.number().int().min(0).max(6),
+				startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM'),
+				endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM'),
+				isWorkingDay: z.boolean().optional(),
+			}),
+		)
+		.optional(),
 });
 
 /**
@@ -127,6 +143,16 @@ export const updateEmployeeSchema = z.object({
 	status: employeeStatusEnum.optional(),
 	hireDate: z.coerce.date().nullable().optional(),
 	locationId: z.string().uuid().nullable().optional(),
+	schedule: z
+		.array(
+			z.object({
+				dayOfWeek: z.number().int().min(0).max(6),
+				startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM'),
+				endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM'),
+				isWorkingDay: z.boolean().optional(),
+			}),
+		)
+		.optional(),
 });
 
 /**
@@ -252,12 +278,14 @@ export type LocationQuery = z.infer<typeof locationQuerySchema>;
 export type CreateJobPositionInput = z.infer<typeof createJobPositionSchema>;
 export type UpdateJobPositionInput = z.infer<typeof updateJobPositionSchema>;
 export type JobPositionQuery = z.infer<typeof jobPositionQuerySchema>;
+export type PaymentFrequency = z.infer<typeof createJobPositionSchema>['paymentFrequency'];
 
 // Employee
 export type EmployeeStatus = z.infer<typeof employeeStatusEnum>;
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 export type EmployeeQuery = z.infer<typeof employeeQuerySchema>;
+export type EmployeeScheduleInput = NonNullable<CreateEmployeeInput['schedule']>[number];
 
 // Device
 export type DeviceStatus = z.infer<typeof deviceStatusEnum>;

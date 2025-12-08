@@ -4,10 +4,13 @@ import {
 	index,
 	integer,
 	jsonb,
+	numeric,
 	pgEnum,
 	pgTable,
 	text,
+	time,
 	timestamp,
+	uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 
@@ -317,6 +320,16 @@ export const employeeStatus = pgEnum('employee_status', ['ACTIVE', 'INACTIVE', '
  */
 export const deviceStatus = pgEnum('device_status', ['ONLINE', 'OFFLINE', 'MAINTENANCE']);
 
+/**
+ * Enum for payment frequency
+ */
+export const paymentFrequency = pgEnum('payment_frequency', ['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
+
+/**
+ * Enum for payroll run status
+ */
+export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
+
 // ============================================================================
 // Domain Tables
 // ============================================================================
@@ -368,6 +381,10 @@ export const jobPosition = pgTable('job_position', {
 	name: text('name').notNull(),
 	/** Optional description of the position */
 	description: text('description'),
+	/** Hourly pay rate for payroll calculations */
+	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+	/** Payment frequency for this position */
+	paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
 	/** Organization this position belongs to (replaces legacy client linkage) */
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
@@ -409,6 +426,11 @@ export const employee = pgTable('employee', {
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
 	}),
+	/**
+	 * Last time payroll was processed for this employee.
+	 * Set by payroll runs to avoid double-payment in a period.
+	 */
+	lastPayrollDate: timestamp('last_payroll_date'),
 	/**
 	 * Rekognition user ID for face recognition.
 	 * Links the employee to their User Vector in the AWS Rekognition collection.
@@ -467,6 +489,102 @@ export const attendanceRecord = pgTable('attendance_record', {
 	 * Stores match score, raw payload, face recognition data, etc.
 	 */
 	metadata: jsonb('metadata'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Employee schedule table - stores weekly schedules per employee.
+ */
+export const employeeSchedule = pgTable(
+	'employee_schedule',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		dayOfWeek: integer('day_of_week').notNull(), // 0 = Sunday, 6 = Saturday
+		startTime: time('start_time', { withTimezone: false }).notNull(),
+		endTime: time('end_time', { withTimezone: false }).notNull(),
+		isWorkingDay: boolean('is_working_day').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('employee_schedule_employee_idx').on(table.employeeId),
+		uniqueIndex('employee_schedule_employee_day_uniq').on(table.employeeId, table.dayOfWeek),
+	],
+);
+
+/**
+ * Payroll settings per organization.
+ */
+export const payrollSetting = pgTable('payroll_setting', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	organizationId: text('organization_id')
+		.notNull()
+		.unique()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	weekStartDay: integer('week_start_day').default(1).notNull(), // default Monday
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Payroll run header table.
+ */
+export const payrollRun = pgTable('payroll_run', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	organizationId: text('organization_id')
+		.notNull()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	periodStart: timestamp('period_start').notNull(),
+	periodEnd: timestamp('period_end').notNull(),
+	paymentFrequency: paymentFrequency('payment_frequency').notNull(),
+	status: payrollRunStatus('status').default('DRAFT').notNull(),
+	totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+	employeeCount: integer('employee_count').default(0).notNull(),
+	processedAt: timestamp('processed_at'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Payroll run line items per employee.
+ */
+export const payrollRunEmployee = pgTable('payroll_run_employee', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	payrollRunId: text('payroll_run_id')
+		.notNull()
+		.references(() => payrollRun.id, { onDelete: 'cascade' }),
+	employeeId: text('employee_id')
+		.notNull()
+		.references(() => employee.id, { onDelete: 'cascade' }),
+	hoursWorked: numeric('hours_worked', { precision: 10, scale: 2 }).default('0').notNull(),
+	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+	totalPay: numeric('total_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	periodStart: timestamp('period_start').notNull(),
+	periodEnd: timestamp('period_end').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

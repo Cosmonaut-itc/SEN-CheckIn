@@ -61,6 +61,17 @@ export interface OrganizationMembersQueryParams extends UsersQueryParams {
 }
 
 /**
+ * Query parameters for payroll calculations.
+ */
+export interface PayrollCalculateParams {
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	organizationId?: string;
+	[key: string]: unknown;
+}
+
+/**
  * Constructs a query key array from a base key and optional parameters.
  *
  * This utility function creates consistent, type-safe query keys that can be used
@@ -284,6 +295,25 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for payroll settings and runs.
+	 */
+	payrollSettings: {
+		all: ['payrollSettings'] as const,
+		current: (organizationId?: string | null) =>
+			queryKeyConstructor(['payrollSettings', 'current'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
+	},
+	payroll: {
+		all: ['payroll'] as const,
+		calculate: (params: PayrollCalculateParams) =>
+			queryKeyConstructor(['payroll', 'calculate'] as const, params),
+		runs: (params?: { organizationId?: string }) =>
+			queryKeyConstructor(['payroll', 'runs'] as const, params),
+		runDetail: (id: string) => ['payroll', 'runs', id] as const,
+	},
+
+	/**
 	 * Query keys for device authorization (BetterAuth device flow).
 	 */
 	deviceAuth: {
@@ -365,6 +395,17 @@ export const mutationKeys = {
 		create: ['organizations', 'create'] as const,
 		update: ['organizations', 'update'] as const,
 		delete: ['organizations', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for payroll operations.
+	 */
+	payroll: {
+		calculate: ['payroll', 'calculate'] as const,
+		process: ['payroll', 'process'] as const,
+	},
+	payrollSettings: {
+		update: ['payrollSettings', 'update'] as const,
 	},
 
 	/**

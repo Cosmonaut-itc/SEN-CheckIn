@@ -38,6 +38,8 @@ import { jobPositionRoutes } from './routes/job-positions.js';
 import { locationRoutes } from './routes/locations.js';
 import { recognitionRoutes } from './routes/recognition.js';
 import { organizationRoutes } from './routes/organization.js';
+import { payrollRoutes } from './routes/payroll.js';
+import { payrollSettingsRoutes } from './routes/payroll-settings.js';
 
 // Configure logger based on environment
 configureLogger({
@@ -95,6 +97,8 @@ const protectedRoutes = new Elysia({ name: 'protected-routes' })
 	.use(deviceRoutes)
 	.use(attendanceRoutes)
 	.use(organizationRoutes)
+	.use(payrollSettingsRoutes)
+	.use(payrollRoutes)
 	// Face recognition routes (requires authentication)
 	.use(recognitionRoutes);
 

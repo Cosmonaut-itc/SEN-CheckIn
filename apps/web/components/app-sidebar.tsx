@@ -1,21 +1,7 @@
 'use client';
 
-import React from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import {
-	Users,
-	Smartphone,
-	MapPin,
-	ClipboardList,
-	Key,
-	UserCog,
-	Building,
-	LayoutDashboard,
-	LogOut,
-	Briefcase,
-} from 'lucide-react';
-import { signOut, useSession } from '@/lib/auth-client';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import {
 	Sidebar,
 	SidebarContent,
@@ -29,9 +15,25 @@ import {
 	SidebarMenuItem,
 	SidebarSeparator,
 } from '@/components/ui/sidebar';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { signOut, useSession } from '@/lib/auth-client';
+import {
+	Briefcase,
+	Building,
+	ClipboardList,
+	Key,
+	LayoutDashboard,
+	LogOut,
+	MapPin,
+	Settings2,
+	Smartphone,
+	UserCog,
+	Users,
+	Wallet,
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import type React from 'react';
 
 /**
  * Navigation item configuration interface.
@@ -79,6 +81,11 @@ const mainNavItems: NavItem[] = [
 		href: '/attendance',
 		icon: ClipboardList,
 	},
+	{
+		title: 'Payroll',
+		href: '/payroll',
+		icon: Wallet,
+	},
 ];
 
 /**
@@ -89,6 +96,11 @@ const adminNavItems: NavItem[] = [
 		title: 'API Keys',
 		href: '/api-keys',
 		icon: Key,
+	},
+	{
+		title: 'Payroll Settings',
+		href: '/payroll-settings',
+		icon: Settings2,
 	},
 	{
 		title: 'Users',

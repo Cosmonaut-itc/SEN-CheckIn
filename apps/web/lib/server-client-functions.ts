@@ -24,12 +24,16 @@ import type {
 	Organization,
 	OrganizationMember,
 	PaginatedResponse,
+	PayrollCalculationResult,
+	PayrollRun,
+	PayrollSettings,
 	User,
 } from '@/lib/client-functions';
 import type {
 	AttendanceQueryParams,
 	JobPositionQueryParams,
 	ListQueryParams,
+	PayrollCalculateParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
 import { normalizeUserCode } from '@/lib/device-code-utils';
@@ -298,8 +302,14 @@ export async function fetchJobPositionsListServer(
 		throw new Error('Failed to fetch job positions');
 	}
 
+	const positions =
+		(response.data?.data as (JobPosition & { hourlyPay?: number | string })[] | undefined) ?? [];
+
 	return {
-		data: (response.data?.data ?? []) as JobPosition[],
+		data: positions.map((jp) => ({
+			...jp,
+			hourlyPay: Number(jp.hourlyPay ?? 0),
+		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
@@ -537,6 +547,96 @@ export async function fetchUsersServer(
 	}
 
 return (response.data?.users ?? []) as User[];
+}
+
+// ============================================================================
+// Payroll Functions
+// ============================================================================
+
+export async function fetchPayrollSettingsServer(
+	cookieHeader: string,
+	organizationId?: string,
+): Promise<PayrollSettings | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api['payroll-settings'].get({
+		$query: organizationId ? { organizationId } : undefined,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch payroll settings:', response.error);
+		return null;
+	}
+
+	return (response.data?.data as PayrollSettings) ?? null;
+}
+
+export async function calculatePayrollServer(
+	cookieHeader: string,
+	params: PayrollCalculateParams,
+): Promise<PayrollCalculationResult> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.payroll.calculate.post(params);
+
+	if (response.error) {
+		console.error('[Server] Failed to calculate payroll:', response.error);
+		throw new Error('Failed to calculate payroll');
+	}
+
+	return response.data?.data as PayrollCalculationResult;
+}
+
+export async function fetchPayrollRunsServer(
+	cookieHeader: string,
+	params?: { organizationId?: string; limit?: number; offset?: number },
+): Promise<PayrollRun[]> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.payroll.runs.get({
+		$query: {
+			limit: params?.limit ?? 100,
+			offset: params?.offset ?? 0,
+			organizationId: params?.organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch payroll runs:', response.error);
+		throw new Error('Failed to fetch payroll runs');
+	}
+
+	const runs =
+		(response.data?.data as (PayrollRun & { totalAmount?: number | string })[] | undefined) ??
+		[];
+	return runs.map((run) => ({
+		...run,
+		totalAmount: Number(run.totalAmount ?? 0),
+	}));
+}
+
+export async function fetchPayrollRunDetailServer(
+	cookieHeader: string,
+	id: string,
+): Promise<{ run: PayrollRun; employees: unknown[] } | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.payroll.runs[id].get();
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch payroll run detail:', response.error);
+		return null;
+	}
+
+	const payload = response.data?.data as
+		| {
+				run: PayrollRun & { totalAmount?: number | string };
+				employees: unknown[];
+		  }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+	return {
+		run: { ...payload.run, totalAmount: Number(payload.run.totalAmount ?? 0) },
+		employees: payload.employees,
+	};
 }
 
 // ============================================================================

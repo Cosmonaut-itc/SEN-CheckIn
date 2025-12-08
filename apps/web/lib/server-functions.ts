@@ -14,29 +14,29 @@
  * @module server-functions
  */
 
-import type { QueryClient } from '@tanstack/react-query';
-import { headers } from 'next/headers';
 import {
-	queryKeys,
-	type ListQueryParams,
-	type JobPositionQueryParams,
 	type AttendanceQueryParams,
+	type JobPositionQueryParams,
+	type ListQueryParams,
 	type UsersQueryParams,
+	queryKeys,
 } from '@/lib/query-keys';
 import {
-	fetchEmployeesListServer,
-	fetchDevicesListServer,
-	fetchLocationsListServer,
-	fetchJobPositionsListServer,
+	fetchApiKeysServer,
 	fetchAttendanceRecordsServer,
 	fetchDashboardCountsServer,
-	fetchApiKeysServer,
-	fetchOrganizationsServer,
+	fetchDevicesListServer,
+	fetchEmployeesListServer,
+	fetchJobPositionsListServer,
+	fetchLocationsListServer,
 	fetchOrganizationMembersServer,
-	fetchUsersServer,
-	fetchPayrollSettingsServer,
+	fetchOrganizationsServer,
 	fetchPayrollRunsServer,
+	fetchPayrollSettingsServer,
+	fetchUsersServer,
 } from '@/lib/server-client-functions';
+import type { QueryClient } from '@tanstack/react-query';
+import { headers } from 'next/headers';
 
 // ============================================================================
 // Helper Functions
@@ -98,8 +98,11 @@ async function getRequestHeaders(): Promise<Headers> {
  * }
  * ```
  */
-export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
-	queryClient.prefetchQuery({
+export function prefetchEmployeesList(
+	queryClient: QueryClient,
+	params?: ListQueryParams,
+): Promise<void> {
+	return queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();

@@ -110,6 +110,10 @@ const calculateExpectedHours = (
 		const endMinutes = parseTimeToMinutes(entry.endTime);
 		if (endMinutes > startMinutes) {
 			minutes += endMinutes - startMinutes;
+		} else if (endMinutes < startMinutes) {
+			// Overnight shift that crosses midnight (e.g., 22:00–06:00)
+			const minutesUntilMidnight = 24 * 60 - startMinutes;
+			minutes += minutesUntilMidnight + endMinutes;
 		}
 	}
 	return minutes / 60;

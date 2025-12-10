@@ -10,7 +10,14 @@
 import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
-import type { AttendanceQueryParams, ListQueryParams, UsersQueryParams } from '@/lib/query-keys';
+import type {
+	AttendanceQueryParams,
+	CalendarQueryParams,
+	ListQueryParams,
+	ScheduleExceptionQueryParams,
+	ScheduleTemplateQueryParams,
+	UsersQueryParams,
+} from '@/lib/query-keys';
 
 // ============================================================================
 // Type Definitions
@@ -1116,4 +1123,234 @@ export async function fetchUsers(params?: UsersQueryParams): Promise<User[]> {
 	}
 
 	return (response.data?.users ?? []) as User[];
+}
+
+// ============================================================================
+// Scheduling Functions
+// ============================================================================
+
+export type ShiftType = 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+export type ScheduleExceptionType = 'DAY_OFF' | 'MODIFIED' | 'EXTRA_DAY';
+
+export interface ScheduleTemplateDay {
+	id?: string;
+	templateId?: string;
+	dayOfWeek: number;
+	startTime: string;
+	endTime: string;
+	isWorkingDay: boolean;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface ScheduleTemplate {
+	id: string;
+	name: string;
+	description: string | null;
+	shiftType: ShiftType;
+	organizationId: string;
+	createdAt: Date;
+	updatedAt: Date;
+	days?: ScheduleTemplateDay[];
+}
+
+export interface ScheduleException {
+	id: string;
+	employeeId: string;
+	exceptionDate: Date;
+	exceptionType: ScheduleExceptionType;
+	startTime: string | null;
+	endTime: string | null;
+	reason: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+	employeeName?: string | null;
+	employeeLastName?: string | null;
+}
+
+export interface CalendarDay {
+	date: string;
+	isWorkingDay: boolean;
+	startTime: string | null;
+	endTime: string | null;
+	source: 'template' | 'manual' | 'exception' | 'none';
+	exceptionType?: ScheduleExceptionType;
+}
+
+export interface CalendarEmployee {
+	employeeId: string;
+	employeeName: string;
+	locationId: string | null;
+	scheduleTemplateId: string | null;
+	shiftType: ShiftType;
+	days: CalendarDay[];
+}
+
+/**
+ * Normalizes a date-like value into a Date instance.
+ *
+ * @param value - A Date object or ISO date string
+ * @returns Date instance or undefined when input is falsy
+ */
+function normalizeDate(value?: Date | string): Date | undefined {
+	if (!value) {
+		return undefined;
+	}
+	return typeof value === 'string' ? new Date(value) : value;
+}
+
+/**
+ * Fetches schedule templates list.
+ *
+ * @param params - Query parameters including organization scope
+ * @returns Paginated list of schedule templates
+ */
+export async function fetchScheduleTemplatesList(
+	params?: ScheduleTemplateQueryParams,
+): Promise<PaginatedResponse<ScheduleTemplate>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	const response = await api['schedule-templates'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch schedule templates');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleTemplate[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches a schedule template by ID including its days.
+ *
+ * @param id - Template identifier
+ * @returns Template with days or null when missing
+ */
+export async function fetchScheduleTemplateDetail(id: string): Promise<ScheduleTemplate | null> {
+	const response = await api['schedule-templates'][id].get();
+
+	if (response.error) {
+		return null;
+	}
+
+	return (response.data?.data as ScheduleTemplate) ?? null;
+}
+
+/**
+ * Fetches schedule exceptions with optional filters.
+ *
+ * @param params - Query parameters for filtering exceptions
+ * @returns Paginated schedule exceptions
+ */
+export async function fetchScheduleExceptionsList(
+	params?: ScheduleExceptionQueryParams,
+): Promise<PaginatedResponse<ScheduleException>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		fromDate?: Date;
+		toDate?: Date;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params.fromDate) {
+		query.fromDate = normalizeDate(params.fromDate);
+	}
+	if (params.toDate) {
+		query.toDate = normalizeDate(params.toDate);
+	}
+
+	const response = await api['schedule-exceptions'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch schedule exceptions');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleException[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches the scheduling calendar for the given date range and scope.
+ *
+ * @param params - Calendar query parameters
+ * @returns Calendar entries per employee
+ */
+export async function fetchCalendar(params: CalendarQueryParams): Promise<CalendarEmployee[]> {
+	const startDate = normalizeDate(params.startDate);
+	const endDate = normalizeDate(params.endDate);
+
+	if (!startDate || !endDate) {
+		throw new Error('Start and end date are required');
+	}
+
+	const query: {
+		startDate: Date;
+		endDate: Date;
+		organizationId?: string;
+		locationId?: string;
+		employeeId?: string;
+	} = { startDate, endDate };
+
+	if (params.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (params.locationId) {
+		query.locationId = params.locationId;
+	}
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+
+	const response = await api.scheduling.calendar.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		throw new Error('Failed to fetch scheduling calendar');
+	}
+
+	return (response.data?.data ?? []) as CalendarEmployee[];
 }

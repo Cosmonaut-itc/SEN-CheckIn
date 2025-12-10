@@ -185,6 +185,14 @@ export default function LoginScreen(): JSX.Element {
 
 	const isApproved = status.state === 'approved';
 
+	const replaceToDeviceSetup = useCallback(
+		(params: { deviceId: string; organizationId: string }) => {
+			// Route exists but is missing from the generated typed router manifest; cast until manifest is refreshed
+			router.replace({ pathname: '/(auth)/device-setup', params } as never);
+		},
+		[router],
+	);
+
 	/**
 	 * Cancel any outstanding polling timers.
 	 */
@@ -383,15 +391,12 @@ export default function LoginScreen(): JSX.Element {
 						});
 						setIsRoutingToSetup(true);
 						// Now safe to set session - routing flags are already set
-						router.replace({
-							pathname: '/(auth)/device-setup',
-							params: {
-								deviceId: registration.device.id,
-								organizationId:
-									registration.device.organizationId ??
-									sessionResult.data.session?.activeOrganizationId ??
-									'',
-							},
+						replaceToDeviceSetup({
+							deviceId: registration.device.id,
+							organizationId:
+								registration.device.organizationId ??
+								sessionResult.data.session?.activeOrganizationId ??
+								'',
 						});
 						// Auth layout allows device-setup even with session, but keep session set
 						setSession(sessionResult.data);
@@ -514,15 +519,12 @@ export default function LoginScreen(): JSX.Element {
 				pendingSetup,
 			);
 			setIsRoutingToSetup(true);
-			router.replace({
-				pathname: '/(auth)/device-setup',
-				params: {
-					deviceId: pendingSetup.deviceId,
-					organizationId: pendingSetup.organizationId ?? '',
-				},
+			replaceToDeviceSetup({
+				deviceId: pendingSetup.deviceId,
+				organizationId: pendingSetup.organizationId ?? '',
 			});
 		}
-	}, [isRoutingToSetup, pendingSetup, router]);
+	}, [isRoutingToSetup, pendingSetup, replaceToDeviceSetup]);
 
 	/**
 	 * Developer bypass for local testing without the device approval flow.

@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import {
 	addDays,
 	differenceInMinutes,
+	format,
 	isAfter,
 	isBefore,
 } from 'date-fns';
@@ -18,6 +19,8 @@ import {
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
+	scheduleException,
+	scheduleTemplateDay,
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { resolveOrganizationId } from '../utils/organization.js';
@@ -45,6 +48,16 @@ type ScheduleRow = {
 	endTime: string;
 	isWorkingDay: boolean;
 };
+
+type TemplateDayRow = {
+	templateId: string;
+	dayOfWeek: number;
+	startTime: string;
+	endTime: string;
+	isWorkingDay: boolean;
+};
+
+type ScheduleExceptionRow = typeof scheduleException.$inferSelect;
 
 type PayrollCalculationRow = {
 	employeeId: string;
@@ -83,6 +96,34 @@ const parseTimeToMinutes = (timeString: string): number => {
 };
 
 /**
+ * Computes duration in hours between start/end HH:mm (supports overnight).
+ *
+ * @param startTime - Start time HH:mm
+ * @param endTime - End time HH:mm
+ * @returns Duration in hours (0 when invalid)
+ */
+const computeDurationHours = (startTime: string, endTime: string): number => {
+	const startMinutes = parseTimeToMinutes(startTime);
+	const endMinutes = parseTimeToMinutes(endTime);
+	if (endMinutes > startMinutes) {
+		return (endMinutes - startMinutes) / 60;
+	}
+	if (endMinutes < startMinutes) {
+		const untilMidnight = 24 * 60 - startMinutes;
+		return (untilMidnight + endMinutes) / 60;
+	}
+	return 0;
+};
+
+/**
+ * Formats a date key using local time to align with stored start-of-day values.
+ *
+ * @param date - Date instance to format
+ * @returns Local date string in yyyy-MM-dd format
+ */
+const formatLocalDateKey = (date: Date): string => format(date, 'yyyy-MM-dd');
+
+/**
  * Calculates expected hours for a period based on schedule entries.
  *
  * @param schedule - Weekly schedule entries
@@ -90,32 +131,47 @@ const parseTimeToMinutes = (timeString: string): number => {
  * @param periodEnd - End date of the period
  * @returns Expected hours in the period
  */
-const calculateExpectedHours = (
-	schedule: ScheduleRow[],
-	periodStart: Date,
-	periodEnd: Date,
-): number => {
+const calculateExpectedHoursWithOverrides = (args: {
+	templateId?: string | null;
+	schedule: ScheduleRow[];
+	templateDaysMap: Map<string, TemplateDayRow[]>;
+	exceptionMap: Map<string, ScheduleExceptionRow>;
+	employeeId: string;
+	periodStart: Date;
+	periodEnd: Date;
+}): number => {
+	const { templateId, schedule, templateDaysMap, exceptionMap, employeeId, periodStart, periodEnd } = args;
 	let minutes = 0;
+
 	for (
 		let current = new Date(periodStart);
 		!isAfter(current, periodEnd);
 		current = addDays(current, 1)
 	) {
 		const dayOfWeek = current.getDay();
-		const entry = schedule.find((s) => s.dayOfWeek === dayOfWeek);
-		if (!entry || !entry.isWorkingDay) {
-			continue;
+		const dayKey = formatLocalDateKey(current);
+		const exception = exceptionMap.get(`${employeeId}-${dayKey}`);
+
+		// Determine base day from template or manual schedule
+		const baseDay =
+			(templateId ? templateDaysMap.get(templateId)?.find((d) => d.dayOfWeek === dayOfWeek) : undefined) ??
+			schedule.find((s) => s.dayOfWeek === dayOfWeek);
+
+		if (exception) {
+			if (exception.exceptionType === 'DAY_OFF') {
+				continue;
+			}
+			if (exception.startTime && exception.endTime) {
+				minutes += computeDurationHours(exception.startTime, exception.endTime) * 60;
+				continue;
+			}
 		}
-		const startMinutes = parseTimeToMinutes(entry.startTime);
-		const endMinutes = parseTimeToMinutes(entry.endTime);
-		if (endMinutes > startMinutes) {
-			minutes += endMinutes - startMinutes;
-		} else if (endMinutes < startMinutes) {
-			// Overnight shift that crosses midnight (e.g., 22:00–06:00)
-			const minutesUntilMidnight = 24 * 60 - startMinutes;
-			minutes += minutesUntilMidnight + endMinutes;
+
+		if (baseDay && (baseDay.isWorkingDay ?? true)) {
+			minutes += computeDurationHours(baseDay.startTime, baseDay.endTime) * 60;
 		}
 	}
+
 	return minutes / 60;
 };
 
@@ -215,6 +271,7 @@ const calculatePayroll = async (args: {
 			paymentFrequency: jobPosition.paymentFrequency,
 			shiftType: employee.shiftType,
 			locationGeographicZone: location.geographicZone,
+			scheduleTemplateId: employee.scheduleTemplateId,
 		})
 		.from(employee)
 		.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id))
@@ -248,6 +305,51 @@ const calculatePayroll = async (args: {
 		scheduleMap.set(entry.employeeId, current);
 	}
 
+	const templateIds = filteredEmployees
+		.map((emp) => emp.scheduleTemplateId)
+		.filter((id): id is string => Boolean(id));
+
+	const templateDays =
+		templateIds.length === 0
+			? []
+			: await db
+					.select()
+					.from(scheduleTemplateDay)
+					.where(inArray(scheduleTemplateDay.templateId, templateIds));
+
+	const templateDaysMap = new Map<string, TemplateDayRow[]>();
+	for (const row of templateDays) {
+		const current = templateDaysMap.get(row.templateId) ?? [];
+		current.push({
+			templateId: row.templateId,
+			dayOfWeek: row.dayOfWeek,
+			startTime: row.startTime,
+			endTime: row.endTime,
+			isWorkingDay: row.isWorkingDay,
+		});
+		templateDaysMap.set(row.templateId, current);
+	}
+
+	const exceptions =
+		employeeIds.length === 0
+			? []
+			: await db
+					.select()
+					.from(scheduleException)
+					.where(
+						and(
+							inArray(scheduleException.employeeId, employeeIds),
+							gte(scheduleException.exceptionDate, periodStart),
+							lte(scheduleException.exceptionDate, periodEnd),
+						)!,
+					);
+
+	const exceptionMap = new Map<string, ScheduleExceptionRow>();
+	for (const ex of exceptions) {
+		const key = `${ex.employeeId}-${formatLocalDateKey(ex.exceptionDate)}`;
+		exceptionMap.set(key, ex);
+	}
+
 	const results: PayrollCalculationRow[] = [];
 	let totalAmount = 0;
 
@@ -272,11 +374,15 @@ const calculatePayroll = async (args: {
 			0,
 		);
 
-		const expectedHours = calculateExpectedHours(
-			scheduleMap.get(emp.id) ?? [],
+		const expectedHours = calculateExpectedHoursWithOverrides({
+			templateId: emp.scheduleTemplateId,
+			schedule: scheduleMap.get(emp.id) ?? [],
+			templateDaysMap,
+			exceptionMap,
+			employeeId: emp.id,
 			periodStart,
 			periodEnd,
-		);
+		});
 
 		const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
 		const shiftLimits = SHIFT_LIMITS[shiftKey];

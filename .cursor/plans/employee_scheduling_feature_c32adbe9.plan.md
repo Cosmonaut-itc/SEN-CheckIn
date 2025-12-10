@@ -1,75 +1,3 @@
----
-name: Employee Scheduling Feature
-overview: Implement a comprehensive employee scheduling system with reusable schedule templates, per-employee customization, weekly/monthly calendar views, date-specific exceptions for day-offs and schedule changes, and Mexican labor law validation using the configurable overtimeEnforcement setting.
-todos:
-  - id: schema-tables
-    content: Add scheduleTemplate, scheduleTemplateDay, scheduleException tables to schema.ts
-    status: pending
-  - id: schema-employee
-    content: Add scheduleTemplateId foreign key to employee table
-    status: pending
-  - id: schema-relations
-    content: Add Drizzle relations for new scheduling tables
-    status: pending
-  - id: migration
-    content: Generate and apply Drizzle migration for schema changes
-    status: pending
-  - id: api-schemas
-    content: Create Zod schemas for schedule templates and exceptions in schedules.ts
-    status: pending
-  - id: api-validator
-    content: Create schedule-validator.ts with labor law validation logic
-    status: pending
-  - id: api-routes-templates
-    content: Implement CRUD routes for schedule templates
-    status: pending
-  - id: api-routes-exceptions
-    content: Implement CRUD routes for schedule exceptions
-    status: pending
-  - id: api-routes-calendar
-    content: Implement calendar/scheduling routes with effective schedule calculation
-    status: pending
-  - id: api-routes-register
-    content: Register new routes in index.ts
-    status: pending
-  - id: web-query-keys
-    content: Add query/mutation keys for schedules, exceptions, calendar
-    status: pending
-  - id: web-types-fetchers
-    content: Add types and client fetchers for scheduling entities
-    status: pending
-  - id: web-server-functions
-    content: Add server fetchers and prefetch helpers
-    status: pending
-  - id: web-actions
-    content: Create server actions for schedule mutations
-    status: pending
-  - id: web-form-components
-    content: Add TimeField, DateField, ToggleField to forms.tsx
-    status: pending
-  - id: web-sidebar
-    content: Add Schedules navigation item to app-sidebar.tsx
-    status: pending
-  - id: web-page-server
-    content: Create schedules page.tsx with prefetch logic
-    status: pending
-  - id: web-page-client
-    content: Create schedules-client.tsx with tabs layout
-    status: pending
-  - id: web-calendar-view
-    content: Implement weekly/monthly calendar view component
-    status: pending
-  - id: web-template-form
-    content: Create template form dialog with day schedule editor
-    status: pending
-  - id: web-exception-form
-    content: Create exception form dialog
-    status: pending
-  - id: web-employee-integration
-    content: Update employee page to show/link schedule template
-    status: pending
----
-
 # Employee Scheduling Feature Implementation
 
 This plan implements a full employee scheduling system compliant with Mexican labor law (LFT), following the established architecture patterns from [release-04](documentacion/release-04-query-fetch-architecture.md) and [release-06](documentacion/release-06-form-architecture.md).
@@ -386,7 +314,7 @@ apps/web/app/(dashboard)/schedules/
 
 ### 6.3 Main Schedules Page
 
-[`apps/web/app/(dashboard)/schedules/page.tsx`](apps/web/app/\\\\(dashboard)/schedules/page.tsx):
+[`apps/web/app/(dashboard)/schedules/page.tsx`](apps/web/app/\\\\\\(dashboard)/schedules/page.tsx):
 
 - Force dynamic rendering
 - Prefetch schedule templates, calendar data for current week
@@ -394,7 +322,7 @@ apps/web/app/(dashboard)/schedules/
 
 ### 6.4 Schedules Client Component
 
-[`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\\\(dashboard)/schedules/schedules-client.tsx):
+[`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\\\\\(dashboard)/schedules/schedules-client.tsx):
 
 **Layout with Tabs:**
 

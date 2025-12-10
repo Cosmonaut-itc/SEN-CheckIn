@@ -46,6 +46,24 @@ export {
 	type UpdateJobPositionInput,
 } from './job-positions';
 
+// Export scheduling actions and types (except MutationResult)
+export {
+	createScheduleTemplate,
+	updateScheduleTemplate,
+	deleteScheduleTemplate,
+	createScheduleException,
+	updateScheduleException,
+	deleteScheduleException,
+	assignTemplateToEmployees,
+	type CreateScheduleTemplateInput,
+	type UpdateScheduleTemplateInput,
+	type CreateScheduleExceptionInput,
+	type UpdateScheduleExceptionInput,
+	type ScheduleTemplateDayInput,
+	type ScheduleExceptionType,
+	type ShiftType,
+} from './schedules';
+
 // Export API key actions and types (except MutationResult)
 export {
 	createApiKey,

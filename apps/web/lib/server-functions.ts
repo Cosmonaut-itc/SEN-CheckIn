@@ -16,8 +16,11 @@
 
 import {
 	type AttendanceQueryParams,
+	type CalendarQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
+	type ScheduleExceptionQueryParams,
+	type ScheduleTemplateQueryParams,
 	type UsersQueryParams,
 	queryKeys,
 } from '@/lib/query-keys';
@@ -33,6 +36,10 @@ import {
 	fetchOrganizationsServer,
 	fetchPayrollRunsServer,
 	fetchPayrollSettingsServer,
+	fetchScheduleExceptionsListServer,
+	fetchScheduleTemplateDetailServer,
+	fetchScheduleTemplatesListServer,
+	fetchCalendarServer,
 	fetchUsersServer,
 } from '@/lib/server-client-functions';
 import type { QueryClient } from '@tanstack/react-query';
@@ -426,6 +433,58 @@ export function prefetchPayrollRuns(
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollRunsServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchPayrollRunsServer(cookieHeader, params);
+		},
+	});
+}
+
+// ============================================================================
+// Scheduling Prefetch Functions
+// ============================================================================
+
+export function prefetchScheduleTemplates(
+	queryClient: QueryClient,
+	params?: ScheduleTemplateQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduleTemplates.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchScheduleTemplatesListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchScheduleTemplatesListServer(cookieHeader, params);
+		},
+	});
+}
+
+export function prefetchScheduleTemplateDetail(queryClient: QueryClient, id: string): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduleTemplates.detail(id),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchScheduleTemplateDetailServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchScheduleTemplateDetailServer(cookieHeader, id);
+		},
+	});
+}
+
+export function prefetchScheduleExceptions(
+	queryClient: QueryClient,
+	params?: ScheduleExceptionQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduleExceptions.list(params),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchScheduleExceptionsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchScheduleExceptionsListServer(cookieHeader, params);
+		},
+	});
+}
+
+export function prefetchCalendar(queryClient: QueryClient, params: CalendarQueryParams): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduling.calendar(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchCalendarServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchCalendarServer(cookieHeader, params);
 		},
 	});
 }

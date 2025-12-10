@@ -40,6 +40,9 @@ import { recognitionRoutes } from './routes/recognition.js';
 import { organizationRoutes } from './routes/organization.js';
 import { payrollRoutes } from './routes/payroll.js';
 import { payrollSettingsRoutes } from './routes/payroll-settings.js';
+import { scheduleTemplateRoutes } from './routes/schedule-templates.js';
+import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
+import { schedulingRoutes } from './routes/scheduling.js';
 
 // Configure logger based on environment
 configureLogger({
@@ -99,6 +102,9 @@ const protectedRoutes = new Elysia({ name: 'protected-routes' })
 	.use(organizationRoutes)
 	.use(payrollSettingsRoutes)
 	.use(payrollRoutes)
+	.use(scheduleTemplateRoutes)
+	.use(scheduleExceptionRoutes)
+	.use(schedulingRoutes)
 	// Face recognition routes (requires authentication)
 	.use(recognitionRoutes);
 

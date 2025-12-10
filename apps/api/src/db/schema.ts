@@ -331,6 +331,15 @@ export const paymentFrequency = pgEnum('payment_frequency', ['WEEKLY', 'BIWEEKLY
 export const shiftType = pgEnum('shift_type', ['DIURNA', 'NOCTURNA', 'MIXTA']);
 
 /**
+ * Enum for schedule exception types.
+ */
+export const scheduleExceptionType = pgEnum('schedule_exception_type', [
+	'DAY_OFF',
+	'MODIFIED',
+	'EXTRA_DAY',
+]);
+
+/**
  * Enum for geographic zones (CONASAMI)
  */
 export const geographicZone = pgEnum('geographic_zone', ['GENERAL', 'ZLFN']);
@@ -418,6 +427,54 @@ export const jobPosition = pgTable('job_position', {
 });
 
 /**
+ * Schedule Template table - reusable weekly templates per organization.
+ */
+export const scheduleTemplate = pgTable('schedule_template', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	name: text('name').notNull(),
+	description: text('description'),
+	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
+	organizationId: text('organization_id')
+		.notNull()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Schedule Template Day table - daily configuration for templates.
+ */
+export const scheduleTemplateDay = pgTable(
+	'schedule_template_day',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => scheduleTemplate.id, { onDelete: 'cascade' }),
+		dayOfWeek: integer('day_of_week').notNull(), // 0=Sunday, 6=Saturday
+		startTime: time('start_time', { withTimezone: false }).notNull(),
+		endTime: time('end_time', { withTimezone: false }).notNull(),
+		isWorkingDay: boolean('is_working_day').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('schedule_template_day_template_idx').on(table.templateId),
+		uniqueIndex('schedule_template_day_uniq').on(table.templateId, table.dayOfWeek),
+	],
+);
+
+/**
  * Employee table - stores employee information
  */
 export const employee = pgTable('employee', {
@@ -443,6 +500,10 @@ export const employee = pgTable('employee', {
 	hireDate: timestamp('hire_date'),
 	/** Location where employee works */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/** Assigned schedule template */
+	scheduleTemplateId: text('schedule_template_id').references(() => scheduleTemplate.id, {
+		onDelete: 'set null',
+	}),
 	/** Organization that the employee belongs to */
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
@@ -546,6 +607,36 @@ export const employeeSchedule = pgTable(
 );
 
 /**
+ * Schedule Exception table - date-specific overrides for employee schedules.
+ */
+export const scheduleException = pgTable(
+	'schedule_exception',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		exceptionDate: timestamp('exception_date').notNull(),
+		exceptionType: scheduleExceptionType('exception_type').notNull(),
+		startTime: time('start_time', { withTimezone: false }),
+		endTime: time('end_time', { withTimezone: false }),
+		reason: text('reason'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('schedule_exception_employee_idx').on(table.employeeId),
+		index('schedule_exception_date_idx').on(table.exceptionDate),
+		uniqueIndex('schedule_exception_employee_date_uniq').on(table.employeeId, table.exceptionDate),
+	],
+);
+
+/**
  * Payroll settings per organization.
  */
 export const payrollSetting = pgTable('payroll_setting', {
@@ -565,6 +656,54 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+// ============================================================================
+// Relations - Scheduling
+// ============================================================================
+
+export const scheduleTemplateRelations = relations(scheduleTemplate, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [scheduleTemplate.organizationId],
+		references: [organization.id],
+	}),
+	days: many(scheduleTemplateDay),
+	employees: many(employee),
+}));
+
+export const scheduleTemplateDayRelations = relations(scheduleTemplateDay, ({ one }) => ({
+	template: one(scheduleTemplate, {
+		fields: [scheduleTemplateDay.templateId],
+		references: [scheduleTemplate.id],
+	}),
+}));
+
+export const employeeRelations = relations(employee, ({ one, many }) => ({
+	jobPosition: one(jobPosition, {
+		fields: [employee.jobPositionId],
+		references: [jobPosition.id],
+	}),
+	location: one(location, {
+		fields: [employee.locationId],
+		references: [location.id],
+	}),
+	organization: one(organization, {
+		fields: [employee.organizationId],
+		references: [organization.id],
+	}),
+	scheduleTemplate: one(scheduleTemplate, {
+		fields: [employee.scheduleTemplateId],
+		references: [scheduleTemplate.id],
+	}),
+	scheduleEntries: many(employeeSchedule),
+	scheduleExceptions: many(scheduleException),
+}));
+
+export const scheduleExceptionRelations = relations(scheduleException, ({ one }) => ({
+	employee: one(employee, {
+		fields: [scheduleException.employeeId],
+		references: [employee.id],
+	}),
+}));
 
 /**
  * Payroll run header table.

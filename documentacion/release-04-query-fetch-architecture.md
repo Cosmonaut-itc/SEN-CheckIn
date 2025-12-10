@@ -1291,6 +1291,10 @@ export async function createEmployee(input) {
 - **Do NOT await prefetch calls** — Awaiting defeats the purpose of streaming.
 - Pending queries are dehydrated because `shouldDehydrateQuery` includes `'pending'` status.
 
+### API Validation Limits
+
+- Keep list query `limit` values at or below the API maximum (currently `100`) for employees, locations, schedule templates, and schedule exceptions. Prefetchers and client queries should default to `limit: 100` when bulk-loading scheduling data to avoid 400 validation errors.
+
 ---
 
 ## Adding a New Entity

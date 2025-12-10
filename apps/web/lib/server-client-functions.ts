@@ -27,14 +27,20 @@ import type {
 	PayrollRun,
 	PayrollRunEmployee,
 	PayrollSettings,
+	CalendarEmployee,
+	ScheduleException,
+	ScheduleTemplate,
 	User,
 } from '@/lib/client-functions';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
 	AttendanceQueryParams,
+	CalendarQueryParams,
 	JobPositionQueryParams,
 	ListQueryParams,
 	PayrollCalculateParams,
+	ScheduleExceptionQueryParams,
+	ScheduleTemplateQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
 import { type ServerApiClient, createServerApiClient } from '@/lib/server-api';
@@ -666,6 +672,161 @@ export async function fetchPayrollRunDetailServer(
 		run: normalizedRun,
 		employees: normalizedEmployees,
 	};
+}
+
+// ============================================================================
+// Scheduling Functions
+// ============================================================================
+
+/**
+ * Fetches schedule templates on the server with cookie forwarding.
+ */
+export async function fetchScheduleTemplatesListServer(
+	cookieHeader: string,
+	params?: ScheduleTemplateQueryParams,
+): Promise<PaginatedResponse<ScheduleTemplate>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	const response = await api['schedule-templates'].get({ $query: query });
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch schedule templates:', response.error);
+		throw new Error('Failed to fetch schedule templates');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleTemplate[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches a schedule template by ID on the server.
+ */
+export async function fetchScheduleTemplateDetailServer(
+	cookieHeader: string,
+	id: string,
+): Promise<ScheduleTemplate | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api['schedule-templates'][id].get();
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch schedule template detail:', response.error);
+		return null;
+	}
+
+	return (response.data?.data as ScheduleTemplate) ?? null;
+}
+
+/**
+ * Fetches schedule exceptions with cookie forwarding.
+ */
+export async function fetchScheduleExceptionsListServer(
+	cookieHeader: string,
+	params?: ScheduleExceptionQueryParams,
+): Promise<PaginatedResponse<ScheduleException>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		fromDate?: Date;
+		toDate?: Date;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params.fromDate) {
+		query.fromDate =
+			typeof params.fromDate === 'string' ? new Date(params.fromDate) : params.fromDate;
+	}
+	if (params.toDate) {
+		query.toDate = typeof params.toDate === 'string' ? new Date(params.toDate) : params.toDate;
+	}
+
+	const response = await api['schedule-exceptions'].get({ $query: query });
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch schedule exceptions:', response.error);
+		throw new Error('Failed to fetch schedule exceptions');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleException[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches the scheduling calendar on the server.
+ */
+export async function fetchCalendarServer(
+	cookieHeader: string,
+	params: CalendarQueryParams,
+): Promise<CalendarEmployee[]> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		startDate: Date;
+		endDate: Date;
+		organizationId?: string;
+		locationId?: string;
+		employeeId?: string;
+	} = {
+		startDate: typeof params.startDate === 'string' ? new Date(params.startDate) : params.startDate,
+		endDate: typeof params.endDate === 'string' ? new Date(params.endDate) : params.endDate,
+	};
+
+	if (params.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (params.locationId) {
+		query.locationId = params.locationId;
+	}
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+
+	const response = await api.scheduling.calendar.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch scheduling calendar:', response.error);
+		throw new Error('Failed to fetch scheduling calendar');
+	}
+
+	return (response.data?.data ?? []) as CalendarEmployee[];
 }
 
 // ============================================================================

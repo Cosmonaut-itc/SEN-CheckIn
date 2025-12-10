@@ -72,6 +72,34 @@ export interface PayrollCalculateParams {
 }
 
 /**
+ * Query parameters for schedule templates.
+ */
+export interface ScheduleTemplateQueryParams extends ListQueryParams {
+	organizationId?: string;
+}
+
+/**
+ * Query parameters for schedule exceptions.
+ */
+export interface ScheduleExceptionQueryParams extends ListQueryParams {
+	employeeId?: string;
+	fromDate?: Date | string;
+	toDate?: Date | string;
+	organizationId?: string;
+}
+
+/**
+ * Query parameters for calendar schedules.
+ */
+export interface CalendarQueryParams extends Record<string, unknown> {
+	startDate: Date | string;
+	endDate: Date | string;
+	organizationId?: string;
+	locationId?: string;
+	employeeId?: string;
+}
+
+/**
  * Constructs a query key array from a base key and optional parameters.
  *
  * This utility function creates consistent, type-safe query keys that can be used
@@ -314,6 +342,34 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for schedule templates.
+	 */
+	scheduleTemplates: {
+		all: ['scheduleTemplates'] as const,
+		list: (params?: ScheduleTemplateQueryParams) =>
+			queryKeyConstructor(['scheduleTemplates', 'list'] as const, params),
+		detail: (id: string) => ['scheduleTemplates', 'detail', id] as const,
+	},
+
+	/**
+	 * Query keys for schedule exceptions.
+	 */
+	scheduleExceptions: {
+		all: ['scheduleExceptions'] as const,
+		list: (params?: ScheduleExceptionQueryParams) =>
+			queryKeyConstructor(['scheduleExceptions', 'list'] as const, params),
+	},
+
+	/**
+	 * Query keys for scheduling/calendar queries.
+	 */
+	scheduling: {
+		all: ['scheduling'] as const,
+		calendar: (params: CalendarQueryParams) =>
+			queryKeyConstructor(['scheduling', 'calendar'] as const, params),
+	},
+
+	/**
 	 * Query keys for device authorization (BetterAuth device flow).
 	 */
 	deviceAuth: {
@@ -395,6 +451,32 @@ export const mutationKeys = {
 		create: ['organizations', 'create'] as const,
 		update: ['organizations', 'update'] as const,
 		delete: ['organizations', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for schedule templates.
+	 */
+	scheduleTemplates: {
+		create: ['scheduleTemplates', 'create'] as const,
+		update: ['scheduleTemplates', 'update'] as const,
+		delete: ['scheduleTemplates', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for schedule exceptions.
+	 */
+	scheduleExceptions: {
+		create: ['scheduleExceptions', 'create'] as const,
+		update: ['scheduleExceptions', 'update'] as const,
+		delete: ['scheduleExceptions', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for scheduling operations.
+	 */
+	scheduling: {
+		assignTemplate: ['scheduling', 'assignTemplate'] as const,
+		validate: ['scheduling', 'validate'] as const,
 	},
 
 	/**

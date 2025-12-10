@@ -147,6 +147,7 @@ export const createEmployeeSchema = z.object({
 	locationId: z.string().uuid().optional(),
 	organizationId: z.string().optional(),
 	shiftType: shiftTypeEnum.default('DIURNA').optional(),
+	scheduleTemplateId: z.string().uuid().optional(),
 	schedule: z
 		.array(
 			z.object({
@@ -174,6 +175,7 @@ export const updateEmployeeSchema = z.object({
 	hireDate: z.coerce.date().nullable().optional(),
 	locationId: z.string().uuid().nullable().optional(),
 	shiftType: shiftTypeEnum.optional(),
+	scheduleTemplateId: z.string().uuid().nullable().optional(),
 	schedule: z
 		.array(
 			z.object({

@@ -226,6 +226,216 @@ export function SelectField<TValue extends string>({
 	);
 }
 
+/**
+ * Time input field with label and error display.
+ *
+ * @param props - Component props including label and optional description
+ * @returns A rendered time input field
+ */
+export function TimeField({
+	label,
+	placeholder,
+	description,
+	disabled,
+	orientation = 'horizontal',
+}: CommonFieldProps & { orientation?: 'horizontal' | 'vertical' }): React.ReactElement {
+	const field = useFieldContext();
+
+	if (orientation === 'vertical') {
+		return (
+			<div className="grid gap-2">
+				<Label htmlFor={field.name}>{label}</Label>
+				<Input
+					id={field.name}
+					name={field.name}
+					type="time"
+					value={(field.state.value as string) ?? ''}
+					onChange={(e) => field.handleChange(e.target.value)}
+					onBlur={field.handleBlur}
+					placeholder={placeholder}
+					disabled={disabled}
+				/>
+				{description && (
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="grid grid-cols-4 items-center gap-4">
+			<Label htmlFor={field.name} className="text-right">
+				{label}
+			</Label>
+			<div className="col-span-3">
+				<Input
+					id={field.name}
+					name={field.name}
+					type="time"
+					value={(field.state.value as string) ?? ''}
+					onChange={(e) => field.handleChange(e.target.value)}
+					onBlur={field.handleBlur}
+					placeholder={placeholder}
+					disabled={disabled}
+				/>
+				{description && (
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Date input field with label and error display.
+ *
+ * @param props - Component props including label and optional description
+ * @returns A rendered date input field
+ */
+export function DateField({
+	label,
+	placeholder,
+	description,
+	disabled,
+	orientation = 'horizontal',
+}: CommonFieldProps & { orientation?: 'horizontal' | 'vertical' }): React.ReactElement {
+	const field = useFieldContext();
+
+	if (orientation === 'vertical') {
+		return (
+			<div className="grid gap-2">
+				<Label htmlFor={field.name}>{label}</Label>
+				<Input
+					id={field.name}
+					name={field.name}
+					type="date"
+					value={(field.state.value as string) ?? ''}
+					onChange={(e) => field.handleChange(e.target.value)}
+					onBlur={field.handleBlur}
+					placeholder={placeholder}
+					disabled={disabled}
+				/>
+				{description && (
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="grid grid-cols-4 items-center gap-4">
+			<Label htmlFor={field.name} className="text-right">
+				{label}
+			</Label>
+			<div className="col-span-3">
+				<Input
+					id={field.name}
+					name={field.name}
+					type="date"
+					value={(field.state.value as string) ?? ''}
+					onChange={(e) => field.handleChange(e.target.value)}
+					onBlur={field.handleBlur}
+					placeholder={placeholder}
+					disabled={disabled}
+				/>
+				{description && (
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
+/**
+ * Toggle (checkbox) field with label and error display.
+ *
+ * @param props - Component props including label and optional description
+ * @returns A rendered toggle input field
+ */
+export function ToggleField({
+	label,
+	description,
+	disabled,
+	orientation = 'horizontal',
+}: CommonFieldProps & { orientation?: 'horizontal' | 'vertical' }): React.ReactElement {
+	const field = useFieldContext();
+	const checked = Boolean(field.state.value);
+
+	if (orientation === 'vertical') {
+		return (
+			<div className="grid gap-2">
+				<div className="flex items-center gap-2">
+					<input
+						type="checkbox"
+						id={field.name}
+						checked={checked}
+						onChange={(e) => field.handleChange(e.target.checked)}
+						onBlur={field.handleBlur}
+						disabled={disabled}
+						className="h-4 w-4 accent-primary"
+					/>
+					<Label htmlFor={field.name}>{label}</Label>
+				</div>
+				{description && (
+					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		);
+	}
+
+	return (
+		<div className="grid grid-cols-4 items-center gap-4">
+			<Label htmlFor={field.name} className="text-right">
+				{label}
+			</Label>
+			<div className="col-span-3 flex items-center gap-2">
+				<input
+					type="checkbox"
+					id={field.name}
+					checked={checked}
+					onChange={(e) => field.handleChange(e.target.checked)}
+					onBlur={field.handleBlur}
+					disabled={disabled}
+					className="h-4 w-4 accent-primary"
+				/>
+				{description && (
+					<p className="text-xs text-muted-foreground">{description}</p>
+				)}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
 // ============================================================================
 // Pre-bound Form Components
 // ============================================================================
@@ -301,6 +511,9 @@ export const { useAppForm, withForm } = createFormHook({
 		TextField,
 		TextareaField,
 		SelectField,
+		TimeField,
+		DateField,
+		ToggleField,
 	},
 	formComponents: {
 		SubmitButton,

@@ -176,43 +176,42 @@ const calculateExpectedHoursWithOverrides = (args: {
 };
 
 /**
- * Calculates worked hours grouped by day (YYYY-MM-DD).
+ * Calculates worked hours grouped by local day (yyyy-MM-dd).
  *
  * @param attendance - Attendance records
  * @returns Map of date string to hours worked
  */
 const calculateDailyWorkedHours = (attendance: AttendanceRow[]): Map<string, number> => {
-	const sorted = [...attendance].sort(
-		(a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
-	);
-	const dayMinutes = new Map<string, number>();
-	let openCheckIn: Date | null = null;
+        const sorted = [...attendance].sort(
+                (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+        );
+        const dayMinutes = new Map<string, number>();
+        let openCheckIn: Date | null = null;
 
-	for (const record of sorted) {
-		if (record.type === 'CHECK_IN') {
-			openCheckIn = record.timestamp;
-		} else if (record.type === 'CHECK_OUT' && openCheckIn) {
+        /**
+         * Returns the next local midnight for a given date.
+         *
+         * @param date - Date instance to evaluate
+         * @returns Date set to the following midnight in local time
+         */
+        const nextLocalMidnight = (date: Date): Date =>
+                new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 0, 0, 0, 0);
+
+        for (const record of sorted) {
+                if (record.type === 'CHECK_IN') {
+                        openCheckIn = record.timestamp;
+                } else if (record.type === 'CHECK_OUT' && openCheckIn) {
 			const checkIn = openCheckIn;
 			const checkOut = record.timestamp;
 
-			if (isAfter(checkOut, checkIn)) {
-				let segmentStart = checkIn;
+                        if (isAfter(checkOut, checkIn)) {
+                                let segmentStart = checkIn;
 
-				while (isAfter(checkOut, segmentStart)) {
-					const currentDayKey = segmentStart.toISOString().slice(0, 10);
-					const nextMidnight = new Date(
-						Date.UTC(
-							segmentStart.getUTCFullYear(),
-							segmentStart.getUTCMonth(),
-							segmentStart.getUTCDate() + 1,
-							0,
-							0,
-							0,
-							0,
-						),
-					);
-					const segmentEnd = isBefore(checkOut, nextMidnight) ? checkOut : nextMidnight;
-					const segmentMinutes = differenceInMinutes(segmentEnd, segmentStart);
+                                while (isAfter(checkOut, segmentStart)) {
+                                        const currentDayKey = formatLocalDateKey(segmentStart);
+                                        const nextMidnight = nextLocalMidnight(segmentStart);
+                                        const segmentEnd = isBefore(checkOut, nextMidnight) ? checkOut : nextMidnight;
+                                        const segmentMinutes = differenceInMinutes(segmentEnd, segmentStart);
 
 					if (segmentMinutes > 0) {
 						const current = dayMinutes.get(currentDayKey) ?? 0;
@@ -394,14 +393,14 @@ const calculatePayroll = async (args: {
 		const warnings: PayrollCalculationRow['warnings'] = [];
 
 		for (const [dateKey, dayHours] of dailyHoursMap.entries()) {
-			const dayDate = new Date(`${dateKey}T00:00:00Z`);
-			const dayNormal = Math.min(dayHours, shiftLimits.dailyHours);
-			const dayOvertime = Math.max(0, dayHours - shiftLimits.dailyHours);
+                        const dayDate = new Date(`${dateKey}T00:00:00`);
+                        const dayNormal = Math.min(dayHours, shiftLimits.dailyHours);
+                        const dayOvertime = Math.max(0, dayHours - shiftLimits.dailyHours);
 
 			normalHours += dayNormal;
 			overtimeFromDaily += dayOvertime;
 
-			const dayOfWeek = dayDate.getUTCDay();
+                        const dayOfWeek = dayDate.getDay();
 			if (dayOfWeek === 0) {
 				sundayHoursWorked += dayHours;
 				if (dayHours > 0) {

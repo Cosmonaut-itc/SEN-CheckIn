@@ -364,35 +364,37 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 				return { error: 'One or more employees do not belong to this organization' };
 			}
 
-			const templateDays = await db
-				.select()
-				.from(scheduleTemplateDay)
-				.where(eq(scheduleTemplateDay.templateId, templateId));
+                        const templateDays = await db
+                                .select()
+                                .from(scheduleTemplateDay)
+                                .where(eq(scheduleTemplateDay.templateId, templateId));
 
-			for (const emp of employeesToUpdate) {
-				await db
-					.update(employee)
-					.set({
-						scheduleTemplateId: templateId,
-						shiftType: templateRecord.shiftType,
-					})
-					.where(eq(employee.id, emp.id));
+                        await db.transaction(async (tx) => {
+                                for (const emp of employeesToUpdate) {
+                                        await tx
+                                                .update(employee)
+                                                .set({
+                                                        scheduleTemplateId: templateId,
+                                                        shiftType: templateRecord.shiftType,
+                                                })
+                                                .where(eq(employee.id, emp.id));
 
-				await db.delete(employeeSchedule).where(eq(employeeSchedule.employeeId, emp.id));
-				if (templateDays.length > 0) {
-					const scheduleRows = templateDays.map((day) => ({
-						employeeId: emp.id,
-						dayOfWeek: day.dayOfWeek,
-						startTime: day.startTime,
-						endTime: day.endTime,
-						isWorkingDay: day.isWorkingDay ?? true,
-					}));
-					await db.insert(employeeSchedule).values(scheduleRows);
-				}
-			}
+                                        await tx.delete(employeeSchedule).where(eq(employeeSchedule.employeeId, emp.id));
+                                        if (templateDays.length > 0) {
+                                                const scheduleRows = templateDays.map((day) => ({
+                                                        employeeId: emp.id,
+                                                        dayOfWeek: day.dayOfWeek,
+                                                        startTime: day.startTime,
+                                                        endTime: day.endTime,
+                                                        isWorkingDay: day.isWorkingDay ?? true,
+                                                }));
+                                                await tx.insert(employeeSchedule).values(scheduleRows);
+                                        }
+                                }
+                        });
 
-			return { updated: employeesToUpdate.length };
-		},
+                        return { updated: employeesToUpdate.length };
+                },
 		{
 			body: z.object({
 				templateId: z.string().uuid('Invalid template ID'),

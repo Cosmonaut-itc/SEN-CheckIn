@@ -1,6 +1,6 @@
 import type { BetterFetchError } from 'better-auth/client';
 import * as ExpoDevice from 'expo-device';
-import { useNavigationContainerRef, useRouter, type Href } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -157,7 +157,6 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 
 export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
-	const navigationRef = useNavigationContainerRef();
 	const { session, isLoading, setSession } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
 	const accentColor = useThemeColor({}, 'primary');
@@ -197,7 +196,7 @@ export default function LoginScreen(): JSX.Element {
 	}, []);
 
 	/**
-	 * Safely replace the current route once the root NavigationContainer is ready.
+	 * Safely replace the current route once Expo Router is ready.
 	 *
 	 * Expo Router throws when calling `router.replace` before the root layout mounts.
 	 * This helper retries briefly to avoid crashing during early app startup transitions.
@@ -208,13 +207,23 @@ export default function LoginScreen(): JSX.Element {
 	 */
 	const replaceWhenReady = useCallback(
 		function replaceWhenReady(href: Href, remainingAttempts = 40): void {
-			if (navigationRef.isReady()) {
+			try {
 				router.replace(href as never);
 				return;
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				const isMountError =
+					message.includes('Attempted to navigate before mounting the Root Layout component') ||
+					message.includes("Couldn't find a navigation object");
+
+				if (!isMountError) {
+					console.warn('[login] Navigation failed', { href, message });
+					return;
+				}
 			}
 
 			if (remainingAttempts <= 0) {
-				console.warn('[login] Navigation skipped; router not ready', href);
+				console.warn('[login] Navigation skipped; router not ready', { href });
 				return;
 			}
 
@@ -226,7 +235,7 @@ export default function LoginScreen(): JSX.Element {
 				replaceWhenReady(href, remainingAttempts - 1);
 			}, 50);
 		},
-		[navigationRef, router],
+		[router],
 	);
 
 	const replaceToDeviceSetup = useCallback(

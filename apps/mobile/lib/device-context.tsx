@@ -8,6 +8,7 @@ import * as Crypto from 'expo-crypto';
 
 import type { Device } from '@sen-checkin/types';
 import { fetchDeviceDetail, sendDeviceHeartbeat, updateDeviceSettings } from './client-functions';
+import { useAuthContext } from '@/providers/auth-provider';
 
 type DeviceSettings = {
   deviceId: string;
@@ -151,6 +152,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
   const [settings, setSettings] = useState<DeviceSettings | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const { session, isLoading: isAuthLoading } = useAuthContext();
 
   useEffect(() => {
     readStoredSettings().then((stored) => {
@@ -258,6 +260,10 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
   useEffect(() => {
     let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
+    if (!settings?.deviceId || isAuthLoading || !session) {
+      return undefined;
+    }
+
     const sendHeartbeat = async () => {
       if (!settings?.deviceId) return;
       try {
@@ -300,7 +306,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
       subscription.remove();
       stopHeartbeat();
     };
-  }, [settings?.deviceId]);
+  }, [isAuthLoading, session, settings?.deviceId]);
 
   /**
    * Clear persisted device settings from memory and storage.

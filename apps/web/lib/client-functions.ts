@@ -1326,23 +1326,11 @@ export async function fetchCalendar(params: CalendarQueryParams): Promise<Calend
 		throw new Error('Start and end date are required');
 	}
 
-	const query: {
-		startDate: Date;
-		endDate: Date;
-		organizationId?: string;
-		locationId?: string;
-		employeeId?: string;
-	} = { startDate, endDate };
-
-	if (params.organizationId) {
-		query.organizationId = params.organizationId;
-	}
-	if (params.locationId) {
-		query.locationId = params.locationId;
-	}
-	if (params.employeeId) {
-		query.employeeId = params.employeeId;
-	}
+	const query = {
+		...params,
+		startDate,
+		endDate,
+	};
 
 	const response = await api.scheduling.calendar.get({
 		$query: query,

@@ -101,7 +101,7 @@ export function ExceptionFormDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl lg:max-w-6xl">
+			<DialogContent className="max-w-xl">
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();

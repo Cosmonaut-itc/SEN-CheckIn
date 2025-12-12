@@ -796,29 +796,12 @@ export async function fetchCalendarServer(
 	params: CalendarQueryParams,
 ): Promise<CalendarEmployee[]> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
-	const query: {
-		startDate: Date;
-		endDate: Date;
-		organizationId?: string;
-		locationId?: string;
-		employeeId?: string;
-	} = {
-		startDate: typeof params.startDate === 'string' ? new Date(params.startDate) : params.startDate,
-		endDate: typeof params.endDate === 'string' ? new Date(params.endDate) : params.endDate,
-	};
-
-	if (params.organizationId) {
-		query.organizationId = params.organizationId;
-	}
-	if (params.locationId) {
-		query.locationId = params.locationId;
-	}
-	if (params.employeeId) {
-		query.employeeId = params.employeeId;
-	}
-
 	const response = await api.scheduling.calendar.get({
-		$query: query,
+		$query: {
+			...params,
+			startDate: typeof params.startDate === 'string' ? new Date(params.startDate) : params.startDate,
+			endDate: typeof params.endDate === 'string' ? new Date(params.endDate) : params.endDate,
+		},
 	});
 
 	if (response.error) {

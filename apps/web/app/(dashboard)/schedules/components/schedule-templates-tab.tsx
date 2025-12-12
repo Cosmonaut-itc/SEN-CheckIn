@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner';
 import { Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
+import { formatMonthDayUtc } from '@/lib/date-format';
 import {
 	fetchScheduleTemplatesList,
 	fetchScheduleTemplateDetail,
@@ -288,10 +289,7 @@ export function ScheduleTemplatesTab({
 									<TableCell className="uppercase">{template.shiftType}</TableCell>
 									<TableCell>{summarizeDays(template)}</TableCell>
 									<TableCell>
-										{new Date(template.updatedAt).toLocaleDateString(undefined, {
-											month: 'short',
-											day: 'numeric',
-										})}
+										{formatMonthDayUtc(new Date(template.updatedAt))}
 									</TableCell>
 									<TableCell>
 										<div className="flex items-center gap-2">
@@ -431,4 +429,3 @@ export function ScheduleTemplatesTab({
 		</div>
 	);
 }
-

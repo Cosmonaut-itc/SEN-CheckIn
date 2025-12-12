@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,6 +9,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { queryKeys } from '@/lib/query-keys';
+import { formatDateRangeUtc } from '@/lib/date-format';
 import {
 	fetchCalendar,
 	type CalendarEmployee,
@@ -44,12 +45,12 @@ interface CalendarViewProps {
  */
 function computeWeekRange(reference: Date, weekStartDay: number): { start: Date; end: Date } {
 	const normalized = new Date(reference);
-	normalized.setHours(0, 0, 0, 0);
-	const diff = (normalized.getDay() - weekStartDay + 7) % 7;
+	normalized.setUTCHours(0, 0, 0, 0);
+	const diff = (normalized.getUTCDay() - weekStartDay + 7) % 7;
 	const start = new Date(normalized);
-	start.setDate(normalized.getDate() - diff);
+	start.setUTCDate(normalized.getUTCDate() - diff);
 	const end = new Date(start);
-	end.setDate(start.getDate() + 6);
+	end.setUTCDate(start.getUTCDate() + 6);
 	return { start, end };
 }
 
@@ -60,8 +61,10 @@ function computeWeekRange(reference: Date, weekStartDay: number): { start: Date;
  * @returns Date range for the month
  */
 function computeMonthRange(reference: Date): { start: Date; end: Date } {
-	const start = new Date(reference.getFullYear(), reference.getMonth(), 1);
-	const end = new Date(reference.getFullYear(), reference.getMonth() + 1, 0);
+	const year = reference.getUTCFullYear();
+	const month = reference.getUTCMonth();
+	const start = new Date(Date.UTC(year, month, 1));
+	const end = new Date(Date.UTC(year, month + 1, 0));
 	return { start, end };
 }
 
@@ -79,6 +82,7 @@ export function CalendarView({
 	organizationId,
 	weekStartDay,
 }: CalendarViewProps): React.ReactElement {
+	const [hasHydrated, setHasHydrated] = useState<boolean>(false);
 	const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
 	const [scope, setScope] = useState<'location' | 'employee'>('location');
 	const [referenceDate, setReferenceDate] = useState<Date>(() => {
@@ -114,18 +118,27 @@ export function CalendarView({
 		enabled: Boolean(organizationId),
 	});
 
-	const hasHydrated = true;
+	useEffect(() => {
+		const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
+			setHasHydrated(true);
+		}, 0);
+
+		return () => {
+			clearTimeout(timeoutId);
+		};
+	}, []);
 
 	const entries = calendarData ?? [];
 	const isEmpty = entries.length === 0;
-	const showData = hasHydrated && entries.length > 0;
+	const showSkeleton = !hasHydrated || (isFetching && isEmpty);
+	const showEmptyState = hasHydrated && !isFetching && isEmpty;
 
 	const handlePrev = (): void => {
 		const next = new Date(referenceDate);
 		if (viewMode === 'week') {
-			next.setDate(next.getDate() - 7);
+			next.setUTCDate(next.getUTCDate() - 7);
 		} else {
-			next.setMonth(next.getMonth() - 1);
+			next.setUTCMonth(next.getUTCMonth() - 1);
 		}
 		setReferenceDate(next);
 	};
@@ -133,9 +146,9 @@ export function CalendarView({
 	const handleNext = (): void => {
 		const next = new Date(referenceDate);
 		if (viewMode === 'week') {
-			next.setDate(next.getDate() + 7);
+			next.setUTCDate(next.getUTCDate() + 7);
 		} else {
-			next.setMonth(next.getMonth() + 1);
+			next.setUTCMonth(next.getUTCMonth() + 1);
 		}
 		setReferenceDate(next);
 	};
@@ -235,12 +248,12 @@ export function CalendarView({
 
 				<div className="text-sm text-muted-foreground">
 					Range:{' '}
-					{`${range.start.toLocaleDateString()} – ${range.end.toLocaleDateString()}`}
+					{formatDateRangeUtc(range.start, range.end)}
 				</div>
 			</div>
 
 			<div className="grid gap-4 md:grid-cols-2">
-				{(!showData || (isFetching && isEmpty))
+				{showSkeleton
 					? Array.from({ length: 4 }).map((_, idx) => (
 							<div key={idx} className="rounded-xl border p-4">
 								<div className="h-4 w-32 rounded bg-muted" />
@@ -257,7 +270,7 @@ export function CalendarView({
 					  ))}
 			</div>
 
-			{showData && !isFetching && isEmpty && (
+			{showEmptyState && (
 				<div className="rounded-md border p-4 text-sm text-muted-foreground">
 					No schedules found for the selected range.
 				</div>
@@ -265,4 +278,3 @@ export function CalendarView({
 		</div>
 	);
 }
-

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { CalendarEmployee } from '@/lib/client-functions';
+import { formatMonthDayUtc } from '@/lib/date-format';
 
 /**
  * Props for EmployeeScheduleCard component.
@@ -82,10 +83,7 @@ export function EmployeeScheduleCard({
 								className={`space-y-1 rounded-md border p-2 text-xs ${exceptionBadge}`}
 							>
 								<div className="font-semibold">
-									{date.toLocaleDateString(undefined, {
-										month: 'short',
-										day: 'numeric',
-									})}
+									{formatMonthDayUtc(date)}
 								</div>
 								<div className="text-muted-foreground">
 									{isWorking ? `${day.startTime} - ${day.endTime}` : 'Off'}
@@ -106,4 +104,3 @@ export function EmployeeScheduleCard({
 		</Card>
 	);
 }
-

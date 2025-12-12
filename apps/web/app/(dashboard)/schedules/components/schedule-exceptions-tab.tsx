@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { toast } from 'sonner';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
+import { formatShortDateUtc } from '@/lib/date-format';
 import {
 	fetchScheduleExceptionsList,
 	type Employee,
@@ -274,7 +275,7 @@ export function ScheduleExceptionsTab({
 											: exception.employeeId}
 									</TableCell>
 									<TableCell>
-										{new Date(exception.exceptionDate).toLocaleDateString()}
+										{formatShortDateUtc(new Date(exception.exceptionDate))}
 									</TableCell>
 									<TableCell className="uppercase">{exception.exceptionType}</TableCell>
 									<TableCell>
@@ -347,4 +348,3 @@ export function ScheduleExceptionsTab({
 		</div>
 	);
 }
-

@@ -20,13 +20,13 @@ export const dynamic = 'force-dynamic';
  */
 function getWeekRange(reference: Date, weekStartDay: number = 1): { start: Date; end: Date } {
 	const normalized = new Date(reference);
-	normalized.setHours(0, 0, 0, 0);
-	const dayOfWeek = normalized.getDay();
+	normalized.setUTCHours(0, 0, 0, 0);
+	const dayOfWeek = normalized.getUTCDay();
 	const diff = (dayOfWeek - weekStartDay + 7) % 7;
 	const start = new Date(normalized);
-	start.setDate(normalized.getDate() - diff);
+	start.setUTCDate(normalized.getUTCDate() - diff);
 	const end = new Date(start);
-	end.setDate(start.getDate() + 6);
+	end.setUTCDate(start.getUTCDate() + 6);
 	return { start, end };
 }
 
@@ -44,8 +44,9 @@ export default async function SchedulesPage(): Promise<React.ReactElement> {
 	const { start, end } = getWeekRange(new Date(), 1);
 
 	if (orgContext.organizationId) {
+		// Prefetch without await for streaming support
 		prefetchScheduleTemplates(queryClient, {
-			limit: 50,
+			limit: 100,
 			offset: 0,
 			organizationId: orgContext.organizationId,
 		});
@@ -68,4 +69,3 @@ export default async function SchedulesPage(): Promise<React.ReactElement> {
 		</HydrationBoundary>
 	);
 }
-

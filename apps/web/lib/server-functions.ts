@@ -441,6 +441,17 @@ export function prefetchPayrollRuns(
 // Scheduling Prefetch Functions
 // ============================================================================
 
+/**
+ * Prefetches schedule templates list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for pagination and organization scope
+ * @returns Nothing
+ */
 export function prefetchScheduleTemplates(
 	queryClient: QueryClient,
 	params?: ScheduleTemplateQueryParams,
@@ -454,6 +465,17 @@ export function prefetchScheduleTemplates(
 	});
 }
 
+/**
+ * Prefetches a single schedule template detail for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param id - Schedule template identifier
+ * @returns Nothing
+ */
 export function prefetchScheduleTemplateDetail(queryClient: QueryClient, id: string): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.scheduleTemplates.detail(id),
@@ -464,6 +486,17 @@ export function prefetchScheduleTemplateDetail(queryClient: QueryClient, id: str
 	});
 }
 
+/**
+ * Prefetches schedule exceptions list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for filtering and pagination
+ * @returns Nothing
+ */
 export function prefetchScheduleExceptions(
 	queryClient: QueryClient,
 	params?: ScheduleExceptionQueryParams,
@@ -479,6 +512,17 @@ export function prefetchScheduleExceptions(
 	});
 }
 
+/**
+ * Prefetches the scheduling calendar for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Calendar query parameters
+ * @returns Nothing
+ */
 export function prefetchCalendar(queryClient: QueryClient, params: CalendarQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.scheduling.calendar(params),

@@ -1,7 +1,7 @@
 import React from 'react';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
-import { prefetchCalendar, prefetchScheduleTemplates } from '@/lib/server-functions';
+import { prefetchScheduleTemplates } from '@/lib/server-functions';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
 import { SchedulesPageClient } from './schedules-client';
@@ -48,12 +48,6 @@ export default async function SchedulesPage(): Promise<React.ReactElement> {
 		prefetchScheduleTemplates(queryClient, {
 			limit: 100,
 			offset: 0,
-			organizationId: orgContext.organizationId,
-		});
-
-		prefetchCalendar(queryClient, {
-			startDate: start.toISOString(),
-			endDate: end.toISOString(),
 			organizationId: orgContext.organizationId,
 		});
 	}

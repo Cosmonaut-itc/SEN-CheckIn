@@ -32,6 +32,8 @@ export interface CreateEmployeeInput {
 	phone?: string;
 	/** Job position ID (required for new employees) */
 	jobPositionId: string;
+	/** Location ID (required for new employees) */
+	locationId: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
@@ -60,6 +62,8 @@ export interface UpdateEmployeeInput {
 	phone?: string;
 	/** Job position ID (optional for updates, but non-nullable when present) */
 	jobPositionId?: string;
+	/** Location ID (required for updates) */
+	locationId: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
@@ -112,6 +116,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			email: input.email || undefined,
 			phone: input.phone || undefined,
 			jobPositionId: input.jobPositionId,
+			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
 			shiftType: input.shiftType ?? 'DIURNA',
@@ -173,6 +178,7 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			email: input.email || undefined,
 			phone: input.phone || undefined,
 			jobPositionId: input.jobPositionId || undefined,
+			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
 			shiftType: input.shiftType,

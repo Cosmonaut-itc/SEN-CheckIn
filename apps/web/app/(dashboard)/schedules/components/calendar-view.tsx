@@ -16,7 +16,10 @@ import {
 	type Employee,
 	type Location,
 } from '@/lib/client-functions';
-import { EmployeeScheduleCard } from './employee-schedule-card';
+import { addMonths, addWeeks, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from 'date-fns';
+import { LocationScheduleCard } from './location-schedule-card';
+
+const EMPTY_CALENDAR_EMPLOYEES: CalendarEmployee[] = [];
 
 /**
  * Props for the CalendarView component.
@@ -37,35 +40,61 @@ interface CalendarViewProps {
 }
 
 /**
- * Computes the start and end dates of the week containing the reference date.
+ * Converts a date to a local date representing the same UTC calendar day.
  *
- * @param reference - Date to compute from
- * @param weekStartDay - Day index the week starts on (0=Sun, 1=Mon...)
- * @returns Date range for the week
+ * This allows date-fns functions (which operate in local time) to be used
+ * safely for UTC-calendar-based ranges by treating UTC day components as local.
+ *
+ * @param date - Reference date
+ * @returns Local date with UTC year/month/day
  */
-function computeWeekRange(reference: Date, weekStartDay: number): { start: Date; end: Date } {
-	const normalized = new Date(reference);
-	normalized.setUTCHours(0, 0, 0, 0);
-	const diff = (normalized.getUTCDay() - weekStartDay + 7) % 7;
-	const start = new Date(normalized);
-	start.setUTCDate(normalized.getUTCDate() - diff);
-	const end = new Date(start);
-	end.setUTCDate(start.getUTCDate() + 6);
-	return { start, end };
+function toUtcCalendarDateLocal(date: Date): Date {
+	return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
 
 /**
- * Computes the start and end dates of the month containing the reference date.
+ * Converts a local calendar date to a UTC midnight date.
+ *
+ * @param date - Local calendar date
+ * @returns Date at UTC midnight for the provided calendar day
+ */
+function toUtcMidnight(date: Date): Date {
+	return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+}
+
+/**
+ * Computes the start and end dates (UTC midnight) of the week containing the reference date.
  *
  * @param reference - Date to compute from
- * @returns Date range for the month
+ * @param weekStartDay - Day index the week starts on (0=Sun, 1=Mon...)
+ * @returns Date range for the week (UTC midnight boundaries)
+ */
+function computeWeekRange(reference: Date, weekStartDay: number): { start: Date; end: Date } {
+	const referenceCalendar = toUtcCalendarDateLocal(reference);
+	const startLocal = startOfWeek(referenceCalendar, {
+		weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+	});
+	const endLocal = endOfWeek(referenceCalendar, {
+		weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6,
+	});
+	return {
+		start: toUtcMidnight(startLocal),
+		end: toUtcMidnight(endLocal),
+	};
+}
+
+/**
+ * Computes the start and end dates (UTC midnight) of the month containing the reference date.
+ *
+ * @param reference - Date to compute from
+ * @returns Date range for the month (UTC midnight boundaries)
  */
 function computeMonthRange(reference: Date): { start: Date; end: Date } {
-	const year = reference.getUTCFullYear();
-	const month = reference.getUTCMonth();
-	const start = new Date(Date.UTC(year, month, 1));
-	const end = new Date(Date.UTC(year, month + 1, 0));
-	return { start, end };
+	const referenceCalendar = toUtcCalendarDateLocal(reference);
+	return {
+		start: toUtcMidnight(startOfMonth(referenceCalendar)),
+		end: toUtcMidnight(endOfMonth(referenceCalendar)),
+	};
 }
 
 /**
@@ -84,14 +113,40 @@ export function CalendarView({
 }: CalendarViewProps): React.ReactElement {
 	const [hasHydrated, setHasHydrated] = useState<boolean>(false);
 	const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
-	const [scope, setScope] = useState<'location' | 'employee'>('location');
+	const [selectedLocationId, setSelectedLocationId] = useState<string>('');
 	const [referenceDate, setReferenceDate] = useState<Date>(() => {
 		const start = new Date(initialStartDate);
 		const end = new Date(initialEndDate);
 		return new Date((start.getTime() + end.getTime()) / 2);
 	});
-	const [selectedLocationId, setSelectedLocationId] = useState<string>('all');
-	const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
+
+	const sortedLocations = useMemo(() => {
+		return [...locations].sort((a, b) => a.name.localeCompare(b.name));
+	}, [locations]);
+
+	const locationIdSet = useMemo(() => {
+		return new Set(sortedLocations.map((loc) => loc.id));
+	}, [sortedLocations]);
+
+	const effectiveLocationId = useMemo(() => {
+		const normalizedSelected = locationIdSet.has(selectedLocationId) ? selectedLocationId : '';
+		return normalizedSelected || sortedLocations[0]?.id || '';
+	}, [locationIdSet, selectedLocationId, sortedLocations]);
+
+	const selectedLocation = useMemo(() => {
+		if (!effectiveLocationId) {
+			return null;
+		}
+		const location = sortedLocations.find((loc) => loc.id === effectiveLocationId);
+		return location ? { id: location.id, name: location.name } : { id: effectiveLocationId, name: effectiveLocationId };
+	}, [effectiveLocationId, sortedLocations]);
+
+	const employeesInLocation = useMemo(() => {
+		if (!effectiveLocationId) {
+			return [];
+		}
+		return employees.filter((employee) => employee.locationId === effectiveLocationId);
+	}, [employees, effectiveLocationId]);
 
 	const range = useMemo(() => {
 		return viewMode === 'week'
@@ -104,18 +159,15 @@ export function CalendarView({
 			startDate: range.start.toISOString(),
 			endDate: range.end.toISOString(),
 			organizationId: organizationId ?? undefined,
-			locationId:
-				scope === 'location' && selectedLocationId !== 'all' ? selectedLocationId : undefined,
-			employeeId:
-				scope === 'employee' && selectedEmployeeId !== 'all' ? selectedEmployeeId : undefined,
+			locationId: effectiveLocationId || undefined,
 		}),
-		[range.end, range.start, organizationId, scope, selectedEmployeeId, selectedLocationId],
+		[effectiveLocationId, range.end, range.start, organizationId],
 	);
 
 	const { data: calendarData, isFetching } = useQuery<CalendarEmployee[]>({
 		queryKey: queryKeys.scheduling.calendar(calendarQueryParams),
 		queryFn: () => fetchCalendar(calendarQueryParams),
-		enabled: Boolean(organizationId),
+		enabled: Boolean(organizationId) && Boolean(effectiveLocationId),
 	});
 
 	useEffect(() => {
@@ -128,33 +180,48 @@ export function CalendarView({
 		};
 	}, []);
 
-	const entries = calendarData ?? [];
+	const entries = calendarData ?? EMPTY_CALENDAR_EMPLOYEES;
 	const isEmpty = entries.length === 0;
 	const showSkeleton = !hasHydrated || (isFetching && isEmpty);
 	const showEmptyState = hasHydrated && !isFetching && isEmpty;
 
+	const unassignedCount = useMemo(() => {
+		return employees.filter((employee) => !employee.locationId).length;
+	}, [employees]);
+
+	/**
+	 * Navigates to the previous week/month (UTC calendar).
+	 */
 	const handlePrev = (): void => {
-		const next = new Date(referenceDate);
-		if (viewMode === 'week') {
-			next.setUTCDate(next.getUTCDate() - 7);
-		} else {
-			next.setUTCMonth(next.getUTCMonth() - 1);
-		}
-		setReferenceDate(next);
+		setReferenceDate((current) => {
+			const currentCalendar = toUtcCalendarDateLocal(current);
+			const nextCalendar =
+				viewMode === 'week'
+					? addWeeks(currentCalendar, -1)
+					: addMonths(currentCalendar, -1);
+			return toUtcMidnight(nextCalendar);
+		});
 	};
 
+	/**
+	 * Navigates to the next week/month (UTC calendar).
+	 */
 	const handleNext = (): void => {
-		const next = new Date(referenceDate);
-		if (viewMode === 'week') {
-			next.setUTCDate(next.getUTCDate() + 7);
-		} else {
-			next.setUTCMonth(next.getUTCMonth() + 1);
-		}
-		setReferenceDate(next);
+		setReferenceDate((current) => {
+			const currentCalendar = toUtcCalendarDateLocal(current);
+			const nextCalendar =
+				viewMode === 'week'
+					? addWeeks(currentCalendar, 1)
+					: addMonths(currentCalendar, 1);
+			return toUtcMidnight(nextCalendar);
+		});
 	};
 
+	/**
+	 * Navigates to the current UTC day.
+	 */
 	const handleToday = (): void => {
-		setReferenceDate(new Date());
+		setReferenceDate(toUtcMidnight(toUtcCalendarDateLocal(new Date())));
 	};
 
 	if (!organizationId) {
@@ -199,75 +266,66 @@ export function CalendarView({
 			</div>
 
 			<div className="flex flex-wrap items-center gap-3">
-				<div className="flex items-center gap-2">
-					<Button
-						variant={scope === 'location' ? 'default' : 'outline'}
-						size="sm"
-						onClick={() => setScope('location')}
-					>
-						By Location
-					</Button>
-					<Button
-						variant={scope === 'employee' ? 'default' : 'outline'}
-						size="sm"
-						onClick={() => setScope('employee')}
-					>
-						By Employee
-					</Button>
+				<div className="text-sm text-muted-foreground">
+					Range: {formatDateRangeUtc(range.start, range.end)}
 				</div>
-
-				{scope === 'location' ? (
-					<Select value={selectedLocationId} onValueChange={(val) => setSelectedLocationId(val)}>
-						<SelectTrigger className="w-[220px]">
-							<SelectValue placeholder="All locations" />
+				<div className="flex items-center gap-2">
+					<span className="text-sm text-muted-foreground">Location</span>
+					<Select
+						value={effectiveLocationId}
+						onValueChange={(value) => setSelectedLocationId(value)}
+						disabled={sortedLocations.length === 0}
+					>
+						<SelectTrigger className="w-[260px]">
+							<SelectValue placeholder="Select location" />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="all">All locations</SelectItem>
-							{locations.map((location) => (
+							{sortedLocations.map((location) => (
 								<SelectItem key={location.id} value={location.id}>
 									{location.name}
 								</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
-				) : (
-					<Select value={selectedEmployeeId} onValueChange={(val) => setSelectedEmployeeId(val)}>
-						<SelectTrigger className="w-[240px]">
-							<SelectValue placeholder="All employees" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All employees</SelectItem>
-							{employees.map((employee) => (
-								<SelectItem key={employee.id} value={employee.id}>
-									{employee.firstName} {employee.lastName}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				)}
-
-				<div className="text-sm text-muted-foreground">
-					Range:{' '}
-					{formatDateRangeUtc(range.start, range.end)}
 				</div>
 			</div>
 
-			<div className="grid gap-4 md:grid-cols-2">
+			{unassignedCount > 0 && (
+				<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+					{unassignedCount} employee{unassignedCount === 1 ? '' : 's'} have no location
+					assigned. Assign a location in Employees to render schedules by location.
+				</div>
+			)}
+
+			<div className="grid gap-4">
 				{showSkeleton
-					? Array.from({ length: 4 }).map((_, idx) => (
-							<div key={idx} className="rounded-xl border p-4">
-								<div className="h-4 w-32 rounded bg-muted" />
-								<div className="mt-2 h-3 w-24 rounded bg-muted" />
+					? (
+							<div className="rounded-xl border p-4">
+								<div className="h-4 w-48 rounded bg-muted" />
+								<div className="mt-2 h-3 w-32 rounded bg-muted" />
 								<div className="mt-4 grid grid-cols-7 gap-2">
-									{Array.from({ length: 7 }).map((__, jdx) => (
-										<div key={jdx} className="h-10 rounded bg-muted" />
+									{Array.from({ length: 7 }).map((_, jdx) => (
+										<div key={jdx} className="h-12 rounded bg-muted" />
 									))}
 								</div>
 							</div>
-					  ))
-					: entries.map((employee) => (
-							<EmployeeScheduleCard key={employee.employeeId} employee={employee} viewMode={viewMode} />
-					  ))}
+					  )
+					: selectedLocation && effectiveLocationId ? (
+							<LocationScheduleCard
+								key={effectiveLocationId}
+								location={selectedLocation}
+								employeesInLocation={employeesInLocation}
+								calendarEmployeesInLocation={entries}
+								viewMode={viewMode}
+								rangeStart={range.start}
+								rangeEnd={range.end}
+								weekStartDay={weekStartDay}
+							/>
+					  ) : (
+							<div className="rounded-md border p-4 text-sm text-muted-foreground">
+								Select a location to view schedules.
+							</div>
+					  )}
 			</div>
 
 			{showEmptyState && (

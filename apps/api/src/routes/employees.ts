@@ -332,25 +332,23 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { error: 'Organization not found' };
 			}
 
-			// Verify location exists if provided
-			if (locationId) {
-				const locationExists = await db
-					.select()
-					.from(location)
-					.where(eq(location.id, locationId))
-					.limit(1);
-				if (!locationExists[0]) {
-					set.status = 400;
-					return { error: 'Location not found' };
-				}
+			// Verify location exists and belongs to this organization
+			const locationExists = await db
+				.select()
+				.from(location)
+				.where(eq(location.id, locationId))
+				.limit(1);
+			if (!locationExists[0]) {
+				set.status = 400;
+				return { error: 'Location not found' };
+			}
 
-				if (
-					locationExists[0].organizationId &&
-					locationExists[0].organizationId !== organizationId
-				) {
-					set.status = 403;
-					return { error: 'Location does not belong to this organization' };
-				}
+			if (
+				locationExists[0].organizationId &&
+				locationExists[0].organizationId !== organizationId
+			) {
+				set.status = 403;
+				return { error: 'Location does not belong to this organization' };
 			}
 
 			// Verify job position exists (required for new employees)
@@ -440,7 +438,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department: department ?? null,
 				status: empStatus,
 				hireDate: hireDate ?? null,
-				locationId: locationId ?? null,
+				locationId,
 				organizationId,
 				shiftType: resolvedShiftType,
 				scheduleTemplateId: scheduleTemplateId ?? null,

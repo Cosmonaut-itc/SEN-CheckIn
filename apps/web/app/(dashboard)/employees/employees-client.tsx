@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm, useStore } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
@@ -44,11 +44,13 @@ import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import {
 	fetchEmployeesList,
 	fetchJobPositionsList,
+	fetchLocationsList,
 	fetchEmployeeById,
 	type Employee,
 	type EmployeeScheduleEntry,
 	type EmployeeStatus,
 	type JobPosition,
+	type Location,
 } from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
@@ -72,6 +74,8 @@ interface EmployeeFormValues {
 	phone: string;
 	/** Job position ID (required for new employees) */
 	jobPositionId: string;
+	/** Location ID (required for all employees) */
+	locationId: string;
 	/** Employee's department */
 	department: string;
 	/** Employee's status */
@@ -90,6 +94,7 @@ const initialFormValues: EmployeeFormValues = {
 	email: '',
 	phone: '',
 	jobPositionId: '',
+	locationId: '',
 	department: '',
 	status: 'ACTIVE',
 	shiftType: 'DIURNA',
@@ -133,6 +138,8 @@ const statusVariants: Record<EmployeeStatus, 'default' | 'secondary' | 'outline'
 	INACTIVE: 'secondary',
 	ON_LEAVE: 'outline',
 };
+
+const EMPTY_LOCATIONS: Location[] = [];
 
 /**
  * Employees page client component.
@@ -179,8 +186,25 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
+	// Query for locations list (for the dropdown)
+	const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
+		queryKey: queryKeys.locations.list(
+			organizationId ? { limit: 100, offset: 0, organizationId } : { limit: 100, offset: 0 },
+		),
+		queryFn: () =>
+			fetchLocationsList(
+				organizationId ? { limit: 100, offset: 0, organizationId } : { limit: 100, offset: 0 },
+			),
+		enabled: Boolean(organizationId),
+	});
+
 	const employees = data?.data ?? [];
 	const jobPositions: JobPosition[] = jobPositionsData?.data ?? [];
+	const locations: Location[] = locationsData?.data ?? EMPTY_LOCATIONS;
+
+	const locationLookup = useMemo(() => {
+		return new Map<string, string>(locations.map((loc) => [loc.id, loc.name]));
+	}, [locations]);
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -258,6 +282,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	const form = useAppForm({
 		defaultValues: initialFormValues,
 		onSubmit: async ({ value }) => {
+			if (!value.locationId) {
+				toast.error('Please select a location');
+				return;
+			}
 			if (editingEmployee) {
 				await updateMutation.mutateAsync({
 					id: editingEmployee.id,
@@ -267,6 +295,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					email: value.email || undefined,
 					phone: value.phone || undefined,
 					jobPositionId: value.jobPositionId || undefined,
+					locationId: value.locationId,
 					department: value.department || undefined,
 					status: value.status,
 					shiftType: value.shiftType,
@@ -285,6 +314,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					email: value.email || undefined,
 					phone: value.phone || undefined,
 					jobPositionId: value.jobPositionId,
+					locationId: value.locationId,
 					department: value.department || undefined,
 					status: value.status,
 					shiftType: value.shiftType,
@@ -370,6 +400,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue('email', employee.email ?? '');
 			form.setFieldValue('phone', employee.phone ?? '');
 			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
+			form.setFieldValue('locationId', employee.locationId ?? '');
 			form.setFieldValue('department', employee.department ?? '');
 			form.setFieldValue('status', employee.status);
 			form.setFieldValue('shiftType', employee.shiftType ?? 'DIURNA');
@@ -538,6 +569,26 @@ export function EmployeesPageClient(): React.ReactElement {
 								</div>
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField
+										name="locationId"
+										validators={{
+											onChange: ({ value }) => (!value ? 'Location is required' : undefined),
+										}}
+									>
+										{(field) => (
+											<field.SelectField
+												label="Location"
+												options={locations.map((location) => ({
+													value: location.id,
+													label: location.name,
+												}))}
+												placeholder={isLoadingLocations ? 'Loading...' : 'Select location'}
+												disabled={isLoadingLocations}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField
 										name="jobPositionId"
 										validators={{
 											onChange: ({ value }) =>
@@ -701,6 +752,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							<TableHead>Code</TableHead>
 							<TableHead>Name</TableHead>
 							<TableHead>Job Position</TableHead>
+							<TableHead>Location</TableHead>
 							<TableHead>Email</TableHead>
 							<TableHead>Department</TableHead>
 							<TableHead>Shift</TableHead>
@@ -714,7 +766,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 10 }).map((_, j) => (
+									{Array.from({ length: 11 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -723,7 +775,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							))
 						) : employees.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={10} className="h-24 text-center">
+								<TableCell colSpan={11} className="h-24 text-center">
 									No employees found.
 								</TableCell>
 							</TableRow>
@@ -735,6 +787,24 @@ export function EmployeesPageClient(): React.ReactElement {
 										{employee.firstName} {employee.lastName}
 									</TableCell>
 									<TableCell>{employee.jobPositionName ?? '-'}</TableCell>
+									<TableCell>
+										{employee.locationId ? (
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span className="block max-w-[200px] truncate font-mono text-xs">
+															{employee.locationId}
+														</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														{locationLookup.get(employee.locationId) ?? 'Unknown location'}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										) : (
+											'-'
+										)}
+									</TableCell>
 									<TableCell>{employee.email ?? '-'}</TableCell>
 									<TableCell>{employee.department ?? '-'}</TableCell>
 									<TableCell>{employee.shiftType ?? '-'}</TableCell>

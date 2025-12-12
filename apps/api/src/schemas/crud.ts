@@ -144,7 +144,7 @@ export const createEmployeeSchema = z.object({
 	department: z.string().max(100).optional(),
 	status: employeeStatusEnum.default('ACTIVE'),
 	hireDate: z.coerce.date().optional(),
-	locationId: z.string().uuid().optional(),
+	locationId: z.string().uuid(),
 	organizationId: z.string().optional(),
 	shiftType: shiftTypeEnum.default('DIURNA').optional(),
 	scheduleTemplateId: z.string().uuid().optional(),
@@ -173,7 +173,7 @@ export const updateEmployeeSchema = z.object({
 	department: z.string().max(100).nullable().optional(),
 	status: employeeStatusEnum.optional(),
 	hireDate: z.coerce.date().nullable().optional(),
-	locationId: z.string().uuid().nullable().optional(),
+	locationId: z.string().uuid().optional(),
 	shiftType: shiftTypeEnum.optional(),
 	scheduleTemplateId: z.string().uuid().nullable().optional(),
 	schedule: z

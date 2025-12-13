@@ -1,13 +1,10 @@
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
-const baseDir = dirname(fileURLToPath(import.meta.url));
-
 export default defineConfig({
-  out: resolve(baseDir, 'drizzle'),
-  schema: resolve(baseDir, 'src', 'db', 'schema.ts'),
+  // Use relative paths so drizzle-kit does not double-prefix absolute paths
+  out: './drizzle',
+  schema: './src/db/schema.ts',
   dialect: 'postgresql',
   dbCredentials: {
     url: getDatabaseUrl(),

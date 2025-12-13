@@ -14,27 +14,36 @@
  * @module server-functions
  */
 
-import type { QueryClient } from '@tanstack/react-query';
-import { headers } from 'next/headers';
 import {
-	queryKeys,
-	type ListQueryParams,
-	type JobPositionQueryParams,
 	type AttendanceQueryParams,
+	type CalendarQueryParams,
+	type JobPositionQueryParams,
+	type ListQueryParams,
+	type ScheduleExceptionQueryParams,
+	type ScheduleTemplateQueryParams,
 	type UsersQueryParams,
+	queryKeys,
 } from '@/lib/query-keys';
 import {
-	fetchEmployeesListServer,
-	fetchDevicesListServer,
-	fetchLocationsListServer,
-	fetchJobPositionsListServer,
+	fetchApiKeysServer,
 	fetchAttendanceRecordsServer,
 	fetchDashboardCountsServer,
-	fetchApiKeysServer,
-	fetchOrganizationsServer,
+	fetchDevicesListServer,
+	fetchEmployeesListServer,
+	fetchJobPositionsListServer,
+	fetchLocationsListServer,
 	fetchOrganizationMembersServer,
+	fetchOrganizationsServer,
+	fetchPayrollRunsServer,
+	fetchPayrollSettingsServer,
+	fetchScheduleExceptionsListServer,
+	fetchScheduleTemplateDetailServer,
+	fetchScheduleTemplatesListServer,
+	fetchCalendarServer,
 	fetchUsersServer,
 } from '@/lib/server-client-functions';
+import type { QueryClient } from '@tanstack/react-query';
+import { headers } from 'next/headers';
 
 // ============================================================================
 // Helper Functions
@@ -72,8 +81,9 @@ async function getRequestHeaders(): Promise<Headers> {
 /**
  * Prefetches the employees list for server-side streaming.
  *
- * This function initiates the prefetch but does NOT await it,
- * allowing Next.js to stream the response as data becomes available.
+ * This function initiates the prefetch; await the returned promise in
+ * Server Components that render data-dependent HTML to keep SSR and
+ * client markup aligned and avoid hydration mismatches.
  * Cookies are forwarded from the incoming request to authenticate
  * with the API server.
  *
@@ -95,8 +105,11 @@ async function getRequestHeaders(): Promise<Headers> {
  * }
  * ```
  */
-export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
-	queryClient.prefetchQuery({
+export function prefetchEmployeesList(
+	queryClient: QueryClient,
+	params?: ListQueryParams,
+): Promise<void> {
+	return queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
@@ -192,20 +205,21 @@ export function prefetchLocationsList(queryClient: QueryClient, params?: ListQue
 /**
  * Prefetches the job positions list for server-side streaming.
  *
- * This function initiates the prefetch but does NOT await it,
- * allowing Next.js to stream the response as data becomes available.
- * Cookies are forwarded from the incoming request to authenticate
+ * Await the returned promise in Server Components that render job position
+ * data server-side to keep SSR and client markup aligned and avoid hydration
+ * mismatches. Cookies are forwarded from the incoming request to authenticate
  * with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
  * @param params - Optional query parameters for filtering and pagination
+ * @returns Promise that resolves once the prefetch completes
  *
  * @example
  * ```tsx
  * // In a Server Component (page.tsx)
  * export default function JobPositionsPage() {
  *   const queryClient = getQueryClient();
- *   prefetchJobPositionsList(queryClient, { limit: 100 });
+ *   await prefetchJobPositionsList(queryClient, { limit: 100 });
  *
  *   return (
  *     <HydrationBoundary state={dehydrate(queryClient)}>
@@ -218,14 +232,16 @@ export function prefetchLocationsList(queryClient: QueryClient, params?: ListQue
 export function prefetchJobPositionsList(
 	queryClient: QueryClient,
 	params?: JobPositionQueryParams,
-): void {
-	queryClient.prefetchQuery({
-		queryKey: queryKeys.jobPositions.list(params),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchJobPositionsListServer>>> => {
-			const cookieHeader: string = await getCookieHeader();
-			return fetchJobPositionsListServer(cookieHeader, params);
-		},
-	});
+): Promise<void> {
+	return queryClient
+		.prefetchQuery({
+			queryKey: queryKeys.jobPositions.list(params),
+			queryFn: async (): Promise<Awaited<ReturnType<typeof fetchJobPositionsListServer>>> => {
+				const cookieHeader: string = await getCookieHeader();
+				return fetchJobPositionsListServer(cookieHeader, params);
+			},
+		})
+		.then(() => undefined);
 }
 
 // ============================================================================
@@ -390,6 +406,129 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchOrganizationsServer>>> => {
 			const requestHeaders: Headers = await getRequestHeaders();
 			return fetchOrganizationsServer(requestHeaders);
+		},
+	});
+}
+
+// ============================================================================
+// Payroll Prefetch Functions
+// ============================================================================
+
+export function prefetchPayrollSettings(queryClient: QueryClient): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.payrollSettings.current(undefined),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchPayrollSettingsServer(cookieHeader);
+		},
+	});
+}
+
+export function prefetchPayrollRuns(
+	queryClient: QueryClient,
+	params?: { organizationId?: string; limit?: number; offset?: number },
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.payroll.runs(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollRunsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchPayrollRunsServer(cookieHeader, params);
+		},
+	});
+}
+
+// ============================================================================
+// Scheduling Prefetch Functions
+// ============================================================================
+
+/**
+ * Prefetches schedule templates list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for pagination and organization scope
+ * @returns Nothing
+ */
+export function prefetchScheduleTemplates(
+	queryClient: QueryClient,
+	params?: ScheduleTemplateQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduleTemplates.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchScheduleTemplatesListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchScheduleTemplatesListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches a single schedule template detail for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param id - Schedule template identifier
+ * @returns Nothing
+ */
+export function prefetchScheduleTemplateDetail(queryClient: QueryClient, id: string): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduleTemplates.detail(id),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchScheduleTemplateDetailServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchScheduleTemplateDetailServer(cookieHeader, id);
+		},
+	});
+}
+
+/**
+ * Prefetches schedule exceptions list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for filtering and pagination
+ * @returns Nothing
+ */
+export function prefetchScheduleExceptions(
+	queryClient: QueryClient,
+	params?: ScheduleExceptionQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduleExceptions.list(params),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchScheduleExceptionsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchScheduleExceptionsListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches the scheduling calendar for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Calendar query parameters
+ * @returns Nothing
+ */
+export function prefetchCalendar(queryClient: QueryClient, params: CalendarQueryParams): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.scheduling.calendar(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchCalendarServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchCalendarServer(cookieHeader, params);
 		},
 	});
 }

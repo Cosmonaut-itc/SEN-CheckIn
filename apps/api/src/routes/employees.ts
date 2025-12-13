@@ -2,7 +2,15 @@ import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 
 import db from '../db/index.js';
-import { employee, jobPosition, location, organization } from '../db/schema.js';
+import {
+	employee,
+	employeeSchedule,
+	jobPosition,
+	location,
+	organization,
+	scheduleTemplate,
+	scheduleTemplateDay,
+} from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
@@ -143,15 +151,21 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					jobPositionName: jobPosition.name,
 					department: employee.department,
 					status: employee.status,
+					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
+					scheduleTemplateId: employee.scheduleTemplateId,
+					scheduleTemplateName: scheduleTemplate.name,
+					scheduleTemplateShiftType: scheduleTemplate.shiftType,
+					lastPayrollDate: employee.lastPayrollDate,
 					createdAt: employee.createdAt,
 					updatedAt: employee.updatedAt,
 				})
 				.from(employee)
-				.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id));
+				.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id))
+				.leftJoin(scheduleTemplate, eq(employee.scheduleTemplateId, scheduleTemplate.id));
 
 			const whereClause = and(...conditions)!;
 			baseQuery = baseQuery.where(whereClause) as typeof baseQuery;
@@ -207,15 +221,21 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					jobPositionName: jobPosition.name,
 					department: employee.department,
 					status: employee.status,
+					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
+					scheduleTemplateId: employee.scheduleTemplateId,
+					scheduleTemplateName: scheduleTemplate.name,
+					scheduleTemplateShiftType: scheduleTemplate.shiftType,
+					lastPayrollDate: employee.lastPayrollDate,
 					createdAt: employee.createdAt,
 					updatedAt: employee.updatedAt,
 				})
 				.from(employee)
 				.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id))
+				.leftJoin(scheduleTemplate, eq(employee.scheduleTemplateId, scheduleTemplate.id))
 				.where(eq(employee.id, id))
 				.limit(1);
 
@@ -238,7 +258,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { error: 'You do not have access to this employee' };
 			}
 
-			return { data: record };
+			const schedule = await db
+				.select()
+				.from(employeeSchedule)
+				.where(eq(employeeSchedule.employeeId, id))
+				.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
+
+			return { data: { ...record, schedule } };
 		},
 		{
 			params: idParamSchema,
@@ -275,6 +301,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				hireDate,
 				locationId,
 				organizationId: organizationIdInput,
+				schedule,
+				shiftType,
+				scheduleTemplateId,
 			} = body;
 
 			const organizationId = resolveOrganizationId({
@@ -303,25 +332,23 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { error: 'Organization not found' };
 			}
 
-			// Verify location exists if provided
-			if (locationId) {
-				const locationExists = await db
-					.select()
-					.from(location)
-					.where(eq(location.id, locationId))
-					.limit(1);
-				if (!locationExists[0]) {
-					set.status = 400;
-					return { error: 'Location not found' };
-				}
+			// Verify location exists and belongs to this organization
+			const locationExists = await db
+				.select()
+				.from(location)
+				.where(eq(location.id, locationId))
+				.limit(1);
+			if (!locationExists[0]) {
+				set.status = 400;
+				return { error: 'Location not found' };
+			}
 
-				if (
-					locationExists[0].organizationId &&
-					locationExists[0].organizationId !== organizationId
-				) {
-					set.status = 403;
-					return { error: 'Location does not belong to this organization' };
-				}
+			if (
+				locationExists[0].organizationId &&
+				locationExists[0].organizationId !== organizationId
+			) {
+				set.status = 403;
+				return { error: 'Location does not belong to this organization' };
 			}
 
 			// Verify job position exists (required for new employees)
@@ -354,7 +381,51 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { error: 'Employee code already exists' };
 			}
 
+			if (schedule && scheduleTemplateId) {
+				set.status = 400;
+				return { error: 'Provide either a scheduleTemplateId or a custom schedule, not both' };
+			}
+
+			let templateDays: {
+				dayOfWeek: number;
+				startTime: string;
+				endTime: string;
+				isWorkingDay: boolean | null;
+			}[] = [];
+			let selectedTemplate: typeof scheduleTemplate.$inferSelect | null = null;
+
+			if (scheduleTemplateId) {
+				const templateRecord = await db
+					.select()
+					.from(scheduleTemplate)
+					.where(eq(scheduleTemplate.id, scheduleTemplateId))
+					.limit(1);
+
+				if (!templateRecord[0]) {
+					set.status = 404;
+					return { error: 'Schedule template not found' };
+				}
+
+				if (
+					templateRecord[0].organizationId &&
+					templateRecord[0].organizationId !== organizationId
+				) {
+					set.status = 403;
+					return { error: 'Schedule template does not belong to this organization' };
+				}
+
+				selectedTemplate = templateRecord[0] ?? null;
+
+				templateDays = await db
+					.select()
+					.from(scheduleTemplateDay)
+					.where(eq(scheduleTemplateDay.templateId, scheduleTemplateId))
+					.orderBy(scheduleTemplateDay.dayOfWeek);
+			}
+
 			const id = crypto.randomUUID();
+
+			const resolvedShiftType = shiftType ?? selectedTemplate?.shiftType ?? 'DIURNA';
 
 			const newEmployee = {
 				id,
@@ -367,11 +438,26 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department: department ?? null,
 				status: empStatus,
 				hireDate: hireDate ?? null,
-				locationId: locationId ?? null,
+				locationId,
 				organizationId,
+				shiftType: resolvedShiftType,
+				scheduleTemplateId: scheduleTemplateId ?? null,
 			};
 
 			await db.insert(employee).values(newEmployee);
+
+			const selectedSchedule = schedule ?? templateDays;
+
+			if (selectedSchedule && selectedSchedule.length > 0) {
+				const scheduleRows = selectedSchedule.map((entry) => ({
+					employeeId: id,
+					dayOfWeek: entry.dayOfWeek,
+					startTime: entry.startTime,
+					endTime: entry.endTime,
+					isWorkingDay: entry.isWorkingDay ?? true,
+				}));
+				await db.insert(employeeSchedule).values(scheduleRows);
+			}
 
 			set.status = 201;
 			return {
@@ -380,6 +466,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					rekognitionUserId: null,
 					createdAt: new Date(),
 					updatedAt: new Date(),
+					scheduleTemplateName: selectedTemplate?.name ?? null,
+					scheduleTemplateShiftType: selectedTemplate?.shiftType ?? null,
 				},
 			};
 		},
@@ -507,12 +595,128 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return { data: existing[0] };
 			}
 
-			await db.update(employee).set(body).where(eq(employee.id, id));
+			if (body.schedule && body.scheduleTemplateId) {
+				set.status = 400;
+				return { error: 'Provide either a scheduleTemplateId or a custom schedule, not both' };
+			}
+
+			let templateDays: {
+				dayOfWeek: number;
+				startTime: string;
+				endTime: string;
+				isWorkingDay: boolean | null;
+			}[] = [];
+			let selectedTemplate: typeof scheduleTemplate.$inferSelect | null = null;
+
+			if (body.scheduleTemplateId) {
+				const templateRecord = await db
+					.select()
+					.from(scheduleTemplate)
+					.where(eq(scheduleTemplate.id, body.scheduleTemplateId))
+					.limit(1);
+
+				if (!templateRecord[0]) {
+					set.status = 404;
+					return { error: 'Schedule template not found' };
+				}
+
+				if (
+					templateRecord[0].organizationId &&
+					templateRecord[0].organizationId !== resolvedOrganizationId
+				) {
+					set.status = 403;
+					return { error: 'Schedule template does not belong to this organization' };
+				}
+
+				selectedTemplate = templateRecord[0] ?? null;
+
+				templateDays = await db
+					.select()
+					.from(scheduleTemplateDay)
+					.where(eq(scheduleTemplateDay.templateId, body.scheduleTemplateId))
+					.orderBy(scheduleTemplateDay.dayOfWeek);
+			}
+
+			// Extract schedule updates separately to avoid passing to employee table
+			const { schedule, scheduleTemplateId, ...employeeUpdate } = body;
+			const updatePayload: Partial<typeof employee.$inferInsert> = {
+				...employeeUpdate,
+			};
+
+			if (scheduleTemplateId !== undefined) {
+				updatePayload.scheduleTemplateId = scheduleTemplateId;
+			}
+			if (
+				scheduleTemplateId !== undefined &&
+				scheduleTemplateId !== null &&
+				employeeUpdate.shiftType === undefined &&
+				selectedTemplate
+			) {
+				updatePayload.shiftType = selectedTemplate.shiftType;
+			}
+
+			await db.update(employee).set(updatePayload).where(eq(employee.id, id));
+
+			let nextSchedule:
+				| NonNullable<typeof schedule>
+				| typeof templateDays
+				| undefined = undefined;
+
+			if (schedule !== undefined) {
+				nextSchedule = schedule;
+			} else if (scheduleTemplateId !== undefined && scheduleTemplateId !== null) {
+				nextSchedule = templateDays;
+			}
+
+			if (nextSchedule !== undefined) {
+				await db.delete(employeeSchedule).where(eq(employeeSchedule.employeeId, id));
+				if (nextSchedule.length > 0) {
+					const scheduleRows = nextSchedule.map((entry) => ({
+						employeeId: id,
+						dayOfWeek: entry.dayOfWeek,
+						startTime: entry.startTime,
+						endTime: entry.endTime,
+						isWorkingDay: entry.isWorkingDay ?? true,
+					}));
+					await db.insert(employeeSchedule).values(scheduleRows);
+				}
+			}
 
 			// Fetch updated record
-			const updated = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
+			const updated = await db
+				.select({
+					id: employee.id,
+					code: employee.code,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
+					email: employee.email,
+					phone: employee.phone,
+					jobPositionId: employee.jobPositionId,
+					department: employee.department,
+					status: employee.status,
+					shiftType: employee.shiftType,
+					hireDate: employee.hireDate,
+					locationId: employee.locationId,
+					organizationId: employee.organizationId,
+					scheduleTemplateId: employee.scheduleTemplateId,
+					scheduleTemplateName: scheduleTemplate.name,
+					scheduleTemplateShiftType: scheduleTemplate.shiftType,
+					rekognitionUserId: employee.rekognitionUserId,
+					lastPayrollDate: employee.lastPayrollDate,
+					createdAt: employee.createdAt,
+					updatedAt: employee.updatedAt,
+				})
+				.from(employee)
+				.leftJoin(scheduleTemplate, eq(employee.scheduleTemplateId, scheduleTemplate.id))
+				.where(eq(employee.id, id))
+				.limit(1);
+			const updatedSchedule = await db
+				.select()
+				.from(employeeSchedule)
+				.where(eq(employeeSchedule.employeeId, id))
+				.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
 
-			return { data: updated[0] };
+			return { data: { ...updated[0], schedule: updatedSchedule } };
 		},
 		{
 			params: idParamSchema,

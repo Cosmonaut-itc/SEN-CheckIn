@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import React, { type ReactNode } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
@@ -50,6 +51,22 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
 			>
+				{process.env.NODE_ENV === 'development' && (
+					<Script id="strip-cursor-element-ids" strategy="beforeInteractive">
+						{`
+							(() => {
+								try {
+									const attr = 'data-cursor-element-id';
+									document.querySelectorAll('[' + attr + ']').forEach((el) => {
+										el.removeAttribute(attr);
+									});
+								} catch {
+									// no-op
+								}
+							})();
+						`}
+					</Script>
+				)}
 				<Providers>
 					{children}
 					<Toaster richColors position="top-right" />

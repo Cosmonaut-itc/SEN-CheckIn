@@ -166,7 +166,14 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { name, description, organizationId: organizationIdInput } = body;
+			const {
+				name,
+				description,
+				organizationId: organizationIdInput,
+				dailyPay,
+				hourlyPay,
+				paymentFrequency,
+			} = body;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -194,11 +201,30 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			const id = crypto.randomUUID();
+			const hasDailyPay = dailyPay !== undefined;
+			const hasHourlyPay = hourlyPay !== undefined;
+
+			if (!hasDailyPay && !hasHourlyPay) {
+				set.status = 400;
+				return { error: 'Either dailyPay or hourlyPay is required' };
+			}
+
+			// Derive the missing pay field to avoid zeroed compensation entries.
+			const normalizedDailyPay = hasDailyPay ? Number(dailyPay) : Number(hourlyPay) * 8;
+			const normalizedHourlyPay = hasHourlyPay ? Number(hourlyPay) : normalizedDailyPay / 8;
+
+			if (normalizedDailyPay <= 0 || normalizedHourlyPay <= 0) {
+				set.status = 400;
+				return { error: 'Pay must be greater than 0' };
+			}
 
 			const newPosition = {
 				id,
 				name,
 				description: description ?? null,
+				dailyPay: normalizedDailyPay.toString(),
+				hourlyPay: normalizedHourlyPay.toString(),
+				paymentFrequency: paymentFrequency ?? 'MONTHLY',
 				organizationId,
 				clientId: null,
 			};
@@ -285,7 +311,31 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				return { data: existing[0] };
 			}
 
-			await db.update(jobPosition).set(body).where(eq(jobPosition.id, id));
+			const updatePayload: Partial<typeof jobPosition.$inferInsert> = {};
+			if (body.name !== undefined) {
+				updatePayload.name = body.name;
+			}
+			if (body.description !== undefined) {
+				updatePayload.description = body.description;
+			}
+			if (body.dailyPay !== undefined) {
+				updatePayload.dailyPay = body.dailyPay.toString();
+				// If hourly not provided, derive from daily (diurna divisor 8h default)
+				if (body.hourlyPay === undefined) {
+					updatePayload.hourlyPay = (Number(body.dailyPay) / 8).toString();
+				}
+			}
+			if (body.hourlyPay !== undefined) {
+				updatePayload.hourlyPay = body.hourlyPay.toString();
+				if (body.dailyPay === undefined) {
+					updatePayload.dailyPay = (Number(body.hourlyPay) * 8).toString();
+				}
+			}
+			if (body.paymentFrequency !== undefined) {
+				updatePayload.paymentFrequency = body.paymentFrequency;
+			}
+
+			await db.update(jobPosition).set(updatePayload).where(eq(jobPosition.id, id));
 
 			// Fetch updated record
 			const updated = await db

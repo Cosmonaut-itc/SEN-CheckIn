@@ -25,6 +25,8 @@ export interface CreateLocationInput {
 	code: string;
 	/** Location address */
 	address?: string;
+	/** Geographic zone (CONASAMI) */
+	geographicZone?: 'GENERAL' | 'ZLFN';
 	/** Optional organization override for API key flows (defaults to active org) */
 	organizationId?: string;
 }
@@ -41,6 +43,8 @@ export interface UpdateLocationInput {
 	code: string;
 	/** Location address */
 	address?: string;
+	/** Geographic zone (CONASAMI) */
+	geographicZone?: 'GENERAL' | 'ZLFN';
 }
 
 /**
@@ -80,6 +84,7 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
 			name: input.name,
 			code: input.code,
 			address: input.address || undefined,
+			geographicZone: input.geographicZone,
 			organizationId: input.organizationId,
 		});
 
@@ -129,6 +134,7 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Mutati
 			name: input.name,
 			code: input.code,
 			address: input.address || undefined,
+			geographicZone: input.geographicZone,
 		});
 
 		if (response.error) {

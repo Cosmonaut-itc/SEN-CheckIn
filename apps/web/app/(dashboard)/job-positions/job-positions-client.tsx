@@ -39,6 +39,12 @@ interface JobPositionFormValues {
 	name: string;
 	/** Job position description */
 	description: string;
+	/** Daily pay rate */
+	dailyPay: number;
+	/** Hourly pay rate */
+	hourlyPay: number;
+	/** Payment frequency */
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 }
 
 /**
@@ -47,6 +53,9 @@ interface JobPositionFormValues {
 const initialFormValues: JobPositionFormValues = {
 	name: '',
 	description: '',
+	dailyPay: 0,
+	hourlyPay: 0,
+	paymentFrequency: 'MONTHLY',
 };
 
 /**
@@ -141,6 +150,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 			? {
 					name: editingJobPosition.name,
 					description: editingJobPosition.description ?? '',
+				dailyPay: editingJobPosition.dailyPay,
+				hourlyPay: editingJobPosition.hourlyPay,
+				paymentFrequency: editingJobPosition.paymentFrequency,
 				}
 			: initialFormValues,
 		onSubmit: async ({ value }) => {
@@ -151,6 +163,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 					// Send null when description is empty string to clear the field
 					description:
 						value.description.trim() === '' ? null : value.description || undefined,
+				dailyPay: value.dailyPay,
+				hourlyPay: value.hourlyPay,
+				paymentFrequency: value.paymentFrequency,
 				});
 			} else {
 				if (!organizationId) {
@@ -160,6 +175,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 				await createMutation.mutateAsync({
 					name: value.name,
 					description: value.description || undefined,
+				dailyPay: value.dailyPay,
+				hourlyPay: value.hourlyPay,
+				paymentFrequency: value.paymentFrequency,
 					organizationId,
 				});
 			}
@@ -188,6 +206,8 @@ export function JobPositionsPageClient(): React.ReactElement {
 			setEditingJobPosition(jobPosition);
 			form.setFieldValue('name', jobPosition.name);
 			form.setFieldValue('description', jobPosition.description ?? '');
+			form.setFieldValue('hourlyPay', Number(jobPosition.hourlyPay ?? 0));
+			form.setFieldValue('paymentFrequency', jobPosition.paymentFrequency);
 			setIsDialogOpen(true);
 		},
 		[form],
@@ -288,6 +308,51 @@ export function JobPositionsPageClient(): React.ReactElement {
 										/>
 									)}
 								</form.AppField>
+								<form.AppField
+									name="dailyPay"
+									validators={{
+										onChange: ({ value }) =>
+											Number(value) <= 0
+												? 'Daily pay must be greater than 0'
+												: undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label="Salario Diario (MXN)"
+											type="number"
+											placeholder="e.g., 278.80"
+										/>
+									)}
+								</form.AppField>
+								<form.AppField
+									name="hourlyPay"
+									validators={{
+										onChange: ({ value }) =>
+											Number(value) <= 0 ? 'Hourly pay must be greater than 0' : undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label="Hourly Pay"
+											type="number"
+											placeholder="e.g., 25.00"
+										/>
+									)}
+								</form.AppField>
+								<form.AppField name="paymentFrequency">
+									{(field) => (
+										<field.SelectField
+											label="Payment Frequency"
+											options={[
+												{ value: 'WEEKLY', label: 'Weekly' },
+												{ value: 'BIWEEKLY', label: 'Biweekly' },
+												{ value: 'MONTHLY', label: 'Monthly' },
+											]}
+											placeholder="Select frequency"
+										/>
+									)}
+								</form.AppField>
 							</div>
 							<DialogFooter>
 								<form.AppForm>
@@ -317,6 +382,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 						<TableRow>
 							<TableHead>Name</TableHead>
 							<TableHead>Description</TableHead>
+							<TableHead>Daily Pay</TableHead>
+							<TableHead>Hourly Pay</TableHead>
+							<TableHead>Frequency</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead className="w-[100px]">Actions</TableHead>
 						</TableRow>
@@ -325,7 +393,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 4 }).map((_, j) => (
+									{Array.from({ length: 7 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -334,7 +402,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 							))
 						) : jobPositions.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={4} className="h-24 text-center">
+								<TableCell colSpan={7} className="h-24 text-center">
 									No job positions found.
 								</TableCell>
 							</TableRow>
@@ -347,6 +415,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 									<TableCell className="max-w-xs truncate">
 										{jobPosition.description ?? '-'}
 									</TableCell>
+									<TableCell>${Number(jobPosition.dailyPay).toFixed(2)}</TableCell>
+									<TableCell>${Number(jobPosition.hourlyPay).toFixed(2)}</TableCell>
+									<TableCell>{jobPosition.paymentFrequency}</TableCell>
 									<TableCell>
 										{format(new Date(jobPosition.createdAt), 'MMM d, yyyy')}
 									</TableCell>

@@ -12,7 +12,7 @@
  * @module actions/employees
  */
 
-import type { EmployeeStatus } from '@/lib/client-functions';
+import type { EmployeeScheduleEntry, EmployeeStatus } from '@/lib/client-functions';
 import { createServerApiClient } from '@/lib/server-api';
 import { headers } from 'next/headers';
 
@@ -32,10 +32,16 @@ export interface CreateEmployeeInput {
 	phone?: string;
 	/** Job position ID (required for new employees) */
 	jobPositionId: string;
+	/** Location ID (required for new employees) */
+	locationId: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee shift type */
+	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	/** Weekly schedule entries */
+	schedule?: EmployeeScheduleEntry[];
 }
 
 /**
@@ -56,10 +62,16 @@ export interface UpdateEmployeeInput {
 	phone?: string;
 	/** Job position ID (optional for updates, but non-nullable when present) */
 	jobPositionId?: string;
+	/** Location ID (required for updates) */
+	locationId: string;
 	/** Employee's department */
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee shift type */
+	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	/** Weekly schedule entries */
+	schedule?: EmployeeScheduleEntry[];
 }
 
 /**
@@ -104,8 +116,16 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			email: input.email || undefined,
 			phone: input.phone || undefined,
 			jobPositionId: input.jobPositionId,
+			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
+			shiftType: input.shiftType ?? 'DIURNA',
+			schedule: input.schedule?.map((entry) => ({
+				dayOfWeek: entry.dayOfWeek,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				isWorkingDay: entry.isWorkingDay,
+			})),
 		});
 
 		if (response.error) {
@@ -158,8 +178,16 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			email: input.email || undefined,
 			phone: input.phone || undefined,
 			jobPositionId: input.jobPositionId || undefined,
+			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
+			shiftType: input.shiftType,
+			schedule: input.schedule?.map((entry) => ({
+				dayOfWeek: entry.dayOfWeek,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				isWorkingDay: entry.isWorkingDay,
+			})),
 		});
 
 		if (response.error) {

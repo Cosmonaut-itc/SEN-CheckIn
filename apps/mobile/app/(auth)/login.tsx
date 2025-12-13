@@ -1,6 +1,6 @@
 import type { BetterFetchError } from 'better-auth/client';
 import * as ExpoDevice from 'expo-device';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -171,6 +171,7 @@ export default function LoginScreen(): JSX.Element {
 	const [hasRequestedOnce, setHasRequestedOnce] = useState(false);
 	const [pollDelayMs, setPollDelayMs] = useState<number>(5000);
 	const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const [lastError, setLastError] = useState<string | null>(null);
 	const [pendingSetup, setPendingSetup] = useState<{
 		deviceId: string;
@@ -184,6 +185,66 @@ export default function LoginScreen(): JSX.Element {
 	);
 
 	const isApproved = status.state === 'approved';
+
+	useEffect(() => {
+		return () => {
+			if (navigationTimeoutRef.current) {
+				clearTimeout(navigationTimeoutRef.current);
+				navigationTimeoutRef.current = null;
+			}
+		};
+	}, []);
+
+	/**
+	 * Safely replace the current route once Expo Router is ready.
+	 *
+	 * Expo Router throws when calling `router.replace` before the root layout mounts.
+	 * This helper retries briefly to avoid crashing during early app startup transitions.
+	 *
+	 * @param href - Destination href for Expo Router navigation
+	 * @param remainingAttempts - Remaining retries before giving up
+	 * @returns void
+	 */
+	const replaceWhenReady = useCallback(
+		function replaceWhenReady(href: Href, remainingAttempts = 40): void {
+			try {
+				router.replace(href as never);
+				return;
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				const isMountError =
+					message.includes('Attempted to navigate before mounting the Root Layout component') ||
+					message.includes("Couldn't find a navigation object");
+
+				if (!isMountError) {
+					console.warn('[login] Navigation failed', { href, message });
+					return;
+				}
+			}
+
+			if (remainingAttempts <= 0) {
+				console.warn('[login] Navigation skipped; router not ready', { href });
+				return;
+			}
+
+			if (navigationTimeoutRef.current) {
+				clearTimeout(navigationTimeoutRef.current);
+			}
+
+			navigationTimeoutRef.current = setTimeout(() => {
+				replaceWhenReady(href, remainingAttempts - 1);
+			}, 50);
+		},
+		[router],
+	);
+
+	const replaceToDeviceSetup = useCallback(
+		(params: { deviceId: string; organizationId: string }) => {
+			// Route exists but is missing from the generated typed router manifest; cast until manifest is refreshed
+			replaceWhenReady({ pathname: '/(auth)/device-setup', params } as never);
+		},
+		[replaceWhenReady],
+	);
 
 	/**
 	 * Cancel any outstanding polling timers.
@@ -383,15 +444,12 @@ export default function LoginScreen(): JSX.Element {
 						});
 						setIsRoutingToSetup(true);
 						// Now safe to set session - routing flags are already set
-						router.replace({
-							pathname: '/(auth)/device-setup',
-							params: {
-								deviceId: registration.device.id,
-								organizationId:
-									registration.device.organizationId ??
-									sessionResult.data.session?.activeOrganizationId ??
-									'',
-							},
+						replaceToDeviceSetup({
+							deviceId: registration.device.id,
+							organizationId:
+								registration.device.organizationId ??
+								sessionResult.data.session?.activeOrganizationId ??
+								'',
 						});
 						// Auth layout allows device-setup even with session, but keep session set
 						setSession(sessionResult.data);
@@ -403,8 +461,12 @@ export default function LoginScreen(): JSX.Element {
 					setSession(sessionResult.data);
 
 					// Navigate after state is synced
-					setTimeout(() => {
-						router.replace('/(main)/scanner');
+					if (navigationTimeoutRef.current) {
+						clearTimeout(navigationTimeoutRef.current);
+					}
+
+					navigationTimeoutRef.current = setTimeout(() => {
+						replaceWhenReady('/(main)/scanner');
 					}, 300);
 				} catch (error) {
 					const message = deriveErrorMessage(error);
@@ -476,7 +538,7 @@ export default function LoginScreen(): JSX.Element {
 				return Math.min(base + 5000, 30000);
 			});
 		}
-	}, [codeState, registerApprovedDevice, setSession, router]);
+	}, [codeState, registerApprovedDevice, replaceToDeviceSetup, replaceWhenReady, setSession]);
 
 	// Start polling whenever we have a code and the state is still waiting/requesting.
 	useEffect(() => {
@@ -503,9 +565,9 @@ export default function LoginScreen(): JSX.Element {
 	useEffect(() => {
 		if (!isLoading && session && !pendingSetup && !isRoutingToSetup) {
 			console.log('[login] Auto-navigation to scanner (session present, no pending setup)');
-			router.replace('/(main)/scanner');
+			replaceWhenReady('/(main)/scanner');
 		}
-	}, [isLoading, isRoutingToSetup, pendingSetup, router, session]);
+	}, [isLoading, isRoutingToSetup, pendingSetup, replaceWhenReady, session]);
 
 	useEffect(() => {
 		if (pendingSetup && !isRoutingToSetup) {
@@ -514,23 +576,12 @@ export default function LoginScreen(): JSX.Element {
 				pendingSetup,
 			);
 			setIsRoutingToSetup(true);
-			router.replace({
-				pathname: '/(auth)/device-setup',
-				params: {
-					deviceId: pendingSetup.deviceId,
-					organizationId: pendingSetup.organizationId ?? '',
-				},
+			replaceToDeviceSetup({
+				deviceId: pendingSetup.deviceId,
+				organizationId: pendingSetup.organizationId ?? '',
 			});
 		}
-	}, [isRoutingToSetup, pendingSetup, router]);
-
-	/**
-	 * Developer bypass for local testing without the device approval flow.
-	 */
-	const handleDevBypass = useCallback(async () => {
-		await updateLocalSettings({ deviceId: 'dev-device-id' });
-		router.replace('/(main)/scanner');
-	}, [router, updateLocalSettings]);
+	}, [isRoutingToSetup, pendingSetup, replaceToDeviceSetup]);
 
 	const verificationUrl = useMemo(() => {
 		if (ENV.webVerifyUrl && codeState?.userCode) {
@@ -548,10 +599,10 @@ export default function LoginScreen(): JSX.Element {
 					<Card variant="default">
 						<Card.Body className="gap-1 items-center py-6">
 							<Text className="text-4xl mb-1">✓</Text>
-							<Card.Label className="text-success-700 text-2xl">
+							<Card.Title className="text-success-700 text-2xl">
 								Device Approved
 								<AnimatedDots />
-							</Card.Label>
+							</Card.Title>
 							<Card.Description className="text-success-600 mt-1">
 								Redirecting to scanner
 							</Card.Description>
@@ -577,9 +628,9 @@ export default function LoginScreen(): JSX.Element {
 				<Card variant="default">
 					<Card.Body className="items-center gap-1 py-4">
 						<Text className="text-xl mb-1">✕</Text>
-						<Card.Label className="text-danger-700 text-base">
+						<Card.Title className="text-danger-700 text-base">
 							{status.message}
-						</Card.Label>
+						</Card.Title>
 					</Card.Body>
 				</Card>
 			);
@@ -590,9 +641,9 @@ export default function LoginScreen(): JSX.Element {
 				<Card variant="default">
 					<Card.Body className="items-center gap-1 py-4">
 						<Text className="text-xl mb-1">⏱</Text>
-						<Card.Label className="text-warning-700 text-base">
+						<Card.Title className="text-warning-700 text-base">
 							{status.message}
-						</Card.Label>
+						</Card.Title>
 					</Card.Body>
 				</Card>
 			);
@@ -603,9 +654,9 @@ export default function LoginScreen(): JSX.Element {
 				<Card variant="default">
 					<Card.Body className="items-center gap-1 py-4">
 						<Text className="text-xl mb-1">⚠</Text>
-						<Card.Label className="text-danger-700 text-base">
+						<Card.Title className="text-danger-700 text-base">
 							{status.message}
-						</Card.Label>
+						</Card.Title>
 					</Card.Body>
 				</Card>
 			);
@@ -629,9 +680,9 @@ export default function LoginScreen(): JSX.Element {
 			{envErrors && status.state === 'error' ? (
 				<Card variant="default" className="mb-4">
 					<Card.Body className="gap-2 p-4">
-						<Card.Label className="text-warning-800 text-base">
+						<Card.Title className="text-warning-800 text-base">
 							Configuration Required
-						</Card.Label>
+						</Card.Title>
 						<Card.Description className="text-warning-700 text-sm">
 							EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
 						</Card.Description>
@@ -702,20 +753,13 @@ export default function LoginScreen(): JSX.Element {
 						) : null}
 					</View>
 				) : null}
-
-				{/* Developer Bypass */}
-				{__DEV__ && !isApproved ? (
-					<Button variant="ghost" size="sm" onPress={handleDevBypass} className="mt-2">
-						<Button.Label className="text-foreground-400">Skip (Dev Only)</Button.Label>
-					</Button>
-				) : null}
 			</Card>
 
 			{/* Error Details - only show for actual errors, not during normal polling */}
 			{lastError && status.state === 'error' ? (
 				<Card variant="default" className="mt-4">
 					<Card.Body className="gap-1 p-4">
-						<Card.Label className="text-danger-700 text-base">Error Details</Card.Label>
+						<Card.Title className="text-danger-700 text-base">Error Details</Card.Title>
 						<Card.Description className="text-danger-600 text-sm">
 							{lastError}
 						</Card.Description>

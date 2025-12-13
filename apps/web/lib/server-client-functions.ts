@@ -10,7 +10,6 @@
  */
 
 import { authClient } from '@/lib/auth-client';
-import { serverAuthClient } from '@/lib/server-auth-client';
 import type {
 	ApiKey,
 	AttendanceRecord,
@@ -24,16 +23,28 @@ import type {
 	Organization,
 	OrganizationMember,
 	PaginatedResponse,
+	PayrollCalculationResult,
+	PayrollRun,
+	PayrollRunEmployee,
+	PayrollSettings,
+	CalendarEmployee,
+	ScheduleException,
+	ScheduleTemplate,
 	User,
 } from '@/lib/client-functions';
+import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
 	AttendanceQueryParams,
+	CalendarQueryParams,
 	JobPositionQueryParams,
 	ListQueryParams,
+	PayrollCalculateParams,
+	ScheduleExceptionQueryParams,
+	ScheduleTemplateQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
-import { normalizeUserCode } from '@/lib/device-code-utils';
-import { createServerApiClient, type ServerApiClient } from '@/lib/server-api';
+import { type ServerApiClient, createServerApiClient } from '@/lib/server-api';
+import { serverAuthClient } from '@/lib/server-auth-client';
 
 const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
@@ -61,10 +72,9 @@ export async function fetchEmployeesListServer(
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession(
-			undefined,
-			{ headers: new Headers({ cookie: cookieHeader }) },
-		);
+		const session = await serverAuthClient.getSession(undefined, {
+			headers: new Headers({ cookie: cookieHeader }),
+		});
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -254,10 +264,9 @@ export async function fetchJobPositionsListServer(
 	// Resolve organization ID from params or session (fallback for server prefetch)
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession(
-			undefined,
-			{ headers: new Headers({ cookie: cookieHeader }) },
-		);
+		const session = await serverAuthClient.getSession(undefined, {
+			headers: new Headers({ cookie: cookieHeader }),
+		});
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -298,8 +307,15 @@ export async function fetchJobPositionsListServer(
 		throw new Error('Failed to fetch job positions');
 	}
 
+	const positions =
+		(response.data?.data as (JobPosition & { hourlyPay?: number | string })[] | undefined) ??
+		[];
+
 	return {
-		data: (response.data?.data ?? []) as JobPosition[],
+		data: positions.map((jp) => ({
+			...jp,
+			hourlyPay: Number(jp.hourlyPay ?? 0),
+		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
@@ -325,10 +341,9 @@ export async function fetchAttendanceRecordsServer(
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
 	if (!organizationId && cookieHeader) {
-		const session = await serverAuthClient.getSession(
-			undefined,
-			{ headers: new Headers({ cookie: cookieHeader }) },
-		);
+		const session = await serverAuthClient.getSession(undefined, {
+			headers: new Headers({ cookie: cookieHeader }),
+		});
 		if (!session.error) {
 			organizationId = session.data?.session?.activeOrganizationId ?? null;
 		}
@@ -486,13 +501,16 @@ export async function fetchOrganizationMembersServer(
 		return { members: [], total: 0 };
 	}
 
-	const response = await authClient.organization.listMembers({
-		query: {
-			organizationId: params.organizationId,
-			limit: params.limit ?? 100,
-			offset: params.offset ?? 0,
+	const response = await authClient.organization.listMembers(
+		{
+			query: {
+				organizationId: params.organizationId,
+				limit: params.limit ?? 100,
+				offset: params.offset ?? 0,
+			},
 		},
-	}, { headers });
+		{ headers },
+	);
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch organization members:', response.error);
@@ -536,7 +554,262 @@ export async function fetchUsersServer(
 		throw new Error('Failed to fetch users');
 	}
 
-return (response.data?.users ?? []) as User[];
+	return (response.data?.users ?? []) as User[];
+}
+
+// ============================================================================
+// Payroll Functions
+// ============================================================================
+
+export async function fetchPayrollSettingsServer(
+	cookieHeader: string,
+	organizationId?: string,
+): Promise<PayrollSettings | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api['payroll-settings'].get({
+		$query: organizationId ? { organizationId } : undefined,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch payroll settings:', response.error);
+		return null;
+	}
+
+	return (response.data?.data as PayrollSettings) ?? null;
+}
+
+export async function calculatePayrollServer(
+	cookieHeader: string,
+	params: PayrollCalculateParams,
+): Promise<PayrollCalculationResult> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.payroll.calculate.post(params);
+
+	if (response.error) {
+		console.error('[Server] Failed to calculate payroll:', response.error);
+		throw new Error('Failed to calculate payroll');
+	}
+
+	return response.data?.data as PayrollCalculationResult;
+}
+
+export async function fetchPayrollRunsServer(
+	cookieHeader: string,
+	params?: { organizationId?: string; limit?: number; offset?: number },
+): Promise<PayrollRun[]> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.payroll.runs.get({
+		$query: {
+			limit: params?.limit ?? 100,
+			offset: params?.offset ?? 0,
+			organizationId: params?.organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch payroll runs:', response.error);
+		throw new Error('Failed to fetch payroll runs');
+	}
+
+	const runs =
+		(response.data?.data as (PayrollRun & { totalAmount?: number | string })[] | undefined) ??
+		[];
+	return runs.map((run) => ({
+		...run,
+		totalAmount: Number(run.totalAmount ?? 0),
+	}));
+}
+
+export async function fetchPayrollRunDetailServer(
+	cookieHeader: string,
+	id: string,
+): Promise<{ run: PayrollRun; employees: PayrollRunEmployee[] } | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.payroll.runs[id].get();
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch payroll run detail:', response.error);
+		return null;
+	}
+
+	const payload = response.data?.data as
+		| {
+				run: PayrollRun & { totalAmount?: number | string };
+				employees: (PayrollRunEmployee & {
+					hoursWorked?: number | string;
+					hourlyPay?: number | string;
+					totalPay?: number | string;
+					periodStart: string | Date;
+					periodEnd: string | Date;
+					createdAt: string | Date;
+					updatedAt: string | Date;
+				})[];
+		  }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+	const normalizedRun: PayrollRun = {
+		...payload.run,
+		totalAmount: Number(payload.run.totalAmount ?? 0),
+		periodStart: new Date(payload.run.periodStart),
+		periodEnd: new Date(payload.run.periodEnd),
+		processedAt: payload.run.processedAt ? new Date(payload.run.processedAt) : null,
+		createdAt: new Date(payload.run.createdAt),
+		updatedAt: new Date(payload.run.updatedAt),
+	};
+	const normalizedEmployees: PayrollRunEmployee[] = payload.employees.map((employee) => ({
+		...employee,
+		hoursWorked: Number(employee.hoursWorked ?? 0),
+		hourlyPay: Number(employee.hourlyPay ?? 0),
+		totalPay: Number(employee.totalPay ?? 0),
+		periodStart: new Date(employee.periodStart),
+		periodEnd: new Date(employee.periodEnd),
+		createdAt: new Date(employee.createdAt),
+		updatedAt: new Date(employee.updatedAt),
+	}));
+	return {
+		run: normalizedRun,
+		employees: normalizedEmployees,
+	};
+}
+
+// ============================================================================
+// Scheduling Functions
+// ============================================================================
+
+/**
+ * Fetches schedule templates on the server with cookie forwarding.
+ */
+export async function fetchScheduleTemplatesListServer(
+	cookieHeader: string,
+	params?: ScheduleTemplateQueryParams,
+): Promise<PaginatedResponse<ScheduleTemplate>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	const response = await api['schedule-templates'].get({ $query: query });
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch schedule templates:', response.error);
+		throw new Error('Failed to fetch schedule templates');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleTemplate[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches a schedule template by ID on the server.
+ */
+export async function fetchScheduleTemplateDetailServer(
+	cookieHeader: string,
+	id: string,
+): Promise<ScheduleTemplate | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api['schedule-templates'][id].get();
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch schedule template detail:', response.error);
+		return null;
+	}
+
+	return (response.data?.data as ScheduleTemplate) ?? null;
+}
+
+/**
+ * Fetches schedule exceptions with cookie forwarding.
+ */
+export async function fetchScheduleExceptionsListServer(
+	cookieHeader: string,
+	params?: ScheduleExceptionQueryParams,
+): Promise<PaginatedResponse<ScheduleException>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		fromDate?: Date;
+		toDate?: Date;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params.fromDate) {
+		query.fromDate =
+			typeof params.fromDate === 'string' ? new Date(params.fromDate) : params.fromDate;
+	}
+	if (params.toDate) {
+		query.toDate = typeof params.toDate === 'string' ? new Date(params.toDate) : params.toDate;
+	}
+
+	const response = await api['schedule-exceptions'].get({ $query: query });
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch schedule exceptions:', response.error);
+		throw new Error('Failed to fetch schedule exceptions');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleException[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches the scheduling calendar on the server.
+ */
+export async function fetchCalendarServer(
+	cookieHeader: string,
+	params: CalendarQueryParams,
+): Promise<CalendarEmployee[]> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.scheduling.calendar.get({
+		$query: {
+			...params,
+			startDate: typeof params.startDate === 'string' ? new Date(params.startDate) : params.startDate,
+			endDate: typeof params.endDate === 'string' ? new Date(params.endDate) : params.endDate,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch scheduling calendar:', response.error);
+		throw new Error('Failed to fetch scheduling calendar');
+	}
+
+	return (response.data?.data ?? []) as CalendarEmployee[];
 }
 
 // ============================================================================
@@ -586,7 +859,10 @@ export async function verifyDeviceCodeServer(
 /**
  * Approve a device authorization request server-side.
  */
-export async function approveDeviceCodeServer(headers: Headers, userCode: string): Promise<boolean> {
+export async function approveDeviceCodeServer(
+	headers: Headers,
+	userCode: string,
+): Promise<boolean> {
 	const deviceClient = (serverAuthClient as unknown as { device: DeviceClient }).device;
 	const normalized = normalizeUserCode(userCode);
 	const response = await deviceClient.approve({ userCode: normalized }, { headers });

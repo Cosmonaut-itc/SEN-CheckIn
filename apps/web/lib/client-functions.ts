@@ -9,8 +9,15 @@
 
 import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
-import type { AttendanceQueryParams, ListQueryParams, UsersQueryParams } from '@/lib/query-keys';
 import { normalizeUserCode } from '@/lib/device-code-utils';
+import type {
+	AttendanceQueryParams,
+	CalendarQueryParams,
+	ListQueryParams,
+	ScheduleExceptionQueryParams,
+	ScheduleTemplateQueryParams,
+	UsersQueryParams,
+} from '@/lib/query-keys';
 
 // ============================================================================
 // Type Definitions
@@ -50,8 +57,18 @@ export interface Employee {
 	locationId: string | null;
 	organizationId: string | null;
 	rekognitionUserId: string | null;
+	lastPayrollDate?: Date | null;
+	schedule?: EmployeeScheduleEntry[];
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+export interface EmployeeScheduleEntry {
+	dayOfWeek: number;
+	startTime: string;
+	endTime: string;
+	isWorkingDay: boolean;
 }
 
 /**
@@ -79,6 +96,7 @@ export interface Location {
 	code: string;
 	address: string | null;
 	organizationId: string | null;
+	geographicZone: 'GENERAL' | 'ZLFN';
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -90,6 +108,9 @@ export interface JobPosition {
 	id: string;
 	name: string;
 	description: string | null;
+	dailyPay: number;
+	hourlyPay: number;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
@@ -395,6 +416,28 @@ export async function fetchEmployeesList(
 	};
 }
 
+/**
+ * Fetches a single employee by ID (includes schedule).
+ *
+ * @param id - Employee ID
+ * @returns Employee record or null when not found
+ */
+export async function fetchEmployeeById(id: string): Promise<Employee | null> {
+	const response = await api.employees[id].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch employee detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	return (response.data?.data as Employee) ?? null;
+}
+
 // ============================================================================
 // Device Functions
 // ============================================================================
@@ -584,8 +627,15 @@ export async function fetchJobPositionsList(
 		throw new Error('Failed to fetch job positions');
 	}
 
+	const positions =
+		(response.data?.data as (JobPosition & { hourlyPay: string | number })[] | undefined) ?? [];
+
 	return {
-		data: (response.data?.data ?? []) as JobPosition[],
+		data: positions.map((jp) => ({
+			...jp,
+			hourlyPay: Number(jp.hourlyPay ?? 0),
+			dailyPay: Number((jp as unknown as { dailyPay?: string | number }).dailyPay ?? 0),
+		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
@@ -657,6 +707,247 @@ export async function fetchAttendanceRecords(
 	return {
 		data: (response.data?.data ?? []) as AttendanceRecord[],
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+// ============================================================================
+// Payroll Functions
+// ============================================================================
+
+export interface PayrollSettings {
+	id: string;
+	organizationId: string;
+	weekStartDay: number;
+	overtimeEnforcement: 'WARN' | 'BLOCK';
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PayrollWarning {
+	type: 'OVERTIME_DAILY_EXCEEDED' | 'OVERTIME_WEEKLY_EXCEEDED' | 'BELOW_MINIMUM_WAGE';
+	message: string;
+	severity: 'warning' | 'error';
+}
+
+export interface PayrollCalculationEmployee {
+	employeeId: string;
+	name: string;
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	dailyPay: number;
+	hourlyPay: number;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	hoursWorked: number;
+	expectedHours: number;
+	normalHours: number;
+	overtimeDoubleHours: number;
+	overtimeTripleHours: number;
+	sundayHoursWorked: number;
+	normalPay: number;
+	overtimeDoublePay: number;
+	overtimeTriplePay: number;
+	sundayPremiumAmount: number;
+	totalPay: number;
+	warnings: PayrollWarning[];
+}
+
+export interface PayrollCalculationResult {
+	employees: PayrollCalculationEmployee[];
+	totalAmount: number;
+	periodStart: Date;
+	periodEnd: Date;
+	overtimeEnforcement?: 'WARN' | 'BLOCK';
+}
+
+export interface PayrollRun {
+	id: string;
+	organizationId: string;
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	status: 'DRAFT' | 'PROCESSED';
+	totalAmount: number;
+	employeeCount: number;
+	processedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PayrollRunEmployee {
+	id: string;
+	payrollRunId: string;
+	employeeId: string;
+	hoursWorked: number;
+	hourlyPay: number;
+	totalPay: number;
+	periodStart: Date;
+	periodEnd: Date;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export async function fetchPayrollSettings(
+	organizationId?: string,
+): Promise<PayrollSettings | null> {
+	const response = await api['payroll-settings'].get({
+		$query: organizationId ? { organizationId } : undefined,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch payroll settings:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	return (response.data?.data as PayrollSettings) ?? null;
+}
+
+export async function calculatePayroll(params: {
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	organizationId?: string;
+}): Promise<PayrollCalculationResult> {
+	const response = await api.payroll.calculate.post({
+		periodStart: params.periodStart,
+		periodEnd: params.periodEnd,
+		paymentFrequency: params.paymentFrequency,
+		organizationId: params.organizationId,
+	});
+
+	if (response.error) {
+		console.error('Failed to calculate payroll:', response.error, 'Status:', response.status);
+		throw new Error('Failed to calculate payroll');
+	}
+
+	return response.data?.data as PayrollCalculationResult;
+}
+
+export async function processPayroll(params: {
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	organizationId?: string;
+}): Promise<{ run: PayrollRun; calculation: PayrollCalculationResult }> {
+	const response = await api.payroll.process.post({
+		periodStart: params.periodStart,
+		periodEnd: params.periodEnd,
+		paymentFrequency: params.paymentFrequency,
+		organizationId: params.organizationId,
+	});
+
+	if (response.error) {
+		console.error('Failed to process payroll:', response.error, 'Status:', response.status);
+		throw new Error('Failed to process payroll');
+	}
+
+	const payload = response.data?.data as unknown as
+		| { run: PayrollRun; calculation: PayrollCalculationResult }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to process payroll: empty response');
+	}
+	const runTotalAmount =
+		typeof payload.run.totalAmount === 'string'
+			? Number(payload.run.totalAmount)
+			: payload.run.totalAmount;
+	return {
+		run: { ...payload.run, totalAmount: runTotalAmount ?? 0 },
+		calculation: payload.calculation,
+	};
+}
+
+/**
+ * Retrieves payroll runs list.
+ *
+ * @param params - Filters for organization and pagination
+ * @returns Array of payroll runs with numeric totalAmount
+ */
+export async function fetchPayrollRuns(params?: {
+	organizationId?: string;
+	limit?: number;
+	offset?: number;
+}): Promise<PayrollRun[]> {
+	const response = await api.payroll.runs.get({
+		$query: {
+			limit: params?.limit ?? 100,
+			offset: params?.offset ?? 0,
+			organizationId: params?.organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('Failed to fetch payroll runs:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch payroll runs');
+	}
+
+	const runs =
+		(response.data?.data as (PayrollRun & { totalAmount?: number | string })[] | undefined) ??
+		[];
+	return runs.map((run) => ({
+		...run,
+		totalAmount: Number(run.totalAmount ?? 0),
+	}));
+}
+
+/**
+ * Retrieves a payroll run and its employees by ID.
+ *
+ * @param id - Payroll run ID
+ * @returns Payroll run detail or null when missing
+ */
+export async function fetchPayrollRunDetail(
+	id: string,
+): Promise<{ run: PayrollRun; employees: PayrollRunEmployee[] } | null> {
+	const response = await api.payroll.runs[id].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch payroll run detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = response.data?.data as unknown as
+		| {
+				run: PayrollRun & { totalAmount?: number | string };
+				employees: PayrollRunEmployee[];
+		  }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+	const normalizedRun: PayrollRun = {
+		...payload.run,
+		totalAmount: Number(payload.run.totalAmount ?? 0),
+		periodStart: new Date(payload.run.periodStart),
+		periodEnd: new Date(payload.run.periodEnd),
+		paymentFrequency: payload.run.paymentFrequency,
+		status: payload.run.status,
+		employeeCount: payload.run.employeeCount,
+		processedAt: payload.run.processedAt ? new Date(payload.run.processedAt) : null,
+		createdAt: new Date(payload.run.createdAt),
+		updatedAt: new Date(payload.run.updatedAt),
+	};
+	const normalizedEmployees = payload.employees.map((employee) => ({
+		...employee,
+		hoursWorked: Number(employee.hoursWorked ?? 0),
+		hourlyPay: Number(employee.hourlyPay ?? 0),
+		totalPay: Number(employee.totalPay ?? 0),
+		periodStart: new Date(employee.periodStart),
+		periodEnd: new Date(employee.periodEnd),
+		createdAt: new Date(employee.createdAt),
+		updatedAt: new Date(employee.updatedAt),
+	}));
+	return {
+		run: normalizedRun,
+		employees: normalizedEmployees,
 	};
 }
 
@@ -832,4 +1123,222 @@ export async function fetchUsers(params?: UsersQueryParams): Promise<User[]> {
 	}
 
 	return (response.data?.users ?? []) as User[];
+}
+
+// ============================================================================
+// Scheduling Functions
+// ============================================================================
+
+export type ShiftType = 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+export type ScheduleExceptionType = 'DAY_OFF' | 'MODIFIED' | 'EXTRA_DAY';
+
+export interface ScheduleTemplateDay {
+	id?: string;
+	templateId?: string;
+	dayOfWeek: number;
+	startTime: string;
+	endTime: string;
+	isWorkingDay: boolean;
+	createdAt?: Date;
+	updatedAt?: Date;
+}
+
+export interface ScheduleTemplate {
+	id: string;
+	name: string;
+	description: string | null;
+	shiftType: ShiftType;
+	organizationId: string;
+	createdAt: Date;
+	updatedAt: Date;
+	days?: ScheduleTemplateDay[];
+}
+
+export interface ScheduleException {
+	id: string;
+	employeeId: string;
+	exceptionDate: Date;
+	exceptionType: ScheduleExceptionType;
+	startTime: string | null;
+	endTime: string | null;
+	reason: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+	employeeName?: string | null;
+	employeeLastName?: string | null;
+}
+
+export interface CalendarDay {
+	date: string;
+	isWorkingDay: boolean;
+	startTime: string | null;
+	endTime: string | null;
+	source: 'template' | 'manual' | 'exception' | 'none';
+	exceptionType?: ScheduleExceptionType;
+}
+
+export interface CalendarEmployee {
+	employeeId: string;
+	employeeName: string;
+	locationId: string | null;
+	scheduleTemplateId: string | null;
+	shiftType: ShiftType;
+	days: CalendarDay[];
+}
+
+/**
+ * Normalizes a date-like value into a Date instance.
+ *
+ * @param value - A Date object or ISO date string
+ * @returns Date instance or undefined when input is falsy
+ */
+function normalizeDate(value?: Date | string): Date | undefined {
+	if (!value) {
+		return undefined;
+	}
+	return typeof value === 'string' ? new Date(value) : value;
+}
+
+/**
+ * Fetches schedule templates list.
+ *
+ * @param params - Query parameters including organization scope
+ * @returns Paginated list of schedule templates
+ */
+export async function fetchScheduleTemplatesList(
+	params?: ScheduleTemplateQueryParams,
+): Promise<PaginatedResponse<ScheduleTemplate>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	const response = await api['schedule-templates'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch schedule templates');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleTemplate[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches a schedule template by ID including its days.
+ *
+ * @param id - Template identifier
+ * @returns Template with days or null when missing
+ */
+export async function fetchScheduleTemplateDetail(id: string): Promise<ScheduleTemplate | null> {
+	const response = await api['schedule-templates'][id].get();
+
+	if (response.error) {
+		return null;
+	}
+
+	return (response.data?.data as ScheduleTemplate) ?? null;
+}
+
+/**
+ * Fetches schedule exceptions with optional filters.
+ *
+ * @param params - Query parameters for filtering exceptions
+ * @returns Paginated schedule exceptions
+ */
+export async function fetchScheduleExceptionsList(
+	params?: ScheduleExceptionQueryParams,
+): Promise<PaginatedResponse<ScheduleException>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 100,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		fromDate?: Date;
+		toDate?: Date;
+		organizationId: string;
+	} = {
+		limit: params?.limit ?? 100,
+		offset: params?.offset ?? 0,
+		organizationId: params.organizationId,
+	};
+
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params.fromDate) {
+		query.fromDate = normalizeDate(params.fromDate);
+	}
+	if (params.toDate) {
+		query.toDate = normalizeDate(params.toDate);
+	}
+
+	const response = await api['schedule-exceptions'].get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch schedule exceptions');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as ScheduleException[],
+		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+	};
+}
+
+/**
+ * Fetches the scheduling calendar for the given date range and scope.
+ *
+ * @param params - Calendar query parameters
+ * @returns Calendar entries per employee
+ */
+export async function fetchCalendar(params: CalendarQueryParams): Promise<CalendarEmployee[]> {
+	const startDate = normalizeDate(params.startDate);
+	const endDate = normalizeDate(params.endDate);
+
+	if (!startDate || !endDate) {
+		throw new Error('Start and end date are required');
+	}
+
+	const query = {
+		...params,
+		startDate,
+		endDate,
+	};
+
+	const response = await api.scheduling.calendar.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		throw new Error('Failed to fetch scheduling calendar');
+	}
+
+	return (response.data?.data ?? []) as CalendarEmployee[];
 }

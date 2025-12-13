@@ -4,10 +4,13 @@ import {
 	index,
 	integer,
 	jsonb,
+	numeric,
 	pgEnum,
 	pgTable,
 	text,
+	time,
 	timestamp,
+	uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
 
@@ -317,6 +320,40 @@ export const employeeStatus = pgEnum('employee_status', ['ACTIVE', 'INACTIVE', '
  */
 export const deviceStatus = pgEnum('device_status', ['ONLINE', 'OFFLINE', 'MAINTENANCE']);
 
+/**
+ * Enum for payment frequency
+ */
+export const paymentFrequency = pgEnum('payment_frequency', ['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
+
+/**
+ * Enum for shift types per Mexican labor law (LFT Art. 60-61)
+ */
+export const shiftType = pgEnum('shift_type', ['DIURNA', 'NOCTURNA', 'MIXTA']);
+
+/**
+ * Enum for schedule exception types.
+ */
+export const scheduleExceptionType = pgEnum('schedule_exception_type', [
+	'DAY_OFF',
+	'MODIFIED',
+	'EXTRA_DAY',
+]);
+
+/**
+ * Enum for geographic zones (CONASAMI)
+ */
+export const geographicZone = pgEnum('geographic_zone', ['GENERAL', 'ZLFN']);
+
+/**
+ * Enum for overtime enforcement behavior
+ */
+export const overtimeEnforcement = pgEnum('overtime_enforcement', ['WARN', 'BLOCK']);
+
+/**
+ * Enum for payroll run status
+ */
+export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
+
 // ============================================================================
 // Domain Tables
 // ============================================================================
@@ -350,6 +387,8 @@ export const location = pgTable('location', {
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
 	}),
+	/** Geographic zone for minimum wage validation (CONASAMI) */
+	geographicZone: geographicZone('geographic_zone').default('GENERAL').notNull(),
 	/** @deprecated Legacy client reference. Use organizationId instead. */
 	clientId: text('client_id').references(() => client.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -368,6 +407,12 @@ export const jobPosition = pgTable('job_position', {
 	name: text('name').notNull(),
 	/** Optional description of the position */
 	description: text('description'),
+	/** Daily pay rate for payroll calculations (salario diario) */
+	dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+	/** Hourly pay rate for payroll calculations */
+	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+	/** Payment frequency for this position */
+	paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
 	/** Organization this position belongs to (replaces legacy client linkage) */
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
@@ -380,6 +425,54 @@ export const jobPosition = pgTable('job_position', {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+/**
+ * Schedule Template table - reusable weekly templates per organization.
+ */
+export const scheduleTemplate = pgTable('schedule_template', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	name: text('name').notNull(),
+	description: text('description'),
+	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
+	organizationId: text('organization_id')
+		.notNull()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Schedule Template Day table - daily configuration for templates.
+ */
+export const scheduleTemplateDay = pgTable(
+	'schedule_template_day',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => scheduleTemplate.id, { onDelete: 'cascade' }),
+		dayOfWeek: integer('day_of_week').notNull(), // 0=Sunday, 6=Saturday
+		startTime: time('start_time', { withTimezone: false }).notNull(),
+		endTime: time('end_time', { withTimezone: false }).notNull(),
+		isWorkingDay: boolean('is_working_day').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('schedule_template_day_template_idx').on(table.templateId),
+		uniqueIndex('schedule_template_day_uniq').on(table.templateId, table.dayOfWeek),
+	],
+);
 
 /**
  * Employee table - stores employee information
@@ -401,14 +494,25 @@ export const employee = pgTable('employee', {
 	department: text('department'),
 	/** Employee status (ACTIVE, INACTIVE, ON_LEAVE) */
 	status: employeeStatus('status').default('ACTIVE').notNull(),
+	/** Employee shift type used for hour limits */
+	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
 	/** Date when employee was hired */
 	hireDate: timestamp('hire_date'),
 	/** Location where employee works */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+	/** Assigned schedule template */
+	scheduleTemplateId: text('schedule_template_id').references(() => scheduleTemplate.id, {
+		onDelete: 'set null',
+	}),
 	/** Organization that the employee belongs to */
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
 	}),
+	/**
+	 * Last time payroll was processed for this employee.
+	 * Set by payroll runs to avoid double-payment in a period.
+	 */
+	lastPayrollDate: timestamp('last_payroll_date'),
 	/**
 	 * Rekognition user ID for face recognition.
 	 * Links the employee to their User Vector in the AWS Rekognition collection.
@@ -467,6 +571,199 @@ export const attendanceRecord = pgTable('attendance_record', {
 	 * Stores match score, raw payload, face recognition data, etc.
 	 */
 	metadata: jsonb('metadata'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Employee schedule table - stores weekly schedules per employee.
+ */
+export const employeeSchedule = pgTable(
+	'employee_schedule',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		dayOfWeek: integer('day_of_week').notNull(), // 0 = Sunday, 6 = Saturday
+		startTime: time('start_time', { withTimezone: false }).notNull(),
+		endTime: time('end_time', { withTimezone: false }).notNull(),
+		isWorkingDay: boolean('is_working_day').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('employee_schedule_employee_idx').on(table.employeeId),
+		uniqueIndex('employee_schedule_employee_day_uniq').on(table.employeeId, table.dayOfWeek),
+	],
+);
+
+/**
+ * Schedule Exception table - date-specific overrides for employee schedules.
+ */
+export const scheduleException = pgTable(
+	'schedule_exception',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		exceptionDate: timestamp('exception_date').notNull(),
+		exceptionType: scheduleExceptionType('exception_type').notNull(),
+		startTime: time('start_time', { withTimezone: false }),
+		endTime: time('end_time', { withTimezone: false }),
+		reason: text('reason'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('schedule_exception_employee_idx').on(table.employeeId),
+		index('schedule_exception_date_idx').on(table.exceptionDate),
+		uniqueIndex('schedule_exception_employee_date_uniq').on(table.employeeId, table.exceptionDate),
+	],
+);
+
+/**
+ * Payroll settings per organization.
+ */
+export const payrollSetting = pgTable('payroll_setting', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	organizationId: text('organization_id')
+		.notNull()
+		.unique()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	weekStartDay: integer('week_start_day').default(1).notNull(), // default Monday
+	/** Behavior when overtime limits are exceeded */
+	overtimeEnforcement: overtimeEnforcement('overtime_enforcement').default('WARN').notNull(),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+// ============================================================================
+// Relations - Scheduling
+// ============================================================================
+
+export const scheduleTemplateRelations = relations(scheduleTemplate, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [scheduleTemplate.organizationId],
+		references: [organization.id],
+	}),
+	days: many(scheduleTemplateDay),
+	employees: many(employee),
+}));
+
+export const scheduleTemplateDayRelations = relations(scheduleTemplateDay, ({ one }) => ({
+	template: one(scheduleTemplate, {
+		fields: [scheduleTemplateDay.templateId],
+		references: [scheduleTemplate.id],
+	}),
+}));
+
+export const employeeRelations = relations(employee, ({ one, many }) => ({
+	jobPosition: one(jobPosition, {
+		fields: [employee.jobPositionId],
+		references: [jobPosition.id],
+	}),
+	location: one(location, {
+		fields: [employee.locationId],
+		references: [location.id],
+	}),
+	organization: one(organization, {
+		fields: [employee.organizationId],
+		references: [organization.id],
+	}),
+	scheduleTemplate: one(scheduleTemplate, {
+		fields: [employee.scheduleTemplateId],
+		references: [scheduleTemplate.id],
+	}),
+	scheduleEntries: many(employeeSchedule),
+	scheduleExceptions: many(scheduleException),
+}));
+
+export const scheduleExceptionRelations = relations(scheduleException, ({ one }) => ({
+	employee: one(employee, {
+		fields: [scheduleException.employeeId],
+		references: [employee.id],
+	}),
+}));
+
+/**
+ * Payroll run header table.
+ */
+export const payrollRun = pgTable('payroll_run', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	organizationId: text('organization_id')
+		.notNull()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	periodStart: timestamp('period_start').notNull(),
+	periodEnd: timestamp('period_end').notNull(),
+	paymentFrequency: paymentFrequency('payment_frequency').notNull(),
+	status: payrollRunStatus('status').default('DRAFT').notNull(),
+	totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).default('0').notNull(),
+	employeeCount: integer('employee_count').default(0).notNull(),
+	processedAt: timestamp('processed_at'),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => /* @__PURE__ */ new Date())
+		.notNull(),
+});
+
+/**
+ * Payroll run line items per employee.
+ */
+export const payrollRunEmployee = pgTable('payroll_run_employee', {
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	payrollRunId: text('payroll_run_id')
+		.notNull()
+		.references(() => payrollRun.id, { onDelete: 'cascade' }),
+	employeeId: text('employee_id')
+		.notNull()
+		.references(() => employee.id, { onDelete: 'cascade' }),
+	hoursWorked: numeric('hours_worked', { precision: 10, scale: 2 }).default('0').notNull(),
+	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+	totalPay: numeric('total_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	normalHours: numeric('normal_hours', { precision: 10, scale: 2 }).default('0').notNull(),
+	normalPay: numeric('normal_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	overtimeDoubleHours: numeric('overtime_double_hours', { precision: 10, scale: 2 })
+		.default('0')
+		.notNull(),
+	overtimeDoublePay: numeric('overtime_double_pay', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	overtimeTripleHours: numeric('overtime_triple_hours', { precision: 10, scale: 2 })
+		.default('0')
+		.notNull(),
+	overtimeTriplePay: numeric('overtime_triple_pay', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	sundayPremiumAmount: numeric('sunday_premium_amount', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	periodStart: timestamp('period_start').notNull(),
+	periodEnd: timestamp('period_end').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

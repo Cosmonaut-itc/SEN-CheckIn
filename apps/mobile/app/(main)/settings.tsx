@@ -114,7 +114,7 @@ export default function SettingsScreen(): JSX.Element {
 			<View className="mb-6 gap-3">
 				<Button
 					size="sm"
-					variant="shadow"
+					variant="tertiary"
 					className={`self-start px-4 ${
 						isDarkMode ? 'bg-white' : 'bg-black'
 					} rounded-xl border border-default-200`}
@@ -138,10 +138,10 @@ export default function SettingsScreen(): JSX.Element {
 					<View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
 						<Text className="text-lg">🏢</Text>
 					</View>
-					<View className="flex-1">
-						<Card.Label className="text-foreground text-lg">
+						<View className="flex-1">
+						<Card.Title className="text-foreground text-lg">
 							{organizationName}
-						</Card.Label>
+						</Card.Title>
 						<Card.Description className="text-foreground-500">
 							Organization context is set by your session.
 						</Card.Description>
@@ -291,7 +291,7 @@ export default function SettingsScreen(): JSX.Element {
 
 				<Card.Footer className="flex-row gap-3 px-5 pb-5 pt-3">
 					<Button
-						variant="destructive"
+						variant="danger"
 						className="flex-1"
 						isDisabled={isUpdating}
 						onPress={async () => {

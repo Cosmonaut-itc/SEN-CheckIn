@@ -2,7 +2,7 @@ import type { JSX } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { HeroUINativeProvider } from 'heroui-native';
+import { HeroUINativeProvider, type HeroUINativeConfig } from 'heroui-native';
 import { View } from 'react-native';
 import 'react-native-reanimated';
 
@@ -12,6 +12,13 @@ import { ThemeProvider, useTheme } from '@/providers/theme-provider';
 import { DeviceProvider } from '@/lib/device-context';
 
 import '../global.css';
+
+const heroUiConfig: HeroUINativeConfig = {
+	textProps: {
+		minimumFontScale: 0.5,
+		maxFontSizeMultiplier: 1.5,
+	},
+};
 
 /**
  * Root layout entry point for the Expo Router app.
@@ -43,7 +50,7 @@ function AppProviders(): JSX.Element {
 			className={isDarkMode ? 'dark' : undefined}
 			dataSet={{ theme: colorScheme }}
 		>
-			<HeroUINativeProvider theme={colorScheme}>
+			<HeroUINativeProvider config={heroUiConfig}>
 				<QueryProvider>
 					<AuthProvider>
 						<DeviceProvider>

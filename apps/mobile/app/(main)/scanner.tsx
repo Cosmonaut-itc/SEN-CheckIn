@@ -301,9 +301,9 @@ export default function ScannerScreen(): JSX.Element {
 					<Card.Body className="gap-4 p-6 items-center">
 						<Ionicons name="camera-outline" size={64} color={themeColors.primary} />
 						<View className="gap-2">
-							<Card.Label className="text-center text-xl">
+							<Card.Title className="text-center text-xl">
 								Camera Access Required
-							</Card.Label>
+							</Card.Title>
 							<Card.Description className="text-center text-base">
 								We need camera permission to scan faces for attendance verification.
 							</Card.Description>
@@ -480,7 +480,7 @@ export default function ScannerScreen(): JSX.Element {
 						{/* Link device prompt */}
 						{!settings?.deviceId && (
 							<Button
-								variant="light"
+								variant="tertiary"
 								size="sm"
 								className="mt-3"
 								onPress={handleOpenSettings}

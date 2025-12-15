@@ -389,6 +389,12 @@ export const location = pgTable('location', {
 	}),
 	/** Geographic zone for minimum wage validation (CONASAMI) */
 	geographicZone: geographicZone('geographic_zone').default('GENERAL').notNull(),
+	/**
+	 * IANA timezone identifier for this location (used for day boundaries in payroll).
+	 *
+	 * Examples: "America/Mexico_City", "America/Tijuana"
+	 */
+	timeZone: text('time_zone').default('America/Mexico_City').notNull(),
 	/** @deprecated Legacy client reference. Use organizationId instead. */
 	clientId: text('client_id').references(() => client.id, { onDelete: 'set null' }),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -650,6 +656,16 @@ export const payrollSetting = pgTable('payroll_setting', {
 	weekStartDay: integer('week_start_day').default(1).notNull(), // default Monday
 	/** Behavior when overtime limits are exceeded */
 	overtimeEnforcement: overtimeEnforcement('overtime_enforcement').default('WARN').notNull(),
+	/**
+	 * Additional mandatory rest days (YYYY-MM-DD) configured per organization.
+	 *
+	 * Used primarily for Art. 74 fr. IX ("jornada electoral") and other local/organizational
+	 * rest days that are date-specific.
+	 */
+	additionalMandatoryRestDays: jsonb('additional_mandatory_rest_days')
+		.$type<string[]>()
+		.default([])
+		.notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -760,6 +776,12 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 		.default('0')
 		.notNull(),
 	sundayPremiumAmount: numeric('sunday_premium_amount', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	mandatoryRestDayPremiumAmount: numeric('mandatory_rest_day_premium_amount', {
+		precision: 12,
+		scale: 2,
+	})
 		.default('0')
 		.notNull(),
 	periodStart: timestamp('period_start').notNull(),

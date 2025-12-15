@@ -17,7 +17,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 	 *
 	 * @returns Payroll settings record (creates default if missing)
 	 */
-	.get('/', async ({ authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		.get('/', async ({ authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
 		const organizationId = resolveOrganizationId({
 			authType,
 			session,
@@ -42,11 +42,12 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			return { data: existing[0] };
 		}
 
-		// Create a default configuration if none exists
-		const defaultSetting = {
-			organizationId,
-			weekStartDay: 1,
-		};
+			// Create a default configuration if none exists
+			const defaultSetting = {
+				organizationId,
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+			};
 
 		const [insertedSetting] = await db.insert(payrollSetting).values(defaultSetting).returning();
 
@@ -57,8 +58,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 	 *
 	 * @returns Saved payroll settings
 	 */
-	.put(
-		'/',
+		.put(
+			'/',
 		async ({
 			body,
 			authType,
@@ -88,26 +89,30 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				.where(eq(payrollSetting.organizationId, organizationId))
 				.limit(1);
 
-			const resolvedOvertimeEnforcement =
-				body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
+				const resolvedOvertimeEnforcement =
+					body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
+				const resolvedAdditionalMandatoryRestDays =
+					body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
 
-			const updatePayload = {
-				weekStartDay: body.weekStartDay,
-				overtimeEnforcement: resolvedOvertimeEnforcement,
-				organizationId,
-			};
+				const updatePayload = {
+					weekStartDay: body.weekStartDay,
+					overtimeEnforcement: resolvedOvertimeEnforcement,
+					additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,
+					organizationId,
+				};
 
 			if (existing[0]) {
-				await db
-					.update(payrollSetting)
-					.set({
-						weekStartDay: updatePayload.weekStartDay,
-						overtimeEnforcement: updatePayload.overtimeEnforcement,
-					})
-					.where(eq(payrollSetting.organizationId, organizationId));
-			} else {
-				await db.insert(payrollSetting).values(updatePayload);
-			}
+					await db
+						.update(payrollSetting)
+						.set({
+							weekStartDay: updatePayload.weekStartDay,
+							overtimeEnforcement: updatePayload.overtimeEnforcement,
+							additionalMandatoryRestDays: updatePayload.additionalMandatoryRestDays,
+						})
+						.where(eq(payrollSetting.organizationId, organizationId));
+				} else {
+					await db.insert(payrollSetting).values(updatePayload);
+				}
 
 			const saved = await db
 				.select()
@@ -121,4 +126,3 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			body: payrollSettingsSchema,
 		},
 	);
-

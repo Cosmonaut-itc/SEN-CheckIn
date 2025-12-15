@@ -97,6 +97,7 @@ export interface Location {
 	address: string | null;
 	organizationId: string | null;
 	geographicZone: 'GENERAL' | 'ZLFN';
+	timeZone: string;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -719,12 +720,17 @@ export interface PayrollSettings {
 	organizationId: string;
 	weekStartDay: number;
 	overtimeEnforcement: 'WARN' | 'BLOCK';
+	additionalMandatoryRestDays: string[];
 	createdAt: Date;
 	updatedAt: Date;
 }
 
 export interface PayrollWarning {
-	type: 'OVERTIME_DAILY_EXCEEDED' | 'OVERTIME_WEEKLY_EXCEEDED' | 'BELOW_MINIMUM_WAGE';
+	type:
+		| 'OVERTIME_DAILY_EXCEEDED'
+		| 'OVERTIME_WEEKLY_EXCEEDED'
+		| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
+		| 'BELOW_MINIMUM_WAGE';
 	message: string;
 	severity: 'warning' | 'error';
 }
@@ -742,10 +748,12 @@ export interface PayrollCalculationEmployee {
 	overtimeDoubleHours: number;
 	overtimeTripleHours: number;
 	sundayHoursWorked: number;
+	mandatoryRestDaysWorkedCount: number;
 	normalPay: number;
 	overtimeDoublePay: number;
 	overtimeTriplePay: number;
 	sundayPremiumAmount: number;
+	mandatoryRestDayPremiumAmount: number;
 	totalPay: number;
 	warnings: PayrollWarning[];
 }
@@ -779,6 +787,14 @@ export interface PayrollRunEmployee {
 	hoursWorked: number;
 	hourlyPay: number;
 	totalPay: number;
+	normalHours: number;
+	normalPay: number;
+	overtimeDoubleHours: number;
+	overtimeDoublePay: number;
+	overtimeTripleHours: number;
+	overtimeTriplePay: number;
+	sundayPremiumAmount: number;
+	mandatoryRestDayPremiumAmount: number;
 	periodStart: Date;
 	periodEnd: Date;
 	createdAt: Date;
@@ -940,6 +956,14 @@ export async function fetchPayrollRunDetail(
 		hoursWorked: Number(employee.hoursWorked ?? 0),
 		hourlyPay: Number(employee.hourlyPay ?? 0),
 		totalPay: Number(employee.totalPay ?? 0),
+		normalHours: Number(employee.normalHours ?? 0),
+		normalPay: Number(employee.normalPay ?? 0),
+		overtimeDoubleHours: Number(employee.overtimeDoubleHours ?? 0),
+		overtimeDoublePay: Number(employee.overtimeDoublePay ?? 0),
+		overtimeTripleHours: Number(employee.overtimeTripleHours ?? 0),
+		overtimeTriplePay: Number(employee.overtimeTriplePay ?? 0),
+		sundayPremiumAmount: Number(employee.sundayPremiumAmount ?? 0),
+		mandatoryRestDayPremiumAmount: Number(employee.mandatoryRestDayPremiumAmount ?? 0),
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),

@@ -15,10 +15,13 @@ todos:
     content: Update app-sidebar.tsx to use useTranslations hook
     status: pending
   - id: web-dashboard
-    content: Update all dashboard client components (~12 files) with translations
+    content: Update all dashboard client components (13 files) with translations
+    status: pending
+  - id: web-schedules
+    content: Update schedules page and 8 sub-components with translations (NEW)
     status: pending
   - id: web-auth
-    content: Update auth pages (sign-in, sign-up, verify) with translations
+    content: Update auth pages (sign-in, sign-up, device verification) with translations
     status: pending
   - id: web-components
     content: Update shared components (dialogs, forms, skeletons) with translations
@@ -87,13 +90,16 @@ bun run add:web -- next-intl
 
 - [`apps/web/messages/es.json`](apps/web/messages/es.json) - All Spanish translations organized by namespace:
   - `Common` - Shared labels (Save, Cancel, Delete, Loading, etc.)
-  - `Navigation` - Sidebar items (Dashboard, Employees, Locations, etc.)
+  - `Navigation` - Sidebar items (Dashboard, Employees, Locations, Schedules, etc.)
   - `Employees` - Employee management page strings
   - `Devices` - Device management strings
   - `Locations` - Location management strings
   - `Attendance` - Attendance page strings
   - `Payroll` - Payroll page strings
+  - `PayrollSettings` - Payroll settings page strings
+  - `Schedules` - Schedule management strings (calendar, templates, exceptions)
   - `Auth` - Login/signup forms
+  - `DeviceAuth` - Device authorization verification page
   - `Errors` - Error messages
   - `Dialogs` - Confirmation dialogs
 
@@ -101,11 +107,47 @@ bun run add:web -- next-intl
 
 Key files to update (using `useTranslations` hook):
 
+**Dashboard Pages (13 client components):**
+
+- [`apps/web/app/(dashboard)/dashboard/dashboard-client.tsx`](apps/web/app/\\\\\\\(dashboard)/dashboard/dashboard-client.tsx)
+- [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\\\\\(dashboard)/employees/employees-client.tsx)
+- [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\\\\\\(dashboard)/job-positions/job-positions-client.tsx)
+- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](apps/web/app/\\\\\\\(dashboard)/devices/devices-client.tsx)
+- [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\\\\\\(dashboard)/locations/locations-client.tsx)
+- [`apps/web/app/(dashboard)/attendance/attendance-client.tsx`](apps/web/app/\\\\\\\(dashboard)/attendance/attendance-client.tsx)
+- [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\\\\\(dashboard)/payroll/payroll-client.tsx)
+- [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\\\\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
+- [`apps/web/app/(dashboard)/api-keys/api-keys-client.tsx`](apps/web/app/\\\\\\\(dashboard)/api-keys/api-keys-client.tsx)
+- [`apps/web/app/(dashboard)/users/users-client.tsx`](apps/web/app/\\\\\\\(dashboard)/users/users-client.tsx)
+- [`apps/web/app/(dashboard)/organizations/organizations-client.tsx`](apps/web/app/\\\\\\\(dashboard)/organizations/organizations-client.tsx)
+- [`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/schedules-client.tsx) **(NEW)**
+- [`apps/web/app/(dashboard)/error.tsx`](apps/web/app/\\\\\\\(dashboard)/error.tsx)
+
+**Schedules Sub-components (8 files - NEW):**
+
+- [`apps/web/app/(dashboard)/schedules/components/calendar-view.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/calendar-view.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/day-schedule-editor.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/day-schedule-editor.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/exception-form-dialog.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/exception-form-dialog.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/labor-law-warnings.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/location-schedule-card.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/location-schedule-card.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/schedule-exceptions-tab.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/schedule-exceptions-tab.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/schedule-templates-tab.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/schedule-templates-tab.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx`](apps/web/app/\\\\\\\(dashboard)/schedules/components/template-form-dialog.tsx)
+
+**Auth Pages (4 files):**
+
+- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\\\\\\\(auth)/sign-in/page.tsx)
+- [`apps/web/app/(auth)/sign-up/page.tsx`](apps/web/app/\\\\\\\(auth)/sign-up/page.tsx)
+- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\\\\\\\(auth)/device/device-client.tsx) **(NEW)**
+- [`apps/web/app/(auth)/layout.tsx`](apps/web/app/\\\\\\\(auth)/layout.tsx)
+
+**Shared Components:**
+
 - [`apps/web/components/app-sidebar.tsx`](apps/web/components/app-sidebar.tsx) - Navigation labels
-- [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx) - Form labels, table headers, messages
-- All other dashboard client components (~12 files)
-- Auth pages (~5 files)
-- Shared components (dialogs, forms)
+- [`apps/web/components/face-enrollment-dialog.tsx`](apps/web/components/face-enrollment-dialog.tsx)
+- [`apps/web/components/no-organization-state.tsx`](apps/web/components/no-organization-state.tsx)
+- [`apps/web/components/organization-gate.tsx`](apps/web/components/organization-gate.tsx)
+- Skeleton components (10 files in `components/skeletons/`)
 
 ---
 
@@ -135,10 +177,10 @@ bun run add:mobile -- expo-localization i18n-js
 
 Key files to update (using `i18n.t()` function):
 
-- [`apps/mobile/app/(main)/scanner.tsx`](apps/mobile/app/\\\\(main)/scanner.tsx) - Scanner UI strings
-- [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\\\\(auth)/login.tsx) - Login flow strings
-- [`apps/mobile/app/(auth)/device-setup.tsx`](apps/mobile/app/\\\\(auth)/device-setup.tsx) - Setup strings
-- [`apps/mobile/app/(main)/settings.tsx`](apps/mobile/app/\\\\(main)/settings.tsx) - Settings strings
+- [`apps/mobile/app/(main)/scanner.tsx`](apps/mobile/app/\\\\\\\\\\\\\(main)/scanner.tsx) - Scanner UI strings
+- [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\\\\\\\\\\\\\(auth)/login.tsx) - Login flow strings
+- [`apps/mobile/app/(auth)/device-setup.tsx`](apps/mobile/app/\\\\\\\\\\\\\(auth)/device-setup.tsx) - Setup strings
+- [`apps/mobile/app/(main)/settings.tsx`](apps/mobile/app/\\\\\\\\\\\\\(main)/settings.tsx) - Settings strings
 
 ---
 
@@ -179,9 +221,65 @@ Add new section under "Coding Style and Naming Conventions":
 
 | Payroll | Nómina |
 
+| Payroll Settings | Configuración de Nómina |
+
+| Schedules | Horarios |
+
+| API Keys | Claves de API |
+
+| Users | Usuarios |
+
+| Organizations | Organizaciones |
+
 | Settings | Configuración |
 
 | Sign out | Cerrar Sesión |
+
+### Spanish Schedules Page Labels (NEW)
+
+| English | Spanish (es-MX) |
+
+|---------|-----------------|
+
+| Calendar | Calendario |
+
+| Templates | Plantillas |
+
+| Exceptions | Excepciones |
+
+| Week | Semana |
+
+| Month | Mes |
+
+| Schedule Template | Plantilla de Horario |
+
+| Add Exception | Agregar Excepción |
+
+| Labor Law Warning | Advertencia de Ley Laboral |
+
+| Overtime | Tiempo Extra |
+
+| Working Hours | Horas de Trabajo |
+
+### Spanish Device Auth Labels (NEW)
+
+| English | Spanish (es-MX) |
+
+|---------|-----------------|
+
+| Enter the device code | Ingresa el código del dispositivo |
+
+| Verify code | Verificar código |
+
+| Approve | Aprobar |
+
+| Deny | Rechazar |
+
+| Pending approval | Pendiente de aprobación |
+
+| Approved | Aprobado |
+
+| Denied | Rechazado |
 
 ### Spanish Common Actions
 
@@ -205,11 +303,29 @@ Add new section under "Coding Style and Naming Conventions":
 
 | Confirm | Confirmar |
 
+| Next | Siguiente |
+
+| Previous | Anterior |
+
+| Back | Volver |
+
+| Close | Cerrar |
+
+| Submit | Enviar |
+
+| Required | Requerido |
+
+| Optional | Opcional |
+
 ---
 
 ## File Count Estimate
 
-- **Web**: ~50 files to update (12 dashboard pages, 5 auth pages, ~33 components)
+- **Web**: ~60 files to update
+  - 13 dashboard client pages (including new Schedules page)
+  - 8 schedules sub-components (calendar, templates, exceptions, etc.)
+  - 4 auth pages (sign-in, sign-up, device verification, layout)
+  - ~35 shared components (sidebar, dialogs, skeletons, UI primitives)
 - **Mobile**: ~7 screens + ~10 component files
 - **New files**: ~6 (i18n config + translation JSONs)
 
@@ -233,7 +349,9 @@ After all translations are implemented, run the following commands from the proj
 # Format all files
 bun run format
 
-# Run linting across all workspaces
+# Run linting across
+ all workspaces
+
 bun run lint
 
 # Run type checking across all workspaces
@@ -241,32 +359,3 @@ bun run check-types
 ```
 
 Fix any errors before considering the task complete.
-
----
-
-## Implementation Guidelines
-
-- **Follow AGENTS.md**: All code must adhere to the repository guidelines in [AGENTS.md](AGENTS.md), including:
-  - Strict TypeScript typing for all functions, variables, and component props
-  - JSDoc documentation for all functions with `@param`, `@returns`, `@throws`
-  - Prettier formatting (2 spaces, semicolons)
-  - Conventional commit messages (`feat(web): ...`, `feat(mobile): ...`)
-
----
-
-## Phase 4: Quality Checks
-
-After all translations are complete, run the following commands to ensure code quality:
-
-```bash
-# Format all files
-bun run format
-
-# Run linting across all workspaces
-bun run lint
-
-# Run type checks across all workspaces
-bun run check-types
-```
-
-Fix any lint or type errors before committing.

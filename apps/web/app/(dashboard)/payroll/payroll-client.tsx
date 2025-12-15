@@ -190,7 +190,8 @@ export function PayrollPageClient(): React.ReactElement {
 					<CardTitle>Reglas legales (LFT México)</CardTitle>
 					<CardDescription>
 						Límites de jornada: Diurna 8h/48h, Nocturna 7h/42h, Mixta 7.5h/45h. Primeras
-						9h extra al doble, posteriores al triple. Prima dominical: +25%.
+						9h extra al doble, posteriores al triple. Prima dominical: +25%. Descanso
+						obligatorio trabajado: pago triple.
 					</CardDescription>
 				</CardHeader>
 			</Card>
@@ -306,6 +307,7 @@ export function PayrollPageClient(): React.ReactElement {
 											<TableHead>Horas extra (x2)</TableHead>
 											<TableHead>Horas extra (x3)</TableHead>
 											<TableHead>Prima dominical</TableHead>
+											<TableHead>Descanso obligatorio</TableHead>
 											<TableHead>Total</TableHead>
 											<TableHead>Alertas</TableHead>
 										</TableRow>
@@ -324,6 +326,11 @@ export function PayrollPageClient(): React.ReactElement {
 												<TableCell>
 													{row.sundayPremiumAmount > 0
 														? formatCurrency(row.sundayPremiumAmount)
+														: '-'}
+												</TableCell>
+												<TableCell>
+													{row.mandatoryRestDayPremiumAmount > 0
+														? formatCurrency(row.mandatoryRestDayPremiumAmount)
 														: '-'}
 												</TableCell>
 												<TableCell>

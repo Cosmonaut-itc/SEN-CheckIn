@@ -11,7 +11,9 @@ export type ScheduleWarningType =
 	| 'WEEKLY_HOURS_EXCEEDED'
 	| 'NO_REST_DAY'
 	| 'INVALID_SHIFT_HOURS'
-	| 'OVERTIME_DAILY_LIMIT';
+	| 'OVERTIME_DAILY_LIMIT'
+	| 'OVERTIME_WEEKLY_EXCEEDED'
+	| 'OVERTIME_WEEKLY_DAYS_EXCEEDED';
 
 /**
  * Warning descriptor returned by the validator.
@@ -81,6 +83,8 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 	const weeklyLimit = WEEKLY_LIMITS[shiftType] ?? 48;
 
 	let weeklyHours = 0;
+	let weeklyOvertimeHours = 0;
+	let weeklyOvertimeDays = 0;
 	let hasRestDay = false;
 
 	days.forEach((day) => {
@@ -89,6 +93,12 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 			hasRestDay = true;
 		} else {
 			weeklyHours += hours;
+		}
+
+		const overtimeHours = Math.max(0, hours - dailyLimit);
+		if (overtimeHours > 0) {
+			weeklyOvertimeHours += overtimeHours;
+			weeklyOvertimeDays += 1;
 		}
 
 		if (hours > dailyLimit) {
@@ -122,6 +132,22 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 		warnings.push({
 			type: 'WEEKLY_HOURS_EXCEEDED',
 			message: `Weekly total exceeds limit (${weeklyHours.toFixed(2)}h > ${weeklyLimit}h).`,
+			severity: 'error',
+		});
+	}
+
+	if (weeklyOvertimeDays > 3) {
+		warnings.push({
+			type: 'OVERTIME_WEEKLY_DAYS_EXCEEDED',
+			message: `Overtime exceeds weekly frequency limit (${weeklyOvertimeDays} days > 3 days).`,
+			severity: 'error',
+		});
+	}
+
+	if (weeklyOvertimeHours > 9) {
+		warnings.push({
+			type: 'OVERTIME_WEEKLY_EXCEEDED',
+			message: `Overtime exceeds weekly legal limit (${weeklyOvertimeHours.toFixed(2)}h > 9h).`,
 			severity: 'error',
 		});
 	}
@@ -171,4 +197,3 @@ export function LaborLawWarnings({
 		</div>
 	);
 }
-

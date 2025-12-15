@@ -639,6 +639,14 @@ export async function fetchPayrollRunDetailServer(
 					hoursWorked?: number | string;
 					hourlyPay?: number | string;
 					totalPay?: number | string;
+					normalHours?: number | string;
+					normalPay?: number | string;
+					overtimeDoubleHours?: number | string;
+					overtimeDoublePay?: number | string;
+					overtimeTripleHours?: number | string;
+					overtimeTriplePay?: number | string;
+					sundayPremiumAmount?: number | string;
+					mandatoryRestDayPremiumAmount?: number | string;
 					periodStart: string | Date;
 					periodEnd: string | Date;
 					createdAt: string | Date;
@@ -663,6 +671,14 @@ export async function fetchPayrollRunDetailServer(
 		hoursWorked: Number(employee.hoursWorked ?? 0),
 		hourlyPay: Number(employee.hourlyPay ?? 0),
 		totalPay: Number(employee.totalPay ?? 0),
+		normalHours: Number(employee.normalHours ?? 0),
+		normalPay: Number(employee.normalPay ?? 0),
+		overtimeDoubleHours: Number(employee.overtimeDoubleHours ?? 0),
+		overtimeDoublePay: Number(employee.overtimeDoublePay ?? 0),
+		overtimeTripleHours: Number(employee.overtimeTripleHours ?? 0),
+		overtimeTriplePay: Number(employee.overtimeTriplePay ?? 0),
+		sundayPremiumAmount: Number(employee.sundayPremiumAmount ?? 0),
+		mandatoryRestDayPremiumAmount: Number(employee.mandatoryRestDayPremiumAmount ?? 0),
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),

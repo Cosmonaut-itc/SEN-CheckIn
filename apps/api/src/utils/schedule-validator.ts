@@ -10,7 +10,13 @@ export interface ScheduleDayInput {
 }
 
 export interface ScheduleWarning {
-	type: 'DAILY_HOURS_EXCEEDED' | 'WEEKLY_HOURS_EXCEEDED' | 'NO_REST_DAY' | 'INVALID_SHIFT_HOURS';
+	type:
+		| 'DAILY_HOURS_EXCEEDED'
+		| 'WEEKLY_HOURS_EXCEEDED'
+		| 'OVERTIME_WEEKLY_EXCEEDED'
+		| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
+		| 'NO_REST_DAY'
+		| 'INVALID_SHIFT_HOURS';
 	dayOfWeek?: number;
 	message: string;
 	severity: 'warning' | 'error';
@@ -73,6 +79,8 @@ export function validateScheduleDays(args: {
 
 	const seenDays = new Set<number>();
 	let weeklyMinutes = 0;
+	let weeklyOvertimeMinutes = 0;
+	let weeklyOvertimeDays = 0;
 	let restDayCount = 0;
 
 	for (const day of days) {
@@ -114,17 +122,22 @@ export function validateScheduleDays(args: {
 		}
 
 		const overtimeHours = Math.max(0, dayHours - limit.dailyHours);
-		if (overtimeHours > OVERTIME_LIMITS.MAX_DAILY_HOURS) {
-			warnings.push({
-				type: 'DAILY_HOURS_EXCEEDED',
-				dayOfWeek: day.dayOfWeek,
-				message: `Overtime ${overtimeHours.toFixed(
-					2,
-				)} exceeds legal daily maximum of ${OVERTIME_LIMITS.MAX_DAILY_HOURS} hours.`,
-				severity: severityForOverage,
-			});
+			if (overtimeHours > OVERTIME_LIMITS.MAX_DAILY_HOURS) {
+				warnings.push({
+					type: 'DAILY_HOURS_EXCEEDED',
+					dayOfWeek: day.dayOfWeek,
+					message: `Overtime ${overtimeHours.toFixed(
+						2,
+					)} exceeds legal daily maximum of ${OVERTIME_LIMITS.MAX_DAILY_HOURS} hours.`,
+					severity: severityForOverage,
+				});
+			}
+
+			if (overtimeHours > 0) {
+				weeklyOvertimeMinutes += overtimeHours * 60;
+				weeklyOvertimeDays += 1;
+			}
 		}
-	}
 
 	const weeklyHours = weeklyMinutes / 60;
 	if (weeklyHours > limit.weeklyHours) {
@@ -137,16 +150,24 @@ export function validateScheduleDays(args: {
 		});
 	}
 
-	const weeklyOvertime = Math.max(0, weeklyHours - limit.weeklyHours);
-	if (weeklyOvertime > OVERTIME_LIMITS.MAX_WEEKLY_HOURS) {
-		warnings.push({
-			type: 'WEEKLY_HOURS_EXCEEDED',
-			message: `Overtime ${weeklyOvertime.toFixed(
-				2,
-			)} exceeds legal weekly maximum of ${OVERTIME_LIMITS.MAX_WEEKLY_HOURS} hours.`,
-			severity: severityForOverage,
-		});
-	}
+		const weeklyOvertimeHours = weeklyOvertimeMinutes / 60;
+		if (weeklyOvertimeDays > 3) {
+			warnings.push({
+				type: 'OVERTIME_WEEKLY_DAYS_EXCEEDED',
+				message: `Overtime exceeds weekly frequency limit (${weeklyOvertimeDays} days > 3 days).`,
+				severity: severityForOverage,
+			});
+		}
+
+		if (weeklyOvertimeHours > OVERTIME_LIMITS.MAX_WEEKLY_HOURS) {
+			warnings.push({
+				type: 'OVERTIME_WEEKLY_EXCEEDED',
+				message: `Overtime ${weeklyOvertimeHours.toFixed(
+					2,
+				)} exceeds legal weekly maximum of ${OVERTIME_LIMITS.MAX_WEEKLY_HOURS} hours.`,
+				severity: severityForOverage,
+			});
+		}
 
 	if (restDayCount === 0) {
 		warnings.push({
@@ -164,8 +185,4 @@ export function validateScheduleDays(args: {
 
 	return result;
 }
-
-
-
-
 

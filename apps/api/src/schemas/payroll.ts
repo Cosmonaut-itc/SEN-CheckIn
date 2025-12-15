@@ -17,6 +17,9 @@ export const payrollSettingsSchema = z.object({
 	weekStartDay: z.number().int().min(0).max(6).default(1),
 	organizationId: z.string().optional(),
 	overtimeEnforcement: overtimeEnforcementEnum.default('WARN').optional(),
+	additionalMandatoryRestDays: z
+		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'))
+		.optional(),
 });
 
 /**
@@ -49,7 +52,12 @@ export const payrollRunQuerySchema = z.object({
  * Warning emitted during payroll calculation.
  */
 export const payrollWarningSchema = z.object({
-	type: z.enum(['OVERTIME_DAILY_EXCEEDED', 'OVERTIME_WEEKLY_EXCEEDED', 'BELOW_MINIMUM_WAGE']),
+	type: z.enum([
+		'OVERTIME_DAILY_EXCEEDED',
+		'OVERTIME_WEEKLY_EXCEEDED',
+		'OVERTIME_WEEKLY_DAYS_EXCEEDED',
+		'BELOW_MINIMUM_WAGE',
+	]),
 	message: z.string(),
 	severity: z.enum(['warning', 'error']),
 });
@@ -67,10 +75,12 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	overtimeDoubleHours: z.number(),
 	overtimeTripleHours: z.number(),
 	sundayHoursWorked: z.number(),
+	mandatoryRestDaysWorkedCount: z.number(),
 	normalPay: z.number(),
 	overtimeDoublePay: z.number(),
 	overtimeTriplePay: z.number(),
 	sundayPremiumAmount: z.number(),
+	mandatoryRestDayPremiumAmount: z.number(),
 	totalPay: z.number(),
 	warnings: z.array(payrollWarningSchema),
 });
@@ -83,4 +93,3 @@ export type PayrollRunQuery = z.infer<typeof payrollRunQuerySchema>;
 export type PayrollWarning = z.infer<typeof payrollWarningSchema>;
 export type PayrollEmployeeBreakdown = z.infer<typeof payrollEmployeeBreakdownSchema>;
 export type OvertimeEnforcement = z.infer<typeof overtimeEnforcementEnum>;
-

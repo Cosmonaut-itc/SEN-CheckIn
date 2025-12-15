@@ -9,4 +9,3 @@ import { OrganizationsSkeleton } from '@/components/skeletons';
 export default function OrganizationsLoading() {
 	return <OrganizationsSkeleton />;
 }
-

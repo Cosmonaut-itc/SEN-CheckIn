@@ -9,6 +9,7 @@ import { signOut } from '@/lib/auth-client';
 import { fetchLocationsList } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
+import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
@@ -73,21 +74,21 @@ export default function SettingsScreen(): JSX.Element {
 
 				toast.show({
 					variant: 'success',
-					label: 'Settings saved',
-					description: 'Device details updated successfully.',
-					actionLabel: 'OK',
+					label: i18n.t('Settings.toast.saveSuccess.title'),
+					description: i18n.t('Settings.toast.saveSuccess.description'),
+					actionLabel: i18n.t('Common.ok'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
 			} catch (error: unknown) {
 				const message =
 					error instanceof Error
 						? error.message
-						: 'Unable to save changes. Please try again.';
+						: i18n.t('Settings.toast.saveError.fallbackDescription');
 				toast.show({
 					variant: 'danger',
-					label: 'Save failed',
+					label: i18n.t('Settings.toast.saveError.title'),
 					description: message,
-					actionLabel: 'Dismiss',
+					actionLabel: i18n.t('Common.dismiss'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
 			}
@@ -103,7 +104,7 @@ export default function SettingsScreen(): JSX.Element {
 	const organizationId = session?.session?.activeOrganizationId ?? '—';
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
-		'Organization';
+		i18n.t('Settings.organization.fallbackName');
 
 	return (
 		<ScrollView
@@ -121,29 +122,30 @@ export default function SettingsScreen(): JSX.Element {
 					onPress={() => router.replace('/(main)/scanner')}
 				>
 					<Button.Label className={isDarkMode ? 'text-black' : 'text-white'}>
-						← Back to Scanner
+						{i18n.t('Settings.navigation.backToScanner')}
 					</Button.Label>
 				</Button>
 				<View className="gap-1">
-					<Text className="text-3xl font-extrabold text-foreground">Device Settings</Text>
+					<Text className="text-3xl font-extrabold text-foreground">
+						{i18n.t('Settings.title')}
+					</Text>
 					<Text className="text-base text-foreground-500">
-						Configure this kiosk before scanning. Organization context comes from your
-						session.
+						{i18n.t('Settings.subtitle')}
 					</Text>
 				</View>
 			</View>
 
-		<Card variant="default" className="mb-4">
+			<Card variant="default" className="mb-4">
 				<Card.Header className="flex-row items-center gap-3 px-5 pt-5 pb-2">
 					<View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
 						<Text className="text-lg">🏢</Text>
 					</View>
-						<View className="flex-1">
+					<View className="flex-1">
 						<Card.Title className="text-foreground text-lg">
 							{organizationName}
 						</Card.Title>
 						<Card.Description className="text-foreground-500">
-							Organization context is set by your session.
+							{i18n.t('Settings.organization.description')}
 						</Card.Description>
 					</View>
 				</Card.Header>
@@ -153,25 +155,27 @@ export default function SettingsScreen(): JSX.Element {
 						numberOfLines={1}
 						ellipsizeMode="middle"
 					>
-						ID: {organizationId}
+						{i18n.t('Settings.organization.idLabel')}: {organizationId}
 					</Text>
 				</Card.Body>
 			</Card>
 
-		<Card variant="default" className="mb-10">
+			<Card variant="default" className="mb-10">
 				<Card.Body className="p-5 gap-5">
 					<form.AppField
 						name="name"
 						validators={{
 							onChange: ({ value }) =>
-								!value.trim() ? 'Name is required' : undefined,
+								!value.trim()
+									? i18n.t('Settings.form.validation.nameRequired')
+									: undefined,
 						}}
 					>
 						{(field) => (
 							<field.TextField
-								label="Device name"
-								placeholder="Front desk tablet"
-								description="Shown in dashboards and audit logs."
+								label={i18n.t('Settings.form.fields.name.label')}
+								placeholder={i18n.t('Settings.form.fields.name.placeholder')}
+								description={i18n.t('Settings.form.fields.name.description')}
 							/>
 						)}
 					</form.AppField>
@@ -194,7 +198,7 @@ export default function SettingsScreen(): JSX.Element {
 							return (
 								<View className="gap-1.5">
 									<Text className="text-sm font-semibold text-foreground tracking-wide">
-										Location
+										{i18n.t('Settings.form.fields.location.label')}
 									</Text>
 									<Select
 										value={selectedOption}
@@ -212,8 +216,12 @@ export default function SettingsScreen(): JSX.Element {
 												) : (
 													<Text className="text-foreground">
 														{isLocationsPending
-															? 'Loading locations...'
-															: 'Select location'}
+															? i18n.t(
+																	'Settings.form.fields.location.loading',
+																)
+															: i18n.t(
+																	'Settings.form.fields.location.placeholder',
+																)}
 													</Text>
 												)}
 											</Button>
@@ -228,7 +236,9 @@ export default function SettingsScreen(): JSX.Element {
 												{locationOptions.length === 0 ? (
 													<View className="py-4">
 														<Text className="text-foreground-400 text-center">
-															No locations available
+															{i18n.t(
+																'Settings.form.fields.location.empty',
+															)}
 														</Text>
 													</View>
 												) : (
@@ -264,24 +274,30 @@ export default function SettingsScreen(): JSX.Element {
 
 					<form.AppForm>
 						<form.SubmitButton
-							label={settings?.deviceId ? 'Save changes' : 'Link device first'}
-							loadingLabel="Saving..."
+							label={
+								settings?.deviceId
+									? i18n.t('Settings.form.actions.saveChanges')
+									: i18n.t('Settings.form.actions.linkDeviceFirst')
+							}
+							loadingLabel={i18n.t('Common.saving')}
 							className="mt-2"
 						/>
 					</form.AppForm>
 
 					<View className="gap-1">
-						<Text className="text-sm text-foreground-500">Device ID</Text>
+						<Text className="text-sm text-foreground-500">
+							{i18n.t('Settings.deviceId.label')}
+						</Text>
 						<Text
 							className="text-foreground font-mono text-sm"
 							numberOfLines={1}
 							ellipsizeMode="middle"
 						>
-							{settings?.deviceId ?? 'Not set. Use login screen.'}
+							{settings?.deviceId ?? i18n.t('Settings.deviceId.notSet')}
 						</Text>
 						{!isHydrated ? (
 							<Text className="text-foreground-500">
-								Loading saved device settings…
+								{i18n.t('Settings.deviceId.loading')}
 							</Text>
 						) : null}
 					</View>
@@ -300,30 +316,32 @@ export default function SettingsScreen(): JSX.Element {
 								await clearSettings();
 								toast.show({
 									variant: 'success',
-									label: 'Signed out',
-									description: 'Session cleared on this device.',
-									actionLabel: 'OK',
+									label: i18n.t('Settings.toast.signOutSuccess.title'),
+									description: i18n.t(
+										'Settings.toast.signOutSuccess.description',
+									),
+									actionLabel: i18n.t('Common.ok'),
 									onActionPress: ({ hide }: { hide: () => void }) => hide(),
 								});
 							} catch (error: unknown) {
 								const message =
 									error instanceof Error
 										? error.message
-										: 'Sign out failed. Please try again.';
+										: i18n.t('Settings.toast.signOutError.fallbackDescription');
 								toast.show({
 									variant: 'danger',
-									label: 'Sign out failed',
+									label: i18n.t('Settings.toast.signOutError.title'),
 									description: message,
-									actionLabel: 'Dismiss',
+									actionLabel: i18n.t('Common.dismiss'),
 									onActionPress: ({ hide }: { hide: () => void }) => hide(),
 								});
 							}
 						}}
 					>
-						<Button.Label>Sign out</Button.Label>
+						<Button.Label>{i18n.t('Settings.actions.signOut')}</Button.Label>
 					</Button>
 					<Button variant="secondary" className="flex-1" onPress={() => clearSettings()}>
-						<Button.Label>Clear device cache</Button.Label>
+						<Button.Label>{i18n.t('Settings.actions.clearCache')}</Button.Label>
 					</Button>
 				</Card.Footer>
 			</Card>

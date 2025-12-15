@@ -2,51 +2,51 @@
 name: Mexico Labor Law Payroll
 overview: Adapt the payroll system to comply with Mexican labor laws (LFT), including shift-based hour calculations, overtime at double/triple rates, Sunday premium, geographic zone minimum wages, and configurable enforcement with informational UI.
 todos:
-  - id: schema-enums
-    content: "Add new enums: shiftType, geographicZone, overtimeEnforcement to schema.ts"
-    status: completed
-  - id: schema-tables
-    content: "Update tables: jobPosition (dailyPay), employee (shiftType), location (geographicZone), payrollSetting (overtimeEnforcement)"
-    status: completed
-  - id: schema-payroll-employee
-    content: Extend payrollRunEmployee with overtime breakdown fields
-    status: completed
-  - id: migration
-    content: Generate and apply Drizzle migration for all schema changes
-    status: completed
-  - id: labor-constants
-    content: Create mexico-labor-constants.ts with CONASAMI wages, shift limits, OT rules
-    status: completed
-  - id: api-schemas
-    content: Update Zod schemas for job positions, employees, locations, payroll settings
-    status: completed
-  - id: api-routes-crud
-    content: Update CRUD routes for job positions, employees, locations with new fields
-    status: completed
-  - id: api-payroll-calc
-    content: Refactor payroll calculation with Mexican labor law logic (OT double/triple, Sunday premium)
-    status: completed
-  - id: api-payroll-validation
-    content: Add minimum wage validation and overtime limit warnings/blocking
-    status: completed
-  - id: web-types
-    content: Update client-functions.ts with new types (ShiftType, GeographicZone, PayrollBreakdown)
-    status: completed
-  - id: web-job-positions
-    content: Update job positions page with dailyPay field and auto-calculation info
-    status: completed
-  - id: web-employees
-    content: Update employees page with shiftType selector and info tooltips
-    status: completed
-  - id: web-locations
-    content: Update locations page with geographicZone selector and minimum wage info
-    status: completed
-  - id: web-payroll-settings
-    content: Update payroll settings with overtimeEnforcement toggle and rules info card
-    status: completed
-  - id: web-payroll-page
-    content: Refactor payroll page with detailed breakdown, warnings section, and info panel
-    status: completed
+    - id: schema-enums
+      content: 'Add new enums: shiftType, geographicZone, overtimeEnforcement to schema.ts'
+      status: completed
+    - id: schema-tables
+      content: 'Update tables: jobPosition (dailyPay), employee (shiftType), location (geographicZone), payrollSetting (overtimeEnforcement)'
+      status: completed
+    - id: schema-payroll-employee
+      content: Extend payrollRunEmployee with overtime breakdown fields
+      status: completed
+    - id: migration
+      content: Generate and apply Drizzle migration for all schema changes
+      status: completed
+    - id: labor-constants
+      content: Create mexico-labor-constants.ts with CONASAMI wages, shift limits, OT rules
+      status: completed
+    - id: api-schemas
+      content: Update Zod schemas for job positions, employees, locations, payroll settings
+      status: completed
+    - id: api-routes-crud
+      content: Update CRUD routes for job positions, employees, locations with new fields
+      status: completed
+    - id: api-payroll-calc
+      content: Refactor payroll calculation with Mexican labor law logic (OT double/triple, Sunday premium)
+      status: completed
+    - id: api-payroll-validation
+      content: Add minimum wage validation and overtime limit warnings/blocking
+      status: completed
+    - id: web-types
+      content: Update client-functions.ts with new types (ShiftType, GeographicZone, PayrollBreakdown)
+      status: completed
+    - id: web-job-positions
+      content: Update job positions page with dailyPay field and auto-calculation info
+      status: completed
+    - id: web-employees
+      content: Update employees page with shiftType selector and info tooltips
+      status: completed
+    - id: web-locations
+      content: Update locations page with geographicZone selector and minimum wage info
+      status: completed
+    - id: web-payroll-settings
+      content: Update payroll settings with overtimeEnforcement toggle and rules info card
+      status: completed
+    - id: web-payroll-page
+      content: Refactor payroll page with detailed breakdown, warnings section, and info panel
+      status: completed
 ---
 
 # Mexico Labor Law Payroll Adaptation
@@ -141,30 +141,30 @@ Create detailed response types in [`apps/api/src/schemas/payroll.ts`](apps/api/s
 
 ```typescript
 interface PayrollEmployeeBreakdown {
-  employeeId: string;
-  name: string;
-  shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
-  dailyPay: number;
-  hourlyPay: number;
-  // Hours breakdown
-  normalHours: number;
-  overtimeDoubleHours: number;
-  overtimeTripleHours: number;
-  sundayHoursWorked: number;
-  // Pay breakdown
-  normalPay: number;
-  overtimeDoublePay: number;
-  overtimeTriplePay: number;
-  sundayPremiumAmount: number;
-  totalPay: number;
-  // Warnings
-  warnings: PayrollWarning[];
+	employeeId: string;
+	name: string;
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	dailyPay: number;
+	hourlyPay: number;
+	// Hours breakdown
+	normalHours: number;
+	overtimeDoubleHours: number;
+	overtimeTripleHours: number;
+	sundayHoursWorked: number;
+	// Pay breakdown
+	normalPay: number;
+	overtimeDoublePay: number;
+	overtimeTriplePay: number;
+	sundayPremiumAmount: number;
+	totalPay: number;
+	// Warnings
+	warnings: PayrollWarning[];
 }
 
 interface PayrollWarning {
-  type: 'OVERTIME_DAILY_EXCEEDED' | 'OVERTIME_WEEKLY_EXCEEDED' | 'BELOW_MINIMUM_WAGE';
-  message: string;
-  severity: 'warning' | 'error';
+	type: 'OVERTIME_DAILY_EXCEEDED' | 'OVERTIME_WEEKLY_EXCEEDED' | 'BELOW_MINIMUM_WAGE';
+	message: string;
+	severity: 'warning' | 'error';
 }
 ```
 
@@ -203,37 +203,31 @@ File: [`apps/api/src/routes/payroll.ts`](apps/api/src/routes/payroll.ts)
 Implement Mexican labor law calculation:
 
 1. **Get shift-based normal hours limit:**
-
-   - DIURNA: 8 hours/day, 48 hours/week
-   - NOCTURNA: 7 hours/day, 42 hours/week
-   - MIXTA: 7.5 hours/day, 45 hours/week
+    - DIURNA: 8 hours/day, 48 hours/week
+    - NOCTURNA: 7 hours/day, 42 hours/week
+    - MIXTA: 7.5 hours/day, 45 hours/week
 
 2. **Calculate overtime:**
-
-   - First 9 hours/week overtime = double rate (hora normal × 2)
-   - Beyond 9 hours/week = triple rate (hora normal × 3)
-   - Max 3 hours/day OT, max 3 days/week
+    - First 9 hours/week overtime = double rate (hora normal × 2)
+    - Beyond 9 hours/week = triple rate (hora normal × 3)
+    - Max 3 hours/day OT, max 3 days/week
 
 3. **Sunday premium:**
-
-   - If employee works Sunday but has different rest day = 25% premium on daily salary
+    - If employee works Sunday but has different rest day = 25% premium on daily salary
 
 4. **Minimum wage validation:**
-
-   - Query location's geographicZone
-   - Compare `dailyPay` against CONASAMI 2025 rates
-   - GENERAL: $278.80 MXN
-   - ZLFN: $419.88 MXN
+    - Query location's geographicZone
+    - Compare `dailyPay` against CONASAMI 2025 rates
+    - GENERAL: $278.80 MXN
+    - ZLFN: $419.88 MXN
 
 5. **Generate warnings:**
-
-   - Daily OT > 3 hours
-   - Weekly OT > 9 hours
-   - Pay below minimum wage
+    - Daily OT > 3 hours
+    - Weekly OT > 9 hours
+    - Pay below minimum wage
 
 6. **Block if configured:**
-
-   - Return error if `overtimeEnforcement = BLOCK` and limits exceeded
+    - Return error if `overtimeEnforcement = BLOCK` and limits exceeded
 
 ---
 
@@ -265,7 +259,7 @@ File: [`apps/web/lib/query-keys.ts`](apps/web/lib/query-keys.ts)
 
 ### 5.1 Update Job Positions Page
 
-File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\\\\\(dashboard)/job-positions/job-positions-client.tsx)
+File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](<apps/web/app/\\\(dashboard)/job-positions/job-positions-client.tsx>)
 
 - Add `dailyPay` number input field with label "Salario Diario (MXN)"
 - Add helper text explaining relationship: "El pago por hora se calcula automáticamente según el tipo de jornada"
@@ -273,39 +267,39 @@ File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/w
 
 ### 5.2 Update Employees Page
 
-File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\\\\(dashboard)/employees/employees-client.tsx)
+File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](<apps/web/app/\\\(dashboard)/employees/employees-client.tsx>)
 
 - Add shift type selector with options:
-  - Diurna (06:00-20:00, 8h máx)
-  - Nocturna (20:00-06:00, 7h máx)
-  - Mixta (7.5h máx)
+    - Diurna (06:00-20:00, 8h máx)
+    - Nocturna (20:00-06:00, 7h máx)
+    - Mixta (7.5h máx)
 - Add info tooltip explaining shift hour limits per LFT
 
 ### 5.3 Update Locations Page
 
-File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\\\\\(dashboard)/locations/locations-client.tsx)
+File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](<apps/web/app/\\\(dashboard)/locations/locations-client.tsx>)
 
 - Add geographic zone selector:
-  - General (Salario mínimo: $278.80 MXN)
-  - ZLFN - Zona Libre de la Frontera Norte (Salario mínimo: $419.88 MXN)
+    - General (Salario mínimo: $278.80 MXN)
+    - ZLFN - Zona Libre de la Frontera Norte (Salario mínimo: $419.88 MXN)
 - Add info text explaining minimum wage implications
 
 ### 5.4 Update Payroll Settings Page
 
-File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\\\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
+File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](<apps/web/app/\\\(dashboard)/payroll-settings/payroll-settings-client.tsx>)
 
 - Add overtime enforcement toggle:
-  - Advertir (mostrar avisos pero permitir procesar)
-  - Bloquear (impedir procesamiento si se exceden límites)
+    - Advertir (mostrar avisos pero permitir procesar)
+    - Bloquear (impedir procesamiento si se exceden límites)
 - Add information card explaining Mexican overtime rules:
-  - Max 3 horas extra por día
-  - Max 9 horas extra por semana
-  - Primeras 9h extra: pago doble
-  - Excedente: pago triple
+    - Max 3 horas extra por día
+    - Max 9 horas extra por semana
+    - Primeras 9h extra: pago doble
+    - Excedente: pago triple
 
 ### 5.5 Refactor Payroll Page
 
-File: [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\\\\(dashboard)/payroll/payroll-client.tsx)
+File: [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](<apps/web/app/\\\(dashboard)/payroll/payroll-client.tsx>)
 
 **Add Information Panel:**
 
@@ -370,23 +364,23 @@ Create new file: [`apps/api/src/utils/mexico-labor-constants.ts`](apps/api/src/u
 ```typescript
 /** CONASAMI 2025 minimum wages */
 export const MINIMUM_WAGES = {
-  GENERAL: 278.80,
-  ZLFN: 419.88,
+	GENERAL: 278.8,
+	ZLFN: 419.88,
 } as const;
 
 /** Shift hour limits per LFT */
 export const SHIFT_LIMITS = {
-  DIURNA: { dailyHours: 8, weeklyHours: 48, divisor: 8 },
-  NOCTURNA: { dailyHours: 7, weeklyHours: 42, divisor: 7 },
-  MIXTA: { dailyHours: 7.5, weeklyHours: 45, divisor: 7.5 },
+	DIURNA: { dailyHours: 8, weeklyHours: 48, divisor: 8 },
+	NOCTURNA: { dailyHours: 7, weeklyHours: 42, divisor: 7 },
+	MIXTA: { dailyHours: 7.5, weeklyHours: 45, divisor: 7.5 },
 } as const;
 
 /** Overtime limits */
 export const OVERTIME_LIMITS = {
-  MAX_DAILY_HOURS: 3,
-  MAX_WEEKLY_HOURS: 9,
-  DOUBLE_RATE_MULTIPLIER: 2,
-  TRIPLE_RATE_MULTIPLIER: 3,
+	MAX_DAILY_HOURS: 3,
+	MAX_WEEKLY_HOURS: 9,
+	DOUBLE_RATE_MULTIPLIER: 2,
+	TRIPLE_RATE_MULTIPLIER: 3,
 } as const;
 
 /** Sunday premium rate */

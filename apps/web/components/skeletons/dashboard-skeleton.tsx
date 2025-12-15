@@ -38,4 +38,3 @@ export function DashboardSkeleton(): React.ReactElement {
 		</div>
 	);
 }
-

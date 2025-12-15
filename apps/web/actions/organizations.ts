@@ -78,11 +78,11 @@ export async function createOrganization(input: CreateOrganizationInput): Promis
 			return {
 				success: false,
 				error:
-					(typeof response.error === 'object' &&
-						'message' in response.error &&
-						typeof response.error.message === 'string'
+					typeof response.error === 'object' &&
+					'message' in response.error &&
+					typeof response.error.message === 'string'
 						? response.error.message
-						: 'Failed to create organization'),
+						: 'Failed to create organization',
 			};
 		}
 
@@ -149,11 +149,11 @@ export async function updateOrganization(input: UpdateOrganizationInput): Promis
 			return {
 				success: false,
 				error:
-					(typeof response.error === 'object' &&
-						'message' in response.error &&
-						typeof response.error.message === 'string'
+					typeof response.error === 'object' &&
+					'message' in response.error &&
+					typeof response.error.message === 'string'
 						? response.error.message
-						: 'Failed to update organization'),
+						: 'Failed to update organization',
 			};
 		}
 
@@ -196,11 +196,11 @@ export async function deleteOrganization(organizationId: string): Promise<Mutati
 			return {
 				success: false,
 				error:
-					(typeof response.error === 'object' &&
-						'message' in response.error &&
-						typeof response.error.message === 'string'
+					typeof response.error === 'object' &&
+					'message' in response.error &&
+					typeof response.error.message === 'string'
 						? response.error.message
-						: 'Failed to delete organization'),
+						: 'Failed to delete organization',
 			};
 		}
 

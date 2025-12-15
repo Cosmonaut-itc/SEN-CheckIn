@@ -3,11 +3,7 @@ import crypto from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import {
-	payrollSetting,
-	scheduleTemplate,
-	scheduleTemplateDay,
-} from '../db/schema.js';
+import { payrollSetting, scheduleTemplate, scheduleTemplateDay } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
@@ -103,7 +99,10 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 				.orderBy(scheduleTemplate.name);
 
 			const total = (
-				await db.select().from(scheduleTemplate).where(eq(scheduleTemplate.organizationId, organizationId))
+				await db
+					.select()
+					.from(scheduleTemplate)
+					.where(eq(scheduleTemplate.organizationId, organizationId))
 			).length;
 
 			return {
@@ -125,10 +124,21 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 	 */
 	.get(
 		'/:id',
-		async ({ params, authType, session, sessionOrganizationIds, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const { id } = params;
 
-			const template = await db.select().from(scheduleTemplate).where(eq(scheduleTemplate.id, id)).limit(1);
+			const template = await db
+				.select()
+				.from(scheduleTemplate)
+				.where(eq(scheduleTemplate.id, id))
+				.limit(1);
 			const record = template[0];
 
 			if (!record) {
@@ -241,7 +251,11 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 			set,
 		}) => {
 			const { id } = params;
-			const template = await db.select().from(scheduleTemplate).where(eq(scheduleTemplate.id, id)).limit(1);
+			const template = await db
+				.select()
+				.from(scheduleTemplate)
+				.where(eq(scheduleTemplate.id, id))
+				.limit(1);
 			const existing = template[0];
 
 			if (!existing) {
@@ -263,11 +277,13 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 			}
 
 			const resolvedShiftType = body.shiftType ?? existing.shiftType ?? 'DIURNA';
-			const resolvedDays = body.days ?? (await db
-				.select()
-				.from(scheduleTemplateDay)
-				.where(eq(scheduleTemplateDay.templateId, id))
-				.orderBy(scheduleTemplateDay.dayOfWeek));
+			const resolvedDays =
+				body.days ??
+				(await db
+					.select()
+					.from(scheduleTemplateDay)
+					.where(eq(scheduleTemplateDay.templateId, id))
+					.orderBy(scheduleTemplateDay.dayOfWeek));
 
 			const enforcement = await getOvertimeEnforcement(existing.organizationId);
 			const validation = validateScheduleDays({
@@ -298,7 +314,10 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 			}
 
 			if (Object.keys(updatePayload).length > 0) {
-				await db.update(scheduleTemplate).set(updatePayload).where(eq(scheduleTemplate.id, id));
+				await db
+					.update(scheduleTemplate)
+					.set(updatePayload)
+					.where(eq(scheduleTemplate.id, id));
 			}
 
 			if (body.days !== undefined) {
@@ -333,10 +352,21 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 	 */
 	.delete(
 		'/:id',
-		async ({ params, authType, session, sessionOrganizationIds, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const { id } = params;
 
-			const template = await db.select().from(scheduleTemplate).where(eq(scheduleTemplate.id, id)).limit(1);
+			const template = await db
+				.select()
+				.from(scheduleTemplate)
+				.where(eq(scheduleTemplate.id, id))
+				.limit(1);
 			const existing = template[0];
 
 			if (!existing) {

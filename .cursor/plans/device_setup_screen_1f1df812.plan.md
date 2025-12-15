@@ -2,21 +2,21 @@
 name: Device Setup Screen
 overview: Add a device configuration step during mobile login when a device is newly registered without a location. Users must configure device name and select a location before proceeding to the scanner.
 todos:
-  - id: api-isNew-flag
-    content: "Add isNew: boolean flag to POST /devices/register response body"
-    status: pending
-  - id: client-register-response
-    content: Update registerDevice() to return { device, isNew }
-    status: pending
-  - id: device-setup-screen
-    content: Create device-setup.tsx with name input and location picker
-    status: pending
-  - id: login-navigation
-    content: Modify login.tsx to route to device-setup when isNew && !locationId
-    status: pending
-  - id: lint-types-check
-    content: Run bun run lint and bun run check-types
-    status: pending
+    - id: api-isNew-flag
+      content: 'Add isNew: boolean flag to POST /devices/register response body'
+      status: pending
+    - id: client-register-response
+      content: Update registerDevice() to return { device, isNew }
+      status: pending
+    - id: device-setup-screen
+      content: Create device-setup.tsx with name input and location picker
+      status: pending
+    - id: login-navigation
+      content: Modify login.tsx to route to device-setup when isNew && !locationId
+      status: pending
+    - id: lint-types-check
+      content: Run bun run lint and bun run check-types
+      status: pending
 ---
 
 # Device Setup Screen for Mobile Login
@@ -98,7 +98,7 @@ Create new file `apps/mobile/app/(auth)/device-setup.tsx`:
 
 ### Phase 4: Modify Login Flow Navigation
 
-Update [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\\\(auth)/login.tsx):
+Update [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\(auth)/login.tsx):
 
 Change `registerApprovedDevice()` to:
 

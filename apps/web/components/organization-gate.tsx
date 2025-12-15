@@ -35,8 +35,7 @@ export function OrganizationGate({
 		pathname === '/organizations' || pathname.startsWith('/organizations/');
 
 	// Show NoOrganizationState if no organization, unless admin on organizations route
-	const shouldShowNoOrganizationState =
-		!hasOrganization && !(isAdmin && isOrganizationsRoute);
+	const shouldShowNoOrganizationState = !hasOrganization && !(isAdmin && isOrganizationsRoute);
 
 	if (shouldShowNoOrganizationState) {
 		return <NoOrganizationState role={role} />;
@@ -44,11 +43,3 @@ export function OrganizationGate({
 
 	return children;
 }
-
-
-
-
-
-
-
-

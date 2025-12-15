@@ -38,41 +38,41 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * @param query.toDate - Filter records until this date (optional)
 	 * @returns Array of attendance records with pagination info
 	 */
-		.get(
-			'/',
-			async ({
-				query,
+	.get(
+		'/',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const {
+				limit,
+				offset,
+				employeeId,
+				deviceId,
+				type,
+				fromDate,
+				toDate,
+				organizationId: organizationIdQuery,
+			} = query;
+
+			const organizationId = resolveOrganizationId({
 				authType,
 				session,
 				sessionOrganizationIds,
-				set,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
-			}) => {
-				const {
-					limit,
-					offset,
-					employeeId,
-					deviceId,
-					type,
-					fromDate,
-					toDate,
-					organizationId: organizationIdQuery,
-				} = query;
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
 
-				const organizationId = resolveOrganizationId({
-					authType,
-					session,
-					sessionOrganizationIds,
-					apiKeyOrganizationId,
-					apiKeyOrganizationIds,
-					requestedOrganizationId: organizationIdQuery ?? null,
-				});
-
-				if (!organizationId) {
-					set.status = authType === 'apiKey' ? 403 : 400;
-					return { error: 'Organization is required or not permitted' };
-				}
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
 
 			// Build conditions array
 			const conditions: SQL<unknown>[] = [eq(employee.organizationId, organizationId)];
@@ -150,12 +150,19 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * @param id - Attendance record UUID
 	 * @returns Attendance record or 404 error
 	 */
-		.get(
-			'/:id',
-			async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
-				const { id } = params;
+	.get(
+		'/:id',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
 
-				const results = await db
+			const results = await db
 				.select({
 					id: attendanceRecord.id,
 					employeeId: attendanceRecord.employeeId,
@@ -172,24 +179,24 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				.where(eq(attendanceRecord.id, id))
 				.limit(1);
 
-				const record = results[0];
-				if (!record) {
-					set.status = 404;
-					return { error: 'Attendance record not found' };
-				}
+			const record = results[0];
+			if (!record) {
+				set.status = 404;
+				return { error: 'Attendance record not found' };
+			}
 
-				if (
-					!hasOrganizationAccess(
-						authType,
-						session,
-						sessionOrganizationIds,
-						apiKeyOrganizationIds,
-						record.employeeOrgId,
-					)
-				) {
-					set.status = 403;
-					return { error: 'You do not have access to this attendance record' };
-				}
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.employeeOrgId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this attendance record' };
+			}
 
 			const { employeeOrgId: _employeeOrgId, ...attendance } = record;
 			void _employeeOrgId;
@@ -212,21 +219,21 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * @param body.metadata - Additional metadata (optional)
 	 * @returns Created attendance record
 	 */
-		.post(
-			'/',
-			async ({
-				body,
-				set,
-				authType,
-				session,
-				sessionOrganizationIds,
-				apiKeyOrganizationId,
-				apiKeyOrganizationIds,
-			}) => {
-				const { employeeId, deviceId, timestamp, type, metadata } = body;
+	.post(
+		'/',
+		async ({
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { employeeId, deviceId, timestamp, type, metadata } = body;
 
-				// Verify employee exists
-				const employeeExists = await db
+			// Verify employee exists
+			const employeeExists = await db
 				.select()
 				.from(employee)
 				.where(eq(employee.id, employeeId))
@@ -238,60 +245,65 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			}
 
 			// Verify device exists
-			const deviceExists = await db.select().from(device).where(eq(device.id, deviceId)).limit(1);
+			const deviceExists = await db
+				.select()
+				.from(device)
+				.where(eq(device.id, deviceId))
+				.limit(1);
 			const existingDevice = deviceExists[0];
 			if (!existingDevice) {
 				set.status = 400;
 				return { error: 'Device not found' };
 			}
 
-				if (
-					!hasOrganizationAccess(
-						authType,
-						session,
-						sessionOrganizationIds,
-						apiKeyOrganizationIds,
-						existingEmployee.organizationId,
-					)
-				) {
-					set.status = 403;
-					return { error: 'Employee does not belong to an allowed organization' };
-				}
-
-				if (
-					!hasOrganizationAccess(
-						authType,
-						session,
-						sessionOrganizationIds,
-						apiKeyOrganizationIds,
-						existingDevice.organizationId,
-					)
-				) {
-					set.status = 403;
-					return { error: 'Device does not belong to an allowed organization' };
-				}
-
-				const resolvedOrganizationId = resolveOrganizationId({
+			if (
+				!hasOrganizationAccess(
 					authType,
 					session,
 					sessionOrganizationIds,
-					apiKeyOrganizationId,
 					apiKeyOrganizationIds,
-					requestedOrganizationId: existingEmployee.organizationId ?? existingDevice.organizationId ?? null,
-				});
+					existingEmployee.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'Employee does not belong to an allowed organization' };
+			}
 
-				if (!resolvedOrganizationId) {
-					set.status = 403;
-					return { error: 'Organization is required or not permitted' };
-				}
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					existingDevice.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'Device does not belong to an allowed organization' };
+			}
 
-				if (
-					existingDevice.organizationId &&
-					existingDevice.organizationId !== resolvedOrganizationId
-				) {
-					set.status = 403;
-					return { error: 'Device does not belong to the resolved organization' };
-				}
+			const resolvedOrganizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId:
+					existingEmployee.organizationId ?? existingDevice.organizationId ?? null,
+			});
+
+			if (!resolvedOrganizationId) {
+				set.status = 403;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			if (
+				existingDevice.organizationId &&
+				existingDevice.organizationId !== resolvedOrganizationId
+			) {
+				set.status = 403;
+				return { error: 'Device does not belong to the resolved organization' };
+			}
 
 			const id = crypto.randomUUID();
 
@@ -327,35 +339,42 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * @param employeeId - Employee UUID
 	 * @returns Array of today's attendance records for the employee
 	 */
-		.get(
-			'/employee/:employeeId/today',
-			async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
-				const { employeeId } = params;
+	.get(
+		'/employee/:employeeId/today',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { employeeId } = params;
 
-				// Verify employee exists
-				const employeeExists = await db
+			// Verify employee exists
+			const employeeExists = await db
 				.select()
 				.from(employee)
 				.where(eq(employee.id, employeeId))
 				.limit(1);
 			const employeeRecord = employeeExists[0];
-				if (!employeeRecord) {
-					set.status = 404;
-					return { error: 'Employee not found' };
-				}
+			if (!employeeRecord) {
+				set.status = 404;
+				return { error: 'Employee not found' };
+			}
 
-				if (
-					!hasOrganizationAccess(
-						authType,
-						session,
-						sessionOrganizationIds,
-						apiKeyOrganizationIds,
-						employeeRecord.organizationId,
-					)
-				) {
-					set.status = 403;
-					return { error: 'You do not have access to this employee' };
-				}
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this employee' };
+			}
 
 			const today = new Date();
 			const dayStart = startOfDay(today);

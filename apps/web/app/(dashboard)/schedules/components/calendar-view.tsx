@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 import {
 	Select,
 	SelectContent,
@@ -111,6 +112,8 @@ export function CalendarView({
 	organizationId,
 	weekStartDay,
 }: CalendarViewProps): React.ReactElement {
+	const t = useTranslations('Schedules');
+	const tCommon = useTranslations('Common');
 	const [hasHydrated, setHasHydrated] = useState<boolean>(false);
 	const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
 	const [selectedLocationId, setSelectedLocationId] = useState<string>('');
@@ -138,7 +141,9 @@ export function CalendarView({
 			return null;
 		}
 		const location = sortedLocations.find((loc) => loc.id === effectiveLocationId);
-		return location ? { id: location.id, name: location.name } : { id: effectiveLocationId, name: effectiveLocationId };
+		return location
+			? { id: location.id, name: location.name }
+			: { id: effectiveLocationId, name: effectiveLocationId };
 	}, [effectiveLocationId, sortedLocations]);
 
 	const employeesInLocation = useMemo(() => {
@@ -210,9 +215,7 @@ export function CalendarView({
 		setReferenceDate((current) => {
 			const currentCalendar = toUtcCalendarDateLocal(current);
 			const nextCalendar =
-				viewMode === 'week'
-					? addWeeks(currentCalendar, 1)
-					: addMonths(currentCalendar, 1);
+				viewMode === 'week' ? addWeeks(currentCalendar, 1) : addMonths(currentCalendar, 1);
 			return toUtcMidnight(nextCalendar);
 		});
 	};
@@ -227,10 +230,8 @@ export function CalendarView({
 	if (!organizationId) {
 		return (
 			<div className="space-y-2 rounded-md border p-4">
-				<h2 className="text-lg font-semibold">Calendar</h2>
-				<p className="text-muted-foreground">
-					Select an active organization to view schedules.
-				</p>
+				<h2 className="text-lg font-semibold">{t('tabs.calendar')}</h2>
+				<p className="text-muted-foreground">{t('calendar.noOrganization')}</p>
 			</div>
 		);
 	}
@@ -243,41 +244,43 @@ export function CalendarView({
 					size="sm"
 					onClick={() => setViewMode('week')}
 				>
-					Weekly
+					{t('calendar.view.week')}
 				</Button>
 				<Button
 					variant={viewMode === 'month' ? 'default' : 'outline'}
 					size="sm"
 					onClick={() => setViewMode('month')}
 				>
-					Monthly
+					{t('calendar.view.month')}
 				</Button>
 				<div className="ml-auto flex items-center gap-2">
 					<Button variant="outline" size="sm" onClick={handlePrev}>
-						Prev
+						{tCommon('previous')}
 					</Button>
 					<Button variant="outline" size="sm" onClick={handleToday}>
-						Today
+						{t('calendar.today')}
 					</Button>
 					<Button variant="outline" size="sm" onClick={handleNext}>
-						Next
+						{tCommon('next')}
 					</Button>
 				</div>
 			</div>
 
 			<div className="flex flex-wrap items-center gap-3">
 				<div className="text-sm text-muted-foreground">
-					Range: {formatDateRangeUtc(range.start, range.end)}
+					{t('calendar.range', {
+						range: formatDateRangeUtc(range.start, range.end),
+					})}
 				</div>
 				<div className="flex items-center gap-2">
-					<span className="text-sm text-muted-foreground">Location</span>
+					<span className="text-sm text-muted-foreground">{t('calendar.location')}</span>
 					<Select
 						value={effectiveLocationId}
 						onValueChange={(value) => setSelectedLocationId(value)}
 						disabled={sortedLocations.length === 0}
 					>
 						<SelectTrigger className="w-[260px]">
-							<SelectValue placeholder="Select location" />
+							<SelectValue placeholder={t('calendar.selectLocation')} />
 						</SelectTrigger>
 						<SelectContent>
 							{sortedLocations.map((location) => (
@@ -292,45 +295,42 @@ export function CalendarView({
 
 			{unassignedCount > 0 && (
 				<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-					{unassignedCount} employee{unassignedCount === 1 ? '' : 's'} have no location
-					assigned. Assign a location in Employees to render schedules by location.
+					{t('calendar.unassignedEmployees', { count: unassignedCount })}
 				</div>
 			)}
 
 			<div className="grid gap-4">
-				{showSkeleton
-					? (
-							<div className="rounded-xl border p-4">
-								<div className="h-4 w-48 rounded bg-muted" />
-								<div className="mt-2 h-3 w-32 rounded bg-muted" />
-								<div className="mt-4 grid grid-cols-7 gap-2">
-									{Array.from({ length: 7 }).map((_, jdx) => (
-										<div key={jdx} className="h-12 rounded bg-muted" />
-									))}
-								</div>
-							</div>
-					  )
-					: selectedLocation && effectiveLocationId ? (
-							<LocationScheduleCard
-								key={effectiveLocationId}
-								location={selectedLocation}
-								employeesInLocation={employeesInLocation}
-								calendarEmployeesInLocation={entries}
-								viewMode={viewMode}
-								rangeStart={range.start}
-								rangeEnd={range.end}
-								weekStartDay={weekStartDay}
-							/>
-					  ) : (
-							<div className="rounded-md border p-4 text-sm text-muted-foreground">
-								Select a location to view schedules.
-							</div>
-					  )}
+				{showSkeleton ? (
+					<div className="rounded-xl border p-4">
+						<div className="h-4 w-48 rounded bg-muted" />
+						<div className="mt-2 h-3 w-32 rounded bg-muted" />
+						<div className="mt-4 grid grid-cols-7 gap-2">
+							{Array.from({ length: 7 }).map((_, jdx) => (
+								<div key={jdx} className="h-12 rounded bg-muted" />
+							))}
+						</div>
+					</div>
+				) : selectedLocation && effectiveLocationId ? (
+					<LocationScheduleCard
+						key={effectiveLocationId}
+						location={selectedLocation}
+						employeesInLocation={employeesInLocation}
+						calendarEmployeesInLocation={entries}
+						viewMode={viewMode}
+						rangeStart={range.start}
+						rangeEnd={range.end}
+						weekStartDay={weekStartDay}
+					/>
+				) : (
+					<div className="rounded-md border p-4 text-sm text-muted-foreground">
+						{t('calendar.selectLocationToView')}
+					</div>
+				)}
 			</div>
 
 			{showEmptyState && (
 				<div className="rounded-md border p-4 text-sm text-muted-foreground">
-					No schedules found for the selected range.
+					{t('calendar.emptyRange')}
 				</div>
 			)}
 		</div>

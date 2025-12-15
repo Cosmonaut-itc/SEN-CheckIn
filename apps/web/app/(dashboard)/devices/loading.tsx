@@ -9,4 +9,3 @@ import { DevicesSkeleton } from '@/components/skeletons';
 export default function DevicesLoading() {
 	return <DevicesSkeleton />;
 }
-

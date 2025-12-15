@@ -1,4 +1,5 @@
 <!-- 275214df-ba72-49ae-8ba2-9db37508f56a 7e483322-2093-42af-a743-25c5b94462cd -->
+
 # Next.js Admin Portal Implementation
 
 ## Tech Stack
@@ -34,24 +35,25 @@ import { apiKey, admin, organization } from 'better-auth/plugins';
 import db from '../src/db/index.js';
 
 export const auth = betterAuth({
-  database: drizzleAdapter(db, { provider: 'pg' }),
-  emailAndPassword: { enabled: true },
-  plugins: [
-    apiKey(),
-    admin({
-      defaultRole: 'user',
-      adminRoles: ['admin'],
-    }),
-    organization({
-      allowUserToCreateOrganization: false,
-    }),
-  ],
+	database: drizzleAdapter(db, { provider: 'pg' }),
+	emailAndPassword: { enabled: true },
+	plugins: [
+		apiKey(),
+		admin({
+			defaultRole: 'user',
+			adminRoles: ['admin'],
+		}),
+		organization({
+			allowUserToCreateOrganization: false,
+		}),
+	],
 });
 ```
 
 ### Database Migration
 
 1. Run better-auth CLI to generate the auth schema file:
+
 ```bash
 cd apps/api && npx @better-auth/cli generate
 ```
@@ -70,11 +72,11 @@ cd apps/api && npx @better-auth/cli generate
 - `invitation` table
 
 3. Run the Drizzle migration:
+
 ```bash
 bun run db:gen
 bun run db:mig
 ```
-
 
 ---
 
@@ -96,16 +98,12 @@ export const api = createApiClient(process.env.NEXT_PUBLIC_API_URL ?? 'http://lo
 
 ```typescript
 // lib/auth-client.ts
-import { createAuthClient } from "better-auth/react";
-import { apiKeyClient, adminClient, organizationClient } from "better-auth/client/plugins";
+import { createAuthClient } from 'better-auth/react';
+import { apiKeyClient, adminClient, organizationClient } from 'better-auth/client/plugins';
 
 export const authClient = createAuthClient({
-  baseURL: process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000",
-  plugins: [
-    apiKeyClient(),
-    adminClient(),
-    organizationClient(),
-  ],
+	baseURL: process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000',
+	plugins: [apiKeyClient(), adminClient(), organizationClient()],
 });
 ```
 
@@ -165,10 +163,10 @@ Sign-up page protected by environment check:
 import { redirect } from 'next/navigation';
 
 export default function SignUpPage() {
-  if (process.env.NODE_ENV === 'production') {
-    redirect('/sign-in');
-  }
-  // ... sign-up form
+	if (process.env.NODE_ENV === 'production') {
+		redirect('/sign-in');
+	}
+	// ... sign-up form
 }
 ```
 

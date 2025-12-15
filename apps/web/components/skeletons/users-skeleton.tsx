@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 import { TablePageSkeleton } from './table-page-skeleton';
 
 /**
@@ -7,16 +8,23 @@ import { TablePageSkeleton } from './table-page-skeleton';
  *
  * @returns The users skeleton JSX element
  */
-export function UsersSkeleton(): React.ReactElement {
+export async function UsersSkeleton(): Promise<React.ReactElement> {
+	const t = await getTranslations('Users');
+	const organization = t('fallbackOrganization');
+
 	return (
 		<TablePageSkeleton
-			title="Users"
-			description="Manage user accounts and permissions (Admin only)"
-			columns={['User', 'Email', 'Role', 'Status', 'Verified', 'Joined', 'Actions']}
+			title={t('title')}
+			description={t('subtitle', { organization })}
+			columns={[
+				t('table.headers.member'),
+				t('table.headers.email'),
+				t('table.headers.role'),
+				t('table.headers.joined'),
+			]}
 			rowCount={5}
 			showSearch
 			showAddButton={false}
 		/>
 	);
 }
-

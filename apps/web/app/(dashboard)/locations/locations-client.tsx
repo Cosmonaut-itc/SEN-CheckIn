@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 import {
 	Table,
 	TableBody,
@@ -51,6 +52,8 @@ interface LocationFormValues {
 export function LocationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('Locations');
+	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingLocation, setEditingLocation] = useState<Location | null>(null);
@@ -80,15 +83,15 @@ export function LocationsPageClient(): React.ReactElement {
 		mutationFn: createLocation,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Location created successfully');
+				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.locations.all });
 			} else {
-				toast.error(result.error ?? 'Failed to create location');
+				toast.error(result.error ?? t('toast.createError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to create location');
+			toast.error(t('toast.createError'));
 		},
 	});
 
@@ -98,15 +101,15 @@ export function LocationsPageClient(): React.ReactElement {
 		mutationFn: updateLocation,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Location updated successfully');
+				toast.success(t('toast.updateSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.locations.all });
 			} else {
-				toast.error(result.error ?? 'Failed to update location');
+				toast.error(result.error ?? t('toast.updateError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to update location');
+			toast.error(t('toast.updateError'));
 		},
 	});
 
@@ -116,15 +119,15 @@ export function LocationsPageClient(): React.ReactElement {
 		mutationFn: deleteLocation,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Location deleted successfully');
+				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.locations.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete location');
+				toast.error(result.error ?? t('toast.deleteError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to delete location');
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
@@ -149,7 +152,7 @@ export function LocationsPageClient(): React.ReactElement {
 				});
 			} else {
 				if (!organizationId) {
-					toast.error('No active organization. Please select an organization first.');
+					toast.error(t('toast.noOrganization'));
 					return;
 				}
 				await createMutation.mutateAsync({
@@ -231,10 +234,8 @@ export function LocationsPageClient(): React.ReactElement {
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">Locations</h1>
-				<p className="text-muted-foreground">
-					Select an active organization to manage locations.
-				</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
@@ -243,26 +244,28 @@ export function LocationsPageClient(): React.ReactElement {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Locations</h1>
-					<p className="text-muted-foreground">Manage branches and office locations</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
-							Add Location
+							{t('actions.add')}
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
 						<form onSubmit={handleSubmit}>
 							<DialogHeader>
 								<DialogTitle>
-									{editingLocation ? 'Edit Location' : 'Add Location'}
+									{editingLocation
+										? t('dialog.title.edit')
+										: t('dialog.title.add')}
 								</DialogTitle>
 								<DialogDescription>
 									{editingLocation
-										? 'Update the location details below.'
-										: 'Fill in the details to create a new location.'}
+										? t('dialog.description.edit')
+										: t('dialog.description.add')}
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
@@ -270,32 +273,39 @@ export function LocationsPageClient(): React.ReactElement {
 									name="name"
 									validators={{
 										onChange: ({ value }) =>
-											!value.trim() ? 'Name is required' : undefined,
+											!value.trim()
+												? t('validation.nameRequired')
+												: undefined,
 									}}
 								>
-									{(field) => <field.TextField label="Name" />}
+									{(field) => <field.TextField label={t('fields.name')} />}
 								</form.AppField>
 								<form.AppField
 									name="code"
 									validators={{
 										onChange: ({ value }) =>
-											!value.trim() ? 'Code is required' : undefined,
+											!value.trim()
+												? t('validation.codeRequired')
+												: undefined,
 									}}
 								>
-									{(field) => <field.TextField label="Code" />}
+									{(field) => <field.TextField label={t('fields.code')} />}
 								</form.AppField>
 								<form.AppField name="geographicZone">
 									{(field) => (
 										<field.SelectField
-											label="Geographic Zone"
+											label={t('fields.geographicZone')}
 											options={[
-												{ value: 'GENERAL', label: 'General – Salario mínimo $278.80' },
+												{
+													value: 'GENERAL',
+													label: t('zonesWithWage.GENERAL'),
+												},
 												{
 													value: 'ZLFN',
-													label: 'Zona Libre de la Frontera Norte – Salario mínimo $419.88',
+													label: t('zonesWithWage.ZLFN'),
 												},
 											]}
-											placeholder="Select zone"
+											placeholder={t('placeholders.selectZone')}
 										/>
 									)}
 								</form.AppField>
@@ -303,23 +313,33 @@ export function LocationsPageClient(): React.ReactElement {
 									name="timeZone"
 									validators={{
 										onChange: ({ value }) =>
-											!value.trim() ? 'Time zone is required' : undefined,
+											!value.trim()
+												? t('validation.timeZoneRequired')
+												: undefined,
 									}}
 								>
 									{(field) => (
 										<field.TextField
-											label="Time zone"
+											label={t('fields.timeZone')}
 											placeholder="America/Mexico_City"
 										/>
 									)}
 								</form.AppField>
 								<form.AppField name="address">
-									{(field) => <field.TextField label="Address" placeholder="Optional" />}
+									{(field) => (
+										<field.TextField
+											label={t('fields.address')}
+											placeholder={tCommon('optional')}
+										/>
+									)}
 								</form.AppField>
 							</div>
 							<DialogFooter>
 								<form.AppForm>
-									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+									<form.SubmitButton
+										label={tCommon('save')}
+										loadingLabel={tCommon('saving')}
+									/>
 								</form.AppForm>
 							</DialogFooter>
 						</form>
@@ -331,7 +351,7 @@ export function LocationsPageClient(): React.ReactElement {
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						placeholder="Search locations..."
+						placeholder={t('search.placeholder')}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						className="pl-9"
@@ -343,13 +363,15 @@ export function LocationsPageClient(): React.ReactElement {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Code</TableHead>
-							<TableHead>Name</TableHead>
-							<TableHead>Address</TableHead>
-							<TableHead>Zone</TableHead>
-							<TableHead>Time zone</TableHead>
-							<TableHead>Created</TableHead>
-							<TableHead className="w-[100px]">Actions</TableHead>
+							<TableHead>{t('table.headers.code')}</TableHead>
+							<TableHead>{t('table.headers.name')}</TableHead>
+							<TableHead>{t('table.headers.address')}</TableHead>
+							<TableHead>{t('table.headers.zone')}</TableHead>
+							<TableHead>{t('table.headers.timeZone')}</TableHead>
+							<TableHead>{t('table.headers.created')}</TableHead>
+							<TableHead className="w-[100px]">
+								{t('table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -366,7 +388,7 @@ export function LocationsPageClient(): React.ReactElement {
 						) : locations.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={7} className="h-24 text-center">
-									No locations found.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -375,10 +397,12 @@ export function LocationsPageClient(): React.ReactElement {
 									<TableCell className="font-medium">{location.code}</TableCell>
 									<TableCell>{location.name}</TableCell>
 									<TableCell>{location.address ?? '-'}</TableCell>
-									<TableCell>{location.geographicZone}</TableCell>
+									<TableCell>
+										{t(`zones.${location.geographicZone ?? 'GENERAL'}`)}
+									</TableCell>
 									<TableCell>{location.timeZone}</TableCell>
 									<TableCell>
-										{format(new Date(location.createdAt), 'MMM d, yyyy')}
+										{format(new Date(location.createdAt), t('dateFormat'))}
 									</TableCell>
 									<TableCell>
 										<div className="flex items-center gap-2">
@@ -402,11 +426,13 @@ export function LocationsPageClient(): React.ReactElement {
 												</DialogTrigger>
 												<DialogContent>
 													<DialogHeader>
-														<DialogTitle>Delete Location</DialogTitle>
+														<DialogTitle>
+															{t('dialogs.delete.title')}
+														</DialogTitle>
 														<DialogDescription>
-															Are you sure you want to delete{' '}
-															{location.name}? This action cannot be
-															undone.
+															{t('dialogs.delete.description', {
+																name: location.name,
+															})}
 														</DialogDescription>
 													</DialogHeader>
 													<DialogFooter>
@@ -414,7 +440,7 @@ export function LocationsPageClient(): React.ReactElement {
 															variant="outline"
 															onClick={() => setDeleteConfirmId(null)}
 														>
-															Cancel
+															{tCommon('cancel')}
 														</Button>
 														<Button
 															variant="destructive"
@@ -422,7 +448,7 @@ export function LocationsPageClient(): React.ReactElement {
 																handleDelete(location.id)
 															}
 														>
-															Delete
+															{tCommon('delete')}
 														</Button>
 													</DialogFooter>
 												</DialogContent>

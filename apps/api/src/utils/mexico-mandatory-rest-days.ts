@@ -124,4 +124,3 @@ export function getMexicoMandatoryRestDayKeysForYear(year: number): Set<string> 
 
 	return keys;
 }
-

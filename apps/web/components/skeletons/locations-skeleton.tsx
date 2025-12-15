@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 import { TablePageSkeleton } from './table-page-skeleton';
 
 /**
@@ -7,16 +8,25 @@ import { TablePageSkeleton } from './table-page-skeleton';
  *
  * @returns The locations skeleton JSX element
  */
-export function LocationsSkeleton(): React.ReactElement {
+export async function LocationsSkeleton(): Promise<React.ReactElement> {
+	const t = await getTranslations('Locations');
+
 	return (
 		<TablePageSkeleton
-			title="Locations"
-			description="Manage branches and office locations"
-			columns={['Code', 'Name', 'Address', 'Created', 'Actions']}
+			title={t('title')}
+			description={t('subtitle')}
+			columns={[
+				t('table.headers.code'),
+				t('table.headers.name'),
+				t('table.headers.address'),
+				t('table.headers.zone'),
+				t('table.headers.timeZone'),
+				t('table.headers.created'),
+				t('table.headers.actions'),
+			]}
 			rowCount={5}
 			showSearch
 			showAddButton
 		/>
 	);
 }
-

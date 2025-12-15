@@ -75,9 +75,7 @@ function usePersistedDeviceId(): string | null {
 			} catch {
 				// Fallback if SecureStore fails (e.g., web platform)
 				const fallbackId =
-					ExpoDevice.osInternalBuildId ??
-					ExpoDevice.osBuildId ??
-					generateDeviceId();
+					ExpoDevice.osInternalBuildId ?? ExpoDevice.osBuildId ?? generateDeviceId();
 				setDeviceId(fallbackId);
 			}
 		}
@@ -132,7 +130,9 @@ export function QueryDevtoolsBridge({ queryClient }: QueryDevtoolsBridgeProps): 
 		platform: Platform.OS,
 		isDevice: ExpoDevice.isDevice,
 		deviceId: deviceId ?? `${Platform.OS}-initializing`,
-		deviceName: ExpoDevice.deviceName ?? `${Platform.OS} ${ExpoDevice.isDevice ? 'Device' : 'Simulator'}`,
+		deviceName:
+			ExpoDevice.deviceName ??
+			`${Platform.OS} ${ExpoDevice.isDevice ? 'Device' : 'Simulator'}`,
 		extraDeviceInfo,
 		enableLogs: false, // Set to true to debug connection issues
 	});
@@ -148,7 +148,9 @@ export function QueryDevtoolsBridge({ queryClient }: QueryDevtoolsBridgeProps): 
  * @param props - Component props containing the QueryClient instance
  * @returns DevTools bridge in DEV, null in production
  */
-export function QueryDevtoolsBridgeSafe({ queryClient }: QueryDevtoolsBridgeProps): JSX.Element | null {
+export function QueryDevtoolsBridgeSafe({
+	queryClient,
+}: QueryDevtoolsBridgeProps): JSX.Element | null {
 	if (!__DEV__) {
 		return null;
 	}

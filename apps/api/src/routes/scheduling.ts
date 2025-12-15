@@ -1,12 +1,6 @@
 import { Elysia } from 'elysia';
 import { and, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
-import {
-	eachDayOfInterval,
-	endOfDay,
-	format,
-	isAfter,
-	startOfDay,
-} from 'date-fns';
+import { eachDayOfInterval, endOfDay, format, isAfter, startOfDay } from 'date-fns';
 import { z } from 'zod';
 
 import db from '../db/index.js';
@@ -20,10 +14,7 @@ import {
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { resolveOrganizationId } from '../utils/organization.js';
-import {
-	calendarQuerySchema,
-	scheduleTemplateDaySchema,
-} from '../schemas/schedules.js';
+import { calendarQuerySchema, scheduleTemplateDaySchema } from '../schemas/schedules.js';
 import { shiftTypeEnum } from '../schemas/crud.js';
 import { validateScheduleDays } from '../utils/schedule-validator.js';
 
@@ -68,7 +59,7 @@ async function getOvertimeEnforcement(organizationId: string): Promise<'WARN' | 
  */
 async function loadTemplateDays(
 	templateIds: string[],
-): Promise<Map<string, typeof scheduleTemplateDay.$inferSelect[]>> {
+): Promise<Map<string, (typeof scheduleTemplateDay.$inferSelect)[]>> {
 	if (templateIds.length === 0) {
 		return new Map();
 	}
@@ -79,7 +70,7 @@ async function loadTemplateDays(
 		.where(inArray(scheduleTemplateDay.templateId, templateIds))
 		.orderBy(scheduleTemplateDay.dayOfWeek);
 
-	const map = new Map<string, typeof scheduleTemplateDay.$inferSelect[]>();
+	const map = new Map<string, (typeof scheduleTemplateDay.$inferSelect)[]>();
 	for (const row of rows) {
 		const current = map.get(row.templateId) ?? [];
 		current.push(row);
@@ -96,7 +87,7 @@ async function loadTemplateDays(
  */
 async function loadEmployeeSchedules(
 	employeeIds: string[],
-): Promise<Map<string, typeof employeeSchedule.$inferSelect[]>> {
+): Promise<Map<string, (typeof employeeSchedule.$inferSelect)[]>> {
 	if (employeeIds.length === 0) {
 		return new Map();
 	}
@@ -106,7 +97,7 @@ async function loadEmployeeSchedules(
 		.from(employeeSchedule)
 		.where(inArray(employeeSchedule.employeeId, employeeIds));
 
-	const map = new Map<string, typeof employeeSchedule.$inferSelect[]>();
+	const map = new Map<string, (typeof employeeSchedule.$inferSelect)[]>();
 	for (const row of schedules) {
 		const current = map.get(row.employeeId) ?? [];
 		current.push(row);
@@ -235,7 +226,9 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 
 			const calendar: CalendarEmployee[] = employeesResult.map((emp) => {
 				const baseSchedule =
-					(emp.scheduleTemplateId ? templateDaysMap.get(emp.scheduleTemplateId) : undefined) ??
+					(emp.scheduleTemplateId
+						? templateDaysMap.get(emp.scheduleTemplateId)
+						: undefined) ??
 					manualScheduleMap.get(emp.id) ??
 					[];
 

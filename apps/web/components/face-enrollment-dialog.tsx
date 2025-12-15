@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Camera, Loader2, Upload, X, RefreshCw, UserCheck } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -53,6 +54,8 @@ export function FaceEnrollmentDialog({
 	onOpenChange,
 	employee,
 }: FaceEnrollmentDialogProps): React.ReactElement {
+	const t = useTranslations('FaceEnrollment');
+	const tCommon = useTranslations('Common');
 	const queryClient = useQueryClient();
 
 	// State for image capture
@@ -101,15 +104,15 @@ export function FaceEnrollmentDialog({
 		},
 		onSuccess: (result) => {
 			if (result.success && result.data?.success) {
-				toast.success('Face enrolled successfully');
+				toast.success(t('toast.success'));
 				onOpenChange(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
-				toast.error(result.error ?? result.data?.message ?? 'Failed to enroll face');
+				toast.error(result.error ?? result.data?.message ?? t('toast.error'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to enroll face');
+			toast.error(t('toast.error'));
 		},
 	});
 
@@ -148,12 +151,10 @@ export function FaceEnrollmentDialog({
 			setIsWebcamActive(true);
 		} catch (error) {
 			console.error('Failed to access webcam:', error);
-			setWebcamError(
-				'Unable to access camera. Please ensure you have granted camera permissions.',
-			);
+			setWebcamError(t('webcam.errors.unavailable'));
 			setIsWebcamActive(false);
 		}
-	}, []);
+	}, [t]);
 
 	/**
 	 * Captures a frame from the webcam video stream.
@@ -193,13 +194,13 @@ export function FaceEnrollmentDialog({
 
 		// Validate file type
 		if (!ACCEPTED_TYPES.includes(file.type)) {
-			toast.error('Please select a JPEG or PNG image');
+			toast.error(t('upload.errors.invalidType'));
 			return;
 		}
 
 		// Validate file size
 		if (file.size > MAX_FILE_SIZE) {
-			toast.error('Image must be less than 5MB');
+			toast.error(t('upload.errors.tooLarge'));
 			return;
 		}
 
@@ -212,7 +213,7 @@ export function FaceEnrollmentDialog({
 			}
 		};
 		reader.onerror = () => {
-			toast.error('Failed to read image file');
+			toast.error(t('upload.errors.readFailed'));
 		};
 		reader.readAsDataURL(file);
 
@@ -290,12 +291,16 @@ export function FaceEnrollmentDialog({
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						<UserCheck className="h-5 w-5" />
-						Enroll Face
+						{t('title')}
 					</DialogTitle>
 					<DialogDescription>
 						{employee
-							? `Enroll a face for ${employee.firstName} ${employee.lastName} (${employee.code})`
-							: 'Select an employee to enroll'}
+							? t('description.withEmployee', {
+									firstName: employee.firstName,
+									lastName: employee.lastName,
+									code: employee.code,
+								})
+							: t('description.noEmployee')}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -307,7 +312,7 @@ export function FaceEnrollmentDialog({
 								{/* eslint-disable-next-line @next/next/no-img-element */}
 								<img
 									src={capturedImage}
-									alt="Captured face"
+									alt={t('image.alt')}
 									className="w-full rounded-lg border object-cover aspect-[4/3]"
 								/>
 								<Button
@@ -323,16 +328,18 @@ export function FaceEnrollmentDialog({
 						) : (
 							<Tabs
 								value={activeTab}
-								onValueChange={(value) => setActiveTab(value as 'upload' | 'webcam')}
+								onValueChange={(value) =>
+									setActiveTab(value as 'upload' | 'webcam')
+								}
 							>
 								<TabsList className="grid w-full grid-cols-2">
 									<TabsTrigger value="upload" className="flex items-center gap-2">
 										<Upload className="h-4 w-4" />
-										Upload
+										{t('tabs.upload')}
 									</TabsTrigger>
 									<TabsTrigger value="webcam" className="flex items-center gap-2">
 										<Camera className="h-4 w-4" />
-										Webcam
+										{t('tabs.webcam')}
 									</TabsTrigger>
 								</TabsList>
 
@@ -340,7 +347,7 @@ export function FaceEnrollmentDialog({
 									<div className="flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 text-center">
 										<Upload className="h-12 w-12 text-muted-foreground mb-4" />
 										<p className="text-sm text-muted-foreground mb-4">
-											Upload a clear photo of the employee&apos;s face
+											{t('upload.instructions')}
 										</p>
 										<input
 											ref={fileInputRef}
@@ -353,10 +360,10 @@ export function FaceEnrollmentDialog({
 											variant="outline"
 											onClick={() => fileInputRef.current?.click()}
 										>
-											Select Image
+											{t('upload.selectImage')}
 										</Button>
 										<p className="text-xs text-muted-foreground mt-2">
-											JPEG or PNG, max 5MB
+											{t('upload.hint')}
 										</p>
 									</div>
 								</TabsContent>
@@ -365,10 +372,12 @@ export function FaceEnrollmentDialog({
 									<div className="flex flex-col items-center">
 										{webcamError ? (
 											<div className="flex flex-col items-center justify-center border rounded-lg p-8 text-center bg-muted/50">
-												<p className="text-sm text-destructive mb-4">{webcamError}</p>
+												<p className="text-sm text-destructive mb-4">
+													{webcamError}
+												</p>
 												<Button variant="outline" onClick={startWebcam}>
 													<RefreshCw className="h-4 w-4 mr-2" />
-													Try Again
+													{t('webcam.tryAgain')}
 												</Button>
 											</div>
 										) : isWebcamActive ? (
@@ -385,10 +394,10 @@ export function FaceEnrollmentDialog({
 												<div className="flex gap-2 justify-center">
 													<Button onClick={captureFromWebcam}>
 														<Camera className="h-4 w-4 mr-2" />
-														Capture Photo
+														{t('webcam.capturePhoto')}
 													</Button>
 													<Button variant="outline" onClick={stopWebcam}>
-														Cancel
+														{tCommon('cancel')}
 													</Button>
 												</div>
 											</div>
@@ -396,11 +405,11 @@ export function FaceEnrollmentDialog({
 											<div className="flex flex-col items-center justify-center border rounded-lg p-8 text-center">
 												<Camera className="h-12 w-12 text-muted-foreground mb-4" />
 												<p className="text-sm text-muted-foreground mb-4">
-													Capture a photo using your webcam
+													{t('webcam.instructions')}
 												</p>
 												<Button onClick={startWebcam}>
 													<Camera className="h-4 w-4 mr-2" />
-													Start Camera
+													{t('webcam.startCamera')}
 												</Button>
 											</div>
 										)}
@@ -411,12 +420,12 @@ export function FaceEnrollmentDialog({
 
 						{/* Guidelines */}
 						<div className="text-xs text-muted-foreground space-y-1 bg-muted/50 p-3 rounded-lg">
-							<p className="font-medium">For best results:</p>
+							<p className="font-medium">{t('guidelines.title')}</p>
 							<ul className="list-disc list-inside space-y-0.5">
-								<li>Ensure good lighting on the face</li>
-								<li>Face should be clearly visible and centered</li>
-								<li>Avoid hats, sunglasses, or face coverings</li>
-								<li>Use a neutral expression</li>
+								<li>{t('guidelines.items.lighting')}</li>
+								<li>{t('guidelines.items.centered')}</li>
+								<li>{t('guidelines.items.avoidCoverings')}</li>
+								<li>{t('guidelines.items.neutralExpression')}</li>
 							</ul>
 						</div>
 
@@ -431,7 +440,7 @@ export function FaceEnrollmentDialog({
 						onClick={() => onOpenChange(false)}
 						disabled={isSubmitting}
 					>
-						Cancel
+						{tCommon('cancel')}
 					</Button>
 					<Button
 						onClick={handleEnroll}
@@ -440,12 +449,12 @@ export function FaceEnrollmentDialog({
 						{isSubmitting ? (
 							<>
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Enrolling...
+								{t('actions.enrolling')}
 							</>
 						) : (
 							<>
 								<UserCheck className="mr-2 h-4 w-4" />
-								Enroll Face
+								{t('actions.enroll')}
 							</>
 						)}
 					</Button>
@@ -454,4 +463,3 @@ export function FaceEnrollmentDialog({
 		</Dialog>
 	);
 }
-

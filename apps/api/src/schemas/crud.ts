@@ -96,9 +96,7 @@ export const createJobPositionSchema = z
 		description: z.string().max(1000).optional(),
 		dailyPay: z.coerce.number().positive('Daily pay must be greater than 0').optional(),
 		hourlyPay: z.coerce.number().positive('Hourly pay must be greater than 0').optional(),
-		paymentFrequency: z
-			.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY'])
-			.optional(),
+		paymentFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
 		organizationId: z.string().optional(),
 	})
 	.superRefine((value, ctx) => {

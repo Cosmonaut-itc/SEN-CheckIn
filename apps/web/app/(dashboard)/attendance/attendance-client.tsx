@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 import {
 	Table,
 	TableBody,
@@ -15,7 +16,16 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Search, Calendar, RefreshCw } from 'lucide-react';
-import { format, startOfDay, endOfDay, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import {
+	format,
+	startOfDay,
+	endOfDay,
+	subDays,
+	startOfWeek,
+	endOfWeek,
+	startOfMonth,
+	endOfMonth,
+} from 'date-fns';
 import {
 	Select,
 	SelectContent,
@@ -24,7 +34,11 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { queryKeys } from '@/lib/query-keys';
-import { fetchAttendanceRecords, type AttendanceRecord, type AttendanceType } from '@/lib/client-functions';
+import {
+	fetchAttendanceRecords,
+	type AttendanceRecord,
+	type AttendanceType,
+} from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 
 /**
@@ -48,9 +62,12 @@ const typeVariants: Record<AttendanceType, 'default' | 'secondary'> = {
  */
 export function AttendancePageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('Attendance');
 	const [search, setSearch] = useState<string>('');
 	const [datePreset, setDatePreset] = useState<DatePreset>('today');
-	const [startDate, setStartDate] = useState<string>(format(startOfDay(new Date()), 'yyyy-MM-dd'));
+	const [startDate, setStartDate] = useState<string>(
+		format(startOfDay(new Date()), 'yyyy-MM-dd'),
+	);
 	const [endDate, setEndDate] = useState<string>(format(endOfDay(new Date()), 'yyyy-MM-dd'));
 	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'all'>('all');
 
@@ -60,48 +77,50 @@ export function AttendancePageClient(): React.ReactElement {
 	 * @param preset - The selected date preset
 	 * @returns Object with start and end date
 	 */
-	const getDateRange = useCallback((preset: DatePreset): { start: Date; end: Date } => {
-		const now = new Date();
-		let start: Date;
-		let end: Date;
+	const getDateRange = useCallback(
+		(preset: DatePreset): { start: Date; end: Date } => {
+			const now = new Date();
+			let start: Date;
+			let end: Date;
 
-		switch (preset) {
-			case 'today':
-				start = startOfDay(now);
-				end = endOfDay(now);
-				break;
-			case 'yesterday':
-				start = startOfDay(subDays(now, 1));
-				end = endOfDay(subDays(now, 1));
-				break;
-			case 'this_week':
-				start = startOfWeek(now, { weekStartsOn: 1 });
-				end = endOfWeek(now, { weekStartsOn: 1 });
-				break;
-			case 'this_month':
-				start = startOfMonth(now);
-				end = endOfMonth(now);
-				break;
-			case 'custom':
-			default:
-				// Ensure we always have valid dates even if inputs are empty.
-				const startValue = startDate ? new Date(startDate) : now;
-				const endValue = endDate ? new Date(endDate) : now;
-				start = startOfDay(startValue);
-				end = endOfDay(endValue);
-				break;
-		}
+			switch (preset) {
+				case 'today':
+					start = startOfDay(now);
+					end = endOfDay(now);
+					break;
+				case 'yesterday':
+					start = startOfDay(subDays(now, 1));
+					end = endOfDay(subDays(now, 1));
+					break;
+				case 'this_week':
+					start = startOfWeek(now, { weekStartsOn: 1 });
+					end = endOfWeek(now, { weekStartsOn: 1 });
+					break;
+				case 'this_month':
+					start = startOfMonth(now);
+					end = endOfMonth(now);
+					break;
+				case 'custom':
+				default:
+					// Ensure we always have valid dates even if inputs are empty.
+					const startValue = startDate ? new Date(startDate) : now;
+					const endValue = endDate ? new Date(endDate) : now;
+					start = startOfDay(startValue);
+					end = endOfDay(endValue);
+					break;
+			}
 
-		return { start, end };
-	}, [startDate, endDate]);
+			return { start, end };
+		},
+		[startDate, endDate],
+	);
 
 	// Get the current date range for the query
 	const { start, end } = getDateRange(datePreset);
 
 	// Build query params - only include type if it's not 'all'
 	const baseParams = { limit: 100, offset: 0, fromDate: start, toDate: end, organizationId };
-	const queryParams =
-		typeFilter !== 'all' ? { ...baseParams, type: typeFilter } : baseParams;
+	const queryParams = typeFilter !== 'all' ? { ...baseParams, type: typeFilter } : baseParams;
 
 	// Query for attendance records
 	const { data, isFetching, refetch } = useQuery({
@@ -130,16 +149,14 @@ export function AttendancePageClient(): React.ReactElement {
 	 * Filters records by employee ID search.
 	 */
 	const filteredRecords = records.filter((record: AttendanceRecord) =>
-		search ? record.employeeId.toLowerCase().includes(search.toLowerCase()) : true
+		search ? record.employeeId.toLowerCase().includes(search.toLowerCase()) : true,
 	);
 
 	if (!organizationId) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">Attendance</h1>
-				<p className="text-muted-foreground">
-					Select an active organization to view attendance records.
-				</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
@@ -148,14 +165,12 @@ export function AttendancePageClient(): React.ReactElement {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Attendance</h1>
-					<p className="text-muted-foreground">
-						View attendance check-in and check-out records
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<Button onClick={() => refetch()} variant="outline">
 					<RefreshCw className="mr-2 h-4 w-4" />
-					Refresh
+					{t('actions.refresh')}
 				</Button>
 			</div>
 
@@ -163,7 +178,7 @@ export function AttendancePageClient(): React.ReactElement {
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						placeholder="Search by employee ID..."
+						placeholder={t('search.placeholder')}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						className="pl-9"
@@ -174,14 +189,20 @@ export function AttendancePageClient(): React.ReactElement {
 					<Calendar className="h-4 w-4 text-muted-foreground" />
 					<Select value={datePreset} onValueChange={handlePresetChange}>
 						<SelectTrigger className="w-[150px]">
-							<SelectValue placeholder="Date range" />
+							<SelectValue placeholder={t('dateRange.placeholder')} />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="today">Today</SelectItem>
-							<SelectItem value="yesterday">Yesterday</SelectItem>
-							<SelectItem value="this_week">This Week</SelectItem>
-							<SelectItem value="this_month">This Month</SelectItem>
-							<SelectItem value="custom">Custom</SelectItem>
+							<SelectItem value="today">{t('dateRange.presets.today')}</SelectItem>
+							<SelectItem value="yesterday">
+								{t('dateRange.presets.yesterday')}
+							</SelectItem>
+							<SelectItem value="this_week">
+								{t('dateRange.presets.thisWeek')}
+							</SelectItem>
+							<SelectItem value="this_month">
+								{t('dateRange.presets.thisMonth')}
+							</SelectItem>
+							<SelectItem value="custom">{t('dateRange.presets.custom')}</SelectItem>
 						</SelectContent>
 					</Select>
 				</div>
@@ -194,7 +215,7 @@ export function AttendancePageClient(): React.ReactElement {
 							onChange={(e) => setStartDate(e.target.value)}
 							className="w-[150px]"
 						/>
-						<span className="text-muted-foreground">to</span>
+						<span className="text-muted-foreground">{t('dateRange.to')}</span>
 						<Input
 							type="date"
 							value={endDate}
@@ -209,12 +230,12 @@ export function AttendancePageClient(): React.ReactElement {
 					onValueChange={(value: AttendanceType | 'all') => setTypeFilter(value)}
 				>
 					<SelectTrigger className="w-[130px]">
-						<SelectValue placeholder="Type" />
+						<SelectValue placeholder={t('typeFilter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All Types</SelectItem>
-						<SelectItem value="CHECK_IN">Check In</SelectItem>
-						<SelectItem value="CHECK_OUT">Check Out</SelectItem>
+						<SelectItem value="all">{t('typeFilter.all')}</SelectItem>
+						<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
+						<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
@@ -223,11 +244,11 @@ export function AttendancePageClient(): React.ReactElement {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Employee ID</TableHead>
-							<TableHead>Device ID</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Timestamp</TableHead>
-							<TableHead>Date</TableHead>
+							<TableHead>{t('table.headers.employeeId')}</TableHead>
+							<TableHead>{t('table.headers.deviceId')}</TableHead>
+							<TableHead>{t('table.headers.type')}</TableHead>
+							<TableHead>{t('table.headers.time')}</TableHead>
+							<TableHead>{t('table.headers.date')}</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -244,7 +265,7 @@ export function AttendancePageClient(): React.ReactElement {
 						) : filteredRecords.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={5} className="h-24 text-center">
-									No attendance records found for the selected period.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -258,14 +279,16 @@ export function AttendancePageClient(): React.ReactElement {
 									</TableCell>
 									<TableCell>
 										<Badge variant={typeVariants[record.type]}>
-											{record.type === 'CHECK_IN' ? 'Check In' : 'Check Out'}
+											{record.type === 'CHECK_IN'
+												? t('typeFilter.checkIn')
+												: t('typeFilter.checkOut')}
 										</Badge>
 									</TableCell>
 									<TableCell>
 										{format(new Date(record.timestamp), 'HH:mm:ss')}
 									</TableCell>
 									<TableCell>
-										{format(new Date(record.timestamp), 'MMM d, yyyy')}
+										{format(new Date(record.timestamp), t('dateFormat'))}
 									</TableCell>
 								</TableRow>
 							))
@@ -276,7 +299,7 @@ export function AttendancePageClient(): React.ReactElement {
 
 			{!isFetching && filteredRecords.length > 0 && (
 				<p className="text-sm text-muted-foreground">
-					Showing {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
+					{t('summary', { count: filteredRecords.length })}
 				</p>
 			)}
 		</div>

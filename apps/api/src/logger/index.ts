@@ -245,7 +245,9 @@ export const logger = {
 		if (shouldLog('INFO')) {
 			const { colorize } = currentConfig;
 			const methodColor = MethodColors[method] ?? Colors.white;
-			const methodStr = colorize ? `${methodColor}${method.padEnd(7)}${Colors.reset}` : method.padEnd(7);
+			const methodStr = colorize
+				? `${methodColor}${method.padEnd(7)}${Colors.reset}`
+				: method.padEnd(7);
 			const message = `${methodStr} ${path}`;
 			console.info(formatLog('INFO', message, meta));
 		}
@@ -272,9 +274,13 @@ export const logger = {
 			const methodColor = MethodColors[method] ?? Colors.white;
 			const statusColor = getStatusColor(status);
 
-			const methodStr = colorize ? `${methodColor}${method.padEnd(7)}${Colors.reset}` : method.padEnd(7);
+			const methodStr = colorize
+				? `${methodColor}${method.padEnd(7)}${Colors.reset}`
+				: method.padEnd(7);
 			const statusStr = colorize ? `${statusColor}${status}${Colors.reset}` : String(status);
-			const durationStr = colorize ? `${Colors.dim}${durationMs.toFixed(2)}ms${Colors.reset}` : `${durationMs.toFixed(2)}ms`;
+			const durationStr = colorize
+				? `${Colors.dim}${durationMs.toFixed(2)}ms${Colors.reset}`
+				: `${durationMs.toFixed(2)}ms`;
 
 			const message = `${methodStr} ${path} ${statusStr} ${durationStr}`;
 			console.info(formatLog('INFO', message, meta));
@@ -283,4 +289,3 @@ export const logger = {
 };
 
 export default logger;
-

@@ -35,4 +35,3 @@ export default function SchedulesLoading(): React.ReactElement {
 		</div>
 	);
 }
-

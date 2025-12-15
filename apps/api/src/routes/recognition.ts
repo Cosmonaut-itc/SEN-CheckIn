@@ -197,4 +197,3 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 			body: imageBodySchema,
 		},
 	);
-

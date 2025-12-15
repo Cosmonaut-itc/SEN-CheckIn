@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -17,6 +19,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 import { Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
@@ -36,11 +39,10 @@ import {
 } from '@/actions/schedules';
 import { TemplateFormDialog } from './template-form-dialog';
 
-const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+type DayKey = (typeof DAY_KEYS)[number];
 
-/**
- * Props for ScheduleTemplatesTab component.
- */
+/** Props for ScheduleTemplatesTab component. */
 interface ScheduleTemplatesTabProps {
 	/** Organization identifier */
 	organizationId?: string | null;
@@ -50,22 +52,6 @@ interface ScheduleTemplatesTabProps {
 	weekStartDay: number;
 	/** Overtime enforcement mode from payroll settings */
 	overtimeEnforcement: 'WARN' | 'BLOCK';
-}
-
-/**
- * Summarizes working days for display.
- *
- * @param template - Template to summarize
- * @returns Summary string
- */
-function summarizeDays(template: ScheduleTemplate): string {
-	if (!template.days || template.days.length === 0) {
-		return 'No days configured';
-	}
-	const workingDays = template.days
-		.filter((day) => day.isWorkingDay !== false)
-		.map((day) => dayLabels[day.dayOfWeek]);
-	return workingDays.length > 0 ? workingDays.join(', ') : 'All days off';
 }
 
 /**
@@ -80,6 +66,8 @@ export function ScheduleTemplatesTab({
 	weekStartDay,
 	overtimeEnforcement,
 }: ScheduleTemplatesTabProps): React.ReactElement {
+	const t = useTranslations('Schedules');
+	const tCommon = useTranslations('Common');
 	const queryClient = useQueryClient();
 	const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 	const [editingTemplate, setEditingTemplate] = useState<ScheduleTemplate | null>(null);
@@ -107,13 +95,13 @@ export function ScheduleTemplatesTab({
 		mutationFn: createScheduleTemplate,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Template created successfully');
+				toast.success(t('templates.toast.createSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleTemplates.all });
 			} else {
-				toast.error(result.error ?? 'Failed to create template');
+				toast.error(result.error ?? t('templates.toast.createError'));
 			}
 		},
-		onError: () => toast.error('Failed to create template'),
+		onError: () => toast.error(t('templates.toast.createError')),
 	});
 
 	const updateMutation = useMutation({
@@ -121,13 +109,13 @@ export function ScheduleTemplatesTab({
 		mutationFn: updateScheduleTemplate,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Template updated successfully');
+				toast.success(t('templates.toast.updateSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleTemplates.all });
 			} else {
-				toast.error(result.error ?? 'Failed to update template');
+				toast.error(result.error ?? t('templates.toast.updateError'));
 			}
 		},
-		onError: () => toast.error('Failed to update template'),
+		onError: () => toast.error(t('templates.toast.updateError')),
 	});
 
 	const deleteMutation = useMutation({
@@ -135,13 +123,13 @@ export function ScheduleTemplatesTab({
 		mutationFn: deleteScheduleTemplate,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Template deleted successfully');
+				toast.success(t('templates.toast.deleteSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleTemplates.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete template');
+				toast.error(result.error ?? t('templates.toast.deleteError'));
 			}
 		},
-		onError: () => toast.error('Failed to delete template'),
+		onError: () => toast.error(t('templates.toast.deleteError')),
 	});
 
 	const assignMutation = useMutation({
@@ -150,16 +138,16 @@ export function ScheduleTemplatesTab({
 			assignTemplateToEmployees(input.templateId, input.employeeIds),
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Template assigned to employees');
+				toast.success(t('templates.toast.assignSuccess'));
 				setAssigningTemplate(null);
 				setSelectedEmployeeIds([]);
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduling.all });
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleTemplates.all });
 			} else {
-				toast.error(result.error ?? 'Failed to assign template');
+				toast.error(result.error ?? t('templates.toast.assignError'));
 			}
 		},
-		onError: () => toast.error('Failed to assign template'),
+		onError: () => toast.error(t('templates.toast.assignError')),
 	});
 
 	const templates = templatesResponse?.data ?? [];
@@ -178,6 +166,27 @@ export function ScheduleTemplatesTab({
 		return detail && detail.days && detail.days.length > 0 ? detail : template;
 	});
 
+	/**
+	 * Summarizes working days for display.
+	 *
+	 * @param template - Template to summarize
+	 * @returns Summary string
+	 */
+	const summarizeDays = (template: ScheduleTemplate): string => {
+		if (!template.days || template.days.length === 0) {
+			return t('templates.summary.noDaysConfigured');
+		}
+
+		const workingDays = template.days
+			.filter((day) => day.isWorkingDay !== false)
+			.map((day) => {
+				const dayKey: DayKey = DAY_KEYS[day.dayOfWeek] ?? 'sun';
+				return t(`days.short.${dayKey}`);
+			});
+
+		return workingDays.length > 0 ? workingDays.join(', ') : t('templates.summary.allDaysOff');
+	};
+
 	const handleOpenCreate = (): void => {
 		setEditingTemplate(null);
 		setIsFormOpen(true);
@@ -195,7 +204,7 @@ export function ScheduleTemplatesTab({
 		days: ScheduleTemplateDayInput[];
 	}): Promise<void> => {
 		if (!organizationId) {
-			toast.error('No active organization selected.');
+			toast.error(t('templates.toast.noOrganization'));
 			return;
 		}
 
@@ -235,10 +244,8 @@ export function ScheduleTemplatesTab({
 	if (!organizationId) {
 		return (
 			<div className="space-y-2 rounded-md border p-4">
-				<h2 className="text-lg font-semibold">Templates</h2>
-				<p className="text-muted-foreground">
-					Select an active organization to manage schedule templates.
-				</p>
+				<h2 className="text-lg font-semibold">{t('tabs.templates')}</h2>
+				<p className="text-muted-foreground">{t('templates.noOrganization')}</p>
 			</div>
 		);
 	}
@@ -247,14 +254,12 @@ export function ScheduleTemplatesTab({
 		<div className="space-y-4">
 			<div className="flex items-center justify-between">
 				<div>
-					<h2 className="text-xl font-semibold">Schedule Templates</h2>
-					<p className="text-sm text-muted-foreground">
-						Create reusable schedules and assign them to employees.
-					</p>
+					<h2 className="text-xl font-semibold">{t('templates.title')}</h2>
+					<p className="text-sm text-muted-foreground">{t('templates.description')}</p>
 				</div>
 				<Button onClick={handleOpenCreate}>
 					<Plus className="mr-2 h-4 w-4" />
-					New Template
+					{t('templates.actions.new')}
 				</Button>
 			</div>
 
@@ -262,31 +267,41 @@ export function ScheduleTemplatesTab({
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Shift</TableHead>
-							<TableHead>Working Days</TableHead>
-							<TableHead>Updated</TableHead>
-							<TableHead className="w-[140px]">Actions</TableHead>
+							<TableHead>{t('templates.table.headers.name')}</TableHead>
+							<TableHead>{t('templates.table.headers.shift')}</TableHead>
+							<TableHead>{t('templates.table.headers.workingDays')}</TableHead>
+							<TableHead>{t('templates.table.headers.updated')}</TableHead>
+							<TableHead className="w-[140px]">
+								{t('templates.table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{isFetching ? (
 							<TableRow>
-								<TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
-									Loading templates...
+								<TableCell
+									colSpan={5}
+									className="h-20 text-center text-muted-foreground"
+								>
+									{t('templates.table.loading')}
 								</TableCell>
 							</TableRow>
 						) : templatesWithDays.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
-									No templates found.
+								<TableCell
+									colSpan={5}
+									className="h-20 text-center text-muted-foreground"
+								>
+									{t('templates.table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
 							templatesWithDays.map((template) => (
 								<TableRow key={template.id}>
 									<TableCell className="font-medium">{template.name}</TableCell>
-									<TableCell className="uppercase">{template.shiftType}</TableCell>
+									<TableCell>
+										{t(`shiftTypes.short.${template.shiftType}`)}
+									</TableCell>
 									<TableCell>{summarizeDays(template)}</TableCell>
 									<TableCell>
 										{formatMonthDayUtc(new Date(template.updatedAt))}
@@ -297,7 +312,7 @@ export function ScheduleTemplatesTab({
 												variant="ghost"
 												size="icon"
 												onClick={() => handleEdit(template)}
-												title="Edit template"
+												title={t('templates.actions.editTitle')}
 											>
 												<Pencil className="h-4 w-4" />
 											</Button>
@@ -307,7 +322,7 @@ export function ScheduleTemplatesTab({
 												onClick={() => {
 													setDeleteId(template.id);
 												}}
-												title="Delete template"
+												title={t('templates.actions.deleteTitle')}
 											>
 												<Trash2 className="h-4 w-4 text-destructive" />
 											</Button>
@@ -318,7 +333,7 @@ export function ScheduleTemplatesTab({
 													setAssigningTemplate(template);
 													setSelectedEmployeeIds([]);
 												}}
-												title="Assign to employees"
+												title={t('templates.actions.assignTitle')}
 											>
 												<Users className="h-4 w-4" />
 											</Button>
@@ -342,10 +357,10 @@ export function ScheduleTemplatesTab({
 				onSubmit={handleSave}
 				initialTemplate={
 					editingTemplate
-						? templatesWithDays.find((t) => t.id === editingTemplate.id) ?? editingTemplate
+						? (templatesWithDays.find((t) => t.id === editingTemplate.id) ??
+							editingTemplate)
 						: null
 				}
-				isSubmitting={createMutation.isPending || updateMutation.isPending}
 				weekStartDay={weekStartDay}
 				overtimeEnforcement={overtimeEnforcement}
 			/>
@@ -353,20 +368,20 @@ export function ScheduleTemplatesTab({
 			<Dialog open={Boolean(deleteId)} onOpenChange={(open) => !open && setDeleteId(null)}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Delete template</DialogTitle>
+						<DialogTitle>{t('templates.dialogs.delete.title')}</DialogTitle>
 						<DialogDescription>
-							This action will remove the template and its day configuration. Are you sure?
+							{t('templates.dialogs.delete.description')}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setDeleteId(null)}>
-							Cancel
+							{tCommon('cancel')}
 						</Button>
 						<Button
 							variant="destructive"
 							onClick={() => deleteId && deleteMutation.mutate(deleteId)}
 						>
-							Delete
+							{tCommon('delete')}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -383,10 +398,13 @@ export function ScheduleTemplatesTab({
 			>
 				<DialogContent className="max-w-xl">
 					<DialogHeader>
-						<DialogTitle>Assign template to employees</DialogTitle>
+						<DialogTitle>{t('templates.dialogs.assign.title')}</DialogTitle>
 						<DialogDescription>
-							Select employees that should receive{' '}
-							{assigningTemplate?.name ?? 'this template'}.
+							{t('templates.dialogs.assign.description', {
+								name:
+									assigningTemplate?.name ??
+									t('templates.dialogs.assign.fallbackName'),
+							})}
 						</DialogDescription>
 					</DialogHeader>
 					<div className="max-h-80 space-y-2 overflow-auto pr-2">
@@ -415,13 +433,13 @@ export function ScheduleTemplatesTab({
 					</div>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setAssigningTemplate(null)}>
-							Cancel
+							{tCommon('cancel')}
 						</Button>
 						<Button
 							onClick={handleAssignSubmit}
 							disabled={assignMutation.isPending || selectedEmployeeIds.length === 0}
 						>
-							Assign
+							{t('templates.dialogs.assign.action')}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

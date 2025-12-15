@@ -19,8 +19,7 @@ export default function AuthLayout(): JSX.Element {
 
 	// Allow device-setup even with session (it's a post-auth onboarding step)
 	const isOnDeviceSetup = segmentList.includes('device-setup');
-	const needsDeviceSetup =
-		isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
+	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
 	if (!isLoading && session && !isOnDeviceSetup && !needsDeviceSetup) {
 		return <Redirect href="/(main)/scanner" />;

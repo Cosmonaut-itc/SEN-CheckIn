@@ -32,6 +32,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Edit, Plus, Search, Trash2, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import React, { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -52,6 +53,8 @@ interface OrganizationFormValues {
 export function OrganizationsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const router = useRouter();
+	const t = useTranslations('Organizations');
+	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
@@ -71,16 +74,16 @@ export function OrganizationsPageClient(): React.ReactElement {
 		mutationFn: createOrganization,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Organization created successfully');
+				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
 				router.refresh();
 			} else {
-				toast.error(result.error ?? 'Failed to create organization');
+				toast.error(result.error ?? t('toast.createError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to create organization');
+			toast.error(t('toast.createError'));
 		},
 	});
 
@@ -90,16 +93,16 @@ export function OrganizationsPageClient(): React.ReactElement {
 		mutationFn: updateOrganization,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Organization updated successfully');
+				toast.success(t('toast.updateSuccess'));
 				setIsDialogOpen(false);
 				setEditingOrganization(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
 			} else {
-				toast.error(result.error ?? 'Failed to update organization');
+				toast.error(result.error ?? t('toast.updateError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to update organization');
+			toast.error(t('toast.updateError'));
 		},
 	});
 
@@ -109,15 +112,15 @@ export function OrganizationsPageClient(): React.ReactElement {
 		mutationFn: deleteOrganization,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Organization deleted successfully');
+				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete organization');
+				toast.error(result.error ?? t('toast.deleteError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to delete organization');
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
@@ -195,27 +198,27 @@ export function OrganizationsPageClient(): React.ReactElement {
 
 	const validateName = (value: string): string | undefined => {
 		const trimmed = value.trim();
-		if (!trimmed) return 'Name is required';
+		if (!trimmed) return t('validation.nameRequired');
 		if (trimmed.length < NAME_LIMITS.min) {
-			return `Name must be at least ${NAME_LIMITS.min} characters`;
+			return t('validation.nameMin', { min: NAME_LIMITS.min });
 		}
 		if (trimmed.length > NAME_LIMITS.max) {
-			return `Name must be at most ${NAME_LIMITS.max} characters`;
+			return t('validation.nameMax', { max: NAME_LIMITS.max });
 		}
 		return undefined;
 	};
 
 	const validateSlug = (value: string): string | undefined => {
 		const trimmed = value.trim();
-		if (!trimmed) return 'Slug is required';
+		if (!trimmed) return t('validation.slugRequired');
 		if (trimmed.length < SLUG_LIMITS.min) {
-			return `Slug must be at least ${SLUG_LIMITS.min} characters`;
+			return t('validation.slugMin', { min: SLUG_LIMITS.min });
 		}
 		if (trimmed.length > SLUG_LIMITS.max) {
-			return `Slug must be at most ${SLUG_LIMITS.max} characters`;
+			return t('validation.slugMax', { max: SLUG_LIMITS.max });
 		}
 		if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(trimmed)) {
-			return 'Use lowercase letters, numbers, and hyphens only';
+			return t('validation.slugPattern');
 		}
 		return undefined;
 	};
@@ -247,7 +250,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const filteredOrganizations = organizations.filter(
 		(org: Organization) =>
 			org.name.toLowerCase().includes(search.toLowerCase()) ||
-			org.slug.toLowerCase().includes(search.toLowerCase())
+			org.slug.toLowerCase().includes(search.toLowerCase()),
 	);
 
 	return (
@@ -255,136 +258,141 @@ export function OrganizationsPageClient(): React.ReactElement {
 			<div className="space-y-6">
 				<div className="flex items-center justify-between">
 					<div>
-						<h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-						<p className="text-muted-foreground">
-							Manage organizations and their members
-						</p>
+						<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+						<p className="text-muted-foreground">{t('subtitle')}</p>
 					</div>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
-							Create Organization
+							{t('actions.create')}
 						</Button>
 					</DialogTrigger>
 				</div>
 
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder="Search organizations..."
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
+				<div className="flex items-center gap-4">
+					<div className="relative flex-1 max-w-sm">
+						<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							placeholder={t('search.placeholder')}
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							className="pl-9"
+						/>
+					</div>
 				</div>
-			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Slug</TableHead>
-							<TableHead>Created</TableHead>
-							<TableHead className="w-[100px]">Actions</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 3 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 4 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : filteredOrganizations.length === 0 ? (
+				<div className="rounded-md border">
+					<Table>
+						<TableHeader>
 							<TableRow>
-								<TableCell colSpan={4} className="h-24 text-center">
-									<div className="flex flex-col items-center gap-3">
-										<Users className="h-8 w-8 text-muted-foreground" />
-										<div className="space-y-1">
-											<p className="font-medium text-foreground">
-												No organizations found.
-											</p>
-											<p className="text-sm text-muted-foreground">
-												Start by creating your first organization.
-											</p>
-										</div>
-										<DialogTrigger asChild>
-											<Button onClick={handleCreateNew} size="sm">
-												<Plus className="mr-2 h-4 w-4" />
-												Create organization
-											</Button>
-										</DialogTrigger>
-									</div>
-								</TableCell>
+								<TableHead>{t('table.headers.name')}</TableHead>
+								<TableHead>{t('table.headers.slug')}</TableHead>
+								<TableHead>{t('table.headers.created')}</TableHead>
+								<TableHead className="w-[100px]">
+									{t('table.headers.actions')}
+								</TableHead>
 							</TableRow>
-						) : (
-							filteredOrganizations.map((org: Organization) => (
-								<TableRow key={org.id}>
-									<TableCell className="font-medium">{org.name}</TableCell>
-									<TableCell>
-										<code className="text-sm">{org.slug}</code>
-									</TableCell>
-									<TableCell>
-										{format(new Date(org.createdAt), 'MMM d, yyyy')}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(org)}
-											>
-												<Edit className="h-4 w-4" />
-											</Button>
-											<Dialog
-												open={deleteConfirmId === org.id}
-												onOpenChange={(open) =>
-													setDeleteConfirmId(open ? org.id : null)
-												}
-											>
-												<DialogTrigger asChild>
-													<Button variant="ghost" size="icon">
-														<Trash2 className="h-4 w-4 text-destructive" />
-													</Button>
-												</DialogTrigger>
-												<DialogContent>
-													<DialogHeader>
-														<DialogTitle>Delete Organization</DialogTitle>
-														<DialogDescription>
-															Are you sure you want to delete {org.name}?
-															This will remove all members and cannot be undone.
-														</DialogDescription>
-													</DialogHeader>
-													<DialogFooter>
-														<Button
-															variant="outline"
-															onClick={() => setDeleteConfirmId(null)}
-														>
-															Cancel
-														</Button>
-														<Button
-															variant="destructive"
-															onClick={() => handleDelete(org.id)}
-														>
-															Delete
-														</Button>
-													</DialogFooter>
-												</DialogContent>
-											</Dialog>
+						</TableHeader>
+						<TableBody>
+							{isFetching ? (
+								Array.from({ length: 3 }).map((_, i) => (
+									<TableRow key={i}>
+										{Array.from({ length: 4 }).map((_, j) => (
+											<TableCell key={j}>
+												<Skeleton className="h-4 w-full" />
+											</TableCell>
+										))}
+									</TableRow>
+								))
+							) : filteredOrganizations.length === 0 ? (
+								<TableRow>
+									<TableCell colSpan={4} className="h-24 text-center">
+										<div className="flex flex-col items-center gap-3">
+											<Users className="h-8 w-8 text-muted-foreground" />
+											<div className="space-y-1">
+												<p className="font-medium text-foreground">
+													{t('table.empty.title')}
+												</p>
+												<p className="text-sm text-muted-foreground">
+													{t('table.empty.description')}
+												</p>
+											</div>
+											<DialogTrigger asChild>
+												<Button onClick={handleCreateNew} size="sm">
+													<Plus className="mr-2 h-4 w-4" />
+													{t('actions.create')}
+												</Button>
+											</DialogTrigger>
 										</div>
 									</TableCell>
 								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+							) : (
+								filteredOrganizations.map((org: Organization) => (
+									<TableRow key={org.id}>
+										<TableCell className="font-medium">{org.name}</TableCell>
+										<TableCell>
+											<code className="text-sm">{org.slug}</code>
+										</TableCell>
+										<TableCell>
+											{format(new Date(org.createdAt), t('dateFormat'))}
+										</TableCell>
+										<TableCell>
+											<div className="flex items-center gap-2">
+												<Button
+													variant="ghost"
+													size="icon"
+													onClick={() => handleEdit(org)}
+												>
+													<Edit className="h-4 w-4" />
+												</Button>
+												<Dialog
+													open={deleteConfirmId === org.id}
+													onOpenChange={(open) =>
+														setDeleteConfirmId(open ? org.id : null)
+													}
+												>
+													<DialogTrigger asChild>
+														<Button variant="ghost" size="icon">
+															<Trash2 className="h-4 w-4 text-destructive" />
+														</Button>
+													</DialogTrigger>
+													<DialogContent>
+														<DialogHeader>
+															<DialogTitle>
+																{t('dialogs.delete.title')}
+															</DialogTitle>
+															<DialogDescription>
+																{t('dialogs.delete.description', {
+																	name: org.name,
+																})}
+															</DialogDescription>
+														</DialogHeader>
+														<DialogFooter>
+															<Button
+																variant="outline"
+																onClick={() =>
+																	setDeleteConfirmId(null)
+																}
+															>
+																{tCommon('cancel')}
+															</Button>
+															<Button
+																variant="destructive"
+																onClick={() => handleDelete(org.id)}
+															>
+																{tCommon('delete')}
+															</Button>
+														</DialogFooter>
+													</DialogContent>
+												</Dialog>
+											</div>
+										</TableCell>
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</div>
 			</div>
 
 			<DialogContent className="sm:max-w-[425px]">
@@ -397,13 +405,15 @@ export function OrganizationsPageClient(): React.ReactElement {
 				>
 					<DialogHeader>
 						<DialogTitle>
-							{editingOrganization ? 'Edit Organization' : 'Create Organization'}
+							{editingOrganization
+								? t('dialog.title.edit')
+								: t('dialog.title.create')}
 						</DialogTitle>
-					<DialogDescription>
-						{editingOrganization
-							? 'Update the organization details below.'
-							: 'Create a new organization to manage users and resources.'}
-					</DialogDescription>
+						<DialogDescription>
+							{editingOrganization
+								? t('dialog.description.edit')
+								: t('dialog.description.create')}
+						</DialogDescription>
 					</DialogHeader>
 					<div className="grid gap-4 py-4">
 						<form.AppField
@@ -414,8 +424,11 @@ export function OrganizationsPageClient(): React.ReactElement {
 						>
 							{(field) => (
 								<field.TextField
-									label="Name"
-									description={`Between ${NAME_LIMITS.min}-${NAME_LIMITS.max} characters.`}
+									label={t('fields.name')}
+									description={t('fields.nameDescription', {
+										min: NAME_LIMITS.min,
+										max: NAME_LIMITS.max,
+									})}
 									onValueChange={(val) => {
 										if (!editingOrganization) {
 											form.setFieldValue('slug', generateSlug(val));
@@ -433,8 +446,11 @@ export function OrganizationsPageClient(): React.ReactElement {
 						>
 							{(field) => (
 								<field.TextField
-									label="Slug"
-									description={`Lowercase, ${SLUG_LIMITS.min}-${SLUG_LIMITS.max} characters; letters, numbers, and hyphens only.`}
+									label={t('fields.slug')}
+									description={t('fields.slugDescription', {
+										min: SLUG_LIMITS.min,
+										max: SLUG_LIMITS.max,
+									})}
 									onValueChange={(val) => generateSlug(val)}
 								/>
 							)}
@@ -443,8 +459,10 @@ export function OrganizationsPageClient(): React.ReactElement {
 					<DialogFooter>
 						<form.AppForm>
 							<form.SubmitButton
-								label={editingOrganization ? 'Save' : 'Create'}
-								loadingLabel={editingOrganization ? 'Saving...' : 'Creating...'}
+								label={editingOrganization ? tCommon('save') : t('actions.create')}
+								loadingLabel={
+									editingOrganization ? tCommon('saving') : t('actions.creating')
+								}
 							/>
 						</form.AppForm>
 					</DialogFooter>

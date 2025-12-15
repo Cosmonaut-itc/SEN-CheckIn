@@ -165,4 +165,3 @@ export const errorHandlerPlugin = new Elysia({ name: 'error-handler' })
 	});
 
 export default errorHandlerPlugin;
-

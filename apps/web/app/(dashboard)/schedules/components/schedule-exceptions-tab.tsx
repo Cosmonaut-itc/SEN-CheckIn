@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -16,7 +18,14 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useTranslations } from 'next-intl';
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Plus, Trash2, Pencil } from 'lucide-react';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
@@ -65,6 +74,8 @@ export function ScheduleExceptionsTab({
 	organizationId,
 	employees,
 }: ScheduleExceptionsTabProps): React.ReactElement {
+	const t = useTranslations('Schedules');
+	const tCommon = useTranslations('Common');
 	const queryClient = useQueryClient();
 	const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 	const [editingException, setEditingException] = useState<ScheduleException | null>(null);
@@ -97,14 +108,14 @@ export function ScheduleExceptionsTab({
 		mutationFn: createScheduleException,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Exception created successfully');
+				toast.success(t('exceptions.toast.createSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleExceptions.all });
 				setIsFormOpen(false);
 			} else {
-				toast.error(result.error ?? 'Failed to create exception');
+				toast.error(result.error ?? t('exceptions.toast.createError'));
 			}
 		},
-		onError: () => toast.error('Failed to create exception'),
+		onError: () => toast.error(t('exceptions.toast.createError')),
 	});
 
 	const updateMutation = useMutation({
@@ -112,15 +123,15 @@ export function ScheduleExceptionsTab({
 		mutationFn: updateScheduleException,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Exception updated successfully');
+				toast.success(t('exceptions.toast.updateSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleExceptions.all });
 				setIsFormOpen(false);
 				setEditingException(null);
 			} else {
-				toast.error(result.error ?? 'Failed to update exception');
+				toast.error(result.error ?? t('exceptions.toast.updateError'));
 			}
 		},
-		onError: () => toast.error('Failed to update exception'),
+		onError: () => toast.error(t('exceptions.toast.updateError')),
 	});
 
 	const deleteMutation = useMutation({
@@ -128,13 +139,13 @@ export function ScheduleExceptionsTab({
 		mutationFn: deleteScheduleException,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Exception deleted successfully');
+				toast.success(t('exceptions.toast.deleteSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.scheduleExceptions.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete exception');
+				toast.error(result.error ?? t('exceptions.toast.deleteError'));
 			}
 		},
-		onError: () => toast.error('Failed to delete exception'),
+		onError: () => toast.error(t('exceptions.toast.deleteError')),
 	});
 
 	const exceptions = exceptionsResponse?.data ?? [];
@@ -159,7 +170,7 @@ export function ScheduleExceptionsTab({
 			});
 		} else {
 			if (!organizationId) {
-				toast.error('No active organization selected.');
+				toast.error(t('exceptions.toast.noOrganization'));
 				return;
 			}
 			await createMutation.mutateAsync({
@@ -176,10 +187,8 @@ export function ScheduleExceptionsTab({
 	if (!organizationId) {
 		return (
 			<div className="space-y-2 rounded-md border p-4">
-				<h2 className="text-lg font-semibold">Exceptions</h2>
-				<p className="text-muted-foreground">
-					Select an active organization to manage schedule exceptions.
-				</p>
+				<h2 className="text-lg font-semibold">{t('tabs.exceptions')}</h2>
+				<p className="text-muted-foreground">{t('exceptions.noOrganization')}</p>
 			</div>
 		);
 	}
@@ -188,10 +197,8 @@ export function ScheduleExceptionsTab({
 		<div className="space-y-4">
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<div>
-					<h2 className="text-xl font-semibold">Schedule Exceptions</h2>
-					<p className="text-sm text-muted-foreground">
-						Manage day-off, modified hours, and extra working days.
-					</p>
+					<h2 className="text-xl font-semibold">{t('exceptions.title')}</h2>
+					<p className="text-sm text-muted-foreground">{t('exceptions.description')}</p>
 				</div>
 				<Button
 					onClick={() => {
@@ -200,17 +207,17 @@ export function ScheduleExceptionsTab({
 					}}
 				>
 					<Plus className="mr-2 h-4 w-4" />
-					Add Exception
+					{t('exceptions.actions.add')}
 				</Button>
 			</div>
 
 			<div className="flex flex-wrap items-center gap-3">
 				<Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
 					<SelectTrigger className="w-[240px]">
-						<SelectValue placeholder="All employees" />
+						<SelectValue placeholder={t('exceptions.filters.allEmployees')} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All employees</SelectItem>
+						<SelectItem value="all">{t('exceptions.filters.allEmployees')}</SelectItem>
 						{employees.map((employee) => (
 							<SelectItem key={employee.id} value={employee.id}>
 								{employee.firstName} {employee.lastName}
@@ -221,7 +228,7 @@ export function ScheduleExceptionsTab({
 
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<label className="flex items-center gap-2">
-						<span>From</span>
+						<span>{t('exceptions.filters.from')}</span>
 						<input
 							type="date"
 							className="rounded border px-2 py-1 text-sm"
@@ -230,7 +237,7 @@ export function ScheduleExceptionsTab({
 						/>
 					</label>
 					<label className="flex items-center gap-2">
-						<span>To</span>
+						<span>{t('exceptions.filters.to')}</span>
 						<input
 							type="date"
 							className="rounded border px-2 py-1 text-sm"
@@ -245,25 +252,33 @@ export function ScheduleExceptionsTab({
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Employee</TableHead>
-							<TableHead>Date</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Time</TableHead>
-							<TableHead>Reason</TableHead>
-							<TableHead className="w-[120px]">Actions</TableHead>
+							<TableHead>{t('exceptions.table.headers.employee')}</TableHead>
+							<TableHead>{t('exceptions.table.headers.date')}</TableHead>
+							<TableHead>{t('exceptions.table.headers.type')}</TableHead>
+							<TableHead>{t('exceptions.table.headers.time')}</TableHead>
+							<TableHead>{t('exceptions.table.headers.reason')}</TableHead>
+							<TableHead className="w-[120px]">
+								{t('exceptions.table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{isFetching ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
-									Loading exceptions...
+								<TableCell
+									colSpan={6}
+									className="h-20 text-center text-muted-foreground"
+								>
+									{t('exceptions.table.loading')}
 								</TableCell>
 							</TableRow>
 						) : exceptions.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-20 text-center text-muted-foreground">
-									No exceptions found.
+								<TableCell
+									colSpan={6}
+									className="h-20 text-center text-muted-foreground"
+								>
+									{t('exceptions.table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -277,11 +292,13 @@ export function ScheduleExceptionsTab({
 									<TableCell>
 										{formatShortDateUtc(new Date(exception.exceptionDate))}
 									</TableCell>
-									<TableCell className="uppercase">{exception.exceptionType}</TableCell>
+									<TableCell>
+										{t(`exceptions.types.${exception.exceptionType}`)}
+									</TableCell>
 									<TableCell>
 										{exception.startTime && exception.endTime
 											? `${exception.startTime} - ${exception.endTime}`
-											: 'N/A'}
+											: tCommon('notAvailable')}
 									</TableCell>
 									<TableCell>{exception.reason ?? '-'}</TableCell>
 									<TableCell>
@@ -293,7 +310,7 @@ export function ScheduleExceptionsTab({
 													setEditingException(exception);
 													setIsFormOpen(true);
 												}}
-												title="Edit exception"
+												title={t('exceptions.actions.editTitle')}
 											>
 												<Pencil className="h-4 w-4" />
 											</Button>
@@ -301,7 +318,7 @@ export function ScheduleExceptionsTab({
 												variant="ghost"
 												size="icon"
 												onClick={() => setDeleteId(exception.id)}
-												title="Delete exception"
+												title={t('exceptions.actions.deleteTitle')}
 											>
 												<Trash2 className="h-4 w-4 text-destructive" />
 											</Button>
@@ -330,17 +347,17 @@ export function ScheduleExceptionsTab({
 			<Dialog open={Boolean(deleteId)} onOpenChange={(open) => !open && setDeleteId(null)}>
 				<DialogContent>
 					<DialogHeader>
-						<DialogTitle>Delete exception</DialogTitle>
+						<DialogTitle>{t('exceptions.dialogs.delete.title')}</DialogTitle>
 					</DialogHeader>
 					<DialogFooter>
 						<Button variant="outline" onClick={() => setDeleteId(null)}>
-							Cancel
+							{tCommon('cancel')}
 						</Button>
 						<Button
 							variant="destructive"
 							onClick={() => deleteId && deleteMutation.mutate(deleteId)}
 						>
-							Delete
+							{tCommon('delete')}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

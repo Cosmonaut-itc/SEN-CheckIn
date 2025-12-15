@@ -29,6 +29,13 @@
 - ESLint: API uses `@sen-checkin/eslint-config/elysia` (with `turbo/no-undeclared-env-vars`); mobile uses `eslint-config-expo`. Keep generated `dist/` out of git.
 - Naming: `PascalCase` React components, `camelCase` vars/functions, kebab-case folders; align Expo route files with router paths.
 
+## Language & Localization
+
+- **All UI strings must be in Spanish** (Latin American, Mexican Spanish preferred).
+- Use the existing i18n infrastructure: `next-intl` for web, `expo-localization` + `i18n-js` for mobile.
+- Never hardcode user-facing strings; always use translation keys.
+- Translation files: `apps/web/messages/es.json` and `apps/mobile/lib/translations/es.json`.
+
 ## Testing Guidelines
 
 - Quality checks: Run `bun run lint` and `bun run check-types` before committing. These validate code quality and type safety across all workspaces.

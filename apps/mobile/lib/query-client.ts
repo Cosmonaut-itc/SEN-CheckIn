@@ -3,18 +3,18 @@ import { focusManager, onlineManager, QueryClient } from '@tanstack/react-query'
 import { AppState, type AppStateStatus } from 'react-native';
 
 const defaultQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 60 * 1000,
-      retry: 1,
-    },
-  },
+	defaultOptions: {
+		queries: {
+			staleTime: 60 * 1000,
+			retry: 1,
+		},
+	},
 });
 
 let managersConfigured = false;
 
 function handleAppStateChange(status: AppStateStatus) {
-  focusManager.setFocused(status === 'active');
+	focusManager.setFocused(status === 'active');
 }
 
 /**
@@ -22,21 +22,21 @@ function handleAppStateChange(status: AppStateStatus) {
  * Call once during app bootstrap (see QueryProvider).
  */
 export function configureQueryManagers() {
-  if (managersConfigured) {
-    return;
-  }
+	if (managersConfigured) {
+		return;
+	}
 
-  managersConfigured = true;
+	managersConfigured = true;
 
-  onlineManager.setEventListener((setOnline) => {
-    const unsubscribe = NetInfo.addEventListener((state) => {
-      setOnline(Boolean(state.isConnected));
-    });
+	onlineManager.setEventListener((setOnline) => {
+		const unsubscribe = NetInfo.addEventListener((state) => {
+			setOnline(Boolean(state.isConnected));
+		});
 
-    return () => unsubscribe();
-  });
+		return () => unsubscribe();
+	});
 
-  AppState.addEventListener('change', handleAppStateChange);
+	AppState.addEventListener('change', handleAppStateChange);
 }
 
 export const queryClient = defaultQueryClient;

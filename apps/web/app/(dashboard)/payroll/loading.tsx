@@ -15,4 +15,3 @@ export default function PayrollLoading(): React.ReactElement {
 		</div>
 	);
 }
-

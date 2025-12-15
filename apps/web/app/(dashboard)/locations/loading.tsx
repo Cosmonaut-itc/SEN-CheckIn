@@ -9,4 +9,3 @@ import { LocationsSkeleton } from '@/components/skeletons';
 export default function LocationsLoading() {
 	return <LocationsSkeleton />;
 }
-

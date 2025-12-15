@@ -2,31 +2,31 @@
 name: Mobile Dark Mode Implementation
 overview: Implement proper light/dark mode support in the mobile app by configuring HeroUI Native provider with theme detection, updating StatusBar to adapt dynamically, adding dark mode CSS variables for Tailwind/uniwind, and refactoring hardcoded colors in StyleSheet-based components.
 todos:
-  - id: create-theme-provider
-    content: Create ThemeProvider context in providers/theme-provider.tsx
-    status: pending
-  - id: update-root-layout
-    content: Update _layout.tsx with HeroUI theme prop and dynamic StatusBar
-    status: pending
-    dependencies:
-      - create-theme-provider
-  - id: configure-css-variables
-    content: Add dark mode CSS variables in global.css
-    status: pending
-  - id: update-scanner-styles
-    content: Replace hardcoded colors in scanner.tsx StyleSheet with theme-aware styles
-    status: pending
-    dependencies:
-      - create-theme-provider
-  - id: extend-theme-constants
-    content: Extend Colors object in constants/theme.ts with additional semantic colors
-    status: pending
-  - id: verify-all-screens
-    content: Verify and fix any remaining hardcoded colors across all screens
-    status: pending
-    dependencies:
-      - update-root-layout
-      - configure-css-variables
+    - id: create-theme-provider
+      content: Create ThemeProvider context in providers/theme-provider.tsx
+      status: pending
+    - id: update-root-layout
+      content: Update _layout.tsx with HeroUI theme prop and dynamic StatusBar
+      status: pending
+      dependencies:
+          - create-theme-provider
+    - id: configure-css-variables
+      content: Add dark mode CSS variables in global.css
+      status: pending
+    - id: update-scanner-styles
+      content: Replace hardcoded colors in scanner.tsx StyleSheet with theme-aware styles
+      status: pending
+      dependencies:
+          - create-theme-provider
+    - id: extend-theme-constants
+      content: Extend Colors object in constants/theme.ts with additional semantic colors
+      status: pending
+    - id: verify-all-screens
+      content: Verify and fix any remaining hardcoded colors across all screens
+      status: pending
+      dependencies:
+          - update-root-layout
+          - configure-css-variables
 ---
 
 # Mobile App Light/Dark Mode Implementation
@@ -78,37 +78,38 @@ Add CSS variables for dark mode that Tailwind/uniwind can use:
 @source '../../node_modules/heroui-native/lib';
 
 :root {
-  --color-background: #ffffff;
-  --color-foreground: #11181C;
-  --color-foreground-500: #687076;
-  --color-foreground-400: #9BA1A6;
-  --color-content1: #f4f4f5;
-  --color-content2: #e4e4e7;
-  --color-default-200: #e4e4e7;
+	--color-background: #ffffff;
+	--color-foreground: #11181c;
+	--color-foreground-500: #687076;
+	--color-foreground-400: #9ba1a6;
+	--color-content1: #f4f4f5;
+	--color-content2: #e4e4e7;
+	--color-default-200: #e4e4e7;
 }
 
-.dark, [data-theme="dark"] {
-  --color-background: #151718;
-  --color-foreground: #ECEDEE;
-  --color-foreground-500: #9BA1A6;
-  --color-foreground-400: #71767A;
-  --color-content1: #27272a;
-  --color-content2: #3f3f46;
-  --color-default-200: #3f3f46;
+.dark,
+[data-theme='dark'] {
+	--color-background: #151718;
+	--color-foreground: #ecedee;
+	--color-foreground-500: #9ba1a6;
+	--color-foreground-400: #71767a;
+	--color-content1: #27272a;
+	--color-content2: #3f3f46;
+	--color-default-200: #3f3f46;
 }
 ```
 
 ### 4. Update Scanner Screen Hardcoded Styles
 
-**File:** [`apps/mobile/app/(main)/scanner.tsx`](apps/mobile/app/\\(main)/scanner.tsx)
+**File:** [`apps/mobile/app/(main)/scanner.tsx`](<apps/mobile/app/\(main)/scanner.tsx>)
 
 - Replace hardcoded colors in `StyleSheet.create()` with theme-aware alternatives
 - Use `useThemeColor` hook or CSS classes for dynamic styling
 - Key areas to update:
-  - `centeredContainer.backgroundColor`
-  - `loadingText.color`
-  - `permissionCard.backgroundColor`
-  - `permissionTitle.color` and `permissionDescription.color`
+    - `centeredContainer.backgroundColor`
+    - `loadingText.color`
+    - `permissionCard.backgroundColor`
+    - `permissionTitle.color` and `permissionDescription.color`
 
 ### 5. Update Theme Constants
 

@@ -74,4 +74,3 @@ export function addDaysToDateKey(dateKey: string, days: number): string {
 	base.setUTCDate(base.getUTCDate() + days);
 	return toDateKeyUtc(base);
 }
-

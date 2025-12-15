@@ -27,7 +27,10 @@ export async function getActiveOrganizationContext(): Promise<ActiveOrganization
 	const organizationsResponse = await serverAuthClient.organization.list(undefined, fetchOptions);
 
 	if (organizationsResponse.error) {
-		console.error('[organization-context] Failed to list organizations', organizationsResponse.error);
+		console.error(
+			'[organization-context] Failed to list organizations',
+			organizationsResponse.error,
+		);
 		return { organizationId: null, organizationSlug: null, organizationName: null };
 	}
 

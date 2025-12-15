@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { ShieldCheck, UserPlus } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -31,14 +32,8 @@ import {
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
-import {
-	fetchOrganizationMembers,
-	type OrganizationMember,
-} from '@/lib/client-functions';
-import {
-	createOrganizationUser,
-	type CreateOrganizationUserInput,
-} from '@/actions/users';
+import { fetchOrganizationMembers, type OrganizationMember } from '@/lib/client-functions';
+import { createOrganizationUser, type CreateOrganizationUserInput } from '@/actions/users';
 
 type CreateUserFormValues = Omit<CreateOrganizationUserInput, 'organizationId'>;
 
@@ -56,6 +51,12 @@ const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 	member: 'outline',
 };
 
+/**
+ * Computes initials for an avatar fallback.
+ *
+ * @param name - Full name or email-like string
+ * @returns Uppercased initials
+ */
 function getInitials(name: string): string {
 	const parts = name.split(' ').filter(Boolean);
 	if (parts.length >= 2) {
@@ -67,6 +68,8 @@ function getInitials(name: string): string {
 export function UsersPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId, organizationName } = useOrgContext();
+	const t = useTranslations('Users');
+	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState('');
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -90,7 +93,8 @@ export function UsersPageClient(): React.ReactElement {
 		() =>
 			search
 				? members.filter((member) => {
-						const haystack = `${member.user.name ?? ''} ${member.user.email ?? ''}`.toLowerCase();
+						const haystack =
+							`${member.user.name ?? ''} ${member.user.email ?? ''}`.toLowerCase();
 						return haystack.includes(search.toLowerCase());
 					})
 				: members,
@@ -101,7 +105,7 @@ export function UsersPageClient(): React.ReactElement {
 		defaultValues: initialFormValues,
 		onSubmit: async ({ value }) => {
 			if (!organizationId) {
-				toast.error('Select an organization before creating users.');
+				toast.error(t('toast.selectOrganization'));
 				return;
 			}
 
@@ -117,16 +121,16 @@ export function UsersPageClient(): React.ReactElement {
 		mutationFn: createOrganizationUser,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('User created and added to the organization');
+				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				form.reset();
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizationMembers.all });
 			} else {
-				toast.error(result.error ?? 'Failed to create user');
+				toast.error(result.error ?? t('toast.createError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to create user');
+			toast.error(t('toast.createError'));
 		},
 	});
 
@@ -134,16 +138,18 @@ export function UsersPageClient(): React.ReactElement {
 		<div className="space-y-6">
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Members</h1>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
 					<p className="text-muted-foreground">
-						Manage members for {organizationName ?? 'your organization'}
+						{t('subtitle', {
+							organization: organizationName ?? t('fallbackOrganization'),
+						})}
 					</p>
 				</div>
 				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
 					<DialogTrigger asChild>
 						<Button disabled={!organizationId}>
 							<UserPlus className="mr-2 h-4 w-4" />
-							Create User
+							{t('actions.create')}
 						</Button>
 					</DialogTrigger>
 					<DialogContent>
@@ -155,18 +161,16 @@ export function UsersPageClient(): React.ReactElement {
 							}}
 						>
 							<DialogHeader>
-								<DialogTitle>Create User</DialogTitle>
-								<DialogDescription>
-									Create a user and assign their role within this organization.
-								</DialogDescription>
+								<DialogTitle>{t('dialog.title')}</DialogTitle>
+								<DialogDescription>{t('dialog.description')}</DialogDescription>
 							</DialogHeader>
 							<form.AppForm>
 								<div className="mt-6 space-y-6">
 									<form.AppField name="name">
 										{(field) => (
 											<field.TextField
-												label="Full name"
-												placeholder="Jane Doe"
+												label={t('fields.fullName')}
+												placeholder={t('placeholders.fullName')}
 												orientation="vertical"
 											/>
 										)}
@@ -175,13 +179,15 @@ export function UsersPageClient(): React.ReactElement {
 										name="email"
 										validators={{
 											onChange: ({ value }) =>
-												value.includes('@') ? undefined : 'Valid email is required',
+												value.includes('@')
+													? undefined
+													: t('validation.validEmailRequired'),
 										}}
 									>
 										{(field) => (
 											<field.TextField
-												label="Email"
-												placeholder="user@example.com"
+												label={t('fields.email')}
+												placeholder={t('placeholders.email')}
 												orientation="vertical"
 											/>
 										)}
@@ -189,8 +195,8 @@ export function UsersPageClient(): React.ReactElement {
 									<form.AppField name="username">
 										{(field) => (
 											<field.TextField
-												label="Username"
-												placeholder="username"
+												label={t('fields.username')}
+												placeholder={t('placeholders.username')}
 												orientation="vertical"
 											/>
 										)}
@@ -198,9 +204,9 @@ export function UsersPageClient(): React.ReactElement {
 									<form.AppField name="password">
 										{(field) => (
 											<field.TextField
-												label="Temporary password"
+												label={t('fields.temporaryPassword')}
 												type="password"
-												placeholder="At least 8 characters"
+												placeholder={t('placeholders.temporaryPassword')}
 												orientation="vertical"
 											/>
 										)}
@@ -208,11 +214,11 @@ export function UsersPageClient(): React.ReactElement {
 									<form.AppField name="role">
 										{(field) => (
 											<field.SelectField
-												label="Role"
-												placeholder="Select role"
+												label={t('fields.role')}
+												placeholder={t('placeholders.selectRole')}
 												options={[
-													{ value: 'admin', label: 'Admin' },
-													{ value: 'member', label: 'Member' },
+													{ value: 'admin', label: t('roles.admin') },
+													{ value: 'member', label: t('roles.member') },
 												]}
 											/>
 										)}
@@ -224,11 +230,11 @@ export function UsersPageClient(): React.ReactElement {
 										type="button"
 										onClick={() => setIsDialogOpen(false)}
 									>
-										Cancel
+										{tCommon('cancel')}
 									</Button>
 									<form.SubmitButton
-										label="Create user"
-										loadingLabel="Creating..."
+										label={t('actions.createUser')}
+										loadingLabel={t('actions.creating')}
 									/>
 								</DialogFooter>
 							</form.AppForm>
@@ -240,26 +246,24 @@ export function UsersPageClient(): React.ReactElement {
 			<div className="flex items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
 					<Input
-						placeholder="Search members..."
+						placeholder={t('search.placeholder')}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						className="pl-3"
 						disabled={isFetching}
 					/>
 				</div>
-				<Badge variant="outline">
-					{data?.total ?? 0} {data?.total === 1 ? 'member' : 'members'}
-				</Badge>
+				<Badge variant="outline">{t('memberCount', { count: data?.total ?? 0 })}</Badge>
 			</div>
 
 			<div className="rounded-md border">
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Member</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>Role</TableHead>
-							<TableHead>Joined</TableHead>
+							<TableHead>{t('table.headers.member')}</TableHead>
+							<TableHead>{t('table.headers.email')}</TableHead>
+							<TableHead>{t('table.headers.role')}</TableHead>
+							<TableHead>{t('table.headers.joined')}</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -276,7 +280,7 @@ export function UsersPageClient(): React.ReactElement {
 						) : filteredMembers.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={4} className="h-24 text-center">
-									No members found.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -287,7 +291,9 @@ export function UsersPageClient(): React.ReactElement {
 											<Avatar className="h-8 w-8">
 												<AvatarImage src={member.user.image ?? undefined} />
 												<AvatarFallback className="text-xs">
-													{getInitials(member.user.name || member.user.email)}
+													{getInitials(
+														member.user.name || member.user.email,
+													)}
 												</AvatarFallback>
 											</Avatar>
 											<span className="font-medium">
@@ -301,11 +307,11 @@ export function UsersPageClient(): React.ReactElement {
 									<TableCell>
 										<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
 											<ShieldCheck className="mr-1 h-3 w-3" />
-											{member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+											{t(`roles.${member.role}`)}
 										</Badge>
 									</TableCell>
 									<TableCell>
-										{format(new Date(member.createdAt), 'MMM d, yyyy')}
+										{format(new Date(member.createdAt), t('dateFormat'))}
 									</TableCell>
 								</TableRow>
 							))

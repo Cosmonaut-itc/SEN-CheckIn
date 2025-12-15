@@ -14,6 +14,7 @@ import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
 import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
 import { type RegisterDeviceResponse, registerDevice } from '@/lib/client-functions';
 import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
+import { i18n } from '@/lib/i18n';
 import { useAuthContext } from '@/providers/auth-provider';
 
 const DEVICE_CLIENT_ID = 'sen-checkin-mobile';
@@ -102,11 +103,12 @@ function mapDeviceCodeResponse(data: DeviceCodeApiResponse): DeviceCodeState {
  * @returns Message suitable for UI display
  */
 function deriveErrorMessage(error: unknown): string {
-	if (!error) return 'Unexpected error';
+	const fallback = i18n.t('Errors.unexpected');
+	if (!error) return fallback;
 	const fetchError = error as BetterFetchError & {
 		body?: { error_description?: string };
 	};
-	return fetchError.body?.error_description ?? fetchError.message ?? 'Unexpected error';
+	return fetchError.body?.error_description ?? fetchError.message ?? fallback;
 }
 
 /**
@@ -165,7 +167,7 @@ export default function LoginScreen(): JSX.Element {
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);
 	const [status, setStatus] = useState<AuthorizationStatus>({
 		state: 'requesting',
-		message: 'Requesting device code…',
+		message: i18n.t('Login.status.requestingCode'),
 	});
 	const [isRequestingCode, setIsRequestingCode] = useState(false);
 	const [hasRequestedOnce, setHasRequestedOnce] = useState(false);
@@ -213,8 +215,9 @@ export default function LoginScreen(): JSX.Element {
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				const isMountError =
-					message.includes('Attempted to navigate before mounting the Root Layout component') ||
-					message.includes("Couldn't find a navigation object");
+					message.includes(
+						'Attempted to navigate before mounting the Root Layout component',
+					) || message.includes("Couldn't find a navigation object");
 
 				if (!isMountError) {
 					console.warn('[login] Navigation failed', { href, message });
@@ -268,13 +271,19 @@ export default function LoginScreen(): JSX.Element {
 			console.log('[login] registerApprovedDevice payload', {
 				stableCode,
 				organizationId,
-				deviceName: ExpoDevice.deviceName ?? ExpoDevice.modelName ?? 'Attendance Device',
+				deviceName:
+					ExpoDevice.deviceName ??
+					ExpoDevice.modelName ??
+					i18n.t('Login.defaults.deviceName'),
 				deviceType: ExpoDevice.modelName ?? 'MOBILE',
 				platform: Platform.OS,
 			});
 			const registered = await registerDevice({
 				code: stableCode,
-				name: ExpoDevice.deviceName ?? ExpoDevice.modelName ?? 'Attendance Device',
+				name:
+					ExpoDevice.deviceName ??
+					ExpoDevice.modelName ??
+					i18n.t('Login.defaults.deviceName'),
 				deviceType: ExpoDevice.modelName ?? 'MOBILE',
 				platform: Platform.OS,
 				organizationId,
@@ -307,16 +316,16 @@ export default function LoginScreen(): JSX.Element {
 		if (!API_ENV_VALID) {
 			setStatus({
 				state: 'error',
-				message: 'API URL not configured',
+				message: i18n.t('Login.status.apiUrlNotConfigured'),
 			});
-			setLastError('Set EXPO_PUBLIC_API_URL to a reachable API host.');
+			setLastError(i18n.t('Login.errors.setExpoPublicApiUrl'));
 			setHasRequestedOnce(true);
 			return;
 		}
 
 		setIsRequestingCode(true);
 		setLastError(null);
-		setStatus({ state: 'requesting', message: 'Requesting device code…' });
+		setStatus({ state: 'requesting', message: i18n.t('Login.status.requestingCode') });
 		clearPollTimer();
 		setHasRequestedOnce(true);
 
@@ -327,13 +336,13 @@ export default function LoginScreen(): JSX.Element {
 			});
 
 			if (response.error || !response.data) {
-				throw response.error ?? new Error('Unable to request device code');
+				throw response.error ?? new Error(i18n.t('Login.errors.unableToRequestCode'));
 			}
 
 			const mapped = mapDeviceCodeResponse(response.data as DeviceCodeApiResponse);
 			setCodeState(mapped);
 			setPollDelayMs(mapped.intervalMs);
-			setStatus({ state: 'waiting', message: 'Waiting for approval…' });
+			setStatus({ state: 'waiting', message: i18n.t('Login.status.waitingApproval') });
 		} catch (error) {
 			const message = deriveErrorMessage(error);
 			setLastError(message);
@@ -354,7 +363,7 @@ export default function LoginScreen(): JSX.Element {
 		if (Date.now() >= codeState.expiresAt) {
 			setStatus({
 				state: 'expired',
-				message: 'Device code expired. Refresh to try again.',
+				message: i18n.t('Login.status.deviceCodeExpired'),
 			});
 			return;
 		}
@@ -371,17 +380,17 @@ export default function LoginScreen(): JSX.Element {
 				const accessToken = tokenResponse?.access_token;
 
 				if (!accessToken) {
-					setLastError('Device approved but access token missing.');
+					setLastError(i18n.t('Login.errors.deviceApprovedButTokenMissing'));
 					setStatus({
 						state: 'error',
-						message: 'Access token missing from response.',
+						message: i18n.t('Login.status.accessTokenMissing'),
 					});
 					return;
 				}
 
 				setStatus({
 					state: 'approved',
-					message: 'Device approved!',
+					message: i18n.t('Login.status.approved'),
 				});
 				setLastError(null);
 
@@ -401,10 +410,10 @@ export default function LoginScreen(): JSX.Element {
 
 					if (sessionResult.error || !sessionResult.data?.session) {
 						console.warn('[login] Session establishment failed');
-						setLastError('Could not establish session. Please try again.');
+						setLastError(i18n.t('Login.errors.couldNotEstablishSession'));
 						setStatus({
 							state: 'error',
-							message: 'Session failed. Please refresh.',
+							message: i18n.t('Login.status.sessionFailed'),
 						});
 						return;
 					}
@@ -474,7 +483,7 @@ export default function LoginScreen(): JSX.Element {
 					setLastError(message);
 					setStatus({
 						state: 'error',
-						message: 'Session or device registration failed. Please refresh.',
+						message: i18n.t('Login.status.sessionOrRegistrationFailed'),
 					});
 				}
 				return;
@@ -489,7 +498,10 @@ export default function LoginScreen(): JSX.Element {
 
 			switch (errorCode) {
 				case 'authorization_pending': {
-					setStatus({ state: 'waiting', message: 'Waiting for approval…' });
+					setStatus({
+						state: 'waiting',
+						message: i18n.t('Login.status.waitingApproval'),
+					});
 					setPollDelayMs(codeState.intervalMs);
 					return;
 				}
@@ -498,21 +510,21 @@ export default function LoginScreen(): JSX.Element {
 					setPollDelayMs(nextDelay);
 					setStatus({
 						state: 'waiting',
-						message: 'Slowing down, please wait…',
+						message: i18n.t('Login.status.slowingDown'),
 					});
 					return;
 				}
 				case 'access_denied': {
 					setStatus({
 						state: 'denied',
-						message: 'Request denied by administrator.',
+						message: i18n.t('Login.status.requestDenied'),
 					});
 					return;
 				}
 				case 'expired_token': {
 					setStatus({
 						state: 'expired',
-						message: 'Code expired. Please refresh.',
+						message: i18n.t('Login.status.codeExpired'),
 					});
 					return;
 				}
@@ -520,7 +532,7 @@ export default function LoginScreen(): JSX.Element {
 					// Keep polling on transient errors - don't show error banner
 					setStatus({
 						state: 'waiting',
-						message: 'Connecting…',
+						message: i18n.t('Login.status.connecting'),
 					});
 					setPollDelayMs((prev) =>
 						Math.min((prev || codeState.intervalMs) + 5000, 30000),
@@ -531,7 +543,7 @@ export default function LoginScreen(): JSX.Element {
 			// Network errors - keep polling silently
 			setStatus({
 				state: 'waiting',
-				message: 'Reconnecting…',
+				message: i18n.t('Login.status.reconnecting'),
 			});
 			setPollDelayMs((prev) => {
 				const base = codeState?.intervalMs ?? prev ?? 5000;
@@ -600,11 +612,11 @@ export default function LoginScreen(): JSX.Element {
 						<Card.Body className="gap-1 items-center py-6">
 							<Text className="text-4xl mb-1">✓</Text>
 							<Card.Title className="text-success-700 text-2xl">
-								Device Approved
+								{i18n.t('Login.approved.title')}
 								<AnimatedDots />
 							</Card.Title>
 							<Card.Description className="text-success-600 mt-1">
-								Redirecting to scanner
+								{i18n.t('Login.approved.subtitle')}
 							</Card.Description>
 						</Card.Body>
 					</Card>
@@ -669,10 +681,11 @@ export default function LoginScreen(): JSX.Element {
 		<View className="flex-1 bg-background px-5 pt-12">
 			{/* Header */}
 			<View className="mb-6">
-				<Text className="text-3xl font-bold text-foreground mb-2">Device Login</Text>
+				<Text className="text-3xl font-bold text-foreground mb-2">
+					{i18n.t('Login.header.title')}
+				</Text>
 				<Text className="text-base text-foreground-500 leading-relaxed">
-					Show the code below to an administrator, or scan the QR code on another device
-					to approve.
+					{i18n.t('Login.header.subtitle')}
 				</Text>
 			</View>
 
@@ -681,10 +694,10 @@ export default function LoginScreen(): JSX.Element {
 				<Card variant="default" className="mb-4">
 					<Card.Body className="gap-2 p-4">
 						<Card.Title className="text-warning-800 text-base">
-							Configuration Required
+							{i18n.t('Login.envWarning.title')}
 						</Card.Title>
 						<Card.Description className="text-warning-700 text-sm">
-							EXPO_PUBLIC_API_URL is not configured. Current: {API_BASE_URL}
+							{i18n.t('Login.envWarning.description', { current: API_BASE_URL })}
 						</Card.Description>
 					</Card.Body>
 				</Card>
@@ -695,7 +708,7 @@ export default function LoginScreen(): JSX.Element {
 				{/* User Code Display */}
 				<View className="items-center">
 					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest mb-3">
-						Verification Code
+						{i18n.t('Login.code.label')}
 					</Text>
 					<View className="bg-default-100 rounded-2xl px-8 py-4">
 						<Text className="text-5xl font-black tracking-[0.3em] text-foreground">
@@ -717,7 +730,7 @@ export default function LoginScreen(): JSX.Element {
 							/>
 						</View>
 						<Text className="text-xs text-foreground-400 mt-3 text-center">
-							Scan to open verification page
+							{i18n.t('Login.qr.caption')}
 						</Text>
 					</View>
 				) : null}
@@ -736,7 +749,9 @@ export default function LoginScreen(): JSX.Element {
 							size="lg"
 						>
 							<Button.Label>
-								{isRequestingCode ? 'Refreshing…' : 'New Code'}
+								{isRequestingCode
+									? i18n.t('Login.actions.refreshing')
+									: i18n.t('Login.actions.newCode')}
 							</Button.Label>
 						</Button>
 						{verificationUrl ? (
@@ -748,7 +763,7 @@ export default function LoginScreen(): JSX.Element {
 									void Linking.openURL(verificationUrl);
 								}}
 							>
-								<Button.Label>Open Link</Button.Label>
+								<Button.Label>{i18n.t('Login.actions.openLink')}</Button.Label>
 							</Button>
 						) : null}
 					</View>
@@ -759,14 +774,15 @@ export default function LoginScreen(): JSX.Element {
 			{lastError && status.state === 'error' ? (
 				<Card variant="default" className="mt-4">
 					<Card.Body className="gap-1 p-4">
-						<Card.Title className="text-danger-700 text-base">Error Details</Card.Title>
+						<Card.Title className="text-danger-700 text-base">
+							{i18n.t('Login.errorDetails.title')}
+						</Card.Title>
 						<Card.Description className="text-danger-600 text-sm">
 							{lastError}
 						</Card.Description>
 						{!API_ENV_VALID ? (
 							<Card.Description className="text-danger-500 mt-1 text-xs">
-								Tip: On Android emulators use http://10.0.2.2:3000, on iOS
-								simulators use http://127.0.0.1:3000 or your LAN IP.
+								{i18n.t('Login.errorDetails.tip')}
 							</Card.Description>
 						) : null}
 					</Card.Body>
@@ -783,7 +799,7 @@ export default function LoginScreen(): JSX.Element {
 						size="lg"
 						className="w-full"
 					>
-						<Button.Label>Try Again</Button.Label>
+						<Button.Label>{i18n.t('Login.actions.tryAgain')}</Button.Label>
 					</Button>
 				</View>
 			) : null}

@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useTranslations } from 'next-intl';
 import { queryKeys } from '@/lib/query-keys';
 import {
 	fetchEmployeesList,
@@ -36,6 +37,7 @@ export function SchedulesPageClient({
 	initialStartDate,
 	initialEndDate,
 }: SchedulesPageClientProps): React.ReactElement {
+	const t = useTranslations('Schedules');
 	const { organizationId } = useOrgContext();
 	const [activeTab, setActiveTab] = useState<'calendar' | 'templates' | 'exceptions'>('calendar');
 
@@ -83,17 +85,18 @@ export function SchedulesPageClient({
 	return (
 		<div className="space-y-6">
 			<div className="space-y-1">
-				<h1 className="text-3xl font-bold tracking-tight">Schedules</h1>
-				<p className="text-muted-foreground">
-					Manage schedule templates, exceptions, and calendar visibility.
-				</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('subtitle')}</p>
 			</div>
 
-			<Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as typeof activeTab)}>
+			<Tabs
+				value={activeTab}
+				onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+			>
 				<TabsList>
-					<TabsTrigger value="calendar">Calendar</TabsTrigger>
-					<TabsTrigger value="templates">Templates</TabsTrigger>
-					<TabsTrigger value="exceptions">Exceptions</TabsTrigger>
+					<TabsTrigger value="calendar">{t('tabs.calendar')}</TabsTrigger>
+					<TabsTrigger value="templates">{t('tabs.templates')}</TabsTrigger>
+					<TabsTrigger value="exceptions">{t('tabs.exceptions')}</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="calendar" className="space-y-4">
@@ -117,13 +120,9 @@ export function SchedulesPageClient({
 				</TabsContent>
 
 				<TabsContent value="exceptions">
-					<ScheduleExceptionsTab
-						organizationId={organizationId}
-						employees={employees}
-					/>
+					<ScheduleExceptionsTab organizationId={organizationId} employees={employees} />
 				</TabsContent>
 			</Tabs>
 		</div>
 	);
 }
-

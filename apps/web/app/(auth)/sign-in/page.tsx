@@ -5,11 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from '@/lib/auth-client';
 import { Mail, Lock, ShieldCheck, Loader2 } from 'lucide-react';
-import {
-	Card,
-	CardContent,
-	CardFooter,
-} from '@/components/ui/card';
+import { useTranslations } from 'next-intl';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { useAppForm } from '@/lib/forms';
 
 /**
@@ -18,16 +15,15 @@ import { useAppForm } from '@/lib/forms';
  * @returns A loading skeleton for the sign-in page
  */
 function SignInLoading(): React.ReactElement {
+	const t = useTranslations('Auth');
 	return (
 		<div className="flex flex-col gap-6 w-full max-w-sm mx-auto">
 			<div className="flex flex-col items-center gap-2 text-center">
 				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
 					<ShieldCheck className="h-6 w-6" />
 				</div>
-				<h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-				<p className="text-balance text-sm text-muted-foreground">
-					Enter your credentials to access the admin portal
-				</p>
+				<h1 className="text-2xl font-bold tracking-tight">{t('signIn.title')}</h1>
+				<p className="text-balance text-sm text-muted-foreground">{t('signIn.subtitle')}</p>
 			</div>
 			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
 				<CardContent className="flex items-center justify-center py-12">
@@ -45,6 +41,7 @@ function SignInLoading(): React.ReactElement {
  * @returns The sign in form content
  */
 function SignInContent(): React.ReactElement {
+	const t = useTranslations('Auth');
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [error, setError] = useState<string | null>(null);
@@ -71,7 +68,7 @@ function SignInContent(): React.ReactElement {
 			});
 
 			if (result.error) {
-				setError(result.error.message ?? 'Failed to sign in');
+				setError(t('signIn.errors.failed'));
 				return;
 			}
 
@@ -97,10 +94,8 @@ function SignInContent(): React.ReactElement {
 				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
 					<ShieldCheck className="h-6 w-6" />
 				</div>
-				<h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
-				<p className="text-balance text-sm text-muted-foreground">
-					Enter your credentials to access the admin portal
-				</p>
+				<h1 className="text-2xl font-bold tracking-tight">{t('signIn.title')}</h1>
+				<p className="text-balance text-sm text-muted-foreground">{t('signIn.subtitle')}</p>
 			</div>
 			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
 				{/* <CardHeader> removed as we have header outside */}
@@ -115,12 +110,15 @@ function SignInContent(): React.ReactElement {
 							<form.AppField
 								name="email"
 								validators={{
-									onChange: ({ value }) => (!value.trim() ? 'Email is required' : undefined),
+									onChange: ({ value }) =>
+										!value.trim()
+											? t('signIn.validation.emailRequired')
+											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
-										label="Email"
+										label={t('signIn.fields.email')}
 										type="email"
 										placeholder="m@example.com"
 										orientation="vertical"
@@ -131,12 +129,15 @@ function SignInContent(): React.ReactElement {
 							<form.AppField
 								name="password"
 								validators={{
-									onChange: ({ value }) => (!value.trim() ? 'Password is required' : undefined),
+									onChange: ({ value }) =>
+										!value.trim()
+											? t('signIn.validation.passwordRequired')
+											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
-										label="Password"
+										label={t('signIn.fields.password')}
 										type="password"
 										placeholder="••••••••"
 										orientation="vertical"
@@ -148,19 +149,25 @@ function SignInContent(): React.ReactElement {
 					</CardContent>
 					<CardFooter className="flex flex-col gap-4 pb-6 mt-6">
 						<form.AppForm>
-							<form.SubmitButton label="Sign In" loadingLabel="Signing in..." className="w-full" />
+							<form.SubmitButton
+								label={t('signIn.actions.submit')}
+								loadingLabel={t('signIn.actions.submitting')}
+								className="w-full"
+							/>
 						</form.AppForm>
 						{/* TODO: Remove this after initial setup - re-add: process.env.NODE_ENV === 'development' && */}
 						<p className="text-center text-sm text-muted-foreground">
-							Don&apos;t have an account?{' '}
+							{t('signIn.footer.noAccount')}{' '}
 							{isProduction ? (
-								<span className="text-muted-foreground">Sign up disabled</span>
+								<span className="text-muted-foreground">
+									{t('signIn.footer.signUpDisabled')}
+								</span>
 							) : (
 								<Link
 									href="/sign-up"
 									className="text-primary underline-offset-4 hover:underline"
 								>
-									Sign up
+									{t('signIn.footer.signUp')}
 								</Link>
 							)}
 						</p>

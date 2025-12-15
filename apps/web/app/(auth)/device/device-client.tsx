@@ -29,6 +29,7 @@ import {
 } from '@/lib/client-functions';
 import { formatUserCode, normalizeUserCode } from '@/lib/device-code-utils';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import { useTranslations } from 'next-intl';
 
 interface DeviceClientProps {
 	initialCode?: string;
@@ -38,15 +39,16 @@ interface DeviceClientProps {
  * Safely extract a user-facing error message from BetterAuth responses.
  *
  * @param error - Error object returned by the auth client
+ * @param fallback - Fallback message when no details are available
  * @returns A message suitable for rendering in the UI
  */
-function getErrorMessage(error: unknown): string {
-	if (!error) return 'Unable to process request';
+function getErrorMessage(error: unknown, fallback: string): string {
+	if (!error) return fallback;
 	const maybe = error as {
 		message?: string;
 		body?: { error_description?: string; error?: string };
 	};
-	return maybe.body?.error_description ?? maybe.message ?? 'Unable to process request';
+	return maybe.body?.error_description ?? maybe.message ?? fallback;
 }
 
 /**
@@ -57,6 +59,7 @@ function getErrorMessage(error: unknown): string {
  * @returns Verification UI
  */
 export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactElement {
+	const t = useTranslations('Auth');
 	const session = useSession();
 	const queryClient = useQueryClient();
 	const [userCode, setUserCode] = useState<string>(formatUserCode(initialCode ?? ''));
@@ -99,7 +102,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 	const handleVerify = useCallback(async () => {
 		const normalized = normalizeUserCode(userCode);
 		if (!normalized || normalized.length !== 8 || !/^[A-Z0-9]{8}$/.test(normalized)) {
-			setError('Enter the full 8-character code (letters/numbers only, no dash)');
+			setError(t('device.errors.invalidCode'));
 			return;
 		}
 
@@ -119,11 +122,11 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 			}
 		} catch (err) {
 			setVerification(null);
-			setError(getErrorMessage(err));
+			setError(getErrorMessage(err, t('device.errors.unableToProcess')));
 		} finally {
 			setAction('idle');
 		}
-	}, [userCode, verifyQuery]);
+	}, [t, userCode, verifyQuery]);
 
 	/**
 	 * Approve the device authorization request.
@@ -143,7 +146,8 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				queryKey: queryKeys.deviceAuth.all,
 			});
 		},
-		onError: (err: unknown) => setError(getErrorMessage(err)),
+		onError: (err: unknown) =>
+			setError(getErrorMessage(err, t('device.errors.unableToProcess'))),
 		onSettled: () => setAction('idle'),
 	});
 
@@ -162,7 +166,8 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				queryKey: queryKeys.deviceAuth.all,
 			});
 		},
-		onError: (err: unknown) => setError(getErrorMessage(err)),
+		onError: (err: unknown) =>
+			setError(getErrorMessage(err, t('device.errors.unableToProcess'))),
 		onSettled: () => setAction('idle'),
 	});
 
@@ -188,7 +193,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 						variant="outline"
 						className="gap-1 text-green-700 border-green-200 bg-green-50"
 					>
-						<CheckCircle2 className="h-4 w-4" /> Approved
+						<CheckCircle2 className="h-4 w-4" /> {t('device.status.approved')}
 					</Badge>
 				);
 			case 'denied':
@@ -197,7 +202,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 						variant="outline"
 						className="gap-1 text-red-700 border-red-200 bg-red-50"
 					>
-						<XCircle className="h-4 w-4" /> Denied
+						<XCircle className="h-4 w-4" /> {t('device.status.denied')}
 					</Badge>
 				);
 			case 'pending':
@@ -206,13 +211,13 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 						variant="outline"
 						className="gap-1 text-amber-700 border-amber-200 bg-amber-50"
 					>
-						<Clock3 className="h-4 w-4" /> Pending approval
+						<Clock3 className="h-4 w-4" /> {t('device.status.pending')}
 					</Badge>
 				);
 			default:
 				return null;
 		}
-	}, [verification?.status]);
+	}, [t, verification?.status]);
 
 	return (
 		<div className="w-full max-w-xl mx-auto space-y-6">
@@ -220,16 +225,15 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				<CardHeader className="space-y-1">
 					<div className="flex items-center gap-2 text-sm text-muted-foreground">
 						<ShieldCheck className="h-4 w-4" />
-						<span>Device authorization (OAuth 2.0 device code)</span>
+						<span>{t('device.headerLabel')}</span>
 					</div>
-					<CardTitle className="text-2xl">Enter the device code</CardTitle>
-					<p className="text-muted-foreground">
-						Type the 8-character code displayed on the kiosk. If you opened this page
-						from the device link, the code is pre-filled.
-					</p>
+					<CardTitle className="text-2xl">{t('device.title')}</CardTitle>
+					<p className="text-muted-foreground">{t('device.description')}</p>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<label className="text-sm font-medium text-foreground">User code</label>
+					<label className="text-sm font-medium text-foreground">
+						{t('device.fields.userCode')}
+					</label>
 					<div className="flex gap-3">
 						<Input
 							value={userCode}
@@ -240,11 +244,13 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 						<Button onClick={handleVerify} disabled={action !== 'idle' || !codeIsValid}>
 							{action === 'verifying' ? (
 								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />{' '}
+									{t('device.actions.verifying')}
 								</>
 							) : (
 								<>
-									<RefreshCw className="mr-2 h-4 w-4" /> Verify code
+									<RefreshCw className="mr-2 h-4 w-4" />{' '}
+									{t('device.actions.verify')}
 								</>
 							)}
 						</Button>
@@ -252,7 +258,9 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 					{verification ? (
 						<div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
 							<div>
-								<p className="text-sm text-muted-foreground">Code</p>
+								<p className="text-sm text-muted-foreground">
+									{t('device.fields.code')}
+								</p>
 								<p className="font-mono text-lg font-semibold">
 									{verification.userCode}
 								</p>
@@ -282,11 +290,13 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 							>
 								{action === 'approving' ? (
 									<>
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" /> Approving…
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />{' '}
+										{t('device.actions.approving')}
 									</>
 								) : (
 									<>
-										<ShieldCheck className="mr-2 h-4 w-4" /> Approve
+										<ShieldCheck className="mr-2 h-4 w-4" />{' '}
+										{t('device.actions.approve')}
 									</>
 								)}
 							</Button>
@@ -302,11 +312,13 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 							>
 								{action === 'denying' ? (
 									<>
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" /> Denying…
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />{' '}
+										{t('device.actions.denying')}
 									</>
 								) : (
 									<>
-										<ShieldX className="mr-2 h-4 w-4" /> Deny
+										<ShieldX className="mr-2 h-4 w-4" />{' '}
+										{t('device.actions.deny')}
 									</>
 								)}
 							</Button>
@@ -314,12 +326,12 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 								<div className="flex items-center gap-2 text-sm text-muted-foreground">
 									<AlertCircle className="h-4 w-4" />
 									<span>
-										Sign in to approve devices.{' '}
+										{t('device.signInRequired')}{' '}
 										<Link
 											href={signInHref}
 											className="text-primary underline underline-offset-4"
 										>
-											Go to sign-in
+											{t('device.goToSignIn')}
 										</Link>
 									</span>
 								</div>
@@ -328,18 +340,18 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 					) : (
 						<div className="text-sm text-muted-foreground flex items-center gap-2">
 							<Clock3 className="h-4 w-4" />
-							Awaiting a valid code to approve or deny.
+							{t('device.awaitingCode')}
 						</div>
 					)}
 					<Button
 						asChild
 						variant="outline"
 						className="self-center mt-2 px-6"
-						aria-label="Return to dashboard"
+						aria-label={t('device.returnToDashboard.ariaLabel')}
 					>
 						<Link href="/dashboard" className="flex items-center gap-2">
 							<Home className="h-4 w-4" />
-							<span>Return to dashboard</span>
+							<span>{t('device.returnToDashboard.label')}</span>
 						</Link>
 					</Button>
 				</CardFooter>
@@ -347,14 +359,12 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 
 			<Card className="border-dashed">
 				<CardHeader>
-					<CardTitle className="text-base">How this works</CardTitle>
+					<CardTitle className="text-base">{t('device.howItWorks.title')}</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-2 text-sm text-muted-foreground">
-					<p>1. The kiosk/mobile app requests a device code and shows it on screen.</p>
-					<p>
-						2. You enter the code here to verify it, then approve or deny the request.
-					</p>
-					<p>3. Once approved, the device polls /device/token and receives a session.</p>
+					<p>{t('device.howItWorks.step1')}</p>
+					<p>{t('device.howItWorks.step2')}</p>
+					<p>{t('device.howItWorks.step3')}</p>
 				</CardContent>
 			</Card>
 		</div>

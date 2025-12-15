@@ -18,34 +18,34 @@ Actualización: 2025-12-15 — se implementaron correcciones para los puntos (1)
 ### Fórmulas de pago
 
 - Hora normal:
-  - Diurna: salario diario / 8
-  - Nocturna: salario diario / 7
-  - Mixta: salario diario / 7.5
+    - Diurna: salario diario / 8
+    - Nocturna: salario diario / 7
+    - Mixta: salario diario / 7.5
 - Horas extra:
-  - Máximo 3 h/día y máximo 9 h/semana (además: máximo 3 veces por semana).
-  - Primeras 9 h extra de la semana: doble; excedente: triple.
+    - Máximo 3 h/día y máximo 9 h/semana (además: máximo 3 veces por semana).
+    - Primeras 9 h extra de la semana: doble; excedente: triple.
 - Prima dominical: 25% adicional sobre salario diario (especificación del producto/UI actual: aplica si se trabaja en domingo).
 - Día de descanso obligatorio trabajado (calendario oficial): pago triple.
 - Clasificación por horario:
-  - Diurna: 06:00–20:00
-  - Nocturna: 20:00–06:00
-  - Mixta: combina ambas y < 3.5 h nocturnas; si ≥ 3.5 h nocturnas → se clasifica como nocturna.
+    - Diurna: 06:00–20:00
+    - Nocturna: 20:00–06:00
+    - Mixta: combina ambas y < 3.5 h nocturnas; si ≥ 3.5 h nocturnas → se clasifica como nocturna.
 
 ## Implementación actual (dónde vive)
 
 - Constantes LFT / CONASAMI:
-  - `apps/api/src/utils/mexico-labor-constants.ts`
+    - `apps/api/src/utils/mexico-labor-constants.ts`
 - Validación de horarios (plantillas / schedules) en API:
-  - `apps/api/src/utils/schedule-validator.ts`
-  - Consumida en `apps/api/src/routes/schedule-templates.ts` y `apps/api/src/routes/scheduling.ts`
+    - `apps/api/src/utils/schedule-validator.ts`
+    - Consumida en `apps/api/src/routes/schedule-templates.ts` y `apps/api/src/routes/scheduling.ts`
 - Cálculo de nómina en API:
-  - `apps/api/src/routes/payroll.ts`
+    - `apps/api/src/routes/payroll.ts`
 - Normalización dailyPay/hourlyPay en puestos (Job Positions):
-  - `apps/api/src/routes/job-positions.ts`
+    - `apps/api/src/routes/job-positions.ts`
 - UI de nómina y settings (Web):
-  - Periodos y frecuencia: `apps/web/app/(dashboard)/payroll/payroll-client.tsx`
-  - Textos de reglas: `apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`
-  - Warnings de horarios en web: `apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`
+    - Periodos y frecuencia: `apps/web/app/(dashboard)/payroll/payroll-client.tsx`
+    - Textos de reglas: `apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`
+    - Warnings de horarios en web: `apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`
 
 ## Hallazgos / inconsistencias
 
@@ -91,8 +91,8 @@ Corrección aplicada:
 - Web: se agregó validación de overtime semanal total (>9h) para alinear “schedule compliance” vs “payroll warnings”.
 
 - Evidencia:
-  - API: `apps/api/src/utils/schedule-validator.ts`
-  - Web: `apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`
+    - API: `apps/api/src/utils/schedule-validator.ts`
+    - Web: `apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`
 
 Impacto:
 
@@ -114,9 +114,9 @@ Corrección aplicada:
 - La nómina ahora deriva `hourlyRate` a partir de `dailyPay / divisor(shiftType)` cuando existe `dailyPay`, evitando depender de `jobPosition.hourlyPay` (que puede estar normalizado con 8h).
 
 - Evidencia:
-  - Derivación fija con 8h al crear: `apps/api/src/routes/job-positions.ts:213`
-  - Derivación fija con 8h al actualizar: `apps/api/src/routes/job-positions.ts:325`
-  - Nómina (antes) usaba `hourlyPay` si existía (antes de dividir por divisor de jornada): `apps/api/src/routes/payroll.ts`
+    - Derivación fija con 8h al crear: `apps/api/src/routes/job-positions.ts:213`
+    - Derivación fija con 8h al actualizar: `apps/api/src/routes/job-positions.ts:325`
+    - Nómina (antes) usaba `hourlyPay` si existía (antes de dividir por divisor de jornada): `apps/api/src/routes/payroll.ts`
 
 Impacto:
 
@@ -134,9 +134,9 @@ Corrección aplicada:
 - Validación de schedules (API + Web): se agregó conteo equivalente para alinear el feedback en plantillas.
 
 - Evidencia:
-  - En settings se comunica la regla: `apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx:114`
-  - No hay conteo de “días con overtime” en nómina: `apps/api/src/routes/payroll.ts` (solo suma horas)
-  - No hay conteo en validación de schedules: `apps/api/src/utils/schedule-validator.ts`
+    - En settings se comunica la regla: `apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx:114`
+    - No hay conteo de “días con overtime” en nómina: `apps/api/src/routes/payroll.ts` (solo suma horas)
+    - No hay conteo en validación de schedules: `apps/api/src/utils/schedule-validator.ts`
 
 Impacto:
 
@@ -148,9 +148,9 @@ Impacto:
 La implementación actual paga prima dominical si hubo horas trabajadas en domingo. Esto coincide con la regla comunicada en la UI actual (sin condicionar explícitamente el “día de descanso”).
 
 - Evidencia:
-  - Corte por día local usando `location.timeZone`: `apps/api/src/routes/payroll.ts`
-  - Utilidades de timezone/date-keys: `apps/api/src/utils/time-zone.ts`, `apps/api/src/utils/date-key.ts`
-  - Cálculo prima dominical por “domingo trabajado” (por día local): `apps/api/src/routes/payroll.ts`
+    - Corte por día local usando `location.timeZone`: `apps/api/src/routes/payroll.ts`
+    - Utilidades de timezone/date-keys: `apps/api/src/utils/time-zone.ts`, `apps/api/src/utils/date-key.ts`
+    - Cálculo prima dominical por “domingo trabajado” (por día local): `apps/api/src/routes/payroll.ts`
 
 Impacto:
 
@@ -163,27 +163,28 @@ Se agregó un calendario de “días de descanso obligatorio” (LFT Art. 74) y 
 Corrección aplicada:
 
 - API:
-  - Se implementó el calendario de descanso obligatorio (Art. 74 fr. I–VIII) por año:
-    - 1 de enero, 1 de mayo, 16 de septiembre, 25 de diciembre
-    - primer lunes de febrero
-    - tercer lunes de marzo
-    - tercer lunes de noviembre
-    - transmisión del Ejecutivo: 1 de octubre cada seis años (desde 2024; legacy 1 de diciembre)
-  - Se agregó configuración por organización para días variables (Art. 74 fr. IX “jornada electoral” y otros):
-    - `payrollSetting.additionalMandatoryRestDays: string[]` (YYYY-MM-DD)
-  - En la nómina se cuenta cada día de descanso obligatorio trabajado (si hubo horas > 0 ese día local) y se suma el premio:
-    - `mandatoryRestDayPremiumAmount = díasTrabajados × (2 × salarioDiario)`
-    - Al sumarse al pago normal del día, produce “pago triple” para un día completo (y permite prima dominical adicional si cae en domingo).
+    - Se implementó el calendario de descanso obligatorio (Art. 74 fr. I–VIII) por año:
+        - 1 de enero, 1 de mayo, 16 de septiembre, 25 de diciembre
+        - primer lunes de febrero
+        - tercer lunes de marzo
+        - tercer lunes de noviembre
+        - transmisión del Ejecutivo: 1 de octubre cada seis años (desde 2024; legacy 1 de diciembre)
+    - Se agregó configuración por organización para días variables (Art. 74 fr. IX “jornada electoral” y otros):
+        - `payrollSetting.additionalMandatoryRestDays: string[]` (YYYY-MM-DD)
+    - En la nómina se cuenta cada día de descanso obligatorio trabajado (si hubo horas > 0 ese día local) y se suma el premio:
+        - `mandatoryRestDayPremiumAmount = díasTrabajados × (2 × salarioDiario)`
+        - Al sumarse al pago normal del día, produce “pago triple” para un día completo (y permite prima dominical adicional si cae en domingo).
 
 - Web:
-  - Se expuso `additionalMandatoryRestDays` en Payroll Settings (textarea “YYYY-MM-DD, uno por línea”).
-  - Se muestra el monto de “Descanso obligatorio” en el preview de nómina.
+    - Se expuso `additionalMandatoryRestDays` en Payroll Settings (textarea “YYYY-MM-DD, uno por línea”).
+    - Se muestra el monto de “Descanso obligatorio” en el preview de nómina.
 
 Evidencia:
-  - Calendario: `apps/api/src/utils/mexico-mandatory-rest-days.ts`
-  - Configuración: `apps/api/src/routes/payroll-settings.ts`, `apps/api/src/db/schema.ts`
-  - Cálculo/preview: `apps/api/src/routes/payroll.ts`, `apps/web/app/(dashboard)/payroll/payroll-client.tsx`
-  - Settings UI: `apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`
+
+- Calendario: `apps/api/src/utils/mexico-mandatory-rest-days.ts`
+- Configuración: `apps/api/src/routes/payroll-settings.ts`, `apps/api/src/db/schema.ts`
+- Cálculo/preview: `apps/api/src/routes/payroll.ts`, `apps/web/app/(dashboard)/payroll/payroll-client.tsx`
+- Settings UI: `apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`
 
 Impacto:
 
@@ -194,8 +195,8 @@ Impacto:
 El sistema depende de un `shiftType` seleccionado, pero no valida contra los rangos 06:00–20:00 / 20:00–06:00 ni la regla de 3.5h nocturnas para MIXTA.
 
 - Evidencia:
-  - Validador API solo usa `shiftType` para límites de horas, sin analizar “horas nocturnas”: `apps/api/src/utils/schedule-validator.ts:66`
-  - Default MIXTA en Web cruza >3.5h nocturnas (20:00–01:30 = 5.5h): `apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx:59`
+    - Validador API solo usa `shiftType` para límites de horas, sin analizar “horas nocturnas”: `apps/api/src/utils/schedule-validator.ts:66`
+    - Default MIXTA en Web cruza >3.5h nocturnas (20:00–01:30 = 5.5h): `apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx:59`
 
 Impacto:
 
@@ -208,30 +209,31 @@ La nómina agrupaba y evaluaba “día calendario” con cortes por UTC, lo que 
 Corrección aplicada:
 
 - Se agregó `location.timeZone` (IANA) y se usa en nómina para:
-  - cortar por medianoche local (split de check-in/out a través de días),
-  - asignar horas al “día local” correcto,
-  - evaluar domingo y feriados con base en el día local.
+    - cortar por medianoche local (split de check-in/out a través de días),
+    - asignar horas al “día local” correcto,
+    - evaluar domingo y feriados con base en el día local.
 
 Evidencia:
-  - Campo y migración: `apps/api/src/db/schema.ts`, `apps/api/drizzle/0015_young_marauders.sql`
-  - Utilidades: `apps/api/src/utils/time-zone.ts`
-  - Agrupación por día local en nómina: `apps/api/src/routes/payroll.ts`
-  - UI de Locations con timezone: `apps/web/app/(dashboard)/locations/locations-client.tsx`
+
+- Campo y migración: `apps/api/src/db/schema.ts`, `apps/api/drizzle/0015_young_marauders.sql`
+- Utilidades: `apps/api/src/utils/time-zone.ts`
+- Agrupación por día local en nómina: `apps/api/src/routes/payroll.ts`
+- UI de Locations con timezone: `apps/web/app/(dashboard)/locations/locations-client.tsx`
 
 Impacto:
 
 - Se elimina el riesgo de asignación al día incorrecto cerca de medianoche en México, reduciendo errores en:
-  - horas extra diarias,
-  - prima dominical,
-  - descanso obligatorio trabajado (feriados).
+    - horas extra diarias,
+    - prima dominical,
+    - descanso obligatorio trabajado (feriados).
 
 ### 10) (Baja/Política) Salario mínimo solo se advierte; no bloquea ni se valida al capturar sueldos
 
 La nómina agrega un warning si el salario diario efectivo cae debajo del mínimo por zona, pero no bloquea procesamiento. Tampoco se valida en creación/edición de job positions.
 
 - Evidencia:
-  - Warning en nómina: `apps/api/src/routes/payroll.ts`
-  - Sin validación en job-positions: `apps/api/src/routes/job-positions.ts` (no usa `MINIMUM_WAGES`)
+    - Warning en nómina: `apps/api/src/routes/payroll.ts`
+    - Sin validación en job-positions: `apps/api/src/routes/job-positions.ts` (no usa `MINIMUM_WAGES`)
 
 Impacto:
 
@@ -239,23 +241,23 @@ Impacto:
 
 ## Recomendaciones (prioridad técnica)
 
-1) Corregir nómina para segmentar por semanas dentro de `periodStart..periodEnd` y aplicar (RESUELTO 2025-12-15):
-   - límites diarios + límites de overtime (3h/día),
-   - “primeras 9h dobles / excedente triple” por cada semana,
-   - corte de semana usando `weekStartDay`.
+1. Corregir nómina para segmentar por semanas dentro de `periodStart..periodEnd` y aplicar (RESUELTO 2025-12-15):
+    - límites diarios + límites de overtime (3h/día),
+    - “primeras 9h dobles / excedente triple” por cada semana,
+    - corte de semana usando `weekStartDay`.
 
-2) Unificar la fuente de verdad para cálculos legales (PARCIAL 2025-12-15):
-   - Definir si el salario base es “diario” o “horario”.
-   - Si es diario: derivar hourlyRate siempre con divisor de `shiftType` (7/7.5/8) y evitar depender de `jobPosition.hourlyPay` derivado con 8h.
+2. Unificar la fuente de verdad para cálculos legales (PARCIAL 2025-12-15):
+    - Definir si el salario base es “diario” o “horario”.
+    - Si es diario: derivar hourlyRate siempre con divisor de `shiftType` (7/7.5/8) y evitar depender de `jobPosition.hourlyPay` derivado con 8h.
 
-3) Arreglar validadores (API y Web) para (RESUELTO 2025-12-15):
-   - calcular horas extra semanales como suma de (horas - límite diario) por día,
-   - contar “días con horas extra” (máx. 3 por semana),
-   - opcional: validar MIXTA vs NOCTURNA con la regla ≥3.5h nocturnas.
+3. Arreglar validadores (API y Web) para (RESUELTO 2025-12-15):
+    - calcular horas extra semanales como suma de (horas - límite diario) por día,
+    - contar “días con horas extra” (máx. 3 por semana),
+    - opcional: validar MIXTA vs NOCTURNA con la regla ≥3.5h nocturnas.
 
-4) Definir y modelar “días de descanso obligatorio” (feriados) y aplicar pago triple al trabajar (RESUELTO 2025-12-15):
-   - Art. 74 fr. I–VIII: calendario anual base en backend
-   - Art. 74 fr. IX: lista configurable por organización (`additionalMandatoryRestDays`)
+4. Definir y modelar “días de descanso obligatorio” (feriados) y aplicar pago triple al trabajar (RESUELTO 2025-12-15):
+    - Art. 74 fr. I–VIII: calendario anual base en backend
+    - Art. 74 fr. IX: lista configurable por organización (`additionalMandatoryRestDays`)
 
-5) Corregir timezone/day-boundaries (RESUELTO 2025-12-15):
-   - se modela `location.timeZone` y se calcula el “día local” con esa zona horaria (para domingo/feriados)
+5. Corregir timezone/day-boundaries (RESUELTO 2025-12-15):
+    - se modela `location.timeZone` y se calcula el “día local” con esa zona horaria (para domingo/feriados)

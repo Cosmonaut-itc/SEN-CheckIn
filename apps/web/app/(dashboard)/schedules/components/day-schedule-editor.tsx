@@ -3,8 +3,10 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import type { ScheduleTemplateDayInput } from '@/actions/schedules';
 import type { ShiftType } from '@/lib/client-functions';
+import { useTranslations } from 'next-intl';
 
-const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+type DayKey = (typeof DAY_KEYS)[number];
 
 /**
  * Ensures a complete seven-day schedule array with sensible defaults.
@@ -30,7 +32,7 @@ function ensureFullWeek(days?: ScheduleTemplateDayInput[]): ScheduleTemplateDayI
 			? {
 					...entry,
 					...existing,
-			  }
+				}
 			: entry;
 	});
 
@@ -60,6 +62,8 @@ export function DayScheduleEditor({
 	shiftType,
 	onChange,
 }: DayScheduleEditorProps): React.ReactElement {
+	const t = useTranslations('Schedules');
+	const shiftTypeLabel = t(`shiftTypes.short.${shiftType}`);
 	const normalizedDays = useMemo(() => ensureFullWeek(days), [days]);
 
 	const handleUpdate = (dayIndex: number, partial: Partial<ScheduleTemplateDayInput>): void => {
@@ -73,9 +77,9 @@ export function DayScheduleEditor({
 		<div className="space-y-3">
 			<div className="flex items-center justify-between">
 				<div>
-					<p className="text-sm font-medium">Weekly schedule</p>
+					<p className="text-sm font-medium">{t('templateForm.weeklySchedule')}</p>
 					<p className="text-xs text-muted-foreground">
-						Shift type: <span className="font-medium uppercase">{shiftType}</span>
+						{t('templateForm.shiftTypeSummary', { shiftType: shiftTypeLabel })}
 					</p>
 				</div>
 			</div>
@@ -94,10 +98,17 @@ export function DayScheduleEditor({
 									handleUpdate(day.dayOfWeek, { isWorkingDay: e.target.checked })
 								}
 							/>
-							<span className="text-sm font-medium">{dayLabels[day.dayOfWeek]}</span>
+							<span className="text-sm font-medium">
+								{(() => {
+									const dayKey: DayKey = DAY_KEYS[day.dayOfWeek] ?? 'sun';
+									return t(`days.short.${dayKey}`);
+								})()}
+							</span>
 						</div>
 						<div className="col-span-4">
-							<Label className="text-xs text-muted-foreground">Start</Label>
+							<Label className="text-xs text-muted-foreground">
+								{t('templateForm.start')}
+							</Label>
 							<Input
 								type="time"
 								value={day.startTime}
@@ -108,7 +119,9 @@ export function DayScheduleEditor({
 							/>
 						</div>
 						<div className="col-span-4">
-							<Label className="text-xs text-muted-foreground">End</Label>
+							<Label className="text-xs text-muted-foreground">
+								{t('templateForm.end')}
+							</Label>
 							<Input
 								type="time"
 								value={day.endTime}
@@ -124,4 +137,3 @@ export function DayScheduleEditor({
 		</div>
 	);
 }
-

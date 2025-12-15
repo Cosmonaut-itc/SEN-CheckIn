@@ -5,10 +5,10 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { ThemeName } from '@/constants/theme';
 
 type ThemeContextValue = {
-  /** Active color scheme, defaults to light when unavailable */
-  colorScheme: ThemeName;
-  /** Convenience flag for dark mode checks */
-  isDarkMode: boolean;
+	/** Active color scheme, defaults to light when unavailable */
+	colorScheme: ThemeName;
+	/** Convenience flag for dark mode checks */
+	isDarkMode: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
@@ -21,18 +21,18 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
  * @returns Provider that exposes the current theme values
  */
 export function ThemeProvider({ children }: PropsWithChildren): JSX.Element {
-  const systemScheme = useColorScheme();
-  const colorScheme = (systemScheme ?? 'light') as ThemeName;
+	const systemScheme = useColorScheme();
+	const colorScheme = (systemScheme ?? 'light') as ThemeName;
 
-  const value = useMemo<ThemeContextValue>(
-    () => ({
-      colorScheme,
-      isDarkMode: colorScheme === 'dark',
-    }),
-    [colorScheme],
-  );
+	const value = useMemo<ThemeContextValue>(
+		() => ({
+			colorScheme,
+			isDarkMode: colorScheme === 'dark',
+		}),
+		[colorScheme],
+	);
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+	return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 /**
@@ -42,11 +42,11 @@ export function ThemeProvider({ children }: PropsWithChildren): JSX.Element {
  * @throws Error when invoked outside of ThemeProvider
  */
 export function useTheme(): ThemeContextValue {
-  const context = useContext(ThemeContext);
+	const context = useContext(ThemeContext);
 
-  if (!context) {
-    throw new Error('useTheme must be used within ThemeProvider');
-  }
+	if (!context) {
+		throw new Error('useTheme must be used within ThemeProvider');
+	}
 
-  return context;
+	return context;
 }

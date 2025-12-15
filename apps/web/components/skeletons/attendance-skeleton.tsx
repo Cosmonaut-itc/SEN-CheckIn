@@ -7,6 +7,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
+import { getTranslations } from 'next-intl/server';
 import React from 'react';
 
 /**
@@ -15,16 +16,16 @@ import React from 'react';
  *
  * @returns The attendance skeleton JSX element
  */
-export function AttendanceSkeleton(): React.ReactElement {
+export async function AttendanceSkeleton(): Promise<React.ReactElement> {
+	const t = await getTranslations('Attendance');
+
 	return (
 		<div className="space-y-6">
 			{/* Header */}
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Attendance</h1>
-					<p className="text-muted-foreground">
-						View attendance check-in and check-out records
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<Skeleton className="h-10 w-24" />
 			</div>
@@ -46,11 +47,11 @@ export function AttendanceSkeleton(): React.ReactElement {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Employee ID</TableHead>
-							<TableHead>Device ID</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Timestamp</TableHead>
-							<TableHead>Date</TableHead>
+							<TableHead>{t('table.headers.employeeId')}</TableHead>
+							<TableHead>{t('table.headers.deviceId')}</TableHead>
+							<TableHead>{t('table.headers.type')}</TableHead>
+							<TableHead>{t('table.headers.time')}</TableHead>
+							<TableHead>{t('table.headers.date')}</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -72,4 +73,3 @@ export function AttendanceSkeleton(): React.ReactElement {
 		</div>
 	);
 }
-

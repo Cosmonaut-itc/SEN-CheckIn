@@ -638,7 +638,10 @@ export const scheduleException = pgTable(
 	(table) => [
 		index('schedule_exception_employee_idx').on(table.employeeId),
 		index('schedule_exception_date_idx').on(table.exceptionDate),
-		uniqueIndex('schedule_exception_employee_date_uniq').on(table.employeeId, table.exceptionDate),
+		uniqueIndex('schedule_exception_employee_date_uniq').on(
+			table.employeeId,
+			table.exceptionDate,
+		),
 	],
 );
 

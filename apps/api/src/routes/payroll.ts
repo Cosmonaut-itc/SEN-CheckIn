@@ -1,12 +1,7 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
 import { and, eq, gte, inArray, lte } from 'drizzle-orm';
-import {
-	addDays,
-	differenceInMinutes,
-	isAfter,
-	isBefore,
-} from 'date-fns';
+import { addDays, differenceInMinutes, isAfter, isBefore } from 'date-fns';
 
 import db from '../db/index.js';
 import {
@@ -53,36 +48,36 @@ type ScheduleRow = {
 	isWorkingDay: boolean;
 };
 
-	type PayrollCalculationRow = {
-		employeeId: string;
-		name: string;
-		shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
-		dailyPay: number;
-		hourlyPay: number;
-		paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
-		hoursWorked: number;
-		expectedHours: number;
-		normalHours: number;
-		overtimeDoubleHours: number;
-		overtimeTripleHours: number;
-		sundayHoursWorked: number;
-		mandatoryRestDaysWorkedCount: number;
-		normalPay: number;
-		overtimeDoublePay: number;
-		overtimeTriplePay: number;
-		sundayPremiumAmount: number;
-		mandatoryRestDayPremiumAmount: number;
-		totalPay: number;
-		warnings: {
-			type:
-				| 'OVERTIME_DAILY_EXCEEDED'
-				| 'OVERTIME_WEEKLY_EXCEEDED'
-				| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
-				| 'BELOW_MINIMUM_WAGE';
-			message: string;
-			severity: 'warning' | 'error';
-		}[];
-	};
+type PayrollCalculationRow = {
+	employeeId: string;
+	name: string;
+	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	dailyPay: number;
+	hourlyPay: number;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	hoursWorked: number;
+	expectedHours: number;
+	normalHours: number;
+	overtimeDoubleHours: number;
+	overtimeTripleHours: number;
+	sundayHoursWorked: number;
+	mandatoryRestDaysWorkedCount: number;
+	normalPay: number;
+	overtimeDoublePay: number;
+	overtimeTriplePay: number;
+	sundayPremiumAmount: number;
+	mandatoryRestDayPremiumAmount: number;
+	totalPay: number;
+	warnings: {
+		type:
+			| 'OVERTIME_DAILY_EXCEEDED'
+			| 'OVERTIME_WEEKLY_EXCEEDED'
+			| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
+			| 'BELOW_MINIMUM_WAGE';
+		message: string;
+		severity: 'warning' | 'error';
+	}[];
+};
 
 /**
  * Parses an HH:mm string into total minutes.
@@ -139,88 +134,88 @@ const calculateExpectedHours = (
  * @param timeZone - IANA timezone used to cut day boundaries
  * @returns Map of date key string to hours worked
  */
-	const calculateDailyWorkedHours = (
-		attendance: AttendanceRow[],
-		timeZone: string,
-	): Map<string, number> => {
-		const resolvedTimeZone = isValidIanaTimeZone(timeZone) ? timeZone : 'UTC';
-		const sorted = [...attendance].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
-		const dayMinutes = new Map<string, number>();
-		let openCheckIn: Date | null = null;
+const calculateDailyWorkedHours = (
+	attendance: AttendanceRow[],
+	timeZone: string,
+): Map<string, number> => {
+	const resolvedTimeZone = isValidIanaTimeZone(timeZone) ? timeZone : 'UTC';
+	const sorted = [...attendance].sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+	const dayMinutes = new Map<string, number>();
+	let openCheckIn: Date | null = null;
 
-		for (const record of sorted) {
-			if (record.type === 'CHECK_IN') {
-				openCheckIn = record.timestamp;
-			} else if (record.type === 'CHECK_OUT' && openCheckIn) {
-				const checkIn = openCheckIn;
-				const checkOut = record.timestamp;
+	for (const record of sorted) {
+		if (record.type === 'CHECK_IN') {
+			openCheckIn = record.timestamp;
+		} else if (record.type === 'CHECK_OUT' && openCheckIn) {
+			const checkIn = openCheckIn;
+			const checkOut = record.timestamp;
 
-				if (isAfter(checkOut, checkIn)) {
-					let segmentStart = checkIn;
+			if (isAfter(checkOut, checkIn)) {
+				let segmentStart = checkIn;
 
-					while (isAfter(checkOut, segmentStart)) {
-						const currentDayKey = toDateKeyInTimeZone(segmentStart, resolvedTimeZone);
-						const nextDayKey = addDaysToDateKey(currentDayKey, 1);
-						const nextMidnight = getUtcDateForZonedMidnight(nextDayKey, resolvedTimeZone);
-						const segmentEnd = isBefore(checkOut, nextMidnight) ? checkOut : nextMidnight;
+				while (isAfter(checkOut, segmentStart)) {
+					const currentDayKey = toDateKeyInTimeZone(segmentStart, resolvedTimeZone);
+					const nextDayKey = addDaysToDateKey(currentDayKey, 1);
+					const nextMidnight = getUtcDateForZonedMidnight(nextDayKey, resolvedTimeZone);
+					const segmentEnd = isBefore(checkOut, nextMidnight) ? checkOut : nextMidnight;
 
-						if (segmentEnd.getTime() === segmentStart.getTime()) {
-							break;
-						}
-
-						const segmentMinutes = differenceInMinutes(segmentEnd, segmentStart);
-						if (segmentMinutes > 0) {
-							const current = dayMinutes.get(currentDayKey) ?? 0;
-							dayMinutes.set(currentDayKey, current + segmentMinutes);
-						}
-
-						segmentStart = segmentEnd;
+					if (segmentEnd.getTime() === segmentStart.getTime()) {
+						break;
 					}
+
+					const segmentMinutes = differenceInMinutes(segmentEnd, segmentStart);
+					if (segmentMinutes > 0) {
+						const current = dayMinutes.get(currentDayKey) ?? 0;
+						dayMinutes.set(currentDayKey, current + segmentMinutes);
+					}
+
+					segmentStart = segmentEnd;
 				}
-				openCheckIn = null;
 			}
+			openCheckIn = null;
 		}
+	}
 
-		const result = new Map<string, number>();
-		for (const [key, minutes] of dayMinutes.entries()) {
-			result.set(key, minutes / 60);
-		}
+	const result = new Map<string, number>();
+	for (const [key, minutes] of dayMinutes.entries()) {
+		result.set(key, minutes / 60);
+	}
 
-		return result;
-	};
+	return result;
+};
 
-	/**
-	 * Computes the week start key (YYYY-MM-DD) for a given UTC day key.
-	 *
-	 * Weeks are cut using the configured `weekStartDay` (0 = Sunday … 6 = Saturday) and
-	 * UTC day boundaries. This is used to reset weekly overtime limits inside a pay period.
-	 *
-	 * @param dateKey - Date key in YYYY-MM-DD format (UTC)
-	 * @param weekStartDay - Week start day index (0=Sunday..6=Saturday)
-	 * @returns Week start date key in YYYY-MM-DD format (UTC)
-	 * @throws When `dateKey` is invalid or `weekStartDay` is outside 0..6
-	 */
-	const getWeekStartKey = (dateKey: string, weekStartDay: number): string => {
-		if (!Number.isInteger(weekStartDay) || weekStartDay < 0 || weekStartDay > 6) {
-			throw new Error(`Invalid weekStartDay "${weekStartDay}". Expected an integer 0..6.`);
-		}
+/**
+ * Computes the week start key (YYYY-MM-DD) for a given UTC day key.
+ *
+ * Weeks are cut using the configured `weekStartDay` (0 = Sunday … 6 = Saturday) and
+ * UTC day boundaries. This is used to reset weekly overtime limits inside a pay period.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format (UTC)
+ * @param weekStartDay - Week start day index (0=Sunday..6=Saturday)
+ * @returns Week start date key in YYYY-MM-DD format (UTC)
+ * @throws When `dateKey` is invalid or `weekStartDay` is outside 0..6
+ */
+const getWeekStartKey = (dateKey: string, weekStartDay: number): string => {
+	if (!Number.isInteger(weekStartDay) || weekStartDay < 0 || weekStartDay > 6) {
+		throw new Error(`Invalid weekStartDay "${weekStartDay}". Expected an integer 0..6.`);
+	}
 
-		const dayDate = new Date(`${dateKey}T00:00:00Z`);
-		if (Number.isNaN(dayDate.getTime())) {
-			throw new Error(`Invalid dateKey "${dateKey}". Expected format YYYY-MM-DD.`);
-		}
+	const dayDate = new Date(`${dateKey}T00:00:00Z`);
+	if (Number.isNaN(dayDate.getTime())) {
+		throw new Error(`Invalid dateKey "${dateKey}". Expected format YYYY-MM-DD.`);
+	}
 
-		const dayOfWeek = dayDate.getUTCDay();
-		const diff = (dayOfWeek - weekStartDay + 7) % 7;
-		const weekStart = new Date(dayDate);
-		weekStart.setUTCDate(weekStart.getUTCDate() - diff);
-		return weekStart.toISOString().slice(0, 10);
-	};
+	const dayOfWeek = dayDate.getUTCDay();
+	const diff = (dayOfWeek - weekStartDay + 7) % 7;
+	const weekStart = new Date(dayDate);
+	weekStart.setUTCDate(weekStart.getUTCDate() - diff);
+	return weekStart.toISOString().slice(0, 10);
+};
 
-	/**
-	 * Calculates payroll for employees within the organization and period.
-	 *
-	 * @param args - Organization and period parameters
+/**
+ * Calculates payroll for employees within the organization and period.
+ *
+ * @param args - Organization and period parameters
  * @returns Employees with hours/expected hours and total amount
  */
 const calculatePayroll = async (args: {
@@ -232,20 +227,20 @@ const calculatePayroll = async (args: {
 	employees: PayrollCalculationRow[];
 	totalAmount: number;
 	overtimeEnforcement: 'WARN' | 'BLOCK';
-	}> => {
-		const { organizationId, periodEnd, periodStart, paymentFrequency } = args;
+}> => {
+	const { organizationId, periodEnd, periodStart, paymentFrequency } = args;
 
-		const orgSettings = await db
+	const orgSettings = await db
 		.select()
 		.from(payrollSetting)
-			.where(eq(payrollSetting.organizationId, organizationId))
-			.limit(1);
-			const overtimeEnforcement = orgSettings[0]?.overtimeEnforcement ?? 'WARN';
-			const weekStartDay = orgSettings[0]?.weekStartDay ?? 1;
-			const additionalMandatoryRestDays = orgSettings[0]?.additionalMandatoryRestDays ?? [];
-			const additionalMandatoryRestDaySet = new Set<string>(additionalMandatoryRestDays);
+		.where(eq(payrollSetting.organizationId, organizationId))
+		.limit(1);
+	const overtimeEnforcement = orgSettings[0]?.overtimeEnforcement ?? 'WARN';
+	const weekStartDay = orgSettings[0]?.weekStartDay ?? 1;
+	const additionalMandatoryRestDays = orgSettings[0]?.additionalMandatoryRestDays ?? [];
+	const additionalMandatoryRestDaySet = new Set<string>(additionalMandatoryRestDays);
 
-		const employees = await db
+	const employees = await db
 		.select({
 			id: employee.id,
 			firstName: employee.firstName,
@@ -255,10 +250,10 @@ const calculatePayroll = async (args: {
 			hourlyPay: jobPosition.hourlyPay,
 			dailyPay: jobPosition.dailyPay,
 			paymentFrequency: jobPosition.paymentFrequency,
-				shiftType: employee.shiftType,
-				locationGeographicZone: location.geographicZone,
-				locationTimeZone: location.timeZone,
-			})
+			shiftType: employee.shiftType,
+			locationGeographicZone: location.geographicZone,
+			locationTimeZone: location.timeZone,
+		})
 		.from(employee)
 		.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id))
 		.leftJoin(location, eq(employee.locationId, location.id))
@@ -291,28 +286,28 @@ const calculatePayroll = async (args: {
 		scheduleMap.set(entry.employeeId, current);
 	}
 
-		const results: PayrollCalculationRow[] = [];
-		let totalAmount = 0;
+	const results: PayrollCalculationRow[] = [];
+	let totalAmount = 0;
 
-		const mandatoryRestDayCache = new Map<number, Set<string>>();
+	const mandatoryRestDayCache = new Map<number, Set<string>>();
 
-		/**
-		 * Retrieves Mexico mandatory rest day keys for a year with caching (LFT Art. 74).
-		 *
-		 * @param year - Calendar year
-		 * @returns Set of YYYY-MM-DD date keys
-		 */
-		const getMandatoryRestDayKeysForYearCached = (year: number): Set<string> => {
-			const cached = mandatoryRestDayCache.get(year);
-			if (cached) {
-				return cached;
-			}
-			const keys = getMexicoMandatoryRestDayKeysForYear(year);
-			mandatoryRestDayCache.set(year, keys);
-			return keys;
-		};
+	/**
+	 * Retrieves Mexico mandatory rest day keys for a year with caching (LFT Art. 74).
+	 *
+	 * @param year - Calendar year
+	 * @returns Set of YYYY-MM-DD date keys
+	 */
+	const getMandatoryRestDayKeysForYearCached = (year: number): Set<string> => {
+		const cached = mandatoryRestDayCache.get(year);
+		if (cached) {
+			return cached;
+		}
+		const keys = getMexicoMandatoryRestDayKeysForYear(year);
+		mandatoryRestDayCache.set(year, keys);
+		return keys;
+	};
 
-		for (const emp of filteredEmployees) {
+	for (const emp of filteredEmployees) {
 		const attendance = await db
 			.select({
 				timestamp: attendanceRecord.timestamp,
@@ -327,8 +322,8 @@ const calculatePayroll = async (args: {
 				),
 			);
 
-			const timeZone = emp.locationTimeZone ?? 'America/Mexico_City';
-			const dailyHoursMap = calculateDailyWorkedHours(attendance as AttendanceRow[], timeZone);
+		const timeZone = emp.locationTimeZone ?? 'America/Mexico_City';
+		const dailyHoursMap = calculateDailyWorkedHours(attendance as AttendanceRow[], timeZone);
 		const hoursWorked = Array.from(dailyHoursMap.values()).reduce(
 			(sum, hours) => sum + hours,
 			0,
@@ -340,127 +335,134 @@ const calculatePayroll = async (args: {
 			periodEnd,
 		);
 
-			const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
-			const shiftLimits = SHIFT_LIMITS[shiftKey];
+		const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
+		const shiftLimits = SHIFT_LIMITS[shiftKey];
 
-			type WeeklyOvertimeBucket = {
-				normalHours: number;
-				overtimeFromDaily: number;
-				overtimeDays: number;
+		type WeeklyOvertimeBucket = {
+			normalHours: number;
+			overtimeFromDaily: number;
+			overtimeDays: number;
+		};
+
+		const weeklyBuckets = new Map<string, WeeklyOvertimeBucket>();
+		let sundayHoursWorked = 0;
+		let sundaysWorkedCount = 0;
+		let mandatoryRestDaysWorkedCount = 0;
+		const warnings: PayrollCalculationRow['warnings'] = [];
+
+		for (const [dateKey, dayHours] of dailyHoursMap.entries()) {
+			const dayDate = new Date(`${dateKey}T00:00:00Z`);
+			const dayNormal = Math.min(dayHours, shiftLimits.dailyHours);
+			const dayOvertime = Math.max(0, dayHours - shiftLimits.dailyHours);
+
+			const weekKey = getWeekStartKey(dateKey, weekStartDay);
+			const current = weeklyBuckets.get(weekKey) ?? {
+				normalHours: 0,
+				overtimeFromDaily: 0,
+				overtimeDays: 0,
 			};
+			current.normalHours += dayNormal;
+			current.overtimeFromDaily += dayOvertime;
+			if (dayOvertime > 0) {
+				current.overtimeDays += 1;
+			}
+			weeklyBuckets.set(weekKey, current);
 
-				const weeklyBuckets = new Map<string, WeeklyOvertimeBucket>();
-				let sundayHoursWorked = 0;
-				let sundaysWorkedCount = 0;
-				let mandatoryRestDaysWorkedCount = 0;
-				const warnings: PayrollCalculationRow['warnings'] = [];
-
-			for (const [dateKey, dayHours] of dailyHoursMap.entries()) {
-				const dayDate = new Date(`${dateKey}T00:00:00Z`);
-				const dayNormal = Math.min(dayHours, shiftLimits.dailyHours);
-				const dayOvertime = Math.max(0, dayHours - shiftLimits.dailyHours);
-
-				const weekKey = getWeekStartKey(dateKey, weekStartDay);
-				const current = weeklyBuckets.get(weekKey) ?? {
-					normalHours: 0,
-					overtimeFromDaily: 0,
-					overtimeDays: 0,
-				};
-				current.normalHours += dayNormal;
-				current.overtimeFromDaily += dayOvertime;
-				if (dayOvertime > 0) {
-					current.overtimeDays += 1;
+			const dayOfWeek = dayDate.getUTCDay();
+			if (dayOfWeek === 0) {
+				sundayHoursWorked += dayHours;
+				if (dayHours > 0) {
+					sundaysWorkedCount += 1;
 				}
-				weeklyBuckets.set(weekKey, current);
+			}
 
-				const dayOfWeek = dayDate.getUTCDay();
-					if (dayOfWeek === 0) {
-						sundayHoursWorked += dayHours;
-					if (dayHours > 0) {
-						sundaysWorkedCount += 1;
-					}
+			if (dayHours > 0) {
+				const year = dayDate.getUTCFullYear();
+				const isMandatoryRestDay =
+					additionalMandatoryRestDaySet.has(dateKey) ||
+					getMandatoryRestDayKeysForYearCached(year).has(dateKey);
+				if (isMandatoryRestDay) {
+					mandatoryRestDaysWorkedCount += 1;
 				}
+			}
 
-					if (dayHours > 0) {
-						const year = dayDate.getUTCFullYear();
-						const isMandatoryRestDay =
-							additionalMandatoryRestDaySet.has(dateKey) ||
-							getMandatoryRestDayKeysForYearCached(year).has(dateKey);
-						if (isMandatoryRestDay) {
-							mandatoryRestDaysWorkedCount += 1;
-						}
-					}
-
-				if (dayOvertime > OVERTIME_LIMITS.MAX_DAILY_HOURS) {
-					warnings.push({
-						type: 'OVERTIME_DAILY_EXCEEDED',
+			if (dayOvertime > OVERTIME_LIMITS.MAX_DAILY_HOURS) {
+				warnings.push({
+					type: 'OVERTIME_DAILY_EXCEEDED',
 					message: `Overtime exceeds daily legal limit (${dayOvertime.toFixed(2)}h > ${OVERTIME_LIMITS.MAX_DAILY_HOURS}h)`,
 					severity: overtimeEnforcement === 'BLOCK' ? 'error' : 'warning',
-					});
-				}
+				});
 			}
+		}
 
-			let adjustedNormalHours = 0;
-			let overtimeDoubleHours = 0;
-			let overtimeTripleHours = 0;
+		let adjustedNormalHours = 0;
+		let overtimeDoubleHours = 0;
+		let overtimeTripleHours = 0;
 
-			const sortedWeeks = Array.from(weeklyBuckets.entries()).sort(([a], [b]) =>
-				a.localeCompare(b),
+		const sortedWeeks = Array.from(weeklyBuckets.entries()).sort(([a], [b]) =>
+			a.localeCompare(b),
+		);
+
+		for (const [weekKey, bucket] of sortedWeeks) {
+			const weeklyNormalExcess = Math.max(0, bucket.normalHours - shiftLimits.weeklyHours);
+			const weekAdjustedNormalHours = bucket.normalHours - weeklyNormalExcess;
+			const weekTotalOvertimeHours = bucket.overtimeFromDaily + weeklyNormalExcess;
+
+			adjustedNormalHours += weekAdjustedNormalHours;
+			overtimeDoubleHours += Math.min(
+				weekTotalOvertimeHours,
+				OVERTIME_LIMITS.MAX_WEEKLY_HOURS,
+			);
+			overtimeTripleHours += Math.max(
+				0,
+				weekTotalOvertimeHours - OVERTIME_LIMITS.MAX_WEEKLY_HOURS,
 			);
 
-			for (const [weekKey, bucket] of sortedWeeks) {
-				const weeklyNormalExcess = Math.max(0, bucket.normalHours - shiftLimits.weeklyHours);
-				const weekAdjustedNormalHours = bucket.normalHours - weeklyNormalExcess;
-				const weekTotalOvertimeHours = bucket.overtimeFromDaily + weeklyNormalExcess;
-
-				adjustedNormalHours += weekAdjustedNormalHours;
-				overtimeDoubleHours += Math.min(weekTotalOvertimeHours, OVERTIME_LIMITS.MAX_WEEKLY_HOURS);
-				overtimeTripleHours += Math.max(
-					0,
-					weekTotalOvertimeHours - OVERTIME_LIMITS.MAX_WEEKLY_HOURS,
-				);
-
-				if (bucket.overtimeDays > 3) {
-					warnings.push({
-						type: 'OVERTIME_WEEKLY_DAYS_EXCEEDED',
-						message: `Overtime exceeds weekly frequency limit (week ${weekKey}: ${bucket.overtimeDays} days > 3 days)`,
-						severity: overtimeEnforcement === 'BLOCK' ? 'error' : 'warning',
-					});
-				}
-
-				if (weekTotalOvertimeHours > OVERTIME_LIMITS.MAX_WEEKLY_HOURS) {
-					warnings.push({
-						type: 'OVERTIME_WEEKLY_EXCEEDED',
-						message: `Overtime exceeds weekly legal limit (week ${weekKey}: ${weekTotalOvertimeHours.toFixed(2)}h > ${OVERTIME_LIMITS.MAX_WEEKLY_HOURS}h)`,
-						severity: overtimeEnforcement === 'BLOCK' ? 'error' : 'warning',
-					});
-				}
+			if (bucket.overtimeDays > 3) {
+				warnings.push({
+					type: 'OVERTIME_WEEKLY_DAYS_EXCEEDED',
+					message: `Overtime exceeds weekly frequency limit (week ${weekKey}: ${bucket.overtimeDays} days > 3 days)`,
+					severity: overtimeEnforcement === 'BLOCK' ? 'error' : 'warning',
+				});
 			}
 
-			const divisor = shiftLimits.divisor || 8;
-			const effectiveDailyPay =
-				Number(emp.dailyPay ?? 0) > 0
-					? Number(emp.dailyPay ?? 0)
-					: Number(emp.hourlyPay ?? 0) * divisor;
-			const hourlyRate = divisor > 0 ? effectiveDailyPay / divisor : 0;
+			if (weekTotalOvertimeHours > OVERTIME_LIMITS.MAX_WEEKLY_HOURS) {
+				warnings.push({
+					type: 'OVERTIME_WEEKLY_EXCEEDED',
+					message: `Overtime exceeds weekly legal limit (week ${weekKey}: ${weekTotalOvertimeHours.toFixed(2)}h > ${OVERTIME_LIMITS.MAX_WEEKLY_HOURS}h)`,
+					severity: overtimeEnforcement === 'BLOCK' ? 'error' : 'warning',
+				});
+			}
+		}
 
-			const normalPay = adjustedNormalHours * hourlyRate;
-			const overtimeDoublePay =
-				overtimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER;
-			const overtimeTriplePay =
-				overtimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER;
-			const sundayPremiumAmount =
-				sundaysWorkedCount > 0 ? sundaysWorkedCount * effectiveDailyPay * SUNDAY_PREMIUM_RATE : 0;
-			const mandatoryRestDayPremiumAmount =
-				mandatoryRestDaysWorkedCount > 0 ? mandatoryRestDaysWorkedCount * effectiveDailyPay * 2 : 0;
+		const divisor = shiftLimits.divisor || 8;
+		const effectiveDailyPay =
+			Number(emp.dailyPay ?? 0) > 0
+				? Number(emp.dailyPay ?? 0)
+				: Number(emp.hourlyPay ?? 0) * divisor;
+		const hourlyRate = divisor > 0 ? effectiveDailyPay / divisor : 0;
 
-			const totalPay =
-				normalPay +
-				overtimeDoublePay +
-				overtimeTriplePay +
-				sundayPremiumAmount +
-				mandatoryRestDayPremiumAmount;
-			totalAmount += totalPay;
+		const normalPay = adjustedNormalHours * hourlyRate;
+		const overtimeDoublePay =
+			overtimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER;
+		const overtimeTriplePay =
+			overtimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER;
+		const sundayPremiumAmount =
+			sundaysWorkedCount > 0
+				? sundaysWorkedCount * effectiveDailyPay * SUNDAY_PREMIUM_RATE
+				: 0;
+		const mandatoryRestDayPremiumAmount =
+			mandatoryRestDaysWorkedCount > 0
+				? mandatoryRestDaysWorkedCount * effectiveDailyPay * 2
+				: 0;
+
+		const totalPay =
+			normalPay +
+			overtimeDoublePay +
+			overtimeTriplePay +
+			sundayPremiumAmount +
+			mandatoryRestDayPremiumAmount;
+		totalAmount += totalPay;
 
 		const zone = (emp.locationGeographicZone ?? 'GENERAL') as keyof typeof MINIMUM_WAGES;
 		if (effectiveDailyPay < MINIMUM_WAGES[zone]) {
@@ -483,18 +485,18 @@ const calculatePayroll = async (args: {
 			hoursWorked,
 			expectedHours,
 			normalHours: adjustedNormalHours,
-				overtimeDoubleHours,
-				overtimeTripleHours,
-				sundayHoursWorked,
-				mandatoryRestDaysWorkedCount,
-				normalPay,
-				overtimeDoublePay,
-				overtimeTriplePay,
-				sundayPremiumAmount,
-				mandatoryRestDayPremiumAmount,
-				totalPay,
-				warnings,
-			});
+			overtimeDoubleHours,
+			overtimeTripleHours,
+			sundayHoursWorked,
+			mandatoryRestDaysWorkedCount,
+			normalPay,
+			overtimeDoublePay,
+			overtimeTriplePay,
+			sundayPremiumAmount,
+			mandatoryRestDayPremiumAmount,
+			totalPay,
+			warnings,
+		});
 	}
 
 	return { employees: results, totalAmount, overtimeEnforcement };
@@ -641,7 +643,12 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					await tx
 						.update(employee)
 						.set({ lastPayrollDate: body.periodEnd })
-						.where(inArray(employee.id, calculation.employees.map((e) => e.employeeId)));
+						.where(
+							inArray(
+								employee.id,
+								calculation.employees.map((e) => e.employeeId),
+							),
+						);
 				}
 
 				const savedRun = await tx

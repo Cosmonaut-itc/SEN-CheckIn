@@ -4,6 +4,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { signUp } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
 import { Loader2, Lock, Mail, ShieldCheck, User } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -15,6 +16,7 @@ import { useState } from 'react';
  * @returns The sign up page JSX element
  */
 export default function SignUpPage(): React.ReactElement {
+	const t = useTranslations('Auth');
 	const router = useRouter();
 	const [error, setError] = useState<string | null>(null);
 	const isProduction = process.env.NODE_ENV === 'production';
@@ -30,12 +32,12 @@ export default function SignUpPage(): React.ReactElement {
 			setError(null);
 
 			if (value.password !== value.confirmPassword) {
-				setError('Passwords do not match');
+				setError(t('signUp.errors.passwordsDoNotMatch'));
 				return;
 			}
 
 			if (value.password.length < 8) {
-				setError('Password must be at least 8 characters');
+				setError(t('signUp.errors.passwordTooShort'));
 				return;
 			}
 
@@ -46,7 +48,7 @@ export default function SignUpPage(): React.ReactElement {
 			});
 
 			if (result.error) {
-				setError(result.error.message ?? 'Failed to create account');
+				setError(t('signUp.errors.failed'));
 				return;
 			}
 
@@ -73,10 +75,13 @@ export default function SignUpPage(): React.ReactElement {
 				<div className="flex flex-col items-center gap-3">
 					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 					<p className="text-sm text-muted-foreground">
-						Sign up is disabled in production.
+						{t('signUp.productionDisabled')}
 					</p>
-					<Link href="/sign-in" className="text-primary underline-offset-4 hover:underline">
-						Return to sign in
+					<Link
+						href="/sign-in"
+						className="text-primary underline-offset-4 hover:underline"
+					>
+						{t('signUp.returnToSignIn')}
 					</Link>
 				</div>
 			</div>
@@ -89,10 +94,8 @@ export default function SignUpPage(): React.ReactElement {
 				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
 					<ShieldCheck className="h-6 w-6" />
 				</div>
-				<h1 className="text-2xl font-bold tracking-tight">Create an account</h1>
-				<p className="text-balance text-sm text-muted-foreground">
-					Enter your details below to create your admin account
-				</p>
+				<h1 className="text-2xl font-bold tracking-tight">{t('signUp.title')}</h1>
+				<p className="text-balance text-sm text-muted-foreground">{t('signUp.subtitle')}</p>
 			</div>
 			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
 				<form onSubmit={handleSubmit}>
@@ -107,12 +110,14 @@ export default function SignUpPage(): React.ReactElement {
 								name="name"
 								validators={{
 									onChange: ({ value }) =>
-										!value.trim() ? 'Name is required' : undefined,
+										!value.trim()
+											? t('signUp.validation.nameRequired')
+											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
-										label="Name"
+										label={t('signUp.fields.name')}
 										placeholder="John Doe"
 										orientation="vertical"
 										startIcon={User}
@@ -123,12 +128,14 @@ export default function SignUpPage(): React.ReactElement {
 								name="email"
 								validators={{
 									onChange: ({ value }) =>
-										!value.trim() ? 'Email is required' : undefined,
+										!value.trim()
+											? t('signUp.validation.emailRequired')
+											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
-										label="Email"
+										label={t('signUp.fields.email')}
 										type="email"
 										placeholder="admin@example.com"
 										orientation="vertical"
@@ -140,12 +147,14 @@ export default function SignUpPage(): React.ReactElement {
 								name="password"
 								validators={{
 									onChange: ({ value }) =>
-										!value.trim() ? 'Password is required' : undefined,
+										!value.trim()
+											? t('signUp.validation.passwordRequired')
+											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
-										label="Password"
+										label={t('signUp.fields.password')}
 										type="password"
 										placeholder="••••••••"
 										orientation="vertical"
@@ -157,12 +166,14 @@ export default function SignUpPage(): React.ReactElement {
 								name="confirmPassword"
 								validators={{
 									onChange: ({ value }) =>
-										!value.trim() ? 'Confirm password is required' : undefined,
+										!value.trim()
+											? t('signUp.validation.confirmPasswordRequired')
+											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
-										label="Confirm Password"
+										label={t('signUp.fields.confirmPassword')}
 										type="password"
 										placeholder="••••••••"
 										orientation="vertical"
@@ -175,18 +186,18 @@ export default function SignUpPage(): React.ReactElement {
 					<CardFooter className="flex flex-col gap-4 pb-6 mt-6">
 						<form.AppForm>
 							<form.SubmitButton
-								label="Create Account"
-								loadingLabel="Creating account..."
+								label={t('signUp.actions.submit')}
+								loadingLabel={t('signUp.actions.submitting')}
 								className="w-full"
 							/>
 						</form.AppForm>
 						<p className="text-center text-sm text-muted-foreground">
-							Already have an account?{' '}
+							{t('signUp.footer.hasAccount')}{' '}
 							<Link
 								href="/sign-in"
 								className="text-primary underline-offset-4 hover:underline"
 							>
-								Sign in
+								{t('signUp.footer.signIn')}
 							</Link>
 						</p>
 					</CardFooter>

@@ -1,4 +1,5 @@
 <!-- cc9ba8b0-e4c8-40b0-9a96-09bf3dc0b59e 000c4fdf-6c9c-4989-9b00-491391ae46c2 -->
+
 # Dark Mode Integration Plan
 
 ## Current State
@@ -34,7 +35,7 @@ Create [`apps/web/components/theme-mode-toggle.tsx`](apps/web/components/theme-m
 
 ### 4. Add Toggle to Dashboard Header
 
-Modify [`apps/web/app/(dashboard)/layout.tsx`](apps/web/app/\\(dashboard)/layout.tsx):
+Modify [`apps/web/app/(dashboard)/layout.tsx`](<apps/web/app/\(dashboard)/layout.tsx>):
 
 - Import and place `ThemeModeToggle` in the header bar, to the right of the existing `SidebarTrigger`
 

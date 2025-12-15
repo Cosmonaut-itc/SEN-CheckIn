@@ -8,6 +8,7 @@ import { ScrollView, Text, View } from 'react-native';
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
+import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
 
@@ -59,7 +60,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 
 	const defaultName = useMemo(
 		() =>
-			settings?.name || ExpoDevice.deviceName || ExpoDevice.modelName || 'Attendance Device',
+			settings?.name ||
+			ExpoDevice.deviceName ||
+			ExpoDevice.modelName ||
+			i18n.t('DeviceSetup.defaults.deviceName'),
 		[settings?.name],
 	);
 
@@ -138,18 +142,20 @@ export default function DeviceSetupScreen(): JSX.Element {
 	if (!deviceId) {
 		return (
 			<View className="flex-1 bg-background items-center justify-center px-6">
-				<Card variant="default" className="p-8 w-full max-w-md items-center gap-5 rounded-3xl">
+				<Card
+					variant="default"
+					className="p-8 w-full max-w-md items-center gap-5 rounded-3xl"
+				>
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
 						<Text className="text-3xl">⚠️</Text>
 					</View>
 					<View className="gap-2 items-center">
 						<Text className="text-2xl font-bold text-foreground text-center">
-							Device not found
+							{i18n.t('DeviceSetup.errors.deviceNotFound.title')}
 						</Text>
 						<Text className="text-foreground-400 text-center text-base leading-6">
-							We could not determine a device to configure. Please return to login and
-							try again.
+							{i18n.t('DeviceSetup.errors.deviceNotFound.description')}
 						</Text>
 					</View>
 					<Button
@@ -157,7 +163,9 @@ export default function DeviceSetupScreen(): JSX.Element {
 						size="lg"
 						onPress={() => router.replace('/(auth)/login')}
 					>
-						<Button.Label>Back to Login</Button.Label>
+						<Button.Label>
+							{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
+						</Button.Label>
 					</Button>
 				</Card>
 			</View>
@@ -179,16 +187,15 @@ export default function DeviceSetupScreen(): JSX.Element {
 						</View>
 						<View className="flex-1">
 							<Text className="text-xs uppercase tracking-widest text-primary font-bold">
-								Device Setup
+								{i18n.t('DeviceSetup.header.kicker')}
 							</Text>
 						</View>
 					</View>
 					<Text className="text-3xl font-extrabold text-foreground tracking-tight">
-						Configure Terminal
+						{i18n.t('DeviceSetup.header.title')}
 					</Text>
 					<Text className="text-foreground-400 text-base leading-6">
-						Name this device and assign it to a location. Attendance records will be
-						linked to the selected location.
+						{i18n.t('DeviceSetup.header.subtitle')}
 					</Text>
 				</View>
 
@@ -196,7 +203,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				<View className="flex-row gap-3">
 					<View className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200">
 						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold mb-1">
-							Device ID
+							{i18n.t('DeviceSetup.deviceInfo.deviceId')}
 						</Text>
 						<Text
 							className="text-foreground font-mono text-sm"
@@ -208,7 +215,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 					</View>
 					<View className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200">
 						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold mb-1">
-							Organization
+							{i18n.t('DeviceSetup.deviceInfo.organization')}
 						</Text>
 						<Text
 							className="text-foreground font-mono text-sm"
@@ -226,14 +233,16 @@ export default function DeviceSetupScreen(): JSX.Element {
 						name="name"
 						validators={{
 							onChange: ({ value }) =>
-								!value.trim() ? 'Name is required' : undefined,
+								!value.trim()
+									? i18n.t('DeviceSetup.form.validation.nameRequired')
+									: undefined,
 						}}
 					>
 						{(field) => (
 							<field.TextField
-								label="Device Name"
-								placeholder="e.g., Front Desk Kiosk"
-								description="A memorable name helps admins identify this terminal."
+								label={i18n.t('DeviceSetup.form.fields.name.label')}
+								placeholder={i18n.t('DeviceSetup.form.fields.name.placeholder')}
+								description={i18n.t('DeviceSetup.form.fields.name.description')}
 							/>
 						)}
 					</form.AppField>
@@ -242,7 +251,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 					<form.AppField
 						name="locationId"
 						validators={{
-							onChange: ({ value }) => (!value ? 'Location is required' : undefined),
+							onChange: ({ value }) =>
+								!value
+									? i18n.t('DeviceSetup.form.validation.locationRequired')
+									: undefined,
 						}}
 					>
 						{(field) => {
@@ -267,7 +279,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 							return (
 								<View className="gap-1.5">
 									<Text className="text-sm font-semibold text-foreground tracking-wide">
-										Assigned Location
+										{i18n.t('DeviceSetup.form.fields.location.label')}
 									</Text>
 									<Select
 										value={selectedOption}
@@ -285,8 +297,12 @@ export default function DeviceSetupScreen(): JSX.Element {
 												) : (
 													<Text className="text-foreground">
 														{isLocationsPending
-															? 'Loading locations…'
-															: 'Choose a location'}
+															? i18n.t(
+																	'DeviceSetup.form.fields.location.loading',
+																)
+															: i18n.t(
+																	'DeviceSetup.form.fields.location.placeholder',
+																)}
 													</Text>
 												)}
 											</Button>
@@ -301,7 +317,9 @@ export default function DeviceSetupScreen(): JSX.Element {
 												{locationOptions.length === 0 ? (
 													<View className="py-4">
 														<Text className="text-foreground-400 text-center">
-															No locations available
+															{i18n.t(
+																'DeviceSetup.form.fields.location.empty',
+															)}
 														</Text>
 													</View>
 												) : (
@@ -347,12 +365,12 @@ export default function DeviceSetupScreen(): JSX.Element {
 								<View className="flex-row items-center gap-2">
 									<Spinner size="sm" color="white" />
 									<Button.Label className="text-white font-semibold">
-										Loading…
+										{i18n.t('Common.loading')}
 									</Button.Label>
 								</View>
 							) : (
 								<Button.Label className="text-white font-semibold">
-									Save & Continue
+									{i18n.t('DeviceSetup.form.actions.saveAndContinue')}
 								</Button.Label>
 							)}
 						</Button>
@@ -365,12 +383,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 						<Text className="text-lg">💡</Text>
 						<View className="flex-1">
 							<Text className="text-sm font-semibold text-foreground mb-1">
-								Pro Tip
+								{i18n.t('DeviceSetup.tip.title')}
 							</Text>
 							<Text className="text-sm text-foreground-400 leading-5">
-								If this device moves to another site later, visit Settings to update
-								its location. The app sends heartbeats to keep the device status
-								online.
+								{i18n.t('DeviceSetup.tip.body')}
 							</Text>
 						</View>
 					</View>

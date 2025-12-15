@@ -4,6 +4,7 @@ import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 import {
 	Table,
 	TableBody,
@@ -67,6 +68,8 @@ const initialFormValues: JobPositionFormValues = {
 export function JobPositionsPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('JobPositions');
+	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingJobPosition, setEditingJobPosition] = useState<JobPosition | null>(null);
@@ -96,15 +99,15 @@ export function JobPositionsPageClient(): React.ReactElement {
 		mutationFn: createJobPosition,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Job position created successfully');
+				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.jobPositions.all });
 			} else {
-				toast.error(result.error ?? 'Failed to create job position');
+				toast.error(result.error ?? t('toast.createError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to create job position');
+			toast.error(t('toast.createError'));
 		},
 	});
 
@@ -114,15 +117,15 @@ export function JobPositionsPageClient(): React.ReactElement {
 		mutationFn: updateJobPosition,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Job position updated successfully');
+				toast.success(t('toast.updateSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.jobPositions.all });
 			} else {
-				toast.error(result.error ?? 'Failed to update job position');
+				toast.error(result.error ?? t('toast.updateError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to update job position');
+			toast.error(t('toast.updateError'));
 		},
 	});
 
@@ -132,15 +135,15 @@ export function JobPositionsPageClient(): React.ReactElement {
 		mutationFn: deleteJobPosition,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Job position deleted successfully');
+				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.jobPositions.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete job position');
+				toast.error(result.error ?? t('toast.deleteError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to delete job position');
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
@@ -150,9 +153,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 			? {
 					name: editingJobPosition.name,
 					description: editingJobPosition.description ?? '',
-				dailyPay: editingJobPosition.dailyPay,
-				hourlyPay: editingJobPosition.hourlyPay,
-				paymentFrequency: editingJobPosition.paymentFrequency,
+					dailyPay: editingJobPosition.dailyPay,
+					hourlyPay: editingJobPosition.hourlyPay,
+					paymentFrequency: editingJobPosition.paymentFrequency,
 				}
 			: initialFormValues,
 		onSubmit: async ({ value }) => {
@@ -163,21 +166,21 @@ export function JobPositionsPageClient(): React.ReactElement {
 					// Send null when description is empty string to clear the field
 					description:
 						value.description.trim() === '' ? null : value.description || undefined,
-				dailyPay: value.dailyPay,
-				hourlyPay: value.hourlyPay,
-				paymentFrequency: value.paymentFrequency,
+					dailyPay: value.dailyPay,
+					hourlyPay: value.hourlyPay,
+					paymentFrequency: value.paymentFrequency,
 				});
 			} else {
 				if (!organizationId) {
-					toast.error('No active organization. Please select an organization first.');
+					toast.error(t('toast.noOrganization'));
 					return;
 				}
 				await createMutation.mutateAsync({
 					name: value.name,
 					description: value.description || undefined,
-				dailyPay: value.dailyPay,
-				hourlyPay: value.hourlyPay,
-				paymentFrequency: value.paymentFrequency,
+					dailyPay: value.dailyPay,
+					hourlyPay: value.hourlyPay,
+					paymentFrequency: value.paymentFrequency,
 					organizationId,
 				});
 			}
@@ -244,10 +247,8 @@ export function JobPositionsPageClient(): React.ReactElement {
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">Job Positions</h1>
-				<p className="text-muted-foreground">
-					Select an active organization to manage job positions.
-				</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
@@ -256,14 +257,14 @@ export function JobPositionsPageClient(): React.ReactElement {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Job Positions</h1>
-					<p className="text-muted-foreground">Manage employee job positions and roles</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
-							Add Job Position
+							{t('actions.add')}
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[425px]">
@@ -276,12 +277,14 @@ export function JobPositionsPageClient(): React.ReactElement {
 						>
 							<DialogHeader>
 								<DialogTitle>
-									{editingJobPosition ? 'Edit Job Position' : 'Add Job Position'}
+									{editingJobPosition
+										? t('dialog.title.edit')
+										: t('dialog.title.add')}
 								</DialogTitle>
 								<DialogDescription>
 									{editingJobPosition
-										? 'Update the job position details below.'
-										: 'Fill in the details to create a new job position.'}
+										? t('dialog.description.edit')
+										: t('dialog.description.add')}
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4">
@@ -289,21 +292,23 @@ export function JobPositionsPageClient(): React.ReactElement {
 									name="name"
 									validators={{
 										onChange: ({ value }) =>
-											!value.trim() ? 'Name is required' : undefined,
+											!value.trim()
+												? t('validation.nameRequired')
+												: undefined,
 									}}
 								>
 									{(field) => (
 										<field.TextField
-											label="Name"
-											placeholder="e.g., Software Engineer"
+											label={t('fields.name')}
+											placeholder={t('placeholders.nameExample')}
 										/>
 									)}
 								</form.AppField>
 								<form.AppField name="description">
 									{(field) => (
 										<field.TextareaField
-											label="Description"
-											placeholder="Optional description of the job position"
+											label={t('fields.description')}
+											placeholder={t('placeholders.descriptionOptional')}
 											rows={3}
 										/>
 									)}
@@ -313,15 +318,15 @@ export function JobPositionsPageClient(): React.ReactElement {
 									validators={{
 										onChange: ({ value }) =>
 											Number(value) <= 0
-												? 'Daily pay must be greater than 0'
+												? t('validation.dailyPayGreaterThanZero')
 												: undefined,
 									}}
 								>
 									{(field) => (
 										<field.TextField
-											label="Salario Diario (MXN)"
+											label={t('fields.dailyPay')}
 											type="number"
-											placeholder="e.g., 278.80"
+											placeholder={t('placeholders.dailyPayExample')}
 										/>
 									)}
 								</form.AppField>
@@ -329,34 +334,48 @@ export function JobPositionsPageClient(): React.ReactElement {
 									name="hourlyPay"
 									validators={{
 										onChange: ({ value }) =>
-											Number(value) <= 0 ? 'Hourly pay must be greater than 0' : undefined,
+											Number(value) <= 0
+												? t('validation.hourlyPayGreaterThanZero')
+												: undefined,
 									}}
 								>
 									{(field) => (
 										<field.TextField
-											label="Hourly Pay"
+											label={t('fields.hourlyPay')}
 											type="number"
-											placeholder="e.g., 25.00"
+											placeholder={t('placeholders.hourlyPayExample')}
 										/>
 									)}
 								</form.AppField>
 								<form.AppField name="paymentFrequency">
 									{(field) => (
 										<field.SelectField
-											label="Payment Frequency"
+											label={t('fields.paymentFrequency')}
 											options={[
-												{ value: 'WEEKLY', label: 'Weekly' },
-												{ value: 'BIWEEKLY', label: 'Biweekly' },
-												{ value: 'MONTHLY', label: 'Monthly' },
+												{
+													value: 'WEEKLY',
+													label: t('paymentFrequency.WEEKLY'),
+												},
+												{
+													value: 'BIWEEKLY',
+													label: t('paymentFrequency.BIWEEKLY'),
+												},
+												{
+													value: 'MONTHLY',
+													label: t('paymentFrequency.MONTHLY'),
+												},
 											]}
-											placeholder="Select frequency"
+											placeholder={t('placeholders.selectPaymentFrequency')}
 										/>
 									)}
 								</form.AppField>
 							</div>
 							<DialogFooter>
 								<form.AppForm>
-									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+									<form.SubmitButton
+										label={tCommon('save')}
+										loadingLabel={tCommon('saving')}
+									/>
 								</form.AppForm>
 							</DialogFooter>
 						</form>
@@ -368,7 +387,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						placeholder="Search job positions..."
+						placeholder={t('search.placeholder')}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						className="pl-9"
@@ -380,13 +399,15 @@ export function JobPositionsPageClient(): React.ReactElement {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Description</TableHead>
-							<TableHead>Daily Pay</TableHead>
-							<TableHead>Hourly Pay</TableHead>
-							<TableHead>Frequency</TableHead>
-							<TableHead>Created</TableHead>
-							<TableHead className="w-[100px]">Actions</TableHead>
+							<TableHead>{t('table.headers.name')}</TableHead>
+							<TableHead>{t('table.headers.description')}</TableHead>
+							<TableHead>{t('table.headers.dailyPay')}</TableHead>
+							<TableHead>{t('table.headers.hourlyPay')}</TableHead>
+							<TableHead>{t('table.headers.paymentFrequency')}</TableHead>
+							<TableHead>{t('table.headers.created')}</TableHead>
+							<TableHead className="w-[100px]">
+								{t('table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -403,7 +424,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 						) : jobPositions.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={7} className="h-24 text-center">
-									No job positions found.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -415,11 +436,17 @@ export function JobPositionsPageClient(): React.ReactElement {
 									<TableCell className="max-w-xs truncate">
 										{jobPosition.description ?? '-'}
 									</TableCell>
-									<TableCell>${Number(jobPosition.dailyPay).toFixed(2)}</TableCell>
-									<TableCell>${Number(jobPosition.hourlyPay).toFixed(2)}</TableCell>
-									<TableCell>{jobPosition.paymentFrequency}</TableCell>
 									<TableCell>
-										{format(new Date(jobPosition.createdAt), 'MMM d, yyyy')}
+										${Number(jobPosition.dailyPay).toFixed(2)}
+									</TableCell>
+									<TableCell>
+										${Number(jobPosition.hourlyPay).toFixed(2)}
+									</TableCell>
+									<TableCell>
+										{t(`paymentFrequency.${jobPosition.paymentFrequency}`)}
+									</TableCell>
+									<TableCell>
+										{format(new Date(jobPosition.createdAt), t('dateFormat'))}
 									</TableCell>
 									<TableCell>
 										<div className="flex items-center gap-2">
@@ -444,12 +471,12 @@ export function JobPositionsPageClient(): React.ReactElement {
 												<DialogContent>
 													<DialogHeader>
 														<DialogTitle>
-															Delete Job Position
+															{t('dialogs.delete.title')}
 														</DialogTitle>
 														<DialogDescription>
-															Are you sure you want to delete &quot;
-															{jobPosition.name}&quot;? This action
-															cannot be undone.
+															{t('dialogs.delete.description', {
+																name: jobPosition.name,
+															})}
 														</DialogDescription>
 													</DialogHeader>
 													<DialogFooter>
@@ -457,7 +484,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 															variant="outline"
 															onClick={() => setDeleteConfirmId(null)}
 														>
-															Cancel
+															{tCommon('cancel')}
 														</Button>
 														<Button
 															variant="destructive"
@@ -469,10 +496,10 @@ export function JobPositionsPageClient(): React.ReactElement {
 															{deleteMutation.isPending ? (
 																<>
 																	<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																	Deleting...
+																	{tCommon('deleting')}
 																</>
 															) : (
-																'Delete'
+																tCommon('delete')
 															)}
 														</Button>
 													</DialogFooter>

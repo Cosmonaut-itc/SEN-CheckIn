@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm, useStore } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 import {
 	Table,
 	TableBody,
@@ -29,16 +30,21 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2, MoreHorizontal, UserCheck, UserX, ScanFace } from 'lucide-react';
+import {
+	Plus,
+	Pencil,
+	Trash2,
+	Search,
+	Loader2,
+	MoreHorizontal,
+	UserCheck,
+	UserX,
+	ScanFace,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import {
@@ -100,20 +106,20 @@ const initialFormValues: EmployeeFormValues = {
 	shiftType: 'DIURNA',
 };
 
-const daysOfWeek: { label: string; value: number }[] = [
-	{ label: 'Sunday', value: 0 },
-	{ label: 'Monday', value: 1 },
-	{ label: 'Tuesday', value: 2 },
- 	{ label: 'Wednesday', value: 3 },
-	{ label: 'Thursday', value: 4 },
-	{ label: 'Friday', value: 5 },
-	{ label: 'Saturday', value: 6 },
+const daysOfWeek: { labelKey: string; value: number }[] = [
+	{ labelKey: 'days.sunday', value: 0 },
+	{ labelKey: 'days.monday', value: 1 },
+	{ labelKey: 'days.tuesday', value: 2 },
+	{ labelKey: 'days.wednesday', value: 3 },
+	{ labelKey: 'days.thursday', value: 4 },
+	{ labelKey: 'days.friday', value: 5 },
+	{ labelKey: 'days.saturday', value: 6 },
 ];
 
-const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; label: string; hint: string }[] = [
-	{ value: 'DIURNA', label: 'Diurna (06:00-20:00)', hint: '8h máximo, 48h semanales' },
-	{ value: 'NOCTURNA', label: 'Nocturna (20:00-06:00)', hint: '7h máximo, 42h semanales' },
-	{ value: 'MIXTA', label: 'Mixta', hint: '7.5h máximo, 45h semanales' },
+const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; labelKey: string }[] = [
+	{ value: 'DIURNA', labelKey: 'shiftTypes.DIURNA' },
+	{ value: 'NOCTURNA', labelKey: 'shiftTypes.NOCTURNA' },
+	{ value: 'MIXTA', labelKey: 'shiftTypes.MIXTA' },
 ];
 
 /**
@@ -150,13 +156,17 @@ const EMPTY_LOCATIONS: Location[] = [];
 export function EmployeesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('Employees');
+	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
-	const [deleteRekognitionConfirmId, setDeleteRekognitionConfirmId] = useState<string | null>(null);
+	const [deleteRekognitionConfirmId, setDeleteRekognitionConfirmId] = useState<string | null>(
+		null,
+	);
 	const [hasCustomCode, setHasCustomCode] = useState<boolean>(false);
 	const [schedule, setSchedule] = useState<EmployeeScheduleEntry[]>(createDefaultSchedule());
 	const [isScheduleLoading, setIsScheduleLoading] = useState<boolean>(false);
@@ -181,7 +191,9 @@ export function EmployeesPageClient(): React.ReactElement {
 		),
 		queryFn: () =>
 			fetchJobPositionsList(
-				organizationId ? { limit: 100, offset: 0, organizationId } : { limit: 100, offset: 0 },
+				organizationId
+					? { limit: 100, offset: 0, organizationId }
+					: { limit: 100, offset: 0 },
 			),
 		enabled: Boolean(organizationId),
 	});
@@ -193,7 +205,9 @@ export function EmployeesPageClient(): React.ReactElement {
 		),
 		queryFn: () =>
 			fetchLocationsList(
-				organizationId ? { limit: 100, offset: 0, organizationId } : { limit: 100, offset: 0 },
+				organizationId
+					? { limit: 100, offset: 0, organizationId }
+					: { limit: 100, offset: 0 },
 			),
 		enabled: Boolean(organizationId),
 	});
@@ -212,15 +226,15 @@ export function EmployeesPageClient(): React.ReactElement {
 		mutationFn: createEmployee,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Employee created successfully');
+				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
-				toast.error(result.error ?? 'Failed to create employee');
+				toast.error(result.error ?? t('toast.createError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to create employee');
+			toast.error(t('toast.createError'));
 		},
 	});
 
@@ -230,15 +244,15 @@ export function EmployeesPageClient(): React.ReactElement {
 		mutationFn: updateEmployee,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Employee updated successfully');
+				toast.success(t('toast.updateSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
-				toast.error(result.error ?? 'Failed to update employee');
+				toast.error(result.error ?? t('toast.updateError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to update employee');
+			toast.error(t('toast.updateError'));
 		},
 	});
 
@@ -248,15 +262,15 @@ export function EmployeesPageClient(): React.ReactElement {
 		mutationFn: deleteEmployee,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Employee deleted successfully');
+				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete employee');
+				toast.error(result.error ?? t('toast.deleteError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to delete employee');
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
@@ -266,15 +280,17 @@ export function EmployeesPageClient(): React.ReactElement {
 		mutationFn: deleteRekognitionUser,
 		onSuccess: (result) => {
 			if (result.success && result.data?.success) {
-				toast.success('Face enrollment data removed');
+				toast.success(t('toast.faceEnrollmentRemoved'));
 				setDeleteRekognitionConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
-				toast.error(result.error ?? result.data?.message ?? 'Failed to remove face enrollment');
+				toast.error(
+					result.error ?? result.data?.message ?? t('toast.faceEnrollmentRemoveError'),
+				);
 			}
 		},
 		onError: () => {
-			toast.error('Failed to remove face enrollment');
+			toast.error(t('toast.faceEnrollmentRemoveError'));
 		},
 	});
 
@@ -283,7 +299,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		defaultValues: initialFormValues,
 		onSubmit: async ({ value }) => {
 			if (!value.locationId) {
-				toast.error('Please select a location');
+				toast.error(t('toast.selectLocation'));
 				return;
 			}
 			if (editingEmployee) {
@@ -304,7 +320,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			} else {
 				// Validate that jobPositionId is selected for new employees
 				if (!value.jobPositionId) {
-					toast.error('Please select a job position');
+					toast.error(t('toast.selectJobPosition'));
 					return;
 				}
 				await createMutation.mutateAsync({
@@ -367,7 +383,13 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 				return [
 					...prev,
-					{ dayOfWeek, startTime: '09:00', endTime: '17:00', isWorkingDay: true, ...updates },
+					{
+						dayOfWeek,
+						startTime: '09:00',
+						endTime: '17:00',
+						isWorkingDay: true,
+						...updates,
+					},
 				];
 			});
 		},
@@ -430,15 +452,18 @@ export function EmployeesPageClient(): React.ReactElement {
 	 *
 	 * @param open - Whether the dialog should be open
 	 */
-	const handleDialogOpenChange = useCallback((open: boolean): void => {
-		setIsDialogOpen(open);
-		if (!open) {
-			setEditingEmployee(null);
-			form.reset();
-			setHasCustomCode(false);
-			setSchedule(createDefaultSchedule());
-		}
-	}, [form]);
+	const handleDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				setEditingEmployee(null);
+				form.reset();
+				setHasCustomCode(false);
+				setSchedule(createDefaultSchedule());
+			}
+		},
+		[form],
+	);
 
 	/**
 	 * Handles employee deletion.
@@ -452,10 +477,8 @@ export function EmployeesPageClient(): React.ReactElement {
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">Employees</h1>
-				<p className="text-muted-foreground">
-					Select an active organization to manage employees.
-				</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
@@ -483,16 +506,14 @@ export function EmployeesPageClient(): React.ReactElement {
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Employees</h1>
-					<p className="text-muted-foreground">
-						Manage employee records and face enrollment
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
 						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
-							Add Employee
+							{t('actions.addEmployee')}
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl lg:max-w-6xl">
@@ -505,12 +526,14 @@ export function EmployeesPageClient(): React.ReactElement {
 						>
 							<DialogHeader>
 								<DialogTitle>
-									{editingEmployee ? 'Edit Employee' : 'Add Employee'}
+									{editingEmployee
+										? t('dialog.title.edit')
+										: t('dialog.title.add')}
 								</DialogTitle>
 								<DialogDescription>
 									{editingEmployee
-										? 'Update the employee details below.'
-										: 'Fill in the details to create a new employee.'}
+										? t('dialog.description.edit')
+										: t('dialog.description.add')}
 								</DialogDescription>
 							</DialogHeader>
 							<div className="grid gap-4 py-4 sm:grid-cols-2">
@@ -519,12 +542,14 @@ export function EmployeesPageClient(): React.ReactElement {
 										name="code"
 										validators={{
 											onChange: ({ value }) =>
-												!value.trim() ? 'Code is required' : undefined,
+												!value.trim()
+													? t('validation.codeRequired')
+													: undefined,
 										}}
 									>
 										{(field) => (
 											<field.TextField
-												label="Code"
+												label={t('fields.code')}
 												onValueChange={(next) => {
 													setHasCustomCode(true);
 													return next;
@@ -538,10 +563,14 @@ export function EmployeesPageClient(): React.ReactElement {
 										name="firstName"
 										validators={{
 											onChange: ({ value }) =>
-												!value.trim() ? 'First name is required' : undefined,
+												!value.trim()
+													? t('validation.firstNameRequired')
+													: undefined,
 										}}
 									>
-										{(field) => <field.TextField label="First Name" />}
+										{(field) => (
+											<field.TextField label={t('fields.firstName')} />
+										)}
 									</form.AppField>
 								</div>
 								<div className="col-span-2 sm:col-span-1">
@@ -549,39 +578,59 @@ export function EmployeesPageClient(): React.ReactElement {
 										name="lastName"
 										validators={{
 											onChange: ({ value }) =>
-												!value.trim() ? 'Last name is required' : undefined,
+												!value.trim()
+													? t('validation.lastNameRequired')
+													: undefined,
 										}}
 									>
-										{(field) => <field.TextField label="Last Name" />}
+										{(field) => (
+											<field.TextField label={t('fields.lastName')} />
+										)}
 									</form.AppField>
 								</div>
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField name="email">
 										{(field) => (
-											<field.TextField label="Email" type="email" placeholder="Optional" />
+											<field.TextField
+												label={t('fields.email')}
+												type="email"
+												placeholder={tCommon('optional')}
+											/>
 										)}
 									</form.AppField>
 								</div>
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField name="phone">
-										{(field) => <field.TextField label="Phone" placeholder="Optional" />}
+										{(field) => (
+											<field.TextField
+												label={t('fields.phone')}
+												placeholder={tCommon('optional')}
+											/>
+										)}
 									</form.AppField>
 								</div>
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField
 										name="locationId"
 										validators={{
-											onChange: ({ value }) => (!value ? 'Location is required' : undefined),
+											onChange: ({ value }) =>
+												!value
+													? t('validation.locationRequired')
+													: undefined,
 										}}
 									>
 										{(field) => (
 											<field.SelectField
-												label="Location"
+												label={t('fields.location')}
 												options={locations.map((location) => ({
 													value: location.id,
 													label: location.name,
 												}))}
-												placeholder={isLoadingLocations ? 'Loading...' : 'Select location'}
+												placeholder={
+													isLoadingLocations
+														? tCommon('loading')
+														: t('placeholders.selectLocation')
+												}
 												disabled={isLoadingLocations}
 											/>
 										)}
@@ -592,18 +641,22 @@ export function EmployeesPageClient(): React.ReactElement {
 										name="jobPositionId"
 										validators={{
 											onChange: ({ value }) =>
-												!editingEmployee && !value ? 'Job position is required' : undefined,
+												!editingEmployee && !value
+													? t('validation.jobPositionRequired')
+													: undefined,
 										}}
 									>
 										{(field) => (
 											<field.SelectField
-												label="Job Position"
+												label={t('fields.jobPosition')}
 												options={jobPositions.map((position) => ({
 													value: position.id,
 													label: position.name,
 												}))}
 												placeholder={
-													isLoadingJobPositions ? 'Loading...' : 'Select job position'
+													isLoadingJobPositions
+														? tCommon('loading')
+														: t('placeholders.selectJobPosition')
 												}
 												disabled={isLoadingJobPositions}
 											/>
@@ -612,20 +665,31 @@ export function EmployeesPageClient(): React.ReactElement {
 								</div>
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField name="department">
-										{(field) => <field.TextField label="Department" placeholder="Optional" />}
+										{(field) => (
+											<field.TextField
+												label={t('fields.department')}
+												placeholder={tCommon('optional')}
+											/>
+										)}
 									</form.AppField>
 								</div>
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField name="status">
 										{(field) => (
 											<field.SelectField
-												label="Status"
+												label={t('fields.status')}
 												options={[
-													{ value: 'ACTIVE', label: 'Active' },
-													{ value: 'INACTIVE', label: 'Inactive' },
-													{ value: 'ON_LEAVE', label: 'On Leave' },
+													{ value: 'ACTIVE', label: t('status.ACTIVE') },
+													{
+														value: 'INACTIVE',
+														label: t('status.INACTIVE'),
+													},
+													{
+														value: 'ON_LEAVE',
+														label: t('status.ON_LEAVE'),
+													},
 												]}
-												placeholder="Select status"
+												placeholder={t('placeholders.selectStatus')}
 											/>
 										)}
 									</form.AppField>
@@ -634,12 +698,12 @@ export function EmployeesPageClient(): React.ReactElement {
 									<form.AppField name="shiftType">
 										{(field) => (
 											<field.SelectField
-												label="Shift Type"
+												label={t('fields.shiftType')}
 												options={shiftTypeOptions.map((option) => ({
 													value: option.value,
-													label: `${option.label} — ${option.hint}`,
+													label: t(option.labelKey),
 												}))}
-												placeholder="Select shift type"
+												placeholder={t('placeholders.selectShiftType')}
 											/>
 										)}
 									</form.AppField>
@@ -648,27 +712,30 @@ export function EmployeesPageClient(): React.ReactElement {
 								<div className="col-span-2 space-y-2 rounded-md border p-3">
 									<div className="flex items-center justify-between">
 										<div>
-											<p className="text-sm font-medium">Schedule</p>
+											<p className="text-sm font-medium">
+												{t('schedule.title')}
+											</p>
 											<p className="text-xs text-muted-foreground">
-												Set working days and shift times
+												{t('schedule.subtitle')}
 											</p>
 										</div>
 										{isScheduleLoading && (
 											<div className="flex items-center gap-2 text-xs text-muted-foreground">
 												<Loader2 className="h-4 w-4 animate-spin" />
-												Loading schedule...
+												{t('schedule.loading')}
 											</div>
 										)}
 									</div>
 									<div className="grid gap-2">
 										{daysOfWeek.map((day) => {
-											const entry =
-												schedule.find((item) => item.dayOfWeek === day.value) ?? {
-													dayOfWeek: day.value,
-													startTime: '09:00',
-													endTime: '17:00',
-													isWorkingDay: day.value >= 1 && day.value <= 5,
-												};
+											const entry = schedule.find(
+												(item) => item.dayOfWeek === day.value,
+											) ?? {
+												dayOfWeek: day.value,
+												startTime: '09:00',
+												endTime: '17:00',
+												isWorkingDay: day.value >= 1 && day.value <= 5,
+											};
 											return (
 												<div
 													key={day.value}
@@ -685,11 +752,13 @@ export function EmployeesPageClient(): React.ReactElement {
 																})
 															}
 														/>
-														<span className="text-sm">{day.label}</span>
+														<span className="text-sm">
+															{t(day.labelKey)}
+														</span>
 													</div>
 													<div className="col-span-4">
 														<Label className="text-xs text-muted-foreground">
-															Start
+															{t('schedule.start')}
 														</Label>
 														<Input
 															type="time"
@@ -704,7 +773,7 @@ export function EmployeesPageClient(): React.ReactElement {
 													</div>
 													<div className="col-span-4">
 														<Label className="text-xs text-muted-foreground">
-															End
+															{t('schedule.end')}
 														</Label>
 														<Input
 															type="time"
@@ -725,7 +794,10 @@ export function EmployeesPageClient(): React.ReactElement {
 							</div>
 							<DialogFooter>
 								<form.AppForm>
-									<form.SubmitButton label="Save" loadingLabel="Saving..." />
+									<form.SubmitButton
+										label={tCommon('save')}
+										loadingLabel={tCommon('saving')}
+									/>
 								</form.AppForm>
 							</DialogFooter>
 						</form>
@@ -737,7 +809,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						placeholder="Search employees..."
+						placeholder={t('search.placeholder')}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						className="pl-9"
@@ -749,17 +821,19 @@ export function EmployeesPageClient(): React.ReactElement {
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Code</TableHead>
-							<TableHead>Name</TableHead>
-							<TableHead>Job Position</TableHead>
-							<TableHead>Location</TableHead>
-							<TableHead>Email</TableHead>
-							<TableHead>Department</TableHead>
-							<TableHead>Shift</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead>Face</TableHead>
-							<TableHead>Created</TableHead>
-							<TableHead className="w-[100px]">Actions</TableHead>
+							<TableHead>{t('table.headers.code')}</TableHead>
+							<TableHead>{t('table.headers.name')}</TableHead>
+							<TableHead>{t('table.headers.jobPosition')}</TableHead>
+							<TableHead>{t('table.headers.location')}</TableHead>
+							<TableHead>{t('table.headers.email')}</TableHead>
+							<TableHead>{t('table.headers.department')}</TableHead>
+							<TableHead>{t('table.headers.shift')}</TableHead>
+							<TableHead>{t('table.headers.status')}</TableHead>
+							<TableHead>{t('table.headers.face')}</TableHead>
+							<TableHead>{t('table.headers.created')}</TableHead>
+							<TableHead className="w-[100px]">
+								{t('table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -776,7 +850,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						) : employees.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={11} className="h-24 text-center">
-									No employees found.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -797,7 +871,8 @@ export function EmployeesPageClient(): React.ReactElement {
 														</span>
 													</TooltipTrigger>
 													<TooltipContent>
-														{locationLookup.get(employee.locationId) ?? 'Unknown location'}
+														{locationLookup.get(employee.locationId) ??
+															t('table.unknownLocation')}
 													</TooltipContent>
 												</Tooltip>
 											</TooltipProvider>
@@ -807,10 +882,14 @@ export function EmployeesPageClient(): React.ReactElement {
 									</TableCell>
 									<TableCell>{employee.email ?? '-'}</TableCell>
 									<TableCell>{employee.department ?? '-'}</TableCell>
-									<TableCell>{employee.shiftType ?? '-'}</TableCell>
+									<TableCell>
+										{employee.shiftType
+											? t(`shiftTypeLabels.${employee.shiftType}`)
+											: '-'}
+									</TableCell>
 									<TableCell>
 										<Badge variant={statusVariants[employee.status]}>
-											{employee.status}
+											{t(`status.${employee.status}`)}
 										</Badge>
 									</TableCell>
 									<TableCell>
@@ -820,50 +899,65 @@ export function EmployeesPageClient(): React.ReactElement {
 													{employee.rekognitionUserId ? (
 														<Badge variant="default" className="gap-1">
 															<UserCheck className="h-3 w-3" />
-															Enrolled
+															{t('face.enrolled')}
 														</Badge>
 													) : (
-														<Badge variant="outline" className="gap-1 text-muted-foreground">
+														<Badge
+															variant="outline"
+															className="gap-1 text-muted-foreground"
+														>
 															<UserX className="h-3 w-3" />
-															Not enrolled
+															{t('face.notEnrolled')}
 														</Badge>
 													)}
 												</TooltipTrigger>
 												<TooltipContent>
 													{employee.rekognitionUserId
-														? 'Face recognition is set up for this employee'
-														: 'Face recognition not yet configured'}
+														? t('face.tooltip.enrolled')
+														: t('face.tooltip.notEnrolled')}
 												</TooltipContent>
 											</Tooltip>
 										</TooltipProvider>
 									</TableCell>
 									<TableCell>
-										{format(new Date(employee.createdAt), 'MMM d, yyyy')}
+										{format(new Date(employee.createdAt), t('dateFormat'))}
 									</TableCell>
 									<TableCell>
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<Button variant="ghost" size="icon">
 													<MoreHorizontal className="h-4 w-4" />
-													<span className="sr-only">Open menu</span>
+													<span className="sr-only">
+														{t('menu.open')}
+													</span>
 												</Button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end">
-												<DropdownMenuItem onClick={() => handleEdit(employee)}>
+												<DropdownMenuItem
+													onClick={() => handleEdit(employee)}
+												>
 													<Pencil className="mr-2 h-4 w-4" />
-													Edit
+													{tCommon('edit')}
 												</DropdownMenuItem>
-												<DropdownMenuItem onClick={() => handleOpenEnrollDialog(employee)}>
+												<DropdownMenuItem
+													onClick={() => handleOpenEnrollDialog(employee)}
+												>
 													<ScanFace className="mr-2 h-4 w-4" />
-													{employee.rekognitionUserId ? 'Re-enroll face' : 'Enroll face'}
+													{employee.rekognitionUserId
+														? t('menu.reEnrollFace')
+														: t('menu.enrollFace')}
 												</DropdownMenuItem>
 												{employee.rekognitionUserId && (
 													<DropdownMenuItem
-														onClick={() => setDeleteRekognitionConfirmId(employee.id)}
+														onClick={() =>
+															setDeleteRekognitionConfirmId(
+																employee.id,
+															)
+														}
 														className="text-orange-600 focus:text-orange-600"
 													>
 														<UserX className="mr-2 h-4 w-4" />
-														Remove face enrollment
+														{t('menu.removeFaceEnrollment')}
 													</DropdownMenuItem>
 												)}
 												<DropdownMenuSeparator />
@@ -872,7 +966,7 @@ export function EmployeesPageClient(): React.ReactElement {
 													className="text-destructive focus:text-destructive"
 												>
 													<Trash2 className="mr-2 h-4 w-4" />
-													Delete employee
+													{t('menu.deleteEmployee')}
 												</DropdownMenuItem>
 											</DropdownMenuContent>
 										</DropdownMenu>
@@ -886,13 +980,18 @@ export function EmployeesPageClient(): React.ReactElement {
 										>
 											<DialogContent>
 												<DialogHeader>
-													<DialogTitle>Delete Employee</DialogTitle>
+													<DialogTitle>
+														{t('dialogs.deleteEmployee.title')}
+													</DialogTitle>
 													<DialogDescription>
-														Are you sure you want to delete {employee.firstName}{' '}
-														{employee.lastName}? This action cannot be undone.
+														{t('dialogs.deleteEmployee.description', {
+															name: `${employee.firstName} ${employee.lastName}`.trim(),
+														})}
 														{employee.rekognitionUserId && (
 															<span className="block mt-2 text-orange-600">
-																This will also remove their face enrollment data.
+																{t(
+																	'dialogs.deleteEmployee.faceNote',
+																)}
 															</span>
 														)}
 													</DialogDescription>
@@ -902,7 +1001,7 @@ export function EmployeesPageClient(): React.ReactElement {
 														variant="outline"
 														onClick={() => setDeleteConfirmId(null)}
 													>
-														Cancel
+														{tCommon('cancel')}
 													</Button>
 													<Button
 														variant="destructive"
@@ -912,10 +1011,10 @@ export function EmployeesPageClient(): React.ReactElement {
 														{deleteMutation.isPending ? (
 															<>
 																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																Deleting...
+																{tCommon('deleting')}
 															</>
 														) : (
-															'Delete'
+															tCommon('delete')
 														)}
 													</Button>
 												</DialogFooter>
@@ -926,37 +1025,52 @@ export function EmployeesPageClient(): React.ReactElement {
 										<Dialog
 											open={deleteRekognitionConfirmId === employee.id}
 											onOpenChange={(open) =>
-												setDeleteRekognitionConfirmId(open ? employee.id : null)
+												setDeleteRekognitionConfirmId(
+													open ? employee.id : null,
+												)
 											}
 										>
 											<DialogContent>
 												<DialogHeader>
-													<DialogTitle>Remove Face Enrollment</DialogTitle>
+													<DialogTitle>
+														{t('dialogs.removeFaceEnrollment.title')}
+													</DialogTitle>
 													<DialogDescription>
-														Are you sure you want to remove the face enrollment for{' '}
-														{employee.firstName} {employee.lastName}? They will need to
-														be re-enrolled to use face recognition.
+														{t(
+															'dialogs.removeFaceEnrollment.description',
+															{
+																name: `${employee.firstName} ${employee.lastName}`.trim(),
+															},
+														)}
 													</DialogDescription>
 												</DialogHeader>
 												<DialogFooter>
 													<Button
 														variant="outline"
-														onClick={() => setDeleteRekognitionConfirmId(null)}
+														onClick={() =>
+															setDeleteRekognitionConfirmId(null)
+														}
 													>
-														Cancel
+														{tCommon('cancel')}
 													</Button>
 													<Button
 														variant="destructive"
-														onClick={() => handleDeleteRekognition(employee.id)}
-														disabled={deleteRekognitionMutation.isPending}
+														onClick={() =>
+															handleDeleteRekognition(employee.id)
+														}
+														disabled={
+															deleteRekognitionMutation.isPending
+														}
 													>
 														{deleteRekognitionMutation.isPending ? (
 															<>
 																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																Removing...
+																{tCommon('removing')}
 															</>
 														) : (
-															'Remove Enrollment'
+															t(
+																'dialogs.removeFaceEnrollment.confirm',
+															)
 														)}
 													</Button>
 												</DialogFooter>

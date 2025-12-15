@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useTranslations } from 'next-intl';
 import {
 	Table,
 	TableBody,
@@ -69,10 +70,13 @@ const statusVariants: Record<DeviceStatus, 'default' | 'secondary' | 'destructiv
 export function DevicesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('Devices');
+	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingDevice, setEditingDevice] = useState<Device | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+	const isOrgSelected = Boolean(organizationId);
 
 	// Build query params - only include search if it has a value
 	const baseParams = { limit: 100, offset: 0, organizationId };
@@ -92,19 +96,16 @@ export function DevicesPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
-	const locations = useMemo(
-		() => (locationsData?.data ?? []) as Location[],
-		[locationsData],
-	);
+	const locations = useMemo(() => (locationsData?.data ?? []) as Location[], [locationsData]);
 	const locationOptions = useMemo(
 		() => [
-			{ value: NONE_LOCATION_VALUE, label: 'No location' },
+			{ value: NONE_LOCATION_VALUE, label: t('locationOptions.noLocation') },
 			...locations.map((loc) => ({
 				value: loc.id,
 				label: loc.name || loc.code,
 			})),
 		],
-		[locations],
+		[locations, t],
 	);
 
 	const locationLookup = useMemo(
@@ -120,15 +121,15 @@ export function DevicesPageClient(): React.ReactElement {
 		mutationFn: updateDevice,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Device updated successfully');
+				toast.success(t('toast.updateSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
 			} else {
-				toast.error(result.error ?? 'Failed to update device');
+				toast.error(result.error ?? t('toast.updateError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to update device');
+			toast.error(t('toast.updateError'));
 		},
 	});
 
@@ -138,51 +139,51 @@ export function DevicesPageClient(): React.ReactElement {
 		mutationFn: deleteDevice,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Device deleted successfully');
+				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.devices.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete device');
+				toast.error(result.error ?? t('toast.deleteError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to delete device');
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
-// TanStack Form instance (after mutations to avoid TDZ)
-const form = useAppForm({
-	defaultValues: {
-		code: '',
-		name: '',
-	deviceType: '',
-	status: 'OFFLINE',
-	locationId: NONE_LOCATION_VALUE,
-	},
-	onSubmit: async ({ value }: { value: DeviceFormValues }) => {
-		if (!editingDevice) {
-			toast.error('Select a device to edit before saving changes.');
-			return;
-		}
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useAppForm({
+		defaultValues: {
+			code: '',
+			name: '',
+			deviceType: '',
+			status: 'OFFLINE',
+			locationId: NONE_LOCATION_VALUE,
+		},
+		onSubmit: async ({ value }: { value: DeviceFormValues }) => {
+			if (!editingDevice) {
+				toast.error(t('toast.selectDeviceToEdit'));
+				return;
+			}
 
-		const locationId =
-			value.locationId && value.locationId !== NONE_LOCATION_VALUE
-				? value.locationId
-				: undefined;
+			const locationId =
+				value.locationId && value.locationId !== NONE_LOCATION_VALUE
+					? value.locationId
+					: undefined;
 
-		await updateMutation.mutateAsync({
-			id: editingDevice.id,
-			code: value.code,
-			name: value.name || undefined,
-			deviceType: value.deviceType || undefined,
-			status: value.status,
-			locationId,
-		});
-		setIsDialogOpen(false);
-		setEditingDevice(null);
-		form.reset();
-	},
-});
+			await updateMutation.mutateAsync({
+				id: editingDevice.id,
+				code: value.code,
+				name: value.name || undefined,
+				deviceType: value.deviceType || undefined,
+				status: value.status,
+				locationId,
+			});
+			setIsDialogOpen(false);
+			setEditingDevice(null);
+			form.reset();
+		},
+	});
 
 	/**
 	 * Opens the dialog for editing an existing device.
@@ -236,16 +237,22 @@ const form = useAppForm({
 		deleteMutation.mutate(id);
 	};
 
+	if (!isOrgSelected) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('noOrganization')}</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-start justify-between">
 				<div className="space-y-1.5">
-					<h1 className="text-3xl font-bold tracking-tight">Devices</h1>
-					<p className="text-muted-foreground">Manage check-in kiosks and devices.</p>
-					<p className="text-sm text-muted-foreground">
-						Devices are registered automatically from the mobile app after OAuth approval.
-						Use this page to rename devices, assign locations, or remove hardware that is no longer in use.
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
+					<p className="text-sm text-muted-foreground">{t('description')}</p>
 				</div>
 			</div>
 
@@ -253,57 +260,73 @@ const form = useAppForm({
 				<DialogContent className="sm:max-w-[425px]">
 					<form onSubmit={handleSubmit}>
 						<DialogHeader>
-							<DialogTitle>Edit Device</DialogTitle>
-							<DialogDescription>Update the device details below.</DialogDescription>
+							<DialogTitle>{t('dialog.title')}</DialogTitle>
+							<DialogDescription>{t('dialog.description')}</DialogDescription>
 						</DialogHeader>
 						<div className="grid gap-4 py-4">
 							<form.AppField
 								name="code"
 								validators={{
-									onChange: ({ value }) => (!value.trim() ? 'Code is required' : undefined),
+									onChange: ({ value }) =>
+										!value.trim() ? t('validation.codeRequired') : undefined,
 								}}
 							>
-								{(field) => <field.TextField label="Code" />}
+								{(field) => <field.TextField label={t('fields.code')} />}
 							</form.AppField>
 							<form.AppField name="name">
-								{(field) => <field.TextField label="Name" placeholder="Optional" />}
+								{(field) => (
+									<field.TextField
+										label={t('fields.name')}
+										placeholder={tCommon('optional')}
+									/>
+								)}
 							</form.AppField>
 							<form.AppField name="deviceType">
 								{(field) => (
-									<field.TextField label="Type" placeholder="TABLET, KIOSK, MOBILE" />
+									<field.TextField
+										label={t('fields.type')}
+										placeholder={t('placeholders.deviceType')}
+									/>
 								)}
 							</form.AppField>
 							<form.AppField
 								name="status"
 								validators={{
-									onChange: ({ value }) => (!value ? 'Status is required' : undefined),
+									onChange: ({ value }) =>
+										!value ? t('validation.statusRequired') : undefined,
 								}}
 							>
 								{(field) => (
 									<field.SelectField
-										label="Status"
+										label={t('fields.status')}
 										options={[
-											{ value: 'ONLINE', label: 'Online' },
-											{ value: 'OFFLINE', label: 'Offline' },
-											{ value: 'MAINTENANCE', label: 'Maintenance' },
+											{ value: 'ONLINE', label: t('status.ONLINE') },
+											{ value: 'OFFLINE', label: t('status.OFFLINE') },
+											{
+												value: 'MAINTENANCE',
+												label: t('status.MAINTENANCE'),
+											},
 										]}
-										placeholder="Select status"
+										placeholder={t('placeholders.selectStatus')}
 									/>
 								)}
 							</form.AppField>
 							<form.AppField name="locationId">
 								{(field) => (
 									<field.SelectField
-										label="Location"
+										label={t('fields.location')}
 										options={locationOptions}
-										placeholder="Select location (optional)"
+										placeholder={t('placeholders.selectLocationOptional')}
 									/>
 								)}
 							</form.AppField>
 						</div>
 						<DialogFooter>
 							<form.AppForm>
-								<form.SubmitButton label="Save changes" loadingLabel="Saving..." />
+								<form.SubmitButton
+									label={t('actions.saveChanges')}
+									loadingLabel={tCommon('saving')}
+								/>
 							</form.AppForm>
 						</DialogFooter>
 					</form>
@@ -314,7 +337,7 @@ const form = useAppForm({
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
-						placeholder="Search devices..."
+						placeholder={t('search.placeholder')}
 						value={search}
 						onChange={(e) => setSearch(e.target.value)}
 						className="pl-9"
@@ -326,14 +349,16 @@ const form = useAppForm({
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Code</TableHead>
-							<TableHead>Name</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Location</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead>Last Heartbeat</TableHead>
-							<TableHead>Created</TableHead>
-							<TableHead className="w-[100px]">Actions</TableHead>
+							<TableHead>{t('table.headers.code')}</TableHead>
+							<TableHead>{t('table.headers.name')}</TableHead>
+							<TableHead>{t('table.headers.type')}</TableHead>
+							<TableHead>{t('table.headers.location')}</TableHead>
+							<TableHead>{t('table.headers.status')}</TableHead>
+							<TableHead>{t('table.headers.lastHeartbeat')}</TableHead>
+							<TableHead>{t('table.headers.created')}</TableHead>
+							<TableHead className="w-[100px]">
+								{t('table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -350,7 +375,7 @@ const form = useAppForm({
 						) : devices.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={8} className="h-24 text-center">
-									No devices found.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
@@ -361,21 +386,25 @@ const form = useAppForm({
 									<TableCell>{device.deviceType ?? '-'}</TableCell>
 									<TableCell>
 										{device.locationId
-											? locationLookup.get(device.locationId) ?? device.locationId
+											? (locationLookup.get(device.locationId) ??
+												device.locationId)
 											: '-'}
 									</TableCell>
 									<TableCell>
 										<Badge variant={statusVariants[device.status]}>
-											{device.status}
+											{t(`status.${device.status}`)}
 										</Badge>
 									</TableCell>
 									<TableCell>
 										{device.lastHeartbeat
-											? format(new Date(device.lastHeartbeat), 'MMM d, yyyy HH:mm')
+											? format(
+													new Date(device.lastHeartbeat),
+													t('dateTimeFormat'),
+												)
 											: '-'}
 									</TableCell>
 									<TableCell>
-										{format(new Date(device.createdAt), 'MMM d, yyyy')}
+										{format(new Date(device.createdAt), t('dateFormat'))}
 									</TableCell>
 									<TableCell>
 										<div className="flex items-center gap-2">
@@ -399,10 +428,13 @@ const form = useAppForm({
 												</DialogTrigger>
 												<DialogContent>
 													<DialogHeader>
-														<DialogTitle>Delete Device</DialogTitle>
+														<DialogTitle>
+															{t('dialogs.delete.title')}
+														</DialogTitle>
 														<DialogDescription>
-															Are you sure you want to delete {device.name || device.code}?
-															This action cannot be undone.
+															{t('dialogs.delete.description', {
+																name: device.name || device.code,
+															})}
 														</DialogDescription>
 													</DialogHeader>
 													<DialogFooter>
@@ -410,13 +442,13 @@ const form = useAppForm({
 															variant="outline"
 															onClick={() => setDeleteConfirmId(null)}
 														>
-															Cancel
+															{tCommon('cancel')}
 														</Button>
 														<Button
 															variant="destructive"
 															onClick={() => handleDelete(device.id)}
 														>
-															Delete
+															{tCommon('delete')}
 														</Button>
 													</DialogFooter>
 												</DialogContent>

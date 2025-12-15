@@ -8,25 +8,42 @@ import { fetchPayrollSettings } from '@/lib/client-functions';
 import { updatePayrollSettingsAction } from '@/actions/payroll';
 import { useAppForm } from '@/lib/forms';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 const dayOptions = [
-	{ value: '0', label: 'Sunday' },
-	{ value: '1', label: 'Monday' },
-	{ value: '2', label: 'Tuesday' },
-	{ value: '3', label: 'Wednesday' },
-	{ value: '4', label: 'Thursday' },
-	{ value: '5', label: 'Friday' },
-	{ value: '6', label: 'Saturday' },
+	{ value: '0', labelKey: 'days.sunday' },
+	{ value: '1', labelKey: 'days.monday' },
+	{ value: '2', labelKey: 'days.tuesday' },
+	{ value: '3', labelKey: 'days.wednesday' },
+	{ value: '4', labelKey: 'days.thursday' },
+	{ value: '5', labelKey: 'days.friday' },
+	{ value: '6', labelKey: 'days.saturday' },
 ];
 
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Error thrown when a mandatory rest day date key is invalid.
+ */
+class InvalidMandatoryRestDayDateError extends Error {
+	public readonly dateKey: string;
+
+	/**
+	 * @param dateKey - The invalid date key value
+	 */
+	constructor(dateKey: string) {
+		super('Invalid mandatory rest day date key');
+		this.name = 'InvalidMandatoryRestDayDateError';
+		this.dateKey = dateKey;
+	}
+}
 
 /**
  * Parses a newline-separated textarea value into sorted, unique date keys.
  *
  * @param value - Newline-separated list of YYYY-MM-DD date keys
  * @returns Sorted unique YYYY-MM-DD date keys
- * @throws When any non-empty line is not in YYYY-MM-DD format
+ * @throws InvalidMandatoryRestDayDateError when any non-empty line is not in YYYY-MM-DD format
  */
 function parseAdditionalMandatoryRestDaysText(value: string): string[] {
 	const lines = value
@@ -36,7 +53,7 @@ function parseAdditionalMandatoryRestDaysText(value: string): string[] {
 
 	for (const line of lines) {
 		if (!DATE_KEY_REGEX.test(line)) {
-			throw new Error(`Invalid date "${line}". Use YYYY-MM-DD (one per line).`);
+			throw new InvalidMandatoryRestDayDateError(line);
 		}
 	}
 
@@ -47,6 +64,8 @@ function parseAdditionalMandatoryRestDaysText(value: string): string[] {
 
 export function PayrollSettingsClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const t = useTranslations('PayrollSettings');
+	const tCommon = useTranslations('Common');
 
 	const { data, isLoading } = useQuery({
 		queryKey: queryKeys.payrollSettings.current(undefined),
@@ -58,15 +77,17 @@ export function PayrollSettingsClient(): React.ReactElement {
 		mutationFn: updatePayrollSettingsAction,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Payroll settings saved');
+				toast.success(t('toast.saveSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.payrollSettings.all });
-				queryClient.invalidateQueries({ queryKey: queryKeys.payrollSettings.current(undefined) });
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.payrollSettings.current(undefined),
+				});
 			} else {
-				toast.error(result.error ?? 'Failed to save payroll settings');
+				toast.error(result.error ?? t('toast.saveError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to save payroll settings');
+			toast.error(t('toast.saveError'));
 		},
 	});
 
@@ -77,9 +98,21 @@ export function PayrollSettingsClient(): React.ReactElement {
 			additionalMandatoryRestDaysText: '',
 		},
 		onSubmit: async ({ value }) => {
-			const additionalMandatoryRestDays = parseAdditionalMandatoryRestDaysText(
-				value.additionalMandatoryRestDaysText,
-			);
+			let additionalMandatoryRestDays: string[];
+			try {
+				additionalMandatoryRestDays = parseAdditionalMandatoryRestDaysText(
+					value.additionalMandatoryRestDaysText,
+				);
+			} catch (error) {
+				if (error instanceof InvalidMandatoryRestDayDateError) {
+					toast.error(t('validation.invalidDate', { date: error.dateKey }));
+					return;
+				}
+
+				toast.error(t('validation.invalidDates'));
+				return;
+			}
+
 			await mutation.mutateAsync({
 				weekStartDay: Number(value.weekStartDay),
 				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
@@ -104,16 +137,14 @@ export function PayrollSettingsClient(): React.ReactElement {
 	return (
 		<div className="space-y-4">
 			<div>
-				<h1 className="text-3xl font-bold tracking-tight">Payroll Settings</h1>
-				<p className="text-muted-foreground">
-					Configure the start of the week to align weekly and biweekly payroll periods and set overtime enforcement.
-				</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('subtitle')}</p>
 			</div>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Week Start</CardTitle>
-					<CardDescription>Used to calculate weekly and biweekly pay periods.</CardDescription>
+					<CardTitle>{t('weekStart.title')}</CardTitle>
+					<CardDescription>{t('weekStart.description')}</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<form
@@ -126,9 +157,14 @@ export function PayrollSettingsClient(): React.ReactElement {
 						<form.AppField name="weekStartDay">
 							{(field) => (
 								<field.SelectField
-									label="Start of week"
-									options={dayOptions}
-									placeholder={isLoading ? 'Loading...' : 'Select day'}
+									label={t('weekStart.label')}
+									options={dayOptions.map((opt) => ({
+										value: opt.value,
+										label: t(opt.labelKey),
+									}))}
+									placeholder={
+										isLoading ? tCommon('loading') : t('weekStart.selectDay')
+									}
 									disabled={isLoading || mutation.isPending}
 								/>
 							)}
@@ -136,12 +172,22 @@ export function PayrollSettingsClient(): React.ReactElement {
 						<form.AppField name="overtimeEnforcement">
 							{(field) => (
 								<field.SelectField
-									label="Overtime enforcement"
+									label={t('overtimeEnforcement.label')}
 									options={[
-										{ value: 'WARN', label: 'Advertir (permitir con avisos)' },
-										{ value: 'BLOCK', label: 'Bloquear si excede límites' },
+										{
+											value: 'WARN',
+											label: t('overtimeEnforcement.options.WARN'),
+										},
+										{
+											value: 'BLOCK',
+											label: t('overtimeEnforcement.options.BLOCK'),
+										},
 									]}
-									placeholder={isLoading ? 'Loading...' : 'Select enforcement'}
+									placeholder={
+										isLoading
+											? tCommon('loading')
+											: t('overtimeEnforcement.selectEnforcement')
+									}
 									disabled={isLoading || mutation.isPending}
 								/>
 							)}
@@ -154,34 +200,39 @@ export function PayrollSettingsClient(): React.ReactElement {
 										parseAdditionalMandatoryRestDaysText(value);
 										return undefined;
 									} catch (error) {
-										return error instanceof Error ? error.message : 'Invalid dates';
+										if (error instanceof InvalidMandatoryRestDayDateError) {
+											return t('validation.invalidDate', {
+												date: error.dateKey,
+											});
+										}
+										return t('validation.invalidDates');
 									}
 								},
 							}}
 						>
 							{(field) => (
 								<field.TextareaField
-									label="Días de descanso obligatorio extra"
+									label={t('additionalMandatoryRestDays.label')}
 									placeholder="YYYY-MM-DD"
-									description="Uno por línea. Útil para jornada electoral (LFT Art. 74 fr. IX) y descansos locales."
+									description={t('additionalMandatoryRestDays.description')}
 									rows={4}
 								/>
 							)}
 						</form.AppField>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
-							<p className="font-medium text-foreground">Reglas legales de horas extra</p>
+							<p className="font-medium text-foreground">{t('legalRules.title')}</p>
 							<ul className="list-disc pl-4">
-								<li>Máximo 3 horas extra por día (3 días por semana)</li>
-								<li>Primeras 9 horas extra semanales: pago doble</li>
-								<li>Horas extra adicionales: pago triple</li>
-								<li>Prima dominical: 25% adicional si se trabaja en domingo</li>
-								<li>Día de descanso obligatorio trabajado: +2× salario diario (total 3×)</li>
+								<li>{t('legalRules.items.maxOvertimePerDay')}</li>
+								<li>{t('legalRules.items.firstNineDouble')}</li>
+								<li>{t('legalRules.items.additionalTriple')}</li>
+								<li>{t('legalRules.items.sundayPremium')}</li>
+								<li>{t('legalRules.items.mandatoryRestDay')}</li>
 							</ul>
 						</div>
 						<form.AppForm>
 							<form.SubmitButton
-								label="Save"
-								loadingLabel="Saving..."
+								label={tCommon('save')}
+								loadingLabel={tCommon('saving')}
 								className="mt-2"
 							/>
 						</form.AppForm>

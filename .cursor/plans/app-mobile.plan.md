@@ -66,11 +66,14 @@ Update `apps/mobile/app.json` - add camera plugin configuration:
 
 ```json
 {
-  "plugins": [
-    ["expo-camera", {
-      "cameraPermission": "Allow SEN-CheckIn to access your camera for attendance verification"
-    }]
-  ]
+	"plugins": [
+		[
+			"expo-camera",
+			{
+				"cameraPermission": "Allow SEN-CheckIn to access your camera for attendance verification"
+			}
+		]
+	]
 }
 ```
 

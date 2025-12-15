@@ -815,7 +815,10 @@ export async function fetchCalendarServer(
 	const response = await api.scheduling.calendar.get({
 		$query: {
 			...params,
-			startDate: typeof params.startDate === 'string' ? new Date(params.startDate) : params.startDate,
+			startDate:
+				typeof params.startDate === 'string'
+					? new Date(params.startDate)
+					: params.startDate,
 			endDate: typeof params.endDate === 'string' ? new Date(params.endDate) : params.endDate,
 		},
 	});

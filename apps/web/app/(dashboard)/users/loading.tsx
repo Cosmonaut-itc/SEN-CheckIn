@@ -9,4 +9,3 @@ import { UsersSkeleton } from '@/components/skeletons';
 export default function UsersLoading() {
 	return <UsersSkeleton />;
 }
-

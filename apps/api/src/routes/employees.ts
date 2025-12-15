@@ -206,7 +206,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			const results = await db
@@ -383,7 +390,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (schedule && scheduleTemplateId) {
 				set.status = 400;
-				return { error: 'Provide either a scheduleTemplateId or a custom schedule, not both' };
+				return {
+					error: 'Provide either a scheduleTemplateId or a custom schedule, not both',
+				};
 			}
 
 			let templateDays: {
@@ -597,7 +606,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (body.schedule && body.scheduleTemplateId) {
 				set.status = 400;
-				return { error: 'Provide either a scheduleTemplateId or a custom schedule, not both' };
+				return {
+					error: 'Provide either a scheduleTemplateId or a custom schedule, not both',
+				};
 			}
 
 			let templateDays: {
@@ -657,10 +668,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			await db.update(employee).set(updatePayload).where(eq(employee.id, id));
 
-			let nextSchedule:
-				| NonNullable<typeof schedule>
-				| typeof templateDays
-				| undefined = undefined;
+			let nextSchedule: NonNullable<typeof schedule> | typeof templateDays | undefined =
+				undefined;
 
 			if (schedule !== undefined) {
 				nextSchedule = schedule;
@@ -733,7 +742,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if employee exists

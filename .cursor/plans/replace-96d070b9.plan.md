@@ -1,4 +1,5 @@
 <!-- 96d070b9-8079-424a-acc4-eb41c7eba42d e6c55fa0-febd-411e-9c8e-90fa36a0dab6 -->
+
 # Replace legacy clients with BetterAuth organizations
 
 ### Goals
@@ -86,7 +87,7 @@ These three Context7 library IDs will be used for **all auth, routing, and DB-re
 - Add `organizationId` or derive it from context instead of explicit input when possible.
 - Run type-checking locally (conceptually) to identify any remaining references to `client` and adjust accordingly.
 
-7. **Clean up deprecated `client` references and UI
+7. \*\*Clean up deprecated `client` references and UI
 
 - Grep for `client`, `clientId`, `client_id` in the repo and:
 - Remove any lingering imports, props, and state variables.
@@ -114,7 +115,7 @@ These three Context7 library IDs will be used for **all auth, routing, and DB-re
 - Dashboard screens work using the organization context.
 - No UI element references `client` anymore.
 
-10. **Document the change
+10. \*\*Document the change
 
 - Update `documentacion/` (e.g. new release note or extend an existing one) to:
 - Explain that the `client` feature is deprecated and replaced by BetterAuth organizations.

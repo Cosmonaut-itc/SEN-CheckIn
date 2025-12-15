@@ -59,8 +59,14 @@ export const createScheduleExceptionSchema = z
 		employeeId: z.string().uuid('Invalid employee ID'),
 		exceptionDate: z.coerce.date(),
 		exceptionType: scheduleExceptionTypeEnum,
-		startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM').optional(),
-		endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM').optional(),
+		startTime: z
+			.string()
+			.regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM')
+			.optional(),
+		endTime: z
+			.string()
+			.regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM')
+			.optional(),
 		reason: z.string().max(500).optional(),
 	})
 	.superRefine((value, ctx) => {
@@ -91,8 +97,14 @@ export const updateScheduleExceptionSchema = z
 	.object({
 		exceptionDate: z.coerce.date().optional(),
 		exceptionType: scheduleExceptionTypeEnum.optional(),
-		startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM').optional(),
-		endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM').optional(),
+		startTime: z
+			.string()
+			.regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM')
+			.optional(),
+		endTime: z
+			.string()
+			.regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM')
+			.optional(),
 		reason: z.string().max(500).nullable().optional(),
 	})
 	.superRefine((value, ctx) => {
@@ -150,8 +162,3 @@ export type CreateScheduleExceptionInput = z.infer<typeof createScheduleExceptio
 export type UpdateScheduleExceptionInput = z.infer<typeof updateScheduleExceptionSchema>;
 export type ScheduleExceptionQuery = z.infer<typeof scheduleExceptionQuerySchema>;
 export type CalendarQuery = z.infer<typeof calendarQuerySchema>;
-
-
-
-
-

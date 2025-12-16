@@ -1,10 +1,10 @@
 ---
 name: Device Verification Fixes Plan
-overview: ""
+overview: ''
 todos:
-  - id: 6e524f07-13bc-4d52-8c35-5d74d9289b9b
-    content: Update proxy.ts to preserve callbackUrl when redirecting from auth pages
-    status: pending
+    - id: 6e524f07-13bc-4d52-8c35-5d74d9289b9b
+      content: Update proxy.ts to preserve callbackUrl when redirecting from auth pages
+      status: pending
 ---
 
 # Device Verification Fixes Plan
@@ -13,14 +13,14 @@ todos:
 
 ### Issue 2: Polling Error - Cannot Pass Login Even When Approved
 
-**Root Cause:** In [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\\\(auth)/login.tsx), after receiving the access token from `/device/token`, the code calls `authClient.getSession()` without passing the access token in the Authorization header. BetterAuth requires the token to establish the session.
+**Root Cause:** In [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\(auth)/login.tsx), after receiving the access token from `/device/token`, the code calls `authClient.getSession()` without passing the access token in the Authorization header. BetterAuth requires the token to establish the session.
 
 Current broken code (line 193-206):
 
 ```typescript
 if (result.data) {
-  await authClient.getSession();  // Missing token!
-  router.replace('/(main)/scanner');
+	await authClient.getSession(); // Missing token!
+	router.replace('/(main)/scanner');
 }
 ```
 
@@ -42,8 +42,8 @@ const { data: session } = await authClient.getSession({
 
 Affected files:
 
-- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\\\(auth)/device/device-client.tsx) - Link to sign-in doesn't preserve return URL
-- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\\\(auth)/sign-in/page.tsx) - Hardcoded redirect to `/dashboard`
+- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\(auth)/device/device-client.tsx) - Link to sign-in doesn't preserve return URL
+- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\(auth)/sign-in/page.tsx) - Hardcoded redirect to `/dashboard`
 - [`apps/web/proxy.ts`](apps/web/proxy.ts) - Redirects authenticated users from auth pages to `/dashboard`
 
 ---
@@ -65,19 +65,16 @@ Changes needed:
 **Files to modify:**
 
 1. **`apps/web/app/(auth)/device/device-client.tsx`**
-
-   - Update the sign-in link to include a `returnUrl` or `callbackUrl` query parameter
-   - Example: `/sign-in?callbackUrl=/device?user_code=XXXX`
+    - Update the sign-in link to include a `returnUrl` or `callbackUrl` query parameter
+    - Example: `/sign-in?callbackUrl=/device?user_code=XXXX`
 
 2. **`apps/web/app/(auth)/sign-in/page.tsx`**
-
-   - Read `callbackUrl` from URL search params
-   - After successful login, redirect to `callbackUrl` if present, otherwise to `/dashboard`
+    - Read `callbackUrl` from URL search params
+    - After successful login, redirect to `callbackUrl` if present, otherwise to `/dashboard`
 
 3. **`apps/web/proxy.ts`**
-
-   - Update the authenticated user redirect logic to preserve the callback URL
-   - When redirecting from auth pages, check for `callbackUrl` parameter and use it instead of hardcoded `/dashboard`
+    - Update the authenticated user redirect logic to preserve the callback URL
+    - When redirecting from auth pages, check for `callbackUrl` parameter and use it instead of hardcoded `/dashboard`
 
 ---
 

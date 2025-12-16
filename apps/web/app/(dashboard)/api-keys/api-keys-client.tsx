@@ -4,6 +4,7 @@ import React, { useCallback, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 import {
 	Table,
 	TableBody,
@@ -45,6 +46,8 @@ interface ApiKeyFormValues {
  */
 export function ApiKeysPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const t = useTranslations('ApiKeys');
+	const tCommon = useTranslations('Common');
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -63,15 +66,15 @@ export function ApiKeysPageClient(): React.ReactElement {
 		onSuccess: (result) => {
 			if (result.success && result.data) {
 				setNewKeyValue(result.data.key);
-				toast.success('API key created successfully');
+				toast.success(t('toast.createSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.all });
 			} else {
-				toast.error(result.error ?? 'Failed to create API key');
+				toast.error(result.error ?? t('toast.createError'));
 				setIsDialogOpen(false);
 			}
 		},
 		onError: () => {
-			toast.error('Failed to create API key');
+			toast.error(t('toast.createError'));
 			setIsDialogOpen(false);
 		},
 	});
@@ -82,30 +85,30 @@ export function ApiKeysPageClient(): React.ReactElement {
 		mutationFn: deleteApiKey,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('API key deleted successfully');
+				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys.all });
 			} else {
-				toast.error(result.error ?? 'Failed to delete API key');
+				toast.error(result.error ?? t('toast.deleteError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to delete API key');
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
-// TanStack Form instance (after mutations to avoid TDZ)
-const form = useAppForm({
-	defaultValues: {
-		name: '',
-	},
-	onSubmit: async ({ value }: { value: ApiKeyFormValues }) => {
-		await createMutation.mutateAsync({
-			name: value.name || undefined,
-		});
-		form.reset();
-	},
-});
+	// TanStack Form instance (after mutations to avoid TDZ)
+	const form = useAppForm({
+		defaultValues: {
+			name: '',
+		},
+		onSubmit: async ({ value }: { value: ApiKeyFormValues }) => {
+			await createMutation.mutateAsync({
+				name: value.name || undefined,
+			});
+			form.reset();
+		},
+	});
 
 	/**
 	 * Opens the dialog for creating a new API key.
@@ -147,9 +150,9 @@ const form = useAppForm({
 	const copyToClipboard = async (text: string): Promise<void> => {
 		try {
 			await navigator.clipboard.writeText(text);
-			toast.success('Copied to clipboard');
+			toast.success(t('toast.copied'));
 		} catch {
-			toast.error('Failed to copy to clipboard');
+			toast.error(t('toast.copyFailed'));
 		}
 	};
 
@@ -174,40 +177,40 @@ const form = useAppForm({
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">API Keys</h1>
-					<p className="text-muted-foreground">
-						Manage API keys for authentication
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
-		<Dialog
-			open={isDialogOpen}
-			onOpenChange={(open) => {
-				setIsDialogOpen(open);
-				if (!open) {
-					setNewKeyValue(null);
-					form.reset();
-				}
-			}}
-		>
-			<DialogTrigger asChild>
-				<Button onClick={handleCreateNew}>
+				<Dialog
+					open={isDialogOpen}
+					onOpenChange={(open) => {
+						setIsDialogOpen(open);
+						if (!open) {
+							setNewKeyValue(null);
+							form.reset();
+						}
+					}}
+				>
+					<DialogTrigger asChild>
+						<Button onClick={handleCreateNew}>
 							<Plus className="mr-2 h-4 w-4" />
-							Create API Key
+							{t('actions.create')}
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="sm:max-w-[500px]">
 						{newKeyValue ? (
 							<>
 								<DialogHeader>
-									<DialogTitle>API Key Created</DialogTitle>
+									<DialogTitle>{t('created.title')}</DialogTitle>
 									<DialogDescription>
-										Copy your API key now. You won&apos;t be able to see it again!
+										{t('created.description')}
 									</DialogDescription>
 								</DialogHeader>
 								<div className="py-4">
 									<div className="flex items-center gap-2 rounded-md bg-muted p-3">
 										<Key className="h-4 w-4 shrink-0 text-muted-foreground" />
-										<code className="flex-1 break-all text-sm">{newKeyValue}</code>
+										<code className="flex-1 break-all text-sm">
+											{newKeyValue}
+										</code>
 										<Button
 											variant="ghost"
 											size="icon"
@@ -218,28 +221,36 @@ const form = useAppForm({
 									</div>
 								</div>
 								<DialogFooter>
-									<Button onClick={() => setIsDialogOpen(false)}>Done</Button>
+									<Button onClick={() => setIsDialogOpen(false)}>
+										{t('actions.done')}
+									</Button>
 								</DialogFooter>
 							</>
 						) : (
-					<form onSubmit={handleSubmit}>
-						<DialogHeader>
-							<DialogTitle>Create API Key</DialogTitle>
-							<DialogDescription>
-								Create a new API key for accessing the API.
-							</DialogDescription>
-						</DialogHeader>
-						<div className="grid gap-4 py-4">
-							<form.AppField name="name">
-								{(field) => <field.TextField label="Name" placeholder="My API Key" />}
-							</form.AppField>
-						</div>
-						<DialogFooter>
-							<form.AppForm>
-								<form.SubmitButton label="Create Key" loadingLabel="Creating..." />
-							</form.AppForm>
-						</DialogFooter>
-					</form>
+							<form onSubmit={handleSubmit}>
+								<DialogHeader>
+									<DialogTitle>{t('create.title')}</DialogTitle>
+									<DialogDescription>{t('create.description')}</DialogDescription>
+								</DialogHeader>
+								<div className="grid gap-4 py-4">
+									<form.AppField name="name">
+										{(field) => (
+											<field.TextField
+												label={t('create.fields.name')}
+												placeholder={t('create.placeholders.name')}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<DialogFooter>
+									<form.AppForm>
+										<form.SubmitButton
+											label={t('actions.createKey')}
+											loadingLabel={t('actions.creating')}
+										/>
+									</form.AppForm>
+								</DialogFooter>
+							</form>
 						)}
 					</DialogContent>
 				</Dialog>
@@ -249,13 +260,15 @@ const form = useAppForm({
 				<Table>
 					<TableHeader>
 						<TableRow>
-							<TableHead>Name</TableHead>
-							<TableHead>Key Preview</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead>Last Used</TableHead>
-							<TableHead>Created</TableHead>
-							<TableHead>Expires</TableHead>
-							<TableHead className="w-[100px]">Actions</TableHead>
+							<TableHead>{t('table.headers.name')}</TableHead>
+							<TableHead>{t('table.headers.keyPreview')}</TableHead>
+							<TableHead>{t('table.headers.status')}</TableHead>
+							<TableHead>{t('table.headers.lastUsed')}</TableHead>
+							<TableHead>{t('table.headers.created')}</TableHead>
+							<TableHead>{t('table.headers.expires')}</TableHead>
+							<TableHead className="w-[100px]">
+								{t('table.headers.actions')}
+							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -272,14 +285,14 @@ const form = useAppForm({
 						) : apiKeys.length === 0 ? (
 							<TableRow>
 								<TableCell colSpan={7} className="h-24 text-center">
-									No API keys found. Create one to get started.
+									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
 							apiKeys.map((apiKey: ApiKey) => (
 								<TableRow key={apiKey.id}>
 									<TableCell className="font-medium">
-										{apiKey.name || 'Unnamed Key'}
+										{apiKey.name || t('unnamed')}
 									</TableCell>
 									<TableCell>
 										<div className="flex items-center gap-2">
@@ -304,21 +317,26 @@ const form = useAppForm({
 									</TableCell>
 									<TableCell>
 										<Badge variant={apiKey.enabled ? 'default' : 'secondary'}>
-											{apiKey.enabled ? 'Active' : 'Disabled'}
+											{apiKey.enabled
+												? t('status.active')
+												: t('status.disabled')}
 										</Badge>
 									</TableCell>
 									<TableCell>
 										{apiKey.lastRequest
-											? format(new Date(apiKey.lastRequest), 'MMM d, yyyy HH:mm')
-											: 'Never'}
+											? format(
+													new Date(apiKey.lastRequest),
+													t('dateTimeFormat'),
+												)
+											: t('never')}
 									</TableCell>
 									<TableCell>
-										{format(new Date(apiKey.createdAt), 'MMM d, yyyy')}
+										{format(new Date(apiKey.createdAt), t('dateFormat'))}
 									</TableCell>
 									<TableCell>
 										{apiKey.expiresAt
-											? format(new Date(apiKey.expiresAt), 'MMM d, yyyy')
-											: 'Never'}
+											? format(new Date(apiKey.expiresAt), t('dateFormat'))
+											: t('never')}
 									</TableCell>
 									<TableCell>
 										<Dialog
@@ -334,10 +352,11 @@ const form = useAppForm({
 											</DialogTrigger>
 											<DialogContent>
 												<DialogHeader>
-													<DialogTitle>Delete API Key</DialogTitle>
+													<DialogTitle>
+														{t('dialogs.delete.title')}
+													</DialogTitle>
 													<DialogDescription>
-														Are you sure you want to delete this API key?
-														Any applications using it will lose access.
+														{t('dialogs.delete.description')}
 													</DialogDescription>
 												</DialogHeader>
 												<DialogFooter>
@@ -345,13 +364,13 @@ const form = useAppForm({
 														variant="outline"
 														onClick={() => setDeleteConfirmId(null)}
 													>
-														Cancel
+														{tCommon('cancel')}
 													</Button>
 													<Button
 														variant="destructive"
 														onClick={() => handleDelete(apiKey.id)}
 													>
-														Delete
+														{tCommon('delete')}
 													</Button>
 												</DialogFooter>
 											</DialogContent>

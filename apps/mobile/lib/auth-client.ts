@@ -54,10 +54,7 @@ export function primeAuthStorage(): Promise<void> {
 
 			// Load all keys that might have been stored by expoClient
 			// The plugin uses: {storagePrefix}_cookie and {storagePrefix}_session_data
-			const keysToLoad = [
-				`${STORAGE_PREFIX}_cookie`,
-				`${STORAGE_PREFIX}_session_data`,
-			];
+			const keysToLoad = [`${STORAGE_PREFIX}_cookie`, `${STORAGE_PREFIX}_session_data`];
 
 			for (const key of keysToLoad) {
 				const value = await SecureStore.getItemAsync(key);
@@ -196,7 +193,9 @@ export const { useSession, signIn, signOut } = authClient;
  * @param accessToken - Optional Bearer token to include in the request
  * @returns The session result from the server
  */
-export async function refreshSession(accessToken?: string): Promise<ReturnType<typeof authClient.getSession>> {
+export async function refreshSession(
+	accessToken?: string,
+): Promise<ReturnType<typeof authClient.getSession>> {
 	const headers: Record<string, string> = {};
 	if (accessToken) {
 		headers.Authorization = `Bearer ${accessToken}`;

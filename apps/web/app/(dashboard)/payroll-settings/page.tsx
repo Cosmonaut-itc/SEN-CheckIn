@@ -23,4 +23,3 @@ export default async function PayrollSettingsPage(): Promise<React.ReactElement>
 		</HydrationBoundary>
 	);
 }
-

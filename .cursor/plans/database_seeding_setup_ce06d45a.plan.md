@@ -2,18 +2,18 @@
 name: Database Seeding Setup
 overview: Set up drizzle-seed to populate the PostgreSQL database with realistic development data for domain tables (organizations, locations, employees, devices, attendance, and payroll), enabling quick local testing without manual data entry.
 todos:
-  - id: install-drizzle-seed
-    content: Install drizzle-seed package in the API workspace
-    status: pending
-  - id: create-seed-script
-    content: Create apps/api/scripts/seed.ts with seed and reset logic
-    status: pending
-  - id: add-npm-scripts
-    content: Add db:seed and db:reset scripts to apps/api/package.json
-    status: pending
-  - id: test-seed
-    content: Run the seed script and verify data in database
-    status: pending
+    - id: install-drizzle-seed
+      content: Install drizzle-seed package in the API workspace
+      status: pending
+    - id: create-seed-script
+      content: Create apps/api/scripts/seed.ts with seed and reset logic
+      status: pending
+    - id: add-npm-scripts
+      content: Add db:seed and db:reset scripts to apps/api/package.json
+      status: pending
+    - id: test-seed
+      content: Run the seed script and verify data in database
+      status: pending
 ---
 
 # Database Seeding Plan with drizzle-seed
@@ -102,10 +102,10 @@ Add to [`apps/api/package.json`](apps/api/package.json):
 
 ```json
 {
-  "scripts": {
-    "db:seed": "bun run scripts/seed.ts",
-    "db:reset": "bun run scripts/seed.ts --reset"
-  }
+	"scripts": {
+		"db:seed": "bun run scripts/seed.ts",
+		"db:reset": "bun run scripts/seed.ts --reset"
+	}
 }
 ```
 

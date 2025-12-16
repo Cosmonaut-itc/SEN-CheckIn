@@ -10,6 +10,7 @@ import {
 import { useAppForm, useStore } from '@/lib/forms';
 import type { ScheduleTemplate } from '@/lib/client-functions';
 import type { ScheduleTemplateDayInput, ShiftType } from '@/actions/schedules';
+import { useTranslations } from 'next-intl';
 import { DayScheduleEditor } from './day-schedule-editor';
 import {
 	LaborLawWarnings,
@@ -18,6 +19,9 @@ import {
 	type ScheduleWarning,
 } from './labor-law-warnings';
 import { toast } from 'sonner';
+
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+type DayKey = (typeof DAY_KEYS)[number];
 
 /**
  * Maps a schedule template into editable day inputs.
@@ -38,7 +42,7 @@ function mapTemplateDays(template?: ScheduleTemplate | null): ScheduleTemplateDa
 }
 
 /**
- * Creates a default Monday–Friday daytime schedule.
+ * Creates a default Monday–Saturday daytime schedule.
  *
  * @returns Default day input array
  */
@@ -51,6 +55,14 @@ function createDefaultDays(): ScheduleTemplateDayInput[] {
 	}));
 }
 
+/**
+ * Creates a default day schedule preset for the selected shift type.
+ *
+ * Defaults to a Monday–Saturday working week to align with Mexican weekly hour limits.
+ *
+ * @param shiftType - Selected shift type
+ * @returns Default day schedule inputs
+ */
 function createDefaultDaysForShift(shiftType: ShiftType): ScheduleTemplateDayInput[] {
 	const preset =
 		shiftType === 'NOCTURNA'
@@ -83,8 +95,6 @@ export interface TemplateFormDialogProps {
 	}) => Promise<void> | void;
 	/** Template to edit; undefined for create */
 	initialTemplate?: ScheduleTemplate | null;
-	/** Indicates whether the form is currently submitting */
-	isSubmitting?: boolean;
 	/** Week start day used for UX hints */
 	weekStartDay: number;
 	/** Overtime enforcement mode */
@@ -102,11 +112,14 @@ export function TemplateFormDialog({
 	onOpenChange,
 	onSubmit,
 	initialTemplate,
-	isSubmitting,
 	weekStartDay,
 	overtimeEnforcement,
 }: TemplateFormDialogProps): React.ReactElement {
+	const t = useTranslations('Schedules');
+	const tCommon = useTranslations('Common');
 	const shiftChangeInitializedRef = useRef<boolean>(false);
+	const weekStartDayKey: DayKey = DAY_KEYS[weekStartDay] ?? 'mon';
+	const weekStartDayLabel = t(`days.long.${weekStartDayKey}`);
 
 	const form = useAppForm({
 		defaultValues: {
@@ -173,7 +186,8 @@ export function TemplateFormDialog({
 		[warningsInput],
 	);
 
-	const hasBlockingErrors = overtimeEnforcement === 'BLOCK' && warnings.some((w) => w.severity === 'error');
+	const hasBlockingErrors =
+		overtimeEnforcement === 'BLOCK' && warnings.some((w) => w.severity === 'error');
 
 	const weeklyTotals = useMemo(() => {
 		const total = computeWeeklyHours(daySchedules);
@@ -194,7 +208,7 @@ export function TemplateFormDialog({
 						event.preventDefault();
 						event.stopPropagation();
 						if (hasBlockingErrors) {
-							toast.error('Schedule exceeds legal limits. Adjust hours before saving.');
+							toast.error(t('templateForm.toast.blockingErrors'));
 							return;
 						}
 						form.handleSubmit();
@@ -203,33 +217,44 @@ export function TemplateFormDialog({
 				>
 					<DialogHeader>
 						<DialogTitle>
-							{initialTemplate ? 'Edit Schedule Template' : 'Create Schedule Template'}
+							{initialTemplate
+								? t('templateForm.title.edit')
+								: t('templateForm.title.create')}
 						</DialogTitle>
-						<DialogDescription>
-							Define working hours per day and validate against LFT limits.
-						</DialogDescription>
+						<DialogDescription>{t('templateForm.description')}</DialogDescription>
 					</DialogHeader>
 
 					<div className="grid gap-4 sm:grid-cols-2">
 						<form.AppField
 							name="name"
 							validators={{
-								onChange: ({ value }) => (!value.trim() ? 'Name is required' : undefined),
+								onChange: ({ value }) =>
+									!value.trim()
+										? t('templateForm.validation.nameRequired')
+										: undefined,
 							}}
 						>
-							{(field) => <field.TextField label="Template Name" placeholder="Turno Matutino" />}
+							{(field) => (
+								<field.TextField
+									label={t('templateForm.fields.name.label')}
+									placeholder={t('templateForm.fields.name.placeholder')}
+								/>
+							)}
 						</form.AppField>
 
 						<form.AppField name="shiftType">
 							{(field) => (
 								<field.SelectField
-									label="Shift Type"
+									label={t('templateForm.fields.shiftType.label')}
 									options={[
-										{ value: 'DIURNA', label: 'Diurna — 8h diarias / 48h semanales' },
-										{ value: 'NOCTURNA', label: 'Nocturna — 7h diarias / 42h semanales' },
-										{ value: 'MIXTA', label: 'Mixta — 7.5h diarias / 45h semanales' },
+										{ value: 'DIURNA', label: t('shiftTypes.options.DIURNA') },
+										{
+											value: 'NOCTURNA',
+											label: t('shiftTypes.options.NOCTURNA'),
+										},
+										{ value: 'MIXTA', label: t('shiftTypes.options.MIXTA') },
 									]}
-									placeholder="Select shift type"
+									placeholder={t('templateForm.fields.shiftType.placeholder')}
 								/>
 							)}
 						</form.AppField>
@@ -237,18 +262,22 @@ export function TemplateFormDialog({
 						<form.AppField name="description">
 							{(field) => (
 								<field.TextareaField
-									label="Description"
-									placeholder="Optional context for the template"
+									label={t('templateForm.fields.description.label')}
+									placeholder={t('templateForm.fields.description.placeholder')}
 									rows={3}
 								/>
 							)}
 						</form.AppField>
 						<div className="rounded-md border border-dashed p-3 text-sm text-muted-foreground">
-							<p className="font-medium text-foreground">Week start day</p>
-							<p>The current payroll settings start the week on day index {weekStartDay}.</p>
-							<p className="mt-1">
-								Adjust your working days accordingly to avoid weekly limit breaches.
+							<p className="font-medium text-foreground">
+								{t('templateForm.weekStartDay.title')}
 							</p>
+							<p>
+								{t('templateForm.weekStartDay.description', {
+									day: weekStartDayLabel,
+								})}
+							</p>
+							<p className="mt-1">{t('templateForm.weekStartDay.hint')}</p>
 						</div>
 					</div>
 
@@ -262,21 +291,26 @@ export function TemplateFormDialog({
 						}`}
 					>
 						<p className="font-medium">
-							Weekly hours: {weeklyTotals.total.toFixed(2)}h / limit {weeklyTotals.limit}h
+							{t('templateForm.weeklyTotals.summary', {
+								total: weeklyTotals.total.toFixed(2),
+								limit: weeklyTotals.limit,
+							})}
 						</p>
 						{weeklyTotals.diff > 0 && (
 							<p>
-								You are {weeklyTotals.diff.toFixed(2)}h over the weekly limit for this shift. Adjust
-								the schedule to comply with LFT rules.
+								{t('templateForm.weeklyTotals.over', {
+									diff: weeklyTotals.diff.toFixed(2),
+								})}
 							</p>
 						)}
 						{weeklyTotals.diff < 0 && (
 							<p>
-								You are {Math.abs(weeklyTotals.diff).toFixed(2)}h below the weekly limit. Ensure hours
-								match your intended workload.
+								{t('templateForm.weeklyTotals.under', {
+									diff: Math.abs(weeklyTotals.diff).toFixed(2),
+								})}
 							</p>
 						)}
-						{weeklyTotals.diff === 0 && <p>The weekly total matches the limit.</p>}
+						{weeklyTotals.diff === 0 && <p>{t('templateForm.weeklyTotals.exact')}</p>}
 					</div>
 
 					<DayScheduleEditor
@@ -285,18 +319,25 @@ export function TemplateFormDialog({
 						onChange={setDaySchedules}
 					/>
 
-					<LaborLawWarnings shiftType={warningsInput.shiftType} days={warningsInput.days} />
+					<LaborLawWarnings
+						shiftType={warningsInput.shiftType}
+						days={warningsInput.days}
+					/>
 					{hasBlockingErrors && (
 						<p className="text-sm text-destructive">
-							Overtime enforcement is set to BLOCK. Please resolve the errors above to proceed.
+							{t('templateForm.blockingFooter')}
 						</p>
 					)}
 
 					<DialogFooter>
 						<form.AppForm>
 							<form.SubmitButton
-								label={initialTemplate ? 'Save changes' : 'Create template'}
-								loadingLabel={isSubmitting ? 'Saving...' : 'Saving...'}
+								label={
+									initialTemplate
+										? t('templateForm.actions.saveChanges')
+										: t('templateForm.actions.create')
+								}
+								loadingLabel={tCommon('saving')}
 							/>
 						</form.AppForm>
 					</DialogFooter>
@@ -305,4 +346,3 @@ export function TemplateFormDialog({
 		</Dialog>
 	);
 }
-

@@ -22,4 +22,3 @@ export default function AuthLayout({ children }: AuthLayoutProps): React.ReactEl
 		</div>
 	);
 }
-

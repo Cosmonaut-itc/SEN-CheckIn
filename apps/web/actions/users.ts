@@ -114,7 +114,14 @@ export async function createOrganizationUser(
 
 			// Best-effort rollback to avoid orphaned users
 			try {
-				const deleteFn = (serverAuthClient.admin as { deleteUser?: (args: { userId: string }, opts: typeof fetchOptions) => Promise<unknown> }).deleteUser;
+				const deleteFn = (
+					serverAuthClient.admin as {
+						deleteUser?: (
+							args: { userId: string },
+							opts: typeof fetchOptions,
+						) => Promise<unknown>;
+					}
+				).deleteUser;
 				if (typeof deleteFn === 'function') {
 					await deleteFn({ userId: createdUserId }, fetchOptions);
 				}

@@ -351,14 +351,9 @@ const formComponents = {
 	SubmitButton,
 } as const;
 
-type FormHook = ReturnType<
-	typeof createFormHook<typeof fieldComponents, typeof formComponents>
->;
+type FormHook = ReturnType<typeof createFormHook<typeof fieldComponents, typeof formComponents>>;
 
-const formHook: FormHook = createFormHook<
-	typeof fieldComponents,
-	typeof formComponents
->({
+const formHook: FormHook = createFormHook<typeof fieldComponents, typeof formComponents>({
 	fieldContext,
 	formContext,
 	fieldComponents,

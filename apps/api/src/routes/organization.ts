@@ -30,37 +30,37 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 		async ({ body, request, session, set }) => {
 			const organizationId = body.organizationId ?? session.activeOrganizationId ?? null;
 
-                        if (!organizationId) {
-                                set.status = 400;
-                                return { error: 'Organization is required' };
-                        }
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required' };
+			}
 
-                        const membership = await db
-                                .select({ role: member.role })
-                                .from(member)
-                                .where(
-                                        and(
-                                                eq(member.userId, session.userId),
-                                                eq(member.organizationId, organizationId),
-                                        ),
-                                )
-                                .limit(1);
+			const membership = await db
+				.select({ role: member.role })
+				.from(member)
+				.where(
+					and(
+						eq(member.userId, session.userId),
+						eq(member.organizationId, organizationId),
+					),
+				)
+				.limit(1);
 
-                        const callerRole = membership[0]?.role ?? null;
+			const callerRole = membership[0]?.role ?? null;
 
-                        if (!callerRole) {
-                                set.status = 403;
-                                return { error: 'You must belong to the organization to add members' };
-                        }
+			if (!callerRole) {
+				set.status = 403;
+				return { error: 'You must belong to the organization to add members' };
+			}
 
-                        if (callerRole !== 'admin' && callerRole !== 'owner') {
-                                set.status = 403;
-                                return { error: 'Only organization admins can add members' };
-                        }
+			if (callerRole !== 'admin' && callerRole !== 'owner') {
+				set.status = 403;
+				return { error: 'Only organization admins can add members' };
+			}
 
-                        try {
-                                const payload: {
-                                        userId: string;
+			try {
+				const payload: {
+					userId: string;
 					organizationId: string;
 					role: 'admin' | 'member';
 					teamId?: string;

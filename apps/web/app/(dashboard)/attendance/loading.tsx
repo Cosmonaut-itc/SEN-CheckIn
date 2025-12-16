@@ -9,4 +9,3 @@ import { AttendanceSkeleton } from '@/components/skeletons';
 export default function AttendanceLoading() {
 	return <AttendanceSkeleton />;
 }
-

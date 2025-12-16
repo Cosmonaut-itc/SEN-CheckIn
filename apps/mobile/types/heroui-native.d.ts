@@ -7,7 +7,10 @@
  */
 declare module 'heroui-native' {
 	// Re-export types
-	export type { HeroUINativeConfig, HeroUINativeProviderProps } from 'heroui-native/lib/typescript/src/providers/hero-ui-native/types';
+	export type {
+		HeroUINativeConfig,
+		HeroUINativeProviderProps,
+	} from 'heroui-native/lib/typescript/src/providers/hero-ui-native/types';
 	// Re-export all components
 	export { Button } from 'heroui-native/lib/typescript/src/components/button';
 	export { Card } from 'heroui-native/lib/typescript/src/components/card';

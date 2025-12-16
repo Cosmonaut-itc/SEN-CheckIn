@@ -95,9 +95,7 @@ export async function calculatePayrollAction(
  * @param input - Period and payment frequency information
  * @returns Mutation result with persisted run and calculation
  */
-export async function processPayrollAction(
-	input: ProcessPayrollInput,
-): Promise<MutationResult> {
+export async function processPayrollAction(input: ProcessPayrollInput): Promise<MutationResult> {
 	try {
 		const api = createServerApiClient(await getCookieHeader());
 		const response = await api.payroll.process.post({

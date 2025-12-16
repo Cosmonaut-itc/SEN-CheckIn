@@ -256,7 +256,10 @@ export async function fullEnrollmentFlow(
 			if (!createResult.success || !createResult.data?.success) {
 				return {
 					success: false,
-					error: createResult.error ?? createResult.data?.message ?? 'Failed to create Rekognition user',
+					error:
+						createResult.error ??
+						createResult.data?.message ??
+						'Failed to create Rekognition user',
 				};
 			}
 		}
@@ -272,4 +275,3 @@ export async function fullEnrollmentFlow(
 		};
 	}
 }
-

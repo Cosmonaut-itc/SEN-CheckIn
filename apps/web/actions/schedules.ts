@@ -81,18 +81,18 @@ export async function createScheduleTemplate(
 		const cookieHeader = await getCookieHeader();
 		const api = createServerApiClient(cookieHeader);
 
-	const response = await api['schedule-templates'].post({
-		name: input.name,
-		description: input.description ?? undefined,
-		shiftType: input.shiftType,
-		organizationId: input.organizationId,
-		days: input.days.map((day) => ({
-			dayOfWeek: day.dayOfWeek,
-			startTime: day.startTime,
-			endTime: day.endTime,
-			isWorkingDay: day.isWorkingDay ?? true,
-		})),
-	});
+		const response = await api['schedule-templates'].post({
+			name: input.name,
+			description: input.description ?? undefined,
+			shiftType: input.shiftType,
+			organizationId: input.organizationId,
+			days: input.days.map((day) => ({
+				dayOfWeek: day.dayOfWeek,
+				startTime: day.startTime,
+				endTime: day.endTime,
+				isWorkingDay: day.isWorkingDay ?? true,
+			})),
+		});
 
 		if (response.error) {
 			return { success: false, error: 'Failed to create schedule template' };
@@ -118,18 +118,18 @@ export async function updateScheduleTemplate(
 		const cookieHeader = await getCookieHeader();
 		const api = createServerApiClient(cookieHeader);
 
-	const response = await api['schedule-templates'][input.id].put({
-		name: input.name,
-		description: input.description,
-		shiftType: input.shiftType,
-		organizationId: input.organizationId,
-		days: input.days?.map((day) => ({
-			dayOfWeek: day.dayOfWeek,
-			startTime: day.startTime,
-			endTime: day.endTime,
-			isWorkingDay: day.isWorkingDay ?? true,
-		})),
-	});
+		const response = await api['schedule-templates'][input.id].put({
+			name: input.name,
+			description: input.description,
+			shiftType: input.shiftType,
+			organizationId: input.organizationId,
+			days: input.days?.map((day) => ({
+				dayOfWeek: day.dayOfWeek,
+				startTime: day.startTime,
+				endTime: day.endTime,
+				isWorkingDay: day.isWorkingDay ?? true,
+			})),
+		});
 
 		if (response.error) {
 			return { success: false, error: 'Failed to update schedule template' };
@@ -211,13 +211,13 @@ export async function updateScheduleException(
 		const cookieHeader = await getCookieHeader();
 		const api = createServerApiClient(cookieHeader);
 
-	const response = await api['schedule-exceptions'][input.id].put({
-		exceptionDate: input.exceptionDate,
-		exceptionType: input.exceptionType,
-		startTime: input.startTime ?? undefined,
-		endTime: input.endTime ?? undefined,
-		reason: input.reason,
-	});
+		const response = await api['schedule-exceptions'][input.id].put({
+			exceptionDate: input.exceptionDate,
+			exceptionType: input.exceptionType,
+			startTime: input.startTime ?? undefined,
+			endTime: input.endTime ?? undefined,
+			reason: input.reason,
+		});
 
 		if (response.error) {
 			return { success: false, error: 'Failed to update schedule exception' };
@@ -283,10 +283,3 @@ export async function assignTemplateToEmployees(
 		return { success: false, error: 'Failed to assign schedule template' };
 	}
 }
-
-
-
-
-
-
-

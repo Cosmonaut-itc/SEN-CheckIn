@@ -1,4 +1,5 @@
 <!-- e709b803-27b1-45b8-ac3c-57a96b8303a7 51781d78-e626-4e9e-ab1d-e12525eab0a4 -->
+
 # Organization Filtering & Member Management
 
 ## Current State Analysis
@@ -48,7 +49,7 @@ Add `organizationId` to `employee` and `device` tables in [schema.ts](apps/api/s
 // In employee table
 organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
 
-// In device table  
+// In device table
 organizationId: text('organization_id').references(() => organization.id, { onDelete: 'cascade' }),
 ```
 
@@ -61,7 +62,7 @@ Run `bun run db:gen` then `bun run db:mig`.
 ```typescript
 import { username } from 'better-auth/plugins';
 // Add to plugins array:
-username()
+username();
 ```
 
 **Web** - Update [lib/auth-client.ts](apps/web/lib/auth-client.ts) and [lib/server-auth-client.ts](apps/web/lib/server-auth-client.ts):
@@ -69,7 +70,7 @@ username()
 ```typescript
 import { usernameClient } from 'better-auth/client/plugins';
 // Add to plugins array:
-usernameClient()
+usernameClient();
 ```
 
 This enables username-based sign-in and makes user creation simpler.
@@ -77,34 +78,30 @@ This enables username-based sign-in and makes user creation simpler.
 ### Phase 3: API Route Updates
 
 1. **Update [employees.ts](apps/api/src/routes/employees.ts)**:
-
-   - Add `combinedAuthPlugin` 
-   - Filter GET by `session?.activeOrganizationId`
-   - Set `organizationId` on POST from session
-   - Verify ownership on PUT/DELETE
+    - Add `combinedAuthPlugin`
+    - Filter GET by `session?.activeOrganizationId`
+    - Set `organizationId` on POST from session
+    - Verify ownership on PUT/DELETE
 
 2. **Update [devices.ts](apps/api/src/routes/devices.ts)**:
-
-   - Add `combinedAuthPlugin`
-   - Filter by organization
-   - Set `organizationId` on POST
-   - Verify ownership on PUT/DELETE
+    - Add `combinedAuthPlugin`
+    - Filter by organization
+    - Set `organizationId` on POST
+    - Verify ownership on PUT/DELETE
 
 3. **Update [attendance.ts](apps/api/src/routes/attendance.ts)**:
-
-   - Add `combinedAuthPlugin`
-   - Filter attendance by employees belonging to active organization
+    - Add `combinedAuthPlugin`
+    - Filter attendance by employees belonging to active organization
 
 ### Phase 4: No-Organization State Handling (Web)
 
-Update [layout.tsx](apps/web/app/\\\\\(dashboard)/layout.tsx) to:
+Update [layout.tsx](apps/web/app/\\(dashboard)/layout.tsx) to:
 
 1. Fetch active org via `getActiveOrganizationContext()`
 2. Fetch user role from session
 3. If no organization:
-
-   - **Admin user**: Show "Create an organization to get started" prompt with link to organizations page
-   - **Regular user**: Show "Waiting for invitation" message explaining they need to be invited
+    - **Admin user**: Show "Create an organization to get started" prompt with link to organizations page
+    - **Regular user**: Show "Waiting for invitation" message explaining they need to be invited
 
 4. Wrap children with `OrgProvider` only when org exists
 
@@ -114,7 +111,7 @@ Create a new component `NoOrganizationState` that renders the appropriate messag
 
 ### Phase 5: Organization Members Page (Web)
 
-Transform [users-client.tsx](apps/web/app/\\\\\(dashboard)/users/users-client.tsx) to show organization members:
+Transform [users-client.tsx](apps/web/app/\\(dashboard)/users/users-client.tsx) to show organization members:
 
 1. **Replace data source**: Use `authClient.organization.listMembers()` instead of `admin.listUsers()`
 2. **Add role badges**: Display Owner/Admin/Member badges using the member's `role` field
@@ -125,26 +122,24 @@ Transform [users-client.tsx](apps/web/app/\\\\\(dashboard)/users/users-client.ts
 Add "Create User" functionality to the users page:
 
 1. **Create User Dialog** using `useAppForm` pattern from [release-06-form-architecture.md](documentacion/release-06-form-architecture.md):
-
-   - Fields: name, email, username (using username plugin), password, role (admin/member)
+    - Fields: name, email, username (using username plugin), password, role (admin/member)
 
 2. **Server Action** in [actions/users.ts](apps/web/actions/users.ts):
-   ```typescript
-   export async function createOrganizationUser(input: {
-     name: string;
-     email: string;
-     username: string;
-     password: string;
-     role: 'admin' | 'member';
-     organizationId: string;
-   }): Promise<MutationResult>
-   ```
-
+    ```typescript
+    export async function createOrganizationUser(input: {
+    	name: string;
+    	email: string;
+    	username: string;
+    	password: string;
+    	role: 'admin' | 'member';
+    	organizationId: string;
+    }): Promise<MutationResult>;
+    ```
 
 Flow:
 
-   1. Call `serverAuthClient.admin.createUser({ email, password, name, data: { username } })`
-   2. Call `serverAuthClient.organization.addMember({ userId, organizationId, role })`
+1. Call `serverAuthClient.admin.createUser({ email, password, name, data: { username } })`
+2. Call `serverAuthClient.organization.addMember({ userId, organizationId, role })`
 
 3. **Query invalidation**: Follow pattern from release-04 - invalidate `queryKeys.organizationMembers.all` on success
 

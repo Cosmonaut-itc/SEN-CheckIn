@@ -29,4 +29,3 @@ export const OVERTIME_LIMITS = {
  * Sunday premium rate (prima dominical).
  */
 export const SUNDAY_PREMIUM_RATE = 0.25;
-

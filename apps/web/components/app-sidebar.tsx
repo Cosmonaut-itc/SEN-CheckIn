@@ -34,14 +34,15 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import type React from 'react';
 
 /**
  * Navigation item configuration interface.
  */
 interface NavItem {
-	/** Display title for the navigation item */
-	title: string;
+	/** Translation key for the navigation item title */
+	titleKey: string;
 	/** URL path for the navigation item */
 	href: string;
 	/** Lucide icon component */
@@ -53,42 +54,42 @@ interface NavItem {
  */
 const mainNavItems: NavItem[] = [
 	{
-		title: 'Dashboard',
+		titleKey: 'dashboard',
 		href: '/dashboard',
 		icon: LayoutDashboard,
 	},
 	{
-		title: 'Employees',
+		titleKey: 'employees',
 		href: '/employees',
 		icon: Users,
 	},
 	{
-		title: 'Job Positions',
+		titleKey: 'jobPositions',
 		href: '/job-positions',
 		icon: Briefcase,
 	},
 	{
-		title: 'Devices',
+		titleKey: 'devices',
 		href: '/devices',
 		icon: Smartphone,
 	},
 	{
-		title: 'Locations',
+		titleKey: 'locations',
 		href: '/locations',
 		icon: MapPin,
 	},
 	{
-		title: 'Attendance',
+		titleKey: 'attendance',
 		href: '/attendance',
 		icon: ClipboardList,
 	},
 	{
-		title: 'Schedules',
+		titleKey: 'schedules',
 		href: '/schedules',
 		icon: CalendarDays,
 	},
 	{
-		title: 'Payroll',
+		titleKey: 'payroll',
 		href: '/payroll',
 		icon: Wallet,
 	},
@@ -99,22 +100,22 @@ const mainNavItems: NavItem[] = [
  */
 const adminNavItems: NavItem[] = [
 	{
-		title: 'API Keys',
+		titleKey: 'apiKeys',
 		href: '/api-keys',
 		icon: Key,
 	},
 	{
-		title: 'Payroll Settings',
+		titleKey: 'payrollSettings',
 		href: '/payroll-settings',
 		icon: Settings2,
 	},
 	{
-		title: 'Users',
+		titleKey: 'users',
 		href: '/users',
 		icon: UserCog,
 	},
 	{
-		title: 'Organizations',
+		titleKey: 'organizations',
 		href: '/organizations',
 		icon: Building,
 	},
@@ -130,6 +131,8 @@ export function AppSidebar(): React.ReactElement {
 	const pathname = usePathname();
 	const { data: session, isPending } = useSession();
 	const router = useRouter();
+	const tSidebar = useTranslations('Sidebar');
+	const tApp = useTranslations('App');
 
 	/**
 	 * Handles user sign out.
@@ -168,13 +171,13 @@ export function AppSidebar(): React.ReactElement {
 					<div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
 						<ClipboardList className="h-4 w-4" />
 					</div>
-					<span className="text-lg font-semibold tracking-tight">SEN CheckIn</span>
+					<span className="text-lg font-semibold tracking-tight">{tApp('name')}</span>
 				</Link>
 			</SidebarHeader>
 
 			<SidebarContent>
 				<SidebarGroup>
-					<SidebarGroupLabel>Main</SidebarGroupLabel>
+					<SidebarGroupLabel>{tSidebar('main')}</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<SidebarMenu>
 							{mainNavItems.map((item) => (
@@ -185,11 +188,11 @@ export function AppSidebar(): React.ReactElement {
 											pathname === item.href ||
 											pathname.startsWith(`${item.href}/`)
 										}
-										tooltip={item.title}
+										tooltip={tSidebar(item.titleKey)}
 									>
 										<Link href={item.href}>
 											<item.icon className="h-4 w-4" />
-											<span>{item.title}</span>
+											<span>{tSidebar(item.titleKey)}</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
@@ -201,7 +204,7 @@ export function AppSidebar(): React.ReactElement {
 				<SidebarSeparator />
 
 				<SidebarGroup>
-					<SidebarGroupLabel>Administration</SidebarGroupLabel>
+					<SidebarGroupLabel>{tSidebar('administration')}</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<SidebarMenu>
 							{adminNavItems.map((item) => (
@@ -212,11 +215,11 @@ export function AppSidebar(): React.ReactElement {
 											pathname === item.href ||
 											pathname.startsWith(`${item.href}/`)
 										}
-										tooltip={item.title}
+										tooltip={tSidebar(item.titleKey)}
 									>
 										<Link href={item.href}>
 											<item.icon className="h-4 w-4" />
-											<span>{item.title}</span>
+											<span>{tSidebar(item.titleKey)}</span>
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
@@ -246,7 +249,7 @@ export function AppSidebar(): React.ReactElement {
 							</Avatar>
 							<div className="flex flex-1 flex-col truncate">
 								<span className="truncate text-sm font-medium">
-									{session?.user?.name ?? 'User'}
+									{session?.user?.name ?? tSidebar('userFallback')}
 								</span>
 								<span className="truncate text-xs text-muted-foreground">
 									{session?.user?.email ?? ''}
@@ -259,7 +262,7 @@ export function AppSidebar(): React.ReactElement {
 						size="icon"
 						onClick={handleSignOut}
 						className="h-8 w-8 shrink-0"
-						title="Sign out"
+						title={tSidebar('signOut')}
 					>
 						<LogOut className="h-4 w-4" />
 					</Button>

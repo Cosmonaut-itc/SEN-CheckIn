@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect } from 'react';
 import {
 	Dialog,
@@ -8,11 +10,8 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { useAppForm } from '@/lib/forms';
-import type {
-	Employee,
-	ScheduleException,
-	ScheduleExceptionType,
-} from '@/lib/client-functions';
+import { useTranslations } from 'next-intl';
+import type { Employee, ScheduleException, ScheduleExceptionType } from '@/lib/client-functions';
 
 /**
  * Props for the ExceptionFormDialog component.
@@ -51,6 +50,8 @@ export function ExceptionFormDialog({
 	onSubmit,
 	initialException,
 }: ExceptionFormDialogProps): React.ReactElement {
+	const t = useTranslations('Schedules');
+	const tCommon = useTranslations('Common');
 	const form = useAppForm({
 		defaultValues: {
 			employeeId: initialException?.employeeId ?? '',
@@ -112,11 +113,11 @@ export function ExceptionFormDialog({
 				>
 					<DialogHeader>
 						<DialogTitle>
-							{initialException ? 'Edit Schedule Exception' : 'Add Schedule Exception'}
+							{initialException
+								? t('exceptions.form.title.edit')
+								: t('exceptions.form.title.create')}
 						</DialogTitle>
-						<DialogDescription>
-							Set a day off, modified hours, or extra day for an employee.
-						</DialogDescription>
+						<DialogDescription>{t('exceptions.form.description')}</DialogDescription>
 					</DialogHeader>
 
 					<div className="grid gap-4 sm:grid-cols-2">
@@ -124,17 +125,19 @@ export function ExceptionFormDialog({
 							name="employeeId"
 							validators={{
 								onChange: ({ value }) =>
-									!value ? 'Employee selection is required' : undefined,
+									!value
+										? t('exceptions.form.validation.employeeRequired')
+										: undefined,
 							}}
 						>
 							{(field) => (
 								<field.SelectField
-									label="Employee"
+									label={t('exceptions.form.fields.employee.label')}
 									options={employees.map((employee) => ({
 										value: employee.id,
 										label: `${employee.firstName} ${employee.lastName}`,
 									}))}
-									placeholder="Select employee"
+									placeholder={t('exceptions.form.fields.employee.placeholder')}
 								/>
 							)}
 						</form.AppField>
@@ -143,38 +146,61 @@ export function ExceptionFormDialog({
 							name="exceptionDate"
 							validators={{
 								onChange: ({ value }) =>
-									!value ? 'Date is required' : undefined,
+									!value
+										? t('exceptions.form.validation.dateRequired')
+										: undefined,
 							}}
 						>
-							{(field) => <field.DateField label="Date" />}
+							{(field) => (
+								<field.DateField label={t('exceptions.form.fields.date.label')} />
+							)}
 						</form.AppField>
 
 						<form.AppField name="exceptionType">
 							{(field) => (
 								<field.SelectField
-									label="Exception Type"
+									label={t('exceptions.form.fields.type.label')}
 									options={[
-										{ value: 'DAY_OFF', label: 'Day Off' },
-										{ value: 'MODIFIED', label: 'Modified Hours' },
-										{ value: 'EXTRA_DAY', label: 'Extra Day' },
+										{ value: 'DAY_OFF', label: t('exceptions.types.DAY_OFF') },
+										{
+											value: 'MODIFIED',
+											label: t('exceptions.types.MODIFIED'),
+										},
+										{
+											value: 'EXTRA_DAY',
+											label: t('exceptions.types.EXTRA_DAY'),
+										},
 									]}
-									placeholder="Select type"
+									placeholder={t('exceptions.form.fields.type.placeholder')}
 								/>
 							)}
 						</form.AppField>
 
 						<form.AppField name="reason">
-							{(field) => <field.TextField label="Reason" placeholder="Optional" />}
+							{(field) => (
+								<field.TextField
+									label={t('exceptions.form.fields.reason.label')}
+									placeholder={tCommon('optional')}
+								/>
+							)}
 						</form.AppField>
 					</div>
 
 					{showTimeInputs && (
 						<div className="grid gap-4 sm:grid-cols-2">
 							<form.AppField name="startTime">
-								{(field) => <field.TimeField label="Start Time" />}
+								{(field) => (
+									<field.TimeField
+										label={t('exceptions.form.fields.startTime.label')}
+									/>
+								)}
 							</form.AppField>
 							<form.AppField name="endTime">
-								{(field) => <field.TimeField label="End Time" />}
+								{(field) => (
+									<field.TimeField
+										label={t('exceptions.form.fields.endTime.label')}
+									/>
+								)}
 							</form.AppField>
 						</div>
 					)}
@@ -182,8 +208,12 @@ export function ExceptionFormDialog({
 					<DialogFooter>
 						<form.AppForm>
 							<form.SubmitButton
-								label={initialException ? 'Save changes' : 'Create exception'}
-								loadingLabel="Saving..."
+								label={
+									initialException
+										? t('exceptions.form.actions.saveChanges')
+										: t('exceptions.form.actions.create')
+								}
+								loadingLabel={tCommon('saving')}
 							/>
 						</form.AppForm>
 					</DialogFooter>
@@ -192,4 +222,3 @@ export function ExceptionFormDialog({
 		</Dialog>
 	);
 }
-

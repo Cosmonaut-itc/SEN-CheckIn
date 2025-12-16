@@ -9,6 +9,7 @@ import { Animated, Platform, StyleSheet, Text, View, useWindowDimensions } from 
 
 import { Colors, type ThemeColors } from '@/constants/theme';
 import { useDeviceContext } from '@/lib/device-context';
+import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
 import type { AttendanceType } from '@/lib/query-keys';
 import { useTheme } from '@/providers/theme-provider';
@@ -76,7 +77,7 @@ export default function ScannerScreen(): JSX.Element {
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [scanStatus, setScanStatus] = useState<ScanStatus>({
 		state: 'idle',
-		message: 'Position your face within the circle',
+		message: i18n.t('Scanner.status.idle'),
 	});
 	const attendanceAccent =
 		attendanceType === 'CHECK_IN' ? themeColors.success : themeColors.error;
@@ -199,13 +200,13 @@ export default function ScannerScreen(): JSX.Element {
 	 */
 	const handleCapture = async () => {
 		if (!cameraRef.current || !settings?.deviceId) {
-			setScanStatus({ state: 'error', message: 'Device not linked. Go to Settings.' });
+			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			return;
 		}
 
 		setIsProcessing(true);
-		setScanStatus({ state: 'scanning', message: 'Verifying face...' });
+		setScanStatus({ state: 'scanning', message: i18n.t('Scanner.status.verifying') });
 
 		try {
 			const photo = await cameraRef.current.takePictureAsync({
@@ -215,7 +216,7 @@ export default function ScannerScreen(): JSX.Element {
 			});
 
 			if (!photo?.base64) {
-				setScanStatus({ state: 'error', message: 'Failed to capture image. Try again.' });
+				setScanStatus({ state: 'error', message: i18n.t('Scanner.status.captureFailed') });
 				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 				return;
 			}
@@ -232,12 +233,13 @@ export default function ScannerScreen(): JSX.Element {
 					.filter(Boolean)
 					.join(' ');
 
-				const actionText = attendanceType === 'CHECK_IN' ? 'checked in' : 'checked out';
-
 				setScanStatus({
 					state: 'success',
-					message: `Successfully ${actionText}!`,
-					employeeName: displayName || 'Employee',
+					message:
+						attendanceType === 'CHECK_IN'
+							? i18n.t('Scanner.success.checkedIn')
+							: i18n.t('Scanner.success.checkedOut'),
+					employeeName: displayName || i18n.t('Scanner.success.employeeFallback'),
 				});
 
 				// Success haptic feedback
@@ -247,13 +249,13 @@ export default function ScannerScreen(): JSX.Element {
 				setTimeout(() => {
 					setScanStatus({
 						state: 'idle',
-						message: 'Position your face within the circle',
+						message: i18n.t('Scanner.status.idle'),
 					});
 				}, 3000);
 			} else {
 				setScanStatus({
 					state: 'error',
-					message: 'Face not recognized. Please try again.',
+					message: i18n.t('Scanner.status.faceNotRecognized'),
 				});
 				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
@@ -261,7 +263,7 @@ export default function ScannerScreen(): JSX.Element {
 				setTimeout(() => {
 					setScanStatus({
 						state: 'idle',
-						message: 'Position your face within the circle',
+						message: i18n.t('Scanner.status.idle'),
 					});
 				}, 2000);
 			}
@@ -269,7 +271,7 @@ export default function ScannerScreen(): JSX.Element {
 			console.error('Face verification failed:', error);
 			setScanStatus({
 				state: 'error',
-				message: 'Verification failed. Please retry.',
+				message: i18n.t('Scanner.status.verificationFailed'),
 			});
 			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 		} finally {
@@ -288,7 +290,7 @@ export default function ScannerScreen(): JSX.Element {
 		return (
 			<View style={styles.centeredContainer}>
 				<Spinner size="lg" color={themeColors.primary} />
-				<Text style={styles.loadingText}>Initializing camera...</Text>
+				<Text style={styles.loadingText}>{i18n.t('Scanner.permission.initializing')}</Text>
 			</View>
 		);
 	}
@@ -302,14 +304,14 @@ export default function ScannerScreen(): JSX.Element {
 						<Ionicons name="camera-outline" size={64} color={themeColors.primary} />
 						<View className="gap-2">
 							<Card.Title className="text-center text-xl">
-								Camera Access Required
+								{i18n.t('Scanner.permission.title')}
 							</Card.Title>
 							<Card.Description className="text-center text-base">
-								We need camera permission to scan faces for attendance verification.
+								{i18n.t('Scanner.permission.description')}
 							</Card.Description>
 						</View>
 						<Button onPress={requestPermission} className="w-full">
-							<Button.Label>Grant Permission</Button.Label>
+							<Button.Label>{i18n.t('Scanner.permission.grant')}</Button.Label>
 						</Button>
 					</Card.Body>
 				</Card>
@@ -344,7 +346,9 @@ export default function ScannerScreen(): JSX.Element {
 						<View style={[styles.toggleDot, { backgroundColor: attendanceAccent }]} />
 					</View>
 					<Button.Label className="text-base font-semibold">
-						{attendanceType === 'CHECK_IN' ? 'Check-in' : 'Check-out'}
+						{attendanceType === 'CHECK_IN'
+							? i18n.t('Scanner.attendanceType.checkIn')
+							: i18n.t('Scanner.attendanceType.checkOut')}
 					</Button.Label>
 					<Ionicons name="swap-horizontal" size={18} color={themeColors.foreground500} />
 				</Button>
@@ -426,8 +430,9 @@ export default function ScannerScreen(): JSX.Element {
 								/>
 								<Text className="text-foreground text-sm font-medium">
 									{settings?.deviceId
-										? settings.name || 'Attendance Terminal'
-										: 'Device Not Linked'}
+										? settings.name ||
+											i18n.t('Scanner.deviceStatus.terminalFallback')
+										: i18n.t('Scanner.deviceStatus.deviceNotLinked')}
 								</Text>
 							</View>
 							<View className="flex-row items-center gap-1">
@@ -441,7 +446,9 @@ export default function ScannerScreen(): JSX.Element {
 									}
 								/>
 								<Text className="text-foreground-400 text-xs">
-									{settings?.deviceId ? 'Connected' : 'Setup Required'}
+									{settings?.deviceId
+										? i18n.t('Scanner.deviceStatus.connected')
+										: i18n.t('Scanner.deviceStatus.setupRequired')}
 								</Text>
 							</View>
 						</View>
@@ -460,7 +467,9 @@ export default function ScannerScreen(): JSX.Element {
 							{isProcessing ? (
 								<View className="flex-row items-center gap-3">
 									<Spinner size="sm" color={ctaContentColor} />
-									<Button.Label className="text-lg">Verifying...</Button.Label>
+									<Button.Label className="text-lg">
+										{i18n.t('Scanner.actions.verifying')}
+									</Button.Label>
 								</View>
 							) : (
 								<View className="flex-row items-center gap-2">
@@ -470,8 +479,8 @@ export default function ScannerScreen(): JSX.Element {
 										style={{ color: ctaContentColor }}
 									>
 										{attendanceType === 'CHECK_IN'
-											? 'Scan Check-in'
-											: 'Scan Check-out'}
+											? i18n.t('Scanner.actions.scanCheckIn')
+											: i18n.t('Scanner.actions.scanCheckOut')}
 									</Button.Label>
 								</View>
 							)}
@@ -488,7 +497,7 @@ export default function ScannerScreen(): JSX.Element {
 								<View className="flex-row items-center gap-2">
 									<Ionicons name="link" size={16} color={themeColors.warning} />
 									<Button.Label className="text-warning-500 font-semibold">
-										Tap to link this device
+										{i18n.t('Scanner.actions.tapToLink')}
 									</Button.Label>
 								</View>
 							</Button>

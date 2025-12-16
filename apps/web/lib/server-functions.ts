@@ -458,7 +458,9 @@ export function prefetchScheduleTemplates(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.scheduleTemplates.list(params),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchScheduleTemplatesListServer>>> => {
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchScheduleTemplatesListServer>>
+		> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchScheduleTemplatesListServer(cookieHeader, params);
 		},
@@ -479,7 +481,9 @@ export function prefetchScheduleTemplates(
 export function prefetchScheduleTemplateDetail(queryClient: QueryClient, id: string): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.scheduleTemplates.detail(id),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchScheduleTemplateDetailServer>>> => {
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchScheduleTemplateDetailServer>>
+		> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchScheduleTemplateDetailServer(cookieHeader, id);
 		},

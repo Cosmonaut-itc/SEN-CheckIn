@@ -110,7 +110,14 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.get(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			const results = await db
@@ -361,7 +368,14 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	 */
 	.delete(
 		'/:id',
-		async ({ params, set, authType, session, sessionOrganizationIds, apiKeyOrganizationIds }) => {
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
 			const { id } = params;
 
 			// Check if position exists

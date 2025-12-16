@@ -9,15 +9,16 @@ import Link from 'next/link';
 import React from 'react';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { useOrgContext } from '@/lib/org-client-context';
+import { useTranslations } from 'next-intl';
 
 /**
  * Entity count card configuration interface.
  */
 interface EntityCardConfig {
-	/** Display title */
-	title: string;
-	/** Description text */
-	description: string;
+	/** Translation key for the display title */
+	titleKey: string;
+	/** Translation key for the description text */
+	descriptionKey: string;
 	/** Route path for navigation */
 	href: string;
 	/** Lucide icon component */
@@ -31,36 +32,36 @@ interface EntityCardConfig {
  */
 const entityCards: EntityCardConfig[] = [
 	{
-		title: 'Employees',
-		description: 'Manage employee records and face enrollment',
+		titleKey: 'cards.employees.title',
+		descriptionKey: 'cards.employees.description',
 		href: '/employees',
 		icon: Users,
 		key: 'employees',
 	},
 	{
-		title: 'Devices',
-		description: 'Manage check-in kiosks and devices',
+		titleKey: 'cards.devices.title',
+		descriptionKey: 'cards.devices.description',
 		href: '/devices',
 		icon: Smartphone,
 		key: 'devices',
 	},
 	{
-		title: 'Locations',
-		description: 'Manage branches and office locations',
+		titleKey: 'cards.locations.title',
+		descriptionKey: 'cards.locations.description',
 		href: '/locations',
 		icon: MapPin,
 		key: 'locations',
 	},
 	{
-		title: 'Organizations',
-		description: 'Manage BetterAuth organizations',
+		titleKey: 'cards.organizations.title',
+		descriptionKey: 'cards.organizations.description',
 		href: '/organizations',
 		icon: Building,
 		key: 'organizations',
 	},
 	{
-		title: 'Attendance',
-		description: 'View attendance records and reports',
+		titleKey: 'cards.attendance.title',
+		descriptionKey: 'cards.attendance.description',
 		href: '/attendance',
 		icon: ClipboardList,
 		key: 'attendance',
@@ -78,6 +79,7 @@ const entityCards: EntityCardConfig[] = [
  */
 export function DashboardPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('Dashboard');
 	const { data: counts, isFetching } = useSuspenseQuery({
 		queryKey: queryKeys.dashboard.counts(organizationId),
 		queryFn: () => fetchDashboardCounts({ organizationId }),
@@ -86,8 +88,8 @@ export function DashboardPageClient(): React.ReactElement {
 	return (
 		<div className="space-y-8">
 			<div>
-				<h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-				<p className="text-muted-foreground">Welcome to the SEN CheckIn admin portal</p>
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('subtitle')}</p>
 			</div>
 
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -95,7 +97,9 @@ export function DashboardPageClient(): React.ReactElement {
 					<Link key={card.key} href={card.href} className="group">
 						<Card className="h-full transition-colors hover:border-primary/50">
 							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">{card.title}</CardTitle>
+								<CardTitle className="text-sm font-medium">
+									{t(card.titleKey)}
+								</CardTitle>
 								<card.icon className="h-4 w-4 text-muted-foreground" />
 							</CardHeader>
 							<CardContent>
@@ -110,7 +114,7 @@ export function DashboardPageClient(): React.ReactElement {
 									<ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
 								</div>
 								<CardDescription className="mt-2">
-									{card.description}
+									{t(card.descriptionKey)}
 								</CardDescription>
 							</CardContent>
 						</Card>

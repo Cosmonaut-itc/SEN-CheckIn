@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { eachDayOfInterval, format, getDay } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	DropdownMenu,
@@ -13,13 +14,9 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { CalendarDay, CalendarEmployee, Employee, Location } from '@/lib/client-functions';
+import { formatMonthDayUtc } from '@/lib/date-format';
 
 type LocationSummary = Pick<Location, 'id' | 'name'>;
 type CheckedState = boolean | 'indeterminate';
@@ -36,6 +33,22 @@ const EMPLOYEE_MARKER_CLASSES = [
 ] as const;
 
 type EmployeeMarkerClass = (typeof EMPLOYEE_MARKER_CLASSES)[number];
+
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+type DayKey = (typeof DAY_KEYS)[number];
+
+const SOURCE_LABEL_KEYS = {
+	template: 'calendar.locationCard.badges.source.template',
+	manual: 'calendar.locationCard.badges.source.manual',
+	exception: 'calendar.locationCard.badges.source.exception',
+	none: 'calendar.locationCard.badges.source.none',
+} as const satisfies Record<CalendarDay['source'], string>;
+
+const EXCEPTION_TYPE_LABEL_KEYS = {
+	DAY_OFF: 'calendar.locationCard.badges.exceptionType.DAY_OFF',
+	MODIFIED: 'calendar.locationCard.badges.exceptionType.MODIFIED',
+	EXTRA_DAY: 'calendar.locationCard.badges.exceptionType.EXTRA_DAY',
+} as const satisfies Record<NonNullable<CalendarDay['exceptionType']>, string>;
 
 /**
  * Props for the LocationScheduleCard component.
@@ -166,6 +179,7 @@ export function LocationScheduleCard({
 	rangeEnd,
 	weekStartDay,
 }: LocationScheduleCardProps): React.ReactElement {
+	const t = useTranslations('Schedules');
 	const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
 
 	const employeeOptions = useMemo(() => {
@@ -289,8 +303,10 @@ export function LocationScheduleCard({
 
 	const filterLabel =
 		effectiveSelectedEmployeeIds.length === 0
-			? 'All employees'
-			: `${effectiveSelectedEmployeeIds.length} selected`;
+			? t('calendar.locationCard.filter.all')
+			: t('calendar.locationCard.filter.selected', {
+					count: effectiveSelectedEmployeeIds.length,
+				});
 
 	return (
 		<Card>
@@ -304,12 +320,14 @@ export function LocationScheduleCard({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end" className="w-[260px]">
-							<DropdownMenuLabel>Employees</DropdownMenuLabel>
+							<DropdownMenuLabel>
+								{t('calendar.locationCard.filter.menuLabel')}
+							</DropdownMenuLabel>
 							<DropdownMenuCheckboxItem
 								checked={effectiveSelectedEmployeeIds.length === 0}
 								onCheckedChange={() => handleSelectAll()}
 							>
-								All employees
+								{t('calendar.locationCard.filter.selectAll')}
 							</DropdownMenuCheckboxItem>
 							<DropdownMenuSeparator />
 							{employeeOptions.map((employee) => (
@@ -330,7 +348,7 @@ export function LocationScheduleCard({
 					</DropdownMenu>
 				</div>
 				<div className="text-xs text-muted-foreground">
-					{employeeIds.length} employee{employeeIds.length === 1 ? '' : 's'}
+					{t('calendar.locationCard.employeeCount', { count: employeeIds.length })}
 				</div>
 			</CardHeader>
 			<CardContent>
@@ -339,18 +357,24 @@ export function LocationScheduleCard({
 						{daysInRangeUtc.slice(0, 7).map((dayUtc) => {
 							const dayKey = formatUtcDateKey(dayUtc);
 							const expected = expectedByDate.get(dayKey) ?? [];
-							const label = format(toUtcCalendarDateLocal(dayUtc), 'EEE');
-							const dateLabel = format(toUtcCalendarDateLocal(dayUtc), 'MMM d');
+							const dayOfWeekIndex = getUtcDayOfWeekIndex(dayUtc);
+							const dayTranslationKey: DayKey = DAY_KEYS[dayOfWeekIndex] ?? 'sun';
+							const label = t(`days.short.${dayTranslationKey}`);
+							const dateLabel = formatMonthDayUtc(dayUtc);
 
 							return (
 								<div key={dayKey} className="space-y-2 rounded-md border p-2">
 									<div className="space-y-0.5">
 										<div className="text-xs font-semibold">{label}</div>
-										<div className="text-[11px] text-muted-foreground">{dateLabel}</div>
+										<div className="text-[11px] text-muted-foreground">
+											{dateLabel}
+										</div>
 									</div>
 									<div className="space-y-1">
 										{expected.length === 0 ? (
-											<div className="text-[11px] text-muted-foreground">No employees</div>
+											<div className="text-[11px] text-muted-foreground">
+												{t('calendar.locationCard.noEmployees')}
+											</div>
 										) : (
 											expected.map((entry) => (
 												<div
@@ -370,11 +394,18 @@ export function LocationScheduleCard({
 															variant={sourceVariant(entry.source)}
 															className="text-[10px] uppercase"
 														>
-															{entry.source}
+															{t(SOURCE_LABEL_KEYS[entry.source])}
 														</Badge>
 														{entry.exceptionType && (
-															<Badge variant="outline" className="text-[10px] uppercase">
-																{entry.exceptionType}
+															<Badge
+																variant="outline"
+																className="text-[10px] uppercase"
+															>
+																{t(
+																	EXCEPTION_TYPE_LABEL_KEYS[
+																		entry.exceptionType
+																	],
+																)}
 															</Badge>
 														)}
 													</div>
@@ -424,10 +455,14 @@ export function LocationScheduleCard({
 
 								const cell = (
 									<div className="min-h-[96px] rounded-md border p-2">
-										<div className="mb-1 text-xs font-semibold">{dayNumber}</div>
+										<div className="mb-1 text-xs font-semibold">
+											{dayNumber}
+										</div>
 										<div className="space-y-0.5">
 											{visible.map((entry) => {
-												const markerClass = employeeMarkerClass(entry.employeeId);
+												const markerClass = employeeMarkerClass(
+													entry.employeeId,
+												);
 												return (
 													<div
 														key={`${dayKey}-${entry.employeeId}`}
@@ -448,7 +483,9 @@ export function LocationScheduleCard({
 											})}
 											{remaining > 0 && (
 												<div className="text-[11px] text-muted-foreground">
-													+{remaining} more
+													{t('calendar.locationCard.more', {
+														count: remaining,
+													})}
 												</div>
 											)}
 										</div>
@@ -465,7 +502,21 @@ export function LocationScheduleCard({
 										<TooltipContent className="max-w-sm">
 											<div className="space-y-1">
 												<div className="text-xs font-semibold">
-													{format(toUtcCalendarDateLocal(dayUtc), 'EEE, MMM d')}
+													{(() => {
+														const dayOfWeekIndex =
+															getUtcDayOfWeekIndex(dayUtc);
+														const dayTranslationKey: DayKey =
+															DAY_KEYS[dayOfWeekIndex] ?? 'sun';
+														return t(
+															'calendar.locationCard.tooltipDate',
+															{
+																day: t(
+																	`days.long.${dayTranslationKey}`,
+																),
+																date: formatMonthDayUtc(dayUtc),
+															},
+														);
+													})()}
 												</div>
 												{expected.map((entry) => (
 													<div
@@ -486,17 +537,23 @@ export function LocationScheduleCard({
 														</span>
 														<div className="flex shrink-0 items-center gap-1">
 															<Badge
-																variant={sourceVariant(entry.source)}
+																variant={sourceVariant(
+																	entry.source,
+																)}
 																className="text-[10px] uppercase"
 															>
-																{entry.source}
+																{t(SOURCE_LABEL_KEYS[entry.source])}
 															</Badge>
 															{entry.exceptionType && (
 																<Badge
 																	variant="outline"
 																	className="text-[10px] uppercase"
 																>
-																	{entry.exceptionType}
+																	{t(
+																		EXCEPTION_TYPE_LABEL_KEYS[
+																			entry.exceptionType
+																		],
+																	)}
 																</Badge>
 															)}
 														</div>

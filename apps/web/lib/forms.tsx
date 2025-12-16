@@ -8,11 +8,11 @@
  * @module lib/forms
  */
 
+'use client';
+
 import React from 'react';
-import {
-	createFormHook,
-	createFormHookContexts,
-} from '@tanstack/react-form';
+import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
+import { useTranslations } from 'next-intl';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -63,7 +63,10 @@ export function TextField({
 	onValueChange,
 	orientation = 'horizontal',
 	startIcon: StartIcon,
-}: CommonFieldProps & { type?: string; onValueChange?: (value: string) => string }): React.ReactElement {
+}: CommonFieldProps & {
+	type?: string;
+	onValueChange?: (value: string) => string;
+}): React.ReactElement {
 	const field = useFieldContext();
 
 	if (orientation === 'vertical') {
@@ -82,7 +85,9 @@ export function TextField({
 						type={type}
 						value={field.state.value as string}
 						onChange={(e) => {
-							const next = onValueChange ? onValueChange(e.target.value) : e.target.value;
+							const next = onValueChange
+								? onValueChange(e.target.value)
+								: e.target.value;
 							field.handleChange(next);
 						}}
 						onBlur={field.handleBlur}
@@ -91,9 +96,7 @@ export function TextField({
 						className={cn(StartIcon && 'pl-10')}
 					/>
 				</div>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -122,9 +125,7 @@ export function TextField({
 					placeholder={placeholder}
 					disabled={disabled}
 				/>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -163,9 +164,7 @@ export function TextareaField({
 					disabled={disabled}
 					rows={rows}
 				/>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -186,9 +185,9 @@ export function SelectField<TValue extends string>({
 	description,
 	disabled,
 }: CommonFieldProps & {
-		options: { value: TValue; label: string }[];
-		placeholder?: string;
-	}): React.ReactElement {
+	options: { value: TValue; label: string }[];
+	placeholder?: string;
+}): React.ReactElement {
 	const field = useFieldContext();
 
 	return (
@@ -213,9 +212,7 @@ export function SelectField<TValue extends string>({
 						))}
 					</SelectContent>
 				</Select>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -255,9 +252,7 @@ export function TimeField({
 					placeholder={placeholder}
 					disabled={disabled}
 				/>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -283,9 +278,7 @@ export function TimeField({
 					placeholder={placeholder}
 					disabled={disabled}
 				/>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -325,9 +318,7 @@ export function DateField({
 					placeholder={placeholder}
 					disabled={disabled}
 				/>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -353,9 +344,7 @@ export function DateField({
 					placeholder={placeholder}
 					disabled={disabled}
 				/>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -396,9 +385,7 @@ export function ToggleField({
 					/>
 					<Label htmlFor={field.name}>{label}</Label>
 				</div>
-				{description && (
-					<p className="mt-1 text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -423,9 +410,7 @@ export function ToggleField({
 					disabled={disabled}
 					className="h-4 w-4 accent-primary"
 				/>
-				{description && (
-					<p className="text-xs text-muted-foreground">{description}</p>
-				)}
+				{description && <p className="text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
 						{field.state.meta.errors.join(', ')}
@@ -445,14 +430,16 @@ export function ToggleField({
  */
 export function SubmitButton({
 	label,
-	loadingLabel = 'Saving...',
+	loadingLabel,
 	className,
 }: {
-		label: string;
-		loadingLabel?: string;
-		className?: string;
+	label: string;
+	loadingLabel?: string;
+	className?: string;
 }): React.ReactElement {
 	const form = useFormContext();
+	const t = useTranslations('Common');
+	const resolvedLoadingLabel = loadingLabel ?? t('saving');
 
 	return (
 		<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
@@ -461,7 +448,7 @@ export function SubmitButton({
 					{isSubmitting ? (
 						<>
 							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							{loadingLabel}
+							{resolvedLoadingLabel}
 						</>
 					) : (
 						label
@@ -527,11 +514,7 @@ export const { useAppForm, withForm } = createFormHook({
 /**
  * Re-export commonly used TanStack Form utilities for convenience.
  */
-export {
-	useForm,
-	useStore,
-	formOptions,
-} from '@tanstack/react-form';
+export { useForm, useStore, formOptions } from '@tanstack/react-form';
 
 // ============================================================================
 // Type Exports

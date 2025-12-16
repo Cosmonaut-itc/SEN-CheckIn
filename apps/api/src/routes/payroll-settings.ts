@@ -17,30 +17,39 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 	 *
 	 * @returns Payroll settings record (creates default if missing)
 	 */
-		.get('/', async ({ authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
-		const organizationId = resolveOrganizationId({
+	.get(
+		'/',
+		async ({
 			authType,
 			session,
 			sessionOrganizationIds,
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
-			requestedOrganizationId: null,
-		});
+			set,
+		}) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
 
-		if (!organizationId) {
-			set.status = authType === 'apiKey' ? 403 : 400;
-			return { error: 'Organization is required or not permitted' };
-		}
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
 
-		const existing = await db
-			.select()
-			.from(payrollSetting)
-			.where(eq(payrollSetting.organizationId, organizationId))
-			.limit(1);
+			const existing = await db
+				.select()
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, organizationId))
+				.limit(1);
 
-		if (existing[0]) {
-			return { data: existing[0] };
-		}
+			if (existing[0]) {
+				return { data: existing[0] };
+			}
 
 			// Create a default configuration if none exists
 			const defaultSetting = {
@@ -49,17 +58,21 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				additionalMandatoryRestDays: [],
 			};
 
-		const [insertedSetting] = await db.insert(payrollSetting).values(defaultSetting).returning();
+			const [insertedSetting] = await db
+				.insert(payrollSetting)
+				.values(defaultSetting)
+				.returning();
 
-		return { data: insertedSetting };
-	})
+			return { data: insertedSetting };
+		},
+	)
 	/**
 	 * Upsert payroll settings for the active organization.
 	 *
 	 * @returns Saved payroll settings
 	 */
-		.put(
-			'/',
+	.put(
+		'/',
 		async ({
 			body,
 			authType,
@@ -89,30 +102,30 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				.where(eq(payrollSetting.organizationId, organizationId))
 				.limit(1);
 
-				const resolvedOvertimeEnforcement =
-					body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
-				const resolvedAdditionalMandatoryRestDays =
-					body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
+			const resolvedOvertimeEnforcement =
+				body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
+			const resolvedAdditionalMandatoryRestDays =
+				body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
 
-				const updatePayload = {
-					weekStartDay: body.weekStartDay,
-					overtimeEnforcement: resolvedOvertimeEnforcement,
-					additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,
-					organizationId,
-				};
+			const updatePayload = {
+				weekStartDay: body.weekStartDay,
+				overtimeEnforcement: resolvedOvertimeEnforcement,
+				additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,
+				organizationId,
+			};
 
 			if (existing[0]) {
-					await db
-						.update(payrollSetting)
-						.set({
-							weekStartDay: updatePayload.weekStartDay,
-							overtimeEnforcement: updatePayload.overtimeEnforcement,
-							additionalMandatoryRestDays: updatePayload.additionalMandatoryRestDays,
-						})
-						.where(eq(payrollSetting.organizationId, organizationId));
-				} else {
-					await db.insert(payrollSetting).values(updatePayload);
-				}
+				await db
+					.update(payrollSetting)
+					.set({
+						weekStartDay: updatePayload.weekStartDay,
+						overtimeEnforcement: updatePayload.overtimeEnforcement,
+						additionalMandatoryRestDays: updatePayload.additionalMandatoryRestDays,
+					})
+					.where(eq(payrollSetting.organizationId, organizationId));
+			} else {
+				await db.insert(payrollSetting).values(updatePayload);
+			}
 
 			const saved = await db
 				.select()

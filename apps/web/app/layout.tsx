@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import Script from 'next/script';
 import React, { type ReactNode } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
+import { NextIntlClientProvider } from 'next-intl';
+import { getMessages } from 'next-intl/server';
 import { Toaster } from '@/components/ui/sonner';
 import { Providers } from './providers';
 import './globals.css';
@@ -26,8 +28,8 @@ const geistMono = Geist_Mono({
  * Application metadata for SEO and browser tab display.
  */
 export const metadata: Metadata = {
-	title: 'SEN CheckIn - Admin Portal',
-	description: 'Administration portal for SEN CheckIn attendance management system',
+	title: 'SEN CheckIn - Portal de Administración',
+	description: 'Portal de administración para el sistema de asistencia SEN CheckIn',
 };
 
 /**
@@ -45,12 +47,14 @@ interface RootLayoutProps {
  * @param props - Component props containing children
  * @returns The root layout JSX element
  */
-export default function RootLayout({ children }: RootLayoutProps): React.ReactElement {
+export default async function RootLayout({
+	children,
+}: RootLayoutProps): Promise<React.ReactElement> {
+	const messages = await getMessages();
+
 	return (
-		<html lang="en" suppressHydrationWarning>
-			<body
-				className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
-			>
+		<html lang="es" suppressHydrationWarning>
+			<body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
 				{process.env.NODE_ENV === 'development' && (
 					<Script id="strip-cursor-element-ids" strategy="beforeInteractive">
 						{`
@@ -67,10 +71,12 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
 						`}
 					</Script>
 				)}
-				<Providers>
-					{children}
-					<Toaster richColors position="top-right" />
-				</Providers>
+				<NextIntlClientProvider locale="es" messages={messages}>
+					<Providers>
+						{children}
+						<Toaster richColors position="top-right" />
+					</Providers>
+				</NextIntlClientProvider>
 			</body>
 		</html>
 	);

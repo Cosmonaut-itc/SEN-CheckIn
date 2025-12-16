@@ -1,4 +1,5 @@
 import React from 'react';
+import { getTranslations } from 'next-intl/server';
 import { TablePageSkeleton } from './table-page-skeleton';
 
 /**
@@ -7,16 +8,22 @@ import { TablePageSkeleton } from './table-page-skeleton';
  *
  * @returns The organizations skeleton JSX element
  */
-export function OrganizationsSkeleton(): React.ReactElement {
+export async function OrganizationsSkeleton(): Promise<React.ReactElement> {
+	const t = await getTranslations('Organizations');
+
 	return (
 		<TablePageSkeleton
-			title="Organizations"
-			description="Manage organizations and their members"
-			columns={['Name', 'Slug', 'Created', 'Actions']}
+			title={t('title')}
+			description={t('subtitle')}
+			columns={[
+				t('table.headers.name'),
+				t('table.headers.slug'),
+				t('table.headers.created'),
+				t('table.headers.actions'),
+			]}
 			rowCount={3}
 			showSearch
 			showAddButton
 		/>
 	);
 }
-

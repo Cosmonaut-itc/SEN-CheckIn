@@ -213,10 +213,15 @@ export class ExternalServiceError extends ApiError {
 	 * @param originalError - Original error from the service (for logging)
 	 */
 	constructor(service: string, message: string, originalError?: unknown) {
-		super(`${service} error: ${message}`, HttpStatus.SERVICE_UNAVAILABLE, 'EXTERNAL_SERVICE_ERROR', {
-			service,
-			...(originalError instanceof Error && { originalMessage: originalError.message }),
-		});
+		super(
+			`${service} error: ${message}`,
+			HttpStatus.SERVICE_UNAVAILABLE,
+			'EXTERNAL_SERVICE_ERROR',
+			{
+				service,
+				...(originalError instanceof Error && { originalMessage: originalError.message }),
+			},
+		);
 		this.name = 'ExternalServiceError';
 	}
 }
@@ -244,4 +249,3 @@ export class DatabaseError extends ApiError {
 		this.name = 'DatabaseError';
 	}
 }
-

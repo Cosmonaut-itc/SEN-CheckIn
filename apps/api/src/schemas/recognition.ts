@@ -163,4 +163,3 @@ export type MatchedEmployee = z.infer<typeof matchedEmployeeSchema>;
 
 /** Type for recognition/identification result */
 export type RecognitionResult = z.infer<typeof recognitionResultSchema>;
-

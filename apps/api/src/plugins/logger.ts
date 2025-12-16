@@ -139,4 +139,3 @@ function shouldSkipLogging(path: string): boolean {
 }
 
 export default loggerPlugin;
-

@@ -187,13 +187,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const {
-				code,
-				name,
-				deviceType,
-				platform,
-				organizationId: organizationIdInput,
-			} = body;
+			const { code, name, deviceType, platform, organizationId: organizationIdInput } = body;
 
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -216,10 +210,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			const now = new Date();
 
 			if (existing[0]) {
-				if (
-					existing[0].organizationId &&
-					existing[0].organizationId !== organizationId
-				) {
+				if (existing[0].organizationId && existing[0].organizationId !== organizationId) {
 					set.status = 403;
 					return { error: 'Device code is registered to another organization' };
 				}
@@ -251,7 +242,11 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 						.where(eq(device.id, existing[0].id));
 				}
 
-				const refreshed = await db.select().from(device).where(eq(device.id, existing[0].id)).limit(1);
+				const refreshed = await db
+					.select()
+					.from(device)
+					.where(eq(device.id, existing[0].id))
+					.limit(1);
 
 				return { data: refreshed[0], isNew: false };
 			}

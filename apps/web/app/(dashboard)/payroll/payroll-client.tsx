@@ -6,6 +6,7 @@ import { Loader2 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { useTranslations } from 'next-intl';
 
 import { processPayrollAction } from '@/actions/payroll';
 import { Button } from '@/components/ui/button';
@@ -37,8 +38,15 @@ import { type PayrollCalculateParams, mutationKeys, queryKeys } from '@/lib/quer
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
-const formatCurrency = (value: number): string =>
-	new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+/**
+ * Formats a numeric value as Mexican Peso currency (MXN).
+ *
+ * @param value - Amount in MXN
+ * @returns Formatted currency string
+ */
+function formatCurrency(value: number): string {
+	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+}
 
 /**
  * Computes period boundaries based on week start and frequency.
@@ -77,6 +85,8 @@ function computePeriod(
 export function PayrollPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId } = useOrgContext();
+	const t = useTranslations('Payroll');
+	const tCommon = useTranslations('Common');
 
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
@@ -140,7 +150,7 @@ export function PayrollPageClient(): React.ReactElement {
 		mutationFn: processPayrollAction,
 		onSuccess: (result) => {
 			if (result.success) {
-				toast.success('Payroll processed');
+				toast.success(t('toast.processSuccess'));
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.payroll.runs({
 						organizationId: organizationId ?? undefined,
@@ -148,11 +158,11 @@ export function PayrollPageClient(): React.ReactElement {
 				});
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
-				toast.error(result.error ?? 'Failed to process payroll');
+				toast.error(result.error ?? t('toast.processError'));
 			}
 		},
 		onError: () => {
-			toast.error('Failed to process payroll');
+			toast.error(t('toast.processError'));
 		},
 	});
 
@@ -174,38 +184,41 @@ export function PayrollPageClient(): React.ReactElement {
 		});
 	};
 
+	if (!organizationId) {
+		return (
+			<div className="space-y-4">
+				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<p className="text-muted-foreground">{t('noOrganization')}</p>
+			</div>
+		);
+	}
+
 	return (
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>
-					<h1 className="text-3xl font-bold tracking-tight">Payroll</h1>
-					<p className="text-muted-foreground">
-						Calculate payroll from attendance and job position pay rates.
-					</p>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 			</div>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Reglas legales (LFT México)</CardTitle>
-					<CardDescription>
-						Límites de jornada: Diurna 8h/48h, Nocturna 7h/42h, Mixta 7.5h/45h. Primeras
-						9h extra al doble, posteriores al triple. Prima dominical: +25%. Descanso
-						obligatorio trabajado: pago triple.
-					</CardDescription>
+					<CardTitle>{t('legalRules.title')}</CardTitle>
+					<CardDescription>{t('legalRules.description')}</CardDescription>
 				</CardHeader>
 			</Card>
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Pay Period</CardTitle>
-					<CardDescription>
-						Period start/end are auto-derived from settings. Adjust if needed.
-					</CardDescription>
+					<CardTitle>{t('payPeriod.title')}</CardTitle>
+					<CardDescription>{t('payPeriod.description')}</CardDescription>
 				</CardHeader>
 				<CardContent className="grid gap-4 md:grid-cols-4">
 					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium">Payment frequency</label>
+						<label className="text-sm font-medium">
+							{t('payPeriod.paymentFrequency')}
+						</label>
 						<Select
 							value={paymentFrequency}
 							onValueChange={(value: string) => {
@@ -218,17 +231,23 @@ export function PayrollPageClient(): React.ReactElement {
 							}}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder="Select frequency" />
+								<SelectValue placeholder={t('payPeriod.selectFrequency')} />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="WEEKLY">Weekly</SelectItem>
-								<SelectItem value="BIWEEKLY">Biweekly</SelectItem>
-								<SelectItem value="MONTHLY">Monthly</SelectItem>
+								<SelectItem value="WEEKLY">
+									{t('paymentFrequency.WEEKLY')}
+								</SelectItem>
+								<SelectItem value="BIWEEKLY">
+									{t('paymentFrequency.BIWEEKLY')}
+								</SelectItem>
+								<SelectItem value="MONTHLY">
+									{t('paymentFrequency.MONTHLY')}
+								</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
 					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium">Period start</label>
+						<label className="text-sm font-medium">{t('payPeriod.periodStart')}</label>
 						<Input
 							type="date"
 							value={format(periodStart, 'yyyy-MM-dd')}
@@ -236,7 +255,7 @@ export function PayrollPageClient(): React.ReactElement {
 						/>
 					</div>
 					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium">Period end</label>
+						<label className="text-sm font-medium">{t('payPeriod.periodEnd')}</label>
 						<Input
 							type="date"
 							value={format(periodEnd, 'yyyy-MM-dd')}
@@ -257,16 +276,15 @@ export function PayrollPageClient(): React.ReactElement {
 							{processMutation.isPending ? (
 								<>
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									Processing...
+									{t('actions.processing')}
 								</>
 							) : (
-								'Process Payroll'
+								t('actions.process')
 							)}
 						</Button>
 						{hasBlockingWarnings && (
 							<p className="mt-2 text-sm text-destructive">
-								Overtime limits exceeded. Ajusta horarios o cambia la política a
-								Advertir.
+								{t('warnings.blockingOvertime')}
 							</p>
 						)}
 					</div>
@@ -275,41 +293,53 @@ export function PayrollPageClient(): React.ReactElement {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Payroll Preview</CardTitle>
-					<CardDescription>
-						Calculated from attendance between the selected dates.
-					</CardDescription>
+					<CardTitle>{t('preview.title')}</CardTitle>
+					<CardDescription>{t('preview.description')}</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{isCalculating ? (
 						<div className="flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							Calculating...
+							{t('preview.calculating')}
 						</div>
 					) : !calculation ? (
-						<p className="text-sm text-muted-foreground">No calculation available.</p>
+						<p className="text-sm text-muted-foreground">
+							{t('preview.noCalculation')}
+						</p>
 					) : (
 						<>
 							<div className="mb-4 flex items-center justify-between">
 								<div className="text-sm text-muted-foreground">
-									Total employees: {calculation.employees.length}
+									{t('preview.totalEmployees', {
+										count: calculation.employees.length,
+									})}
 								</div>
 								<div className="text-lg font-semibold">
-									Total: {formatCurrency(calculation.totalAmount)}
+									{t('preview.totalAmount', {
+										total: formatCurrency(calculation.totalAmount),
+									})}
 								</div>
 							</div>
 							<div className="rounded-md border">
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead>Employee</TableHead>
-											<TableHead>Horas normales</TableHead>
-											<TableHead>Horas extra (x2)</TableHead>
-											<TableHead>Horas extra (x3)</TableHead>
-											<TableHead>Prima dominical</TableHead>
-											<TableHead>Descanso obligatorio</TableHead>
-											<TableHead>Total</TableHead>
-											<TableHead>Alertas</TableHead>
+											<TableHead>{t('preview.table.employee')}</TableHead>
+											<TableHead>{t('preview.table.normalHours')}</TableHead>
+											<TableHead>
+												{t('preview.table.overtimeDouble')}
+											</TableHead>
+											<TableHead>
+												{t('preview.table.overtimeTriple')}
+											</TableHead>
+											<TableHead>
+												{t('preview.table.sundayPremium')}
+											</TableHead>
+											<TableHead>
+												{t('preview.table.mandatoryRest')}
+											</TableHead>
+											<TableHead>{t('preview.table.total')}</TableHead>
+											<TableHead>{t('preview.table.warnings')}</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -330,7 +360,9 @@ export function PayrollPageClient(): React.ReactElement {
 												</TableCell>
 												<TableCell>
 													{row.mandatoryRestDayPremiumAmount > 0
-														? formatCurrency(row.mandatoryRestDayPremiumAmount)
+														? formatCurrency(
+																row.mandatoryRestDayPremiumAmount,
+															)
 														: '-'}
 												</TableCell>
 												<TableCell>
@@ -351,7 +383,9 @@ export function PayrollPageClient(): React.ReactElement {
 																	: 'text-amber-600'
 															}`}
 														>
-															{row.warnings.length} alerta(s)
+															{t('preview.warningsCount', {
+																count: row.warnings.length,
+															})}
 														</span>
 													)}
 												</TableCell>
@@ -362,7 +396,7 @@ export function PayrollPageClient(): React.ReactElement {
 							</div>
 							{calculation.employees.some((emp) => emp.warnings.length > 0) && (
 								<div className="mt-4 rounded-md border bg-muted/50 p-3">
-									<p className="text-sm font-medium">Alertas de cumplimiento</p>
+									<p className="text-sm font-medium">{t('compliance.title')}</p>
 									<div className="mt-2 space-y-2 text-sm">
 										{calculation.employees.map((emp) =>
 											emp.warnings.map((w, idx) => (
@@ -388,36 +422,46 @@ export function PayrollPageClient(): React.ReactElement {
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Run History</CardTitle>
-					<CardDescription>Recent payroll runs.</CardDescription>
+					<CardTitle>{t('runHistory.title')}</CardTitle>
+					<CardDescription>{t('runHistory.description')}</CardDescription>
 				</CardHeader>
 				<CardContent>
 					{runsQuery.isLoading ? (
 						<div className="flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							Loading...
+							{tCommon('loading')}
 						</div>
 					) : runsQuery.data && runsQuery.data.length > 0 ? (
 						<div className="rounded-md border">
 							<Table>
 								<TableHeader>
 									<TableRow>
-										<TableHead>Period</TableHead>
-										<TableHead>Frequency</TableHead>
-										<TableHead>Status</TableHead>
-										<TableHead>Total</TableHead>
-										<TableHead>Processed</TableHead>
+										<TableHead>{t('runHistory.table.period')}</TableHead>
+										<TableHead>{t('runHistory.table.frequency')}</TableHead>
+										<TableHead>{t('runHistory.table.status')}</TableHead>
+										<TableHead>{t('runHistory.table.total')}</TableHead>
+										<TableHead>{t('runHistory.table.processed')}</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
 									{runsQuery.data.map((run) => (
 										<TableRow key={run.id}>
 											<TableCell>
-												{format(new Date(run.periodStart), 'MMM d, yyyy')} -{' '}
-												{format(new Date(run.periodEnd), 'MMM d, yyyy')}
+												{t('runHistory.periodRange', {
+													start: format(
+														new Date(run.periodStart),
+														t('dateFormat'),
+													),
+													end: format(
+														new Date(run.periodEnd),
+														t('dateFormat'),
+													),
+												})}
 											</TableCell>
-											<TableCell>{run.paymentFrequency}</TableCell>
-											<TableCell>{run.status}</TableCell>
+											<TableCell>
+												{t(`paymentFrequency.${run.paymentFrequency}`)}
+											</TableCell>
+											<TableCell>{t(`runStatus.${run.status}`)}</TableCell>
 											<TableCell>
 												{formatCurrency(Number(run.totalAmount ?? 0))}
 											</TableCell>
@@ -425,7 +469,7 @@ export function PayrollPageClient(): React.ReactElement {
 												{run.processedAt
 													? format(
 															new Date(run.processedAt),
-															'MMM d, yyyy',
+															t('dateFormat'),
 														)
 													: '-'}
 											</TableCell>
@@ -435,7 +479,7 @@ export function PayrollPageClient(): React.ReactElement {
 							</Table>
 						</div>
 					) : (
-						<p className="text-sm text-muted-foreground">No payroll runs found.</p>
+						<p className="text-sm text-muted-foreground">{t('runHistory.empty')}</p>
 					)}
 				</CardContent>
 			</Card>

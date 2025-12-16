@@ -16,64 +16,90 @@ Add to [`apps/api/src/db/schema.ts`](apps/api/src/db/schema.ts):
 
 ```typescript
 export const scheduleTemplate = pgTable('schedule_template', {
-  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
-  name: text('name').notNull(),
-  description: text('description'),
-  shiftType: shiftType('shift_type').default('DIURNA').notNull(),
-  organizationId: text('organization_id').notNull()
-    .references(() => organization.id, { onDelete: 'cascade' }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow()
-    .$onUpdate(() => new Date()).notNull(),
+	id: text('id')
+		.primaryKey()
+		.$defaultFn(() => randomUUID()),
+	name: text('name').notNull(),
+	description: text('description'),
+	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
+	organizationId: text('organization_id')
+		.notNull()
+		.references(() => organization.id, { onDelete: 'cascade' }),
+	createdAt: timestamp('created_at').defaultNow().notNull(),
+	updatedAt: timestamp('updated_at')
+		.defaultNow()
+		.$onUpdate(() => new Date())
+		.notNull(),
 });
 ```
 
 **Schedule Template Day Table** - Daily configuration for each template:
 
 ```typescript
-export const scheduleTemplateDay = pgTable('schedule_template_day', {
-  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
-  templateId: text('template_id').notNull()
-    .references(() => scheduleTemplate.id, { onDelete: 'cascade' }),
-  dayOfWeek: integer('day_of_week').notNull(), // 0=Sunday, 6=Saturday
-  startTime: time('start_time', { withTimezone: false }).notNull(),
-  endTime: time('end_time', { withTimezone: false }).notNull(),
-  isWorkingDay: boolean('is_working_day').default(true).notNull(),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow()
-    .$onUpdate(() => new Date()).notNull(),
-}, (table) => [
-  index('schedule_template_day_template_idx').on(table.templateId),
-  uniqueIndex('schedule_template_day_uniq').on(table.templateId, table.dayOfWeek),
-]);
+export const scheduleTemplateDay = pgTable(
+	'schedule_template_day',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => scheduleTemplate.id, { onDelete: 'cascade' }),
+		dayOfWeek: integer('day_of_week').notNull(), // 0=Sunday, 6=Saturday
+		startTime: time('start_time', { withTimezone: false }).notNull(),
+		endTime: time('end_time', { withTimezone: false }).notNull(),
+		isWorkingDay: boolean('is_working_day').default(true).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('schedule_template_day_template_idx').on(table.templateId),
+		uniqueIndex('schedule_template_day_uniq').on(table.templateId, table.dayOfWeek),
+	],
+);
 ```
 
 **Schedule Exception Table** - Date-specific overrides for day-offs or schedule changes:
 
 ```typescript
 export const scheduleExceptionType = pgEnum('schedule_exception_type', [
-  'DAY_OFF',      // Employee not working this day
-  'MODIFIED',     // Different hours than base schedule
-  'EXTRA_DAY',    // Working on normally off day
+	'DAY_OFF', // Employee not working this day
+	'MODIFIED', // Different hours than base schedule
+	'EXTRA_DAY', // Working on normally off day
 ]);
 
-export const scheduleException = pgTable('schedule_exception', {
-  id: text('id').primaryKey().$defaultFn(() => randomUUID()),
-  employeeId: text('employee_id').notNull()
-    .references(() => employee.id, { onDelete: 'cascade' }),
-  exceptionDate: timestamp('exception_date').notNull(),
-  exceptionType: scheduleExceptionType('exception_type').notNull(),
-  startTime: time('start_time', { withTimezone: false }), // null for DAY_OFF
-  endTime: time('end_time', { withTimezone: false }),     // null for DAY_OFF
-  reason: text('reason'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow()
-    .$onUpdate(() => new Date()).notNull(),
-}, (table) => [
-  index('schedule_exception_employee_idx').on(table.employeeId),
-  index('schedule_exception_date_idx').on(table.exceptionDate),
-  uniqueIndex('schedule_exception_employee_date_uniq').on(table.employeeId, table.exceptionDate),
-]);
+export const scheduleException = pgTable(
+	'schedule_exception',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		exceptionDate: timestamp('exception_date').notNull(),
+		exceptionType: scheduleExceptionType('exception_type').notNull(),
+		startTime: time('start_time', { withTimezone: false }), // null for DAY_OFF
+		endTime: time('end_time', { withTimezone: false }), // null for DAY_OFF
+		reason: text('reason'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('schedule_exception_employee_idx').on(table.employeeId),
+		index('schedule_exception_date_idx').on(table.exceptionDate),
+		uniqueIndex('schedule_exception_employee_date_uniq').on(
+			table.employeeId,
+			table.exceptionDate,
+		),
+	],
+);
 ```
 
 ### 1.2 Update Employee Table
@@ -198,16 +224,16 @@ Create [`apps/api/src/utils/schedule-validator.ts`](apps/api/src/utils/schedule-
 
 ```typescript
 interface ScheduleValidationResult {
-  valid: boolean;
-  warnings: ScheduleWarning[];
-  errors: ScheduleWarning[];
+	valid: boolean;
+	warnings: ScheduleWarning[];
+	errors: ScheduleWarning[];
 }
 
 interface ScheduleWarning {
-  type: 'DAILY_HOURS_EXCEEDED' | 'WEEKLY_HOURS_EXCEEDED' | 'NO_REST_DAY' | 'INVALID_SHIFT_HOURS';
-  dayOfWeek?: number;
-  message: string;
-  severity: 'warning' | 'error';
+	type: 'DAILY_HOURS_EXCEEDED' | 'WEEKLY_HOURS_EXCEEDED' | 'NO_REST_DAY' | 'INVALID_SHIFT_HOURS';
+	dayOfWeek?: number;
+	message: string;
+	severity: 'warning' | 'error';
 }
 ```
 
@@ -230,7 +256,7 @@ Update [`apps/web/lib/query-keys.ts`](apps/web/lib/query-keys.ts):
 ```typescript
 scheduleTemplates: {
   all: ['scheduleTemplates'] as const,
-  list: (params?: ListQueryParams) => 
+  list: (params?: ListQueryParams) =>
     queryKeyConstructor(['scheduleTemplates', 'list'], params),
   detail: (id: string) => ['scheduleTemplates', 'detail', id] as const,
 },
@@ -314,7 +340,7 @@ apps/web/app/(dashboard)/schedules/
 
 ### 6.3 Main Schedules Page
 
-[`apps/web/app/(dashboard)/schedules/page.tsx`](apps/web/app/\\\\\\(dashboard)/schedules/page.tsx):
+[`apps/web/app/(dashboard)/schedules/page.tsx`](<apps/web/app/\\\(dashboard)/schedules/page.tsx>):
 
 - Force dynamic rendering
 - Prefetch schedule templates, calendar data for current week
@@ -322,7 +348,7 @@ apps/web/app/(dashboard)/schedules/
 
 ### 6.4 Schedules Client Component
 
-[`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\\\\\(dashboard)/schedules/schedules-client.tsx):
+[`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](<apps/web/app/\\\(dashboard)/schedules/schedules-client.tsx>):
 
 **Layout with Tabs:**
 
@@ -335,17 +361,15 @@ apps/web/app/(dashboard)/schedules/
 **Two Main Views:**
 
 1. **Location-Based View** (default) - See who's scheduled at a specific location
-
-   - Location selector dropdown at top
-   - Shows all employees scheduled at that location for the date range
-   - Useful for managers to see daily staffing levels
+    - Location selector dropdown at top
+    - Shows all employees scheduled at that location for the date range
+    - Useful for managers to see daily staffing levels
 
 2. **Employee-Focused View** - See a single employee's full schedule
-
-   - Employee selector to pick individual
-   - Shows their complete schedule across weeks/months
-   - Includes base schedule + all exceptions
-   - Useful for reviewing/modifying individual schedules
+    - Employee selector to pick individual
+    - Shows their complete schedule across weeks/months
+    - Includes base schedule + all exceptions
+    - Useful for reviewing/modifying individual schedules
 
 **Common Features:**
 

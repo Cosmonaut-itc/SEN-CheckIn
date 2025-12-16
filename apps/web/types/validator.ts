@@ -7,7 +7,7 @@ import type { AppRoutes, LayoutRoutes, ParamMap } from './routes.js';
 
 type AppPageConfig<Route extends AppRoutes = AppRoutes> = {
 	default: // biome-ignore lint/suspicious/noExplicitAny: Next.js generated type
-	| React.ComponentType<{ params: Promise<ParamMap[Route]> } & any>
+		| React.ComponentType<{ params: Promise<ParamMap[Route]> } & any>
 		| ((
 				// biome-ignore lint/suspicious/noExplicitAny: Next.js generated type
 				props: { params: Promise<ParamMap[Route]> } & any,

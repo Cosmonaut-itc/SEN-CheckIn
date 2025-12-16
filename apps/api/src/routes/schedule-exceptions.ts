@@ -35,7 +35,11 @@ async function ensureEmployeeAccess(
 	},
 	set: { status?: number | string } & Record<string, unknown>,
 ): Promise<typeof employee.$inferSelect | null> {
-	const employeeRecord = await db.select().from(employee).where(eq(employee.id, employeeId)).limit(1);
+	const employeeRecord = await db
+		.select()
+		.from(employee)
+		.where(eq(employee.id, employeeId))
+		.limit(1);
 	const record = employeeRecord[0];
 
 	if (!record) {
@@ -158,22 +162,8 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 	 */
 	.post(
 		'/',
-		async ({
-			body,
-			authType,
-			session,
-			sessionOrganizationIds,
-			apiKeyOrganizationIds,
-			set,
-		}) => {
-			const {
-				employeeId,
-				exceptionDate,
-				exceptionType,
-				startTime,
-				endTime,
-				reason,
-			} = body;
+		async ({ body, authType, session, sessionOrganizationIds, apiKeyOrganizationIds, set }) => {
+			const { employeeId, exceptionDate, exceptionType, startTime, endTime, reason } = body;
 
 			const employeeRecord = await ensureEmployeeAccess(
 				employeeId,
@@ -294,7 +284,9 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 			}
 
 			const nextType = body.exceptionType ?? record.exceptionType;
-			const nextDate = body.exceptionDate ? startOfDay(body.exceptionDate) : record.exceptionDate;
+			const nextDate = body.exceptionDate
+				? startOfDay(body.exceptionDate)
+				: record.exceptionDate;
 			const nextStart = body.startTime ?? record.startTime;
 			const nextEnd = body.endTime ?? record.endTime;
 
@@ -345,7 +337,10 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				updatePayload.reason = body.reason;
 			}
 
-			await db.update(scheduleException).set(updatePayload).where(eq(scheduleException.id, id));
+			await db
+				.update(scheduleException)
+				.set(updatePayload)
+				.where(eq(scheduleException.id, id));
 
 			const refreshed = await db
 				.select()
@@ -365,7 +360,14 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 	 */
 	.delete(
 		'/:id',
-		async ({ params, authType, session, sessionOrganizationIds, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const { id } = params;
 
 			const existing = await db

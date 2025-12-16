@@ -1,10 +1,10 @@
 ---
 name: Fix Security Vulnerability - Proxy Middleware Not Executing
-overview: ""
+overview: ''
 todos:
-  - id: 3eaf39b5-2603-4091-8e75-472297a5ca61
-    content: Test that unauthenticated users are redirected to sign-in page
-    status: pending
+    - id: 3eaf39b5-2603-4091-8e75-472297a5ca61
+      content: Test that unauthenticated users are redirected to sign-in page
+      status: pending
 ---
 
 # Fix Security Vulnerability - Proxy Middleware Not Executing
@@ -53,19 +53,19 @@ The current matcher already covers all protected routes:
 
 ```typescript
 export const config = {
-  matcher: [
-    '/sign-in',
-    '/sign-up',
-    '/dashboard/:path*',
-    '/employees/:path*',
-    '/devices/:path*',
-    '/locations/:path*',
-    '/attendance/:path*',
-    '/api-keys/:path*',
-    '/users/:path*',
-    '/organizations/:path*',
-    '/job-positions/:path*',
-  ],
+	matcher: [
+		'/sign-in',
+		'/sign-up',
+		'/dashboard/:path*',
+		'/employees/:path*',
+		'/devices/:path*',
+		'/locations/:path*',
+		'/attendance/:path*',
+		'/api-keys/:path*',
+		'/users/:path*',
+		'/organizations/:path*',
+		'/job-positions/:path*',
+	],
 };
 ```
 

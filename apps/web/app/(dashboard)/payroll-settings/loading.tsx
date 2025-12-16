@@ -17,4 +17,3 @@ export default function PayrollSettingsLoading(): React.ReactElement {
 		</div>
 	);
 }
-

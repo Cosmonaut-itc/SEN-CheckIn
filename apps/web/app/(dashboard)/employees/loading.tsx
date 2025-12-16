@@ -9,4 +9,3 @@ import { EmployeesSkeleton } from '@/components/skeletons';
 export default function EmployeesLoading() {
 	return <EmployeesSkeleton />;
 }
-

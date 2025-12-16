@@ -1,7 +1,10 @@
+'use client';
+
 import React, { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import type { ScheduleTemplateDayInput } from '@/actions/schedules';
 import type { ShiftType } from '@/lib/client-functions';
+import { useTranslations } from 'next-intl';
 
 /**
  * Supported warning codes for schedule validation.
@@ -21,8 +24,8 @@ export type ScheduleWarningType =
 export interface ScheduleWarning {
 	type: ScheduleWarningType;
 	dayOfWeek?: number;
-	message: string;
 	severity: 'warning' | 'error';
+	details?: ScheduleWarningDetails;
 }
 
 const DAILY_LIMITS: Record<ShiftType, number> = {
@@ -37,7 +40,32 @@ const WEEKLY_LIMITS: Record<ShiftType, number> = {
 	MIXTA: 45,
 };
 
-const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+type DayKey = (typeof DAY_KEYS)[number];
+
+/**
+ * Details for schedule warnings, used to build localized messages.
+ */
+export interface ScheduleWarningDetails {
+	/** Hours computed for a day/week scope */
+	hours?: number;
+	/** Allowed limit in hours for the scope */
+	limit?: number;
+	/** Overtime hours computed for a day */
+	overtimeHours?: number;
+	/** Count of overtime days in a week */
+	overtimeDays?: number;
+}
+
+/**
+ * Formats a number of hours for display.
+ *
+ * @param hours - Hours value
+ * @returns Formatted hours string with 2 decimals
+ */
+function formatHours(hours: number): string {
+	return hours.toFixed(2);
+}
 
 /**
  * Calculates hours worked for a given day entry.
@@ -55,7 +83,8 @@ export function calculateHours(day: ScheduleTemplateDayInput): number {
 	const [endHour, endMinute] = day.endTime.split(':').map(Number);
 	const startTotalMinutes = startHour * 60 + startMinute;
 	const endTotalMinutes = endHour * 60 + endMinute;
-	const adjustedEnd = endTotalMinutes <= startTotalMinutes ? endTotalMinutes + 24 * 60 : endTotalMinutes;
+	const adjustedEnd =
+		endTotalMinutes <= startTotalMinutes ? endTotalMinutes + 24 * 60 : endTotalMinutes;
 	const diffMinutes = Math.max(0, adjustedEnd - startTotalMinutes);
 	return diffMinutes / 60;
 }
@@ -77,7 +106,10 @@ export function computeWeeklyHours(days: ScheduleTemplateDayInput[]): number {
  * @param days - Day configuration
  * @returns Array of warnings/errors
  */
-export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDayInput[]): ScheduleWarning[] {
+export function evaluateWarnings(
+	shiftType: ShiftType,
+	days: ScheduleTemplateDayInput[],
+): ScheduleWarning[] {
 	const warnings: ScheduleWarning[] = [];
 	const dailyLimit = DAILY_LIMITS[shiftType] ?? 8;
 	const weeklyLimit = WEEKLY_LIMITS[shiftType] ?? 48;
@@ -105,8 +137,8 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 			warnings.push({
 				type: 'DAILY_HOURS_EXCEEDED',
 				dayOfWeek: day.dayOfWeek,
-				message: `${dayLabels[day.dayOfWeek]} exceeds daily limit (${hours.toFixed(2)}h > ${dailyLimit}h)`,
 				severity: hours - dailyLimit > 3 ? 'error' : 'warning',
+				details: { hours, limit: dailyLimit },
 			});
 		}
 
@@ -114,8 +146,8 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 			warnings.push({
 				type: 'OVERTIME_DAILY_LIMIT',
 				dayOfWeek: day.dayOfWeek,
-				message: `${dayLabels[day.dayOfWeek]} has more than 3h overtime (${(hours - dailyLimit).toFixed(2)}h)`,
 				severity: 'error',
+				details: { overtimeHours: hours - dailyLimit },
 			});
 		}
 	});
@@ -123,7 +155,6 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 	if (!hasRestDay) {
 		warnings.push({
 			type: 'NO_REST_DAY',
-			message: 'At least one rest day per week is required.',
 			severity: 'error',
 		});
 	}
@@ -131,24 +162,24 @@ export function evaluateWarnings(shiftType: ShiftType, days: ScheduleTemplateDay
 	if (weeklyHours > weeklyLimit) {
 		warnings.push({
 			type: 'WEEKLY_HOURS_EXCEEDED',
-			message: `Weekly total exceeds limit (${weeklyHours.toFixed(2)}h > ${weeklyLimit}h).`,
 			severity: 'error',
+			details: { hours: weeklyHours, limit: weeklyLimit },
 		});
 	}
 
 	if (weeklyOvertimeDays > 3) {
 		warnings.push({
 			type: 'OVERTIME_WEEKLY_DAYS_EXCEEDED',
-			message: `Overtime exceeds weekly frequency limit (${weeklyOvertimeDays} days > 3 days).`,
 			severity: 'error',
+			details: { overtimeDays: weeklyOvertimeDays, limit: 3 },
 		});
 	}
 
 	if (weeklyOvertimeHours > 9) {
 		warnings.push({
 			type: 'OVERTIME_WEEKLY_EXCEEDED',
-			message: `Overtime exceeds weekly legal limit (${weeklyOvertimeHours.toFixed(2)}h > 9h).`,
 			severity: 'error',
+			details: { hours: weeklyOvertimeHours, limit: 9 },
 		});
 	}
 
@@ -175,22 +206,91 @@ export function LaborLawWarnings({
 	shiftType,
 	days,
 }: LaborLawWarningsProps): React.ReactElement | null {
+	const t = useTranslations('Schedules');
 	const warnings = useMemo(() => evaluateWarnings(shiftType, days), [shiftType, days]);
 
 	if (warnings.length === 0) {
 		return null;
 	}
 
+	/**
+	 * Returns a Spanish day name for a given day index.
+	 *
+	 * @param dayOfWeek - Day index (0=Sun .. 6=Sat)
+	 * @returns Localized day name
+	 */
+	const getDayName = (dayOfWeek: number): string => {
+		const dayKey: DayKey = DAY_KEYS[dayOfWeek] ?? 'sun';
+		return t(`days.long.${dayKey}`);
+	};
+
+	/**
+	 * Builds a localized message for a given warning.
+	 *
+	 * @param warning - Warning to format
+	 * @returns Localized message string
+	 */
+	const getWarningMessage = (warning: ScheduleWarning): string => {
+		const dayName = warning.dayOfWeek === undefined ? undefined : getDayName(warning.dayOfWeek);
+
+		switch (warning.type) {
+			case 'DAILY_HOURS_EXCEEDED': {
+				const hours = warning.details?.hours ?? 0;
+				const limit = warning.details?.limit ?? 0;
+				return t('laborLawWarnings.messages.dailyHoursExceeded', {
+					day: dayName ?? '',
+					hours: formatHours(hours),
+					limit,
+				});
+			}
+			case 'OVERTIME_DAILY_LIMIT': {
+				const overtimeHours = warning.details?.overtimeHours ?? 0;
+				return t('laborLawWarnings.messages.overtimeDailyLimit', {
+					day: dayName ?? '',
+					hours: formatHours(overtimeHours),
+				});
+			}
+			case 'NO_REST_DAY':
+				return t('laborLawWarnings.messages.noRestDay');
+			case 'WEEKLY_HOURS_EXCEEDED': {
+				const hours = warning.details?.hours ?? 0;
+				const limit = warning.details?.limit ?? 0;
+				return t('laborLawWarnings.messages.weeklyHoursExceeded', {
+					hours: formatHours(hours),
+					limit,
+				});
+			}
+			case 'OVERTIME_WEEKLY_DAYS_EXCEEDED': {
+				const daysExceeded = warning.details?.overtimeDays ?? 0;
+				const limit = warning.details?.limit ?? 3;
+				return t('laborLawWarnings.messages.overtimeWeeklyDaysExceeded', {
+					days: daysExceeded,
+					limit,
+				});
+			}
+			case 'OVERTIME_WEEKLY_EXCEEDED': {
+				const hours = warning.details?.hours ?? 0;
+				const limit = warning.details?.limit ?? 9;
+				return t('laborLawWarnings.messages.overtimeWeeklyExceeded', {
+					hours: formatHours(hours),
+					limit,
+				});
+			}
+			default:
+				return t('laborLawWarnings.messages.unknown');
+		}
+	};
+
 	return (
 		<div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950">
-			<p className="text-sm font-medium">Labor law checks</p>
+			<p className="text-sm font-medium">{t('laborLawWarnings.title')}</p>
 			<div className="flex flex-wrap gap-2">
 				{warnings.map((warning, index) => (
 					<Badge
 						key={`${warning.type}-${warning.dayOfWeek ?? 'all'}-${index}`}
 						variant={warning.severity === 'error' ? 'destructive' : 'secondary'}
 					>
-						{warning.message}
+						{getWarningMessage(warning)}
 					</Badge>
 				))}
 			</div>

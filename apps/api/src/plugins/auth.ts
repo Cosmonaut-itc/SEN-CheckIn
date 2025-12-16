@@ -157,72 +157,85 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
  *   });
  * ```
  */
+/**
+ * Extracts organization ID from API key metadata.
+ *
+ * @param metadata - Unknown value that may contain organizationId as a string or JSON string
+ * @returns Organization ID string if found in metadata, otherwise null
+ */
 const extractOrganizationIdFromMetadata = (metadata: unknown): string | null => {
-    if (!metadata) return null;
+	if (!metadata) return null;
 
-    let parsed: unknown = metadata;
+	let parsed: unknown = metadata;
 
-    if (typeof metadata === 'string') {
-        try {
-            parsed = JSON.parse(metadata);
-        } catch (error) {
-            console.warn('Failed to parse API key metadata JSON', error);
-            return null;
-        }
-    }
+	if (typeof metadata === 'string') {
+		try {
+			parsed = JSON.parse(metadata);
+		} catch (error) {
+			console.warn('Failed to parse API key metadata JSON', error);
+			return null;
+		}
+	}
 
-    if (parsed && typeof parsed === 'object' && 'organizationId' in parsed) {
-        const orgId = (parsed as { organizationId?: unknown }).organizationId;
-        return typeof orgId === 'string' ? orgId : null;
-    }
+	if (parsed && typeof parsed === 'object' && 'organizationId' in parsed) {
+		const orgId = (parsed as { organizationId?: unknown }).organizationId;
+		return typeof orgId === 'string' ? orgId : null;
+	}
 
-    return null;
+	return null;
 };
 
-const buildApiKeyContext = async (
-    apiKey: {
-        id: string;
-        name?: string | null;
-        userId: string;
-        metadata?: unknown;
-    },
-): Promise<{
-    apiKeyId: string;
-    apiKeyName: string | null;
-    apiKeyUserId: string;
-    apiKeyOrganizationId: string | null;
-    apiKeyOrganizationIds: string[];
+/**
+ * Builds API key context with organization information.
+ *
+ * @param apiKey - API key object containing id, optional name, userId, and optional metadata
+ * @returns Promise resolving to context object with apiKeyId (string), apiKeyName (string | null),
+ *   apiKeyUserId (string), apiKeyOrganizationId (string | null), and apiKeyOrganizationIds (string[])
+ */
+const buildApiKeyContext = async (apiKey: {
+	id: string;
+	name?: string | null;
+	userId: string;
+	metadata?: unknown;
+}): Promise<{
+	apiKeyId: string;
+	apiKeyName: string | null;
+	apiKeyUserId: string;
+	apiKeyOrganizationId: string | null;
+	apiKeyOrganizationIds: string[];
 }> => {
-    const organizationIds = await db
-        .select({ organizationId: member.organizationId })
-        .from(member)
-        .where(eq(member.userId, apiKey.userId));
+	const organizationIds = await db
+		.select({ organizationId: member.organizationId })
+		.from(member)
+		.where(eq(member.userId, apiKey.userId));
 
-    const scopedOrgFromMetadata = extractOrganizationIdFromMetadata(apiKey.metadata);
+	const scopedOrgFromMetadata = extractOrganizationIdFromMetadata(apiKey.metadata);
 	const resolvedOrganizationId =
 		scopedOrgFromMetadata ??
-		(organizationIds.length === 1 ? organizationIds[0]?.organizationId ?? null : null);
+		(organizationIds.length === 1 ? (organizationIds[0]?.organizationId ?? null) : null);
 
-    return {
-        apiKeyId: apiKey.id,
-        apiKeyName: apiKey.name ?? null,
-        apiKeyUserId: apiKey.userId,
-        apiKeyOrganizationId: resolvedOrganizationId,
-        apiKeyOrganizationIds: organizationIds
-            .map(({ organizationId }) => organizationId)
-            .filter((orgId): orgId is string => Boolean(orgId)),
-    };
+	return {
+		apiKeyId: apiKey.id,
+		apiKeyName: apiKey.name ?? null,
+		apiKeyUserId: apiKey.userId,
+		apiKeyOrganizationId: resolvedOrganizationId,
+		apiKeyOrganizationIds: organizationIds
+			.map(({ organizationId }) => organizationId)
+			.filter((orgId): orgId is string => Boolean(orgId)),
+	};
 };
 
 export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).derive(
-    { as: 'scoped' },
-    async ({ request }): Promise<{
-        apiKeyId: string;
-        apiKeyName: string | null;
-        apiKeyUserId: string;
-        apiKeyOrganizationId: string | null;
-        apiKeyOrganizationIds: string[];
-    }> => {
+	{ as: 'scoped' },
+	async ({
+		request,
+	}): Promise<{
+		apiKeyId: string;
+		apiKeyName: string | null;
+		apiKeyUserId: string;
+		apiKeyOrganizationId: string | null;
+		apiKeyOrganizationIds: string[];
+	}> => {
 		// Extract API key from headers
 		const authHeader = request.headers.get('authorization');
 		const apiKeyHeader = request.headers.get('x-api-key');
@@ -246,12 +259,12 @@ export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).deri
 			},
 		});
 
-        if (!result.valid || !result.key) {
-            throw new UnauthorizedError('Invalid API key');
-        }
+		if (!result.valid || !result.key) {
+			throw new UnauthorizedError('Invalid API key');
+		}
 
-        return buildApiKeyContext(result.key);
-    },
+		return buildApiKeyContext(result.key);
+	},
 );
 
 /**
@@ -280,26 +293,26 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
 		request,
 	}): Promise<
 		| {
-		      authType: 'session';
-		      user: AuthUser;
-		      session: AuthSession;
-		      sessionOrganizationIds: string[];
-		      apiKeyId: null;
-		      apiKeyName: null;
-		      apiKeyUserId: null;
-		      apiKeyOrganizationId: null;
-		      apiKeyOrganizationIds: [];
+				authType: 'session';
+				user: AuthUser;
+				session: AuthSession;
+				sessionOrganizationIds: string[];
+				apiKeyId: null;
+				apiKeyName: null;
+				apiKeyUserId: null;
+				apiKeyOrganizationId: null;
+				apiKeyOrganizationIds: [];
 		  }
 		| {
-		      authType: 'apiKey';
-		      user: null;
-		      session: null;
-		      sessionOrganizationIds: [];
-		      apiKeyId: string;
-		      apiKeyName: string | null;
-		      apiKeyUserId: string;
-		      apiKeyOrganizationId: string | null;
-		      apiKeyOrganizationIds: string[];
+				authType: 'apiKey';
+				user: null;
+				session: null;
+				sessionOrganizationIds: [];
+				apiKeyId: string;
+				apiKeyName: string | null;
+				apiKeyUserId: string;
+				apiKeyOrganizationId: string | null;
+				apiKeyOrganizationIds: string[];
 		  }
 	> => {
 		// First, try session authentication
@@ -340,25 +353,25 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
 			apiKey = apiKeyHeader;
 		}
 
-            if (apiKey) {
-                const result = await auth.api.verifyApiKey({
-                    body: {
-                        key: apiKey,
-                    },
-                });
+		if (apiKey) {
+			const result = await auth.api.verifyApiKey({
+				body: {
+					key: apiKey,
+				},
+			});
 
-				if (result.valid && result.key) {
-					const apiKeyContext = await buildApiKeyContext(result.key);
+			if (result.valid && result.key) {
+				const apiKeyContext = await buildApiKeyContext(result.key);
 
-					return {
-						authType: 'apiKey',
-						user: null,
-						session: null,
-						sessionOrganizationIds: [],
-						...apiKeyContext,
-					};
-				}
-            }
+				return {
+					authType: 'apiKey',
+					user: null,
+					session: null,
+					sessionOrganizationIds: [],
+					...apiKeyContext,
+				};
+			}
+		}
 
 		// Neither authentication method succeeded
 		throw new UnauthorizedError('No valid session or API key found');

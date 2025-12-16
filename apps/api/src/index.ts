@@ -122,8 +122,7 @@ const app = new Elysia()
 	// Core plugins - order matters: CORS, error handler and logger should be first
 	.use(
 		cors({
-			origin: (request: Request) =>
-				isOriginAllowed(request.headers.get('origin')),
+			origin: (request: Request) => isOriginAllowed(request.headers.get('origin')),
 			methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 			credentials: true,
 			allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],

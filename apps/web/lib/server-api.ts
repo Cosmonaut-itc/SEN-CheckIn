@@ -14,8 +14,7 @@ import { createApiClient, type ApiClientOptions } from '@sen-checkin/api-contrac
  * Environment variable for the API base URL.
  * Falls back to localhost for local development.
  */
-const API_BASE_URL: string =
-	process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_BASE_URL: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 /**
  * Creates a server-side API client with forwarded cookies.
@@ -61,4 +60,3 @@ export function createServerApiClient(cookieHeader: string): ReturnType<typeof c
 export type ServerApiClient = ReturnType<typeof createServerApiClient>;
 
 export { API_BASE_URL };
-

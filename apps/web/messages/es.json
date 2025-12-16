@@ -40,7 +40,8 @@
 		"users": "Usuarios",
 		"organizations": "Organizaciones",
 		"signOut": "Cerrar Sesión",
-		"userFallback": "Usuario"
+		"userFallback": "Usuario",
+		"toggleSidebar": "Alternar Barra Lateral"
 	},
 	"Dashboard": {
 		"title": "Panel de Control",

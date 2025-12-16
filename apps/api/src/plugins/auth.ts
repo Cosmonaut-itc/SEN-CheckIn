@@ -157,6 +157,12 @@ export const authPlugin = new Elysia({ name: 'auth-plugin' }).derive(
  *   });
  * ```
  */
+/**
+ * Extracts organization ID from API key metadata.
+ *
+ * @param metadata - Unknown value that may contain organizationId as a string or JSON string
+ * @returns Organization ID string if found in metadata, otherwise null
+ */
 const extractOrganizationIdFromMetadata = (metadata: unknown): string | null => {
 	if (!metadata) return null;
 
@@ -179,6 +185,13 @@ const extractOrganizationIdFromMetadata = (metadata: unknown): string | null => 
 	return null;
 };
 
+/**
+ * Builds API key context with organization information.
+ *
+ * @param apiKey - API key object containing id, optional name, userId, and optional metadata
+ * @returns Promise resolving to context object with apiKeyId (string), apiKeyName (string | null),
+ *   apiKeyUserId (string), apiKeyOrganizationId (string | null), and apiKeyOrganizationIds (string[])
+ */
 const buildApiKeyContext = async (apiKey: {
 	id: string;
 	name?: string | null;

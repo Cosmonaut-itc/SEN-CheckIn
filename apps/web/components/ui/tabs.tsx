@@ -5,6 +5,13 @@ import * as TabsPrimitive from '@radix-ui/react-tabs';
 
 import { cn } from '@/lib/utils';
 
+/**
+ * Root tabs container component for organizing content into tabbed sections.
+ *
+ * @param props - Props from React.ComponentProps<typeof TabsPrimitive.Root>
+ * @param className - Optional CSS class name string to apply additional styling
+ * @returns JSX element containing the tabs root container
+ */
 function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Root>) {
 	return (
 		<TabsPrimitive.Root
@@ -15,6 +22,13 @@ function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive
 	);
 }
 
+/**
+ * Tabs list container component that holds tab triggers.
+ *
+ * @param props - Props from React.ComponentProps<typeof TabsPrimitive.List>
+ * @param className - Optional CSS class name string to apply additional styling
+ * @returns JSX element containing the tabs list container
+ */
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
 	return (
 		<TabsPrimitive.List
@@ -28,6 +42,13 @@ function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimi
 	);
 }
 
+/**
+ * Tab trigger button component for switching between tab panels.
+ *
+ * @param props - Props from React.ComponentProps<typeof TabsPrimitive.Trigger>
+ * @param className - Optional CSS class name string to apply additional styling
+ * @returns JSX element containing a tab trigger button
+ */
 function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
 	return (
 		<TabsPrimitive.Trigger
@@ -41,6 +62,13 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
 	);
 }
 
+/**
+ * Tab content panel component that displays content for the active tab.
+ *
+ * @param props - Props from React.ComponentProps<typeof TabsPrimitive.Content>
+ * @param className - Optional CSS class name string to apply additional styling
+ * @returns JSX element containing the tab content panel
+ */
 function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
 	return (
 		<TabsPrimitive.Content

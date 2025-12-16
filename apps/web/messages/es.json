@@ -36,12 +36,30 @@
 		"schedules": "Horarios",
 		"payroll": "Nómina",
 		"apiKeys": "Claves de API",
+		"mobileApp": "App Móvil",
 		"payrollSettings": "Configuración de Nómina",
 		"users": "Usuarios",
 		"organizations": "Organizaciones",
 		"signOut": "Cerrar Sesión",
 		"userFallback": "Usuario",
 		"toggleSidebar": "Alternar Barra Lateral"
+	},
+	"MobileApp": {
+		"title": "App Móvil",
+		"subtitle": "Escanea el código QR o abre el enlace para ver la build en Expo.",
+		"card": {
+			"title": "Build de Expo",
+			"description": "Usa este código QR para abrir la página de la build en tu dispositivo."
+		},
+		"qr": {
+			"ariaLabel": "Código QR de la build de Expo",
+			"alt": "Código QR para abrir la build de Expo"
+		},
+		"link": {
+			"label": "Enlace:",
+			"open": "Abrir enlace",
+			"ariaLabel": "Abrir la build de Expo en una nueva pestaña"
+		}
 	},
 	"Dashboard": {
 		"title": "Panel de Control",

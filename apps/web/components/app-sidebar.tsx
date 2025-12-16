@@ -105,6 +105,11 @@ const adminNavItems: NavItem[] = [
 		icon: Key,
 	},
 	{
+		titleKey: 'mobileApp',
+		href: '/app-movil',
+		icon: Smartphone,
+	},
+	{
 		titleKey: 'payrollSettings',
 		href: '/payroll-settings',
 		icon: Settings2,

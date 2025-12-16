@@ -7,6 +7,7 @@ import { createServerApiClient } from '@/lib/server-api';
 export interface UpdatePayrollSettingsInput {
 	weekStartDay: number;
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
+	additionalMandatoryRestDays?: string[];
 	organizationId?: string;
 }
 
@@ -44,6 +45,7 @@ export async function updatePayrollSettingsAction(
 		const response = await api['payroll-settings'].put({
 			weekStartDay: input.weekStartDay,
 			overtimeEnforcement: input.overtimeEnforcement,
+			additionalMandatoryRestDays: input.additionalMandatoryRestDays,
 			organizationId: input.organizationId,
 		});
 
@@ -115,4 +117,3 @@ export async function processPayrollAction(
 		return { success: false, error: 'Failed to process payroll' };
 	}
 }
-

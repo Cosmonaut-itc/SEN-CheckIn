@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { isValidIanaTimeZone } from '../utils/time-zone.js';
+
 /**
  * Zod validation schemas for CRUD operations.
  * Used for request/response validation in Elysia routes via Standard Schema support.
@@ -46,6 +48,12 @@ export const createLocationSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	code: z.string().min(1, 'Code is required').max(50),
 	address: z.string().max(500).optional(),
+	timeZone: z
+		.string()
+		.min(1, 'Time zone is required')
+		.max(255)
+		.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
+		.optional(),
 	// BetterAuth organization IDs are text (not UUID)
 	organizationId: z.string().optional(),
 	geographicZone: geographicZoneEnum.optional(),
@@ -59,6 +67,12 @@ export const updateLocationSchema = z.object({
 	code: z.string().min(1).max(50).optional(),
 	address: z.string().max(500).nullable().optional(),
 	geographicZone: geographicZoneEnum.optional(),
+	timeZone: z
+		.string()
+		.min(1, 'Time zone is required')
+		.max(255)
+		.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
+		.optional(),
 });
 
 /**

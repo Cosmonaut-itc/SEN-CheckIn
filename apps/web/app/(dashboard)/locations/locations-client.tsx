@@ -39,6 +39,7 @@ interface LocationFormValues {
 	code: string;
 	address: string;
 	geographicZone: 'GENERAL' | 'ZLFN';
+	timeZone: string;
 }
 
 /**
@@ -133,7 +134,8 @@ export function LocationsPageClient(): React.ReactElement {
 			name: '',
 			code: '',
 			address: '',
-		geographicZone: 'GENERAL',
+			geographicZone: 'GENERAL',
+			timeZone: 'America/Mexico_City',
 		},
 		onSubmit: async ({ value }: { value: LocationFormValues }) => {
 			if (editingLocation) {
@@ -142,7 +144,8 @@ export function LocationsPageClient(): React.ReactElement {
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
-				geographicZone: value.geographicZone,
+					geographicZone: value.geographicZone,
+					timeZone: value.timeZone,
 				});
 			} else {
 				if (!organizationId) {
@@ -153,7 +156,8 @@ export function LocationsPageClient(): React.ReactElement {
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
-				geographicZone: value.geographicZone,
+					geographicZone: value.geographicZone,
+					timeZone: value.timeZone,
 					organizationId,
 				});
 			}
@@ -184,6 +188,7 @@ export function LocationsPageClient(): React.ReactElement {
 			form.setFieldValue('code', location.code);
 			form.setFieldValue('address', location.address ?? '');
 			form.setFieldValue('geographicZone', location.geographicZone ?? 'GENERAL');
+			form.setFieldValue('timeZone', location.timeZone ?? 'America/Mexico_City');
 			setIsDialogOpen(true);
 		},
 		[form],
@@ -294,6 +299,20 @@ export function LocationsPageClient(): React.ReactElement {
 										/>
 									)}
 								</form.AppField>
+								<form.AppField
+									name="timeZone"
+									validators={{
+										onChange: ({ value }) =>
+											!value.trim() ? 'Time zone is required' : undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label="Time zone"
+											placeholder="America/Mexico_City"
+										/>
+									)}
+								</form.AppField>
 								<form.AppField name="address">
 									{(field) => <field.TextField label="Address" placeholder="Optional" />}
 								</form.AppField>
@@ -328,6 +347,7 @@ export function LocationsPageClient(): React.ReactElement {
 							<TableHead>Name</TableHead>
 							<TableHead>Address</TableHead>
 							<TableHead>Zone</TableHead>
+							<TableHead>Time zone</TableHead>
 							<TableHead>Created</TableHead>
 							<TableHead className="w-[100px]">Actions</TableHead>
 						</TableRow>
@@ -336,7 +356,7 @@ export function LocationsPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
+									{Array.from({ length: 7 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -345,7 +365,7 @@ export function LocationsPageClient(): React.ReactElement {
 							))
 						) : locations.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
+								<TableCell colSpan={7} className="h-24 text-center">
 									No locations found.
 								</TableCell>
 							</TableRow>
@@ -356,6 +376,7 @@ export function LocationsPageClient(): React.ReactElement {
 									<TableCell>{location.name}</TableCell>
 									<TableCell>{location.address ?? '-'}</TableCell>
 									<TableCell>{location.geographicZone}</TableCell>
+									<TableCell>{location.timeZone}</TableCell>
 									<TableCell>
 										{format(new Date(location.createdAt), 'MMM d, yyyy')}
 									</TableCell>

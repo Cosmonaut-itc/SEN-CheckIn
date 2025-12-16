@@ -19,6 +19,32 @@ const dayOptions = [
 	{ value: '6', label: 'Saturday' },
 ];
 
+const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Parses a newline-separated textarea value into sorted, unique date keys.
+ *
+ * @param value - Newline-separated list of YYYY-MM-DD date keys
+ * @returns Sorted unique YYYY-MM-DD date keys
+ * @throws When any non-empty line is not in YYYY-MM-DD format
+ */
+function parseAdditionalMandatoryRestDaysText(value: string): string[] {
+	const lines = value
+		.split(/\r?\n/u)
+		.map((line) => line.trim())
+		.filter((line) => Boolean(line));
+
+	for (const line of lines) {
+		if (!DATE_KEY_REGEX.test(line)) {
+			throw new Error(`Invalid date "${line}". Use YYYY-MM-DD (one per line).`);
+		}
+	}
+
+	const unique = Array.from(new Set(lines));
+	unique.sort((a, b) => a.localeCompare(b));
+	return unique;
+}
+
 export function PayrollSettingsClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 
@@ -45,11 +71,19 @@ export function PayrollSettingsClient(): React.ReactElement {
 	});
 
 	const form = useAppForm({
-		defaultValues: { weekStartDay: '1', overtimeEnforcement: 'WARN' },
+		defaultValues: {
+			weekStartDay: '1',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDaysText: '',
+		},
 		onSubmit: async ({ value }) => {
+			const additionalMandatoryRestDays = parseAdditionalMandatoryRestDaysText(
+				value.additionalMandatoryRestDaysText,
+			);
 			await mutation.mutateAsync({
 				weekStartDay: Number(value.weekStartDay),
 				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
+				additionalMandatoryRestDays,
 			});
 		},
 	});
@@ -61,7 +95,11 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.overtimeEnforcement !== undefined) {
 			form.setFieldValue('overtimeEnforcement', data.overtimeEnforcement);
 		}
-	}, [data?.weekStartDay, data?.overtimeEnforcement, form]);
+		form.setFieldValue(
+			'additionalMandatoryRestDaysText',
+			(data?.additionalMandatoryRestDays ?? []).join('\n'),
+		);
+	}, [data?.weekStartDay, data?.overtimeEnforcement, data?.additionalMandatoryRestDays, form]);
 
 	return (
 		<div className="space-y-4">
@@ -108,6 +146,28 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
+						<form.AppField
+							name="additionalMandatoryRestDaysText"
+							validators={{
+								onChange: ({ value }) => {
+									try {
+										parseAdditionalMandatoryRestDaysText(value);
+										return undefined;
+									} catch (error) {
+										return error instanceof Error ? error.message : 'Invalid dates';
+									}
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextareaField
+									label="Días de descanso obligatorio extra"
+									placeholder="YYYY-MM-DD"
+									description="Uno por línea. Útil para jornada electoral (LFT Art. 74 fr. IX) y descansos locales."
+									rows={4}
+								/>
+							)}
+						</form.AppField>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
 							<p className="font-medium text-foreground">Reglas legales de horas extra</p>
 							<ul className="list-disc pl-4">
@@ -115,6 +175,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<li>Primeras 9 horas extra semanales: pago doble</li>
 								<li>Horas extra adicionales: pago triple</li>
 								<li>Prima dominical: 25% adicional si se trabaja en domingo</li>
+								<li>Día de descanso obligatorio trabajado: +2× salario diario (total 3×)</li>
 							</ul>
 						</div>
 						<form.AppForm>
@@ -130,4 +191,3 @@ export function PayrollSettingsClient(): React.ReactElement {
 		</div>
 	);
 }
-

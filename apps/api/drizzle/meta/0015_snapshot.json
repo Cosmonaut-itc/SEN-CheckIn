@@ -1,6 +1,6 @@
 {
-  "id": "4899d52d-dfdf-40fd-88d2-e88910b77ead",
-  "prevId": "0ad61ecd-46f9-448d-9366-52e7f44e141c",
+  "id": "fd96e0e5-88ee-4f7d-98d7-dc70fb4a7264",
+  "prevId": "4899d52d-dfdf-40fd-88d2-e88910b77ead",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -499,7 +499,7 @@
           "name": "location_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "organization_id": {
           "name": "organization_id",
@@ -1202,6 +1202,13 @@
           "notNull": true,
           "default": "'GENERAL'"
         },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'America/Mexico_City'"
+        },
         "client_id": {
           "name": "client_id",
           "type": "text",
@@ -1588,6 +1595,13 @@
           "notNull": true,
           "default": "'0'"
         },
+        "mandatory_rest_day_premium_amount": {
+          "name": "mandatory_rest_day_premium_amount",
+          "type": "numeric(12, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'0'"
+        },
         "period_start": {
           "name": "period_start",
           "type": "timestamp",
@@ -1680,6 +1694,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'WARN'"
+        },
+        "additional_mandatory_rest_days": {
+          "name": "additional_mandatory_rest_days",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "created_at": {
           "name": "created_at",

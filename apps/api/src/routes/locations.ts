@@ -168,7 +168,14 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { name, code, address, geographicZone, organizationId: organizationIdInput } = body;
+			const {
+				name,
+				code,
+				address,
+				geographicZone,
+				timeZone,
+				organizationId: organizationIdInput,
+			} = body;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -217,6 +224,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				organizationId,
 				clientId: null,
 				geographicZone: geographicZone ?? 'GENERAL',
+				timeZone: timeZone ?? 'America/Mexico_City',
 			};
 
 			await db.insert(location).values(newLocation);

@@ -295,7 +295,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 
 					await tx
 						.update(employee)
-						.set({ lastPayrollDate: calculation.periodEndExclusiveUtc })
+						.set({ lastPayrollDate: calculation.periodEndInclusiveUtc })
 						.where(
 							inArray(
 								employee.id,

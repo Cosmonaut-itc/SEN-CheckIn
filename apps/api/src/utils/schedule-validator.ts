@@ -16,6 +16,7 @@ export interface ScheduleWarning {
 		| 'OVERTIME_WEEKLY_EXCEEDED'
 		| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
 		| 'NO_REST_DAY'
+		| 'SHIFT_TYPE_MISMATCH'
 		| 'INVALID_SHIFT_HOURS';
 	dayOfWeek?: number;
 	message: string;
@@ -31,6 +32,99 @@ export interface ScheduleValidationResult {
 export interface ScheduleValidationOptions {
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	overtimeEnforcement: 'WARN' | 'BLOCK';
+}
+
+/**
+ * Parses an HH:mm string into total minutes from midnight.
+ *
+ * @param timeString - Time string in HH:mm format
+ * @returns Total minutes from midnight
+ */
+function parseTimeToMinutes(timeString: string): number {
+	const [hours = 0, minutes = 0] = timeString.split(':').map(Number);
+	return hours * 60 + minutes;
+}
+
+/**
+ * Calculates minutes within the nocturnal window (20:00–06:00) for a schedule day.
+ *
+ * @param day - Day configuration with start/end times
+ * @returns Nocturnal minutes
+ */
+function calculateNocturnalMinutes(day: ScheduleDayInput): number {
+	if (!day.isWorkingDay) {
+		return 0;
+	}
+
+	const startMinutes = parseTimeToMinutes(day.startTime);
+	let endMinutes = parseTimeToMinutes(day.endTime);
+	if (!Number.isFinite(startMinutes) || !Number.isFinite(endMinutes)) {
+		return 0;
+	}
+	if (endMinutes <= startMinutes) {
+		endMinutes += 24 * 60;
+	}
+
+	/**
+	 * Calculates overlap minutes between two half-open ranges [aStart,aEnd) and [bStart,bEnd).
+	 *
+	 * @param aStart - Start of range A in minutes
+	 * @param aEnd - End of range A in minutes
+	 * @param bStart - Start of range B in minutes
+	 * @param bEnd - End of range B in minutes
+	 * @returns Overlap in minutes
+	 */
+	const overlap = (aStart: number, aEnd: number, bStart: number, bEnd: number): number => {
+		const start = Math.max(aStart, bStart);
+		const end = Math.min(aEnd, bEnd);
+		return Math.max(0, end - start);
+	};
+
+	let nocturnalMinutes = 0;
+	for (const offset of [0, 24 * 60]) {
+		nocturnalMinutes += overlap(startMinutes, endMinutes, offset + 0, offset + 6 * 60);
+		nocturnalMinutes += overlap(startMinutes, endMinutes, offset + 20 * 60, offset + 24 * 60);
+	}
+
+	return nocturnalMinutes;
+}
+
+/**
+ * Infers the legal shift type based on the schedule's nocturnal minutes (20:00–06:00).
+ *
+ * Rule of thumb:
+ * - 0 nocturnal hours → DIURNA
+ * - ≥ 3.5 nocturnal hours → NOCTURNA
+ * - Otherwise (and with both day+night) → MIXTA
+ *
+ * @param day - Day configuration with start/end times
+ * @returns Inferred shift type or null when not a working day
+ */
+function inferShiftTypeForDay(
+	day: ScheduleDayInput,
+): ScheduleValidationOptions['shiftType'] | null {
+	if (!day.isWorkingDay) {
+		return null;
+	}
+
+	const totalMinutes = calculateDailyMinutes(day);
+	if (totalMinutes <= 0) {
+		return null;
+	}
+
+	const nocturnalMinutes = calculateNocturnalMinutes(day);
+	const diurnalMinutes = Math.max(0, totalMinutes - nocturnalMinutes);
+
+	if (nocturnalMinutes <= 0) {
+		return 'DIURNA';
+	}
+	if (diurnalMinutes <= 0) {
+		return 'NOCTURNA';
+	}
+	if (nocturnalMinutes > 3.5 * 60) {
+		return 'NOCTURNA';
+	}
+	return 'MIXTA';
 }
 
 /**
@@ -107,6 +201,16 @@ export function validateScheduleDays(args: {
 				severity: 'error',
 			});
 			continue;
+		}
+
+		const inferredShiftType = inferShiftTypeForDay(day);
+		if (inferredShiftType && inferredShiftType !== shiftType) {
+			warnings.push({
+				type: 'SHIFT_TYPE_MISMATCH',
+				dayOfWeek: day.dayOfWeek,
+				message: `Shift type mismatch: expected ${inferredShiftType} based on schedule hours, but template is ${shiftType}.`,
+				severity: severityForOverage,
+			});
 		}
 
 		const dayHours = dayMinutes / 60;

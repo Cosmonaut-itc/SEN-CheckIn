@@ -13,7 +13,8 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 
-const EXPO_BUILD_URL = 'https://expo.dev/accounts/sen-apps/projects/sen-checkin/builds/f0baf210-ef5b-4807-ae7a-1a266c88bdd5';
+const EXPO_BUILD_URL =
+	'https://expo.dev/accounts/sen-apps/projects/sen-checkin/builds/f0baf210-ef5b-4807-ae7a-1a266c88bdd5';
 
 /**
  * Build a QR-code image URL for a given value.
@@ -87,5 +88,3 @@ export function AppMovilPageClient(): React.ReactElement {
 		</div>
 	);
 }
-
-

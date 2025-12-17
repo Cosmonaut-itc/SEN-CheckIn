@@ -2,45 +2,45 @@
 name: UI Spanish Translation i18n
 overview: Set up internationalization infrastructure for both web (next-intl) and mobile (expo-localization + i18n-js) apps, translate all UI strings to Spanish (Latin American/MX), and update AGENTS.md with language requirements.
 todos:
-  - id: web-deps
-    content: Install next-intl in web app and configure next.config.ts
-    status: completed
-  - id: web-i18n-setup
-    content: Create i18n/request.ts and wrap layout with NextIntlClientProvider
-    status: completed
-  - id: web-messages
-    content: Create apps/web/messages/es.json with all Spanish translations
-    status: completed
-  - id: web-sidebar
-    content: Update app-sidebar.tsx to use useTranslations hook
-    status: completed
-  - id: web-dashboard
-    content: Update all dashboard client components (13 files) with translations
-    status: completed
-  - id: web-schedules
-    content: Update schedules page and 8 sub-components with translations (NEW)
-    status: completed
-  - id: web-auth
-    content: Update auth pages (sign-in, sign-up, device verification) with translations
-    status: completed
-  - id: web-components
-    content: Update shared components (dialogs, forms, skeletons) with translations
-    status: completed
-  - id: mobile-deps
-    content: Install expo-localization and i18n-js in mobile app
-    status: completed
-  - id: mobile-i18n-setup
-    content: Create lib/i18n.ts configuration and translations/es.json
-    status: completed
-  - id: mobile-screens
-    content: Update all mobile screens (scanner, login, settings, device-setup) with i18n.t()
-    status: completed
-  - id: agents-md
-    content: Update AGENTS.md with Spanish UI language requirement
-    status: completed
-  - id: quality-checks
-    content: Run bun run format, bun run lint, and bun run check-types - fix any errors
-    status: completed
+    - id: web-deps
+      content: Install next-intl in web app and configure next.config.ts
+      status: completed
+    - id: web-i18n-setup
+      content: Create i18n/request.ts and wrap layout with NextIntlClientProvider
+      status: completed
+    - id: web-messages
+      content: Create apps/web/messages/es.json with all Spanish translations
+      status: completed
+    - id: web-sidebar
+      content: Update app-sidebar.tsx to use useTranslations hook
+      status: completed
+    - id: web-dashboard
+      content: Update all dashboard client components (13 files) with translations
+      status: completed
+    - id: web-schedules
+      content: Update schedules page and 8 sub-components with translations (NEW)
+      status: completed
+    - id: web-auth
+      content: Update auth pages (sign-in, sign-up, device verification) with translations
+      status: completed
+    - id: web-components
+      content: Update shared components (dialogs, forms, skeletons) with translations
+      status: completed
+    - id: mobile-deps
+      content: Install expo-localization and i18n-js in mobile app
+      status: completed
+    - id: mobile-i18n-setup
+      content: Create lib/i18n.ts configuration and translations/es.json
+      status: completed
+    - id: mobile-screens
+      content: Update all mobile screens (scanner, login, settings, device-setup) with i18n.t()
+      status: completed
+    - id: agents-md
+      content: Update AGENTS.md with Spanish UI language requirement
+      status: completed
+    - id: quality-checks
+      content: Run bun run format, bun run lint, and bun run check-types - fix any errors
+      status: completed
 ---
 
 # UI Spanish Translation with i18n Infrastructure
@@ -109,37 +109,37 @@ Key files to update (using `useTranslations` hook):
 
 **Dashboard Pages (13 client components):**
 
-- [`apps/web/app/(dashboard)/dashboard/dashboard-client.tsx`](apps/web/app/\\\\\(dashboard)/dashboard/dashboard-client.tsx)
-- [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\\\(dashboard)/employees/employees-client.tsx)
-- [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\\\\(dashboard)/job-positions/job-positions-client.tsx)
-- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](apps/web/app/\\\\\(dashboard)/devices/devices-client.tsx)
-- [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\\\\(dashboard)/locations/locations-client.tsx)
-- [`apps/web/app/(dashboard)/attendance/attendance-client.tsx`](apps/web/app/\\\\\(dashboard)/attendance/attendance-client.tsx)
-- [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\\\(dashboard)/payroll/payroll-client.tsx)
-- [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
-- [`apps/web/app/(dashboard)/api-keys/api-keys-client.tsx`](apps/web/app/\\\\\(dashboard)/api-keys/api-keys-client.tsx)
-- [`apps/web/app/(dashboard)/users/users-client.tsx`](apps/web/app/\\\\\(dashboard)/users/users-client.tsx)
-- [`apps/web/app/(dashboard)/organizations/organizations-client.tsx`](apps/web/app/\\\\\(dashboard)/organizations/organizations-client.tsx)
-- [`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\\\\(dashboard)/schedules/schedules-client.tsx) **(NEW)**
-- [`apps/web/app/(dashboard)/error.tsx`](apps/web/app/\\\\\(dashboard)/error.tsx)
+- [`apps/web/app/(dashboard)/dashboard/dashboard-client.tsx`](apps/web/app/\\(dashboard)/dashboard/dashboard-client.tsx)
+- [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\(dashboard)/employees/employees-client.tsx)
+- [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\(dashboard)/job-positions/job-positions-client.tsx)
+- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](apps/web/app/\\(dashboard)/devices/devices-client.tsx)
+- [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\(dashboard)/locations/locations-client.tsx)
+- [`apps/web/app/(dashboard)/attendance/attendance-client.tsx`](apps/web/app/\\(dashboard)/attendance/attendance-client.tsx)
+- [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\(dashboard)/payroll/payroll-client.tsx)
+- [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
+- [`apps/web/app/(dashboard)/api-keys/api-keys-client.tsx`](apps/web/app/\\(dashboard)/api-keys/api-keys-client.tsx)
+- [`apps/web/app/(dashboard)/users/users-client.tsx`](apps/web/app/\\(dashboard)/users/users-client.tsx)
+- [`apps/web/app/(dashboard)/organizations/organizations-client.tsx`](apps/web/app/\\(dashboard)/organizations/organizations-client.tsx)
+- [`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\(dashboard)/schedules/schedules-client.tsx) **(NEW)**
+- [`apps/web/app/(dashboard)/error.tsx`](apps/web/app/\\(dashboard)/error.tsx)
 
 **Schedules Sub-components (8 files - NEW):**
 
-- [`apps/web/app/(dashboard)/schedules/components/calendar-view.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/calendar-view.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/day-schedule-editor.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/day-schedule-editor.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/exception-form-dialog.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/exception-form-dialog.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/labor-law-warnings.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/location-schedule-card.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/location-schedule-card.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/schedule-exceptions-tab.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/schedule-exceptions-tab.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/schedule-templates-tab.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/schedule-templates-tab.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx`](apps/web/app/\\\\\(dashboard)/schedules/components/template-form-dialog.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/calendar-view.tsx`](apps/web/app/\\(dashboard)/schedules/components/calendar-view.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/day-schedule-editor.tsx`](apps/web/app/\\(dashboard)/schedules/components/day-schedule-editor.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/exception-form-dialog.tsx`](apps/web/app/\\(dashboard)/schedules/components/exception-form-dialog.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`](apps/web/app/\\(dashboard)/schedules/components/labor-law-warnings.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/location-schedule-card.tsx`](apps/web/app/\\(dashboard)/schedules/components/location-schedule-card.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/schedule-exceptions-tab.tsx`](apps/web/app/\\(dashboard)/schedules/components/schedule-exceptions-tab.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/schedule-templates-tab.tsx`](apps/web/app/\\(dashboard)/schedules/components/schedule-templates-tab.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx`](apps/web/app/\\(dashboard)/schedules/components/template-form-dialog.tsx)
 
 **Auth Pages (4 files):**
 
-- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\\\\\(auth)/sign-in/page.tsx)
-- [`apps/web/app/(auth)/sign-up/page.tsx`](apps/web/app/\\\\\(auth)/sign-up/page.tsx)
-- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\\\\\(auth)/device/device-client.tsx) **(NEW)**
-- [`apps/web/app/(auth)/layout.tsx`](apps/web/app/\\\\\(auth)/layout.tsx)
+- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\\(auth)/sign-in/page.tsx)
+- [`apps/web/app/(auth)/sign-up/page.tsx`](apps/web/app/\\(auth)/sign-up/page.tsx)
+- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\\(auth)/device/device-client.tsx) **(NEW)**
+- [`apps/web/app/(auth)/layout.tsx`](apps/web/app/\\(auth)/layout.tsx)
 
 **Shared Components:**
 
@@ -177,10 +177,10 @@ bun run add:mobile -- expo-localization i18n-js
 
 Key files to update (using `i18n.t()` function):
 
-- [`apps/mobile/app/(main)/scanner.tsx`](apps/mobile/app/\\\\\\\\(main)/scanner.tsx) - Scanner UI strings
-- [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\\\\\\\\(auth)/login.tsx) - Login flow strings
-- [`apps/mobile/app/(auth)/device-setup.tsx`](apps/mobile/app/\\\\\\\\(auth)/device-setup.tsx) - Setup strings
-- [`apps/mobile/app/(main)/settings.tsx`](apps/mobile/app/\\\\\\\\(main)/settings.tsx) - Settings strings
+- [`apps/mobile/app/(main)/scanner.tsx`](<apps/mobile/app/\\\\(main)/scanner.tsx>) - Scanner UI strings
+- [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/\\\\(auth)/login.tsx>) - Login flow strings
+- [`apps/mobile/app/(auth)/device-setup.tsx`](<apps/mobile/app/\\\\(auth)/device-setup.tsx>) - Setup strings
+- [`apps/mobile/app/(main)/settings.tsx`](<apps/mobile/app/\\\\(main)/settings.tsx>) - Settings strings
 
 ---
 

@@ -589,6 +589,11 @@
 			"label": "Inicio de semana",
 			"selectDay": "Selecciona un día"
 		},
+		"timeZone": {
+			"label": "Zona horaria de nómina",
+			"placeholder": "p. ej., America/Mexico_City",
+			"description": "Se usa para interpretar los límites de los periodos de pago (inicio/fin del periodo)."
+		},
 		"days": {
 			"sunday": "Domingo",
 			"monday": "Lunes",
@@ -608,6 +613,7 @@
 		},
 		"additionalMandatoryRestDays": {
 			"label": "Días de descanso obligatorio extra",
+			"placeholder": "YYYY-MM-DD",
 			"description": "Uno por línea. Útil para jornada electoral (LFT Art. 74 fr. IX) y descansos locales."
 		},
 		"legalRules": {
@@ -622,7 +628,8 @@
 		},
 		"validation": {
 			"invalidDate": "Fecha inválida \"{date}\". Usa YYYY-MM-DD (una por línea).",
-			"invalidDates": "Fechas inválidas"
+			"invalidDates": "Fechas inválidas",
+			"invalidTimeZone": "Zona horaria inválida. Usa un identificador IANA (p. ej., America/Mexico_City)."
 		},
 		"toast": {
 			"saveSuccess": "Configuración de nómina guardada",
@@ -984,6 +991,7 @@
 			"title": "Validaciones de ley laboral",
 			"messages": {
 				"dailyHoursExceeded": "{day} excede el límite diario ({hours} h > {limit} h)",
+				"shiftTypeMismatch": "{day}: el horario no coincide con el tipo de jornada ({selected} vs {expected})",
 				"overtimeDailyLimit": "{day} tiene más de 3 h de tiempo extra ({hours} h)",
 				"noRestDay": "Se requiere al menos un día de descanso por semana.",
 				"weeklyHoursExceeded": "El total semanal excede el límite ({hours} h > {limit} h).",

@@ -13,7 +13,7 @@ function getDatabaseUrl(): string {
 	const databaseUrl = process.env.SEN_DB_URL;
 	if (!databaseUrl) {
 		throw new Error(
-			'DATABASE_URL environment variable is required but not set. Please set it in your .env file or environment.',
+			'SEN_DB_URL environment variable is required but not set. Please set it in your .env file or environment.',
 		);
 	}
 	return databaseUrl;

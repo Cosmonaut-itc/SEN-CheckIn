@@ -42,8 +42,6 @@ interface JobPositionFormValues {
 	description: string;
 	/** Daily pay rate */
 	dailyPay: number;
-	/** Hourly pay rate */
-	hourlyPay: number;
 	/** Payment frequency */
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 }
@@ -55,7 +53,6 @@ const initialFormValues: JobPositionFormValues = {
 	name: '',
 	description: '',
 	dailyPay: 0,
-	hourlyPay: 0,
 	paymentFrequency: 'MONTHLY',
 };
 
@@ -154,7 +151,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 					name: editingJobPosition.name,
 					description: editingJobPosition.description ?? '',
 					dailyPay: editingJobPosition.dailyPay,
-					hourlyPay: editingJobPosition.hourlyPay,
 					paymentFrequency: editingJobPosition.paymentFrequency,
 				}
 			: initialFormValues,
@@ -167,7 +163,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 					description:
 						value.description.trim() === '' ? null : value.description || undefined,
 					dailyPay: value.dailyPay,
-					hourlyPay: value.hourlyPay,
 					paymentFrequency: value.paymentFrequency,
 				});
 			} else {
@@ -179,7 +174,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 					name: value.name,
 					description: value.description || undefined,
 					dailyPay: value.dailyPay,
-					hourlyPay: value.hourlyPay,
 					paymentFrequency: value.paymentFrequency,
 					organizationId,
 				});
@@ -209,7 +203,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 			setEditingJobPosition(jobPosition);
 			form.setFieldValue('name', jobPosition.name);
 			form.setFieldValue('description', jobPosition.description ?? '');
-			form.setFieldValue('hourlyPay', Number(jobPosition.hourlyPay ?? 0));
+			form.setFieldValue('dailyPay', Number(jobPosition.dailyPay ?? 0));
 			form.setFieldValue('paymentFrequency', jobPosition.paymentFrequency);
 			setIsDialogOpen(true);
 		},
@@ -330,23 +324,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 										/>
 									)}
 								</form.AppField>
-								<form.AppField
-									name="hourlyPay"
-									validators={{
-										onChange: ({ value }) =>
-											Number(value) <= 0
-												? t('validation.hourlyPayGreaterThanZero')
-												: undefined,
-									}}
-								>
-									{(field) => (
-										<field.TextField
-											label={t('fields.hourlyPay')}
-											type="number"
-											placeholder={t('placeholders.hourlyPayExample')}
-										/>
-									)}
-								</form.AppField>
 								<form.AppField name="paymentFrequency">
 									{(field) => (
 										<field.SelectField
@@ -402,7 +379,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 							<TableHead>{t('table.headers.name')}</TableHead>
 							<TableHead>{t('table.headers.description')}</TableHead>
 							<TableHead>{t('table.headers.dailyPay')}</TableHead>
-							<TableHead>{t('table.headers.hourlyPay')}</TableHead>
 							<TableHead>{t('table.headers.paymentFrequency')}</TableHead>
 							<TableHead>{t('table.headers.created')}</TableHead>
 							<TableHead className="w-[100px]">
@@ -414,7 +390,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 5 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
+									{Array.from({ length: 6 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -423,7 +399,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 							))
 						) : jobPositions.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">
 									{t('table.empty')}
 								</TableCell>
 							</TableRow>
@@ -438,9 +414,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 									</TableCell>
 									<TableCell>
 										${Number(jobPosition.dailyPay).toFixed(2)}
-									</TableCell>
-									<TableCell>
-										${Number(jobPosition.hourlyPay).toFixed(2)}
 									</TableCell>
 									<TableCell>
 										{t(`paymentFrequency.${jobPosition.paymentFrequency}`)}

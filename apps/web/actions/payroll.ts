@@ -8,12 +8,13 @@ export interface UpdatePayrollSettingsInput {
 	weekStartDay: number;
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
 	additionalMandatoryRestDays?: string[];
+	timeZone?: string;
 	organizationId?: string;
 }
 
 export interface CalculatePayrollInput {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 }
@@ -46,6 +47,7 @@ export async function updatePayrollSettingsAction(
 			weekStartDay: input.weekStartDay,
 			overtimeEnforcement: input.overtimeEnforcement,
 			additionalMandatoryRestDays: input.additionalMandatoryRestDays,
+			timeZone: input.timeZone,
 			organizationId: input.organizationId,
 		});
 
@@ -72,8 +74,8 @@ export async function calculatePayrollAction(
 	try {
 		const api = createServerApiClient(await getCookieHeader());
 		const response = await api.payroll.calculate.post({
-			periodStart: input.periodStart,
-			periodEnd: input.periodEnd,
+			periodStartDateKey: input.periodStartDateKey,
+			periodEndDateKey: input.periodEndDateKey,
 			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});
@@ -99,8 +101,8 @@ export async function processPayrollAction(input: ProcessPayrollInput): Promise<
 	try {
 		const api = createServerApiClient(await getCookieHeader());
 		const response = await api.payroll.process.post({
-			periodStart: input.periodStart,
-			periodEnd: input.periodEnd,
+			periodStartDateKey: input.periodStartDateKey,
+			periodEndDateKey: input.periodEndDateKey,
 			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});

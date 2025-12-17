@@ -55,6 +55,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			const defaultSetting = {
 				organizationId,
 				weekStartDay: 1,
+				timeZone: 'America/Mexico_City',
 				additionalMandatoryRestDays: [],
 			};
 
@@ -106,9 +107,12 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
 			const resolvedAdditionalMandatoryRestDays =
 				body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
+			const resolvedTimeZone =
+				body.timeZone ?? existing[0]?.timeZone ?? 'America/Mexico_City';
 
 			const updatePayload = {
 				weekStartDay: body.weekStartDay,
+				timeZone: resolvedTimeZone,
 				overtimeEnforcement: resolvedOvertimeEnforcement,
 				additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,
 				organizationId,
@@ -119,6 +123,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 					.update(payrollSetting)
 					.set({
 						weekStartDay: updatePayload.weekStartDay,
+						timeZone: updatePayload.timeZone,
 						overtimeEnforcement: updatePayload.overtimeEnforcement,
 						additionalMandatoryRestDays: updatePayload.additionalMandatoryRestDays,
 					})

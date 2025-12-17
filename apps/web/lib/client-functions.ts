@@ -110,7 +110,6 @@ export interface JobPosition {
 	name: string;
 	description: string | null;
 	dailyPay: number;
-	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId: string | null;
 	createdAt: Date;
@@ -629,13 +628,14 @@ export async function fetchJobPositionsList(
 	}
 
 	const positions =
-		(response.data?.data as (JobPosition & { hourlyPay: string | number })[] | undefined) ?? [];
+		(response.data?.data as
+			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: string | number })[]
+			| undefined) ?? [];
 
 	return {
 		data: positions.map((jp) => ({
 			...jp,
-			hourlyPay: Number(jp.hourlyPay ?? 0),
-			dailyPay: Number((jp as unknown as { dailyPay?: string | number }).dailyPay ?? 0),
+			dailyPay: Number(jp.dailyPay ?? 0),
 		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
@@ -719,6 +719,7 @@ export interface PayrollSettings {
 	id: string;
 	organizationId: string;
 	weekStartDay: number;
+	timeZone: string;
 	overtimeEnforcement: 'WARN' | 'BLOCK';
 	additionalMandatoryRestDays: string[];
 	createdAt: Date;
@@ -761,8 +762,9 @@ export interface PayrollCalculationEmployee {
 export interface PayrollCalculationResult {
 	employees: PayrollCalculationEmployee[];
 	totalAmount: number;
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	timeZone?: string;
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
 }
 
@@ -822,14 +824,14 @@ export async function fetchPayrollSettings(
 }
 
 export async function calculatePayroll(params: {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 }): Promise<PayrollCalculationResult> {
 	const response = await api.payroll.calculate.post({
-		periodStart: params.periodStart,
-		periodEnd: params.periodEnd,
+		periodStartDateKey: params.periodStartDateKey,
+		periodEndDateKey: params.periodEndDateKey,
 		paymentFrequency: params.paymentFrequency,
 		organizationId: params.organizationId,
 	});
@@ -843,14 +845,14 @@ export async function calculatePayroll(params: {
 }
 
 export async function processPayroll(params: {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 }): Promise<{ run: PayrollRun; calculation: PayrollCalculationResult }> {
 	const response = await api.payroll.process.post({
-		periodStart: params.periodStart,
-		periodEnd: params.periodEnd,
+		periodStartDateKey: params.periodStartDateKey,
+		periodEndDateKey: params.periodEndDateKey,
 		paymentFrequency: params.paymentFrequency,
 		organizationId: params.organizationId,
 	});

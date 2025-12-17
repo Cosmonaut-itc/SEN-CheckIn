@@ -81,9 +81,8 @@ async function getRequestHeaders(): Promise<Headers> {
 /**
  * Prefetches the employees list for server-side streaming.
  *
- * This function initiates the prefetch; await the returned promise in
- * Server Components that render data-dependent HTML to keep SSR and
- * client markup aligned and avoid hydration mismatches.
+ * This function initiates the prefetch but does NOT await it,
+ * allowing Next.js to stream the response as data becomes available.
  * Cookies are forwarded from the incoming request to authenticate
  * with the API server.
  *
@@ -105,11 +104,8 @@ async function getRequestHeaders(): Promise<Headers> {
  * }
  * ```
  */
-export function prefetchEmployeesList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): Promise<void> {
-	return queryClient.prefetchQuery({
+export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
+	queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();

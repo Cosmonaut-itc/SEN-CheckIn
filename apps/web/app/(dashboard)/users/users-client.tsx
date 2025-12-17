@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
 import { ShieldCheck, UserPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import type React from 'react';
+import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
+import { type CreateOrganizationUserInput, createOrganizationUser } from '@/actions/users';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,11 +31,10 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
+import { type OrganizationMember, fetchOrganizationMembers } from '@/lib/client-functions';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
-import { fetchOrganizationMembers, type OrganizationMember } from '@/lib/client-functions';
-import { createOrganizationUser, type CreateOrganizationUserInput } from '@/actions/users';
 
 type CreateUserFormValues = Omit<CreateOrganizationUserInput, 'organizationId'>;
 
@@ -124,7 +125,9 @@ export function UsersPageClient(): React.ReactElement {
 				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				form.reset();
-				queryClient.invalidateQueries({ queryKey: queryKeys.organizationMembers.all });
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.organizationMembers.all,
+				});
 			} else {
 				toast.error(result.error ?? t('toast.createError'));
 			}

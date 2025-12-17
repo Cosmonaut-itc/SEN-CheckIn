@@ -24,7 +24,9 @@
 		"add:mobile": "bun add --cwd apps/mobile",
 		"add:web": "bun add --cwd apps/web",
 		"db:gen": "cd apps/api && bunx --bun drizzle-kit generate --config drizzle.config.ts",
-		"db:mig": "cd apps/api && bunx --bun drizzle-kit migrate --config drizzle.config.ts"
+		"db:mig": "cd apps/api && bunx --bun drizzle-kit migrate --config drizzle.config.ts",
+		"db:seed": "cd apps/api && bun run db:seed",
+		"db:reset": "cd apps/api && bun run db:reset"
 	},
 	"devDependencies": {
 		"eslint": "^9.39.1",

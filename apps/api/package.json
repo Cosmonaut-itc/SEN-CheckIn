@@ -10,9 +10,11 @@
 		"build:prod": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace --external pg-native",
 		"start": "bun run scripts/start.js",
 		"start:prod": "NODE_ENV=production bun run scripts/start.js",
-		"lint": "eslint src --ext .ts --max-warnings 0",
+		"lint": "eslint src scripts --ext .ts --max-warnings 0",
 		"db:mig": "bunx --bun drizzle-kit migrate --config drizzle.config.ts",
 		"db:gen": "bunx --bun drizzle-kit generate --config drizzle.config.ts",
+		"db:seed": "bun run scripts/seed.ts",
+		"db:reset": "bun run scripts/seed.ts -- --reset",
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -24,6 +26,7 @@
 		"date-fns": "^4.1.0",
 		"dotenv": "^17.2.3",
 		"drizzle-orm": "^0.45.0",
+		"drizzle-seed": "^0.3.1",
 		"elysia": "latest",
 		"pg": "^8.16.3",
 		"zod": "^3.24.0"

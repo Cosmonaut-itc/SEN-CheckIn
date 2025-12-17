@@ -9,6 +9,7 @@ import { updatePayrollSettingsAction } from '@/actions/payroll';
 import { useAppForm } from '@/lib/forms';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
+import { isValidIanaTimeZone } from '@/lib/time-zone';
 
 const dayOptions = [
 	{ value: '0', labelKey: 'days.sunday' },
@@ -94,10 +95,17 @@ export function PayrollSettingsClient(): React.ReactElement {
 	const form = useAppForm({
 		defaultValues: {
 			weekStartDay: '1',
+			timeZone: 'America/Mexico_City',
 			overtimeEnforcement: 'WARN',
 			additionalMandatoryRestDaysText: '',
 		},
 		onSubmit: async ({ value }) => {
+			const trimmedTimeZone = value.timeZone.trim();
+			if (!isValidIanaTimeZone(trimmedTimeZone)) {
+				toast.error(t('validation.invalidTimeZone'));
+				return;
+			}
+
 			let additionalMandatoryRestDays: string[];
 			try {
 				additionalMandatoryRestDays = parseAdditionalMandatoryRestDaysText(
@@ -115,6 +123,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 
 			await mutation.mutateAsync({
 				weekStartDay: Number(value.weekStartDay),
+				timeZone: trimmedTimeZone,
 				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
 				additionalMandatoryRestDays,
 			});
@@ -125,6 +134,9 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.weekStartDay !== undefined) {
 			form.setFieldValue('weekStartDay', String(data.weekStartDay));
 		}
+		if (data?.timeZone !== undefined) {
+			form.setFieldValue('timeZone', data.timeZone);
+		}
 		if (data?.overtimeEnforcement !== undefined) {
 			form.setFieldValue('overtimeEnforcement', data.overtimeEnforcement);
 		}
@@ -132,7 +144,13 @@ export function PayrollSettingsClient(): React.ReactElement {
 			'additionalMandatoryRestDaysText',
 			(data?.additionalMandatoryRestDays ?? []).join('\n'),
 		);
-	}, [data?.weekStartDay, data?.overtimeEnforcement, data?.additionalMandatoryRestDays, form]);
+	}, [
+		data?.weekStartDay,
+		data?.timeZone,
+		data?.overtimeEnforcement,
+		data?.additionalMandatoryRestDays,
+		form,
+	]);
 
 	return (
 		<div className="space-y-4">
@@ -165,6 +183,24 @@ export function PayrollSettingsClient(): React.ReactElement {
 									placeholder={
 										isLoading ? tCommon('loading') : t('weekStart.selectDay')
 									}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="timeZone"
+							validators={{
+								onChange: ({ value }) =>
+									isValidIanaTimeZone(value.trim())
+										? undefined
+										: t('validation.invalidTimeZone'),
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('timeZone.label')}
+									placeholder={t('timeZone.placeholder')}
+									description={t('timeZone.description')}
 									disabled={isLoading || mutation.isPending}
 								/>
 							)}
@@ -213,7 +249,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 							{(field) => (
 								<field.TextareaField
 									label={t('additionalMandatoryRestDays.label')}
-									placeholder="YYYY-MM-DD"
+									placeholder={t('additionalMandatoryRestDays.placeholder')}
 									description={t('additionalMandatoryRestDays.description')}
 									rows={4}
 								/>

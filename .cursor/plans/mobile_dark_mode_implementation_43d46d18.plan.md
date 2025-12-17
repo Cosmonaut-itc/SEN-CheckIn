@@ -101,7 +101,7 @@ Add CSS variables for dark mode that Tailwind/uniwind can use:
 
 ### 4. Update Scanner Screen Hardcoded Styles
 
-**File:** [`apps/mobile/app/(main)/scanner.tsx`](<apps/mobile/app/\(main)/scanner.tsx>)
+**File:** [`apps/mobile/app/(main)/scanner.tsx`](<apps/mobile/app/(main)/scanner.tsx>)
 
 - Replace hardcoded colors in `StyleSheet.create()` with theme-aware alternatives
 - Use `useThemeColor` hook or CSS classes for dynamic styling

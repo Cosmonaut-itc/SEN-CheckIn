@@ -308,13 +308,14 @@ export async function fetchJobPositionsListServer(
 	}
 
 	const positions =
-		(response.data?.data as (JobPosition & { hourlyPay?: number | string })[] | undefined) ??
-		[];
+		(response.data?.data as
+			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: number | string })[]
+			| undefined) ?? [];
 
 	return {
 		data: positions.map((jp) => ({
 			...jp,
-			hourlyPay: Number(jp.hourlyPay ?? 0),
+			dailyPay: Number(jp.dailyPay ?? 0),
 		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};

@@ -14,6 +14,7 @@ export type ScheduleWarningType =
 	| 'WEEKLY_HOURS_EXCEEDED'
 	| 'NO_REST_DAY'
 	| 'INVALID_SHIFT_HOURS'
+	| 'SHIFT_TYPE_MISMATCH'
 	| 'OVERTIME_DAILY_LIMIT'
 	| 'OVERTIME_WEEKLY_EXCEEDED'
 	| 'OVERTIME_WEEKLY_DAYS_EXCEEDED';
@@ -55,6 +56,10 @@ export interface ScheduleWarningDetails {
 	overtimeHours?: number;
 	/** Count of overtime days in a week */
 	overtimeDays?: number;
+	/** Expected shift type derived from the actual hours */
+	expectedShiftType?: ShiftType;
+	/** Selected shift type from the form */
+	selectedShiftType?: ShiftType;
 }
 
 /**
@@ -90,6 +95,88 @@ export function calculateHours(day: ScheduleTemplateDayInput): number {
 }
 
 /**
+ * Computes the number of minutes that fall within the nocturnal window (20:00–06:00).
+ *
+ * @param day - Day entry with start and end times
+ * @returns Nocturnal minutes in the day entry
+ */
+function calculateNocturnalMinutes(day: ScheduleTemplateDayInput): number {
+	if (day.isWorkingDay === false) {
+		return 0;
+	}
+
+	const [startHour, startMinute] = day.startTime.split(':').map(Number);
+	const [endHour, endMinute] = day.endTime.split(':').map(Number);
+	const startTotalMinutes = startHour * 60 + startMinute;
+	const endTotalMinutes = endHour * 60 + endMinute;
+	const adjustedEnd =
+		endTotalMinutes <= startTotalMinutes ? endTotalMinutes + 24 * 60 : endTotalMinutes;
+
+	/**
+	 * Calculates overlap minutes between two half-open ranges [aStart,aEnd) and [bStart,bEnd).
+	 *
+	 * @param aStart - Start of range A in minutes
+	 * @param aEnd - End of range A in minutes
+	 * @param bStart - Start of range B in minutes
+	 * @param bEnd - End of range B in minutes
+	 * @returns Overlap in minutes
+	 */
+	const overlap = (aStart: number, aEnd: number, bStart: number, bEnd: number): number => {
+		const start = Math.max(aStart, bStart);
+		const end = Math.min(aEnd, bEnd);
+		return Math.max(0, end - start);
+	};
+
+	const totalMinutes = Math.max(0, adjustedEnd - startTotalMinutes);
+	if (totalMinutes === 0) {
+		return 0;
+	}
+
+	const rangeStart = startTotalMinutes;
+	const rangeEnd = startTotalMinutes + totalMinutes;
+	let nocturnalMinutes = 0;
+
+	for (const offset of [0, 24 * 60]) {
+		nocturnalMinutes += overlap(rangeStart, rangeEnd, offset + 0, offset + 6 * 60);
+		nocturnalMinutes += overlap(rangeStart, rangeEnd, offset + 20 * 60, offset + 24 * 60);
+	}
+
+	return nocturnalMinutes;
+}
+
+/**
+ * Infers the legal shift type based on the schedule's nocturnal minutes (20:00–06:00).
+ *
+ * Rule of thumb:
+ * - 0 nocturnal hours → DIURNA
+ * - ≥ 3.5 nocturnal hours → NOCTURNA
+ * - Otherwise (and with both day+night) → MIXTA
+ *
+ * @param day - Day entry with start/end times
+ * @returns Inferred shift type or null when the day is not a working day
+ */
+function inferShiftTypeForDay(day: ScheduleTemplateDayInput): ShiftType | null {
+	const totalMinutes = Math.round(calculateHours(day) * 60);
+	if (day.isWorkingDay === false || totalMinutes <= 0) {
+		return null;
+	}
+
+	const nocturnalMinutes = calculateNocturnalMinutes(day);
+	const diurnalMinutes = Math.max(0, totalMinutes - nocturnalMinutes);
+
+	if (nocturnalMinutes <= 0) {
+		return 'DIURNA';
+	}
+	if (diurnalMinutes <= 0) {
+		return 'NOCTURNA';
+	}
+	if (nocturnalMinutes > 3.5 * 60) {
+		return 'NOCTURNA';
+	}
+	return 'MIXTA';
+}
+
+/**
  * Computes the total weekly hours for the provided schedule days.
  *
  * @param days - Day configuration
@@ -109,10 +196,13 @@ export function computeWeeklyHours(days: ScheduleTemplateDayInput[]): number {
 export function evaluateWarnings(
 	shiftType: ShiftType,
 	days: ScheduleTemplateDayInput[],
+	overtimeEnforcement: 'WARN' | 'BLOCK',
 ): ScheduleWarning[] {
 	const warnings: ScheduleWarning[] = [];
 	const dailyLimit = DAILY_LIMITS[shiftType] ?? 8;
 	const weeklyLimit = WEEKLY_LIMITS[shiftType] ?? 48;
+	const mismatchSeverity: ScheduleWarning['severity'] =
+		overtimeEnforcement === 'BLOCK' ? 'error' : 'warning';
 
 	let weeklyHours = 0;
 	let weeklyOvertimeHours = 0;
@@ -121,6 +211,19 @@ export function evaluateWarnings(
 
 	days.forEach((day) => {
 		const hours = calculateHours(day);
+		const inferredShiftType = inferShiftTypeForDay(day);
+		if (inferredShiftType && inferredShiftType !== shiftType) {
+			warnings.push({
+				type: 'SHIFT_TYPE_MISMATCH',
+				dayOfWeek: day.dayOfWeek,
+				severity: mismatchSeverity,
+				details: {
+					expectedShiftType: inferredShiftType,
+					selectedShiftType: shiftType,
+				},
+			});
+		}
+
 		if (day.isWorkingDay === false || hours === 0) {
 			hasRestDay = true;
 		} else {
@@ -194,6 +297,8 @@ interface LaborLawWarningsProps {
 	shiftType: ShiftType;
 	/** Current day configuration */
 	days: ScheduleTemplateDayInput[];
+	/** Overtime enforcement (warn vs block) */
+	overtimeEnforcement: 'WARN' | 'BLOCK';
 }
 
 /**
@@ -205,9 +310,13 @@ interface LaborLawWarningsProps {
 export function LaborLawWarnings({
 	shiftType,
 	days,
+	overtimeEnforcement,
 }: LaborLawWarningsProps): React.ReactElement | null {
 	const t = useTranslations('Schedules');
-	const warnings = useMemo(() => evaluateWarnings(shiftType, days), [shiftType, days]);
+	const warnings = useMemo(
+		() => evaluateWarnings(shiftType, days, overtimeEnforcement),
+		[days, overtimeEnforcement, shiftType],
+	);
 
 	if (warnings.length === 0) {
 		return null;
@@ -234,6 +343,15 @@ export function LaborLawWarnings({
 		const dayName = warning.dayOfWeek === undefined ? undefined : getDayName(warning.dayOfWeek);
 
 		switch (warning.type) {
+			case 'SHIFT_TYPE_MISMATCH': {
+				const expected = warning.details?.expectedShiftType ?? shiftType;
+				const selected = warning.details?.selectedShiftType ?? shiftType;
+				return t('laborLawWarnings.messages.shiftTypeMismatch', {
+					day: dayName ?? '',
+					expected: t(`shiftTypes.options.${expected}`),
+					selected: t(`shiftTypes.options.${selected}`),
+				});
+			}
 			case 'DAILY_HOURS_EXCEEDED': {
 				const hours = warning.details?.hours ?? 0;
 				const limit = warning.details?.limit ?? 0;

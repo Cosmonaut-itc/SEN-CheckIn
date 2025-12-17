@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { addDays, endOfMonth, endOfWeek, format, startOfMonth, startOfWeek } from 'date-fns';
+import { format } from 'date-fns';
 import { Loader2 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -35,6 +35,13 @@ import {
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 import { type PayrollCalculateParams, mutationKeys, queryKeys } from '@/lib/query-keys';
+import {
+	addDaysToDateKey,
+	getEndOfMonthDateKey,
+	getStartOfMonthDateKey,
+	getWeekStartDateKey,
+} from '@/lib/date-key';
+import { toDateKeyInTimeZone } from '@/lib/time-zone';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
@@ -58,27 +65,27 @@ function formatCurrency(value: number): string {
 function computePeriod(
 	weekStartDay: number,
 	frequency: PayrollCalculateParams['paymentFrequency'],
-): { periodStart: Date; periodEnd: Date } {
-	const today = new Date();
+	timeZone: string,
+): { periodStartDateKey: string; periodEndDateKey: string } {
+	const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+
 	if (frequency === 'MONTHLY') {
+		const periodStartDateKey = getStartOfMonthDateKey(todayDateKey);
+		const periodEndDateKey = getEndOfMonthDateKey(todayDateKey);
+		return { periodStartDateKey, periodEndDateKey };
+	}
+
+	const weekStartDateKey = getWeekStartDateKey(todayDateKey, weekStartDay);
+	if (frequency === 'BIWEEKLY') {
 		return {
-			periodStart: startOfMonth(today),
-			periodEnd: endOfMonth(today),
+			periodStartDateKey: weekStartDateKey,
+			periodEndDateKey: addDaysToDateKey(weekStartDateKey, 13),
 		};
 	}
 
-	const start = startOfWeek(today, {
-		weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6,
-	});
-	if (frequency === 'BIWEEKLY') {
-		return { periodStart: start, periodEnd: addDays(start, 13) };
-	}
-
 	return {
-		periodStart: start,
-		periodEnd: endOfWeek(today, {
-			weekStartsOn: weekStartDay as 0 | 1 | 2 | 3 | 4 | 5 | 6,
-		}),
+		periodStartDateKey: weekStartDateKey,
+		periodEndDateKey: addDaysToDateKey(weekStartDateKey, 6),
 	};
 }
 
@@ -91,11 +98,11 @@ export function PayrollPageClient(): React.ReactElement {
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
 
-	const [periodStart, setPeriodStart] = useState<Date>(
-		() => computePeriod(1, defaultFrequency).periodStart,
+	const [periodStartDateKey, setPeriodStartDateKey] = useState<string>(
+		() => computePeriod(1, defaultFrequency, 'America/Mexico_City').periodStartDateKey,
 	);
-	const [periodEnd, setPeriodEnd] = useState<Date>(
-		() => computePeriod(1, defaultFrequency).periodEnd,
+	const [periodEndDateKey, setPeriodEndDateKey] = useState<string>(
+		() => computePeriod(1, defaultFrequency, 'America/Mexico_City').periodEndDateKey,
 	);
 
 	const { data: settings } = useQuery<
@@ -111,28 +118,32 @@ export function PayrollPageClient(): React.ReactElement {
 
 	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
-		const next = computePeriod(settings?.weekStartDay ?? 1, paymentFrequency);
-		setPeriodStart(next.periodStart);
-		setPeriodEnd(next.periodEnd);
-	}, [settings?.weekStartDay, paymentFrequency]);
+		const next = computePeriod(
+			settings?.weekStartDay ?? 1,
+			paymentFrequency,
+			settings?.timeZone ?? 'America/Mexico_City',
+		);
+		setPeriodStartDateKey(next.periodStartDateKey);
+		setPeriodEndDateKey(next.periodEndDateKey);
+	}, [settings?.weekStartDay, settings?.timeZone, paymentFrequency]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 
-	const calculationKey = useMemo(
+	const calculationParams: PayrollCalculateParams = useMemo(
 		() => ({
-			periodStart: periodStart.toISOString(),
-			periodEnd: periodEnd.toISOString(),
+			periodStartDateKey,
+			periodEndDateKey,
 			paymentFrequency,
-			organizationId,
+			organizationId: organizationId ?? undefined,
 		}),
-		[organizationId, paymentFrequency, periodEnd, periodStart],
+		[organizationId, paymentFrequency, periodEndDateKey, periodStartDateKey],
 	);
 
 	const { data: calculation, isFetching: isCalculating } = useQuery({
-		queryKey: queryKeys.payroll.calculate(calculationKey as unknown as PayrollCalculateParams),
+		queryKey: queryKeys.payroll.calculate(calculationParams),
 		queryFn: () =>
 			calculatePayroll({
-				periodStart,
-				periodEnd,
+				periodStartDateKey,
+				periodEndDateKey,
 				paymentFrequency,
 				organizationId: organizationId ?? undefined,
 			}),
@@ -177,8 +188,8 @@ export function PayrollPageClient(): React.ReactElement {
 	const onProcess = async (): Promise<void> => {
 		if (!calculation) return;
 		await processMutation.mutateAsync({
-			periodStart,
-			periodEnd,
+			periodStartDateKey,
+			periodEndDateKey,
 			paymentFrequency,
 			organizationId: organizationId ?? undefined,
 		});
@@ -225,9 +236,13 @@ export function PayrollPageClient(): React.ReactElement {
 								const typedValue =
 									value as PayrollCalculateParams['paymentFrequency'];
 								setPaymentFrequency(typedValue);
-								const next = computePeriod(settings?.weekStartDay ?? 1, typedValue);
-								setPeriodStart(next.periodStart);
-								setPeriodEnd(next.periodEnd);
+								const next = computePeriod(
+									settings?.weekStartDay ?? 1,
+									typedValue,
+									settings?.timeZone ?? 'America/Mexico_City',
+								);
+								setPeriodStartDateKey(next.periodStartDateKey);
+								setPeriodEndDateKey(next.periodEndDateKey);
 							}}
 						>
 							<SelectTrigger>
@@ -250,16 +265,16 @@ export function PayrollPageClient(): React.ReactElement {
 						<label className="text-sm font-medium">{t('payPeriod.periodStart')}</label>
 						<Input
 							type="date"
-							value={format(periodStart, 'yyyy-MM-dd')}
-							onChange={(e) => setPeriodStart(new Date(e.target.value))}
+							value={periodStartDateKey}
+							onChange={(e) => setPeriodStartDateKey(e.target.value)}
 						/>
 					</div>
 					<div className="flex flex-col gap-2">
 						<label className="text-sm font-medium">{t('payPeriod.periodEnd')}</label>
 						<Input
 							type="date"
-							value={format(periodEnd, 'yyyy-MM-dd')}
-							onChange={(e) => setPeriodEnd(new Date(e.target.value))}
+							value={periodEndDateKey}
+							onChange={(e) => setPeriodEndDateKey(e.target.value)}
 						/>
 					</div>
 					<div className="flex items-end">

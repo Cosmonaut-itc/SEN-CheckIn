@@ -24,9 +24,7 @@ export interface CreateJobPositionInput {
 	/** Job position description (optional) */
 	description?: string;
 	/** Daily pay rate (salario diario) */
-	dailyPay?: number;
-	/** Hourly pay rate */
-	hourlyPay?: number;
+	dailyPay: number;
 	/** Payment frequency */
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional organization override for API key flows (defaults to active org) */
@@ -45,8 +43,6 @@ export interface UpdateJobPositionInput {
 	description?: string | null;
 	/** Daily pay rate (salario diario) */
 	dailyPay?: number;
-	/** Hourly pay rate */
-	hourlyPay?: number;
 	/** Payment frequency */
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 }
@@ -96,7 +92,6 @@ export async function createJobPosition(input: CreateJobPositionInput): Promise<
 			name: input.name,
 			description: input.description || undefined,
 			dailyPay: input.dailyPay,
-			hourlyPay: input.hourlyPay,
 			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});
@@ -144,7 +139,6 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 			name?: string;
 			description?: string | null;
 			dailyPay?: number;
-			hourlyPay?: number;
 			paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 		} = {};
 
@@ -158,10 +152,6 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 
 		if (input.dailyPay !== undefined) {
 			updatePayload.dailyPay = input.dailyPay;
-		}
-
-		if (input.hourlyPay !== undefined) {
-			updatePayload.hourlyPay = input.hourlyPay;
 		}
 
 		if (input.paymentFrequency !== undefined) {

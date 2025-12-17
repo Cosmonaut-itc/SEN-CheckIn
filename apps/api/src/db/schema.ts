@@ -415,8 +415,6 @@ export const jobPosition = pgTable('job_position', {
 	description: text('description'),
 	/** Daily pay rate for payroll calculations (salario diario) */
 	dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
-	/** Hourly pay rate for payroll calculations */
-	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	/** Payment frequency for this position */
 	paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
 	/** Organization this position belongs to (replaces legacy client linkage) */
@@ -656,6 +654,12 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull()
 		.unique()
 		.references(() => organization.id, { onDelete: 'cascade' }),
+	/**
+	 * IANA timezone identifier for payroll periods (used for start/end boundaries).
+	 *
+	 * Examples: "America/Mexico_City", "America/Tijuana"
+	 */
+	timeZone: text('time_zone').default('America/Mexico_City').notNull(),
 	weekStartDay: integer('week_start_day').default(1).notNull(), // default Monday
 	/** Behavior when overtime limits are exceeded */
 	overtimeEnforcement: overtimeEnforcement('overtime_enforcement').default('WARN').notNull(),

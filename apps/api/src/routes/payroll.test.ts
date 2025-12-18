@@ -206,45 +206,95 @@ function createFakeDb(state: FakeDbState): {
 	select: (selection?: unknown) => unknown;
 	transaction: <T>(fn: (tx: unknown) => Promise<T>) => Promise<T>;
 } {
+	/**
+	 * Minimal Drizzle-like query builder that is awaitable (`thenable`).
+	 */
 	class FakeQuery {
 		private tableName: string | null = null;
 		private whereCondition: DrizzleCondition | null = null;
 		private limitCount: number | null = null;
 		private offsetCount: number = 0;
 
+		/**
+		 * Creates a fake query builder instance.
+		 *
+		 * @param selection - Drizzle-style selection shape passed to `select()`
+		 */
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		constructor(private readonly selection: unknown) {}
 
+		/**
+		 * Sets the source table for the query.
+		 *
+		 * @param table - Drizzle table instance
+		 * @returns The current query builder
+		 */
 		from(table: unknown): this {
 			this.tableName = getTableName(table);
 			return this;
 		}
 
+		/**
+		 * No-op join implementation for route queries.
+		 *
+		 * @param _table - Joined table (ignored)
+		 * @param _on - Join condition (ignored)
+		 * @returns The current query builder
+		 */
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		leftJoin(_table: unknown, _on: unknown): this {
 			return this;
 		}
 
+		/**
+		 * Sets the WHERE condition for the query.
+		 *
+		 * @param condition - Drizzle-like condition tree
+		 * @returns The current query builder
+		 */
 		where(condition: DrizzleCondition): this {
 			this.whereCondition = condition;
 			return this;
 		}
 
+		/**
+		 * Applies a LIMIT to the query.
+		 *
+		 * @param count - Max number of rows
+		 * @returns The current query builder
+		 */
 		limit(count: number): this {
 			this.limitCount = count;
 			return this;
 		}
 
+		/**
+		 * Applies an OFFSET to the query.
+		 *
+		 * @param count - Number of rows to skip
+		 * @returns The current query builder
+		 */
 		offset(count: number): this {
 			this.offsetCount = count;
 			return this;
 		}
 
+		/**
+		 * No-op ordering implementation for route queries.
+		 *
+		 * @param _args - Ordering expressions (ignored)
+		 * @returns The current query builder
+		 */
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		orderBy(..._args: unknown[]): this {
 			return this;
 		}
 
+		/**
+		 * Executes the query against the in-memory DB state.
+		 *
+		 * @returns Result rows
+		 */
 		private execute(): unknown[] {
 			const tableName = this.tableName;
 			if (!tableName) {
@@ -301,6 +351,13 @@ function createFakeDb(state: FakeDbState): {
 			return [];
 		}
 
+		/**
+		 * Implements `PromiseLike` so `await db.select()...` works in the route code.
+		 *
+		 * @param onfulfilled - Callback invoked with query results
+		 * @param onrejected - Callback invoked on rejection
+		 * @returns Promise resolving to transformed results
+		 */
 		then<TResult1 = unknown[], TResult2 = never>(
 			onfulfilled?:
 				| ((value: unknown[]) => TResult1 | PromiseLike<TResult1>)
@@ -312,60 +369,124 @@ function createFakeDb(state: FakeDbState): {
 		}
 	}
 
+	/**
+	 * Creates a transaction-scoped DB facade used by `/payroll/process`.
+	 *
+	 * @returns Transaction client with insert/update/select helpers
+	 */
 	const createTransaction = (): {
 		insert: (table: unknown) => { values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> };
 		update: (table: unknown) => { set: (values: Record<string, unknown>) => { where: (condition: DrizzleCondition) => Promise<void> } };
 		select: (selection?: unknown) => unknown;
 	} => {
-		return {
-			insert: (table: unknown) => {
-				const tableName = getTableName(table);
-				return {
-					values: async (values: Record<string, unknown> | Record<string, unknown>[]) => {
-						const rows = Array.isArray(values) ? values : [values];
-						if (tableName === 'payroll_run') {
-							state.payrollRuns.push(...rows);
-							return;
-						}
-						if (tableName === 'payroll_run_employee') {
-							state.payrollRunEmployees.push(...rows);
-						}
-					},
-				};
-			},
-			update: (table: unknown) => {
-				const tableName = getTableName(table);
-				return {
-					set: (values: Record<string, unknown>) => {
-						return {
-							where: async (condition: DrizzleCondition) => {
-								if (tableName !== 'employee') {
-									return;
-								}
-								const employeeIds = extractInArrayValues(condition)
-									?.filter((value): value is string => typeof value === 'string') ?? [];
-								for (const emp of state.employees) {
-									if (employeeIds.includes(emp.id)) {
-										if (values.lastPayrollDate instanceof Date || values.lastPayrollDate === null) {
-											emp.lastPayrollDate = values.lastPayrollDate;
-										}
-									}
-								}
-							},
-						};
-					},
-				};
-			},
-			select: (selection?: unknown) => new FakeQuery(selection),
+		/**
+		 * Begins an insert operation.
+		 *
+		 * @param table - Drizzle table instance
+		 * @returns Insert builder exposing a `values()` method
+		 */
+		const insert = (table: unknown) => {
+			const tableName = getTableName(table);
+
+			/**
+			 * Inserts one or many rows into an in-memory table.
+			 *
+			 * @param values - Row object or list of rows
+			 * @returns Nothing
+			 */
+			const valuesFn = async (
+				values: Record<string, unknown> | Record<string, unknown>[],
+			): Promise<void> => {
+				const rows = Array.isArray(values) ? values : [values];
+				if (tableName === 'payroll_run') {
+					state.payrollRuns.push(...rows);
+					return;
+				}
+				if (tableName === 'payroll_run_employee') {
+					state.payrollRunEmployees.push(...rows);
+				}
+			};
+
+			return { values: valuesFn };
 		};
+
+		/**
+		 * Begins an update operation.
+		 *
+		 * @param table - Drizzle table instance
+		 * @returns Update builder exposing a `set()` method
+		 */
+		const update = (table: unknown) => {
+			const tableName = getTableName(table);
+
+			/**
+			 * Assigns update values.
+			 *
+			 * @param values - Column updates
+			 * @returns Update builder exposing a `where()` method
+			 */
+			const set = (values: Record<string, unknown>) => {
+				/**
+				 * Applies the WHERE clause and executes the update.
+				 *
+				 * @param condition - Drizzle-like condition tree
+				 * @returns Nothing
+				 */
+				const where = async (condition: DrizzleCondition): Promise<void> => {
+					if (tableName !== 'employee') {
+						return;
+					}
+					const employeeIds = extractInArrayValues(condition)?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
+					for (const emp of state.employees) {
+						if (employeeIds.includes(emp.id)) {
+							if (values.lastPayrollDate instanceof Date || values.lastPayrollDate === null) {
+								emp.lastPayrollDate = values.lastPayrollDate;
+							}
+						}
+					}
+				};
+
+				return { where };
+			};
+
+			return { set };
+		};
+
+		/**
+		 * Creates a SELECT query builder.
+		 *
+		 * @param selection - Drizzle-style selection shape passed to `select()`
+		 * @returns Thenable query builder
+		 */
+		const select = (selection?: unknown) => new FakeQuery(selection);
+
+		return { insert, update, select };
+	};
+
+	/**
+	 * Creates a SELECT query builder.
+	 *
+	 * @param selection - Drizzle-style selection shape passed to `select()`
+	 * @returns Thenable query builder
+	 */
+	const select = (selection?: unknown): unknown => new FakeQuery(selection);
+
+	/**
+	 * Executes a callback in a fake transaction and captures whether it ran.
+	 *
+	 * @param fn - Transaction callback
+	 * @returns Callback result
+	 */
+	const transaction = async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+		state.transactionCalled = true;
+		return fn(createTransaction());
 	};
 
 	return {
-		select: (selection?: unknown) => new FakeQuery(selection),
-		transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
-			state.transactionCalled = true;
-			return fn(createTransaction());
-		},
+		select,
+		transaction,
 	};
 }
 

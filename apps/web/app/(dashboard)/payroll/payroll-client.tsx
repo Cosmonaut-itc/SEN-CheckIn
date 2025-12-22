@@ -2,7 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Loader2 } from 'lucide-react';
+import { es } from 'date-fns/locale';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import type React from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -10,8 +11,13 @@ import { useTranslations } from 'next-intl';
 
 import { processPayrollAction } from '@/actions/payroll';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -70,6 +76,17 @@ type CsvColumn = {
 };
 
 type CsvRow = Record<string, string | number | null | undefined>;
+
+/**
+ * Parses a date key string into a Date instance.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Date instance or undefined when invalid
+ */
+function parseDateKey(dateKey: string): Date | undefined {
+	const parsed = new Date(`${dateKey}T00:00:00`);
+	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
 
 /**
  * Escapes a value for CSV output.
@@ -189,17 +206,18 @@ export function PayrollPageClient(): React.ReactElement {
 		queryFn: () => fetchPayrollSettings(organizationId ?? undefined),
 		enabled: Boolean(organizationId),
 	});
+	const payrollTimeZone = settings?.timeZone ?? 'America/Mexico_City';
 
 	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
 		const next = computePeriod(
 			settings?.weekStartDay ?? 1,
 			paymentFrequency,
-			settings?.timeZone ?? 'America/Mexico_City',
+			payrollTimeZone,
 		);
 		setPeriodStartDateKey(next.periodStartDateKey);
 		setPeriodEndDateKey(next.periodEndDateKey);
-	}, [settings?.weekStartDay, settings?.timeZone, paymentFrequency]);
+	}, [settings?.weekStartDay, payrollTimeZone, paymentFrequency]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 
 	const calculationParams: PayrollCalculateParams = useMemo(
@@ -223,6 +241,15 @@ export function PayrollPageClient(): React.ReactElement {
 			}),
 		enabled: Boolean(organizationId),
 	});
+
+	const periodStartDate = useMemo(
+		() => parseDateKey(periodStartDateKey),
+		[periodStartDateKey],
+	);
+	const periodEndDate = useMemo(
+		() => parseDateKey(periodEndDateKey),
+		[periodEndDateKey],
+	);
 
 	const taxSummary = useMemo(() => {
 		if (!calculation) {
@@ -472,7 +499,7 @@ export function PayrollPageClient(): React.ReactElement {
 								const next = computePeriod(
 									settings?.weekStartDay ?? 1,
 									typedValue,
-									settings?.timeZone ?? 'America/Mexico_City',
+									payrollTimeZone,
 								);
 								setPeriodStartDateKey(next.periodStartDateKey);
 								setPeriodEndDateKey(next.periodEndDateKey);
@@ -496,19 +523,67 @@ export function PayrollPageClient(): React.ReactElement {
 					</div>
 					<div className="flex flex-col gap-2">
 						<label className="text-sm font-medium">{t('payPeriod.periodStart')}</label>
-						<Input
-							type="date"
-							value={periodStartDateKey}
-							onChange={(e) => setPeriodStartDateKey(e.target.value)}
-						/>
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!periodStartDate}
+									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{periodStartDate ? (
+										format(periodStartDate, 'PPP', { locale: es })
+									) : (
+										<span>{t('payPeriod.selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={periodStartDate}
+									onSelect={(date) => {
+										if (!date) return;
+										setPeriodStartDateKey(
+											toDateKeyInTimeZone(date, payrollTimeZone),
+										);
+									}}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
 					</div>
 					<div className="flex flex-col gap-2">
 						<label className="text-sm font-medium">{t('payPeriod.periodEnd')}</label>
-						<Input
-							type="date"
-							value={periodEndDateKey}
-							onChange={(e) => setPeriodEndDateKey(e.target.value)}
-						/>
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!periodEndDate}
+									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{periodEndDate ? (
+										format(periodEndDate, 'PPP', { locale: es })
+									) : (
+										<span>{t('payPeriod.selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={periodEndDate}
+									onSelect={(date) => {
+										if (!date) return;
+										setPeriodEndDateKey(
+											toDateKeyInTimeZone(date, payrollTimeZone),
+										);
+									}}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
 					</div>
 					<div className="flex items-end">
 						<Button

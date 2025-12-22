@@ -488,6 +488,7 @@
 		"dateRange": {
 			"placeholder": "Rango de fechas",
 			"to": "a",
+			"selectDate": "Selecciona una fecha",
 			"presets": {
 				"today": "Hoy",
 				"yesterday": "Ayer",
@@ -498,12 +499,13 @@
 		},
 		"typeFilter": {
 			"placeholder": "Tipo",
-			"all": "Todos",
+			"both": "Entradas/Salidas",
 			"checkIn": "Entrada",
 			"checkOut": "Salida"
 		},
 		"table": {
 			"headers": {
+				"employeeName": "Empleado",
 				"employeeId": "ID de empleado",
 				"deviceId": "ID de dispositivo",
 				"type": "Tipo",
@@ -533,6 +535,7 @@
 			"description": "El inicio y fin del periodo se derivan de la configuración. Ajusta si es necesario.",
 			"paymentFrequency": "Frecuencia de pago",
 			"selectFrequency": "Selecciona la frecuencia",
+			"selectDate": "Selecciona una fecha",
 			"periodStart": "Inicio del periodo",
 			"periodEnd": "Fin del periodo"
 		},

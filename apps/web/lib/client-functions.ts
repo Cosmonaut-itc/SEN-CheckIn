@@ -123,6 +123,7 @@ export interface JobPosition {
 export interface AttendanceRecord {
 	id: string;
 	employeeId: string;
+	employeeName: string;
 	deviceId: string;
 	timestamp: Date;
 	type: AttendanceType;

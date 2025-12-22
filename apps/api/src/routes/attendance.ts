@@ -96,6 +96,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				.select({
 					id: attendanceRecord.id,
 					employeeId: attendanceRecord.employeeId,
+					employeeFirstName: employee.firstName,
+					employeeLastName: employee.lastName,
 					deviceId: attendanceRecord.deviceId,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
@@ -115,6 +117,15 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				.offset(offset)
 				.orderBy(attendanceRecord.timestamp);
 
+			const formattedResults = results.map(
+				({ employeeFirstName, employeeLastName, ...rest }) => ({
+					...rest,
+					employeeName: `${employeeFirstName ?? ''} ${employeeLastName ?? ''}`
+						.trim()
+						.replace(/\s+/g, ' '),
+				}),
+			);
+
 			// Get total count with same filters
 			let countQuery = db
 				.select({
@@ -129,7 +140,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const total = countResult.length;
 
 			return {
-				data: results,
+				data: formattedResults,
 				pagination: {
 					total,
 					limit,
@@ -166,6 +177,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				.select({
 					id: attendanceRecord.id,
 					employeeId: attendanceRecord.employeeId,
+					employeeFirstName: employee.firstName,
+					employeeLastName: employee.lastName,
 					deviceId: attendanceRecord.deviceId,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
@@ -198,10 +211,18 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				return { error: 'You do not have access to this attendance record' };
 			}
 
-			const { employeeOrgId: _employeeOrgId, ...attendance } = record;
+			const { employeeOrgId: _employeeOrgId, employeeFirstName, employeeLastName, ...rest } =
+				record;
 			void _employeeOrgId;
 
-			return { data: attendance };
+			return {
+				data: {
+					...rest,
+					employeeName: `${employeeFirstName ?? ''} ${employeeLastName ?? ''}`
+						.trim()
+						.replace(/\s+/g, ' '),
+				},
+			};
 		},
 		{
 			params: idParamSchema,

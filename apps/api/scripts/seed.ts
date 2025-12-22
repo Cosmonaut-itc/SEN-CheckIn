@@ -451,6 +451,13 @@ async function insertDomainBaseline(args: {
 			timeZone: 'America/Mexico_City',
 			overtimeEnforcement: 'WARN',
 			additionalMandatoryRestDays: ['2025-10-31'],
+			riskWorkRate: '0.06',
+			statePayrollTaxRate: '0.02',
+			absorbImssEmployeeShare: true,
+			absorbIsr: true,
+			aguinaldoDays: 15,
+			vacationPremiumRate: '0.25',
+			enableSeventhDayPay: true,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'payroll-setting:demo'),
@@ -459,6 +466,13 @@ async function insertDomainBaseline(args: {
 			timeZone: 'America/Tijuana',
 			overtimeEnforcement: 'WARN',
 			additionalMandatoryRestDays: ['2025-11-02'],
+			riskWorkRate: '0.045',
+			statePayrollTaxRate: '0.03',
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: '0.25',
+			enableSeventhDayPay: false,
 		},
 	];
 	await db.insert(payrollSetting).values(settingsToInsert);
@@ -605,6 +619,7 @@ async function seedEmployees(args: {
 					scheduleTemplateId: funcs.valuesFromArray({ values: templateIds }),
 					shiftType: funcs.valuesFromArray({ values: ['DIURNA', 'NOCTURNA', 'MIXTA'] }),
 					hireDate: funcs.date({ minDate: '2023-01-01', maxDate: '2025-12-31' }),
+					sbcDailyOverride: funcs.default({ defaultValue: null }),
 					lastPayrollDate: funcs.default({ defaultValue: null }),
 					rekognitionUserId: funcs.default({ defaultValue: null }),
 				},
@@ -962,6 +977,7 @@ async function insertPayrollRuns(args: {
 				overtimeTriplePay: money(0),
 				sundayPremiumAmount: money(0),
 				mandatoryRestDayPremiumAmount: money(0),
+				taxBreakdown: null,
 				periodStart,
 				periodEnd,
 			});
@@ -976,6 +992,7 @@ async function insertPayrollRuns(args: {
 			status: 'DRAFT',
 			totalAmount: money(totalAmount),
 			employeeCount: orgEmployees.length,
+			taxSummary: null,
 			processedAt: null,
 		};
 

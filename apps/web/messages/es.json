@@ -548,6 +548,13 @@
 			"description": "Calculada a partir de asistencia dentro de las fechas seleccionadas.",
 			"calculating": "Calculando...",
 			"noCalculation": "No hay un cálculo disponible.",
+			"actions": {
+				"exportCsv": "Exportar CSV"
+			},
+			"toast": {
+				"exportSuccess": "CSV generado.",
+				"noCalculation": "No hay datos de pre-nómina para exportar."
+			},
 			"totalEmployees": "Total de empleados: {count}",
 			"totalAmount": "Total: {total}",
 			"warningsCount": "{count, plural, one {# alerta} other {# alertas}}",
@@ -561,6 +568,56 @@
 				"total": "Total",
 				"warnings": "Alertas",
 				"detail": "Detalle fiscal"
+			}
+		},
+		"csv": {
+			"fileName": "nomina_previa_{start}_{end}.csv",
+			"summaryLabel": "Totales",
+			"rowTypes": {
+				"employee": "empleado",
+				"summary": "resumen"
+			},
+			"headers": {
+				"rowType": "tipo_fila",
+				"employeeId": "id_empleado",
+				"employeeName": "empleado",
+				"paymentFrequency": "frecuencia_pago",
+				"periodStart": "periodo_inicio",
+				"periodEnd": "periodo_fin",
+				"dailyPay": "salario_diario",
+				"hourlyPay": "salario_hora",
+				"hoursWorked": "horas_trabajadas",
+				"expectedHours": "horas_esperadas",
+				"normalHours": "horas_normales",
+				"overtimeDoubleHours": "horas_extra_dobles",
+				"overtimeTripleHours": "horas_extra_triples",
+				"sundayPremiumAmount": "prima_dominical",
+				"mandatoryRestDayPremiumAmount": "prima_descanso_obligatorio",
+				"seventhDayPay": "septimo_dia",
+				"totalPay": "total_pagos",
+				"grossPay": "percepciones_gravadas",
+				"employeeWithholdingsTotal": "retenciones_trabajador_total",
+				"employeeWithholdingsIsr": "retencion_isr",
+				"employeeWithholdingsImssTotal": "imss_trabajador_total",
+				"employerCostsTotal": "costos_patron_total",
+				"employerCostsImssTotal": "imss_patron_total",
+				"employerCostsImssGuarderias": "imss_guarderias",
+				"employerCostsSarRetiro": "sar_retiro",
+				"employerCostsInfonavit": "infonavit_patron",
+				"employerCostsRiskWork": "riesgo_trabajo",
+				"employerCostsIsn": "impuesto_estatal",
+				"employerCostsAbsorbedImssEmployeeShare": "imss_obrero_absorbido",
+				"employerCostsAbsorbedIsr": "isr_absorbido",
+				"netPay": "neto",
+				"companyCost": "costo_empresa",
+				"baseSbcDaily": "sbc_diario",
+				"baseSbcPeriod": "sbc_periodo",
+				"baseIsrBase": "base_isr",
+				"baseDaysInPeriod": "dias_periodo",
+				"informationalIsrBeforeSubsidy": "isr_antes_subsidio",
+				"informationalSubsidyApplied": "subsidio_aplicado",
+				"warningsCount": "avisos_cantidad",
+				"warnings": "avisos"
 			}
 		},
 		"summary": {

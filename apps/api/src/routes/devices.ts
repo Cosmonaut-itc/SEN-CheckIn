@@ -1,5 +1,6 @@
 import { type SQL, and, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
+import crypto from 'node:crypto';
 
 import db from '../db/index.js';
 import { device, location, organization } from '../db/schema.js';

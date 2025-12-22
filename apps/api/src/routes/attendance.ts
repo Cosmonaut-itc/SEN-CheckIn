@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import crypto from 'node:crypto';
 import { eq, and, gte, lte, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 

@@ -9,6 +9,13 @@ export interface UpdatePayrollSettingsInput {
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
 	additionalMandatoryRestDays?: string[];
 	timeZone?: string;
+	riskWorkRate?: number;
+	statePayrollTaxRate?: number;
+	absorbImssEmployeeShare?: boolean;
+	absorbIsr?: boolean;
+	aguinaldoDays?: number;
+	vacationPremiumRate?: number;
+	enableSeventhDayPay?: boolean;
 	organizationId?: string;
 }
 
@@ -48,6 +55,13 @@ export async function updatePayrollSettingsAction(
 			overtimeEnforcement: input.overtimeEnforcement,
 			additionalMandatoryRestDays: input.additionalMandatoryRestDays,
 			timeZone: input.timeZone,
+			riskWorkRate: input.riskWorkRate,
+			statePayrollTaxRate: input.statePayrollTaxRate,
+			absorbImssEmployeeShare: input.absorbImssEmployeeShare,
+			absorbIsr: input.absorbIsr,
+			aguinaldoDays: input.aguinaldoDays,
+			vacationPremiumRate: input.vacationPremiumRate,
+			enableSeventhDayPay: input.enableSeventhDayPay,
 			organizationId: input.organizationId,
 		});
 

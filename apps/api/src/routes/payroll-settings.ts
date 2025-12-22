@@ -57,6 +57,13 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				weekStartDay: 1,
 				timeZone: 'America/Mexico_City',
 				additionalMandatoryRestDays: [],
+				riskWorkRate: '0',
+				statePayrollTaxRate: '0',
+				absorbImssEmployeeShare: false,
+				absorbIsr: false,
+				aguinaldoDays: 15,
+				vacationPremiumRate: '0.25',
+				enableSeventhDayPay: false,
 			};
 
 			const [insertedSetting] = await db
@@ -109,12 +116,42 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
 			const resolvedTimeZone =
 				body.timeZone ?? existing[0]?.timeZone ?? 'America/Mexico_City';
+			const resolvedRiskWorkRate = body.riskWorkRate ?? existing[0]?.riskWorkRate ?? 0;
+			const resolvedStatePayrollTaxRate =
+				body.statePayrollTaxRate ?? existing[0]?.statePayrollTaxRate ?? 0;
+			const resolvedAbsorbImssEmployeeShare =
+				body.absorbImssEmployeeShare ?? existing[0]?.absorbImssEmployeeShare ?? false;
+			const resolvedAbsorbIsr = body.absorbIsr ?? existing[0]?.absorbIsr ?? false;
+			const resolvedAguinaldoDays = body.aguinaldoDays ?? existing[0]?.aguinaldoDays ?? 15;
+			const resolvedVacationPremiumRate =
+				body.vacationPremiumRate ?? existing[0]?.vacationPremiumRate ?? 0.25;
+			const resolvedEnableSeventhDayPay =
+				body.enableSeventhDayPay ?? existing[0]?.enableSeventhDayPay ?? false;
+			const resolvedRiskWorkRateValue =
+				typeof resolvedRiskWorkRate === 'number'
+					? resolvedRiskWorkRate.toFixed(4)
+					: resolvedRiskWorkRate;
+			const resolvedStatePayrollTaxRateValue =
+				typeof resolvedStatePayrollTaxRate === 'number'
+					? resolvedStatePayrollTaxRate.toFixed(4)
+					: resolvedStatePayrollTaxRate;
+			const resolvedVacationPremiumRateValue =
+				typeof resolvedVacationPremiumRate === 'number'
+					? resolvedVacationPremiumRate.toFixed(4)
+					: resolvedVacationPremiumRate;
 
 			const updatePayload = {
 				weekStartDay: body.weekStartDay,
 				timeZone: resolvedTimeZone,
 				overtimeEnforcement: resolvedOvertimeEnforcement,
 				additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,
+				riskWorkRate: resolvedRiskWorkRateValue,
+				statePayrollTaxRate: resolvedStatePayrollTaxRateValue,
+				absorbImssEmployeeShare: resolvedAbsorbImssEmployeeShare,
+				absorbIsr: resolvedAbsorbIsr,
+				aguinaldoDays: resolvedAguinaldoDays,
+				vacationPremiumRate: resolvedVacationPremiumRateValue,
+				enableSeventhDayPay: resolvedEnableSeventhDayPay,
 				organizationId,
 			};
 
@@ -126,6 +163,13 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						timeZone: updatePayload.timeZone,
 						overtimeEnforcement: updatePayload.overtimeEnforcement,
 						additionalMandatoryRestDays: updatePayload.additionalMandatoryRestDays,
+						riskWorkRate: updatePayload.riskWorkRate,
+						statePayrollTaxRate: updatePayload.statePayrollTaxRate,
+						absorbImssEmployeeShare: updatePayload.absorbImssEmployeeShare,
+						absorbIsr: updatePayload.absorbIsr,
+						aguinaldoDays: updatePayload.aguinaldoDays,
+						vacationPremiumRate: updatePayload.vacationPremiumRate,
+						enableSeventhDayPay: updatePayload.enableSeventhDayPay,
 					})
 					.where(eq(payrollSetting.organizationId, organizationId));
 			} else {

@@ -30,7 +30,8 @@ function resolveDevServerHost(): string | null {
 	if (!debuggerHost) {
 		return null;
 	}
-	return debuggerHost.split(':')[0];
+	const host = debuggerHost.split(':')[0];
+	return host ?? null;
 }
 
 /**

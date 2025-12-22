@@ -153,6 +153,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
@@ -230,6 +231,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					rekognitionUserId: employee.rekognitionUserId,
@@ -306,6 +308,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department,
 				status: empStatus,
 				hireDate,
+				sbcDailyOverride,
 				locationId,
 				organizationId: organizationIdInput,
 				schedule,
@@ -447,6 +450,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department: department ?? null,
 				status: empStatus,
 				hireDate: hireDate ?? null,
+				sbcDailyOverride:
+					sbcDailyOverride === undefined || sbcDailyOverride === null
+						? null
+						: sbcDailyOverride.toFixed(2),
 				locationId,
 				organizationId,
 				shiftType: resolvedShiftType,
@@ -649,10 +656,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Extract schedule updates separately to avoid passing to employee table
-			const { schedule, scheduleTemplateId, ...employeeUpdate } = body;
+			const { schedule, scheduleTemplateId, sbcDailyOverride, ...employeeUpdate } = body;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
 			};
+
+			if (sbcDailyOverride !== undefined) {
+				updatePayload.sbcDailyOverride =
+					sbcDailyOverride === null ? null : sbcDailyOverride.toFixed(2);
+			}
 
 			if (scheduleTemplateId !== undefined) {
 				updatePayload.scheduleTemplateId = scheduleTemplateId;
@@ -705,6 +717,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
 					scheduleTemplateId: employee.scheduleTemplateId,

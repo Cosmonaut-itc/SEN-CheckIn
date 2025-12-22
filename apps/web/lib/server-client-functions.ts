@@ -562,6 +562,67 @@ export async function fetchUsersServer(
 // Payroll Functions
 // ============================================================================
 
+type PayrollSettingsPayload = Omit<
+	PayrollSettings,
+	| 'riskWorkRate'
+	| 'statePayrollTaxRate'
+	| 'aguinaldoDays'
+	| 'vacationPremiumRate'
+	| 'absorbImssEmployeeShare'
+	| 'absorbIsr'
+	| 'enableSeventhDayPay'
+> & {
+	riskWorkRate?: number | string | null;
+	statePayrollTaxRate?: number | string | null;
+	aguinaldoDays?: number | string | null;
+	vacationPremiumRate?: number | string | null;
+	absorbImssEmployeeShare?: boolean | null;
+	absorbIsr?: boolean | null;
+	enableSeventhDayPay?: boolean | null;
+};
+
+/**
+ * Normalizes numeric values that may arrive as strings.
+ *
+ * @param value - Incoming value from the API
+ * @param fallback - Fallback value when missing or invalid
+ * @returns Normalized numeric value
+ */
+function normalizeNumber(value: number | string | null | undefined, fallback: number): number {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === 'string' && value.trim() !== '') {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) {
+			return parsed;
+		}
+	}
+	return fallback;
+}
+
+/**
+ * Normalizes payroll settings payload to ensure numeric values are numbers.
+ *
+ * @param payload - Raw payroll settings payload
+ * @returns Normalized payroll settings or null when missing
+ */
+function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): PayrollSettings | null {
+	if (!payload) {
+		return null;
+	}
+	return {
+		...payload,
+		riskWorkRate: normalizeNumber(payload.riskWorkRate, 0),
+		statePayrollTaxRate: normalizeNumber(payload.statePayrollTaxRate, 0),
+		aguinaldoDays: normalizeNumber(payload.aguinaldoDays, 15),
+		vacationPremiumRate: normalizeNumber(payload.vacationPremiumRate, 0.25),
+		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
+		absorbIsr: Boolean(payload.absorbIsr ?? false),
+		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+	};
+}
+
 export async function fetchPayrollSettingsServer(
 	cookieHeader: string,
 	organizationId?: string,
@@ -576,7 +637,7 @@ export async function fetchPayrollSettingsServer(
 		return null;
 	}
 
-	return (response.data?.data as PayrollSettings) ?? null;
+	return normalizePayrollSettings(response.data?.data as PayrollSettingsPayload | undefined);
 }
 
 export async function calculatePayrollServer(

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -52,21 +53,20 @@ export function AppMovilPageClient(): React.ReactElement {
 					<CardTitle>{t('card.title')}</CardTitle>
 					<CardDescription>{t('card.description')}</CardDescription>
 				</CardHeader>
-				<CardContent className="flex flex-col items-center gap-4">
-					<div
-						className="rounded-xl bg-white p-4 shadow-sm"
-						aria-label={t('qr.ariaLabel')}
-					>
-						<img
-							src={qrImageUrl}
-							width={220}
-							height={220}
-							alt={t('qr.alt')}
-							loading="lazy"
-							referrerPolicy="no-referrer"
-							className="h-[220px] w-[220px]"
-						/>
-					</div>
+					<CardContent className="flex flex-col items-center gap-4">
+						<div
+							className="rounded-xl bg-white p-4 shadow-sm"
+							aria-label={t('qr.ariaLabel')}
+						>
+							<Image
+								src={qrImageUrl}
+								width={220}
+								height={220}
+								alt={t('qr.alt')}
+								className="h-[220px] w-[220px]"
+								sizes="220px"
+							/>
+						</div>
 					<div className="w-full rounded-md border bg-muted/20 p-3 text-sm">
 						<span className="text-muted-foreground">{t('link.label')} </span>
 						<span className="break-all font-mono">{EXPO_BUILD_URL}</span>

@@ -20,6 +20,13 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '@/components/ui/dialog';
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -28,7 +35,9 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import {
+	type PayrollCalculationEmployee,
 	type PayrollSettings,
+	type PayrollTaxSummary,
 	calculatePayroll,
 	fetchPayrollRuns,
 	fetchPayrollSettings,
@@ -53,6 +62,32 @@ const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
  */
 function formatCurrency(value: number): string {
 	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+}
+
+/**
+ * Aggregates fiscal totals from employee breakdowns.
+ *
+ * @param employees - Payroll calculation employees
+ * @returns Tax summary totals
+ */
+function aggregateTaxSummary(employees: PayrollCalculationEmployee[]): PayrollTaxSummary {
+	return employees.reduce<PayrollTaxSummary>(
+		(acc, employee) => ({
+			grossTotal: acc.grossTotal + (employee.grossPay ?? employee.totalPay ?? 0),
+			employeeWithholdingsTotal:
+				acc.employeeWithholdingsTotal + (employee.employeeWithholdings?.total ?? 0),
+			employerCostsTotal: acc.employerCostsTotal + (employee.employerCosts?.total ?? 0),
+			netPayTotal: acc.netPayTotal + (employee.netPay ?? 0),
+			companyCostTotal: acc.companyCostTotal + (employee.companyCost ?? 0),
+		}),
+		{
+			grossTotal: 0,
+			employeeWithholdingsTotal: 0,
+			employerCostsTotal: 0,
+			netPayTotal: 0,
+			companyCostTotal: 0,
+		},
+	);
 }
 
 /**
@@ -149,6 +184,13 @@ export function PayrollPageClient(): React.ReactElement {
 			}),
 		enabled: Boolean(organizationId),
 	});
+
+	const taxSummary = useMemo(() => {
+		if (!calculation) {
+			return null;
+		}
+		return calculation.taxSummary ?? aggregateTaxSummary(calculation.employees);
+	}, [calculation]);
 
 	const hasBlockingWarnings =
 		calculation?.overtimeEnforcement === 'BLOCK' &&
@@ -355,6 +397,7 @@ export function PayrollPageClient(): React.ReactElement {
 											</TableHead>
 											<TableHead>{t('preview.table.total')}</TableHead>
 											<TableHead>{t('preview.table.warnings')}</TableHead>
+											<TableHead>{t('preview.table.detail')}</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
@@ -404,6 +447,229 @@ export function PayrollPageClient(): React.ReactElement {
 														</span>
 													)}
 												</TableCell>
+												<TableCell>
+													<Dialog>
+														<DialogTrigger asChild>
+															<Button variant="outline" size="sm">
+																{t('preview.table.detail')}
+															</Button>
+														</DialogTrigger>
+														<DialogContent className="sm:max-w-2xl">
+															<DialogHeader>
+																<DialogTitle>
+																	{t('taxDetail.title', {
+																		name: row.name,
+																	})}
+																</DialogTitle>
+															</DialogHeader>
+															<div className="space-y-4 text-sm">
+																<div>
+																	<p className="font-medium">
+																		{t('taxDetail.sections.summary')}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.grossPay')}
+																			</span>
+																			<span className="font-medium">
+																				{formatCurrency(row.grossPay)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.employeeWithholdings')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.employeeWithholdings.total,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.netPay')}
+																			</span>
+																			<span className="font-medium">
+																				{formatCurrency(row.netPay)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.employerCosts')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.employerCosts.total,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.companyCost')}
+																			</span>
+																			<span className="font-medium">
+																				{formatCurrency(row.companyCost)}
+																			</span>
+																		</div>
+																	</div>
+																</div>
+																<div>
+																	<p className="font-medium">
+																		{t('taxDetail.sections.bases')}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.sbcDaily')}
+																			</span>
+																			<span>{formatCurrency(row.bases.sbcDaily)}</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.sbcPeriod')}
+																			</span>
+																			<span>{formatCurrency(row.bases.sbcPeriod)}</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.isrBase')}
+																			</span>
+																			<span>{formatCurrency(row.bases.isrBase)}</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.daysInPeriod')}
+																			</span>
+																			<span>{row.bases.daysInPeriod}</span>
+																		</div>
+																	</div>
+																</div>
+																<div>
+																	<p className="font-medium">
+																		{t('taxDetail.sections.employeeWithholdings')}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.isrWithheld')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.employeeWithholdings.isrWithheld,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.imssEmployee')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.employeeWithholdings.imssEmployee.total,
+																				)}
+																			</span>
+																		</div>
+																	</div>
+																</div>
+																<div>
+																	<p className="font-medium">
+																		{t('taxDetail.sections.employerCosts')}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.imssEmployer')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.employerCosts.imssEmployer.total,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.sarRetiro')}
+																			</span>
+																			<span>{formatCurrency(row.employerCosts.sarRetiro)}</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.infonavit')}
+																			</span>
+																			<span>{formatCurrency(row.employerCosts.infonavit)}</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.riskWork')}
+																			</span>
+																			<span>{formatCurrency(row.employerCosts.riskWork)}</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.isn')}
+																			</span>
+																			<span>{formatCurrency(row.employerCosts.isn)}</span>
+																		</div>
+																		{row.employerCosts.absorbedImssEmployeeShare > 0 ? (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t(
+																						'taxDetail.labels.absorbedImssEmployeeShare',
+																					)}
+																				</span>
+																				<span>
+																					{formatCurrency(
+																						row.employerCosts.absorbedImssEmployeeShare,
+																					)}
+																				</span>
+																			</div>
+																		) : null}
+																		{row.employerCosts.absorbedIsr > 0 ? (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t('taxDetail.labels.absorbedIsr')}
+																				</span>
+																				<span>
+																					{formatCurrency(
+																						row.employerCosts.absorbedIsr,
+																					)}
+																				</span>
+																			</div>
+																		) : null}
+																	</div>
+																</div>
+																<div>
+																	<p className="font-medium">
+																		{t('taxDetail.sections.informational')}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.isrBeforeSubsidy')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.informationalLines.isrBeforeSubsidy,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t('taxDetail.labels.subsidyApplied')}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row.informationalLines.subsidyApplied,
+																				)}
+																			</span>
+																		</div>
+																	</div>
+																</div>
+															</div>
+														</DialogContent>
+													</Dialog>
+												</TableCell>
 											</TableRow>
 										))}
 									</TableBody>
@@ -434,6 +700,59 @@ export function PayrollPageClient(): React.ReactElement {
 					)}
 				</CardContent>
 			</Card>
+
+			{calculation && taxSummary ? (
+				<Card>
+					<CardHeader>
+						<CardTitle>{t('summary.title')}</CardTitle>
+						<CardDescription>{t('summary.description')}</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+							<div className="rounded-md border p-3">
+								<p className="text-xs text-muted-foreground">
+									{t('summary.items.gross')}
+								</p>
+								<p className="mt-1 text-base font-semibold">
+									{formatCurrency(taxSummary.grossTotal)}
+								</p>
+							</div>
+							<div className="rounded-md border p-3">
+								<p className="text-xs text-muted-foreground">
+									{t('summary.items.employeeWithholdings')}
+								</p>
+								<p className="mt-1 text-base font-semibold">
+									{formatCurrency(taxSummary.employeeWithholdingsTotal)}
+								</p>
+							</div>
+							<div className="rounded-md border p-3">
+								<p className="text-xs text-muted-foreground">
+									{t('summary.items.netPay')}
+								</p>
+								<p className="mt-1 text-base font-semibold">
+									{formatCurrency(taxSummary.netPayTotal)}
+								</p>
+							</div>
+							<div className="rounded-md border p-3">
+								<p className="text-xs text-muted-foreground">
+									{t('summary.items.employerCosts')}
+								</p>
+								<p className="mt-1 text-base font-semibold">
+									{formatCurrency(taxSummary.employerCostsTotal)}
+								</p>
+							</div>
+							<div className="rounded-md border p-3">
+								<p className="text-xs text-muted-foreground">
+									{t('summary.items.companyCost')}
+								</p>
+								<p className="mt-1 text-base font-semibold">
+									{formatCurrency(taxSummary.companyCostTotal)}
+								</p>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			) : null}
 
 			<Card>
 				<CardHeader>

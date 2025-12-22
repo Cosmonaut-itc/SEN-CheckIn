@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'bun:test';
 
+import { addDaysToDateKey } from '../utils/date-key.js';
 import { getUtcDateForZonedMidnight, toDateKeyInTimeZone } from '../utils/time-zone.js';
 import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
 	type PayrollEmployeeRow,
+	type ScheduleRow,
 } from './payroll-calculation.js';
 
 /**
@@ -44,6 +46,71 @@ function createAttendancePair(
 		{ employeeId, timestamp: checkIn, type: 'CHECK_IN' },
 		{ employeeId, timestamp: checkOut, type: 'CHECK_OUT' },
 	];
+}
+
+/**
+ * Sums numeric values and rounds to two decimals.
+ *
+ * @param values - Array of numeric values
+ * @returns Sum rounded to two decimals
+ */
+function sumRounded(values: number[]): number {
+	const total = values.reduce((sum, value) => sum + value, 0);
+	return Number(total.toFixed(2));
+}
+
+/**
+ * Builds weekly schedule entries (Mon-Sat working, Sunday rest) for an employee.
+ *
+ * @param employeeId - Employee identifier
+ * @returns Schedule rows for the week
+ */
+function buildWeeklySchedule(employeeId: string): ScheduleRow[] {
+	return [
+		{ employeeId, dayOfWeek: 0, startTime: '09:00', endTime: '17:00', isWorkingDay: false },
+		{ employeeId, dayOfWeek: 1, startTime: '09:00', endTime: '17:00', isWorkingDay: true },
+		{ employeeId, dayOfWeek: 2, startTime: '09:00', endTime: '17:00', isWorkingDay: true },
+		{ employeeId, dayOfWeek: 3, startTime: '09:00', endTime: '17:00', isWorkingDay: true },
+		{ employeeId, dayOfWeek: 4, startTime: '09:00', endTime: '17:00', isWorkingDay: true },
+		{ employeeId, dayOfWeek: 5, startTime: '09:00', endTime: '17:00', isWorkingDay: true },
+		{ employeeId, dayOfWeek: 6, startTime: '09:00', endTime: '17:00', isWorkingDay: true },
+	];
+}
+
+/**
+ * Creates attendance rows for each working day in a weekly period.
+ *
+ * @param employeeId - Employee identifier
+ * @param periodStartDateKey - Period start date key
+ * @param periodEndDateKey - Period end date key
+ * @param timeZone - IANA timezone identifier
+ * @param skippedDateKeys - Optional date keys to skip (absences)
+ * @returns Attendance rows for the period
+ */
+function buildWeeklyAttendance(
+	employeeId: string,
+	periodStartDateKey: string,
+	periodEndDateKey: string,
+	timeZone: string,
+	skippedDateKeys: string[] = [],
+): AttendanceRow[] {
+	const rows: AttendanceRow[] = [];
+	let currentKey = periodStartDateKey;
+	for (let i = 0; i < 10 && currentKey <= periodEndDateKey; i += 1) {
+		const dayDate = new Date(`${currentKey}T00:00:00Z`);
+		const dayOfWeek = dayDate.getUTCDay();
+		const isWorkingDay = dayOfWeek >= 1 && dayOfWeek <= 6;
+		if (isWorkingDay && !skippedDateKeys.includes(currentKey)) {
+			const checkIn = getUtcDateForZonedTime(currentKey, 9, 0, timeZone);
+			const checkOut = getUtcDateForZonedTime(currentKey, 17, 0, timeZone);
+			rows.push(...createAttendancePair(employeeId, checkIn, checkOut));
+		}
+		if (currentKey === periodEndDateKey) {
+			break;
+		}
+		currentKey = addDaysToDateKey(currentKey, 1);
+	}
+	return rows;
 }
 
 describe('payroll-calculation', () => {
@@ -757,3 +824,247 @@ describe('payroll-calculation', () => {
 	});
 });
 
+describe('payroll-calculation mexico taxes', () => {
+	const timeZone = 'America/Mexico_City';
+	const periodStartDateKey = '2025-12-15';
+	const periodEndDateKey = '2025-12-21';
+	const periodBounds = getPayrollPeriodBounds({
+		periodStartDateKey,
+		periodEndDateKey,
+		timeZone,
+	});
+
+	const employees: PayrollEmployeeRow[] = [
+		{
+			id: 'emp-002',
+			firstName: 'Jose',
+			lastName: 'Guzman',
+			dailyPay: 278.8,
+			paymentFrequency: 'WEEKLY',
+			shiftType: 'DIURNA',
+			locationGeographicZone: 'GENERAL',
+			locationTimeZone: timeZone,
+			hireDate: new Date('2020-11-09T00:00:00Z'),
+		},
+		{
+			id: 'emp-003',
+			firstName: 'Ana',
+			lastName: 'Guerrero',
+			dailyPay: 278.8,
+			paymentFrequency: 'WEEKLY',
+			shiftType: 'DIURNA',
+			locationGeographicZone: 'GENERAL',
+			locationTimeZone: timeZone,
+			hireDate: new Date('2022-01-04T00:00:00Z'),
+		},
+	];
+	const baseEmployee = employees[0];
+	if (!baseEmployee) {
+		throw new Error('Base employee missing');
+	}
+
+	const schedules: ScheduleRow[] = [
+		...buildWeeklySchedule('emp-002'),
+		...buildWeeklySchedule('emp-003'),
+	];
+
+	const attendanceRows: AttendanceRow[] = [
+		...buildWeeklyAttendance('emp-002', periodStartDateKey, periodEndDateKey, timeZone),
+		...buildWeeklyAttendance('emp-003', periodStartDateKey, periodEndDateKey, timeZone),
+	];
+
+	const baseArgs = {
+		employees,
+		schedules,
+		attendanceRows,
+		periodStartDateKey,
+		periodEndDateKey,
+		periodBounds,
+		overtimeEnforcement: 'WARN' as const,
+		weekStartDay: 1,
+		additionalMandatoryRestDays: [],
+		defaultTimeZone: timeZone,
+	};
+
+	const baseTaxSettings = {
+		riskWorkRate: 0.06,
+		statePayrollTaxRate: 0.02,
+		aguinaldoDays: 15,
+		vacationPremiumRate: 0.25,
+		enableSeventhDayPay: true,
+	};
+
+	it('matches the reference report with absorption enabled', () => {
+		const { employees: results, taxSummary } = calculatePayrollFromData({
+			...baseArgs,
+			payrollSettings: {
+				...baseTaxSettings,
+				absorbImssEmployeeShare: true,
+				absorbIsr: true,
+			},
+		});
+
+		expect(results).toHaveLength(2);
+
+		for (const row of results) {
+			expect(row.seventhDayPay).toBe(278.8);
+			expect(row.grossPay).toBe(1951.6);
+			expect(row.informationalLines.isrBeforeSubsidy).toBe(139.32);
+			expect(row.informationalLines.subsidyApplied).toBe(109.38);
+			expect(row.employeeWithholdings.total).toBe(0);
+			expect(row.employeeWithholdings.isrWithheld).toBe(0);
+			expect(row.netPay).toBe(1951.6);
+			expect(row.companyCost).toBe(Number((row.grossPay + row.employerCosts.total).toFixed(2)));
+		}
+
+		const imssEmployerTotal = sumRounded(
+			results.map((row) => row.employerCosts.imssEmployer.total),
+		);
+		const imssEmFixed = sumRounded(
+			results.map((row) => row.employerCosts.imssEmployer.emFixed),
+		);
+		const imssDinGastos = sumRounded(
+			results.map(
+				(row) => row.employerCosts.imssEmployer.pd + row.employerCosts.imssEmployer.gmp,
+			),
+		);
+		const imssIv = sumRounded(results.map((row) => row.employerCosts.imssEmployer.iv));
+		const imssCv = sumRounded(results.map((row) => row.employerCosts.imssEmployer.cv));
+		const sarTotal = sumRounded(results.map((row) => row.employerCosts.sarRetiro));
+		const isnTotal = sumRounded(results.map((row) => row.employerCosts.isn));
+		const rtTotal = sumRounded(results.map((row) => row.employerCosts.riskWork));
+		const infonavitTotal = sumRounded(results.map((row) => row.employerCosts.infonavit));
+		const guarderiasTotal = sumRounded(
+			results.map((row) => row.employerCosts.imssEmployer.guarderias),
+		);
+
+		expect(imssEmployerTotal).toBe(782.9);
+		expect(imssEmFixed).toBe(323.12);
+		expect(imssDinGastos).toBe(97.66);
+		expect(imssIv).toBe(97.65);
+		expect(imssCv).toBe(264.47);
+		expect(sarTotal).toBe(82.23);
+		expect(isnTotal).toBe(78.06);
+		expect(rtTotal).toBe(246.7);
+		expect(infonavitTotal).toBe(205.59);
+		expect(guarderiasTotal).toBe(41.12);
+
+		const obligationsTotal = sumRounded([
+			imssEmployerTotal,
+			sarTotal,
+			isnTotal,
+			rtTotal,
+			infonavitTotal,
+			guarderiasTotal,
+		]);
+		expect(obligationsTotal).toBe(1436.6);
+
+		expect(taxSummary.grossTotal).toBe(3903.2);
+		expect(taxSummary.netPayTotal).toBe(3903.2);
+	});
+
+	it('matches the reference report without absorption', () => {
+		const { employees: results, taxSummary } = calculatePayrollFromData({
+			...baseArgs,
+			payrollSettings: {
+				...baseTaxSettings,
+				absorbImssEmployeeShare: false,
+				absorbIsr: false,
+			},
+		});
+
+		const emp002 = results.find((row) => row.employeeId === 'emp-002');
+		const emp003 = results.find((row) => row.employeeId === 'emp-003');
+		expect(emp002?.employeeWithholdings.isrWithheld).toBe(29.94);
+		expect(emp003?.employeeWithholdings.isrWithheld).toBe(29.94);
+		expect(emp002?.employeeWithholdings.imssEmployee.total).toBe(48.89);
+		expect(emp003?.employeeWithholdings.imssEmployee.total).toBe(48.76);
+		expect(emp002?.netPay).toBe(1872.77);
+		expect(emp003?.netPay).toBe(1872.9);
+
+		const imssEmployerTotal = sumRounded(
+			results.map((row) => row.employerCosts.imssEmployer.total),
+		);
+		expect(imssEmployerTotal).toBe(685.25);
+
+		expect(taxSummary.grossTotal).toBe(3903.2);
+		expect(taxSummary.netPayTotal).toBe(3745.67);
+	});
+
+	it('applies SBC override over automatic calculation', () => {
+		const { employees: results } = calculatePayrollFromData({
+			...baseArgs,
+			employees: [
+				{
+					...baseEmployee,
+					id: 'emp-override',
+					sbcDailyOverride: 400,
+				},
+			],
+			schedules: buildWeeklySchedule('emp-override'),
+			attendanceRows: buildWeeklyAttendance(
+				'emp-override',
+				periodStartDateKey,
+				periodEndDateKey,
+				timeZone,
+			),
+			payrollSettings: {
+				...baseTaxSettings,
+				absorbImssEmployeeShare: false,
+				absorbIsr: false,
+			},
+		});
+
+		const row = results[0];
+		expect(row?.bases.sbcDaily).toBe(400);
+	});
+
+	it('does not pay seventh day when attendance is missing', () => {
+		const { employees: results } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: buildWeeklyAttendance(
+				'emp-002',
+				periodStartDateKey,
+				periodEndDateKey,
+				timeZone,
+				['2025-12-19'],
+			),
+			employees: [baseEmployee],
+			schedules: buildWeeklySchedule('emp-002'),
+			payrollSettings: {
+				...baseTaxSettings,
+				absorbImssEmployeeShare: false,
+				absorbIsr: false,
+			},
+		});
+
+		const row = results[0];
+		expect(row?.seventhDayPay).toBe(0);
+	});
+
+	it('ensures fiscal invariants are preserved', () => {
+		const { employees: results } = calculatePayrollFromData({
+			...baseArgs,
+			payrollSettings: {
+				...baseTaxSettings,
+				absorbImssEmployeeShare: false,
+				absorbIsr: false,
+			},
+		});
+
+		for (const row of results) {
+			const expectedNet = Number(
+				(row.grossPay - row.employeeWithholdings.total).toFixed(2),
+			);
+			const expectedCompanyCost = Number(
+				(row.grossPay + row.employerCosts.total).toFixed(2),
+			);
+			expect(row.grossPay).toBe(row.totalPay);
+			expect(row.netPay).toBe(expectedNet);
+			expect(row.companyCost).toBe(expectedCompanyCost);
+			expect(Number(row.grossPay.toFixed(2))).toBe(row.grossPay);
+			expect(Number(row.netPay.toFixed(2))).toBe(row.netPay);
+			expect(Number(row.companyCost.toFixed(2))).toBe(row.companyCost);
+		}
+	});
+});

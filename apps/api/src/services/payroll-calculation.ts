@@ -8,11 +8,17 @@ import {
 } from '../utils/mexico-labor-constants.js';
 import { addDaysToDateKey } from '../utils/date-key.js';
 import { getMexicoMandatoryRestDayKeysForYear } from '../utils/mexico-mandatory-rest-days.js';
+import { fromCents, roundCurrency, toCents } from '../utils/money.js';
 import {
 	getUtcDateForZonedMidnight,
 	isValidIanaTimeZone,
 	toDateKeyInTimeZone,
 } from '../utils/time-zone.js';
+import {
+	calculateMexicoPayrollTaxes,
+	type MexicoPayrollTaxResult,
+	type MexicoPayrollTaxSettings,
+} from './mexico-payroll-taxes.js';
 
 export type AttendanceRow = {
 	employeeId: string;
@@ -40,6 +46,7 @@ export type PayrollCalculationRow = {
 	dailyPay: number;
 	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	seventhDayPay: number;
 	hoursWorked: number;
 	expectedHours: number;
 	normalHours: number;
@@ -53,6 +60,13 @@ export type PayrollCalculationRow = {
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
 	totalPay: number;
+	grossPay: number;
+	bases: MexicoPayrollTaxResult['bases'];
+	employeeWithholdings: MexicoPayrollTaxResult['employeeWithholdings'];
+	employerCosts: MexicoPayrollTaxResult['employerCosts'];
+	informationalLines: MexicoPayrollTaxResult['informationalLines'];
+	netPay: number;
+	companyCost: number;
 	warnings: {
 		type:
 			| 'OVERTIME_DAILY_EXCEEDED'
@@ -75,6 +89,8 @@ export interface PayrollEmployeeRow {
 	firstName: string;
 	lastName: string;
 	dailyPay: number | string | null;
+	hireDate?: Date | null;
+	sbcDailyOverride?: number | string | null;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | null;
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA' | null;
 	locationGeographicZone: keyof typeof MINIMUM_WAGES | null;
@@ -92,12 +108,32 @@ export interface CalculatePayrollFromDataArgs {
 	weekStartDay: number;
 	additionalMandatoryRestDays: string[];
 	defaultTimeZone: string;
+	payrollSettings?: Partial<MexicoPayrollTaxSettings> & { enableSeventhDayPay?: boolean };
 }
 
 export interface CalculatePayrollFromDataResult {
 	employees: PayrollCalculationRow[];
 	totalAmount: number;
+	taxSummary: PayrollTaxSummary;
 }
+
+export interface PayrollTaxSummary {
+	grossTotal: number;
+	employeeWithholdingsTotal: number;
+	employerCostsTotal: number;
+	netPayTotal: number;
+	companyCostTotal: number;
+}
+
+const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: boolean } = {
+	riskWorkRate: 0,
+	statePayrollTaxRate: 0,
+	absorbImssEmployeeShare: false,
+	absorbIsr: false,
+	aguinaldoDays: 15,
+	vacationPremiumRate: 0.25,
+	enableSeventhDayPay: false,
+};
 
 /**
  * Parses an HH:mm string into total minutes.
@@ -144,6 +180,102 @@ export function calculateExpectedHours(
 		currentKey = addDaysToDateKey(currentKey, 1);
 	}
 	return minutes / 60;
+}
+
+/**
+ * Calculates the inclusive number of days between two date keys.
+ *
+ * @param periodStartDateKey - Period start date key (YYYY-MM-DD)
+ * @param periodEndDateKey - Period end date key (YYYY-MM-DD)
+ * @returns Inclusive day count
+ */
+function getInclusiveDayCount(periodStartDateKey: string, periodEndDateKey: string): number {
+	if (periodEndDateKey < periodStartDateKey) {
+		return 0;
+	}
+	let count = 0;
+	let cursor = periodStartDateKey;
+	for (let i = 0; i < 400 && cursor <= periodEndDateKey; i += 1) {
+		count += 1;
+		if (cursor === periodEndDateKey) {
+			break;
+		}
+		cursor = addDaysToDateKey(cursor, 1);
+	}
+	return count;
+}
+
+/**
+ * Computes scheduled working date keys for a period based on a weekly schedule.
+ *
+ * @param schedule - Weekly schedule entries
+ * @param periodStartDateKey - Period start date key (YYYY-MM-DD)
+ * @param periodEndDateKey - Period end date key (YYYY-MM-DD)
+ * @returns Sorted list of scheduled working date keys
+ */
+function getScheduledWorkingDateKeys(
+	schedule: Omit<ScheduleRow, 'employeeId'>[],
+	periodStartDateKey: string,
+	periodEndDateKey: string,
+): string[] {
+	const scheduled: string[] = [];
+	let currentKey = periodStartDateKey;
+	for (let i = 0; i < 400 && currentKey <= periodEndDateKey; i += 1) {
+		const dayDate = new Date(`${currentKey}T00:00:00Z`);
+		const dayOfWeek = dayDate.getUTCDay();
+		const entry = schedule.find((s) => s.dayOfWeek === dayOfWeek);
+		if (entry && entry.isWorkingDay) {
+			scheduled.push(currentKey);
+		}
+		if (currentKey === periodEndDateKey) {
+			break;
+		}
+		currentKey = addDaysToDateKey(currentKey, 1);
+	}
+	return scheduled;
+}
+
+/**
+ * Calculates seventh day pay for weekly periods based on schedule and attendance.
+ *
+ * @param args - Seventh day inputs
+ * @returns Seventh day pay amount
+ */
+function calculateSeventhDayPay(args: {
+	enabled: boolean;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	schedule: Omit<ScheduleRow, 'employeeId'>[];
+	workedDayKeys: Set<string>;
+	dailyPay: number;
+}): number {
+	const {
+		enabled,
+		paymentFrequency,
+		periodStartDateKey,
+		periodEndDateKey,
+		schedule,
+		workedDayKeys,
+		dailyPay,
+	} = args;
+	if (!enabled || paymentFrequency !== 'WEEKLY') {
+		return 0;
+	}
+	const daysInPeriod = getInclusiveDayCount(periodStartDateKey, periodEndDateKey);
+	if (daysInPeriod !== 7) {
+		return 0;
+	}
+	const scheduledKeys = getScheduledWorkingDateKeys(
+		schedule,
+		periodStartDateKey,
+		periodEndDateKey,
+	);
+	if (scheduledKeys.length === 0) {
+		return 0;
+	}
+	const completedAllScheduledDays = scheduledKeys.every((key) => workedDayKeys.has(key));
+	return completedAllScheduledDays ? roundCurrency(dailyPay) : 0;
 }
 
 /**
@@ -260,7 +392,13 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 		weekStartDay,
 		additionalMandatoryRestDays,
 		defaultTimeZone,
+		payrollSettings,
 	} = args;
+
+	const resolvedTaxSettings = {
+		...DEFAULT_TAX_SETTINGS,
+		...payrollSettings,
+	};
 
 	const scheduleMap = new Map<string, Omit<ScheduleRow, 'employeeId'>[]>();
 	for (const entry of schedules) {
@@ -296,7 +434,11 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 	}
 
 	const results: PayrollCalculationRow[] = [];
-	let totalAmount = 0;
+	let grossTotalCents = 0;
+	let employeeWithholdingsCents = 0;
+	let employerCostsCents = 0;
+	let netPayCents = 0;
+	let companyCostCents = 0;
 
 	for (const emp of employees) {
 		const attendance = attendanceByEmployeeId.get(emp.id) ?? [];
@@ -510,25 +652,46 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 		const effectiveDailyPay = Number(emp.dailyPay ?? 0);
 		const hourlyRate = divisor > 0 ? effectiveDailyPay / divisor : 0;
 
-		const normalPay = adjustedNormalHours * hourlyRate;
-		const overtimeDoublePay =
-			overtimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER;
-		const overtimeTriplePay =
-			overtimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER;
+		const normalPay = roundCurrency(adjustedNormalHours * hourlyRate);
+		const overtimeDoublePay = roundCurrency(
+			overtimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
+		);
+		const overtimeTriplePay = roundCurrency(
+			overtimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
+		);
 		const sundayPremiumAmount =
 			sundaysWorkedCount > 0
-				? sundaysWorkedCount * effectiveDailyPay * SUNDAY_PREMIUM_RATE
+				? roundCurrency(sundaysWorkedCount * effectiveDailyPay * SUNDAY_PREMIUM_RATE)
 				: 0;
 		const mandatoryRestDayPremiumAmount =
-			mandatoryRestDaysWorkedCount > 0 ? mandatoryRestDaysWorkedCount * effectiveDailyPay * 2 : 0;
+			mandatoryRestDaysWorkedCount > 0
+				? roundCurrency(mandatoryRestDaysWorkedCount * effectiveDailyPay * 2)
+				: 0;
 
-		const totalPay =
+		const workedDayKeys = new Set(
+			Array.from(calendarDayMinutes.entries())
+				.filter(([, minutes]) => minutes > 0)
+				.map(([dateKey]) => dateKey),
+		);
+		const seventhDayPay = calculateSeventhDayPay({
+			enabled: Boolean(resolvedTaxSettings.enableSeventhDayPay),
+			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
+			periodStartDateKey,
+			periodEndDateKey,
+			schedule: scheduleMap.get(emp.id) ?? [],
+			workedDayKeys,
+			dailyPay: effectiveDailyPay,
+		});
+
+		const totalPay = roundCurrency(
 			normalPay +
-			overtimeDoublePay +
-			overtimeTriplePay +
-			sundayPremiumAmount +
-			mandatoryRestDayPremiumAmount;
-		totalAmount += totalPay;
+				overtimeDoublePay +
+				overtimeTriplePay +
+				sundayPremiumAmount +
+				mandatoryRestDayPremiumAmount +
+				seventhDayPay,
+		);
+		const grossPay = totalPay;
 
 		const zone = (emp.locationGeographicZone ?? 'GENERAL') as keyof typeof MINIMUM_WAGES;
 		if (effectiveDailyPay < MINIMUM_WAGES[zone]) {
@@ -541,6 +704,27 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			});
 		}
 
+		const taxBreakdown = calculateMexicoPayrollTaxes({
+			dailyPay: effectiveDailyPay,
+			grossPay,
+			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
+			periodStartDateKey,
+			periodEndDateKey,
+			hireDate: emp.hireDate ?? null,
+			sbcDailyOverride:
+				typeof emp.sbcDailyOverride === 'string'
+					? Number(emp.sbcDailyOverride)
+					: emp.sbcDailyOverride ?? null,
+			locationGeographicZone: emp.locationGeographicZone ?? 'GENERAL',
+			settings: resolvedTaxSettings,
+		});
+
+		grossTotalCents += toCents(grossPay);
+		employeeWithholdingsCents += toCents(taxBreakdown.employeeWithholdings.total);
+		employerCostsCents += toCents(taxBreakdown.employerCosts.total);
+		netPayCents += toCents(taxBreakdown.netPay);
+		companyCostCents += toCents(taxBreakdown.companyCost);
+
 		results.push({
 			employeeId: emp.id,
 			name: `${emp.firstName} ${emp.lastName}`,
@@ -548,6 +732,7 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			dailyPay: effectiveDailyPay,
 			hourlyPay: hourlyRate,
 			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
+			seventhDayPay,
 			hoursWorked,
 			expectedHours,
 			normalHours: adjustedNormalHours,
@@ -561,9 +746,24 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			sundayPremiumAmount,
 			mandatoryRestDayPremiumAmount,
 			totalPay,
+			grossPay,
+			bases: taxBreakdown.bases,
+			employeeWithholdings: taxBreakdown.employeeWithholdings,
+			employerCosts: taxBreakdown.employerCosts,
+			informationalLines: taxBreakdown.informationalLines,
+			netPay: taxBreakdown.netPay,
+			companyCost: taxBreakdown.companyCost,
 			warnings,
 		});
 	}
 
-	return { employees: results, totalAmount };
+	const taxSummary: PayrollTaxSummary = {
+		grossTotal: fromCents(grossTotalCents),
+		employeeWithholdingsTotal: fromCents(employeeWithholdingsCents),
+		employerCostsTotal: fromCents(employerCostsCents),
+		netPayTotal: fromCents(netPayCents),
+		companyCostTotal: fromCents(companyCostCents),
+	};
+
+	return { employees: results, totalAmount: taxSummary.grossTotal, taxSummary };
 }

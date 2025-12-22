@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import Animated from 'react-native-reanimated';
 
 /**
@@ -5,7 +6,7 @@ import Animated from 'react-native-reanimated';
  *
  * @returns JSX element containing an animated waving hand emoji
  */
-export function HelloWave(): JSX.Element {
+export function HelloWave(): ReactElement {
 	return (
 		<Animated.Text
 			style={{

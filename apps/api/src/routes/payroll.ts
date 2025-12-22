@@ -43,11 +43,27 @@ const calculatePayroll = async (args: {
 }): Promise<{
 	employees: PayrollCalculationRow[];
 	totalAmount: number;
+	taxSummary: {
+		grossTotal: number;
+		employeeWithholdingsTotal: number;
+		employerCostsTotal: number;
+		netPayTotal: number;
+		companyCostTotal: number;
+	};
 	overtimeEnforcement: 'WARN' | 'BLOCK';
 	timeZone: string;
 	periodStartUtc: Date;
 	periodEndInclusiveUtc: Date;
 	periodEndExclusiveUtc: Date;
+	payrollSettingsSnapshot: {
+		riskWorkRate: number;
+		statePayrollTaxRate: number;
+		absorbImssEmployeeShare: boolean;
+		absorbIsr: boolean;
+		aguinaldoDays: number;
+		vacationPremiumRate: number;
+		enableSeventhDayPay: boolean;
+	};
 }> => {
 	const { organizationId, periodStartDateKey, periodEndDateKey, paymentFrequency } = args;
 
@@ -63,6 +79,15 @@ const calculatePayroll = async (args: {
 	const timeZone = isValidIanaTimeZone(resolvedTimeZone)
 		? resolvedTimeZone
 		: 'America/Mexico_City';
+	const payrollSettingsSnapshot = {
+		riskWorkRate: Number(orgSettings[0]?.riskWorkRate ?? 0),
+		statePayrollTaxRate: Number(orgSettings[0]?.statePayrollTaxRate ?? 0),
+		absorbImssEmployeeShare: Boolean(orgSettings[0]?.absorbImssEmployeeShare ?? false),
+		absorbIsr: Boolean(orgSettings[0]?.absorbIsr ?? false),
+		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
+		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
+		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
+	};
 
 	const periodBounds = getPayrollPeriodBounds({
 		periodStartDateKey,
@@ -77,6 +102,8 @@ const calculatePayroll = async (args: {
 			lastName: employee.lastName,
 			jobPositionId: employee.jobPositionId,
 			lastPayrollDate: employee.lastPayrollDate,
+			hireDate: employee.hireDate,
+			sbcDailyOverride: employee.sbcDailyOverride,
 			dailyPay: jobPosition.dailyPay,
 			paymentFrequency: jobPosition.paymentFrequency,
 			shiftType: employee.shiftType,
@@ -129,7 +156,7 @@ const calculatePayroll = async (args: {
 					)
 					.orderBy(attendanceRecord.employeeId, attendanceRecord.timestamp);
 
-	const { employees: results, totalAmount } = calculatePayrollFromData({
+	const { employees: results, totalAmount, taxSummary } = calculatePayrollFromData({
 		employees: filteredEmployees,
 		schedules,
 		attendanceRows,
@@ -140,16 +167,19 @@ const calculatePayroll = async (args: {
 		weekStartDay,
 		additionalMandatoryRestDays,
 		defaultTimeZone: timeZone,
+		payrollSettings: payrollSettingsSnapshot,
 	});
 
 	return {
 		employees: results,
 		totalAmount,
+		taxSummary,
 		overtimeEnforcement,
 		timeZone,
 		periodStartUtc: periodBounds.periodStartUtc,
 		periodEndInclusiveUtc: periodBounds.periodEndInclusiveUtc,
 		periodEndExclusiveUtc: periodBounds.periodEndExclusiveUtc,
+		payrollSettingsSnapshot,
 	};
 };
 
@@ -186,7 +216,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const { employees, totalAmount, overtimeEnforcement, timeZone } =
+			const { employees, totalAmount, overtimeEnforcement, timeZone, taxSummary } =
 				await calculatePayroll({
 					organizationId,
 					periodStartDateKey: body.periodStartDateKey,
@@ -198,6 +228,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				data: {
 					employees,
 					totalAmount,
+					taxSummary,
 					periodStartDateKey: body.periodStartDateKey,
 					periodEndDateKey: body.periodEndDateKey,
 					overtimeEnforcement,
@@ -270,6 +301,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					status: 'PROCESSED',
 					totalAmount: calculation.totalAmount.toFixed(2),
 					employeeCount: calculation.employees.length,
+					taxSummary: {
+						totals: calculation.taxSummary,
+						settings: calculation.payrollSettingsSnapshot,
+					},
 					processedAt: new Date(),
 				});
 
@@ -288,6 +323,16 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						overtimeTriplePay: row.overtimeTriplePay.toFixed(2),
 						sundayPremiumAmount: row.sundayPremiumAmount.toFixed(2),
 						mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount.toFixed(2),
+						taxBreakdown: {
+							grossPay: row.grossPay,
+							seventhDayPay: row.seventhDayPay,
+							bases: row.bases,
+							employeeWithholdings: row.employeeWithholdings,
+							employerCosts: row.employerCosts,
+							informationalLines: row.informationalLines,
+							netPay: row.netPay,
+							companyCost: row.companyCost,
+						},
 						periodStart: calculation.periodStartUtc,
 						periodEnd: calculation.periodEndInclusiveUtc,
 					}));

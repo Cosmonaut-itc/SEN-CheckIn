@@ -2,18 +2,18 @@
 name: Database Seeding Setup
 overview: Set up drizzle-seed to populate the PostgreSQL database with realistic development data for domain tables (organizations, locations, employees, devices, attendance, and payroll), enabling quick local testing without manual data entry.
 todos:
-    - id: install-drizzle-seed
-      content: Install drizzle-seed package in the API workspace
-      status: pending
-    - id: create-seed-script
-      content: Create apps/api/scripts/seed.ts with seed and reset logic
-      status: pending
-    - id: add-npm-scripts
-      content: Add db:seed and db:reset scripts to apps/api/package.json
-      status: pending
-    - id: test-seed
-      content: Run the seed script and verify data in database
-      status: pending
+  - id: install-drizzle-seed
+    content: Install drizzle-seed package in the API workspace
+    status: pending
+  - id: create-seed-script
+    content: Create apps/api/scripts/seed.ts with seed and reset logic
+    status: pending
+  - id: add-npm-scripts
+    content: Add db:seed and db:reset scripts to apps/api/package.json
+    status: pending
+  - id: test-seed
+    content: Run the seed script and verify data in database
+    status: pending
 ---
 
 # Database Seeding Plan with drizzle-seed
@@ -46,31 +46,11 @@ flowchart TD
     Employee --> PayrollRunEmployee
 ```
 
+
+
 ### Seed Counts (Development Profile)
 
-| Table | Count | Notes |
-
-|-------|-------|-------|
-
-| Organization | 2 | Primary + secondary tenant |
-
-| Location | 4 | 2 per organization |
-
-| JobPosition | 6 | 3 per organization |
-
-| Employee | 50 | Distributed across locations |
-
-| Device | 8 | 2 per location |
-
-| EmployeeSchedule | ~350 | 7 days per employee |
-
-| AttendanceRecord | ~200 | Sample check-ins/outs |
-
-| PayrollSetting | 2 | 1 per organization |
-
-| PayrollRun | 4 | 2 per organization |
-
-| PayrollRunEmployee | ~50 | 1 per employee in runs |
+| Table | Count | Notes ||-------|-------|-------|| Organization | 2 | Primary + secondary tenant || Location | 4 | 2 per organization || JobPosition | 6 | 3 per organization || Employee | 50 | Distributed across locations || Device | 8 | 2 per location || EmployeeSchedule | ~350 | 7 days per employee || AttendanceRecord | ~200 | Sample check-ins/outs || PayrollSetting | 2 | 1 per organization || PayrollRun | 4 | 2 per organization || PayrollRunEmployee | ~50 | 1 per employee in runs |
 
 ## Implementation Steps
 
@@ -81,6 +61,8 @@ Add the `drizzle-seed` package to the API workspace:
 ```bash
 bun run add:api -- drizzle-seed
 ```
+
+
 
 ### 2. Create Seed Script
 
@@ -109,6 +91,8 @@ Add to [`apps/api/package.json`](apps/api/package.json):
 }
 ```
 
+
+
 ## Refinements for Realistic Data
 
 The seed script will use custom refinements for:
@@ -130,9 +114,10 @@ bun run db:seed
 bun run db:seed --reset
 ```
 
+
+
 ## Notes
 
 - The seed is deterministic (same seed number = same data)
 - Auth tables (`user`, `session`, `account`) are excluded as they're managed by BetterAuth
 - The deprecated `client` table is skipped
-- Foreign keys are respected through ordered seeding

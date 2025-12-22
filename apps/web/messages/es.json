@@ -147,20 +147,28 @@
 			"jobPosition": "Puesto",
 			"department": "Departamento",
 			"status": "Estatus",
-			"shiftType": "Tipo de turno"
+			"shiftType": "Tipo de turno",
+			"hireDate": "Fecha de ingreso",
+			"sbcDailyOverride": "SBC diario (override)"
 		},
 		"placeholders": {
 			"selectLocation": "Selecciona una ubicación",
 			"selectJobPosition": "Selecciona un puesto",
 			"selectStatus": "Selecciona un estatus",
-			"selectShiftType": "Selecciona un tipo de turno"
+			"selectShiftType": "Selecciona un tipo de turno",
+			"hireDate": "YYYY-MM-DD",
+			"sbcDailyOverride": "p. ej., 320.50"
+		},
+		"helpers": {
+			"sbcDailyOverride": "Deja vacío para calcular automático con SDI/SBC."
 		},
 		"validation": {
 			"codeRequired": "El código es requerido",
 			"firstNameRequired": "El nombre es requerido",
 			"lastNameRequired": "El apellido es requerido",
 			"locationRequired": "La ubicación es requerida",
-			"jobPositionRequired": "El puesto es requerido"
+			"jobPositionRequired": "El puesto es requerido",
+			"sbcDailyOverride": "Ingresa un SBC diario válido."
 		},
 		"schedule": {
 			"title": "Horario",
@@ -551,7 +559,51 @@
 				"sundayPremium": "Prima dominical",
 				"mandatoryRest": "Descanso obligatorio",
 				"total": "Total",
-				"warnings": "Alertas"
+				"warnings": "Alertas",
+				"detail": "Detalle fiscal"
+			}
+		},
+		"summary": {
+			"title": "Resumen fiscal",
+			"description": "Totales consolidados de percepciones, retenciones y costo empresa.",
+			"items": {
+				"gross": "Percepciones (bruto)",
+				"employeeWithholdings": "Retenciones trabajador",
+				"netPay": "Neto",
+				"employerCosts": "Costos patrón",
+				"companyCost": "Costo empresa"
+			}
+		},
+		"taxDetail": {
+			"title": "Detalle fiscal de {name}",
+			"sections": {
+				"summary": "Resumen",
+				"bases": "Bases fiscales",
+				"employeeWithholdings": "Retenciones del trabajador",
+				"employerCosts": "Costos del patrón",
+				"informational": "Informativo"
+			},
+			"labels": {
+				"grossPay": "Percepciones (bruto)",
+				"employeeWithholdings": "Retenciones",
+				"netPay": "Neto",
+				"employerCosts": "Costos patrón",
+				"companyCost": "Costo empresa",
+				"sbcDaily": "SBC diario",
+				"sbcPeriod": "SBC periodo",
+				"isrBase": "Base ISR",
+				"daysInPeriod": "Días en periodo",
+				"isrWithheld": "ISR retenido",
+				"imssEmployee": "IMSS obrero",
+				"imssEmployer": "IMSS patrón",
+				"sarRetiro": "SAR retiro 2%",
+				"infonavit": "INFONAVIT 5%",
+				"riskWork": "Riesgo de trabajo (RT)",
+				"isn": "ISN",
+				"absorbedImssEmployeeShare": "IMSS obrero absorbido",
+				"absorbedIsr": "ISR absorbido",
+				"isrBeforeSubsidy": "ISR antes de subsidio",
+				"subsidyApplied": "Subsidio aplicado"
 			}
 		},
 		"compliance": {
@@ -616,6 +668,31 @@
 			"placeholder": "YYYY-MM-DD",
 			"description": "Uno por línea. Útil para jornada electoral (LFT Art. 74 fr. IX) y descansos locales."
 		},
+		"taxSettings": {
+			"title": "Configuración fiscal",
+			"description": "Define tasas y políticas para el cálculo fiscal de la nómina.",
+			"fields": {
+				"riskWorkRate": "Prima de riesgo de trabajo (RT)",
+				"statePayrollTaxRate": "Impuesto estatal sobre nóminas (ISN)",
+				"aguinaldoDays": "Días de aguinaldo",
+				"vacationPremiumRate": "Prima vacacional",
+				"absorbImssEmployeeShare": "Absorber IMSS obrero",
+				"absorbIsr": "Absorber ISR",
+				"enableSeventhDayPay": "Pagar séptimo día"
+			},
+			"placeholders": {
+				"rate": "p. ej., 0.02",
+				"days": "p. ej., 15"
+			},
+			"helpers": {
+				"riskWorkRate": "Ingresa la tasa como decimal (ej. 0.06 = 6%).",
+				"statePayrollTaxRate": "Ingresa la tasa como decimal (ej. 0.02 = 2%).",
+				"vacationPremiumRate": "Ingresa la prima como decimal (ej. 0.25 = 25%).",
+				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
+				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
+				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos."
+			}
+		},
 		"legalRules": {
 			"title": "Reglas legales de horas extra",
 			"items": {
@@ -629,7 +706,8 @@
 		"validation": {
 			"invalidDate": "Fecha inválida \"{date}\". Usa YYYY-MM-DD (una por línea).",
 			"invalidDates": "Fechas inválidas",
-			"invalidTimeZone": "Zona horaria inválida. Usa un identificador IANA (p. ej., America/Mexico_City)."
+			"invalidTimeZone": "Zona horaria inválida. Usa un identificador IANA (p. ej., America/Mexico_City).",
+			"invalidNumber": "Ingresa un valor numérico válido."
 		},
 		"toast": {
 			"saveSuccess": "Configuración de nómina guardada",

@@ -35,6 +35,13 @@ interface FakePayrollSettingRow {
 	weekStartDay: number;
 	additionalMandatoryRestDays: string[];
 	timeZone: string;
+	riskWorkRate?: number;
+	statePayrollTaxRate?: number;
+	absorbImssEmployeeShare?: boolean;
+	absorbIsr?: boolean;
+	aguinaldoDays?: number;
+	vacationPremiumRate?: number;
+	enableSeventhDayPay?: boolean;
 }
 
 type FakeEmployeeRow = PayrollEmployeeRow & {
@@ -220,7 +227,6 @@ function createFakeDb(state: FakeDbState): {
 		 *
 		 * @param selection - Drizzle-style selection shape passed to `select()`
 		 */
-		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		constructor(private readonly selection: unknown) {}
 
 		/**

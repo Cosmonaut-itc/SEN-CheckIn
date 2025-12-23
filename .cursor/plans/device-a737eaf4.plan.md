@@ -13,7 +13,7 @@ todos:
 
 ### Issue 2: Polling Error - Cannot Pass Login Even When Approved
 
-**Root Cause:** In [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/\(auth)/login.tsx), after receiving the access token from `/device/token`, the code calls `authClient.getSession()` without passing the access token in the Authorization header. BetterAuth requires the token to establish the session.
+**Root Cause:** In [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/(auth)/login.tsx), after receiving the access token from `/device/token`, the code calls `authClient.getSession()` without passing the access token in the Authorization header. BetterAuth requires the token to establish the session.
 
 Current broken code (line 193-206):
 
@@ -42,8 +42,8 @@ const { data: session } = await authClient.getSession({
 
 Affected files:
 
-- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\(auth)/device/device-client.tsx) - Link to sign-in doesn't preserve return URL
-- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\(auth)/sign-in/page.tsx) - Hardcoded redirect to `/dashboard`
+- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/(auth)/device/device-client.tsx) - Link to sign-in doesn't preserve return URL
+- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/(auth)/sign-in/page.tsx) - Hardcoded redirect to `/dashboard`
 - [`apps/web/proxy.ts`](apps/web/proxy.ts) - Redirects authenticated users from auth pages to `/dashboard`
 
 ---

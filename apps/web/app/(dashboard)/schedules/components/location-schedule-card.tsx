@@ -353,70 +353,79 @@ export function LocationScheduleCard({
 			</CardHeader>
 			<CardContent>
 				{viewMode === 'week' ? (
-					<div className="grid grid-cols-7 gap-2">
-						{daysInRangeUtc.slice(0, 7).map((dayUtc) => {
-							const dayKey = formatUtcDateKey(dayUtc);
-							const expected = expectedByDate.get(dayKey) ?? [];
-							const dayOfWeekIndex = getUtcDayOfWeekIndex(dayUtc);
-							const dayTranslationKey: DayKey = DAY_KEYS[dayOfWeekIndex] ?? 'sun';
-							const label = t(`days.short.${dayTranslationKey}`);
-							const dateLabel = formatMonthDayUtc(dayUtc);
+					<TooltipProvider>
+						<div className="grid grid-cols-7 gap-2">
+							{daysInRangeUtc.slice(0, 7).map((dayUtc) => {
+								const dayKey = formatUtcDateKey(dayUtc);
+								const expected = expectedByDate.get(dayKey) ?? [];
+								const dayOfWeekIndex = getUtcDayOfWeekIndex(dayUtc);
+								const dayTranslationKey: DayKey = DAY_KEYS[dayOfWeekIndex] ?? 'sun';
+								const label = t(`days.short.${dayTranslationKey}`);
+								const dateLabel = formatMonthDayUtc(dayUtc);
 
-							return (
-								<div key={dayKey} className="space-y-2 rounded-md border p-2">
-									<div className="space-y-0.5">
-										<div className="text-xs font-semibold">{label}</div>
-										<div className="text-[11px] text-muted-foreground">
-											{dateLabel}
-										</div>
-									</div>
-									<div className="space-y-1">
-										{expected.length === 0 ? (
+								return (
+									<div key={dayKey} className="space-y-2 rounded-md border p-2">
+										<div className="space-y-0.5">
+											<div className="text-xs font-semibold">{label}</div>
 											<div className="text-[11px] text-muted-foreground">
-												{t('calendar.locationCard.noEmployees')}
+												{dateLabel}
 											</div>
-										) : (
-											expected.map((entry) => (
-												<div
-													key={`${dayKey}-${entry.employeeId}`}
-													className="flex items-start justify-between gap-2 rounded-md border px-2 py-1"
-												>
-													<div className="min-w-0">
-														<div className="truncate text-xs font-medium">
-															{entry.employeeName}
+										</div>
+										<div className="space-y-1">
+											{expected.length === 0 ? (
+												<div className="text-[11px] text-muted-foreground">
+													{t('calendar.locationCard.noEmployees')}
+												</div>
+											) : (
+												expected.map((entry) => (
+													<div
+														key={`${dayKey}-${entry.employeeId}`}
+														className="flex items-start justify-between gap-2 rounded-md border px-2 py-1"
+													>
+														<div className="min-w-0">
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<span className="block truncate text-xs font-medium">
+																		{entry.employeeName}
+																	</span>
+																</TooltipTrigger>
+																<TooltipContent className="max-w-xs text-xs">
+																	{entry.employeeName}
+																</TooltipContent>
+															</Tooltip>
+															<div className="text-[11px] text-muted-foreground">
+																{entry.startTime}–{entry.endTime}
+															</div>
 														</div>
-														<div className="text-[11px] text-muted-foreground">
-															{entry.startTime}–{entry.endTime}
-														</div>
-													</div>
-													<div className="flex shrink-0 flex-wrap items-center gap-1">
-														<Badge
-															variant={sourceVariant(entry.source)}
-															className="text-[10px] uppercase"
-														>
-															{t(SOURCE_LABEL_KEYS[entry.source])}
-														</Badge>
-														{entry.exceptionType && (
+														<div className="flex shrink-0 flex-wrap items-center gap-1">
 															<Badge
-																variant="outline"
+																variant={sourceVariant(entry.source)}
 																className="text-[10px] uppercase"
 															>
-																{t(
-																	EXCEPTION_TYPE_LABEL_KEYS[
-																		entry.exceptionType
-																	],
-																)}
+																{t(SOURCE_LABEL_KEYS[entry.source])}
 															</Badge>
-														)}
+															{entry.exceptionType && (
+																<Badge
+																	variant="outline"
+																	className="text-[10px] uppercase"
+																>
+																	{t(
+																		EXCEPTION_TYPE_LABEL_KEYS[
+																			entry.exceptionType
+																		],
+																	)}
+																</Badge>
+															)}
+														</div>
 													</div>
-												</div>
-											))
-										)}
+												))
+											)}
+										</div>
 									</div>
-								</div>
-							);
-						})}
-					</div>
+								);
+							})}
+						</div>
+					</TooltipProvider>
 				) : (
 					<TooltipProvider>
 						<div className="grid grid-cols-7 gap-2">

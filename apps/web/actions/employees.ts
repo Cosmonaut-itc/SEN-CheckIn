@@ -38,6 +38,10 @@ export interface CreateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee hire date (YYYY-MM-DD) */
+	hireDate?: string;
+	/** Optional SBC daily override */
+	sbcDailyOverride?: number;
 	/** Employee shift type */
 	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	/** Weekly schedule entries */
@@ -68,6 +72,10 @@ export interface UpdateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee hire date (YYYY-MM-DD) */
+	hireDate?: string | null;
+	/** Optional SBC daily override */
+	sbcDailyOverride?: number | null;
 	/** Employee shift type */
 	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	/** Weekly schedule entries */
@@ -108,6 +116,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 		const requestHeaders = await headers();
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
+		const hireDate = input.hireDate ? new Date(input.hireDate) : undefined;
 
 		const response = await api.employees.post({
 			code: input.code,
@@ -119,6 +128,8 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
+			hireDate,
+			sbcDailyOverride: input.sbcDailyOverride ?? undefined,
 			shiftType: input.shiftType ?? 'DIURNA',
 			schedule: input.schedule?.map((entry) => ({
 				dayOfWeek: entry.dayOfWeek,
@@ -170,6 +181,12 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 		const requestHeaders = await headers();
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
+		const hireDate =
+			input.hireDate === null
+				? null
+				: input.hireDate
+					? new Date(input.hireDate)
+					: undefined;
 
 		const response = await api.employees[input.id].put({
 			code: input.code,
@@ -181,6 +198,9 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
+			hireDate,
+			sbcDailyOverride:
+				input.sbcDailyOverride === null ? null : input.sbcDailyOverride ?? undefined,
 			shiftType: input.shiftType,
 			schedule: input.schedule?.map((entry) => ({
 				dayOfWeek: entry.dayOfWeek,

@@ -147,20 +147,28 @@
 			"jobPosition": "Puesto",
 			"department": "Departamento",
 			"status": "Estatus",
-			"shiftType": "Tipo de turno"
+			"shiftType": "Tipo de turno",
+			"hireDate": "Fecha de ingreso",
+			"sbcDailyOverride": "SBC diario (override)"
 		},
 		"placeholders": {
 			"selectLocation": "Selecciona una ubicación",
 			"selectJobPosition": "Selecciona un puesto",
 			"selectStatus": "Selecciona un estatus",
-			"selectShiftType": "Selecciona un tipo de turno"
+			"selectShiftType": "Selecciona un tipo de turno",
+			"hireDate": "YYYY-MM-DD",
+			"sbcDailyOverride": "p. ej., 320.50"
+		},
+		"helpers": {
+			"sbcDailyOverride": "Deja vacío para calcular automático con SDI/SBC."
 		},
 		"validation": {
 			"codeRequired": "El código es requerido",
 			"firstNameRequired": "El nombre es requerido",
 			"lastNameRequired": "El apellido es requerido",
 			"locationRequired": "La ubicación es requerida",
-			"jobPositionRequired": "El puesto es requerido"
+			"jobPositionRequired": "El puesto es requerido",
+			"sbcDailyOverride": "Ingresa un SBC diario válido."
 		},
 		"schedule": {
 			"title": "Horario",
@@ -480,6 +488,7 @@
 		"dateRange": {
 			"placeholder": "Rango de fechas",
 			"to": "a",
+			"selectDate": "Selecciona una fecha",
 			"presets": {
 				"today": "Hoy",
 				"yesterday": "Ayer",
@@ -490,12 +499,13 @@
 		},
 		"typeFilter": {
 			"placeholder": "Tipo",
-			"all": "Todos",
+			"both": "Entradas/Salidas",
 			"checkIn": "Entrada",
 			"checkOut": "Salida"
 		},
 		"table": {
 			"headers": {
+				"employeeName": "Empleado",
 				"employeeId": "ID de empleado",
 				"deviceId": "ID de dispositivo",
 				"type": "Tipo",
@@ -525,6 +535,7 @@
 			"description": "El inicio y fin del periodo se derivan de la configuración. Ajusta si es necesario.",
 			"paymentFrequency": "Frecuencia de pago",
 			"selectFrequency": "Selecciona la frecuencia",
+			"selectDate": "Selecciona una fecha",
 			"periodStart": "Inicio del periodo",
 			"periodEnd": "Fin del periodo"
 		},
@@ -540,6 +551,13 @@
 			"description": "Calculada a partir de asistencia dentro de las fechas seleccionadas.",
 			"calculating": "Calculando...",
 			"noCalculation": "No hay un cálculo disponible.",
+			"actions": {
+				"exportCsv": "Exportar CSV"
+			},
+			"toast": {
+				"exportSuccess": "CSV generado.",
+				"noCalculation": "No hay datos de pre-nómina para exportar."
+			},
 			"totalEmployees": "Total de empleados: {count}",
 			"totalAmount": "Total: {total}",
 			"warningsCount": "{count, plural, one {# alerta} other {# alertas}}",
@@ -551,7 +569,101 @@
 				"sundayPremium": "Prima dominical",
 				"mandatoryRest": "Descanso obligatorio",
 				"total": "Total",
-				"warnings": "Alertas"
+				"warnings": "Alertas",
+				"detail": "Detalle fiscal"
+			}
+		},
+		"csv": {
+			"fileName": "nomina_previa_{start}_{end}.csv",
+			"summaryLabel": "Totales",
+			"rowTypes": {
+				"employee": "empleado",
+				"summary": "resumen"
+			},
+			"headers": {
+				"rowType": "tipo_fila",
+				"employeeId": "id_empleado",
+				"employeeName": "empleado",
+				"paymentFrequency": "frecuencia_pago",
+				"periodStart": "periodo_inicio",
+				"periodEnd": "periodo_fin",
+				"dailyPay": "salario_diario",
+				"hourlyPay": "salario_hora",
+				"hoursWorked": "horas_trabajadas",
+				"expectedHours": "horas_esperadas",
+				"normalHours": "horas_normales",
+				"overtimeDoubleHours": "horas_extra_dobles",
+				"overtimeTripleHours": "horas_extra_triples",
+				"sundayPremiumAmount": "prima_dominical",
+				"mandatoryRestDayPremiumAmount": "prima_descanso_obligatorio",
+				"seventhDayPay": "septimo_dia",
+				"totalPay": "total_pagos",
+				"grossPay": "percepciones_gravadas",
+				"employeeWithholdingsTotal": "retenciones_trabajador_total",
+				"employeeWithholdingsIsr": "retencion_isr",
+				"employeeWithholdingsImssTotal": "imss_trabajador_total",
+				"employerCostsTotal": "costos_patron_total",
+				"employerCostsImssTotal": "imss_patron_total",
+				"employerCostsImssGuarderias": "imss_guarderias",
+				"employerCostsSarRetiro": "sar_retiro",
+				"employerCostsInfonavit": "infonavit_patron",
+				"employerCostsRiskWork": "riesgo_trabajo",
+				"employerCostsIsn": "impuesto_estatal",
+				"employerCostsAbsorbedImssEmployeeShare": "imss_obrero_absorbido",
+				"employerCostsAbsorbedIsr": "isr_absorbido",
+				"netPay": "neto",
+				"companyCost": "costo_empresa",
+				"baseSbcDaily": "sbc_diario",
+				"baseSbcPeriod": "sbc_periodo",
+				"baseIsrBase": "base_isr",
+				"baseDaysInPeriod": "dias_periodo",
+				"informationalIsrBeforeSubsidy": "isr_antes_subsidio",
+				"informationalSubsidyApplied": "subsidio_aplicado",
+				"warningsCount": "avisos_cantidad",
+				"warnings": "avisos"
+			}
+		},
+		"summary": {
+			"title": "Resumen fiscal",
+			"description": "Totales consolidados de percepciones, retenciones y costo empresa.",
+			"items": {
+				"gross": "Percepciones (bruto)",
+				"employeeWithholdings": "Retenciones trabajador",
+				"netPay": "Neto",
+				"employerCosts": "Costos patrón",
+				"companyCost": "Costo empresa"
+			}
+		},
+		"taxDetail": {
+			"title": "Detalle fiscal de {name}",
+			"sections": {
+				"summary": "Resumen",
+				"bases": "Bases fiscales",
+				"employeeWithholdings": "Retenciones del trabajador",
+				"employerCosts": "Costos del patrón",
+				"informational": "Informativo"
+			},
+			"labels": {
+				"grossPay": "Percepciones (bruto)",
+				"employeeWithholdings": "Retenciones",
+				"netPay": "Neto",
+				"employerCosts": "Costos patrón",
+				"companyCost": "Costo empresa",
+				"sbcDaily": "SBC diario",
+				"sbcPeriod": "SBC periodo",
+				"isrBase": "Base ISR",
+				"daysInPeriod": "Días en periodo",
+				"isrWithheld": "ISR retenido",
+				"imssEmployee": "IMSS obrero",
+				"imssEmployer": "IMSS patrón",
+				"sarRetiro": "SAR retiro 2%",
+				"infonavit": "INFONAVIT 5%",
+				"riskWork": "Riesgo de trabajo (RT)",
+				"isn": "ISN",
+				"absorbedImssEmployeeShare": "IMSS obrero absorbido",
+				"absorbedIsr": "ISR absorbido",
+				"isrBeforeSubsidy": "ISR antes de subsidio",
+				"subsidyApplied": "Subsidio aplicado"
 			}
 		},
 		"compliance": {
@@ -589,6 +701,11 @@
 			"label": "Inicio de semana",
 			"selectDay": "Selecciona un día"
 		},
+		"timeZone": {
+			"label": "Zona horaria de nómina",
+			"placeholder": "p. ej., America/Mexico_City",
+			"description": "Se usa para interpretar los límites de los periodos de pago (inicio/fin del periodo)."
+		},
 		"days": {
 			"sunday": "Domingo",
 			"monday": "Lunes",
@@ -608,7 +725,33 @@
 		},
 		"additionalMandatoryRestDays": {
 			"label": "Días de descanso obligatorio extra",
+			"placeholder": "YYYY-MM-DD",
 			"description": "Uno por línea. Útil para jornada electoral (LFT Art. 74 fr. IX) y descansos locales."
+		},
+		"taxSettings": {
+			"title": "Configuración fiscal",
+			"description": "Define tasas y políticas para el cálculo fiscal de la nómina.",
+			"fields": {
+				"riskWorkRate": "Prima de riesgo de trabajo (RT)",
+				"statePayrollTaxRate": "Impuesto estatal sobre nóminas (ISN)",
+				"aguinaldoDays": "Días de aguinaldo",
+				"vacationPremiumRate": "Prima vacacional",
+				"absorbImssEmployeeShare": "Absorber IMSS obrero",
+				"absorbIsr": "Absorber ISR",
+				"enableSeventhDayPay": "Pagar séptimo día"
+			},
+			"placeholders": {
+				"rate": "p. ej., 0.02",
+				"days": "p. ej., 15"
+			},
+			"helpers": {
+				"riskWorkRate": "Ingresa la tasa como decimal (ej. 0.06 = 6%).",
+				"statePayrollTaxRate": "Ingresa la tasa como decimal (ej. 0.02 = 2%).",
+				"vacationPremiumRate": "Ingresa la prima como decimal (ej. 0.25 = 25%).",
+				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
+				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
+				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos."
+			}
 		},
 		"legalRules": {
 			"title": "Reglas legales de horas extra",
@@ -622,7 +765,9 @@
 		},
 		"validation": {
 			"invalidDate": "Fecha inválida \"{date}\". Usa YYYY-MM-DD (una por línea).",
-			"invalidDates": "Fechas inválidas"
+			"invalidDates": "Fechas inválidas",
+			"invalidTimeZone": "Zona horaria inválida. Usa un identificador IANA (p. ej., America/Mexico_City).",
+			"invalidNumber": "Ingresa un valor numérico válido."
 		},
 		"toast": {
 			"saveSuccess": "Configuración de nómina guardada",
@@ -984,6 +1129,7 @@
 			"title": "Validaciones de ley laboral",
 			"messages": {
 				"dailyHoursExceeded": "{day} excede el límite diario ({hours} h > {limit} h)",
+				"shiftTypeMismatch": "{day}: el horario no coincide con el tipo de jornada ({selected} vs {expected})",
 				"overtimeDailyLimit": "{day} tiene más de 3 h de tiempo extra ({hours} h)",
 				"noRestDay": "Se requiere al menos un día de descanso por semana.",
 				"weeklyHoursExceeded": "El total semanal excede el límite ({hours} h > {limit} h).",

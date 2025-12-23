@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
@@ -13,7 +14,8 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 
-const EXPO_BUILD_URL = 'https://expo.dev/accounts/sen-apps/projects/sen-checkin/builds/f0baf210-ef5b-4807-ae7a-1a266c88bdd5';
+const EXPO_BUILD_URL =
+	'https://expo.dev/accounts/sen-apps/projects/sen-checkin/builds/f0baf210-ef5b-4807-ae7a-1a266c88bdd5';
 
 /**
  * Build a QR-code image URL for a given value.
@@ -51,21 +53,20 @@ export function AppMovilPageClient(): React.ReactElement {
 					<CardTitle>{t('card.title')}</CardTitle>
 					<CardDescription>{t('card.description')}</CardDescription>
 				</CardHeader>
-				<CardContent className="flex flex-col items-center gap-4">
-					<div
-						className="rounded-xl bg-white p-4 shadow-sm"
-						aria-label={t('qr.ariaLabel')}
-					>
-						<img
-							src={qrImageUrl}
-							width={220}
-							height={220}
-							alt={t('qr.alt')}
-							loading="lazy"
-							referrerPolicy="no-referrer"
-							className="h-[220px] w-[220px]"
-						/>
-					</div>
+					<CardContent className="flex flex-col items-center gap-4">
+						<div
+							className="rounded-xl bg-white p-4 shadow-sm"
+							aria-label={t('qr.ariaLabel')}
+						>
+							<Image
+								src={qrImageUrl}
+								width={220}
+								height={220}
+								alt={t('qr.alt')}
+								className="h-[220px] w-[220px]"
+								sizes="220px"
+							/>
+						</div>
 					<div className="w-full rounded-md border bg-muted/20 p-3 text-sm">
 						<span className="text-muted-foreground">{t('link.label')} </span>
 						<span className="break-all font-mono">{EXPO_BUILD_URL}</span>
@@ -87,5 +88,3 @@ export function AppMovilPageClient(): React.ReactElement {
 		</div>
 	);
 }
-
-

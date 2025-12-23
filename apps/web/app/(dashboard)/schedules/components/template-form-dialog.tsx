@@ -68,7 +68,7 @@ function createDefaultDaysForShift(shiftType: ShiftType): ScheduleTemplateDayInp
 		shiftType === 'NOCTURNA'
 			? { startTime: '22:00', endTime: '05:00' } // 7h, Monday–Saturday = 42h
 			: shiftType === 'MIXTA'
-				? { startTime: '18:00', endTime: '01:30' } // 7.5h, Monday–Saturday = 45h
+				? { startTime: '15:00', endTime: '22:30' } // 7.5h, nocturnidad < 3.5h
 				: { startTime: '09:00', endTime: '17:00' }; // 8h, Monday–Saturday = 48h
 	return Array.from({ length: 7 }, (_, index) => ({
 		dayOfWeek: index,
@@ -182,8 +182,8 @@ export function TemplateFormDialog({
 	);
 
 	const warnings: ScheduleWarning[] = useMemo(
-		() => evaluateWarnings(warningsInput.shiftType, warningsInput.days),
-		[warningsInput],
+		() => evaluateWarnings(warningsInput.shiftType, warningsInput.days, overtimeEnforcement),
+		[overtimeEnforcement, warningsInput],
 	);
 
 	const hasBlockingErrors =
@@ -322,6 +322,7 @@ export function TemplateFormDialog({
 					<LaborLawWarnings
 						shiftType={warningsInput.shiftType}
 						days={warningsInput.days}
+						overtimeEnforcement={overtimeEnforcement}
 					/>
 					{hasBlockingErrors && (
 						<p className="text-sm text-destructive">

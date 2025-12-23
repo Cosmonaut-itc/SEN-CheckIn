@@ -231,7 +231,7 @@ Add `prefetchPayrollSettings`, `prefetchPayrollRuns`.
 
 ### 3.5 Update Job Positions Page
 
-File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\(dashboard)/job-positions/job-positions-client.tsx)
+File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/(dashboard)/job-positions/job-positions-client.tsx)
 
 Add form fields for:
 
@@ -248,7 +248,7 @@ Update create/update inputs to include new fields.
 
 ### 3.7 New Payroll Settings Page
 
-Create [`apps/web/app/(dashboard)/payroll-settings/`](apps/web/app/\(dashboard)/payroll-settings/):
+Create [`apps/web/app/(dashboard)/payroll-settings/`](apps/web/app/(dashboard)/payroll-settings/):
 
 - `page.tsx` - Server component with prefetch
 - `payroll-settings-client.tsx` - Client component with form
@@ -268,7 +268,7 @@ Create [`apps/web/actions/payroll.ts`](apps/web/actions/payroll.ts):
 
 ### 3.9 New Payroll Page
 
-Create [`apps/web/app/(dashboard)/payroll/`](apps/web/app/\(dashboard)/payroll/):
+Create [`apps/web/app/(dashboard)/payroll/`](apps/web/app/(dashboard)/payroll/):
 
 - `page.tsx` - Server component with prefetch
 - `payroll-client.tsx` - Client component with full workflow

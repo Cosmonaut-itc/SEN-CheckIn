@@ -54,6 +54,7 @@ export interface Employee {
 	department: string | null;
 	status: EmployeeStatus;
 	hireDate: Date | null;
+	sbcDailyOverride: number | null;
 	locationId: string | null;
 	organizationId: string | null;
 	rekognitionUserId: string | null;
@@ -110,7 +111,6 @@ export interface JobPosition {
 	name: string;
 	description: string | null;
 	dailyPay: number;
-	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId: string | null;
 	createdAt: Date;
@@ -123,6 +123,7 @@ export interface JobPosition {
 export interface AttendanceRecord {
 	id: string;
 	employeeId: string;
+	employeeName: string;
 	deviceId: string;
 	timestamp: Date;
 	type: AttendanceType;
@@ -629,13 +630,14 @@ export async function fetchJobPositionsList(
 	}
 
 	const positions =
-		(response.data?.data as (JobPosition & { hourlyPay: string | number })[] | undefined) ?? [];
+		(response.data?.data as
+			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: string | number })[]
+			| undefined) ?? [];
 
 	return {
 		data: positions.map((jp) => ({
 			...jp,
-			hourlyPay: Number(jp.hourlyPay ?? 0),
-			dailyPay: Number((jp as unknown as { dailyPay?: string | number }).dailyPay ?? 0),
+			dailyPay: Number(jp.dailyPay ?? 0),
 		})),
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
@@ -719,8 +721,16 @@ export interface PayrollSettings {
 	id: string;
 	organizationId: string;
 	weekStartDay: number;
+	timeZone: string;
 	overtimeEnforcement: 'WARN' | 'BLOCK';
 	additionalMandatoryRestDays: string[];
+	riskWorkRate: number;
+	statePayrollTaxRate: number;
+	absorbImssEmployeeShare: boolean;
+	absorbIsr: boolean;
+	aguinaldoDays: number;
+	vacationPremiumRate: number;
+	enableSeventhDayPay: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -735,6 +745,66 @@ export interface PayrollWarning {
 	severity: 'warning' | 'error';
 }
 
+export interface PayrollTaxBases {
+	sbcDaily: number;
+	sbcPeriod: number;
+	isrBase: number;
+	daysInPeriod: number;
+	umaDaily: number;
+	minimumWageDaily: number;
+}
+
+export interface PayrollImssEmployeeBreakdown {
+	emExcess: number;
+	pd: number;
+	gmp: number;
+	iv: number;
+	cv: number;
+	total: number;
+}
+
+export interface PayrollImssEmployerBreakdown {
+	emFixed: number;
+	emExcess: number;
+	pd: number;
+	gmp: number;
+	iv: number;
+	cv: number;
+	guarderias: number;
+	total: number;
+}
+
+export interface PayrollEmployeeWithholdings {
+	imssEmployee: PayrollImssEmployeeBreakdown;
+	isrWithheld: number;
+	infonavitCredit: number;
+	total: number;
+}
+
+export interface PayrollEmployerCosts {
+	imssEmployer: PayrollImssEmployerBreakdown;
+	sarRetiro: number;
+	infonavit: number;
+	isn: number;
+	riskWork: number;
+	absorbedImssEmployeeShare: number;
+	absorbedIsr: number;
+	total: number;
+}
+
+export interface PayrollInformationalLines {
+	isrBeforeSubsidy: number;
+	subsidyApplied: number;
+}
+
+export interface PayrollTaxSummary {
+	grossTotal: number;
+	employeeWithholdingsTotal: number;
+	employerCostsTotal: number;
+	netPayTotal: number;
+	companyCostTotal: number;
+}
+
 export interface PayrollCalculationEmployee {
 	employeeId: string;
 	name: string;
@@ -742,6 +812,7 @@ export interface PayrollCalculationEmployee {
 	dailyPay: number;
 	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	seventhDayPay: number;
 	hoursWorked: number;
 	expectedHours: number;
 	normalHours: number;
@@ -755,14 +826,23 @@ export interface PayrollCalculationEmployee {
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
 	totalPay: number;
+	grossPay: number;
+	bases: PayrollTaxBases;
+	employeeWithholdings: PayrollEmployeeWithholdings;
+	employerCosts: PayrollEmployerCosts;
+	informationalLines: PayrollInformationalLines;
+	netPay: number;
+	companyCost: number;
 	warnings: PayrollWarning[];
 }
 
 export interface PayrollCalculationResult {
 	employees: PayrollCalculationEmployee[];
 	totalAmount: number;
-	periodStart: Date;
-	periodEnd: Date;
+	taxSummary: PayrollTaxSummary;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	timeZone?: string;
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
 }
 
@@ -795,10 +875,81 @@ export interface PayrollRunEmployee {
 	overtimeTriplePay: number;
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
+	taxBreakdown?: {
+		grossPay: number;
+		seventhDayPay: number;
+		bases: PayrollTaxBases;
+		employeeWithholdings: PayrollEmployeeWithholdings;
+		employerCosts: PayrollEmployerCosts;
+		informationalLines: PayrollInformationalLines;
+		netPay: number;
+		companyCost: number;
+	};
 	periodStart: Date;
 	periodEnd: Date;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+type PayrollSettingsPayload = Omit<
+	PayrollSettings,
+	| 'riskWorkRate'
+	| 'statePayrollTaxRate'
+	| 'aguinaldoDays'
+	| 'vacationPremiumRate'
+	| 'absorbImssEmployeeShare'
+	| 'absorbIsr'
+	| 'enableSeventhDayPay'
+> & {
+	riskWorkRate?: number | string | null;
+	statePayrollTaxRate?: number | string | null;
+	aguinaldoDays?: number | string | null;
+	vacationPremiumRate?: number | string | null;
+	absorbImssEmployeeShare?: boolean | null;
+	absorbIsr?: boolean | null;
+	enableSeventhDayPay?: boolean | null;
+};
+
+/**
+ * Normalizes numeric values that may arrive as strings.
+ *
+ * @param value - Incoming value from the API
+ * @param fallback - Fallback value when missing or invalid
+ * @returns Normalized numeric value
+ */
+function normalizeNumber(value: number | string | null | undefined, fallback: number): number {
+	if (typeof value === 'number' && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === 'string' && value.trim() !== '') {
+		const parsed = Number(value);
+		if (Number.isFinite(parsed)) {
+			return parsed;
+		}
+	}
+	return fallback;
+}
+
+/**
+ * Normalizes payroll settings payload to ensure numeric values are numbers.
+ *
+ * @param payload - Raw payroll settings payload
+ * @returns Normalized payroll settings or null when missing
+ */
+function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): PayrollSettings | null {
+	if (!payload) {
+		return null;
+	}
+	return {
+		...payload,
+		riskWorkRate: normalizeNumber(payload.riskWorkRate, 0),
+		statePayrollTaxRate: normalizeNumber(payload.statePayrollTaxRate, 0),
+		aguinaldoDays: normalizeNumber(payload.aguinaldoDays, 15),
+		vacationPremiumRate: normalizeNumber(payload.vacationPremiumRate, 0.25),
+		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
+		absorbIsr: Boolean(payload.absorbIsr ?? false),
+		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+	};
 }
 
 export async function fetchPayrollSettings(
@@ -818,18 +969,18 @@ export async function fetchPayrollSettings(
 		return null;
 	}
 
-	return (response.data?.data as PayrollSettings) ?? null;
+	return normalizePayrollSettings(response.data?.data as PayrollSettingsPayload | undefined);
 }
 
 export async function calculatePayroll(params: {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 }): Promise<PayrollCalculationResult> {
 	const response = await api.payroll.calculate.post({
-		periodStart: params.periodStart,
-		periodEnd: params.periodEnd,
+		periodStartDateKey: params.periodStartDateKey,
+		periodEndDateKey: params.periodEndDateKey,
 		paymentFrequency: params.paymentFrequency,
 		organizationId: params.organizationId,
 	});
@@ -843,14 +994,14 @@ export async function calculatePayroll(params: {
 }
 
 export async function processPayroll(params: {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 }): Promise<{ run: PayrollRun; calculation: PayrollCalculationResult }> {
 	const response = await api.payroll.process.post({
-		periodStart: params.periodStart,
-		periodEnd: params.periodEnd,
+		periodStartDateKey: params.periodStartDateKey,
+		periodEndDateKey: params.periodEndDateKey,
 		paymentFrequency: params.paymentFrequency,
 		organizationId: params.organizationId,
 	});

@@ -32,7 +32,7 @@ to:
 <Link href="/organizations">Go to organizations</Link>
 ```
 
-### 2. [apps/web/app/(dashboard)/layout.tsx](apps/web/app/(dashboard)/layout.tsx)
+### 2. [apps/web/app/(dashboard)/layout.tsx](<apps/web/app/(dashboard)/layout.tsx>)
 
 Modify the content rendering logic (lines 34-39) to allow the organizations page to render even when no organization is active. Add pathname detection and conditionally bypass the `NoOrganizationState` for the `/organizations` route:
 

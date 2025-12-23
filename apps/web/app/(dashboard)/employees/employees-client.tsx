@@ -86,6 +86,10 @@ interface EmployeeFormValues {
 	department: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee hire date (YYYY-MM-DD) */
+	hireDate: string;
+	/** Optional SBC daily override */
+	sbcDailyOverride: string;
 	/** Employee shift type */
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 }
@@ -103,6 +107,8 @@ const initialFormValues: EmployeeFormValues = {
 	locationId: '',
 	department: '',
 	status: 'ACTIVE',
+	hireDate: '',
+	sbcDailyOverride: '',
 	shiftType: 'DIURNA',
 };
 
@@ -302,6 +308,16 @@ export function EmployeesPageClient(): React.ReactElement {
 				toast.error(t('toast.selectLocation'));
 				return;
 			}
+		const trimmedHireDate = value.hireDate.trim();
+		const trimmedSbcOverride = value.sbcDailyOverride.trim();
+		const parsedSbcOverride =
+			trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
+		if (parsedSbcOverride !== null) {
+			if (!Number.isFinite(parsedSbcOverride) || parsedSbcOverride <= 0) {
+				toast.error(t('validation.sbcDailyOverride'));
+				return;
+			}
+		}
 			if (editingEmployee) {
 				await updateMutation.mutateAsync({
 					id: editingEmployee.id,
@@ -314,6 +330,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					locationId: value.locationId,
 					department: value.department || undefined,
 					status: value.status,
+					hireDate: trimmedHireDate === '' ? null : trimmedHireDate,
+					sbcDailyOverride: parsedSbcOverride,
 					shiftType: value.shiftType,
 					schedule,
 				});
@@ -333,6 +351,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					locationId: value.locationId,
 					department: value.department || undefined,
 					status: value.status,
+					hireDate: trimmedHireDate === '' ? undefined : trimmedHireDate,
+					sbcDailyOverride: trimmedSbcOverride === '' ? undefined : parsedSbcOverride ?? undefined,
 					shiftType: value.shiftType,
 					schedule,
 				});
@@ -426,6 +446,14 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue('department', employee.department ?? '');
 			form.setFieldValue('status', employee.status);
 			form.setFieldValue('shiftType', employee.shiftType ?? 'DIURNA');
+			form.setFieldValue(
+				'hireDate',
+				employee.hireDate ? format(new Date(employee.hireDate), 'yyyy-MM-dd') : '',
+			);
+			form.setFieldValue(
+				'sbcDailyOverride',
+				employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
+			);
 			setHasCustomCode(true);
 
 			const detail = await fetchEmployeeById(employee.id);
@@ -704,6 +732,42 @@ export function EmployeesPageClient(): React.ReactElement {
 													label: t(option.labelKey),
 												}))}
 												placeholder={t('placeholders.selectShiftType')}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="hireDate">
+										{(field) => (
+											<field.DateField
+												label={t('fields.hireDate')}
+												placeholder={t('placeholders.hireDate')}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField
+										name="sbcDailyOverride"
+										validators={{
+											onChange: ({ value }) => {
+												const trimmed = value.trim();
+												if (!trimmed) {
+													return undefined;
+												}
+												const parsed = Number(trimmed);
+												if (!Number.isFinite(parsed) || parsed <= 0) {
+													return t('validation.sbcDailyOverride');
+												}
+												return undefined;
+											},
+										}}
+									>
+										{(field) => (
+											<field.TextField
+												label={t('fields.sbcDailyOverride')}
+												placeholder={t('placeholders.sbcDailyOverride')}
+												description={t('helpers.sbcDailyOverride')}
 											/>
 										)}
 									</form.AppField>

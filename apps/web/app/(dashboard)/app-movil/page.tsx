@@ -16,5 +16,3 @@ export const dynamic = 'force-dynamic';
 export default function AppMovilPage(): React.ReactElement {
 	return <AppMovilPageClient />;
 }
-
-

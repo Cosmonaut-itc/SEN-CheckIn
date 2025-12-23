@@ -5,6 +5,7 @@
 		"build": "turbo run build",
 		"dev": "turbo run dev",
 		"lint": "turbo run lint",
+		"test": "turbo run test",
 		"format": "prettier --write \"**/*.{ts,tsx,md}\"",
 		"check-types": "turbo run check-types",
 		"dev:api": "turbo run dev --filter=@sen-checkin/api",
@@ -24,12 +25,14 @@
 		"add:mobile": "bun add --cwd apps/mobile",
 		"add:web": "bun add --cwd apps/web",
 		"db:gen": "cd apps/api && bunx --bun drizzle-kit generate --config drizzle.config.ts",
-		"db:mig": "cd apps/api && bunx --bun drizzle-kit migrate --config drizzle.config.ts"
+		"db:mig": "cd apps/api && bunx --bun drizzle-kit migrate --config drizzle.config.ts",
+		"db:seed": "cd apps/api && bun run db:seed",
+		"db:reset": "cd apps/api && bun run db:reset"
 	},
 	"devDependencies": {
 		"eslint": "^9.39.1",
 		"prettier": "^3.6.2",
-		"turbo": "^2.6.3",
+		"turbo": "^2.7.1",
 		"typescript": "5.9.2"
 	},
 	"engines": {

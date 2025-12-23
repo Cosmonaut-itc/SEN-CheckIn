@@ -174,6 +174,8 @@ export interface AttendanceRecord {
 	id: string;
 	/** Employee ID reference */
 	employeeId: string;
+	/** Employee full name */
+	employeeName: string;
 	/** Device ID reference */
 	deviceId: string;
 	/** Timestamp of the attendance event */

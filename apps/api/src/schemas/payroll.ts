@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+import { isValidIanaTimeZone } from '../utils/time-zone.js';
+import { parseDateKey } from '../utils/date-key.js';
+
 /**
  * Enum for supported payment frequencies.
  */
@@ -15,28 +18,80 @@ export const overtimeEnforcementEnum = z.enum(['WARN', 'BLOCK']);
  */
 export const payrollSettingsSchema = z.object({
 	weekStartDay: z.number().int().min(0).max(6).default(1),
+	timeZone: z
+		.string()
+		.min(1, 'Time zone is required')
+		.max(255)
+		.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
+		.optional(),
 	organizationId: z.string().optional(),
 	overtimeEnforcement: overtimeEnforcementEnum.default('WARN').optional(),
 	additionalMandatoryRestDays: z
 		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'))
 		.optional(),
+	riskWorkRate: z.coerce.number().min(0).max(1).optional(),
+	statePayrollTaxRate: z.coerce.number().min(0).max(1).optional(),
+	absorbImssEmployeeShare: z.boolean().optional(),
+	absorbIsr: z.boolean().optional(),
+	aguinaldoDays: z.coerce.number().int().min(0).optional(),
+	vacationPremiumRate: z.coerce.number().min(0).max(1).optional(),
+	enableSeventhDayPay: z.boolean().optional(),
 });
 
 /**
  * Schema for payroll calculation input.
  */
-export const payrollCalculateSchema = z.object({
-	periodStart: z.coerce.date(),
-	periodEnd: z.coerce.date(),
+const payrollPeriodSchemaBase = z.object({
+	periodStartDateKey: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+		.refine((value) => {
+			try {
+				parseDateKey(value);
+				return true;
+			} catch {
+				return false;
+			}
+		}, 'Invalid calendar date'),
+	periodEndDateKey: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+		.refine((value) => {
+			try {
+				parseDateKey(value);
+				return true;
+			} catch {
+				return false;
+			}
+		}, 'Invalid calendar date'),
 	paymentFrequency: paymentFrequencyEnum.optional(),
 	organizationId: z.string().optional(),
 });
 
 /**
+ * Schema for payroll calculation input.
+ */
+export const payrollCalculateSchema = payrollPeriodSchemaBase.superRefine((value, ctx) => {
+	if (value.periodEndDateKey < value.periodStartDateKey) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['periodEndDateKey'],
+			message: 'periodEndDateKey must be on or after periodStartDateKey',
+		});
+	}
+});
+
+/**
  * Schema for processing payroll (persists run and updates employees).
  */
-export const payrollProcessSchema = payrollCalculateSchema.extend({
-	// allow optional note or dry-run flag if needed later
+export const payrollProcessSchema = payrollPeriodSchemaBase.superRefine((value, ctx) => {
+	if (value.periodEndDateKey < value.periodStartDateKey) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['periodEndDateKey'],
+			message: 'periodEndDateKey must be on or after periodStartDateKey',
+		});
+	}
 });
 
 /**
@@ -71,6 +126,7 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	shiftType: z.enum(['DIURNA', 'NOCTURNA', 'MIXTA']),
 	dailyPay: z.number(),
 	hourlyPay: z.number(),
+	seventhDayPay: z.number(),
 	normalHours: z.number(),
 	overtimeDoubleHours: z.number(),
 	overtimeTripleHours: z.number(),
@@ -82,7 +138,62 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	sundayPremiumAmount: z.number(),
 	mandatoryRestDayPremiumAmount: z.number(),
 	totalPay: z.number(),
+	grossPay: z.number(),
+	bases: z.object({
+		sbcDaily: z.number(),
+		sbcPeriod: z.number(),
+		isrBase: z.number(),
+		daysInPeriod: z.number(),
+		umaDaily: z.number(),
+		minimumWageDaily: z.number(),
+	}),
+	employeeWithholdings: z.object({
+		imssEmployee: z.object({
+			emExcess: z.number(),
+			pd: z.number(),
+			gmp: z.number(),
+			iv: z.number(),
+			cv: z.number(),
+			total: z.number(),
+		}),
+		isrWithheld: z.number(),
+		infonavitCredit: z.number(),
+		total: z.number(),
+	}),
+	employerCosts: z.object({
+		imssEmployer: z.object({
+			emFixed: z.number(),
+			emExcess: z.number(),
+			pd: z.number(),
+			gmp: z.number(),
+			iv: z.number(),
+			cv: z.number(),
+			guarderias: z.number(),
+			total: z.number(),
+		}),
+		sarRetiro: z.number(),
+		infonavit: z.number(),
+		isn: z.number(),
+		riskWork: z.number(),
+		absorbedImssEmployeeShare: z.number(),
+		absorbedIsr: z.number(),
+		total: z.number(),
+	}),
+	informationalLines: z.object({
+		isrBeforeSubsidy: z.number(),
+		subsidyApplied: z.number(),
+	}),
+	netPay: z.number(),
+	companyCost: z.number(),
 	warnings: z.array(payrollWarningSchema),
+});
+
+export const payrollTaxSummarySchema = z.object({
+	grossTotal: z.number(),
+	employeeWithholdingsTotal: z.number(),
+	employerCostsTotal: z.number(),
+	netPayTotal: z.number(),
+	companyCostTotal: z.number(),
 });
 
 export type PaymentFrequency = z.infer<typeof paymentFrequencyEnum>;
@@ -92,4 +203,5 @@ export type PayrollProcessInput = z.infer<typeof payrollProcessSchema>;
 export type PayrollRunQuery = z.infer<typeof payrollRunQuerySchema>;
 export type PayrollWarning = z.infer<typeof payrollWarningSchema>;
 export type PayrollEmployeeBreakdown = z.infer<typeof payrollEmployeeBreakdownSchema>;
+export type PayrollTaxSummary = z.infer<typeof payrollTaxSummarySchema>;
 export type OvertimeEnforcement = z.infer<typeof overtimeEnforcementEnum>;

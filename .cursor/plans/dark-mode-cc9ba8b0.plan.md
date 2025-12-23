@@ -35,7 +35,7 @@ Create [`apps/web/components/theme-mode-toggle.tsx`](apps/web/components/theme-m
 
 ### 4. Add Toggle to Dashboard Header
 
-Modify [`apps/web/app/(dashboard)/layout.tsx`](<apps/web/app/\(dashboard)/layout.tsx>):
+Modify [`apps/web/app/(dashboard)/layout.tsx`](<apps/web/app/(dashboard)/layout.tsx>):
 
 - Import and place `ThemeModeToggle` in the header bar, to the right of the existing `SidebarTrigger`
 

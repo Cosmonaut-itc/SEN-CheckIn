@@ -64,8 +64,8 @@ export interface OrganizationMembersQueryParams extends UsersQueryParams {
  * Query parameters for payroll calculations.
  */
 export interface PayrollCalculateParams {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 	[key: string]: unknown;

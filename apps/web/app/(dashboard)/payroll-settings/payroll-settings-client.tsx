@@ -9,6 +9,7 @@ import { updatePayrollSettingsAction } from '@/actions/payroll';
 import { useAppForm } from '@/lib/forms';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
+import { isValidIanaTimeZone } from '@/lib/time-zone';
 
 const dayOptions = [
 	{ value: '0', labelKey: 'days.sunday' },
@@ -62,6 +63,52 @@ function parseAdditionalMandatoryRestDaysText(value: string): string[] {
 	return unique;
 }
 
+/**
+ * Parses a numeric text input into a number with range validation.
+ *
+ * @param value - Input string value
+ * @param options - Validation options
+ * @returns Parsed number or null when invalid
+ */
+function parseNumberInput(
+	value: string,
+	options: { min?: number; max?: number } = {},
+): number | null {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+	const parsed = Number(trimmed);
+	if (!Number.isFinite(parsed)) {
+		return null;
+	}
+	if (options.min !== undefined && parsed < options.min) {
+		return null;
+	}
+	if (options.max !== undefined && parsed > options.max) {
+		return null;
+	}
+	return parsed;
+}
+
+/**
+ * Parses an integer input and validates bounds.
+ *
+ * @param value - Input string value
+ * @param options - Validation options
+ * @returns Parsed integer or null when invalid
+ */
+function parseIntegerInput(
+	value: string,
+	options: { min?: number; max?: number } = {},
+): number | null {
+	const parsed = parseNumberInput(value, options);
+	if (parsed === null || !Number.isInteger(parsed)) {
+		return null;
+	}
+	return parsed;
+}
+
 export function PayrollSettingsClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const t = useTranslations('PayrollSettings');
@@ -94,10 +141,24 @@ export function PayrollSettingsClient(): React.ReactElement {
 	const form = useAppForm({
 		defaultValues: {
 			weekStartDay: '1',
+			timeZone: 'America/Mexico_City',
 			overtimeEnforcement: 'WARN',
 			additionalMandatoryRestDaysText: '',
+			riskWorkRate: '0',
+			statePayrollTaxRate: '0',
+			aguinaldoDays: '15',
+			vacationPremiumRate: '0.25',
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			enableSeventhDayPay: false,
 		},
 		onSubmit: async ({ value }) => {
+			const trimmedTimeZone = value.timeZone.trim();
+			if (!isValidIanaTimeZone(trimmedTimeZone)) {
+				toast.error(t('validation.invalidTimeZone'));
+				return;
+			}
+
 			let additionalMandatoryRestDays: string[];
 			try {
 				additionalMandatoryRestDays = parseAdditionalMandatoryRestDaysText(
@@ -113,10 +174,39 @@ export function PayrollSettingsClient(): React.ReactElement {
 				return;
 			}
 
+			const riskWorkRate = parseNumberInput(value.riskWorkRate, { min: 0, max: 1 });
+			const statePayrollTaxRate = parseNumberInput(value.statePayrollTaxRate, {
+				min: 0,
+				max: 1,
+			});
+			const aguinaldoDays = parseIntegerInput(value.aguinaldoDays, { min: 0 });
+			const vacationPremiumRate = parseNumberInput(value.vacationPremiumRate, {
+				min: 0,
+				max: 1,
+			});
+
+			if (
+				riskWorkRate === null ||
+				statePayrollTaxRate === null ||
+				aguinaldoDays === null ||
+				vacationPremiumRate === null
+			) {
+				toast.error(t('validation.invalidNumber'));
+				return;
+			}
+
 			await mutation.mutateAsync({
 				weekStartDay: Number(value.weekStartDay),
+				timeZone: trimmedTimeZone,
 				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
 				additionalMandatoryRestDays,
+				riskWorkRate,
+				statePayrollTaxRate,
+				absorbImssEmployeeShare: value.absorbImssEmployeeShare,
+				absorbIsr: value.absorbIsr,
+				aguinaldoDays,
+				vacationPremiumRate,
+				enableSeventhDayPay: value.enableSeventhDayPay,
 			});
 		},
 	});
@@ -125,14 +215,51 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.weekStartDay !== undefined) {
 			form.setFieldValue('weekStartDay', String(data.weekStartDay));
 		}
+		if (data?.timeZone !== undefined) {
+			form.setFieldValue('timeZone', data.timeZone);
+		}
 		if (data?.overtimeEnforcement !== undefined) {
 			form.setFieldValue('overtimeEnforcement', data.overtimeEnforcement);
+		}
+		if (data?.riskWorkRate !== undefined) {
+			form.setFieldValue('riskWorkRate', String(data.riskWorkRate));
+		}
+		if (data?.statePayrollTaxRate !== undefined) {
+			form.setFieldValue('statePayrollTaxRate', String(data.statePayrollTaxRate));
+		}
+		if (data?.aguinaldoDays !== undefined) {
+			form.setFieldValue('aguinaldoDays', String(data.aguinaldoDays));
+		}
+		if (data?.vacationPremiumRate !== undefined) {
+			form.setFieldValue('vacationPremiumRate', String(data.vacationPremiumRate));
+		}
+		if (data?.absorbImssEmployeeShare !== undefined) {
+			form.setFieldValue('absorbImssEmployeeShare', data.absorbImssEmployeeShare);
+		}
+		if (data?.absorbIsr !== undefined) {
+			form.setFieldValue('absorbIsr', data.absorbIsr);
+		}
+		if (data?.enableSeventhDayPay !== undefined) {
+			form.setFieldValue('enableSeventhDayPay', data.enableSeventhDayPay);
 		}
 		form.setFieldValue(
 			'additionalMandatoryRestDaysText',
 			(data?.additionalMandatoryRestDays ?? []).join('\n'),
 		);
-	}, [data?.weekStartDay, data?.overtimeEnforcement, data?.additionalMandatoryRestDays, form]);
+	}, [
+		data?.weekStartDay,
+		data?.timeZone,
+		data?.overtimeEnforcement,
+		data?.riskWorkRate,
+		data?.statePayrollTaxRate,
+		data?.aguinaldoDays,
+		data?.vacationPremiumRate,
+		data?.absorbImssEmployeeShare,
+		data?.absorbIsr,
+		data?.enableSeventhDayPay,
+		data?.additionalMandatoryRestDays,
+		form,
+	]);
 
 	return (
 		<div className="space-y-4">
@@ -165,6 +292,24 @@ export function PayrollSettingsClient(): React.ReactElement {
 									placeholder={
 										isLoading ? tCommon('loading') : t('weekStart.selectDay')
 									}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="timeZone"
+							validators={{
+								onChange: ({ value }) =>
+									isValidIanaTimeZone(value.trim())
+										? undefined
+										: t('validation.invalidTimeZone'),
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('timeZone.label')}
+									placeholder={t('timeZone.placeholder')}
+									description={t('timeZone.description')}
 									disabled={isLoading || mutation.isPending}
 								/>
 							)}
@@ -213,9 +358,111 @@ export function PayrollSettingsClient(): React.ReactElement {
 							{(field) => (
 								<field.TextareaField
 									label={t('additionalMandatoryRestDays.label')}
-									placeholder="YYYY-MM-DD"
+									placeholder={t('additionalMandatoryRestDays.placeholder')}
 									description={t('additionalMandatoryRestDays.description')}
 									rows={4}
+								/>
+							)}
+						</form.AppField>
+						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+							<p className="font-medium text-foreground">{t('taxSettings.title')}</p>
+							<p className="mt-1 text-xs">{t('taxSettings.description')}</p>
+						</div>
+						<form.AppField
+							name="riskWorkRate"
+							validators={{
+								onChange: ({ value }) =>
+									parseNumberInput(value, { min: 0, max: 1 }) === null
+										? t('validation.invalidNumber')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('taxSettings.fields.riskWorkRate')}
+									placeholder={t('taxSettings.placeholders.rate')}
+									description={t('taxSettings.helpers.riskWorkRate')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="statePayrollTaxRate"
+							validators={{
+								onChange: ({ value }) =>
+									parseNumberInput(value, { min: 0, max: 1 }) === null
+										? t('validation.invalidNumber')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('taxSettings.fields.statePayrollTaxRate')}
+									placeholder={t('taxSettings.placeholders.rate')}
+									description={t('taxSettings.helpers.statePayrollTaxRate')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="aguinaldoDays"
+							validators={{
+								onChange: ({ value }) =>
+									parseIntegerInput(value, { min: 0 }) === null
+										? t('validation.invalidNumber')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('taxSettings.fields.aguinaldoDays')}
+									placeholder={t('taxSettings.placeholders.days')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="vacationPremiumRate"
+							validators={{
+								onChange: ({ value }) =>
+									parseNumberInput(value, { min: 0, max: 1 }) === null
+										? t('validation.invalidNumber')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('taxSettings.fields.vacationPremiumRate')}
+									placeholder={t('taxSettings.placeholders.rate')}
+									description={t('taxSettings.helpers.vacationPremiumRate')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="absorbImssEmployeeShare">
+							{(field) => (
+								<field.ToggleField
+									label={t('taxSettings.fields.absorbImssEmployeeShare')}
+									description={t('taxSettings.helpers.absorbImssEmployeeShare')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="absorbIsr">
+							{(field) => (
+								<field.ToggleField
+									label={t('taxSettings.fields.absorbIsr')}
+									description={t('taxSettings.helpers.absorbIsr')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="enableSeventhDayPay">
+							{(field) => (
+								<field.ToggleField
+									label={t('taxSettings.fields.enableSeventhDayPay')}
+									description={t('taxSettings.helpers.enableSeventhDayPay')}
+									disabled={isLoading || mutation.isPending}
 								/>
 							)}
 						</form.AppField>

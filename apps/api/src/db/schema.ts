@@ -415,8 +415,6 @@ export const jobPosition = pgTable('job_position', {
 	description: text('description'),
 	/** Daily pay rate for payroll calculations (salario diario) */
 	dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
-	/** Hourly pay rate for payroll calculations */
-	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	/** Payment frequency for this position */
 	paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
 	/** Organization this position belongs to (replaces legacy client linkage) */
@@ -504,6 +502,11 @@ export const employee = pgTable('employee', {
 	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
 	/** Date when employee was hired */
 	hireDate: timestamp('hire_date'),
+	/**
+	 * Optional SBC daily override (Salario Base de Cotización diario).
+	 * When provided, this value overrides the automatic SDI/SBC calculation.
+	 */
+	sbcDailyOverride: numeric('sbc_daily_override', { precision: 10, scale: 2 }),
 	/** Location where employee works */
 	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
 	/** Assigned schedule template */
@@ -656,6 +659,12 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull()
 		.unique()
 		.references(() => organization.id, { onDelete: 'cascade' }),
+	/**
+	 * IANA timezone identifier for payroll periods (used for start/end boundaries).
+	 *
+	 * Examples: "America/Mexico_City", "America/Tijuana"
+	 */
+	timeZone: text('time_zone').default('America/Mexico_City').notNull(),
 	weekStartDay: integer('week_start_day').default(1).notNull(), // default Monday
 	/** Behavior when overtime limits are exceeded */
 	overtimeEnforcement: overtimeEnforcement('overtime_enforcement').default('WARN').notNull(),
@@ -669,6 +678,24 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.$type<string[]>()
 		.default([])
 		.notNull(),
+	/** Risk of work rate (prima de riesgo de trabajo) */
+	riskWorkRate: numeric('risk_work_rate', { precision: 6, scale: 4 }).default('0').notNull(),
+	/** State payroll tax rate (ISN) */
+	statePayrollTaxRate: numeric('state_payroll_tax_rate', { precision: 6, scale: 4 })
+		.default('0')
+		.notNull(),
+	/** Whether the employer absorbs the employee IMSS share */
+	absorbImssEmployeeShare: boolean('absorb_imss_employee_share').default(false).notNull(),
+	/** Whether the employer absorbs ISR withholding */
+	absorbIsr: boolean('absorb_isr').default(false).notNull(),
+	/** Aguinaldo days for SDI/SBC integration factor */
+	aguinaldoDays: integer('aguinaldo_days').default(15).notNull(),
+	/** Vacation premium rate for SDI/SBC integration factor */
+	vacationPremiumRate: numeric('vacation_premium_rate', { precision: 6, scale: 4 })
+		.default('0.25')
+		.notNull(),
+	/** Enables the seventh day pay calculation */
+	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -740,6 +767,8 @@ export const payrollRun = pgTable('payroll_run', {
 	status: payrollRunStatus('status').default('DRAFT').notNull(),
 	totalAmount: numeric('total_amount', { precision: 12, scale: 2 }).default('0').notNull(),
 	employeeCount: integer('employee_count').default(0).notNull(),
+	/** Snapshot of fiscal totals for the run */
+	taxSummary: jsonb('tax_summary').$type<Record<string, unknown>>(),
 	processedAt: timestamp('processed_at'),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
@@ -787,6 +816,8 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 	})
 		.default('0')
 		.notNull(),
+	/** Snapshot of fiscal breakdown for the employee line */
+	taxBreakdown: jsonb('tax_breakdown').$type<Record<string, unknown>>(),
 	periodStart: timestamp('period_start').notNull(),
 	periodEnd: timestamp('period_end').notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),

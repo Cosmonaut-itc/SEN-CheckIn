@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia';
+import crypto from 'node:crypto';
 import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
@@ -178,7 +179,6 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				description,
 				organizationId: organizationIdInput,
 				dailyPay,
-				hourlyPay,
 				paymentFrequency,
 			} = body;
 			const organizationId = resolveOrganizationId({
@@ -208,21 +208,11 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			const id = crypto.randomUUID();
-			const hasDailyPay = dailyPay !== undefined;
-			const hasHourlyPay = hourlyPay !== undefined;
+			const normalizedDailyPay = Number(dailyPay);
 
-			if (!hasDailyPay && !hasHourlyPay) {
+			if (normalizedDailyPay <= 0) {
 				set.status = 400;
-				return { error: 'Either dailyPay or hourlyPay is required' };
-			}
-
-			// Derive the missing pay field to avoid zeroed compensation entries.
-			const normalizedDailyPay = hasDailyPay ? Number(dailyPay) : Number(hourlyPay) * 8;
-			const normalizedHourlyPay = hasHourlyPay ? Number(hourlyPay) : normalizedDailyPay / 8;
-
-			if (normalizedDailyPay <= 0 || normalizedHourlyPay <= 0) {
-				set.status = 400;
-				return { error: 'Pay must be greater than 0' };
+				return { error: 'Daily pay must be greater than 0' };
 			}
 
 			const newPosition = {
@@ -230,7 +220,6 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				name,
 				description: description ?? null,
 				dailyPay: normalizedDailyPay.toString(),
-				hourlyPay: normalizedHourlyPay.toString(),
 				paymentFrequency: paymentFrequency ?? 'MONTHLY',
 				organizationId,
 				clientId: null,
@@ -327,16 +316,6 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 			if (body.dailyPay !== undefined) {
 				updatePayload.dailyPay = body.dailyPay.toString();
-				// If hourly not provided, derive from daily (diurna divisor 8h default)
-				if (body.hourlyPay === undefined) {
-					updatePayload.hourlyPay = (Number(body.dailyPay) / 8).toString();
-				}
-			}
-			if (body.hourlyPay !== undefined) {
-				updatePayload.hourlyPay = body.hourlyPay.toString();
-				if (body.dailyPay === undefined) {
-					updatePayload.dailyPay = (Number(body.hourlyPay) * 8).toString();
-				}
 			}
 			if (body.paymentFrequency !== undefined) {
 				updatePayload.paymentFrequency = body.paymentFrequency;

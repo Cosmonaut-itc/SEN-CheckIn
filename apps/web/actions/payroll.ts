@@ -8,12 +8,20 @@ export interface UpdatePayrollSettingsInput {
 	weekStartDay: number;
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
 	additionalMandatoryRestDays?: string[];
+	timeZone?: string;
+	riskWorkRate?: number;
+	statePayrollTaxRate?: number;
+	absorbImssEmployeeShare?: boolean;
+	absorbIsr?: boolean;
+	aguinaldoDays?: number;
+	vacationPremiumRate?: number;
+	enableSeventhDayPay?: boolean;
 	organizationId?: string;
 }
 
 export interface CalculatePayrollInput {
-	periodStart: Date;
-	periodEnd: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 }
@@ -46,6 +54,14 @@ export async function updatePayrollSettingsAction(
 			weekStartDay: input.weekStartDay,
 			overtimeEnforcement: input.overtimeEnforcement,
 			additionalMandatoryRestDays: input.additionalMandatoryRestDays,
+			timeZone: input.timeZone,
+			riskWorkRate: input.riskWorkRate,
+			statePayrollTaxRate: input.statePayrollTaxRate,
+			absorbImssEmployeeShare: input.absorbImssEmployeeShare,
+			absorbIsr: input.absorbIsr,
+			aguinaldoDays: input.aguinaldoDays,
+			vacationPremiumRate: input.vacationPremiumRate,
+			enableSeventhDayPay: input.enableSeventhDayPay,
 			organizationId: input.organizationId,
 		});
 
@@ -72,8 +88,8 @@ export async function calculatePayrollAction(
 	try {
 		const api = createServerApiClient(await getCookieHeader());
 		const response = await api.payroll.calculate.post({
-			periodStart: input.periodStart,
-			periodEnd: input.periodEnd,
+			periodStartDateKey: input.periodStartDateKey,
+			periodEndDateKey: input.periodEndDateKey,
 			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});
@@ -99,8 +115,8 @@ export async function processPayrollAction(input: ProcessPayrollInput): Promise<
 	try {
 		const api = createServerApiClient(await getCookieHeader());
 		const response = await api.payroll.process.post({
-			periodStart: input.periodStart,
-			periodEnd: input.periodEnd,
+			periodStartDateKey: input.periodStartDateKey,
+			periodEndDateKey: input.periodEndDateKey,
 			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});

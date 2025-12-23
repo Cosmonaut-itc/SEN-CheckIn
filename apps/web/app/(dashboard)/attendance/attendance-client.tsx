@@ -1,10 +1,16 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from '@/components/ui/popover';
 import {
 	Table,
 	TableBody,
@@ -15,7 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Search, Calendar, RefreshCw } from 'lucide-react';
+import { Calendar as CalendarIcon, RefreshCw, Search } from 'lucide-react';
 import {
 	format,
 	startOfDay,
@@ -26,6 +32,7 @@ import {
 	startOfMonth,
 	endOfMonth,
 } from 'date-fns';
+import { es } from 'date-fns/locale';
 import {
 	Select,
 	SelectContent,
@@ -55,6 +62,17 @@ const typeVariants: Record<AttendanceType, 'default' | 'secondary'> = {
 };
 
 /**
+ * Parses a date key string into a Date instance.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Date instance or undefined when invalid
+ */
+function parseDateKey(dateKey: string): Date | undefined {
+	const parsed = new Date(`${dateKey}T00:00:00`);
+	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/**
  * Attendance page client component.
  * Provides a list view with date-fns based filtering using TanStack Query.
  *
@@ -69,7 +87,10 @@ export function AttendancePageClient(): React.ReactElement {
 		format(startOfDay(new Date()), 'yyyy-MM-dd'),
 	);
 	const [endDate, setEndDate] = useState<string>(format(endOfDay(new Date()), 'yyyy-MM-dd'));
-	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'all'>('all');
+	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'both'>('both');
+
+	const startDateValue = useMemo(() => parseDateKey(startDate), [startDate]);
+	const endDateValue = useMemo(() => parseDateKey(endDate), [endDate]);
 
 	/**
 	 * Computes date range based on preset selection.
@@ -118,9 +139,9 @@ export function AttendancePageClient(): React.ReactElement {
 	// Get the current date range for the query
 	const { start, end } = getDateRange(datePreset);
 
-	// Build query params - only include type if it's not 'all'
+	// Build query params - only include type when filtering to a single event type
 	const baseParams = { limit: 100, offset: 0, fromDate: start, toDate: end, organizationId };
-	const queryParams = typeFilter !== 'all' ? { ...baseParams, type: typeFilter } : baseParams;
+	const queryParams = typeFilter !== 'both' ? { ...baseParams, type: typeFilter } : baseParams;
 
 	// Query for attendance records
 	const { data, isFetching, refetch } = useQuery({
@@ -186,7 +207,7 @@ export function AttendancePageClient(): React.ReactElement {
 				</div>
 
 				<div className="flex items-center gap-2">
-					<Calendar className="h-4 w-4 text-muted-foreground" />
+					<CalendarIcon className="h-4 w-4 text-muted-foreground" />
 					<Select value={datePreset} onValueChange={handlePresetChange}>
 						<SelectTrigger className="w-[150px]">
 							<SelectValue placeholder={t('dateRange.placeholder')} />
@@ -209,31 +230,73 @@ export function AttendancePageClient(): React.ReactElement {
 
 				{datePreset === 'custom' && (
 					<>
-						<Input
-							type="date"
-							value={startDate}
-							onChange={(e) => setStartDate(e.target.value)}
-							className="w-[150px]"
-						/>
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!startDateValue}
+									className="data-[empty=true]:text-muted-foreground w-[170px] justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{startDateValue ? (
+										format(startDateValue, 'P', { locale: es })
+									) : (
+										<span>{t('dateRange.selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={startDateValue}
+									onSelect={(date) => {
+										if (!date) return;
+										setStartDate(format(date, 'yyyy-MM-dd'));
+									}}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
 						<span className="text-muted-foreground">{t('dateRange.to')}</span>
-						<Input
-							type="date"
-							value={endDate}
-							onChange={(e) => setEndDate(e.target.value)}
-							className="w-[150px]"
-						/>
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!endDateValue}
+									className="data-[empty=true]:text-muted-foreground w-[170px] justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{endDateValue ? (
+										format(endDateValue, 'P', { locale: es })
+									) : (
+										<span>{t('dateRange.selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={endDateValue}
+									onSelect={(date) => {
+										if (!date) return;
+										setEndDate(format(date, 'yyyy-MM-dd'));
+									}}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
 					</>
 				)}
 
 				<Select
 					value={typeFilter}
-					onValueChange={(value: AttendanceType | 'all') => setTypeFilter(value)}
+					onValueChange={(value: AttendanceType | 'both') => setTypeFilter(value)}
 				>
-					<SelectTrigger className="w-[130px]">
+					<SelectTrigger className="w-[170px]">
 						<SelectValue placeholder={t('typeFilter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">{t('typeFilter.all')}</SelectItem>
+						<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
 						<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
 						<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
 					</SelectContent>
@@ -244,6 +307,7 @@ export function AttendancePageClient(): React.ReactElement {
 				<Table>
 					<TableHeader>
 						<TableRow>
+							<TableHead>{t('table.headers.employeeName')}</TableHead>
 							<TableHead>{t('table.headers.employeeId')}</TableHead>
 							<TableHead>{t('table.headers.deviceId')}</TableHead>
 							<TableHead>{t('table.headers.type')}</TableHead>
@@ -255,7 +319,7 @@ export function AttendancePageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 10 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 5 }).map((_, j) => (
+									{Array.from({ length: 6 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -264,13 +328,16 @@ export function AttendancePageClient(): React.ReactElement {
 							))
 						) : filteredRecords.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={5} className="h-24 text-center">
+								<TableCell colSpan={6} className="h-24 text-center">
 									{t('table.empty')}
 								</TableCell>
 							</TableRow>
 						) : (
 							filteredRecords.map((record: AttendanceRecord) => (
 								<TableRow key={record.id}>
+									<TableCell className="max-w-[200px] truncate text-sm font-medium">
+										{record.employeeName}
+									</TableCell>
 									<TableCell className="font-mono text-xs">
 										{record.employeeId.substring(0, 8)}...
 									</TableCell>

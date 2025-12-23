@@ -659,6 +659,72 @@ describe('payroll routes', () => {
 		expect(json.data.totalAmount).toBe(1700);
 	});
 
+	it('returns overtime totals and warnings in /payroll/calculate', async () => {
+		dbState.organizationId = 'org-4';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+			},
+		];
+
+		const employeeId = 'emp-5';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		dbState.attendanceRecords = createAttendancePair(
+			employeeId,
+			getUtcDateForZonedTime('2025-01-02', 8, 0, timeZone),
+			getUtcDateForZonedTime('2025-01-02', 20, 0, timeZone),
+		);
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-02',
+				periodEndDateKey: '2025-01-02',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: {
+					employeeId: string;
+					normalHours: number;
+					overtimeDoubleHours: number;
+					overtimeTripleHours: number;
+					warnings: { type: string; severity: string }[];
+				}[];
+			};
+		};
+
+		expect(json.data.employees).toHaveLength(1);
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.overtimeDoubleHours).toBe(4);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.warnings.some((warning) => warning.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(true);
+	});
+
 	it('blocks /payroll/process when overtimeEnforcement is BLOCK and there are error warnings', async () => {
 		dbState.organizationId = 'org-2';
 		dbState.payrollSettings = [

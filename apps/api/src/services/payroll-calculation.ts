@@ -450,6 +450,7 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 
 		const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
 		const shiftLimits = SHIFT_LIMITS[shiftKey];
+		const dailyLimitMinutes = shiftLimits.dailyHours * 60;
 
 		const expectedHours = calculateExpectedHours(
 			scheduleMap.get(emp.id) ?? [],
@@ -515,27 +516,6 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 
 			workedMinutesTotal += segmentMinutes;
 
-			const sessionTotalMinutes = differenceInMinutes(checkOut, checkIn);
-			if (sessionTotalMinutes <= 0) {
-				continue;
-			}
-
-			const dailyLimitMinutes = shiftLimits.dailyHours * 60;
-			const sessionNormalMinutes = Math.min(sessionTotalMinutes, dailyLimitMinutes);
-			const offsetMinutes = Math.max(0, differenceInMinutes(segmentStart, checkIn));
-			const remainingNormalMinutes = sessionNormalMinutes - offsetMinutes;
-			const normalSegmentMinutes =
-				remainingNormalMinutes <= 0 ? 0 : Math.min(segmentMinutes, remainingNormalMinutes);
-			const overtimeSegmentMinutes = Math.max(0, segmentMinutes - normalSegmentMinutes);
-
-			const workdayKey = toDateKeyInTimeZone(checkIn, employeeTimeZone);
-			const bucket = workdayMinutes.get(workdayKey) ?? {
-				normalMinutes: 0,
-				overtimeMinutes: 0,
-			};
-			bucket.normalMinutes += normalSegmentMinutes;
-			bucket.overtimeMinutes += overtimeSegmentMinutes;
-			workdayMinutes.set(workdayKey, bucket);
 		}
 
 		const hoursWorked = workedMinutesTotal / 60;
@@ -571,6 +551,10 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			if (isMandatoryRestDay) {
 				mandatoryRestDayDateKeys.add(dateKey);
 			}
+
+			const normalMinutes = Math.min(minutes, dailyLimitMinutes);
+			const overtimeMinutes = Math.max(0, minutes - normalMinutes);
+			workdayMinutes.set(dateKey, { normalMinutes, overtimeMinutes });
 		}
 
 		for (const [workdayKey, bucket] of workdayMinutes.entries()) {

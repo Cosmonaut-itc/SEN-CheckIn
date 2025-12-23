@@ -268,17 +268,17 @@ describe('payroll-calculation', () => {
 		expect(row?.warnings.some((w) => w.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(true);
 	});
 
-	it('does not undercount daily overtime for overnight sessions (session-based overtime)', () => {
+	it('does not emit a daily overtime warning at exactly 3 hours', () => {
 		const periodStartDateKey = '2025-01-02';
-		const periodEndDateKey = '2025-01-03';
+		const periodEndDateKey = '2025-01-02';
 		const periodBounds = getPayrollPeriodBounds({
 			periodStartDateKey,
 			periodEndDateKey,
 			timeZone,
 		});
 
-		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 20, 0, timeZone);
-		const checkOut = getUtcDateForZonedTime(periodEndDateKey, 8, 0, timeZone);
+		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 8, 0, timeZone);
+		const checkOut = getUtcDateForZonedTime(periodEndDateKey, 19, 0, timeZone);
 
 		const { employees } = calculatePayrollFromData({
 			...baseArgs,
@@ -289,10 +289,106 @@ describe('payroll-calculation', () => {
 		});
 
 		const row = employees[0];
+		expect(row?.hoursWorked).toBe(11);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.overtimeDoubleHours).toBe(3);
+		expect(row?.warnings.some((w) => w.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(false);
+	});
+
+	it('applies daily overtime once across split shifts in the same day', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime(periodStartDateKey, 8, 0, timeZone),
+				getUtcDateForZonedTime(periodEndDateKey, 12, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime(periodStartDateKey, 14, 0, timeZone),
+				getUtcDateForZonedTime(periodEndDateKey, 22, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
 		expect(row?.hoursWorked).toBe(12);
 		expect(row?.normalHours).toBe(8);
 		expect(row?.overtimeDoubleHours).toBe(4);
 		expect(row?.warnings.some((w) => w.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(true);
+	});
+
+	it('assigns overnight overtime to the local workday bucket', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-03';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 22, 0, timeZone);
+		const checkOut = getUtcDateForZonedTime(periodEndDateKey, 12, 0, timeZone);
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(employeeId, checkIn, checkOut),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		const dailyWarning = row?.warnings.find((w) => w.type === 'OVERTIME_DAILY_EXCEEDED');
+		expect(row?.hoursWorked).toBe(14);
+		expect(row?.normalHours).toBe(10);
+		expect(row?.overtimeDoubleHours).toBe(4);
+		expect(dailyWarning?.message).toContain('2025-01-03');
+	});
+
+	it('does not emit weekly overtime warnings at the exact limits', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-08';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const sessions = ['2025-01-06', '2025-01-07', '2025-01-08'].flatMap((dayKey) => {
+			const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
+			const checkOut = getUtcDateForZonedTime(dayKey, 19, 0, timeZone);
+			return createAttendancePair(employeeId, checkIn, checkOut);
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: sessions,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(33);
+		expect(row?.normalHours).toBe(24);
+		expect(row?.overtimeDoubleHours).toBe(9);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.warnings).toHaveLength(0);
 	});
 
 	it('buckets weekly overtime into double/triple and emits weekly warnings', () => {
@@ -507,6 +603,78 @@ describe('payroll-calculation', () => {
 		expect(weeklyWarning?.severity).toBe('error');
 	});
 
+	it('marks weekly overtime day warnings as errors when overtimeEnforcement is BLOCK', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-09';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const sessions = [
+			'2025-01-06',
+			'2025-01-07',
+			'2025-01-08',
+			'2025-01-09',
+		].flatMap((dayKey) => {
+			const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
+			const checkOut = getUtcDateForZonedTime(dayKey, 17, 0, timeZone);
+			return createAttendancePair(employeeId, checkIn, checkOut);
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: sessions,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeEnforcement: 'BLOCK',
+		});
+
+		const row = employees[0];
+		const weeklyDaysWarning = row?.warnings.find(
+			(w) => w.type === 'OVERTIME_WEEKLY_DAYS_EXCEEDED',
+		);
+		expect(weeklyDaysWarning?.severity).toBe('error');
+	});
+
+	it('marks weekly overtime warnings as errors when overtimeEnforcement is BLOCK', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-10';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const sessions = [
+			'2025-01-06',
+			'2025-01-07',
+			'2025-01-08',
+			'2025-01-09',
+			'2025-01-10',
+		].flatMap((dayKey) => {
+			const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
+			const checkOut = getUtcDateForZonedTime(dayKey, 18, 0, timeZone);
+			return createAttendancePair(employeeId, checkIn, checkOut);
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: sessions,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeEnforcement: 'BLOCK',
+		});
+
+		const row = employees[0];
+		const weeklyWarning = row?.warnings.find((w) => w.type === 'OVERTIME_WEEKLY_EXCEEDED');
+		expect(row?.warnings.some((w) => w.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(false);
+		expect(weeklyWarning?.severity).toBe('error');
+	});
+
 	it('applies mandatory rest day premium for additionalMandatoryRestDays', () => {
 		const periodStartDateKey = '2025-02-13';
 		const periodEndDateKey = '2025-02-13';
@@ -713,6 +881,36 @@ describe('payroll-calculation', () => {
 		expect(row?.totalPay).toBe(400);
 	});
 
+	it('returns zeroed hours and pay when there is no attendance', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees, totalAmount } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: [],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(0);
+		expect(row?.expectedHours).toBe(0);
+		expect(row?.normalHours).toBe(0);
+		expect(row?.overtimeDoubleHours).toBe(0);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.sundayPremiumAmount).toBe(0);
+		expect(row?.mandatoryRestDayPremiumAmount).toBe(0);
+		expect(row?.totalPay).toBe(0);
+		expect(row?.warnings).toHaveLength(0);
+		expect(totalAmount).toBe(0);
+	});
+
 	it('does not double-count Sunday premium across multiple sessions on the same Sunday', () => {
 		const periodStartDateKey = '2025-01-05';
 		const periodEndDateKey = '2025-01-05';
@@ -788,6 +986,50 @@ describe('payroll-calculation', () => {
 		expect(row?.mandatoryRestDaysWorkedCount).toBe(1);
 		expect(row?.mandatoryRestDayPremiumAmount).toBe(1600);
 		expect(row?.totalPay).toBe(2200);
+	});
+
+	it('segments work by employee time zone when computing daily overtime', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-03';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const utcEmployee: PayrollEmployeeRow = {
+			...defaultEmployee,
+			id: 'emp-utc',
+			locationTimeZone: 'UTC',
+		};
+
+		const mxEmployee: PayrollEmployeeRow = {
+			...defaultEmployee,
+			id: 'emp-mx',
+			locationTimeZone: timeZone,
+		};
+
+		const checkIn = new Date('2025-01-02T23:00:00.000Z');
+		const checkOut = new Date('2025-01-03T09:00:00.000Z');
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			employees: [utcEmployee, mxEmployee],
+			attendanceRows: [
+				...createAttendancePair(utcEmployee.id, checkIn, checkOut),
+				...createAttendancePair(mxEmployee.id, checkIn, checkOut),
+			],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const utcRow = employees.find((row) => row.employeeId === utcEmployee.id);
+		const mxRow = employees.find((row) => row.employeeId === mxEmployee.id);
+		expect(utcRow?.normalHours).toBe(9);
+		expect(utcRow?.overtimeDoubleHours).toBe(1);
+		expect(mxRow?.normalHours).toBe(10);
+		expect(mxRow?.overtimeDoubleHours).toBe(0);
 	});
 
 	it('falls back to defaultTimeZone when employee locationTimeZone is invalid', () => {

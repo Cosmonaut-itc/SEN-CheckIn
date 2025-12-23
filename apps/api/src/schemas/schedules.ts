@@ -162,3 +162,5 @@ export type CreateScheduleExceptionInput = z.infer<typeof createScheduleExceptio
 export type UpdateScheduleExceptionInput = z.infer<typeof updateScheduleExceptionSchema>;
 export type ScheduleExceptionQuery = z.infer<typeof scheduleExceptionQuerySchema>;
 export type CalendarQuery = z.infer<typeof calendarQuerySchema>;
+
+

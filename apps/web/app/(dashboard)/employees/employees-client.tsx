@@ -356,9 +356,12 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 			}
 			const resolvedUserIdForCreate =
-				value.userId && value.userId !== 'none' ? value.userId : undefined;
+				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
+			const normalizedUserIdForUpdate =
+				value.userId === 'none' ? null : value.userId?.trim() || null;
+			const currentUserId = editingEmployee?.userId ?? null;
 			const resolvedUserIdForUpdate =
-				value.userId === 'none' ? null : value.userId || undefined;
+				normalizedUserIdForUpdate === currentUserId ? undefined : normalizedUserIdForUpdate;
 			if (editingEmployee) {
 				await updateMutation.mutateAsync({
 					id: editingEmployee.id,

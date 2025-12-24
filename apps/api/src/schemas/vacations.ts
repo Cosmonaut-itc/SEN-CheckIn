@@ -4,6 +4,7 @@ import { paginationSchema } from './crud.js';
 import { parseDateKey } from '../utils/date-key.js';
 
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_VACATION_REQUEST_RANGE_DAYS = 2000;
 
 /**
  * Validates that a date key matches YYYY-MM-DD and is a real calendar date.
@@ -69,6 +70,23 @@ function validateDateRange(
 			code: z.ZodIssueCode.custom,
 			path: ['endDateKey'],
 			message: 'endDateKey must be on or after startDateKey',
+		});
+		return;
+	}
+
+	const startDate = new Date(`${value.startDateKey}T00:00:00Z`);
+	const endDate = new Date(`${value.endDateKey}T00:00:00Z`);
+	if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+		return;
+	}
+
+	const dayCount =
+		Math.floor((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+	if (dayCount > MAX_VACATION_REQUEST_RANGE_DAYS) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['endDateKey'],
+			message: `Vacation range exceeds ${MAX_VACATION_REQUEST_RANGE_DAYS} days`,
 		});
 	}
 }

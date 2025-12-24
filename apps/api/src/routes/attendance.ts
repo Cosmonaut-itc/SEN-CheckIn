@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { eq, and, gte, lte, sql, type SQL } from 'drizzle-orm';
+import { eq, and, gte, ilike, lte, sql, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 
 import db from '../db/index.js';
@@ -38,6 +38,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * @param query.type - Filter by attendance type (optional)
 	 * @param query.fromDate - Filter records from this date (optional)
 	 * @param query.toDate - Filter records until this date (optional)
+	 * @param query.search - Search by employee ID (optional)
+	 * @param query.deviceLocationId - Filter by device location ID (optional)
 	 * @returns Array of attendance records with pagination info
 	 */
 	.get(
@@ -59,6 +61,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				type,
 				fromDate,
 				toDate,
+				search,
+				deviceLocationId,
 				organizationId: organizationIdQuery,
 			} = query;
 
@@ -92,6 +96,15 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			}
 			if (toDate) {
 				conditions.push(lte(attendanceRecord.timestamp, toDate));
+			}
+			if (deviceLocationId) {
+				conditions.push(eq(device.locationId, deviceLocationId));
+			}
+			const normalizedSearch = search?.trim();
+			if (normalizedSearch) {
+				conditions.push(
+					ilike(attendanceRecord.employeeId, `%${normalizedSearch}%`),
+				);
 			}
 
 			let baseQuery = db
@@ -138,7 +151,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					id: attendanceRecord.id,
 				})
 				.from(attendanceRecord)
-				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id));
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.innerJoin(device, eq(attendanceRecord.deviceId, device.id));
 			if (conditions.length > 0) {
 				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
 			}

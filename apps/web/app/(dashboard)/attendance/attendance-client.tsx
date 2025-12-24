@@ -244,6 +244,13 @@ export function AttendancePageClient(): React.ReactElement {
 
 	// Get the current date range for the query
 	const { start, end } = getDateRange(datePreset);
+	const locationFilterValue =
+		(columnFilters.find((filter) => filter.id === 'deviceLocationId')?.value as
+			| string
+			| undefined) ?? ALL_LOCATIONS_VALUE;
+	const normalizedSearch = globalFilter.trim();
+	const deviceLocationId =
+		locationFilterValue === ALL_LOCATIONS_VALUE ? undefined : locationFilterValue;
 
 	// Build query params - only include type when filtering to a single event type
 	const baseParams = {
@@ -253,7 +260,12 @@ export function AttendancePageClient(): React.ReactElement {
 		toDate: end,
 		organizationId,
 	};
-	const queryParams = typeFilter !== 'both' ? { ...baseParams, type: typeFilter } : baseParams;
+	const queryParams = {
+		...baseParams,
+		...(typeFilter !== 'both' ? { type: typeFilter } : {}),
+		...(normalizedSearch ? { search: normalizedSearch } : {}),
+		...(deviceLocationId ? { deviceLocationId } : {}),
+	};
 
 	// Query for attendance records
 	const { data, isFetching, refetch } = useQuery({
@@ -276,10 +288,6 @@ export function AttendancePageClient(): React.ReactElement {
 		() => (locationsData?.data ?? []) as Location[],
 		[locationsData],
 	);
-	const locationFilterValue =
-		(columnFilters.find((filter) => filter.id === 'deviceLocationId')?.value as
-			| string
-			| undefined) ?? ALL_LOCATIONS_VALUE;
 	const locationOptions = useMemo(
 		() => [
 			{ value: ALL_LOCATIONS_VALUE, label: t('locationFilter.all') },
@@ -306,7 +314,7 @@ export function AttendancePageClient(): React.ReactElement {
 		}
 		resetPagination();
 	};
-	
+
 	/**
 	 * Updates the type filter and resets pagination.
 	 *
@@ -374,20 +382,6 @@ export function AttendancePageClient(): React.ReactElement {
 		[handleColumnFiltersChange],
 	);
 
-	/**
-	 * Filters records by employee ID search.
-	 */
-	const filteredRecords = records.filter((record: AttendanceRecord) => {
-		const normalizedSearch = globalFilter.trim().toLowerCase();
-		const matchesSearch = normalizedSearch
-			? record.employeeId.toLowerCase().includes(normalizedSearch)
-			: true;
-		const matchesLocation =
-			locationFilterValue === ALL_LOCATIONS_VALUE
-				? true
-				: record.deviceLocationId === locationFilterValue;
-		return matchesSearch && matchesLocation;
-	});
 	const locationFallback = t('table.placeholders.noLocation');
 
 	const columns = useMemo<ColumnDef<AttendanceRecord>[]>(
@@ -469,7 +463,7 @@ export function AttendancePageClient(): React.ReactElement {
 	 * @returns void
 	 */
 	const handleExportCsv = useCallback((): void => {
-		if (filteredRecords.length === 0) {
+		if (records.length === 0) {
 			return;
 		}
 
@@ -483,7 +477,7 @@ export function AttendancePageClient(): React.ReactElement {
 			{ key: 'date', label: t('table.headers.date') },
 		];
 
-		const rows: AttendanceCsvRow[] = filteredRecords.map((record) => ({
+		const rows: AttendanceCsvRow[] = records.map((record) => ({
 			employeeName: record.employeeName,
 			employeeId: record.employeeId,
 			deviceId: record.deviceId,
@@ -501,7 +495,7 @@ export function AttendancePageClient(): React.ReactElement {
 		});
 
 		downloadCsvFile(csv, fileName);
-	}, [end, filteredRecords, locationFallback, start, t]);
+	}, [end, locationFallback, records, start, t]);
 
 	if (!organizationId) {
 		return (
@@ -527,7 +521,7 @@ export function AttendancePageClient(): React.ReactElement {
 					<Button
 						onClick={handleExportCsv}
 						variant="outline"
-						disabled={isFetching || filteredRecords.length === 0}
+						disabled={isFetching || records.length === 0}
 					>
 						<Download className="mr-2 h-4 w-4" />
 						{t('actions.exportCsv')}
@@ -666,14 +660,15 @@ export function AttendancePageClient(): React.ReactElement {
 				onGlobalFilterChange={handleGlobalFilterChange}
 				showToolbar={false}
 				manualPagination
+				manualFiltering
 				rowCount={totalRows}
 				emptyState={t('table.empty')}
 				isLoading={isFetching}
 			/>
 
-			{!isFetching && filteredRecords.length > 0 && (
+			{!isFetching && records.length > 0 && (
 				<p className="text-sm text-muted-foreground">
-					{t('summary', { count: filteredRecords.length })}
+					{t('summary', { count: records.length })}
 				</p>
 			)}
 		</div>

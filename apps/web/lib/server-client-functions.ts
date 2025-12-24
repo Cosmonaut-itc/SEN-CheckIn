@@ -385,6 +385,8 @@ export async function fetchAttendanceRecordsServer(
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
+		search?: string;
+		deviceLocationId?: string;
 		organizationId?: string;
 	} = {
 		limit: params?.limit ?? 100,
@@ -395,6 +397,14 @@ export async function fetchAttendanceRecordsServer(
 
 	if (params?.type) {
 		query.type = params.type;
+	}
+
+	if (params?.search?.trim()) {
+		query.search = params.search.trim();
+	}
+
+	if (params?.deviceLocationId) {
+		query.deviceLocationId = params.deviceLocationId;
 	}
 
 	query.organizationId = organizationId;
@@ -518,22 +528,35 @@ export async function fetchOrganizationsServer(headers: Headers): Promise<Organi
  */
 export async function fetchOrganizationMembersServer(
 	headers: Headers,
-	params: { organizationId: string | null; limit?: number; offset?: number },
+	params: {
+		organizationId: string | null;
+		limit?: number;
+		offset?: number;
+		search?: string;
+	},
 ): Promise<{ members: OrganizationMember[]; total: number }> {
 	if (!params.organizationId) {
 		return { members: [], total: 0 };
 	}
 
-	const response = await authClient.organization.listMembers(
-		{
-			query: {
-				organizationId: params.organizationId,
-				limit: params.limit ?? 100,
-				offset: params.offset ?? 0,
-			},
-		},
-		{ headers },
-	);
+	const cookieHeader = headers.get('cookie') ?? '';
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		organizationId: string;
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		organizationId: params.organizationId,
+		limit: params.limit ?? 100,
+		offset: params.offset ?? 0,
+	};
+
+	if (params.search?.trim()) {
+		query.search = params.search.trim();
+	}
+
+	const response = await api.organization.members.get({ $query: query });
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch organization members:', response.error);

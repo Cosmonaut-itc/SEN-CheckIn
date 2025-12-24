@@ -263,6 +263,19 @@ export const registerDeviceSchema = z.object({
 });
 
 // ============================================================================
+// Organization Member Schemas
+// ============================================================================
+
+/**
+ * Schema for organization member query filters.
+ */
+export const organizationMembersQuerySchema = paginationSchema.extend({
+	limit: z.coerce.number().int().min(1).max(500).default(50),
+	organizationId: z.string().optional(),
+	search: z.string().optional(),
+});
+
+// ============================================================================
 // Attendance Schemas
 // ============================================================================
 
@@ -291,6 +304,8 @@ export const attendanceQuerySchema = paginationSchema.extend({
 	type: attendanceTypeEnum.optional(),
 	fromDate: z.coerce.date().optional(),
 	toDate: z.coerce.date().optional(),
+	search: z.string().optional(),
+	deviceLocationId: z.string().uuid().optional(),
 	// BetterAuth organization IDs are text (not UUID)
 	organizationId: z.string().optional(),
 });
@@ -346,6 +361,9 @@ export type CreateDeviceInput = z.infer<typeof createDeviceSchema>;
 export type UpdateDeviceInput = z.infer<typeof updateDeviceSchema>;
 export type DeviceQuery = z.infer<typeof deviceQuerySchema>;
 export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
+
+// Organization Members
+export type OrganizationMembersQuery = z.infer<typeof organizationMembersQuerySchema>;
 
 // Attendance
 export type AttendanceType = z.infer<typeof attendanceTypeEnum>;

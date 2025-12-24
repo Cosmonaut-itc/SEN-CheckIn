@@ -69,19 +69,19 @@ export function UsersPageClient(): React.ReactElement {
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
+	const searchValue = globalFilter.trim();
+
+	const membersQueryParams = {
+		organizationId: organizationId ?? null,
+		limit: pagination.pageSize,
+		offset: pagination.pageIndex * pagination.pageSize,
+		...(searchValue ? { search: searchValue } : {}),
+	};
 
 	const { data, isFetching } = useQuery({
-		queryKey: queryKeys.organizationMembers.list({
-			organizationId,
-			limit: pagination.pageSize,
-			offset: pagination.pageIndex * pagination.pageSize,
-		}),
+		queryKey: queryKeys.organizationMembers.list(membersQueryParams),
 		queryFn: () =>
-			fetchOrganizationMembers({
-				organizationId,
-				limit: pagination.pageSize,
-				offset: pagination.pageIndex * pagination.pageSize,
-			}),
+			fetchOrganizationMembers(membersQueryParams),
 		enabled: Boolean(organizationId),
 	});
 
@@ -324,6 +324,7 @@ export function UsersPageClient(): React.ReactElement {
 				onGlobalFilterChange={handleGlobalFilterChange}
 				showToolbar={false}
 				manualPagination
+				manualFiltering
 				rowCount={totalRows}
 				emptyState={t('table.empty')}
 				isLoading={isFetching}

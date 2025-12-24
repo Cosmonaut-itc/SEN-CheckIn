@@ -1,18 +1,10 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -22,15 +14,15 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, type JobPosition } from '@/lib/client-functions';
 import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Form values interface for job position create/edit form.
@@ -67,7 +59,10 @@ export function JobPositionsPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('JobPositions');
 	const tCommon = useTranslations('Common');
-	const [search, setSearch] = useState<string>('');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingJobPosition, setEditingJobPosition] = useState<JobPosition | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -75,9 +70,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 
 	// Build query params - only include search if it has a value
 	const queryParams = {
-		limit: 100,
-		offset: 0,
-		...(search ? { search } : {}),
+		limit: pagination.pageSize,
+		offset: pagination.pageIndex * pagination.pageSize,
+		...(globalFilter ? { search: globalFilter } : {}),
 		...(organizationId ? { organizationId } : {}),
 	};
 
@@ -89,6 +84,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 	});
 
 	const jobPositions = data?.data ?? [];
+	const totalRows = data?.pagination.total ?? 0;
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -238,6 +234,120 @@ export function JobPositionsPageClient(): React.ReactElement {
 		[form],
 	);
 
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const columns = useMemo<ColumnDef<JobPosition>[]>(
+		() => [
+			{
+				accessorKey: 'name',
+				header: t('table.headers.name'),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.name}</span>
+				),
+			},
+			{
+				accessorKey: 'description',
+				header: t('table.headers.description'),
+				cell: ({ row }) => (
+					<span className="max-w-xs truncate">
+						{row.original.description ?? '-'}
+					</span>
+				),
+			},
+			{
+				accessorKey: 'dailyPay',
+				header: t('table.headers.dailyPay'),
+				cell: ({ row }) => `$${Number(row.original.dailyPay).toFixed(2)}`,
+			},
+			{
+				accessorKey: 'paymentFrequency',
+				header: t('table.headers.paymentFrequency'),
+				cell: ({ row }) =>
+					t(`paymentFrequency.${row.original.paymentFrequency}`),
+			},
+			{
+				accessorKey: 'createdAt',
+				header: t('table.headers.created'),
+				cell: ({ row }) =>
+					format(new Date(row.original.createdAt), t('dateFormat')),
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleEdit(row.original)}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+						<Dialog
+							open={deleteConfirmId === row.original.id}
+							onOpenChange={(open) =>
+								setDeleteConfirmId(open ? row.original.id : null)
+							}
+						>
+							<DialogTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<Trash2 className="h-4 w-4 text-destructive" />
+								</Button>
+							</DialogTrigger>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+									<DialogDescription>
+										{t('dialogs.delete.description', {
+											name: row.original.name,
+										})}
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										variant="outline"
+										onClick={() => setDeleteConfirmId(null)}
+									>
+										{tCommon('cancel')}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDelete(row.original.id)}
+										disabled={deleteMutation.isPending}
+									>
+										{deleteMutation.isPending ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												{tCommon('deleting')}
+											</>
+										) : (
+											tCommon('delete')
+										)}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					</div>
+				),
+			},
+		],
+		[deleteConfirmId, deleteMutation.isPending, handleDelete, handleEdit, t, tCommon],
+	);
+
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
@@ -360,132 +470,24 @@ export function JobPositionsPageClient(): React.ReactElement {
 				</Dialog>
 			</div>
 
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder={t('search.placeholder')}
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
-
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.name')}</TableHead>
-							<TableHead>{t('table.headers.description')}</TableHead>
-							<TableHead>{t('table.headers.dailyPay')}</TableHead>
-							<TableHead>{t('table.headers.paymentFrequency')}</TableHead>
-							<TableHead>{t('table.headers.created')}</TableHead>
-							<TableHead className="w-[100px]">
-								{t('table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : jobPositions.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							jobPositions.map((jobPosition) => (
-								<TableRow key={jobPosition.id}>
-									<TableCell className="font-medium">
-										{jobPosition.name}
-									</TableCell>
-									<TableCell className="max-w-xs truncate">
-										{jobPosition.description ?? '-'}
-									</TableCell>
-									<TableCell>
-										${Number(jobPosition.dailyPay).toFixed(2)}
-									</TableCell>
-									<TableCell>
-										{t(`paymentFrequency.${jobPosition.paymentFrequency}`)}
-									</TableCell>
-									<TableCell>
-										{format(new Date(jobPosition.createdAt), t('dateFormat'))}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(jobPosition)}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Dialog
-												open={deleteConfirmId === jobPosition.id}
-												onOpenChange={(open) =>
-													setDeleteConfirmId(open ? jobPosition.id : null)
-												}
-											>
-												<DialogTrigger asChild>
-													<Button variant="ghost" size="icon">
-														<Trash2 className="h-4 w-4 text-destructive" />
-													</Button>
-												</DialogTrigger>
-												<DialogContent>
-													<DialogHeader>
-														<DialogTitle>
-															{t('dialogs.delete.title')}
-														</DialogTitle>
-														<DialogDescription>
-															{t('dialogs.delete.description', {
-																name: jobPosition.name,
-															})}
-														</DialogDescription>
-													</DialogHeader>
-													<DialogFooter>
-														<Button
-															variant="outline"
-															onClick={() => setDeleteConfirmId(null)}
-														>
-															{tCommon('cancel')}
-														</Button>
-														<Button
-															variant="destructive"
-															onClick={() =>
-																handleDelete(jobPosition.id)
-															}
-															disabled={deleteMutation.isPending}
-														>
-															{deleteMutation.isPending ? (
-																<>
-																	<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																	{tCommon('deleting')}
-																</>
-															) : (
-																tCommon('delete')
-															)}
-														</Button>
-													</DialogFooter>
-												</DialogContent>
-											</Dialog>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={jobPositions}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				globalFilterPlaceholder={t('search.placeholder')}
+				manualPagination
+				manualFiltering
+				rowCount={totalRows}
+				emptyState={t('table.empty')}
+				isLoading={isFetching}
+			/>
 		</div>
 	);
 }

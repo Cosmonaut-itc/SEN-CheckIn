@@ -1,16 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -38,6 +31,7 @@ import {
 	type ScheduleTemplateDayInput,
 } from '@/actions/schedules';
 import { TemplateFormDialog } from './template-form-dialog';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 type DayKey = (typeof DAY_KEYS)[number];
@@ -74,14 +68,21 @@ export function ScheduleTemplatesTab({
 	const [deleteId, setDeleteId] = useState<string | null>(null);
 	const [assigningTemplate, setAssigningTemplate] = useState<ScheduleTemplate | null>(null);
 	const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 10,
+	});
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
 	const listParams = useMemo(
 		() => ({
-			limit: 100,
-			offset: 0,
+			limit: pagination.pageSize,
+			offset: pagination.pageIndex * pagination.pageSize,
 			organizationId: organizationId ?? undefined,
 		}),
-		[organizationId],
+		[organizationId, pagination.pageIndex, pagination.pageSize],
 	);
 
 	const { data: templatesResponse, isFetching } = useQuery({
@@ -151,6 +152,7 @@ export function ScheduleTemplatesTab({
 	});
 
 	const templates = templatesResponse?.data ?? [];
+	const totalRows = templatesResponse?.pagination.total ?? 0;
 
 	// Fetch detail (with days) for templates that don't include day data
 	const templateDetailQueries = useQueries({
@@ -172,30 +174,140 @@ export function ScheduleTemplatesTab({
 	 * @param template - Template to summarize
 	 * @returns Summary string
 	 */
-	const summarizeDays = (template: ScheduleTemplate): string => {
-		if (!template.days || template.days.length === 0) {
-			return t('templates.summary.noDaysConfigured');
-		}
+	const summarizeDays = useCallback(
+		(template: ScheduleTemplate): string => {
+			if (!template.days || template.days.length === 0) {
+				return t('templates.summary.noDaysConfigured');
+			}
 
-		const workingDays = template.days
-			.filter((day) => day.isWorkingDay !== false)
-			.map((day) => {
-				const dayKey: DayKey = DAY_KEYS[day.dayOfWeek] ?? 'sun';
-				return t(`days.short.${dayKey}`);
-			});
+			const workingDays = template.days
+				.filter((day) => day.isWorkingDay !== false)
+				.map((day) => {
+					const dayKey: DayKey = DAY_KEYS[day.dayOfWeek] ?? 'sun';
+					return t(`days.short.${dayKey}`);
+				});
 
-		return workingDays.length > 0 ? workingDays.join(', ') : t('templates.summary.allDaysOff');
-	};
+			return workingDays.length > 0
+				? workingDays.join(', ')
+				: t('templates.summary.allDaysOff');
+		},
+		[t],
+	);
 
-	const handleOpenCreate = (): void => {
+	/**
+	 * Resets pagination to the first page.
+	 *
+	 * @returns void
+	 */
+	const resetPagination = useCallback((): void => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Opens the dialog for creating a new schedule template.
+	 *
+	 * @returns void
+	 */
+	const handleOpenCreate = useCallback((): void => {
 		setEditingTemplate(null);
 		setIsFormOpen(true);
-	};
+	}, []);
 
-	const handleEdit = (template: ScheduleTemplate): void => {
+	/**
+	 * Opens the dialog for editing an existing schedule template.
+	 *
+	 * @param template - Template to edit
+	 * @returns void
+	 */
+	const handleEdit = useCallback((template: ScheduleTemplate): void => {
 		setEditingTemplate(template);
 		setIsFormOpen(true);
-	};
+	}, []);
+
+	const columns = useMemo<ColumnDef<ScheduleTemplate>[]>(
+		() => [
+			{
+				accessorKey: 'name',
+				header: t('templates.table.headers.name'),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.name}</span>
+				),
+			},
+			{
+				accessorKey: 'shiftType',
+				header: t('templates.table.headers.shift'),
+				cell: ({ row }) => t(`shiftTypes.short.${row.original.shiftType}`),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'workingDays',
+				accessorFn: (row) => summarizeDays(row),
+				header: t('templates.table.headers.workingDays'),
+				cell: ({ row }) => summarizeDays(row.original),
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'updatedAt',
+				header: t('templates.table.headers.updated'),
+				cell: ({ row }) => formatMonthDayUtc(new Date(row.original.updatedAt)),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'actions',
+				header: t('templates.table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleEdit(row.original)}
+							title={t('templates.actions.editTitle')}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setDeleteId(row.original.id);
+							}}
+							title={t('templates.actions.deleteTitle')}
+						>
+							<Trash2 className="h-4 w-4 text-destructive" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setAssigningTemplate(row.original);
+								setSelectedEmployeeIds([]);
+							}}
+							title={t('templates.actions.assignTitle')}
+						>
+							<Users className="h-4 w-4" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[handleEdit, summarizeDays, t],
+	);
 
 	const handleSave = async (input: {
 		name: string;
@@ -263,88 +375,22 @@ export function ScheduleTemplatesTab({
 				</Button>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('templates.table.headers.name')}</TableHead>
-							<TableHead>{t('templates.table.headers.shift')}</TableHead>
-							<TableHead>{t('templates.table.headers.workingDays')}</TableHead>
-							<TableHead>{t('templates.table.headers.updated')}</TableHead>
-							<TableHead className="w-[140px]">
-								{t('templates.table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							<TableRow>
-								<TableCell
-									colSpan={5}
-									className="h-20 text-center text-muted-foreground"
-								>
-									{t('templates.table.loading')}
-								</TableCell>
-							</TableRow>
-						) : templatesWithDays.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={5}
-									className="h-20 text-center text-muted-foreground"
-								>
-									{t('templates.table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							templatesWithDays.map((template) => (
-								<TableRow key={template.id}>
-									<TableCell className="font-medium">{template.name}</TableCell>
-									<TableCell>
-										{t(`shiftTypes.short.${template.shiftType}`)}
-									</TableCell>
-									<TableCell>{summarizeDays(template)}</TableCell>
-									<TableCell>
-										{formatMonthDayUtc(new Date(template.updatedAt))}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(template)}
-												title={t('templates.actions.editTitle')}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setDeleteId(template.id);
-												}}
-												title={t('templates.actions.deleteTitle')}
-											>
-												<Trash2 className="h-4 w-4 text-destructive" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setAssigningTemplate(template);
-													setSelectedEmployeeIds([]);
-												}}
-												title={t('templates.actions.assignTitle')}
-											>
-												<Users className="h-4 w-4" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={templatesWithDays}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				manualPagination
+				rowCount={totalRows}
+				emptyState={t('templates.table.empty')}
+				isLoading={isFetching}
+			/>
 
 			<TemplateFormDialog
 				open={isFormOpen}

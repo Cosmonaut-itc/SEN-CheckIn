@@ -1,16 +1,9 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Select,
 	SelectContent,
@@ -41,6 +34,7 @@ import {
 	updateScheduleException,
 } from '@/actions/schedules';
 import { ExceptionFormDialog } from './exception-form-dialog';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Derives the first and last day of the current month.
@@ -80,21 +74,38 @@ export function ScheduleExceptionsTab({
 	const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
 	const [editingException, setEditingException] = useState<ScheduleException | null>(null);
 	const [deleteId, setDeleteId] = useState<string | null>(null);
-	const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 10,
+	});
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const monthRange = useMemo(() => getCurrentMonthRange(), []);
 	const [fromDate, setFromDate] = useState<string>(monthRange.start);
 	const [toDate, setToDate] = useState<string>(monthRange.end);
+	const selectedEmployeeIdValue =
+		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as
+			| string
+			| undefined) ?? 'all';
 
 	const listParams = useMemo(
 		() => ({
-			limit: 100,
-			offset: 0,
+			limit: pagination.pageSize,
+			offset: pagination.pageIndex * pagination.pageSize,
 			organizationId: organizationId ?? undefined,
-			employeeId: selectedEmployeeId !== 'all' ? selectedEmployeeId : undefined,
+			employeeId: selectedEmployeeIdValue !== 'all' ? selectedEmployeeIdValue : undefined,
 			fromDate: fromDate ? new Date(fromDate) : undefined,
 			toDate: toDate ? new Date(toDate) : undefined,
 		}),
-		[organizationId, selectedEmployeeId, fromDate, toDate],
+		[
+			fromDate,
+			organizationId,
+			pagination.pageIndex,
+			pagination.pageSize,
+			selectedEmployeeIdValue,
+			toDate,
+		],
 	);
 
 	const { data: exceptionsResponse, isFetching } = useQuery({
@@ -149,6 +160,7 @@ export function ScheduleExceptionsTab({
 	});
 
 	const exceptions = exceptionsResponse?.data ?? [];
+	const totalRows = exceptionsResponse?.pagination.total ?? 0;
 
 	const handleSubmit = async (input: {
 		id?: string;
@@ -184,6 +196,152 @@ export function ScheduleExceptionsTab({
 		}
 	};
 
+	/**
+	 * Resets pagination to the first page.
+	 *
+	 * @returns void
+	 */
+	const resetPagination = useCallback((): void => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
+
+	/**
+	 * Updates column filters and resets pagination.
+	 *
+	 * @param value - Next column filters state or updater
+	 * @returns void
+	 */
+	const handleColumnFiltersChange = useCallback(
+		(value: React.SetStateAction<ColumnFiltersState>): void => {
+			setColumnFilters((prev) => (typeof value === 'function' ? value(prev) : value));
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the employee filter and resets pagination.
+	 *
+	 * @param value - Selected employee id
+	 * @returns void
+	 */
+	const handleEmployeeFilterChange = useCallback(
+		(value: string): void => {
+			handleColumnFiltersChange((prev) => {
+				const next = prev.filter((filter) => filter.id !== 'employeeId');
+				if (value !== 'all') {
+					next.push({ id: 'employeeId', value });
+				}
+				return next;
+			});
+		},
+		[handleColumnFiltersChange],
+	);
+
+	/**
+	 * Updates the from date filter and resets pagination.
+	 *
+	 * @param value - New from date value
+	 * @returns void
+	 */
+	const handleFromDateChange = useCallback(
+		(value: string): void => {
+			setFromDate(value);
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the to date filter and resets pagination.
+	 *
+	 * @param value - New to date value
+	 * @returns void
+	 */
+	const handleToDateChange = useCallback(
+		(value: string): void => {
+			setToDate(value);
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	const columns = useMemo<ColumnDef<ScheduleException>[]>(
+		() => [
+			{
+				id: 'employee',
+				accessorFn: (row) =>
+					row.employeeName
+						? `${row.employeeName} ${row.employeeLastName ?? ''}`.trim()
+						: row.employeeId,
+				header: t('exceptions.table.headers.employee'),
+				cell: ({ row }) =>
+					row.original.employeeName
+						? `${row.original.employeeName} ${row.original.employeeLastName ?? ''}`.trim()
+						: row.original.employeeId,
+			},
+			{
+				id: 'date',
+				accessorFn: (row) => new Date(row.exceptionDate).getTime(),
+				header: t('exceptions.table.headers.date'),
+				cell: ({ row }) => formatShortDateUtc(new Date(row.original.exceptionDate)),
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'exceptionType',
+				header: t('exceptions.table.headers.type'),
+				cell: ({ row }) => t(`exceptions.types.${row.original.exceptionType}`),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'time',
+				accessorFn: (row) => row.startTime ?? '',
+				header: t('exceptions.table.headers.time'),
+				cell: ({ row }) =>
+					row.original.startTime && row.original.endTime
+						? `${row.original.startTime} - ${row.original.endTime}`
+						: tCommon('notAvailable'),
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'reason',
+				header: t('exceptions.table.headers.reason'),
+				cell: ({ row }) => row.original.reason ?? '-',
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'actions',
+				header: t('exceptions.table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => {
+								setEditingException(row.original);
+								setIsFormOpen(true);
+							}}
+							title={t('exceptions.actions.editTitle')}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => setDeleteId(row.original.id)}
+							title={t('exceptions.actions.deleteTitle')}
+						>
+							<Trash2 className="h-4 w-4 text-destructive" />
+						</Button>
+					</div>
+				),
+			},
+		],
+		[t, tCommon],
+	);
+
 	if (!organizationId) {
 		return (
 			<div className="space-y-2 rounded-md border p-4">
@@ -212,7 +370,10 @@ export function ScheduleExceptionsTab({
 			</div>
 
 			<div className="flex flex-wrap items-center gap-3">
-				<Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+				<Select
+					value={selectedEmployeeIdValue}
+					onValueChange={handleEmployeeFilterChange}
+				>
 					<SelectTrigger className="w-[240px]">
 						<SelectValue placeholder={t('exceptions.filters.allEmployees')} />
 					</SelectTrigger>
@@ -233,7 +394,7 @@ export function ScheduleExceptionsTab({
 							type="date"
 							className="rounded border px-2 py-1 text-sm"
 							value={fromDate}
-							onChange={(event) => setFromDate(event.target.value)}
+							onChange={(event) => handleFromDateChange(event.target.value)}
 						/>
 					</label>
 					<label className="flex items-center gap-2">
@@ -242,94 +403,30 @@ export function ScheduleExceptionsTab({
 							type="date"
 							className="rounded border px-2 py-1 text-sm"
 							value={toDate}
-							onChange={(event) => setToDate(event.target.value)}
+							onChange={(event) => handleToDateChange(event.target.value)}
 						/>
 					</label>
 				</div>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('exceptions.table.headers.employee')}</TableHead>
-							<TableHead>{t('exceptions.table.headers.date')}</TableHead>
-							<TableHead>{t('exceptions.table.headers.type')}</TableHead>
-							<TableHead>{t('exceptions.table.headers.time')}</TableHead>
-							<TableHead>{t('exceptions.table.headers.reason')}</TableHead>
-							<TableHead className="w-[120px]">
-								{t('exceptions.table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="h-20 text-center text-muted-foreground"
-								>
-									{t('exceptions.table.loading')}
-								</TableCell>
-							</TableRow>
-						) : exceptions.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="h-20 text-center text-muted-foreground"
-								>
-									{t('exceptions.table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							exceptions.map((exception) => (
-								<TableRow key={exception.id}>
-									<TableCell>
-										{exception.employeeName
-											? `${exception.employeeName} ${exception.employeeLastName ?? ''}`
-											: exception.employeeId}
-									</TableCell>
-									<TableCell>
-										{formatShortDateUtc(new Date(exception.exceptionDate))}
-									</TableCell>
-									<TableCell>
-										{t(`exceptions.types.${exception.exceptionType}`)}
-									</TableCell>
-									<TableCell>
-										{exception.startTime && exception.endTime
-											? `${exception.startTime} - ${exception.endTime}`
-											: tCommon('notAvailable')}
-									</TableCell>
-									<TableCell>{exception.reason ?? '-'}</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => {
-													setEditingException(exception);
-													setIsFormOpen(true);
-												}}
-												title={t('exceptions.actions.editTitle')}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => setDeleteId(exception.id)}
-												title={t('exceptions.actions.deleteTitle')}
-											>
-												<Trash2 className="h-4 w-4 text-destructive" />
-											</Button>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={exceptions}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={handleColumnFiltersChange}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={setGlobalFilter}
+				showToolbar={false}
+				manualPagination
+				manualFiltering
+				rowCount={totalRows}
+				emptyState={t('exceptions.table.empty')}
+				isLoading={isFetching}
+			/>
 
 			<ExceptionFormDialog
 				open={isFormOpen}

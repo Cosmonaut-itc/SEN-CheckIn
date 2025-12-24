@@ -15,25 +15,17 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import { fetchOrganizations, type Organization } from '@/lib/client-functions';
 import { useAppForm } from '@/lib/forms';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { Edit, Plus, Search, Trash2, Users } from 'lucide-react';
+import { Edit, Plus, Trash2, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
@@ -55,7 +47,10 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const router = useRouter();
 	const t = useTranslations('Organizations');
 	const tCommon = useTranslations('Common');
-	const [search, setSearch] = useState<string>('');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -239,18 +234,126 @@ export function OrganizationsPageClient(): React.ReactElement {
 	 * Handles organization deletion.
 	 *
 	 * @param id - The organization ID to delete
+	 * @returns void
 	 */
-	const handleDelete = (id: string): void => {
-		deleteMutation.mutate(id);
-	};
+	const handleDelete = useCallback(
+		(id: string): void => {
+			deleteMutation.mutate(id);
+		},
+		[deleteMutation],
+	);
 
 	/**
-	 * Filters organizations by search term.
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
 	 */
-	const filteredOrganizations = organizations.filter(
-		(org: Organization) =>
-			org.name.toLowerCase().includes(search.toLowerCase()) ||
-			org.slug.toLowerCase().includes(search.toLowerCase()),
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const columns = useMemo<ColumnDef<Organization>[]>(
+		() => [
+			{
+				accessorKey: 'name',
+				header: t('table.headers.name'),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.name}</span>
+				),
+			},
+			{
+				accessorKey: 'slug',
+				header: t('table.headers.slug'),
+				cell: ({ row }) => <code className="text-sm">{row.original.slug}</code>,
+			},
+			{
+				accessorKey: 'createdAt',
+				header: t('table.headers.created'),
+				cell: ({ row }) =>
+					format(new Date(row.original.createdAt), t('dateFormat')),
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleEdit(row.original)}
+						>
+							<Edit className="h-4 w-4" />
+						</Button>
+						<Dialog
+							open={deleteConfirmId === row.original.id}
+							onOpenChange={(open) =>
+								setDeleteConfirmId(open ? row.original.id : null)
+							}
+						>
+							<DialogTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<Trash2 className="h-4 w-4 text-destructive" />
+								</Button>
+							</DialogTrigger>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+									<DialogDescription>
+										{t('dialogs.delete.description', {
+											name: row.original.name,
+										})}
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										variant="outline"
+										onClick={() => setDeleteConfirmId(null)}
+									>
+										{tCommon('cancel')}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDelete(row.original.id)}
+									>
+										{tCommon('delete')}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					</div>
+				),
+			},
+		],
+		[deleteConfirmId, handleDelete, handleEdit, t, tCommon],
+	);
+
+	const emptyState = useMemo(
+		() => (
+			<div className="flex flex-col items-center gap-3">
+				<Users className="h-8 w-8 text-muted-foreground" />
+				<div className="space-y-1">
+					<p className="font-medium text-foreground">
+						{t('table.empty.title')}
+					</p>
+					<p className="text-sm text-muted-foreground">
+						{t('table.empty.description')}
+					</p>
+				</div>
+				<DialogTrigger asChild>
+					<Button onClick={handleCreateNew} size="sm">
+						<Plus className="mr-2 h-4 w-4" />
+						{t('actions.create')}
+					</Button>
+				</DialogTrigger>
+			</div>
+		),
+		[handleCreateNew, t],
 	);
 
 	return (
@@ -269,130 +372,21 @@ export function OrganizationsPageClient(): React.ReactElement {
 					</DialogTrigger>
 				</div>
 
-				<div className="flex items-center gap-4">
-					<div className="relative flex-1 max-w-sm">
-						<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							placeholder={t('search.placeholder')}
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="pl-9"
-						/>
-					</div>
-				</div>
-
-				<div className="rounded-md border">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t('table.headers.name')}</TableHead>
-								<TableHead>{t('table.headers.slug')}</TableHead>
-								<TableHead>{t('table.headers.created')}</TableHead>
-								<TableHead className="w-[100px]">
-									{t('table.headers.actions')}
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{isFetching ? (
-								Array.from({ length: 3 }).map((_, i) => (
-									<TableRow key={i}>
-										{Array.from({ length: 4 }).map((_, j) => (
-											<TableCell key={j}>
-												<Skeleton className="h-4 w-full" />
-											</TableCell>
-										))}
-									</TableRow>
-								))
-							) : filteredOrganizations.length === 0 ? (
-								<TableRow>
-									<TableCell colSpan={4} className="h-24 text-center">
-										<div className="flex flex-col items-center gap-3">
-											<Users className="h-8 w-8 text-muted-foreground" />
-											<div className="space-y-1">
-												<p className="font-medium text-foreground">
-													{t('table.empty.title')}
-												</p>
-												<p className="text-sm text-muted-foreground">
-													{t('table.empty.description')}
-												</p>
-											</div>
-											<DialogTrigger asChild>
-												<Button onClick={handleCreateNew} size="sm">
-													<Plus className="mr-2 h-4 w-4" />
-													{t('actions.create')}
-												</Button>
-											</DialogTrigger>
-										</div>
-									</TableCell>
-								</TableRow>
-							) : (
-								filteredOrganizations.map((org: Organization) => (
-									<TableRow key={org.id}>
-										<TableCell className="font-medium">{org.name}</TableCell>
-										<TableCell>
-											<code className="text-sm">{org.slug}</code>
-										</TableCell>
-										<TableCell>
-											{format(new Date(org.createdAt), t('dateFormat'))}
-										</TableCell>
-										<TableCell>
-											<div className="flex items-center gap-2">
-												<Button
-													variant="ghost"
-													size="icon"
-													onClick={() => handleEdit(org)}
-												>
-													<Edit className="h-4 w-4" />
-												</Button>
-												<Dialog
-													open={deleteConfirmId === org.id}
-													onOpenChange={(open) =>
-														setDeleteConfirmId(open ? org.id : null)
-													}
-												>
-													<DialogTrigger asChild>
-														<Button variant="ghost" size="icon">
-															<Trash2 className="h-4 w-4 text-destructive" />
-														</Button>
-													</DialogTrigger>
-													<DialogContent>
-														<DialogHeader>
-															<DialogTitle>
-																{t('dialogs.delete.title')}
-															</DialogTitle>
-															<DialogDescription>
-																{t('dialogs.delete.description', {
-																	name: org.name,
-																})}
-															</DialogDescription>
-														</DialogHeader>
-														<DialogFooter>
-															<Button
-																variant="outline"
-																onClick={() =>
-																	setDeleteConfirmId(null)
-																}
-															>
-																{tCommon('cancel')}
-															</Button>
-															<Button
-																variant="destructive"
-																onClick={() => handleDelete(org.id)}
-															>
-																{tCommon('delete')}
-															</Button>
-														</DialogFooter>
-													</DialogContent>
-												</Dialog>
-											</div>
-										</TableCell>
-									</TableRow>
-								))
-							)}
-						</TableBody>
-					</Table>
-				</div>
+				<DataTable
+					columns={columns}
+					data={organizations}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={pagination}
+					onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				globalFilterPlaceholder={t('search.placeholder')}
+				emptyState={emptyState}
+				isLoading={isFetching}
+				/>
 			</div>
 
 			<DialogContent className="sm:max-w-[425px]">

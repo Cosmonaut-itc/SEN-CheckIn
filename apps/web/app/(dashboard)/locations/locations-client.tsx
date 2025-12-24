@@ -1,19 +1,11 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -23,14 +15,14 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchLocationsList, type Location } from '@/lib/client-functions';
 import { createLocation, updateLocation, deleteLocation } from '@/actions/locations';
 import { useOrgContext } from '@/lib/org-client-context';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Form values for creating/editing locations.
@@ -54,7 +46,10 @@ export function LocationsPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Locations');
 	const tCommon = useTranslations('Common');
-	const [search, setSearch] = useState<string>('');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -62,9 +57,9 @@ export function LocationsPageClient(): React.ReactElement {
 
 	// Build query params - only include search if it has a value
 	const queryParams = {
-		limit: 100,
-		offset: 0,
-		...(search ? { search } : {}),
+		limit: pagination.pageSize,
+		offset: pagination.pageIndex * pagination.pageSize,
+		...(globalFilter ? { search: globalFilter } : {}),
 		...(organizationId ? { organizationId } : {}),
 	};
 
@@ -76,6 +71,7 @@ export function LocationsPageClient(): React.ReactElement {
 	});
 
 	const locations = data?.data ?? [];
+	const totalRows = data?.pagination.total ?? 0;
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -226,10 +222,121 @@ export function LocationsPageClient(): React.ReactElement {
 	 * Handles location deletion.
 	 *
 	 * @param id - The location ID to delete
+	 * @returns void
 	 */
-	const handleDelete = (id: string): void => {
-		deleteMutation.mutate(id);
-	};
+	const handleDelete = useCallback(
+		(id: string): void => {
+			deleteMutation.mutate(id);
+		},
+		[deleteMutation],
+	);
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const columns = useMemo<ColumnDef<Location>[]>(
+		() => [
+			{
+				accessorKey: 'code',
+				header: t('table.headers.code'),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.code}</span>
+				),
+			},
+			{
+				accessorKey: 'name',
+				header: t('table.headers.name'),
+				cell: ({ row }) => row.original.name,
+			},
+			{
+				accessorKey: 'address',
+				header: t('table.headers.address'),
+				cell: ({ row }) => row.original.address ?? '-',
+			},
+			{
+				accessorKey: 'geographicZone',
+				header: t('table.headers.zone'),
+				cell: ({ row }) =>
+					t(`zones.${row.original.geographicZone ?? 'GENERAL'}`),
+			},
+			{
+				accessorKey: 'timeZone',
+				header: t('table.headers.timeZone'),
+				cell: ({ row }) => row.original.timeZone,
+			},
+			{
+				accessorKey: 'createdAt',
+				header: t('table.headers.created'),
+				cell: ({ row }) =>
+					format(new Date(row.original.createdAt), t('dateFormat')),
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleEdit(row.original)}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+						<Dialog
+							open={deleteConfirmId === row.original.id}
+							onOpenChange={(open) =>
+								setDeleteConfirmId(open ? row.original.id : null)
+							}
+						>
+							<DialogTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<Trash2 className="h-4 w-4 text-destructive" />
+								</Button>
+							</DialogTrigger>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+									<DialogDescription>
+										{t('dialogs.delete.description', {
+											name: row.original.name,
+										})}
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										variant="outline"
+										onClick={() => setDeleteConfirmId(null)}
+									>
+										{tCommon('cancel')}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDelete(row.original.id)}
+									>
+										{tCommon('delete')}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					</div>
+				),
+			},
+		],
+		[deleteConfirmId, handleDelete, handleEdit, t, tCommon],
+	);
 
 	if (!isOrgSelected) {
 		return (
@@ -347,120 +454,24 @@ export function LocationsPageClient(): React.ReactElement {
 				</Dialog>
 			</div>
 
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder={t('search.placeholder')}
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
-
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.code')}</TableHead>
-							<TableHead>{t('table.headers.name')}</TableHead>
-							<TableHead>{t('table.headers.address')}</TableHead>
-							<TableHead>{t('table.headers.zone')}</TableHead>
-							<TableHead>{t('table.headers.timeZone')}</TableHead>
-							<TableHead>{t('table.headers.created')}</TableHead>
-							<TableHead className="w-[100px]">
-								{t('table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : locations.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							locations.map((location) => (
-								<TableRow key={location.id}>
-									<TableCell className="font-medium">{location.code}</TableCell>
-									<TableCell>{location.name}</TableCell>
-									<TableCell>{location.address ?? '-'}</TableCell>
-									<TableCell>
-										{t(`zones.${location.geographicZone ?? 'GENERAL'}`)}
-									</TableCell>
-									<TableCell>{location.timeZone}</TableCell>
-									<TableCell>
-										{format(new Date(location.createdAt), t('dateFormat'))}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(location)}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Dialog
-												open={deleteConfirmId === location.id}
-												onOpenChange={(open) =>
-													setDeleteConfirmId(open ? location.id : null)
-												}
-											>
-												<DialogTrigger asChild>
-													<Button variant="ghost" size="icon">
-														<Trash2 className="h-4 w-4 text-destructive" />
-													</Button>
-												</DialogTrigger>
-												<DialogContent>
-													<DialogHeader>
-														<DialogTitle>
-															{t('dialogs.delete.title')}
-														</DialogTitle>
-														<DialogDescription>
-															{t('dialogs.delete.description', {
-																name: location.name,
-															})}
-														</DialogDescription>
-													</DialogHeader>
-													<DialogFooter>
-														<Button
-															variant="outline"
-															onClick={() => setDeleteConfirmId(null)}
-														>
-															{tCommon('cancel')}
-														</Button>
-														<Button
-															variant="destructive"
-															onClick={() =>
-																handleDelete(location.id)
-															}
-														>
-															{tCommon('delete')}
-														</Button>
-													</DialogFooter>
-												</DialogContent>
-											</Dialog>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={locations}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				globalFilterPlaceholder={t('search.placeholder')}
+				manualPagination
+				manualFiltering
+				rowCount={totalRows}
+				emptyState={t('table.empty')}
+				isLoading={isFetching}
+			/>
 		</div>
 	);
 }

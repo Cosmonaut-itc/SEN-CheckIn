@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { ShieldCheck, UserPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { type CreateOrganizationUserInput, createOrganizationUser } from '@/actions/users';
@@ -22,19 +22,12 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import { type OrganizationMember, fetchOrganizationMembers } from '@/lib/client-functions';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 type CreateUserFormValues = Omit<CreateOrganizationUserInput, 'organizationId'>;
 
@@ -71,36 +64,29 @@ export function UsersPageClient(): React.ReactElement {
 	const { organizationId, organizationName } = useOrgContext();
 	const t = useTranslations('Users');
 	const tCommon = useTranslations('Common');
-	const [search, setSearch] = useState('');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 
 	const { data, isFetching } = useQuery({
 		queryKey: queryKeys.organizationMembers.list({
 			organizationId,
-			limit: 100,
-			offset: 0,
+			limit: pagination.pageSize,
+			offset: pagination.pageIndex * pagination.pageSize,
 		}),
 		queryFn: () =>
 			fetchOrganizationMembers({
 				organizationId,
-				limit: 100,
-				offset: 0,
+				limit: pagination.pageSize,
+				offset: pagination.pageIndex * pagination.pageSize,
 			}),
 		enabled: Boolean(organizationId),
 	});
 
 	const members = useMemo(() => data?.members ?? [], [data?.members]);
-	const filteredMembers = useMemo(
-		() =>
-			search
-				? members.filter((member) => {
-						const haystack =
-							`${member.user.name ?? ''} ${member.user.email ?? ''}`.toLowerCase();
-						return haystack.includes(search.toLowerCase());
-					})
-				: members,
-		[members, search],
-	);
+	const totalRows = data?.total ?? 0;
 
 	const form = useAppForm({
 		defaultValues: initialFormValues,
@@ -136,6 +122,72 @@ export function UsersPageClient(): React.ReactElement {
 			toast.error(t('toast.createError'));
 		},
 	});
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const columns = useMemo<ColumnDef<OrganizationMember>[]>(
+		() => [
+			{
+				id: 'member',
+				accessorFn: (row) =>
+					`${row.user.name ?? ''} ${row.user.email ?? ''}`.trim(),
+				header: t('table.headers.member'),
+				cell: ({ row }) => (
+					<div className="flex items-center gap-3">
+						<Avatar className="h-8 w-8">
+							<AvatarImage src={row.original.user.image ?? undefined} />
+							<AvatarFallback className="text-xs">
+								{getInitials(row.original.user.name || row.original.user.email)}
+							</AvatarFallback>
+						</Avatar>
+						<span className="font-medium">
+							{row.original.user.name || row.original.user.email}
+						</span>
+					</div>
+				),
+			},
+			{
+				id: 'email',
+				accessorFn: (row) => row.user.email,
+				header: t('table.headers.email'),
+				cell: ({ row }) => (
+					<span className="text-muted-foreground">{row.original.user.email}</span>
+				),
+			},
+			{
+				id: 'role',
+				accessorFn: (row) => row.role,
+				header: t('table.headers.role'),
+				cell: ({ row }) => (
+					<Badge variant={roleBadgeVariant[row.original.role] ?? 'outline'}>
+						<ShieldCheck className="mr-1 h-3 w-3" />
+						{t(`roles.${row.original.role}`)}
+					</Badge>
+				),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'joined',
+				accessorFn: (row) => new Date(row.createdAt).getTime(),
+				header: t('table.headers.joined'),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
+				enableGlobalFilter: false,
+			},
+		],
+		[t],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -250,8 +302,8 @@ export function UsersPageClient(): React.ReactElement {
 				<div className="relative flex-1 max-w-sm">
 					<Input
 						placeholder={t('search.placeholder')}
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
+						value={globalFilter}
+						onChange={(e) => handleGlobalFilterChange(e.target.value)}
 						className="pl-3"
 						disabled={isFetching}
 					/>
@@ -259,69 +311,23 @@ export function UsersPageClient(): React.ReactElement {
 				<Badge variant="outline">{t('memberCount', { count: data?.total ?? 0 })}</Badge>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.member')}</TableHead>
-							<TableHead>{t('table.headers.email')}</TableHead>
-							<TableHead>{t('table.headers.role')}</TableHead>
-							<TableHead>{t('table.headers.joined')}</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 4 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : filteredMembers.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={4} className="h-24 text-center">
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							filteredMembers.map((member: OrganizationMember) => (
-								<TableRow key={member.id}>
-									<TableCell>
-										<div className="flex items-center gap-3">
-											<Avatar className="h-8 w-8">
-												<AvatarImage src={member.user.image ?? undefined} />
-												<AvatarFallback className="text-xs">
-													{getInitials(
-														member.user.name || member.user.email,
-													)}
-												</AvatarFallback>
-											</Avatar>
-											<span className="font-medium">
-												{member.user.name || member.user.email}
-											</span>
-										</div>
-									</TableCell>
-									<TableCell className="text-muted-foreground">
-										{member.user.email}
-									</TableCell>
-									<TableCell>
-										<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
-											<ShieldCheck className="mr-1 h-3 w-3" />
-											{t(`roles.${member.role}`)}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{format(new Date(member.createdAt), t('dateFormat'))}
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={members}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				showToolbar={false}
+				manualPagination
+				rowCount={totalRows}
+				emptyState={t('table.empty')}
+				isLoading={isFetching}
+			/>
 		</div>
 	);
 }

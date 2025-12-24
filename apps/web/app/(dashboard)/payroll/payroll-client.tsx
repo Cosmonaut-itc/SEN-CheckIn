@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 
@@ -40,6 +40,7 @@ import {
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Empty,
 	EmptyDescription,
@@ -49,6 +50,7 @@ import {
 } from '@/components/ui/empty';
 import {
 	type PayrollCalculationEmployee,
+	type PayrollRun,
 	type PayrollSettings,
 	type PayrollTaxSummary,
 	calculatePayroll,
@@ -64,6 +66,7 @@ import {
 	getWeekStartDateKey,
 } from '@/lib/date-key';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
@@ -158,6 +161,7 @@ function aggregateTaxSummary(employees: PayrollCalculationEmployee[]): PayrollTa
  *
  * @param weekStartDay - Day index the week starts on
  * @param frequency - Payment frequency
+ * @param timeZone - IANA time zone used to compute the current date key
  * @returns Start and end dates for the current period
  */
 function computePeriod(
@@ -191,7 +195,6 @@ export function PayrollPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Payroll');
-	const tCommon = useTranslations('Common');
 
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
@@ -202,6 +205,13 @@ export function PayrollPageClient(): React.ReactElement {
 	const [periodEndDateKey, setPeriodEndDateKey] = useState<string>(
 		() => computePeriod(1, defaultFrequency, 'America/Mexico_City').periodEndDateKey,
 	);
+	const [runsGlobalFilter, setRunsGlobalFilter] = useState<string>('');
+	const [runsSorting, setRunsSorting] = useState<SortingState>([]);
+	const [runsPagination, setRunsPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 10,
+	});
+	const [runsColumnFilters, setRunsColumnFilters] = useState<ColumnFiltersState>([]);
 
 	const { data: settings } = useQuery<
 		PayrollSettings | null,
@@ -227,15 +237,15 @@ export function PayrollPageClient(): React.ReactElement {
 	}, [settings?.weekStartDay, payrollTimeZone, paymentFrequency]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 
-const calculationParams: PayrollCalculateParams = useMemo(
-	() => ({
-		periodStartDateKey,
-		periodEndDateKey,
-		paymentFrequency,
-		organizationId: organizationId ?? undefined,
-	}),
-	[organizationId, paymentFrequency, periodEndDateKey, periodStartDateKey],
-);
+	const calculationParams: PayrollCalculateParams = useMemo(
+		() => ({
+			periodStartDateKey,
+			periodEndDateKey,
+			paymentFrequency,
+			organizationId: organizationId ?? undefined,
+		}),
+		[organizationId, paymentFrequency, periodEndDateKey, periodStartDateKey],
+	);
 
 	const periodStartDate = useMemo(
 		() => parseDateKey(periodStartDateKey),
@@ -469,6 +479,65 @@ const calculationParams: PayrollCalculateParams = useMemo(
 		queryFn: () => fetchPayrollRuns({ organizationId: organizationId ?? undefined }),
 		enabled: Boolean(organizationId),
 	});
+	const payrollRuns = runsQuery.data ?? [];
+
+	/**
+	 * Updates the run history search and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleRunsGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setRunsGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setRunsPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const runColumns = useMemo<ColumnDef<PayrollRun>[]>(
+		() => [
+			{
+				id: 'period',
+				accessorFn: (row) => new Date(row.periodStart).getTime(),
+				header: t('runHistory.table.period'),
+				cell: ({ row }) =>
+					t('runHistory.periodRange', {
+						start: format(new Date(row.original.periodStart), t('dateFormat')),
+						end: format(new Date(row.original.periodEnd), t('dateFormat')),
+					}),
+			},
+			{
+				accessorKey: 'paymentFrequency',
+				header: t('runHistory.table.frequency'),
+				cell: ({ row }) =>
+					t(`paymentFrequency.${row.original.paymentFrequency}`),
+			},
+			{
+				accessorKey: 'status',
+				header: t('runHistory.table.status'),
+				cell: ({ row }) => t(`runStatus.${row.original.status}`),
+			},
+			{
+				accessorKey: 'totalAmount',
+				header: t('runHistory.table.total'),
+				cell: ({ row }) => formatCurrency(Number(row.original.totalAmount ?? 0)),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'processedAt',
+				accessorFn: (row) =>
+					row.processedAt ? new Date(row.processedAt).getTime() : 0,
+				header: t('runHistory.table.processed'),
+				cell: ({ row }) =>
+					row.original.processedAt
+						? format(new Date(row.original.processedAt), t('dateFormat'))
+						: '-',
+				enableGlobalFilter: false,
+			},
+		],
+		[t],
+	);
 
 	const onProcess = async (): Promise<void> => {
 		if (isInvalidPeriodRange) {
@@ -1046,7 +1115,7 @@ const calculationParams: PayrollCalculateParams = useMemo(
 									</TableBody>
 								</Table>
 							</div>
-										{effectiveCalculation.employees.some((emp) => emp.warnings.length > 0) && (
+							{effectiveCalculation.employees.some((emp) => emp.warnings.length > 0) && (
 								<div className="mt-4 rounded-md border bg-muted/50 p-3">
 									<p className="text-sm font-medium">{t('compliance.title')}</p>
 									<div className="mt-2 space-y-2 text-sm">
@@ -1131,61 +1200,20 @@ const calculationParams: PayrollCalculateParams = useMemo(
 					<CardDescription>{t('runHistory.description')}</CardDescription>
 				</CardHeader>
 				<CardContent>
-					{runsQuery.isLoading ? (
-						<div className="flex items-center gap-2 text-sm text-muted-foreground">
-							<Loader2 className="h-4 w-4 animate-spin" />
-							{tCommon('loading')}
-						</div>
-					) : runsQuery.data && runsQuery.data.length > 0 ? (
-						<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>{t('runHistory.table.period')}</TableHead>
-										<TableHead>{t('runHistory.table.frequency')}</TableHead>
-										<TableHead>{t('runHistory.table.status')}</TableHead>
-										<TableHead>{t('runHistory.table.total')}</TableHead>
-										<TableHead>{t('runHistory.table.processed')}</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{runsQuery.data.map((run) => (
-										<TableRow key={run.id}>
-											<TableCell>
-												{t('runHistory.periodRange', {
-													start: format(
-														new Date(run.periodStart),
-														t('dateFormat'),
-													),
-													end: format(
-														new Date(run.periodEnd),
-														t('dateFormat'),
-													),
-												})}
-											</TableCell>
-											<TableCell>
-												{t(`paymentFrequency.${run.paymentFrequency}`)}
-											</TableCell>
-											<TableCell>{t(`runStatus.${run.status}`)}</TableCell>
-											<TableCell>
-												{formatCurrency(Number(run.totalAmount ?? 0))}
-											</TableCell>
-											<TableCell>
-												{run.processedAt
-													? format(
-															new Date(run.processedAt),
-															t('dateFormat'),
-														)
-													: '-'}
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						</div>
-					) : (
-						<p className="text-sm text-muted-foreground">{t('runHistory.empty')}</p>
-					)}
+					<DataTable
+						columns={runColumns}
+						data={payrollRuns}
+						sorting={runsSorting}
+						onSortingChange={setRunsSorting}
+						pagination={runsPagination}
+						onPaginationChange={setRunsPagination}
+						columnFilters={runsColumnFilters}
+						onColumnFiltersChange={setRunsColumnFilters}
+						globalFilter={runsGlobalFilter}
+						onGlobalFilterChange={handleRunsGlobalFilterChange}
+						emptyState={t('runHistory.empty')}
+						isLoading={runsQuery.isLoading}
+					/>
 				</CardContent>
 			</Card>
 		</div>

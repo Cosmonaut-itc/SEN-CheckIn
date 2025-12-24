@@ -24,6 +24,25 @@
 		"search": "Buscar",
 		"submit": "Enviar"
 	},
+	"DataTable": {
+		"search": {
+			"placeholder": "Buscar en la tabla"
+		},
+		"empty": "Sin resultados.",
+		"pagination": {
+			"rowsPerPage": "Filas por pagina",
+			"page": "Pagina {current} de {total}",
+			"first": "Primera pagina",
+			"previous": "Pagina anterior",
+			"next": "Pagina siguiente",
+			"last": "Ultima pagina"
+		},
+		"sorting": {
+			"asc": "Orden ascendente",
+			"desc": "Orden descendente",
+			"none": "Sin orden"
+		}
+	},
 	"Sidebar": {
 		"main": "Principal",
 		"administration": "Administración",

@@ -29,14 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	fetchAttendancePresent,
 	fetchDashboardCounts,
@@ -45,6 +38,7 @@ import {
 } from '@/lib/client-functions';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrgContext } from '@/lib/org-client-context';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Entity count card configuration interface.
@@ -171,6 +165,125 @@ function groupPresenceByLocation(
 		const nameB = b.locationName ?? '';
 		return nameA.localeCompare(nameB, 'es');
 	});
+}
+
+/**
+ * Props for presence table rendering.
+ */
+interface PresenceTableProps {
+	/** Presence records for a location group. */
+	records: AttendancePresentRecord[];
+	/** Shared global filter value. */
+	globalFilter: string;
+	/** Global filter update handler. */
+	onGlobalFilterChange: React.Dispatch<React.SetStateAction<string>>;
+}
+
+/**
+ * Renders the presence table for a location group.
+ *
+ * @param props - Presence table props.
+ * @returns Rendered presence table.
+ */
+function PresenceTable({
+	records,
+	globalFilter,
+	onGlobalFilterChange,
+}: PresenceTableProps): React.ReactElement {
+	const t = useTranslations('Dashboard');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({
+		pageIndex: 0,
+		pageSize: 5,
+	});
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+
+	const columns = useMemo<ColumnDef<AttendancePresentRecord>[]>(
+		() => [
+			{
+				id: 'employee',
+				accessorFn: (row) => row.employeeName ?? row.employeeCode,
+				header: t('presence.table.headers.employee'),
+				cell: ({ row }) => {
+					const displayName = row.original.employeeName || row.original.employeeCode;
+					const initials = getEmployeeInitials(displayName);
+					return (
+						<div className="flex items-center gap-3">
+							<Avatar className="h-8 w-8">
+								<AvatarFallback>
+									{initials || t('presence.table.fallbackInitials')}
+								</AvatarFallback>
+							</Avatar>
+							<span className="text-sm font-medium">{displayName}</span>
+						</div>
+					);
+				},
+			},
+			{
+				accessorKey: 'employeeCode',
+				header: t('presence.table.headers.code'),
+				cell: ({ row }) => (
+					<span className="font-mono text-xs">{row.original.employeeCode}</span>
+				),
+			},
+			{
+				id: 'checkInTime',
+				accessorFn: (row) => new Date(row.checkedInAt).getTime(),
+				header: t('presence.table.headers.checkInTime'),
+				cell: ({ row }) =>
+					format(new Date(row.original.checkedInAt), t('presence.timeFormat')),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'timeAgo',
+				accessorFn: (row) => new Date(row.checkedInAt).getTime(),
+				header: t('presence.table.headers.timeAgo'),
+				cell: ({ row }) => {
+					const checkedInAt = new Date(row.original.checkedInAt);
+					const relativeTime = formatDistanceToNowStrict(checkedInAt, {
+						addSuffix: false,
+						locale: es,
+					});
+					return (
+						<span className="text-sm text-muted-foreground">
+							{t('presence.table.timeAgo', {
+								time: relativeTime,
+							})}
+						</span>
+					);
+				},
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'deviceId',
+				header: t('presence.table.headers.device'),
+				cell: ({ row }) => (
+					<span className="font-mono text-xs">
+						{row.original.deviceId.substring(0, 8)}...
+					</span>
+				),
+			},
+		],
+		[t],
+	);
+
+	return (
+		<DataTable
+			columns={columns}
+			data={records}
+			sorting={sorting}
+			onSortingChange={setSorting}
+			pagination={pagination}
+			onPaginationChange={setPagination}
+			columnFilters={columnFilters}
+			onColumnFiltersChange={setColumnFilters}
+			globalFilter={globalFilter}
+			onGlobalFilterChange={onGlobalFilterChange}
+			showToolbar={false}
+			emptyState={t('presence.emptyLocation')}
+			pageSizeOptions={[5, 10, 20]}
+		/>
+	);
 }
 
 /**
@@ -374,95 +487,11 @@ export function DashboardPageClient(): React.ReactElement {
 											</div>
 										</AccordionTrigger>
 										<AccordionContent>
-											<div className="rounded-md border">
-												<Table>
-													<TableHeader>
-														<TableRow>
-															<TableHead>
-																{t('presence.table.headers.employee')}
-															</TableHead>
-															<TableHead>
-																{t('presence.table.headers.code')}
-															</TableHead>
-															<TableHead>
-																{t('presence.table.headers.checkInTime')}
-															</TableHead>
-															<TableHead>
-																{t('presence.table.headers.timeAgo')}
-															</TableHead>
-															<TableHead>
-																{t('presence.table.headers.device')}
-															</TableHead>
-														</TableRow>
-													</TableHeader>
-													<TableBody>
-														{group.records.length === 0 ? (
-															<TableRow>
-																<TableCell
-																	colSpan={5}
-																	className="h-20 text-center text-sm text-muted-foreground"
-																>
-																	{t('presence.emptyLocation')}
-																</TableCell>
-															</TableRow>
-														) : (
-															group.records.map((record) => {
-																const checkedInAt = new Date(
-																	record.checkedInAt,
-																);
-																const displayName =
-																	record.employeeName ||
-																	record.employeeCode;
-																const initials =
-																	getEmployeeInitials(displayName);
-																const relativeTime = formatDistanceToNowStrict(
-																	checkedInAt,
-																	{
-																		addSuffix: false,
-																		locale: es,
-																	},
-																);
-																return (
-																	<TableRow key={record.employeeId}>
-																		<TableCell>
-																			<div className="flex items-center gap-3">
-																				<Avatar className="h-8 w-8">
-																					<AvatarFallback>
-																						{initials ||
-																							t(
-																								'presence.table.fallbackInitials',
-																							)}
-																					</AvatarFallback>
-																				</Avatar>
-																				<span className="text-sm font-medium">
-																					{displayName}
-																				</span>
-																			</div>
-																		</TableCell>
-																		<TableCell className="font-mono text-xs">
-																			{record.employeeCode}
-																		</TableCell>
-																		<TableCell className="text-sm">
-																			{format(
-																				checkedInAt,
-																				t('presence.timeFormat'),
-																			)}
-																		</TableCell>
-																		<TableCell className="text-sm text-muted-foreground">
-																			{t('presence.table.timeAgo', {
-																				time: relativeTime,
-																			})}
-																		</TableCell>
-																		<TableCell className="font-mono text-xs">
-																			{record.deviceId.substring(0, 8)}...
-																		</TableCell>
-																	</TableRow>
-																);
-															})
-														)}
-													</TableBody>
-												</Table>
-											</div>
+											<PresenceTable
+												records={group.records}
+												globalFilter={presenceSearch}
+												onGlobalFilterChange={setPresenceSearch}
+											/>
 										</AccordionContent>
 									</AccordionItem>
 								);

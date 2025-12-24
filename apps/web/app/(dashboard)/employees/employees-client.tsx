@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm, useStore } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
 import {
@@ -38,12 +39,15 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import {
 	Plus,
 	Pencil,
+	Eye,
+	HelpCircle,
 	Trash2,
 	Search,
 	Loader2,
@@ -53,12 +57,15 @@ import {
 	ScanFace,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import {
 	fetchEmployeesList,
 	fetchJobPositionsList,
 	fetchLocationsList,
 	fetchEmployeeById,
+	fetchEmployeeAudit,
+	fetchEmployeeInsights,
 	fetchOrganizationMembers,
 	type Employee,
 	type EmployeeScheduleEntry,
@@ -144,6 +151,8 @@ const ALL_FILTER_VALUE = '__all__';
 
 type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 
+type EmployeeDialogMode = 'create' | 'view' | 'edit';
+
 /**
  * Generates a default Monday-Friday schedule 09:00-17:00.
  *
@@ -156,6 +165,26 @@ function createDefaultSchedule(): EmployeeScheduleEntry[] {
 		endTime: '17:00',
 		isWorkingDay: day.value >= 1 && day.value <= 5,
 	}));
+}
+
+/**
+ * Parses a date key into a UTC Date instance.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Date instance at UTC midnight
+ */
+function toUtcDate(dateKey: string): Date {
+	return new Date(`${dateKey}T00:00:00Z`);
+}
+
+/**
+ * Formats a numeric value as MXN currency.
+ *
+ * @param value - Amount in MXN
+ * @returns Localized currency string
+ */
+function formatCurrency(value: number): string {
+	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
 }
 
 /**
@@ -181,12 +210,14 @@ export function EmployeesPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
+	const tVacations = useTranslations('Vacations');
 	const [search, setSearch] = useState<string>('');
 	const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER_VALUE);
 	const [jobPositionFilter, setJobPositionFilter] = useState<string>(ALL_FILTER_VALUE);
 	const [statusFilter, setStatusFilter] = useState<StatusFilterValue>(ALL_FILTER_VALUE);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
-	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+	const [dialogMode, setDialogMode] = useState<EmployeeDialogMode>('create');
+	const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
@@ -196,6 +227,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [hasCustomCode, setHasCustomCode] = useState<boolean>(false);
 	const [schedule, setSchedule] = useState<EmployeeScheduleEntry[]>(createDefaultSchedule());
 	const [isScheduleLoading, setIsScheduleLoading] = useState<boolean>(false);
+
+	const isCreateMode = dialogMode === 'create';
+	const isEditMode = dialogMode === 'edit';
+	const isViewMode = dialogMode === 'view';
 
 	// Build query params - only include search if it has a value
 	const baseParams = { limit: 100, offset: 0, organizationId };
@@ -270,6 +305,27 @@ export function EmployeesPageClient(): React.ReactElement {
 	const locations: Location[] = locationsData?.data ?? EMPTY_LOCATIONS;
 	const members: OrganizationMember[] = membersData?.members ?? EMPTY_MEMBERS;
 
+	const insightsEnabled = Boolean(activeEmployee?.id) && isDialogOpen && !isCreateMode;
+	const { data: insights, isLoading: isLoadingInsights } = useQuery({
+		queryKey: queryKeys.employees.insights(activeEmployee?.id ?? ''),
+		queryFn: () => fetchEmployeeInsights(activeEmployee?.id ?? ''),
+		enabled: insightsEnabled,
+	});
+
+	const auditParams = useMemo(
+		() => ({
+			employeeId: activeEmployee?.id ?? '',
+			limit: 20,
+			offset: 0,
+		}),
+		[activeEmployee?.id],
+	);
+	const { data: auditResponse, isLoading: isLoadingAudit } = useQuery({
+		queryKey: queryKeys.employees.audit(auditParams),
+		queryFn: () => fetchEmployeeAudit(auditParams),
+		enabled: Boolean(activeEmployee?.id) && isDialogOpen && isViewMode,
+	});
+
 	const memberOptions = useMemo(() => {
 		const options = members.map((member) => ({
 			value: member.userId,
@@ -289,6 +345,20 @@ export function EmployeesPageClient(): React.ReactElement {
 			locations.map((loc) => [loc.id, loc.name || loc.code]),
 		);
 	}, [locations]);
+
+	const activeEmployeeName = useMemo(() => {
+		if (!activeEmployee) {
+			return '';
+		}
+		return `${activeEmployee.firstName} ${activeEmployee.lastName}`.trim();
+	}, [activeEmployee]);
+
+	const activeEmployeeLocation = useMemo(() => {
+		if (!activeEmployee?.locationId) {
+			return tCommon('notAvailable');
+		}
+		return locationLookup.get(activeEmployee.locationId) ?? activeEmployee.locationId;
+	}, [activeEmployee, locationLookup, tCommon]);
 
 	const locationFilterOptions = useMemo(
 		(): { value: string; label: string }[] => [
@@ -319,6 +389,37 @@ export function EmployeesPageClient(): React.ReactElement {
 			{ value: 'INACTIVE', label: t('status.INACTIVE') },
 			{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
 		],
+		[t],
+	);
+
+	const vacationBalance = insights?.vacation.balance ?? null;
+	const vacationRequests = insights?.vacation.requests ?? [];
+	const attendanceSummary = insights?.attendance ?? null;
+	const leaveItems = insights?.leaves.items ?? [];
+	const upcomingExceptions = insights?.exceptions.items ?? [];
+	const payrollRuns = insights?.payroll.runs ?? [];
+	const auditEvents = auditResponse?.data ?? [];
+
+	const auditFieldLabels = useMemo<Record<string, string>>(
+		() => ({
+			code: t('fields.code'),
+			firstName: t('fields.firstName'),
+			lastName: t('fields.lastName'),
+			email: t('fields.email'),
+			phone: t('fields.phone'),
+			jobPositionId: t('fields.jobPosition'),
+			department: t('fields.department'),
+			status: t('fields.status'),
+			shiftType: t('fields.shiftType'),
+			hireDate: t('fields.hireDate'),
+			sbcDailyOverride: t('fields.sbcDailyOverride'),
+			locationId: t('fields.location'),
+			scheduleTemplateId: t('details.scheduleTemplate'),
+			userId: t('fields.user'),
+			lastPayrollDate: t('details.lastPayrollDate'),
+			rekognitionUserId: t('details.faceEnrollment'),
+			schedule: t('details.schedule'),
+		}),
 		[t],
 	);
 
@@ -418,13 +519,12 @@ export function EmployeesPageClient(): React.ReactElement {
 				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
 			const normalizedUserIdForUpdate =
 				value.userId === 'none' ? null : value.userId?.trim() || null;
-			const currentUserId = editingEmployee?.userId ?? null;
+			const currentUserId = activeEmployee?.userId ?? null;
 			const resolvedUserIdForUpdate =
 				normalizedUserIdForUpdate === currentUserId ? undefined : normalizedUserIdForUpdate;
-			if (editingEmployee) {
+			if (isEditMode && activeEmployee) {
 				await updateMutation.mutateAsync({
-					id: editingEmployee.id,
-					code: value.code,
+					id: activeEmployee.id,
 					firstName: value.firstName,
 					lastName: value.lastName,
 					email: value.email || undefined,
@@ -434,12 +534,11 @@ export function EmployeesPageClient(): React.ReactElement {
 					locationId: value.locationId,
 					department: value.department || undefined,
 					status: value.status,
-					hireDate: trimmedHireDate === '' ? null : trimmedHireDate,
 					sbcDailyOverride: parsedSbcOverride,
 					shiftType: value.shiftType,
 					schedule,
 				});
-			} else {
+			} else if (isCreateMode) {
 				// Validate that jobPositionId is selected for new employees
 				if (!value.jobPositionId) {
 					toast.error(t('toast.selectJobPosition'));
@@ -463,7 +562,8 @@ export function EmployeesPageClient(): React.ReactElement {
 				});
 			}
 			setIsDialogOpen(false);
-			setEditingEmployee(null);
+			setDialogMode('create');
+			setActiveEmployee(null);
 			form.reset();
 		},
 	});
@@ -483,13 +583,13 @@ export function EmployeesPageClient(): React.ReactElement {
 	};
 
 	useEffect(() => {
-		if (editingEmployee) return;
+		if (!isCreateMode) return;
 		if (hasCustomCode) return;
 		// Only auto-generate when the code field is empty to avoid update loops
 		if (codeValue.trim() !== '') return;
 		const generated = generateEmployeeCode(firstName, lastName);
 		form.setFieldValue('code', generated);
-	}, [editingEmployee, hasCustomCode, firstName, lastName, codeValue, form]);
+	}, [isCreateMode, hasCustomCode, firstName, lastName, codeValue, form]);
 
 	/**
 	 * Upserts a schedule entry for a specific day.
@@ -525,12 +625,24 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * Opens the dialog for creating a new employee.
 	 */
 	const handleCreateNew = useCallback((): void => {
-		setEditingEmployee(null);
+		setDialogMode('create');
+		setActiveEmployee(null);
 		form.reset();
 		setHasCustomCode(false);
 		setSchedule(createDefaultSchedule());
 		setIsDialogOpen(true);
 	}, [form]);
+
+	/**
+	 * Opens the dialog for viewing employee details.
+	 *
+	 * @param employee - The employee to view
+	 */
+	const handleViewDetails = useCallback((employee: Employee): void => {
+		setActiveEmployee(employee);
+		setDialogMode('view');
+		setIsDialogOpen(true);
+	}, []);
 
 	/**
 	 * Opens the dialog for editing an existing employee.
@@ -540,7 +652,8 @@ export function EmployeesPageClient(): React.ReactElement {
 	const handleEdit = useCallback(
 		async (employee: Employee): Promise<void> => {
 			setIsScheduleLoading(true);
-			setEditingEmployee(employee);
+			setActiveEmployee(employee);
+			setDialogMode('edit');
 			form.setFieldValue('code', employee.code);
 			form.setFieldValue('firstName', employee.firstName);
 			form.setFieldValue('lastName', employee.lastName);
@@ -582,6 +695,16 @@ export function EmployeesPageClient(): React.ReactElement {
 	);
 
 	/**
+	 * Switches the dialog from view to edit mode.
+	 */
+	const handleEditFromDetails = useCallback((): void => {
+		if (!activeEmployee) {
+			return;
+		}
+		void handleEdit(activeEmployee);
+	}, [activeEmployee, handleEdit]);
+
+	/**
 	 * Handles dialog close and resets form state.
 	 *
 	 * @param open - Whether the dialog should be open
@@ -590,7 +713,8 @@ export function EmployeesPageClient(): React.ReactElement {
 		(open: boolean): void => {
 			setIsDialogOpen(open);
 			if (!open) {
-				setEditingEmployee(null);
+				setDialogMode('create');
+				setActiveEmployee(null);
 				form.reset();
 				setHasCustomCode(false);
 				setSchedule(createDefaultSchedule());
@@ -651,25 +775,774 @@ export function EmployeesPageClient(): React.ReactElement {
 						</Button>
 					</DialogTrigger>
 					<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl lg:max-w-6xl">
-						<form
-							onSubmit={(e) => {
-								e.preventDefault();
-								e.stopPropagation();
-								form.handleSubmit();
-							}}
-						>
-							<DialogHeader>
-								<DialogTitle>
-									{editingEmployee
+						<DialogHeader>
+							<DialogTitle>
+								{isCreateMode
+									? t('dialog.title.add')
+									: isEditMode
 										? t('dialog.title.edit')
-										: t('dialog.title.add')}
-								</DialogTitle>
-								<DialogDescription>
-									{editingEmployee
+										: t('dialog.title.view')}
+							</DialogTitle>
+							<DialogDescription>
+								{isCreateMode
+									? t('dialog.description.add')
+									: isEditMode
 										? t('dialog.description.edit')
-										: t('dialog.description.add')}
-								</DialogDescription>
-							</DialogHeader>
+										: t('dialog.description.view')}
+							</DialogDescription>
+						</DialogHeader>
+						{isViewMode ? (
+							<div className="space-y-6 py-4">
+								<div className="rounded-md border p-4">
+									<div className="flex flex-wrap items-start justify-between gap-4">
+										<div className="space-y-1">
+											<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+												{t('details.header')}
+											</p>
+											<div className="flex flex-wrap items-center gap-2">
+												<h2 className="text-xl font-semibold">
+													{activeEmployeeName || tCommon('notAvailable')}
+												</h2>
+												{activeEmployee?.status && (
+													<Badge
+														variant={
+															statusVariants[
+																activeEmployee.status
+															]
+														}
+													>
+														{t(
+															`status.${activeEmployee.status}`,
+														)}
+													</Badge>
+												)}
+											</div>
+											<p className="text-sm text-muted-foreground">
+												{t('details.codeLabel')}{' '}
+												<span className="font-medium text-foreground">
+													{activeEmployee?.code ??
+														tCommon('notAvailable')}
+												</span>
+											</p>
+										</div>
+										<Button variant="outline" onClick={handleEditFromDetails}>
+											<Pencil className="mr-2 h-4 w-4" />
+											{tCommon('edit')}
+										</Button>
+									</div>
+									<div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.location')}
+											</p>
+											<p className="font-medium">
+												{activeEmployeeLocation}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.jobPosition')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.jobPositionName ??
+													tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.hireDate')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.hireDate
+													? format(
+															new Date(activeEmployee.hireDate),
+															t('dateFormat'),
+														)
+													: tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.shiftType')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.shiftType
+													? t(
+															`shiftTypeLabels.${activeEmployee.shiftType}`,
+														)
+													: tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.email')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.email ?? tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.phone')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.phone ?? tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.department')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.department ??
+													tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.user')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.userId ??
+													t('placeholders.noUser')}
+											</p>
+										</div>
+									</div>
+								</div>
+
+								<Tabs defaultValue="summary" className="w-full">
+									<TabsList className="flex flex-wrap">
+										<TabsTrigger value="summary">
+											{t('tabs.summary')}
+										</TabsTrigger>
+										<TabsTrigger value="attendance">
+											{t('tabs.attendance')}
+										</TabsTrigger>
+										<TabsTrigger value="vacations">
+											{t('tabs.vacations')}
+										</TabsTrigger>
+										<TabsTrigger value="payroll">
+											{t('tabs.payroll')}
+										</TabsTrigger>
+										<TabsTrigger value="exceptions">
+											{t('tabs.exceptions')}
+										</TabsTrigger>
+										<TabsTrigger value="audit">
+											{t('tabs.audit')}
+										</TabsTrigger>
+									</TabsList>
+
+									<TabsContent value="summary">
+										<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+											<Card>
+												<CardHeader className="flex-row items-center justify-between space-y-0">
+													<CardTitle className="text-sm font-medium">
+														{vacationBalance ? (
+															<TooltipProvider>
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<span className="inline-flex items-center gap-1">
+																			{t('summary.availableDays')}
+																			<HelpCircle className="h-4 w-4 text-muted-foreground" />
+																		</span>
+																	</TooltipTrigger>
+																	<TooltipContent className="max-w-xs">
+																		<div className="space-y-1 text-sm">
+																			<p className="font-medium">
+																				{t('vacationBalance.tooltip.title')}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.formula')}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.entitled', {
+																					value: vacationBalance.entitledDays,
+																				})}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.used', {
+																					value: vacationBalance.usedDays,
+																				})}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.pending', {
+																					value: vacationBalance.pendingDays,
+																				})}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.available', {
+																					value: vacationBalance.availableDays,
+																				})}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.serviceYear', {
+																					number: vacationBalance.serviceYearNumber,
+																					start:
+																						vacationBalance.serviceYearStartDateKey ??
+																						tCommon('notAvailable'),
+																					end:
+																						vacationBalance.serviceYearEndDateKey ??
+																						tCommon('notAvailable'),
+																				})}
+																			</p>
+																			<p>
+																				{t('vacationBalance.tooltip.asOf', {
+																					date: vacationBalance.asOfDateKey,
+																				})}
+																			</p>
+																		</div>
+																	</TooltipContent>
+																</Tooltip>
+															</TooltipProvider>
+														) : (
+															t('summary.availableDays')
+														)}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<Skeleton className="h-7 w-20" />
+													) : vacationBalance ? (
+														<div className="text-2xl font-semibold">
+															{vacationBalance.availableDays}
+														</div>
+													) : (
+														<div className="text-sm text-muted-foreground">
+															{tCommon('notAvailable')}
+														</div>
+													)}
+													{vacationBalance && !isLoadingInsights && (
+														<p className="text-xs text-muted-foreground">
+															{t('summary.serviceYearShort', {
+																number: vacationBalance.serviceYearNumber,
+															})}
+														</p>
+													)}
+												</CardContent>
+											</Card>
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('summary.absences')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<Skeleton className="h-7 w-20" />
+													) : attendanceSummary ? (
+														<div className="text-2xl font-semibold">
+															{attendanceSummary.totalAbsentDays}
+														</div>
+													) : (
+														<div className="text-sm text-muted-foreground">
+															{tCommon('notAvailable')}
+														</div>
+													)}
+													<p className="text-xs text-muted-foreground">
+														{t('summary.last90Days')}
+													</p>
+												</CardContent>
+											</Card>
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('summary.leaves')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<Skeleton className="h-7 w-20" />
+													) : (
+														<div className="text-2xl font-semibold">
+															{leaveItems.length}
+														</div>
+													)}
+													<p className="text-xs text-muted-foreground">
+														{t('summary.last90Days')}
+													</p>
+												</CardContent>
+											</Card>
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('summary.payrollRuns')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<Skeleton className="h-7 w-20" />
+													) : (
+														<div className="text-2xl font-semibold">
+															{payrollRuns.length}
+														</div>
+													)}
+													<p className="text-xs text-muted-foreground">
+														{t('summary.lastPayrollRuns')}
+													</p>
+												</CardContent>
+											</Card>
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('summary.upcomingExceptions')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<Skeleton className="h-7 w-20" />
+													) : (
+														<div className="text-2xl font-semibold">
+															{upcomingExceptions.length}
+														</div>
+													)}
+													<p className="text-xs text-muted-foreground">
+														{t('summary.next90Days')}
+													</p>
+												</CardContent>
+											</Card>
+										</div>
+									</TabsContent>
+
+									<TabsContent value="attendance">
+										<div className="grid gap-4 lg:grid-cols-2">
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('attendance.absencesTitle')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<div className="space-y-2">
+															<Skeleton className="h-4 w-32" />
+															<Skeleton className="h-4 w-24" />
+															<Skeleton className="h-4 w-28" />
+														</div>
+													) : attendanceSummary &&
+													  attendanceSummary.absentDateKeys.length > 0 ? (
+														<ul className="space-y-2 text-sm">
+															{attendanceSummary.absentDateKeys.map(
+																(dateKey) => (
+																	<li
+																		key={dateKey}
+																		className="flex items-center justify-between"
+																	>
+																		<span className="font-medium">
+																			{formatShortDateUtc(
+																				toUtcDate(dateKey),
+																			)}
+																		</span>
+																		<span className="text-xs text-muted-foreground">
+																			{dateKey}
+																		</span>
+																	</li>
+																),
+															)}
+														</ul>
+													) : (
+														<p className="text-sm text-muted-foreground">
+															{t('attendance.emptyAbsences')}
+														</p>
+													)}
+												</CardContent>
+											</Card>
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('attendance.leavesTitle')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<div className="space-y-2">
+															<Skeleton className="h-4 w-32" />
+															<Skeleton className="h-4 w-24" />
+															<Skeleton className="h-4 w-28" />
+														</div>
+													) : leaveItems.length > 0 ? (
+														<ul className="space-y-2 text-sm">
+															{leaveItems.map((item) => (
+																<li
+																	key={item.id}
+																	className="flex flex-col gap-1"
+																>
+																	<span className="font-medium">
+																		{formatShortDateUtc(
+																			toUtcDate(item.dateKey),
+																		)}
+																	</span>
+																	<span className="text-xs text-muted-foreground">
+																		{item.reason ??
+																			t('attendance.noReason')}
+																	</span>
+																</li>
+															))}
+														</ul>
+													) : (
+														<p className="text-sm text-muted-foreground">
+															{t('attendance.emptyLeaves')}
+														</p>
+													)}
+												</CardContent>
+											</Card>
+										</div>
+									</TabsContent>
+
+									<TabsContent value="vacations">
+										<div className="space-y-4">
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('vacations.balanceTitle')}
+													</CardTitle>
+												</CardHeader>
+												<CardContent>
+													{isLoadingInsights ? (
+														<div className="space-y-2">
+															<Skeleton className="h-4 w-32" />
+															<Skeleton className="h-4 w-24" />
+														</div>
+													) : vacationBalance ? (
+														<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+															<div className="space-y-1">
+																<p className="text-xs text-muted-foreground">
+																	{t('vacations.balance.entitled')}
+																</p>
+																<p className="text-lg font-semibold">
+																	{vacationBalance.entitledDays}
+																</p>
+															</div>
+															<div className="space-y-1">
+																<p className="text-xs text-muted-foreground">
+																	{t('vacations.balance.used')}
+																</p>
+																<p className="text-lg font-semibold">
+																	{vacationBalance.usedDays}
+																</p>
+															</div>
+															<div className="space-y-1">
+																<p className="text-xs text-muted-foreground">
+																	{t('vacations.balance.pending')}
+																</p>
+																<p className="text-lg font-semibold">
+																	{vacationBalance.pendingDays}
+																</p>
+															</div>
+															<div className="space-y-1">
+																<p className="text-xs text-muted-foreground">
+																	{t('vacations.balance.available')}
+																</p>
+																<p className="text-lg font-semibold">
+																	{vacationBalance.availableDays}
+																</p>
+															</div>
+														</div>
+													) : (
+														<p className="text-sm text-muted-foreground">
+															{t('vacations.balanceUnavailable')}
+														</p>
+													)}
+												</CardContent>
+											</Card>
+
+											<div className="rounded-md border">
+												<Table>
+													<TableHeader>
+														<TableRow>
+															<TableHead>
+																{t('vacations.table.headers.period')}
+															</TableHead>
+															<TableHead>
+																{t('vacations.table.headers.days')}
+															</TableHead>
+															<TableHead>
+																{t('vacations.table.headers.status')}
+															</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														{isLoadingInsights ? (
+															Array.from({ length: 3 }).map(
+																(_, index) => (
+																	<TableRow key={index}>
+																		<TableCell>
+																			<Skeleton className="h-4 w-24" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-20" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-16" />
+																		</TableCell>
+																	</TableRow>
+																),
+															)
+														) : vacationRequests.length === 0 ? (
+															<TableRow>
+																<TableCell colSpan={3} className="h-20 text-center">
+																	{t('vacations.table.empty')}
+																</TableCell>
+															</TableRow>
+														) : (
+															vacationRequests.map((request) => (
+																<TableRow key={request.id}>
+																	<TableCell>
+																		{formatDateRangeUtc(
+																			toUtcDate(
+																				request.startDateKey,
+																			),
+																			toUtcDate(
+																				request.endDateKey,
+																			),
+																		)}
+																	</TableCell>
+																	<TableCell>
+																		{tVacations('table.daysSummary', {
+																			vacation: request.vacationDays,
+																			total: request.totalDays,
+																		})}
+																	</TableCell>
+																	<TableCell>
+																		<Badge variant="outline">
+																			{tVacations(
+																				`status.${request.status}`,
+																			)}
+																		</Badge>
+																	</TableCell>
+																</TableRow>
+															))
+														)}
+													</TableBody>
+												</Table>
+											</div>
+										</div>
+									</TabsContent>
+
+									<TabsContent value="payroll">
+										<div className="rounded-md border">
+											<Table>
+												<TableHeader>
+													<TableRow>
+														<TableHead>
+															{t('payroll.table.headers.period')}
+														</TableHead>
+														<TableHead>
+															{t('payroll.table.headers.total')}
+														</TableHead>
+														<TableHead>
+															{t('payroll.table.headers.status')}
+														</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{isLoadingInsights ? (
+														Array.from({ length: 3 }).map((_, index) => (
+															<TableRow key={index}>
+																<TableCell>
+																	<Skeleton className="h-4 w-24" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-20" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-16" />
+																</TableCell>
+															</TableRow>
+														))
+													) : payrollRuns.length === 0 ? (
+														<TableRow>
+															<TableCell colSpan={3} className="h-20 text-center">
+																{t('payroll.table.empty')}
+															</TableCell>
+														</TableRow>
+													) : (
+														payrollRuns.map((run) => (
+															<TableRow key={run.payrollRunId}>
+																<TableCell>
+																	{formatDateRangeUtc(
+																		new Date(run.periodStart),
+																		new Date(run.periodEnd),
+																	)}
+																</TableCell>
+																<TableCell>
+																	{formatCurrency(run.totalPay)}
+																</TableCell>
+																<TableCell>
+																	<Badge variant="outline">
+																		{t(
+																			`payroll.status.${run.status}`,
+																		)}
+																	</Badge>
+																</TableCell>
+															</TableRow>
+														))
+													)}
+												</TableBody>
+											</Table>
+										</div>
+									</TabsContent>
+
+									<TabsContent value="exceptions">
+										<div className="rounded-md border">
+											<Table>
+												<TableHeader>
+													<TableRow>
+														<TableHead>
+															{t('exceptions.table.headers.date')}
+														</TableHead>
+														<TableHead>
+															{t('exceptions.table.headers.type')}
+														</TableHead>
+														<TableHead>
+															{t('exceptions.table.headers.reason')}
+														</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{isLoadingInsights ? (
+														Array.from({ length: 3 }).map((_, index) => (
+															<TableRow key={index}>
+																<TableCell>
+																	<Skeleton className="h-4 w-24" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-20" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-28" />
+																</TableCell>
+															</TableRow>
+														))
+													) : upcomingExceptions.length === 0 ? (
+														<TableRow>
+															<TableCell colSpan={3} className="h-20 text-center">
+																{t('exceptions.table.empty')}
+															</TableCell>
+														</TableRow>
+													) : (
+														upcomingExceptions.map((item) => (
+															<TableRow key={item.id}>
+																<TableCell>
+																	{formatShortDateUtc(
+																		toUtcDate(item.dateKey),
+																	)}
+																</TableCell>
+																<TableCell>
+																	{t(
+																		`exceptionTypes.${item.exceptionType}`,
+																	)}
+																</TableCell>
+																<TableCell>
+																	{item.reason ?? tCommon('notAvailable')}
+																</TableCell>
+															</TableRow>
+														))
+													)}
+												</TableBody>
+											</Table>
+										</div>
+									</TabsContent>
+
+									<TabsContent value="audit">
+										<div className="rounded-md border">
+											<Table>
+												<TableHeader>
+													<TableRow>
+														<TableHead>
+															{t('audit.table.headers.date')}
+														</TableHead>
+														<TableHead>
+															{t('audit.table.headers.action')}
+														</TableHead>
+														<TableHead>
+															{t('audit.table.headers.actor')}
+														</TableHead>
+														<TableHead>
+															{t('audit.table.headers.fields')}
+														</TableHead>
+													</TableRow>
+												</TableHeader>
+												<TableBody>
+													{isLoadingAudit ? (
+														Array.from({ length: 3 }).map((_, index) => (
+															<TableRow key={index}>
+																<TableCell>
+																	<Skeleton className="h-4 w-24" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-24" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-28" />
+																</TableCell>
+																<TableCell>
+																	<Skeleton className="h-4 w-32" />
+																</TableCell>
+															</TableRow>
+														))
+													) : auditEvents.length === 0 ? (
+														<TableRow>
+															<TableCell colSpan={4} className="h-20 text-center">
+																{t('audit.table.empty')}
+															</TableCell>
+														</TableRow>
+													) : (
+														auditEvents.map((event) => {
+															const actorLabel = event.actorName ??
+																event.actorEmail ??
+																event.actorUserId;
+															const actorTypeLabel = t(
+																`audit.actorTypes.${event.actorType}`,
+															);
+															const fieldsLabel =
+																event.changedFields &&
+																event.changedFields.length > 0
+																	? event.changedFields
+																			.map(
+																				(field) =>
+																					auditFieldLabels[field] ??
+																					t('audit.fields.unknown', {
+																						field,
+																					}),
+																			)
+																			.join(', ')
+																	: t('audit.fields.none');
+
+															return (
+																<TableRow key={event.id}>
+																	<TableCell>
+																		{format(
+																			new Date(event.createdAt),
+																			t('dateFormat'),
+																		)}
+																	</TableCell>
+																	<TableCell>
+																		{t(`audit.actions.${event.action}`)}
+																	</TableCell>
+																	<TableCell>
+																		{actorLabel
+																			? `${actorTypeLabel} - ${actorLabel}`
+																			: actorTypeLabel}
+																	</TableCell>
+																	<TableCell>{fieldsLabel}</TableCell>
+																</TableRow>
+															);
+														})
+													)}
+												</TableBody>
+											</Table>
+										</div>
+									</TabsContent>
+								</Tabs>
+							</div>
+						) : (
+							<form
+								onSubmit={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									form.handleSubmit();
+								}}
+							>
 							<div className="grid gap-4 py-4 sm:grid-cols-2">
 								<div className="col-span-2 sm:col-span-1">
 									<form.AppField
@@ -688,6 +1561,7 @@ export function EmployeesPageClient(): React.ReactElement {
 													setHasCustomCode(true);
 													return next;
 												}}
+												disabled={isEditMode}
 											/>
 										)}
 									</form.AppField>
@@ -791,7 +1665,7 @@ export function EmployeesPageClient(): React.ReactElement {
 										name="jobPositionId"
 										validators={{
 											onChange: ({ value }) =>
-												!editingEmployee && !value
+												isCreateMode && !value
 													? t('validation.jobPositionRequired')
 													: undefined,
 										}}
@@ -864,6 +1738,7 @@ export function EmployeesPageClient(): React.ReactElement {
 											<field.DateField
 												label={t('fields.hireDate')}
 												placeholder={t('placeholders.hireDate')}
+												disabled={isEditMode}
 											/>
 										)}
 									</form.AppField>
@@ -986,7 +1861,8 @@ export function EmployeesPageClient(): React.ReactElement {
 									/>
 								</form.AppForm>
 							</DialogFooter>
-						</form>
+							</form>
+						)}
 					</DialogContent>
 				</Dialog>
 			</div>
@@ -1167,10 +2043,10 @@ export function EmployeesPageClient(): React.ReactElement {
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end">
 												<DropdownMenuItem
-													onClick={() => handleEdit(employee)}
+													onClick={() => handleViewDetails(employee)}
 												>
-													<Pencil className="mr-2 h-4 w-4" />
-													{tCommon('edit')}
+													<Eye className="mr-2 h-4 w-4" />
+													{t('menu.viewDetails')}
 												</DropdownMenuItem>
 												<DropdownMenuItem
 													onClick={() => handleOpenEnrollDialog(employee)}

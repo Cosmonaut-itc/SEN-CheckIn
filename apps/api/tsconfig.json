@@ -1,7 +1,12 @@
 {
 	"extends": "../../packages/typescript-config/elysia.json",
 	"compilerOptions": {
+		"baseUrl": ".",
 		"module": "NodeNext",
+		"paths": {
+			"@sen-checkin/types": ["../../packages/types/src/index.ts"],
+			"@sen-checkin/types/*": ["../../packages/types/src/*"]
+		},
 		"types": ["bun-types"],
 		"outDir": "./dist"
 	},

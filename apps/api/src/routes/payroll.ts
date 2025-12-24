@@ -30,6 +30,13 @@ import {
 	type AttendanceRow,
 	type PayrollCalculationRow,
 } from '../services/payroll-calculation.js';
+import {
+	buildEmployeeAuditSnapshot,
+	createEmployeeAuditEvent,
+	getEmployeeAuditChangedFields,
+	resolveEmployeeAuditActor,
+	setEmployeeAuditSkip,
+} from '../services/employee-audit.js';
 
 /**
  * Calculates payroll for employees within the organization and period.
@@ -337,6 +344,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				});
 
 				if (calculation.employees.length > 0) {
+					const employeeIds = calculation.employees.map((entry) => entry.employeeId);
 					const rows = calculation.employees.map((row) => ({
 						payrollRunId: runId,
 						employeeId: row.employeeId,
@@ -369,15 +377,46 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					}));
 					await tx.insert(payrollRunEmployee).values(rows);
 
+					const beforeRows = await tx
+						.select()
+						.from(employee)
+						.where(inArray(employee.id, employeeIds));
+					const beforeSnapshots = new Map(
+						beforeRows.map((row) => [row.id, buildEmployeeAuditSnapshot(row)]),
+					);
+					const auditActor = resolveEmployeeAuditActor(authType, session);
+
+					await setEmployeeAuditSkip(tx);
 					await tx
 						.update(employee)
 						.set({ lastPayrollDate: calculation.periodEndInclusiveUtc })
-						.where(
-							inArray(
-								employee.id,
-								calculation.employees.map((e) => e.employeeId),
-							),
-						);
+						.where(inArray(employee.id, employeeIds));
+
+					const afterRows = await tx
+						.select()
+						.from(employee)
+						.where(inArray(employee.id, employeeIds));
+
+					for (const row of afterRows) {
+						const beforeSnapshot = beforeSnapshots.get(row.id) ?? null;
+						const afterSnapshot = buildEmployeeAuditSnapshot(row);
+						const changedFields = beforeSnapshot
+							? getEmployeeAuditChangedFields(beforeSnapshot, afterSnapshot)
+							: ['lastPayrollDate'];
+						if (!changedFields.includes('lastPayrollDate')) {
+							changedFields.push('lastPayrollDate');
+						}
+						await createEmployeeAuditEvent(tx, {
+							employeeId: row.id,
+							organizationId: row.organizationId,
+							action: 'payroll_updated',
+							actorType: auditActor.actorType,
+							actorUserId: auditActor.actorUserId,
+							before: beforeSnapshot,
+							after: afterSnapshot,
+							changedFields,
+						});
+					}
 				}
 
 				const savedRun = await tx

@@ -239,3 +239,198 @@ export interface Location {
 	/** Record last update timestamp */
 	updatedAt: Date;
 }
+
+// ============================================================================
+// Employee Insights + Audit Types
+// ============================================================================
+
+/**
+ * Employee vacation balance snapshot for a specific service year.
+ */
+export interface EmployeeVacationBalance {
+	/** Employee identifier */
+	employeeId: string;
+	/** Employee hire date */
+	hireDate: Date;
+	/** Date key used as the balance cutoff */
+	asOfDateKey: string;
+	/** Current service year number */
+	serviceYearNumber: number;
+	/** Service year start date key */
+	serviceYearStartDateKey: string | null;
+	/** Service year end date key */
+	serviceYearEndDateKey: string | null;
+	/** Vacation days entitled for the service year */
+	entitledDays: number;
+	/** Vacation days already used (approved) */
+	usedDays: number;
+	/** Vacation days pending approval */
+	pendingDays: number;
+	/** Available vacation days */
+	availableDays: number;
+}
+
+/**
+ * Summary of a vacation request for employee insights.
+ */
+export interface EmployeeVacationRequestSummary {
+	/** Vacation request identifier */
+	id: string;
+	/** Request status */
+	status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+	/** Range start date key */
+	startDateKey: string;
+	/** Range end date key */
+	endDateKey: string;
+	/** Notes provided at request time */
+	requestedNotes: string | null;
+	/** Notes provided during decision */
+	decisionNotes: string | null;
+	/** Total days in the request range */
+	totalDays: number;
+	/** Total vacation days counted */
+	vacationDays: number;
+	/** Request creation timestamp */
+	createdAt: Date;
+}
+
+/**
+ * Summary of a schedule exception for employee insights.
+ */
+export interface EmployeeScheduleExceptionSummary {
+	/** Exception identifier */
+	id: string;
+	/** Local date key for the exception */
+	dateKey: string;
+	/** Exception type */
+	exceptionType: 'DAY_OFF' | 'MODIFIED' | 'EXTRA_DAY';
+	/** Exception reason */
+	reason: string | null;
+	/** Start time override */
+	startTime: string | null;
+	/** End time override */
+	endTime: string | null;
+}
+
+/**
+ * Absence summary for an employee over a date range.
+ */
+export interface EmployeeAbsenceSummary {
+	/** Absent working day date keys */
+	absentDateKeys: string[];
+	/** Total absence count */
+	totalAbsentDays: number;
+	/** Range start date key */
+	rangeStartDateKey: string;
+	/** Range end date key */
+	rangeEndDateKey: string;
+}
+
+/**
+ * Payroll run summary for an employee.
+ */
+export interface EmployeePayrollRunSummary {
+	/** Payroll run identifier */
+	payrollRunId: string;
+	/** Payroll period start timestamp */
+	periodStart: Date;
+	/** Payroll period end timestamp */
+	periodEnd: Date;
+	/** Payment frequency for the run */
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	/** Payroll run status */
+	status: 'DRAFT' | 'PROCESSED';
+	/** Employee total pay in the run */
+	totalPay: number;
+	/** Run creation timestamp */
+	createdAt: Date;
+	/** Run processed timestamp */
+	processedAt: Date | null;
+}
+
+/**
+ * Employee insights payload for the detail dialog.
+ */
+export interface EmployeeInsights {
+	/** Employee identifier */
+	employeeId: string;
+	/** Organization identifier */
+	organizationId: string | null;
+	/** Location time zone used for date calculations */
+	timeZone: string;
+	/** Date key representing the data cutoff */
+	asOfDateKey: string;
+	/** Vacation details */
+	vacation: {
+		/** Vacation balance breakdown */
+		balance: EmployeeVacationBalance | null;
+		/** Latest vacation requests */
+		requests: EmployeeVacationRequestSummary[];
+	};
+	/** Attendance absences summary */
+	attendance: EmployeeAbsenceSummary;
+	/** License/day-off exceptions (historical window) */
+	leaves: {
+		/** Exception entries */
+		items: EmployeeScheduleExceptionSummary[];
+		/** Total exceptions count */
+		total: number;
+		/** Range start date key */
+		rangeStartDateKey: string;
+		/** Range end date key */
+		rangeEndDateKey: string;
+	};
+	/** Upcoming schedule exceptions */
+	exceptions: {
+		/** Exception entries */
+		items: EmployeeScheduleExceptionSummary[];
+		/** Total exceptions count */
+		total: number;
+		/** Range start date key */
+		rangeStartDateKey: string;
+		/** Range end date key */
+		rangeEndDateKey: string;
+	};
+	/** Payroll runs */
+	payroll: {
+		/** Latest payroll runs */
+		runs: EmployeePayrollRunSummary[];
+		/** Total runs returned */
+		total: number;
+	};
+}
+
+/**
+ * Actor types for employee audit events.
+ */
+export type EmployeeAuditActorType = 'user' | 'apiKey' | 'system' | 'trigger';
+
+/**
+ * Employee audit event record.
+ */
+export interface EmployeeAuditEvent {
+	/** Audit event identifier */
+	id: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** Organization identifier */
+	organizationId: string | null;
+	/** Action identifier */
+	action: string;
+	/** Actor type */
+	actorType: EmployeeAuditActorType;
+	/** Actor user identifier */
+	actorUserId: string | null;
+	/** Actor name (if available) */
+	actorName?: string | null;
+	/** Actor email (if available) */
+	actorEmail?: string | null;
+	/** Snapshot before the change */
+	before?: Record<string, unknown> | null;
+	/** Snapshot after the change */
+	after?: Record<string, unknown> | null;
+	/** Changed field names */
+	changedFields?: string[] | null;
+	/** Event creation timestamp */
+	createdAt: Date;
+}

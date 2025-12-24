@@ -1,17 +1,25 @@
-import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, lt, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
 
 import db from '../db/index.js';
 import {
+	attendanceRecord,
 	employee,
+	employeeAuditEvent,
 	employeeSchedule,
 	jobPosition,
 	location,
 	member,
 	organization,
+	payrollRun,
+	payrollRunEmployee,
+	scheduleException,
 	scheduleTemplate,
 	scheduleTemplateDay,
+	user,
+	vacationRequest,
+	vacationRequestDay,
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
@@ -20,6 +28,7 @@ import {
 	createEmployeeSchema,
 	employeeQuerySchema,
 	idParamSchema,
+	paginationSchema,
 	updateEmployeeSchema,
 } from '../schemas/crud.js';
 import {
@@ -29,6 +38,13 @@ import {
 	type UserCreationResult,
 } from '../schemas/recognition.js';
 import {
+	buildEmployeeAuditSnapshot,
+	createEmployeeAuditEvent,
+	getEmployeeAuditChangedFields,
+	resolveEmployeeAuditActor,
+	setEmployeeAuditSkip,
+} from '../services/employee-audit.js';
+import {
 	associateFaces,
 	createUser,
 	deleteFaces,
@@ -37,6 +53,15 @@ import {
 	indexFace,
 	listFacesByExternalId,
 } from '../services/rekognition.js';
+import { buildEmployeeVacationBalance } from '../services/vacation-balance.js';
+import { addDaysToDateKey } from '../utils/date-key.js';
+import { getUtcDateForZonedMidnight, isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
+import type {
+	EmployeeInsights,
+	EmployeePayrollRunSummary,
+	EmployeeScheduleExceptionSummary,
+	EmployeeVacationRequestSummary,
+} from '@sen-checkin/types';
 
 /**
  * Employee routes for CRUD operations and face recognition enrollment.
@@ -133,6 +158,362 @@ async function validateEmployeeUserLink(
 	}
 
 	return true;
+}
+
+type EmployeeInsightsRecord = Pick<
+	typeof employee.$inferSelect,
+	'id' | 'organizationId' | 'locationId' | 'hireDate' | 'scheduleTemplateId'
+> & {
+	timeZone: string | null;
+};
+
+type ScheduleDay = {
+	dayOfWeek: number;
+	isWorkingDay: boolean;
+};
+
+type ScheduleExceptionRow = {
+	id: string;
+	exceptionDate: Date;
+	exceptionType: EmployeeScheduleExceptionSummary['exceptionType'];
+	reason: string | null;
+	startTime: string | null;
+	endTime: string | null;
+};
+
+const INSIGHTS_PAST_DAYS = 90;
+const INSIGHTS_FUTURE_DAYS = 90;
+const INSIGHTS_VACATION_LIMIT = 10;
+const INSIGHTS_PAYROLL_LIMIT = 6;
+
+/**
+ * Builds a UTC range for a local date-key range (inclusive).
+ *
+ * @param startDateKey - Range start date key (YYYY-MM-DD)
+ * @param endDateKey - Range end date key (YYYY-MM-DD)
+ * @param timeZone - IANA timezone identifier
+ * @returns Range start and end (exclusive) in UTC
+ */
+function buildUtcRangeFromDateKeys(
+	startDateKey: string,
+	endDateKey: string,
+	timeZone: string,
+): { startUtc: Date; endUtc: Date } {
+	const startUtc = getUtcDateForZonedMidnight(startDateKey, timeZone);
+	const endExclusiveKey = addDaysToDateKey(endDateKey, 1);
+	const endUtc = getUtcDateForZonedMidnight(endExclusiveKey, timeZone);
+	return { startUtc, endUtc };
+}
+
+/**
+ * Loads base schedule days for an employee.
+ *
+ * @param args - Schedule lookup inputs
+ * @param args.employeeId - Employee identifier
+ * @param args.scheduleTemplateId - Optional schedule template ID
+ * @returns Base schedule days
+ */
+async function loadEmployeeBaseScheduleDays(args: {
+	employeeId: string;
+	scheduleTemplateId: string | null;
+}): Promise<ScheduleDay[]> {
+	if (args.scheduleTemplateId) {
+		const rows = await db
+			.select({
+				dayOfWeek: scheduleTemplateDay.dayOfWeek,
+				isWorkingDay: scheduleTemplateDay.isWorkingDay,
+			})
+			.from(scheduleTemplateDay)
+			.where(eq(scheduleTemplateDay.templateId, args.scheduleTemplateId));
+
+		return rows.map((row) => ({
+			dayOfWeek: row.dayOfWeek,
+			isWorkingDay: row.isWorkingDay ?? true,
+		}));
+	}
+
+	const rows = await db
+		.select({
+			dayOfWeek: employeeSchedule.dayOfWeek,
+			isWorkingDay: employeeSchedule.isWorkingDay,
+		})
+		.from(employeeSchedule)
+		.where(eq(employeeSchedule.employeeId, args.employeeId));
+
+	return rows.map((row) => ({
+		dayOfWeek: row.dayOfWeek,
+		isWorkingDay: row.isWorkingDay ?? true,
+	}));
+}
+
+/**
+ * Loads schedule exceptions for a date range.
+ *
+ * @param args - Exception filter inputs
+ * @param args.employeeId - Employee identifier
+ * @param args.startUtc - Range start (inclusive)
+ * @param args.endUtc - Range end (exclusive)
+ * @param args.exceptionType - Optional exception type filter
+ * @returns Schedule exceptions for the range
+ */
+async function loadScheduleExceptionsForRange(args: {
+	employeeId: string;
+	startUtc: Date;
+	endUtc: Date;
+	exceptionType?: EmployeeScheduleExceptionSummary['exceptionType'];
+}): Promise<ScheduleExceptionRow[]> {
+	const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
+		eq(scheduleException.employeeId, args.employeeId),
+		gte(scheduleException.exceptionDate, args.startUtc),
+		lt(scheduleException.exceptionDate, args.endUtc),
+	];
+
+	if (args.exceptionType) {
+		conditions.push(eq(scheduleException.exceptionType, args.exceptionType));
+	}
+
+	return db
+		.select({
+			id: scheduleException.id,
+			exceptionDate: scheduleException.exceptionDate,
+			exceptionType: scheduleException.exceptionType,
+			reason: scheduleException.reason,
+			startTime: scheduleException.startTime,
+			endTime: scheduleException.endTime,
+		})
+		.from(scheduleException)
+		.where(and(...conditions)!)
+		.orderBy(scheduleException.exceptionDate);
+}
+
+/**
+ * Maps schedule exception rows to summary DTOs.
+ *
+ * @param rows - Schedule exception rows
+ * @param timeZone - IANA timezone identifier
+ * @returns Summary DTOs
+ */
+function buildScheduleExceptionSummaries(
+	rows: ScheduleExceptionRow[],
+	timeZone: string,
+): EmployeeScheduleExceptionSummary[] {
+	return rows.map((row) => ({
+		id: row.id,
+		dateKey: toDateKeyInTimeZone(row.exceptionDate, timeZone),
+		exceptionType: row.exceptionType,
+		reason: row.reason,
+		startTime: row.startTime,
+		endTime: row.endTime,
+	}));
+}
+
+/**
+ * Calculates employee absences for a date-key range.
+ *
+ * @param args - Absence calculation inputs
+ * @param args.employee - Employee record
+ * @param args.timeZone - IANA timezone identifier
+ * @param args.startDateKey - Range start date key
+ * @param args.endDateKey - Range end date key
+ * @returns Absence summary
+ */
+async function calculateEmployeeAbsences(args: {
+	employee: EmployeeInsightsRecord;
+	timeZone: string;
+	startDateKey: string;
+	endDateKey: string;
+}): Promise<EmployeeInsights['attendance']> {
+	const { startUtc, endUtc } = buildUtcRangeFromDateKeys(
+		args.startDateKey,
+		args.endDateKey,
+		args.timeZone,
+	);
+
+	const [scheduleDays, exceptions, attendanceRows] = await Promise.all([
+		loadEmployeeBaseScheduleDays({
+			employeeId: args.employee.id,
+			scheduleTemplateId: args.employee.scheduleTemplateId ?? null,
+		}),
+		loadScheduleExceptionsForRange({
+			employeeId: args.employee.id,
+			startUtc,
+			endUtc,
+		}),
+		db
+			.select({ timestamp: attendanceRecord.timestamp })
+			.from(attendanceRecord)
+			.where(
+				and(
+					eq(attendanceRecord.employeeId, args.employee.id),
+					gte(attendanceRecord.timestamp, startUtc),
+					lt(attendanceRecord.timestamp, endUtc),
+				)!,
+			),
+	]);
+
+	const scheduleMap = new Map<number, boolean>();
+	for (const day of scheduleDays) {
+		scheduleMap.set(day.dayOfWeek, day.isWorkingDay);
+	}
+
+	const exceptionMap = new Map<string, EmployeeScheduleExceptionSummary['exceptionType']>();
+	for (const exception of exceptions) {
+		const dateKey = toDateKeyInTimeZone(exception.exceptionDate, args.timeZone);
+		exceptionMap.set(dateKey, exception.exceptionType);
+	}
+
+	const attendanceDateKeys = new Set(
+		attendanceRows.map((row) => toDateKeyInTimeZone(row.timestamp, args.timeZone)),
+	);
+
+	const hireDateKey = args.employee.hireDate
+		? toDateKeyInTimeZone(args.employee.hireDate, args.timeZone)
+		: null;
+
+	const absentDateKeys: string[] = [];
+	let cursor = args.startDateKey;
+	while (true) {
+		if (!hireDateKey || cursor >= hireDateKey) {
+			const exceptionType = exceptionMap.get(cursor);
+			let isWorkingDay = false;
+
+			if (exceptionType) {
+				isWorkingDay = exceptionType !== 'DAY_OFF';
+			} else {
+				const dayOfWeek = new Date(`${cursor}T00:00:00Z`).getUTCDay();
+				isWorkingDay = scheduleMap.get(dayOfWeek) ?? false;
+			}
+
+			if (isWorkingDay && !attendanceDateKeys.has(cursor)) {
+				absentDateKeys.push(cursor);
+			}
+		}
+
+		if (cursor === args.endDateKey) {
+			break;
+		}
+		cursor = addDaysToDateKey(cursor, 1);
+	}
+
+	return {
+		absentDateKeys,
+		totalAbsentDays: absentDateKeys.length,
+		rangeStartDateKey: args.startDateKey,
+		rangeEndDateKey: args.endDateKey,
+	};
+}
+
+/**
+ * Loads latest vacation request summaries for an employee.
+ *
+ * @param employeeId - Employee identifier
+ * @param limit - Maximum number of requests
+ * @returns Vacation request summaries
+ */
+async function loadVacationRequestSummaries(
+	employeeId: string,
+	limit: number,
+): Promise<EmployeeVacationRequestSummary[]> {
+	const requestRows = await db
+		.select({
+			id: vacationRequest.id,
+			status: vacationRequest.status,
+			startDateKey: vacationRequest.startDateKey,
+			endDateKey: vacationRequest.endDateKey,
+			requestedNotes: vacationRequest.requestedNotes,
+			decisionNotes: vacationRequest.decisionNotes,
+			createdAt: vacationRequest.createdAt,
+		})
+		.from(vacationRequest)
+		.where(eq(vacationRequest.employeeId, employeeId))
+		.orderBy(desc(vacationRequest.createdAt))
+		.limit(limit);
+
+	const requestIds = requestRows.map((row) => row.id);
+	const dayRows =
+		requestIds.length === 0
+			? []
+			: await db
+					.select({
+						requestId: vacationRequestDay.requestId,
+						countsAsVacationDay: vacationRequestDay.countsAsVacationDay,
+					})
+					.from(vacationRequestDay)
+					.where(inArray(vacationRequestDay.requestId, requestIds));
+
+	const summaryByRequest = new Map<string, { totalDays: number; vacationDays: number }>();
+	for (const day of dayRows) {
+		const current = summaryByRequest.get(day.requestId) ?? { totalDays: 0, vacationDays: 0 };
+		current.totalDays += 1;
+		if (day.countsAsVacationDay) {
+			current.vacationDays += 1;
+		}
+		summaryByRequest.set(day.requestId, current);
+	}
+
+	return requestRows.map((row) => {
+		const summary = summaryByRequest.get(row.id) ?? { totalDays: 0, vacationDays: 0 };
+		return {
+			id: row.id,
+			status: row.status,
+			startDateKey: row.startDateKey,
+			endDateKey: row.endDateKey,
+			requestedNotes: row.requestedNotes ?? null,
+			decisionNotes: row.decisionNotes ?? null,
+			totalDays: summary.totalDays,
+			vacationDays: summary.vacationDays,
+			createdAt: row.createdAt,
+		};
+	});
+}
+
+/**
+ * Loads latest payroll run summaries for an employee.
+ *
+ * @param employeeId - Employee identifier
+ * @param limit - Maximum number of runs
+ * @returns Payroll run summaries
+ */
+async function loadPayrollRunSummaries(
+	employeeId: string,
+	limit: number,
+): Promise<EmployeePayrollRunSummary[]> {
+	const rows = await db
+		.select({
+			payrollRunId: payrollRunEmployee.payrollRunId,
+			totalPay: payrollRunEmployee.totalPay,
+			periodStart: payrollRun.periodStart,
+			periodEnd: payrollRun.periodEnd,
+			paymentFrequency: payrollRun.paymentFrequency,
+			status: payrollRun.status,
+			createdAt: payrollRun.createdAt,
+			processedAt: payrollRun.processedAt,
+		})
+		.from(payrollRunEmployee)
+		.leftJoin(payrollRun, eq(payrollRunEmployee.payrollRunId, payrollRun.id))
+		.where(eq(payrollRunEmployee.employeeId, employeeId))
+		.orderBy(desc(payrollRun.periodEnd))
+		.limit(limit);
+
+	return rows
+		.filter(
+			(row) =>
+				row.periodStart &&
+				row.periodEnd &&
+				row.paymentFrequency &&
+				row.status &&
+				row.createdAt,
+		)
+		.map((row) => ({
+			payrollRunId: row.payrollRunId,
+			periodStart: row.periodStart as Date,
+			periodEnd: row.periodEnd as Date,
+			paymentFrequency: row.paymentFrequency as EmployeePayrollRunSummary['paymentFrequency'],
+			status: row.status as EmployeePayrollRunSummary['status'],
+			totalPay: Number(row.totalPay ?? 0),
+			createdAt: row.createdAt as Date,
+			processedAt: (row.processedAt as Date | null) ?? null,
+		}));
 }
 
 /**
@@ -359,6 +740,241 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	)
 
 	/**
+	 * Returns consolidated insights for the employee detail dialog.
+	 *
+	 * @route GET /employees/:id/insights
+	 * @param id - Employee UUID
+	 * @returns Employee insights payload
+	 */
+	.get(
+		'/:id/insights',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const rows = await db
+				.select({
+					id: employee.id,
+					organizationId: employee.organizationId,
+					locationId: employee.locationId,
+					hireDate: employee.hireDate,
+					scheduleTemplateId: employee.scheduleTemplateId,
+					timeZone: location.timeZone,
+				})
+				.from(employee)
+				.leftJoin(location, eq(employee.locationId, location.id))
+				.where(eq(employee.id, id))
+				.limit(1);
+
+			const employeeRecord = rows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return { error: 'Employee not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this employee' };
+			}
+
+			if (!employeeRecord.organizationId) {
+				set.status = 403;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const timeZoneCandidate = employeeRecord.timeZone ?? 'America/Mexico_City';
+			const timeZone = isValidIanaTimeZone(timeZoneCandidate)
+				? timeZoneCandidate
+				: 'America/Mexico_City';
+			const asOfDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+
+			const pastStartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_PAST_DAYS - 1));
+			const pastEndDateKey = asOfDateKey;
+			const futureStartDateKey = asOfDateKey;
+			const futureEndDateKey = addDaysToDateKey(asOfDateKey, INSIGHTS_FUTURE_DAYS - 1);
+
+			const pastRange = buildUtcRangeFromDateKeys(pastStartDateKey, pastEndDateKey, timeZone);
+			const futureRange = buildUtcRangeFromDateKeys(
+				futureStartDateKey,
+				futureEndDateKey,
+				timeZone,
+			);
+
+			const [attendanceSummary, leaveRows, exceptionRows, vacationRequests, payrollRuns] =
+				await Promise.all([
+					calculateEmployeeAbsences({
+						employee: employeeRecord,
+						timeZone,
+						startDateKey: pastStartDateKey,
+						endDateKey: pastEndDateKey,
+					}),
+					loadScheduleExceptionsForRange({
+						employeeId: id,
+						startUtc: pastRange.startUtc,
+						endUtc: pastRange.endUtc,
+						exceptionType: 'DAY_OFF',
+					}),
+					loadScheduleExceptionsForRange({
+						employeeId: id,
+						startUtc: futureRange.startUtc,
+						endUtc: futureRange.endUtc,
+					}),
+					loadVacationRequestSummaries(id, INSIGHTS_VACATION_LIMIT),
+					loadPayrollRunSummaries(id, INSIGHTS_PAYROLL_LIMIT),
+				]);
+
+			const leaves = buildScheduleExceptionSummaries(leaveRows, timeZone);
+			const exceptions = buildScheduleExceptionSummaries(exceptionRows, timeZone);
+
+			const vacationBalance = employeeRecord.hireDate
+				? await buildEmployeeVacationBalance({
+						employeeId: id,
+						organizationId: employeeRecord.organizationId,
+						hireDate: employeeRecord.hireDate,
+						timeZone,
+					})
+				: null;
+
+			const payload: EmployeeInsights = {
+				employeeId: id,
+				organizationId: employeeRecord.organizationId,
+				timeZone,
+				asOfDateKey,
+				vacation: {
+					balance: vacationBalance,
+					requests: vacationRequests,
+				},
+				attendance: attendanceSummary,
+				leaves: {
+					items: leaves,
+					total: leaves.length,
+					rangeStartDateKey: pastStartDateKey,
+					rangeEndDateKey: pastEndDateKey,
+				},
+				exceptions: {
+					items: exceptions,
+					total: exceptions.length,
+					rangeStartDateKey: futureStartDateKey,
+					rangeEndDateKey: futureEndDateKey,
+				},
+				payroll: {
+					runs: payrollRuns,
+					total: payrollRuns.length,
+				},
+			};
+
+			return { data: payload };
+		},
+		{
+			params: idParamSchema,
+		},
+	)
+
+	/**
+	 * Returns audit events for an employee.
+	 *
+	 * @route GET /employees/:id/audit
+	 * @param id - Employee UUID
+	 * @returns Employee audit events with pagination
+	 */
+	.get(
+		'/:id/audit',
+		async ({
+			params,
+			query,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+
+			if (!employeeRecord) {
+				set.status = 404;
+				return { error: 'Employee not found' };
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return { error: 'You do not have access to this employee' };
+			}
+
+			const rows = await db
+				.select({
+					id: employeeAuditEvent.id,
+					employeeId: employeeAuditEvent.employeeId,
+					organizationId: employeeAuditEvent.organizationId,
+					action: employeeAuditEvent.action,
+					actorType: employeeAuditEvent.actorType,
+					actorUserId: employeeAuditEvent.actorUserId,
+					actorName: user.name,
+					actorEmail: user.email,
+					before: employeeAuditEvent.before,
+					after: employeeAuditEvent.after,
+					changedFields: employeeAuditEvent.changedFields,
+					createdAt: employeeAuditEvent.createdAt,
+				})
+				.from(employeeAuditEvent)
+				.leftJoin(user, eq(employeeAuditEvent.actorUserId, user.id))
+				.where(eq(employeeAuditEvent.employeeId, id))
+				.orderBy(desc(employeeAuditEvent.createdAt))
+				.limit(query.limit)
+				.offset(query.offset);
+
+			const total = (
+				await db
+					.select({ id: employeeAuditEvent.id })
+					.from(employeeAuditEvent)
+					.where(eq(employeeAuditEvent.employeeId, id))
+			).length;
+
+			return {
+				data: rows,
+				pagination: {
+					total,
+					limit: query.limit,
+					offset: query.offset,
+					hasMore: query.offset + rows.length < total,
+				},
+			};
+		},
+		{
+			params: idParamSchema,
+			query: paginationSchema,
+		},
+	)
+
+	/**
 	 * Create a new employee.
 	 *
 	 * @route POST /employees
@@ -478,6 +1094,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				}
 			}
 
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+
 			// Check if code is unique
 			const codeExists = await db
 				.select()
@@ -559,20 +1177,42 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				scheduleTemplateId: scheduleTemplateId ?? null,
 			};
 
-			await db.insert(employee).values(newEmployee);
-
 			const selectedSchedule = schedule ?? templateDays;
 
-			if (selectedSchedule && selectedSchedule.length > 0) {
-				const scheduleRows = selectedSchedule.map((entry) => ({
-					employeeId: id,
-					dayOfWeek: entry.dayOfWeek,
-					startTime: entry.startTime,
-					endTime: entry.endTime,
-					isWorkingDay: entry.isWorkingDay ?? true,
-				}));
-				await db.insert(employeeSchedule).values(scheduleRows);
-			}
+			await db.transaction(async (tx) => {
+				await setEmployeeAuditSkip(tx);
+				await tx.insert(employee).values(newEmployee);
+
+				if (selectedSchedule && selectedSchedule.length > 0) {
+					const scheduleRows = selectedSchedule.map((entry) => ({
+						employeeId: id,
+						dayOfWeek: entry.dayOfWeek,
+						startTime: entry.startTime,
+						endTime: entry.endTime,
+						isWorkingDay: entry.isWorkingDay ?? true,
+					}));
+					await tx.insert(employeeSchedule).values(scheduleRows);
+				}
+
+				const createdRows = await tx
+					.select()
+					.from(employee)
+					.where(eq(employee.id, id))
+					.limit(1);
+				const created = createdRows[0];
+				if (created) {
+					await createEmployeeAuditEvent(tx, {
+						employeeId: id,
+						organizationId,
+						action: 'created',
+						actorType: auditActor.actorType,
+						actorUserId: auditActor.actorUserId,
+						before: null,
+						after: buildEmployeeAuditSnapshot(created),
+						changedFields: [],
+					});
+				}
+			});
 
 			set.status = 201;
 			return {
@@ -615,7 +1255,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Check if employee exists
 			const existing = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
-			if (!existing[0]) {
+			const existingRecord = existing[0];
+			if (!existingRecord) {
 				set.status = 404;
 				return { error: 'Employee not found' };
 			}
@@ -626,14 +1267,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					session,
 					sessionOrganizationIds,
 					apiKeyOrganizationIds,
-					existing[0].organizationId,
+					existingRecord.organizationId,
 				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this employee' };
 			}
 
-			const targetOrgId = existing[0].organizationId ?? null;
+			const targetOrgId = existingRecord.organizationId ?? null;
 			const resolvedOrganizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -647,19 +1288,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				set.status = 403;
 				return { error: 'Organization is required or not permitted' };
 			}
-
-			// Check if code is unique (if being updated)
-			if (body.code && body.code !== existing[0].code) {
-				const codeExists = await db
-					.select()
-					.from(employee)
-					.where(eq(employee.code, body.code))
-					.limit(1);
-				if (codeExists[0]) {
-					set.status = 409;
-					return { error: 'Employee code already exists' };
-				}
-			}
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+			const beforeSnapshot = buildEmployeeAuditSnapshot(existingRecord);
 
 			// Verify location exists if being updated
 			if (body.locationId) {
@@ -729,7 +1359,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Only update if there are fields to update
 			if (Object.keys(body).length === 0) {
-				return { data: existing[0] };
+				return { data: existingRecord };
 			}
 
 			if (body.schedule && body.scheduleTemplateId) {
@@ -782,8 +1412,12 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				scheduleTemplateId,
 				sbcDailyOverride,
 				userId: userIdInput,
+				code: _code,
+				hireDate: _hireDate,
 				...employeeUpdate
 			} = body;
+			void _code;
+			void _hireDate;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
 			};
@@ -809,8 +1443,6 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				updatePayload.shiftType = selectedTemplate.shiftType;
 			}
 
-			await db.update(employee).set(updatePayload).where(eq(employee.id, id));
-
 			let nextSchedule: NonNullable<typeof schedule> | typeof templateDays | undefined =
 				undefined;
 
@@ -820,57 +1452,96 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				nextSchedule = templateDays;
 			}
 
-			if (nextSchedule !== undefined) {
-				await db.delete(employeeSchedule).where(eq(employeeSchedule.employeeId, id));
-				if (nextSchedule.length > 0) {
-					const scheduleRows = nextSchedule.map((entry) => ({
-						employeeId: id,
-						dayOfWeek: entry.dayOfWeek,
-						startTime: entry.startTime,
-						endTime: entry.endTime,
-						isWorkingDay: entry.isWorkingDay ?? true,
-					}));
-					await db.insert(employeeSchedule).values(scheduleRows);
+			const scheduleChanged = nextSchedule !== undefined;
+
+			const result = await db.transaction(async (tx) => {
+				await setEmployeeAuditSkip(tx);
+				await tx.update(employee).set(updatePayload).where(eq(employee.id, id));
+
+				if (nextSchedule !== undefined) {
+					await tx.delete(employeeSchedule).where(eq(employeeSchedule.employeeId, id));
+					if (nextSchedule.length > 0) {
+						const scheduleRows = nextSchedule.map((entry) => ({
+							employeeId: id,
+							dayOfWeek: entry.dayOfWeek,
+							startTime: entry.startTime,
+							endTime: entry.endTime,
+							isWorkingDay: entry.isWorkingDay ?? true,
+						}));
+						await tx.insert(employeeSchedule).values(scheduleRows);
+					}
 				}
+
+				// Fetch updated record
+				const updated = await tx
+					.select({
+						id: employee.id,
+						code: employee.code,
+						firstName: employee.firstName,
+						lastName: employee.lastName,
+						email: employee.email,
+						phone: employee.phone,
+						jobPositionId: employee.jobPositionId,
+						department: employee.department,
+						status: employee.status,
+						shiftType: employee.shiftType,
+						hireDate: employee.hireDate,
+						sbcDailyOverride: employee.sbcDailyOverride,
+						locationId: employee.locationId,
+						organizationId: employee.organizationId,
+						userId: employee.userId,
+						scheduleTemplateId: employee.scheduleTemplateId,
+						scheduleTemplateName: scheduleTemplate.name,
+						scheduleTemplateShiftType: scheduleTemplate.shiftType,
+						rekognitionUserId: employee.rekognitionUserId,
+						lastPayrollDate: employee.lastPayrollDate,
+						createdAt: employee.createdAt,
+						updatedAt: employee.updatedAt,
+					})
+					.from(employee)
+					.leftJoin(scheduleTemplate, eq(employee.scheduleTemplateId, scheduleTemplate.id))
+					.where(eq(employee.id, id))
+					.limit(1);
+				const updatedSchedule = await tx
+					.select()
+					.from(employeeSchedule)
+					.where(eq(employeeSchedule.employeeId, id))
+					.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
+
+				const updatedRecord = updated[0];
+				if (updatedRecord) {
+					const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
+					const changedFields = getEmployeeAuditChangedFields(
+						beforeSnapshot,
+						afterSnapshot,
+					);
+					if (scheduleChanged && !changedFields.includes('schedule')) {
+						changedFields.push('schedule');
+					}
+
+					if (changedFields.length > 0) {
+						await createEmployeeAuditEvent(tx, {
+							employeeId: id,
+							organizationId: updatedRecord.organizationId,
+							action: 'updated',
+							actorType: auditActor.actorType,
+							actorUserId: auditActor.actorUserId,
+							before: beforeSnapshot,
+							after: afterSnapshot,
+							changedFields,
+						});
+					}
+				}
+
+				return { updatedRecord, updatedSchedule };
+			});
+
+			if (!result.updatedRecord) {
+				set.status = 500;
+				return { error: 'Employee update failed' };
 			}
 
-			// Fetch updated record
-			const updated = await db
-				.select({
-					id: employee.id,
-					code: employee.code,
-					firstName: employee.firstName,
-					lastName: employee.lastName,
-					email: employee.email,
-					phone: employee.phone,
-					jobPositionId: employee.jobPositionId,
-					department: employee.department,
-					status: employee.status,
-					shiftType: employee.shiftType,
-					hireDate: employee.hireDate,
-					sbcDailyOverride: employee.sbcDailyOverride,
-					locationId: employee.locationId,
-					organizationId: employee.organizationId,
-					userId: employee.userId,
-					scheduleTemplateId: employee.scheduleTemplateId,
-					scheduleTemplateName: scheduleTemplate.name,
-					scheduleTemplateShiftType: scheduleTemplate.shiftType,
-					rekognitionUserId: employee.rekognitionUserId,
-					lastPayrollDate: employee.lastPayrollDate,
-					createdAt: employee.createdAt,
-					updatedAt: employee.updatedAt,
-				})
-				.from(employee)
-				.leftJoin(scheduleTemplate, eq(employee.scheduleTemplateId, scheduleTemplate.id))
-				.where(eq(employee.id, id))
-				.limit(1);
-			const updatedSchedule = await db
-				.select()
-				.from(employeeSchedule)
-				.where(eq(employeeSchedule.employeeId, id))
-				.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
-
-			return { data: { ...updated[0], schedule: updatedSchedule } };
+			return { data: { ...result.updatedRecord, schedule: result.updatedSchedule } };
 		},
 		{
 			params: idParamSchema,
@@ -899,7 +1570,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Check if employee exists
 			const existing = await db.select().from(employee).where(eq(employee.id, id)).limit(1);
-			if (!existing[0]) {
+			const existingRecord = existing[0];
+			if (!existingRecord) {
 				set.status = 404;
 				return { error: 'Employee not found' };
 			}
@@ -910,24 +1582,40 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					session,
 					sessionOrganizationIds,
 					apiKeyOrganizationIds,
-					existing[0].organizationId,
+					existingRecord.organizationId,
 				)
 			) {
 				set.status = 403;
 				return { error: 'You do not have access to this employee' };
 			}
 
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+			const beforeSnapshot = buildEmployeeAuditSnapshot(existingRecord);
+
 			// If employee has Rekognition user, clean up first
-			if (existing[0].rekognitionUserId) {
+			if (existingRecord.rekognitionUserId) {
 				const facesResult = await listFacesByExternalId(id);
 				if (facesResult.success && facesResult.faceIds.length > 0) {
-					await disassociateFaces(existing[0].rekognitionUserId, facesResult.faceIds);
+					await disassociateFaces(existingRecord.rekognitionUserId, facesResult.faceIds);
 					await deleteFaces(facesResult.faceIds);
 				}
-				await deleteUser(existing[0].rekognitionUserId);
+				await deleteUser(existingRecord.rekognitionUserId);
 			}
 
-			await db.delete(employee).where(eq(employee.id, id));
+			await db.transaction(async (tx) => {
+				await setEmployeeAuditSkip(tx);
+				await createEmployeeAuditEvent(tx, {
+					employeeId: id,
+					organizationId: existingRecord.organizationId,
+					action: 'deleted',
+					actorType: auditActor.actorType,
+					actorUserId: auditActor.actorUserId,
+					before: beforeSnapshot,
+					after: null,
+					changedFields: [],
+				});
+				await tx.delete(employee).where(eq(employee.id, id));
+			});
 
 			return { message: 'Employee deleted successfully' };
 		},
@@ -1021,11 +1709,44 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				};
 			}
 
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+			const beforeSnapshot = buildEmployeeAuditSnapshot(employeeRecord);
+
 			// Update employee record with Rekognition user ID
-			await db
-				.update(employee)
-				.set({ rekognitionUserId: employeeId })
-				.where(eq(employee.id, employeeId));
+			await db.transaction(async (tx) => {
+				await setEmployeeAuditSkip(tx);
+				await tx
+					.update(employee)
+					.set({ rekognitionUserId: employeeId })
+					.where(eq(employee.id, employeeId));
+
+				const updatedRows = await tx
+					.select()
+					.from(employee)
+					.where(eq(employee.id, employeeId))
+					.limit(1);
+				const updatedRecord = updatedRows[0];
+				if (updatedRecord) {
+					const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
+					const changedFields = getEmployeeAuditChangedFields(
+						beforeSnapshot,
+						afterSnapshot,
+					);
+					if (!changedFields.includes('rekognitionUserId')) {
+						changedFields.push('rekognitionUserId');
+					}
+					await createEmployeeAuditEvent(tx, {
+						employeeId,
+						organizationId: employeeRecord.organizationId,
+						action: 'rekognition_created',
+						actorType: auditActor.actorType,
+						actorUserId: auditActor.actorUserId,
+						before: beforeSnapshot,
+						after: afterSnapshot,
+						changedFields,
+					});
+				}
+			});
 
 			return {
 				success: true,
@@ -1217,6 +1938,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				};
 			}
 
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+			const beforeSnapshot = buildEmployeeAuditSnapshot(deleteEmployeeRecord);
+
 			const rekognitionUserId = deleteEmployeeRecord.rekognitionUserId;
 
 			if (!rekognitionUserId) {
@@ -1250,10 +1974,40 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Clear the Rekognition user ID from the employee record
-			await db
-				.update(employee)
-				.set({ rekognitionUserId: null })
-				.where(eq(employee.id, employeeId));
+			await db.transaction(async (tx) => {
+				await setEmployeeAuditSkip(tx);
+				await tx
+					.update(employee)
+					.set({ rekognitionUserId: null })
+					.where(eq(employee.id, employeeId));
+
+				const updatedRows = await tx
+					.select()
+					.from(employee)
+					.where(eq(employee.id, employeeId))
+					.limit(1);
+				const updatedRecord = updatedRows[0];
+				if (updatedRecord) {
+					const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
+					const changedFields = getEmployeeAuditChangedFields(
+						beforeSnapshot,
+						afterSnapshot,
+					);
+					if (!changedFields.includes('rekognitionUserId')) {
+						changedFields.push('rekognitionUserId');
+					}
+					await createEmployeeAuditEvent(tx, {
+						employeeId,
+						organizationId: deleteEmployeeRecord.organizationId,
+						action: 'rekognition_deleted',
+						actorType: auditActor.actorType,
+						actorUserId: auditActor.actorUserId,
+						before: beforeSnapshot,
+						after: afterSnapshot,
+						changedFields,
+					});
+				}
+			});
 
 			return {
 				success: true,

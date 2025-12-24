@@ -11,6 +11,8 @@ import {
 	scheduleException,
 	scheduleTemplate,
 	scheduleTemplateDay,
+	vacationRequest,
+	vacationRequestDay,
 } from './schema.js';
 
 /**
@@ -28,6 +30,8 @@ export const seedSchema = {
 	employee,
 	employeeSchedule,
 	scheduleException,
+	vacationRequest,
+	vacationRequestDay,
 	device,
 	attendanceRecord,
 	payrollSetting,

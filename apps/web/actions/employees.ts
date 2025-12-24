@@ -44,6 +44,8 @@ export interface CreateEmployeeInput {
 	sbcDailyOverride?: number;
 	/** Employee shift type */
 	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	/** Optional linked user ID */
+	userId?: string;
 	/** Weekly schedule entries */
 	schedule?: EmployeeScheduleEntry[];
 }
@@ -78,6 +80,8 @@ export interface UpdateEmployeeInput {
 	sbcDailyOverride?: number | null;
 	/** Employee shift type */
 	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+	/** Optional linked user ID (null to unlink) */
+	userId?: string | null;
 	/** Weekly schedule entries */
 	schedule?: EmployeeScheduleEntry[];
 }
@@ -117,6 +121,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 		const hireDate = input.hireDate ? new Date(input.hireDate) : undefined;
+		const resolvedUserId = input.userId?.trim();
 
 		const response = await api.employees.post({
 			code: input.code,
@@ -131,6 +136,7 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			hireDate,
 			sbcDailyOverride: input.sbcDailyOverride ?? undefined,
 			shiftType: input.shiftType ?? 'DIURNA',
+			userId: resolvedUserId ? resolvedUserId : undefined,
 			schedule: input.schedule?.map((entry) => ({
 				dayOfWeek: entry.dayOfWeek,
 				startTime: entry.startTime,
@@ -187,6 +193,8 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 				: input.hireDate
 					? new Date(input.hireDate)
 					: undefined;
+		const resolvedUserId =
+			input.userId === undefined ? undefined : input.userId?.trim() || null;
 
 		const response = await api.employees[input.id].put({
 			code: input.code,
@@ -202,6 +210,7 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			sbcDailyOverride:
 				input.sbcDailyOverride === null ? null : input.sbcDailyOverride ?? undefined,
 			shiftType: input.shiftType,
+			userId: resolvedUserId === undefined ? undefined : resolvedUserId,
 			schedule: input.schedule?.map((entry) => ({
 				dayOfWeek: entry.dayOfWeek,
 				startTime: entry.startTime,

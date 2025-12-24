@@ -13,6 +13,8 @@ import {
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
+	vacationRequest,
+	vacationRequestDay,
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { resolveOrganizationId } from '../utils/organization.js';
@@ -156,6 +158,31 @@ const calculatePayroll = async (args: {
 					)
 					.orderBy(attendanceRecord.employeeId, attendanceRecord.timestamp);
 
+	const vacationDayRows =
+		employeeIds.length === 0
+			? []
+			: await db
+					.select({
+						employeeId: vacationRequestDay.employeeId,
+					})
+					.from(vacationRequestDay)
+					.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
+					.where(
+						and(
+							eq(vacationRequest.organizationId, organizationId),
+							inArray(vacationRequestDay.employeeId, employeeIds),
+							eq(vacationRequestDay.countsAsVacationDay, true),
+							eq(vacationRequest.status, 'APPROVED'),
+							gte(vacationRequestDay.dateKey, periodStartDateKey),
+							lte(vacationRequestDay.dateKey, periodEndDateKey),
+						),
+					);
+
+	const vacationDayCounts: Record<string, number> = {};
+	for (const row of vacationDayRows) {
+		vacationDayCounts[row.employeeId] = (vacationDayCounts[row.employeeId] ?? 0) + 1;
+	}
+
 	const { employees: results, totalAmount, taxSummary } = calculatePayrollFromData({
 		employees: filteredEmployees,
 		schedules,
@@ -168,6 +195,7 @@ const calculatePayroll = async (args: {
 		additionalMandatoryRestDays,
 		defaultTimeZone: timeZone,
 		payrollSettings: payrollSettingsSnapshot,
+		vacationDayCounts,
 	});
 
 	return {
@@ -323,6 +351,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						overtimeTriplePay: row.overtimeTriplePay.toFixed(2),
 						sundayPremiumAmount: row.sundayPremiumAmount.toFixed(2),
 						mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount.toFixed(2),
+						vacationDaysPaid: row.vacationDaysPaid,
+						vacationPayAmount: row.vacationPayAmount.toFixed(2),
+						vacationPremiumAmount: row.vacationPremiumAmount.toFixed(2),
 						taxBreakdown: {
 							grossPay: row.grossPay,
 							seventhDayPay: row.seventhDayPay,

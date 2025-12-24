@@ -89,6 +89,27 @@ export interface ScheduleExceptionQueryParams extends ListQueryParams {
 }
 
 /**
+ * Vacation request status values.
+ */
+export type VacationRequestStatus =
+	| 'DRAFT'
+	| 'SUBMITTED'
+	| 'APPROVED'
+	| 'REJECTED'
+	| 'CANCELLED';
+
+/**
+ * Query parameters for vacation requests list.
+ */
+export interface VacationRequestQueryParams extends ListQueryParams {
+	organizationId?: string;
+	employeeId?: string;
+	status?: VacationRequestStatus;
+	from?: string;
+	to?: string;
+}
+
+/**
  * Query parameters for calendar schedules.
  */
 export interface CalendarQueryParams extends Record<string, unknown> {
@@ -361,6 +382,19 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for vacation requests.
+	 */
+	vacations: {
+		all: ['vacations'] as const,
+		list: (params?: VacationRequestQueryParams) =>
+			queryKeyConstructor(['vacations', 'list'] as const, params),
+		balance: (organizationId?: string | null) =>
+			queryKeyConstructor(['vacations', 'balance'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
+	},
+
+	/**
 	 * Query keys for scheduling/calendar queries.
 	 */
 	scheduling: {
@@ -469,6 +503,16 @@ export const mutationKeys = {
 		create: ['scheduleExceptions', 'create'] as const,
 		update: ['scheduleExceptions', 'update'] as const,
 		delete: ['scheduleExceptions', 'delete'] as const,
+	},
+
+	/**
+	 * Mutation keys for vacation requests.
+	 */
+	vacations: {
+		create: ['vacations', 'create'] as const,
+		approve: ['vacations', 'approve'] as const,
+		reject: ['vacations', 'reject'] as const,
+		cancel: ['vacations', 'cancel'] as const,
 	},
 
 	/**

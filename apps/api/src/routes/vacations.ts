@@ -1,0 +1,1345 @@
+import { and, eq, gte, inArray, lte, ne, type SQL } from 'drizzle-orm';
+import { Elysia } from 'elysia';
+import { endOfDay, format, startOfDay } from 'date-fns';
+import crypto from 'node:crypto';
+
+import db from '../db/index.js';
+import {
+	employee,
+	employeeSchedule,
+	member,
+	payrollSetting,
+	scheduleException,
+	scheduleTemplateDay,
+	vacationRequest,
+	vacationRequestDay,
+} from '../db/schema.js';
+import { combinedAuthPlugin } from '../plugins/auth.js';
+import type { AuthSession } from '../plugins/auth.js';
+import { idParamSchema } from '../schemas/crud.js';
+import {
+	vacationRequestCreateSchema,
+	vacationRequestDecisionSchema,
+	vacationRequestQuerySchema,
+	type VacationRequestStatus,
+} from '../schemas/vacations.js';
+import { getVacationDaysForYears } from '../services/mexico-payroll-taxes.js';
+import {
+	buildMandatoryRestDayKeys,
+	buildVacationDayBreakdown,
+	getServiceYearEndDateKey,
+	getServiceYearNumber,
+	getServiceYearStartDateKey,
+	type VacationDayDetail,
+	type VacationScheduleDay,
+	type VacationScheduleException,
+} from '../services/vacations.js';
+import { isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
+import { resolveOrganizationId } from '../utils/organization.js';
+
+type VacationRequestRow = typeof vacationRequest.$inferSelect;
+
+type VacationRequestDayRow = {
+	dateKey: string;
+	countsAsVacationDay: boolean;
+	dayType: VacationDayDetail['dayType'];
+	serviceYearNumber: number | null;
+};
+
+type VacationRequestSummary = {
+	totalDays: number;
+	vacationDays: number;
+};
+
+type VacationRequestResponse = VacationRequestRow & {
+	employeeName: string | null;
+	employeeLastName: string | null;
+	days: VacationRequestDayRow[];
+	summary: VacationRequestSummary;
+};
+
+/**
+ * Ensures the caller is an organization admin or owner.
+ *
+ * @param args - Auth context and organization identifier
+ * @param args.authType - Authentication type
+ * @param args.session - Session info when authType is session
+ * @param args.organizationId - Organization identifier
+ * @param set - Elysia response setter
+ * @returns True when authorized
+ */
+async function ensureAdminRole(
+	args: { authType: 'session' | 'apiKey'; session: AuthSession | null; organizationId: string },
+	set: { status?: number | string } & Record<string, unknown>,
+): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		set.status = 403;
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(and(eq(member.userId, args.session.userId), eq(member.organizationId, args.organizationId)))
+		.limit(1);
+
+	const role = membership[0]?.role ?? null;
+	if (!role || (role !== 'admin' && role !== 'owner')) {
+		set.status = 403;
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * Resolves the employee record linked to a session user.
+ *
+ * @param organizationId - Organization identifier
+ * @param session - Auth session
+ * @param set - Elysia response setter
+ * @returns Employee record when found
+ */
+async function getEmployeeForSession(
+	organizationId: string,
+	session: AuthSession,
+	set: { status?: number | string } & Record<string, unknown>,
+): Promise<typeof employee.$inferSelect | null> {
+	const rows = await db
+		.select()
+		.from(employee)
+		.where(and(eq(employee.organizationId, organizationId), eq(employee.userId, session.userId)))
+		.limit(1);
+
+	if (!rows[0]) {
+		set.status = 404;
+		return null;
+	}
+
+	return rows[0];
+}
+
+/**
+ * Loads base schedule days for an employee.
+ *
+ * @param employeeRecord - Employee record
+ * @returns Schedule days (template or manual)
+ */
+async function loadBaseScheduleDays(
+	employeeRecord: typeof employee.$inferSelect,
+): Promise<VacationScheduleDay[]> {
+	if (employeeRecord.scheduleTemplateId) {
+		const rows = await db
+			.select({
+				dayOfWeek: scheduleTemplateDay.dayOfWeek,
+				isWorkingDay: scheduleTemplateDay.isWorkingDay,
+			})
+			.from(scheduleTemplateDay)
+			.where(eq(scheduleTemplateDay.templateId, employeeRecord.scheduleTemplateId));
+		return rows.map((row) => ({
+			dayOfWeek: row.dayOfWeek,
+			isWorkingDay: row.isWorkingDay ?? true,
+		}));
+	}
+
+	const rows = await db
+		.select({
+			dayOfWeek: employeeSchedule.dayOfWeek,
+			isWorkingDay: employeeSchedule.isWorkingDay,
+		})
+		.from(employeeSchedule)
+		.where(eq(employeeSchedule.employeeId, employeeRecord.id));
+
+	return rows.map((row) => ({
+		dayOfWeek: row.dayOfWeek,
+		isWorkingDay: row.isWorkingDay ?? true,
+	}));
+}
+
+/**
+ * Loads schedule exceptions for an employee within a date key range.
+ *
+ * @param employeeId - Employee identifier
+ * @param startDateKey - Start date key (YYYY-MM-DD)
+ * @param endDateKey - End date key (YYYY-MM-DD)
+ * @returns Schedule exceptions for the range
+ */
+async function loadScheduleExceptionsForRange(
+	employeeId: string,
+	startDateKey: string,
+	endDateKey: string,
+): Promise<VacationScheduleException[]> {
+	const rangeStart = startOfDay(new Date(`${startDateKey}T00:00:00`));
+	const rangeEnd = endOfDay(new Date(`${endDateKey}T00:00:00`));
+
+	const rows = await db
+		.select({
+			exceptionDate: scheduleException.exceptionDate,
+			exceptionType: scheduleException.exceptionType,
+		})
+		.from(scheduleException)
+		.where(
+			and(
+				eq(scheduleException.employeeId, employeeId),
+				gte(scheduleException.exceptionDate, rangeStart),
+				lte(scheduleException.exceptionDate, rangeEnd),
+			)!,
+		);
+
+	return rows.map((row) => ({
+		exceptionDate: row.exceptionDate,
+		exceptionType: row.exceptionType,
+	}));
+}
+
+/**
+ * Builds vacation request day breakdown using schedule and rest day policies.
+ *
+ * @param employeeRecord - Employee record
+ * @param startDateKey - Start date key (YYYY-MM-DD)
+ * @param endDateKey - End date key (YYYY-MM-DD)
+ * @param additionalMandatoryRestDays - Organization additional rest day keys
+ * @returns Vacation day breakdown
+ */
+async function buildVacationRequestDays(
+	employeeRecord: typeof employee.$inferSelect,
+	startDateKey: string,
+	endDateKey: string,
+	additionalMandatoryRestDays: string[],
+): Promise<ReturnType<typeof buildVacationDayBreakdown>> {
+	const [scheduleDays, exceptions] = await Promise.all([
+		loadBaseScheduleDays(employeeRecord),
+		loadScheduleExceptionsForRange(employeeRecord.id, startDateKey, endDateKey),
+	]);
+
+	const mandatoryRestDayKeys = buildMandatoryRestDayKeys(
+		startDateKey,
+		endDateKey,
+		additionalMandatoryRestDays,
+	);
+
+	return buildVacationDayBreakdown({
+		startDateKey,
+		endDateKey,
+		scheduleDays,
+		exceptions,
+		mandatoryRestDayKeys,
+		hireDate: employeeRecord.hireDate ?? null,
+	});
+}
+
+/**
+ * Aggregates used vacation days by service year.
+ *
+ * @param args - Organization and filter inputs
+ * @param args.organizationId - Organization identifier
+ * @param args.employeeId - Employee identifier
+ * @param args.statuses - Vacation request statuses to include
+ * @param args.excludeRequestId - Optional request ID to exclude
+ * @returns Map of serviceYearNumber -> used days count
+ */
+async function getVacationUsageByServiceYear(args: {
+	organizationId: string;
+	employeeId: string;
+	statuses: VacationRequestStatus[];
+	excludeRequestId?: string;
+}): Promise<Map<number, number>> {
+	const conditions: SQL<unknown>[] = [
+		eq(vacationRequest.organizationId, args.organizationId),
+		eq(vacationRequestDay.employeeId, args.employeeId),
+		eq(vacationRequestDay.countsAsVacationDay, true),
+		inArray(vacationRequest.status, args.statuses),
+	];
+
+	if (args.excludeRequestId) {
+		conditions.push(ne(vacationRequest.id, args.excludeRequestId));
+	}
+
+	const rows = await db
+		.select({
+			serviceYearNumber: vacationRequestDay.serviceYearNumber,
+		})
+		.from(vacationRequestDay)
+		.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
+		.where(and(...conditions)!);
+
+	const map = new Map<number, number>();
+	for (const row of rows) {
+		const year = row.serviceYearNumber ?? null;
+		if (!year || year <= 0) {
+			continue;
+		}
+		map.set(year, (map.get(year) ?? 0) + 1);
+	}
+	return map;
+}
+
+/**
+ * Validates that requested days fit within available balances.
+ *
+ * @param args - Balance validation inputs
+ * @param args.organizationId - Organization identifier
+ * @param args.employeeId - Employee identifier
+ * @param args.requestedDaysByServiceYear - Map of requested days by service year
+ * @param args.excludeRequestId - Optional request ID to exclude
+ * @param set - Elysia response setter
+ * @returns True when balance is sufficient
+ */
+async function validateVacationBalance(
+	args: {
+		organizationId: string;
+		employeeId: string;
+		requestedDaysByServiceYear: Map<number, number>;
+		excludeRequestId?: string;
+	},
+	set: { status?: number | string } & Record<string, unknown>,
+): Promise<boolean> {
+	const usedDays = await getVacationUsageByServiceYear({
+		organizationId: args.organizationId,
+		employeeId: args.employeeId,
+		statuses: ['SUBMITTED', 'APPROVED'],
+		excludeRequestId: args.excludeRequestId,
+	});
+
+	for (const [serviceYearNumber, requestedDays] of args.requestedDaysByServiceYear.entries()) {
+		if (serviceYearNumber <= 0) {
+			set.status = 400;
+			return false;
+		}
+
+		const entitledDays = getVacationDaysForYears(serviceYearNumber);
+		const alreadyUsed = usedDays.get(serviceYearNumber) ?? 0;
+		if (alreadyUsed + requestedDays > entitledDays) {
+			set.status = 409;
+			return false;
+		}
+	}
+
+	return true;
+}
+
+/**
+ * Fetches vacation requests with days and summary data.
+ *
+ * @param args - Query filters and pagination
+ * @returns Requests list and total count
+ */
+async function fetchVacationRequests(args: {
+	organizationId: string;
+	employeeId?: string;
+	status?: VacationRequestStatus;
+	from?: string;
+	to?: string;
+	limit: number;
+	offset: number;
+}): Promise<{ data: VacationRequestResponse[]; total: number }> {
+	const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
+		eq(vacationRequest.organizationId, args.organizationId),
+	];
+
+	if (args.employeeId) {
+		conditions.push(eq(vacationRequest.employeeId, args.employeeId));
+	}
+	if (args.status) {
+		conditions.push(eq(vacationRequest.status, args.status));
+	}
+	if (args.from && args.to) {
+		conditions.push(lte(vacationRequest.startDateKey, args.to));
+		conditions.push(gte(vacationRequest.endDateKey, args.from));
+	} else if (args.from) {
+		conditions.push(gte(vacationRequest.endDateKey, args.from));
+	} else if (args.to) {
+		conditions.push(lte(vacationRequest.startDateKey, args.to));
+	}
+
+	const whereClause = and(...conditions)!;
+
+	const requestRows = await db
+		.select({
+			id: vacationRequest.id,
+			organizationId: vacationRequest.organizationId,
+			employeeId: vacationRequest.employeeId,
+			requestedByUserId: vacationRequest.requestedByUserId,
+			status: vacationRequest.status,
+			startDateKey: vacationRequest.startDateKey,
+			endDateKey: vacationRequest.endDateKey,
+			requestedNotes: vacationRequest.requestedNotes,
+			decisionNotes: vacationRequest.decisionNotes,
+			approvedByUserId: vacationRequest.approvedByUserId,
+			approvedAt: vacationRequest.approvedAt,
+			rejectedByUserId: vacationRequest.rejectedByUserId,
+			rejectedAt: vacationRequest.rejectedAt,
+			cancelledByUserId: vacationRequest.cancelledByUserId,
+			cancelledAt: vacationRequest.cancelledAt,
+			createdAt: vacationRequest.createdAt,
+			updatedAt: vacationRequest.updatedAt,
+			employeeName: employee.firstName,
+			employeeLastName: employee.lastName,
+		})
+		.from(vacationRequest)
+		.leftJoin(employee, eq(vacationRequest.employeeId, employee.id))
+		.where(whereClause)
+		.limit(args.limit)
+		.offset(args.offset)
+		.orderBy(vacationRequest.createdAt);
+
+	const total = (
+		await db
+			.select({ id: vacationRequest.id })
+			.from(vacationRequest)
+			.where(whereClause)
+	).length;
+
+	const requestIds = requestRows.map((row) => row.id);
+	const dayRows =
+		requestIds.length === 0
+			? []
+			: await db
+					.select({
+						requestId: vacationRequestDay.requestId,
+						dateKey: vacationRequestDay.dateKey,
+						countsAsVacationDay: vacationRequestDay.countsAsVacationDay,
+						dayType: vacationRequestDay.dayType,
+						serviceYearNumber: vacationRequestDay.serviceYearNumber,
+					})
+					.from(vacationRequestDay)
+					.where(inArray(vacationRequestDay.requestId, requestIds))
+					.orderBy(vacationRequestDay.dateKey);
+
+	const daysByRequestId = new Map<string, VacationRequestDayRow[]>();
+	for (const day of dayRows) {
+		const current = daysByRequestId.get(day.requestId) ?? [];
+		current.push({
+			dateKey: day.dateKey,
+			countsAsVacationDay: day.countsAsVacationDay,
+			dayType: day.dayType,
+			serviceYearNumber: day.serviceYearNumber ?? null,
+		});
+		daysByRequestId.set(day.requestId, current);
+	}
+
+	const data: VacationRequestResponse[] = requestRows.map((row) => {
+		const days = daysByRequestId.get(row.id) ?? [];
+		const summary: VacationRequestSummary = {
+			totalDays: days.length,
+			vacationDays: days.filter((day) => day.countsAsVacationDay).length,
+		};
+
+		return {
+			...row,
+			days,
+			summary,
+		};
+	});
+
+	return { data, total };
+}
+
+/**
+ * Fetches a single vacation request with days and summary.
+ *
+ * @param requestId - Vacation request identifier
+ * @returns Request response or null when missing
+ */
+async function fetchVacationRequestDetail(
+	requestId: string,
+): Promise<VacationRequestResponse | null> {
+	const rows = await db
+		.select({
+			id: vacationRequest.id,
+			organizationId: vacationRequest.organizationId,
+			employeeId: vacationRequest.employeeId,
+			requestedByUserId: vacationRequest.requestedByUserId,
+			status: vacationRequest.status,
+			startDateKey: vacationRequest.startDateKey,
+			endDateKey: vacationRequest.endDateKey,
+			requestedNotes: vacationRequest.requestedNotes,
+			decisionNotes: vacationRequest.decisionNotes,
+			approvedByUserId: vacationRequest.approvedByUserId,
+			approvedAt: vacationRequest.approvedAt,
+			rejectedByUserId: vacationRequest.rejectedByUserId,
+			rejectedAt: vacationRequest.rejectedAt,
+			cancelledByUserId: vacationRequest.cancelledByUserId,
+			cancelledAt: vacationRequest.cancelledAt,
+			createdAt: vacationRequest.createdAt,
+			updatedAt: vacationRequest.updatedAt,
+			employeeName: employee.firstName,
+			employeeLastName: employee.lastName,
+		})
+		.from(vacationRequest)
+		.leftJoin(employee, eq(vacationRequest.employeeId, employee.id))
+		.where(eq(vacationRequest.id, requestId))
+		.limit(1);
+
+	if (!rows[0]) {
+		return null;
+	}
+
+	const dayRows = await db
+		.select({
+			requestId: vacationRequestDay.requestId,
+			dateKey: vacationRequestDay.dateKey,
+			countsAsVacationDay: vacationRequestDay.countsAsVacationDay,
+			dayType: vacationRequestDay.dayType,
+			serviceYearNumber: vacationRequestDay.serviceYearNumber,
+		})
+		.from(vacationRequestDay)
+		.where(eq(vacationRequestDay.requestId, requestId))
+		.orderBy(vacationRequestDay.dateKey);
+
+	const days: VacationRequestDayRow[] = dayRows.map((day) => ({
+		dateKey: day.dateKey,
+		countsAsVacationDay: day.countsAsVacationDay,
+		dayType: day.dayType,
+		serviceYearNumber: day.serviceYearNumber ?? null,
+	}));
+
+	return {
+		...rows[0],
+		days,
+		summary: {
+			totalDays: days.length,
+			vacationDays: days.filter((day) => day.countsAsVacationDay).length,
+		},
+	};
+}
+
+/**
+ * Vacation routes for HR/admin management and self-service access.
+ */
+export const vacationRoutes = new Elysia({ prefix: '/vacations' })
+	.use(combinedAuthPlugin)
+	/**
+	 * Returns vacation balance for the current employee (self-service).
+	 */
+	.get(
+		'/me/balance',
+		async ({ authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			if (authType !== 'session' || !session) {
+				set.status = 403;
+				return { error: 'Session authentication required' };
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
+			if (!employeeRecord) {
+				return { error: 'Employee not found for this user' };
+			}
+
+			if (!employeeRecord.hireDate) {
+				set.status = 400;
+				return { error: 'Employee hire date is required for vacation balance' };
+			}
+
+			const settings = await db
+				.select({ timeZone: payrollSetting.timeZone })
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, organizationId))
+				.limit(1);
+
+			const timeZoneCandidate = settings[0]?.timeZone ?? 'America/Mexico_City';
+			const timeZone = isValidIanaTimeZone(timeZoneCandidate)
+				? timeZoneCandidate
+				: 'America/Mexico_City';
+			const asOfDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const currentServiceYear = getServiceYearNumber(employeeRecord.hireDate, asOfDateKey) ?? 0;
+
+			const approvedDays = await getVacationUsageByServiceYear({
+				organizationId,
+				employeeId: employeeRecord.id,
+				statuses: ['APPROVED'],
+			});
+			const pendingDays = await getVacationUsageByServiceYear({
+				organizationId,
+				employeeId: employeeRecord.id,
+				statuses: ['SUBMITTED'],
+			});
+
+			const entitledDays = currentServiceYear > 0 ? getVacationDaysForYears(currentServiceYear) : 0;
+			const usedDays = approvedDays.get(currentServiceYear) ?? 0;
+			const pending = pendingDays.get(currentServiceYear) ?? 0;
+			const availableDays = entitledDays - usedDays - pending;
+
+			return {
+				data: {
+					employeeId: employeeRecord.id,
+					hireDate: employeeRecord.hireDate,
+					asOfDateKey,
+					serviceYearNumber: currentServiceYear,
+					serviceYearStartDateKey: getServiceYearStartDateKey(
+						employeeRecord.hireDate,
+						currentServiceYear,
+					),
+					serviceYearEndDateKey: getServiceYearEndDateKey(
+						employeeRecord.hireDate,
+						currentServiceYear,
+					),
+					entitledDays,
+					usedDays,
+					pendingDays: pending,
+					availableDays,
+				},
+			};
+		},
+	)
+	/**
+	 * Lists vacation requests for the current employee (self-service).
+	 */
+	.get(
+		'/me/requests',
+		async ({ query, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			if (authType !== 'session' || !session) {
+				set.status = 403;
+				return { error: 'Session authentication required' };
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
+			if (!employeeRecord) {
+				return { error: 'Employee not found for this user' };
+			}
+
+			const result = await fetchVacationRequests({
+				organizationId,
+				employeeId: employeeRecord.id,
+				status: query.status,
+				from: query.from,
+				to: query.to,
+				limit: query.limit,
+				offset: query.offset,
+			});
+
+			return {
+				data: result.data,
+				pagination: {
+					total: result.total,
+					limit: query.limit,
+					offset: query.offset,
+					hasMore: query.offset + result.data.length < result.total,
+				},
+			};
+		},
+		{
+			query: vacationRequestQuerySchema,
+		},
+	)
+	/**
+	 * Creates a vacation request for the current employee (self-service).
+	 */
+	.post(
+		'/me/requests',
+		async ({ body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			if (authType !== 'session' || !session) {
+				set.status = 403;
+				return { error: 'Session authentication required' };
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
+			if (!employeeRecord) {
+				return { error: 'Employee not found for this user' };
+			}
+			if (!employeeRecord.hireDate) {
+				set.status = 400;
+				return { error: 'Employee hire date is required for vacation requests' };
+			}
+
+			const settings = await db
+				.select({ additionalMandatoryRestDays: payrollSetting.additionalMandatoryRestDays })
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, organizationId))
+				.limit(1);
+
+			const breakdown = await buildVacationRequestDays(
+				employeeRecord,
+				body.startDateKey,
+				body.endDateKey,
+				settings[0]?.additionalMandatoryRestDays ?? [],
+			);
+
+			const invalidServiceDays = breakdown.days.some(
+				(day) => day.countsAsVacationDay && (!day.serviceYearNumber || day.serviceYearNumber <= 0),
+			);
+			if (invalidServiceDays) {
+				set.status = 400;
+				return { error: 'Vacation days cannot be requested before completing a year of service' };
+			}
+
+			const balanceOk = await validateVacationBalance(
+				{
+					organizationId,
+					employeeId: employeeRecord.id,
+					requestedDaysByServiceYear: breakdown.vacationDaysByServiceYear,
+				},
+				set,
+			);
+			if (!balanceOk) {
+				return { error: 'Insufficient vacation balance' };
+			}
+
+			const overlap = await db
+				.select({ id: vacationRequest.id })
+				.from(vacationRequest)
+				.where(
+					and(
+						eq(vacationRequest.organizationId, organizationId),
+						eq(vacationRequest.employeeId, employeeRecord.id),
+						eq(vacationRequest.status, 'APPROVED'),
+						lte(vacationRequest.startDateKey, body.endDateKey),
+						gte(vacationRequest.endDateKey, body.startDateKey),
+					)!,
+				)
+				.limit(1);
+
+			if (overlap[0]) {
+				set.status = 409;
+				return { error: 'Vacation request overlaps an approved request' };
+			}
+
+			const requestId = crypto.randomUUID();
+			const notes = body.requestedNotes?.trim() ? body.requestedNotes.trim() : undefined;
+
+			await db.transaction(async (tx) => {
+				await tx.insert(vacationRequest).values({
+					id: requestId,
+					organizationId,
+					employeeId: employeeRecord.id,
+					requestedByUserId: session.userId,
+					status: 'SUBMITTED',
+					startDateKey: body.startDateKey,
+					endDateKey: body.endDateKey,
+					requestedNotes: notes,
+				});
+
+				if (breakdown.days.length > 0) {
+					await tx.insert(vacationRequestDay).values(
+						breakdown.days.map((day) => ({
+							requestId,
+							employeeId: employeeRecord.id,
+							dateKey: day.dateKey,
+							countsAsVacationDay: day.countsAsVacationDay,
+							dayType: day.dayType,
+							serviceYearNumber: day.serviceYearNumber ?? null,
+						})),
+					);
+				}
+			});
+
+			const detail = await fetchVacationRequestDetail(requestId);
+			return { data: detail };
+		},
+		{
+			body: vacationRequestCreateSchema,
+		},
+	)
+	/**
+	 * Cancels a vacation request for the current employee (self-service).
+	 */
+	.post(
+		'/me/requests/:id/cancel',
+		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			if (authType !== 'session' || !session) {
+				set.status = 403;
+				return { error: 'Session authentication required' };
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
+			if (!employeeRecord) {
+				return { error: 'Employee not found for this user' };
+			}
+
+			const requestRows = await db
+				.select()
+				.from(vacationRequest)
+				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.employeeId, employeeRecord.id)))
+				.limit(1);
+			const request = requestRows[0];
+			if (!request) {
+				set.status = 404;
+				return { error: 'Vacation request not found' };
+			}
+
+			if (request.status === 'CANCELLED' || request.status === 'REJECTED') {
+				set.status = 400;
+				return { error: 'Vacation request cannot be cancelled' };
+			}
+
+			await db.transaction(async (tx) => {
+				if (request.status === 'APPROVED') {
+					await tx
+						.delete(scheduleException)
+						.where(eq(scheduleException.vacationRequestId, request.id));
+				}
+
+				await tx
+					.update(vacationRequest)
+					.set({
+						status: 'CANCELLED',
+						decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+						cancelledByUserId: session.userId,
+						cancelledAt: new Date(),
+					})
+					.where(eq(vacationRequest.id, request.id));
+			});
+
+			const detail = await fetchVacationRequestDetail(request.id);
+			return { data: detail };
+		},
+		{
+			params: idParamSchema,
+			body: vacationRequestDecisionSchema,
+		},
+	)
+	/**
+	 * Lists vacation requests for HR/admin.
+	 */
+	.get(
+		'/requests',
+		async ({ query, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: query.organizationId ?? null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const authorized = await ensureAdminRole(
+				{ authType, session, organizationId },
+				set,
+			);
+			if (!authorized) {
+				return { error: 'Not authorized' };
+			}
+
+			const result = await fetchVacationRequests({
+				organizationId,
+				employeeId: query.employeeId,
+				status: query.status,
+				from: query.from,
+				to: query.to,
+				limit: query.limit,
+				offset: query.offset,
+			});
+
+			return {
+				data: result.data,
+				pagination: {
+					total: result.total,
+					limit: query.limit,
+					offset: query.offset,
+					hasMore: query.offset + result.data.length < result.total,
+				},
+			};
+		},
+		{
+			query: vacationRequestQuerySchema,
+		},
+	)
+	/**
+	 * Creates a vacation request for an employee (HR/admin).
+	 */
+	.post(
+		'/requests',
+		async ({ body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const authorized = await ensureAdminRole(
+				{ authType, session, organizationId },
+				set,
+			);
+			if (!authorized) {
+				return { error: 'Not authorized' };
+			}
+
+			if (!body.employeeId) {
+				set.status = 400;
+				return { error: 'employeeId is required' };
+			}
+
+			const employeeRows = await db
+				.select()
+				.from(employee)
+				.where(and(eq(employee.id, body.employeeId), eq(employee.organizationId, organizationId)))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return { error: 'Employee not found' };
+			}
+
+			const status = body.status ?? 'SUBMITTED';
+			if (status !== 'DRAFT' && status !== 'SUBMITTED') {
+				set.status = 400;
+				return { error: 'Invalid status for vacation request' };
+			}
+			if (status === 'SUBMITTED' && !employeeRecord.hireDate) {
+				set.status = 400;
+				return { error: 'Employee hire date is required for vacation requests' };
+			}
+
+			const settings = await db
+				.select({ additionalMandatoryRestDays: payrollSetting.additionalMandatoryRestDays })
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, organizationId))
+				.limit(1);
+
+			const breakdown = await buildVacationRequestDays(
+				employeeRecord,
+				body.startDateKey,
+				body.endDateKey,
+				settings[0]?.additionalMandatoryRestDays ?? [],
+			);
+
+			const invalidServiceDays = breakdown.days.some(
+				(day) => day.countsAsVacationDay && (!day.serviceYearNumber || day.serviceYearNumber <= 0),
+			);
+			if (status === 'SUBMITTED' && invalidServiceDays) {
+				set.status = 400;
+				return { error: 'Vacation days cannot be requested before completing a year of service' };
+			}
+
+			if (status === 'SUBMITTED') {
+				const balanceOk = await validateVacationBalance(
+					{
+						organizationId,
+						employeeId: employeeRecord.id,
+						requestedDaysByServiceYear: breakdown.vacationDaysByServiceYear,
+					},
+					set,
+				);
+				if (!balanceOk) {
+					return { error: 'Insufficient vacation balance' };
+				}
+
+				const overlap = await db
+					.select({ id: vacationRequest.id })
+					.from(vacationRequest)
+					.where(
+						and(
+							eq(vacationRequest.organizationId, organizationId),
+							eq(vacationRequest.employeeId, employeeRecord.id),
+							eq(vacationRequest.status, 'APPROVED'),
+							lte(vacationRequest.startDateKey, body.endDateKey),
+							gte(vacationRequest.endDateKey, body.startDateKey),
+						)!,
+					)
+					.limit(1);
+
+				if (overlap[0]) {
+					set.status = 409;
+					return { error: 'Vacation request overlaps an approved request' };
+				}
+			}
+
+			const requestId = crypto.randomUUID();
+			const notes = body.requestedNotes?.trim() ? body.requestedNotes.trim() : undefined;
+
+			await db.transaction(async (tx) => {
+				await tx.insert(vacationRequest).values({
+					id: requestId,
+					organizationId,
+					employeeId: employeeRecord.id,
+					requestedByUserId: session?.userId ?? null,
+					status,
+					startDateKey: body.startDateKey,
+					endDateKey: body.endDateKey,
+					requestedNotes: notes,
+				});
+
+				if (breakdown.days.length > 0) {
+					await tx.insert(vacationRequestDay).values(
+						breakdown.days.map((day) => ({
+							requestId,
+							employeeId: employeeRecord.id,
+							dateKey: day.dateKey,
+							countsAsVacationDay: day.countsAsVacationDay,
+							dayType: day.dayType,
+							serviceYearNumber: day.serviceYearNumber ?? null,
+						})),
+					);
+				}
+			});
+
+			const detail = await fetchVacationRequestDetail(requestId);
+			return { data: detail };
+		},
+		{
+			body: vacationRequestCreateSchema,
+		},
+	)
+	/**
+	 * Approves a vacation request (HR/admin).
+	 */
+	.post(
+		'/requests/:id/approve',
+		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const authorized = await ensureAdminRole(
+				{ authType, session, organizationId },
+				set,
+			);
+			if (!authorized) {
+				return { error: 'Not authorized' };
+			}
+
+			const rows = await db
+				.select()
+				.from(vacationRequest)
+				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.organizationId, organizationId)))
+				.limit(1);
+			const request = rows[0];
+			if (!request) {
+				set.status = 404;
+				return { error: 'Vacation request not found' };
+			}
+
+			if (request.status === 'APPROVED') {
+				set.status = 400;
+				return { error: 'Vacation request is already approved' };
+			}
+
+			if (request.status === 'CANCELLED' || request.status === 'REJECTED') {
+				set.status = 400;
+				return { error: 'Vacation request cannot be approved' };
+			}
+
+			const dayRows = await db
+				.select({
+					dateKey: vacationRequestDay.dateKey,
+					countsAsVacationDay: vacationRequestDay.countsAsVacationDay,
+					serviceYearNumber: vacationRequestDay.serviceYearNumber,
+				})
+				.from(vacationRequestDay)
+				.where(eq(vacationRequestDay.requestId, request.id));
+
+			const requestedDaysByServiceYear = new Map<number, number>();
+			const invalidServiceDays = dayRows.some(
+				(day) => day.countsAsVacationDay && (!day.serviceYearNumber || day.serviceYearNumber <= 0),
+			);
+			if (invalidServiceDays) {
+				set.status = 400;
+				return { error: 'Vacation days cannot be requested before completing a year of service' };
+			}
+
+			for (const day of dayRows) {
+				if (!day.countsAsVacationDay) {
+					continue;
+				}
+				const year = day.serviceYearNumber ?? 0;
+				if (year > 0) {
+					requestedDaysByServiceYear.set(year, (requestedDaysByServiceYear.get(year) ?? 0) + 1);
+				}
+			}
+
+			const balanceOk = await validateVacationBalance(
+				{
+					organizationId,
+					employeeId: request.employeeId,
+					requestedDaysByServiceYear,
+					excludeRequestId: request.id,
+				},
+				set,
+			);
+			if (!balanceOk) {
+				return { error: 'Insufficient vacation balance' };
+			}
+
+			const overlap = await db
+				.select({ id: vacationRequest.id })
+				.from(vacationRequest)
+				.where(
+					and(
+						eq(vacationRequest.organizationId, organizationId),
+						eq(vacationRequest.employeeId, request.employeeId),
+						eq(vacationRequest.status, 'APPROVED'),
+						ne(vacationRequest.id, request.id),
+						lte(vacationRequest.startDateKey, request.endDateKey),
+						gte(vacationRequest.endDateKey, request.startDateKey),
+					)!,
+				)
+				.limit(1);
+
+			if (overlap[0]) {
+				set.status = 409;
+				return { error: 'Vacation request overlaps an approved request' };
+			}
+
+			const exceptionDates = dayRows
+				.filter((day) => day.countsAsVacationDay)
+				.map((day) => new Date(`${day.dateKey}T00:00:00`));
+
+			if (exceptionDates.length > 0) {
+				const existingExceptions = await db
+					.select({ exceptionDate: scheduleException.exceptionDate })
+					.from(scheduleException)
+					.where(
+						and(
+							eq(scheduleException.employeeId, request.employeeId),
+							inArray(scheduleException.exceptionDate, exceptionDates),
+						)!,
+					);
+
+				if (existingExceptions.length > 0) {
+					set.status = 409;
+					return {
+						error: 'Schedule exceptions already exist for the requested dates',
+						data: {
+							conflicts: existingExceptions.map((row) =>
+								format(row.exceptionDate, 'yyyy-MM-dd'),
+							),
+						},
+					};
+				}
+			}
+
+			await db.transaction(async (tx) => {
+				if (exceptionDates.length > 0) {
+					const exceptionType: (typeof scheduleException.$inferInsert)['exceptionType'] =
+						'DAY_OFF';
+					await tx.insert(scheduleException).values(
+						exceptionDates.map((exceptionDate) => ({
+							employeeId: request.employeeId,
+							exceptionDate,
+							exceptionType,
+							reason: 'Vacaciones',
+							vacationRequestId: request.id,
+						})),
+					);
+				}
+
+				await tx
+					.update(vacationRequest)
+					.set({
+						status: 'APPROVED',
+						decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+						approvedByUserId: session?.userId ?? null,
+						approvedAt: new Date(),
+					})
+					.where(eq(vacationRequest.id, request.id));
+			});
+
+			const detail = await fetchVacationRequestDetail(request.id);
+			return { data: detail };
+		},
+		{
+			params: idParamSchema,
+			body: vacationRequestDecisionSchema,
+		},
+	)
+	/**
+	 * Rejects a vacation request (HR/admin).
+	 */
+	.post(
+		'/requests/:id/reject',
+		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const authorized = await ensureAdminRole(
+				{ authType, session, organizationId },
+				set,
+			);
+			if (!authorized) {
+				return { error: 'Not authorized' };
+			}
+
+			const rows = await db
+				.select()
+				.from(vacationRequest)
+				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.organizationId, organizationId)))
+				.limit(1);
+			const request = rows[0];
+			if (!request) {
+				set.status = 404;
+				return { error: 'Vacation request not found' };
+			}
+
+			if (request.status !== 'SUBMITTED') {
+				set.status = 400;
+				return { error: 'Only submitted requests can be rejected' };
+			}
+
+			await db
+				.update(vacationRequest)
+				.set({
+					status: 'REJECTED',
+					decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+					rejectedByUserId: session?.userId ?? null,
+					rejectedAt: new Date(),
+				})
+				.where(eq(vacationRequest.id, request.id));
+
+			const detail = await fetchVacationRequestDetail(request.id);
+			return { data: detail };
+		},
+		{
+			params: idParamSchema,
+			body: vacationRequestDecisionSchema,
+		},
+	)
+	/**
+	 * Cancels a vacation request (HR/admin).
+	 */
+	.post(
+		'/requests/:id/cancel',
+		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const authorized = await ensureAdminRole(
+				{ authType, session, organizationId },
+				set,
+			);
+			if (!authorized) {
+				return { error: 'Not authorized' };
+			}
+
+			const rows = await db
+				.select()
+				.from(vacationRequest)
+				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.organizationId, organizationId)))
+				.limit(1);
+			const request = rows[0];
+			if (!request) {
+				set.status = 404;
+				return { error: 'Vacation request not found' };
+			}
+
+			if (request.status === 'CANCELLED' || request.status === 'REJECTED') {
+				set.status = 400;
+				return { error: 'Vacation request cannot be cancelled' };
+			}
+
+			await db.transaction(async (tx) => {
+				if (request.status === 'APPROVED') {
+					await tx
+						.delete(scheduleException)
+						.where(eq(scheduleException.vacationRequestId, request.id));
+				}
+
+				await tx
+					.update(vacationRequest)
+					.set({
+						status: 'CANCELLED',
+						decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+						cancelledByUserId: session?.userId ?? null,
+						cancelledAt: new Date(),
+					})
+					.where(eq(vacationRequest.id, request.id));
+			});
+
+			const detail = await fetchVacationRequestDetail(request.id);
+			return { data: detail };
+		},
+		{
+			params: idParamSchema,
+			body: vacationRequestDecisionSchema,
+		},
+	);

@@ -1,6 +1,6 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
-import { prefetchEmployeesList } from '@/lib/server-functions';
+import { prefetchEmployeesList, prefetchOrganizationMembers } from '@/lib/server-functions';
 import { EmployeesPageClient } from './employees-client';
 import React from 'react';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
@@ -30,6 +30,11 @@ export default async function EmployeesPage(): Promise<React.ReactElement> {
 		limit: 100,
 		offset: 0,
 		organizationId: orgContext.organizationId,
+	});
+	prefetchOrganizationMembers(queryClient, {
+		organizationId: orgContext.organizationId ?? null,
+		limit: 200,
+		offset: 0,
 	});
 
 	return (

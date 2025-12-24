@@ -181,7 +181,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			});
 			const aguinaldoDays = parseIntegerInput(value.aguinaldoDays, { min: 0 });
 			const vacationPremiumRate = parseNumberInput(value.vacationPremiumRate, {
-				min: 0,
+				min: 0.25,
 				max: 1,
 			});
 
@@ -425,7 +425,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 							name="vacationPremiumRate"
 							validators={{
 								onChange: ({ value }) =>
-									parseNumberInput(value, { min: 0, max: 1 }) === null
+									parseNumberInput(value, { min: 0.25, max: 1 }) === null
 										? t('validation.invalidNumber')
 										: undefined,
 							}}

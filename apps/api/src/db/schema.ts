@@ -340,6 +340,28 @@ export const scheduleExceptionType = pgEnum('schedule_exception_type', [
 ]);
 
 /**
+ * Enum for vacation request status.
+ */
+export const vacationRequestStatus = pgEnum('vacation_request_status', [
+	'DRAFT',
+	'SUBMITTED',
+	'APPROVED',
+	'REJECTED',
+	'CANCELLED',
+]);
+
+/**
+ * Enum for vacation request day type.
+ */
+export const vacationDayType = pgEnum('vacation_day_type', [
+	'SCHEDULED_WORKDAY',
+	'SCHEDULED_REST_DAY',
+	'EXCEPTION_WORKDAY',
+	'EXCEPTION_DAY_OFF',
+	'MANDATORY_REST_DAY',
+]);
+
+/**
  * Enum for geographic zones (CONASAMI)
  */
 export const geographicZone = pgEnum('geographic_zone', ['GENERAL', 'ZLFN']);
@@ -481,7 +503,9 @@ export const scheduleTemplateDay = pgTable(
 /**
  * Employee table - stores employee information
  */
-export const employee = pgTable('employee', {
+export const employee = pgTable(
+	'employee',
+	{
 	id: text('id').primaryKey(),
 	/** Unique employee code/badge number */
 	code: text('code').notNull().unique(),
@@ -517,6 +541,8 @@ export const employee = pgTable('employee', {
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
 	}),
+	/** Linked BetterAuth user for self-service access */
+	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
 	/**
 	 * Last time payroll was processed for this employee.
 	 * Set by payroll runs to avoid double-payment in a period.
@@ -532,7 +558,9 @@ export const employee = pgTable('employee', {
 		.defaultNow()
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
-});
+	},
+	(table) => [uniqueIndex('employee_org_user_uniq').on(table.organizationId, table.userId)],
+);
 
 /**
  * Device table - stores kiosk/device information
@@ -616,6 +644,82 @@ export const employeeSchedule = pgTable(
 );
 
 /**
+ * Vacation request table - stores vacation requests per employee.
+ */
+export const vacationRequest = pgTable(
+	'vacation_request',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		requestedByUserId: text('requested_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		status: vacationRequestStatus('status').default('SUBMITTED').notNull(),
+		startDateKey: text('start_date_key').notNull(),
+		endDateKey: text('end_date_key').notNull(),
+		requestedNotes: text('requested_notes'),
+		decisionNotes: text('decision_notes'),
+		approvedByUserId: text('approved_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		approvedAt: timestamp('approved_at'),
+		rejectedByUserId: text('rejected_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		rejectedAt: timestamp('rejected_at'),
+		cancelledByUserId: text('cancelled_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		cancelledAt: timestamp('cancelled_at'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('vacation_request_org_status_idx').on(table.organizationId, table.status),
+		index('vacation_request_employee_idx').on(table.employeeId),
+		index('vacation_request_org_start_idx').on(table.organizationId, table.startDateKey),
+		index('vacation_request_org_end_idx').on(table.organizationId, table.endDateKey),
+	],
+);
+
+/**
+ * Vacation request day table - stores per-day breakdown for requests.
+ */
+export const vacationRequestDay = pgTable(
+	'vacation_request_day',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		requestId: text('request_id')
+			.notNull()
+			.references(() => vacationRequest.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		dateKey: text('date_key').notNull(),
+		countsAsVacationDay: boolean('counts_as_vacation_day').default(false).notNull(),
+		dayType: vacationDayType('day_type').notNull(),
+		serviceYearNumber: integer('service_year_number'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex('vacation_request_day_request_date_uniq').on(table.requestId, table.dateKey),
+		index('vacation_request_day_employee_date_idx').on(table.employeeId, table.dateKey),
+	],
+);
+
+/**
  * Schedule Exception table - date-specific overrides for employee schedules.
  */
 export const scheduleException = pgTable(
@@ -632,6 +736,9 @@ export const scheduleException = pgTable(
 		startTime: time('start_time', { withTimezone: false }),
 		endTime: time('end_time', { withTimezone: false }),
 		reason: text('reason'),
+		vacationRequestId: text('vacation_request_id').references(() => vacationRequest.id, {
+			onDelete: 'set null',
+		}),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 		updatedAt: timestamp('updated_at')
 			.defaultNow()
@@ -740,13 +847,46 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 		fields: [employee.scheduleTemplateId],
 		references: [scheduleTemplate.id],
 	}),
+	user: one(user, {
+		fields: [employee.userId],
+		references: [user.id],
+	}),
 	scheduleEntries: many(employeeSchedule),
 	scheduleExceptions: many(scheduleException),
+	vacationRequests: many(vacationRequest),
+	vacationRequestDays: many(vacationRequestDay),
 }));
 
 export const scheduleExceptionRelations = relations(scheduleException, ({ one }) => ({
 	employee: one(employee, {
 		fields: [scheduleException.employeeId],
+		references: [employee.id],
+	}),
+	vacationRequest: one(vacationRequest, {
+		fields: [scheduleException.vacationRequestId],
+		references: [vacationRequest.id],
+	}),
+}));
+
+export const vacationRequestRelations = relations(vacationRequest, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [vacationRequest.organizationId],
+		references: [organization.id],
+	}),
+	employee: one(employee, {
+		fields: [vacationRequest.employeeId],
+		references: [employee.id],
+	}),
+	days: many(vacationRequestDay),
+}));
+
+export const vacationRequestDayRelations = relations(vacationRequestDay, ({ one }) => ({
+	request: one(vacationRequest, {
+		fields: [vacationRequestDay.requestId],
+		references: [vacationRequest.id],
+	}),
+	employee: one(employee, {
+		fields: [vacationRequestDay.employeeId],
 		references: [employee.id],
 	}),
 }));
@@ -814,6 +954,13 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 		precision: 12,
 		scale: 2,
 	})
+		.default('0')
+		.notNull(),
+	vacationDaysPaid: integer('vacation_days_paid').default(0).notNull(),
+	vacationPayAmount: numeric('vacation_pay_amount', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	vacationPremiumAmount: numeric('vacation_premium_amount', { precision: 12, scale: 2 })
 		.default('0')
 		.notNull(),
 	/** Snapshot of fiscal breakdown for the employee line */

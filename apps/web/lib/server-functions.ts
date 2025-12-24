@@ -22,6 +22,7 @@ import {
 	type ScheduleExceptionQueryParams,
 	type ScheduleTemplateQueryParams,
 	type UsersQueryParams,
+	type VacationRequestQueryParams,
 	queryKeys,
 } from '@/lib/query-keys';
 import {
@@ -40,6 +41,7 @@ import {
 	fetchScheduleTemplateDetailServer,
 	fetchScheduleTemplatesListServer,
 	fetchCalendarServer,
+	fetchVacationRequestsListServer,
 	fetchUsersServer,
 } from '@/lib/server-client-functions';
 import type { QueryClient } from '@tanstack/react-query';
@@ -529,6 +531,34 @@ export function prefetchCalendar(queryClient: QueryClient, params: CalendarQuery
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchCalendarServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchCalendarServer(cookieHeader, params);
+		},
+	});
+}
+
+// ============================================================================
+// Vacation Prefetch Functions
+// ============================================================================
+
+/**
+ * Prefetches vacation requests list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for filtering and pagination
+ * @returns Nothing
+ */
+export function prefetchVacationRequests(
+	queryClient: QueryClient,
+	params?: VacationRequestQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.vacations.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchVacationRequestsListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchVacationRequestsListServer(cookieHeader, params);
 		},
 	});
 }

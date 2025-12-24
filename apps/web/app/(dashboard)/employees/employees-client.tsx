@@ -15,6 +15,13 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -52,11 +59,13 @@ import {
 	fetchJobPositionsList,
 	fetchLocationsList,
 	fetchEmployeeById,
+	fetchOrganizationMembers,
 	type Employee,
 	type EmployeeScheduleEntry,
 	type EmployeeStatus,
 	type JobPosition,
 	type Location,
+	type OrganizationMember,
 } from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
@@ -76,6 +85,8 @@ interface EmployeeFormValues {
 	lastName: string;
 	/** Employee's email address */
 	email: string;
+	/** Linked user ID */
+	userId: string;
 	/** Employee's phone number */
 	phone: string;
 	/** Job position ID (required for new employees) */
@@ -102,6 +113,7 @@ const initialFormValues: EmployeeFormValues = {
 	firstName: '',
 	lastName: '',
 	email: '',
+	userId: 'none',
 	phone: '',
 	jobPositionId: '',
 	locationId: '',
@@ -128,6 +140,10 @@ const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; labelKey: stri
 	{ value: 'MIXTA', labelKey: 'shiftTypes.MIXTA' },
 ];
 
+const ALL_FILTER_VALUE = '__all__';
+
+type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
+
 /**
  * Generates a default Monday-Friday schedule 09:00-17:00.
  *
@@ -152,6 +168,7 @@ const statusVariants: Record<EmployeeStatus, 'default' | 'secondary' | 'outline'
 };
 
 const EMPTY_LOCATIONS: Location[] = [];
+const EMPTY_MEMBERS: OrganizationMember[] = [];
 
 /**
  * Employees page client component.
@@ -165,6 +182,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
+	const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER_VALUE);
+	const [jobPositionFilter, setJobPositionFilter] = useState<string>(ALL_FILTER_VALUE);
+	const [statusFilter, setStatusFilter] = useState<StatusFilterValue>(ALL_FILTER_VALUE);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -179,7 +199,15 @@ export function EmployeesPageClient(): React.ReactElement {
 
 	// Build query params - only include search if it has a value
 	const baseParams = { limit: 100, offset: 0, organizationId };
-	const queryParams = search ? { ...baseParams, search } : baseParams;
+	const queryParams = {
+		...baseParams,
+		...(search ? { search } : {}),
+		...(locationFilter !== ALL_FILTER_VALUE ? { locationId: locationFilter } : {}),
+		...(jobPositionFilter !== ALL_FILTER_VALUE
+			? { jobPositionId: jobPositionFilter }
+			: {}),
+		...(statusFilter !== ALL_FILTER_VALUE ? { status: statusFilter } : {}),
+	};
 
 	const isOrgSelected = Boolean(organizationId);
 
@@ -218,13 +246,78 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
+	// Query for organization members list (for linking users)
+	const { data: membersData, isLoading: isLoadingMembers } = useQuery({
+		queryKey: queryKeys.organizationMembers.list({
+			organizationId,
+			limit: 200,
+			offset: 0,
+		}),
+		queryFn: () =>
+			fetchOrganizationMembers({
+				organizationId: organizationId ?? null,
+				limit: 200,
+				offset: 0,
+			}),
+		enabled: Boolean(organizationId),
+	});
+
 	const employees = data?.data ?? [];
 	const jobPositions: JobPosition[] = jobPositionsData?.data ?? [];
 	const locations: Location[] = locationsData?.data ?? EMPTY_LOCATIONS;
+	const members: OrganizationMember[] = membersData?.members ?? EMPTY_MEMBERS;
+
+	const memberOptions = useMemo(() => {
+		const options = members.map((member) => ({
+			value: member.userId,
+			label: member.user?.name
+				? `${member.user.name} (${member.user.email})`
+				: member.user?.email ?? member.userId,
+		}));
+		options.sort((a, b) => a.label.localeCompare(b.label));
+		return [
+			{ value: 'none', label: t('placeholders.noUser') },
+			...options,
+		];
+	}, [members, t]);
 
 	const locationLookup = useMemo(() => {
-		return new Map<string, string>(locations.map((loc) => [loc.id, loc.name]));
+		return new Map<string, string>(
+			locations.map((loc) => [loc.id, loc.name || loc.code]),
+		);
 	}, [locations]);
+
+	const locationFilterOptions = useMemo(
+		(): { value: string; label: string }[] => [
+			{ value: ALL_FILTER_VALUE, label: t('filters.location.all') },
+			...locations.map((loc) => ({
+				value: loc.id,
+				label: loc.name || loc.code,
+			})),
+		],
+		[locations, t],
+	);
+
+	const jobPositionFilterOptions = useMemo(
+		(): { value: string; label: string }[] => [
+			{ value: ALL_FILTER_VALUE, label: t('filters.jobPosition.all') },
+			...jobPositions.map((position) => ({
+				value: position.id,
+				label: position.name,
+			})),
+		],
+		[jobPositions, t],
+	);
+
+	const statusFilterOptions = useMemo(
+		(): { value: StatusFilterValue; label: string }[] => [
+			{ value: ALL_FILTER_VALUE, label: t('filters.status.all') },
+			{ value: 'ACTIVE', label: t('status.ACTIVE') },
+			{ value: 'INACTIVE', label: t('status.INACTIVE') },
+			{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
+		],
+		[t],
+	);
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -308,16 +401,23 @@ export function EmployeesPageClient(): React.ReactElement {
 				toast.error(t('toast.selectLocation'));
 				return;
 			}
-		const trimmedHireDate = value.hireDate.trim();
-		const trimmedSbcOverride = value.sbcDailyOverride.trim();
-		const parsedSbcOverride =
-			trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
-		if (parsedSbcOverride !== null) {
-			if (!Number.isFinite(parsedSbcOverride) || parsedSbcOverride <= 0) {
-				toast.error(t('validation.sbcDailyOverride'));
-				return;
+			const trimmedHireDate = value.hireDate.trim();
+			const trimmedSbcOverride = value.sbcDailyOverride.trim();
+			const parsedSbcOverride =
+				trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
+			if (parsedSbcOverride !== null) {
+				if (!Number.isFinite(parsedSbcOverride) || parsedSbcOverride <= 0) {
+					toast.error(t('validation.sbcDailyOverride'));
+					return;
+				}
 			}
-		}
+			const resolvedUserIdForCreate =
+				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
+			const normalizedUserIdForUpdate =
+				value.userId === 'none' ? null : value.userId?.trim() || null;
+			const currentUserId = editingEmployee?.userId ?? null;
+			const resolvedUserIdForUpdate =
+				normalizedUserIdForUpdate === currentUserId ? undefined : normalizedUserIdForUpdate;
 			if (editingEmployee) {
 				await updateMutation.mutateAsync({
 					id: editingEmployee.id,
@@ -325,6 +425,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					firstName: value.firstName,
 					lastName: value.lastName,
 					email: value.email || undefined,
+					userId: resolvedUserIdForUpdate,
 					phone: value.phone || undefined,
 					jobPositionId: value.jobPositionId || undefined,
 					locationId: value.locationId,
@@ -346,6 +447,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					firstName: value.firstName,
 					lastName: value.lastName,
 					email: value.email || undefined,
+					userId: resolvedUserIdForCreate,
 					phone: value.phone || undefined,
 					jobPositionId: value.jobPositionId,
 					locationId: value.locationId,
@@ -440,6 +542,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue('firstName', employee.firstName);
 			form.setFieldValue('lastName', employee.lastName);
 			form.setFieldValue('email', employee.email ?? '');
+			form.setFieldValue('userId', employee.userId ?? 'none');
 			form.setFieldValue('phone', employee.phone ?? '');
 			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
 			form.setFieldValue('locationId', employee.locationId ?? '');
@@ -623,6 +726,22 @@ export function EmployeesPageClient(): React.ReactElement {
 												label={t('fields.email')}
 												type="email"
 												placeholder={tCommon('optional')}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="userId">
+										{(field) => (
+											<field.SelectField
+												label={t('fields.user')}
+												options={memberOptions}
+												placeholder={
+													isLoadingMembers
+														? tCommon('loading')
+														: t('placeholders.selectUser')
+												}
+												disabled={isLoadingMembers}
 											/>
 										)}
 									</form.AppField>
@@ -869,7 +988,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				</Dialog>
 			</div>
 
-			<div className="flex items-center gap-4">
+			<div className="flex flex-wrap items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -879,6 +998,53 @@ export function EmployeesPageClient(): React.ReactElement {
 						className="pl-9"
 					/>
 				</div>
+				<Select
+					value={locationFilter}
+					onValueChange={setLocationFilter}
+					disabled={isLoadingLocations}
+				>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={t('filters.location.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{locationFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={jobPositionFilter}
+					onValueChange={setJobPositionFilter}
+					disabled={isLoadingJobPositions}
+				>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={t('filters.jobPosition.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{jobPositionFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={statusFilter}
+					onValueChange={(value) => setStatusFilter(value as StatusFilterValue)}
+				>
+					<SelectTrigger className="w-[170px]">
+						<SelectValue placeholder={t('filters.status.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{statusFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			<div className="rounded-md border">
@@ -930,13 +1096,13 @@ export function EmployeesPageClient(): React.ReactElement {
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="block max-w-[200px] truncate font-mono text-xs">
-															{employee.locationId}
+														<span className="block max-w-[200px] truncate text-sm">
+															{locationLookup.get(employee.locationId) ??
+																t('table.unknownLocation')}
 														</span>
 													</TooltipTrigger>
 													<TooltipContent>
-														{locationLookup.get(employee.locationId) ??
-															t('table.unknownLocation')}
+														{employee.locationId}
 													</TooltipContent>
 												</Tooltip>
 											</TooltipProvider>

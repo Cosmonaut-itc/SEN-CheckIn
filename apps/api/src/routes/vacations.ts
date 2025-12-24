@@ -1179,11 +1179,13 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			await db.transaction(async (tx) => {
 				if (exceptionDates.length > 0) {
+					const exceptionType: (typeof scheduleException.$inferInsert)['exceptionType'] =
+						'DAY_OFF';
 					await tx.insert(scheduleException).values(
 						exceptionDates.map((exceptionDate) => ({
 							employeeId: request.employeeId,
 							exceptionDate,
-							exceptionType: 'DAY_OFF',
+							exceptionType,
 							reason: 'Vacaciones',
 							vacationRequestId: request.id,
 						})),

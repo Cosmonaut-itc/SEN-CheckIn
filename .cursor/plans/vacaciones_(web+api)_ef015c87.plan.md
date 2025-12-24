@@ -193,7 +193,7 @@ En `approve` (transacción):
 ### 1) Enforce legal mínimo: prima vacacional >= 0.25
 
 - API: actualizar [`apps/api/src/schemas/payroll.ts`](apps/api/src/schemas/payroll.ts) para `vacationPremiumRate: z.coerce.number().min(0.25).max(1)`.
-- Web: actualizar validación en [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\(dashboard)/payroll-settings/payroll-settings-client.tsx) para `min: 0.25`.
+- Web: actualizar validación en [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\(dashboard)/payroll-settings/payroll-settings-client.tsx) para `min: 0.25`.
 
 ### 2) Cálculo
 
@@ -210,7 +210,7 @@ En `approve` (transacción):
 ### 3) Web Nómina
 
 - Actualizar tipos en [`apps/web/lib/client-functions.ts`](apps/web/lib/client-functions.ts) (`PayrollCalculationEmployee`, `PayrollRunEmployee`).
-- Actualizar UI/CSV en [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\(dashboard)/payroll/payroll-client.tsx) para mostrar/exportar vacaciones y prima.
+- Actualizar UI/CSV en [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\(dashboard)/payroll/payroll-client.tsx) para mostrar/exportar vacaciones y prima.
 
 ## Web (apps/web) — UI RH/Admin
 
@@ -223,7 +223,7 @@ En `approve` (transacción):
 
 ### 2) Página nueva
 
-Crear carpeta: [`apps/web/app/(dashboard)/vacations/`](apps/web/app/\\(dashboard)/vacations/)
+Crear carpeta: [`apps/web/app/(dashboard)/vacations/`](apps/web/app/\\\(dashboard)/vacations/)
 
 - `page.tsx`: server component con `dynamic='force-dynamic'`, prefetch (sin await) siguiendo Release 04.
 - `vacations-client.tsx`: client component con React Query.
@@ -262,7 +262,7 @@ Patrón: `'use server'` + `await headers()` + `createServerApiClient(cookieHeade
 - API: extender rutas y schemas de empleados para aceptar `userId` (solo RH/Admin), validando que el usuario sea miembro de la organización.
 - Archivos: [`apps/api/src/routes/employees.ts`](apps/api/src/routes/employees.ts), [`apps/api/src/schemas/crud.ts`](apps/api/src/schemas/crud.ts)
 - Web: agregar campo “Usuario” en crear/editar empleado (Select con `fetchOrganizationMembers`).
-- Archivos: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\(dashboard)/employees/employees-client.tsx) + acciones ya existentes en [`apps/web/actions/employees.ts`](apps/web/actions/employees.ts)
+- Archivos: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\(dashboard)/employees/employees-client.tsx) + acciones ya existentes en [`apps/web/actions/employees.ts`](apps/web/actions/employees.ts)
 
 ## Pruebas
 
@@ -277,4 +277,3 @@ Patrón: `'use server'` + `await headers()` + `createServerApiClient(cookieHeade
 
 - `bun run check-types:api` / `bun run lint:api`
 - `bun run check-types:web` / `bun run lint:web`
-- (Tras migración) correr una nómina de prueba y verificar:

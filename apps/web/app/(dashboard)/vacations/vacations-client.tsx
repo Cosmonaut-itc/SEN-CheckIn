@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -66,6 +66,8 @@ type StatusFilter = 'all' | VacationRequestStatus;
 
 type DecisionAction = 'approve' | 'reject' | 'cancel';
 
+type CreateVacationRequestStatus = 'DRAFT' | 'SUBMITTED';
+
 const statusVariants: Record<
 	VacationRequestStatus,
 	'default' | 'secondary' | 'destructive' | 'outline'
@@ -116,9 +118,16 @@ export function VacationsPageClient(): React.ReactElement {
 	const [detailRequest, setDetailRequest] = useState<VacationRequest | null>(null);
 	const [decisionNotes, setDecisionNotes] = useState<string>('');
 
-	useEffect(() => {
+	/**
+	 * Updates the detail request selection and resets decision notes.
+	 *
+	 * @param request - Vacation request to show, or null to clear
+	 * @returns Nothing
+	 */
+	const setDetailRequestWithNotes = (request: VacationRequest | null): void => {
+		setDetailRequest(request);
 		setDecisionNotes('');
-	}, [detailRequest?.id]);
+	};
 
 	const employeeQueryParams = useMemo(
 		() => ({
@@ -135,7 +144,10 @@ export function VacationsPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
-	const employees: Employee[] = employeesResponse?.data ?? [];
+	const employees: Employee[] = useMemo(
+		() => employeesResponse?.data ?? [],
+		[employeesResponse?.data],
+	);
 
 	const employeeLookup = useMemo(() => {
 		return new Map<string, string>(
@@ -170,7 +182,7 @@ export function VacationsPageClient(): React.ReactElement {
 	const createForm = useAppForm({
 		defaultValues: {
 			employeeId: '',
-			status: 'SUBMITTED' as VacationRequestStatus,
+			status: 'SUBMITTED' as CreateVacationRequestStatus,
 			startDateKey: '',
 			endDateKey: '',
 			requestedNotes: '',
@@ -232,7 +244,7 @@ export function VacationsPageClient(): React.ReactElement {
 			if (result.success) {
 				toast.success(t('toast.approveSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
-				setDetailRequest(result.data ?? null);
+				setDetailRequestWithNotes(result.data ?? null);
 			} else {
 				toast.error(result.error ?? t('toast.approveError'));
 			}
@@ -247,7 +259,7 @@ export function VacationsPageClient(): React.ReactElement {
 			if (result.success) {
 				toast.success(t('toast.rejectSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
-				setDetailRequest(result.data ?? null);
+				setDetailRequestWithNotes(result.data ?? null);
 			} else {
 				toast.error(result.error ?? t('toast.rejectError'));
 			}
@@ -262,7 +274,7 @@ export function VacationsPageClient(): React.ReactElement {
 			if (result.success) {
 				toast.success(t('toast.cancelSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
-				setDetailRequest(result.data ?? null);
+				setDetailRequestWithNotes(result.data ?? null);
 			} else {
 				toast.error(result.error ?? t('toast.cancelError'));
 			}
@@ -643,7 +655,7 @@ export function VacationsPageClient(): React.ReactElement {
 												<Button
 													variant="outline"
 													size="sm"
-													onClick={() => setDetailRequest(request)}
+													onClick={() => setDetailRequestWithNotes(request)}
 												>
 													{t('actions.viewDetail')}
 												</Button>
@@ -657,7 +669,10 @@ export function VacationsPageClient(): React.ReactElement {
 				</CardContent>
 			</Card>
 
-			<Dialog open={Boolean(detailRequest)} onOpenChange={(open) => !open && setDetailRequest(null)}>
+			<Dialog
+				open={Boolean(detailRequest)}
+				onOpenChange={(open) => !open && setDetailRequestWithNotes(null)}
+			>
 				<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-w-3xl">
 					{detailRequest && (
 						<div className="space-y-4">
@@ -805,7 +820,7 @@ export function VacationsPageClient(): React.ReactElement {
 							) : null}
 
 							<DialogFooter>
-								<Button variant="outline" onClick={() => setDetailRequest(null)}>
+								<Button variant="outline" onClick={() => setDetailRequestWithNotes(null)}>
 									{tCommon('close')}
 								</Button>
 							</DialogFooter>

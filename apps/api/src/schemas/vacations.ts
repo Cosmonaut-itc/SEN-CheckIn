@@ -54,31 +54,43 @@ export const vacationDayTypeEnum = z.enum([
 ]);
 
 /**
+ * Validates that a date range is ordered (end >= start).
+ *
+ * @param value - Date range payload
+ * @param ctx - Zod refinement context
+ * @returns Nothing
+ */
+function validateDateRange(
+	value: { startDateKey: string; endDateKey: string },
+	ctx: z.RefinementCtx,
+): void {
+	if (value.endDateKey < value.startDateKey) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['endDateKey'],
+			message: 'endDateKey must be on or after startDateKey',
+		});
+	}
+}
+
+/**
  * Schema for date key ranges used in vacation requests.
  */
-const vacationDateRangeSchema = z
-	.object({
-		startDateKey: dateKeySchema,
-		endDateKey: dateKeySchema,
-	})
-	.superRefine((value, ctx) => {
-		if (value.endDateKey < value.startDateKey) {
-			ctx.addIssue({
-				code: z.ZodIssueCode.custom,
-				path: ['endDateKey'],
-				message: 'endDateKey must be on or after startDateKey',
-			});
-		}
-	});
+const vacationDateRangeSchema = z.object({
+	startDateKey: dateKeySchema,
+	endDateKey: dateKeySchema,
+});
 
 /**
  * Schema for creating vacation requests (admin or self-service).
  */
-export const vacationRequestCreateSchema = vacationDateRangeSchema.extend({
-	employeeId: z.string().uuid().optional(),
-	requestedNotes: z.string().max(1000).optional(),
-	status: vacationRequestStatusEnum.optional(),
-});
+export const vacationRequestCreateSchema = vacationDateRangeSchema
+	.extend({
+		employeeId: z.string().uuid().optional(),
+		requestedNotes: z.string().max(1000).optional(),
+		status: vacationRequestStatusEnum.optional(),
+	})
+	.superRefine(validateDateRange);
 
 /**
  * Schema for querying vacation requests with optional filters.

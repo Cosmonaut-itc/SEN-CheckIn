@@ -34,6 +34,18 @@ export interface AttendanceQueryParams extends ListQueryParams {
 }
 
 /**
+ * Query parameters for attendance present endpoint.
+ */
+export interface AttendancePresentQueryParams extends Record<string, unknown> {
+	/** Start date for filtering records */
+	fromDate: Date;
+	/** End date for filtering records */
+	toDate: Date;
+	/** Optional organization filter */
+	organizationId?: string | null;
+}
+
+/**
  * Query parameters for job positions list.
  */
 export interface JobPositionQueryParams extends ListQueryParams {
@@ -269,6 +281,12 @@ export const queryKeys = {
 		 */
 		list: (params?: AttendanceQueryParams) =>
 			queryKeyConstructor(['attendance', 'list'] as const, params),
+		/**
+		 * Generates a query key for attendance present records.
+		 * @param params - Attendance present query parameters
+		 */
+		present: (params: AttendancePresentQueryParams) =>
+			queryKeyConstructor(['attendance', 'present'] as const, params),
 	},
 
 	/**

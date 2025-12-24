@@ -1126,6 +1126,94 @@ async function insertAttendance(args: {
 }
 
 /**
+ * Inserts CHECK_IN records for the current local day per location.
+ *
+ * These records are used to validate the "present" dashboard UI.
+ *
+ * @param args - Inputs
+ * @returns Promise<void>
+ */
+async function insertTodayPresenceAttendance(args: {
+	seedNumber: number;
+	employees: SeedEmployee[];
+	locations: SeedLocation[];
+	devices: SeedDevice[];
+}): Promise<void> {
+	const { seedNumber, employees, locations, devices } = args;
+	const rng = createRng(seedNumber + 202);
+
+	const deviceIdsByLocation = new Map<string, string[]>();
+	for (const dev of devices) {
+		if (!dev.locationId) {
+			continue;
+		}
+		const current = deviceIdsByLocation.get(dev.locationId) ?? [];
+		current.push(dev.id);
+		deviceIdsByLocation.set(dev.locationId, current);
+	}
+
+	const employeesByLocation = new Map<string, SeedEmployee[]>();
+	for (const emp of employees) {
+		if (!emp.locationId) {
+			continue;
+		}
+		const current = employeesByLocation.get(emp.locationId) ?? [];
+		current.push(emp);
+		employeesByLocation.set(emp.locationId, current);
+	}
+
+	const attendanceRows: AttendanceRecordRow[] = [];
+	const today = new Date();
+	const baseTimes = ['08:30', '10:15', '12:00', '13:45'];
+
+	for (const loc of locations) {
+		const locationEmployees = employeesByLocation.get(loc.id) ?? [];
+		const locationDeviceIds = deviceIdsByLocation.get(loc.id) ?? [];
+
+		if (locationEmployees.length === 0 || locationDeviceIds.length === 0) {
+			continue;
+		}
+
+		const timeZone = loc.timeZone ?? 'America/Mexico_City';
+		const todayKey = toDateKeyInTimeZone(today, timeZone);
+		const baseMidnightUtc = getUtcDateForZonedMidnight(todayKey, timeZone);
+
+		const candidates = [...locationEmployees];
+		const takeCount = Math.min(2, candidates.length);
+
+		for (let index = 0; index < takeCount; index += 1) {
+			const selectedIndex = Math.floor(rng() * candidates.length);
+			const selected = candidates.splice(selectedIndex, 1)[0];
+			if (!selected) {
+				continue;
+			}
+
+			const baseTime = baseTimes[index % baseTimes.length] ?? '09:00';
+			const jitterMinutes = Math.floor(rng() * 20);
+			const checkInMinutes = parseTimeToMinutes(baseTime) + jitterMinutes;
+			const checkIn = new Date(baseMidnightUtc.getTime() + checkInMinutes * 60_000);
+			const deviceId = pickOne(rng, locationDeviceIds);
+
+			attendanceRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`attendance:today:${selected.id}:${todayKey}:${deviceId}`,
+				),
+				employeeId: selected.id,
+				deviceId,
+				timestamp: checkIn,
+				type: 'CHECK_IN',
+				metadata: null,
+			});
+		}
+	}
+
+	if (attendanceRows.length > 0) {
+		await db.insert(attendanceRecord).values(attendanceRows);
+	}
+}
+
+/**
  * Inserts payroll runs (1 per organization) and payroll run employee line items for each employee.
  *
  * This seed data is intended for development and smoke-testing endpoints, not for accounting use.
@@ -1292,6 +1380,13 @@ async function main(): Promise<void> {
 	const devices = await insertDevices(args.seed, baseline.locations);
 
 	await insertAttendance({
+		seedNumber: args.seed,
+		employees,
+		locations: baseline.locations,
+		devices,
+	});
+
+	await insertTodayPresenceAttendance({
 		seedNumber: args.seed,
 		employees,
 		locations: baseline.locations,

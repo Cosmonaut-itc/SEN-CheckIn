@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
+	AttendancePresentQueryParams,
 	AttendanceQueryParams,
 	CalendarQueryParams,
 	ListQueryParams,
@@ -134,6 +135,19 @@ export interface AttendanceRecord {
 	metadata: Record<string, unknown> | null;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+/**
+ * Attendance record representing current on-site employees.
+ */
+export interface AttendancePresentRecord {
+	employeeId: string;
+	employeeName: string;
+	employeeCode: string;
+	deviceId: string;
+	locationId: string | null;
+	locationName: string | null;
+	checkedInAt: Date;
 }
 
 /**
@@ -816,6 +830,35 @@ export async function fetchAttendanceRecords(
 		data: (response.data?.data ?? []) as AttendanceRecord[],
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
+}
+
+/**
+ * Fetches the latest attendance event per employee within a date range.
+ *
+ * @param params - Required date range and optional organization context
+ * @returns A promise resolving to the list of present employees
+ * @throws Error if the API request fails
+ */
+export async function fetchAttendancePresent(
+	params: AttendancePresentQueryParams,
+): Promise<AttendancePresentRecord[]> {
+	if (params.organizationId === null) {
+		return [];
+	}
+
+	const query = {
+		fromDate: params.fromDate,
+		toDate: params.toDate,
+		organizationId: params.organizationId ?? undefined,
+	};
+
+	const response = await api.attendance.present.get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch attendance present records');
+	}
+
+	return (response.data?.data ?? []) as AttendancePresentRecord[];
 }
 
 // ============================================================================

@@ -263,7 +263,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	});
 
 	const employees = data?.data ?? [];
-	const jobPositions: JobPosition[] = jobPositionsData?.data ?? [];
+	const jobPositions = useMemo<JobPosition[]>(
+		() => jobPositionsData?.data ?? [],
+		[jobPositionsData],
+	);
 	const locations: Location[] = locationsData?.data ?? EMPTY_LOCATIONS;
 	const members: OrganizationMember[] = membersData?.members ?? EMPTY_MEMBERS;
 

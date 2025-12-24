@@ -287,6 +287,16 @@ export const attendanceQuerySchema = paginationSchema.extend({
 });
 
 /**
+ * Schema for attendance presence queries (latest event per employee).
+ */
+export const attendancePresentQuerySchema = z.object({
+	fromDate: z.coerce.date(),
+	toDate: z.coerce.date(),
+	// BetterAuth organization IDs are text (not UUID)
+	organizationId: z.string().optional(),
+});
+
+/**
  * Schema for employee ID path parameter.
  */
 export const employeeIdParamSchema = z.object({
@@ -332,4 +342,5 @@ export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
 export type AttendanceType = z.infer<typeof attendanceTypeEnum>;
 export type CreateAttendanceInput = z.infer<typeof createAttendanceSchema>;
 export type AttendanceQuery = z.infer<typeof attendanceQuerySchema>;
+export type AttendancePresentQuery = z.infer<typeof attendancePresentQuerySchema>;
 export type EmployeeIdParam = z.infer<typeof employeeIdParamSchema>;

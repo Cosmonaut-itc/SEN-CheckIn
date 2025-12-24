@@ -42,7 +42,6 @@ import {
 } from '@/components/ui/table';
 import {
 	Empty,
-	EmptyContent,
 	EmptyDescription,
 	EmptyHeader,
 	EmptyMedia,

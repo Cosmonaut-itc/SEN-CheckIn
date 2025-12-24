@@ -1,15 +1,50 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
-import { queryKeys } from '@/lib/query-keys';
-import { fetchDashboardCounts, type DashboardCounts } from '@/lib/client-functions';
-import { ArrowRight, Building, ClipboardList, MapPin, Smartphone, Users } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { endOfDay, format, formatDistanceToNowStrict, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
+import {
+	ArrowRight,
+	Building,
+	ClipboardList,
+	MapPin,
+	RefreshCw,
+	Search,
+	Smartphone,
+	Users,
+} from 'lucide-react';
 import Link from 'next/link';
-import React from 'react';
-import { useSuspenseQuery } from '@tanstack/react-query';
-import { useOrgContext } from '@/lib/org-client-context';
 import { useTranslations } from 'next-intl';
+
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table';
+import {
+	fetchAttendancePresent,
+	fetchDashboardCounts,
+	type AttendancePresentRecord,
+	type DashboardCounts,
+} from '@/lib/client-functions';
+import { queryKeys } from '@/lib/query-keys';
+import { useOrgContext } from '@/lib/org-client-context';
 
 /**
  * Entity count card configuration interface.
@@ -68,6 +103,76 @@ const entityCards: EntityCardConfig[] = [
 	},
 ];
 
+const UNASSIGNED_LOCATION_KEY = 'unassigned';
+
+/**
+ * Grouped presence data per location for the dashboard accordion.
+ */
+interface PresenceLocationGroup {
+	locationKey: string;
+	locationId: string | null;
+	locationName: string | null;
+	records: AttendancePresentRecord[];
+}
+
+/**
+ * Builds a two-letter initials string for avatar fallbacks.
+ *
+ * @param name - Employee name or identifier.
+ * @returns Uppercase initials string.
+ */
+function getEmployeeInitials(name: string): string {
+	const trimmed = name.trim();
+	if (!trimmed) {
+		return '';
+	}
+	const parts = trimmed.split(/\s+/).filter(Boolean);
+	const first = parts[0]?.[0] ?? '';
+	const second = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+	return `${first}${second}`.toUpperCase();
+}
+
+/**
+ * Groups attendance presence records by location.
+ *
+ * @param records - Presence records to group.
+ * @returns Sorted list of location groups.
+ */
+function groupPresenceByLocation(
+	records: AttendancePresentRecord[],
+): PresenceLocationGroup[] {
+	const groups = new Map<string, PresenceLocationGroup>();
+
+	records.forEach((record) => {
+		const locationKey = record.locationId ?? UNASSIGNED_LOCATION_KEY;
+		const existing = groups.get(locationKey);
+		if (existing) {
+			existing.records.push(record);
+			return;
+		}
+		groups.set(locationKey, {
+			locationKey,
+			locationId: record.locationId ?? null,
+			locationName: record.locationName ?? null,
+			records: [record],
+		});
+	});
+
+	const groupedRecords = Array.from(groups.values()).map((group) => ({
+		...group,
+		records: [...group.records].sort(
+			(a, b) =>
+				new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime(),
+		),
+	}));
+
+	return groupedRecords.sort((a, b) => {
+		const nameA = a.locationName ?? '';
+		const nameB = b.locationName ?? '';
+		return nameA.localeCompare(nameB, 'es');
+	});
+}
+
 /**
  * Dashboard page client component.
  * Displays entity counts and quick navigation cards.
@@ -84,6 +189,80 @@ export function DashboardPageClient(): React.ReactElement {
 		queryKey: queryKeys.dashboard.counts(organizationId),
 		queryFn: () => fetchDashboardCounts({ organizationId }),
 	});
+	const [presenceSearch, setPresenceSearch] = useState<string>('');
+	const todayRange = useMemo(() => {
+		const now = new Date();
+		return {
+			fromDate: startOfDay(now),
+			toDate: endOfDay(now),
+		};
+	}, []);
+	const presenceQueryKey = useMemo(
+		() => ({
+			fromDate: todayRange.fromDate,
+			toDate: todayRange.toDate,
+			organizationId: organizationId ?? undefined,
+		}),
+		[organizationId, todayRange],
+	);
+	const {
+		data: presentRecords = [],
+		isFetching: isPresentFetching,
+		refetch: refetchPresent,
+	} = useQuery({
+		queryKey: queryKeys.attendance.present(presenceQueryKey),
+		queryFn: () =>
+			fetchAttendancePresent({
+				fromDate: todayRange.fromDate,
+				toDate: todayRange.toDate,
+				organizationId: organizationId ?? null,
+			}),
+		enabled: Boolean(organizationId),
+	});
+
+	const presenceSearchTerm = presenceSearch.trim().toLowerCase();
+	const groupedPresence = useMemo(
+		() => groupPresenceByLocation(presentRecords),
+		[presentRecords],
+	);
+	const filteredPresence = useMemo(
+		() =>
+			groupedPresence.map((group) => ({
+				...group,
+				records: presenceSearchTerm
+					? group.records.filter((record) => {
+							const name = record.employeeName?.toLowerCase() ?? '';
+							const code = record.employeeCode?.toLowerCase() ?? '';
+							return (
+								name.includes(presenceSearchTerm) ||
+								code.includes(presenceSearchTerm)
+							);
+					  })
+					: group.records,
+			})),
+		[groupedPresence, presenceSearchTerm],
+	);
+	const totalPresent = filteredPresence.reduce(
+		(total, group) => total + group.records.length,
+		0,
+	);
+	const activeLocations = filteredPresence.filter((group) => group.records.length > 0)
+		.length;
+	const hasPresenceData = presentRecords.length > 0;
+	const isPresenceLoading = isPresentFetching && presentRecords.length === 0;
+	const defaultOpenLocations = useMemo(
+		() => filteredPresence.map((group) => group.locationKey),
+		[filteredPresence],
+	);
+
+	/**
+	 * Refetches the presence records for the current date range.
+	 *
+	 * @returns void
+	 */
+	const handlePresenceRefresh = (): void => {
+		void refetchPresent();
+	};
 
 	return (
 		<div className="space-y-8">
@@ -121,6 +300,177 @@ export function DashboardPageClient(): React.ReactElement {
 					</Link>
 				))}
 			</div>
+
+			<Card>
+				<CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+					<div className="space-y-1">
+						<CardTitle>{t('presence.title')}</CardTitle>
+						<CardDescription>
+							{isPresenceLoading ? (
+								<Skeleton className="h-4 w-40" />
+							) : (
+								t('presence.summary', {
+									total: totalPresent,
+									locations: activeLocations,
+								})
+							)}
+						</CardDescription>
+					</div>
+					<Button
+						type="button"
+						variant="outline"
+						onClick={handlePresenceRefresh}
+						disabled={isPresentFetching}
+					>
+						<RefreshCw className="mr-2 h-4 w-4" />
+						{t('presence.actions.refresh')}
+					</Button>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="relative max-w-sm">
+						<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							placeholder={t('presence.search.placeholder')}
+							aria-label={t('presence.search.placeholder')}
+							value={presenceSearch}
+							onChange={(event) => setPresenceSearch(event.target.value)}
+							className="pl-9"
+						/>
+					</div>
+
+					{isPresenceLoading ? (
+						<div className="space-y-3">
+							<Skeleton className="h-10 w-full" />
+							<Skeleton className="h-28 w-full" />
+							<Skeleton className="h-28 w-full" />
+						</div>
+					) : !hasPresenceData ? (
+						<div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+							{t('presence.empty')}
+						</div>
+					) : (
+						<Accordion
+							type="multiple"
+							defaultValue={defaultOpenLocations}
+							className="w-full"
+						>
+							{filteredPresence.map((group) => {
+								const locationLabel =
+									group.locationName ?? t('presence.locationFallback');
+								const groupCount = group.records.length;
+								return (
+									<AccordionItem
+										key={group.locationKey}
+										value={group.locationKey}
+									>
+										<AccordionTrigger>
+											<div className="flex items-center gap-3">
+												<span className="text-sm font-medium">
+													{locationLabel}
+												</span>
+												<Badge variant="secondary">
+													{groupCount.toLocaleString()}
+												</Badge>
+											</div>
+										</AccordionTrigger>
+										<AccordionContent>
+											<div className="rounded-md border">
+												<Table>
+													<TableHeader>
+														<TableRow>
+															<TableHead>
+																{t('presence.table.headers.employee')}
+															</TableHead>
+															<TableHead>
+																{t('presence.table.headers.code')}
+															</TableHead>
+															<TableHead>
+																{t('presence.table.headers.checkInTime')}
+															</TableHead>
+															<TableHead>
+																{t('presence.table.headers.timeAgo')}
+															</TableHead>
+															<TableHead>
+																{t('presence.table.headers.device')}
+															</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														{group.records.length === 0 ? (
+															<TableRow>
+																<TableCell
+																	colSpan={5}
+																	className="h-20 text-center text-sm text-muted-foreground"
+																>
+																	{t('presence.emptyLocation')}
+																</TableCell>
+															</TableRow>
+														) : (
+															group.records.map((record) => {
+																const checkedInAt = new Date(
+																	record.checkedInAt,
+																);
+																const displayName =
+																	record.employeeName ||
+																	record.employeeCode;
+																const initials =
+																	getEmployeeInitials(displayName);
+																const relativeTime = formatDistanceToNowStrict(
+																	checkedInAt,
+																	{
+																		addSuffix: false,
+																		locale: es,
+																	},
+																);
+																return (
+																	<TableRow key={record.employeeId}>
+																		<TableCell>
+																			<div className="flex items-center gap-3">
+																				<Avatar className="h-8 w-8">
+																					<AvatarFallback>
+																						{initials ||
+																							t(
+																								'presence.table.fallbackInitials',
+																							)}
+																					</AvatarFallback>
+																				</Avatar>
+																				<span className="text-sm font-medium">
+																					{displayName}
+																				</span>
+																			</div>
+																		</TableCell>
+																		<TableCell className="font-mono text-xs">
+																			{record.employeeCode}
+																		</TableCell>
+																		<TableCell className="text-sm">
+																			{format(
+																				checkedInAt,
+																				t('presence.timeFormat'),
+																			)}
+																		</TableCell>
+																		<TableCell className="text-sm text-muted-foreground">
+																			{t('presence.table.timeAgo', {
+																				time: relativeTime,
+																			})}
+																		</TableCell>
+																		<TableCell className="font-mono text-xs">
+																			{record.deviceId.substring(0, 8)}...
+																		</TableCell>
+																	</TableRow>
+																);
+															})
+														)}
+													</TableBody>
+												</Table>
+											</div>
+										</AccordionContent>
+									</AccordionItem>
+								);
+							})}
+						</Accordion>
+					)}
+				</CardContent>
+			</Card>
 		</div>
 	);
 }

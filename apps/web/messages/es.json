@@ -86,6 +86,31 @@
 				"title": "Asistencia",
 				"description": "Consulta registros y reportes de asistencia"
 			}
+		},
+		"presence": {
+			"title": "En sitio ahora",
+			"summary": "Total en sitio: {total} | Ubicaciones activas: {locations}",
+			"locationFallback": "Sin ubicacion",
+			"timeFormat": "HH:mm",
+			"empty": "No hay personal en sitio hoy.",
+			"emptyLocation": "No hay personal para esta ubicacion.",
+			"actions": {
+				"refresh": "Actualizar"
+			},
+			"search": {
+				"placeholder": "Buscar por nombre o codigo"
+			},
+			"table": {
+				"headers": {
+					"employee": "Empleado",
+					"code": "Codigo",
+					"checkInTime": "Hora de entrada",
+					"timeAgo": "Hace",
+					"device": "Dispositivo"
+				},
+				"timeAgo": "hace {time}",
+				"fallbackInitials": "NA"
+			}
 		}
 	},
 	"Errors": {

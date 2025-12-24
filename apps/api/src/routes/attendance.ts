@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { eq, and, gte, lte, type SQL } from 'drizzle-orm';
+import { eq, and, gte, lte, sql, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 
 import db from '../db/index.js';
@@ -10,6 +10,7 @@ import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organizat
 import {
 	idParamSchema,
 	attendanceQuerySchema,
+	attendancePresentQuerySchema,
 	createAttendanceSchema,
 	employeeIdParamSchema,
 } from '../schemas/crud.js';
@@ -156,6 +157,105 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 		},
 		{
 			query: attendanceQuerySchema,
+		},
+	)
+
+	/**
+	 * Get latest "present" attendance records per employee for a date range.
+	 *
+	 * Returns the most recent event within the provided range for each employee,
+	 * filtered to only those whose latest event is CHECK_IN.
+	 *
+	 * @route GET /attendance/present
+	 * @param query.fromDate - Start date for filtering records (required)
+	 * @param query.toDate - End date for filtering records (required)
+	 * @param query.organizationId - Filter by organization ID (optional)
+	 * @returns Array of present attendance entries grouped by employee
+	 */
+	.get(
+		'/present',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { fromDate, toDate, organizationId: organizationIdQuery } = query;
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
+
+			if (!organizationId) {
+				set.status = authType === 'apiKey' ? 403 : 400;
+				return { error: 'Organization is required or not permitted' };
+			}
+
+			const rangeConditions: SQL<unknown>[] = [
+				eq(employee.organizationId, organizationId),
+				gte(attendanceRecord.timestamp, fromDate),
+				lte(attendanceRecord.timestamp, toDate),
+			];
+
+			const latestAttendance = db
+				.select({
+					employeeId: attendanceRecord.employeeId,
+					lastTimestamp: sql<Date>`max(${attendanceRecord.timestamp})`.as('lastTimestamp'),
+				})
+				.from(attendanceRecord)
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.where(and(...rangeConditions))
+				.groupBy(attendanceRecord.employeeId)
+				.as('latest_attendance');
+
+			const results = await db
+				.select({
+					employeeId: attendanceRecord.employeeId,
+					employeeFirstName: employee.firstName,
+					employeeLastName: employee.lastName,
+					employeeCode: employee.code,
+					deviceId: attendanceRecord.deviceId,
+					locationId: device.locationId,
+					locationName: location.name,
+					checkedInAt: attendanceRecord.timestamp,
+				})
+				.from(attendanceRecord)
+				.innerJoin(
+					latestAttendance,
+					and(
+						eq(attendanceRecord.employeeId, latestAttendance.employeeId),
+						eq(attendanceRecord.timestamp, latestAttendance.lastTimestamp),
+					),
+				)
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
+				.leftJoin(location, eq(device.locationId, location.id))
+				.where(eq(attendanceRecord.type, 'CHECK_IN'))
+				.orderBy(attendanceRecord.timestamp);
+
+			const formattedResults = results.map(
+				({ employeeFirstName, employeeLastName, ...rest }) => ({
+					...rest,
+					employeeName: `${employeeFirstName ?? ''} ${employeeLastName ?? ''}`
+						.trim()
+						.replace(/\s+/g, ' '),
+				}),
+			);
+
+			return {
+				data: formattedResults,
+			};
+		},
+		{
+			query: attendancePresentQuerySchema,
 		},
 	)
 

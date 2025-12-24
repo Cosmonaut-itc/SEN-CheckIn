@@ -15,6 +15,13 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -133,6 +140,10 @@ const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; labelKey: stri
 	{ value: 'MIXTA', labelKey: 'shiftTypes.MIXTA' },
 ];
 
+const ALL_FILTER_VALUE = '__all__';
+
+type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
+
 /**
  * Generates a default Monday-Friday schedule 09:00-17:00.
  *
@@ -171,6 +182,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
 	const [search, setSearch] = useState<string>('');
+	const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER_VALUE);
+	const [jobPositionFilter, setJobPositionFilter] = useState<string>(ALL_FILTER_VALUE);
+	const [statusFilter, setStatusFilter] = useState<StatusFilterValue>(ALL_FILTER_VALUE);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -185,7 +199,15 @@ export function EmployeesPageClient(): React.ReactElement {
 
 	// Build query params - only include search if it has a value
 	const baseParams = { limit: 100, offset: 0, organizationId };
-	const queryParams = search ? { ...baseParams, search } : baseParams;
+	const queryParams = {
+		...baseParams,
+		...(search ? { search } : {}),
+		...(locationFilter !== ALL_FILTER_VALUE ? { locationId: locationFilter } : {}),
+		...(jobPositionFilter !== ALL_FILTER_VALUE
+			? { jobPositionId: jobPositionFilter }
+			: {}),
+		...(statusFilter !== ALL_FILTER_VALUE ? { status: statusFilter } : {}),
+	};
 
 	const isOrgSelected = Boolean(organizationId);
 
@@ -260,8 +282,42 @@ export function EmployeesPageClient(): React.ReactElement {
 	}, [members, t]);
 
 	const locationLookup = useMemo(() => {
-		return new Map<string, string>(locations.map((loc) => [loc.id, loc.name]));
+		return new Map<string, string>(
+			locations.map((loc) => [loc.id, loc.name || loc.code]),
+		);
 	}, [locations]);
+
+	const locationFilterOptions = useMemo(
+		(): { value: string; label: string }[] => [
+			{ value: ALL_FILTER_VALUE, label: t('filters.location.all') },
+			...locations.map((loc) => ({
+				value: loc.id,
+				label: loc.name || loc.code,
+			})),
+		],
+		[locations, t],
+	);
+
+	const jobPositionFilterOptions = useMemo(
+		(): { value: string; label: string }[] => [
+			{ value: ALL_FILTER_VALUE, label: t('filters.jobPosition.all') },
+			...jobPositions.map((position) => ({
+				value: position.id,
+				label: position.name,
+			})),
+		],
+		[jobPositions, t],
+	);
+
+	const statusFilterOptions = useMemo(
+		(): { value: StatusFilterValue; label: string }[] => [
+			{ value: ALL_FILTER_VALUE, label: t('filters.status.all') },
+			{ value: 'ACTIVE', label: t('status.ACTIVE') },
+			{ value: 'INACTIVE', label: t('status.INACTIVE') },
+			{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
+		],
+		[t],
+	);
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -932,7 +988,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				</Dialog>
 			</div>
 
-			<div className="flex items-center gap-4">
+			<div className="flex flex-wrap items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
@@ -942,6 +998,53 @@ export function EmployeesPageClient(): React.ReactElement {
 						className="pl-9"
 					/>
 				</div>
+				<Select
+					value={locationFilter}
+					onValueChange={setLocationFilter}
+					disabled={isLoadingLocations}
+				>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={t('filters.location.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{locationFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={jobPositionFilter}
+					onValueChange={setJobPositionFilter}
+					disabled={isLoadingJobPositions}
+				>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={t('filters.jobPosition.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{jobPositionFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={statusFilter}
+					onValueChange={(value) => setStatusFilter(value as StatusFilterValue)}
+				>
+					<SelectTrigger className="w-[170px]">
+						<SelectValue placeholder={t('filters.status.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{statusFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			<div className="rounded-md border">
@@ -993,13 +1096,13 @@ export function EmployeesPageClient(): React.ReactElement {
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
-														<span className="block max-w-[200px] truncate font-mono text-xs">
-															{employee.locationId}
+														<span className="block max-w-[200px] truncate text-sm">
+															{locationLookup.get(employee.locationId) ??
+																t('table.unknownLocation')}
 														</span>
 													</TooltipTrigger>
 													<TooltipContent>
-														{locationLookup.get(employee.locationId) ??
-															t('table.unknownLocation')}
+														{employee.locationId}
 													</TooltipContent>
 												</Tooltip>
 											</TooltipProvider>

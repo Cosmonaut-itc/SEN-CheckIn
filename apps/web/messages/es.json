@@ -208,6 +208,20 @@
 		"search": {
 			"placeholder": "Buscar empleados..."
 		},
+		"filters": {
+			"location": {
+				"placeholder": "Ubicacion",
+				"all": "Todas las ubicaciones"
+			},
+			"jobPosition": {
+				"placeholder": "Puesto",
+				"all": "Todos los puestos"
+			},
+			"status": {
+				"placeholder": "Estatus",
+				"all": "Todos los estatus"
+			}
+		},
 		"table": {
 			"headers": {
 				"code": "Código",
@@ -507,6 +521,10 @@
 			"both": "Entradas/Salidas",
 			"checkIn": "Entrada",
 			"checkOut": "Salida"
+		},
+		"locationFilter": {
+			"placeholder": "Ubicacion",
+			"all": "Todas las ubicaciones"
 		},
 		"table": {
 			"headers": {

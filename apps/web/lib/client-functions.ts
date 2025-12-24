@@ -127,6 +127,7 @@ export interface AttendanceRecord {
 	employeeId: string;
 	employeeName: string;
 	deviceId: string;
+	deviceLocationId?: string | null;
 	deviceLocationName?: string | null;
 	timestamp: Date;
 	type: AttendanceType;
@@ -455,7 +456,12 @@ export async function denyDeviceCode(userCode: string): Promise<boolean> {
  * ```
  */
 export async function fetchEmployeesList(
-	params?: ListQueryParams & { organizationId?: string | null },
+	params?: ListQueryParams & {
+		organizationId?: string | null;
+		locationId?: string;
+		jobPositionId?: string;
+		status?: EmployeeStatus;
+	},
 ): Promise<PaginatedResponse<Employee>> {
 	if (params?.organizationId === null) {
 		return {
@@ -475,6 +481,9 @@ export async function fetchEmployeesList(
 		offset: number;
 		organizationId?: string;
 		search?: string;
+		locationId?: string;
+		jobPositionId?: string;
+		status?: EmployeeStatus;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
@@ -483,6 +492,18 @@ export async function fetchEmployeesList(
 	// Only add search if it has a non-empty value
 	if (params?.search) {
 		query.search = params.search;
+	}
+
+	if (params?.locationId) {
+		query.locationId = params.locationId;
+	}
+
+	if (params?.jobPositionId) {
+		query.jobPositionId = params.jobPositionId;
+	}
+
+	if (params?.status) {
+		query.status = params.status;
 	}
 
 	if (params?.organizationId) {

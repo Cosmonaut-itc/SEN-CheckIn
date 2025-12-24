@@ -43,8 +43,10 @@ import {
 import { queryKeys } from '@/lib/query-keys';
 import {
 	fetchAttendanceRecords,
+	fetchLocationsList,
 	type AttendanceRecord,
 	type AttendanceType,
+	type Location,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 
@@ -52,6 +54,8 @@ import { useOrgContext } from '@/lib/org-client-context';
  * Date filter preset options.
  */
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
+
+const ALL_LOCATIONS_VALUE = '__all__';
 
 /**
  * CSV row shape for attendance exports.
@@ -157,6 +161,7 @@ export function AttendancePageClient(): React.ReactElement {
 	);
 	const [endDate, setEndDate] = useState<string>(format(endOfDay(new Date()), 'yyyy-MM-dd'));
 	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'both'>('both');
+	const [locationFilter, setLocationFilter] = useState<string>(ALL_LOCATIONS_VALUE);
 
 	const startDateValue = useMemo(() => parseDateKey(startDate), [startDate]);
 	const endDateValue = useMemo(() => parseDateKey(endDate), [endDate]);
@@ -221,6 +226,28 @@ export function AttendancePageClient(): React.ReactElement {
 
 	const records = data?.data ?? [];
 
+	const locationQueryParams = { limit: 100, offset: 0, organizationId };
+	const { data: locationsData } = useQuery({
+		queryKey: queryKeys.locations.list(locationQueryParams),
+		queryFn: () => fetchLocationsList(locationQueryParams),
+		enabled: Boolean(organizationId),
+	});
+
+	const locations = useMemo(
+		() => (locationsData?.data ?? []) as Location[],
+		[locationsData],
+	);
+	const locationOptions = useMemo(
+		() => [
+			{ value: ALL_LOCATIONS_VALUE, label: t('locationFilter.all') },
+			...locations.map((loc) => ({
+				value: loc.id,
+				label: loc.name || loc.code,
+			})),
+		],
+		[locations, t],
+	);
+
 	/**
 	 * Updates date preset and syncs date inputs.
 	 *
@@ -239,9 +266,16 @@ export function AttendancePageClient(): React.ReactElement {
 	/**
 	 * Filters records by employee ID search.
 	 */
-	const filteredRecords = records.filter((record: AttendanceRecord) =>
-		search ? record.employeeId.toLowerCase().includes(search.toLowerCase()) : true,
-	);
+	const filteredRecords = records.filter((record: AttendanceRecord) => {
+		const matchesSearch = search
+			? record.employeeId.toLowerCase().includes(search.toLowerCase())
+			: true;
+		const matchesLocation =
+			locationFilter === ALL_LOCATIONS_VALUE
+				? true
+				: record.deviceLocationId === locationFilter;
+		return matchesSearch && matchesLocation;
+	});
 	const locationFallback = t('table.placeholders.noLocation');
 
 	/**
@@ -420,6 +454,19 @@ export function AttendancePageClient(): React.ReactElement {
 						<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
 						<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
 						<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
+					</SelectContent>
+				</Select>
+
+				<Select value={locationFilter} onValueChange={setLocationFilter}>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={t('locationFilter.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						{locationOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
 					</SelectContent>
 				</Select>
 			</div>

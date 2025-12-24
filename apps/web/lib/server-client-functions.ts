@@ -67,7 +67,12 @@ const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
  */
 export async function fetchEmployeesListServer(
 	cookieHeader: string,
-	params?: ListQueryParams & { organizationId?: string | null },
+	params?: ListQueryParams & {
+		organizationId?: string | null;
+		locationId?: string;
+		jobPositionId?: string;
+		status?: Employee['status'];
+	},
 ): Promise<PaginatedResponse<Employee>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 
@@ -94,6 +99,9 @@ export async function fetchEmployeesListServer(
 		offset: number;
 		organizationId?: string;
 		search?: string;
+		locationId?: string;
+		jobPositionId?: string;
+		status?: Employee['status'];
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
@@ -101,6 +109,18 @@ export async function fetchEmployeesListServer(
 
 	if (params?.search) {
 		query.search = params.search;
+	}
+
+	if (params?.locationId) {
+		query.locationId = params.locationId;
+	}
+
+	if (params?.jobPositionId) {
+		query.jobPositionId = params.jobPositionId;
+	}
+
+	if (params?.status) {
+		query.status = params.status;
 	}
 
 	query.organizationId = organizationId;

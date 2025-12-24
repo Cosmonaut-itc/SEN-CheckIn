@@ -8,12 +8,14 @@ import {
 	employeeSchedule,
 	jobPosition,
 	location,
+	member,
 	organization,
 	scheduleTemplate,
 	scheduleTemplateDay,
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
+import type { AuthSession } from '../plugins/auth.js';
 import {
 	createEmployeeSchema,
 	employeeQuerySchema,
@@ -58,6 +60,79 @@ function decodeBase64Image(base64String: string): Uint8Array {
 		bytes[i] = binaryString.charCodeAt(i);
 	}
 	return bytes;
+}
+
+/**
+ * Ensures the caller is an org admin/owner when linking a user to an employee.
+ *
+ * @param args - Authorization context and target organization
+ * @param args.authType - Authentication type (session or apiKey)
+ * @param args.session - Current session when authType is session
+ * @param args.organizationId - Organization identifier
+ * @param set - Elysia response setter for status codes
+ * @returns True when the caller can link users, otherwise false
+ */
+async function ensureAdminRoleForLinking(
+	args: { authType: 'session' | 'apiKey'; session: AuthSession | null; organizationId: string },
+	set: { status?: number | string } & Record<string, unknown>,
+): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		set.status = 403;
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(and(eq(member.userId, args.session.userId), eq(member.organizationId, args.organizationId)))
+		.limit(1);
+
+	const role = membership[0]?.role ?? null;
+	if (!role || (role !== 'admin' && role !== 'owner')) {
+		set.status = 403;
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * Validates that a user belongs to the organization and is not linked to another employee.
+ *
+ * @param args - Target organization and user information
+ * @param args.organizationId - Organization identifier
+ * @param args.userId - User identifier to link
+ * @param args.employeeId - Existing employee ID (for updates)
+ * @param set - Elysia response setter for status codes
+ * @returns True when the user can be linked, otherwise false
+ */
+async function validateEmployeeUserLink(
+	args: { organizationId: string; userId: string; employeeId?: string },
+	set: { status?: number | string } & Record<string, unknown>,
+): Promise<boolean> {
+	const membership = await db
+		.select({ id: member.id })
+		.from(member)
+		.where(and(eq(member.userId, args.userId), eq(member.organizationId, args.organizationId)))
+		.limit(1);
+
+	if (!membership[0]) {
+		set.status = 400;
+		return false;
+	}
+
+	const existing = await db
+		.select({ id: employee.id })
+		.from(employee)
+		.where(and(eq(employee.organizationId, args.organizationId), eq(employee.userId, args.userId)))
+		.limit(1);
+
+	if (existing[0] && existing[0].id !== args.employeeId) {
+		set.status = 409;
+		return false;
+	}
+
+	return true;
 }
 
 /**
@@ -157,6 +232,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
+					userId: employee.userId,
 					rekognitionUserId: employee.rekognitionUserId,
 					scheduleTemplateId: employee.scheduleTemplateId,
 					scheduleTemplateName: scheduleTemplate.name,
@@ -235,6 +311,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
+					userId: employee.userId,
 					rekognitionUserId: employee.rekognitionUserId,
 					scheduleTemplateId: employee.scheduleTemplateId,
 					scheduleTemplateName: scheduleTemplate.name,
@@ -312,6 +389,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				sbcDailyOverride,
 				locationId,
 				organizationId: organizationIdInput,
+				userId,
 				schedule,
 				shiftType,
 				scheduleTemplateId,
@@ -379,6 +457,25 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			) {
 				set.status = 403;
 				return { error: 'Job position does not belong to this organization' };
+			}
+
+			const resolvedUserId = userId?.trim() ? userId.trim() : null;
+			if (resolvedUserId) {
+				const canLink = await ensureAdminRoleForLinking(
+					{ authType, session, organizationId },
+					set,
+				);
+				if (!canLink) {
+					return { error: 'Only organization admins can link users to employees' };
+				}
+
+				const linkValid = await validateEmployeeUserLink(
+					{ organizationId, userId: resolvedUserId },
+					set,
+				);
+				if (!linkValid) {
+					return { error: 'User is not eligible for linking' };
+				}
 			}
 
 			// Check if code is unique
@@ -457,6 +554,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						: sbcDailyOverride.toFixed(2),
 				locationId,
 				organizationId,
+				userId: resolvedUserId,
 				shiftType: resolvedShiftType,
 				scheduleTemplateId: scheduleTemplateId ?? null,
 			};
@@ -607,6 +705,28 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				}
 			}
 
+			const resolvedUserId =
+				body.userId === undefined ? undefined : body.userId?.trim() ? body.userId.trim() : null;
+			if (resolvedUserId !== undefined) {
+				const canLink = await ensureAdminRoleForLinking(
+					{ authType, session, organizationId: resolvedOrganizationId },
+					set,
+				);
+				if (!canLink) {
+					return { error: 'Only organization admins can link users to employees' };
+				}
+
+				if (resolvedUserId) {
+					const linkValid = await validateEmployeeUserLink(
+						{ organizationId: resolvedOrganizationId, userId: resolvedUserId, employeeId: id },
+						set,
+					);
+					if (!linkValid) {
+						return { error: 'User is not eligible for linking' };
+					}
+				}
+			}
+
 			// Only update if there are fields to update
 			if (Object.keys(body).length === 0) {
 				return { data: existing[0] };
@@ -657,7 +777,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Extract schedule updates separately to avoid passing to employee table
-			const { schedule, scheduleTemplateId, sbcDailyOverride, ...employeeUpdate } = body;
+			const {
+				schedule,
+				scheduleTemplateId,
+				sbcDailyOverride,
+				userId: userIdInput,
+				...employeeUpdate
+			} = body;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
 			};
@@ -665,6 +791,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			if (sbcDailyOverride !== undefined) {
 				updatePayload.sbcDailyOverride =
 					sbcDailyOverride === null ? null : sbcDailyOverride.toFixed(2);
+			}
+
+			if (userIdInput !== undefined) {
+				updatePayload.userId = resolvedUserId ?? null;
 			}
 
 			if (scheduleTemplateId !== undefined) {
@@ -721,6 +851,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
+					userId: employee.userId,
 					scheduleTemplateId: employee.scheduleTemplateId,
 					scheduleTemplateName: scheduleTemplate.name,
 					scheduleTemplateShiftType: scheduleTemplate.shiftType,

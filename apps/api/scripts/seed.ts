@@ -9,6 +9,12 @@ import { addDaysToDateKey } from '../src/utils/date-key.js';
 import '../src/utils/disable-pg-native.js';
 import { getUtcDateForZonedMidnight, toDateKeyInTimeZone } from '../src/utils/time-zone.js';
 import { SHIFT_LIMITS } from '../src/utils/mexico-labor-constants.js';
+import {
+	buildMandatoryRestDayKeys,
+	buildVacationDayBreakdown,
+	type VacationScheduleDay,
+	type VacationScheduleException,
+} from '../src/services/vacations.js';
 import { seedSchema } from '../src/db/seed-schema.js';
 import * as schema from '../src/db/schema.js';
 
@@ -26,6 +32,8 @@ const {
 	scheduleException,
 	scheduleTemplate,
 	scheduleTemplateDay,
+	vacationRequest,
+	vacationRequestDay,
 } = schema;
 
 type CliArgs = {
@@ -52,6 +60,18 @@ type AttendanceRecordRow = typeof attendanceRecord.$inferInsert;
 type PayrollRunRow = typeof payrollRun.$inferInsert;
 type PayrollRunEmployeeRow = typeof payrollRunEmployee.$inferInsert;
 type PayrollSettingRow = typeof payrollSetting.$inferInsert;
+type VacationRequestRow = typeof vacationRequest.$inferInsert;
+type VacationRequestDayRow = typeof vacationRequestDay.$inferInsert;
+type VacationRequestStatus = NonNullable<VacationRequestRow['status']>;
+
+type VacationSeedTemplate = {
+	status: VacationRequestStatus;
+	startOffset: number;
+	length: number;
+	requestedNotes: string;
+	decisionNotes: string | null;
+	createScheduleExceptions: boolean;
+};
 
 /**
  * Parses CLI arguments for the seed script.
@@ -737,6 +757,225 @@ async function insertScheduleExceptions(args: {
 }
 
 /**
+ * Inserts vacation requests with per-day breakdowns and approved schedule exceptions.
+ *
+ * @param args - Seed inputs
+ * @returns Inserted vacation requests and request day rows
+ */
+async function insertVacationRequests(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	locations: SeedLocation[];
+}): Promise<{ requests: VacationRequestRow[]; requestDays: VacationRequestDayRow[] }> {
+	const { seedNumber, organizations, employees, locations } = args;
+
+	if (organizations.length === 0 || employees.length === 0) {
+		return { requests: [], requestDays: [] };
+	}
+
+	const locationById = new Map<string, SeedLocation>(locations.map((loc) => [loc.id, loc]));
+
+	const scheduleRows = await db
+		.select({
+			employeeId: employeeSchedule.employeeId,
+			dayOfWeek: employeeSchedule.dayOfWeek,
+			isWorkingDay: employeeSchedule.isWorkingDay,
+		})
+		.from(employeeSchedule);
+
+	const scheduleByEmployee = new Map<string, VacationScheduleDay[]>();
+	for (const row of scheduleRows) {
+		const current = scheduleByEmployee.get(row.employeeId) ?? [];
+		current.push({
+			dayOfWeek: row.dayOfWeek,
+			isWorkingDay: row.isWorkingDay ?? true,
+		});
+		scheduleByEmployee.set(row.employeeId, current);
+	}
+
+	const exceptionRows = await db
+		.select({
+			employeeId: scheduleException.employeeId,
+			exceptionDate: scheduleException.exceptionDate,
+			exceptionType: scheduleException.exceptionType,
+		})
+		.from(scheduleException);
+
+	const exceptionsByEmployee = new Map<string, VacationScheduleException[]>();
+	const existingExceptionKeys = new Set<string>();
+	for (const row of exceptionRows) {
+		const current = exceptionsByEmployee.get(row.employeeId) ?? [];
+		current.push({
+			exceptionDate: row.exceptionDate,
+			exceptionType: row.exceptionType,
+		});
+		exceptionsByEmployee.set(row.employeeId, current);
+		existingExceptionKeys.add(`${row.employeeId}:${row.exceptionDate.toISOString()}`);
+	}
+
+	const payrollSettings = await db
+		.select({
+			organizationId: payrollSetting.organizationId,
+			additionalMandatoryRestDays: payrollSetting.additionalMandatoryRestDays,
+		})
+		.from(payrollSetting);
+
+	const additionalRestDaysByOrg = new Map<string, string[]>();
+	for (const row of payrollSettings) {
+		additionalRestDaysByOrg.set(row.organizationId, row.additionalMandatoryRestDays ?? []);
+	}
+
+	const requestTemplates: VacationSeedTemplate[] = [
+		{
+			status: 'APPROVED',
+			startOffset: -28,
+			length: 4,
+			requestedNotes: 'Vacaciones aprobadas de prueba',
+			decisionNotes: 'Aprobado para pruebas',
+			createScheduleExceptions: true,
+		},
+		{
+			status: 'SUBMITTED',
+			startOffset: 7,
+			length: 5,
+			requestedNotes: 'Solicitud de vacaciones de prueba',
+			decisionNotes: null,
+			createScheduleExceptions: false,
+		},
+	];
+
+	const requests: VacationRequestRow[] = [];
+	const requestDays: VacationRequestDayRow[] = [];
+	const vacationExceptions: ScheduleExceptionRow[] = [];
+
+	for (const [orgIndex, org] of organizations.entries()) {
+		const orgEmployees = employees.filter((emp) => emp.organizationId === org.id);
+		if (orgEmployees.length === 0) {
+			continue;
+		}
+
+		const selectedEmployees = orgEmployees.slice(0, requestTemplates.length);
+
+		for (const [templateIndex, template] of requestTemplates.entries()) {
+			const employeeRecord = selectedEmployees[templateIndex];
+			if (!employeeRecord) {
+				continue;
+			}
+
+			const location = employeeRecord.locationId
+				? locationById.get(employeeRecord.locationId)
+				: undefined;
+			const timeZone = location?.timeZone ?? 'America/Mexico_City';
+			const todayKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const startOffset = template.startOffset + orgIndex * 2 + templateIndex * 2;
+			const startDateKey = addDaysToDateKey(todayKey, startOffset);
+			const endDateKey = addDaysToDateKey(startDateKey, template.length - 1);
+
+			const scheduleDays = scheduleByEmployee.get(employeeRecord.id) ?? [];
+			if (scheduleDays.length === 0) {
+				continue;
+			}
+
+			const exceptions = exceptionsByEmployee.get(employeeRecord.id) ?? [];
+			const additionalMandatoryRestDays =
+				additionalRestDaysByOrg.get(org.id) ?? [];
+			const mandatoryRestDayKeys = buildMandatoryRestDayKeys(
+				startDateKey,
+				endDateKey,
+				additionalMandatoryRestDays,
+			);
+
+			const breakdown = buildVacationDayBreakdown({
+				startDateKey,
+				endDateKey,
+				scheduleDays,
+				exceptions,
+				mandatoryRestDayKeys,
+				hireDate: employeeRecord.hireDate ?? null,
+			});
+
+			const requestId = deterministicUuid(
+				seedNumber,
+				`vacation-request:${employeeRecord.id}:${startDateKey}`,
+			);
+
+			requests.push({
+				id: requestId,
+				organizationId: org.id,
+				employeeId: employeeRecord.id,
+				status: template.status,
+				startDateKey,
+				endDateKey,
+				requestedByUserId: null,
+				requestedNotes: template.requestedNotes,
+				decisionNotes: template.decisionNotes,
+				approvedByUserId: null,
+				approvedAt: template.status === 'APPROVED' ? new Date() : null,
+				rejectedByUserId: null,
+				rejectedAt: null,
+				cancelledByUserId: null,
+				cancelledAt: null,
+			});
+
+			for (const day of breakdown.days) {
+				requestDays.push({
+					id: deterministicUuid(
+						seedNumber,
+						`vacation-request-day:${requestId}:${day.dateKey}`,
+					),
+					requestId,
+					employeeId: employeeRecord.id,
+					dateKey: day.dateKey,
+					countsAsVacationDay: day.countsAsVacationDay,
+					dayType: day.dayType,
+					serviceYearNumber: day.serviceYearNumber,
+				});
+
+				if (!template.createScheduleExceptions || !day.countsAsVacationDay) {
+					continue;
+				}
+
+				const exceptionDate = getUtcDateForZonedMidnight(day.dateKey, timeZone);
+				const exceptionKey = `${employeeRecord.id}:${exceptionDate.toISOString()}`;
+				if (existingExceptionKeys.has(exceptionKey)) {
+					continue;
+				}
+
+				existingExceptionKeys.add(exceptionKey);
+				vacationExceptions.push({
+					id: deterministicUuid(
+						seedNumber,
+						`schedule-exception:vacation:${requestId}:${day.dateKey}`,
+					),
+					employeeId: employeeRecord.id,
+					exceptionDate,
+					exceptionType: 'DAY_OFF',
+					startTime: null,
+					endTime: null,
+					reason: 'Vacaciones',
+					vacationRequestId: requestId,
+				});
+			}
+		}
+	}
+
+	if (requests.length > 0) {
+		await db.insert(vacationRequest).values(requests);
+	}
+
+	if (requestDays.length > 0) {
+		await db.insert(vacationRequestDay).values(requestDays);
+	}
+
+	if (vacationExceptions.length > 0) {
+		await db.insert(scheduleException).values(vacationExceptions);
+	}
+
+	return { requests, requestDays };
+}
+
+/**
  * Inserts devices (2 per location) for attendance seeding.
  *
  * @param seedNumber - Seed number
@@ -1043,6 +1282,13 @@ async function main(): Promise<void> {
 		locations: baseline.locations,
 	});
 
+	const vacationSeeds = await insertVacationRequests({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		locations: baseline.locations,
+	});
+
 	const devices = await insertDevices(args.seed, baseline.locations);
 
 	await insertAttendance({
@@ -1062,6 +1308,8 @@ async function main(): Promise<void> {
 	console.log('✅ Seed completed.');
 	console.log('Organizations:', organizations.map((o) => o.slug).join(', '));
 	console.log('Employees:', employees.length);
+	console.log('Vacation requests:', vacationSeeds.requests.length);
+	console.log('Vacation request days:', vacationSeeds.requestDays.length);
 }
 
 try {

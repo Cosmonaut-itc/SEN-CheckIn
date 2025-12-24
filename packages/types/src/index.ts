@@ -178,6 +178,10 @@ export interface AttendanceRecord {
 	employeeName: string;
 	/** Device ID reference */
 	deviceId: string;
+	/** Device location ID (optional for join responses) */
+	deviceLocationId?: string | null;
+	/** Device location name (optional for join responses) */
+	deviceLocationName?: string | null;
 	/** Timestamp of the attendance event */
 	timestamp: Date;
 	/** Type of attendance (check-in or check-out) */

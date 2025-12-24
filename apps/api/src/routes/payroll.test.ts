@@ -21,7 +21,7 @@ type DrizzleCondition =
 	| {
 			kind: 'gte' | 'lte';
 			column: unknown;
-			value: Date;
+			value: Date | string;
 	  }
 	| {
 			kind: 'inArray';
@@ -57,12 +57,30 @@ interface FakeEmployeeScheduleRow {
 	isWorkingDay: boolean;
 }
 
+interface FakeVacationRequestRow {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+	startDateKey: string;
+	endDateKey: string;
+}
+
+interface FakeVacationRequestDayRow {
+	requestId: string;
+	employeeId: string;
+	dateKey: string;
+	countsAsVacationDay: boolean;
+}
+
 interface FakeDbState {
 	organizationId: string;
 	payrollSettings: FakePayrollSettingRow[];
 	employees: FakeEmployeeRow[];
 	schedules: FakeEmployeeScheduleRow[];
 	attendanceRecords: AttendanceRow[];
+	vacationRequests: FakeVacationRequestRow[];
+	vacationRequestDays: FakeVacationRequestDayRow[];
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
 	transactionCalled: boolean;
@@ -151,11 +169,15 @@ function extractDateRange(
 	}
 
 	if (condition.kind === 'gte') {
-		return { start: condition.value, end: null };
+		return typeof condition.value === 'string'
+			? { start: null, end: null }
+			: { start: condition.value, end: null };
 	}
 
 	if (condition.kind === 'lte') {
-		return { start: null, end: condition.value };
+		return typeof condition.value === 'string'
+			? { start: null, end: null }
+			: { start: null, end: condition.value };
 	}
 
 	if (condition.kind !== 'and') {
@@ -172,6 +194,76 @@ function extractDateRange(
 	}
 
 	return { start, end };
+}
+
+/**
+ * Finds date key boundaries (YYYY-MM-DD) inside a WHERE condition tree.
+ *
+ * @param condition - Drizzle-like condition tree
+ * @returns Date key bounds when present
+ */
+function extractDateKeyRange(
+	condition: DrizzleCondition | null,
+): { start: string | null; end: string | null } {
+	if (!condition) {
+		return { start: null, end: null };
+	}
+
+	if (condition.kind === 'gte' && typeof condition.value === 'string') {
+		return { start: condition.value, end: null };
+	}
+
+	if (condition.kind === 'lte' && typeof condition.value === 'string') {
+		return { start: null, end: condition.value };
+	}
+
+	if (condition.kind !== 'and') {
+		return { start: null, end: null };
+	}
+
+	let start: string | null = null;
+	let end: string | null = null;
+
+	for (const child of condition.conditions) {
+		const extracted = extractDateKeyRange(child);
+		start ??= extracted.start;
+		end ??= extracted.end;
+	}
+
+	return { start, end };
+}
+
+/**
+ * Extracts the first eq(...) value matching a predicate.
+ *
+ * @param condition - Drizzle-like condition tree
+ * @param predicate - Matcher for condition values
+ * @returns Matched value or null
+ */
+function extractEqValue(
+	condition: DrizzleCondition | null,
+	predicate: (value: unknown) => boolean,
+): unknown | null {
+	if (!condition) {
+		return null;
+	}
+
+	if (condition.kind === 'eq' && predicate(condition.value)) {
+		return condition.value;
+	}
+
+	if (condition.kind !== 'and') {
+		return null;
+	}
+
+	for (const child of condition.conditions) {
+		const value = extractEqValue(child, predicate);
+		if (value !== null) {
+			return value;
+		}
+	}
+
+	return null;
 }
 
 /**
@@ -335,6 +427,51 @@ function createFakeDb(state: FakeDbState): {
 					.filter((row) => (employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId)))
 					.filter((row) => (start ? row.timestamp >= start : true))
 					.filter((row) => (end ? row.timestamp <= end : true));
+			}
+
+			if (tableName === 'vacation_request_day') {
+				const employeeIds = extractInArrayValues(this.whereCondition)
+					?.filter((value): value is string => typeof value === 'string') ?? [];
+				const { start, end } = extractDateKeyRange(this.whereCondition);
+				const countsFilter = extractEqValue(
+					this.whereCondition,
+					(value) => typeof value === 'boolean',
+				);
+				const statusFilter = extractEqValue(
+					this.whereCondition,
+					(value) =>
+						typeof value === 'string' &&
+						['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(value),
+				);
+				const orgFilter = extractEqValue(
+					this.whereCondition,
+					(value) => typeof value === 'string' && value === state.organizationId,
+				);
+
+				const requestsById = new Map(
+					state.vacationRequests.map((row) => [row.id, row]),
+				);
+
+				return state.vacationRequestDays
+					.filter((row) =>
+						employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
+					)
+					.filter((row) => (typeof countsFilter === 'boolean' ? row.countsAsVacationDay === countsFilter : true))
+					.filter((row) => (start ? row.dateKey >= start : true))
+					.filter((row) => (end ? row.dateKey <= end : true))
+					.filter((row) => {
+						const request = requestsById.get(row.requestId);
+						if (!request) {
+							return false;
+						}
+						if (typeof statusFilter === 'string' && request.status !== statusFilter) {
+							return false;
+						}
+						if (typeof orgFilter === 'string' && request.organizationId !== orgFilter) {
+							return false;
+						}
+						return true;
+					});
 			}
 
 			if (tableName === 'payroll_run') {
@@ -502,6 +639,8 @@ const dbState: FakeDbState = {
 	employees: [],
 	schedules: [],
 	attendanceRecords: [],
+	vacationRequests: [],
+	vacationRequestDays: [],
 	payrollRuns: [],
 	payrollRunEmployees: [],
 	transactionCalled: false,
@@ -540,6 +679,8 @@ describe('payroll routes', () => {
 		dbState.employees = [];
 		dbState.schedules = [];
 		dbState.attendanceRecords = [];
+		dbState.vacationRequests = [];
+		dbState.vacationRequestDays = [];
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
 		dbState.transactionCalled = false;
@@ -826,5 +967,85 @@ describe('payroll routes', () => {
 
 		const employeeAfter = dbState.employees[0];
 		expect(employeeAfter?.lastPayrollDate?.getTime()).toBe(periodBounds.periodEndInclusiveUtc.getTime());
+	});
+
+	it('adds vacation pay and premium for approved vacation days in /payroll/calculate', async () => {
+		dbState.organizationId = 'org-vac';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				vacationPremiumRate: 0.25,
+			},
+		];
+
+		const employeeId = 'emp-vac';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		const requestId = 'vac-req-1';
+		dbState.vacationRequests = [
+			{
+				id: requestId,
+				organizationId: dbState.organizationId,
+				employeeId,
+				status: 'APPROVED',
+				startDateKey: '2025-01-03',
+				endDateKey: '2025-01-03',
+			},
+		];
+		dbState.vacationRequestDays = [
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-01-03',
+				countsAsVacationDay: true,
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-03',
+				periodEndDateKey: '2025-01-03',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: {
+					employeeId: string;
+					vacationDaysPaid: number;
+					vacationPayAmount: number;
+					vacationPremiumAmount: number;
+					totalPay: number;
+				}[];
+			};
+		};
+
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.vacationDaysPaid).toBe(1);
+		expect(row?.vacationPayAmount).toBe(800);
+		expect(row?.vacationPremiumAmount).toBe(200);
+		expect(row?.totalPay).toBe(1000);
 	});
 });

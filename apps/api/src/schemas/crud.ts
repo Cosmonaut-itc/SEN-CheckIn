@@ -142,6 +142,7 @@ export const createEmployeeSchema = z.object({
 	sbcDailyOverride: z.coerce.number().positive('SBC must be greater than 0').optional(),
 	locationId: z.string().uuid(),
 	organizationId: z.string().optional(),
+	userId: z.string().optional(),
 	shiftType: shiftTypeEnum.default('DIURNA').optional(),
 	scheduleTemplateId: z.string().uuid().optional(),
 	schedule: z
@@ -172,6 +173,7 @@ export const updateEmployeeSchema = z.object({
 	sbcDailyOverride: z.coerce.number().positive().nullable().optional(),
 	locationId: z.string().uuid().optional(),
 	shiftType: shiftTypeEnum.optional(),
+	userId: z.string().nullable().optional(),
 	scheduleTemplateId: z.string().uuid().nullable().optional(),
 	schedule: z
 		.array(

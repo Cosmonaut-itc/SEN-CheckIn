@@ -80,14 +80,13 @@ const statusVariants: Record<
 };
 
 /**
- * Converts a date key to a local Date instance at midnight.
+ * Converts a date key to a UTC Date instance.
  *
  * @param dateKey - Date key in YYYY-MM-DD format
- * @returns Date instance at local midnight
+ * @returns Date instance at UTC midnight
  */
-function toLocalDate(dateKey: string): Date {
-	const [year, month, day] = dateKey.split('-').map(Number);
-	return new Date(Number(year), Number(month) - 1, Number(day));
+function toUtcDate(dateKey: string): Date {
+	return new Date(`${dateKey}T00:00:00Z`);
 }
 
 /**
@@ -429,8 +428,8 @@ export function VacationsPageClient(): React.ReactElement {
 														className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
 													>
 														<CalendarIcon className="mr-2 h-4 w-4" />
-												{field.state.value ? (
-															formatShortDateUtc(toLocalDate(field.state.value))
+														{field.state.value ? (
+															formatShortDateUtc(toUtcDate(field.state.value))
 														) : (
 															<span>{t('form.placeholders.startDate')}</span>
 														)}
@@ -441,7 +440,7 @@ export function VacationsPageClient(): React.ReactElement {
 														mode="single"
 														selected={
 															field.state.value
-																? toLocalDate(field.state.value)
+																? toUtcDate(field.state.value)
 																: undefined
 														}
 														onSelect={(date) => {
@@ -490,8 +489,8 @@ export function VacationsPageClient(): React.ReactElement {
 														className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
 													>
 														<CalendarIcon className="mr-2 h-4 w-4" />
-												{field.state.value ? (
-															formatShortDateUtc(toLocalDate(field.state.value))
+														{field.state.value ? (
+															formatShortDateUtc(toUtcDate(field.state.value))
 														) : (
 															<span>{t('form.placeholders.endDate')}</span>
 														)}
@@ -502,7 +501,7 @@ export function VacationsPageClient(): React.ReactElement {
 														mode="single"
 														selected={
 															field.state.value
-																? toLocalDate(field.state.value)
+																? toUtcDate(field.state.value)
 																: undefined
 														}
 														onSelect={(date) => {
@@ -637,8 +636,8 @@ export function VacationsPageClient(): React.ReactElement {
 											</TableCell>
 											<TableCell>
 												{formatDateRangeUtc(
-													toLocalDate(request.startDateKey),
-													toLocalDate(request.endDateKey),
+													toUtcDate(request.startDateKey),
+													toUtcDate(request.endDateKey),
 												)}
 											</TableCell>
 											<TableCell>
@@ -691,8 +690,8 @@ export function VacationsPageClient(): React.ReactElement {
 									<span className="text-muted-foreground">{t('detail.labels.period')}</span>
 									<span>
 										{formatDateRangeUtc(
-											toLocalDate(detailRequest.startDateKey),
-											toLocalDate(detailRequest.endDateKey),
+											toUtcDate(detailRequest.startDateKey),
+											toUtcDate(detailRequest.endDateKey),
 										)}
 									</span>
 								</div>
@@ -738,7 +737,7 @@ export function VacationsPageClient(): React.ReactElement {
 									<TableBody>
 										{detailRequest.days.map((day) => (
 											<TableRow key={day.dateKey}>
-												<TableCell>{formatShortDateUtc(toLocalDate(day.dateKey))}</TableCell>
+												<TableCell>{formatShortDateUtc(toUtcDate(day.dateKey))}</TableCell>
 												<TableCell>{dayTypeLabels[day.dayType]}</TableCell>
 												<TableCell>
 													{day.countsAsVacationDay

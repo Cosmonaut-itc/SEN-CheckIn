@@ -283,6 +283,12 @@ export function PayrollPageClient(): React.ReactElement {
 				key: 'mandatoryRestDayPremiumAmount',
 				label: t('csv.headers.mandatoryRestDayPremiumAmount'),
 			},
+			{ key: 'vacationDaysPaid', label: t('csv.headers.vacationDaysPaid') },
+			{ key: 'vacationPayAmount', label: t('csv.headers.vacationPayAmount') },
+			{
+				key: 'vacationPremiumAmount',
+				label: t('csv.headers.vacationPremiumAmount'),
+			},
 			{ key: 'seventhDayPay', label: t('csv.headers.seventhDayPay') },
 			{ key: 'totalPay', label: t('csv.headers.totalPay') },
 			{ key: 'grossPay', label: t('csv.headers.grossPay') },
@@ -349,6 +355,9 @@ export function PayrollPageClient(): React.ReactElement {
 				overtimeTripleHours: row.overtimeTripleHours,
 				sundayPremiumAmount: row.sundayPremiumAmount,
 				mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount,
+				vacationDaysPaid: row.vacationDaysPaid ?? 0,
+				vacationPayAmount: row.vacationPayAmount ?? 0,
+				vacationPremiumAmount: row.vacationPremiumAmount ?? 0,
 				seventhDayPay: row.seventhDayPay ?? 0,
 				totalPay: row.totalPay,
 				grossPay: row.grossPay ?? row.totalPay,
@@ -671,6 +680,12 @@ export function PayrollPageClient(): React.ReactElement {
 											<TableHead>
 												{t('preview.table.mandatoryRest')}
 											</TableHead>
+											<TableHead>
+												{t('preview.table.vacationPay')}
+											</TableHead>
+											<TableHead>
+												{t('preview.table.vacationPremium')}
+											</TableHead>
 											<TableHead>{t('preview.table.total')}</TableHead>
 											<TableHead>{t('preview.table.warnings')}</TableHead>
 											<TableHead>{t('preview.table.detail')}</TableHead>
@@ -697,6 +712,23 @@ export function PayrollPageClient(): React.ReactElement {
 														? formatCurrency(
 																row.mandatoryRestDayPremiumAmount,
 															)
+														: '-'}
+												</TableCell>
+												<TableCell>
+													{row.vacationPayAmount > 0
+														? formatCurrency(row.vacationPayAmount)
+														: '-'}
+													{row.vacationDaysPaid > 0 && (
+														<span className="mt-1 block text-xs text-muted-foreground">
+															{t('preview.table.vacationDays', {
+																count: row.vacationDaysPaid,
+															})}
+														</span>
+													)}
+												</TableCell>
+												<TableCell>
+													{row.vacationPremiumAmount > 0
+														? formatCurrency(row.vacationPremiumAmount)
 														: '-'}
 												</TableCell>
 												<TableCell>
@@ -752,6 +784,34 @@ export function PayrollPageClient(): React.ReactElement {
 																				{formatCurrency(row.grossPay)}
 																			</span>
 																		</div>
+																		{row.vacationDaysPaid > 0 && (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t('taxDetail.labels.vacationDays')}
+																				</span>
+																				<span>{row.vacationDaysPaid}</span>
+																			</div>
+																		)}
+																		{row.vacationPayAmount > 0 && (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t('taxDetail.labels.vacationPay')}
+																				</span>
+																				<span>
+																					{formatCurrency(row.vacationPayAmount)}
+																				</span>
+																			</div>
+																		)}
+																		{row.vacationPremiumAmount > 0 && (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t('taxDetail.labels.vacationPremium')}
+																				</span>
+																				<span>
+																					{formatCurrency(row.vacationPremiumAmount)}
+																				</span>
+																			</div>
+																		)}
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
 																				{t('taxDetail.labels.employeeWithholdings')}

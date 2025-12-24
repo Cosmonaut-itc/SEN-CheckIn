@@ -4,7 +4,7 @@ import { eq, and, gte, lte, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 
 import db from '../db/index.js';
-import { attendanceRecord, employee, device } from '../db/schema.js';
+import { attendanceRecord, employee, device, location } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
@@ -100,6 +100,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					employeeFirstName: employee.firstName,
 					employeeLastName: employee.lastName,
 					deviceId: attendanceRecord.deviceId,
+					deviceLocationId: device.locationId,
+					deviceLocationName: location.name,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
 					metadata: attendanceRecord.metadata,
@@ -107,7 +109,9 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					updatedAt: attendanceRecord.updatedAt,
 				})
 				.from(attendanceRecord)
-				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id));
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
+				.leftJoin(location, eq(device.locationId, location.id));
 
 			if (conditions.length > 0) {
 				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
@@ -181,6 +185,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					employeeFirstName: employee.firstName,
 					employeeLastName: employee.lastName,
 					deviceId: attendanceRecord.deviceId,
+					deviceLocationId: device.locationId,
+					deviceLocationName: location.name,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
 					metadata: attendanceRecord.metadata,
@@ -190,6 +196,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				})
 				.from(attendanceRecord)
 				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
+				.leftJoin(location, eq(device.locationId, location.id))
 				.where(eq(attendanceRecord.id, id))
 				.limit(1);
 

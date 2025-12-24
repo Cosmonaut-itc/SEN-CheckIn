@@ -10,6 +10,7 @@
 import { api } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
+import type { EmployeeAuditEvent, EmployeeInsights } from '@sen-checkin/types';
 import type {
 	AttendancePresentQueryParams,
 	AttendanceQueryParams,
@@ -557,6 +558,64 @@ export async function fetchEmployeeById(id: string): Promise<Employee | null> {
 	}
 
 	return (response.data?.data as Employee) ?? null;
+}
+
+/**
+ * Fetches employee insights for the detail dialog.
+ *
+ * @param id - Employee ID
+ * @returns Employee insights payload or null when not found
+ */
+export async function fetchEmployeeInsights(id: string): Promise<EmployeeInsights | null> {
+	const response = await api.employees[id].insights.get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch employee insights:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	return (response.data?.data as EmployeeInsights) ?? null;
+}
+
+/**
+ * Fetches employee audit events.
+ *
+ * @param params - Audit query parameters
+ * @param params.employeeId - Employee identifier
+ * @param params.limit - Max number of events to return
+ * @param params.offset - Offset for pagination
+ * @returns Paginated audit events response
+ */
+export async function fetchEmployeeAudit(params: {
+	employeeId: string;
+	limit?: number;
+	offset?: number;
+}): Promise<PaginatedResponse<EmployeeAuditEvent>> {
+	const response = await api.employees[params.employeeId].audit.get({
+		$query: {
+			limit: params.limit ?? 20,
+			offset: params.offset ?? 0,
+		},
+	});
+
+	if (response.error) {
+		console.error('Failed to fetch employee audit:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch employee audit');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as EmployeeAuditEvent[],
+		pagination: response.data?.pagination ?? {
+			total: 0,
+			limit: params.limit ?? 20,
+			offset: params.offset ?? 0,
+		},
+	};
 }
 
 // ============================================================================

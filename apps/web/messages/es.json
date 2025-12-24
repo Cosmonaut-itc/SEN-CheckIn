@@ -156,11 +156,135 @@
 		"dialog": {
 			"title": {
 				"add": "Agregar empleado",
-				"edit": "Editar empleado"
+				"edit": "Editar empleado",
+				"view": "Detalles del empleado"
 			},
 			"description": {
 				"add": "Completa los datos para crear un nuevo empleado.",
-				"edit": "Actualiza la información del empleado."
+				"edit": "Actualiza la información del empleado.",
+				"view": "Consulta el resumen del empleado y abre edicion cuando sea necesario."
+			}
+		},
+		"details": {
+			"header": "Detalles del empleado",
+			"codeLabel": "Codigo:",
+			"scheduleTemplate": "Plantilla de horario",
+			"lastPayrollDate": "Ultima nomina",
+			"faceEnrollment": "Registro facial",
+			"schedule": "Horario"
+		},
+		"tabs": {
+			"summary": "Resumen",
+			"attendance": "Asistencia",
+			"vacations": "Vacaciones",
+			"payroll": "Nomina",
+			"exceptions": "Excepciones",
+			"audit": "Auditoria"
+		},
+		"summary": {
+			"availableDays": "Dias disponibles",
+			"absences": "Ausencias",
+			"leaves": "Permisos",
+			"payrollRuns": "Corridas de nomina",
+			"upcomingExceptions": "Excepciones proximas",
+			"last90Days": "Ultimos 90 dias",
+			"next90Days": "Proximos 90 dias",
+			"lastPayrollRuns": "Ultimas corridas",
+			"serviceYearShort": "Anio de servicio {number}"
+		},
+		"vacationBalance": {
+			"tooltip": {
+				"title": "Calculo de dias disponibles",
+				"formula": "Disponibles = Asignados - Usados - Pendientes",
+				"entitled": "Asignados: {value}",
+				"used": "Usados: {value}",
+				"pending": "Pendientes: {value}",
+				"available": "Disponibles: {value}",
+				"serviceYear": "Anio {number}: {start} a {end}",
+				"asOf": "Al corte: {date}"
+			}
+		},
+		"attendance": {
+			"absencesTitle": "Ausencias",
+			"emptyAbsences": "Sin ausencias recientes.",
+			"leavesTitle": "Permisos",
+			"emptyLeaves": "Sin permisos recientes.",
+			"noReason": "Sin motivo"
+		},
+		"vacations": {
+			"balanceTitle": "Balance de vacaciones",
+			"balance": {
+				"entitled": "Asignados",
+				"used": "Usados",
+				"pending": "Pendientes",
+				"available": "Disponibles"
+			},
+			"balanceUnavailable": "Balance no disponible.",
+			"table": {
+				"headers": {
+					"period": "Periodo",
+					"days": "Dias",
+					"status": "Estatus"
+				},
+				"empty": "Sin solicitudes de vacaciones."
+			}
+		},
+		"payroll": {
+			"table": {
+				"headers": {
+					"period": "Periodo",
+					"total": "Total",
+					"status": "Estatus"
+				},
+				"empty": "Sin corridas de nomina."
+			},
+			"status": {
+				"DRAFT": "Borrador",
+				"PROCESSED": "Procesada"
+			}
+		},
+		"exceptions": {
+			"table": {
+				"headers": {
+					"date": "Fecha",
+					"type": "Tipo",
+					"reason": "Motivo"
+				},
+				"empty": "Sin excepciones proximas."
+			}
+		},
+		"exceptionTypes": {
+			"DAY_OFF": "Dia libre",
+			"MODIFIED": "Horario modificado",
+			"EXTRA_DAY": "Dia extra"
+		},
+		"audit": {
+			"table": {
+				"headers": {
+					"date": "Fecha",
+					"action": "Accion",
+					"actor": "Actor",
+					"fields": "Campos"
+				},
+				"empty": "Sin eventos de auditoria."
+			},
+			"actions": {
+				"created": "Creado",
+				"updated": "Actualizado",
+				"deleted": "Eliminado",
+				"rekognition_created": "Registro facial creado",
+				"rekognition_deleted": "Registro facial eliminado",
+				"payroll_updated": "Nomina actualizada"
+			},
+			"actorTypes": {
+				"user": "Usuario",
+				"apiKey": "API key",
+				"system": "Sistema",
+				"trigger": "Trigger"
+			},
+			"fields": {
+				"none": "Sin cambios",
+				"unknown": "Campo desconocido: {field}"
 			}
 		},
 		"fields": {
@@ -274,6 +398,7 @@
 		},
 		"menu": {
 			"open": "Abrir menú",
+			"viewDetails": "Ver detalles",
 			"enrollFace": "Registrar rostro",
 			"reEnrollFace": "Volver a registrar rostro",
 			"removeFaceEnrollment": "Eliminar registro facial",

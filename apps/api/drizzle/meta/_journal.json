@@ -134,6 +134,13 @@
       "when": 1766589196446,
       "tag": "0018_zippy_iron_monger",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1766609477492,
+      "tag": "0019_smiling_molly_hayes",
+      "breakpoints": true
     }
   ]
 }

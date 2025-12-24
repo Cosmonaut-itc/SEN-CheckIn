@@ -210,6 +210,17 @@ export const queryKeys = {
 		 * @param id - The employee ID
 		 */
 		detail: (id: string) => ['employees', 'detail', id] as const,
+		/**
+		 * Generates a query key for employee insights.
+		 * @param id - The employee ID
+		 */
+		insights: (id: string) => ['employees', 'insights', id] as const,
+		/**
+		 * Generates a query key for employee audit events.
+		 * @param params - Audit query parameters
+		 */
+		audit: (params: { employeeId: string; limit?: number; offset?: number }) =>
+			queryKeyConstructor(['employees', 'audit'] as const, params),
 	},
 
 	/**

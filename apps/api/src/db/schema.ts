@@ -563,6 +563,35 @@ export const employee = pgTable(
 );
 
 /**
+ * Employee audit events - tracks changes to employee records.
+ */
+export const employeeAuditEvent = pgTable(
+	'employee_audit_event',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id').references(() => organization.id, {
+			onDelete: 'cascade',
+		}),
+		action: text('action').notNull(),
+		actorType: text('actor_type').notNull(),
+		actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+		before: jsonb('before').$type<Record<string, unknown> | null>(),
+		after: jsonb('after').$type<Record<string, unknown> | null>(),
+		changedFields: jsonb('changed_fields').$type<string[]>().default([]).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+	},
+	(table) => [
+		index('employee_audit_employee_idx').on(table.employeeId),
+		index('employee_audit_org_idx').on(table.organizationId),
+	],
+);
+
+/**
  * Device table - stores kiosk/device information
  */
 export const device = pgTable('device', {
@@ -855,6 +884,22 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	scheduleExceptions: many(scheduleException),
 	vacationRequests: many(vacationRequest),
 	vacationRequestDays: many(vacationRequestDay),
+	auditEvents: many(employeeAuditEvent),
+}));
+
+export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({
+	employee: one(employee, {
+		fields: [employeeAuditEvent.employeeId],
+		references: [employee.id],
+	}),
+	organization: one(organization, {
+		fields: [employeeAuditEvent.organizationId],
+		references: [organization.id],
+	}),
+	actor: one(user, {
+		fields: [employeeAuditEvent.actorUserId],
+		references: [user.id],
+	}),
 }));
 
 export const scheduleExceptionRelations = relations(scheduleException, ({ one }) => ({

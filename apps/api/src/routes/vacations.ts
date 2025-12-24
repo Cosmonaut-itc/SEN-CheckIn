@@ -27,15 +27,13 @@ import { getVacationDaysForYears } from '../services/mexico-payroll-taxes.js';
 import {
 	buildMandatoryRestDayKeys,
 	buildVacationDayBreakdown,
-	getServiceYearEndDateKey,
-	getServiceYearNumber,
-	getServiceYearStartDateKey,
 	type VacationDayDetail,
 	type VacationScheduleDay,
 	type VacationScheduleException,
 } from '../services/vacations.js';
 import { resolveOrganizationId } from '../utils/organization.js';
-import { isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
+import { isValidIanaTimeZone } from '../utils/time-zone.js';
+import { buildEmployeeVacationBalance, getVacationUsageByServiceYear } from '../services/vacation-balance.js';
 
 type VacationRequestRow = typeof vacationRequest.$inferSelect;
 
@@ -233,52 +231,6 @@ async function buildVacationRequestDays(
 		mandatoryRestDayKeys,
 		hireDate: employeeRecord.hireDate ?? null,
 	});
-}
-
-/**
- * Aggregates used vacation days by service year.
- *
- * @param args - Organization and filter inputs
- * @param args.organizationId - Organization identifier
- * @param args.employeeId - Employee identifier
- * @param args.statuses - Vacation request statuses to include
- * @param args.excludeRequestId - Optional request ID to exclude
- * @returns Map of serviceYearNumber -> used days count
- */
-async function getVacationUsageByServiceYear(args: {
-	organizationId: string;
-	employeeId: string;
-	statuses: VacationRequestStatus[];
-	excludeRequestId?: string;
-}): Promise<Map<number, number>> {
-	const conditions: SQL<unknown>[] = [
-		eq(vacationRequest.organizationId, args.organizationId),
-		eq(vacationRequestDay.employeeId, args.employeeId),
-		eq(vacationRequestDay.countsAsVacationDay, true),
-		inArray(vacationRequest.status, args.statuses),
-	];
-
-	if (args.excludeRequestId) {
-		conditions.push(ne(vacationRequest.id, args.excludeRequestId));
-	}
-
-	const rows = await db
-		.select({
-			serviceYearNumber: vacationRequestDay.serviceYearNumber,
-		})
-		.from(vacationRequestDay)
-		.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
-		.where(and(...conditions)!);
-
-	const map = new Map<number, number>();
-	for (const row of rows) {
-		const year = row.serviceYearNumber ?? null;
-		if (!year || year <= 0) {
-			continue;
-		}
-		map.set(year, (map.get(year) ?? 0) + 1);
-	}
-	return map;
 }
 
 /**
@@ -565,46 +517,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const timeZone = isValidIanaTimeZone(timeZoneCandidate)
 				? timeZoneCandidate
 				: 'America/Mexico_City';
-			const asOfDateKey = toDateKeyInTimeZone(new Date(), timeZone);
-			const currentServiceYear =
-				getServiceYearNumber(employeeRecord.hireDate, asOfDateKey) ?? 0;
-
-			const approvedDays = await getVacationUsageByServiceYear({
-				organizationId,
+			const balance = await buildEmployeeVacationBalance({
 				employeeId: employeeRecord.id,
-				statuses: ['APPROVED'],
-			});
-			const pendingDays = await getVacationUsageByServiceYear({
 				organizationId,
-				employeeId: employeeRecord.id,
-				statuses: ['SUBMITTED'],
+				hireDate: employeeRecord.hireDate,
+				timeZone,
 			});
-
-			const entitledDays =
-				currentServiceYear > 0 ? getVacationDaysForYears(currentServiceYear) : 0;
-			const usedDays = approvedDays.get(currentServiceYear) ?? 0;
-			const pending = pendingDays.get(currentServiceYear) ?? 0;
-			const availableDays = entitledDays - usedDays - pending;
 
 			return {
-				data: {
-					employeeId: employeeRecord.id,
-					hireDate: employeeRecord.hireDate,
-					asOfDateKey,
-					serviceYearNumber: currentServiceYear,
-					serviceYearStartDateKey: getServiceYearStartDateKey(
-						employeeRecord.hireDate,
-						currentServiceYear,
-					),
-					serviceYearEndDateKey: getServiceYearEndDateKey(
-						employeeRecord.hireDate,
-						currentServiceYear,
-					),
-					entitledDays,
-					usedDays,
-					pendingDays: pending,
-					availableDays,
-				},
+				data: balance,
 			};
 		},
 	)

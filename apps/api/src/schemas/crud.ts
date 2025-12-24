@@ -161,7 +161,7 @@ export const createEmployeeSchema = z.object({
  * Schema for updating an employee.
  */
 export const updateEmployeeSchema = z.object({
-	code: z.string().min(1).max(50).optional(),
+	code: z.never().optional(),
 	firstName: z.string().min(1).max(100).optional(),
 	lastName: z.string().min(1).max(100).optional(),
 	email: z.string().email().max(255).nullable().optional(),
@@ -169,7 +169,7 @@ export const updateEmployeeSchema = z.object({
 	jobPositionId: z.string().uuid().nullable().optional(),
 	department: z.string().max(100).nullable().optional(),
 	status: employeeStatusEnum.optional(),
-	hireDate: z.coerce.date().nullable().optional(),
+	hireDate: z.never().optional(),
 	sbcDailyOverride: z.coerce.number().positive().nullable().optional(),
 	locationId: z.string().uuid().optional(),
 	shiftType: shiftTypeEnum.optional(),

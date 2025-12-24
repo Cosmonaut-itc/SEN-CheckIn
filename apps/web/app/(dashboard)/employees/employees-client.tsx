@@ -52,11 +52,13 @@ import {
 	fetchJobPositionsList,
 	fetchLocationsList,
 	fetchEmployeeById,
+	fetchOrganizationMembers,
 	type Employee,
 	type EmployeeScheduleEntry,
 	type EmployeeStatus,
 	type JobPosition,
 	type Location,
+	type OrganizationMember,
 } from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
@@ -76,6 +78,8 @@ interface EmployeeFormValues {
 	lastName: string;
 	/** Employee's email address */
 	email: string;
+	/** Linked user ID */
+	userId: string;
 	/** Employee's phone number */
 	phone: string;
 	/** Job position ID (required for new employees) */
@@ -102,6 +106,7 @@ const initialFormValues: EmployeeFormValues = {
 	firstName: '',
 	lastName: '',
 	email: '',
+	userId: 'none',
 	phone: '',
 	jobPositionId: '',
 	locationId: '',
@@ -152,6 +157,7 @@ const statusVariants: Record<EmployeeStatus, 'default' | 'secondary' | 'outline'
 };
 
 const EMPTY_LOCATIONS: Location[] = [];
+const EMPTY_MEMBERS: OrganizationMember[] = [];
 
 /**
  * Employees page client component.
@@ -218,9 +224,40 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
+	// Query for organization members list (for linking users)
+	const { data: membersData, isLoading: isLoadingMembers } = useQuery({
+		queryKey: queryKeys.organizationMembers.list({
+			organizationId,
+			limit: 200,
+			offset: 0,
+		}),
+		queryFn: () =>
+			fetchOrganizationMembers({
+				organizationId: organizationId ?? null,
+				limit: 200,
+				offset: 0,
+			}),
+		enabled: Boolean(organizationId),
+	});
+
 	const employees = data?.data ?? [];
 	const jobPositions: JobPosition[] = jobPositionsData?.data ?? [];
 	const locations: Location[] = locationsData?.data ?? EMPTY_LOCATIONS;
+	const members: OrganizationMember[] = membersData?.members ?? EMPTY_MEMBERS;
+
+	const memberOptions = useMemo(() => {
+		const options = members.map((member) => ({
+			value: member.userId,
+			label: member.user?.name
+				? `${member.user.name} (${member.user.email})`
+				: member.user?.email ?? member.userId,
+		}));
+		options.sort((a, b) => a.label.localeCompare(b.label));
+		return [
+			{ value: 'none', label: t('placeholders.noUser') },
+			...options,
+		];
+	}, [members, t]);
 
 	const locationLookup = useMemo(() => {
 		return new Map<string, string>(locations.map((loc) => [loc.id, loc.name]));
@@ -308,16 +345,20 @@ export function EmployeesPageClient(): React.ReactElement {
 				toast.error(t('toast.selectLocation'));
 				return;
 			}
-		const trimmedHireDate = value.hireDate.trim();
-		const trimmedSbcOverride = value.sbcDailyOverride.trim();
-		const parsedSbcOverride =
-			trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
-		if (parsedSbcOverride !== null) {
-			if (!Number.isFinite(parsedSbcOverride) || parsedSbcOverride <= 0) {
-				toast.error(t('validation.sbcDailyOverride'));
-				return;
+			const trimmedHireDate = value.hireDate.trim();
+			const trimmedSbcOverride = value.sbcDailyOverride.trim();
+			const parsedSbcOverride =
+				trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
+			if (parsedSbcOverride !== null) {
+				if (!Number.isFinite(parsedSbcOverride) || parsedSbcOverride <= 0) {
+					toast.error(t('validation.sbcDailyOverride'));
+					return;
+				}
 			}
-		}
+			const resolvedUserIdForCreate =
+				value.userId && value.userId !== 'none' ? value.userId : undefined;
+			const resolvedUserIdForUpdate =
+				value.userId === 'none' ? null : value.userId || undefined;
 			if (editingEmployee) {
 				await updateMutation.mutateAsync({
 					id: editingEmployee.id,
@@ -325,6 +366,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					firstName: value.firstName,
 					lastName: value.lastName,
 					email: value.email || undefined,
+					userId: resolvedUserIdForUpdate,
 					phone: value.phone || undefined,
 					jobPositionId: value.jobPositionId || undefined,
 					locationId: value.locationId,
@@ -346,6 +388,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					firstName: value.firstName,
 					lastName: value.lastName,
 					email: value.email || undefined,
+					userId: resolvedUserIdForCreate,
 					phone: value.phone || undefined,
 					jobPositionId: value.jobPositionId,
 					locationId: value.locationId,
@@ -440,6 +483,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue('firstName', employee.firstName);
 			form.setFieldValue('lastName', employee.lastName);
 			form.setFieldValue('email', employee.email ?? '');
+			form.setFieldValue('userId', employee.userId ?? 'none');
 			form.setFieldValue('phone', employee.phone ?? '');
 			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
 			form.setFieldValue('locationId', employee.locationId ?? '');
@@ -623,6 +667,22 @@ export function EmployeesPageClient(): React.ReactElement {
 												label={t('fields.email')}
 												type="email"
 												placeholder={tCommon('optional')}
+											/>
+										)}
+									</form.AppField>
+								</div>
+								<div className="col-span-2 sm:col-span-1">
+									<form.AppField name="userId">
+										{(field) => (
+											<field.SelectField
+												label={t('fields.user')}
+												options={memberOptions}
+												placeholder={
+													isLoadingMembers
+														? tCommon('loading')
+														: t('placeholders.selectUser')
+												}
+												disabled={isLoadingMembers}
 											/>
 										)}
 									</form.AppField>

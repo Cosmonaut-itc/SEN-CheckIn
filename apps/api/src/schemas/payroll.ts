@@ -34,7 +34,7 @@ export const payrollSettingsSchema = z.object({
 	absorbImssEmployeeShare: z.boolean().optional(),
 	absorbIsr: z.boolean().optional(),
 	aguinaldoDays: z.coerce.number().int().min(0).optional(),
-	vacationPremiumRate: z.coerce.number().min(0).max(1).optional(),
+	vacationPremiumRate: z.coerce.number().min(0.25).max(1).optional(),
 	enableSeventhDayPay: z.boolean().optional(),
 });
 
@@ -137,6 +137,9 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	overtimeTriplePay: z.number(),
 	sundayPremiumAmount: z.number(),
 	mandatoryRestDayPremiumAmount: z.number(),
+	vacationDaysPaid: z.number(),
+	vacationPayAmount: z.number(),
+	vacationPremiumAmount: z.number(),
 	totalPay: z.number(),
 	grossPay: z.number(),
 	bases: z.object({

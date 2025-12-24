@@ -16,6 +16,7 @@ import type {
 	ListQueryParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
+	VacationRequestQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
 
@@ -57,6 +58,7 @@ export interface Employee {
 	sbcDailyOverride: number | null;
 	locationId: string | null;
 	organizationId: string | null;
+	userId: string | null;
 	rekognitionUserId: string | null;
 	lastPayrollDate?: Date | null;
 	schedule?: EmployeeScheduleEntry[];
@@ -130,6 +132,87 @@ export interface AttendanceRecord {
 	metadata: Record<string, unknown> | null;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+/**
+ * Vacation request status values.
+ */
+export type VacationRequestStatus =
+	| 'DRAFT'
+	| 'SUBMITTED'
+	| 'APPROVED'
+	| 'REJECTED'
+	| 'CANCELLED';
+
+/**
+ * Vacation day classification values.
+ */
+export type VacationDayType =
+	| 'SCHEDULED_WORKDAY'
+	| 'SCHEDULED_REST_DAY'
+	| 'EXCEPTION_WORKDAY'
+	| 'EXCEPTION_DAY_OFF'
+	| 'MANDATORY_REST_DAY';
+
+/**
+ * Vacation request day detail.
+ */
+export interface VacationRequestDay {
+	dateKey: string;
+	countsAsVacationDay: boolean;
+	dayType: VacationDayType;
+	serviceYearNumber: number | null;
+}
+
+/**
+ * Vacation request summary details.
+ */
+export interface VacationRequestSummary {
+	totalDays: number;
+	vacationDays: number;
+}
+
+/**
+ * Vacation request record interface.
+ */
+export interface VacationRequest {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	requestedByUserId: string | null;
+	status: VacationRequestStatus;
+	startDateKey: string;
+	endDateKey: string;
+	requestedNotes: string | null;
+	decisionNotes: string | null;
+	approvedByUserId: string | null;
+	approvedAt: Date | null;
+	rejectedByUserId: string | null;
+	rejectedAt: Date | null;
+	cancelledByUserId: string | null;
+	cancelledAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
+	employeeName: string | null;
+	employeeLastName: string | null;
+	days: VacationRequestDay[];
+	summary: VacationRequestSummary;
+}
+
+/**
+ * Vacation balance summary for self-service.
+ */
+export interface VacationBalance {
+	employeeId: string;
+	hireDate: Date;
+	asOfDateKey: string;
+	serviceYearNumber: number;
+	serviceYearStartDateKey: string | null;
+	serviceYearEndDateKey: string | null;
+	entitledDays: number;
+	usedDays: number;
+	pendingDays: number;
+	availableDays: number;
 }
 
 /**
@@ -714,6 +797,149 @@ export async function fetchAttendanceRecords(
 }
 
 // ============================================================================
+// Vacation Functions
+// ============================================================================
+
+type VacationRequestPayload = Omit<
+	VacationRequest,
+	'approvedAt' | 'rejectedAt' | 'cancelledAt' | 'createdAt' | 'updatedAt'
+> & {
+	approvedAt: string | Date | null;
+	rejectedAt: string | Date | null;
+	cancelledAt: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+type VacationBalancePayload = Omit<VacationBalance, 'hireDate'> & {
+	hireDate: string | Date;
+};
+
+/**
+ * Normalizes vacation request payload timestamps into Date objects.
+ *
+ * @param payload - Raw vacation request payload
+ * @returns Normalized vacation request
+ */
+function normalizeVacationRequest(payload: VacationRequestPayload): VacationRequest {
+	return {
+		...payload,
+		approvedAt: payload.approvedAt ? new Date(payload.approvedAt) : null,
+		rejectedAt: payload.rejectedAt ? new Date(payload.rejectedAt) : null,
+		cancelledAt: payload.cancelledAt ? new Date(payload.cancelledAt) : null,
+		createdAt: new Date(payload.createdAt),
+		updatedAt: new Date(payload.updatedAt),
+	};
+}
+
+/**
+ * Normalizes vacation balance payload timestamps into Date objects.
+ *
+ * @param payload - Raw vacation balance payload
+ * @returns Normalized vacation balance
+ */
+function normalizeVacationBalance(payload: VacationBalancePayload): VacationBalance {
+	return {
+		...payload,
+		hireDate: new Date(payload.hireDate),
+	};
+}
+
+/**
+ * Fetches vacation requests list for HR/admin workflows.
+ *
+ * @param params - Query parameters for vacation requests
+ * @returns Paginated vacation requests
+ * @throws Error if the API request fails
+ */
+export async function fetchVacationRequestsList(
+	params?: VacationRequestQueryParams & { organizationId?: string | null },
+): Promise<PaginatedResponse<VacationRequest>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 50,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId?: string;
+		employeeId?: string;
+		status?: VacationRequestStatus;
+		from?: string;
+		to?: string;
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.from) {
+		query.from = params.from;
+	}
+	if (params?.to) {
+		query.to = params.to;
+	}
+
+	const response = await api.vacations.requests.get({ $query: query });
+
+	if (response.error) {
+		console.error('Failed to fetch vacation requests:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch vacation requests');
+	}
+
+	const payload =
+		(response.data?.data as VacationRequestPayload[] | undefined) ?? [];
+	return {
+		data: payload.map(normalizeVacationRequest),
+		pagination: response.data?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
+ * Fetches vacation balance for the current employee (self-service).
+ *
+ * @param params - Optional organization context
+ * @returns Vacation balance or null when missing
+ */
+export async function fetchVacationBalance(params?: {
+	organizationId?: string | null;
+}): Promise<VacationBalance | null> {
+	if (params?.organizationId === null) {
+		return null;
+	}
+
+	const query = params?.organizationId ? { organizationId: params.organizationId } : undefined;
+	const response = await api.vacations.me.balance.get({ $query: query });
+
+	if (response.error) {
+		console.error('Failed to fetch vacation balance:', response.error, 'Status:', response.status);
+		return null;
+	}
+
+	const payload = response.data?.data as VacationBalancePayload | undefined;
+	return payload ? normalizeVacationBalance(payload) : null;
+}
+
+// ============================================================================
 // Payroll Functions
 // ============================================================================
 
@@ -825,6 +1051,9 @@ export interface PayrollCalculationEmployee {
 	overtimeTriplePay: number;
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
+	vacationDaysPaid: number;
+	vacationPayAmount: number;
+	vacationPremiumAmount: number;
 	totalPay: number;
 	grossPay: number;
 	bases: PayrollTaxBases;
@@ -875,6 +1104,9 @@ export interface PayrollRunEmployee {
 	overtimeTriplePay: number;
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
+	vacationDaysPaid: number;
+	vacationPayAmount: number;
+	vacationPremiumAmount: number;
 	taxBreakdown?: {
 		grossPay: number;
 		seventhDayPay: number;
@@ -1084,7 +1316,26 @@ export async function fetchPayrollRunDetail(
 	const payload = response.data?.data as unknown as
 		| {
 				run: PayrollRun & { totalAmount?: number | string };
-				employees: PayrollRunEmployee[];
+				employees: (PayrollRunEmployee & {
+					hoursWorked?: number | string;
+					hourlyPay?: number | string;
+					totalPay?: number | string;
+					normalHours?: number | string;
+					normalPay?: number | string;
+					overtimeDoubleHours?: number | string;
+					overtimeDoublePay?: number | string;
+					overtimeTripleHours?: number | string;
+					overtimeTriplePay?: number | string;
+					sundayPremiumAmount?: number | string;
+					mandatoryRestDayPremiumAmount?: number | string;
+					vacationDaysPaid?: number | string;
+					vacationPayAmount?: number | string;
+					vacationPremiumAmount?: number | string;
+					periodStart: string | Date;
+					periodEnd: string | Date;
+					createdAt: string | Date;
+					updatedAt: string | Date;
+				})[];
 		  }
 		| undefined;
 	if (!payload) {
@@ -1115,6 +1366,9 @@ export async function fetchPayrollRunDetail(
 		overtimeTriplePay: Number(employee.overtimeTriplePay ?? 0),
 		sundayPremiumAmount: Number(employee.sundayPremiumAmount ?? 0),
 		mandatoryRestDayPremiumAmount: Number(employee.mandatoryRestDayPremiumAmount ?? 0),
+		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
+		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
+		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),

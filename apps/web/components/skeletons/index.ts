@@ -12,3 +12,4 @@ export { AttendanceSkeleton } from './attendance-skeleton';
 export { ApiKeysSkeleton } from './api-keys-skeleton';
 export { OrganizationsSkeleton } from './organizations-skeleton';
 export { UsersSkeleton } from './users-skeleton';
+export { VacationsSkeleton } from './vacations-skeleton';

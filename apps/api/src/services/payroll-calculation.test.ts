@@ -212,6 +212,38 @@ describe('payroll-calculation', () => {
 		expect(totalAmount).toBe(1700);
 	});
 
+	it('adds vacation pay and premium when vacation day counts are provided', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-06';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: [],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: {
+				vacationPremiumRate: 0.25,
+			},
+			vacationDayCounts: {
+				[employeeId]: 2,
+			},
+		});
+
+		expect(employees).toHaveLength(1);
+		const row = employees[0];
+		expect(row?.vacationDaysPaid).toBe(2);
+		expect(row?.vacationPayAmount).toBe(1600);
+		expect(row?.vacationPremiumAmount).toBe(400);
+		expect(row?.totalPay).toBe(2000);
+		expect(row?.grossPay).toBe(2000);
+	});
+
 	it('splits cross-midnight work into local day keys (Sunday premium hours)', () => {
 		const periodStartDateKey = '2025-01-04';
 		const periodEndDateKey = '2025-01-05';

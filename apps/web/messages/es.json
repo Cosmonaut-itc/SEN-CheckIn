@@ -34,6 +34,7 @@
 		"locations": "Ubicaciones",
 		"attendance": "Asistencia",
 		"schedules": "Horarios",
+		"vacations": "Vacaciones",
 		"payroll": "Nómina",
 		"apiKeys": "Claves de API",
 		"mobileApp": "App Móvil",
@@ -142,6 +143,7 @@
 			"firstName": "Nombre",
 			"lastName": "Apellido",
 			"email": "Correo electrónico",
+			"user": "Usuario",
 			"phone": "Teléfono",
 			"location": "Ubicación",
 			"jobPosition": "Puesto",
@@ -154,6 +156,8 @@
 		"placeholders": {
 			"selectLocation": "Selecciona una ubicación",
 			"selectJobPosition": "Selecciona un puesto",
+			"selectUser": "Selecciona un usuario",
+			"noUser": "Sin usuario",
 			"selectStatus": "Selecciona un estatus",
 			"selectShiftType": "Selecciona un tipo de turno",
 			"hireDate": "YYYY-MM-DD",
@@ -568,6 +572,9 @@
 				"overtimeTriple": "Horas extra (x3)",
 				"sundayPremium": "Prima dominical",
 				"mandatoryRest": "Descanso obligatorio",
+				"vacationPay": "Pago de vacaciones",
+				"vacationPremium": "Prima vacacional",
+				"vacationDays": "{count, plural, one {# día} other {# días}}",
 				"total": "Total",
 				"warnings": "Alertas",
 				"detail": "Detalle fiscal"
@@ -596,6 +603,9 @@
 				"overtimeTripleHours": "horas_extra_triples",
 				"sundayPremiumAmount": "prima_dominical",
 				"mandatoryRestDayPremiumAmount": "prima_descanso_obligatorio",
+				"vacationDaysPaid": "dias_vacaciones_pagadas",
+				"vacationPayAmount": "pago_vacaciones",
+				"vacationPremiumAmount": "prima_vacacional",
 				"seventhDayPay": "septimo_dia",
 				"totalPay": "total_pagos",
 				"grossPay": "percepciones_gravadas",
@@ -645,6 +655,9 @@
 			},
 			"labels": {
 				"grossPay": "Percepciones (bruto)",
+				"vacationDays": "Días de vacaciones",
+				"vacationPay": "Pago de vacaciones",
+				"vacationPremium": "Prima vacacional",
 				"employeeWithholdings": "Retenciones",
 				"netPay": "Neto",
 				"employerCosts": "Costos patrón",
@@ -772,6 +785,124 @@
 		"toast": {
 			"saveSuccess": "Configuración de nómina guardada",
 			"saveError": "No se pudo guardar la configuración de nómina"
+		}
+	},
+	"Vacations": {
+		"title": "Vacaciones",
+		"subtitle": "Gestiona solicitudes y aprobaciones de vacaciones.",
+		"noOrganization": "Selecciona una organización activa para administrar vacaciones.",
+		"actions": {
+			"create": "Crear solicitud",
+			"viewDetail": "Ver detalle",
+			"approve": "Aprobar",
+			"approving": "Aprobando...",
+			"reject": "Rechazar",
+			"rejecting": "Rechazando...",
+			"cancel": "Cancelar",
+			"cancelling": "Cancelando..."
+		},
+		"filters": {
+			"title": "Filtros",
+			"description": "Explora solicitudes por estatus, empleado o rango de fechas.",
+			"employee": "Empleado",
+			"allEmployees": "Todos los empleados",
+			"statusAll": "Todos",
+			"from": "Desde",
+			"to": "Hasta"
+		},
+		"status": {
+			"DRAFT": "Borrador",
+			"SUBMITTED": "Enviada",
+			"APPROVED": "Aprobada",
+			"REJECTED": "Rechazada",
+			"CANCELLED": "Cancelada"
+		},
+		"table": {
+			"headers": {
+				"employee": "Empleado",
+				"period": "Periodo",
+				"days": "Días",
+				"status": "Estatus",
+				"actions": "Acciones"
+			},
+			"daysSummary": "{vacation} de {total} días",
+			"loading": "Cargando solicitudes...",
+			"empty": "No se encontraron solicitudes."
+		},
+		"form": {
+			"title": "Crear solicitud",
+			"description": "Define el rango de fechas y el estatus inicial.",
+			"fields": {
+				"employee": "Empleado",
+				"status": "Estatus",
+				"startDate": "Inicio",
+				"endDate": "Fin",
+				"notes": "Notas"
+			},
+			"placeholders": {
+				"employee": "Selecciona un empleado",
+				"status": "Selecciona un estatus",
+				"startDate": "Selecciona una fecha",
+				"endDate": "Selecciona una fecha",
+				"notes": "Opcional"
+			},
+			"validation": {
+				"employeeRequired": "El empleado es requerido",
+				"startDateRequired": "La fecha de inicio es requerida",
+				"endDateRequired": "La fecha de fin es requerida",
+				"dateRange": "La fecha de fin debe ser posterior o igual a la fecha de inicio"
+			},
+			"actions": {
+				"submit": "Crear solicitud"
+			}
+		},
+		"detail": {
+			"title": "Detalle de solicitud",
+			"description": "Revisa el desglose de días y registra la decisión.",
+			"labels": {
+				"employee": "Empleado",
+				"period": "Periodo",
+				"status": "Estatus",
+				"daysSummary": "Días de vacaciones",
+				"requestedNotes": "Notas del solicitante",
+				"decisionNotes": "Notas de decisión"
+			},
+			"dayTable": {
+				"headers": {
+					"date": "Fecha",
+					"dayType": "Tipo",
+					"counts": "Cuenta",
+					"serviceYear": "Año de servicio"
+				},
+				"counts": {
+					"yes": "Sí",
+					"no": "No"
+				}
+			},
+			"actions": {
+				"title": "Acciones",
+				"description": "Registra notas opcionales antes de aprobar, rechazar o cancelar.",
+				"notesLabel": "Notas para la decisión",
+				"notesPlaceholder": "Opcional"
+			}
+		},
+		"dayTypes": {
+			"SCHEDULED_WORKDAY": "Día laborable",
+			"SCHEDULED_REST_DAY": "Día de descanso",
+			"EXCEPTION_WORKDAY": "Día laborable (excepción)",
+			"EXCEPTION_DAY_OFF": "Día libre (excepción)",
+			"MANDATORY_REST_DAY": "Descanso obligatorio"
+		},
+		"toast": {
+			"noOrganization": "No hay una organización activa seleccionada.",
+			"createSuccess": "Solicitud creada correctamente",
+			"createError": "No se pudo crear la solicitud",
+			"approveSuccess": "Solicitud aprobada correctamente",
+			"approveError": "No se pudo aprobar la solicitud",
+			"rejectSuccess": "Solicitud rechazada correctamente",
+			"rejectError": "No se pudo rechazar la solicitud",
+			"cancelSuccess": "Solicitud cancelada correctamente",
+			"cancelError": "No se pudo cancelar la solicitud"
 		}
 	},
 	"ApiKeys": {

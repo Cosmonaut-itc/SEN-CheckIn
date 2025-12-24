@@ -25,6 +25,7 @@ import {
 	LayoutDashboard,
 	LogOut,
 	MapPin,
+	CalendarCheck,
 	CalendarDays,
 	Settings2,
 	Smartphone,
@@ -87,6 +88,11 @@ const mainNavItems: NavItem[] = [
 		titleKey: 'schedules',
 		href: '/schedules',
 		icon: CalendarDays,
+	},
+	{
+		titleKey: 'vacations',
+		href: '/vacations',
+		icon: CalendarCheck,
 	},
 	{
 		titleKey: 'payroll',

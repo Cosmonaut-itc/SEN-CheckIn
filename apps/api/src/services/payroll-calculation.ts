@@ -59,6 +59,9 @@ export type PayrollCalculationRow = {
 	overtimeTriplePay: number;
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
+	vacationDaysPaid: number;
+	vacationPayAmount: number;
+	vacationPremiumAmount: number;
 	totalPay: number;
 	grossPay: number;
 	bases: MexicoPayrollTaxResult['bases'];
@@ -109,6 +112,7 @@ export interface CalculatePayrollFromDataArgs {
 	additionalMandatoryRestDays: string[];
 	defaultTimeZone: string;
 	payrollSettings?: Partial<MexicoPayrollTaxSettings> & { enableSeventhDayPay?: boolean };
+	vacationDayCounts?: Record<string, number>;
 }
 
 export interface CalculatePayrollFromDataResult {
@@ -393,6 +397,7 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 		additionalMandatoryRestDays,
 		defaultTimeZone,
 		payrollSettings,
+		vacationDayCounts,
 	} = args;
 
 	const resolvedTaxSettings = {
@@ -651,6 +656,13 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			mandatoryRestDaysWorkedCount > 0
 				? roundCurrency(mandatoryRestDaysWorkedCount * effectiveDailyPay * 2)
 				: 0;
+		const vacationDaysPaid = Math.max(0, vacationDayCounts?.[emp.id] ?? 0);
+		const vacationPayAmount =
+			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * effectiveDailyPay) : 0;
+		const vacationPremiumAmount =
+			vacationPayAmount > 0
+				? roundCurrency(vacationPayAmount * resolvedTaxSettings.vacationPremiumRate)
+				: 0;
 
 		const workedDayKeys = new Set(
 			Array.from(calendarDayMinutes.entries())
@@ -673,7 +685,9 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 				overtimeTriplePay +
 				sundayPremiumAmount +
 				mandatoryRestDayPremiumAmount +
-				seventhDayPay,
+				seventhDayPay +
+				vacationPayAmount +
+				vacationPremiumAmount,
 		);
 		const grossPay = totalPay;
 
@@ -729,6 +743,9 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			overtimeTriplePay,
 			sundayPremiumAmount,
 			mandatoryRestDayPremiumAmount,
+			vacationDaysPaid,
+			vacationPayAmount,
+			vacationPremiumAmount,
 			totalPay,
 			grossPay,
 			bases: taxBreakdown.bases,

@@ -27,6 +27,7 @@ import type {
 	PayrollRun,
 	PayrollRunEmployee,
 	PayrollSettings,
+	VacationRequest,
 	CalendarEmployee,
 	ScheduleException,
 	ScheduleTemplate,
@@ -41,6 +42,7 @@ import type {
 	PayrollCalculateParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
+	VacationRequestQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
 import { type ServerApiClient, createServerApiClient } from '@/lib/server-api';
@@ -706,13 +708,16 @@ export async function fetchPayrollRunDetailServer(
 					overtimeDoubleHours?: number | string;
 					overtimeDoublePay?: number | string;
 					overtimeTripleHours?: number | string;
-					overtimeTriplePay?: number | string;
-					sundayPremiumAmount?: number | string;
-					mandatoryRestDayPremiumAmount?: number | string;
-					periodStart: string | Date;
-					periodEnd: string | Date;
-					createdAt: string | Date;
-					updatedAt: string | Date;
+				overtimeTriplePay?: number | string;
+				sundayPremiumAmount?: number | string;
+				mandatoryRestDayPremiumAmount?: number | string;
+				vacationDaysPaid?: number | string;
+				vacationPayAmount?: number | string;
+				vacationPremiumAmount?: number | string;
+				periodStart: string | Date;
+				periodEnd: string | Date;
+				createdAt: string | Date;
+				updatedAt: string | Date;
 				})[];
 		  }
 		| undefined;
@@ -741,6 +746,9 @@ export async function fetchPayrollRunDetailServer(
 		overtimeTriplePay: Number(employee.overtimeTriplePay ?? 0),
 		sundayPremiumAmount: Number(employee.sundayPremiumAmount ?? 0),
 		mandatoryRestDayPremiumAmount: Number(employee.mandatoryRestDayPremiumAmount ?? 0),
+		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
+		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
+		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),
@@ -891,6 +899,82 @@ export async function fetchCalendarServer(
 	}
 
 	return (response.data?.data ?? []) as CalendarEmployee[];
+}
+
+// ============================================================================
+// Vacation Functions
+// ============================================================================
+
+/**
+ * Fetches vacation requests list for HR/admin workflows (server-side).
+ *
+ * @param cookieHeader - Cookie header string from incoming request
+ * @param params - Query parameters for vacation requests
+ * @returns Paginated vacation requests
+ * @throws Error if the API request fails
+ */
+export async function fetchVacationRequestsListServer(
+	cookieHeader: string,
+	params?: VacationRequestQueryParams,
+): Promise<PaginatedResponse<VacationRequest>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 50, offset: params?.offset ?? 0 },
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId?: string;
+		employeeId?: string;
+		status?: VacationRequestQueryParams['status'];
+		from?: string;
+		to?: string;
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.from) {
+		query.from = params.from;
+	}
+	if (params?.to) {
+		query.to = params.to;
+	}
+
+	const response = await api.vacations.requests.get({ $query: query });
+
+	if (response.error) {
+		console.error(
+			'[Server] Failed to fetch vacation requests:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch vacation requests');
+	}
+
+	return {
+		data: (response.data?.data ?? []) as VacationRequest[],
+		pagination: response.data?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
 }
 
 // ============================================================================

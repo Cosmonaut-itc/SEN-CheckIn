@@ -37,6 +37,11 @@ export const shiftTypeEnum = z.enum(['DIURNA', 'NOCTURNA', 'MIXTA']);
  */
 export const geographicZoneEnum = z.enum(['GENERAL', 'ZLFN']);
 
+/**
+ * Time string validation pattern (HH:MM or HH:MM:SS).
+ */
+export const timeStringRegex = /^\d{2}:\d{2}(?::\d{2})?$/;
+
 // ============================================================================
 // Location Schemas
 // ============================================================================
@@ -149,8 +154,10 @@ export const createEmployeeSchema = z.object({
 		.array(
 			z.object({
 				dayOfWeek: z.number().int().min(0).max(6),
-				startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM'),
-				endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM'),
+				startTime: z
+					.string()
+					.regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS'),
+				endTime: z.string().regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS'),
 				isWorkingDay: z.boolean().optional(),
 			}),
 		)
@@ -179,8 +186,10 @@ export const updateEmployeeSchema = z.object({
 		.array(
 			z.object({
 				dayOfWeek: z.number().int().min(0).max(6),
-				startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM'),
-				endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM'),
+				startTime: z
+					.string()
+					.regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS'),
+				endTime: z.string().regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS'),
 				isWorkingDay: z.boolean().optional(),
 			}),
 		)

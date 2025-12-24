@@ -1,5 +1,6 @@
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";--> statement-breakpoint
 CREATE TABLE "employee_audit_event" (
-	"id" text PRIMARY KEY NOT NULL,
+	"id" text PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"employee_id" text NOT NULL,
 	"organization_id" text,
 	"action" text NOT NULL,
@@ -15,4 +16,105 @@ ALTER TABLE "employee_audit_event" ADD CONSTRAINT "employee_audit_event_employee
 ALTER TABLE "employee_audit_event" ADD CONSTRAINT "employee_audit_event_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "employee_audit_event" ADD CONSTRAINT "employee_audit_event_actor_user_id_user_id_fk" FOREIGN KEY ("actor_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "employee_audit_employee_idx" ON "employee_audit_event" USING btree ("employee_id");--> statement-breakpoint
-CREATE INDEX "employee_audit_org_idx" ON "employee_audit_event" USING btree ("organization_id");
+CREATE INDEX "employee_audit_org_idx" ON "employee_audit_event" USING btree ("organization_id");--> statement-breakpoint
+CREATE OR REPLACE FUNCTION employee_audit_event_trigger() RETURNS trigger AS $$
+DECLARE
+	skip_audit text;
+	changed_fields text[];
+BEGIN
+	skip_audit := current_setting('sen_checkin.skip_employee_audit', true);
+	IF skip_audit = '1' OR lower(skip_audit) = 'true' THEN
+		IF TG_OP = 'DELETE' THEN
+			RETURN OLD;
+		END IF;
+		RETURN NEW;
+	END IF;
+
+	IF TG_OP = 'INSERT' THEN
+		INSERT INTO employee_audit_event (
+			employee_id,
+			organization_id,
+			action,
+			actor_type,
+			actor_user_id,
+			before,
+			after,
+			changed_fields
+		) VALUES (
+			NEW.id,
+			NEW.organization_id,
+			'created',
+			'trigger',
+			NULL,
+			NULL,
+			to_jsonb(NEW),
+			'[]'::jsonb
+		);
+		RETURN NEW;
+	ELSIF TG_OP = 'UPDATE' THEN
+		changed_fields := ARRAY(
+			SELECT key
+			FROM jsonb_each(to_jsonb(NEW))
+			WHERE key <> 'updated_at'
+				AND (to_jsonb(OLD)->key) IS DISTINCT FROM value
+		);
+
+		IF array_length(changed_fields, 1) IS NULL THEN
+			RETURN NEW;
+		END IF;
+
+		INSERT INTO employee_audit_event (
+			employee_id,
+			organization_id,
+			action,
+			actor_type,
+			actor_user_id,
+			before,
+			after,
+			changed_fields
+		) VALUES (
+			NEW.id,
+			NEW.organization_id,
+			'updated',
+			'trigger',
+			NULL,
+			to_jsonb(OLD),
+			to_jsonb(NEW),
+			coalesce(to_jsonb(changed_fields), '[]'::jsonb)
+		);
+		RETURN NEW;
+	ELSIF TG_OP = 'DELETE' THEN
+		INSERT INTO employee_audit_event (
+			employee_id,
+			organization_id,
+			action,
+			actor_type,
+			actor_user_id,
+			before,
+			after,
+			changed_fields
+		) VALUES (
+			OLD.id,
+			OLD.organization_id,
+			'deleted',
+			'trigger',
+			NULL,
+			to_jsonb(OLD),
+			NULL,
+			'[]'::jsonb
+		);
+		RETURN OLD;
+	END IF;
+
+	RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;--> statement-breakpoint
+DROP TRIGGER IF EXISTS "employee_audit_event_insert" ON "employee";--> statement-breakpoint
+CREATE TRIGGER "employee_audit_event_insert" AFTER INSERT ON "employee"
+FOR EACH ROW EXECUTE FUNCTION employee_audit_event_trigger();--> statement-breakpoint
+DROP TRIGGER IF EXISTS "employee_audit_event_update" ON "employee";--> statement-breakpoint
+CREATE TRIGGER "employee_audit_event_update" AFTER UPDATE ON "employee"
+FOR EACH ROW EXECUTE FUNCTION employee_audit_event_trigger();--> statement-breakpoint
+DROP TRIGGER IF EXISTS "employee_audit_event_delete" ON "employee";--> statement-breakpoint
+CREATE TRIGGER "employee_audit_event_delete" AFTER DELETE ON "employee"
+FOR EACH ROW EXECUTE FUNCTION employee_audit_event_trigger();

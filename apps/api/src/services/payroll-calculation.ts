@@ -140,9 +140,9 @@ const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: bo
 };
 
 /**
- * Parses an HH:mm string into total minutes.
+ * Parses an HH:mm or HH:mm:ss string into total minutes.
  *
- * @param timeString - Time string in HH:mm format
+ * @param timeString - Time string in HH:mm or HH:mm:ss format
  * @returns Total minutes from midnight
  */
 function parseTimeToMinutes(timeString: string): number {

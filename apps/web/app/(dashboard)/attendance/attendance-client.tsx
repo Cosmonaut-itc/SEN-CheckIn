@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Calendar as CalendarIcon, RefreshCw, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, Download, RefreshCw, Search } from 'lucide-react';
 import {
 	format,
 	startOfDay,
@@ -54,6 +54,27 @@ import { useOrgContext } from '@/lib/org-client-context';
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
 
 /**
+ * CSV row shape for attendance exports.
+ */
+type AttendanceCsvRow = {
+	employeeName: string;
+	employeeId: string;
+	deviceId: string;
+	deviceLocation: string;
+	type: string;
+	time: string;
+	date: string;
+};
+
+/**
+ * CSV column definition for attendance exports.
+ */
+type CsvColumn = {
+	key: keyof AttendanceCsvRow;
+	label: string;
+};
+
+/**
  * Type badge variant mapping.
  */
 const typeVariants: Record<AttendanceType, 'default' | 'secondary'> = {
@@ -70,6 +91,54 @@ const typeVariants: Record<AttendanceType, 'default' | 'secondary'> = {
 function parseDateKey(dateKey: string): Date | undefined {
 	const parsed = new Date(`${dateKey}T00:00:00`);
 	return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+/**
+ * Escapes a value for CSV output.
+ *
+ * @param value - CSV cell value
+ * @returns Escaped CSV-safe string
+ */
+function escapeCsvValue(value: AttendanceCsvRow[keyof AttendanceCsvRow]): string {
+	const rawValue = value ?? '';
+	const stringValue = String(rawValue);
+	const escaped = stringValue.replace(/"/g, '""');
+	const needsQuotes = /[",\n]/.test(escaped);
+	return needsQuotes ? `"${escaped}"` : escaped;
+}
+
+/**
+ * Builds a CSV document string from column definitions and rows.
+ *
+ * @param columns - Ordered CSV columns
+ * @param rows - CSV rows
+ * @returns CSV string content
+ */
+function buildCsvContent(columns: CsvColumn[], rows: AttendanceCsvRow[]): string {
+	const header = columns.map((column) => escapeCsvValue(column.label)).join(',');
+	const lines = rows.map((row) =>
+		columns.map((column) => escapeCsvValue(row[column.key])).join(','),
+	);
+	return [header, ...lines].join('\n');
+}
+
+/**
+ * Triggers a CSV file download in the browser.
+ *
+ * @param csv - CSV content string
+ * @param fileName - File name for the downloaded CSV
+ * @returns void
+ */
+function downloadCsvFile(csv: string, fileName: string): void {
+	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+	const url = URL.createObjectURL(blob);
+	const link = document.createElement('a');
+	link.href = url;
+	link.download = fileName;
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	URL.revokeObjectURL(url);
 }
 
 /**
@@ -156,6 +225,7 @@ export function AttendancePageClient(): React.ReactElement {
 	 * Updates date preset and syncs date inputs.
 	 *
 	 * @param preset - The new date preset value
+	 * @returns void
 	 */
 	const handlePresetChange = (preset: DatePreset): void => {
 		setDatePreset(preset);
@@ -172,6 +242,47 @@ export function AttendancePageClient(): React.ReactElement {
 	const filteredRecords = records.filter((record: AttendanceRecord) =>
 		search ? record.employeeId.toLowerCase().includes(search.toLowerCase()) : true,
 	);
+	const locationFallback = t('table.placeholders.noLocation');
+
+	/**
+	 * Exports the filtered attendance records to CSV.
+	 *
+	 * @returns void
+	 */
+	const handleExportCsv = useCallback((): void => {
+		if (filteredRecords.length === 0) {
+			return;
+		}
+
+		const columns: CsvColumn[] = [
+			{ key: 'employeeName', label: t('table.headers.employeeName') },
+			{ key: 'employeeId', label: t('table.headers.employeeId') },
+			{ key: 'deviceId', label: t('table.headers.deviceId') },
+			{ key: 'deviceLocation', label: t('table.headers.deviceLocation') },
+			{ key: 'type', label: t('table.headers.type') },
+			{ key: 'time', label: t('table.headers.time') },
+			{ key: 'date', label: t('table.headers.date') },
+		];
+
+		const rows: AttendanceCsvRow[] = filteredRecords.map((record) => ({
+			employeeName: record.employeeName,
+			employeeId: record.employeeId,
+			deviceId: record.deviceId,
+			deviceLocation: record.deviceLocationName ?? locationFallback,
+			type:
+				record.type === 'CHECK_IN' ? t('typeFilter.checkIn') : t('typeFilter.checkOut'),
+			time: format(new Date(record.timestamp), 'HH:mm:ss'),
+			date: format(new Date(record.timestamp), t('dateFormat')),
+		}));
+
+		const csv = buildCsvContent(columns, rows);
+		const fileName = t('csv.fileName', {
+			start: format(start, 'yyyyMMdd'),
+			end: format(end, 'yyyyMMdd'),
+		});
+
+		downloadCsvFile(csv, fileName);
+	}, [end, filteredRecords, locationFallback, start, t]);
 
 	if (!organizationId) {
 		return (
@@ -189,10 +300,20 @@ export function AttendancePageClient(): React.ReactElement {
 					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
 					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
-				<Button onClick={() => refetch()} variant="outline">
-					<RefreshCw className="mr-2 h-4 w-4" />
-					{t('actions.refresh')}
-				</Button>
+				<div className="flex items-center gap-2">
+					<Button onClick={() => refetch()} variant="outline">
+						<RefreshCw className="mr-2 h-4 w-4" />
+						{t('actions.refresh')}
+					</Button>
+					<Button
+						onClick={handleExportCsv}
+						variant="outline"
+						disabled={isFetching || filteredRecords.length === 0}
+					>
+						<Download className="mr-2 h-4 w-4" />
+						{t('actions.exportCsv')}
+					</Button>
+				</div>
 			</div>
 
 			<div className="flex flex-wrap items-center gap-4">
@@ -310,6 +431,7 @@ export function AttendancePageClient(): React.ReactElement {
 							<TableHead>{t('table.headers.employeeName')}</TableHead>
 							<TableHead>{t('table.headers.employeeId')}</TableHead>
 							<TableHead>{t('table.headers.deviceId')}</TableHead>
+							<TableHead>{t('table.headers.deviceLocation')}</TableHead>
 							<TableHead>{t('table.headers.type')}</TableHead>
 							<TableHead>{t('table.headers.time')}</TableHead>
 							<TableHead>{t('table.headers.date')}</TableHead>
@@ -319,7 +441,7 @@ export function AttendancePageClient(): React.ReactElement {
 						{isFetching ? (
 							Array.from({ length: 10 }).map((_, i) => (
 								<TableRow key={i}>
-									{Array.from({ length: 6 }).map((_, j) => (
+									{Array.from({ length: 7 }).map((_, j) => (
 										<TableCell key={j}>
 											<Skeleton className="h-4 w-full" />
 										</TableCell>
@@ -328,7 +450,7 @@ export function AttendancePageClient(): React.ReactElement {
 							))
 						) : filteredRecords.length === 0 ? (
 							<TableRow>
-								<TableCell colSpan={6} className="h-24 text-center">
+								<TableCell colSpan={7} className="h-24 text-center">
 									{t('table.empty')}
 								</TableCell>
 							</TableRow>
@@ -343,6 +465,9 @@ export function AttendancePageClient(): React.ReactElement {
 									</TableCell>
 									<TableCell className="font-mono text-xs">
 										{record.deviceId.substring(0, 8)}...
+									</TableCell>
+									<TableCell className="max-w-[200px] truncate text-sm">
+										{record.deviceLocationName ?? locationFallback}
 									</TableCell>
 									<TableCell>
 										<Badge variant={typeVariants[record.type]}>

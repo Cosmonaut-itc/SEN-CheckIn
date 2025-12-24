@@ -484,7 +484,8 @@
 		"subtitle": "Consulta registros de entrada y salida",
 		"noOrganization": "Selecciona una organización activa para ver registros de asistencia.",
 		"actions": {
-			"refresh": "Actualizar"
+			"refresh": "Actualizar",
+			"exportCsv": "Descargar CSV"
 		},
 		"search": {
 			"placeholder": "Buscar por ID de empleado..."
@@ -512,14 +513,21 @@
 				"employeeName": "Empleado",
 				"employeeId": "ID de empleado",
 				"deviceId": "ID de dispositivo",
+				"deviceLocation": "Ubicacion del dispositivo",
 				"type": "Tipo",
 				"time": "Hora",
 				"date": "Fecha"
 			},
+			"placeholders": {
+				"noLocation": "Sin ubicacion"
+			},
 			"empty": "No se encontraron registros de asistencia para el periodo seleccionado."
 		},
 		"dateFormat": "dd/MM/yyyy",
-		"summary": "Mostrando {count, plural, one {# registro} other {# registros}}"
+		"summary": "Mostrando {count, plural, one {# registro} other {# registros}}",
+		"csv": {
+			"fileName": "asistencia_{start}_{end}.csv"
+		}
 	},
 	"Payroll": {
 		"title": "Nómina",

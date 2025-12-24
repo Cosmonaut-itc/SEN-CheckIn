@@ -127,6 +127,7 @@ export interface AttendanceRecord {
 	employeeId: string;
 	employeeName: string;
 	deviceId: string;
+	deviceLocationName?: string | null;
 	timestamp: Date;
 	type: AttendanceType;
 	metadata: Record<string, unknown> | null;

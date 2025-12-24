@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
 
@@ -13,6 +13,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 const EXPO_BUILD_URL =
 	'https://expo.dev/accounts/sen-apps/projects/sen-checkin/builds/f0baf210-ef5b-4807-ae7a-1a266c88bdd5';
@@ -39,6 +41,7 @@ function buildQrImageUrl(value: string, size: number): string {
  */
 export function AppMovilPageClient(): React.ReactElement {
 	const t = useTranslations('MobileApp');
+	const [isLoading, setIsLoading] = useState(true);
 	const qrImageUrl = buildQrImageUrl(EXPO_BUILD_URL, 220);
 
 	return (
@@ -53,20 +56,28 @@ export function AppMovilPageClient(): React.ReactElement {
 					<CardTitle>{t('card.title')}</CardTitle>
 					<CardDescription>{t('card.description')}</CardDescription>
 				</CardHeader>
-					<CardContent className="flex flex-col items-center gap-4">
-						<div
-							className="rounded-xl bg-white p-4 shadow-sm"
-							aria-label={t('qr.ariaLabel')}
-						>
-							<Image
-								src={qrImageUrl}
-								width={220}
-								height={220}
-								alt={t('qr.alt')}
-								className="h-[220px] w-[220px]"
-								sizes="220px"
-							/>
-						</div>
+				<CardContent className="flex flex-col items-center gap-4">
+					<div
+						className="relative rounded-xl bg-white p-4 shadow-sm"
+						aria-label={t('qr.ariaLabel')}
+					>
+						{isLoading && (
+							<Skeleton className="h-[220px] w-[220px] rounded-lg" />
+						)}
+						<Image
+							src={qrImageUrl}
+							width={220}
+							height={220}
+							alt={t('qr.alt')}
+							className={cn(
+								'h-[220px] w-[220px] transition-opacity duration-300',
+								isLoading ? 'absolute opacity-0' : 'opacity-100'
+							)}
+							onLoad={() => setIsLoading(false)}
+							sizes="220px"
+							priority
+						/>
+					</div>
 					<div className="w-full rounded-md border bg-muted/20 p-3 text-sm">
 						<span className="text-muted-foreground">{t('link.label')} </span>
 						<span className="break-all font-mono">{EXPO_BUILD_URL}</span>

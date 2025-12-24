@@ -1,6 +1,6 @@
+import { endOfDay, format, startOfDay } from 'date-fns';
 import { and, eq, gte, inArray, lte, ne, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
-import { endOfDay, format, startOfDay } from 'date-fns';
 import crypto from 'node:crypto';
 
 import db from '../db/index.js';
@@ -14,8 +14,8 @@ import {
 	vacationRequest,
 	vacationRequestDay,
 } from '../db/schema.js';
-import { combinedAuthPlugin } from '../plugins/auth.js';
 import type { AuthSession } from '../plugins/auth.js';
+import { combinedAuthPlugin } from '../plugins/auth.js';
 import { idParamSchema } from '../schemas/crud.js';
 import {
 	vacationRequestCreateSchema,
@@ -34,8 +34,8 @@ import {
 	type VacationScheduleDay,
 	type VacationScheduleException,
 } from '../services/vacations.js';
-import { isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
 import { resolveOrganizationId } from '../utils/organization.js';
+import { isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
 
 type VacationRequestRow = typeof vacationRequest.$inferSelect;
 
@@ -80,7 +80,12 @@ async function ensureAdminRole(
 	const membership = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(and(eq(member.userId, args.session.userId), eq(member.organizationId, args.organizationId)))
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
 		.limit(1);
 
 	const role = membership[0]?.role ?? null;
@@ -108,7 +113,9 @@ async function getEmployeeForSession(
 	const rows = await db
 		.select()
 		.from(employee)
-		.where(and(eq(employee.organizationId, organizationId), eq(employee.userId, session.userId)))
+		.where(
+			and(eq(employee.organizationId, organizationId), eq(employee.userId, session.userId)),
+		)
 		.limit(1);
 
 	if (!rows[0]) {
@@ -384,10 +391,7 @@ async function fetchVacationRequests(args: {
 		.orderBy(vacationRequest.createdAt);
 
 	const total = (
-		await db
-			.select({ id: vacationRequest.id })
-			.from(vacationRequest)
-			.where(whereClause)
+		await db.select({ id: vacationRequest.id }).from(vacationRequest).where(whereClause)
 	).length;
 
 	const requestIds = requestRows.map((row) => row.id);
@@ -514,7 +518,14 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.get(
 		'/me/balance',
-		async ({ authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
 				return { error: 'Session authentication required' };
@@ -555,7 +566,8 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				? timeZoneCandidate
 				: 'America/Mexico_City';
 			const asOfDateKey = toDateKeyInTimeZone(new Date(), timeZone);
-			const currentServiceYear = getServiceYearNumber(employeeRecord.hireDate, asOfDateKey) ?? 0;
+			const currentServiceYear =
+				getServiceYearNumber(employeeRecord.hireDate, asOfDateKey) ?? 0;
 
 			const approvedDays = await getVacationUsageByServiceYear({
 				organizationId,
@@ -568,7 +580,8 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				statuses: ['SUBMITTED'],
 			});
 
-			const entitledDays = currentServiceYear > 0 ? getVacationDaysForYears(currentServiceYear) : 0;
+			const entitledDays =
+				currentServiceYear > 0 ? getVacationDaysForYears(currentServiceYear) : 0;
 			const usedDays = approvedDays.get(currentServiceYear) ?? 0;
 			const pending = pendingDays.get(currentServiceYear) ?? 0;
 			const availableDays = entitledDays - usedDays - pending;
@@ -600,7 +613,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.get(
 		'/me/requests',
-		async ({ query, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
 				return { error: 'Session authentication required' };
@@ -654,7 +675,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.post(
 		'/me/requests',
-		async ({ body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
 				return { error: 'Session authentication required' };
@@ -706,11 +735,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			}
 
 			const invalidServiceDays = breakdown.days.some(
-				(day) => day.countsAsVacationDay && (!day.serviceYearNumber || day.serviceYearNumber <= 0),
+				(day) =>
+					day.countsAsVacationDay &&
+					(!day.serviceYearNumber || day.serviceYearNumber <= 0),
 			);
 			if (invalidServiceDays) {
 				set.status = 400;
-				return { error: 'Vacation days cannot be requested before completing a year of service' };
+				return {
+					error: 'Vacation days cannot be requested before completing a year of service',
+				};
 			}
 
 			const balanceOk = await validateVacationBalance(
@@ -785,7 +818,16 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.post(
 		'/me/requests/:id/cancel',
-		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
 				return { error: 'Session authentication required' };
@@ -813,7 +855,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const requestRows = await db
 				.select()
 				.from(vacationRequest)
-				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.employeeId, employeeRecord.id)))
+				.where(
+					and(
+						eq(vacationRequest.id, params.id),
+						eq(vacationRequest.employeeId, employeeRecord.id),
+					),
+				)
 				.limit(1);
 			const request = requestRows[0];
 			if (!request) {
@@ -837,7 +884,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					.update(vacationRequest)
 					.set({
 						status: 'CANCELLED',
-						decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+						decisionNotes: body.decisionNotes?.trim()
+							? body.decisionNotes.trim()
+							: undefined,
 						cancelledByUserId: session.userId,
 						cancelledAt: new Date(),
 					})
@@ -857,7 +906,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.get(
 		'/requests',
-		async ({ query, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -872,10 +929,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const authorized = await ensureAdminRole(
-				{ authType, session, organizationId },
-				set,
-			);
+			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
 				return { error: 'Not authorized' };
 			}
@@ -909,7 +963,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.post(
 		'/requests',
-		async ({ body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -924,10 +986,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const authorized = await ensureAdminRole(
-				{ authType, session, organizationId },
-				set,
-			);
+			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
 				return { error: 'Not authorized' };
 			}
@@ -940,7 +999,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const employeeRows = await db
 				.select()
 				.from(employee)
-				.where(and(eq(employee.id, body.employeeId), eq(employee.organizationId, organizationId)))
+				.where(
+					and(
+						eq(employee.id, body.employeeId),
+						eq(employee.organizationId, organizationId),
+					),
+				)
 				.limit(1);
 			const employeeRecord = employeeRows[0];
 			if (!employeeRecord) {
@@ -981,11 +1045,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			}
 
 			const invalidServiceDays = breakdown.days.some(
-				(day) => day.countsAsVacationDay && (!day.serviceYearNumber || day.serviceYearNumber <= 0),
+				(day) =>
+					day.countsAsVacationDay &&
+					(!day.serviceYearNumber || day.serviceYearNumber <= 0),
 			);
 			if (status === 'SUBMITTED' && invalidServiceDays) {
 				set.status = 400;
-				return { error: 'Vacation days cannot be requested before completing a year of service' };
+				return {
+					error: 'Vacation days cannot be requested before completing a year of service',
+				};
 			}
 
 			if (status === 'SUBMITTED') {
@@ -1062,7 +1130,16 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.post(
 		'/requests/:id/approve',
-		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -1077,10 +1154,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const authorized = await ensureAdminRole(
-				{ authType, session, organizationId },
-				set,
-			);
+			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
 				return { error: 'Not authorized' };
 			}
@@ -1088,7 +1162,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const rows = await db
 				.select()
 				.from(vacationRequest)
-				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.organizationId, organizationId)))
+				.where(
+					and(
+						eq(vacationRequest.id, params.id),
+						eq(vacationRequest.organizationId, organizationId),
+					),
+				)
 				.limit(1);
 			const request = rows[0];
 			if (!request) {
@@ -1117,11 +1196,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			const requestedDaysByServiceYear = new Map<number, number>();
 			const invalidServiceDays = dayRows.some(
-				(day) => day.countsAsVacationDay && (!day.serviceYearNumber || day.serviceYearNumber <= 0),
+				(day) =>
+					day.countsAsVacationDay &&
+					(!day.serviceYearNumber || day.serviceYearNumber <= 0),
 			);
 			if (invalidServiceDays) {
 				set.status = 400;
-				return { error: 'Vacation days cannot be requested before completing a year of service' };
+				return {
+					error: 'Vacation days cannot be requested before completing a year of service',
+				};
 			}
 
 			for (const day of dayRows) {
@@ -1130,7 +1213,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				}
 				const year = day.serviceYearNumber ?? 0;
 				if (year > 0) {
-					requestedDaysByServiceYear.set(year, (requestedDaysByServiceYear.get(year) ?? 0) + 1);
+					requestedDaysByServiceYear.set(
+						year,
+						(requestedDaysByServiceYear.get(year) ?? 0) + 1,
+					);
 				}
 			}
 
@@ -1214,7 +1300,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					.update(vacationRequest)
 					.set({
 						status: 'APPROVED',
-						decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+						decisionNotes: body.decisionNotes?.trim()
+							? body.decisionNotes.trim()
+							: undefined,
 						approvedByUserId: session?.userId ?? null,
 						approvedAt: new Date(),
 					})
@@ -1234,7 +1322,16 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.post(
 		'/requests/:id/reject',
-		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -1249,10 +1346,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const authorized = await ensureAdminRole(
-				{ authType, session, organizationId },
-				set,
-			);
+			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
 				return { error: 'Not authorized' };
 			}
@@ -1260,7 +1354,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const rows = await db
 				.select()
 				.from(vacationRequest)
-				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.organizationId, organizationId)))
+				.where(
+					and(
+						eq(vacationRequest.id, params.id),
+						eq(vacationRequest.organizationId, organizationId),
+					),
+				)
 				.limit(1);
 			const request = rows[0];
 			if (!request) {
@@ -1277,7 +1376,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				.update(vacationRequest)
 				.set({
 					status: 'REJECTED',
-					decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+					decisionNotes: body.decisionNotes?.trim()
+						? body.decisionNotes.trim()
+						: undefined,
 					rejectedByUserId: session?.userId ?? null,
 					rejectedAt: new Date(),
 				})
@@ -1296,7 +1397,16 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 	 */
 	.post(
 		'/requests/:id/cancel',
-		async ({ params, body, authType, session, sessionOrganizationIds, apiKeyOrganizationId, apiKeyOrganizationIds, set }) => {
+		async ({
+			params,
+			body,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,
@@ -1311,10 +1421,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const authorized = await ensureAdminRole(
-				{ authType, session, organizationId },
-				set,
-			);
+			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
 				return { error: 'Not authorized' };
 			}
@@ -1322,7 +1429,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const rows = await db
 				.select()
 				.from(vacationRequest)
-				.where(and(eq(vacationRequest.id, params.id), eq(vacationRequest.organizationId, organizationId)))
+				.where(
+					and(
+						eq(vacationRequest.id, params.id),
+						eq(vacationRequest.organizationId, organizationId),
+					),
+				)
 				.limit(1);
 			const request = rows[0];
 			if (!request) {
@@ -1346,7 +1458,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					.update(vacationRequest)
 					.set({
 						status: 'CANCELLED',
-						decisionNotes: body.decisionNotes?.trim() ? body.decisionNotes.trim() : undefined,
+						decisionNotes: body.decisionNotes?.trim()
+							? body.decisionNotes.trim()
+							: undefined,
 						cancelledByUserId: session?.userId ?? null,
 						cancelledAt: new Date(),
 					})

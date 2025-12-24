@@ -567,7 +567,8 @@
 			"selectFrequency": "Selecciona la frecuencia",
 			"selectDate": "Selecciona una fecha",
 			"periodStart": "Inicio del periodo",
-			"periodEnd": "Fin del periodo"
+			"periodEnd": "Fin del periodo",
+			"invalidRange": "La fecha de fin debe ser igual o posterior a la fecha de inicio."
 		},
 		"actions": {
 			"process": "Procesar nómina",

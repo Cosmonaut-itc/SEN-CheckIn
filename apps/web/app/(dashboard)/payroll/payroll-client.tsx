@@ -41,6 +41,14 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from '@/components/ui/empty';
+import {
 	type PayrollCalculationEmployee,
 	type PayrollSettings,
 	type PayrollTaxSummary,
@@ -220,27 +228,15 @@ export function PayrollPageClient(): React.ReactElement {
 	}, [settings?.weekStartDay, payrollTimeZone, paymentFrequency]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 
-	const calculationParams: PayrollCalculateParams = useMemo(
-		() => ({
-			periodStartDateKey,
-			periodEndDateKey,
-			paymentFrequency,
-			organizationId: organizationId ?? undefined,
-		}),
-		[organizationId, paymentFrequency, periodEndDateKey, periodStartDateKey],
-	);
-
-	const { data: calculation, isFetching: isCalculating } = useQuery({
-		queryKey: queryKeys.payroll.calculate(calculationParams),
-		queryFn: () =>
-			calculatePayroll({
-				periodStartDateKey,
-				periodEndDateKey,
-				paymentFrequency,
-				organizationId: organizationId ?? undefined,
-			}),
-		enabled: Boolean(organizationId),
-	});
+const calculationParams: PayrollCalculateParams = useMemo(
+	() => ({
+		periodStartDateKey,
+		periodEndDateKey,
+		paymentFrequency,
+		organizationId: organizationId ?? undefined,
+	}),
+	[organizationId, paymentFrequency, periodEndDateKey, periodStartDateKey],
+);
 
 	const periodStartDate = useMemo(
 		() => parseDateKey(periodStartDateKey),
@@ -251,15 +247,36 @@ export function PayrollPageClient(): React.ReactElement {
 		[periodEndDateKey],
 	);
 
+	const isInvalidPeriodRange =
+		Boolean(periodStartDate) &&
+		Boolean(periodEndDate) &&
+		periodEndDate !== undefined &&
+		periodStartDate !== undefined &&
+		periodEndDate < periodStartDate;
+
+	const { data: calculation, isFetching: isCalculating } = useQuery({
+		queryKey: queryKeys.payroll.calculate(calculationParams),
+		queryFn: () =>
+			calculatePayroll({
+				periodStartDateKey,
+				periodEndDateKey,
+				paymentFrequency,
+				organizationId: organizationId ?? undefined,
+			}),
+		enabled: Boolean(organizationId) && !isInvalidPeriodRange,
+	});
+
+	const effectiveCalculation = isInvalidPeriodRange ? null : calculation;
+
 	const taxSummary = useMemo(() => {
-		if (!calculation) {
+		if (!effectiveCalculation) {
 			return null;
 		}
-		return calculation.taxSummary ?? aggregateTaxSummary(calculation.employees);
-	}, [calculation]);
+		return effectiveCalculation.taxSummary ?? aggregateTaxSummary(effectiveCalculation.employees);
+	}, [effectiveCalculation]);
 
 	const onExportCsv = (): void => {
-		if (!calculation || calculation.employees.length === 0) {
+		if (!effectiveCalculation || effectiveCalculation.employees.length === 0) {
 			toast.error(t('preview.toast.noCalculation'));
 			return;
 		}
@@ -337,7 +354,7 @@ export function PayrollPageClient(): React.ReactElement {
 			{ key: 'warnings', label: t('csv.headers.warnings') },
 		];
 
-		const rows: CsvRow[] = calculation.employees.map((row) => {
+		const rows: CsvRow[] = effectiveCalculation.employees.map((row) => {
 			const warnings = row.warnings.map((warning) => warning.message).join(' | ');
 			return {
 				rowType: t('csv.rowTypes.employee'),
@@ -420,8 +437,8 @@ export function PayrollPageClient(): React.ReactElement {
 	};
 
 	const hasBlockingWarnings =
-		calculation?.overtimeEnforcement === 'BLOCK' &&
-		(calculation?.employees ?? []).some((emp) =>
+		effectiveCalculation?.overtimeEnforcement === 'BLOCK' &&
+		(effectiveCalculation?.employees ?? []).some((emp) =>
 			emp.warnings.some((w) => w.severity === 'error'),
 		);
 
@@ -455,7 +472,11 @@ export function PayrollPageClient(): React.ReactElement {
 	});
 
 	const onProcess = async (): Promise<void> => {
-		if (!calculation) return;
+		if (isInvalidPeriodRange) {
+			toast.error(t('payPeriod.invalidRange'));
+			return;
+		}
+		if (!effectiveCalculation) return;
 		await processMutation.mutateAsync({
 			periodStartDateKey,
 			periodEndDateKey,
@@ -601,8 +622,9 @@ export function PayrollPageClient(): React.ReactElement {
 							disabled={
 								isCalculating ||
 								processMutation.isPending ||
-								!calculation ||
-								hasBlockingWarnings
+								!effectiveCalculation ||
+								hasBlockingWarnings ||
+								isInvalidPeriodRange
 							}
 						>
 							{processMutation.isPending ? (
@@ -623,6 +645,10 @@ export function PayrollPageClient(): React.ReactElement {
 				</CardContent>
 			</Card>
 
+			{isInvalidPeriodRange && (
+				<p className="text-sm text-destructive">{t('payPeriod.invalidRange')}</p>
+			)}
+
 			<Card>
 				<CardHeader>
 					<CardTitle>{t('preview.title')}</CardTitle>
@@ -634,29 +660,39 @@ export function PayrollPageClient(): React.ReactElement {
 							<Loader2 className="h-4 w-4 animate-spin" />
 							{t('preview.calculating')}
 						</div>
-					) : !calculation ? (
-						<p className="text-sm text-muted-foreground">
-							{t('preview.noCalculation')}
-						</p>
+					) : !effectiveCalculation || effectiveCalculation.employees.length === 0 ? (
+						<Empty className="border">
+							<EmptyHeader>
+								<EmptyMedia variant="icon">
+									<CalendarIcon className="h-5 w-5" />
+								</EmptyMedia>
+								<EmptyTitle>{t('preview.noCalculation')}</EmptyTitle>
+								<EmptyDescription>
+									{isInvalidPeriodRange
+										? t('payPeriod.invalidRange')
+										: t('preview.description')}
+								</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
 					) : (
 						<>
 							<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
 								<div className="text-sm text-muted-foreground">
 									{t('preview.totalEmployees', {
-										count: calculation.employees.length,
+										count: effectiveCalculation.employees.length,
 									})}
 								</div>
 								<div className="flex items-center gap-3">
 									<div className="text-lg font-semibold">
 										{t('preview.totalAmount', {
-											total: formatCurrency(calculation.totalAmount),
+											total: formatCurrency(effectiveCalculation.totalAmount),
 										})}
 									</div>
 									<Button
 										variant="outline"
 										size="sm"
 										onClick={onExportCsv}
-										disabled={calculation.employees.length === 0}
+										disabled={effectiveCalculation.employees.length === 0}
 									>
 										{t('preview.actions.exportCsv')}
 									</Button>
@@ -692,7 +728,7 @@ export function PayrollPageClient(): React.ReactElement {
 										</TableRow>
 									</TableHeader>
 									<TableBody>
-										{calculation.employees.map((row) => (
+										{effectiveCalculation.employees.map((row) => (
 											<TableRow key={row.employeeId}>
 												<TableCell>{row.name}</TableCell>
 												<TableCell>{row.normalHours.toFixed(2)}</TableCell>
@@ -1011,11 +1047,11 @@ export function PayrollPageClient(): React.ReactElement {
 									</TableBody>
 								</Table>
 							</div>
-							{calculation.employees.some((emp) => emp.warnings.length > 0) && (
+										{effectiveCalculation.employees.some((emp) => emp.warnings.length > 0) && (
 								<div className="mt-4 rounded-md border bg-muted/50 p-3">
 									<p className="text-sm font-medium">{t('compliance.title')}</p>
 									<div className="mt-2 space-y-2 text-sm">
-										{calculation.employees.map((emp) =>
+										{effectiveCalculation.employees.map((emp) =>
 											emp.warnings.map((w, idx) => (
 												<div
 													key={`${emp.employeeId}-${idx}`}
@@ -1037,7 +1073,7 @@ export function PayrollPageClient(): React.ReactElement {
 				</CardContent>
 			</Card>
 
-			{calculation && taxSummary ? (
+			{effectiveCalculation && taxSummary ? (
 				<Card>
 					<CardHeader>
 						<CardTitle>{t('summary.title')}</CardTitle>

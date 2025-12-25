@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Table,
 	TableBody,
@@ -79,6 +80,7 @@ import { deleteRekognitionUser } from '@/actions/employees-rekognition';
 import { FaceEnrollmentDialog } from '@/components/face-enrollment-dialog';
 import { useOrgContext } from '@/lib/org-client-context';
 import { Label } from '@/components/ui/label';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Form values interface for creating/editing employees.
@@ -212,6 +214,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const tCommon = useTranslations('Common');
 	const tVacations = useTranslations('Vacations');
 	const [search, setSearch] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [locationFilter, setLocationFilter] = useState<string>(ALL_FILTER_VALUE);
 	const [jobPositionFilter, setJobPositionFilter] = useState<string>(ALL_FILTER_VALUE);
 	const [statusFilter, setStatusFilter] = useState<StatusFilterValue>(ALL_FILTER_VALUE);
@@ -233,7 +238,11 @@ export function EmployeesPageClient(): React.ReactElement {
 	const isViewMode = dialogMode === 'view';
 
 	// Build query params - only include search if it has a value
-	const baseParams = { limit: 100, offset: 0, organizationId };
+	const baseParams = {
+		limit: pagination.pageSize,
+		offset: pagination.pageIndex * pagination.pageSize,
+		organizationId,
+	};
 	const queryParams = {
 		...baseParams,
 		...(search ? { search } : {}),
@@ -298,6 +307,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	});
 
 	const employees = data?.data ?? [];
+	const totalRows = data?.pagination.total ?? 0;
 	const jobPositions = useMemo<JobPosition[]>(
 		() => jobPositionsData?.data ?? [],
 		[jobPositionsData],
@@ -390,6 +400,92 @@ export function EmployeesPageClient(): React.ReactElement {
 			{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
 		],
 		[t],
+	);
+
+	/**
+	 * Resets pagination to the first page.
+	 *
+	 * @returns void
+	 */
+	const resetPagination = useCallback((): void => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
+
+	/**
+	 * Updates the search term and resets pagination.
+	 *
+	 * @param value - Next search value or updater
+	 * @returns void
+	 */
+	const handleSearchChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setSearch((prev) => (typeof value === 'function' ? value(prev) : value));
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the location filter and resets pagination.
+	 *
+	 * @param value - Selected location filter value
+	 * @returns void
+	 */
+	const handleLocationFilterChange = useCallback(
+		(value: string): void => {
+			setLocationFilter(value);
+			setColumnFilters((prev) => {
+				const next = prev.filter((filter) => filter.id !== 'locationId');
+				if (value !== ALL_FILTER_VALUE) {
+					next.push({ id: 'locationId', value });
+				}
+				return next;
+			});
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the job position filter and resets pagination.
+	 *
+	 * @param value - Selected job position filter value
+	 * @returns void
+	 */
+	const handleJobPositionFilterChange = useCallback(
+		(value: string): void => {
+			setJobPositionFilter(value);
+			setColumnFilters((prev) => {
+				const next = prev.filter((filter) => filter.id !== 'jobPositionId');
+				if (value !== ALL_FILTER_VALUE) {
+					next.push({ id: 'jobPositionId', value });
+				}
+				return next;
+			});
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the status filter and resets pagination.
+	 *
+	 * @param value - Selected status filter value
+	 * @returns void
+	 */
+	const handleStatusFilterChange = useCallback(
+		(value: StatusFilterValue): void => {
+			setStatusFilter(value);
+			setColumnFilters((prev) => {
+				const next = prev.filter((filter) => filter.id !== 'status');
+				if (value !== ALL_FILTER_VALUE) {
+					next.push({ id: 'status', value });
+				}
+				return next;
+			});
+			resetPagination();
+		},
+		[resetPagination],
 	);
 
 	const vacationBalance = insights?.vacation.balance ?? null;
@@ -727,10 +823,309 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * Handles employee deletion.
 	 *
 	 * @param id - The employee ID to delete
+	 * @returns void
 	 */
-	const handleDelete = (id: string): void => {
-		deleteMutation.mutate(id);
-	};
+	const handleDelete = useCallback(
+		(id: string): void => {
+			deleteMutation.mutate(id);
+		},
+		[deleteMutation],
+	);
+
+	/**
+	 * Opens the face enrollment dialog for an employee.
+	 *
+	 * @param employee - The employee to enroll
+	 * @returns void
+	 */
+	const handleOpenEnrollDialog = useCallback((employee: Employee): void => {
+		setEnrollingEmployee(employee);
+		setIsEnrollDialogOpen(true);
+	}, []);
+
+	/**
+	 * Handles Rekognition user deletion.
+	 *
+	 * @param id - The employee ID to remove Rekognition data for
+	 * @returns void
+	 */
+	const handleDeleteRekognition = useCallback(
+		(id: string): void => {
+			deleteRekognitionMutation.mutate(id);
+		},
+		[deleteRekognitionMutation],
+	);
+
+	const columns = useMemo<ColumnDef<Employee>[]>(
+		() => [
+			{
+				accessorKey: 'code',
+				header: t('table.headers.code'),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.code}</span>
+				),
+			},
+			{
+				id: 'name',
+				accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
+				header: t('table.headers.name'),
+				cell: ({ row }) => (
+					<span>
+						{row.original.firstName} {row.original.lastName}
+					</span>
+				),
+			},
+			{
+				id: 'jobPosition',
+				accessorFn: (row) => row.jobPositionName ?? '',
+				header: t('table.headers.jobPosition'),
+				cell: ({ row }) => row.original.jobPositionName ?? '-',
+			},
+			{
+				id: 'locationId',
+				accessorFn: (row) =>
+					locationLookup.get(row.locationId ?? '') ?? row.locationId ?? '',
+				header: t('table.headers.location'),
+				cell: ({ row }) =>
+					row.original.locationId ? (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span className="block max-w-[200px] truncate text-sm">
+										{locationLookup.get(row.original.locationId) ??
+											t('table.unknownLocation')}
+									</span>
+								</TooltipTrigger>
+								<TooltipContent>{row.original.locationId}</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					) : (
+						'-'
+					),
+			},
+			{
+				accessorKey: 'email',
+				header: t('table.headers.email'),
+				cell: ({ row }) => row.original.email ?? '-',
+			},
+			{
+				accessorKey: 'department',
+				header: t('table.headers.department'),
+				cell: ({ row }) => row.original.department ?? '-',
+			},
+			{
+				accessorKey: 'shiftType',
+				header: t('table.headers.shift'),
+				cell: ({ row }) =>
+					row.original.shiftType
+						? t(`shiftTypeLabels.${row.original.shiftType}`)
+						: '-',
+			},
+			{
+				accessorKey: 'status',
+				header: t('table.headers.status'),
+				cell: ({ row }) => (
+					<Badge variant={statusVariants[row.original.status]}>
+						{t(`status.${row.original.status}`)}
+					</Badge>
+				),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'face',
+				header: t('table.headers.face'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<TooltipProvider>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								{row.original.rekognitionUserId ? (
+									<Badge variant="default" className="gap-1">
+										<UserCheck className="h-3 w-3" />
+										{t('face.enrolled')}
+									</Badge>
+								) : (
+									<Badge
+										variant="outline"
+										className="gap-1 text-muted-foreground"
+									>
+										<UserX className="h-3 w-3" />
+										{t('face.notEnrolled')}
+									</Badge>
+								)}
+							</TooltipTrigger>
+							<TooltipContent>
+								{row.original.rekognitionUserId
+									? t('face.tooltip.enrolled')
+									: t('face.tooltip.notEnrolled')}
+							</TooltipContent>
+						</Tooltip>
+					</TooltipProvider>
+				),
+			},
+			{
+				accessorKey: 'createdAt',
+				header: t('table.headers.created'),
+				cell: ({ row }) =>
+					format(new Date(row.original.createdAt), t('dateFormat')),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<MoreHorizontal className="h-4 w-4" />
+									<span className="sr-only">{t('menu.open')}</span>
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem
+									onClick={() => handleViewDetails(row.original)}
+								>
+									<Eye className="mr-2 h-4 w-4" />
+									{t('menu.viewDetails')}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() => handleOpenEnrollDialog(row.original)}
+								>
+									<ScanFace className="mr-2 h-4 w-4" />
+									{row.original.rekognitionUserId
+										? t('menu.reEnrollFace')
+										: t('menu.enrollFace')}
+								</DropdownMenuItem>
+								{row.original.rekognitionUserId && (
+									<DropdownMenuItem
+										onClick={() =>
+											setDeleteRekognitionConfirmId(row.original.id)
+										}
+										className="text-orange-600 focus:text-orange-600"
+									>
+										<UserX className="mr-2 h-4 w-4" />
+										{t('menu.removeFaceEnrollment')}
+									</DropdownMenuItem>
+								)}
+								<DropdownMenuSeparator />
+								<DropdownMenuItem
+									onClick={() => setDeleteConfirmId(row.original.id)}
+									className="text-destructive focus:text-destructive"
+								>
+									<Trash2 className="mr-2 h-4 w-4" />
+									{t('menu.deleteEmployee')}
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+
+						<Dialog
+							open={deleteConfirmId === row.original.id}
+							onOpenChange={(open) =>
+								setDeleteConfirmId(open ? row.original.id : null)
+							}
+						>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>{t('dialogs.deleteEmployee.title')}</DialogTitle>
+									<DialogDescription>
+										{t('dialogs.deleteEmployee.description', {
+											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
+										})}
+										{row.original.rekognitionUserId && (
+											<span className="block mt-2 text-orange-600">
+												{t('dialogs.deleteEmployee.faceNote')}
+											</span>
+										)}
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										variant="outline"
+										onClick={() => setDeleteConfirmId(null)}
+									>
+										{tCommon('cancel')}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDelete(row.original.id)}
+										disabled={deleteMutation.isPending}
+									>
+										{deleteMutation.isPending ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												{tCommon('deleting')}
+											</>
+										) : (
+											tCommon('delete')
+										)}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+
+						<Dialog
+							open={deleteRekognitionConfirmId === row.original.id}
+							onOpenChange={(open) =>
+								setDeleteRekognitionConfirmId(open ? row.original.id : null)
+							}
+						>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>
+										{t('dialogs.removeFaceEnrollment.title')}
+									</DialogTitle>
+									<DialogDescription>
+										{t('dialogs.removeFaceEnrollment.description', {
+											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
+										})}
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										variant="outline"
+										onClick={() => setDeleteRekognitionConfirmId(null)}
+									>
+										{tCommon('cancel')}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDeleteRekognition(row.original.id)}
+										disabled={deleteRekognitionMutation.isPending}
+									>
+										{deleteRekognitionMutation.isPending ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												{tCommon('removing')}
+											</>
+										) : (
+											t('dialogs.removeFaceEnrollment.confirm')
+										)}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					</>
+				),
+			},
+		],
+		[
+			handleOpenEnrollDialog,
+			handleViewDetails,
+			locationLookup,
+			t,
+			tCommon,
+			deleteConfirmId,
+			deleteRekognitionConfirmId,
+			deleteMutation.isPending,
+			deleteRekognitionMutation.isPending,
+			handleDelete,
+			handleDeleteRekognition,
+		],
+	);
 
 	if (!isOrgSelected) {
 		return (
@@ -740,25 +1135,6 @@ export function EmployeesPageClient(): React.ReactElement {
 			</div>
 		);
 	}
-
-	/**
-	 * Opens the face enrollment dialog for an employee.
-	 *
-	 * @param employee - The employee to enroll
-	 */
-	const handleOpenEnrollDialog = (employee: Employee): void => {
-		setEnrollingEmployee(employee);
-		setIsEnrollDialogOpen(true);
-	};
-
-	/**
-	 * Handles Rekognition user deletion.
-	 *
-	 * @param id - The employee ID to remove Rekognition data for
-	 */
-	const handleDeleteRekognition = (id: string): void => {
-		deleteRekognitionMutation.mutate(id);
-	};
 
 	return (
 		<div className="space-y-6">
@@ -1873,13 +2249,13 @@ export function EmployeesPageClient(): React.ReactElement {
 					<Input
 						placeholder={t('search.placeholder')}
 						value={search}
-						onChange={(e) => setSearch(e.target.value)}
+						onChange={(e) => handleSearchChange(e.target.value)}
 						className="pl-9"
 					/>
 				</div>
 				<Select
 					value={locationFilter}
-					onValueChange={setLocationFilter}
+					onValueChange={handleLocationFilterChange}
 					disabled={isLoadingLocations}
 				>
 					<SelectTrigger className="w-[200px]">
@@ -1895,7 +2271,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				</Select>
 				<Select
 					value={jobPositionFilter}
-					onValueChange={setJobPositionFilter}
+					onValueChange={handleJobPositionFilterChange}
 					disabled={isLoadingJobPositions}
 				>
 					<SelectTrigger className="w-[200px]">
@@ -1911,7 +2287,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				</Select>
 				<Select
 					value={statusFilter}
-					onValueChange={(value) => setStatusFilter(value as StatusFilterValue)}
+					onValueChange={(value) => handleStatusFilterChange(value as StatusFilterValue)}
 				>
 					<SelectTrigger className="w-[170px]">
 						<SelectValue placeholder={t('filters.status.placeholder')} />
@@ -1926,272 +2302,24 @@ export function EmployeesPageClient(): React.ReactElement {
 				</Select>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.code')}</TableHead>
-							<TableHead>{t('table.headers.name')}</TableHead>
-							<TableHead>{t('table.headers.jobPosition')}</TableHead>
-							<TableHead>{t('table.headers.location')}</TableHead>
-							<TableHead>{t('table.headers.email')}</TableHead>
-							<TableHead>{t('table.headers.department')}</TableHead>
-							<TableHead>{t('table.headers.shift')}</TableHead>
-							<TableHead>{t('table.headers.status')}</TableHead>
-							<TableHead>{t('table.headers.face')}</TableHead>
-							<TableHead>{t('table.headers.created')}</TableHead>
-							<TableHead className="w-[100px]">
-								{t('table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 11 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : employees.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={11} className="h-24 text-center">
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							employees.map((employee) => (
-								<TableRow key={employee.id}>
-									<TableCell className="font-medium">{employee.code}</TableCell>
-									<TableCell>
-										{employee.firstName} {employee.lastName}
-									</TableCell>
-									<TableCell>{employee.jobPositionName ?? '-'}</TableCell>
-									<TableCell>
-										{employee.locationId ? (
-											<TooltipProvider>
-												<Tooltip>
-													<TooltipTrigger asChild>
-														<span className="block max-w-[200px] truncate text-sm">
-															{locationLookup.get(employee.locationId) ??
-																t('table.unknownLocation')}
-														</span>
-													</TooltipTrigger>
-													<TooltipContent>
-														{employee.locationId}
-													</TooltipContent>
-												</Tooltip>
-											</TooltipProvider>
-										) : (
-											'-'
-										)}
-									</TableCell>
-									<TableCell>{employee.email ?? '-'}</TableCell>
-									<TableCell>{employee.department ?? '-'}</TableCell>
-									<TableCell>
-										{employee.shiftType
-											? t(`shiftTypeLabels.${employee.shiftType}`)
-											: '-'}
-									</TableCell>
-									<TableCell>
-										<Badge variant={statusVariants[employee.status]}>
-											{t(`status.${employee.status}`)}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										<TooltipProvider>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													{employee.rekognitionUserId ? (
-														<Badge variant="default" className="gap-1">
-															<UserCheck className="h-3 w-3" />
-															{t('face.enrolled')}
-														</Badge>
-													) : (
-														<Badge
-															variant="outline"
-															className="gap-1 text-muted-foreground"
-														>
-															<UserX className="h-3 w-3" />
-															{t('face.notEnrolled')}
-														</Badge>
-													)}
-												</TooltipTrigger>
-												<TooltipContent>
-													{employee.rekognitionUserId
-														? t('face.tooltip.enrolled')
-														: t('face.tooltip.notEnrolled')}
-												</TooltipContent>
-											</Tooltip>
-										</TooltipProvider>
-									</TableCell>
-									<TableCell>
-										{format(new Date(employee.createdAt), t('dateFormat'))}
-									</TableCell>
-									<TableCell>
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button variant="ghost" size="icon">
-													<MoreHorizontal className="h-4 w-4" />
-													<span className="sr-only">
-														{t('menu.open')}
-													</span>
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												<DropdownMenuItem
-													onClick={() => handleViewDetails(employee)}
-												>
-													<Eye className="mr-2 h-4 w-4" />
-													{t('menu.viewDetails')}
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													onClick={() => handleOpenEnrollDialog(employee)}
-												>
-													<ScanFace className="mr-2 h-4 w-4" />
-													{employee.rekognitionUserId
-														? t('menu.reEnrollFace')
-														: t('menu.enrollFace')}
-												</DropdownMenuItem>
-												{employee.rekognitionUserId && (
-													<DropdownMenuItem
-														onClick={() =>
-															setDeleteRekognitionConfirmId(
-																employee.id,
-															)
-														}
-														className="text-orange-600 focus:text-orange-600"
-													>
-														<UserX className="mr-2 h-4 w-4" />
-														{t('menu.removeFaceEnrollment')}
-													</DropdownMenuItem>
-												)}
-												<DropdownMenuSeparator />
-												<DropdownMenuItem
-													onClick={() => setDeleteConfirmId(employee.id)}
-													className="text-destructive focus:text-destructive"
-												>
-													<Trash2 className="mr-2 h-4 w-4" />
-													{t('menu.deleteEmployee')}
-												</DropdownMenuItem>
-											</DropdownMenuContent>
-										</DropdownMenu>
-
-										{/* Delete employee confirmation dialog */}
-										<Dialog
-											open={deleteConfirmId === employee.id}
-											onOpenChange={(open) =>
-												setDeleteConfirmId(open ? employee.id : null)
-											}
-										>
-											<DialogContent>
-												<DialogHeader>
-													<DialogTitle>
-														{t('dialogs.deleteEmployee.title')}
-													</DialogTitle>
-													<DialogDescription>
-														{t('dialogs.deleteEmployee.description', {
-															name: `${employee.firstName} ${employee.lastName}`.trim(),
-														})}
-														{employee.rekognitionUserId && (
-															<span className="block mt-2 text-orange-600">
-																{t(
-																	'dialogs.deleteEmployee.faceNote',
-																)}
-															</span>
-														)}
-													</DialogDescription>
-												</DialogHeader>
-												<DialogFooter>
-													<Button
-														variant="outline"
-														onClick={() => setDeleteConfirmId(null)}
-													>
-														{tCommon('cancel')}
-													</Button>
-													<Button
-														variant="destructive"
-														onClick={() => handleDelete(employee.id)}
-														disabled={deleteMutation.isPending}
-													>
-														{deleteMutation.isPending ? (
-															<>
-																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																{tCommon('deleting')}
-															</>
-														) : (
-															tCommon('delete')
-														)}
-													</Button>
-												</DialogFooter>
-											</DialogContent>
-										</Dialog>
-
-										{/* Delete Rekognition confirmation dialog */}
-										<Dialog
-											open={deleteRekognitionConfirmId === employee.id}
-											onOpenChange={(open) =>
-												setDeleteRekognitionConfirmId(
-													open ? employee.id : null,
-												)
-											}
-										>
-											<DialogContent>
-												<DialogHeader>
-													<DialogTitle>
-														{t('dialogs.removeFaceEnrollment.title')}
-													</DialogTitle>
-													<DialogDescription>
-														{t(
-															'dialogs.removeFaceEnrollment.description',
-															{
-																name: `${employee.firstName} ${employee.lastName}`.trim(),
-															},
-														)}
-													</DialogDescription>
-												</DialogHeader>
-												<DialogFooter>
-													<Button
-														variant="outline"
-														onClick={() =>
-															setDeleteRekognitionConfirmId(null)
-														}
-													>
-														{tCommon('cancel')}
-													</Button>
-													<Button
-														variant="destructive"
-														onClick={() =>
-															handleDeleteRekognition(employee.id)
-														}
-														disabled={
-															deleteRekognitionMutation.isPending
-														}
-													>
-														{deleteRekognitionMutation.isPending ? (
-															<>
-																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																{tCommon('removing')}
-															</>
-														) : (
-															t(
-																'dialogs.removeFaceEnrollment.confirm',
-															)
-														)}
-													</Button>
-												</DialogFooter>
-											</DialogContent>
-										</Dialog>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={employees}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={search}
+				onGlobalFilterChange={handleSearchChange}
+				showToolbar={false}
+				manualPagination
+				manualFiltering
+				rowCount={totalRows}
+				emptyState={t('table.empty')}
+				isLoading={isFetching}
+			/>
 
 			{/* Face Enrollment Dialog */}
 			<FaceEnrollmentDialog

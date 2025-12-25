@@ -1,18 +1,11 @@
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -23,13 +16,13 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { Plus, Trash2, Copy, Key, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchApiKeys, type ApiKey } from '@/lib/client-functions';
 import { createApiKey, deleteApiKey } from '@/actions/api-keys';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Form values for creating API keys.
@@ -48,6 +41,10 @@ export function ApiKeysPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const t = useTranslations('ApiKeys');
 	const tCommon = useTranslations('Common');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -137,10 +134,14 @@ export function ApiKeysPageClient(): React.ReactElement {
 	 * Handles API key deletion.
 	 *
 	 * @param id - The API key ID to delete
+	 * @returns void
 	 */
-	const handleDelete = (id: string): void => {
-		deleteMutation.mutate(id);
-	};
+	const handleDelete = useCallback(
+		(id: string): void => {
+			deleteMutation.mutate(id);
+		},
+		[deleteMutation],
+	);
 
 	/**
 	 * Copies text to clipboard.
@@ -160,18 +161,153 @@ export function ApiKeysPageClient(): React.ReactElement {
 	 * Toggles visibility of an API key prefix.
 	 *
 	 * @param id - The API key ID
+	 * @returns void
 	 */
-	const toggleKeyVisibility = (id: string): void => {
+	const toggleKeyVisibility = useCallback((id: string): void => {
 		setVisibleKeys((prev) => {
-			const newSet = new Set(prev);
-			if (newSet.has(id)) {
-				newSet.delete(id);
+			const next = new Set(prev);
+			if (next.has(id)) {
+				next.delete(id);
 			} else {
-				newSet.add(id);
+				next.add(id);
 			}
-			return newSet;
+			return next;
 		});
-	};
+	}, []);
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const columns = useMemo<ColumnDef<ApiKey>[]>(
+		() => [
+			{
+				id: 'name',
+				accessorFn: (row) => row.name ?? '',
+				header: t('table.headers.name'),
+				cell: ({ row }) => (
+					<span className="font-medium">
+						{row.original.name || t('unnamed')}
+					</span>
+				),
+			},
+			{
+				id: 'keyPreview',
+				accessorFn: (row) => `${row.prefix ?? ''}${row.start ?? ''}`,
+				header: t('table.headers.keyPreview'),
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<code className="text-xs">
+							{visibleKeys.has(row.original.id)
+								? `${row.original.prefix ?? ''}${row.original.start ?? ''}...`
+								: ''}
+						</code>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="h-6 w-6"
+							onClick={() => toggleKeyVisibility(row.original.id)}
+						>
+							{visibleKeys.has(row.original.id) ? (
+								<EyeOff className="h-3 w-3" />
+							) : (
+								<Eye className="h-3 w-3" />
+							)}
+						</Button>
+					</div>
+				),
+			},
+			{
+				accessorKey: 'enabled',
+				header: t('table.headers.status'),
+				cell: ({ row }) => (
+					<Badge variant={row.original.enabled ? 'default' : 'secondary'}>
+						{row.original.enabled ? t('status.active') : t('status.disabled')}
+					</Badge>
+				),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'lastRequest',
+				accessorFn: (row) =>
+					row.lastRequest ? new Date(row.lastRequest).getTime() : 0,
+				header: t('table.headers.lastUsed'),
+				cell: ({ row }) =>
+					row.original.lastRequest
+						? format(new Date(row.original.lastRequest), t('dateTimeFormat'))
+						: t('never'),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'createdAt',
+				accessorFn: (row) => new Date(row.createdAt).getTime(),
+				header: t('table.headers.created'),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'expiresAt',
+				accessorFn: (row) => (row.expiresAt ? new Date(row.expiresAt).getTime() : 0),
+				header: t('table.headers.expires'),
+				cell: ({ row }) =>
+					row.original.expiresAt
+						? format(new Date(row.original.expiresAt), t('dateFormat'))
+						: t('never'),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<Dialog
+						open={deleteConfirmId === row.original.id}
+						onOpenChange={(open) =>
+							setDeleteConfirmId(open ? row.original.id : null)
+						}
+					>
+						<DialogTrigger asChild>
+							<Button variant="ghost" size="icon">
+								<Trash2 className="h-4 w-4 text-destructive" />
+							</Button>
+						</DialogTrigger>
+						<DialogContent>
+							<DialogHeader>
+								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+								<DialogDescription>{t('dialogs.delete.description')}</DialogDescription>
+							</DialogHeader>
+							<DialogFooter>
+								<Button
+									variant="outline"
+									onClick={() => setDeleteConfirmId(null)}
+								>
+									{tCommon('cancel')}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => handleDelete(row.original.id)}
+								>
+									{tCommon('delete')}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				),
+			},
+		],
+		[deleteConfirmId, handleDelete, t, tCommon, toggleKeyVisibility, visibleKeys],
+	);
 
 	return (
 		<div className="space-y-6">
@@ -256,132 +392,20 @@ export function ApiKeysPageClient(): React.ReactElement {
 				</Dialog>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.name')}</TableHead>
-							<TableHead>{t('table.headers.keyPreview')}</TableHead>
-							<TableHead>{t('table.headers.status')}</TableHead>
-							<TableHead>{t('table.headers.lastUsed')}</TableHead>
-							<TableHead>{t('table.headers.created')}</TableHead>
-							<TableHead>{t('table.headers.expires')}</TableHead>
-							<TableHead className="w-[100px]">
-								{t('table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 3 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 7 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : apiKeys.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={7} className="h-24 text-center">
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							apiKeys.map((apiKey: ApiKey) => (
-								<TableRow key={apiKey.id}>
-									<TableCell className="font-medium">
-										{apiKey.name || t('unnamed')}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<code className="text-xs">
-												{visibleKeys.has(apiKey.id)
-													? `${apiKey.prefix ?? ''}${apiKey.start ?? ''}...`
-													: '••••••••••••'}
-											</code>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="h-6 w-6"
-												onClick={() => toggleKeyVisibility(apiKey.id)}
-											>
-												{visibleKeys.has(apiKey.id) ? (
-													<EyeOff className="h-3 w-3" />
-												) : (
-													<Eye className="h-3 w-3" />
-												)}
-											</Button>
-										</div>
-									</TableCell>
-									<TableCell>
-										<Badge variant={apiKey.enabled ? 'default' : 'secondary'}>
-											{apiKey.enabled
-												? t('status.active')
-												: t('status.disabled')}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{apiKey.lastRequest
-											? format(
-													new Date(apiKey.lastRequest),
-													t('dateTimeFormat'),
-												)
-											: t('never')}
-									</TableCell>
-									<TableCell>
-										{format(new Date(apiKey.createdAt), t('dateFormat'))}
-									</TableCell>
-									<TableCell>
-										{apiKey.expiresAt
-											? format(new Date(apiKey.expiresAt), t('dateFormat'))
-											: t('never')}
-									</TableCell>
-									<TableCell>
-										<Dialog
-											open={deleteConfirmId === apiKey.id}
-											onOpenChange={(open) =>
-												setDeleteConfirmId(open ? apiKey.id : null)
-											}
-										>
-											<DialogTrigger asChild>
-												<Button variant="ghost" size="icon">
-													<Trash2 className="h-4 w-4 text-destructive" />
-												</Button>
-											</DialogTrigger>
-											<DialogContent>
-												<DialogHeader>
-													<DialogTitle>
-														{t('dialogs.delete.title')}
-													</DialogTitle>
-													<DialogDescription>
-														{t('dialogs.delete.description')}
-													</DialogDescription>
-												</DialogHeader>
-												<DialogFooter>
-													<Button
-														variant="outline"
-														onClick={() => setDeleteConfirmId(null)}
-													>
-														{tCommon('cancel')}
-													</Button>
-													<Button
-														variant="destructive"
-														onClick={() => handleDelete(apiKey.id)}
-													>
-														{tCommon('delete')}
-													</Button>
-												</DialogFooter>
-											</DialogContent>
-										</Dialog>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={apiKeys}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				emptyState={t('table.empty')}
+				isLoading={isFetching}
+			/>
 		</div>
 	);
 }

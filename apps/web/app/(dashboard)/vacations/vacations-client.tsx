@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -33,6 +33,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Table,
 	TableBody,
@@ -61,6 +62,7 @@ import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 type StatusFilter = 'all' | VacationRequestStatus;
 
@@ -110,8 +112,10 @@ export function VacationsPageClient(): React.ReactElement {
 	const t = useTranslations('Vacations');
 	const tCommon = useTranslations('Common');
 
-	const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-	const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('all');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [fromDate, setFromDate] = useState<string>('');
 	const [toDate, setToDate] = useState<string>('');
 	const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
@@ -122,12 +126,125 @@ export function VacationsPageClient(): React.ReactElement {
 	 * Updates the detail request selection and resets decision notes.
 	 *
 	 * @param request - Vacation request to show, or null to clear
-	 * @returns Nothing
+	 * @returns void
 	 */
-	const setDetailRequestWithNotes = (request: VacationRequest | null): void => {
+	const setDetailRequestWithNotes = useCallback((request: VacationRequest | null): void => {
 		setDetailRequest(request);
 		setDecisionNotes('');
-	};
+	}, []);
+
+	/**
+	 * Resets pagination to the first page.
+	 *
+	 * @returns void
+	 */
+	const resetPagination = useCallback((): void => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates column filters and resets pagination.
+	 *
+	 * @param value - Next column filters state or updater
+	 * @returns void
+	 */
+	const handleColumnFiltersChange = useCallback(
+		(value: React.SetStateAction<ColumnFiltersState>): void => {
+			setColumnFilters((prev) => (typeof value === 'function' ? value(prev) : value));
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the status filter and resets pagination.
+	 *
+	 * @param value - Selected status filter
+	 * @returns void
+	 */
+	const handleStatusFilterChange = useCallback(
+		(value: string): void => {
+			const statusValue = value as StatusFilter;
+			handleColumnFiltersChange((prev) => {
+				const next = prev.filter((filter) => filter.id !== 'status');
+				if (statusValue !== 'all') {
+					next.push({ id: 'status', value: statusValue });
+				}
+				return next;
+			});
+		},
+		[handleColumnFiltersChange],
+	);
+
+	/**
+	 * Updates the employee filter and resets pagination.
+	 *
+	 * @param value - Selected employee id
+	 * @returns void
+	 */
+	const handleEmployeeFilterChange = useCallback(
+		(value: string): void => {
+			handleColumnFiltersChange((prev) => {
+				const next = prev.filter((filter) => filter.id !== 'employeeId');
+				if (value !== 'all') {
+					next.push({ id: 'employeeId', value });
+				}
+				return next;
+			});
+		},
+		[handleColumnFiltersChange],
+	);
+
+	/**
+	 * Updates the from date filter and resets pagination.
+	 *
+	 * @param value - New from date value
+	 * @returns void
+	 */
+	const handleFromDateChange = useCallback(
+		(value: string): void => {
+			setFromDate(value);
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	/**
+	 * Updates the to date filter and resets pagination.
+	 *
+	 * @param value - New to date value
+	 * @returns void
+	 */
+	const handleToDateChange = useCallback(
+		(value: string): void => {
+			setToDate(value);
+			resetPagination();
+		},
+		[resetPagination],
+	);
+
+	const statusFilterValue =
+		(columnFilters.find((filter) => filter.id === 'status')?.value as
+			| StatusFilter
+			| undefined) ?? 'all';
+	const selectedEmployeeIdValue =
+		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as
+			| string
+			| undefined) ?? 'all';
 
 	const employeeQueryParams = useMemo(
 		() => ({
@@ -160,15 +277,24 @@ export function VacationsPageClient(): React.ReactElement {
 
 	const requestParams = useMemo(
 		() => ({
-			limit: 50,
-			offset: 0,
+			limit: pagination.pageSize,
+			offset: pagination.pageIndex * pagination.pageSize,
 			organizationId: organizationId ?? undefined,
-			employeeId: selectedEmployeeId !== 'all' ? selectedEmployeeId : undefined,
-			status: statusFilter !== 'all' ? statusFilter : undefined,
+			employeeId:
+				selectedEmployeeIdValue !== 'all' ? selectedEmployeeIdValue : undefined,
+			status: statusFilterValue !== 'all' ? statusFilterValue : undefined,
 			from: fromDate || undefined,
 			to: toDate || undefined,
 		}),
-		[organizationId, selectedEmployeeId, statusFilter, fromDate, toDate],
+		[
+			fromDate,
+			organizationId,
+			pagination.pageIndex,
+			pagination.pageSize,
+			selectedEmployeeIdValue,
+			statusFilterValue,
+			toDate,
+		],
 	);
 
 	const { data: requestsResponse, isFetching } = useQuery({
@@ -178,6 +304,7 @@ export function VacationsPageClient(): React.ReactElement {
 	});
 
 	const requests = requestsResponse?.data ?? [];
+	const totalRows = requestsResponse?.pagination.total ?? 0;
 
 	const createForm = useAppForm({
 		defaultValues: {
@@ -288,13 +415,13 @@ export function VacationsPageClient(): React.ReactElement {
 	 * @param request - Vacation request record
 	 * @returns Display name for the employee
 	 */
-	const getEmployeeName = (request: VacationRequest): string => {
+	const getEmployeeName = useCallback((request: VacationRequest): string => {
 		const fullName = `${request.employeeName ?? ''} ${request.employeeLastName ?? ''}`.trim();
 		if (fullName) {
 			return fullName;
 		}
 		return employeeLookup.get(request.employeeId) ?? request.employeeId;
-	};
+	}, [employeeLookup]);
 
 	/**
 	 * Handles decision actions for a selected request.
@@ -335,6 +462,66 @@ export function VacationsPageClient(): React.ReactElement {
 		EXCEPTION_DAY_OFF: t('dayTypes.EXCEPTION_DAY_OFF'),
 		MANDATORY_REST_DAY: t('dayTypes.MANDATORY_REST_DAY'),
 	};
+	const columns = useMemo<ColumnDef<VacationRequest>[]>(
+		() => [
+			{
+				id: 'employee',
+				accessorFn: (row) => getEmployeeName(row),
+				header: t('table.headers.employee'),
+				cell: ({ row }) => (
+					<span className="font-medium">{getEmployeeName(row.original)}</span>
+				),
+			},
+			{
+				id: 'period',
+				accessorFn: (row) => row.startDateKey,
+				header: t('table.headers.period'),
+				cell: ({ row }) =>
+					formatDateRangeUtc(
+						toUtcDate(row.original.startDateKey),
+						toUtcDate(row.original.endDateKey),
+					),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'days',
+				accessorFn: (row) => row.summary.totalDays,
+				header: t('table.headers.days'),
+				cell: ({ row }) =>
+					t('table.daysSummary', {
+						vacation: row.original.summary.vacationDays,
+						total: row.original.summary.totalDays,
+					}),
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'status',
+				header: t('table.headers.status'),
+				cell: ({ row }) => (
+					<Badge variant={statusVariants[row.original.status]}>
+						{t(`status.${row.original.status}`)}
+					</Badge>
+				),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setDetailRequestWithNotes(row.original)}
+					>
+						{t('actions.viewDetail')}
+					</Button>
+				),
+			},
+		],
+		[getEmployeeName, setDetailRequestWithNotes, t],
+	);
 
 	if (!organizationId) {
 		return (
@@ -552,7 +739,10 @@ export function VacationsPageClient(): React.ReactElement {
 					<CardDescription>{t('filters.description')}</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<Tabs value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+					<Tabs
+						value={statusFilterValue}
+						onValueChange={handleStatusFilterChange}
+					>
 						<TabsList className="flex flex-wrap">
 							{statusTabs.map((tab) => (
 								<TabsTrigger key={tab.value} value={tab.value}>
@@ -563,7 +753,10 @@ export function VacationsPageClient(): React.ReactElement {
 					</Tabs>
 
 					<div className="flex flex-wrap items-center gap-3">
-						<Select value={selectedEmployeeId} onValueChange={setSelectedEmployeeId}>
+						<Select
+							value={selectedEmployeeIdValue}
+							onValueChange={handleEmployeeFilterChange}
+						>
 							<SelectTrigger className="w-[240px]">
 								<SelectValue placeholder={t('filters.employee')} />
 							</SelectTrigger>
@@ -584,7 +777,7 @@ export function VacationsPageClient(): React.ReactElement {
 									type="date"
 									className="rounded border px-2 py-1 text-sm"
 									value={fromDate}
-									onChange={(event) => setFromDate(event.target.value)}
+									onChange={(event) => handleFromDateChange(event.target.value)}
 								/>
 							</label>
 							<label className="flex items-center gap-2">
@@ -593,79 +786,30 @@ export function VacationsPageClient(): React.ReactElement {
 									type="date"
 									className="rounded border px-2 py-1 text-sm"
 									value={toDate}
-									onChange={(event) => setToDate(event.target.value)}
+									onChange={(event) => handleToDateChange(event.target.value)}
 								/>
 							</label>
 						</div>
 					</div>
 
-					<div className="rounded-md border">
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>{t('table.headers.employee')}</TableHead>
-									<TableHead>{t('table.headers.period')}</TableHead>
-									<TableHead>{t('table.headers.days')}</TableHead>
-									<TableHead>{t('table.headers.status')}</TableHead>
-									<TableHead className="w-[140px]">
-										{t('table.headers.actions')}
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{isFetching ? (
-									<TableRow>
-										<TableCell colSpan={5} className="h-20 text-center">
-											<div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-												<Loader2 className="h-4 w-4 animate-spin" />
-												{t('table.loading')}
-											</div>
-										</TableCell>
-									</TableRow>
-								) : requests.length === 0 ? (
-									<TableRow>
-										<TableCell colSpan={5} className="h-20 text-center text-muted-foreground">
-											{t('table.empty')}
-										</TableCell>
-									</TableRow>
-								) : (
-									requests.map((request) => (
-										<TableRow key={request.id}>
-											<TableCell className="font-medium">
-												{getEmployeeName(request)}
-											</TableCell>
-											<TableCell>
-												{formatDateRangeUtc(
-													toUtcDate(request.startDateKey),
-													toUtcDate(request.endDateKey),
-												)}
-											</TableCell>
-											<TableCell>
-												{t('table.daysSummary', {
-													vacation: request.summary.vacationDays,
-													total: request.summary.totalDays,
-												})}
-											</TableCell>
-											<TableCell>
-												<Badge variant={statusVariants[request.status]}>
-													{t(`status.${request.status}`)}
-												</Badge>
-											</TableCell>
-											<TableCell>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => setDetailRequestWithNotes(request)}
-												>
-													{t('actions.viewDetail')}
-												</Button>
-											</TableCell>
-										</TableRow>
-									))
-								)}
-							</TableBody>
-						</Table>
-					</div>
+					<DataTable
+						columns={columns}
+						data={requests}
+						sorting={sorting}
+						onSortingChange={setSorting}
+						pagination={pagination}
+						onPaginationChange={setPagination}
+						columnFilters={columnFilters}
+						onColumnFiltersChange={handleColumnFiltersChange}
+						globalFilter={globalFilter}
+						onGlobalFilterChange={handleGlobalFilterChange}
+						showToolbar={false}
+						manualPagination
+						manualFiltering
+						rowCount={totalRows}
+						emptyState={t('table.empty')}
+						isLoading={isFetching}
+					/>
 				</CardContent>
 			</Card>
 

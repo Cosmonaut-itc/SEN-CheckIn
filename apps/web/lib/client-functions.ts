@@ -862,6 +862,8 @@ export async function fetchAttendanceRecords(
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
+		search?: string;
+		deviceLocationId?: string;
 		organizationId?: string;
 	} = {
 		limit: params?.limit ?? 100,
@@ -873,6 +875,14 @@ export async function fetchAttendanceRecords(
 	// Only add type if it's a valid enum value (not undefined)
 	if (params?.type) {
 		query.type = params.type;
+	}
+
+	if (params?.search?.trim()) {
+		query.search = params.search.trim();
+	}
+
+	if (params?.deviceLocationId) {
+		query.deviceLocationId = params.deviceLocationId;
 	}
 
 	if (params?.organizationId) {
@@ -1612,7 +1622,7 @@ export async function fetchOrganizations(): Promise<Organization[]> {
 }
 
 // ============================================================================
-// Organization Member Functions (via better-auth organization plugin)
+// Organization Member Functions
 // ============================================================================
 
 export interface OrganizationMembersResponse {
@@ -1624,18 +1634,28 @@ export async function fetchOrganizationMembers(params: {
 	organizationId: string | null;
 	limit?: number;
 	offset?: number;
+	search?: string;
 }): Promise<OrganizationMembersResponse> {
 	if (!params.organizationId) {
 		return { members: [], total: 0 };
 	}
 
-	const response = await authClient.organization.listMembers({
-		query: {
-			organizationId: params.organizationId,
-			limit: params.limit ?? 100,
-			offset: params.offset ?? 0,
-		},
-	});
+	const query: {
+		organizationId: string;
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		organizationId: params.organizationId,
+		limit: params.limit ?? 100,
+		offset: params.offset ?? 0,
+	};
+
+	if (params.search?.trim()) {
+		query.search = params.search.trim();
+	}
+
+	const response = await api.organization.members.get({ $query: query });
 
 	if (response.error) {
 		throw new Error('Failed to fetch organization members');
@@ -1776,11 +1796,16 @@ export async function fetchScheduleTemplatesList(
 		limit: number;
 		offset: number;
 		organizationId: string;
+		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 		organizationId: params.organizationId,
 	};
+
+	if (params?.search?.trim()) {
+		query.search = params.search.trim();
+	}
 
 	const response = await api['schedule-templates'].get({ $query: query });
 

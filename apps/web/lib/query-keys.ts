@@ -31,6 +31,8 @@ export interface AttendanceQueryParams extends ListQueryParams {
 	toDate?: Date;
 	/** Filter by attendance type */
 	type?: 'CHECK_IN' | 'CHECK_OUT';
+	/** Filter by device location ID */
+	deviceLocationId?: string;
 }
 
 /**
@@ -70,6 +72,7 @@ export interface UsersQueryParams {
  */
 export interface OrganizationMembersQueryParams extends UsersQueryParams {
 	organizationId?: string | null;
+	search?: string;
 }
 
 /**

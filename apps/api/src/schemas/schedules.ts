@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { paginationSchema, shiftTypeEnum } from './crud.js';
+import { paginationSchema, shiftTypeEnum, timeStringRegex } from './crud.js';
 
 /**
  * Zod validation schemas for scheduling templates, exceptions, and calendar queries.
@@ -17,8 +17,8 @@ export const scheduleExceptionTypeEnum = z.enum(['DAY_OFF', 'MODIFIED', 'EXTRA_D
  */
 export const scheduleTemplateDaySchema = z.object({
 	dayOfWeek: z.number().int().min(0).max(6),
-	startTime: z.string().regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM'),
-	endTime: z.string().regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM'),
+	startTime: z.string().regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS'),
+	endTime: z.string().regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS'),
 	isWorkingDay: z.boolean().default(true),
 });
 
@@ -49,6 +49,7 @@ export const updateScheduleTemplateSchema = z.object({
  */
 export const scheduleTemplateQuerySchema = paginationSchema.extend({
 	organizationId: z.string().optional(),
+	search: z.string().optional(),
 });
 
 /**
@@ -61,11 +62,11 @@ export const createScheduleExceptionSchema = z
 		exceptionType: scheduleExceptionTypeEnum,
 		startTime: z
 			.string()
-			.regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM')
+			.regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS')
 			.optional(),
 		endTime: z
 			.string()
-			.regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM')
+			.regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS')
 			.optional(),
 		reason: z.string().max(500).optional(),
 	})
@@ -99,11 +100,11 @@ export const updateScheduleExceptionSchema = z
 		exceptionType: scheduleExceptionTypeEnum.optional(),
 		startTime: z
 			.string()
-			.regex(/^\d{2}:\d{2}$/, 'Start time must be HH:MM')
+			.regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS')
 			.optional(),
 		endTime: z
 			.string()
-			.regex(/^\d{2}:\d{2}$/, 'End time must be HH:MM')
+			.regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS')
 			.optional(),
 		reason: z.string().max(500).nullable().optional(),
 	})
@@ -162,6 +163,8 @@ export type CreateScheduleExceptionInput = z.infer<typeof createScheduleExceptio
 export type UpdateScheduleExceptionInput = z.infer<typeof updateScheduleExceptionSchema>;
 export type ScheduleExceptionQuery = z.infer<typeof scheduleExceptionQuerySchema>;
 export type CalendarQuery = z.infer<typeof calendarQuerySchema>;
+
+
 
 
 

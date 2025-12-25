@@ -35,9 +35,9 @@ export interface ScheduleValidationOptions {
 }
 
 /**
- * Parses an HH:mm string into total minutes from midnight.
+ * Parses an HH:mm or HH:mm:ss string into total minutes from midnight.
  *
- * @param timeString - Time string in HH:mm format
+ * @param timeString - Time string in HH:mm or HH:mm:ss format
  * @returns Total minutes from midnight
  */
 function parseTimeToMinutes(timeString: string): number {
@@ -128,7 +128,7 @@ function inferShiftTypeForDay(
 }
 
 /**
- * Parses HH:mm strings into total minutes, handling overnight ranges.
+ * Parses HH:mm or HH:mm:ss strings into total minutes, handling overnight ranges.
  *
  * @param day - Day configuration with start and end times
  * @returns Total minutes worked for the day (0 when not working or invalid)
@@ -138,8 +138,12 @@ export function calculateDailyMinutes(day: ScheduleDayInput): number {
 		return 0;
 	}
 
-	const start = parse(day.startTime, 'HH:mm', new Date());
-	let end = parse(day.endTime, 'HH:mm', new Date());
+	const normalizedStart =
+		day.startTime.split(':').length === 3 ? day.startTime.slice(0, 5) : day.startTime;
+	const normalizedEnd =
+		day.endTime.split(':').length === 3 ? day.endTime.slice(0, 5) : day.endTime;
+	const start = parse(normalizedStart, 'HH:mm', new Date());
+	let end = parse(normalizedEnd, 'HH:mm', new Date());
 
 	if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
 		return 0;

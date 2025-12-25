@@ -570,7 +570,7 @@ export function prefetchVacationRequests(
  */
 export function prefetchOrganizationMembers(
 	queryClient: QueryClient,
-	params: { organizationId: string | null; limit?: number; offset?: number },
+	params: { organizationId: string | null; limit?: number; offset?: number; search?: string },
 ): void {
 	if (!params.organizationId) {
 		return;

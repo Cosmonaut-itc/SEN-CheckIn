@@ -4,16 +4,8 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
+import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -24,9 +16,8 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Pencil, Trash2, Search } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import {
@@ -38,6 +29,7 @@ import {
 } from '@/lib/client-functions';
 import { updateDevice, deleteDevice } from '@/actions/devices';
 import { useOrgContext } from '@/lib/org-client-context';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 /**
  * Form values for creating/editing devices.
@@ -72,15 +64,23 @@ export function DevicesPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Devices');
 	const tCommon = useTranslations('Common');
-	const [search, setSearch] = useState<string>('');
+	const [globalFilter, setGlobalFilter] = useState<string>('');
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [editingDevice, setEditingDevice] = useState<Device | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const isOrgSelected = Boolean(organizationId);
 
 	// Build query params - only include search if it has a value
-	const baseParams = { limit: 100, offset: 0, organizationId };
-	const queryParams = search ? { ...baseParams, search } : baseParams;
+	const queryParams = {
+		limit: pagination.pageSize,
+		offset: pagination.pageIndex * pagination.pageSize,
+		...(globalFilter ? { search: globalFilter } : {}),
+		...(organizationId ? { organizationId } : {}),
+	};
+	const locationParams = { limit: 100, offset: 0, organizationId };
 
 	// Query for devices list
 	const { data, isFetching } = useQuery({
@@ -91,8 +91,8 @@ export function DevicesPageClient(): React.ReactElement {
 
 	// Locations for select options
 	const { data: locationsData } = useQuery({
-		queryKey: queryKeys.locations.list(baseParams),
-		queryFn: () => fetchLocationsList(baseParams),
+		queryKey: queryKeys.locations.list(locationParams),
+		queryFn: () => fetchLocationsList(locationParams),
 		enabled: Boolean(organizationId),
 	});
 
@@ -114,6 +114,7 @@ export function DevicesPageClient(): React.ReactElement {
 	);
 
 	const devices = data?.data ?? [];
+	const totalRows = data?.pagination.total ?? 0;
 
 	// Update mutation
 	const updateMutation = useMutation({
@@ -232,10 +233,138 @@ export function DevicesPageClient(): React.ReactElement {
 	 * Handles device deletion.
 	 *
 	 * @param id - The device ID to delete
+	 * @returns void
 	 */
-	const handleDelete = (id: string): void => {
-		deleteMutation.mutate(id);
-	};
+	const handleDelete = useCallback(
+		(id: string): void => {
+			deleteMutation.mutate(id);
+		},
+		[deleteMutation],
+	);
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
+	const columns = useMemo<ColumnDef<Device>[]>(
+		() => [
+			{
+				accessorKey: 'code',
+				header: t('table.headers.code'),
+				cell: ({ row }) => (
+					<span className="font-medium">{row.original.code}</span>
+				),
+			},
+			{
+				accessorKey: 'name',
+				header: t('table.headers.name'),
+				cell: ({ row }) => row.original.name ?? '-',
+			},
+			{
+				accessorKey: 'deviceType',
+				header: t('table.headers.type'),
+				cell: ({ row }) => row.original.deviceType ?? '-',
+			},
+			{
+				accessorKey: 'locationId',
+				header: t('table.headers.location'),
+				cell: ({ row }) =>
+					row.original.locationId
+						? locationLookup.get(row.original.locationId) ?? row.original.locationId
+						: '-',
+			},
+			{
+				accessorKey: 'status',
+				header: t('table.headers.status'),
+				cell: ({ row }) => (
+					<Badge variant={statusVariants[row.original.status]}>
+						{t(`status.${row.original.status}`)}
+					</Badge>
+				),
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'lastHeartbeat',
+				header: t('table.headers.lastHeartbeat'),
+				cell: ({ row }) =>
+					row.original.lastHeartbeat
+						? format(new Date(row.original.lastHeartbeat), t('dateTimeFormat'))
+						: '-',
+				enableGlobalFilter: false,
+			},
+			{
+				accessorKey: 'createdAt',
+				header: t('table.headers.created'),
+				cell: ({ row }) =>
+					format(new Date(row.original.createdAt), t('dateFormat')),
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) => (
+					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => handleEdit(row.original)}
+						>
+							<Pencil className="h-4 w-4" />
+						</Button>
+						<Dialog
+							open={deleteConfirmId === row.original.id}
+							onOpenChange={(open) =>
+								setDeleteConfirmId(open ? row.original.id : null)
+							}
+						>
+							<DialogTrigger asChild>
+								<Button variant="ghost" size="icon">
+									<Trash2 className="h-4 w-4 text-destructive" />
+								</Button>
+							</DialogTrigger>
+							<DialogContent>
+								<DialogHeader>
+									<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+									<DialogDescription>
+										{t('dialogs.delete.description', {
+											name: row.original.name || row.original.code,
+										})}
+									</DialogDescription>
+								</DialogHeader>
+								<DialogFooter>
+									<Button
+										variant="outline"
+										onClick={() => setDeleteConfirmId(null)}
+									>
+										{tCommon('cancel')}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={() => handleDelete(row.original.id)}
+									>
+										{tCommon('delete')}
+									</Button>
+								</DialogFooter>
+							</DialogContent>
+						</Dialog>
+					</div>
+				),
+			},
+		],
+		[deleteConfirmId, handleDelete, handleEdit, locationLookup, t, tCommon],
+	);
 
 	if (!isOrgSelected) {
 		return (
@@ -333,134 +462,24 @@ export function DevicesPageClient(): React.ReactElement {
 				</DialogContent>
 			</Dialog>
 
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder={t('search.placeholder')}
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-			</div>
-
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.code')}</TableHead>
-							<TableHead>{t('table.headers.name')}</TableHead>
-							<TableHead>{t('table.headers.type')}</TableHead>
-							<TableHead>{t('table.headers.location')}</TableHead>
-							<TableHead>{t('table.headers.status')}</TableHead>
-							<TableHead>{t('table.headers.lastHeartbeat')}</TableHead>
-							<TableHead>{t('table.headers.created')}</TableHead>
-							<TableHead className="w-[100px]">
-								{t('table.headers.actions')}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{isFetching ? (
-							Array.from({ length: 5 }).map((_, i) => (
-								<TableRow key={i}>
-									{Array.from({ length: 8 }).map((_, j) => (
-										<TableCell key={j}>
-											<Skeleton className="h-4 w-full" />
-										</TableCell>
-									))}
-								</TableRow>
-							))
-						) : devices.length === 0 ? (
-							<TableRow>
-								<TableCell colSpan={8} className="h-24 text-center">
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							devices.map((device) => (
-								<TableRow key={device.id}>
-									<TableCell className="font-medium">{device.code}</TableCell>
-									<TableCell>{device.name ?? '-'}</TableCell>
-									<TableCell>{device.deviceType ?? '-'}</TableCell>
-									<TableCell>
-										{device.locationId
-											? (locationLookup.get(device.locationId) ??
-												device.locationId)
-											: '-'}
-									</TableCell>
-									<TableCell>
-										<Badge variant={statusVariants[device.status]}>
-											{t(`status.${device.status}`)}
-										</Badge>
-									</TableCell>
-									<TableCell>
-										{device.lastHeartbeat
-											? format(
-													new Date(device.lastHeartbeat),
-													t('dateTimeFormat'),
-												)
-											: '-'}
-									</TableCell>
-									<TableCell>
-										{format(new Date(device.createdAt), t('dateFormat'))}
-									</TableCell>
-									<TableCell>
-										<div className="flex items-center gap-2">
-											<Button
-												variant="ghost"
-												size="icon"
-												onClick={() => handleEdit(device)}
-											>
-												<Pencil className="h-4 w-4" />
-											</Button>
-											<Dialog
-												open={deleteConfirmId === device.id}
-												onOpenChange={(open) =>
-													setDeleteConfirmId(open ? device.id : null)
-												}
-											>
-												<DialogTrigger asChild>
-													<Button variant="ghost" size="icon">
-														<Trash2 className="h-4 w-4 text-destructive" />
-													</Button>
-												</DialogTrigger>
-												<DialogContent>
-													<DialogHeader>
-														<DialogTitle>
-															{t('dialogs.delete.title')}
-														</DialogTitle>
-														<DialogDescription>
-															{t('dialogs.delete.description', {
-																name: device.name || device.code,
-															})}
-														</DialogDescription>
-													</DialogHeader>
-													<DialogFooter>
-														<Button
-															variant="outline"
-															onClick={() => setDeleteConfirmId(null)}
-														>
-															{tCommon('cancel')}
-														</Button>
-														<Button
-															variant="destructive"
-															onClick={() => handleDelete(device.id)}
-														>
-															{tCommon('delete')}
-														</Button>
-													</DialogFooter>
-												</DialogContent>
-											</Dialog>
-										</div>
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
+			<DataTable
+				columns={columns}
+				data={devices}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={pagination}
+				onPaginationChange={setPagination}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
+				globalFilterPlaceholder={t('search.placeholder')}
+				manualPagination
+				manualFiltering
+				rowCount={totalRows}
+				emptyState={t('table.empty')}
+				isLoading={isFetching}
+			/>
 		</div>
 	);
 }

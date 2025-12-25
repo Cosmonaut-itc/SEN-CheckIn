@@ -49,6 +49,7 @@ export const updateScheduleTemplateSchema = z.object({
  */
 export const scheduleTemplateQuerySchema = paginationSchema.extend({
 	organizationId: z.string().optional(),
+	search: z.string().optional(),
 });
 
 /**

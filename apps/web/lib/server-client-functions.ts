@@ -827,11 +827,16 @@ export async function fetchScheduleTemplatesListServer(
 		limit: number;
 		offset: number;
 		organizationId: string;
+		search?: string;
 	} = {
 		limit: params?.limit ?? 100,
 		offset: params?.offset ?? 0,
 		organizationId: params.organizationId,
 	};
+
+	if (params?.search?.trim()) {
+		query.search = params.search.trim();
+	}
 
 	const response = await api['schedule-templates'].get({ $query: query });
 

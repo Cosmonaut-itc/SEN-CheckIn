@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { payrollSetting, scheduleTemplate, scheduleTemplateDay } from '../db/schema.js';
@@ -72,7 +72,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 			apiKeyOrganizationIds,
 			set,
 		}) => {
-			const { limit, offset, organizationId: orgQuery } = query;
+			const { limit, offset, organizationId: orgQuery, search } = query;
 
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -88,22 +88,34 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 				return { error: 'Organization is required or not permitted' };
 			}
 
-			const whereClause = and(eq(scheduleTemplate.organizationId, organizationId))!;
+			const conditions: SQL<unknown>[] = [
+				eq(scheduleTemplate.organizationId, organizationId),
+			];
+			const normalizedSearch = search?.trim();
+			if (normalizedSearch) {
+				conditions.push(
+					or(
+						ilike(scheduleTemplate.name, `%${normalizedSearch}%`),
+						ilike(scheduleTemplate.description, `%${normalizedSearch}%`),
+					)!,
+				);
+			}
 
-			const results = await db
-				.select()
-				.from(scheduleTemplate)
-				.where(whereClause)
+			let baseQuery = db.select().from(scheduleTemplate);
+			if (conditions.length > 0) {
+				baseQuery = baseQuery.where(and(...conditions)) as typeof baseQuery;
+			}
+
+			const results = await baseQuery
 				.limit(limit)
 				.offset(offset)
 				.orderBy(scheduleTemplate.name);
 
-			const total = (
-				await db
-					.select()
-					.from(scheduleTemplate)
-					.where(eq(scheduleTemplate.organizationId, organizationId))
-			).length;
+			let countQuery = db.select().from(scheduleTemplate);
+			if (conditions.length > 0) {
+				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
+			}
+			const total = (await countQuery).length;
 
 			return {
 				data: results,

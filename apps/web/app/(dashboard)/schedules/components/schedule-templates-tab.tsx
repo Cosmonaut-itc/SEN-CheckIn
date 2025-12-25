@@ -75,14 +75,16 @@ export function ScheduleTemplatesTab({
 		pageSize: 10,
 	});
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+	const normalizedSearch = globalFilter.trim();
 
 	const listParams = useMemo(
 		() => ({
 			limit: pagination.pageSize,
 			offset: pagination.pageIndex * pagination.pageSize,
 			organizationId: organizationId ?? undefined,
+			...(normalizedSearch ? { search: normalizedSearch } : {}),
 		}),
-		[organizationId, pagination.pageIndex, pagination.pageSize],
+		[normalizedSearch, organizationId, pagination.pageIndex, pagination.pageSize],
 	);
 
 	const { data: templatesResponse, isFetching } = useQuery({
@@ -387,6 +389,7 @@ export function ScheduleTemplatesTab({
 				globalFilter={globalFilter}
 				onGlobalFilterChange={handleGlobalFilterChange}
 				manualPagination
+				manualFiltering
 				rowCount={totalRows}
 				emptyState={t('templates.table.empty')}
 				isLoading={isFetching}

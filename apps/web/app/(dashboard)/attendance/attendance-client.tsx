@@ -49,6 +49,12 @@ import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } fro
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
 
 const ALL_LOCATIONS_VALUE = '__all__';
+const EXPORT_PAGE_SIZE = 100;
+
+type AttendanceExportParams = Omit<
+	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
+	'limit' | 'offset'
+>;
 
 /**
  * CSV row shape for attendance exports.
@@ -139,6 +145,38 @@ function downloadCsvFile(csv: string, fileName: string): void {
 }
 
 /**
+ * Fetches all attendance records matching the export filters.
+ *
+ * @param params - Attendance filters without pagination controls
+ * @returns Promise resolving to the full attendance record list
+ * @throws Error when the attendance fetch fails
+ */
+async function fetchAllAttendanceRecords(
+	params: AttendanceExportParams,
+): Promise<AttendanceRecord[]> {
+	const records: AttendanceRecord[] = [];
+	let offset = 0;
+	let total = 0;
+
+	do {
+		const response = await fetchAttendanceRecords({
+			...params,
+			limit: EXPORT_PAGE_SIZE,
+			offset,
+		});
+		records.push(...response.data);
+		total = response.pagination.total;
+		offset += response.data.length;
+
+		if (response.data.length === 0) {
+			break;
+		}
+	} while (offset < total);
+
+	return records;
+}
+
+/**
  * Attendance page client component.
  * Provides a list view with date-fns based filtering using TanStack Query.
  *
@@ -157,6 +195,7 @@ export function AttendancePageClient(): React.ReactElement {
 	);
 	const [endDate, setEndDate] = useState<string>(format(endOfDay(new Date()), 'yyyy-MM-dd'));
 	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'both'>('both');
+	const [isExporting, setIsExporting] = useState<boolean>(false);
 
 	/**
 	 * Resets pagination to the first page.
@@ -460,42 +499,67 @@ export function AttendancePageClient(): React.ReactElement {
 	/**
 	 * Exports the filtered attendance records to CSV.
 	 *
-	 * @returns void
+	 * @returns Promise resolving when the CSV export completes
 	 */
-	const handleExportCsv = useCallback((): void => {
-		if (records.length === 0) {
-			return;
+	const handleExportCsv = useCallback(async (): Promise<void> => {
+		setIsExporting(true);
+		try {
+			const exportRecords = await fetchAllAttendanceRecords({
+				fromDate: start,
+				toDate: end,
+				organizationId,
+				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
+				...(normalizedSearch ? { search: normalizedSearch } : {}),
+				...(deviceLocationId ? { deviceLocationId } : {}),
+			});
+
+			if (exportRecords.length === 0) {
+				return;
+			}
+
+			const columns: CsvColumn[] = [
+				{ key: 'employeeName', label: t('table.headers.employeeName') },
+				{ key: 'employeeId', label: t('table.headers.employeeId') },
+				{ key: 'deviceId', label: t('table.headers.deviceId') },
+				{ key: 'deviceLocation', label: t('table.headers.deviceLocation') },
+				{ key: 'type', label: t('table.headers.type') },
+				{ key: 'time', label: t('table.headers.time') },
+				{ key: 'date', label: t('table.headers.date') },
+			];
+
+			const rows: AttendanceCsvRow[] = exportRecords.map((record) => ({
+				employeeName: record.employeeName,
+				employeeId: record.employeeId,
+				deviceId: record.deviceId,
+				deviceLocation: record.deviceLocationName ?? locationFallback,
+				type:
+					record.type === 'CHECK_IN' ? t('typeFilter.checkIn') : t('typeFilter.checkOut'),
+				time: format(new Date(record.timestamp), 'HH:mm:ss'),
+				date: format(new Date(record.timestamp), t('dateFormat')),
+			}));
+
+			const csv = buildCsvContent(columns, rows);
+			const fileName = t('csv.fileName', {
+				start: format(start, 'yyyyMMdd'),
+				end: format(end, 'yyyyMMdd'),
+			});
+
+			downloadCsvFile(csv, fileName);
+		} catch (error) {
+			console.error('Failed to export attendance CSV:', error);
+		} finally {
+			setIsExporting(false);
 		}
-
-		const columns: CsvColumn[] = [
-			{ key: 'employeeName', label: t('table.headers.employeeName') },
-			{ key: 'employeeId', label: t('table.headers.employeeId') },
-			{ key: 'deviceId', label: t('table.headers.deviceId') },
-			{ key: 'deviceLocation', label: t('table.headers.deviceLocation') },
-			{ key: 'type', label: t('table.headers.type') },
-			{ key: 'time', label: t('table.headers.time') },
-			{ key: 'date', label: t('table.headers.date') },
-		];
-
-		const rows: AttendanceCsvRow[] = records.map((record) => ({
-			employeeName: record.employeeName,
-			employeeId: record.employeeId,
-			deviceId: record.deviceId,
-			deviceLocation: record.deviceLocationName ?? locationFallback,
-			type:
-				record.type === 'CHECK_IN' ? t('typeFilter.checkIn') : t('typeFilter.checkOut'),
-			time: format(new Date(record.timestamp), 'HH:mm:ss'),
-			date: format(new Date(record.timestamp), t('dateFormat')),
-		}));
-
-		const csv = buildCsvContent(columns, rows);
-		const fileName = t('csv.fileName', {
-			start: format(start, 'yyyyMMdd'),
-			end: format(end, 'yyyyMMdd'),
-		});
-
-		downloadCsvFile(csv, fileName);
-	}, [end, locationFallback, records, start, t]);
+	}, [
+		deviceLocationId,
+		end,
+		locationFallback,
+		normalizedSearch,
+		organizationId,
+		start,
+		t,
+		typeFilter,
+	]);
 
 	if (!organizationId) {
 		return (
@@ -521,7 +585,7 @@ export function AttendancePageClient(): React.ReactElement {
 					<Button
 						onClick={handleExportCsv}
 						variant="outline"
-						disabled={isFetching || records.length === 0}
+						disabled={isFetching || isExporting || totalRows === 0}
 					>
 						<Download className="mr-2 h-4 w-4" />
 						{t('actions.exportCsv')}

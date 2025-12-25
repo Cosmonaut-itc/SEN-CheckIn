@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { endOfDay, format, formatDistanceToNowStrict, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -198,6 +198,29 @@ function PresenceTable({
 	});
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 
+	/**
+	 * Resets pagination to the first page.
+	 *
+	 * @returns void
+	 */
+	const resetPagination = useCallback((): void => {
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
+
+	/**
+	 * Updates the global filter and resets pagination.
+	 *
+	 * @param value - Next global filter value or updater
+	 * @returns void
+	 */
+	const handleGlobalFilterChange = useCallback(
+		(value: React.SetStateAction<string>): void => {
+			onGlobalFilterChange(value);
+			resetPagination();
+		},
+		[onGlobalFilterChange, resetPagination],
+	);
+
 	const columns = useMemo<ColumnDef<AttendancePresentRecord>[]>(
 		() => [
 			{
@@ -278,7 +301,7 @@ function PresenceTable({
 			columnFilters={columnFilters}
 			onColumnFiltersChange={setColumnFilters}
 			globalFilter={globalFilter}
-			onGlobalFilterChange={onGlobalFilterChange}
+			onGlobalFilterChange={handleGlobalFilterChange}
 			showToolbar={false}
 			emptyState={t('presence.emptyLocation')}
 			pageSizeOptions={[5, 10, 20]}

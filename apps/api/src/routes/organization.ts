@@ -1,4 +1,4 @@
-import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { and, count, eq, ilike, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
@@ -90,7 +90,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				.orderBy(user.name, user.email);
 
 			let countQuery = db
-				.select({ id: member.id })
+				.select({ count: count() })
 				.from(member)
 				.innerJoin(user, eq(member.userId, user.id));
 
@@ -98,7 +98,8 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				countQuery = countQuery.where(and(...conditions)) as typeof countQuery;
 			}
 
-			const total = (await countQuery).length;
+			const countResult = await countQuery;
+			const total = countResult[0]?.count ?? 0;
 
 			return { members, total };
 		},

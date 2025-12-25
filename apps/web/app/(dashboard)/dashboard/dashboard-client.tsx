@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { endOfDay, format, formatDistanceToNowStrict, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -220,6 +220,17 @@ function PresenceTable({
 		},
 		[onGlobalFilterChange, resetPagination],
 	);
+
+	/**
+	 * Resets pagination when the global filter changes from outside the table.
+	 * This ensures that when the parent component updates the search input,
+	 * pagination resets to the first page even if the change bypasses handleGlobalFilterChange.
+	 *
+	 * @returns void
+	 */
+	useEffect(() => {
+		resetPagination();
+	}, [globalFilter, resetPagination]);
 
 	const columns = useMemo<ColumnDef<AttendancePresentRecord>[]>(
 		() => [

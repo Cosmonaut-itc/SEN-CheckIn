@@ -141,6 +141,13 @@
       "when": 1766609477492,
       "tag": "0019_smiling_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1767731991597,
+      "tag": "0020_flashy_excalibur",
+      "breakpoints": true
     }
   ]
 }

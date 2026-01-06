@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { endOfDay, format, formatDistanceToNowStrict, startOfDay } from 'date-fns';
+import { endOfDay, formatDistanceToNowStrict, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
-	ArrowRight,
-	Building,
-	ClipboardList,
+	Building2,
 	MapPin,
 	RefreshCw,
 	Search,
@@ -26,87 +24,41 @@ import {
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DataTable } from '@/components/data-table/data-table';
+import {
+	Map as MapCanvas,
+	MapMarker,
+	MarkerContent,
+	MarkerLabel,
+	MarkerPopup,
+	MarkerTooltip,
+	useMap,
+} from '@/components/ui/map';
 import {
 	fetchAttendancePresent,
 	fetchDashboardCounts,
+	fetchLocationsAll,
 	type AttendancePresentRecord,
-	type DashboardCounts,
+	type Location,
 } from '@/lib/client-functions';
 import { queryKeys } from '@/lib/query-keys';
 import { useOrgContext } from '@/lib/org-client-context';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
-
-/**
- * Entity count card configuration interface.
- */
-interface EntityCardConfig {
-	/** Translation key for the display title */
-	titleKey: string;
-	/** Translation key for the description text */
-	descriptionKey: string;
-	/** Route path for navigation */
-	href: string;
-	/** Lucide icon component */
-	icon: React.ComponentType<{ className?: string }>;
-	/** Key for the count data */
-	key: keyof DashboardCounts;
-}
-
-/**
- * Entity card configurations for the dashboard.
- */
-const entityCards: EntityCardConfig[] = [
-	{
-		titleKey: 'cards.employees.title',
-		descriptionKey: 'cards.employees.description',
-		href: '/employees',
-		icon: Users,
-		key: 'employees',
-	},
-	{
-		titleKey: 'cards.devices.title',
-		descriptionKey: 'cards.devices.description',
-		href: '/devices',
-		icon: Smartphone,
-		key: 'devices',
-	},
-	{
-		titleKey: 'cards.locations.title',
-		descriptionKey: 'cards.locations.description',
-		href: '/locations',
-		icon: MapPin,
-		key: 'locations',
-	},
-	{
-		titleKey: 'cards.organizations.title',
-		descriptionKey: 'cards.organizations.description',
-		href: '/organizations',
-		icon: Building,
-		key: 'organizations',
-	},
-	{
-		titleKey: 'cards.attendance.title',
-		descriptionKey: 'cards.attendance.description',
-		href: '/attendance',
-		icon: ClipboardList,
-		key: 'attendance',
-	},
-];
 
 const UNASSIGNED_LOCATION_KEY = 'unassigned';
+const DEFAULT_MAP_CENTER: [number, number] = [-99.1332, 19.4326];
+const DEFAULT_MAP_ZOOM = 10;
+const FOCUS_MAP_ZOOM = 14;
 
 /**
- * Grouped presence data per location for the dashboard accordion.
+ * Metric configuration for the insights bar.
  */
-interface PresenceLocationGroup {
-	locationKey: string;
-	locationId: string | null;
-	locationName: string | null;
-	records: AttendancePresentRecord[];
+interface MetricConfig {
+	label: string;
+	value: number;
+	icon: React.ComponentType<{ className?: string }>;
 }
 
 /**
@@ -127,216 +79,97 @@ function getEmployeeInitials(name: string): string {
 }
 
 /**
- * Groups attendance presence records by location.
+ * Fits the map to include all locations with coordinates.
  *
- * @param records - Presence records to group.
- * @returns Sorted list of location groups.
+ * @param props - Component props with locations.
+ * @returns Null (binds to the map instance).
  */
-function groupPresenceByLocation(
-	records: AttendancePresentRecord[],
-): PresenceLocationGroup[] {
-	const groups = new Map<string, PresenceLocationGroup>();
+function MapAutoFit({ locations }: { locations: Location[] }): null {
+	const { map, isLoaded } = useMap();
+	const hasFitRef = useRef(false);
 
-	records.forEach((record) => {
-		const locationKey = record.locationId ?? UNASSIGNED_LOCATION_KEY;
-		const existing = groups.get(locationKey);
-		if (existing) {
-			existing.records.push(record);
+	useEffect(() => {
+		hasFitRef.current = false;
+	}, [locations]);
+
+	useEffect(() => {
+		if (!map || !isLoaded || hasFitRef.current || locations.length === 0) {
 			return;
 		}
-		groups.set(locationKey, {
-			locationKey,
-			locationId: record.locationId ?? null,
-			locationName: record.locationName ?? null,
-			records: [record],
+
+		let minLng = Number.POSITIVE_INFINITY;
+		let maxLng = Number.NEGATIVE_INFINITY;
+		let minLat = Number.POSITIVE_INFINITY;
+		let maxLat = Number.NEGATIVE_INFINITY;
+
+		locations.forEach((location) => {
+			if (location.latitude === null || location.longitude === null) return;
+			minLng = Math.min(minLng, location.longitude);
+			maxLng = Math.max(maxLng, location.longitude);
+			minLat = Math.min(minLat, location.latitude);
+			maxLat = Math.max(maxLat, location.latitude);
 		});
-	});
 
-	const groupedRecords = Array.from(groups.values()).map((group) => ({
-		...group,
-		records: [...group.records].sort(
-			(a, b) =>
-				new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime(),
-		),
-	}));
+		if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) {
+			return;
+		}
 
-	return groupedRecords.sort((a, b) => {
-		const nameA = a.locationName ?? '';
-		const nameB = b.locationName ?? '';
-		return nameA.localeCompare(nameB, 'es');
-	});
+		map.fitBounds(
+			[
+				[minLng, minLat],
+				[maxLng, maxLat],
+			],
+			{ padding: 80, maxZoom: 15, duration: 800 },
+		);
+		hasFitRef.current = true;
+	}, [map, isLoaded, locations]);
+
+	return null;
 }
 
 /**
- * Props for presence table rendering.
- */
-interface PresenceTableProps {
-	/** Presence records for a location group. */
-	records: AttendancePresentRecord[];
-	/** Shared global filter value. */
-	globalFilter: string;
-	/** Global filter update handler. */
-	onGlobalFilterChange: React.Dispatch<React.SetStateAction<string>>;
-}
-
-/**
- * Renders the presence table for a location group.
+ * Focuses the map on a selected location when available.
  *
- * @param props - Presence table props.
- * @returns Rendered presence table.
+ * @param props - Component props with the focused location.
+ * @returns Null (binds to the map instance).
  */
-function PresenceTable({
-	records,
-	globalFilter,
-	onGlobalFilterChange,
-}: PresenceTableProps): React.ReactElement {
-	const t = useTranslations('Dashboard');
-	const [sorting, setSorting] = useState<SortingState>([]);
-	const [pagination, setPagination] = useState<PaginationState>({
-		pageIndex: 0,
-		pageSize: 5,
-	});
-	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+function MapFocus({ location }: { location: Location | null }): null {
+	const { map, isLoaded } = useMap();
+	const lastLocationRef = useRef<string | null>(null);
 
-	/**
-	 * Resets pagination to the first page.
-	 *
-	 * @returns void
-	 */
-	const resetPagination = useCallback((): void => {
-		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-	}, []);
-
-	/**
-	 * Updates the global filter and resets pagination.
-	 *
-	 * @param value - Next global filter value or updater
-	 * @returns void
-	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			onGlobalFilterChange(value);
-			resetPagination();
-		},
-		[onGlobalFilterChange, resetPagination],
-	);
-
-	/**
-	 * Resets pagination when the global filter changes from outside the table.
-	 * This ensures that when the parent component updates the search input,
-	 * pagination resets to the first page even if the change bypasses handleGlobalFilterChange.
-	 *
-	 * @returns void
-	 */
 	useEffect(() => {
-		resetPagination();
-	}, [globalFilter, resetPagination]);
+		if (!map || !isLoaded || !location) return;
+		if (location.latitude === null || location.longitude === null) return;
+		if (lastLocationRef.current === location.id) return;
 
-	const columns = useMemo<ColumnDef<AttendancePresentRecord>[]>(
-		() => [
-			{
-				id: 'employee',
-				accessorFn: (row) => row.employeeName ?? row.employeeCode,
-				header: t('presence.table.headers.employee'),
-				cell: ({ row }) => {
-					const displayName = row.original.employeeName || row.original.employeeCode;
-					const initials = getEmployeeInitials(displayName);
-					return (
-						<div className="flex items-center gap-3">
-							<Avatar className="h-8 w-8">
-								<AvatarFallback>
-									{initials || t('presence.table.fallbackInitials')}
-								</AvatarFallback>
-							</Avatar>
-							<span className="text-sm font-medium">{displayName}</span>
-						</div>
-					);
-				},
-			},
-			{
-				accessorKey: 'employeeCode',
-				header: t('presence.table.headers.code'),
-				cell: ({ row }) => (
-					<span className="font-mono text-xs">{row.original.employeeCode}</span>
-				),
-			},
-			{
-				id: 'checkInTime',
-				accessorFn: (row) => new Date(row.checkedInAt).getTime(),
-				header: t('presence.table.headers.checkInTime'),
-				cell: ({ row }) =>
-					format(new Date(row.original.checkedInAt), t('presence.timeFormat')),
-				enableGlobalFilter: false,
-			},
-			{
-				id: 'timeAgo',
-				accessorFn: (row) => new Date(row.checkedInAt).getTime(),
-				header: t('presence.table.headers.timeAgo'),
-				cell: ({ row }) => {
-					const checkedInAt = new Date(row.original.checkedInAt);
-					const relativeTime = formatDistanceToNowStrict(checkedInAt, {
-						addSuffix: false,
-						locale: es,
-					});
-					return (
-						<span className="text-sm text-muted-foreground">
-							{t('presence.table.timeAgo', {
-								time: relativeTime,
-							})}
-						</span>
-					);
-				},
-				enableGlobalFilter: false,
-			},
-			{
-				accessorKey: 'deviceId',
-				header: t('presence.table.headers.device'),
-				cell: ({ row }) => (
-					<span className="font-mono text-xs">
-						{row.original.deviceId.substring(0, 8)}...
-					</span>
-				),
-			},
-		],
-		[t],
-	);
+		map.easeTo({
+			center: [location.longitude, location.latitude],
+			zoom: FOCUS_MAP_ZOOM,
+			duration: 700,
+		});
+		lastLocationRef.current = location.id;
+	}, [map, isLoaded, location]);
 
-	return (
-		<DataTable
-			columns={columns}
-			data={records}
-			sorting={sorting}
-			onSortingChange={setSorting}
-			pagination={pagination}
-			onPaginationChange={setPagination}
-			columnFilters={columnFilters}
-			onColumnFiltersChange={setColumnFilters}
-			globalFilter={globalFilter}
-			onGlobalFilterChange={handleGlobalFilterChange}
-			showToolbar={false}
-			emptyState={t('presence.emptyLocation')}
-			pageSizeOptions={[5, 10, 20]}
-		/>
-	);
+	return null;
 }
 
 /**
  * Dashboard page client component.
- * Displays entity counts and quick navigation cards.
  *
  * Uses useSuspenseQuery to consume prefetched data from the server,
  * enabling streaming SSR with React Query.
  *
- * @returns The dashboard page JSX element
+ * @returns The dashboard map page JSX element.
  */
 export function DashboardPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Dashboard');
-	const { data: counts, isFetching } = useSuspenseQuery({
+	const { data: counts, isFetching: isCountsFetching } = useSuspenseQuery({
 		queryKey: queryKeys.dashboard.counts(organizationId),
 		queryFn: () => fetchDashboardCounts({ organizationId }),
 	});
-	const [presenceSearch, setPresenceSearch] = useState<string>('');
+	const [locationSearch, setLocationSearch] = useState<string>('');
+	const [focusedLocationId, setFocusedLocationId] = useState<string | null>(null);
 	const todayRange = useMemo(() => {
 		const now = new Date();
 		return {
@@ -366,40 +199,131 @@ export function DashboardPageClient(): React.ReactElement {
 			}),
 		enabled: Boolean(organizationId),
 	});
+	const {
+		data: locations = [],
+		isFetching: isLocationsFetching,
+	} = useQuery({
+		queryKey: queryKeys.locations.allList(organizationId),
+		queryFn: () => fetchLocationsAll({ organizationId }),
+		enabled: Boolean(organizationId),
+	});
 
-	const presenceSearchTerm = presenceSearch.trim().toLowerCase();
-	const groupedPresence = useMemo(
-		() => groupPresenceByLocation(presentRecords),
-		[presentRecords],
+	const presentByLocationId = useMemo(() => {
+		const groups = new Map<string, AttendancePresentRecord[]>();
+
+		presentRecords.forEach((record) => {
+			const key = record.locationId ?? UNASSIGNED_LOCATION_KEY;
+			const existing = groups.get(key);
+			if (existing) {
+				existing.push(record);
+				return;
+			}
+			groups.set(key, [record]);
+		});
+
+		groups.forEach((records) => {
+			records.sort(
+				(a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime(),
+			);
+		});
+
+		return groups;
+	}, [presentRecords]);
+
+	const sortedLocations = useMemo(
+		() => [...locations].sort((a, b) => a.name.localeCompare(b.name, 'es')),
+		[locations],
 	);
-	const filteredPresence = useMemo(
+
+	const locationsWithCoords = useMemo(
 		() =>
-			groupedPresence.map((group) => ({
-				...group,
-				records: presenceSearchTerm
-					? group.records.filter((record) => {
-							const name = record.employeeName?.toLowerCase() ?? '';
-							const code = record.employeeCode?.toLowerCase() ?? '';
-							return (
-								name.includes(presenceSearchTerm) ||
-								code.includes(presenceSearchTerm)
-							);
-					  })
-					: group.records,
-			})),
-		[groupedPresence, presenceSearchTerm],
+			sortedLocations.filter(
+				(location) => location.latitude !== null && location.longitude !== null,
+			),
+		[sortedLocations],
 	);
-	const totalPresent = filteredPresence.reduce(
-		(total, group) => total + group.records.length,
-		0,
+
+	const locationsWithoutCoords = useMemo(
+		() =>
+			sortedLocations.filter(
+				(location) => location.latitude === null || location.longitude === null,
+			),
+		[sortedLocations],
 	);
-	const activeLocations = filteredPresence.filter((group) => group.records.length > 0)
-		.length;
-	const hasPresenceData = presentRecords.length > 0;
-	const isPresenceLoading = isPresentFetching && presentRecords.length === 0;
-	const defaultOpenLocations = useMemo(
-		() => filteredPresence.map((group) => group.locationKey),
-		[filteredPresence],
+
+	const searchTerm = locationSearch.trim().toLowerCase();
+	const filteredWithCoords = useMemo(
+		() =>
+			locationsWithCoords.filter((location) => {
+				if (!searchTerm) return true;
+				return (
+					location.name.toLowerCase().includes(searchTerm) ||
+					location.code.toLowerCase().includes(searchTerm) ||
+					(location.address ?? '').toLowerCase().includes(searchTerm)
+				);
+			}),
+		[locationsWithCoords, searchTerm],
+	);
+
+	const filteredWithoutCoords = useMemo(
+		() =>
+			locationsWithoutCoords.filter((location) => {
+				if (!searchTerm) return true;
+				return (
+					location.name.toLowerCase().includes(searchTerm) ||
+					location.code.toLowerCase().includes(searchTerm) ||
+					(location.address ?? '').toLowerCase().includes(searchTerm)
+				);
+			}),
+		[locationsWithoutCoords, searchTerm],
+	);
+
+	const unassignedPresent = presentByLocationId.get(UNASSIGNED_LOCATION_KEY) ?? [];
+	const totalPresent = presentRecords.length;
+	const activeLocations = useMemo(() => {
+		let count = 0;
+		presentByLocationId.forEach((records, key) => {
+			if (key !== UNASSIGNED_LOCATION_KEY && records.length > 0) {
+				count += 1;
+			}
+		});
+		return count;
+	}, [presentByLocationId]);
+
+	const focusedLocation = useMemo(
+		() => locationsWithCoords.find((location) => location.id === focusedLocationId) ?? null,
+		[locationsWithCoords, focusedLocationId],
+	);
+
+	const metrics = useMemo<MetricConfig[]>(
+		() => [
+			{
+				label: t('map.metrics.present'),
+				value: totalPresent,
+				icon: Users,
+			},
+			{
+				label: t('map.metrics.locations'),
+				value: counts.locations ?? 0,
+				icon: MapPin,
+			},
+			{
+				label: t('map.metrics.employees'),
+				value: counts.employees ?? 0,
+				icon: Users,
+			},
+			{
+				label: t('map.metrics.devices'),
+				value: counts.devices ?? 0,
+				icon: Smartphone,
+			},
+			{
+				label: t('map.metrics.organizations'),
+				value: counts.organizations ?? 0,
+				icon: Building2,
+			},
+		],
+		[counts, t, totalPresent],
 	);
 
 	/**
@@ -407,133 +331,437 @@ export function DashboardPageClient(): React.ReactElement {
 	 *
 	 * @returns void
 	 */
-	const handlePresenceRefresh = (): void => {
+	const handlePresenceRefresh = useCallback((): void => {
 		void refetchPresent();
-	};
+	}, [refetchPresent]);
+
+	/**
+	 * Focuses the map on a selected location from the sidebar.
+	 *
+	 * @param locationId - Identifier of the location to focus.
+	 * @returns void
+	 */
+	const handleLocationFocus = useCallback((locationId: string): void => {
+		setFocusedLocationId(locationId);
+	}, []);
+
+	/**
+	 * Updates the location search input value.
+	 *
+	 * @param event - Input change event.
+	 * @returns void
+	 */
+	const handleLocationSearchChange = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>): void => {
+			setLocationSearch(event.target.value);
+		},
+		[],
+	);
 
 	return (
-		<div className="space-y-8">
-			<div>
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('subtitle')}</p>
-			</div>
-
-			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-				{entityCards.map((card) => (
-					<Link key={card.key} href={card.href} className="group">
-						<Card className="h-full transition-colors hover:border-primary/50">
-							<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-								<CardTitle className="text-sm font-medium">
-									{t(card.titleKey)}
-								</CardTitle>
-								<card.icon className="h-4 w-4 text-muted-foreground" />
-							</CardHeader>
-							<CardContent>
-								<div className="flex items-baseline justify-between">
-									{isFetching ? (
-										<Skeleton className="h-8 w-16" />
-									) : (
-										<span className="text-3xl font-bold">
-											{counts[card.key]?.toLocaleString() ?? '0'}
-										</span>
-									)}
-									<ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
-								</div>
-								<CardDescription className="mt-2">
-									{t(card.descriptionKey)}
-								</CardDescription>
-							</CardContent>
-						</Card>
-					</Link>
-				))}
-			</div>
-
-			<Card>
-				<CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-					<div className="space-y-1">
-						<CardTitle>{t('presence.title')}</CardTitle>
-						<CardDescription>
-							{isPresenceLoading ? (
-								<Skeleton className="h-4 w-40" />
-							) : (
-								t('presence.summary', {
-									total: totalPresent,
-									locations: activeLocations,
-								})
-							)}
-						</CardDescription>
-					</div>
-					<Button
-						type="button"
-						variant="outline"
-						onClick={handlePresenceRefresh}
-						disabled={isPresentFetching}
-					>
-						<RefreshCw className="mr-2 h-4 w-4" />
-						{t('presence.actions.refresh')}
-					</Button>
-				</CardHeader>
-				<CardContent className="space-y-4">
-					<div className="relative max-w-sm">
-						<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-						<Input
-							placeholder={t('presence.search.placeholder')}
-							aria-label={t('presence.search.placeholder')}
-							value={presenceSearch}
-							onChange={(event) => setPresenceSearch(event.target.value)}
-							className="pl-9"
-						/>
-					</div>
-
-					{isPresenceLoading ? (
-						<div className="space-y-3">
-							<Skeleton className="h-10 w-full" />
-							<Skeleton className="h-28 w-full" />
-							<Skeleton className="h-28 w-full" />
-						</div>
-					) : !hasPresenceData ? (
-						<div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-							{t('presence.empty')}
-						</div>
-					) : (
-						<Accordion
-							type="multiple"
-							defaultValue={defaultOpenLocations}
-							className="w-full"
-						>
-							{filteredPresence.map((group) => {
-								const locationLabel =
-									group.locationName ?? t('presence.locationFallback');
-								const groupCount = group.records.length;
-								return (
-									<AccordionItem
-										key={group.locationKey}
-										value={group.locationKey}
-									>
-										<AccordionTrigger>
-											<div className="flex items-center gap-3">
-												<span className="text-sm font-medium">
-													{locationLabel}
-												</span>
-												<Badge variant="secondary">
-													{groupCount.toLocaleString()}
-												</Badge>
+		<div className="relative -m-6 h-[calc(100vh-3.5rem)] min-h-[32rem]">
+			<div className="absolute inset-0">
+				<MapCanvas center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM}>
+					<MapAutoFit locations={locationsWithCoords} />
+					<MapFocus location={focusedLocation} />
+					{locationsWithCoords.map((location) => {
+						const present = presentByLocationId.get(location.id) ?? [];
+						const presentCount = present.length;
+						return (
+							<MapMarker
+								key={location.id}
+								longitude={location.longitude ?? DEFAULT_MAP_CENTER[0]}
+								latitude={location.latitude ?? DEFAULT_MAP_CENTER[1]}
+							>
+								<MarkerContent>
+									<div className="relative">
+										<div className="size-4 rounded-full border-2 border-white bg-primary shadow-md" />
+										<MarkerLabel>{location.name}</MarkerLabel>
+									</div>
+								</MarkerContent>
+								<MarkerTooltip>
+									{t('map.tooltip', { count: presentCount })}
+								</MarkerTooltip>
+								<MarkerPopup className="p-0 w-72">
+									<Card className="border-0 shadow-none">
+										<CardContent className="space-y-3 p-3">
+											<div>
+												<p className="text-sm font-semibold">{location.name}</p>
+												<p className="text-xs text-muted-foreground">
+													{t('map.popup.presentCount', { count: presentCount })}
+												</p>
 											</div>
-										</AccordionTrigger>
-										<AccordionContent>
-											<PresenceTable
-												records={group.records}
-												globalFilter={presenceSearch}
-												onGlobalFilterChange={setPresenceSearch}
-											/>
-										</AccordionContent>
-									</AccordionItem>
-								);
-							})}
-						</Accordion>
-					)}
-				</CardContent>
-			</Card>
+											{presentCount === 0 ? (
+												<p className="text-xs text-muted-foreground">
+													{t('map.popup.empty')}
+												</p>
+											) : (
+												<ScrollArea className="max-h-48">
+													<div className="space-y-3">
+														{present.map((record) => {
+															const displayName =
+																record.employeeName || record.employeeCode;
+															const initials = getEmployeeInitials(displayName);
+															const relativeTime = formatDistanceToNowStrict(
+																new Date(record.checkedInAt),
+																{
+																	addSuffix: false,
+																	locale: es,
+																},
+															);
+															return (
+																<div
+																	key={`${record.employeeId}-${record.checkedInAt}`}
+																	className="flex items-center justify-between"
+																>
+																	<div className="flex items-center gap-3">
+																		<Avatar className="h-8 w-8">
+																			<AvatarFallback>
+																				{initials || t('map.popup.fallbackInitials')}
+																			</AvatarFallback>
+																		</Avatar>
+																		<div>
+																			<p className="text-sm font-medium">
+																				{displayName}
+																			</p>
+																			<p className="text-xs text-muted-foreground">
+																				{record.employeeCode}
+																			</p>
+																		</div>
+																	</div>
+																	<span className="text-xs text-muted-foreground">
+																		{t('map.popup.timeAgo', { time: relativeTime })}
+																	</span>
+																</div>
+															);
+														})}
+													</div>
+												</ScrollArea>
+											)}
+										</CardContent>
+									</Card>
+								</MarkerPopup>
+							</MapMarker>
+						);
+					})}
+				</MapCanvas>
+			</div>
+
+			<div className="pointer-events-none absolute inset-0">
+				<div className="pointer-events-auto absolute left-4 right-4 top-4">
+					<div className="rounded-xl border bg-background/80 p-4 shadow-sm backdrop-blur">
+						<div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+							<div className="space-y-1">
+								<p className="text-xs uppercase tracking-wide text-muted-foreground">
+									{t('map.title')}
+								</p>
+								<p className="text-base font-semibold">
+									{t('map.subtitle')}
+								</p>
+							</div>
+							<div className="flex flex-wrap gap-4">
+								{metrics.map((metric) => (
+									<div key={metric.label} className="flex items-center gap-3">
+										<div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+											<metric.icon className="h-4 w-4" />
+										</div>
+										<div className="space-y-0.5">
+											<p className="text-xs text-muted-foreground">
+												{metric.label}
+											</p>
+											{isCountsFetching ? (
+												<Skeleton className="h-5 w-12" />
+											) : (
+												<p className="text-lg font-semibold">
+													{metric.value.toLocaleString()}
+												</p>
+											)}
+										</div>
+									</div>
+								))}
+							</div>
+							<div className="flex flex-wrap gap-2">
+								<Button
+									variant="outline"
+									onClick={handlePresenceRefresh}
+									disabled={isPresentFetching}
+								>
+									<RefreshCw
+										className={`mr-2 h-4 w-4 ${
+											isPresentFetching ? 'animate-spin' : ''
+										}`}
+									/>
+									{t('map.actions.refresh')}
+								</Button>
+								<Button asChild variant="secondary">
+									<Link href="/locations">{t('map.actions.locations')}</Link>
+								</Button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div className="pointer-events-auto absolute bottom-4 right-4 top-24 w-full max-w-sm">
+					<div className="flex h-full flex-col rounded-xl border bg-background/90 shadow-sm backdrop-blur">
+						<div className="border-b p-4">
+							<div className="flex items-start justify-between gap-4">
+								<div>
+									<p className="text-sm font-semibold">{t('map.panel.title')}</p>
+									<p className="text-xs text-muted-foreground">
+										{t('map.panel.subtitle', {
+											locations: locations.length,
+											present: totalPresent,
+										})}
+									</p>
+								</div>
+								<Badge variant="secondary">
+									{t('map.panel.activeLocations', { count: activeLocations })}
+								</Badge>
+							</div>
+							<div className="relative mt-3">
+								<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									value={locationSearch}
+									onChange={handleLocationSearchChange}
+									placeholder={t('map.search.placeholder')}
+									aria-label={t('map.search.placeholder')}
+									className="pl-9"
+								/>
+							</div>
+						</div>
+						<ScrollArea className="flex-1">
+							<div className="space-y-6 p-4">
+								<div className="space-y-3">
+									<div className="flex items-center justify-between">
+										<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+											{t('map.sections.withCoords')}
+										</p>
+										<Badge variant="secondary">{filteredWithCoords.length}</Badge>
+									</div>
+									{isLocationsFetching && locations.length === 0 ? (
+										<div className="space-y-2">
+											<Skeleton className="h-10 w-full" />
+											<Skeleton className="h-10 w-full" />
+											<Skeleton className="h-10 w-full" />
+										</div>
+									) : filteredWithCoords.length === 0 ? (
+										<p className="text-sm text-muted-foreground">
+											{t('map.empty.withCoords')}
+										</p>
+									) : (
+										<Accordion type="multiple" className="space-y-2">
+											{filteredWithCoords.map((location) => {
+												const present = presentByLocationId.get(location.id) ?? [];
+												const presentCount = present.length;
+												return (
+													<AccordionItem
+														key={location.id}
+														value={location.id}
+														className="rounded-lg border"
+													>
+														<AccordionTrigger
+															onClick={() => handleLocationFocus(location.id)}
+															className="px-4 text-left"
+														>
+															<div className="flex w-full items-start pr-6">
+																<div className="min-w-0 flex-1 space-y-0.5">
+																	<div className="flex items-start gap-2">
+																		<p className="m-0 flex-1 break-words whitespace-normal text-sm font-medium text-left">
+																			{location.name}
+																		</p>
+																		<Badge variant="secondary" className="shrink-0">
+																			{presentCount}
+																		</Badge>
+																	</div>
+																	<p className="m-0 text-xs text-muted-foreground">
+																		{location.code}
+																	</p>
+																</div>
+															</div>
+														</AccordionTrigger>
+														<AccordionContent className="px-4">
+															{presentCount === 0 ? (
+																<p className="text-sm text-muted-foreground">
+																	{t('map.empty.present')}
+																</p>
+															) : (
+																<div className="space-y-3">
+																	{present.map((record) => {
+																		const displayName =
+																			record.employeeName || record.employeeCode;
+																		const initials = getEmployeeInitials(displayName);
+																		const relativeTime = formatDistanceToNowStrict(
+																			new Date(record.checkedInAt),
+																			{
+																				addSuffix: false,
+																				locale: es,
+																			},
+																		);
+																		return (
+																			<div
+																				key={`${record.employeeId}-${record.checkedInAt}`}
+																				className="flex items-center justify-between"
+																			>
+																				<div className="flex items-center gap-3">
+																					<Avatar className="h-7 w-7">
+																						<AvatarFallback>
+																							{initials || t('map.popup.fallbackInitials')}
+																						</AvatarFallback>
+																						</Avatar>
+																						<div>
+																							<p className="text-sm font-medium">
+																								{displayName}
+																							</p>
+																							<p className="text-xs text-muted-foreground">
+																								{record.employeeCode}
+																							</p>
+																						</div>
+																					</div>
+																					<span className="text-xs text-muted-foreground">
+																						{t('map.popup.timeAgo', { time: relativeTime })}
+																					</span>
+																				</div>
+																		);
+																	})}
+																</div>
+															)}
+														</AccordionContent>
+													</AccordionItem>
+												);
+											})}
+										</Accordion>
+									)}
+								</div>
+
+								<div className="space-y-3">
+									<div className="flex items-center justify-between">
+										<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+											{t('map.sections.withoutCoords')}
+										</p>
+										<Badge variant="secondary">
+											{filteredWithoutCoords.length}
+										</Badge>
+									</div>
+									{filteredWithoutCoords.length === 0 ? (
+										<p className="text-sm text-muted-foreground">
+											{t('map.empty.withoutCoords')}
+										</p>
+									) : (
+										<Accordion type="multiple" className="space-y-2">
+											{filteredWithoutCoords.map((location) => {
+												const present = presentByLocationId.get(location.id) ?? [];
+												return (
+													<AccordionItem
+														key={location.id}
+														value={location.id}
+														className="rounded-lg border"
+													>
+														<AccordionTrigger className="px-4 text-left">
+															<div className="flex w-full items-start pr-6">
+																<div className="min-w-0 flex-1 space-y-0.5">
+																	<div className="flex items-start gap-2">
+																		<p className="m-0 flex-1 break-words whitespace-normal text-sm font-medium text-left">
+																			{location.name}
+																		</p>
+																		<Badge variant="secondary" className="shrink-0">
+																			{present.length}
+																		</Badge>
+																	</div>
+																	<p className="m-0 text-xs text-muted-foreground">
+																		{location.code}
+																	</p>
+																</div>
+															</div>
+														</AccordionTrigger>
+														<AccordionContent className="px-4">
+															<div className="space-y-3">
+																{present.length === 0 ? (
+																	<p className="text-sm text-muted-foreground">
+																		{t('map.empty.present')}
+																	</p>
+																) : (
+																	<div className="space-y-2">
+																		{present.map((record) => {
+																			const displayName =
+																				record.employeeName || record.employeeCode;
+																			const initials = getEmployeeInitials(displayName);
+																			return (
+																				<div
+																					key={`${record.employeeId}-${record.checkedInAt}`}
+																					className="flex items-center gap-3"
+																				>
+																					<Avatar className="h-7 w-7">
+																						<AvatarFallback>
+																							{initials || t('map.popup.fallbackInitials')}
+																						</AvatarFallback>
+																					</Avatar>
+																					<div>
+																						<p className="text-sm font-medium">
+																							{displayName}
+																						</p>
+																						<p className="text-xs text-muted-foreground">
+																							{record.employeeCode}
+																						</p>
+																					</div>
+																				</div>
+																			);
+																		})}
+																	</div>
+																)}
+																<Button asChild variant="outline" size="sm">
+																	<Link href={`/locations?edit=${location.id}`}>
+																		{t('map.actions.editLocation')}
+																	</Link>
+																</Button>
+															</div>
+														</AccordionContent>
+													</AccordionItem>
+												);
+											})}
+										</Accordion>
+									)}
+								</div>
+
+								{unassignedPresent.length > 0 && (
+									<div className="space-y-3">
+										<div className="flex items-center justify-between">
+											<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+												{t('map.sections.unassigned')}
+											</p>
+											<Badge variant="secondary">{unassignedPresent.length}</Badge>
+										</div>
+										<div className="space-y-2 rounded-lg border p-3">
+											{unassignedPresent.map((record) => {
+												const displayName =
+													record.employeeName || record.employeeCode;
+												const initials = getEmployeeInitials(displayName);
+												return (
+													<div
+														key={`${record.employeeId}-${record.checkedInAt}`}
+														className="flex items-center gap-3"
+													>
+														<Avatar className="h-7 w-7">
+															<AvatarFallback>
+																{initials || t('map.popup.fallbackInitials')}
+															</AvatarFallback>
+														</Avatar>
+														<div>
+															<p className="text-sm font-medium">{displayName}</p>
+															<p className="text-xs text-muted-foreground">
+																{record.employeeCode}
+															</p>
+														</div>
+													</div>
+												);
+											})}
+										</div>
+									</div>
+								)}
+							</div>
+						</ScrollArea>
+					</div>
+				</div>
+			</div>
 		</div>
 	);
 }

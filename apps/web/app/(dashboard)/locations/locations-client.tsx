@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm } from '@/lib/forms';
+import { useAppForm, useStore } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
+import { useSearchParams } from 'next/navigation';
+import type { MapMouseEvent } from 'maplibre-gl';
 import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
@@ -15,14 +17,34 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from '@/components/ui/command';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import { fetchLocationsList, type Location } from '@/lib/client-functions';
-import { createLocation, updateLocation, deleteLocation } from '@/actions/locations';
+import {
+	fetchLocationById,
+	fetchLocationsList,
+	type Location,
+} from '@/lib/client-functions';
+import {
+	createLocation,
+	updateLocation,
+	deleteLocation,
+	type LocationMutationErrorCode,
+} from '@/actions/locations';
 import { useOrgContext } from '@/lib/org-client-context';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import { Map, MapMarker, MarkerContent, MarkerLabel, useMap } from '@/components/ui/map';
 
 /**
  * Form values for creating/editing locations.
@@ -33,6 +55,164 @@ interface LocationFormValues {
 	address: string;
 	geographicZone: 'GENERAL' | 'ZLFN';
 	timeZone: string;
+	latitude: number | null;
+	longitude: number | null;
+}
+
+const GEOCODE_MIN_CHARS = 3;
+const GEOCODE_DEBOUNCE_MS = 350;
+const DEFAULT_MAP_CENTER = { lat: 19.4326, lng: -99.1332 };
+const DEFAULT_MAP_ZOOM = 10;
+const FOCUS_MAP_ZOOM = 14;
+
+/**
+ * Geocode suggestion returned from the proxy endpoint.
+ */
+interface GeocodeSuggestion {
+	displayName: string;
+	lat: number;
+	lng: number;
+}
+
+/**
+ * Debounces a string value to limit rapid updates.
+ *
+ * @param value - Current string value.
+ * @param delayMs - Delay in milliseconds.
+ * @returns The debounced string value.
+ */
+function useDebouncedValue(value: string, delayMs: number): string {
+	const [debouncedValue, setDebouncedValue] = useState<string>(value);
+
+	useEffect(() => {
+		const handle = setTimeout(() => {
+			setDebouncedValue(value);
+		}, delayMs);
+
+		return () => clearTimeout(handle);
+	}, [value, delayMs]);
+
+	return debouncedValue;
+}
+
+/**
+ * Fetches geocode suggestions for a query string.
+ *
+ * @param query - Address query string.
+ * @returns A list of geocode suggestions.
+ * @throws Error when the endpoint fails.
+ */
+async function fetchGeocodeSuggestions(query: string): Promise<GeocodeSuggestion[]> {
+	const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+
+	if (!response.ok) {
+		const payload = (await response.json().catch(() => null)) as
+			| { errorCode?: string }
+			| null;
+		throw new Error(payload?.errorCode ?? 'UNKNOWN_ERROR');
+	}
+
+	const payload = (await response.json()) as { data?: GeocodeSuggestion[] };
+	return payload.data ?? [];
+}
+
+/**
+ * Maps mutation error codes to translated messages.
+ *
+ * @param t - Translation helper for Locations namespace.
+ * @param errorCode - Error code from the mutation result.
+ * @param fallbackKey - Translation key for the fallback message.
+ * @returns Localized error message.
+ */
+function getLocationErrorMessage(
+	t: (key: string) => string,
+	errorCode: LocationMutationErrorCode | undefined,
+	fallbackKey: string,
+): string {
+	if (!errorCode) {
+		return t(fallbackKey);
+	}
+
+	switch (errorCode) {
+		case 'CONFLICT':
+			return t('toast.errors.conflict');
+		case 'NOT_FOUND':
+			return t('toast.errors.notFound');
+		case 'FORBIDDEN':
+			return t('toast.errors.forbidden');
+		case 'BAD_REQUEST':
+			return t('toast.errors.badRequest');
+		default:
+			return t(fallbackKey);
+	}
+}
+
+/**
+ * Click handler that updates coordinates when the map is clicked.
+ *
+ * @param props - Component props with click handler.
+ * @returns Null (binds to the map instance).
+ */
+function MapClickHandler({
+	onSelect,
+}: {
+	onSelect: (coords: { latitude: number; longitude: number }) => void;
+}): null {
+	const { map, isLoaded } = useMap();
+
+	useEffect(() => {
+		if (!map || !isLoaded) return;
+
+		const handleClick = (event: MapMouseEvent): void => {
+			onSelect({ latitude: event.lngLat.lat, longitude: event.lngLat.lng });
+		};
+
+		map.on('click', handleClick);
+		return () => {
+			map.off('click', handleClick);
+		};
+	}, [map, isLoaded, onSelect]);
+
+	return null;
+}
+
+/**
+ * Keeps the map view centered on the selected coordinates.
+ *
+ * @param props - Component props containing coordinates and zoom levels.
+ * @returns Null (binds to the map instance).
+ */
+function MapViewportSync({
+	latitude,
+	longitude,
+}: {
+	latitude: number | null;
+	longitude: number | null;
+}): null {
+	const { map, isLoaded } = useMap();
+	const lastCenterRef = React.useRef<string | null>(null);
+
+	useEffect(() => {
+		if (!map || !isLoaded) return;
+
+		const hasCoords = latitude !== null && longitude !== null;
+		const nextCenter = hasCoords ? [longitude, latitude] : [DEFAULT_MAP_CENTER.lng, DEFAULT_MAP_CENTER.lat];
+		const nextCenterKey = nextCenter.join(',');
+
+		if (lastCenterRef.current === nextCenterKey) {
+			return;
+		}
+
+		map.easeTo({
+			center: nextCenter as [number, number],
+			zoom: hasCoords ? FOCUS_MAP_ZOOM : DEFAULT_MAP_ZOOM,
+			duration: 500,
+		});
+
+		lastCenterRef.current = nextCenterKey;
+	}, [map, isLoaded, latitude, longitude]);
+
+	return null;
 }
 
 /**
@@ -51,9 +231,13 @@ export function LocationsPageClient(): React.ReactElement {
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
+	const [isAddressOpen, setIsAddressOpen] = useState<boolean>(false);
 	const [editingLocation, setEditingLocation] = useState<Location | null>(null);
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const isOrgSelected = Boolean(organizationId);
+	const searchParams = useSearchParams();
+	const editLocationId = searchParams.get('edit')?.trim() ?? null;
+	const handledEditRef = React.useRef<string | null>(null);
 
 	// Build query params - only include search if it has a value
 	const queryParams = {
@@ -62,16 +246,6 @@ export function LocationsPageClient(): React.ReactElement {
 		...(globalFilter ? { search: globalFilter } : {}),
 		...(organizationId ? { organizationId } : {}),
 	};
-
-	// Query for locations list
-	const { data, isFetching } = useQuery({
-		queryKey: queryKeys.locations.list(queryParams),
-		queryFn: () => fetchLocationsList(queryParams),
-		enabled: isOrgSelected,
-	});
-
-	const locations = data?.data ?? [];
-	const totalRows = data?.pagination.total ?? 0;
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -83,7 +257,7 @@ export function LocationsPageClient(): React.ReactElement {
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.locations.all });
 			} else {
-				toast.error(result.error ?? t('toast.createError'));
+				toast.error(getLocationErrorMessage(t, result.errorCode, 'toast.createError'));
 			}
 		},
 		onError: () => {
@@ -101,7 +275,7 @@ export function LocationsPageClient(): React.ReactElement {
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.locations.all });
 			} else {
-				toast.error(result.error ?? t('toast.updateError'));
+				toast.error(getLocationErrorMessage(t, result.errorCode, 'toast.updateError'));
 			}
 		},
 		onError: () => {
@@ -119,7 +293,7 @@ export function LocationsPageClient(): React.ReactElement {
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.locations.all });
 			} else {
-				toast.error(result.error ?? t('toast.deleteError'));
+				toast.error(getLocationErrorMessage(t, result.errorCode, 'toast.deleteError'));
 			}
 		},
 		onError: () => {
@@ -135,6 +309,8 @@ export function LocationsPageClient(): React.ReactElement {
 			address: '',
 			geographicZone: 'GENERAL',
 			timeZone: 'America/Mexico_City',
+			latitude: null,
+			longitude: null,
 		},
 		onSubmit: async ({ value }: { value: LocationFormValues }) => {
 			if (editingLocation) {
@@ -143,6 +319,8 @@ export function LocationsPageClient(): React.ReactElement {
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
+					latitude: value.latitude,
+					longitude: value.longitude,
 					geographicZone: value.geographicZone,
 					timeZone: value.timeZone,
 				});
@@ -155,6 +333,8 @@ export function LocationsPageClient(): React.ReactElement {
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
+					latitude: value.latitude,
+					longitude: value.longitude,
 					geographicZone: value.geographicZone,
 					timeZone: value.timeZone,
 					organizationId,
@@ -166,12 +346,108 @@ export function LocationsPageClient(): React.ReactElement {
 		},
 	});
 
+	const addressValue = useStore(form.store, (state) => state.values.address);
+	const latitudeValue = useStore(form.store, (state) => state.values.latitude);
+	const longitudeValue = useStore(form.store, (state) => state.values.longitude);
+	const nameValue = useStore(form.store, (state) => state.values.name);
+	const debouncedAddress = useDebouncedValue(addressValue, GEOCODE_DEBOUNCE_MS);
+	const trimmedAddress = debouncedAddress.trim();
+	const canQueryGeocode =
+		isDialogOpen && trimmedAddress.length >= GEOCODE_MIN_CHARS && isAddressOpen;
+
+	const {
+		data: geocodeSuggestions = [],
+		isFetching: isGeocodeFetching,
+		error: geocodeError,
+	} = useQuery({
+		queryKey: queryKeys.geocode.search({ query: trimmedAddress }),
+		queryFn: () => fetchGeocodeSuggestions(trimmedAddress),
+		enabled: canQueryGeocode,
+		staleTime: 5 * 60 * 1000,
+	});
+	const isGeocodeQueryTooShort =
+		trimmedAddress.length > 0 && trimmedAddress.length < GEOCODE_MIN_CHARS;
+	const showGeocodeEmpty =
+		trimmedAddress.length >= GEOCODE_MIN_CHARS &&
+		!isGeocodeFetching &&
+		geocodeSuggestions.length === 0 &&
+		!geocodeError;
+	const hasCoordinates = latitudeValue !== null && longitudeValue !== null;
+
+	/**
+	 * Updates the address value while clearing existing coordinates.
+	 *
+	 * @param value - New address string.
+	 * @returns void
+	 */
+	const handleAddressChange = useCallback(
+		(value: string): void => {
+			form.setFieldValue('address', value);
+			form.setFieldValue('latitude', null);
+			form.setFieldValue('longitude', null);
+		},
+		[form],
+	);
+
+	/**
+	 * Applies a geocode suggestion to the form values.
+	 *
+	 * @param suggestion - Selected geocode suggestion.
+	 * @returns void
+	 */
+	const handleGeocodeSelect = useCallback(
+		(suggestion: GeocodeSuggestion): void => {
+			form.setFieldValue('address', suggestion.displayName);
+			form.setFieldValue('latitude', suggestion.lat);
+			form.setFieldValue('longitude', suggestion.lng);
+			setIsAddressOpen(false);
+		},
+		[form],
+	);
+
+	/**
+	 * Updates coordinates based on a map click event.
+	 *
+	 * @param coords - The selected coordinates.
+	 * @returns void
+	 */
+	const handleMapSelect = useCallback(
+		(coords: { latitude: number; longitude: number }): void => {
+			form.setFieldValue('latitude', coords.latitude);
+			form.setFieldValue('longitude', coords.longitude);
+		},
+		[form],
+	);
+
+	/**
+	 * Applies a location record to the form and opens the dialog.
+	 *
+	 * @param location - Location record to edit.
+	 * @returns void
+	 */
+	const applyLocationToForm = useCallback(
+		(location: Location): void => {
+			setEditingLocation(location);
+			form.setFieldValue('name', location.name);
+			form.setFieldValue('code', location.code);
+			form.setFieldValue('address', location.address ?? '');
+			form.setFieldValue('latitude', location.latitude ?? null);
+			form.setFieldValue('longitude', location.longitude ?? null);
+			form.setFieldValue('geographicZone', location.geographicZone ?? 'GENERAL');
+			form.setFieldValue('timeZone', location.timeZone ?? 'America/Mexico_City');
+			setIsAddressOpen(false);
+			setIsDialogOpen(true);
+		},
+		[form],
+	);
+
 	/**
 	 * Opens the dialog for creating a new location.
 	 */
 	const handleCreateNew = useCallback((): void => {
 		setEditingLocation(null);
 		form.reset();
+		setIsAddressOpen(false);
 		setIsDialogOpen(true);
 	}, [form]);
 
@@ -182,15 +458,9 @@ export function LocationsPageClient(): React.ReactElement {
 	 */
 	const handleEdit = useCallback(
 		(location: Location): void => {
-			setEditingLocation(location);
-			form.setFieldValue('name', location.name);
-			form.setFieldValue('code', location.code);
-			form.setFieldValue('address', location.address ?? '');
-			form.setFieldValue('geographicZone', location.geographicZone ?? 'GENERAL');
-			form.setFieldValue('timeZone', location.timeZone ?? 'America/Mexico_City');
-			setIsDialogOpen(true);
+			applyLocationToForm(location);
 		},
-		[form],
+		[applyLocationToForm],
 	);
 
 	/**
@@ -207,16 +477,80 @@ export function LocationsPageClient(): React.ReactElement {
 		[form],
 	);
 
+	/**
+	 * Handles open state changes for the location dialog.
+	 *
+	 * @param open - Whether the dialog should be open.
+	 * @returns void
+	 */
 	const handleDialogOpenChange = useCallback(
 		(open: boolean): void => {
 			setIsDialogOpen(open);
 			if (!open) {
 				setEditingLocation(null);
+				setIsAddressOpen(false);
 				form.reset();
 			}
 		},
 		[form],
 	);
+
+	// Query for locations list
+	const { data, isFetching } = useQuery({
+		queryKey: queryKeys.locations.list(queryParams),
+		queryFn: () => fetchLocationsList(queryParams),
+		enabled: isOrgSelected,
+	});
+
+	const locations = useMemo(() => data?.data ?? [], [data?.data]);
+	const totalRows = data?.pagination.total ?? 0;
+
+	const editLocationFromList = useMemo(() => {
+		if (!editLocationId) {
+			return null;
+		}
+
+		return locations.find((location) => location.id === editLocationId) ?? null;
+	}, [editLocationId, locations]);
+
+	const { data: editLocationDetail, isFetched: isEditLocationFetched } = useQuery({
+		queryKey: queryKeys.locations.detail(editLocationId ?? ''),
+		queryFn: () => fetchLocationById(editLocationId ?? ''),
+		enabled: Boolean(editLocationId && isOrgSelected),
+		staleTime: 5 * 60 * 1000,
+	});
+
+	useEffect(() => {
+		if (!editLocationId) {
+			handledEditRef.current = null;
+			return;
+		}
+
+		if (handledEditRef.current === editLocationId) {
+			return;
+		}
+
+		const targetLocation = editLocationFromList ?? editLocationDetail ?? null;
+
+		if (!targetLocation) {
+			if (isEditLocationFetched) {
+				toast.error(t('toast.errors.notFound'));
+				handledEditRef.current = editLocationId;
+			}
+			return;
+		}
+
+		// eslint-disable-next-line react-hooks/set-state-in-effect -- seed form state from edit query param
+		applyLocationToForm(targetLocation);
+		handledEditRef.current = editLocationId;
+	}, [
+		applyLocationToForm,
+		editLocationDetail,
+		editLocationFromList,
+		editLocationId,
+		isEditLocationFetched,
+		t,
+	]);
 
 	/**
 	 * Handles location deletion.
@@ -361,7 +695,7 @@ export function LocationsPageClient(): React.ReactElement {
 							{t('actions.add')}
 						</Button>
 					</DialogTrigger>
-					<DialogContent className="sm:max-w-[425px]">
+					<DialogContent className="sm:max-w-[760px]">
 						<form onSubmit={handleSubmit}>
 							<DialogHeader>
 								<DialogTitle>
@@ -428,18 +762,148 @@ export function LocationsPageClient(): React.ReactElement {
 									{(field) => (
 										<field.TextField
 											label={t('fields.timeZone')}
-											placeholder="America/Mexico_City"
+											placeholder={t('placeholders.timeZoneExample')}
 										/>
 									)}
 								</form.AppField>
 								<form.AppField name="address">
 									{(field) => (
-										<field.TextField
-											label={t('fields.address')}
-											placeholder={tCommon('optional')}
-										/>
+										<div className="grid grid-cols-4 items-start gap-4">
+											<Label htmlFor="location-address" className="pt-2 text-right">
+												{t('fields.address')}
+											</Label>
+											<div className="col-span-3 space-y-2">
+												<Popover open={isAddressOpen} onOpenChange={setIsAddressOpen}>
+													<PopoverTrigger asChild>
+														<Button
+															variant="outline"
+															role="combobox"
+															aria-expanded={isAddressOpen}
+															className="w-full justify-between text-left"
+														>
+															{addressValue
+																? addressValue
+																: t('address.placeholder')}
+															<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+														</Button>
+													</PopoverTrigger>
+													<PopoverContent className="p-0" align="start">
+														<Command>
+															<CommandInput
+																id="location-address"
+																name={field.name}
+																value={addressValue}
+																onValueChange={handleAddressChange}
+																onBlur={field.handleBlur}
+																placeholder={t('address.searchPlaceholder')}
+															/>
+															<CommandList>
+																{isGeocodeFetching && (
+																	<div className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground">
+																		<Loader2 className="h-4 w-4 animate-spin" />
+																		{t('address.loading')}
+																	</div>
+																)}
+																{isGeocodeQueryTooShort && (
+																	<div className="px-3 py-3 text-sm text-muted-foreground">
+																		{t('address.minChars', {
+																			count: GEOCODE_MIN_CHARS,
+																		})}
+																	</div>
+																)}
+																{showGeocodeEmpty && (
+																	<CommandEmpty>{t('address.empty')}</CommandEmpty>
+																)}
+																{geocodeSuggestions.length > 0 && (
+																	<CommandGroup heading={t('address.resultsTitle')}>
+																		{geocodeSuggestions.map((suggestion) => {
+																			const isSelected =
+																				suggestion.displayName === addressValue;
+																			return (
+																				<CommandItem
+																					key={`${suggestion.lat}-${suggestion.lng}-${suggestion.displayName}`}
+																					value={suggestion.displayName}
+																					onSelect={() =>
+																						handleGeocodeSelect(suggestion)
+																					}
+																				>
+																					<Check
+																						className={`h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+																					/>
+																					<span className="text-sm">
+																						{suggestion.displayName}
+																					</span>
+																				</CommandItem>
+																			);
+																		})}
+																	</CommandGroup>
+																)}
+															</CommandList>
+														</Command>
+													</PopoverContent>
+												</Popover>
+												{geocodeError && (
+													<p className="text-xs text-destructive">
+														{t('address.error')}
+													</p>
+												)}
+												{field.state.meta.errors.length > 0 && (
+													<p className="text-sm text-destructive">
+														{field.state.meta.errors.join(', ')}
+													</p>
+												)}
+											</div>
+										</div>
 									)}
 								</form.AppField>
+								<div className="grid grid-cols-4 items-start gap-4">
+									<Label className="pt-2 text-right">{t('mapPicker.title')}</Label>
+									<div className="col-span-3 space-y-2">
+										<div className="relative h-56 w-full overflow-hidden rounded-md border bg-muted/20">
+											<Map
+												center={[DEFAULT_MAP_CENTER.lng, DEFAULT_MAP_CENTER.lat]}
+												zoom={DEFAULT_MAP_ZOOM}
+											>
+												<MapViewportSync
+													latitude={latitudeValue}
+													longitude={longitudeValue}
+												/>
+												<MapClickHandler onSelect={handleMapSelect} />
+												{hasCoordinates && (
+													<MapMarker
+														longitude={longitudeValue ?? DEFAULT_MAP_CENTER.lng}
+														latitude={latitudeValue ?? DEFAULT_MAP_CENTER.lat}
+													>
+														<MarkerContent>
+															<div className="size-3 rounded-full border-2 border-white bg-primary shadow-md" />
+															<MarkerLabel position="bottom">
+																{nameValue?.trim()
+																	? nameValue
+																	: t('mapPicker.markerFallback')}
+															</MarkerLabel>
+														</MarkerContent>
+													</MapMarker>
+												)}
+											</Map>
+											{!hasCoordinates && (
+												<div className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs text-muted-foreground">
+													{t('mapPicker.empty')}
+												</div>
+											)}
+										</div>
+										<p className="text-xs text-muted-foreground">
+											{t('mapPicker.helper')}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{hasCoordinates
+												? t('mapPicker.coordinates', {
+														lat: latitudeValue?.toFixed(5) ?? '',
+														lng: longitudeValue?.toFixed(5) ?? '',
+												  })
+												: t('mapPicker.coordinatesEmpty')}
+										</p>
+									</div>
+								</div>
 							</div>
 							<DialogFooter>
 								<form.AppForm>

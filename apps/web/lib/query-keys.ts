@@ -68,6 +68,14 @@ export interface UsersQueryParams {
 }
 
 /**
+ * Query parameters for geocoding searches.
+ */
+export interface GeocodeQueryParams extends Record<string, unknown> {
+	/** Address query string */
+	query: string;
+}
+
+/**
  * Query parameters for organization members.
  */
 export interface OrganizationMembersQueryParams extends UsersQueryParams {
@@ -258,6 +266,14 @@ export const queryKeys = {
 		list: (params?: ListQueryParams) =>
 			queryKeyConstructor(['locations', 'list'] as const, params),
 		/**
+		 * Generates a query key for the full locations list.
+		 * @param organizationId - Optional organization filter
+		 */
+		allList: (organizationId?: string | null) =>
+			queryKeyConstructor(['locations', 'allList'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
+		/**
 		 * Generates a query key for a specific location.
 		 * @param id - The location ID
 		 */
@@ -373,6 +389,15 @@ export const queryKeys = {
 		all: ['organizationMembers'] as const,
 		list: (params?: OrganizationMembersQueryParams) =>
 			queryKeyConstructor(['organizationMembers', 'list'] as const, params),
+	},
+
+	/**
+	 * Query keys for geocoding searches.
+	 */
+	geocode: {
+		all: ['geocode'] as const,
+		search: (params: GeocodeQueryParams) =>
+			queryKeyConstructor(['geocode', 'search'] as const, params),
 	},
 
 	/**

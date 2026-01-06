@@ -53,6 +53,8 @@ export const createLocationSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	code: z.string().min(1, 'Code is required').max(50),
 	address: z.string().max(500).optional(),
+	latitude: z.number().min(-90).max(90).nullable().optional(),
+	longitude: z.number().min(-180).max(180).nullable().optional(),
 	timeZone: z
 		.string()
 		.min(1, 'Time zone is required')
@@ -71,6 +73,8 @@ export const updateLocationSchema = z.object({
 	name: z.string().min(1).max(255).optional(),
 	code: z.string().min(1).max(50).optional(),
 	address: z.string().max(500).nullable().optional(),
+	latitude: z.number().min(-90).max(90).nullable().optional(),
+	longitude: z.number().min(-180).max(180).nullable().optional(),
 	geographicZone: geographicZoneEnum.optional(),
 	timeZone: z
 		.string()

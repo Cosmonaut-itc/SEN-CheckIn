@@ -155,6 +155,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 	 * @param body.name - Location name
 	 * @param body.code - Unique location code
 	 * @param body.address - Physical address (optional)
+	 * @param body.latitude - Latitude coordinate (optional)
+	 * @param body.longitude - Longitude coordinate (optional)
 	 * @param body.organizationId - Organization ID this location belongs to (API key flow only)
 	 * @returns Created location record
 	 */
@@ -173,6 +175,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				name,
 				code,
 				address,
+				latitude,
+				longitude,
 				geographicZone,
 				timeZone,
 				organizationId: organizationIdInput,
@@ -222,6 +226,8 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				name,
 				code,
 				address: address ?? null,
+				latitude: latitude ?? null,
+				longitude: longitude ?? null,
 				organizationId,
 				clientId: null,
 				geographicZone: geographicZone ?? 'GENERAL',

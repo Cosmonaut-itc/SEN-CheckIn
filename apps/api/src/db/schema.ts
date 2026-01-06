@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import {
 	boolean,
+	doublePrecision,
 	index,
 	integer,
 	jsonb,
@@ -405,6 +406,10 @@ export const location = pgTable('location', {
 	name: text('name').notNull(),
 	code: text('code').notNull().unique(),
 	address: text('address'),
+	/** Latitude coordinate (WGS84). */
+	latitude: doublePrecision('latitude'),
+	/** Longitude coordinate (WGS84). */
+	longitude: doublePrecision('longitude'),
 	/** Organization that owns the location (primary tenant foreign key) */
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',

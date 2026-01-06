@@ -100,6 +100,8 @@ export interface Location {
 	name: string;
 	code: string;
 	address: string | null;
+	latitude: number | null;
+	longitude: number | null;
 	organizationId: string | null;
 	geographicZone: 'GENERAL' | 'ZLFN';
 	timeZone: string;
@@ -738,6 +740,96 @@ export async function fetchLocationsList(
 		data: (response.data?.data ?? []) as Location[],
 		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
+}
+
+/**
+ * Fetches a single location by ID.
+ *
+ * @param id - Location identifier.
+ * @returns Location record or null when not found.
+ */
+export async function fetchLocationById(id: string): Promise<Location | null> {
+	if (!id) {
+		return null;
+	}
+
+	const response = await api.locations[id].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch location detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	return (response.data?.data as Location) ?? null;
+}
+
+/**
+ * Fetches all locations by paging through the API.
+ *
+ * @param params - Optional query parameters for filtering.
+ * @returns A promise resolving to the full list of locations.
+ * @throws Error if the API request fails.
+ */
+export async function fetchLocationsAll(params?: {
+	organizationId?: string | null;
+	search?: string;
+}): Promise<Location[]> {
+	if (params?.organizationId === null) {
+		return [];
+	}
+
+	const limit = 100;
+	let offset = 0;
+	let total = 0;
+	const results: Location[] = [];
+
+	do {
+		const query: {
+			limit: number;
+			offset: number;
+			organizationId?: string;
+			search?: string;
+		} = {
+			limit,
+			offset,
+		};
+
+		if (params?.organizationId) {
+			query.organizationId = params.organizationId;
+		}
+
+		if (params?.search) {
+			query.search = params.search;
+		}
+
+		const response = await api.locations.get({ $query: query });
+
+		if (response.error) {
+			throw new Error('Failed to fetch locations');
+		}
+
+		const batch = (response.data?.data ?? []) as Location[];
+		const pagination = response.data?.pagination ?? {
+			total: 0,
+			limit,
+			offset,
+		};
+
+		results.push(...batch);
+		total = pagination.total;
+		offset += limit;
+
+		if (batch.length === 0) {
+			break;
+		}
+	} while (results.length < total);
+
+	return results;
 }
 
 // ============================================================================

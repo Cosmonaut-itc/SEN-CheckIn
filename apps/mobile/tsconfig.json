@@ -20,7 +20,7 @@
         "../../apps/api/src/*"
       ],
       "@sen-checkin/types": [
-        "../../packages/types/src"
+        "../../packages/types/src/index.ts"
       ],
       "@sen-checkin/types/*": [
         "../../packages/types/src/*"

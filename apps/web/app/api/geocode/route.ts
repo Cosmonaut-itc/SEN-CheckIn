@@ -3,9 +3,8 @@ import { NextResponse } from 'next/server';
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const MIN_QUERY_LENGTH = 3;
 const RESULTS_LIMIT = 6;
-const CACHE_SECONDS = 60 * 60;
-
-export const revalidate = CACHE_SECONDS;
+export const revalidate = 3600;
+const CACHE_SECONDS = revalidate;
 
 type NominatimResult = {
 	display_name: string;

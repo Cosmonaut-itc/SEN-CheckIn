@@ -103,6 +103,31 @@ function resolveErrorCode(status?: number): LocationMutationErrorCode {
 }
 
 /**
+ * Validates that latitude and longitude are provided together or both omitted.
+ *
+ * @param latitude - Latitude value (may be undefined, null, or number)
+ * @param longitude - Longitude value (may be undefined, null, or number)
+ * @returns Error code if validation fails, undefined if valid
+ */
+function validateCoordinatePair(
+	latitude: number | null | undefined,
+	longitude: number | null | undefined,
+): LocationMutationErrorCode | undefined {
+	const hasLatitude = latitude !== null && latitude !== undefined;
+	const hasLongitude = longitude !== null && longitude !== undefined;
+
+	if (hasLatitude && !hasLongitude) {
+		return 'BAD_REQUEST';
+	}
+
+	if (hasLongitude && !hasLatitude) {
+		return 'BAD_REQUEST';
+	}
+
+	return undefined;
+}
+
+/**
  * Creates a new location.
  *
  * @param input - The location data to create
@@ -123,6 +148,15 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
+		// Validate coordinate pair before proceeding
+		const coordError = validateCoordinatePair(input.latitude, input.longitude);
+		if (coordError) {
+			return {
+				success: false,
+				errorCode: coordError,
+			};
+		}
+
 		const payload: {
 			name: string;
 			code: string;
@@ -141,12 +175,14 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
 			organizationId: input.organizationId,
 		};
 
-		if (input.latitude !== undefined) {
+		// Only include coordinates if both are provided (or both omitted)
+		if (input.latitude !== undefined && input.longitude !== undefined) {
 			payload.latitude = input.latitude;
-		}
-
-		if (input.longitude !== undefined) {
 			payload.longitude = input.longitude;
+		} else if (input.latitude === null && input.longitude === null) {
+			// Explicitly set both to null to clear coordinates
+			payload.latitude = null;
+			payload.longitude = null;
 		}
 
 		const response = await api.locations.post(payload);
@@ -193,6 +229,15 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Mutati
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
+		// Validate coordinate pair before proceeding
+		const coordError = validateCoordinatePair(input.latitude, input.longitude);
+		if (coordError) {
+			return {
+				success: false,
+				errorCode: coordError,
+			};
+		}
+
 		const payload: {
 			name: string;
 			code: string;
@@ -209,12 +254,14 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Mutati
 			timeZone: input.timeZone,
 		};
 
-		if (input.latitude !== undefined) {
+		// Only include coordinates if both are provided (or both omitted)
+		if (input.latitude !== undefined && input.longitude !== undefined) {
 			payload.latitude = input.latitude;
-		}
-
-		if (input.longitude !== undefined) {
 			payload.longitude = input.longitude;
+		} else if (input.latitude === null && input.longitude === null) {
+			// Explicitly set both to null to clear coordinates
+			payload.latitude = null;
+			payload.longitude = null;
 		}
 
 		const response = await api.locations[input.id].put(payload);

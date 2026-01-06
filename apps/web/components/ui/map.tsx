@@ -248,51 +248,54 @@ function MapMarker({
       draggable,
     }).setLngLat([longitude, latitude]);
 
-    const handleClick = (e: MouseEvent) => onClick?.(e);
-    const handleMouseEnter = (e: MouseEvent) => onMouseEnter?.(e);
-    const handleMouseLeave = (e: MouseEvent) => onMouseLeave?.(e);
-
-    markerInstance.getElement()?.addEventListener("click", handleClick);
-    markerInstance
-      .getElement()
-      ?.addEventListener("mouseenter", handleMouseEnter);
-    markerInstance
-      .getElement()
-      ?.addEventListener("mouseleave", handleMouseLeave);
-
-    const handleDragStart = () => {
-      const lngLat = markerInstance.getLngLat();
-      onDragStart?.({ lng: lngLat.lng, lat: lngLat.lat });
-    };
-    const handleDrag = () => {
-      const lngLat = markerInstance.getLngLat();
-      onDrag?.({ lng: lngLat.lng, lat: lngLat.lat });
-    };
-    const handleDragEnd = () => {
-      const lngLat = markerInstance.getLngLat();
-      onDragEnd?.({ lng: lngLat.lng, lat: lngLat.lat });
-    };
-
-    markerInstance.on("dragstart", handleDragStart);
-    markerInstance.on("drag", handleDrag);
-    markerInstance.on("dragend", handleDragEnd);
-
     return markerInstance;
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!map) return;
 
+    const handleClick = (e: MouseEvent) => onClick?.(e);
+    const handleMouseEnter = (e: MouseEvent) => onMouseEnter?.(e);
+    const handleMouseLeave = (e: MouseEvent) => onMouseLeave?.(e);
+
+    const element = marker.getElement();
+    if (element) {
+      element.addEventListener("click", handleClick);
+      element.addEventListener("mouseenter", handleMouseEnter);
+      element.addEventListener("mouseleave", handleMouseLeave);
+    }
+
+    const handleDragStart = () => {
+      const lngLat = marker.getLngLat();
+      onDragStart?.({ lng: lngLat.lng, lat: lngLat.lat });
+    };
+    const handleDrag = () => {
+      const lngLat = marker.getLngLat();
+      onDrag?.({ lng: lngLat.lng, lat: lngLat.lat });
+    };
+    const handleDragEnd = () => {
+      const lngLat = marker.getLngLat();
+      onDragEnd?.({ lng: lngLat.lng, lat: lngLat.lat });
+    };
+
+    marker.on("dragstart", handleDragStart);
+    marker.on("drag", handleDrag);
+    marker.on("dragend", handleDragEnd);
+
     marker.addTo(map);
 
     return () => {
+      if (element) {
+        element.removeEventListener("click", handleClick);
+        element.removeEventListener("mouseenter", handleMouseEnter);
+        element.removeEventListener("mouseleave", handleMouseLeave);
+      }
+      marker.off("dragstart", handleDragStart);
+      marker.off("drag", handleDrag);
+      marker.off("dragend", handleDragEnd);
       marker.remove();
     };
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map]);
+  }, [map, marker, onClick, onMouseEnter, onMouseLeave, onDragStart, onDrag, onDragEnd]);
 
   if (
     marker.getLngLat().lng !== longitude ||

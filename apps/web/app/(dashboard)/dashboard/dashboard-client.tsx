@@ -365,13 +365,17 @@ export function DashboardPageClient(): React.ReactElement {
 					<MapAutoFit locations={locationsWithCoords} />
 					<MapFocus location={focusedLocation} />
 					{locationsWithCoords.map((location) => {
+						// Skip rendering if coordinates are missing (defensive check)
+						if (location.latitude === null || location.longitude === null) {
+							return null;
+						}
 						const present = presentByLocationId.get(location.id) ?? [];
 						const presentCount = present.length;
 						return (
 							<MapMarker
 								key={location.id}
-								longitude={location.longitude ?? DEFAULT_MAP_CENTER[0]}
-								latitude={location.latitude ?? DEFAULT_MAP_CENTER[1]}
+								longitude={location.longitude}
+								latitude={location.latitude}
 							>
 								<MarkerContent>
 									<div className="relative">

@@ -313,8 +313,9 @@ export function LocationsPageClient(): React.ReactElement {
 			longitude: null,
 		},
 		onSubmit: async ({ value }: { value: LocationFormValues }) => {
+			let result;
 			if (editingLocation) {
-				await updateMutation.mutateAsync({
+				result = await updateMutation.mutateAsync({
 					id: editingLocation.id,
 					name: value.name,
 					code: value.code,
@@ -329,7 +330,7 @@ export function LocationsPageClient(): React.ReactElement {
 					toast.error(t('toast.noOrganization'));
 					return;
 				}
-				await createMutation.mutateAsync({
+				result = await createMutation.mutateAsync({
 					name: value.name,
 					code: value.code,
 					address: value.address || undefined,
@@ -340,9 +341,12 @@ export function LocationsPageClient(): React.ReactElement {
 					organizationId,
 				});
 			}
-			setIsDialogOpen(false);
-			setEditingLocation(null);
-			form.reset();
+			// Only close dialog and reset form on successful mutation
+			if (result.success) {
+				setIsDialogOpen(false);
+				setEditingLocation(null);
+				form.reset();
+			}
 		},
 	});
 

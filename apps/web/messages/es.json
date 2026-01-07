@@ -24,6 +24,17 @@
 		"search": "Buscar",
 		"submit": "Enviar"
 	},
+	"Map": {
+		"controls": {
+			"zoomIn": "Acercar",
+			"zoomOut": "Alejar",
+			"locate": "Ubicar mi posición",
+			"fullscreen": "Alternar pantalla completa",
+			"resetBearing": "Reiniciar orientación al norte",
+			"close": "Cerrar",
+			"closePopup": "Cerrar ventana emergente"
+		}
+	},
 	"DataTable": {
 		"search": {
 			"placeholder": "Buscar en la tabla"
@@ -129,6 +140,47 @@
 				},
 				"timeAgo": "hace {time}",
 				"fallbackInitials": "NA"
+			}
+		},
+		"map": {
+			"title": "Mapa operativo",
+			"subtitle": "Visibilidad en tiempo real de ubicaciones y presencia",
+			"metrics": {
+				"present": "Presentes",
+				"locations": "Ubicaciones",
+				"employees": "Empleados",
+				"devices": "Dispositivos",
+				"organizations": "Organizaciones"
+			},
+			"tooltip": "{count, plural, one {# presente} other {# presentes}}",
+			"popup": {
+				"presentCount": "Presentes: {count}",
+				"empty": "Sin personal presente en este momento.",
+				"fallbackInitials": "NA",
+				"timeAgo": "hace {time}"
+			},
+			"panel": {
+				"title": "Ubicaciones",
+				"subtitle": "{locations, plural, one {# ubicación} other {# ubicaciones}} | {present, plural, one {# presente} other {# presentes}}",
+				"activeLocations": "{count, plural, one {# activa} other {# activas}}"
+			},
+			"search": {
+				"placeholder": "Buscar ubicaciones..."
+			},
+			"sections": {
+				"withCoords": "Con coordenadas",
+				"withoutCoords": "Sin coordenadas",
+				"unassigned": "Sin ubicación asignada"
+			},
+			"empty": {
+				"withCoords": "No hay ubicaciones con coordenadas.",
+				"withoutCoords": "No hay ubicaciones sin coordenadas.",
+				"present": "Sin personal presente."
+			},
+			"actions": {
+				"refresh": "Actualizar presencia",
+				"locations": "Administrar ubicaciones",
+				"editLocation": "Editar ubicación"
 			}
 		}
 	},
@@ -628,7 +680,25 @@
 			"ZLFN": "Zona Libre de la Frontera Norte – Salario mínimo $419.88"
 		},
 		"placeholders": {
-			"selectZone": "Selecciona una zona"
+			"selectZone": "Selecciona una zona",
+			"timeZoneExample": "Ej: America/Mexico_City"
+		},
+		"address": {
+			"placeholder": "Buscar dirección",
+			"searchPlaceholder": "Escribe una dirección...",
+			"loading": "Buscando direcciones...",
+			"minChars": "Escribe al menos {count} caracteres.",
+			"empty": "Sin resultados.",
+			"resultsTitle": "Resultados",
+			"error": "No se pudo consultar direcciones. Intenta de nuevo."
+		},
+		"mapPicker": {
+			"title": "Ajuste en mapa",
+			"helper": "Haz clic en el mapa para ajustar la ubicación.",
+			"empty": "Selecciona una dirección o haz clic en el mapa para colocar el punto.",
+			"markerFallback": "Ubicación",
+			"coordinates": "Coordenadas: {lat}, {lng}",
+			"coordinatesEmpty": "Coordenadas: sin definir."
 		},
 		"search": {
 			"placeholder": "Buscar ubicaciones..."
@@ -659,6 +729,12 @@
 			"updateError": "No se pudo actualizar la ubicación",
 			"deleteSuccess": "Ubicación eliminada correctamente",
 			"deleteError": "No se pudo eliminar la ubicación",
+			"errors": {
+				"conflict": "Ya existe una ubicación con ese código.",
+				"notFound": "No encontramos esa ubicación.",
+				"forbidden": "No tienes permisos para modificar esta ubicación.",
+				"badRequest": "Revisa los datos e intenta de nuevo."
+			},
 			"noOrganization": "No hay una organización activa. Selecciona una organización primero."
 		}
 	},

@@ -25,6 +25,10 @@ export interface CreateLocationInput {
 	code: string;
 	/** Location address */
 	address?: string;
+	/** Latitude coordinate (WGS84) */
+	latitude?: number | null;
+	/** Longitude coordinate (WGS84) */
+	longitude?: number | null;
 	/** Geographic zone (CONASAMI) */
 	geographicZone?: 'GENERAL' | 'ZLFN';
 	/** Location timezone (IANA) */
@@ -45,11 +49,25 @@ export interface UpdateLocationInput {
 	code: string;
 	/** Location address */
 	address?: string;
+	/** Latitude coordinate (WGS84) */
+	latitude?: number | null;
+	/** Longitude coordinate (WGS84) */
+	longitude?: number | null;
 	/** Geographic zone (CONASAMI) */
 	geographicZone?: 'GENERAL' | 'ZLFN';
 	/** Location timezone (IANA) */
 	timeZone?: string;
 }
+
+/**
+ * Error codes for location mutations.
+ */
+export type LocationMutationErrorCode =
+	| 'BAD_REQUEST'
+	| 'FORBIDDEN'
+	| 'NOT_FOUND'
+	| 'CONFLICT'
+	| 'UNKNOWN';
 
 /**
  * Result of a mutation operation.
@@ -59,8 +77,54 @@ export interface MutationResult<T = unknown> {
 	success: boolean;
 	/** The data returned from the operation */
 	data?: T;
-	/** Error message if the operation failed */
-	error?: string;
+	/** Error code if the operation failed */
+	errorCode?: LocationMutationErrorCode;
+}
+
+/**
+ * Maps HTTP status codes to location mutation error codes.
+ *
+ * @param status - HTTP status code from the API response.
+ * @returns Normalized error code for UI handling.
+ */
+function resolveErrorCode(status?: number): LocationMutationErrorCode {
+	switch (status) {
+		case 400:
+			return 'BAD_REQUEST';
+		case 403:
+			return 'FORBIDDEN';
+		case 404:
+			return 'NOT_FOUND';
+		case 409:
+			return 'CONFLICT';
+		default:
+			return 'UNKNOWN';
+	}
+}
+
+/**
+ * Validates that latitude and longitude are provided together or both omitted.
+ *
+ * @param latitude - Latitude value (may be undefined, null, or number)
+ * @param longitude - Longitude value (may be undefined, null, or number)
+ * @returns Error code if validation fails, undefined if valid
+ */
+function validateCoordinatePair(
+	latitude: number | null | undefined,
+	longitude: number | null | undefined,
+): LocationMutationErrorCode | undefined {
+	const hasLatitude = latitude !== null && latitude !== undefined;
+	const hasLongitude = longitude !== null && longitude !== undefined;
+
+	if (hasLatitude && !hasLongitude) {
+		return 'BAD_REQUEST';
+	}
+
+	if (hasLongitude && !hasLatitude) {
+		return 'BAD_REQUEST';
+	}
+
+	return undefined;
 }
 
 /**
@@ -84,19 +148,49 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
-		const response = await api.locations.post({
+		// Validate coordinate pair before proceeding
+		const coordError = validateCoordinatePair(input.latitude, input.longitude);
+		if (coordError) {
+			return {
+				success: false,
+				errorCode: coordError,
+			};
+		}
+
+		const payload: {
+			name: string;
+			code: string;
+			address?: string;
+			latitude?: number | null;
+			longitude?: number | null;
+			geographicZone?: 'GENERAL' | 'ZLFN';
+			timeZone?: string;
+			organizationId?: string;
+		} = {
 			name: input.name,
 			code: input.code,
 			address: input.address || undefined,
 			geographicZone: input.geographicZone,
 			timeZone: input.timeZone,
 			organizationId: input.organizationId,
-		});
+		};
+
+		// Only include coordinates if both are provided (or both omitted)
+		if (input.latitude !== undefined && input.longitude !== undefined) {
+			payload.latitude = input.latitude;
+			payload.longitude = input.longitude;
+		} else if (input.latitude === null && input.longitude === null) {
+			// Explicitly set both to null to clear coordinates
+			payload.latitude = null;
+			payload.longitude = null;
+		}
+
+		const response = await api.locations.post(payload);
 
 		if (response.error) {
 			return {
 				success: false,
-				error: 'Failed to create location',
+				errorCode: resolveErrorCode(response.status),
 			};
 		}
 
@@ -108,7 +202,7 @@ export async function createLocation(input: CreateLocationInput): Promise<Mutati
 		console.error('Failed to create location:', error);
 		return {
 			success: false,
-			error: 'Failed to create location',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }
@@ -135,18 +229,47 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Mutati
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
 
-		const response = await api.locations[input.id].put({
+		// Validate coordinate pair before proceeding
+		const coordError = validateCoordinatePair(input.latitude, input.longitude);
+		if (coordError) {
+			return {
+				success: false,
+				errorCode: coordError,
+			};
+		}
+
+		const payload: {
+			name: string;
+			code: string;
+			address?: string;
+			latitude?: number | null;
+			longitude?: number | null;
+			geographicZone?: 'GENERAL' | 'ZLFN';
+			timeZone?: string;
+		} = {
 			name: input.name,
 			code: input.code,
 			address: input.address || undefined,
 			geographicZone: input.geographicZone,
 			timeZone: input.timeZone,
-		});
+		};
+
+		// Only include coordinates if both are provided (or both omitted)
+		if (input.latitude !== undefined && input.longitude !== undefined) {
+			payload.latitude = input.latitude;
+			payload.longitude = input.longitude;
+		} else if (input.latitude === null && input.longitude === null) {
+			// Explicitly set both to null to clear coordinates
+			payload.latitude = null;
+			payload.longitude = null;
+		}
+
+		const response = await api.locations[input.id].put(payload);
 
 		if (response.error) {
 			return {
 				success: false,
-				error: 'Failed to update location',
+				errorCode: resolveErrorCode(response.status),
 			};
 		}
 
@@ -158,7 +281,7 @@ export async function updateLocation(input: UpdateLocationInput): Promise<Mutati
 		console.error('Failed to update location:', error);
 		return {
 			success: false,
-			error: 'Failed to update location',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }
@@ -185,7 +308,7 @@ export async function deleteLocation(id: string): Promise<MutationResult> {
 		if (response.error) {
 			return {
 				success: false,
-				error: 'Failed to delete location',
+				errorCode: resolveErrorCode(response.status),
 			};
 		}
 
@@ -196,7 +319,7 @@ export async function deleteLocation(id: string): Promise<MutationResult> {
 		console.error('Failed to delete location:', error);
 		return {
 			success: false,
-			error: 'Failed to delete location',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }

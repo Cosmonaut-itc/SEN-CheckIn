@@ -232,6 +232,10 @@ export interface Location {
 	code: string;
 	/** Physical address (optional) */
 	address: string | null;
+	/** Latitude coordinate (WGS84). */
+	latitude: number | null;
+	/** Longitude coordinate (WGS84). */
+	longitude: number | null;
 	/** Owning organization ID reference */
 	organizationId: string | null;
 	/** Record creation timestamp */

@@ -47,38 +47,77 @@ export const timeStringRegex = /^\d{2}:\d{2}(?::\d{2})?$/;
 // ============================================================================
 
 /**
+ * Validates that latitude and longitude are provided together or both omitted.
+ *
+ * @param value - Location payload with optional coordinates
+ * @param ctx - Zod refinement context
+ * @returns Nothing
+ */
+function validateCoordinatePair(
+	value: { latitude?: number | null; longitude?: number | null },
+	ctx: z.RefinementCtx,
+): void {
+	const hasLatitude = value.latitude !== null && value.latitude !== undefined;
+	const hasLongitude = value.longitude !== null && value.longitude !== undefined;
+
+	if (hasLatitude && !hasLongitude) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['longitude'],
+			message: 'Longitude is required when latitude is provided',
+		});
+	}
+
+	if (hasLongitude && !hasLatitude) {
+		ctx.addIssue({
+			code: z.ZodIssueCode.custom,
+			path: ['latitude'],
+			message: 'Latitude is required when longitude is provided',
+		});
+	}
+}
+
+/**
  * Schema for creating a new location.
  */
-export const createLocationSchema = z.object({
-	name: z.string().min(1, 'Name is required').max(255),
-	code: z.string().min(1, 'Code is required').max(50),
-	address: z.string().max(500).optional(),
-	timeZone: z
-		.string()
-		.min(1, 'Time zone is required')
-		.max(255)
-		.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
-		.optional(),
-	// BetterAuth organization IDs are text (not UUID)
-	organizationId: z.string().optional(),
-	geographicZone: geographicZoneEnum.optional(),
-});
+export const createLocationSchema = z
+	.object({
+		name: z.string().min(1, 'Name is required').max(255),
+		code: z.string().min(1, 'Code is required').max(50),
+		address: z.string().max(500).optional(),
+		latitude: z.number().min(-90).max(90).nullable().optional(),
+		longitude: z.number().min(-180).max(180).nullable().optional(),
+		timeZone: z
+			.string()
+			.min(1, 'Time zone is required')
+			.max(255)
+			.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
+			.optional(),
+		// BetterAuth organization IDs are text (not UUID)
+		organizationId: z.string().optional(),
+		geographicZone: geographicZoneEnum.optional(),
+	})
+	.superRefine(validateCoordinatePair);
 
 /**
  * Schema for updating a location.
  */
-export const updateLocationSchema = z.object({
-	name: z.string().min(1).max(255).optional(),
-	code: z.string().min(1).max(50).optional(),
-	address: z.string().max(500).nullable().optional(),
-	geographicZone: geographicZoneEnum.optional(),
-	timeZone: z
-		.string()
-		.min(1, 'Time zone is required')
-		.max(255)
-		.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
-		.optional(),
-});
+export const updateLocationSchema = z
+	.object({
+		name: z.string().min(1).max(255).optional(),
+		code: z.string().min(1).max(50).optional(),
+		address: z.string().max(500).nullable().optional(),
+		latitude: z.number().min(-90).max(90).nullable().optional(),
+		longitude: z.number().min(-180).max(180).nullable().optional(),
+		geographicZone: geographicZoneEnum.optional(),
+		timeZone: z
+			.string()
+			.min(1, 'Time zone is required')
+			.max(255)
+			.refine(isValidIanaTimeZone, { message: 'Invalid IANA time zone' })
+			.optional(),
+	})
+	.superRefine(validateCoordinatePair);
 
 /**
  * Schema for location query filters.

@@ -364,6 +364,22 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for superuser-scoped queries.
+	 */
+	super: {
+		organizationsAll: {
+			/** Base key for all superuser organization queries */
+			all: ['super', 'organizationsAll'] as const,
+			/**
+			 * Generates a query key for the superuser organizations list.
+			 * @param params - Optional list query parameters
+			 */
+			list: (params?: ListQueryParams) =>
+				queryKeyConstructor(['super', 'organizationsAll', 'list'] as const, params),
+		},
+	},
+
+	/**
 	 * Query keys for user-related queries (via better-auth admin).
 	 */
 	users: {

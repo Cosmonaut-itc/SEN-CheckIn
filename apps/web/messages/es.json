@@ -74,7 +74,16 @@
 		"organizations": "Organizaciones",
 		"signOut": "Cerrar Sesión",
 		"userFallback": "Usuario",
+		"superUserBadge": "Superusuario",
 		"toggleSidebar": "Alternar Barra Lateral"
+	},
+	"AccessRestricted": {
+		"title": "Acceso restringido",
+		"description": "Tu cuenta no tiene permisos para entrar al portal de administración.",
+		"actions": {
+			"signOut": "Cerrar sesión",
+			"backHome": "Volver al inicio"
+		}
 	},
 	"MobileApp": {
 		"title": "App Móvil",
@@ -1240,31 +1249,50 @@
 		"title": "Usuarios",
 		"subtitle": "Administra miembros de {organization}",
 		"fallbackOrganization": "tu organización",
+		"organizationSelector": {
+			"label": "Organización",
+			"placeholder": "Selecciona una organización",
+			"loading": "Cargando organizaciones...",
+			"helper": "Selecciona una organización para ver miembros y crear usuarios.",
+			"fallback": "una organización"
+		},
 		"actions": {
 			"create": "Crear usuario",
 			"createUser": "Crear usuario",
-			"creating": "Creando..."
+			"creating": "Creando...",
+			"assignExisting": "Asignar usuario existente",
+			"assigning": "Asignando..."
 		},
 		"dialog": {
 			"title": "Crear usuario",
-			"description": "Crea un usuario y asigna su rol dentro de esta organización."
+			"description": "Crea un usuario y asígnalo a una organización."
+		},
+		"assignDialog": {
+			"title": "Asignar usuario existente",
+			"description": "Selecciona un usuario existente para agregarlo a esta organización.",
+			"loadingUsers": "Cargando usuarios..."
 		},
 		"fields": {
+			"organization": "Organización",
 			"fullName": "Nombre completo",
 			"email": "Correo electrónico",
 			"username": "Usuario",
 			"temporaryPassword": "Contraseña temporal",
-			"role": "Rol"
+			"role": "Rol",
+			"existingUser": "Usuario existente"
 		},
 		"placeholders": {
 			"fullName": "Juan Pérez",
 			"email": "usuario@ejemplo.com",
 			"username": "usuario",
 			"temporaryPassword": "Al menos 8 caracteres",
-			"selectRole": "Selecciona un rol"
+			"selectRole": "Selecciona un rol",
+			"existingUser": "Selecciona un usuario"
 		},
 		"validation": {
-			"validEmailRequired": "Se requiere un correo válido"
+			"validEmailRequired": "Se requiere un correo válido",
+			"organizationRequired": "Selecciona una organización",
+			"userRequired": "Selecciona un usuario"
 		},
 		"roles": {
 			"owner": "Propietario",
@@ -1282,13 +1310,16 @@
 				"role": "Rol",
 				"joined": "Ingreso"
 			},
-			"empty": "No se encontraron miembros."
+			"empty": "No se encontraron miembros.",
+			"emptyNoOrganization": "Selecciona una organización para ver miembros."
 		},
 		"dateFormat": "dd/MM/yyyy",
 		"toast": {
-			"selectOrganization": "Selecciona una organización antes de crear usuarios.",
+			"selectOrganization": "Selecciona una organización antes de continuar.",
 			"createSuccess": "Usuario creado y agregado a la organización",
-			"createError": "No se pudo crear el usuario"
+			"createError": "No se pudo crear el usuario",
+			"assignSuccess": "Usuario asignado a la organización",
+			"assignError": "No se pudo asignar el usuario"
 		}
 	},
 	"Organizations": {

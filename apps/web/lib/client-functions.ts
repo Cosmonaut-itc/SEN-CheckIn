@@ -263,6 +263,14 @@ export interface Organization {
 }
 
 /**
+ * Response payload for superuser organization listings.
+ */
+export interface OrganizationsAllResponse {
+	organizations: Organization[];
+	total: number;
+}
+
+/**
  * Organization member record from better-auth organization plugin.
  */
 export interface OrganizationMember {
@@ -1711,6 +1719,41 @@ export async function fetchOrganizations(): Promise<Organization[]> {
 	}
 
 	return (response.data ?? []) as Organization[];
+}
+
+/**
+ * Fetches the list of all organizations (superuser only).
+ *
+ * @param params - Optional query parameters for pagination and search
+ * @returns A promise resolving to the organizations response
+ * @throws Error if the API request fails
+ */
+export async function fetchAllOrganizations(
+	params?: ListQueryParams,
+): Promise<OrganizationsAllResponse> {
+	const query: {
+		limit: number;
+		offset: number;
+		search?: string;
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.search?.trim()) {
+		query.search = params.search.trim();
+	}
+
+	const response = await api.organization.all.get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch organizations');
+	}
+
+	return {
+		organizations: (response.data?.organizations ?? []) as Organization[],
+		total: response.data?.total ?? 0,
+	};
 }
 
 // ============================================================================

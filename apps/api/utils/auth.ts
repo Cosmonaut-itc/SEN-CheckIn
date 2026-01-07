@@ -80,9 +80,8 @@ const authOptions: AuthOptions = {
 		 * Organization plugin for multi-tenant support.
 		 */
 		organization({
-			// Allow any authenticated user to create an organization; downstream
-			// access is still governed by roles on the organization itself.
-			allowUserToCreateOrganization: true,
+			// Restrict organization creation to platform superusers.
+			allowUserToCreateOrganization: async (user) => user.role === 'admin',
 		}),
 		/**
 		 * Username plugin to enable username-based sign-in.

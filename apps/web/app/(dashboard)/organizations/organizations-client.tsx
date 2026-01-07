@@ -16,7 +16,13 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { DataTable } from '@/components/data-table/data-table';
-import { fetchOrganizations, type Organization } from '@/lib/client-functions';
+import {
+	fetchAllOrganizations,
+	fetchOrganizations,
+	type Organization,
+	type OrganizationsAllResponse,
+} from '@/lib/client-functions';
+import { useSession } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
@@ -47,6 +53,8 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const router = useRouter();
 	const t = useTranslations('Organizations');
 	const tCommon = useTranslations('Common');
+	const { data: session, isPending: isSessionPending } = useSession();
+	const isSuperUser = session?.user?.role === 'admin';
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -56,12 +64,45 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const NAME_LIMITS = { min: 3, max: 80 };
 	const SLUG_LIMITS = { min: 3, max: 50 };
+	const searchValue = globalFilter.trim();
+
+	const organizationsQueryParams = {
+		limit: pagination.pageSize,
+		offset: pagination.pageIndex * pagination.pageSize,
+		...(searchValue ? { search: searchValue } : {}),
+	};
 
 	// Query for organizations list
-	const { data: organizations = [], isFetching } = useQuery({
-		queryKey: queryKeys.organizations.list(),
-		queryFn: fetchOrganizations,
+	const { data: organizationsResponse, isFetching } = useQuery<
+		OrganizationsAllResponse | Organization[]
+	>({
+		queryKey: isSuperUser
+			? queryKeys.super.organizationsAll.list(organizationsQueryParams)
+			: queryKeys.organizations.list(),
+		queryFn: async () => {
+			if (isSuperUser) {
+				return await fetchAllOrganizations(organizationsQueryParams);
+			}
+			return await fetchOrganizations();
+		},
+		enabled: !isSessionPending,
 	});
+
+	const organizations = useMemo(() => {
+		if (!organizationsResponse) {
+			return [];
+		}
+		if (isSuperUser) {
+			return (organizationsResponse as OrganizationsAllResponse).organizations ?? [];
+		}
+		return organizationsResponse as Organization[];
+	}, [isSuperUser, organizationsResponse]);
+
+	const totalRows = isSuperUser
+		? (organizationsResponse as OrganizationsAllResponse | undefined)?.total ?? 0
+		: organizations.length;
+	const canCreateOrganization = isSuperUser;
+	const isLoading = isFetching || isSessionPending;
 
 	// Create mutation
 	const createMutation = useMutation({
@@ -72,9 +113,10 @@ export function OrganizationsPageClient(): React.ReactElement {
 				toast.success(t('toast.createSuccess'));
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+				queryClient.invalidateQueries({ queryKey: queryKeys.super.organizationsAll.all });
 				router.refresh();
 			} else {
-				toast.error(result.error ?? t('toast.createError'));
+				toast.error(t('toast.createError'));
 			}
 		},
 		onError: () => {
@@ -92,8 +134,9 @@ export function OrganizationsPageClient(): React.ReactElement {
 				setIsDialogOpen(false);
 				setEditingOrganization(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+				queryClient.invalidateQueries({ queryKey: queryKeys.super.organizationsAll.all });
 			} else {
-				toast.error(result.error ?? t('toast.updateError'));
+				toast.error(t('toast.updateError'));
 			}
 		},
 		onError: () => {
@@ -110,8 +153,9 @@ export function OrganizationsPageClient(): React.ReactElement {
 				toast.success(t('toast.deleteSuccess'));
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+				queryClient.invalidateQueries({ queryKey: queryKeys.super.organizationsAll.all });
 			} else {
-				toast.error(result.error ?? t('toast.deleteError'));
+				toast.error(t('toast.deleteError'));
 			}
 		},
 		onError: () => {
@@ -345,15 +389,17 @@ export function OrganizationsPageClient(): React.ReactElement {
 						{t('table.empty.description')}
 					</p>
 				</div>
-				<DialogTrigger asChild>
-					<Button onClick={handleCreateNew} size="sm">
-						<Plus className="mr-2 h-4 w-4" />
-						{t('actions.create')}
-					</Button>
-				</DialogTrigger>
+				{canCreateOrganization ? (
+					<DialogTrigger asChild>
+						<Button onClick={handleCreateNew} size="sm">
+							<Plus className="mr-2 h-4 w-4" />
+							{t('actions.create')}
+						</Button>
+					</DialogTrigger>
+				) : null}
 			</div>
 		),
-		[handleCreateNew, t],
+		[canCreateOrganization, handleCreateNew, t],
 	);
 
 	return (
@@ -364,12 +410,14 @@ export function OrganizationsPageClient(): React.ReactElement {
 						<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
 						<p className="text-muted-foreground">{t('subtitle')}</p>
 					</div>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.create')}
-						</Button>
-					</DialogTrigger>
+					{canCreateOrganization ? (
+						<DialogTrigger asChild>
+							<Button onClick={handleCreateNew}>
+								<Plus className="mr-2 h-4 w-4" />
+								{t('actions.create')}
+							</Button>
+						</DialogTrigger>
+					) : null}
 				</div>
 
 				<DataTable
@@ -379,13 +427,16 @@ export function OrganizationsPageClient(): React.ReactElement {
 					onSortingChange={setSorting}
 					pagination={pagination}
 					onPaginationChange={setPagination}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				globalFilterPlaceholder={t('search.placeholder')}
-				emptyState={emptyState}
-				isLoading={isFetching}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={setColumnFilters}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={handleGlobalFilterChange}
+					globalFilterPlaceholder={t('search.placeholder')}
+					emptyState={emptyState}
+					isLoading={isLoading}
+					manualPagination={isSuperUser}
+					manualFiltering={isSuperUser}
+					rowCount={isSuperUser ? totalRows : undefined}
 				/>
 			</div>
 

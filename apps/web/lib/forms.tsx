@@ -184,11 +184,47 @@ export function SelectField<TValue extends string>({
 	options,
 	description,
 	disabled,
+	orientation = 'horizontal',
+	onValueChange,
 }: CommonFieldProps & {
 	options: { value: TValue; label: string }[];
 	placeholder?: string;
+	onValueChange?: (value: TValue) => void;
 }): React.ReactElement {
 	const field = useFieldContext();
+
+	if (orientation === 'vertical') {
+		return (
+			<div className="grid gap-2">
+				<Label htmlFor={field.name}>{label}</Label>
+				<Select
+					value={(field.state.value as TValue) ?? ''}
+					onValueChange={(value: TValue) => {
+						field.handleChange(value);
+						onValueChange?.(value);
+					}}
+					disabled={disabled}
+				>
+					<SelectTrigger id={field.name}>
+						<SelectValue placeholder={placeholder} />
+					</SelectTrigger>
+					<SelectContent>
+						{options.map((opt) => (
+							<SelectItem key={opt.value} value={opt.value}>
+								{opt.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
+				{field.state.meta.errors.length > 0 && (
+					<p className="mt-1 text-sm text-destructive">
+						{field.state.meta.errors.join(', ')}
+					</p>
+				)}
+			</div>
+		);
+	}
 
 	return (
 		<div className="grid grid-cols-4 items-center gap-4">
@@ -198,10 +234,13 @@ export function SelectField<TValue extends string>({
 			<div className="col-span-3">
 				<Select
 					value={(field.state.value as TValue) ?? ''}
-					onValueChange={(value: TValue) => field.handleChange(value)}
+					onValueChange={(value: TValue) => {
+						field.handleChange(value);
+						onValueChange?.(value);
+					}}
 					disabled={disabled}
 				>
-					<SelectTrigger>
+					<SelectTrigger id={field.name}>
 						<SelectValue placeholder={placeholder} />
 					</SelectTrigger>
 					<SelectContent>

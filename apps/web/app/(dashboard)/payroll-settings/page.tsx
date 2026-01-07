@@ -9,11 +9,20 @@ import { PayrollSettingsClient } from './payroll-settings-client';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * Payroll settings page server component.
+ *
+ * This server component prefetches payroll settings data and awaits it so SSR
+ * markup matches the hydrated client. The prefetched data is dehydrated and
+ * passed to the client via HydrationBoundary.
+ *
+ * @returns The payroll settings page with hydrated query state
+ */
 export default async function PayrollSettingsPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
 	const orgContext = await getActiveOrganizationContext();
 
-	prefetchPayrollSettings(queryClient);
+	await prefetchPayrollSettings(queryClient);
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

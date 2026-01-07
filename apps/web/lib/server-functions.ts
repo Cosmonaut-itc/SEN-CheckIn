@@ -33,6 +33,7 @@ import {
 	fetchEmployeesListServer,
 	fetchJobPositionsListServer,
 	fetchLocationsListServer,
+	fetchAllOrganizationsServer,
 	fetchOrganizationMembersServer,
 	fetchOrganizationsServer,
 	fetchPayrollRunsServer,
@@ -408,18 +409,51 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
 	});
 }
 
+/**
+ * Prefetches the superuser organizations list for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for pagination and search
+ * @returns void
+ */
+export function prefetchAllOrganizations(
+	queryClient: QueryClient,
+	params?: ListQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.super.organizationsAll.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchAllOrganizationsServer>>> => {
+			const requestHeaders: Headers = await getRequestHeaders();
+			return fetchAllOrganizationsServer(requestHeaders, params);
+		},
+	});
+}
+
 // ============================================================================
 // Payroll Prefetch Functions
 // ============================================================================
 
-export function prefetchPayrollSettings(queryClient: QueryClient): void {
-	queryClient.prefetchQuery({
-		queryKey: queryKeys.payrollSettings.current(undefined),
-		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {
-			const cookieHeader: string = await getCookieHeader();
-			return fetchPayrollSettingsServer(cookieHeader);
-		},
-	});
+/**
+ * Prefetches payroll settings for server-side rendering.
+ *
+ * Await the returned promise in Server Components that render payroll settings
+ * data server-side to keep SSR and client markup aligned and avoid hydration
+ * mismatches. Cookies are forwarded from the incoming request to authenticate
+ * with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @returns Promise that resolves once the payroll settings prefetch completes
+ */
+export function prefetchPayrollSettings(queryClient: QueryClient): Promise<void> {
+	return queryClient
+		.prefetchQuery({
+			queryKey: queryKeys.payrollSettings.current(undefined),
+			queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {
+				const cookieHeader: string = await getCookieHeader();
+				return fetchPayrollSettingsServer(cookieHeader);
+			},
+		})
+		.then(() => undefined);
 }
 
 export function prefetchPayrollRuns(

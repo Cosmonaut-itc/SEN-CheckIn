@@ -132,6 +132,7 @@ export function DataTable<TData, TValue>({
 }: DataTableProps<TData, TValue>): React.ReactElement {
 	const t = useTranslations('DataTable');
 
+	// eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns non-memoizable helpers.
 	const table = useReactTable({
 		data,
 		columns,

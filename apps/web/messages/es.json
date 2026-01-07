@@ -1,7 +1,8 @@
 {
 	"App": {
 		"name": "SEN CheckIn",
-		"adminPortal": "Portal de Administración"
+		"adminPortal": "Portal de Administración",
+		"shortName": "SC"
 	},
 	"Common": {
 		"add": "Agregar",
@@ -1778,6 +1779,389 @@
 			"light": "Claro",
 			"dark": "Oscuro",
 			"system": "Sistema"
+		}
+	},
+	"Landing": {
+		"metadata": {
+			"title": "SEN CheckIn | Control de asistencia inteligente",
+			"description": "Plataforma de asistencia con reconocimiento facial para equipos y organizaciones."
+		},
+		"header": {
+			"tagline": "Asistencia biométrica confiable"
+		},
+		"nav": {
+			"login": "Iniciar sesión",
+			"privacy": "Política de privacidad",
+			"signUp": "Regístrate"
+		},
+		"hero": {
+			"kicker": "Control de asistencia inteligente",
+			"title": "Asistencia confiable con verificación facial en segundos",
+			"subtitle": "Centraliza empleados, dispositivos y ubicaciones desde un solo portal, mientras la app móvil registra entradas y salidas en tiempo real.",
+			"primaryCta": "Entrar al portal",
+			"secondaryCta": "Ver política de privacidad",
+			"stats": {
+				"enrollment": {
+					"value": "3 min",
+					"label": "Enrolamiento promedio"
+				},
+				"coverage": {
+					"value": "24/7",
+					"label": "Registro continuo"
+				},
+				"flow": {
+					"value": "3 pasos",
+					"label": "Flujo móvil simple"
+				}
+			},
+			"panel": {
+				"title": "Resumen operativo",
+				"badge": "Hoy",
+				"present": {
+					"label": "En sitio ahora",
+					"value": "24",
+					"delta": "+3 en la última hora"
+				},
+				"devices": {
+					"label": "Dispositivos activos",
+					"value": "12"
+				},
+				"locations": {
+					"label": "Ubicaciones",
+					"value": "5"
+				}
+			},
+			"pill": {
+				"title": "Registro verificado",
+				"description": "Captura facial + registro en segundos sin filas."
+			}
+		},
+		"sections": {
+			"web": {
+				"kicker": "Portal web",
+				"title": "Administración centralizada",
+				"subtitle": "Controla empleados, ubicaciones y reportes desde un panel con métricas claras.",
+				"features": {
+					"dashboard": {
+						"title": "Panel y métricas en tiempo real",
+						"description": "Visibilidad de asistencia, presencia y tendencias en un solo lugar."
+					},
+					"employees": {
+						"title": "Empleados y rostros",
+						"description": "Enrolamiento facial, datos y estatus de cada colaborador."
+					},
+					"locations": {
+						"title": "Ubicaciones y dispositivos",
+						"description": "Gestiona kioscos, tablets y sedes con control de estado."
+					},
+					"audit": {
+						"title": "Roles y auditoría",
+						"description": "Permisos por rol y trazabilidad para cumplimiento interno."
+					}
+				}
+			},
+			"mobile": {
+				"kicker": "App móvil",
+				"title": "Registro ágil en campo",
+				"subtitle": "El equipo registra entradas y salidas con cámara y recibe confirmación inmediata.",
+				"features": {
+					"checkin": {
+						"title": "Registro en segundos",
+						"description": "Captura facial rápida para validar identidad."
+					},
+					"devices": {
+						"title": "Vinculación segura",
+						"description": "Registra dispositivos y kioscos con autorización controlada."
+					},
+					"locations": {
+						"title": "Ubicación asignada",
+						"description": "Asocia el registro a la sede correcta para reportes precisos."
+					}
+				}
+			},
+			"how": {
+				"kicker": "Proceso",
+				"title": "Cómo funciona",
+				"subtitle": "Un flujo simple para equipos de RR.HH., operaciones y personal en sitio.",
+				"steps": {
+					"enroll": {
+						"title": "1. Enrolamiento guiado",
+						"description": "Registra el rostro desde web o móvil con instrucciones claras."
+					},
+					"verify": {
+						"title": "2. Verificación en cámara",
+						"description": "La app captura una foto y confirma identidad en segundos."
+					},
+					"record": {
+						"title": "3. Registro automático",
+						"description": "El portal guarda el evento y actualiza reportes."
+					}
+				}
+			},
+			"security": {
+				"kicker": "Confianza",
+				"title": "Seguridad y privacidad integradas",
+				"subtitle": "Diseñado para cumplir políticas internas y comunicar el uso de la cámara.",
+				"items": {
+					"capture": "Captura de imagen sin audio para enrolamiento o verificación.",
+					"processing": "Procesamiento de reconocimiento facial con Amazon Rekognition.",
+					"controls": "Control por organización, roles y auditoría de cambios."
+				},
+				"note": "Consulta la <link>Política de privacidad</link> para conocer el uso de la cámara."
+			},
+			"testimonials": {
+				"title": "Equipos que confían",
+				"subtitle": "Historias breves de operaciones, RR.HH. y cumplimiento.",
+				"cards": {
+					"one": {
+						"quote": "El enrolamiento es rápido y el equipo de RR.HH. tiene todo el control desde el portal.",
+						"name": "María López",
+						"role": "Gerente de RR.HH."
+					},
+					"two": {
+						"quote": "La app móvil aceleró los registros y redujo los errores manuales en sitio.",
+						"name": "Carlos Méndez",
+						"role": "Coordinador de Operaciones"
+					},
+					"three": {
+						"quote": "Tener la política de privacidad publicada nos ayudó a comunicar claramente el uso de la cámara.",
+						"name": "Fernanda Ruiz",
+						"role": "Cumplimiento y Legal"
+					}
+				}
+			}
+		},
+		"cta": {
+			"kicker": "SEN CheckIn",
+			"title": "Automatiza el control de asistencia sin fricción",
+			"subtitle": "Activa la captura facial con políticas claras y reportes listos para tu operación.",
+			"primary": "Iniciar sesión",
+			"secondary": "Ver política de privacidad"
+		},
+		"footer": {
+			"tagline": "Asistencia confiable con verificación facial.",
+			"links": {
+				"privacy": "Política de privacidad",
+				"login": "Iniciar sesión"
+			},
+			"copyright": "© {year} SEN CheckIn. Todos los derechos reservados."
+		}
+	},
+	"PrivacyPolicy": {
+		"badge": "Aviso de privacidad integral",
+		"title": "AVISO DE PRIVACIDAD INTEGRAL — SEN CheckIn",
+		"intro": "Este Aviso de Privacidad se emite en cumplimiento de la Ley Federal de Protección de Datos Personales en Posesión de los Particulares y demás normativa aplicable en México.",
+		"lastUpdatedLabel": "Última actualización:",
+		"lastUpdatedDate": "2026-01-07",
+		"sections": {
+			"responsible": {
+				"title": "1. Identidad y domicilio del responsable",
+				"description": "El responsable del tratamiento de los datos personales descritos en este Aviso es la entidad que opera el servicio SEN CheckIn (en adelante, “SEN CheckIn”, “nosotros” o “el Servicio”).",
+				"fields": {
+					"name": "Nombre/Razón social: [COMPLETAR]",
+					"address": "Domicilio: [COMPLETAR]",
+					"phone": "Teléfono (opcional): [COMPLETAR]",
+					"website": "Sitio web/URL del Aviso Integral: [COMPLETAR]",
+					"privacyDepartment": "Departamento de datos personales / Contacto de privacidad: [COMPLETAR]",
+					"privacyEmail": "Correo: [COMPLETAR]"
+				},
+				"note": "Importante (rol de tu organización/empleador): Si utilizas SEN CheckIn a través de tu empleador o una organización (“Organización”), es posible que tu Organización sea el responsable respecto de ciertos datos (por ejemplo, registros de asistencia y enrolamiento biométrico), y que SEN CheckIn actúe como encargado tratándolos por cuenta y bajo instrucciones de la Organización. En esos casos, también aplican los avisos internos de tu Organización y, para ejercer derechos, normalmente deberás dirigirte a ella (sin perjuicio de que podamos canalizar tu solicitud cuando corresponda)."
+			},
+			"scope": {
+				"title": "2. Alcance",
+				"description": "Este Aviso aplica al tratamiento de datos derivado del uso de:",
+				"items": {
+					"mobile": "Aplicación móvil SEN CheckIn (p. ej., verificación con cámara para registro de asistencia).",
+					"web": "Portal web SEN CheckIn (p. ej., administración de empleados, dispositivos, ubicaciones, horarios, y enrolamiento facial con webcam o carga de imagen)."
+				}
+			},
+			"data": {
+				"title": "3. Datos personales que tratamos",
+				"description": "Dependiendo de tu rol (administrador, operador, empleado) y el uso del Servicio, podemos tratar:",
+				"account": {
+					"title": "3.1 Datos de identificación y de cuenta",
+					"items": {
+						"fullName": "Nombre visible y apellidos (según configuración).",
+						"email": "Correo electrónico.",
+						"identifiers": "Identificadores de cuenta, rol y permisos.",
+						"organization": "Organización/tenant, configuración y controles de acceso."
+					}
+				},
+				"operational": {
+					"title": "3.2 Datos laborales/operativos",
+					"items": {
+						"employees": "Datos de empleado (p. ej., nombre, apellidos, código de empleado, asignación de ubicación/dispositivo/turno).",
+						"attendance": "Registros de asistencia (check-in/check-out), fecha y hora, dispositivo usado y metadatos operativos (p. ej., identificadores técnicos del dispositivo)."
+					}
+				},
+				"biometric": {
+					"title": "3.3 Datos biométricos y fotografías (reconocimiento facial) — Datos personales sensibles",
+					"description": "Para habilitar el registro de asistencia por reconocimiento facial, se tratan datos relacionados con el rostro, tales como:",
+					"items": {
+						"images": "Imágenes capturadas por cámara (móvil o webcam) para:",
+						"enrollment": "Enrolamiento (registrar un rostro para futuras verificaciones), o",
+						"verification": "Verificación (confirmar identidad en un check-in/check-out).",
+						"templates": "Plantillas/vectores/identificadores faciales generados durante el enrolamiento por el proveedor de reconocimiento (Amazon Rekognition) y asociados a un identificador de empleado para permitir coincidencia posterior."
+					},
+					"note": "Importante: El Servicio utiliza la cámara para capturar una fotografía del rostro (no graba audio)."
+				},
+				"technical": {
+					"title": "3.4 Datos técnicos y de uso",
+					"items": {
+						"sessions": "Cookies y datos de sesión (portal web).",
+						"logs": "Dirección IP, user-agent, logs de seguridad, auditoría y diagnóstico."
+					}
+				}
+			},
+			"purposes": {
+				"title": "4. Finalidades del tratamiento",
+				"primary": {
+					"title": "4.1 Finalidades primarias (necesarias para operar el Servicio)",
+					"items": {
+						"operation": "Proveer y operar el Servicio de control de asistencia (registro de entradas/salidas).",
+						"management": "Administrar empleados, dispositivos, ubicaciones, horarios y reglas operativas de la Organización.",
+						"reports": "Generar reportes y bitácoras operativas vinculadas a asistencia (según configuración).",
+						"security": "Mantener la seguridad del Servicio (autenticación, control de acceso, auditoría, prevención de abuso, investigación de incidentes).",
+						"support": "Soporte técnico, diagnóstico, continuidad y mejora del Servicio (p. ej., detección y corrección de fallas).",
+						"legal": "Cumplir obligaciones legales aplicables (p. ej., requerimientos de autoridad competente, cuando proceda)."
+					}
+				},
+				"consent": {
+					"title": "4.2 Finalidades que requieren tu consentimiento (incluyendo biométricos)",
+					"items": {
+						"enrollment": "Enrolar tu rostro (crear y asociar una plantilla/identificador facial).",
+						"verification": "Verificar tu identidad en check-in/check-out mediante comparación biométrica.",
+						"fraud": "Reducir fraude y suplantación en registros de asistencia."
+					},
+					"notice": "Si no otorgas el consentimiento y/o permiso de cámara/webcam, no podrás usar las funciones que dependan del reconocimiento facial. En su caso, la Organización podrá habilitar métodos alternativos de registro (si están disponibles).",
+					"noMarketing": "No tratamos tus datos para mercadotecnia, publicidad o prospección comercial salvo que se indique expresamente y se obtenga el consentimiento correspondiente."
+				}
+			},
+			"consent": {
+				"title": "5. Consentimiento, revocación y oposición",
+				"express": {
+					"title": "5.1 Consentimiento para datos biométricos (expreso y por escrito)",
+					"description": "Tratándose de datos biométricos faciales (sensibles), el Servicio solicitará tu consentimiento expreso y por escrito, el cual podrá recabarse mediante:",
+					"items": {
+						"signature": "Firma autógrafa.",
+						"electronic": "Firma electrónica, o",
+						"authentication": "Un mecanismo de autenticación equivalente (por ejemplo, aceptación expresa en pantalla vinculada a tu cuenta/autenticación)."
+					}
+				},
+				"revocation": {
+					"title": "5.2 Revocación del consentimiento",
+					"description": "Puedes revocar tu consentimiento en cualquier momento. La revocación no tendrá efectos retroactivos, pero puede impedir el uso futuro de reconocimiento facial.",
+					"note": "Para revocar tu consentimiento y/o solicitar eliminación del enrolamiento biométrico, consulta la sección 10."
+				},
+				"opposition": {
+					"title": "5.3 Derecho de oposición (incluye tratamiento automatizado)",
+					"description": "Puedes oponerte al tratamiento de tus datos por causa legítima y, en particular, cuando exista tratamiento automatizado que pudiera afectarte significativamente. En el contexto del Servicio, puedes solicitar revisión/corrección de registros de asistencia y de incidencias vinculadas, conforme a la sección 10."
+				}
+			},
+			"camera": {
+				"title": "6. Uso de cámara (permiso CAMERA) y reconocimiento facial",
+				"mobile": {
+					"title": "6.1 App móvil",
+					"description": "La app solicita permiso de CÁMARA para capturar una imagen del rostro y enviarla al Servicio con el fin de:",
+					"items": {
+						"identify": "Identificar al empleado (si existe enrolamiento previo), y",
+						"attendance": "Registrar un evento de asistencia (entrada/salida) asociado al dispositivo."
+					},
+					"note": "Si no otorgas el permiso de cámara, no podrás usar las funciones que dependen de reconocimiento facial."
+				},
+				"web": {
+					"title": "6.2 Portal web",
+					"description": "El portal web puede solicitar acceso a la webcam del navegador únicamente cuando un administrador elige la opción de capturar una foto para enrolamiento. Alternativamente, puede cargarse una imagen desde archivo."
+				}
+			},
+			"retention": {
+				"title": "7. Conservación y eliminación",
+				"items": {
+					"verification": "Imágenes de verificación (capturas para identificar): se utilizan para el proceso de verificación y, por regla general, no se almacenan como fotografías por el Servicio, salvo que sea necesario conservar evidencia técnica mínima por seguridad/diagnóstico y por un periodo limitado (si aplica).",
+					"biometric": "Datos biométricos enrolados (plantillas/vectores/identificadores): se conservan mientras el enrolamiento esté activo. Un administrador (o canal de privacidad, según corresponda) puede eliminar el enrolamiento; al hacerlo, se elimina la plantilla/identificador asociado en el proveedor de reconocimiento y en nuestros sistemas, salvo periodos de bloqueo necesarios por obligaciones legales.",
+					"attendance": "Registros de asistencia: se conservan por el tiempo necesario para prestar el Servicio y cumplir obligaciones de la Organización (laborales, fiscales, de auditoría o defensa de derechos). Al concluir el servicio, se eliminarán o devolverán conforme al contrato con la Organización y políticas aplicables, salvo periodos de bloqueo por obligaciones legales."
+				}
+			},
+			"transfers": {
+				"title": "8. Transferencias, terceros y encargados",
+				"processors": {
+					"title": "8.1 Encargados del tratamiento (proveedores)",
+					"description": "Para operar el Servicio, podemos apoyarnos de proveedores que actúan como encargados (procesan datos por nuestra cuenta y bajo instrucciones), por ejemplo:",
+					"items": {
+						"aws": "Amazon Web Services — Amazon Rekognition (procesamiento para reconocimiento facial y almacenamiento de plantillas/identificadores necesarios para el reconocimiento).",
+						"infrastructure": "Proveedores de infraestructura (hosting), monitoreo, seguridad y soporte, estrictamente para operar el Servicio."
+					},
+					"note": "Estos proveedores solo pueden tratar los datos conforme a nuestras instrucciones y medidas contractuales de confidencialidad y seguridad."
+				},
+				"thirdParties": {
+					"title": "8.2 Transferencias a terceros",
+					"description": "Podremos transferir datos personales a terceros (distintos de encargados) únicamente cuando:",
+					"items": {
+						"service": "Sea necesario para la prestación del Servicio a tu Organización (por ejemplo, que la Organización consulte reportes de asistencia de su personal), y/o",
+						"authority": "Sea requerido por autoridad competente o por disposición legal aplicable, o",
+						"legal": "Se actualice alguno de los supuestos permitidos por la normativa aplicable."
+					},
+					"consentNotice": "En caso de transferencias que requieran tu consentimiento, se te informará y se recabará el consentimiento correspondiente por los medios disponibles. Cuando la normativa permita la transferencia sin consentimiento, se realizará bajo los supuestos y limitaciones legales aplicables.",
+					"noSelling": "No vendemos tus datos personales."
+				}
+			},
+			"security": {
+				"title": "9. Medidas de seguridad y confidencialidad",
+				"description": "Implementamos medidas razonables de seguridad administrativas, técnicas y físicas para proteger los datos contra daño, pérdida, alteración, destrucción, uso indebido o acceso no autorizado. Estas medidas incluyen, entre otras, controles de acceso, segregación por organización (tenant), y registros de auditoría.",
+				"confidentiality": "Todas las personas que intervengan en cualquier fase del tratamiento están obligadas a guardar confidencialidad aun después de terminada su relación con SEN CheckIn.",
+				"breachNotice": "Vulneraciones de seguridad: Si ocurre una vulneración de seguridad que afecte de forma significativa tus derechos patrimoniales o morales, te lo informaremos de forma inmediata para que puedas tomar medidas de defensa."
+			},
+			"arco": {
+				"title": "10. Derechos ARCO y solicitudes (Acceso, Rectificación, Cancelación y Oposición)",
+				"description": "Tú (o tu representante legal) puedes ejercer tus derechos ARCO respecto de tus datos personales.",
+				"contact": {
+					"channel": "Canal: Envía tu solicitud a: [COMPLETAR correo]",
+					"subject": "Asunto sugerido: “Solicitud ARCO — SEN CheckIn”"
+				},
+				"requirements": {
+					"title": "Para dar trámite, tu solicitud debe incluir:",
+					"items": {
+						"identity": "Nombre del titular y domicilio u otro medio para recibir notificaciones (p. ej., correo).",
+						"documents": "Documentos para acreditar identidad (y, en su caso, representación).",
+						"description": "Descripción clara y precisa de los datos sobre los que buscas ejercer el derecho (salvo acceso).",
+						"right": "El derecho ARCO que deseas ejercer (o lo que solicitas).",
+						"location": "Cualquier elemento que facilite la localización de los datos (p. ej., organización, código de empleado, periodo)."
+					}
+				},
+				"timeline": "Plazos: comunicaremos la determinación en un plazo máximo de 20 días hábiles desde la recepción; si procede, se hará efectiva dentro de los 15 días hábiles siguientes. Estos plazos pueden ampliarse una sola vez por un periodo igual si el caso lo justifica.",
+				"biometricsNote": "Biométricos (enrolamiento facial): puedes solicitar la eliminación del enrolamiento facial (a través de un administrador de tu Organización o mediante el canal de privacidad, según corresponda)."
+			},
+			"limitation": {
+				"title": "11. Opciones y medios para limitar el uso o divulgación de datos",
+				"description": "Además de los derechos ARCO, puedes limitar el uso o divulgación de tus datos de las siguientes maneras:",
+				"items": {
+					"biometrics": "Reconocimiento facial: solicitar la eliminación del enrolamiento biométrico y/o revocar consentimiento (sección 10).",
+					"communications": "Comunicaciones no esenciales: solicitar no recibir comunicaciones informativas que no sean necesarias para operar el Servicio (cuando existan).",
+					"cookies": "Cookies (portal web): puedes configurar tu navegador para bloquear o eliminar cookies; algunas funciones del portal podrían verse afectadas."
+				}
+			},
+			"changes": {
+				"title": "12. Cambios al Aviso",
+				"description": "Podemos actualizar este Aviso para reflejar cambios legales, técnicos u operativos. Publicaremos la versión vigente en la misma URL indicada en la sección 1 y, cuando corresponda, notificaremos por medios razonables (p. ej., aviso en el portal o correo)."
+			},
+			"minors": {
+				"title": "13. Privacidad de menores",
+				"description": "El Servicio no está dirigido a menores de edad y debe utilizarse conforme a las políticas de la Organización."
+			}
+		}
+	},
+	"Registration": {
+		"metadata": {
+			"title": "Regístrate | SEN CheckIn",
+			"description": "El registro público estará disponible dentro de poco."
+		},
+		"badge": "Registro en preparación",
+		"title": "Regístrate en SEN CheckIn",
+		"subtitle": "Estamos habilitando el registro público para nuevas organizaciones.",
+		"notice": "Por ahora el registro está cerrado. Estará disponible dentro de poco.",
+		"actions": {
+			"login": "Iniciar sesión",
+			"home": "Volver al inicio"
 		}
 	}
 }

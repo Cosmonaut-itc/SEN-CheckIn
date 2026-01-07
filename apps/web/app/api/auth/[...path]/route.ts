@@ -117,7 +117,7 @@ function buildUpstreamUrl(request: NextRequest, params: RouteParams | undefined)
 /**
  * Proxy handler for BetterAuth routes.
  * Forwards all /api/auth/* requests to the API service, rewrites cookies
- * to the web host so session cookies are available to middleware and pages.
+ * to the web host so session cookies are available to the proxy and pages.
  *
  * @param request - Incoming Next.js request
  * @param context - Route context containing dynamic params

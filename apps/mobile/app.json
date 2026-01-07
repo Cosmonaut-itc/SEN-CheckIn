@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "SEN CheckIn",
     "slug": "sen-checkin",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.senapps.sencheckin"
     },
     "android": {
       "adaptiveIcon": {
@@ -44,13 +45,14 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow SEN-CheckIn to access your camera for attendance verification"
+          "cameraPermission": "Permitir que SEN CheckIn acceda a tu camara para verificar la asistencia"
         }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "autolinkingModuleResolution": true
     },
     "extra": {
       "router": {},

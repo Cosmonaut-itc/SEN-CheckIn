@@ -1,5 +1,5 @@
 import { getSessionCookie } from 'better-auth/cookies';
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 
 /**
  * Resolve a safe callback URL from the incoming request search params.
@@ -31,6 +31,31 @@ function getCallbackTarget(request: NextRequest): string {
 }
 
 /**
+ * Build a sign-in redirect URL with a safe callback path.
+ *
+ * @param request - The incoming Next.js request
+ * @returns URL pointing to the sign-in route with callbackUrl
+ */
+function buildSignInUrl(request: NextRequest): URL {
+	const signInUrl = new URL('/sign-in', request.url);
+	const callbackPath = `${request.nextUrl.pathname}${request.nextUrl.search}${request.nextUrl.hash}`;
+
+	signInUrl.searchParams.set('callbackUrl', callbackPath);
+	return signInUrl;
+}
+
+/**
+ * Check if the current path matches a protected route prefix.
+ *
+ * @param pathname - Current pathname being requested
+ * @param path - Protected route prefix
+ * @returns True when the pathname matches the protected route
+ */
+function isProtectedPathMatch(pathname: string, path: string): boolean {
+	return pathname === path || pathname.startsWith(`${path}/`);
+}
+
+/**
  * Next.js proxy for handling authentication and route protection.
  * Redirects authenticated users away from auth pages and unauthenticated users
  * away from protected dashboard routes.
@@ -43,7 +68,7 @@ export default async function proxy(request: NextRequest): Promise<NextResponse>
 	const { pathname } = request.nextUrl;
 
 	/** Auth pages that authenticated users should be redirected away from */
-	const authPages: string[] = ['/sign-in', '/sign-up'];
+	const authPages: string[] = ['/sign-in', '/sign-up', '/login'];
 
 	/** Protected routes that require authentication (routes inside the (dashboard) group) */
 	const protectedPaths: string[] = [
@@ -65,12 +90,17 @@ export default async function proxy(request: NextRequest): Promise<NextResponse>
 	}
 
 	// Redirect unauthenticated users from protected routes to sign in
-	const isProtectedRoute = protectedPaths.some(
-		(path) => pathname === path || pathname.startsWith(`${path}/`),
-	);
+	let isProtectedRoute = false;
+
+	for (const path of protectedPaths) {
+		if (isProtectedPathMatch(pathname, path)) {
+			isProtectedRoute = true;
+			break;
+		}
+	}
 
 	if (!sessionCookie && isProtectedRoute) {
-		return NextResponse.redirect(new URL('/sign-in', request.url));
+		return NextResponse.redirect(buildSignInUrl(request));
 	}
 
 	return NextResponse.next();
@@ -81,6 +111,7 @@ export default async function proxy(request: NextRequest): Promise<NextResponse>
  */
 export const config = {
 	matcher: [
+		'/login',
 		'/sign-in',
 		'/sign-up',
 		'/dashboard/:path*',

@@ -241,7 +241,7 @@ function MapMarker({
 }: MapMarkerProps) {
   const { map } = useMap();
 
-  const marker = useMemo(() => {
+  const [marker] = useState(() => {
     const markerInstance = new MapLibreGL.Marker({
       ...markerOptions,
       element: document.createElement("div"),
@@ -249,7 +249,7 @@ function MapMarker({
     }).setLngLat([longitude, latitude]);
 
     return markerInstance;
-  }, []);
+  });
 
   useEffect(() => {
     if (!map) return;

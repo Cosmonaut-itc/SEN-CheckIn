@@ -44,6 +44,16 @@ function parseOrganizationMetadata(rawMetadata: string | null): Record<string, u
 }
 
 /**
+ * Escapes special characters for ILIKE pattern matching.
+ *
+ * @param value - Raw search string
+ * @returns Escaped string safe for ILIKE patterns
+ */
+function escapeIlikePattern(value: string): string {
+	return value.replace(/[%_\\]/g, '\\$&');
+}
+
+/**
  * Organization routes for member management.
  */
 export const organizationRoutes = new Elysia({ prefix: '/organization' })
@@ -70,10 +80,11 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			const normalizedSearch = search?.trim();
 
 			if (normalizedSearch) {
+				const escapedSearch = escapeIlikePattern(normalizedSearch);
 				conditions.push(
 					or(
-						ilike(organization.name, `%${normalizedSearch}%`),
-						ilike(organization.slug, `%${normalizedSearch}%`),
+						ilike(organization.name, `%${escapedSearch}%`),
+						ilike(organization.slug, `%${escapedSearch}%`),
 					)!,
 				);
 			}
@@ -159,10 +170,11 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			const conditions: SQL<unknown>[] = [eq(member.organizationId, organizationId)];
 			const normalizedSearch = search?.trim();
 			if (normalizedSearch) {
+				const escapedSearch = escapeIlikePattern(normalizedSearch);
 				conditions.push(
 					or(
-						ilike(userTable.name, `%${normalizedSearch}%`),
-						ilike(userTable.email, `%${normalizedSearch}%`),
+						ilike(userTable.name, `%${escapedSearch}%`),
+						ilike(userTable.email, `%${escapedSearch}%`),
 					)!,
 				);
 			}

@@ -80,10 +80,33 @@ type CsvColumn = {
 /**
  * Type badge variant mapping.
  */
-const typeVariants: Record<AttendanceType, 'default' | 'secondary'> = {
+const typeVariants: Record<AttendanceType, 'default' | 'secondary' | 'outline'> = {
 	CHECK_IN: 'default',
 	CHECK_OUT: 'secondary',
+	CHECK_OUT_AUTHORIZED: 'outline',
 };
+
+/**
+ * Resolves the translated label for an attendance type.
+ *
+ * @param t - Translation helper for Attendance namespace
+ * @param type - Attendance type value
+ * @returns Localized attendance type label
+ */
+function getAttendanceTypeLabel(
+	t: (key: string) => string,
+	type: AttendanceType,
+): string {
+	switch (type) {
+		case 'CHECK_IN':
+			return t('typeFilter.checkIn');
+		case 'CHECK_OUT':
+			return t('typeFilter.checkOut');
+		case 'CHECK_OUT_AUTHORIZED':
+		default:
+			return t('typeFilter.checkOutAuthorized');
+	}
+}
 
 /**
  * Parses a date key string into a Date instance.
@@ -470,9 +493,7 @@ export function AttendancePageClient(): React.ReactElement {
 				header: t('table.headers.type'),
 				cell: ({ row }) => (
 					<Badge variant={typeVariants[row.original.type]}>
-						{row.original.type === 'CHECK_IN'
-							? t('typeFilter.checkIn')
-							: t('typeFilter.checkOut')}
+						{getAttendanceTypeLabel(t, row.original.type)}
 					</Badge>
 				),
 				enableGlobalFilter: false,
@@ -532,8 +553,7 @@ export function AttendancePageClient(): React.ReactElement {
 				employeeId: record.employeeId,
 				deviceId: record.deviceId,
 				deviceLocation: record.deviceLocationName ?? locationFallback,
-				type:
-					record.type === 'CHECK_IN' ? t('typeFilter.checkIn') : t('typeFilter.checkOut'),
+				type: getAttendanceTypeLabel(t, record.type),
 				time: format(new Date(record.timestamp), 'HH:mm:ss'),
 				date: format(new Date(record.timestamp), t('dateFormat')),
 			}));
@@ -688,11 +708,14 @@ export function AttendancePageClient(): React.ReactElement {
 						<SelectValue placeholder={t('typeFilter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
-						<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
-						<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
-					</SelectContent>
-				</Select>
+					<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
+					<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
+					<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
+					<SelectItem value="CHECK_OUT_AUTHORIZED">
+						{t('typeFilter.checkOutAuthorized')}
+					</SelectItem>
+				</SelectContent>
+			</Select>
 
 				<Select
 					value={locationFilterValue}

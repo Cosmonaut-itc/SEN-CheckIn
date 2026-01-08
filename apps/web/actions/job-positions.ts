@@ -48,6 +48,38 @@ export interface UpdateJobPositionInput {
 }
 
 /**
+ * Warning details for minimum wage validation.
+ */
+export interface JobPositionMinimumWageDetails {
+	/** Daily pay provided for the position */
+	dailyPay: number;
+	/** Required minimum daily pay for the organization zones */
+	minimumRequiredDailyPay: number;
+	/** Geographic zones considered when validating the minimum wage */
+	zones: Array<'GENERAL' | 'ZLFN'>;
+}
+
+/**
+ * Warning payloads for job position mutations.
+ */
+export interface JobPositionWarning {
+	/** Warning code identifier */
+	code: 'BELOW_MINIMUM_WAGE';
+	/** Additional details for the warning */
+	details: JobPositionMinimumWageDetails;
+}
+
+/**
+ * Error codes for job position mutations.
+ */
+export type JobPositionMutationErrorCode =
+	| 'BAD_REQUEST'
+	| 'FORBIDDEN'
+	| 'NOT_FOUND'
+	| 'BELOW_MINIMUM_WAGE'
+	| 'UNKNOWN';
+
+/**
  * Result of a mutation operation.
  */
 export interface MutationResult<T = unknown> {
@@ -55,9 +87,19 @@ export interface MutationResult<T = unknown> {
 	success: boolean;
 	/** The data returned from the operation */
 	data?: T;
-	/** Error message if the operation failed */
-	error?: string;
+	/** Error code if the operation failed */
+	errorCode?: JobPositionMutationErrorCode;
+	/** Warnings returned by the API (non-blocking) */
+	warnings?: JobPositionWarning[];
 }
+
+type JobPositionErrorPayload = {
+	error?: string;
+};
+
+type JobPositionApiResponse = {
+	warnings?: JobPositionWarning[];
+};
 
 /**
  * Retrieves the cookie header string from the incoming request.
@@ -67,6 +109,48 @@ export interface MutationResult<T = unknown> {
 async function getCookieHeader(): Promise<string> {
 	const requestHeaders = await headers();
 	return requestHeaders.get('cookie') ?? '';
+}
+
+/**
+ * Resolves a mutation error code from the API response.
+ *
+ * @param status - HTTP status code from the API response
+ * @param error - Error payload from the API response
+ * @returns Normalized error code for UI handling
+ */
+function resolveErrorCode(
+	status: number | undefined,
+	error: unknown,
+): JobPositionMutationErrorCode {
+	const payload = error as { value?: JobPositionErrorPayload } | null;
+	if (payload?.value?.error === 'BELOW_MINIMUM_WAGE') {
+		return 'BELOW_MINIMUM_WAGE';
+	}
+
+	switch (status) {
+		case 400:
+			return 'BAD_REQUEST';
+		case 403:
+			return 'FORBIDDEN';
+		case 404:
+			return 'NOT_FOUND';
+		default:
+			return 'UNKNOWN';
+	}
+}
+
+/**
+ * Extracts warnings from an API response payload.
+ *
+ * @param payload - API response payload
+ * @returns Warning list when present
+ */
+function extractWarnings(payload: unknown): JobPositionWarning[] | undefined {
+	const data = payload as JobPositionApiResponse | null;
+	if (!data?.warnings || data.warnings.length === 0) {
+		return undefined;
+	}
+	return data.warnings;
 }
 
 /**
@@ -99,19 +183,20 @@ export async function createJobPosition(input: CreateJobPositionInput): Promise<
 		if (response.error) {
 			return {
 				success: false,
-				error: 'Failed to create job position',
+				errorCode: resolveErrorCode(response.status, response.error),
 			};
 		}
 
 		return {
 			success: true,
 			data: response.data,
+			warnings: extractWarnings(response.data),
 		};
 	} catch (error) {
 		console.error('Failed to create job position:', error);
 		return {
 			success: false,
-			error: 'Failed to create job position',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }
@@ -163,19 +248,20 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 		if (response.error) {
 			return {
 				success: false,
-				error: 'Failed to update job position',
+				errorCode: resolveErrorCode(response.status, response.error),
 			};
 		}
 
 		return {
 			success: true,
 			data: response.data,
+			warnings: extractWarnings(response.data),
 		};
 	} catch (error) {
 		console.error('Failed to update job position:', error);
 		return {
 			success: false,
-			error: 'Failed to update job position',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }
@@ -201,7 +287,7 @@ export async function deleteJobPosition(id: string): Promise<MutationResult> {
 		if (response.error) {
 			return {
 				success: false,
-				error: 'Failed to delete job position',
+				errorCode: resolveErrorCode(response.status, response.error),
 			};
 		}
 
@@ -212,7 +298,7 @@ export async function deleteJobPosition(id: string): Promise<MutationResult> {
 		console.error('Failed to delete job position:', error);
 		return {
 			success: false,
-			error: 'Failed to delete job position',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }

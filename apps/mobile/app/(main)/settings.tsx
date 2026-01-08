@@ -188,11 +188,9 @@ export default function SettingsScreen(): JSX.Element {
 							const hasError = field.state.meta.errors.length > 0;
 
 							const handleLocationChange = (
-								option: { value: string; label: string } | null,
+								option: { value: string; label: string },
 							): void => {
-								if (option?.value) {
-									field.handleChange(option.value);
-								}
+								field.handleChange(option.value);
 							};
 
 							return (

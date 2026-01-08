@@ -531,19 +531,23 @@
 		"fields": {
 			"name": "Nombre",
 			"description": "Descripción",
+			"periodPay": "Salario del periodo {period} (MXN)",
 			"dailyPay": "Salario Diario (MXN)",
+			"dailyPayCalculated": "Salario diario calculado (MXN)",
 			"hourlyPay": "Salario por hora (MXN)",
 			"paymentFrequency": "Frecuencia de pago"
 		},
 		"placeholders": {
 			"nameExample": "p. ej., Ingeniero de Software",
 			"descriptionOptional": "Descripción opcional del puesto",
+			"periodPayExample": "p. ej., 1951.60",
 			"dailyPayExample": "p. ej., 278.80",
 			"hourlyPayExample": "p. ej., 25.00",
 			"selectPaymentFrequency": "Selecciona la frecuencia"
 		},
 		"validation": {
 			"nameRequired": "El nombre es requerido",
+			"periodPayGreaterThanZero": "El salario del periodo debe ser mayor a 0",
 			"dailyPayGreaterThanZero": "El salario diario debe ser mayor a 0",
 			"hourlyPayGreaterThanZero": "El salario por hora debe ser mayor a 0"
 		},
@@ -581,6 +585,8 @@
 			"updateError": "No se pudo actualizar el puesto",
 			"deleteSuccess": "Puesto eliminado correctamente",
 			"deleteError": "No se pudo eliminar el puesto",
+			"belowMinimumWageWarning": "El salario diario esta por debajo del salario minimo. Se guardo como advertencia.",
+			"belowMinimumWageBlocked": "El salario diario esta por debajo del salario minimo y fue bloqueado por la politica de nomina.",
 			"noOrganization": "No hay una organización activa. Selecciona una organización primero."
 		}
 	},
@@ -775,7 +781,8 @@
 			"placeholder": "Tipo",
 			"both": "Entradas/Salidas",
 			"checkIn": "Entrada",
-			"checkOut": "Salida"
+			"checkOut": "Salida",
+			"checkOutAuthorized": "Salida autorizada (RH)"
 		},
 		"locationFilter": {
 			"placeholder": "Ubicacion",

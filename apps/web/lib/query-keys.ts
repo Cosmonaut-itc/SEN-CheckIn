@@ -40,7 +40,7 @@ export interface AttendanceQueryParams extends ListQueryParams {
 	/** End date for filtering records */
 	toDate?: Date;
 	/** Filter by attendance type */
-	type?: 'CHECK_IN' | 'CHECK_OUT';
+	type?: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
 	/** Filter by device location ID */
 	deviceLocationId?: string;
 }

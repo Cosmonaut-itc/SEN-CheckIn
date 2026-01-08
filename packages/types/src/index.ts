@@ -164,7 +164,7 @@ export interface Employee {
 /**
  * Type of attendance record.
  */
-export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT';
+export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
 
 /**
  * Attendance record entity.
@@ -184,7 +184,7 @@ export interface AttendanceRecord {
 	deviceLocationName?: string | null;
 	/** Timestamp of the attendance event */
 	timestamp: Date;
-	/** Type of attendance (check-in or check-out) */
+	/** Type of attendance (check-in, check-out, or authorized exit) */
 	type: AttendanceType;
 	/** Additional metadata (e.g., recognition match score, raw payload) */
 	metadata: Record<string, unknown> | null;

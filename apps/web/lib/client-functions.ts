@@ -40,7 +40,7 @@ export type DeviceStatus = 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
 /**
  * Attendance type enum values.
  */
-export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT';
+export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
 
 /**
  * Employee record interface.

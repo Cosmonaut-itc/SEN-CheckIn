@@ -1,4 +1,4 @@
-export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT';
+export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
 
 export interface ListQueryParams {
 	limit?: number;

@@ -266,14 +266,12 @@ export default function DeviceSetupScreen(): JSX.Element {
 							/**
 							 * Handles location selection from the HeroUI Native Select component.
 							 *
-							 * @param option - The selected option object or null when cleared
+							 * @param option - The selected option object
 							 */
 							const handleLocationChange = (
-								option: { value: string; label: string } | null,
+								option: { value: string; label: string },
 							): void => {
-								if (option?.value) {
-									field.handleChange(option.value);
-								}
+								field.handleChange(option.value);
 							};
 
 							return (

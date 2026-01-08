@@ -23,12 +23,12 @@ import {
 export type AttendanceRow = {
 	employeeId: string;
 	timestamp: Date;
-	type: 'CHECK_IN' | 'CHECK_OUT';
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
 };
 
 export type EmployeeAttendanceRow = {
 	timestamp: Date;
-	type: 'CHECK_IN' | 'CHECK_OUT';
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
 };
 
 export type ScheduleRow = {
@@ -477,10 +477,65 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			(a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
 		);
 		let openCheckIn: Date | null = null;
+		let paidExitStart: Date | null = null;
+
+		/**
+		 * Applies a paid segment to the totals, clipping to the payroll period.
+		 *
+		 * @param segmentStart - Segment start timestamp
+		 * @param segmentEnd - Segment end timestamp
+		 * @returns void
+		 */
+		const applyPaidSegment = (segmentStart: Date, segmentEnd: Date): void => {
+			const clippedStart = isBefore(segmentStart, periodBounds.periodStartUtc)
+				? periodBounds.periodStartUtc
+				: segmentStart;
+			const clippedEnd = isAfter(segmentEnd, periodBounds.periodEndExclusiveUtc)
+				? periodBounds.periodEndExclusiveUtc
+				: segmentEnd;
+
+			if (!isAfter(clippedEnd, clippedStart)) {
+				return;
+			}
+
+			addWorkedMinutesByDateKey(
+				calendarDayMinutes,
+				clippedStart,
+				clippedEnd,
+				employeeTimeZone,
+			);
+
+			const segmentMinutes = differenceInMinutes(clippedEnd, clippedStart);
+			if (segmentMinutes > 0) {
+				workedMinutesTotal += segmentMinutes;
+			}
+		};
 
 		for (const record of sortedAttendance) {
 			if (record.type === 'CHECK_IN') {
+				if (paidExitStart) {
+					applyPaidSegment(paidExitStart, record.timestamp);
+					paidExitStart = null;
+				}
 				openCheckIn = record.timestamp;
+				continue;
+			}
+
+			if (record.type === 'CHECK_OUT_AUTHORIZED') {
+				if (!openCheckIn) {
+					continue;
+				}
+
+				const checkIn = openCheckIn;
+				const checkOutAuthorized = record.timestamp;
+				openCheckIn = null;
+
+				if (!isAfter(checkOutAuthorized, checkIn)) {
+					continue;
+				}
+
+				applyPaidSegment(checkIn, checkOutAuthorized);
+				paidExitStart = record.timestamp;
 				continue;
 			}
 
@@ -496,31 +551,7 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 				continue;
 			}
 
-			const segmentStart = isBefore(checkIn, periodBounds.periodStartUtc)
-				? periodBounds.periodStartUtc
-				: checkIn;
-			const segmentEnd = isAfter(checkOut, periodBounds.periodEndExclusiveUtc)
-				? periodBounds.periodEndExclusiveUtc
-				: checkOut;
-
-			if (!isAfter(segmentEnd, segmentStart)) {
-				continue;
-			}
-
-			addWorkedMinutesByDateKey(
-				calendarDayMinutes,
-				segmentStart,
-				segmentEnd,
-				employeeTimeZone,
-			);
-
-			const segmentMinutes = differenceInMinutes(segmentEnd, segmentStart);
-			if (segmentMinutes <= 0) {
-				continue;
-			}
-
-			workedMinutesTotal += segmentMinutes;
-
+			applyPaidSegment(checkIn, checkOut);
 		}
 
 		const hoursWorked = workedMinutesTotal / 60;

@@ -19,10 +19,23 @@ import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, type JobPosition } from '@/lib/client-functions';
-import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
-import { useAppForm } from '@/lib/forms';
+import {
+	createJobPosition,
+	updateJobPosition,
+	deleteJobPosition,
+	type JobPositionMutationErrorCode,
+	type JobPositionWarning,
+} from '@/actions/job-positions';
+import { useAppForm, useStore } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+
+/**
+ * Payment frequency options for job positions.
+ */
+type PaymentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
 /**
  * Form values interface for job position create/edit form.
@@ -32,10 +45,10 @@ interface JobPositionFormValues {
 	name: string;
 	/** Job position description */
 	description: string;
-	/** Daily pay rate */
-	dailyPay: number;
+	/** Pay for the full period */
+	periodPay: number;
 	/** Payment frequency */
-	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	paymentFrequency: PaymentFrequency;
 }
 
 /**
@@ -44,9 +57,91 @@ interface JobPositionFormValues {
 const initialFormValues: JobPositionFormValues = {
 	name: '',
 	description: '',
-	dailyPay: 0,
+	periodPay: 0,
 	paymentFrequency: 'MONTHLY',
 };
+
+/**
+ * Resolves the divisor for a payment frequency.
+ *
+ * @param frequency - Payment frequency selection
+ * @returns Day divisor for the period
+ */
+function getPayPeriodDivisor(frequency: PaymentFrequency): 7 | 14 | 30 {
+	switch (frequency) {
+		case 'WEEKLY':
+			return 7;
+		case 'BIWEEKLY':
+			return 14;
+		case 'MONTHLY':
+		default:
+			return 30;
+	}
+}
+
+/**
+ * Rounds a numeric value to two decimals.
+ *
+ * @param value - Raw numeric value
+ * @returns Rounded numeric value
+ */
+function roundToTwoDecimals(value: number): number {
+	return Number(value.toFixed(2));
+}
+
+/**
+ * Calculates daily pay from a period pay amount and frequency.
+ *
+ * @param periodPay - Total pay for the period
+ * @param frequency - Payment frequency selection
+ * @returns Daily pay rounded to two decimals
+ */
+function calculateDailyPayFromPeriodPay(periodPay: number, frequency: PaymentFrequency): number {
+	const divisor = getPayPeriodDivisor(frequency);
+	return roundToTwoDecimals(periodPay / divisor);
+}
+
+/**
+ * Calculates period pay from a daily pay amount and frequency.
+ *
+ * @param dailyPay - Daily pay amount
+ * @param frequency - Payment frequency selection
+ * @returns Period pay rounded to two decimals
+ */
+function calculatePeriodPayFromDailyPay(dailyPay: number, frequency: PaymentFrequency): number {
+	const divisor = getPayPeriodDivisor(frequency);
+	return roundToTwoDecimals(dailyPay * divisor);
+}
+
+/**
+ * Checks if warnings include the minimum wage warning.
+ *
+ * @param warnings - Optional warnings from a mutation result
+ * @returns True if the below-minimum-wage warning is present
+ */
+function hasMinimumWageWarning(warnings: JobPositionWarning[] | undefined): boolean {
+	return Boolean(warnings?.some((warning) => warning.code === 'BELOW_MINIMUM_WAGE'));
+}
+
+/**
+ * Resolves the error toast message for job position mutations.
+ *
+ * @param t - Translation helper for JobPositions namespace
+ * @param errorCode - Error code from the mutation result
+ * @param fallbackKey - Translation key for the fallback message
+ * @returns Localized error message
+ */
+function getJobPositionErrorMessage(
+	t: (key: string) => string,
+	errorCode: JobPositionMutationErrorCode | undefined,
+	fallbackKey: string,
+): string {
+	if (errorCode === 'BELOW_MINIMUM_WAGE') {
+		return t('toast.belowMinimumWageBlocked');
+	}
+
+	return t(fallbackKey);
+}
 
 /**
  * Job Positions page client component.
@@ -93,10 +188,13 @@ export function JobPositionsPageClient(): React.ReactElement {
 		onSuccess: (result) => {
 			if (result.success) {
 				toast.success(t('toast.createSuccess'));
+				if (hasMinimumWageWarning(result.warnings)) {
+					toast.warning(t('toast.belowMinimumWageWarning'));
+				}
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.jobPositions.all });
 			} else {
-				toast.error(result.error ?? t('toast.createError'));
+				toast.error(getJobPositionErrorMessage(t, result.errorCode, 'toast.createError'));
 			}
 		},
 		onError: () => {
@@ -111,10 +209,13 @@ export function JobPositionsPageClient(): React.ReactElement {
 		onSuccess: (result) => {
 			if (result.success) {
 				toast.success(t('toast.updateSuccess'));
+				if (hasMinimumWageWarning(result.warnings)) {
+					toast.warning(t('toast.belowMinimumWageWarning'));
+				}
 				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.jobPositions.all });
 			} else {
-				toast.error(result.error ?? t('toast.updateError'));
+				toast.error(getJobPositionErrorMessage(t, result.errorCode, 'toast.updateError'));
 			}
 		},
 		onError: () => {
@@ -132,7 +233,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 				setDeleteConfirmId(null);
 				queryClient.invalidateQueries({ queryKey: queryKeys.jobPositions.all });
 			} else {
-				toast.error(result.error ?? t('toast.deleteError'));
+				toast.error(getJobPositionErrorMessage(t, result.errorCode, 'toast.deleteError'));
 			}
 		},
 		onError: () => {
@@ -146,11 +247,18 @@ export function JobPositionsPageClient(): React.ReactElement {
 			? {
 					name: editingJobPosition.name,
 					description: editingJobPosition.description ?? '',
-					dailyPay: editingJobPosition.dailyPay,
+					periodPay: calculatePeriodPayFromDailyPay(
+						Number(editingJobPosition.dailyPay ?? 0),
+						editingJobPosition.paymentFrequency,
+					),
 					paymentFrequency: editingJobPosition.paymentFrequency,
 				}
 			: initialFormValues,
 		onSubmit: async ({ value }) => {
+			const dailyPay = calculateDailyPayFromPeriodPay(
+				Number(value.periodPay),
+				value.paymentFrequency,
+			);
 			if (editingJobPosition) {
 				await updateMutation.mutateAsync({
 					id: editingJobPosition.id,
@@ -158,7 +266,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 					// Send null when description is empty string to clear the field
 					description:
 						value.description.trim() === '' ? null : value.description || undefined,
-					dailyPay: value.dailyPay,
+					dailyPay,
 					paymentFrequency: value.paymentFrequency,
 				});
 			} else {
@@ -169,7 +277,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 				await createMutation.mutateAsync({
 					name: value.name,
 					description: value.description || undefined,
-					dailyPay: value.dailyPay,
+					dailyPay,
 					paymentFrequency: value.paymentFrequency,
 					organizationId,
 				});
@@ -199,7 +307,13 @@ export function JobPositionsPageClient(): React.ReactElement {
 			setEditingJobPosition(jobPosition);
 			form.setFieldValue('name', jobPosition.name);
 			form.setFieldValue('description', jobPosition.description ?? '');
-			form.setFieldValue('dailyPay', Number(jobPosition.dailyPay ?? 0));
+			form.setFieldValue(
+				'periodPay',
+				calculatePeriodPayFromDailyPay(
+					Number(jobPosition.dailyPay ?? 0),
+					jobPosition.paymentFrequency,
+				),
+			);
 			form.setFieldValue('paymentFrequency', jobPosition.paymentFrequency);
 			setIsDialogOpen(true);
 		},
@@ -247,6 +361,17 @@ export function JobPositionsPageClient(): React.ReactElement {
 		},
 		[],
 	);
+
+	const periodPayValue = useStore(form.store, (state) => state.values.periodPay);
+	const paymentFrequencyValue =
+		useStore(form.store, (state) => state.values.paymentFrequency) ?? 'MONTHLY';
+	const computedDailyPay = calculateDailyPayFromPeriodPay(
+		Number(periodPayValue ?? 0),
+		paymentFrequencyValue,
+	);
+	const periodPayLabel = t('fields.periodPay', {
+		period: t(`paymentFrequency.${paymentFrequencyValue}`),
+	});
 
 	const columns = useMemo<ColumnDef<JobPosition>[]>(
 		() => [
@@ -417,23 +542,6 @@ export function JobPositionsPageClient(): React.ReactElement {
 										/>
 									)}
 								</form.AppField>
-								<form.AppField
-									name="dailyPay"
-									validators={{
-										onChange: ({ value }) =>
-											Number(value) <= 0
-												? t('validation.dailyPayGreaterThanZero')
-												: undefined,
-									}}
-								>
-									{(field) => (
-										<field.TextField
-											label={t('fields.dailyPay')}
-											type="number"
-											placeholder={t('placeholders.dailyPayExample')}
-										/>
-									)}
-								</form.AppField>
 								<form.AppField name="paymentFrequency">
 									{(field) => (
 										<field.SelectField
@@ -456,6 +564,34 @@ export function JobPositionsPageClient(): React.ReactElement {
 										/>
 									)}
 								</form.AppField>
+								<form.AppField
+									name="periodPay"
+									validators={{
+										onChange: ({ value }) =>
+											Number(value) <= 0
+												? t('validation.periodPayGreaterThanZero')
+												: undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label={periodPayLabel}
+											type="number"
+											placeholder={t('placeholders.periodPayExample')}
+										/>
+									)}
+								</form.AppField>
+								<div className="grid grid-cols-4 items-center gap-4">
+									<Label className="text-right">
+										{t('fields.dailyPayCalculated')}
+									</Label>
+									<Input
+										className="col-span-3"
+										value={computedDailyPay.toFixed(2)}
+										readOnly
+										disabled
+									/>
+								</div>
 							</div>
 							<DialogFooter>
 								<form.AppForm>

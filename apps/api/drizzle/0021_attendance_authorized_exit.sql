@@ -1,0 +1,1 @@
+ALTER TYPE attendance_type ADD VALUE 'CHECK_OUT_AUTHORIZED';

@@ -1,5 +1,5 @@
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
-import { Button, Select, Spinner, TextField } from 'heroui-native';
+import { Button, Select, Spinner, TextField, useThemeColor } from 'heroui-native';
 import type { Context, JSX } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { AnyFieldApi, AnyFormApi } from '@tanstack/form-core';
@@ -24,6 +24,11 @@ type CommonFieldProps = {
 	placeholder?: string;
 	description?: string;
 	disabled?: boolean;
+};
+
+type SelectOption<TValue extends string> = {
+	value: TValue;
+	label: string;
 };
 
 export function AppTextField({
@@ -58,7 +63,7 @@ export function AppTextField({
 				}}
 				placeholder={placeholder}
 				keyboardType={keyboardType}
-				className="px-4 py-3 rounded-xl border border-default-200 bg-content1 text-foreground"
+				className="px-4 py-3 rounded-xl text-foreground"
 			/>
 			{description ? <TextField.Description>{description}</TextField.Description> : null}
 			{errors.length > 0 ? (
@@ -84,32 +89,31 @@ export function SelectField<TValue extends string>({
 	presentation = 'dialog',
 }: CommonFieldProps & {
 	/** Array of options with value and label pairs */
-	options: { value: TValue; label: string }[];
+	options: SelectOption<TValue>[];
 	/** Presentation mode: dialog (centered modal), popover (floating), or bottom-sheet */
 	presentation?: 'dialog' | 'popover' | 'bottom-sheet';
 }): JSX.Element {
 	const field = useFieldContext();
 	const errors = field.state.meta.errors;
+	const accentColor = useThemeColor('accent');
 
 	/** Find the currently selected option based on the field value */
-	const currentOption = options.find((opt) => opt.value === field.state.value) ?? null;
+	const currentOption = options.find((opt) => opt.value === field.state.value);
 
 	/**
 	 * Handle value selection from the dropdown
 	 *
-	 * @param opt - Selected option object or null when cleared
+	 * @param opt - Selected option object
 	 */
-	const handleValueChange = (opt: { value: string; label: string } | null): void => {
-		if (opt?.value) {
-			field.handleChange(opt.value as TValue);
-		}
+	const handleValueChange = (opt: SelectOption<TValue>): void => {
+		field.handleChange(opt.value);
 	};
 
 	return (
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
 			<Select
-				value={currentOption?.value}
+				value={currentOption}
 				onValueChange={handleValueChange}
 				isDisabled={disabled}
 			>
@@ -156,7 +160,7 @@ export function SelectField<TValue extends string>({
 								<Select.ItemIndicator
 									iconProps={{
 										size: 20,
-										color: 'var(--color-primary)',
+										color: accentColor,
 									}}
 								/>
 							</Select.Item>

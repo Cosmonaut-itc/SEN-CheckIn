@@ -309,7 +309,11 @@ export const deviceCodeRelations = relations(deviceCode, ({ one }) => ({
 /**
  * Enum for attendance record types
  */
-export const attendanceType = pgEnum('attendance_type', ['CHECK_IN', 'CHECK_OUT']);
+export const attendanceType = pgEnum('attendance_type', [
+	'CHECK_IN',
+	'CHECK_OUT',
+	'CHECK_OUT_AUTHORIZED',
+]);
 
 /**
  * Enum for employee status

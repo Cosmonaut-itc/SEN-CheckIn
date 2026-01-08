@@ -913,6 +913,54 @@ describe('payroll-calculation', () => {
 		expect(row?.totalPay).toBe(400);
 	});
 
+	it('counts paid time between CHECK_OUT_AUTHORIZED and the next CHECK_IN', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 11, 0, timeZone),
+				type: 'CHECK_OUT_AUTHORIZED',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 13, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 18, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(9);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.overtimeDoubleHours).toBe(1);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.totalPay).toBe(1000);
+	});
+
 	it('returns zeroed hours and pay when there is no attendance', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';

@@ -23,6 +23,11 @@ type ScanStatus =
 
 /** Maximum size for face guide circle on larger devices (tablets) */
 const MAX_FACE_GUIDE_SIZE = 400;
+const ATTENDANCE_TYPE_ORDER: AttendanceType[] = [
+	'CHECK_IN',
+	'CHECK_OUT_AUTHORIZED',
+	'CHECK_OUT',
+];
 
 /**
  * Calculates the responsive face guide size based on screen dimensions
@@ -79,18 +84,42 @@ export default function ScannerScreen(): JSX.Element {
 		state: 'idle',
 		message: i18n.t('Scanner.status.idle'),
 	});
+	const attendanceLabels: Record<AttendanceType, string> = {
+		CHECK_IN: i18n.t('Scanner.attendanceType.checkIn'),
+		CHECK_OUT_AUTHORIZED: i18n.t('Scanner.attendanceType.checkOutAuthorized'),
+		CHECK_OUT: i18n.t('Scanner.attendanceType.checkOut'),
+	};
+	const attendanceActionLabels: Record<AttendanceType, string> = {
+		CHECK_IN: i18n.t('Scanner.actions.scanCheckIn'),
+		CHECK_OUT_AUTHORIZED: i18n.t('Scanner.actions.scanCheckOutAuthorized'),
+		CHECK_OUT: i18n.t('Scanner.actions.scanCheckOut'),
+	};
+	const attendanceSuccessMessages: Record<AttendanceType, string> = {
+		CHECK_IN: i18n.t('Scanner.success.checkedIn'),
+		CHECK_OUT_AUTHORIZED: i18n.t('Scanner.success.checkedOutAuthorized'),
+		CHECK_OUT: i18n.t('Scanner.success.checkedOut'),
+	};
 	const attendanceAccent =
-		attendanceType === 'CHECK_IN' ? themeColors.success : themeColors.error;
+		attendanceType === 'CHECK_IN'
+			? themeColors.success
+			: attendanceType === 'CHECK_OUT_AUTHORIZED'
+				? themeColors.warning
+				: themeColors.error;
 	const neutralGuideColor = 'rgba(255, 255, 255, 0.8)';
-	const ctaBackground = attendanceType === 'CHECK_IN' ? themeColors.success : themeColors.error;
+	const ctaBackground = attendanceAccent;
 	const ctaContentColor = '#ffffff';
 
 	/**
-	 * Toggles between CHECK_IN and CHECK_OUT attendance types
+	 * Cycles between CHECK_IN, CHECK_OUT_AUTHORIZED, and CHECK_OUT attendance types
 	 * @returns {void} Updates the attendance type toggle value and triggers haptics
 	 */
 	const toggleAttendanceType = useCallback(() => {
-		setAttendanceType((prev) => (prev === 'CHECK_IN' ? 'CHECK_OUT' : 'CHECK_IN'));
+		setAttendanceType((prev) => {
+			const currentIndex = ATTENDANCE_TYPE_ORDER.indexOf(prev);
+			const nextIndex =
+				currentIndex >= 0 ? (currentIndex + 1) % ATTENDANCE_TYPE_ORDER.length : 0;
+			return ATTENDANCE_TYPE_ORDER[nextIndex] ?? 'CHECK_IN';
+		});
 		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 	}, []);
 
@@ -224,10 +253,26 @@ export default function ScannerScreen(): JSX.Element {
 			const match = await verifyFace(photo.base64);
 
 			if (match.matched && match.employee) {
-				await recordAttendance(match.employee.id, settings.deviceId, attendanceType, {
-					similarity: match.match?.similarity,
-					searchedFaceConfidence: match.searchedFaceConfidence,
-				});
+				const metadata =
+					attendanceType === 'CHECK_OUT_AUTHORIZED'
+						? {
+								reason: i18n.t(
+									'Scanner.attendanceType.checkOutAuthorizedReason',
+								),
+								similarity: match.match?.similarity,
+								searchedFaceConfidence: match.searchedFaceConfidence,
+							}
+						: {
+								similarity: match.match?.similarity,
+								searchedFaceConfidence: match.searchedFaceConfidence,
+							};
+
+				await recordAttendance(
+					match.employee.id,
+					settings.deviceId,
+					attendanceType,
+					metadata,
+				);
 
 				const displayName = [match.employee.firstName, match.employee.lastName]
 					.filter(Boolean)
@@ -235,10 +280,7 @@ export default function ScannerScreen(): JSX.Element {
 
 				setScanStatus({
 					state: 'success',
-					message:
-						attendanceType === 'CHECK_IN'
-							? i18n.t('Scanner.success.checkedIn')
-							: i18n.t('Scanner.success.checkedOut'),
+					message: attendanceSuccessMessages[attendanceType],
 					employeeName: displayName || i18n.t('Scanner.success.employeeFallback'),
 				});
 
@@ -346,9 +388,7 @@ export default function ScannerScreen(): JSX.Element {
 						<View style={[styles.toggleDot, { backgroundColor: attendanceAccent }]} />
 					</View>
 					<Button.Label className="text-base font-semibold">
-						{attendanceType === 'CHECK_IN'
-							? i18n.t('Scanner.attendanceType.checkIn')
-							: i18n.t('Scanner.attendanceType.checkOut')}
+						{attendanceLabels[attendanceType]}
 					</Button.Label>
 					<Ionicons name="swap-horizontal" size={18} color={themeColors.foreground500} />
 				</Button>
@@ -478,9 +518,7 @@ export default function ScannerScreen(): JSX.Element {
 										className="text-lg"
 										style={{ color: ctaContentColor }}
 									>
-										{attendanceType === 'CHECK_IN'
-											? i18n.t('Scanner.actions.scanCheckIn')
-											: i18n.t('Scanner.actions.scanCheckOut')}
+										{attendanceActionLabels[attendanceType]}
 									</Button.Label>
 								</View>
 							)}

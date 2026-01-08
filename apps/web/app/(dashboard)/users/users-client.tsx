@@ -275,6 +275,22 @@ export function UsersPageClient(): React.ReactElement {
 	});
 
 	/**
+	 * Handles create-user dialog open state changes.
+	 *
+	 * @param open - Next dialog open state
+	 * @returns void
+	 */
+	const handleCreateDialogOpenChange = useCallback(
+		(open: boolean): void => {
+			setIsDialogOpen(open);
+			if (!open) {
+				form.reset();
+			}
+		},
+		[form],
+	);
+
+	/**
 	 * Updates the global filter and resets pagination.
 	 *
 	 * @param value - Next global filter value or updater
@@ -446,7 +462,7 @@ export function UsersPageClient(): React.ReactElement {
 							</DialogContent>
 						</Dialog>
 					) : null}
-					<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+					<Dialog open={isDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
 						<DialogTrigger asChild>
 							<Button disabled={!effectiveOrganizationId && !isSuperUser}>
 								<UserPlus className="mr-2 h-4 w-4" />

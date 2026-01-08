@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { auth } from '../../utils/auth.js';
 import db from '../db/index.js';
 import { member, organization, user as userTable } from '../db/schema.js';
-import { authPlugin } from '../plugins/auth.js';
+import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
 import { organizationAllQuerySchema, organizationMembersQuerySchema } from '../schemas/crud.js';
 
 const addMemberSchema = z.object({
@@ -257,7 +257,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 	 */
 	.post(
 		'/add-member-direct',
-		async ({ body, session, set, user }) => {
+		async ({ body, request, session, set, user }) => {
 			const organizationId = body.organizationId ?? session.activeOrganizationId ?? null;
 			const isSuperUser = user.role === 'admin';
 
@@ -307,8 +307,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					payload.teamId = body.teamId;
 				}
 
+				const sessionHeaders = buildSessionHeaders(request);
 				const result = await auth.api.addMember({
 					body: payload,
+					headers: sessionHeaders,
 				});
 
 				const errorMessage = (result as { error?: { message?: string } }).error?.message;
@@ -340,9 +342,11 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 	 */
 	.post(
 		'/provision-user',
-		async ({ body, session, set, user }) => {
+		async ({ body, request, session, set, user }) => {
 			const organizationId = body.organizationId;
 			const isSuperUser = user.role === 'admin';
+			const sessionHeaders = buildSessionHeaders(request);
+			let createdUserId: string | null = null;
 
 			if (!organizationId) {
 				set.status = 400;
@@ -386,7 +390,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				const signUpError = (signUpResult as { error?: { message?: string } }).error
 					?.message;
-				const createdUserId =
+				createdUserId =
 					(signUpResult as { data?: { user?: { id?: string } } }).data?.user?.id ?? null;
 
 				if (signUpError || !createdUserId) {
@@ -400,6 +404,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						organizationId,
 						role: body.role,
 					},
+					headers: sessionHeaders,
 				});
 
 				const addMemberError = (addMemberResult as { error?: { message?: string } }).error
@@ -408,15 +413,18 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					(addMemberResult as { success?: boolean }).success ?? !addMemberError;
 
 				if (!addMemberSuccess) {
-					try {
-						await auth.api.removeUser({
-							body: { userId: createdUserId },
-						});
-					} catch (rollbackError) {
-						console.error(
-							'[organization] Rollback (remove user) failed:',
-							rollbackError,
-						);
+					if (createdUserId) {
+						try {
+							await auth.api.removeUser({
+								body: { userId: createdUserId },
+								headers: sessionHeaders,
+							});
+						} catch (rollbackError) {
+							console.error(
+								'[organization] Rollback (remove user) failed:',
+								rollbackError,
+							);
+						}
 					}
 
 					set.status = 400;
@@ -425,6 +433,17 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				return { success: true, data: { userId: createdUserId } };
 			} catch (error) {
+				if (createdUserId) {
+					try {
+						await auth.api.removeUser({
+							body: { userId: createdUserId },
+							headers: sessionHeaders,
+						});
+					} catch (rollbackError) {
+						console.error('[organization] Rollback (remove user) failed:', rollbackError);
+					}
+				}
+
 				console.error('Failed to provision organization user:', error);
 				set.status = 500;
 				return { error: 'Failed to provision user' };

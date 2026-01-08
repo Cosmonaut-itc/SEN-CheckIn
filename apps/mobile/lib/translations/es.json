@@ -77,6 +77,8 @@
     },
     "attendanceType": {
       "checkIn": "Entrada",
+      "checkOutAuthorized": "Salida autorizada",
+      "checkOutAuthorizedReason": "Permiso RH",
       "checkOut": "Salida"
     },
     "status": {
@@ -90,6 +92,7 @@
     "success": {
       "employeeFallback": "Empleado",
       "checkedIn": "¡Entrada registrada!",
+      "checkedOutAuthorized": "¡Salida autorizada registrada!",
       "checkedOut": "¡Salida registrada!"
     },
     "deviceStatus": {
@@ -101,6 +104,7 @@
     "actions": {
       "verifying": "Verificando...",
       "scanCheckIn": "Escanear entrada",
+      "scanCheckOutAuthorized": "Escanear salida autorizada",
       "scanCheckOut": "Escanear salida",
       "tapToLink": "Toca para vincular este dispositivo"
     }

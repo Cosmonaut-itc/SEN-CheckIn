@@ -6,6 +6,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { OrgProvider } from '@/lib/org-client-context';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
 import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import { redirect } from 'next/navigation';
 import React, { type ReactNode } from 'react';
 
 /**
@@ -30,10 +31,33 @@ export default async function DashboardLayout({
 	const fetchOptions = await getServerFetchOptions();
 	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
 	const userRole = sessionResult.data?.user?.role ?? 'user';
+	const isSuperUser = userRole === 'admin';
+	let memberRole: 'admin' | 'owner' | 'member' | null = null;
+
+	if (orgContext.organizationId) {
+		try {
+			const memberRoleResult = await serverAuthClient.organization.getActiveMemberRole(
+				undefined,
+				fetchOptions,
+			);
+			const resolvedRole = memberRoleResult.data?.role ?? null;
+			if (resolvedRole === 'admin' || resolvedRole === 'owner' || resolvedRole === 'member') {
+				memberRole = resolvedRole;
+			}
+		} catch (error) {
+			console.error('[dashboard-layout] Failed to resolve active member role', error);
+		}
+	}
+
+	const isOrgAdmin = memberRole === 'admin' || memberRole === 'owner';
+
+	if (!isSuperUser && orgContext.organizationId && !isOrgAdmin) {
+		redirect('/acceso-restringido');
+	}
 
 	return (
 		<SidebarProvider>
-			<AppSidebar />
+			<AppSidebar isSuperUser={isSuperUser} organizationRole={memberRole} />
 			<SidebarInset>
 				<header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
 					<SidebarTrigger className="-ml-1" />

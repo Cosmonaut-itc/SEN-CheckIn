@@ -22,6 +22,16 @@ export interface ListQueryParams {
 }
 
 /**
+ * Query parameters for the superuser organizations list.
+ */
+export interface OrganizationAllQueryParams extends ListQueryParams {
+	/** Field to sort by */
+	sortBy?: 'name' | 'slug' | 'createdAt';
+	/** Sort direction */
+	sortDir?: 'asc' | 'desc';
+}
+
+/**
  * Query parameters for attendance records.
  */
 export interface AttendanceQueryParams extends ListQueryParams {
@@ -361,6 +371,22 @@ export const queryKeys = {
 		 * @param id - The organization ID
 		 */
 		detail: (id: string) => ['organizations', 'detail', id] as const,
+	},
+
+	/**
+	 * Query keys for superuser-scoped queries.
+	 */
+	super: {
+		organizationsAll: {
+			/** Base key for all superuser organization queries */
+			all: ['super', 'organizationsAll'] as const,
+			/**
+			 * Generates a query key for the superuser organizations list.
+			 * @param params - Optional list query parameters
+			 */
+			list: (params?: OrganizationAllQueryParams) =>
+				queryKeyConstructor(['super', 'organizationsAll', 'list'] as const, params),
+		},
 	},
 
 	/**

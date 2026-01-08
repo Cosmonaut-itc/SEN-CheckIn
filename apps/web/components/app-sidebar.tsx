@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
 	Sidebar,
@@ -48,6 +49,16 @@ interface NavItem {
 	href: string;
 	/** Lucide icon component */
 	icon: React.ComponentType<{ className?: string }>;
+}
+
+/**
+ * App sidebar props.
+ */
+interface AppSidebarProps {
+	/** Whether the current user is a platform superuser */
+	isSuperUser: boolean;
+	/** Active organization role (if available) */
+	organizationRole: 'admin' | 'owner' | 'member' | null;
 }
 
 /**
@@ -136,14 +147,17 @@ const adminNavItems: NavItem[] = [
  * Application sidebar component.
  * Provides navigation for the admin portal with user info and sign out functionality.
  *
+ * @param props - Component props
  * @returns The app sidebar JSX element
  */
-export function AppSidebar(): React.ReactElement {
+export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): React.ReactElement {
 	const pathname = usePathname();
 	const { data: session, isPending } = useSession();
 	const router = useRouter();
 	const tSidebar = useTranslations('Sidebar');
 	const tApp = useTranslations('App');
+	const canAccessAdmin =
+		isSuperUser || organizationRole === 'admin' || organizationRole === 'owner';
 
 	/**
 	 * Handles user sign out.
@@ -214,30 +228,32 @@ export function AppSidebar(): React.ReactElement {
 
 				<SidebarSeparator />
 
-				<SidebarGroup>
-					<SidebarGroupLabel>{tSidebar('administration')}</SidebarGroupLabel>
-					<SidebarGroupContent>
-						<SidebarMenu>
-							{adminNavItems.map((item) => (
-								<SidebarMenuItem key={item.href}>
-									<SidebarMenuButton
-										asChild
-										isActive={
-											pathname === item.href ||
-											pathname.startsWith(`${item.href}/`)
-										}
-										tooltip={tSidebar(item.titleKey)}
-									>
-										<Link href={item.href}>
-											<item.icon className="h-4 w-4" />
-											<span>{tSidebar(item.titleKey)}</span>
-										</Link>
-									</SidebarMenuButton>
-								</SidebarMenuItem>
-							))}
-						</SidebarMenu>
-					</SidebarGroupContent>
-				</SidebarGroup>
+				{canAccessAdmin ? (
+					<SidebarGroup>
+						<SidebarGroupLabel>{tSidebar('administration')}</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{adminNavItems.map((item) => (
+									<SidebarMenuItem key={item.href}>
+										<SidebarMenuButton
+											asChild
+											isActive={
+												pathname === item.href ||
+												pathname.startsWith(`${item.href}/`)
+											}
+											tooltip={tSidebar(item.titleKey)}
+										>
+											<Link href={item.href}>
+												<item.icon className="h-4 w-4" />
+												<span>{tSidebar(item.titleKey)}</span>
+											</Link>
+										</SidebarMenuButton>
+									</SidebarMenuItem>
+								))}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				) : null}
 			</SidebarContent>
 
 			<SidebarFooter className="border-t border-sidebar-border">
@@ -259,9 +275,16 @@ export function AppSidebar(): React.ReactElement {
 								</AvatarFallback>
 							</Avatar>
 							<div className="flex flex-1 flex-col truncate">
-								<span className="truncate text-sm font-medium">
-									{session?.user?.name ?? tSidebar('userFallback')}
-								</span>
+								<div className="flex items-center gap-2 truncate">
+									<span className="min-w-0 truncate text-sm font-medium">
+										{session?.user?.name ?? tSidebar('userFallback')}
+									</span>
+									{isSuperUser ? (
+										<Badge variant="outline" className="text-[10px]">
+											{tSidebar('superUserBadge')}
+										</Badge>
+									) : null}
+								</div>
 								<span className="truncate text-xs text-muted-foreground">
 									{session?.user?.email ?? ''}
 								</span>

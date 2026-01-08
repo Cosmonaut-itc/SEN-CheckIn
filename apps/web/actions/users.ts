@@ -12,7 +12,9 @@
  * @module actions/users
  */
 
-import { API_BASE_URL, getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import { createServerApiClient } from '@/lib/server-api';
+import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import { headers } from 'next/headers';
 
 /**
  * User role type.
@@ -54,84 +56,53 @@ export interface CreateOrganizationUserInput {
 }
 
 /**
+ * Input data for assigning an existing user to an organization.
+ */
+export interface AddOrganizationMemberInput {
+	/** The user ID to assign */
+	userId: string;
+	/** Target organization ID */
+	organizationId: string;
+	/** Role to assign within the organization */
+	role: 'admin' | 'member';
+}
+
+/**
  * Creates a new user and assigns them to an organization.
  *
  * @param input - User details and organization assignment
+ * @returns A promise resolving to the mutation result
  */
 export async function createOrganizationUser(
 	input: CreateOrganizationUserInput,
 ): Promise<MutationResult<{ userId: string }>> {
 	try {
-		const fetchOptions = await getServerFetchOptions();
-		const createResponse = await serverAuthClient.admin.createUser(
-			{
-				email: input.email,
-				password: input.password,
-				name: input.name,
-				data: { username: input.username },
-			},
-			fetchOptions,
-		);
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
 
-		const createdUserId = createResponse.data?.user?.id;
+		const response = await api.organization['provision-user'].post({
+			name: input.name,
+			email: input.email,
+			username: input.username,
+			password: input.password,
+			role: input.role,
+			organizationId: input.organizationId,
+		});
 
-		if (createResponse.error || !createdUserId) {
+		if (response.error) {
 			return {
 				success: false,
 				error: 'Failed to create user',
 			};
 		}
 
-		// Compute API root (BetterAuth base strips /api/auth)
-		const apiRoot = API_BASE_URL.replace(/\/api\/auth$/, '');
+		const createdUserId = response.data?.data?.userId ?? null;
 
-		// Add the user as a member of the organization via API (server-only BetterAuth bridge)
-		const headers = new Headers(fetchOptions.headers);
-		headers.set('content-type', 'application/json');
-
-		const addMemberResponse = await fetch(`${apiRoot}/organization/add-member-direct`, {
-			method: 'POST',
-			headers,
-			body: JSON.stringify({
-				userId: createdUserId,
-				organizationId: input.organizationId,
-				role: input.role,
-			}),
-		});
-
-		if (!addMemberResponse.ok) {
-			let errorMessage = 'Failed to add user to organization';
-			try {
-				const body = (await addMemberResponse.json()) as { error?: string };
-				console.log('addMemberResponse', body);
-				if (body?.error) {
-					errorMessage = body.error;
-				}
-			} catch {
-				// ignore parse errors
-			}
-			console.error('Failed to add user to organization:', errorMessage);
-
-			// Best-effort rollback to avoid orphaned users
-			try {
-				const deleteFn = (
-					serverAuthClient.admin as {
-						deleteUser?: (
-							args: { userId: string },
-							opts: typeof fetchOptions,
-						) => Promise<unknown>;
-					}
-				).deleteUser;
-				if (typeof deleteFn === 'function') {
-					await deleteFn({ userId: createdUserId }, fetchOptions);
-				}
-			} catch (rollbackError) {
-				console.error('Rollback (delete user) failed:', rollbackError);
-			}
-
+		if (!createdUserId) {
 			return {
 				success: false,
-				error: errorMessage,
+				error: 'Failed to create user',
 			};
 		}
 
@@ -144,6 +115,48 @@ export async function createOrganizationUser(
 		return {
 			success: false,
 			error: 'Failed to create user',
+		};
+	}
+}
+
+/**
+ * Assigns an existing user to an organization.
+ *
+ * @param input - User and organization assignment data
+ * @returns A promise resolving to the mutation result
+ */
+export async function addOrganizationMember(
+	input: AddOrganizationMemberInput,
+): Promise<MutationResult<{ memberId?: string | null }>> {
+	try {
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
+
+		const response = await api.organization['add-member-direct'].post({
+			userId: input.userId,
+			organizationId: input.organizationId,
+			role: input.role,
+		});
+
+		if (response.error) {
+			return {
+				success: false,
+				error: 'Failed to assign user to organization',
+			};
+		}
+
+		return {
+			success: true,
+			data: {
+				memberId: response.data?.data?.memberId ?? null,
+			},
+		};
+	} catch (error) {
+		console.error('Failed to assign user to organization:', error);
+		return {
+			success: false,
+			error: 'Failed to assign user to organization',
 		};
 	}
 }

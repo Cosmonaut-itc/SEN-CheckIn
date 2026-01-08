@@ -21,6 +21,7 @@ import type {
 	JobPosition,
 	Location,
 	Organization,
+	OrganizationsAllResponse,
 	OrganizationMember,
 	PaginatedResponse,
 	PayrollCalculationResult,
@@ -39,6 +40,7 @@ import type {
 	CalendarQueryParams,
 	JobPositionQueryParams,
 	ListQueryParams,
+	OrganizationAllQueryParams,
 	PayrollCalculateParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
@@ -516,6 +518,55 @@ export async function fetchOrganizationsServer(headers: Headers): Promise<Organi
 	}
 
 	return (response.data ?? []) as Organization[];
+}
+
+/**
+ * Fetches the list of all organizations (superuser only, server-side).
+ *
+ * @param headers - The headers object from the incoming request
+ * @param params - Optional query parameters for pagination, search, and sorting
+ * @returns A promise resolving to the organizations response
+ * @throws Error if the API request fails
+ */
+export async function fetchAllOrganizationsServer(
+	headers: Headers,
+	params?: OrganizationAllQueryParams,
+): Promise<OrganizationsAllResponse> {
+	const cookieHeader = headers.get('cookie') ?? '';
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	const query: {
+		limit: number;
+		offset: number;
+		search?: string;
+		sortBy?: OrganizationAllQueryParams['sortBy'];
+		sortDir?: OrganizationAllQueryParams['sortDir'];
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.search?.trim()) {
+		query.search = params.search.trim();
+	}
+	if (params?.sortBy) {
+		query.sortBy = params.sortBy;
+	}
+	if (params?.sortDir) {
+		query.sortDir = params.sortDir;
+	}
+
+	const response = await api.organization.all.get({ $query: query });
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch all organizations:', response.error);
+		throw new Error('Failed to fetch organizations');
+	}
+
+	return {
+		organizations: (response.data?.organizations ?? []) as Organization[],
+		total: response.data?.total ?? 0,
+	};
 }
 
 /**

@@ -20,7 +20,7 @@ type AuthSessionResult = Awaited<ReturnType<typeof auth.api.getSession>>;
  * @param request - Incoming HTTP request
  * @returns Headers containing authorization and cookie data when present
  */
-const buildSessionHeaders = (request: Request): Headers => {
+export const buildSessionHeaders = (request: Request): Headers => {
 	const sessionHeaders = new Headers();
 	const authHeader = request.headers.get('authorization');
 	const cookieHeader = request.headers.get('cookie');

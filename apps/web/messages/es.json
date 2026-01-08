@@ -74,7 +74,16 @@
 		"organizations": "Organizaciones",
 		"signOut": "Cerrar Sesión",
 		"userFallback": "Usuario",
+		"superUserBadge": "Superusuario",
 		"toggleSidebar": "Alternar Barra Lateral"
+	},
+	"AccessRestricted": {
+		"title": "Acceso restringido",
+		"description": "Tu cuenta no tiene permisos para entrar al portal de administración.",
+		"actions": {
+			"signOut": "Cerrar sesión",
+			"backHome": "Volver al inicio"
+		}
 	},
 	"MobileApp": {
 		"title": "App Móvil",
@@ -1240,31 +1249,50 @@
 		"title": "Usuarios",
 		"subtitle": "Administra miembros de {organization}",
 		"fallbackOrganization": "tu organización",
+		"organizationSelector": {
+			"label": "Organización",
+			"placeholder": "Selecciona una organización",
+			"loading": "Cargando organizaciones...",
+			"helper": "Selecciona una organización para ver miembros y crear usuarios.",
+			"fallback": "una organización"
+		},
 		"actions": {
 			"create": "Crear usuario",
 			"createUser": "Crear usuario",
-			"creating": "Creando..."
+			"creating": "Creando...",
+			"assignExisting": "Asignar usuario existente",
+			"assigning": "Asignando..."
 		},
 		"dialog": {
 			"title": "Crear usuario",
-			"description": "Crea un usuario y asigna su rol dentro de esta organización."
+			"description": "Crea un usuario y asígnalo a una organización."
+		},
+		"assignDialog": {
+			"title": "Asignar usuario existente",
+			"description": "Selecciona un usuario existente para agregarlo a esta organización.",
+			"loadingUsers": "Cargando usuarios..."
 		},
 		"fields": {
+			"organization": "Organización",
 			"fullName": "Nombre completo",
 			"email": "Correo electrónico",
 			"username": "Usuario",
 			"temporaryPassword": "Contraseña temporal",
-			"role": "Rol"
+			"role": "Rol",
+			"existingUser": "Usuario existente"
 		},
 		"placeholders": {
 			"fullName": "Juan Pérez",
 			"email": "usuario@ejemplo.com",
 			"username": "usuario",
 			"temporaryPassword": "Al menos 8 caracteres",
-			"selectRole": "Selecciona un rol"
+			"selectRole": "Selecciona un rol",
+			"existingUser": "Selecciona un usuario"
 		},
 		"validation": {
-			"validEmailRequired": "Se requiere un correo válido"
+			"validEmailRequired": "Se requiere un correo válido",
+			"organizationRequired": "Selecciona una organización",
+			"userRequired": "Selecciona un usuario"
 		},
 		"roles": {
 			"owner": "Propietario",
@@ -1282,13 +1310,16 @@
 				"role": "Rol",
 				"joined": "Ingreso"
 			},
-			"empty": "No se encontraron miembros."
+			"empty": "No se encontraron miembros.",
+			"emptyNoOrganization": "Selecciona una organización para ver miembros."
 		},
 		"dateFormat": "dd/MM/yyyy",
 		"toast": {
-			"selectOrganization": "Selecciona una organización antes de crear usuarios.",
+			"selectOrganization": "Selecciona una organización antes de continuar.",
 			"createSuccess": "Usuario creado y agregado a la organización",
-			"createError": "No se pudo crear el usuario"
+			"createError": "No se pudo crear el usuario",
+			"assignSuccess": "Usuario asignado a la organización",
+			"assignError": "No se pudo asignar el usuario"
 		}
 	},
 	"Organizations": {
@@ -1958,12 +1989,12 @@
 				"title": "1. Identidad y domicilio del responsable",
 				"description": "El responsable del tratamiento de los datos personales descritos en este Aviso es la entidad que opera el servicio SEN CheckIn (en adelante, “SEN CheckIn”, “nosotros” o “el Servicio”).",
 				"fields": {
-					"name": "Nombre/Razón social: [COMPLETAR]",
-					"address": "Domicilio: [COMPLETAR]",
-					"phone": "Teléfono (opcional): [COMPLETAR]",
-					"website": "Sitio web/URL del Aviso Integral: [COMPLETAR]",
-					"privacyDepartment": "Departamento de datos personales / Contacto de privacidad: [COMPLETAR]",
-					"privacyEmail": "Correo: [COMPLETAR]"
+					"name": "Nombre/Razón social: LA MEJICANA MOLIENDAS Y FRUTOS SECOS",
+					"address": "Domicilio: Calle Hacienda Santiago 2434, Col. Oblatos, 44700 Guadalajara, Jal.",
+					"phone": "Teléfono (opcional): +523327946698",
+					"website": "Sitio web/URL del Aviso Integral: https://sen-check-in.vercel.app/privacidad",
+					"privacyDepartment": "Departamento de datos personales / Contacto de privacidad:",
+					"privacyEmail": "Correo: me@felixddhs.dev"
 				},
 				"note": "Importante (rol de tu organización/empleador): Si utilizas SEN CheckIn a través de tu empleador o una organización (“Organización”), es posible que tu Organización sea el responsable respecto de ciertos datos (por ejemplo, registros de asistencia y enrolamiento biométrico), y que SEN CheckIn actúe como encargado tratándolos por cuenta y bajo instrucciones de la Organización. En esos casos, también aplican los avisos internos de tu Organización y, para ejercer derechos, normalmente deberás dirigirte a ella (sin perjuicio de que podamos canalizar tu solicitud cuando corresponda)."
 			},
@@ -2115,7 +2146,7 @@
 				"title": "10. Derechos ARCO y solicitudes (Acceso, Rectificación, Cancelación y Oposición)",
 				"description": "Tú (o tu representante legal) puedes ejercer tus derechos ARCO respecto de tus datos personales.",
 				"contact": {
-					"channel": "Canal: Envía tu solicitud a: [COMPLETAR correo]",
+					"channel": "Canal: Envía tu solicitud a: me@felixddhs.dev",
 					"subject": "Asunto sugerido: “Solicitud ARCO — SEN CheckIn”"
 				},
 				"requirements": {

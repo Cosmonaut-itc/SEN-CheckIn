@@ -314,6 +314,15 @@ export const organizationMembersQuerySchema = paginationSchema.extend({
 	search: z.string().optional(),
 });
 
+/**
+ * Schema for superuser organization list queries.
+ */
+export const organizationAllQuerySchema = paginationSchema.extend({
+	search: z.string().optional(),
+	sortBy: z.enum(['name', 'slug', 'createdAt']).optional(),
+	sortDir: z.enum(['asc', 'desc']).optional(),
+});
+
 // ============================================================================
 // Attendance Schemas
 // ============================================================================
@@ -403,6 +412,7 @@ export type RegisterDeviceInput = z.infer<typeof registerDeviceSchema>;
 
 // Organization Members
 export type OrganizationMembersQuery = z.infer<typeof organizationMembersQuerySchema>;
+export type OrganizationAllQuery = z.infer<typeof organizationAllQuerySchema>;
 
 // Attendance
 export type AttendanceType = z.infer<typeof attendanceTypeEnum>;

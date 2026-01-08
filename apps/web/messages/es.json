@@ -1989,12 +1989,12 @@
 				"title": "1. Identidad y domicilio del responsable",
 				"description": "El responsable del tratamiento de los datos personales descritos en este Aviso es la entidad que opera el servicio SEN CheckIn (en adelante, “SEN CheckIn”, “nosotros” o “el Servicio”).",
 				"fields": {
-					"name": "Nombre/Razón social: [COMPLETAR]",
-					"address": "Domicilio: [COMPLETAR]",
-					"phone": "Teléfono (opcional): [COMPLETAR]",
-					"website": "Sitio web/URL del Aviso Integral: [COMPLETAR]",
-					"privacyDepartment": "Departamento de datos personales / Contacto de privacidad: [COMPLETAR]",
-					"privacyEmail": "Correo: [COMPLETAR]"
+					"name": "Nombre/Razón social: LA MEJICANA MOLIENDAS Y FRUTOS SECOS",
+					"address": "Domicilio: Calle Hacienda Santiago 2434, Col. Oblatos, 44700 Guadalajara, Jal.",
+					"phone": "Teléfono (opcional): +523327946698",
+					"website": "Sitio web/URL del Aviso Integral: https://sen-check-in.vercel.app/privacidad",
+					"privacyDepartment": "Departamento de datos personales / Contacto de privacidad:",
+					"privacyEmail": "Correo: me@felixddhs.dev"
 				},
 				"note": "Importante (rol de tu organización/empleador): Si utilizas SEN CheckIn a través de tu empleador o una organización (“Organización”), es posible que tu Organización sea el responsable respecto de ciertos datos (por ejemplo, registros de asistencia y enrolamiento biométrico), y que SEN CheckIn actúe como encargado tratándolos por cuenta y bajo instrucciones de la Organización. En esos casos, también aplican los avisos internos de tu Organización y, para ejercer derechos, normalmente deberás dirigirte a ella (sin perjuicio de que podamos canalizar tu solicitud cuando corresponda)."
 			},
@@ -2146,7 +2146,7 @@
 				"title": "10. Derechos ARCO y solicitudes (Acceso, Rectificación, Cancelación y Oposición)",
 				"description": "Tú (o tu representante legal) puedes ejercer tus derechos ARCO respecto de tus datos personales.",
 				"contact": {
-					"channel": "Canal: Envía tu solicitud a: [COMPLETAR correo]",
+					"channel": "Canal: Envía tu solicitud a: me@felixddhs.dev",
 					"subject": "Asunto sugerido: “Solicitud ARCO — SEN CheckIn”"
 				},
 				"requirements": {

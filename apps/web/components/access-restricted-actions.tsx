@@ -29,7 +29,7 @@ export function AccessRestrictedActions({
 	const router = useRouter();
 
 	/**
-	 * Handles sign out and redirects to the login page.
+	 * Handles sign out and redirects to the sign-in page.
 	 *
 	 * @returns Promise that resolves when the sign-out flow completes
 	 */
@@ -39,7 +39,7 @@ export function AccessRestrictedActions({
 			console.error('Failed to sign out', result.error);
 			return;
 		}
-		router.push('/login');
+		router.push('/sign-in');
 		router.refresh();
 	};
 

@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
@@ -102,12 +102,13 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (normalizedSearch) {
 				const escapedSearch = escapeIlikePattern(normalizedSearch);
-				conditions.push(
-					or(
-						ilike(organization.name, `%${escapedSearch}%`),
-						ilike(organization.slug, `%${escapedSearch}%`),
-					)!,
+				const searchCondition = or(
+					ilike(organization.name, `%${escapedSearch}%`),
+					ilike(organization.slug, `%${escapedSearch}%`),
 				);
+				if (searchCondition) {
+					conditions.push(searchCondition);
+				}
 			}
 
 			let baseQuery = db
@@ -178,7 +179,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					.select({ id: member.id })
 					.from(member)
 					.where(
-						and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)),
+						and(
+							eq(member.userId, session.userId),
+							eq(member.organizationId, organizationId),
+						),
 					)
 					.limit(1);
 
@@ -192,12 +196,13 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			const normalizedSearch = search?.trim();
 			if (normalizedSearch) {
 				const escapedSearch = escapeIlikePattern(normalizedSearch);
-				conditions.push(
-					or(
-						ilike(userTable.name, `%${escapedSearch}%`),
-						ilike(userTable.email, `%${escapedSearch}%`),
-					)!,
+				const searchCondition = or(
+					ilike(userTable.name, `%${escapedSearch}%`),
+					ilike(userTable.email, `%${escapedSearch}%`),
 				);
+				if (searchCondition) {
+					conditions.push(searchCondition);
+				}
 			}
 
 			let baseQuery = db
@@ -335,7 +340,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 	 */
 	.post(
 		'/provision-user',
-		async ({ body, request, session, set, user }) => {
+		async ({ body, session, set, user }) => {
 			const organizationId = body.organizationId;
 			const isSuperUser = user.role === 'admin';
 
@@ -379,7 +384,8 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					},
 				});
 
-				const signUpError = (signUpResult as { error?: { message?: string } }).error?.message;
+				const signUpError = (signUpResult as { error?: { message?: string } }).error
+					?.message;
 				const createdUserId =
 					(signUpResult as { data?: { user?: { id?: string } } }).data?.user?.id ?? null;
 
@@ -404,11 +410,13 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				if (!addMemberSuccess) {
 					try {
 						await auth.api.removeUser({
-							headers: request.headers,
 							body: { userId: createdUserId },
 						});
 					} catch (rollbackError) {
-						console.error('[organization] Rollback (remove user) failed:', rollbackError);
+						console.error(
+							'[organization] Rollback (remove user) failed:',
+							rollbackError,
+						);
 					}
 
 					set.status = 400;

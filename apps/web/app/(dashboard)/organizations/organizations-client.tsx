@@ -25,6 +25,7 @@ import {
 import { useSession } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import type { OrganizationAllQueryParams } from '@/lib/query-keys';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
@@ -65,11 +66,22 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const NAME_LIMITS = { min: 3, max: 80 };
 	const SLUG_LIMITS = { min: 3, max: 50 };
 	const searchValue = globalFilter.trim();
+	const activeSort = sorting[0];
+	const sortBy: OrganizationAllQueryParams['sortBy'] =
+		activeSort?.id === 'name' || activeSort?.id === 'slug' || activeSort?.id === 'createdAt'
+			? activeSort.id
+			: undefined;
+	const sortDir: OrganizationAllQueryParams['sortDir'] = sortBy
+		? activeSort?.desc
+			? 'desc'
+			: 'asc'
+		: undefined;
 
-	const organizationsQueryParams = {
+	const organizationsQueryParams: OrganizationAllQueryParams = {
 		limit: pagination.pageSize,
 		offset: pagination.pageIndex * pagination.pageSize,
 		...(searchValue ? { search: searchValue } : {}),
+		...(isSuperUser && sortBy ? { sortBy, sortDir } : {}),
 	};
 
 	// Query for organizations list
@@ -301,6 +313,20 @@ export function OrganizationsPageClient(): React.ReactElement {
 		[],
 	);
 
+	/**
+	 * Updates the sorting state and resets pagination.
+	 *
+	 * @param value - Next sorting state or updater
+	 * @returns void
+	 */
+	const handleSortingChange = useCallback(
+		(value: React.SetStateAction<SortingState>): void => {
+			setSorting((prev) => (typeof value === 'function' ? value(prev) : value));
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+		},
+		[],
+	);
+
 	const columns = useMemo<ColumnDef<Organization>[]>(
 		() => [
 			{
@@ -424,7 +450,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 					columns={columns}
 					data={organizations}
 					sorting={sorting}
-					onSortingChange={setSorting}
+					onSortingChange={handleSortingChange}
 					pagination={pagination}
 					onPaginationChange={setPagination}
 					columnFilters={columnFilters}

@@ -19,6 +19,7 @@ import {
 	type CalendarQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
+	type OrganizationAllQueryParams,
 	type ScheduleExceptionQueryParams,
 	type ScheduleTemplateQueryParams,
 	type UsersQueryParams,
@@ -413,12 +414,12 @@ export function prefetchOrganizations(queryClient: QueryClient): void {
  * Prefetches the superuser organizations list for server-side streaming.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
- * @param params - Optional query parameters for pagination and search
+ * @param params - Optional query parameters for pagination, search, and sorting
  * @returns void
  */
 export function prefetchAllOrganizations(
 	queryClient: QueryClient,
-	params?: ListQueryParams,
+	params?: OrganizationAllQueryParams,
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.super.organizationsAll.list(params),

@@ -319,6 +319,8 @@ export const organizationMembersQuerySchema = paginationSchema.extend({
  */
 export const organizationAllQuerySchema = paginationSchema.extend({
 	search: z.string().optional(),
+	sortBy: z.enum(['name', 'slug', 'createdAt']).optional(),
+	sortDir: z.enum(['asc', 'desc']).optional(),
 });
 
 // ============================================================================

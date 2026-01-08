@@ -16,6 +16,7 @@ import type {
 	AttendanceQueryParams,
 	CalendarQueryParams,
 	ListQueryParams,
+	OrganizationAllQueryParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
 	VacationRequestQueryParams,
@@ -1724,17 +1725,19 @@ export async function fetchOrganizations(): Promise<Organization[]> {
 /**
  * Fetches the list of all organizations (superuser only).
  *
- * @param params - Optional query parameters for pagination and search
+ * @param params - Optional query parameters for pagination, search, and sorting
  * @returns A promise resolving to the organizations response
  * @throws Error if the API request fails
  */
 export async function fetchAllOrganizations(
-	params?: ListQueryParams,
+	params?: OrganizationAllQueryParams,
 ): Promise<OrganizationsAllResponse> {
 	const query: {
 		limit: number;
 		offset: number;
 		search?: string;
+		sortBy?: OrganizationAllQueryParams['sortBy'];
+		sortDir?: OrganizationAllQueryParams['sortDir'];
 	} = {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,
@@ -1742,6 +1745,12 @@ export async function fetchAllOrganizations(
 
 	if (params?.search?.trim()) {
 		query.search = params.search.trim();
+	}
+	if (params?.sortBy) {
+		query.sortBy = params.sortBy;
+	}
+	if (params?.sortDir) {
+		query.sortDir = params.sortDir;
 	}
 
 	const response = await api.organization.all.get({ $query: query });

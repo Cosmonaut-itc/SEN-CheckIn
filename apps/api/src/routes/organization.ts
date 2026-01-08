@@ -1,4 +1,4 @@
-import { and, count, eq, ilike, or, type SQL } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ilike, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
@@ -54,6 +54,26 @@ function escapeIlikePattern(value: string): string {
 }
 
 /**
+ * Resolves organization sorting for the list endpoint.
+ *
+ * @param sortBy - Field name to sort by
+ * @param sortDir - Sort direction
+ * @returns Drizzle order-by expression
+ */
+function resolveOrganizationOrderBy(
+	sortBy: 'name' | 'slug' | 'createdAt' | undefined,
+	sortDir: 'asc' | 'desc' | undefined,
+): SQL<unknown> {
+	const sortColumn =
+		sortBy === 'slug'
+			? organization.slug
+			: sortBy === 'createdAt'
+				? organization.createdAt
+				: organization.name;
+	return sortDir === 'desc' ? desc(sortColumn) : asc(sortColumn);
+}
+
+/**
  * Organization routes for member management.
  */
 export const organizationRoutes = new Elysia({ prefix: '/organization' })
@@ -75,9 +95,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				return { error: 'Only superusers can list all organizations' };
 			}
 
-			const { limit, offset, search } = query;
+			const { limit, offset, search, sortBy, sortDir } = query;
 			const conditions: SQL<unknown>[] = [];
 			const normalizedSearch = search?.trim();
+			const orderByClause = resolveOrganizationOrderBy(sortBy, sortDir);
 
 			if (normalizedSearch) {
 				const escapedSearch = escapeIlikePattern(normalizedSearch);
@@ -107,7 +128,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			const organizationsResult = await baseQuery
 				.limit(limit)
 				.offset(offset)
-				.orderBy(organization.name);
+				.orderBy(orderByClause);
 
 			let countQuery = db.select({ count: count() }).from(organization);
 

@@ -40,6 +40,7 @@ import type {
 	CalendarQueryParams,
 	JobPositionQueryParams,
 	ListQueryParams,
+	OrganizationAllQueryParams,
 	PayrollCalculateParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
@@ -523,13 +524,13 @@ export async function fetchOrganizationsServer(headers: Headers): Promise<Organi
  * Fetches the list of all organizations (superuser only, server-side).
  *
  * @param headers - The headers object from the incoming request
- * @param params - Optional query parameters for pagination and search
+ * @param params - Optional query parameters for pagination, search, and sorting
  * @returns A promise resolving to the organizations response
  * @throws Error if the API request fails
  */
 export async function fetchAllOrganizationsServer(
 	headers: Headers,
-	params?: ListQueryParams,
+	params?: OrganizationAllQueryParams,
 ): Promise<OrganizationsAllResponse> {
 	const cookieHeader = headers.get('cookie') ?? '';
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
@@ -538,6 +539,8 @@ export async function fetchAllOrganizationsServer(
 		limit: number;
 		offset: number;
 		search?: string;
+		sortBy?: OrganizationAllQueryParams['sortBy'];
+		sortDir?: OrganizationAllQueryParams['sortDir'];
 	} = {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,
@@ -545,6 +548,12 @@ export async function fetchAllOrganizationsServer(
 
 	if (params?.search?.trim()) {
 		query.search = params.search.trim();
+	}
+	if (params?.sortBy) {
+		query.sortBy = params.sortBy;
+	}
+	if (params?.sortDir) {
+		query.sortDir = params.sortDir;
 	}
 
 	const response = await api.organization.all.get({ $query: query });

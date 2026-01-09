@@ -16,12 +16,12 @@ const addMemberSchema = z.object({
 });
 
 const provisionUserSchema = z.object({
-	name: z.string().min(1, 'name is required'),
-	email: z.string().email('email must be valid'),
-	username: z.string().min(1, 'username is required'),
-	password: z.string().min(8, 'password must be at least 8 characters'),
+	name: z.string().min(1, 'NAME_REQUIRED'),
+	email: z.string().email('INVALID_EMAIL'),
+	username: z.string().min(1, 'USERNAME_REQUIRED'),
+	password: z.string().min(8, 'PASSWORD_TOO_SHORT'),
 	role: z.enum(['admin', 'member']),
-	organizationId: z.string().min(1, 'organizationId is required'),
+	organizationId: z.string().min(1, 'ORGANIZATION_REQUIRED'),
 });
 
 /**
@@ -51,6 +51,182 @@ function parseOrganizationMetadata(rawMetadata: string | null): Record<string, u
  */
 function escapeIlikePattern(value: string): string {
 	return value.replace(/[%_\\]/g, '\\$&');
+}
+
+type BetterAuthErrorBody = {
+	code?: string;
+	message?: string;
+};
+
+type BetterAuthErrorShape = {
+	message?: string;
+	status?: string | number;
+	statusCode?: number;
+	body?: BetterAuthErrorBody;
+};
+
+type BetterAuthNormalizedError = {
+	message: string;
+	code?: string;
+	status: number;
+};
+
+const BETTER_AUTH_STATUS_CODES: Record<string, number> = {
+	BAD_REQUEST: 400,
+	UNAUTHORIZED: 401,
+	FORBIDDEN: 403,
+	NOT_FOUND: 404,
+	UNPROCESSABLE_ENTITY: 422,
+	INTERNAL_SERVER_ERROR: 500,
+};
+
+/**
+ * Resolves the HTTP status code for a BetterAuth error status value.
+ *
+ * @param status - Status value from BetterAuth error
+ * @returns HTTP status code
+ */
+function resolveBetterAuthStatusCode(status: string | number | undefined): number {
+	if (typeof status === 'number' && Number.isFinite(status)) {
+		return status;
+	}
+
+	if (typeof status === 'string') {
+		const normalized = status.toUpperCase();
+		return BETTER_AUTH_STATUS_CODES[normalized] ?? 400;
+	}
+
+	return 400;
+}
+
+/**
+ * Normalizes BetterAuth errors for consistent API responses.
+ *
+ * @param error - Unknown error thrown by BetterAuth
+ * @param fallbackMessage - Default error message when none is provided
+ * @returns Normalized error payload with status, code, and message
+ */
+function normalizeBetterAuthError(
+	error: unknown,
+	fallbackMessage: string,
+): BetterAuthNormalizedError {
+	if (!error || typeof error !== 'object') {
+		return { message: fallbackMessage, status: 400 };
+	}
+
+	const typedError = error as BetterAuthErrorShape;
+	const body = typedError.body ?? null;
+	const message =
+		typeof body?.message === 'string'
+			? body.message
+			: typeof typedError.message === 'string'
+				? typedError.message
+				: fallbackMessage;
+	const code = typeof body?.code === 'string' ? body.code : undefined;
+	const statusValue = typedError.statusCode ?? typedError.status;
+
+	return {
+		message,
+		code,
+		status: resolveBetterAuthStatusCode(statusValue),
+	};
+}
+
+/**
+ * Extracts error metadata from a BetterAuth response payload.
+ *
+ * @param result - BetterAuth response payload
+ * @returns Error payload when present, otherwise null
+ */
+function extractBetterAuthResultError(result: unknown): { message?: string; code?: string } | null {
+	if (!result || typeof result !== 'object') {
+		return null;
+	}
+
+	if (!('error' in result)) {
+		return null;
+	}
+
+	const errorValue = (result as { error?: unknown }).error;
+	if (!errorValue || typeof errorValue !== 'object') {
+		return null;
+	}
+
+	const errorMessage = (errorValue as { message?: unknown }).message;
+	const errorCode = (errorValue as { code?: unknown }).code;
+
+	if (typeof errorMessage !== 'string' && typeof errorCode !== 'string') {
+		return null;
+	}
+
+	return {
+		message: typeof errorMessage === 'string' ? errorMessage : undefined,
+		code: typeof errorCode === 'string' ? errorCode : undefined,
+	};
+}
+
+/**
+ * Extracts the created user id from a BetterAuth sign-up response.
+ *
+ * @param result - Payload returned by BetterAuth signUpEmail
+ * @returns User id or null when missing
+ */
+function extractSignUpUserId(result: unknown): string | null {
+	if (!result || typeof result !== 'object') {
+		return null;
+	}
+
+	const directUser = (result as { user?: unknown }).user;
+	if (directUser && typeof directUser === 'object') {
+		const directId = (directUser as { id?: unknown }).id;
+		if (typeof directId === 'string' && directId.trim().length > 0) {
+			return directId;
+		}
+	}
+
+	const nestedData = (result as { data?: unknown }).data;
+	if (nestedData && typeof nestedData === 'object') {
+		const nestedUser = (nestedData as { user?: unknown }).user;
+		if (nestedUser && typeof nestedUser === 'object') {
+			const nestedId = (nestedUser as { id?: unknown }).id;
+			if (typeof nestedId === 'string' && nestedId.trim().length > 0) {
+				return nestedId;
+			}
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Wraps BetterAuth calls to normalize thrown errors and inline error payloads.
+ *
+ * @param action - BetterAuth API call to execute
+ * @param fallbackMessage - Default error message when none is provided
+ * @returns Wrapped result with data or normalized error
+ */
+async function callBetterAuth<T>(
+	action: () => Promise<T>,
+	fallbackMessage: string,
+): Promise<{ data?: T; error?: BetterAuthNormalizedError }> {
+	try {
+		const result = await action();
+		const resultError = extractBetterAuthResultError(result);
+
+		if (resultError) {
+			return {
+				error: {
+					message: resultError.message ?? fallbackMessage,
+					code: resultError.code,
+					status: 400,
+				},
+			};
+		}
+
+		return { data: result };
+	} catch (error) {
+		return { error: normalizeBetterAuthError(error, fallbackMessage) };
+	}
 }
 
 /**
@@ -171,7 +347,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required' };
+				return { error: 'Organization is required', code: 'ORGANIZATION_REQUIRED' };
 			}
 
 			if (!isSuperUser) {
@@ -369,48 +545,92 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				if (!callerRole) {
 					set.status = 403;
-					return { error: 'You must belong to the organization to add members' };
+					return {
+						error: 'You must belong to the organization to add members',
+						code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
+					};
 				}
 
 				if (callerRole !== 'admin' && callerRole !== 'owner') {
 					set.status = 403;
-					return { error: 'Only organization admins can add members' };
+					return {
+						error: 'Only organization admins can add members',
+						code: 'ORGANIZATION_ADMIN_REQUIRED',
+					};
 				}
 			}
 
 			try {
-				const signUpResult = await auth.api.signUpEmail({
-					body: {
-						name: body.name,
-						email: body.email,
-						password: body.password,
-						username: body.username,
-					},
-				});
+				const signUpCall = await callBetterAuth(
+					() =>
+						auth.api.signUpEmail({
+							body: {
+								name: body.name,
+								email: body.email,
+								password: body.password,
+								username: body.username,
+							},
+						}),
+					'Failed to create user',
+				);
 
-				const signUpError = (signUpResult as { error?: { message?: string } }).error
-					?.message;
-				createdUserId =
-					(signUpResult as { data?: { user?: { id?: string } } }).data?.user?.id ?? null;
-
-				if (signUpError || !createdUserId) {
-					set.status = 400;
-					return { error: signUpError ?? 'Failed to create user' };
+				if (signUpCall.error) {
+					set.status = signUpCall.error.status;
+					return {
+						error: signUpCall.error.message,
+						code: signUpCall.error.code ?? 'USER_SIGNUP_FAILED',
+					};
 				}
 
-				const addMemberResult = await auth.api.addMember({
-					body: {
-						userId: createdUserId,
-						organizationId,
-						role: body.role,
-					},
-					headers: sessionHeaders,
-				});
+				createdUserId = extractSignUpUserId(signUpCall.data);
 
-				const addMemberError = (addMemberResult as { error?: { message?: string } }).error
-					?.message;
-				const addMemberSuccess =
-					(addMemberResult as { success?: boolean }).success ?? !addMemberError;
+				if (!createdUserId) {
+					set.status = 400;
+					return { error: 'Failed to create user', code: 'USER_SIGNUP_FAILED' };
+				}
+
+				const addMemberCall = await callBetterAuth(
+					() =>
+						auth.api.addMember({
+							body: {
+								userId: createdUserId,
+								organizationId,
+								role: body.role,
+							},
+							headers: sessionHeaders,
+						}),
+					'Failed to add member',
+				);
+
+				if (addMemberCall.error) {
+					if (createdUserId) {
+						try {
+							await auth.api.removeUser({
+								body: { userId: createdUserId },
+								headers: sessionHeaders,
+							});
+						} catch (rollbackError) {
+							console.error(
+								'[organization] Rollback (remove user) failed:',
+								rollbackError,
+							);
+						}
+					}
+
+					set.status = addMemberCall.error.status;
+					return {
+						error: addMemberCall.error.message,
+						code: addMemberCall.error.code ?? 'ADD_MEMBER_FAILED',
+					};
+				}
+
+				const addMemberResult = addMemberCall.data as {
+					error?: { message?: string };
+					success?: boolean;
+				};
+
+				const addMemberError = addMemberResult?.error?.message;
+				const addMemberSuccess = addMemberResult?.success ?? !addMemberError;
 
 				if (!addMemberSuccess) {
 					if (createdUserId) {
@@ -446,7 +666,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				console.error('Failed to provision organization user:', error);
 				set.status = 500;
-				return { error: 'Failed to provision user' };
+				return { error: 'Failed to provision user', code: 'PROVISION_USER_FAILED' };
 			}
 		},
 		{

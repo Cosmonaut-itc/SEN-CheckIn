@@ -1301,6 +1301,25 @@
 			"organizationRequired": "Selecciona una organización",
 			"userRequired": "Selecciona un usuario"
 		},
+		"errors": {
+			"passwordTooShort": "La contrasena debe tener al menos 8 caracteres.",
+			"passwordTooLong": "La contrasena es demasiado larga.",
+			"passwordRequired": "La contrasena es requerida.",
+			"invalidEmail": "El correo electronico no es valido.",
+			"emailRequired": "El correo electronico es requerido.",
+			"emailAlreadyExists": "Ya existe un usuario con ese correo.",
+			"usernameTaken": "El usuario ya esta en uso.",
+			"usernameInvalid": "El usuario no es valido.",
+			"usernameTooShort": "El usuario es demasiado corto.",
+			"usernameTooLong": "El usuario es demasiado largo.",
+			"nameRequired": "El nombre es requerido.",
+			"usernameRequired": "El usuario es requerido.",
+			"organizationRequired": "Selecciona una organizacion.",
+			"organizationMembershipRequired": "Debes pertenecer a la organizacion para agregar usuarios.",
+			"organizationAdminRequired": "Solo los administradores pueden agregar usuarios.",
+			"createFailed": "No se pudo crear el usuario. Revisa los datos e intenta de nuevo.",
+			"addMemberFailed": "No se pudo asignar el usuario a la organizacion."
+		},
 		"roles": {
 			"owner": "Propietario",
 			"admin": "Administrador",

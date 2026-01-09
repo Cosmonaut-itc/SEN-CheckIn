@@ -105,7 +105,8 @@ function rewriteSetCookieHeaders(
 function buildUpstreamUrl(request: NextRequest, params: RouteParams | undefined): URL {
 	const path = params?.path?.join('/') ?? '';
 	const search = request.nextUrl.search;
-	return new URL(`${API_ORIGIN}/api/${path}${search}`);
+	const normalizedPath = path ? `/${path}` : '';
+	return new URL(`${API_ORIGIN}${normalizedPath}${search}`);
 }
 
 /**

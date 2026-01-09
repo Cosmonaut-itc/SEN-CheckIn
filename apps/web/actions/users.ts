@@ -32,6 +32,31 @@ export interface SetUserRoleInput {
 }
 
 /**
+ * Error codes for organization user provisioning failures.
+ */
+export type CreateOrganizationUserErrorCode =
+	| 'PASSWORD_TOO_SHORT'
+	| 'PASSWORD_TOO_LONG'
+	| 'PASSWORD_REQUIRED'
+	| 'INVALID_EMAIL'
+	| 'EMAIL_REQUIRED'
+	| 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL'
+	| 'USERNAME_IS_ALREADY_TAKEN'
+	| 'USERNAME_IS_INVALID'
+	| 'INVALID_USERNAME'
+	| 'USERNAME_TOO_SHORT'
+	| 'USERNAME_TOO_LONG'
+	| 'NAME_REQUIRED'
+	| 'USERNAME_REQUIRED'
+	| 'ORGANIZATION_REQUIRED'
+	| 'ORGANIZATION_MEMBERSHIP_REQUIRED'
+	| 'ORGANIZATION_ADMIN_REQUIRED'
+	| 'USER_SIGNUP_FAILED'
+	| 'ADD_MEMBER_FAILED'
+	| 'PROVISION_USER_FAILED'
+	| 'UNKNOWN';
+
+/**
  * Result of a mutation operation.
  */
 export interface MutationResult<T = unknown> {
@@ -41,6 +66,8 @@ export interface MutationResult<T = unknown> {
 	data?: T;
 	/** Error message if the operation failed */
 	error?: string;
+	/** Error code if the operation failed */
+	errorCode?: CreateOrganizationUserErrorCode;
 }
 
 /**
@@ -67,6 +94,153 @@ export interface AddOrganizationMemberInput {
 	role: 'admin' | 'member';
 }
 
+type ApiValidationDetail = {
+	summary?: string;
+};
+
+type ApiValidationDetails = {
+	errors?: ApiValidationDetail[];
+};
+
+type ApiErrorPayload = {
+	error?: { message?: string; code?: string; details?: ApiValidationDetails } | string;
+	code?: string;
+	details?: ApiValidationDetails;
+};
+
+const CREATE_USER_ERROR_CODES = new Set<CreateOrganizationUserErrorCode>([
+	'PASSWORD_TOO_SHORT',
+	'PASSWORD_TOO_LONG',
+	'PASSWORD_REQUIRED',
+	'INVALID_EMAIL',
+	'EMAIL_REQUIRED',
+	'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+	'USERNAME_IS_ALREADY_TAKEN',
+	'USERNAME_IS_INVALID',
+	'INVALID_USERNAME',
+	'USERNAME_TOO_SHORT',
+	'USERNAME_TOO_LONG',
+	'NAME_REQUIRED',
+	'USERNAME_REQUIRED',
+	'ORGANIZATION_REQUIRED',
+	'ORGANIZATION_MEMBERSHIP_REQUIRED',
+	'ORGANIZATION_ADMIN_REQUIRED',
+	'USER_SIGNUP_FAILED',
+	'ADD_MEMBER_FAILED',
+	'PROVISION_USER_FAILED',
+	'UNKNOWN',
+]);
+
+/**
+ * Normalizes raw error codes into a known create-user error code.
+ *
+ * @param value - Raw error code or message string
+ * @returns Normalized error code or null when unknown
+ */
+function normalizeCreateUserErrorCode(value: string): CreateOrganizationUserErrorCode | null {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	const normalized = trimmed
+		.replace(/[^a-zA-Z0-9]+/g, '_')
+		.replace(/^_+|_+$/g, '')
+		.toUpperCase();
+	if (CREATE_USER_ERROR_CODES.has(normalized as CreateOrganizationUserErrorCode)) {
+		return normalized as CreateOrganizationUserErrorCode;
+	}
+
+	return null;
+}
+
+/**
+ * Extracts the first validation summary string from API error details.
+ *
+ * @param details - Validation details payload
+ * @returns Validation summary or null when unavailable
+ */
+function extractValidationSummary(details: unknown): string | null {
+	if (!details || typeof details !== 'object') {
+		return null;
+	}
+
+	const errors = (details as { errors?: unknown }).errors;
+	if (!Array.isArray(errors) || errors.length === 0) {
+		return null;
+	}
+
+	const first = errors[0] as { summary?: unknown } | undefined;
+	if (!first || typeof first !== 'object') {
+		return null;
+	}
+
+	const summary = (first as { summary?: unknown }).summary;
+	return typeof summary === 'string' ? summary : null;
+}
+
+/**
+ * Resolves a create-user error code from an API error payload.
+ *
+ * @param error - Error payload from the API response
+ * @returns Normalized error code or null when not available
+ */
+function resolveCreateUserErrorCode(error: unknown): CreateOrganizationUserErrorCode | null {
+	const payload = error as { value?: ApiErrorPayload } | null;
+	const value = payload?.value;
+
+	if (!value || typeof value !== 'object') {
+		return null;
+	}
+
+	const errorObject =
+		typeof value.error === 'object' && value.error ? value.error : null;
+	const candidateCodes: Array<string | null> = [];
+
+	if (errorObject && typeof errorObject === 'object') {
+		const code = (errorObject as { code?: unknown }).code;
+		const message = (errorObject as { message?: unknown }).message;
+		if (typeof code === 'string') {
+			candidateCodes.push(code);
+		}
+		if (typeof message === 'string') {
+			candidateCodes.push(message);
+		}
+
+		const details = (errorObject as { details?: unknown }).details;
+		const summary = extractValidationSummary(details);
+		if (summary) {
+			candidateCodes.push(summary);
+		}
+	}
+
+	if (typeof value.error === 'string') {
+		candidateCodes.push(value.error);
+	}
+
+	const topLevelSummary = extractValidationSummary((value as { details?: unknown }).details);
+	if (topLevelSummary) {
+		candidateCodes.push(topLevelSummary);
+	}
+
+	const topLevelCode = (value as { code?: unknown }).code;
+	if (typeof topLevelCode === 'string') {
+		candidateCodes.push(topLevelCode);
+	}
+
+	for (const candidate of candidateCodes) {
+		if (!candidate) {
+			continue;
+		}
+		const normalized = normalizeCreateUserErrorCode(candidate);
+		if (normalized) {
+			return normalized;
+		}
+	}
+
+	return null;
+}
+
 /**
  * Creates a new user and assigns them to an organization.
  *
@@ -91,9 +265,11 @@ export async function createOrganizationUser(
 		});
 
 		if (response.error) {
+			const errorCode = resolveCreateUserErrorCode(response.error) ?? 'UNKNOWN';
 			return {
 				success: false,
 				error: 'Failed to create user',
+				errorCode,
 			};
 		}
 
@@ -103,6 +279,7 @@ export async function createOrganizationUser(
 			return {
 				success: false,
 				error: 'Failed to create user',
+				errorCode: 'UNKNOWN',
 			};
 		}
 
@@ -115,6 +292,7 @@ export async function createOrganizationUser(
 		return {
 			success: false,
 			error: 'Failed to create user',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }

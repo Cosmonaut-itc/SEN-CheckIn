@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import {
 	type AddOrganizationMemberInput,
 	type CreateOrganizationUserInput,
+	type CreateOrganizationUserErrorCode,
 	addOrganizationMember,
 	createOrganizationUser,
 } from '@/actions/users';
@@ -194,6 +195,41 @@ export function UsersPageClient(): React.ReactElement {
 		? t('table.empty')
 		: t('table.emptyNoOrganization');
 
+	const createUserErrorMessages = useMemo<Partial<Record<CreateOrganizationUserErrorCode, string>>>(
+		() => ({
+			PASSWORD_TOO_SHORT: t('errors.passwordTooShort'),
+			PASSWORD_TOO_LONG: t('errors.passwordTooLong'),
+			PASSWORD_REQUIRED: t('errors.passwordRequired'),
+			INVALID_EMAIL: t('errors.invalidEmail'),
+			EMAIL_REQUIRED: t('errors.emailRequired'),
+			USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: t('errors.emailAlreadyExists'),
+			USERNAME_IS_ALREADY_TAKEN: t('errors.usernameTaken'),
+			USERNAME_IS_INVALID: t('errors.usernameInvalid'),
+			INVALID_USERNAME: t('errors.usernameInvalid'),
+			USERNAME_TOO_SHORT: t('errors.usernameTooShort'),
+			USERNAME_TOO_LONG: t('errors.usernameTooLong'),
+			NAME_REQUIRED: t('errors.nameRequired'),
+			USERNAME_REQUIRED: t('errors.usernameRequired'),
+			ORGANIZATION_REQUIRED: t('errors.organizationRequired'),
+			ORGANIZATION_MEMBERSHIP_REQUIRED: t('errors.organizationMembershipRequired'),
+			ORGANIZATION_ADMIN_REQUIRED: t('errors.organizationAdminRequired'),
+			USER_SIGNUP_FAILED: t('errors.createFailed'),
+			ADD_MEMBER_FAILED: t('errors.addMemberFailed'),
+			PROVISION_USER_FAILED: t('errors.createFailed'),
+		}),
+		[t],
+	);
+
+	const resolveCreateUserErrorMessage = useCallback(
+		(code?: CreateOrganizationUserErrorCode): string => {
+			if (!code) {
+				return t('toast.createError');
+			}
+			return createUserErrorMessages[code] ?? t('toast.createError');
+		},
+		[createUserErrorMessages, t],
+	);
+
 	const form = useAppForm({
 		defaultValues: initialFormValues,
 		onSubmit: async ({ value }) => {
@@ -246,7 +282,7 @@ export function UsersPageClient(): React.ReactElement {
 					queryKey: queryKeys.organizationMembers.all,
 				});
 			} else {
-				toast.error(t('toast.createError'));
+				toast.error(resolveCreateUserErrorMessage(result.errorCode));
 			}
 		},
 		onError: () => {

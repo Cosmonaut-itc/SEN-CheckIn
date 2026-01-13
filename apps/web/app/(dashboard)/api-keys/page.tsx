@@ -1,8 +1,12 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { getQueryClient } from '@/lib/get-query-client';
-import { prefetchApiKeys } from '@/lib/server-functions';
-import { ApiKeysPageClient } from './api-keys-client';
+import { redirect } from 'next/navigation';
 import React from 'react';
+
+import { getQueryClient } from '@/lib/get-query-client';
+import { getAdminAccessContext } from '@/lib/organization-context';
+import { prefetchApiKeys } from '@/lib/server-functions';
+
+import { ApiKeysPageClient } from './api-keys-client';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -19,8 +23,13 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The API keys page with hydrated query state
  */
-export default function ApiKeysPage(): React.ReactElement {
+export default async function ApiKeysPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
+	const { canAccessAdminRoutes } = await getAdminAccessContext();
+
+	if (!canAccessAdminRoutes) {
+		redirect('/acceso-restringido');
+	}
 
 	// Prefetch without await for streaming support
 	prefetchApiKeys(queryClient);

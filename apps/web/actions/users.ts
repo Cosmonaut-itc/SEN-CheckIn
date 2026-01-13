@@ -131,6 +131,16 @@ const CREATE_USER_ERROR_CODES = new Set<CreateOrganizationUserErrorCode>([
 	'UNKNOWN',
 ]);
 
+const CREATE_USER_ERROR_CODE_ALIASES: Record<string, CreateOrganizationUserErrorCode> = {
+	USERNAME_IS_ALREADY_TAKEN_PLEASE_TRY_ANOTHER: 'USERNAME_IS_ALREADY_TAKEN',
+	USERNAME_ALREADY_TAKEN: 'USERNAME_IS_ALREADY_TAKEN',
+	USERNAME_TAKEN: 'USERNAME_IS_ALREADY_TAKEN',
+	EMAIL_ALREADY_EXISTS: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+	EMAIL_IS_ALREADY_TAKEN: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+	EMAIL_IS_ALREADY_IN_USE: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+	EMAIL_ALREADY_IN_USE: 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+};
+
 /**
  * Normalizes raw error codes into a known create-user error code.
  *
@@ -149,6 +159,29 @@ function normalizeCreateUserErrorCode(value: string): CreateOrganizationUserErro
 		.toUpperCase();
 	if (CREATE_USER_ERROR_CODES.has(normalized as CreateOrganizationUserErrorCode)) {
 		return normalized as CreateOrganizationUserErrorCode;
+	}
+
+	const aliasMatch = CREATE_USER_ERROR_CODE_ALIASES[normalized];
+	if (aliasMatch) {
+		return aliasMatch;
+	}
+
+	if (normalized.startsWith('USERNAME_IS_ALREADY_TAKEN')) {
+		return 'USERNAME_IS_ALREADY_TAKEN';
+	}
+
+	if (normalized.includes('USERNAME') && normalized.includes('TAKEN')) {
+		return 'USERNAME_IS_ALREADY_TAKEN';
+	}
+
+	if (
+		normalized.includes('EMAIL') &&
+		(normalized.includes('ALREADY') ||
+			normalized.includes('EXISTS') ||
+			normalized.includes('TAKEN') ||
+			normalized.includes('IN_USE'))
+	) {
+		return 'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL';
 	}
 
 	return null;

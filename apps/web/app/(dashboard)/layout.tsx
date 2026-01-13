@@ -6,7 +6,6 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/s
 import { OrgProvider } from '@/lib/org-client-context';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
 import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
-import { redirect } from 'next/navigation';
 import React, { type ReactNode } from 'react';
 
 /**
@@ -49,12 +48,6 @@ export default async function DashboardLayout({
 		}
 	}
 
-	const isOrgAdmin = memberRole === 'admin' || memberRole === 'owner';
-
-	if (!isSuperUser && orgContext.organizationId && !isOrgAdmin) {
-		redirect('/acceso-restringido');
-	}
-
 	return (
 		<SidebarProvider>
 			<AppSidebar isSuperUser={isSuperUser} organizationRole={memberRole} />
@@ -69,6 +62,7 @@ export default async function DashboardLayout({
 				<main className="flex-1 overflow-auto p-6">
 					<OrganizationGate
 						role={userRole}
+						organizationRole={memberRole}
 						hasOrganization={orgContext.organizationId !== null}
 					>
 						<OrgProvider value={orgContext}>{children}</OrgProvider>

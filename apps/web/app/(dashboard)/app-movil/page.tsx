@@ -1,4 +1,7 @@
+import { redirect } from 'next/navigation';
 import React from 'react';
+
+import { getAdminAccessContext } from '@/lib/organization-context';
 
 import { AppMovilPageClient } from './app-movil-client';
 
@@ -13,6 +16,12 @@ export const dynamic = 'force-dynamic';
  *
  * @returns The App Móvil page
  */
-export default function AppMovilPage(): React.ReactElement {
+export default async function AppMovilPage(): Promise<React.ReactElement> {
+	const { canAccessAdminRoutes } = await getAdminAccessContext();
+
+	if (!canAccessAdminRoutes) {
+		redirect('/acceso-restringido');
+	}
+
 	return <AppMovilPageClient />;
 }

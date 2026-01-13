@@ -1,9 +1,12 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { getQueryClient } from '@/lib/get-query-client';
-import { prefetchAllOrganizations, prefetchOrganizations } from '@/lib/server-functions';
-import { OrganizationsPageClient } from './organizations-client';
+import { redirect } from 'next/navigation';
 import React from 'react';
-import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+
+import { getQueryClient } from '@/lib/get-query-client';
+import { getAdminAccessContext } from '@/lib/organization-context';
+import { prefetchAllOrganizations, prefetchOrganizations } from '@/lib/server-functions';
+
+import { OrganizationsPageClient } from './organizations-client';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -22,9 +25,11 @@ export const dynamic = 'force-dynamic';
  */
 export default async function OrganizationsPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
-	const fetchOptions = await getServerFetchOptions();
-	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
-	const isSuperUser = sessionResult.data?.user?.role === 'admin';
+	const { isSuperUser, canAccessAdminRoutes } = await getAdminAccessContext();
+
+	if (!canAccessAdminRoutes) {
+		redirect('/acceso-restringido');
+	}
 
 	// Prefetch without await for streaming support
 	if (isSuperUser) {

@@ -1,11 +1,13 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { getQueryClient } from '@/lib/get-query-client';
-import { prefetchAllOrganizations, prefetchOrganizationMembers } from '@/lib/server-functions';
-import { UsersPageClient } from './users-client';
+import { redirect } from 'next/navigation';
 import React from 'react';
-import { getActiveOrganizationContext } from '@/lib/organization-context';
+
+import { getQueryClient } from '@/lib/get-query-client';
+import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
-import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import { prefetchAllOrganizations, prefetchOrganizationMembers } from '@/lib/server-functions';
+
+import { UsersPageClient } from './users-client';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -24,19 +26,20 @@ export const dynamic = 'force-dynamic';
  */
 export default async function UsersPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
-	const orgContext = await getActiveOrganizationContext();
-	const fetchOptions = await getServerFetchOptions();
-	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
-	const isSuperUser = sessionResult.data?.user?.role === 'admin';
+	const { organization, isSuperUser, canAccessAdminRoutes } = await getAdminAccessContext();
+
+	if (!canAccessAdminRoutes) {
+		redirect('/acceso-restringido');
+	}
 
 	// Prefetch without await for streaming support
 	if (isSuperUser) {
 		prefetchAllOrganizations(queryClient, { limit: 100, offset: 0 });
 	}
 
-	if (orgContext.organizationId) {
+	if (organization.organizationId) {
 		prefetchOrganizationMembers(queryClient, {
-			organizationId: orgContext.organizationId,
+			organizationId: organization.organizationId,
 			limit: 100,
 			offset: 0,
 		});
@@ -44,7 +47,7 @@ export default async function UsersPage(): Promise<React.ReactElement> {
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<OrgProvider value={orgContext}>
+			<OrgProvider value={organization}>
 				<UsersPageClient />
 			</OrgProvider>
 		</HydrationBoundary>

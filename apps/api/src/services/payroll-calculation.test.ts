@@ -3,6 +3,10 @@ import { describe, expect, it } from 'bun:test';
 import { addDaysToDateKey } from '../utils/date-key.js';
 import { getUtcDateForZonedMidnight, toDateKeyInTimeZone } from '../utils/time-zone.js';
 import {
+	calculateMexicoPayrollTaxes,
+	type MexicoPayrollTaxSettings,
+} from './mexico-payroll-taxes.js';
+import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
@@ -1388,5 +1392,60 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(Number(row.netPay.toFixed(2))).toBe(row.netPay);
 			expect(Number(row.companyCost.toFixed(2))).toBe(row.companyCost);
 		}
+	});
+});
+
+describe('payroll-calculation mexico taxes 2026', () => {
+	const baseSettings: MexicoPayrollTaxSettings = {
+		riskWorkRate: 0,
+		statePayrollTaxRate: 0,
+		absorbImssEmployeeShare: false,
+		absorbIsr: false,
+		aguinaldoDays: 15,
+		vacationPremiumRate: 0.25,
+	};
+
+	const baseInput = {
+		dailyPay: 278.8,
+		grossPay: 1951.6,
+		paymentFrequency: 'WEEKLY' as const,
+		periodStartDateKey: '2026-01-05',
+		periodEndDateKey: '2026-01-11',
+		hireDate: new Date('2020-01-01T00:00:00Z'),
+		locationGeographicZone: 'GENERAL' as const,
+		settings: baseSettings,
+	};
+
+	it('uses 2026 ISR tables for weekly calculations', () => {
+		const result = calculateMexicoPayrollTaxes(baseInput);
+		expect(result.informationalLines.isrBeforeSubsidy).toBe(129.69);
+	});
+
+	it('applies subsidy changes between January and February 2026', () => {
+		const january = calculateMexicoPayrollTaxes({
+			...baseInput,
+			periodStartDateKey: '2026-01-08',
+			periodEndDateKey: '2026-01-14',
+		});
+		const february = calculateMexicoPayrollTaxes({
+			...baseInput,
+			periodStartDateKey: '2026-02-02',
+			periodEndDateKey: '2026-02-08',
+		});
+
+		expect(january.informationalLines.subsidyApplied).toBe(123.47);
+		expect(february.informationalLines.subsidyApplied).toBe(123.34);
+	});
+
+	it('sums UMA-dependent components across the 2026-02-01 switch', () => {
+		const result = calculateMexicoPayrollTaxes({
+			...baseInput,
+			dailyPay: 1000,
+			grossPay: 7000,
+			periodStartDateKey: '2026-01-29',
+			periodEndDateKey: '2026-02-04',
+		});
+
+		expect(result.employerCosts.imssEmployer.emFixed).toBe(164.97);
 	});
 });

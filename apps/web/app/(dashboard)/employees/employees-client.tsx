@@ -1336,6 +1336,11 @@ export function EmployeesPageClient(): React.ReactElement {
 																				})}
 																			</p>
 																			<p>
+																				{t('vacationBalance.tooltip.accrued', {
+																					value: vacationBalance.accruedDays.toFixed(2),
+																				})}
+																			</p>
+																			<p>
 																				{t('vacationBalance.tooltip.used', {
 																					value: vacationBalance.usedDays,
 																				})}
@@ -1579,13 +1584,21 @@ export function EmployeesPageClient(): React.ReactElement {
 															<Skeleton className="h-4 w-24" />
 														</div>
 													) : vacationBalance ? (
-														<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+														<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
 															<div className="space-y-1">
 																<p className="text-xs text-muted-foreground">
 																	{t('vacations.balance.entitled')}
 																</p>
 																<p className="text-lg font-semibold">
 																	{vacationBalance.entitledDays}
+																</p>
+															</div>
+															<div className="space-y-1">
+																<p className="text-xs text-muted-foreground">
+																	{t('vacations.balance.accrued')}
+																</p>
+																<p className="text-lg font-semibold">
+																	{vacationBalance.accruedDays.toFixed(2)}
 																</p>
 															</div>
 															<div className="space-y-1">

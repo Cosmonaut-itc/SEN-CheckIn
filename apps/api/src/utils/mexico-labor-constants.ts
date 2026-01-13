@@ -1,10 +1,21 @@
 /**
- * Constants for Mexican labor law (LFT) and CONASAMI 2025 minimum wages.
+ * Constants for Mexican labor law (LFT) and CONASAMI minimum wages by year.
  */
-export const MINIMUM_WAGES = {
-	GENERAL: 278.8,
-	ZLFN: 419.88,
+export const MINIMUM_WAGE_BY_YEAR = {
+	2025: {
+		GENERAL: 278.8,
+		ZLFN: 419.88,
+	},
+	2026: {
+		GENERAL: 315.04,
+		ZLFN: 440.87,
+	},
 } as const;
+
+/**
+ * Default minimum wage values (latest configured year).
+ */
+export const MINIMUM_WAGES = MINIMUM_WAGE_BY_YEAR[2026];
 
 /**
  * Shift hour limits per Mexican labor law.

@@ -3,11 +3,10 @@ import { and, eq, inArray, ne, type SQL } from 'drizzle-orm';
 import db from '../db/index.js';
 import { vacationRequest, vacationRequestDay } from '../db/schema.js';
 import type { VacationRequestStatus } from '../schemas/vacations.js';
-import { getVacationDaysForYears } from './mexico-payroll-taxes.js';
 import {
-	getServiceYearEndDateKey,
+	calculateAvailableVacationDays,
+	calculateVacationAccrual,
 	getServiceYearNumber,
-	getServiceYearStartDateKey,
 } from './vacations.js';
 import { toDateKeyInTimeZone } from '../utils/time-zone.js';
 import type { EmployeeVacationBalance } from '@sen-checkin/types';
@@ -90,20 +89,28 @@ export async function buildEmployeeVacationBalance(args: {
 		statuses: ['SUBMITTED'],
 	});
 
-	const entitledDays =
-		currentServiceYear > 0 ? getVacationDaysForYears(currentServiceYear) : 0;
 	const usedDays = approvedDays.get(currentServiceYear) ?? 0;
 	const pending = pendingDays.get(currentServiceYear) ?? 0;
-	const availableDays = entitledDays - usedDays - pending;
+	const accrual = calculateVacationAccrual({
+		hireDate: args.hireDate,
+		serviceYearNumber: currentServiceYear,
+		asOfDateKey,
+	});
+	const availableDays = calculateAvailableVacationDays({
+		accruedDays: accrual.accruedDays,
+		usedDays,
+		pendingDays: pending,
+	});
 
 	return {
 		employeeId: args.employeeId,
 		hireDate: args.hireDate,
 		asOfDateKey,
 		serviceYearNumber: currentServiceYear,
-		serviceYearStartDateKey: getServiceYearStartDateKey(args.hireDate, currentServiceYear),
-		serviceYearEndDateKey: getServiceYearEndDateKey(args.hireDate, currentServiceYear),
-		entitledDays,
+		serviceYearStartDateKey: accrual.serviceYearStartDateKey,
+		serviceYearEndDateKey: accrual.serviceYearEndDateKey,
+		entitledDays: accrual.entitledDays,
+		accruedDays: accrual.accruedDays,
 		usedDays,
 		pendingDays: pending,
 		availableDays,

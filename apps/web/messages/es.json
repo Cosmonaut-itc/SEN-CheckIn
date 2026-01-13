@@ -276,8 +276,9 @@
 		"vacationBalance": {
 			"tooltip": {
 				"title": "Calculo de dias disponibles",
-				"formula": "Disponibles = Asignados - Usados - Pendientes",
+				"formula": "Disponibles = Devengados (redondeo hacia abajo) - Usados - Pendientes",
 				"entitled": "Asignados: {value}",
+				"accrued": "Devengados: {value}",
 				"used": "Usados: {value}",
 				"pending": "Pendientes: {value}",
 				"available": "Disponibles: {value}",
@@ -296,6 +297,7 @@
 			"balanceTitle": "Balance de vacaciones",
 			"balance": {
 				"entitled": "Asignados",
+				"accrued": "Devengados",
 				"used": "Usados",
 				"pending": "Pendientes",
 				"available": "Disponibles"
@@ -816,6 +818,28 @@
 		"legalRules": {
 			"title": "Reglas legales (LFT México)",
 			"description": "Límites de jornada: Diurna 8 h/48 h, Nocturna 7 h/42 h, Mixta 7.5 h/45 h. Primeras 9 h extra al doble, posteriores al triple. Prima dominical: +25%. Descanso obligatorio trabajado: pago triple."
+		},
+		"insights": {
+			"title": "Parametros fiscales 2026",
+			"description": "Recordatorio de los valores configurados en el motor fiscal.",
+			"sections": {
+				"minimumWage": "Salario minimo diario",
+				"uma": "UMA diaria",
+				"subsidy": "Subsidio al empleo",
+				"isr": "ISR 2026",
+				"cv": "C&V patronal 2026"
+			},
+			"items": {
+				"minimumWageGeneral": "Zona general: {value}",
+				"minimumWageZlfn": "ZLFN: {value}",
+				"umaJan": "Hasta 2026-01-31: {value}",
+				"umaFeb": "Desde 2026-02-01: {value}",
+				"subsidyLimit": "Limite mensual: {value}",
+				"subsidyJan": "Enero 2026: {value}",
+				"subsidyFeb": "Febrero-diciembre 2026: {value}",
+				"isrTables": "Tablas por periodicidad (semanal/quincenal/mensual) segun fecha de fin.",
+				"cvRange": "Tasa variable 3.150% a 7.513% segun UMA y zona."
+			}
 		},
 		"paymentFrequency": {
 			"WEEKLY": "Semanal",

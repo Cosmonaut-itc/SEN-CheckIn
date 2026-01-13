@@ -580,6 +580,79 @@ export function PayrollPageClient(): React.ReactElement {
 
 			<Card>
 				<CardHeader>
+					<CardTitle>{t('insights.title')}</CardTitle>
+					<CardDescription>{t('insights.description')}</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+						<div className="space-y-2">
+							<p className="text-sm font-medium">{t('insights.sections.minimumWage')}</p>
+							<ul className="space-y-1 text-sm text-muted-foreground">
+								<li>
+									{t('insights.items.minimumWageGeneral', {
+										value: formatCurrency(315.04),
+									})}
+								</li>
+								<li>
+									{t('insights.items.minimumWageZlfn', {
+										value: formatCurrency(440.87),
+									})}
+								</li>
+							</ul>
+						</div>
+						<div className="space-y-2">
+							<p className="text-sm font-medium">{t('insights.sections.uma')}</p>
+							<ul className="space-y-1 text-sm text-muted-foreground">
+								<li>
+									{t('insights.items.umaJan', {
+										value: formatCurrency(113.14),
+									})}
+								</li>
+								<li>
+									{t('insights.items.umaFeb', {
+										value: formatCurrency(117.31),
+									})}
+								</li>
+							</ul>
+						</div>
+						<div className="space-y-2">
+							<p className="text-sm font-medium">{t('insights.sections.subsidy')}</p>
+							<ul className="space-y-1 text-sm text-muted-foreground">
+								<li>
+									{t('insights.items.subsidyLimit', {
+										value: formatCurrency(11492.66),
+									})}
+								</li>
+								<li>
+									{t('insights.items.subsidyJan', {
+										value: formatCurrency(536.21),
+									})}
+								</li>
+								<li>
+									{t('insights.items.subsidyFeb', {
+										value: formatCurrency(535.65),
+									})}
+								</li>
+							</ul>
+						</div>
+						<div className="space-y-2">
+							<p className="text-sm font-medium">{t('insights.sections.isr')}</p>
+							<p className="text-sm text-muted-foreground">
+								{t('insights.items.isrTables')}
+							</p>
+						</div>
+						<div className="space-y-2">
+							<p className="text-sm font-medium">{t('insights.sections.cv')}</p>
+							<p className="text-sm text-muted-foreground">
+								{t('insights.items.cvRange')}
+							</p>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
 					<CardTitle>{t('payPeriod.title')}</CardTitle>
 					<CardDescription>{t('payPeriod.description')}</CardDescription>
 				</CardHeader>

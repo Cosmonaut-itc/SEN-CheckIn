@@ -266,6 +266,8 @@ export interface EmployeeVacationBalance {
 	serviceYearEndDateKey: string | null;
 	/** Vacation days entitled for the service year */
 	entitledDays: number;
+	/** Vacation days accrued to date for the service year */
+	accruedDays: number;
 	/** Vacation days already used (approved) */
 	usedDays: number;
 	/** Vacation days pending approval */

@@ -193,8 +193,7 @@ function resolveCreateUserErrorCode(error: unknown): CreateOrganizationUserError
 		return null;
 	}
 
-	const errorObject =
-		typeof value.error === 'object' && value.error ? value.error : null;
+	const errorObject = typeof value.error === 'object' && value.error ? value.error : null;
 	const candidateCodes: Array<string | null> = [];
 
 	if (errorObject && typeof errorObject === 'object') {
@@ -265,6 +264,11 @@ export async function createOrganizationUser(
 		});
 
 		if (response.error) {
+			const logInput = { ...input, password: '[redacted]' };
+			console.error('[users] Failed to create organization user', {
+				input: logInput,
+				error: response.error,
+			});
 			const errorCode = resolveCreateUserErrorCode(response.error) ?? 'UNKNOWN';
 			return {
 				success: false,

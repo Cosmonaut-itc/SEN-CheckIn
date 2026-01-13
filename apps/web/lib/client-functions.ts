@@ -230,6 +230,7 @@ export interface VacationBalance {
 	serviceYearStartDateKey: string | null;
 	serviceYearEndDateKey: string | null;
 	entitledDays: number;
+	accruedDays: number;
 	usedDays: number;
 	pendingDays: number;
 	availableDays: number;

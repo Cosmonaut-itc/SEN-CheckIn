@@ -21,7 +21,7 @@ Vigencia: estos valores entran en vigor a partir del 1 de febrero de cada año (
 1.  Deducciones del trabajador (afectan el neto)  
     Se descuentan del pago al trabajador (p. ej. ISR retenido, cuotas obreras IMSS, amortización INFONAVIT).
 2.  Aportaciones/costos patronales (NO afectan el neto, sí el costo empresa)  
-    Son obligación del patrón (p. ej. IMSS patronal, INFONAVIT 5% patronal, Riesgo de trabajo, Guarderías 1%, SAR 2%, etc.).
+    Son obligación del patrón (p. ej. IMSS patronal, INFONAVIT 5% patronal, Riesgo de trabajo,auarderías 1%, SAR 2%, etc.).
 3.  Montos informativos (se reportan pero no necesariamente impactan neto)  
      Ejemplo común: mostrar “ISR antes de subsidio” y “Subsidio acreditado” como renglones explicativos.
     > Regla de oro para tu sistema: separa explícitamente employee*withholdings (neto) de employer_costs (costo).  

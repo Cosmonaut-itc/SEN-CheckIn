@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 
 import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { getMexicoMandatoryRestDayKeysForYear } from '../utils/mexico-mandatory-rest-days.js';
+import { getVacationDaysForYears } from './mexico-payroll-taxes.js';
 
 export type VacationDayType =
 	| 'SCHEDULED_WORKDAY'
@@ -89,7 +90,7 @@ export function getServiceYearNumber(
  * Resolves the start date key for a service year.
  *
  * @param hireDate - Employee hire date
- * @param serviceYearNumber - Service year number (>=1)
+ * @param serviceYearNumber - Completed years of service (>=1)
  * @returns Date key for the service year start or null when unavailable
  */
 export function getServiceYearStartDateKey(
@@ -102,7 +103,7 @@ export function getServiceYearStartDateKey(
 
 	const startDate = new Date(
 		Date.UTC(
-			hireDate.getUTCFullYear() + serviceYearNumber - 1,
+			hireDate.getUTCFullYear() + serviceYearNumber,
 			hireDate.getUTCMonth(),
 			hireDate.getUTCDate(),
 		),
@@ -115,7 +116,7 @@ export function getServiceYearStartDateKey(
  * Resolves the end date key for a service year.
  *
  * @param hireDate - Employee hire date
- * @param serviceYearNumber - Service year number (>=1)
+ * @param serviceYearNumber - Completed years of service (>=1)
  * @returns Date key for the service year end or null when unavailable
  */
 export function getServiceYearEndDateKey(
@@ -127,6 +128,108 @@ export function getServiceYearEndDateKey(
 		return null;
 	}
 	return addDaysToDateKey(nextStartKey, -1);
+}
+
+/**
+ * Calculates the inclusive number of days between two date keys.
+ *
+ * @param startDateKey - Start date key (YYYY-MM-DD)
+ * @param endDateKey - End date key (YYYY-MM-DD)
+ * @returns Inclusive day count (>=0)
+ */
+function getInclusiveDayCount(startDateKey: string, endDateKey: string): number {
+	if (endDateKey < startDateKey) {
+		return 0;
+	}
+	let count = 0;
+	let cursor = startDateKey;
+	for (let i = 0; i < 400 && cursor <= endDateKey; i += 1) {
+		count += 1;
+		if (cursor === endDateKey) {
+			break;
+		}
+		cursor = addDaysToDateKey(cursor, 1);
+	}
+	return count;
+}
+
+/**
+ * Calculates accrued vacation days for a service year using linear accrual.
+ *
+ * @param args - Accrual inputs
+ * @param args.hireDate - Employee hire date
+ * @param args.serviceYearNumber - Completed years of service for the vacation year
+ * @param args.asOfDateKey - Date key used as accrual cutoff (YYYY-MM-DD)
+ * @returns Accrual snapshot for the requested service year
+ */
+export function calculateVacationAccrual(args: {
+	hireDate: Date;
+	serviceYearNumber: number;
+	asOfDateKey: string;
+}): {
+	entitledDays: number;
+	accruedDays: number;
+	serviceYearStartDateKey: string | null;
+	serviceYearEndDateKey: string | null;
+	daysElapsed: number;
+	daysInServiceYear: number;
+} {
+	const { hireDate, serviceYearNumber, asOfDateKey } = args;
+	const serviceYearStartDateKey = getServiceYearStartDateKey(hireDate, serviceYearNumber);
+	const serviceYearEndDateKey = getServiceYearEndDateKey(hireDate, serviceYearNumber);
+	const entitledDays = serviceYearNumber > 0 ? getVacationDaysForYears(serviceYearNumber) : 0;
+
+	if (!serviceYearStartDateKey || !serviceYearEndDateKey || entitledDays <= 0) {
+		return {
+			entitledDays,
+			accruedDays: 0,
+			serviceYearStartDateKey,
+			serviceYearEndDateKey,
+			daysElapsed: 0,
+			daysInServiceYear: 0,
+		};
+	}
+
+	const daysInServiceYear = getInclusiveDayCount(
+		serviceYearStartDateKey,
+		serviceYearEndDateKey,
+	);
+	const clampedAsOfDateKey =
+		asOfDateKey < serviceYearStartDateKey
+			? serviceYearStartDateKey
+			: asOfDateKey > serviceYearEndDateKey
+				? serviceYearEndDateKey
+				: asOfDateKey;
+	const daysElapsed = getInclusiveDayCount(serviceYearStartDateKey, clampedAsOfDateKey);
+	const accruedDays =
+		daysInServiceYear > 0 ? (entitledDays * daysElapsed) / daysInServiceYear : 0;
+
+	return {
+		entitledDays,
+		accruedDays,
+		serviceYearStartDateKey,
+		serviceYearEndDateKey,
+		daysElapsed,
+		daysInServiceYear,
+	};
+}
+
+/**
+ * Calculates available vacation days based on accrued days and usage.
+ *
+ * @param args - Availability inputs
+ * @param args.accruedDays - Accrued vacation days to date
+ * @param args.usedDays - Approved vacation days already used
+ * @param args.pendingDays - Pending vacation days
+ * @returns Available vacation days (clamped to zero)
+ */
+export function calculateAvailableVacationDays(args: {
+	accruedDays: number;
+	usedDays: number;
+	pendingDays: number;
+}): number {
+	const available = Math.floor(args.accruedDays) - args.usedDays - args.pendingDays;
+	return Math.max(0, available);
 }
 
 /**

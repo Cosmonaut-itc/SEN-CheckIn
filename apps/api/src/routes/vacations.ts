@@ -23,10 +23,10 @@ import {
 	vacationRequestQuerySchema,
 	type VacationRequestStatus,
 } from '../schemas/vacations.js';
-import { getVacationDaysForYears } from '../services/mexico-payroll-taxes.js';
 import {
 	buildMandatoryRestDayKeys,
 	buildVacationDayBreakdown,
+	calculateVacationAccrual,
 	type VacationDayDetail,
 	type VacationScheduleDay,
 	type VacationScheduleException,
@@ -240,6 +240,8 @@ async function buildVacationRequestDays(
  * @param args.organizationId - Organization identifier
  * @param args.employeeId - Employee identifier
  * @param args.requestedDaysByServiceYear - Map of requested days by service year
+ * @param args.requestEndDateKey - Request end date key (YYYY-MM-DD)
+ * @param args.hireDate - Employee hire date
  * @param args.excludeRequestId - Optional request ID to exclude
  * @param set - Elysia response setter
  * @returns True when balance is sufficient
@@ -249,6 +251,8 @@ async function validateVacationBalance(
 		organizationId: string;
 		employeeId: string;
 		requestedDaysByServiceYear: Map<number, number>;
+		requestEndDateKey: string;
+		hireDate: Date;
 		excludeRequestId?: string;
 	},
 	set: { status?: number | string } & Record<string, unknown>,
@@ -266,9 +270,14 @@ async function validateVacationBalance(
 			return false;
 		}
 
-		const entitledDays = getVacationDaysForYears(serviceYearNumber);
+		const accrual = calculateVacationAccrual({
+			hireDate: args.hireDate,
+			serviceYearNumber,
+			asOfDateKey: args.requestEndDateKey,
+		});
 		const alreadyUsed = usedDays.get(serviceYearNumber) ?? 0;
-		if (alreadyUsed + requestedDays > entitledDays) {
+		const availableDays = Math.max(0, Math.floor(accrual.accruedDays) - alreadyUsed);
+		if (requestedDays > availableDays) {
 			set.status = 409;
 			return false;
 		}
@@ -672,6 +681,8 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					organizationId,
 					employeeId: employeeRecord.id,
 					requestedDaysByServiceYear: breakdown.vacationDaysByServiceYear,
+					requestEndDateKey: body.endDateKey,
+					hireDate: employeeRecord.hireDate,
 				},
 				set,
 			);
@@ -934,11 +945,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			}
 
 			const status = body.status ?? 'SUBMITTED';
+			const hireDate = employeeRecord.hireDate ?? null;
 			if (status !== 'DRAFT' && status !== 'SUBMITTED') {
 				set.status = 400;
 				return { error: 'Invalid status for vacation request' };
 			}
-			if (status === 'SUBMITTED' && !employeeRecord.hireDate) {
+			if (status === 'SUBMITTED' && !hireDate) {
 				set.status = 400;
 				return { error: 'Employee hire date is required for vacation requests' };
 			}
@@ -977,12 +989,14 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				};
 			}
 
-			if (status === 'SUBMITTED') {
+			if (status === 'SUBMITTED' && hireDate) {
 				const balanceOk = await validateVacationBalance(
 					{
 						organizationId,
 						employeeId: employeeRecord.id,
 						requestedDaysByServiceYear: breakdown.vacationDaysByServiceYear,
+						requestEndDateKey: body.endDateKey,
+						hireDate,
 					},
 					set,
 				);
@@ -1141,11 +1155,29 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				}
 			}
 
+			const employeeRows = await db
+				.select({ hireDate: employee.hireDate })
+				.from(employee)
+				.where(
+					and(
+						eq(employee.id, request.employeeId),
+						eq(employee.organizationId, organizationId),
+					),
+				)
+				.limit(1);
+			const hireDate = employeeRows[0]?.hireDate ?? null;
+			if (!hireDate) {
+				set.status = 400;
+				return { error: 'Employee hire date is required for vacation requests' };
+			}
+
 			const balanceOk = await validateVacationBalance(
 				{
 					organizationId,
 					employeeId: request.employeeId,
 					requestedDaysByServiceYear,
+					requestEndDateKey: request.endDateKey,
+					hireDate,
 					excludeRequestId: request.id,
 				},
 				set,

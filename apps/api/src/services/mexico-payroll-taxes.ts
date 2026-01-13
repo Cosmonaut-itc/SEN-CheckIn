@@ -1,6 +1,6 @@
-import { MINIMUM_WAGES } from '../utils/mexico-labor-constants.js';
 import { addDaysToDateKey } from '../utils/date-key.js';
 import { roundCurrency, sumMoney } from '../utils/money.js';
+import { resolveMinimumWageDaily, type MinimumWageZone } from '../utils/minimum-wage.js';
 
 export type PayrollPaymentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
@@ -88,7 +88,7 @@ export interface MexicoPayrollTaxInput {
 	periodEndDateKey: string;
 	hireDate: Date | null;
 	sbcDailyOverride?: number | null;
-	locationGeographicZone?: keyof typeof MINIMUM_WAGES | null;
+	locationGeographicZone?: MinimumWageZone | null;
 	settings: MexicoPayrollTaxSettings;
 	umaDaily?: number;
 }
@@ -100,12 +100,39 @@ type IsrTableRow = {
 	rate: number;
 };
 
-const UMA_DAILY_2025 = 113.14;
-const UMA_MONTHLY_DAYS = 30.4;
-const SUBSIDY_MONTHLY_MAX = 475;
-const SUBSIDY_MONTHLY_LIMIT = 10171;
+type CvRateBracket = {
+	upperUma: number | null;
+	rate: number;
+};
 
-const ISR_TABLES: Record<PayrollPaymentFrequency, IsrTableRow[]> = {
+type CvRateTable = {
+	minimumWageRate: number;
+	umaBrackets: CvRateBracket[];
+};
+
+type SubsidyRule = {
+	monthlyMax: number;
+	monthlyLimit: number;
+};
+
+const UMA_DAILY_2025 = 113.14;
+const UMA_DAILY_2026 = 117.31;
+const UMA_MONTHLY_DAYS = 30.4;
+
+const SUBSIDY_RULE_2025: SubsidyRule = {
+	monthlyMax: 475,
+	monthlyLimit: 10171,
+};
+const SUBSIDY_RULE_2026_JAN: SubsidyRule = {
+	monthlyMax: 536.21,
+	monthlyLimit: 11492.66,
+};
+const SUBSIDY_RULE_2026_FEB: SubsidyRule = {
+	monthlyMax: 535.65,
+	monthlyLimit: 11492.66,
+};
+
+const ISR_TABLES_2025: Record<PayrollPaymentFrequency, IsrTableRow[]> = {
 	WEEKLY: [
 		{ lower: 0.01, upper: 171.78, fixed: 0, rate: 1.92 },
 		{ lower: 171.79, upper: 1458.03, fixed: 3.29, rate: 6.4 },
@@ -147,6 +174,74 @@ const ISR_TABLES: Record<PayrollPaymentFrequency, IsrTableRow[]> = {
 	],
 };
 
+const ISR_TABLES_2026: Record<PayrollPaymentFrequency, IsrTableRow[]> = {
+	WEEKLY: [
+		{ lower: 0.01, upper: 194.46, fixed: 0, rate: 1.92 },
+		{ lower: 194.47, upper: 1650.67, fixed: 3.71, rate: 6.4 },
+		{ lower: 1650.68, upper: 2900.87, fixed: 96.95, rate: 10.88 },
+		{ lower: 2900.88, upper: 3372.11, fixed: 232.96, rate: 16 },
+		{ lower: 3372.12, upper: 4037.32, fixed: 308.35, rate: 17.92 },
+		{ lower: 4037.33, upper: 8142.75, fixed: 427.56, rate: 21.36 },
+		{ lower: 8142.76, upper: 12834.08, fixed: 1304.45, rate: 23.52 },
+		{ lower: 12834.09, upper: 24502.45, fixed: 2407.86, rate: 30 },
+		{ lower: 24502.46, upper: 32669.91, fixed: 5908.35, rate: 32 },
+		{ lower: 32669.92, upper: 98009.66, fixed: 8521.94, rate: 34 },
+		{ lower: 98009.67, upper: null, fixed: 30737.49, rate: 35 },
+	],
+	BIWEEKLY: [
+		{ lower: 0.01, upper: 416.7, fixed: 0, rate: 1.92 },
+		{ lower: 416.71, upper: 3537.15, fixed: 7.95, rate: 6.4 },
+		{ lower: 3537.16, upper: 6216.15, fixed: 207.75, rate: 10.88 },
+		{ lower: 6216.16, upper: 7225.95, fixed: 499.2, rate: 16 },
+		{ lower: 7225.96, upper: 8651.4, fixed: 660.75, rate: 17.92 },
+		{ lower: 8651.41, upper: 17448.75, fixed: 916.2, rate: 21.36 },
+		{ lower: 17448.76, upper: 27501.6, fixed: 2795.25, rate: 23.52 },
+		{ lower: 27501.61, upper: 52505.25, fixed: 5159.7, rate: 30 },
+		{ lower: 52505.26, upper: 70006.95, fixed: 12660.75, rate: 32 },
+		{ lower: 70006.96, upper: 210020.7, fixed: 18261.3, rate: 34 },
+		{ lower: 210020.71, upper: null, fixed: 65866.05, rate: 35 },
+	],
+	MONTHLY: [
+		{ lower: 0.01, upper: 844.59, fixed: 0, rate: 1.92 },
+		{ lower: 844.6, upper: 7168.51, fixed: 16.22, rate: 6.4 },
+		{ lower: 7168.52, upper: 12598.02, fixed: 420.95, rate: 10.88 },
+		{ lower: 12598.03, upper: 14644.64, fixed: 1011.68, rate: 16 },
+		{ lower: 14644.65, upper: 17533.64, fixed: 1339.14, rate: 17.92 },
+		{ lower: 17533.65, upper: 35362.83, fixed: 1856.84, rate: 21.36 },
+		{ lower: 35362.84, upper: 55736.68, fixed: 5665.16, rate: 23.52 },
+		{ lower: 55736.69, upper: 106410.5, fixed: 10457.09, rate: 30 },
+		{ lower: 106410.51, upper: 141880.66, fixed: 25659.23, rate: 32 },
+		{ lower: 141880.67, upper: 425641.99, fixed: 37009.69, rate: 34 },
+		{ lower: 425642, upper: null, fixed: 133488.54, rate: 35 },
+	],
+};
+
+const CV_RATE_TABLE_2025: CvRateTable = {
+	minimumWageRate: 0.0315,
+	umaBrackets: [
+		{ upperUma: 1.5, rate: 0.03544 },
+		{ upperUma: 2.0, rate: 0.04426 },
+		{ upperUma: 2.5, rate: 0.04954 },
+		{ upperUma: 3.0, rate: 0.05307 },
+		{ upperUma: 3.5, rate: 0.05559 },
+		{ upperUma: 4.0, rate: 0.05747 },
+		{ upperUma: null, rate: 0.06422 },
+	],
+};
+
+const CV_RATE_TABLE_2026: CvRateTable = {
+	minimumWageRate: 0.0315,
+	umaBrackets: [
+		{ upperUma: 1.5, rate: 0.03676 },
+		{ upperUma: 2.0, rate: 0.04851 },
+		{ upperUma: 2.5, rate: 0.05556 },
+		{ upperUma: 3.0, rate: 0.06026 },
+		{ upperUma: 3.5, rate: 0.06361 },
+		{ upperUma: 4.0, rate: 0.06613 },
+		{ upperUma: null, rate: 0.07513 },
+	],
+};
+
 /**
  * Calculates the inclusive number of days between two date keys.
  *
@@ -168,6 +263,141 @@ function getInclusiveDayCount(periodStartDateKey: string, periodEndDateKey: stri
 		cursor = addDaysToDateKey(cursor, 1);
 	}
 	return count;
+}
+
+type UmaDependentTotals = {
+	sbcPeriodRaw: number;
+	excessOver3UmaPeriodRaw: number;
+	emFixedEmployerRaw: number;
+	cvEmployerRaw: number;
+	subsidyPeriodRaw: number;
+};
+
+/**
+ * Resolves the UMA daily amount for a date key.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @param overrideUmaDaily - Optional override UMA value for the entire period
+ * @returns UMA daily value for the date
+ */
+function resolveUmaDaily(dateKey: string, overrideUmaDaily?: number): number {
+	if (overrideUmaDaily && overrideUmaDaily > 0) {
+		return overrideUmaDaily;
+	}
+	return dateKey >= '2026-02-01' ? UMA_DAILY_2026 : UMA_DAILY_2025;
+}
+
+/**
+ * Resolves the ISR table for a given frequency and effective date.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @param frequency - Payroll payment frequency
+ * @returns ISR table rows for the effective year
+ */
+function resolveIsrTable(
+	dateKey: string,
+	frequency: PayrollPaymentFrequency,
+): IsrTableRow[] {
+	const tables = dateKey >= '2026-01-01' ? ISR_TABLES_2026 : ISR_TABLES_2025;
+	return tables[frequency];
+}
+
+/**
+ * Resolves subsidy parameters for a given date key.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Subsidy rule for the effective date
+ */
+function resolveSubsidyRule(dateKey: string): SubsidyRule {
+	if (dateKey >= '2026-02-01') {
+		return SUBSIDY_RULE_2026_FEB;
+	}
+	if (dateKey >= '2026-01-01') {
+		return SUBSIDY_RULE_2026_JAN;
+	}
+	return SUBSIDY_RULE_2025;
+}
+
+/**
+ * Resolves the CV rate table for a given date key.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns CV rate table for the effective year
+ */
+function resolveCvRateTable(dateKey: string): CvRateTable {
+	return dateKey >= '2026-01-01' ? CV_RATE_TABLE_2026 : CV_RATE_TABLE_2025;
+}
+
+/**
+ * Aggregates UMA-dependent totals across a period.
+ *
+ * @param args - Period and SBC inputs
+ * @param args.periodStartDateKey - Period start date key (YYYY-MM-DD)
+ * @param args.periodEndDateKey - Period end date key (YYYY-MM-DD)
+ * @param args.sbcDaily - SBC daily amount (non-capped)
+ * @param args.zone - Geographic minimum wage zone
+ * @param args.umaDailyOverride - Optional fixed UMA daily override
+ * @returns Aggregated UMA-dependent raw totals
+ */
+function buildUmaDependentTotals(args: {
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	sbcDaily: number;
+	zone: MinimumWageZone;
+	umaDailyOverride?: number;
+}): UmaDependentTotals {
+	if (args.periodEndDateKey < args.periodStartDateKey) {
+		return {
+			sbcPeriodRaw: 0,
+			excessOver3UmaPeriodRaw: 0,
+			emFixedEmployerRaw: 0,
+			cvEmployerRaw: 0,
+			subsidyPeriodRaw: 0,
+		};
+	}
+
+	let sbcPeriodRaw = 0;
+	let excessOver3UmaPeriodRaw = 0;
+	let emFixedEmployerRaw = 0;
+	let cvEmployerRaw = 0;
+	let subsidyPeriodRaw = 0;
+
+	let cursor = args.periodStartDateKey;
+	for (let i = 0; i < 400 && cursor <= args.periodEndDateKey; i += 1) {
+		const umaDaily = resolveUmaDaily(cursor, args.umaDailyOverride);
+		const minimumWageDaily = resolveMinimumWageDaily({
+			dateKey: cursor,
+			zone: args.zone,
+		});
+		const sbcDailyCapped = Math.min(args.sbcDaily, umaDaily * 25);
+		sbcPeriodRaw += sbcDailyCapped;
+		excessOver3UmaPeriodRaw += Math.max(0, sbcDailyCapped - umaDaily * 3);
+		emFixedEmployerRaw += umaDaily * 0.204;
+
+		const cvEmployerRate = getCvEmployerRate({
+			sbcDaily: sbcDailyCapped,
+			umaDaily,
+			minimumWageDaily,
+			rateTable: resolveCvRateTable(cursor),
+		});
+		cvEmployerRaw += sbcDailyCapped * cvEmployerRate;
+
+		const subsidyRule = resolveSubsidyRule(cursor);
+		subsidyPeriodRaw += subsidyRule.monthlyMax / UMA_MONTHLY_DAYS;
+
+		if (cursor === args.periodEndDateKey) {
+			break;
+		}
+		cursor = addDaysToDateKey(cursor, 1);
+	}
+
+	return {
+		sbcPeriodRaw,
+		excessOver3UmaPeriodRaw,
+		emFixedEmployerRaw,
+		cvEmployerRaw,
+		subsidyPeriodRaw,
+	};
 }
 
 /**
@@ -258,44 +488,49 @@ export function getSbcDaily(args: {
 /**
  * Resolves the employer CV rate based on SBC and minimum wage/UMA brackets.
  *
- * @param sbcDaily - SBC daily amount
- * @param umaDaily - UMA daily amount
- * @param minimumWageDaily - Minimum wage daily amount for the zone
+ * @param args - CV rate lookup inputs
+ * @param args.sbcDaily - SBC daily amount
+ * @param args.umaDaily - UMA daily amount
+ * @param args.minimumWageDaily - Minimum wage daily amount for the zone
+ * @param args.rateTable - CV rate table for the effective year
  * @returns Employer CV rate
  */
-export function getCvEmployerRate(
-	sbcDaily: number,
-	umaDaily: number,
-	minimumWageDaily: number,
-): number {
+export function getCvEmployerRate(args: {
+	sbcDaily: number;
+	umaDaily: number;
+	minimumWageDaily: number;
+	rateTable: CvRateTable;
+}): number {
+	const { sbcDaily, umaDaily, minimumWageDaily, rateTable } = args;
 	if (sbcDaily <= minimumWageDaily) {
-		return 0.0315;
+		return rateTable.minimumWageRate;
 	}
 	const umaRatio = sbcDaily / umaDaily;
-	if (umaRatio <= 1.5) return 0.03544;
-	if (umaRatio <= 2.0) return 0.04426;
-	if (umaRatio <= 2.5) return 0.04954;
-	if (umaRatio <= 3.0) return 0.05307;
-	if (umaRatio <= 3.5) return 0.05559;
-	if (umaRatio <= 4.0) return 0.05747;
-	return 0.06422;
+	for (const bracket of rateTable.umaBrackets) {
+		if (bracket.upperUma === null || umaRatio <= bracket.upperUma) {
+			return bracket.rate;
+		}
+	}
+	return rateTable.minimumWageRate;
 }
 
 /**
- * Calculates ISR for a given base and frequency using the 2025 tables.
+ * Calculates ISR for a given base and frequency using the effective tables.
  *
  * @param isrBase - Taxable base for the period
  * @param frequency - Payroll payment frequency
+ * @param dateKey - Effective date key (YYYY-MM-DD)
  * @returns ISR before subsidy
  */
 export function calculateIsrFromTable(
 	isrBase: number,
 	frequency: PayrollPaymentFrequency,
+	dateKey: string,
 ): number {
 	if (isrBase <= 0) {
 		return 0;
 	}
-	const table = ISR_TABLES[frequency];
+	const table = resolveIsrTable(dateKey, frequency);
 	const row =
 		table.find((entry) => isrBase >= entry.lower && (entry.upper === null || isrBase <= entry.upper)) ??
 		table[table.length - 1];
@@ -324,11 +559,15 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		sbcDailyOverride,
 		locationGeographicZone,
 		settings,
-		umaDaily = UMA_DAILY_2025,
+		umaDaily: umaDailyOverride,
 	} = input;
 	const daysInPeriod = getInclusiveDayCount(periodStartDateKey, periodEndDateKey);
-	const zone = (locationGeographicZone ?? 'GENERAL') as keyof typeof MINIMUM_WAGES;
-	const minimumWageDaily = MINIMUM_WAGES[zone];
+	const zone: MinimumWageZone = locationGeographicZone ?? 'GENERAL';
+	const effectiveUmaDaily = resolveUmaDaily(periodEndDateKey, umaDailyOverride);
+	const minimumWageDaily = resolveMinimumWageDaily({
+		dateKey: periodEndDateKey,
+		zone,
+	});
 
 	const sbcDaily = getSbcDaily({
 		dailyPay,
@@ -338,26 +577,34 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		vacationPremiumRate: settings.vacationPremiumRate,
 		periodEndDateKey,
 	});
-	const sbcDailyCapped = Math.min(sbcDaily, umaDaily * 25);
-	const sbcPeriod = sbcDailyCapped * daysInPeriod;
+	const umaDependentTotals = buildUmaDependentTotals({
+		periodStartDateKey,
+		periodEndDateKey,
+		sbcDaily,
+		zone,
+		umaDailyOverride,
+	});
+	const sbcPeriod = umaDependentTotals.sbcPeriodRaw;
 
 	const isrBase = roundCurrency(grossPay);
-	const isrBeforeSubsidy = calculateIsrFromTable(isrBase, paymentFrequency);
-	const dailySubsidy = SUBSIDY_MONTHLY_MAX / UMA_MONTHLY_DAYS;
-	const subsidyPeriodRaw = dailySubsidy * daysInPeriod;
+	const isrBeforeSubsidy = calculateIsrFromTable(
+		isrBase,
+		paymentFrequency,
+		periodEndDateKey,
+	);
+	const subsidyRule = resolveSubsidyRule(periodEndDateKey);
 	const subsidyPeriod = roundCurrency(
-		Math.min(SUBSIDY_MONTHLY_MAX, subsidyPeriodRaw),
+		Math.min(subsidyRule.monthlyMax, umaDependentTotals.subsidyPeriodRaw),
 	);
 	const monthlyEquivalent = daysInPeriod > 0 ? (isrBase / daysInPeriod) * UMA_MONTHLY_DAYS : 0;
-	const subsidyEligible = monthlyEquivalent <= SUBSIDY_MONTHLY_LIMIT;
+	const subsidyEligible = monthlyEquivalent <= subsidyRule.monthlyLimit;
 	const subsidyApplied = subsidyEligible
 		? roundCurrency(Math.min(isrBeforeSubsidy, subsidyPeriod))
 		: 0;
 	const isrWithheldCalculated = roundCurrency(Math.max(0, isrBeforeSubsidy - subsidyApplied));
 
-	const excessOver3UmaDaily = Math.max(0, sbcDailyCapped - umaDaily * 3);
-	const excessOver3UmaPeriod = excessOver3UmaDaily * daysInPeriod;
-	const emFixedEmployerRaw = umaDaily * daysInPeriod * 0.204;
+	const excessOver3UmaPeriod = umaDependentTotals.excessOver3UmaPeriodRaw;
+	const emFixedEmployerRaw = umaDependentTotals.emFixedEmployerRaw;
 	const emExcessEmployerRaw = excessOver3UmaPeriod * 0.011;
 	const emExcessEmployeeRaw = excessOver3UmaPeriod * 0.004;
 	const pdEmployerRaw = sbcPeriod * 0.007;
@@ -366,8 +613,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 	const gmpEmployeeRaw = sbcPeriod * 0.00375;
 	const ivEmployerRaw = sbcPeriod * 0.0175;
 	const ivEmployeeRaw = sbcPeriod * 0.00625;
-	const cvEmployerRate = getCvEmployerRate(sbcDailyCapped, umaDaily, minimumWageDaily);
-	const cvEmployerRaw = sbcPeriod * cvEmployerRate;
+	const cvEmployerRaw = umaDependentTotals.cvEmployerRaw;
 	const cvEmployeeRaw = sbcPeriod * 0.01125;
 	const guarderiasRaw = sbcPeriod * 0.01;
 	const emFixedEmployer = roundCurrency(emFixedEmployerRaw);
@@ -490,7 +736,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 			sbcPeriod: roundCurrency(sbcPeriod),
 			isrBase,
 			daysInPeriod,
-			umaDaily,
+			umaDaily: effectiveUmaDaily,
 			minimumWageDaily,
 		},
 		employeeWithholdings,

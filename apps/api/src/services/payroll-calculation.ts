@@ -8,6 +8,7 @@ import {
 } from '../utils/mexico-labor-constants.js';
 import { addDaysToDateKey } from '../utils/date-key.js';
 import { getMexicoMandatoryRestDayKeysForYear } from '../utils/mexico-mandatory-rest-days.js';
+import { resolveMinimumWageDaily } from '../utils/minimum-wage.js';
 import { fromCents, roundCurrency, toCents } from '../utils/money.js';
 import {
 	getUtcDateForZonedMidnight,
@@ -723,12 +724,16 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 		const grossPay = totalPay;
 
 		const zone = (emp.locationGeographicZone ?? 'GENERAL') as keyof typeof MINIMUM_WAGES;
-		if (effectiveDailyPay < MINIMUM_WAGES[zone]) {
+		const minimumWageDaily = resolveMinimumWageDaily({
+			dateKey: periodEndDateKey,
+			zone,
+		});
+		if (effectiveDailyPay < minimumWageDaily) {
 			warnings.push({
 				type: 'BELOW_MINIMUM_WAGE',
 				message: `El salario diario ${effectiveDailyPay.toFixed(
 					2,
-				)} está por debajo del salario mínimo para ${zone} (${MINIMUM_WAGES[zone]}).`,
+				)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
 				severity: 'warning',
 			});
 		}

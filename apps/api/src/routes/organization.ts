@@ -575,6 +575,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				);
 
 				if (signUpCall.error) {
+					console.error('[organization] Failed to sign up user during provisioning', {
+						organizationId,
+						error: signUpCall.error,
+					});
 					set.status = signUpCall.error.status;
 					return {
 						error: signUpCall.error.message,
@@ -585,6 +589,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				createdUserId = extractSignUpUserId(signUpCall.data);
 
 				if (!createdUserId) {
+					console.error('[organization] Missing user id after sign up', {
+						organizationId,
+					});
 					set.status = 400;
 					return { error: 'Failed to create user', code: 'USER_SIGNUP_FAILED' };
 				}
@@ -603,6 +610,11 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				);
 
 				if (addMemberCall.error) {
+					console.error('[organization] Failed to add member during provisioning', {
+						organizationId,
+						userId: createdUserId,
+						error: addMemberCall.error,
+					});
 					if (createdUserId) {
 						try {
 							await auth.api.removeUser({
@@ -633,6 +645,11 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				const addMemberSuccess = addMemberResult?.success ?? !addMemberError;
 
 				if (!addMemberSuccess) {
+					console.error('[organization] Add member response indicated failure', {
+						organizationId,
+						userId: createdUserId,
+						error: addMemberError ?? 'Unknown error',
+					});
 					if (createdUserId) {
 						try {
 							await auth.api.removeUser({
@@ -660,7 +677,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 							headers: sessionHeaders,
 						});
 					} catch (rollbackError) {
-						console.error('[organization] Rollback (remove user) failed:', rollbackError);
+						console.error(
+							'[organization] Rollback (remove user) failed:',
+							rollbackError,
+						);
 					}
 				}
 

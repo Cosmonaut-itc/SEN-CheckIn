@@ -106,7 +106,7 @@ export async function getAdminAccessContext(): Promise<AdminAccessContext> {
 	const isSuperUser = userRole === 'admin';
 	let organizationRole: OrganizationMemberRole = null;
 
-	if (!isSuperUser && organization.organizationId) {
+	if (organization.organizationId) {
 		try {
 			const memberRoleResult = await serverAuthClient.organization.getActiveMemberRole(
 				undefined,

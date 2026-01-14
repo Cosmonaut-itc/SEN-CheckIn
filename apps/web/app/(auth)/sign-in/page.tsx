@@ -99,7 +99,7 @@ function SignInContent(): React.ReactElement {
 			</div>
 			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
 				{/* <CardHeader> removed as we have header outside */}
-				<form onSubmit={handleSubmit}>
+				<form onSubmit={handleSubmit} data-testid="sign-in-form">
 					<CardContent className="space-y-4 pt-6">
 						{error && (
 							<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
@@ -153,6 +153,7 @@ function SignInContent(): React.ReactElement {
 								label={t('signIn.actions.submit')}
 								loadingLabel={t('signIn.actions.submitting')}
 								className="w-full"
+								dataTestId="sign-in-submit"
 							/>
 						</form.AppForm>
 						{/* TODO: Remove this after initial setup - re-add: process.env.NODE_ENV === 'development' && */}

@@ -229,7 +229,7 @@ export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): 
 				<SidebarSeparator />
 
 				{canAccessAdmin ? (
-					<SidebarGroup>
+					<SidebarGroup data-testid="app-sidebar-admin-group">
 						<SidebarGroupLabel>{tSidebar('administration')}</SidebarGroupLabel>
 						<SidebarGroupContent>
 							<SidebarMenu>

@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from '@/providers/theme-provider';
 import { DeviceProvider } from '@/lib/device-context';
 
 import '../global.css';
+import '@/lib/uniwind-compat';
 
 const heroUiConfig: HeroUINativeConfig = {
 	textProps: {

@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('job position routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -9,7 +15,7 @@ describe('job position routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 	});
@@ -21,7 +27,8 @@ describe('job position routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates, updates, and deletes a job position with warnings', async () => {
@@ -35,19 +42,44 @@ describe('job position routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		expect(createResponse.data?.warnings?.length).toBeGreaterThan(0);
+		const createPayload = requireResponseData(createResponse);
+		if ('warnings' in createPayload) {
+			const warnings = createPayload.warnings;
+			if (!Array.isArray(warnings)) {
+				throw new Error('Expected minimum wage warnings array.');
+			}
+			expect(warnings.length).toBeGreaterThan(0);
+		} else {
+			throw new Error('Expected minimum wage warnings in create response.');
+		}
 
-		const positionId = createResponse.data?.data?.id ?? '';
-		const updateResponse = await client['job-positions'][positionId].put({
+		if (!('data' in createPayload) || !createPayload.data) {
+			throw new Error('Expected job position data in create response.');
+		}
+		const createdPosition = createPayload.data;
+		const positionId = createdPosition.id;
+		if (!positionId) {
+			throw new Error('Expected job position ID in create response.');
+		}
+		const jobPositionRoutes = requireRoute(
+			client['job-positions'][positionId],
+			'Job position route',
+		);
+		const updateResponse = await jobPositionRoutes.put({
 			description: 'Posicion actualizada',
 			dailyPay: 2,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(updateResponse.status).toBe(200);
-		expect(updateResponse.data?.data?.description).toBe('Posicion actualizada');
+		const updatePayload = requireResponseData(updateResponse);
+		if (!('data' in updatePayload) || !updatePayload.data) {
+			throw new Error('Expected job position data in update response.');
+		}
+		const updatedPosition = updatePayload.data;
+		expect(updatedPosition.description).toBe('Posicion actualizada');
 
-		const deleteResponse = await client['job-positions'][positionId].delete({
+		const deleteResponse = await jobPositionRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -55,7 +87,11 @@ describe('job position routes (contract)', () => {
 	});
 
 	it('returns 404 for unknown job positions', async () => {
-		const response = await client['job-positions'][randomUUID()].get({
+		const unknownJobPosition = requireRoute(
+			client['job-positions'][randomUUID()],
+			'Job position route',
+		);
+		const response = await unknownJobPosition.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

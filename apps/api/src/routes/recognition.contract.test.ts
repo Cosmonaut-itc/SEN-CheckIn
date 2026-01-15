@@ -1,7 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { Buffer } from 'node:buffer';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 import { setSearchUsersByImageResult, setupRekognitionMocks } from '../test-utils/contract-mocks.js';
 
 setupRekognitionMocks();
@@ -12,17 +18,27 @@ describe('recognition routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 
-		await client.employees[seed.employeeId]['create-rekognition-user'].post({
+		const employeeRoutes = requireRoute(client.employees[seed.employeeId], 'Employee route');
+		const createUserRoute = requireRoute(
+			employeeRoutes['create-rekognition-user'],
+			'Employee create-rekognition-user route',
+		);
+		await createUserRoute.post({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 	});
 
 	afterAll(async () => {
-		await client.employees[seed.employeeId]['rekognition-user'].delete({
+		const employeeRoutes = requireRoute(client.employees[seed.employeeId], 'Employee route');
+		const deleteUserRoute = requireRoute(
+			employeeRoutes['rekognition-user'],
+			'Employee rekognition-user route',
+		);
+		await deleteUserRoute.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 	});
@@ -34,7 +50,8 @@ describe('recognition routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(400);
-		expect(response.data?.matched).toBe(false);
+		const payload = requireResponseData(response);
+		expect(payload.matched).toBe(false);
 	});
 
 	it('returns no match when rekognition has no matches', async () => {
@@ -52,7 +69,8 @@ describe('recognition routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.matched).toBe(false);
+		const payload = requireResponseData(response);
+		expect(payload.matched).toBe(false);
 	});
 
 	it('returns matched employees when rekognition finds a user', async () => {
@@ -69,7 +87,8 @@ describe('recognition routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.matched).toBe(true);
-		expect(response.data?.employee?.id).toBe(seed.employeeId);
+		const payload = requireResponseData(response);
+		expect(payload.matched).toBe(true);
+		expect(payload.employee?.id).toBe(seed.employeeId);
 	});
 });

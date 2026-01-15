@@ -95,11 +95,13 @@ export function setupRekognitionMocks(): void {
 				deletedFaceIds: faceIds,
 				message: undefined,
 			}),
-			deleteUser: async (userId: string): Promise<DeleteUserResult> => ({
-				success: true,
-				userId,
-				message: undefined,
-			}),
+			deleteUser: async (userId: string): Promise<DeleteUserResult> => {
+				void userId;
+				return {
+					success: true,
+					message: undefined,
+				};
+			},
 			listFacesByExternalId: async (): Promise<ListFacesByExternalIdResult> => ({
 				success: true,
 				faceIds: [],

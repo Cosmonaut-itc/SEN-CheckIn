@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
 import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('payroll routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -9,7 +15,7 @@ describe('payroll routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 	});
@@ -26,7 +32,12 @@ describe('payroll routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.employees).toBeDefined();
+		const payload = requireResponseData(response);
+		const calculation = payload.data;
+		if (!calculation) {
+			throw new Error('Expected payroll calculation payload.');
+		}
+		expect(calculation.employees).toBeDefined();
 	});
 
 	it('processes payroll runs', async () => {
@@ -41,7 +52,16 @@ describe('payroll routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.run?.organizationId).toBeDefined();
+		const payload = requireResponseData(response);
+		const result = payload.data;
+		if (!result || typeof result !== 'object') {
+			throw new Error('Expected payroll process payload.');
+		}
+		const run = (result as { run?: { organizationId?: string } }).run;
+		if (!run) {
+			throw new Error('Expected payroll run in process response.');
+		}
+		expect(run.organizationId).toBeDefined();
 	});
 
 	it('lists payroll runs', async () => {
@@ -51,7 +71,8 @@ describe('payroll routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('returns payroll run details', async () => {
@@ -61,11 +82,21 @@ describe('payroll routes (contract)', () => {
 			return;
 		}
 
-		const response = await client.payroll.runs[runId].get({
+		const payrollRunRoutes = requireRoute(client.payroll.runs[runId], 'Payroll run route');
+		const response = await payrollRunRoutes.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.run?.id).toBe(runId);
+		const payload = requireResponseData(response);
+		const detail = payload.data;
+		if (!detail || typeof detail !== 'object') {
+			throw new Error('Expected payroll run detail payload.');
+		}
+		const run = (detail as { run?: { id?: string } }).run;
+		if (!run) {
+			throw new Error('Expected payroll run in detail response.');
+		}
+		expect(run.id).toBe(runId);
 	});
 });

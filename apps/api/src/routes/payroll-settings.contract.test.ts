@@ -7,7 +7,7 @@ describe('payroll settings routes (contract)', () => {
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 	});
 

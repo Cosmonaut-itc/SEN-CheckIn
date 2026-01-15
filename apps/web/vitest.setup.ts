@@ -1,5 +1,7 @@
 import '@testing-library/jest-dom/vitest';
-import { vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import React from 'react';
+import { afterEach, vi } from 'vitest';
 
 /**
  * Creates a matchMedia-compatible mock response.
@@ -23,6 +25,8 @@ function createMatchMedia(query: string): MediaQueryList {
 if (!window.matchMedia) {
 	window.matchMedia = vi.fn().mockImplementation(createMatchMedia);
 }
+
+afterEach(cleanup);
 
 /**
  * Minimal ResizeObserver mock for jsdom tests.
@@ -55,3 +59,29 @@ class ResizeObserverMock {
 }
 
 globalThis.ResizeObserver = ResizeObserverMock;
+
+/**
+ * Builds a translation function that echoes keys.
+ *
+ * @returns Translator function for tests
+ */
+function createMockTranslator(): (key: string) => string {
+	return (key: string) => key;
+}
+
+/**
+ * Pass-through intl provider for unit tests.
+ *
+ * @param props - Provider props with children
+ * @returns Rendered children
+ */
+function MockNextIntlProvider(props: {
+	children: React.ReactNode;
+}): React.ReactElement {
+	return React.createElement(React.Fragment, null, props.children);
+}
+
+vi.mock('next-intl', () => ({
+	NextIntlClientProvider: MockNextIntlProvider,
+	useTranslations: () => createMockTranslator(),
+}));

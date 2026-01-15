@@ -30,7 +30,7 @@ describe('auth core endpoints (contract)', () => {
 				name: 'Usuario Auth',
 				email,
 				password,
-				username: `auth-${suffix}`,
+				username: `auth_${suffix}`,
 			},
 		});
 

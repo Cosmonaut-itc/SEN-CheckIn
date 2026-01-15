@@ -6,6 +6,8 @@ import {
 	getAdminSession,
 	getSeedData,
 	getUserSession,
+	requireResponseData,
+	requireRoute,
 } from '../test-utils/contract-helpers.js';
 
 describe('vacation routes (contract)', () => {
@@ -15,7 +17,7 @@ describe('vacation routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		userSession = await getUserSession();
 		seed = await getSeedData();
@@ -27,7 +29,8 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data).toBeDefined();
+		const payload = requireResponseData(response);
+		expect(payload.data).toBeDefined();
 	});
 
 	it('lists vacation requests for the current user', async () => {
@@ -37,7 +40,8 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates and cancels a vacation request for the current user', async () => {
@@ -52,15 +56,33 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(200);
-		const requestId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdRequest = createPayload.data;
+		if (!createdRequest) {
+			throw new Error('Expected vacation request in create response.');
+		}
+		const requestId = createdRequest.id;
+		if (!requestId) {
+			throw new Error('Expected vacation request ID in create response.');
+		}
 
-		const cancelResponse = await client.vacations.me.requests[requestId].cancel.post({
+		const userRequestRoutes = requireRoute(
+			client.vacations.me.requests[requestId],
+			'Vacation request route',
+		);
+		const cancelRoute = requireRoute(userRequestRoutes.cancel, 'Vacation request cancel route');
+		const cancelResponse = await cancelRoute.post({
 			decisionNotes: 'Cancelado por pruebas',
 			$headers: { cookie: userSession.cookieHeader },
 		});
 
 		expect(cancelResponse.status).toBe(200);
-		expect(cancelResponse.data?.data?.status).toBe('CANCELLED');
+		const cancelPayload = requireResponseData(cancelResponse);
+		const cancelledRequest = cancelPayload.data;
+		if (!cancelledRequest) {
+			throw new Error('Expected vacation request in cancel response.');
+		}
+		expect(cancelledRequest.status).toBe('CANCELLED');
 	});
 
 	it('lists vacation requests for admins', async () => {
@@ -70,7 +92,8 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates and approves vacation requests as admin', async () => {
@@ -87,15 +110,39 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(200);
-		const requestId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdRequest = createPayload.data;
+		if (!createdRequest) {
+			throw new Error('Expected vacation request in admin create response.');
+		}
+		const requestId = createdRequest.id;
+		if (!requestId) {
+			throw new Error('Expected vacation request ID in admin create response.');
+		}
 
-		const approveResponse = await client.vacations.requests[requestId].approve.post({
+		const adminRequestRoutes = requireRoute(
+			client.vacations.requests[requestId],
+			'Vacation admin request route',
+		);
+		const approveRoute = requireRoute(
+			adminRequestRoutes.approve,
+			'Vacation request approve route',
+		);
+		const approveResponse = await approveRoute.post({
 			decisionNotes: 'Aprobado',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(approveResponse.status).toBe(200);
-		expect(approveResponse.data?.data?.status).toBe('APPROVED');
+		const approvePayload = requireResponseData(approveResponse);
+		const approvedRequest = approvePayload.data;
+		if (!approvedRequest) {
+			throw new Error('Expected vacation request in approve response.');
+		}
+		if (!('status' in approvedRequest)) {
+			throw new Error('Expected vacation request status in approve response.');
+		}
+		expect(approvedRequest.status).toBe('APPROVED');
 	});
 
 	it('rejects vacation requests as admin', async () => {
@@ -112,15 +159,36 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(200);
-		const requestId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdRequest = createPayload.data;
+		if (!createdRequest) {
+			throw new Error('Expected vacation request in reject create response.');
+		}
+		const requestId = createdRequest.id;
+		if (!requestId) {
+			throw new Error('Expected vacation request ID in reject create response.');
+		}
 
-		const rejectResponse = await client.vacations.requests[requestId].reject.post({
+		const adminRequestRoutes = requireRoute(
+			client.vacations.requests[requestId],
+			'Vacation admin request route',
+		);
+		const rejectRoute = requireRoute(
+			adminRequestRoutes.reject,
+			'Vacation request reject route',
+		);
+		const rejectResponse = await rejectRoute.post({
 			decisionNotes: 'Rechazado',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(rejectResponse.status).toBe(200);
-		expect(rejectResponse.data?.data?.status).toBe('REJECTED');
+		const rejectPayload = requireResponseData(rejectResponse);
+		const rejectedRequest = rejectPayload.data;
+		if (!rejectedRequest) {
+			throw new Error('Expected vacation request in reject response.');
+		}
+		expect(rejectedRequest.status).toBe('REJECTED');
 	});
 
 	it('cancels vacation requests as admin', async () => {
@@ -137,14 +205,35 @@ describe('vacation routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(200);
-		const requestId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdRequest = createPayload.data;
+		if (!createdRequest) {
+			throw new Error('Expected vacation request in cancel create response.');
+		}
+		const requestId = createdRequest.id;
+		if (!requestId) {
+			throw new Error('Expected vacation request ID in cancel create response.');
+		}
 
-		const cancelResponse = await client.vacations.requests[requestId].cancel.post({
+		const adminRequestRoutes = requireRoute(
+			client.vacations.requests[requestId],
+			'Vacation admin request route',
+		);
+		const cancelRoute = requireRoute(
+			adminRequestRoutes.cancel,
+			'Vacation request cancel route',
+		);
+		const cancelResponse = await cancelRoute.post({
 			decisionNotes: 'Cancelado admin',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(cancelResponse.status).toBe(200);
-		expect(cancelResponse.data?.data?.status).toBe('CANCELLED');
+		const cancelPayload = requireResponseData(cancelResponse);
+		const cancelledRequest = cancelPayload.data;
+		if (!cancelledRequest) {
+			throw new Error('Expected vacation request in cancel response.');
+		}
+		expect(cancelledRequest.status).toBe('CANCELLED');
 	});
 });

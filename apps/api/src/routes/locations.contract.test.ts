@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('location routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -9,7 +15,7 @@ describe('location routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 	});
@@ -21,7 +27,8 @@ describe('location routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates, updates, and deletes a location', async () => {
@@ -37,17 +44,31 @@ describe('location routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		const locationId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdLocation = createPayload.data;
+		if (!createdLocation) {
+			throw new Error('Expected location record in create response.');
+		}
+		const locationId = createdLocation.id;
+		if (!locationId) {
+			throw new Error('Expected location ID in create response.');
+		}
 
-		const updateResponse = await client.locations[locationId].put({
+		const locationRoutes = requireRoute(client.locations[locationId], 'Location route');
+		const updateResponse = await locationRoutes.put({
 			name: 'Sucursal Actualizada',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(updateResponse.status).toBe(200);
-		expect(updateResponse.data?.data?.name).toBe('Sucursal Actualizada');
+		const updatePayload = requireResponseData(updateResponse);
+		const updatedLocation = updatePayload.data;
+		if (!updatedLocation) {
+			throw new Error('Expected location record in update response.');
+		}
+		expect(updatedLocation.name).toBe('Sucursal Actualizada');
 
-		const deleteResponse = await client.locations[locationId].delete({
+		const deleteResponse = await locationRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

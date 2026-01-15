@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { addDays } from 'date-fns';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('schedule exception routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -9,7 +15,7 @@ describe('schedule exception routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 	});
@@ -21,7 +27,8 @@ describe('schedule exception routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates, updates, and deletes a schedule exception', async () => {
@@ -37,17 +44,34 @@ describe('schedule exception routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		const exceptionId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdException = createPayload.data;
+		if (!createdException) {
+			throw new Error('Expected schedule exception record in create response.');
+		}
+		const exceptionId = createdException.id;
+		if (!exceptionId) {
+			throw new Error('Expected schedule exception ID in create response.');
+		}
 
-		const updateResponse = await client['schedule-exceptions'][exceptionId].put({
+		const scheduleExceptionRoutes = requireRoute(
+			client['schedule-exceptions'][exceptionId],
+			'Schedule exception route',
+		);
+		const updateResponse = await scheduleExceptionRoutes.put({
 			reason: 'Cambio actualizado',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(updateResponse.status).toBe(200);
-		expect(updateResponse.data?.data?.reason).toBe('Cambio actualizado');
+		const updatePayload = requireResponseData(updateResponse);
+		const updatedException = updatePayload.data;
+		if (!updatedException) {
+			throw new Error('Expected schedule exception record in update response.');
+		}
+		expect(updatedException.reason).toBe('Cambio actualizado');
 
-		const deleteResponse = await client['schedule-exceptions'][exceptionId].delete({
+		const deleteResponse = await scheduleExceptionRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

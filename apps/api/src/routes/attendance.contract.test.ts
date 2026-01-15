@@ -1,7 +1,14 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
-import { createTestClient, getAdminSession, getSeedData, getTestApiKey } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	getTestApiKey,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('attendance routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -10,7 +17,7 @@ describe('attendance routes (contract)', () => {
 	let apiKey: string;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 		apiKey = await getTestApiKey();
@@ -23,8 +30,9 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
-		expect(response.data?.pagination).toBeDefined();
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+		expect(payload.pagination).toBeDefined();
 	});
 
 	it('returns present attendance entries for a date range', async () => {
@@ -37,7 +45,8 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates and fetches an attendance record', async () => {
@@ -51,34 +60,69 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		expect(createResponse.data?.data?.id).toBeDefined();
+		const createPayload = requireResponseData(createResponse);
+		const createdRecord = createPayload.data;
+		if (!createdRecord) {
+			throw new Error('Expected created attendance record.');
+		}
+		expect(createdRecord.id).toBeDefined();
 
-		const recordId = createResponse.data?.data?.id ?? '';
-		const getResponse = await client.attendance[recordId].get({
+		const recordId = createdRecord.id;
+		if (!recordId) {
+			throw new Error('Expected attendance record ID.');
+		}
+		const attendanceById = requireRoute(
+			client.attendance[recordId],
+			'Attendance record route',
+		);
+		const getResponse = await attendanceById.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(getResponse.status).toBe(200);
-		expect(getResponse.data?.data?.id).toBe(recordId);
+		const getPayload = requireResponseData(getResponse);
+		const record = getPayload.data;
+		if (!record) {
+			throw new Error('Expected attendance record.');
+		}
+		expect(record.id).toBe(recordId);
 	});
 
 	it('returns today attendance for an employee', async () => {
-		const response = await client.attendance.employee[seed.employeeId].today.get({
+		const attendanceEmployee = requireRoute(
+			client.attendance.employee,
+			'Attendance employee route',
+		);
+		const attendanceEmployeeById = requireRoute(
+			attendanceEmployee[seed.employeeId],
+			'Attendance employee ID route',
+		);
+		const response = await attendanceEmployeeById.today.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.employeeId).toBe(seed.employeeId);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(payload.employeeId).toBe(seed.employeeId);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('rejects unknown attendance record IDs', async () => {
-		const response = await client.attendance[randomUUID()].get({
+		const unknownAttendance = requireRoute(
+			client.attendance[randomUUID()],
+			'Attendance record route',
+		);
+		const response = await unknownAttendance.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(404);
-		expect(response.error?.value).toEqual({ error: 'Attendance record not found' });
+		const errorValue = response.error?.value;
+		if (!errorValue || typeof errorValue !== 'object') {
+			throw new Error('Expected error payload for unknown attendance record.');
+		}
+		const errorRecord = errorValue as Record<string, unknown>;
+		expect(errorRecord.error).toBe('Attendance record not found');
 	});
 
 	it('rejects invalid employee references on create', async () => {
@@ -91,7 +135,12 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(400);
-		expect(response.error?.value).toEqual({ error: 'Employee not found' });
+		const errorValue = response.error?.value;
+		if (!errorValue || typeof errorValue !== 'object') {
+			throw new Error('Expected error payload for invalid employee.');
+		}
+		const errorRecord = errorValue as Record<string, unknown>;
+		expect(errorRecord.error).toBe('Employee not found');
 	});
 
 	it('rejects api key requests for other organizations', async () => {

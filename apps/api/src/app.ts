@@ -85,7 +85,7 @@ const isOriginAllowed = (origin?: string | null): boolean => {
  *
  * @returns Elysia plugin containing authenticated domain routes
  */
-const createProtectedRoutes = (): Elysia => {
+const createProtectedRoutes = () => {
 	return new Elysia({ name: 'protected-routes' })
 		.use(combinedAuthPlugin)
 		// Domain entity CRUD routes (all require authentication)
@@ -110,7 +110,7 @@ const createProtectedRoutes = (): Elysia => {
  *
  * @returns Configured Elysia application instance
  */
-export const createApp = (): Elysia => {
+export const createApp = () => {
 	// Configure logger based on environment
 	configureLogger({
 		level:

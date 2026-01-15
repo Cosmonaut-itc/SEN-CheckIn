@@ -521,6 +521,7 @@ function createFakeDb(state: FakeDbState): {
 		insert: (table: unknown) => { values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> };
 		update: (table: unknown) => { set: (values: Record<string, unknown>) => { where: (condition: DrizzleCondition) => Promise<void> } };
 		select: (selection?: unknown) => unknown;
+		execute: (query: unknown) => Promise<void>;
 	} => {
 		/**
 		 * Begins an insert operation.
@@ -605,7 +606,17 @@ function createFakeDb(state: FakeDbState): {
 		 */
 		const select = (selection?: unknown) => new FakeQuery(selection);
 
-		return { insert, update, select };
+		/**
+		 * Executes a raw SQL statement (no-op for tests).
+		 *
+		 * @param _query - SQL query payload
+		 * @returns Nothing
+		 */
+		const execute = async (_query: unknown): Promise<void> => {
+			void _query;
+		};
+
+		return { insert, update, select, execute };
 	};
 
 	/**
@@ -648,6 +659,23 @@ const dbState: FakeDbState = {
 
 const fakeDb = createFakeDb(dbState);
 
+/**
+ * Mock implementation of drizzle's sql template tag.
+ *
+ * @param strings - Template string segments
+ * @param values - Interpolated values
+ * @returns Simplified SQL payload
+ */
+function sqlTag(
+	strings: TemplateStringsArray,
+	...values: unknown[]
+): { text: string; values: unknown[] } {
+	return {
+		text: strings.join('?'),
+		values,
+	};
+}
+
 mock.module('drizzle-orm', () => {
 	return {
 		and: (...conditions: DrizzleCondition[]) => ({
@@ -659,6 +687,7 @@ mock.module('drizzle-orm', () => {
 		inArray: (column: unknown, values: unknown[]) => ({ kind: 'inArray' as const, column, values }),
 		lte: (column: unknown, value: Date) => ({ kind: 'lte' as const, column, value }),
 		relations: () => ({}),
+		sql: sqlTag,
 	};
 });
 

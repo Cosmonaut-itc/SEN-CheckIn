@@ -12,9 +12,87 @@ const push = vi.fn();
 const refresh = vi.fn();
 let mockPathname = '/dashboard';
 
+interface SidebarMenuButtonStubProps extends React.HTMLAttributes<HTMLDivElement> {
+	/** Whether the component should render as child */
+	asChild?: boolean;
+	/** Whether the menu item is active */
+	isActive?: boolean;
+	/** Tooltip content (ignored in stubs) */
+	tooltip?: string | React.ReactNode;
+}
+
+/**
+ * Renders a generic div wrapper for sidebar stubs.
+ *
+ * @param props - Div props to render
+ * @returns Stub element
+ */
+function SidebarStub(props: React.HTMLAttributes<HTMLDivElement>): React.ReactElement {
+	const { children, ...rest } = props;
+	return <div {...rest}>{children}</div>;
+}
+
+/**
+ * Renders a stubbed sidebar menu button.
+ *
+ * @param props - Button-like props for the stub
+ * @returns Stub element
+ */
+function SidebarMenuButtonStub(props: SidebarMenuButtonStubProps): React.ReactElement {
+	const { children, asChild, isActive, tooltip, ...rest } = props;
+	void asChild;
+	void isActive;
+	void tooltip;
+	return <div {...rest}>{children}</div>;
+}
+
+/**
+ * Renders a stubbed sidebar provider wrapper.
+ *
+ * @param props - Provider props
+ * @returns Stub element
+ */
+function SidebarProviderStub(props: { children: React.ReactNode }): React.ReactElement {
+	return <div>{props.children}</div>;
+}
+
+/**
+ * Renders a stubbed avatar image element.
+ *
+ * @param props - Image props
+ * @returns Stub element
+ */
+function AvatarImageStub(
+	props: React.ImgHTMLAttributes<HTMLImageElement>,
+): React.ReactElement {
+	void props;
+	return <span />;
+}
+
 vi.mock('@/lib/auth-client', () => ({
 	useSession: vi.fn(),
 	signOut: vi.fn(),
+}));
+
+vi.mock('@/components/ui/avatar', () => ({
+	Avatar: SidebarStub,
+	AvatarFallback: SidebarStub,
+	AvatarImage: AvatarImageStub,
+}));
+
+vi.mock('@/components/ui/sidebar', () => ({
+	Sidebar: SidebarStub,
+	SidebarContent: SidebarStub,
+	SidebarFooter: SidebarStub,
+	SidebarGroup: SidebarStub,
+	SidebarGroupContent: SidebarStub,
+	SidebarGroupLabel: SidebarStub,
+	SidebarHeader: SidebarStub,
+	SidebarMenu: SidebarStub,
+	SidebarMenuButton: SidebarMenuButtonStub,
+	SidebarMenuItem: SidebarStub,
+	SidebarSeparator: SidebarStub,
+	SidebarProvider: SidebarProviderStub,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -61,9 +139,24 @@ describe('AppSidebar', () => {
 		vi.mocked(useSession).mockReturnValue({
 			data: {
 				user: {
+					id: 'user-test-id',
 					name: 'Usuario',
 					email: 'user@example.com',
 					image: null,
+					createdAt: new Date('2024-01-01T00:00:00.000Z'),
+					updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+					emailVerified: true,
+					banned: false,
+				},
+				session: {
+					id: 'session-test-id',
+					userId: 'user-test-id',
+					createdAt: new Date('2024-01-01T00:00:00.000Z'),
+					updatedAt: new Date('2024-01-01T00:00:00.000Z'),
+					expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+					token: 'session-token',
+					ipAddress: null,
+					userAgent: null,
 				},
 			},
 			isPending: false,

@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('device routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -9,7 +15,7 @@ describe('device routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 	});
@@ -21,7 +27,8 @@ describe('device routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates, updates, heartbeats, and deletes a device', async () => {
@@ -36,24 +43,43 @@ describe('device routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		const deviceId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdDevice = createPayload.data;
+		if (!createdDevice) {
+			throw new Error('Expected device record in create response.');
+		}
+		const deviceId = createdDevice.id;
+		if (!deviceId) {
+			throw new Error('Expected device ID in create response.');
+		}
 
-		const updateResponse = await client.devices[deviceId].put({
+		const deviceRoutes = requireRoute(client.devices[deviceId], 'Device route');
+		const updateResponse = await deviceRoutes.put({
 			name: 'Kiosco actualizado',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(updateResponse.status).toBe(200);
-		expect(updateResponse.data?.data?.name).toBe('Kiosco actualizado');
+		const updatePayload = requireResponseData(updateResponse);
+		const updatedDevice = updatePayload.data;
+		if (!updatedDevice) {
+			throw new Error('Expected device record in update response.');
+		}
+		expect(updatedDevice.name).toBe('Kiosco actualizado');
 
-		const heartbeatResponse = await client.devices[deviceId].heartbeat.post({
+		const heartbeatResponse = await deviceRoutes.heartbeat.post({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(heartbeatResponse.status).toBe(200);
-		expect(heartbeatResponse.data?.data?.status).toBe('ONLINE');
+		const heartbeatPayload = requireResponseData(heartbeatResponse);
+		const heartbeatDevice = heartbeatPayload.data;
+		if (!heartbeatDevice) {
+			throw new Error('Expected device record in heartbeat response.');
+		}
+		expect(heartbeatDevice.status).toBe('ONLINE');
 
-		const deleteResponse = await client.devices[deviceId].delete({
+		const deleteResponse = await deviceRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -95,7 +121,8 @@ describe('device routes (contract)', () => {
 		});
 
 		expect(firstResponse.status).toBe(201);
-		expect(firstResponse.data?.isNew).toBe(true);
+		const firstPayload = requireResponseData(firstResponse);
+		expect(firstPayload.isNew).toBe(true);
 
 		const secondResponse = await client.devices.register.post({
 			code,
@@ -105,11 +132,13 @@ describe('device routes (contract)', () => {
 		});
 
 		expect(secondResponse.status).toBe(200);
-		expect(secondResponse.data?.isNew).toBe(false);
+		const secondPayload = requireResponseData(secondResponse);
+		expect(secondPayload.isNew).toBe(false);
 	});
 
 	it('returns 404 for unknown devices', async () => {
-		const response = await client.devices[randomUUID()].get({
+		const unknownDevice = requireRoute(client.devices[randomUUID()], 'Device route');
+		const response = await unknownDevice.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

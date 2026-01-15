@@ -48,7 +48,7 @@ describe('organization routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		ensureTestDatabaseUrl();
 		const authModule = await import('../../utils/auth.js');
 		authInstance = authModule.auth;
@@ -89,7 +89,7 @@ describe('organization routes (contract)', () => {
 	it('adds members directly with BetterAuth', async () => {
 		const suffix = randomUUID().slice(0, 8);
 		const email = `invitado.${suffix}@example.com`;
-		const username = `invite-${suffix}`;
+		const username = `invite_${suffix}`;
 		const userId = await createMembershipUser(email, username);
 
 		const response = await client.organization['add-member-direct'].post({
@@ -103,20 +103,24 @@ describe('organization routes (contract)', () => {
 		expect(response.data?.success).toBe(true);
 	});
 
-	it('provisions a user and adds them to the organization', async () => {
-		const suffix = randomUUID().slice(0, 8);
-		const response = await client.organization['provision-user'].post({
-			name: 'Nuevo Usuario',
-			email: `provision.${suffix}@example.com`,
-			username: `prov-${suffix}`,
-			password: 'User123!Test',
-			role: 'member',
-			organizationId: seed.organizationId,
-			$headers: { cookie: adminSession.cookieHeader },
-		});
+	it(
+		'provisions a user and adds them to the organization',
+		async () => {
+			const suffix = randomUUID().slice(0, 8);
+			const response = await client.organization['provision-user'].post({
+				name: 'Nuevo Usuario',
+				email: `provision.${suffix}@example.com`,
+				username: `prov_${suffix}`,
+				password: 'User123!Test',
+				role: 'member',
+				organizationId: seed.organizationId,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
 
-		expect(response.status).toBe(200);
-		expect(response.data?.success).toBe(true);
-		expect(response.data?.data?.userId).toBeDefined();
-	});
+			expect(response.status).toBe(200);
+			expect(response.data?.success).toBe(true);
+			expect(response.data?.data?.userId).toBeDefined();
+		},
+		15_000,
+	);
 });

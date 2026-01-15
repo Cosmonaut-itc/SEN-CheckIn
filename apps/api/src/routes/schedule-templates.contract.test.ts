@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireResponseData,
+	requireRoute,
+} from '../test-utils/contract-helpers.js';
 
 describe('schedule template routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -9,7 +15,7 @@ describe('schedule template routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 	});
@@ -21,7 +27,8 @@ describe('schedule template routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('creates, updates, and deletes a schedule template', async () => {
@@ -43,16 +50,33 @@ describe('schedule template routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		const templateId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdTemplate = createPayload.data;
+		if (!createdTemplate) {
+			throw new Error('Expected schedule template record in create response.');
+		}
+		const templateId = createdTemplate.id;
+		if (!templateId) {
+			throw new Error('Expected schedule template ID in create response.');
+		}
 
-		const getResponse = await client['schedule-templates'][templateId].get({
+		const templateRoutes = requireRoute(
+			client['schedule-templates'][templateId],
+			'Schedule template route',
+		);
+		const getResponse = await templateRoutes.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(getResponse.status).toBe(200);
-		expect(Array.isArray(getResponse.data?.data?.days)).toBe(true);
+		const getPayload = requireResponseData(getResponse);
+		const fetchedTemplate = getPayload.data;
+		if (!fetchedTemplate) {
+			throw new Error('Expected schedule template record in get response.');
+		}
+		expect(Array.isArray(fetchedTemplate.days)).toBe(true);
 
-		const updateResponse = await client['schedule-templates'][templateId].put({
+		const updateResponse = await templateRoutes.put({
 			name: 'Turno actualizado',
 			days: [
 				{ dayOfWeek: 1, startTime: '08:00', endTime: '16:00', isWorkingDay: true },
@@ -66,9 +90,14 @@ describe('schedule template routes (contract)', () => {
 		});
 
 		expect(updateResponse.status).toBe(200);
-		expect(updateResponse.data?.data?.name).toBe('Turno actualizado');
+		const updatePayload = requireResponseData(updateResponse);
+		const updatedTemplate = updatePayload.data;
+		if (!updatedTemplate) {
+			throw new Error('Expected schedule template record in update response.');
+		}
+		expect(updatedTemplate.name).toBe('Turno actualizado');
 
-		const deleteResponse = await client['schedule-templates'][templateId].delete({
+		const deleteResponse = await templateRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

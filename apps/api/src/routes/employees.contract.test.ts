@@ -6,6 +6,8 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireResponseData,
+	requireRoute,
 } from '../test-utils/contract-helpers.js';
 import { setupRekognitionMocks } from '../test-utils/contract-mocks.js';
 
@@ -18,7 +20,7 @@ describe('employee routes (contract)', () => {
 	let baseEmployeeId: string;
 
 	beforeAll(async () => {
-		client = await createTestClient();
+		client = createTestClient();
 		adminSession = await getAdminSession();
 		seed = await getSeedData();
 
@@ -32,11 +34,20 @@ describe('employee routes (contract)', () => {
 			locationId: seed.locationId,
 			organizationId: seed.organizationId,
 			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(createResponse.status).toBe(201);
-		baseEmployeeId = createResponse.data?.data?.id ?? '';
+		const createPayload = requireResponseData(createResponse);
+		const createdEmployee = createPayload.data;
+		if (!createdEmployee) {
+			throw new Error('Expected employee record in create response.');
+		}
+		if (!createdEmployee.id) {
+			throw new Error('Expected employee ID in create response.');
+		}
+		baseEmployeeId = createdEmployee.id;
 	});
 
 	afterAll(async () => {
@@ -44,7 +55,8 @@ describe('employee routes (contract)', () => {
 			return;
 		}
 
-		await client.employees[baseEmployeeId].delete({
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		await employeeRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 	});
@@ -56,87 +68,122 @@ describe('employee routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('returns employee detail with schedule', async () => {
-		const response = await client.employees[baseEmployeeId].get({
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const response = await employeeRoutes.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.id).toBe(baseEmployeeId);
-		expect(Array.isArray(response.data?.data?.schedule)).toBe(true);
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data;
+		if (!employeeRecord) {
+			throw new Error('Expected employee record in detail response.');
+		}
+		expect(employeeRecord.id).toBe(baseEmployeeId);
+		expect(Array.isArray(employeeRecord.schedule)).toBe(true);
 	});
 
 	it('updates an employee record', async () => {
-		const response = await client.employees[baseEmployeeId].put({
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const response = await employeeRoutes.put({
 			department: 'Operaciones',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.department).toBe('Operaciones');
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data;
+		if (!employeeRecord) {
+			throw new Error('Expected employee record in update response.');
+		}
+		expect(employeeRecord.department).toBe('Operaciones');
 	});
 
 	it('returns insights for an employee', async () => {
-		const response = await client.employees[baseEmployeeId].insights.get({
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const insightsRoute = requireRoute(employeeRoutes.insights, 'Employee insights route');
+		const response = await insightsRoute.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.employeeId).toBe(baseEmployeeId);
+		const payload = requireResponseData(response);
+		const insights = payload.data;
+		if (!insights) {
+			throw new Error('Expected insights data for employee.');
+		}
+		expect(insights.employeeId).toBe(baseEmployeeId);
 	});
 
 	it('returns audit events for an employee', async () => {
-		const response = await client.employees[baseEmployeeId].audit.get({
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const auditRoute = requireRoute(employeeRoutes.audit, 'Employee audit route');
+		const response = await auditRoute.get({
 			$headers: { cookie: adminSession.cookieHeader },
 			$query: { limit: 10, offset: 0 },
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
 	it('manages rekognition enrollment for an employee', async () => {
-		const noUserResponse = await client.employees[baseEmployeeId]['enroll-face'].post({
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const enrollFaceRoute = requireRoute(
+			employeeRoutes['enroll-face'],
+			'Employee enroll-face route',
+		);
+		const createUserRoute = requireRoute(
+			employeeRoutes['create-rekognition-user'],
+			'Employee create-rekognition-user route',
+		);
+		const deleteUserRoute = requireRoute(
+			employeeRoutes['rekognition-user'],
+			'Employee rekognition-user route',
+		);
+		const noUserResponse = await enrollFaceRoute.post({
 			image: Buffer.from('test').toString('base64'),
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(noUserResponse.status).toBe(400);
 
-		const createUserResponse = await client.employees[baseEmployeeId][
-			'create-rekognition-user'
-		].post({
+		const createUserResponse = await createUserRoute.post({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(createUserResponse.status).toBe(200);
-		expect(createUserResponse.data?.success).toBe(true);
+		const createUserPayload = requireResponseData(createUserResponse);
+		expect(createUserPayload.success).toBe(true);
 
-		const duplicateResponse = await client.employees[baseEmployeeId][
-			'create-rekognition-user'
-		].post({
+		const duplicateResponse = await createUserRoute.post({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(duplicateResponse.status).toBe(409);
 
-		const enrollResponse = await client.employees[baseEmployeeId]['enroll-face'].post({
+		const enrollResponse = await enrollFaceRoute.post({
 			image: Buffer.from('enroll').toString('base64'),
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(enrollResponse.status).toBe(200);
-		expect(enrollResponse.data?.success).toBe(true);
+		const enrollPayload = requireResponseData(enrollResponse);
+		expect(enrollPayload.success).toBe(true);
 
-		const deleteResponse = await client.employees[baseEmployeeId]['rekognition-user'].delete({
+		const deleteResponse = await deleteUserRoute.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(deleteResponse.status).toBe(200);
-		expect(deleteResponse.data?.success).toBe(true);
+		const deletePayload = requireResponseData(deleteResponse);
+		expect(deletePayload.success).toBe(true);
 	});
 
 	it('deletes an employee record', async () => {
@@ -150,11 +197,21 @@ describe('employee routes (contract)', () => {
 			locationId: seed.locationId,
 			organizationId: seed.organizationId,
 			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
-		const employeeId = createResponse.data?.data?.id ?? '';
-		const deleteResponse = await client.employees[employeeId].delete({
+		const createPayload = requireResponseData(createResponse);
+		const createdEmployee = createPayload.data;
+		if (!createdEmployee) {
+			throw new Error('Expected employee record in delete setup response.');
+		}
+		const employeeId = createdEmployee.id;
+		if (!employeeId) {
+			throw new Error('Expected employee ID in delete setup response.');
+		}
+		const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+		const deleteResponse = await employeeRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

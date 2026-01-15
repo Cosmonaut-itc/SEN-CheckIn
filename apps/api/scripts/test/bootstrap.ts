@@ -23,7 +23,7 @@ type TestUserSeed = {
 type SeedContext = {
 	db: typeof import('../../src/db/index.js').default;
 	schema: typeof import('../../src/db/schema.js');
-	auth: typeof import('../../../utils/auth.js').auth;
+	auth: typeof import('../../utils/auth.js').auth;
 	organizationId: string;
 };
 
@@ -37,7 +37,7 @@ const TEST_USERS: TestUserSeed[] = [
 		email: 'admin@sen-checkin.test',
 		password: 'Admin123!Test',
 		name: 'Admin de Pruebas',
-		username: 'admin-test',
+		username: 'admin_test',
 		role: 'admin',
 		memberRole: 'admin',
 	},
@@ -45,7 +45,7 @@ const TEST_USERS: TestUserSeed[] = [
 		email: 'user@sen-checkin.test',
 		password: 'User123!Test',
 		name: 'Usuario de Pruebas',
-		username: 'user-test',
+		username: 'user_test',
 		role: 'user',
 		memberRole: 'member',
 	},
@@ -85,25 +85,29 @@ function buildTestDatabaseUrl(password: string): string {
 
 /**
  * Resolves the test database URL, ensuring it targets the test database.
+ * Falls back to the test DB URL if SEN_DB_URL targets a non-test database.
  *
  * @returns Connection string for the test database
  * @throws Error when required environment variables are missing or invalid
  */
 function resolveTestDatabaseUrl(): string {
 	const providedUrl = process.env.SEN_DB_URL;
+	let providedDatabaseName: string | null = null;
 	if (providedUrl) {
 		const parsed = new URL(providedUrl);
-		const databaseName = parsed.pathname.replace(/^\//, '');
-		if (databaseName !== TEST_DB_NAME) {
-			throw new Error(
-				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${databaseName}".`,
-			);
+		providedDatabaseName = parsed.pathname.replace(/^\//, '');
+		if (providedDatabaseName === TEST_DB_NAME) {
+			return providedUrl;
 		}
-		return providedUrl;
 	}
 
 	const password = process.env.SEN_CHECKIN_PG_PASSWORD;
 	if (!password) {
+		if (providedDatabaseName) {
+			throw new Error(
+				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${providedDatabaseName}".`,
+			);
+		}
 		throw new Error('SEN_CHECKIN_PG_PASSWORD is required to build the test database URL.');
 	}
 

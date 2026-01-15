@@ -2,9 +2,7 @@ import { edenTreaty } from '@elysiajs/eden';
 import { eq } from 'drizzle-orm';
 import { parseSetCookieHeader } from 'better-auth/cookies';
 
-import type { EdenTreaty } from '@elysiajs/eden';
 import type { App } from '../app.js';
-import { setupRekognitionMocks } from './contract-mocks.js';
 
 type SeedData = {
 	organizationId: string;
@@ -44,6 +42,7 @@ const USER_CREDENTIALS: TestUserCredentials = {
 };
 
 let cachedApp: App | null = null;
+let cachedAppPromise: Promise<App> | null = null;
 let cachedSeedData: SeedData | null = null;
 let cachedAdminSession: SessionContext | null = null;
 let cachedUserSession: SessionContext | null = null;
@@ -62,25 +61,29 @@ function buildTestDatabaseUrl(password: string): string {
 
 /**
  * Ensures SEN_DB_URL points to the test database, deriving it when needed.
+ * Falls back to the test DB URL if SEN_DB_URL targets a non-test database.
  *
  * @returns Test database connection string
  * @throws Error when required environment variables are missing or invalid
  */
 export function ensureTestDatabaseUrl(): string {
 	const providedUrl = process.env.SEN_DB_URL;
+	let providedDatabaseName: string | null = null;
 	if (providedUrl) {
 		const parsed = new URL(providedUrl);
-		const databaseName = parsed.pathname.replace(/^\//, '');
-		if (databaseName !== TEST_DB_NAME) {
-			throw new Error(
-				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${databaseName}".`,
-			);
+		providedDatabaseName = parsed.pathname.replace(/^\//, '');
+		if (providedDatabaseName === TEST_DB_NAME) {
+			return providedUrl;
 		}
-		return providedUrl;
 	}
 
 	const password = process.env.SEN_CHECKIN_PG_PASSWORD;
 	if (!password) {
+		if (providedDatabaseName) {
+			throw new Error(
+				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${providedDatabaseName}".`,
+			);
+		}
 		throw new Error('SEN_CHECKIN_PG_PASSWORD is required for API contract tests.');
 	}
 
@@ -122,11 +125,12 @@ async function loadAuth(): Promise<typeof import('../../utils/auth.js').auth> {
  * @param init - Optional fetch init overrides
  * @returns Request instance
  */
-function buildRequest(input: RequestInfo, init?: RequestInit): Request {
-	if (input instanceof Request) {
-		return init ? new Request(input, init) : input;
+function buildRequest(input: RequestInfo | URL, init?: RequestInit): Request {
+	const requestInput = input instanceof URL ? input.toString() : input;
+	if (requestInput instanceof Request) {
+		return init ? new Request(requestInput, init) : requestInput;
 	}
-	return new Request(input, init);
+	return new Request(requestInput, init);
 }
 
 /**
@@ -181,17 +185,22 @@ function mergeCookieHeader(cookieHeader: string, setCookieHeader: string | null)
 /**
  * Creates or reuses the test app instance.
  *
- * @returns Elysia app instance
+ * @returns Promise resolving to the Elysia app instance
  */
-export async function getTestApp(): Promise<App> {
+export function getTestApp(): Promise<App> {
 	if (cachedApp) {
-		return cachedApp;
+		return Promise.resolve(cachedApp);
 	}
-	setupRekognitionMocks();
-	ensureTestDatabaseUrl();
-	const { createApp } = await import('../app.js');
-	cachedApp = createApp();
-	return cachedApp;
+	if (cachedAppPromise) {
+		return cachedAppPromise;
+	}
+	cachedAppPromise = (async () => {
+		ensureTestDatabaseUrl();
+		const { createApp } = await import('../app.js');
+		cachedApp = createApp();
+		return cachedApp;
+	})();
+	return cachedAppPromise;
 }
 
 /**
@@ -199,11 +208,59 @@ export async function getTestApp(): Promise<App> {
  *
  * @returns Eden Treaty client
  */
-export async function createTestClient(): Promise<EdenTreaty.Create<App>> {
-	const app = await getTestApp();
-	return edenTreaty<App>('http://localhost', {
-		fetcher: (input, init) => app.handle(buildRequest(input, init)),
-	});
+export function createTestClient() {
+	/**
+	 * No-op preconnect implementation for test fetcher.
+	 *
+	 * @param url - URL to preconnect
+	 * @param options - Optional preconnect options
+	 * @returns Nothing
+	 */
+	const noopPreconnect: typeof fetch.preconnect = (_url, _options) => {
+		void _url;
+		void _options;
+	};
+
+	const fetcher = (async (input, init) => {
+		const app = await getTestApp();
+		const requestInput = input instanceof URL ? input.toString() : input;
+		return app.handle(buildRequest(requestInput, init));
+	}) as typeof fetch;
+
+	fetcher.preconnect = fetch.preconnect
+		? fetch.preconnect.bind(fetch)
+		: noopPreconnect;
+
+	return edenTreaty<App>('http://localhost', { fetcher });
+}
+
+/**
+ * Ensures a response includes a data payload.
+ *
+ * @param response - Response object with optional data payload
+ * @returns Data payload from the response
+ * @throws Error when the response data is missing
+ */
+export function requireResponseData<T>(response: { data?: T | null }): T {
+	if (response.data === undefined || response.data === null) {
+		throw new Error('Expected response data to be defined.');
+	}
+	return response.data;
+}
+
+/**
+ * Ensures a typed route accessor is available.
+ *
+ * @param route - Route accessor to validate
+ * @param label - Label for error reporting
+ * @returns Route accessor when defined
+ * @throws Error when the route accessor is missing
+ */
+export function requireRoute<T>(route: T | undefined, label: string): T {
+	if (!route) {
+		throw new Error(`${label} is not available in the typed client.`);
+	}
+	return route;
 }
 
 /**

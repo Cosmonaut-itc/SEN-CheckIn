@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { setTimeout } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,48 @@ const TEST_DB_HOST = '127.0.0.1';
 const TEST_DB_PORT = 5435;
 
 /**
+ * Loads environment variables from a .env file if they are not already set.
+ *
+ * @param envPath - Absolute path to the .env file
+ * @returns Nothing
+ */
+function loadEnvFile(envPath: string): void {
+	if (!existsSync(envPath)) {
+		return;
+	}
+
+	const content = readFileSync(envPath, 'utf8');
+	for (const rawLine of content.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith('#')) {
+			continue;
+		}
+
+		const normalized = line.startsWith('export ') ? line.slice(7) : line;
+		const separatorIndex = normalized.indexOf('=');
+		if (separatorIndex <= 0) {
+			continue;
+		}
+
+		const key = normalized.slice(0, separatorIndex).trim();
+		if (!key || process.env[key] !== undefined) {
+			continue;
+		}
+
+		const rawValue = normalized.slice(separatorIndex + 1).trim();
+		const isQuoted =
+			(rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+			(rawValue.startsWith("'") && rawValue.endsWith("'"));
+		const unquotedValue = isQuoted ? rawValue.slice(1, -1) : rawValue;
+		const commentIndex = isQuoted ? -1 : unquotedValue.search(/\s+#/);
+		const value =
+			commentIndex >= 0 ? unquotedValue.slice(0, commentIndex).trim() : unquotedValue;
+
+		process.env[key] = value;
+	}
+}
+
+/**
  * Builds a Postgres connection string for the test database.
  *
  * @param password - Postgres password
@@ -27,25 +70,29 @@ function buildTestDatabaseUrl(password: string): string {
 
 /**
  * Resolves the test database URL, ensuring it points to the test database.
+ * Falls back to the test DB URL if SEN_DB_URL targets a non-test database.
  *
  * @returns Connection string for the test database
  * @throws Error when the required password is missing or URL is invalid
  */
 function resolveTestDatabaseUrl(): string {
 	const providedUrl = process.env.SEN_DB_URL;
+	let providedDatabaseName: string | null = null;
 	if (providedUrl) {
 		const parsed = new URL(providedUrl);
-		const databaseName = parsed.pathname.replace(/^\//, '');
-		if (databaseName !== TEST_DB_NAME) {
-			throw new Error(
-				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${databaseName}".`,
-			);
+		providedDatabaseName = parsed.pathname.replace(/^\//, '');
+		if (providedDatabaseName === TEST_DB_NAME) {
+			return providedUrl;
 		}
-		return providedUrl;
 	}
 
 	const password = process.env.SEN_CHECKIN_PG_PASSWORD;
 	if (!password) {
+		if (providedDatabaseName) {
+			throw new Error(
+				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${providedDatabaseName}".`,
+			);
+		}
 		throw new Error('SEN_CHECKIN_PG_PASSWORD is required for Playwright servers.');
 	}
 
@@ -123,6 +170,8 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..', '..');
 const apiRoot = resolve(repoRoot, 'apps', 'api');
 const webRoot = resolve(repoRoot, 'apps', 'web');
+
+loadEnvFile(resolve(repoRoot, '.env'));
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? 'http://localhost:3001';

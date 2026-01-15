@@ -10,7 +10,7 @@ export default defineConfig({
 		baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3001',
 		trace: 'on-first-retry',
 	},
-	globalSetup: './e2e/global-setup.ts',
+	globalSetup: './e2e/global-setup.mjs',
 	webServer: {
 		command: 'bun run test:e2e:servers',
 		url: 'http://localhost:3001',

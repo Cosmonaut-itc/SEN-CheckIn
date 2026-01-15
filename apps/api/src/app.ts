@@ -11,6 +11,7 @@ import { configureLogger } from './logger/index.js';
 import { combinedAuthPlugin } from './plugins/auth.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import { loggerPlugin } from './plugins/logger.js';
+import { buildErrorResponse } from './utils/error-response.js';
 
 // Route imports
 import { attendanceRoutes } from './routes/attendance.js';
@@ -56,14 +57,14 @@ const corsAllowedOrigins: string[] = Array.from(
  */
 const betterAuthView = (
 	context: Context,
-): ReturnType<typeof auth.handler> | { error: string } => {
+): ReturnType<typeof auth.handler> | { error: { message: string; code: string } } => {
 	const BETTER_AUTH_ACCEPT_METHODS = ['POST', 'GET', 'OPTIONS'];
 	// validate request method
 	if (BETTER_AUTH_ACCEPT_METHODS.includes(context.request.method)) {
 		return auth.handler(context.request);
 	}
 	context.set.status = 405;
-	return { error: 'Method not allowed' };
+	return buildErrorResponse('Method not allowed', 405);
 };
 
 /**

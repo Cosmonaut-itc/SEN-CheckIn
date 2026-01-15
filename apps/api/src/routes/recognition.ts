@@ -104,6 +104,8 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 					match: null,
 					employee: null,
 					searchedFaceConfidence: null,
+					message: 'Invalid base64 image data',
+					errorCode: 'INVALID_IMAGE_BASE64',
 				};
 			}
 

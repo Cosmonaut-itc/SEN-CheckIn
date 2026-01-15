@@ -5,6 +5,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -103,5 +104,8 @@ describe('schedule exception routes (contract)', () => {
 		});
 
 		expect(secondResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(secondResponse, 'duplicate schedule exception');
+		expect(errorPayload.error.message).toBe('An exception already exists for this date');
+		expect(errorPayload.error.code).toBe('CONFLICT');
 	});
 });

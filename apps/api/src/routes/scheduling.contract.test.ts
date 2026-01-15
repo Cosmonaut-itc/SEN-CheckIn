@@ -1,7 +1,13 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { addDays } from 'date-fns';
 
-import { createTestClient, getAdminSession, getSeedData } from '../test-utils/contract-helpers.js';
+import {
+	createTestClient,
+	getAdminSession,
+	getSeedData,
+	requireErrorResponse,
+	requireResponseData,
+} from '../test-utils/contract-helpers.js';
 
 describe('scheduling routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -24,7 +30,23 @@ describe('scheduling routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.data)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
+	it('rejects invalid calendar date ranges', async () => {
+		const response = await client.scheduling.calendar.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				startDate: addDays(new Date(), 3),
+				endDate: new Date(),
+			},
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'invalid calendar range');
+		expect(errorPayload.error.message).toBe('startDate must be on or before endDate');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('assigns schedule templates to employees', async () => {
@@ -35,7 +57,8 @@ describe('scheduling routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.updated).toBeGreaterThan(0);
+		const payload = requireResponseData(response);
+		expect(payload.updated).toBeGreaterThan(0);
 	});
 
 	it('validates schedules without saving', async () => {
@@ -53,6 +76,7 @@ describe('scheduling routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.data?.validation).toBeDefined();
+		const payload = requireResponseData(response);
+		expect(payload.data?.validation).toBeDefined();
 	});
 });

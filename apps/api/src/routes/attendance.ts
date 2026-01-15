@@ -6,6 +6,7 @@ import { startOfDay, endOfDay } from 'date-fns';
 import db from '../db/index.js';
 import { attendanceRecord, employee, device, location } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
 	idParamSchema,
@@ -76,8 +77,9 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Build conditions array
@@ -209,8 +211,9 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const rangeConditions: SQL<unknown>[] = [
@@ -318,7 +321,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const record = results[0];
 			if (!record) {
 				set.status = 404;
-				return { error: 'Attendance record not found' };
+				return buildErrorResponse('Attendance record not found', 404);
 			}
 
 			if (
@@ -331,7 +334,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this attendance record' };
+				return buildErrorResponse('You do not have access to this attendance record', 403);
 			}
 
 			const { employeeOrgId: _employeeOrgId, employeeFirstName, employeeLastName, ...rest } =
@@ -385,7 +388,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const existingEmployee = employeeExists[0];
 			if (!existingEmployee) {
 				set.status = 400;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 400);
 			}
 
 			// Verify device exists
@@ -397,7 +400,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const existingDevice = deviceExists[0];
 			if (!existingDevice) {
 				set.status = 400;
-				return { error: 'Device not found' };
+				return buildErrorResponse('Device not found', 400);
 			}
 
 			if (
@@ -410,7 +413,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'Employee does not belong to an allowed organization' };
+				return buildErrorResponse('Employee does not belong to an allowed organization', 403);
 			}
 
 			if (
@@ -423,7 +426,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'Device does not belong to an allowed organization' };
+				return buildErrorResponse('Device does not belong to an allowed organization', 403);
 			}
 
 			const resolvedOrganizationId = resolveOrganizationId({
@@ -438,7 +441,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 
 			if (!resolvedOrganizationId) {
 				set.status = 403;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 403);
 			}
 
 			if (
@@ -446,7 +449,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				existingDevice.organizationId !== resolvedOrganizationId
 			) {
 				set.status = 403;
-				return { error: 'Device does not belong to the resolved organization' };
+				return buildErrorResponse('Device does not belong to the resolved organization', 403);
 			}
 
 			const id = crypto.randomUUID();
@@ -504,7 +507,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const employeeRecord = employeeExists[0];
 			if (!employeeRecord) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			if (
@@ -517,7 +520,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this employee' };
+				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
 			const today = new Date();

@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { randomUUID } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { setTimeout } from 'node:timers/promises';

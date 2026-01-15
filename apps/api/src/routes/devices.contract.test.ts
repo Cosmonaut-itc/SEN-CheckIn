@@ -5,6 +5,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -109,6 +110,9 @@ describe('device routes (contract)', () => {
 		});
 
 		expect(secondResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(secondResponse, 'duplicate device code');
+		expect(errorPayload.error.message).toBe('Device code already exists');
+		expect(errorPayload.error.code).toBe('CONFLICT');
 	});
 
 	it('registers devices by code', async () => {
@@ -143,5 +147,8 @@ describe('device routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(404);
+		const errorPayload = requireErrorResponse(response, 'unknown device');
+		expect(errorPayload.error.message).toBe('Device not found');
+		expect(errorPayload.error.code).toBe('NOT_FOUND');
 	});
 });

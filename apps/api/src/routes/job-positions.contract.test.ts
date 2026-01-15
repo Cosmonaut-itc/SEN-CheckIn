@@ -5,6 +5,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -96,5 +97,8 @@ describe('job position routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(404);
+		const errorPayload = requireErrorResponse(response, 'unknown job position');
+		expect(errorPayload.error.message).toBe('Job position not found');
+		expect(errorPayload.error.code).toBe('NOT_FOUND');
 	});
 });

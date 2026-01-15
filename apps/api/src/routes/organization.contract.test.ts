@@ -8,6 +8,8 @@ import {
 	getSeedData,
 	getUserIdByEmail,
 	getUserSession,
+	requireErrorResponse,
+	requireResponseData,
 } from '../test-utils/contract-helpers.js';
 
 let authInstance: typeof import('../../utils/auth.js').auth;
@@ -64,7 +66,8 @@ describe('organization routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.organizations)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.organizations)).toBe(true);
 	});
 
 	it('blocks non-superusers from listing all organizations', async () => {
@@ -74,6 +77,9 @@ describe('organization routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'non-superuser list all');
+		expect(errorPayload.error.message).toBe('Only superusers can list all organizations');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 
 	it('lists organization members for standard users', async () => {
@@ -83,7 +89,8 @@ describe('organization routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(Array.isArray(response.data?.members)).toBe(true);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.members)).toBe(true);
 	});
 
 	it('adds members directly with BetterAuth', async () => {
@@ -100,7 +107,8 @@ describe('organization routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(response.data?.success).toBe(true);
+		const payload = requireResponseData(response);
+		expect(payload.success).toBe(true);
 	});
 
 	it(
@@ -118,8 +126,9 @@ describe('organization routes (contract)', () => {
 			});
 
 			expect(response.status).toBe(200);
-			expect(response.data?.success).toBe(true);
-			expect(response.data?.data?.userId).toBeDefined();
+			const payload = requireResponseData(response);
+			expect(payload.success).toBe(true);
+			expect(payload.data?.userId).toBeDefined();
 		},
 		15_000,
 	);

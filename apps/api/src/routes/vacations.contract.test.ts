@@ -6,6 +6,7 @@ import {
 	getAdminSession,
 	getSeedData,
 	getUserSession,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -94,6 +95,25 @@ describe('vacation routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
+	it('rejects invalid vacation request status for admins', async () => {
+		const startDateKey = addDaysToDateKey('2030-01-15', 5);
+		const endDateKey = addDaysToDateKey(startDateKey, 1);
+
+		const response = await client.vacations.requests.post({
+			employeeId: seed.employeeId,
+			startDateKey,
+			endDateKey,
+			status: 'APPROVED',
+			requestedNotes: 'Estado invalido',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'invalid vacation status');
+		expect(errorPayload.error.message).toBe('Invalid status for vacation request');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('creates and approves vacation requests as admin', async () => {

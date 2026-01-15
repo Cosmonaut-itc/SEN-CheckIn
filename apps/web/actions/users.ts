@@ -12,10 +12,11 @@
  * @module actions/users
  */
 
-import { createServerApiClient } from '@/lib/server-api';
-import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
 import { headers } from 'next/headers';
 
+import { getApiResponseData } from '@/lib/api-response';
+import { createServerApiClient } from '@/lib/server-api';
+import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
 /**
  * User role type.
  */
@@ -310,7 +311,8 @@ export async function createOrganizationUser(
 			};
 		}
 
-		const createdUserId = response.data?.data?.userId ?? null;
+		const payload = getApiResponseData(response);
+		const createdUserId = payload?.data?.userId ?? null;
 
 		if (!createdUserId) {
 			return {
@@ -361,10 +363,11 @@ export async function addOrganizationMember(
 			};
 		}
 
+		const payload = getApiResponseData(response);
 		return {
 			success: true,
 			data: {
-				memberId: response.data?.data?.memberId ?? null,
+				memberId: payload?.data?.memberId ?? null,
 			},
 		};
 	} catch (error) {

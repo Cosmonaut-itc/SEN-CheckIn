@@ -5,6 +5,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -102,5 +103,20 @@ describe('schedule template routes (contract)', () => {
 		});
 
 		expect(deleteResponse.status).toBe(200);
+	});
+
+	it('returns 404 for unknown schedule templates', async () => {
+		const unknownTemplate = requireRoute(
+			client['schedule-templates'][randomUUID()],
+			'Schedule template route',
+		);
+		const response = await unknownTemplate.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(404);
+		const errorPayload = requireErrorResponse(response, 'unknown schedule template');
+		expect(errorPayload.error.message).toBe('Schedule template not found');
+		expect(errorPayload.error.code).toBe('NOT_FOUND');
 	});
 });

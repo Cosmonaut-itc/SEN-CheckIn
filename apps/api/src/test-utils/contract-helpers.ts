@@ -234,18 +234,87 @@ export function createTestClient() {
 	return edenTreaty<App>('http://localhost', { fetcher });
 }
 
+type ErrorPayload = {
+	error: {
+		message: string;
+		code: string;
+		details?: Record<string, unknown>;
+	};
+};
+
+/**
+ * Checks whether a payload matches the standardized error shape.
+ *
+ * @param value - Payload value to validate
+ * @returns True when the payload is a standardized error response
+ */
+function isErrorPayload(value: unknown): value is ErrorPayload {
+	if (!value || typeof value !== 'object') {
+		return false;
+	}
+	if (!('error' in value)) {
+		return false;
+	}
+
+	const errorValue = (value as { error?: unknown }).error;
+	if (!errorValue || typeof errorValue !== 'object') {
+		return false;
+	}
+
+	const message = (errorValue as { message?: unknown }).message;
+	const code = (errorValue as { code?: unknown }).code;
+	return typeof message === 'string' && typeof code === 'string';
+}
+
 /**
  * Ensures a response includes a data payload.
  *
  * @param response - Response object with optional data payload
  * @returns Data payload from the response
- * @throws Error when the response data is missing
+ * @throws Error when the response data is missing or contains an error payload
  */
-export function requireResponseData<T>(response: { data?: T | null }): T {
+export function requireResponseData<T>(
+	response: { data?: T | null },
+): Exclude<T, ErrorPayload> {
 	if (response.data === undefined || response.data === null) {
 		throw new Error('Expected response data to be defined.');
 	}
-	return response.data;
+	if (isErrorPayload(response.data)) {
+		throw new Error('Expected response data but received an error payload.');
+	}
+	return response.data as Exclude<T, ErrorPayload>;
+}
+
+/**
+ * Ensures a response includes a standardized error payload.
+ *
+ * @param response - Response object with optional error payload
+ * @param label - Label to include in error messages
+ * @returns Error payload with message and code
+ * @throws Error when the error payload is missing or invalid
+ */
+export function requireErrorResponse(
+	response: { error?: { value?: unknown } | null },
+	label: string = 'error response',
+): ErrorPayload {
+	const errorValue = response.error?.value;
+	if (!errorValue || typeof errorValue !== 'object') {
+		throw new Error(`Expected ${label} payload to be defined.`);
+	}
+
+	const errorRecord = (errorValue as { error?: unknown }).error;
+	if (!errorRecord || typeof errorRecord !== 'object') {
+		throw new Error(`Expected ${label} payload to include an error object.`);
+	}
+
+	const message = (errorRecord as { message?: unknown }).message;
+	const code = (errorRecord as { code?: unknown }).code;
+
+	if (typeof message !== 'string' || typeof code !== 'string') {
+		throw new Error(`Expected ${label} payload to include error message and code.`);
+	}
+
+	return errorValue as ErrorPayload;
 }
 
 /**

@@ -5,6 +5,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -100,5 +101,8 @@ describe('location routes (contract)', () => {
 		});
 
 		expect(secondResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(secondResponse, 'duplicate location code');
+		expect(errorPayload.error.message).toBe('Location code already exists');
+		expect(errorPayload.error.code).toBe('CONFLICT');
 	});
 });

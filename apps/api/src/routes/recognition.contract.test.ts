@@ -52,6 +52,8 @@ describe('recognition routes (contract)', () => {
 		expect(response.status).toBe(400);
 		const payload = requireResponseData(response);
 		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBe('INVALID_IMAGE_BASE64');
+		expect(payload.message).toBe('Invalid base64 image data');
 	});
 
 	it('returns no match when rekognition has no matches', async () => {

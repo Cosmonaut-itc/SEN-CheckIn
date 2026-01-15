@@ -6,6 +6,7 @@ import {
 	getAdminSession,
 	getSeedData,
 	getTestApiKey,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -117,12 +118,9 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(404);
-		const errorValue = response.error?.value;
-		if (!errorValue || typeof errorValue !== 'object') {
-			throw new Error('Expected error payload for unknown attendance record.');
-		}
-		const errorRecord = errorValue as Record<string, unknown>;
-		expect(errorRecord.error).toBe('Attendance record not found');
+		const errorPayload = requireErrorResponse(response, 'unknown attendance record');
+		expect(errorPayload.error.message).toBe('Attendance record not found');
+		expect(errorPayload.error.code).toBe('NOT_FOUND');
 	});
 
 	it('rejects invalid employee references on create', async () => {
@@ -135,12 +133,9 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(400);
-		const errorValue = response.error?.value;
-		if (!errorValue || typeof errorValue !== 'object') {
-			throw new Error('Expected error payload for invalid employee.');
-		}
-		const errorRecord = errorValue as Record<string, unknown>;
-		expect(errorRecord.error).toBe('Employee not found');
+		const errorPayload = requireErrorResponse(response, 'invalid employee');
+		expect(errorPayload.error.message).toBe('Employee not found');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('rejects api key requests for other organizations', async () => {
@@ -154,5 +149,8 @@ describe('attendance routes (contract)', () => {
 		});
 
 		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'org access denial');
+		expect(errorPayload.error.message).toBe('Organization is required or not permitted');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 });

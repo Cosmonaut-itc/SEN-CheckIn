@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import db from '../db/index.js';
 import { location, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import {
 	createLocationSchema,
 	idParamSchema,
@@ -56,8 +57,9 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			let baseQuery = db.select().from(location);
@@ -124,7 +126,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			const record = results[0];
 			if (!record) {
 				set.status = 404;
-				return { error: 'Location not found' };
+				return buildErrorResponse('Location not found', 404);
 			}
 
 			// Enforce organization scoping
@@ -138,7 +140,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this location' };
+				return buildErrorResponse('You do not have access to this location', 403);
 			}
 
 			return { data: record };
@@ -191,8 +193,9 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Verify organization exists
@@ -204,7 +207,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 			if (!organizationExists[0]) {
 				set.status = 400;
-				return { error: 'Organization not found' };
+				return buildErrorResponse('Organization not found', 400);
 			}
 
 			// Check if code is unique
@@ -216,7 +219,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 			if (codeExists[0]) {
 				set.status = 409;
-				return { error: 'Location code already exists' };
+				return buildErrorResponse('Location code already exists', 409);
 			}
 
 			const id = crypto.randomUUID();
@@ -277,7 +280,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Location not found' };
+				return buildErrorResponse('Location not found', 404);
 			}
 
 			if (
@@ -290,7 +293,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this location' };
+				return buildErrorResponse('You do not have access to this location', 403);
 			}
 
 			const resolvedOrganizationId = resolveOrganizationId({
@@ -304,7 +307,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 			if (!resolvedOrganizationId) {
 				set.status = 403;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 403);
 			}
 
 			// Check if code is unique (if being updated)
@@ -317,7 +320,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 				if (codeExists[0]) {
 					set.status = 409;
-					return { error: 'Location code already exists' };
+					return buildErrorResponse('Location code already exists', 409);
 				}
 			}
 
@@ -363,7 +366,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Location not found' };
+				return buildErrorResponse('Location not found', 404);
 			}
 
 			if (
@@ -376,7 +379,7 @@ export const locationRoutes = new Elysia({ prefix: '/locations' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this location' };
+				return buildErrorResponse('You do not have access to this location', 403);
 			}
 
 			await db.delete(location).where(eq(location.id, id));

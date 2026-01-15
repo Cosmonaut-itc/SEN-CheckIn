@@ -14,6 +14,7 @@
 
 import { headers } from 'next/headers';
 import { createServerApiClient } from '@/lib/server-api';
+import type { ApiErrorPayload } from '@/lib/api-response';
 
 /**
  * Input data for creating a new job position.
@@ -93,9 +94,7 @@ export interface MutationResult<T = unknown> {
 	warnings?: JobPositionWarning[];
 }
 
-type JobPositionErrorPayload = {
-	error?: string;
-};
+type JobPositionErrorPayload = ApiErrorPayload | { error?: string };
 
 type JobPositionApiResponse = {
 	warnings?: JobPositionWarning[];
@@ -114,6 +113,9 @@ async function getCookieHeader(): Promise<string> {
 /**
  * Resolves a mutation error code from the API response.
  *
+ * Supports both the new nested error structure ({ error: { code, message, details } })
+ * and the legacy string format ({ error: string }) for backward compatibility.
+ *
  * @param status - HTTP status code from the API response
  * @param error - Error payload from the API response
  * @returns Normalized error code for UI handling
@@ -123,8 +125,24 @@ function resolveErrorCode(
 	error: unknown,
 ): JobPositionMutationErrorCode {
 	const payload = error as { value?: JobPositionErrorPayload } | null;
-	if (payload?.value?.error === 'BELOW_MINIMUM_WAGE') {
-		return 'BELOW_MINIMUM_WAGE';
+	const value = payload?.value;
+
+	if (value && typeof value === 'object') {
+		// Check new nested structure: { error: { code: 'BELOW_MINIMUM_WAGE', ... } }
+		if (
+			'error' in value &&
+			typeof value.error === 'object' &&
+			value.error !== null &&
+			'code' in value.error &&
+			value.error.code === 'BELOW_MINIMUM_WAGE'
+		) {
+			return 'BELOW_MINIMUM_WAGE';
+		}
+
+		// Check legacy string format: { error: 'BELOW_MINIMUM_WAGE' }
+		if ('error' in value && value.error === 'BELOW_MINIMUM_WAGE') {
+			return 'BELOW_MINIMUM_WAGE';
+		}
 	}
 
 	switch (status) {

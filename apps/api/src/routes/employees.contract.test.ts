@@ -153,6 +153,13 @@ describe('employee routes (contract)', () => {
 		});
 
 		expect(noUserResponse.status).toBe(400);
+		const noUserPayload = noUserResponse.error?.value as
+			| { errorCode?: string; message?: string }
+			| undefined;
+		expect(noUserPayload?.errorCode).toBe('REKOGNITION_USER_MISSING');
+		expect(noUserPayload?.message).toBe(
+			'Employee does not have a Rekognition user. Create one first.',
+		);
 
 		const createUserResponse = await createUserRoute.post({
 			$headers: { cookie: adminSession.cookieHeader },
@@ -167,6 +174,11 @@ describe('employee routes (contract)', () => {
 		});
 
 		expect(duplicateResponse.status).toBe(409);
+		const duplicatePayload = duplicateResponse.error?.value as
+			| { errorCode?: string; message?: string }
+			| undefined;
+		expect(duplicatePayload?.errorCode).toBe('REKOGNITION_USER_EXISTS');
+		expect(duplicatePayload?.message).toBe('Employee already has a Rekognition user');
 
 		const enrollResponse = await enrollFaceRoute.post({
 			image: Buffer.from('enroll').toString('base64'),

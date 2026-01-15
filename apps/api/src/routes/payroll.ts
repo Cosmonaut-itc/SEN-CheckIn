@@ -37,6 +37,7 @@ import {
 	resolveEmployeeAuditActor,
 	setEmployeeAuditSkip,
 } from '../services/employee-audit.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 
 /**
  * Calculates payroll for employees within the organization and period.
@@ -247,8 +248,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const { employees, totalAmount, overtimeEnforcement, timeZone, taxSummary } =
@@ -299,8 +301,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const calculation = await calculatePayroll({
@@ -318,10 +321,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 
 			if (hasBlockingWarnings) {
 				set.status = 400;
-				return {
-					error: 'Overtime limits exceeded. Resolve errors to process payroll.',
-					data: calculation,
-				};
+				return buildErrorResponse(
+					'Overtime limits exceeded. Resolve errors to process payroll.',
+					400,
+					{ details: { calculation } },
+				);
 			}
 
 			const runResult = await db.transaction(async (tx) => {
@@ -458,8 +462,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const runs = await db
@@ -496,7 +501,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			const record = run[0];
 			if (!record) {
 				set.status = 404;
-				return { error: 'Payroll run not found' };
+				return buildErrorResponse('Payroll run not found', 404);
 			}
 
 			const organizationId = resolveOrganizationId({
@@ -510,7 +515,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 
 			if (!organizationId || organizationId !== record.organizationId) {
 				set.status = 403;
-				return { error: 'You do not have access to this payroll run' };
+				return buildErrorResponse('You do not have access to this payroll run', 403);
 			}
 
 			const lines = await db

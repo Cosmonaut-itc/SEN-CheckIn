@@ -1,10 +1,12 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
+import { randomUUID } from 'node:crypto';
 
 import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -98,5 +100,20 @@ describe('payroll routes (contract)', () => {
 			throw new Error('Expected payroll run in detail response.');
 		}
 		expect(run.id).toBe(runId);
+	});
+
+	it('returns 404 for unknown payroll runs', async () => {
+		const payrollRunRoutes = requireRoute(
+			client.payroll.runs[randomUUID()],
+			'Payroll run route',
+		);
+		const response = await payrollRunRoutes.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(404);
+		const errorPayload = requireErrorResponse(response, 'unknown payroll run');
+		expect(errorPayload.error.message).toBe('Payroll run not found');
+		expect(errorPayload.error.code).toBe('NOT_FOUND');
 	});
 });

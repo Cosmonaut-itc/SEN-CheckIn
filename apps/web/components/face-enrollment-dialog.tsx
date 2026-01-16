@@ -380,7 +380,7 @@ export function FaceEnrollmentDialog({
 		try {
 			const constraints = {
 				advanced: [{ zoom: clampedValue }],
-			} as MediaTrackConstraints;
+			} as unknown as MediaTrackConstraints;
 
 			await track.applyConstraints(constraints);
 			setZoomValue(clampedValue);
@@ -630,10 +630,7 @@ export function FaceEnrollmentDialog({
 				return;
 			}
 
-			// Use provided deviceId or fall back to selectedDeviceId state
-			// Guard against MouseEvent being passed from onClick handlers
-			const targetDeviceId =
-				typeof deviceId === 'string' ? deviceId : selectedDeviceId;
+			const targetDeviceId = deviceId ?? selectedDeviceId;
 
 			const preferredConstraints: MediaStreamConstraints = targetDeviceId
 				? {
@@ -1070,7 +1067,10 @@ export function FaceEnrollmentDialog({
 														})}
 													</p>
 												)}
-												<Button variant="outline" onClick={startWebcam}>
+												<Button
+													variant="outline"
+													onClick={() => void startWebcam()}
+												>
 													<RefreshCw className="h-4 w-4 mr-2" />
 													{t('webcam.tryAgain')}
 												</Button>
@@ -1133,7 +1133,7 @@ export function FaceEnrollmentDialog({
 												<p className="text-sm text-muted-foreground mb-4">
 													{t('webcam.instructions')}
 												</p>
-												<Button onClick={startWebcam}>
+												<Button onClick={() => void startWebcam()}>
 													<Camera className="h-4 w-4 mr-2" />
 													{t('webcam.startCamera')}
 												</Button>

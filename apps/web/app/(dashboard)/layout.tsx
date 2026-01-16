@@ -4,8 +4,7 @@ import { ThemeModeToggle } from '@/components/theme-mode-toggle';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
 import { OrgProvider } from '@/lib/org-client-context';
-import { getActiveOrganizationContext } from '@/lib/organization-context';
-import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
+import { getAdminAccessContext } from '@/lib/organization-context';
 import React, { type ReactNode } from 'react';
 
 /**
@@ -26,31 +25,12 @@ interface DashboardLayoutProps {
 export default async function DashboardLayout({
 	children,
 }: DashboardLayoutProps): Promise<React.ReactElement> {
-	const orgContext = await getActiveOrganizationContext();
-	const fetchOptions = await getServerFetchOptions();
-	const sessionResult = await serverAuthClient.getSession(undefined, fetchOptions);
-	const userRole = sessionResult.data?.user?.role ?? 'user';
-	const isSuperUser = userRole === 'admin';
-	let memberRole: 'admin' | 'owner' | 'member' | null = null;
-
-	if (orgContext.organizationId) {
-		try {
-			const memberRoleResult = await serverAuthClient.organization.getActiveMemberRole(
-				undefined,
-				fetchOptions,
-			);
-			const resolvedRole = memberRoleResult.data?.role ?? null;
-			if (resolvedRole === 'admin' || resolvedRole === 'owner' || resolvedRole === 'member') {
-				memberRole = resolvedRole;
-			}
-		} catch (error) {
-			console.error('[dashboard-layout] Failed to resolve active member role', error);
-		}
-	}
+	const { organization, userRole, isSuperUser, organizationRole } =
+		await getAdminAccessContext();
 
 	return (
 		<SidebarProvider>
-			<AppSidebar isSuperUser={isSuperUser} organizationRole={memberRole} />
+			<AppSidebar isSuperUser={isSuperUser} organizationRole={organizationRole} />
 			<SidebarInset>
 				<header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
 					<SidebarTrigger className="-ml-1" />
@@ -62,10 +42,10 @@ export default async function DashboardLayout({
 				<main className="flex-1 overflow-auto p-6">
 					<OrganizationGate
 						role={userRole}
-						organizationRole={memberRole}
-						hasOrganization={orgContext.organizationId !== null}
+						organizationRole={organizationRole}
+						hasOrganization={organization.organizationId !== null}
 					>
-						<OrgProvider value={orgContext}>{children}</OrgProvider>
+						<OrgProvider value={organization}>{children}</OrgProvider>
 					</OrganizationGate>
 				</main>
 			</SidebarInset>

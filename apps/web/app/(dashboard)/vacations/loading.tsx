@@ -1,4 +1,4 @@
-import { VacationsSkeleton } from '@/components/skeletons';
+import { VacationsSkeleton } from '@/components/skeletons/vacations-skeleton';
 
 /**
  * Loading component for the Vacations page.

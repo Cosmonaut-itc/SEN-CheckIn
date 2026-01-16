@@ -113,6 +113,17 @@ const mainNavItems: NavItem[] = [
 ];
 
 /**
+ * Shared navigation items for all users that live between the main and admin sections.
+ */
+const sharedNavItems: NavItem[] = [
+	{
+		titleKey: 'mobileApp',
+		href: '/app-movil',
+		icon: Smartphone,
+	},
+];
+
+/**
  * Admin navigation items.
  */
 const adminNavItems: NavItem[] = [
@@ -120,11 +131,6 @@ const adminNavItems: NavItem[] = [
 		titleKey: 'apiKeys',
 		href: '/api-keys',
 		icon: Key,
-	},
-	{
-		titleKey: 'mobileApp',
-		href: '/app-movil',
-		icon: Smartphone,
 	},
 	{
 		titleKey: 'payrollSettings',
@@ -227,6 +233,31 @@ export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): 
 				</SidebarGroup>
 
 				<SidebarSeparator />
+
+				<SidebarGroup>
+					<SidebarGroupLabel>{tSidebar('resources')}</SidebarGroupLabel>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{sharedNavItems.map((item) => (
+								<SidebarMenuItem key={item.href}>
+									<SidebarMenuButton
+										asChild
+										isActive={
+											pathname === item.href ||
+											pathname.startsWith(`${item.href}/`)
+										}
+										tooltip={tSidebar(item.titleKey)}
+									>
+										<Link href={item.href}>
+											<item.icon className="h-4 w-4" />
+											<span>{tSidebar(item.titleKey)}</span>
+										</Link>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
 
 				{canAccessAdmin ? (
 					<SidebarGroup data-testid="app-sidebar-admin-group">

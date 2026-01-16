@@ -10,7 +10,6 @@ import { NoOrganizationState } from '@/components/no-organization-state';
  */
 const ADMIN_ROUTE_PREFIXES = [
 	'/api-keys',
-	'/app-movil',
 	'/payroll-settings',
 	'/users',
 	'/organizations',

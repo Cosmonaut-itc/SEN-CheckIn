@@ -67,6 +67,7 @@
 		"schedules": "Horarios",
 		"vacations": "Vacaciones",
 		"payroll": "Nómina",
+		"resources": "Recursos",
 		"apiKeys": "Claves de API",
 		"mobileApp": "App Móvil",
 		"payrollSettings": "Configuración de Nómina",
@@ -87,19 +88,19 @@
 	},
 	"MobileApp": {
 		"title": "App Móvil",
-		"subtitle": "Escanea el código QR o abre el enlace para ver la build en Expo.",
+		"subtitle": "Escanea el código QR o abre el enlace para acceder a la prueba interna en Google Play.",
 		"card": {
-			"title": "Build de Expo",
-			"description": "Usa este código QR para abrir la página de la build en tu dispositivo."
+			"title": "Prueba interna en Google Play",
+			"description": "Usa este código QR para abrir la página de la prueba interna en tu dispositivo."
 		},
 		"qr": {
-			"ariaLabel": "Código QR de la build de Expo",
-			"alt": "Código QR para abrir la build de Expo"
+			"ariaLabel": "Código QR de la prueba interna en Google Play",
+			"alt": "Código QR para abrir la prueba interna en Google Play"
 		},
 		"link": {
 			"label": "Enlace:",
 			"open": "Abrir enlace",
-			"ariaLabel": "Abrir la build de Expo en una nueva pestaña"
+			"ariaLabel": "Abrir la prueba interna en Google Play en una nueva pestaña"
 		}
 	},
 	"Dashboard": {

@@ -1,4 +1,4 @@
-import { DashboardSkeleton } from '@/components/skeletons';
+import { DashboardSkeleton } from '@/components/skeletons/dashboard-skeleton';
 
 /**
  * Loading component for the Dashboard page.

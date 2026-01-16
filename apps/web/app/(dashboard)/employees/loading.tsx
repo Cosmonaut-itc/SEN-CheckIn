@@ -1,4 +1,4 @@
-import { EmployeesSkeleton } from '@/components/skeletons';
+import { EmployeesSkeleton } from '@/components/skeletons/employees-skeleton';
 
 /**
  * Loading component for the Employees page.

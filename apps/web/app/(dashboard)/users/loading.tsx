@@ -1,4 +1,4 @@
-import { UsersSkeleton } from '@/components/skeletons';
+import { UsersSkeleton } from '@/components/skeletons/users-skeleton';
 
 /**
  * Loading component for the Users page.

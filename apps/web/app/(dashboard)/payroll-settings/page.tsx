@@ -14,9 +14,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Payroll settings page server component.
  *
- * This server component prefetches payroll settings data and awaits it so SSR
- * markup matches the hydrated client. The prefetched data is dehydrated and
- * passed to the client via HydrationBoundary.
+ * This server component prefetches payroll settings data without awaiting to
+ * enable streaming. The prefetched data is dehydrated and passed to the client
+ * via HydrationBoundary.
  *
  * @returns The payroll settings page with hydrated query state
  */
@@ -28,7 +28,7 @@ export default async function PayrollSettingsPage(): Promise<React.ReactElement>
 		redirect('/acceso-restringido');
 	}
 
-	await prefetchPayrollSettings(queryClient);
+	prefetchPayrollSettings(queryClient);
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

@@ -1,4 +1,4 @@
-import { LocationsSkeleton } from '@/components/skeletons';
+import { LocationsSkeleton } from '@/components/skeletons/locations-skeleton';
 
 /**
  * Loading component for the Locations page.

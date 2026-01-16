@@ -1,4 +1,4 @@
-import { AttendanceSkeleton } from '@/components/skeletons';
+import { AttendanceSkeleton } from '@/components/skeletons/attendance-skeleton';
 
 /**
  * Loading component for the Attendance page.

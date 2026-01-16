@@ -1,4 +1,4 @@
-import { OrganizationsSkeleton } from '@/components/skeletons';
+import { OrganizationsSkeleton } from '@/components/skeletons/organizations-skeleton';
 
 /**
  * Loading component for the Organizations page.

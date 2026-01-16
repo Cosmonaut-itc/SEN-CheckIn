@@ -14,6 +14,10 @@
  * @module server-functions
  */
 
+import type { QueryClient } from '@tanstack/react-query';
+import { headers } from 'next/headers';
+import { cache } from 'react';
+
 import {
 	type AttendanceQueryParams,
 	type CalendarQueryParams,
@@ -46,8 +50,6 @@ import {
 	fetchVacationRequestsListServer,
 	fetchUsersServer,
 } from '@/lib/server-client-functions';
-import type { QueryClient } from '@tanstack/react-query';
-import { headers } from 'next/headers';
 
 // ============================================================================
 // Helper Functions
@@ -61,10 +63,10 @@ import { headers } from 'next/headers';
  *
  * @returns A promise resolving to the cookie header string, or empty string if no cookies
  */
-async function getCookieHeader(): Promise<string> {
-	const requestHeaders = await headers();
+const getCookieHeader = cache(async (): Promise<string> => {
+	const requestHeaders = await getRequestHeaders();
 	return requestHeaders.get('cookie') ?? '';
-}
+});
 
 /**
  * Retrieves the headers from the incoming request.
@@ -74,9 +76,9 @@ async function getCookieHeader(): Promise<string> {
  *
  * @returns A promise resolving to the Headers object
  */
-async function getRequestHeaders(): Promise<Headers> {
+const getRequestHeaders = cache(async (): Promise<Headers> => {
 	return await headers();
-}
+});
 
 // ============================================================================
 // Employee Prefetch Functions

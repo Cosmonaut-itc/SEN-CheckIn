@@ -1,4 +1,4 @@
-import { ApiKeysSkeleton } from '@/components/skeletons';
+import { ApiKeysSkeleton } from '@/components/skeletons/api-keys-skeleton';
 
 /**
  * Loading component for the API Keys page.

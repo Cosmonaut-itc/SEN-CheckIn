@@ -16,8 +16,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-const EXPO_BUILD_URL =
-	'https://expo.dev/accounts/sen-apps/projects/sen-checkin/builds/f0baf210-ef5b-4807-ae7a-1a266c88bdd5';
+const GOOGLE_PLAY_INTERNAL_TEST_URL =
+	'https://play.google.com/apps/internaltest/4701438061848106723';
 
 /**
  * Build a QR-code image URL for a given value.
@@ -35,14 +35,14 @@ function buildQrImageUrl(value: string, size: number): string {
 
 /**
  * App Móvil page client component.
- * Renders a QR code that points to the Expo build URL and a clickable link for convenience.
+ * Renders a QR code that points to the Google Play internal test URL and a clickable link.
  *
  * @returns The App Móvil page JSX element
  */
 export function AppMovilPageClient(): React.ReactElement {
 	const t = useTranslations('MobileApp');
 	const [isLoading, setIsLoading] = useState(true);
-	const qrImageUrl = buildQrImageUrl(EXPO_BUILD_URL, 220);
+	const qrImageUrl = buildQrImageUrl(GOOGLE_PLAY_INTERNAL_TEST_URL, 220);
 
 	return (
 		<div className="space-y-6">
@@ -80,13 +80,15 @@ export function AppMovilPageClient(): React.ReactElement {
 					</div>
 					<div className="w-full rounded-md border bg-muted/20 p-3 text-sm">
 						<span className="text-muted-foreground">{t('link.label')} </span>
-						<span className="break-all font-mono">{EXPO_BUILD_URL}</span>
+						<span className="break-all font-mono">
+							{GOOGLE_PLAY_INTERNAL_TEST_URL}
+						</span>
 					</div>
 				</CardContent>
 				<CardFooter className="justify-end">
 					<Button asChild variant="link" className="px-0">
 						<a
-							href={EXPO_BUILD_URL}
+							href={GOOGLE_PLAY_INTERNAL_TEST_URL}
 							target="_blank"
 							rel="noreferrer"
 							aria-label={t('link.ariaLabel')}

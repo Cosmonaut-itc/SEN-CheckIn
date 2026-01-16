@@ -1,4 +1,4 @@
-import { DevicesSkeleton } from '@/components/skeletons';
+import { DevicesSkeleton } from '@/components/skeletons/devices-skeleton';
 
 /**
  * Loading component for the Devices page.

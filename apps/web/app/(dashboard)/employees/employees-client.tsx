@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
 import { DataTable } from '@/components/data-table/data-table';
 import {
 	Table,
@@ -77,10 +78,33 @@ import {
 } from '@/lib/client-functions';
 import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
-import { FaceEnrollmentDialog } from '@/components/face-enrollment-dialog';
 import { useOrgContext } from '@/lib/org-client-context';
 import { Label } from '@/components/ui/label';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+
+/**
+ * Lazily loads the face enrollment dialog to reduce the initial bundle size.
+ *
+ * @returns Promise resolving to the FaceEnrollmentDialog component
+ */
+const loadFaceEnrollmentDialog = async () => {
+	const dialogModule = await import('@/components/face-enrollment-dialog');
+	return dialogModule.FaceEnrollmentDialog;
+};
+
+/**
+ * Placeholder rendered while the face enrollment dialog bundle loads.
+ *
+ * @returns Null fallback element
+ */
+function FaceEnrollmentDialogFallback(): React.ReactElement | null {
+	return null;
+}
+
+const FaceEnrollmentDialog = dynamic(loadFaceEnrollmentDialog, {
+	ssr: false,
+	loading: FaceEnrollmentDialogFallback,
+});
 
 /**
  * Form values interface for creating/editing employees.

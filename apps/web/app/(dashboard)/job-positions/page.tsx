@@ -15,9 +15,9 @@ export const dynamic = 'force-dynamic';
 /**
  * Job Positions page server component.
  *
- * This server component prefetches job positions data and awaits it so SSR
- * markup matches the hydrated client. The prefetched data is dehydrated and
- * passed to the client via HydrationBoundary.
+ * This server component prefetches job positions data without awaiting to
+ * enable streaming. The prefetched data is dehydrated and passed to the client
+ * via HydrationBoundary.
  *
  * @returns The job positions page with hydrated query state
  */
@@ -25,9 +25,9 @@ export default async function JobPositionsPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
 	const orgContext = await getActiveOrganizationContext();
 
-	// Prefetch and await to keep SSR and hydration markup consistent
+	// Prefetch without await for streaming support
 	if (orgContext.organizationId) {
-		await prefetchJobPositionsList(queryClient, {
+		prefetchJobPositionsList(queryClient, {
 			limit: 100,
 			offset: 0,
 			organizationId: orgContext.organizationId,

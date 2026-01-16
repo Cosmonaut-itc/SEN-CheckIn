@@ -13,7 +13,12 @@
 
 - Install: `bun install` (bun@1.3.3, Node ≥18).
 - Dev: `bun run dev` (all) or `bun run dev:api` / `bun run dev:mobile` / `bun run dev:web`.
+- Start (API only): `bun run start:api` (runs the API `start` script via Turbo).
 - Build: `bun run build`, or scoped `bun run build:api` / `bun run build:mobile` / `bun run build:web`.
+- Test (all): `bun run test` (Turbo).
+- Test (CI bundle): `bun run test:ci` (API unit + contract, web unit + e2e, lint, check-types).
+- API tests: `bun run test:api:unit` / `bun run test:api:contract`.
+- Web tests: `bun run test:web:unit` / `bun run test:web:e2e` / `bun run test:web:e2e:ui`.
 - Quality checks: `bun run lint` (all), `bun run check-types` (all), `bun run format` (Prettier on `ts/tsx/md`).
 - Scoped quality: `bun run lint:api` / `bun run lint:mobile` / `bun run lint:web`, `bun run check-types:api` / `bun run check-types:mobile` / `bun run check-types:web`.
 - **Single test commands**:
@@ -21,9 +26,11 @@
     - Mobile: `cd apps/mobile && bun test path/to/test.test.ts` (when test suite added)
     - Web: `cd apps/web && bun test path/to/test.test.ts` (when test suite added)
 - Drizzle: `bun run db:gen` then `bun run db:mig` (needs `SEN_DB_URL`).
+- Seed/reset DB: `bun run db:seed` / `bun run db:reset`.
 - Add deps: `bun run add:api -- <pkg>`, `bun run add:mobile -- <pkg>`, or `bun run add:web -- <pkg>`.
 - Expo per-platform: from `apps/mobile`, `bunx expo start --android|--ios|--web`.
-- Optional DB: `docker compose -f apps/api/docker-compose.yaml up -d`.
+- Optional DB (dev): `docker compose -f apps/api/docker-compose.yaml up -d` (Postgres on 5434).
+- Optional DB (tests): `docker compose -f apps/api/docker-compose.test.yaml up -d` (Postgres on 5435).
 
 ## Coding Style & Naming Conventions
 
@@ -58,16 +65,16 @@
 
 - **Quality checks**: Always run `bun run lint` and `bun run check-types` before committing. These validate code quality and type safety across all workspaces.
 - **Test patterns**: Add colocated `*.test.ts` / `*.test.tsx` files alongside source code.
-- **API testing**: Use Bun test runner with `describe`, `it`, `expect` from `bun:test`. Focus on business logic, HTTP endpoints, and data transformations. Prefer seeded fixtures over shared DB state.
+- **API testing**: Use Bun test runner with `describe`, `it`, `expect` from `bun:test`. Focus on business logic, HTTP endpoints, and data transformations. Prefer seeded fixtures over shared DB state. Contract tests use the test DB on port 5435 (see `docker-compose.test.yaml`).
 - **Mobile testing**: Use `@testing-library/react-native` for components/navigation. Avoid brittle snapshots; test user interactions and state changes.
-- **Web testing**: Use appropriate React testing patterns (to be implemented).
+- **Web testing**: Unit tests use Vitest; e2e uses Playwright with `apps/web/e2e` and `bun run test:web:e2e` (spins up API + web via `test:e2e:servers`).
 - **Test structure**: Group tests by feature/functionality using `describe` blocks. Use clear, descriptive test names that explain the behavior being tested.
 
 ## Database & Migration Guidelines
 
 - **Drizzle ORM**: All database operations use Drizzle with PostgreSQL.
 - **Migration workflow**:
-    1. Make schema changes in `apps/api/src/schema/*`
+    1. Make schema changes in `apps/api/src/db/schema.ts`
     2. Run `bun run db:gen` to generate migration
     3. Run `bun run db:mig` to apply migration
     4. Test with `bun run db:seed` for sample data
@@ -76,8 +83,13 @@
 ## Security & Configuration Notes
 
 - **Never commit** `.env*` files, secrets, or sensitive configuration.
-- **Required environment variables**: `SEN_DB_URL` for database operations, `BETTER_AUTH_SECRET` for authentication.
-- **AWS integration**: Uses AWS Rekognition for facial recognition; requires proper IAM roles and `AWS_REGION` configuration.
+- **Required environment variables**:
+    - API: `SEN_DB_URL`, `BETTER_AUTH_SECRET`, `AWS_REGION`, `AWS_REKOGNITION_COLLECTION_ID`.
+    - Local DBs: `SEN_CHECKIN_PG_PASSWORD` (Docker dev/test databases).
+    - API config: `CORS_ORIGIN`, `LOG_LEVEL`, `HOST`, `PORT` (optional overrides).
+    - Web: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WEB_URL` (defaults 3000/3001), `PLAYWRIGHT_BASE_URL` (e2e base URL).
+    - Mobile: `EXPO_PUBLIC_API_URL` (required), optional `EXPO_PUBLIC_WEB_VERIFY_URL` / `EXPO_PUBLIC_VERIFY_URL` / `VERIFY_URL`.
+- **AWS integration**: Uses AWS Rekognition for facial recognition; requires proper IAM roles/credentials plus `AWS_REGION` and `AWS_REKOGNITION_COLLECTION_ID`.
 - **Dependencies**: Prefer `bunx` over global installs. Align with Expo SDK 54, React 19, and Bun 1.3.3.
 
 ## Commit & Pull Request Guidelines

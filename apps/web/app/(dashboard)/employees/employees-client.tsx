@@ -139,6 +139,189 @@ interface EmployeeFormValues {
 }
 
 /**
+ * Props for the memoized employees table section.
+ */
+interface EmployeesTableSectionProps {
+	/** Search term for filtering employees. */
+	search: string;
+	/** Callback to update the search term. */
+	onSearchChange: React.Dispatch<React.SetStateAction<string>>;
+	/** Current location filter value. */
+	locationFilter: string;
+	/** Callback to update the location filter. */
+	onLocationFilterChange: (value: string) => void;
+	/** Whether locations are still loading. */
+	isLoadingLocations: boolean;
+	/** Options for the location filter. */
+	locationFilterOptions: { value: string; label: string }[];
+	/** Current job position filter value. */
+	jobPositionFilter: string;
+	/** Callback to update the job position filter. */
+	onJobPositionFilterChange: (value: string) => void;
+	/** Whether job positions are still loading. */
+	isLoadingJobPositions: boolean;
+	/** Options for the job position filter. */
+	jobPositionFilterOptions: { value: string; label: string }[];
+	/** Current status filter value. */
+	statusFilter: StatusFilterValue;
+	/** Callback to update the status filter. */
+	onStatusFilterChange: (value: StatusFilterValue) => void;
+	/** Options for the status filter. */
+	statusFilterOptions: { value: StatusFilterValue; label: string }[];
+	/** Table column definitions. */
+	columns: ColumnDef<Employee>[];
+	/** Employee rows to display. */
+	employees: Employee[];
+	/** Current sorting state. */
+	sorting: SortingState;
+	/** Callback to update sorting state. */
+	onSortingChange: React.Dispatch<React.SetStateAction<SortingState>>;
+	/** Current pagination state. */
+	pagination: PaginationState;
+	/** Callback to update pagination state. */
+	onPaginationChange: React.Dispatch<React.SetStateAction<PaginationState>>;
+	/** Current column filter state. */
+	columnFilters: ColumnFiltersState;
+	/** Callback to update column filters. */
+	onColumnFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+	/** Total number of rows for server pagination. */
+	rowCount: number;
+	/** Loading indicator for table content. */
+	isLoading: boolean;
+	/** Empty state label for the table. */
+	emptyState: string;
+	/** Search input placeholder. */
+	searchPlaceholder: string;
+	/** Location filter placeholder. */
+	locationPlaceholder: string;
+	/** Job position filter placeholder. */
+	jobPositionPlaceholder: string;
+	/** Status filter placeholder. */
+	statusPlaceholder: string;
+}
+
+/**
+ * Memoized table section to avoid rerendering on unrelated state changes.
+ *
+ * @param props - Table section props.
+ * @returns The employees table section.
+ */
+function EmployeesTableSection({
+	search,
+	onSearchChange,
+	locationFilter,
+	onLocationFilterChange,
+	isLoadingLocations,
+	locationFilterOptions,
+	jobPositionFilter,
+	onJobPositionFilterChange,
+	isLoadingJobPositions,
+	jobPositionFilterOptions,
+	statusFilter,
+	onStatusFilterChange,
+	statusFilterOptions,
+	columns,
+	employees,
+	sorting,
+	onSortingChange,
+	pagination,
+	onPaginationChange,
+	columnFilters,
+	onColumnFiltersChange,
+	rowCount,
+	isLoading,
+	emptyState,
+	searchPlaceholder,
+	locationPlaceholder,
+	jobPositionPlaceholder,
+	statusPlaceholder,
+}: EmployeesTableSectionProps): React.ReactElement {
+	return (
+		<div className="space-y-4">
+			<div className="flex flex-wrap items-center gap-4">
+				<div className="relative flex-1 max-w-sm">
+					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						placeholder={searchPlaceholder}
+						value={search}
+						onChange={(event) => onSearchChange(event.target.value)}
+						className="pl-9"
+					/>
+				</div>
+				<Select
+					value={locationFilter}
+					onValueChange={onLocationFilterChange}
+					disabled={isLoadingLocations}
+				>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={locationPlaceholder} />
+					</SelectTrigger>
+					<SelectContent>
+						{locationFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={jobPositionFilter}
+					onValueChange={onJobPositionFilterChange}
+					disabled={isLoadingJobPositions}
+				>
+					<SelectTrigger className="w-[200px]">
+						<SelectValue placeholder={jobPositionPlaceholder} />
+					</SelectTrigger>
+					<SelectContent>
+						{jobPositionFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<Select
+					value={statusFilter}
+					onValueChange={(value) => onStatusFilterChange(value as StatusFilterValue)}
+				>
+					<SelectTrigger className="w-[170px]">
+						<SelectValue placeholder={statusPlaceholder} />
+					</SelectTrigger>
+					<SelectContent>
+						{statusFilterOptions.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+
+			<DataTable
+				columns={columns}
+				data={employees}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
+				pagination={pagination}
+				onPaginationChange={onPaginationChange}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={onColumnFiltersChange}
+				globalFilter={search}
+				onGlobalFilterChange={onSearchChange}
+				showToolbar={false}
+				manualPagination
+				manualFiltering
+				rowCount={rowCount}
+				emptyState={emptyState}
+				isLoading={isLoading}
+			/>
+		</div>
+	);
+}
+
+const MemoizedEmployeesTableSection = React.memo(EmployeesTableSection);
+
+/**
  * Initial empty form values.
  */
 const initialFormValues: EmployeeFormValues = {
@@ -2280,82 +2463,35 @@ export function EmployeesPageClient(): React.ReactElement {
 				</Dialog>
 			</div>
 
-			<div className="flex flex-wrap items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder={t('search.placeholder')}
-						value={search}
-						onChange={(e) => handleSearchChange(e.target.value)}
-						className="pl-9"
-					/>
-				</div>
-				<Select
-					value={locationFilter}
-					onValueChange={handleLocationFilterChange}
-					disabled={isLoadingLocations}
-				>
-					<SelectTrigger className="w-[200px]">
-						<SelectValue placeholder={t('filters.location.placeholder')} />
-					</SelectTrigger>
-					<SelectContent>
-						{locationFilterOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select
-					value={jobPositionFilter}
-					onValueChange={handleJobPositionFilterChange}
-					disabled={isLoadingJobPositions}
-				>
-					<SelectTrigger className="w-[200px]">
-						<SelectValue placeholder={t('filters.jobPosition.placeholder')} />
-					</SelectTrigger>
-					<SelectContent>
-						{jobPositionFilterOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-				<Select
-					value={statusFilter}
-					onValueChange={(value) => handleStatusFilterChange(value as StatusFilterValue)}
-				>
-					<SelectTrigger className="w-[170px]">
-						<SelectValue placeholder={t('filters.status.placeholder')} />
-					</SelectTrigger>
-					<SelectContent>
-						{statusFilterOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-
-			<DataTable
+			<MemoizedEmployeesTableSection
+				search={search}
+				onSearchChange={handleSearchChange}
+				locationFilter={locationFilter}
+				onLocationFilterChange={handleLocationFilterChange}
+				isLoadingLocations={isLoadingLocations}
+				locationFilterOptions={locationFilterOptions}
+				jobPositionFilter={jobPositionFilter}
+				onJobPositionFilterChange={handleJobPositionFilterChange}
+				isLoadingJobPositions={isLoadingJobPositions}
+				jobPositionFilterOptions={jobPositionFilterOptions}
+				statusFilter={statusFilter}
+				onStatusFilterChange={handleStatusFilterChange}
+				statusFilterOptions={statusFilterOptions}
 				columns={columns}
-				data={employees}
+				employees={employees}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}
 				onPaginationChange={setPagination}
 				columnFilters={columnFilters}
 				onColumnFiltersChange={setColumnFilters}
-				globalFilter={search}
-				onGlobalFilterChange={handleSearchChange}
-				showToolbar={false}
-				manualPagination
-				manualFiltering
 				rowCount={totalRows}
-				emptyState={t('table.empty')}
 				isLoading={isFetching}
+				emptyState={t('table.empty')}
+				searchPlaceholder={t('search.placeholder')}
+				locationPlaceholder={t('filters.location.placeholder')}
+				jobPositionPlaceholder={t('filters.jobPosition.placeholder')}
+				statusPlaceholder={t('filters.status.placeholder')}
 			/>
 
 			{/* Face Enrollment Dialog */}

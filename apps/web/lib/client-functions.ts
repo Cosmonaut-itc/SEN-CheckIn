@@ -8,6 +8,7 @@
  */
 
 import { api } from '@/lib/api';
+import { getApiResponseData } from '@/lib/api-response';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import type { EmployeeAuditEvent, EmployeeInsights } from '@sen-checkin/types';
@@ -544,9 +545,10 @@ export async function fetchEmployeesList(
 		throw new Error('Failed to fetch employees');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as Employee[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as Employee[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -569,7 +571,8 @@ export async function fetchEmployeeById(id: string): Promise<Employee | null> {
 		return null;
 	}
 
-	return (response.data?.data as Employee) ?? null;
+	const payload = getApiResponseData(response);
+	return (payload?.data as Employee) ?? null;
 }
 
 /**
@@ -591,7 +594,8 @@ export async function fetchEmployeeInsights(id: string): Promise<EmployeeInsight
 		return null;
 	}
 
-	return (response.data?.data as EmployeeInsights) ?? null;
+	const payload = getApiResponseData(response);
+	return (payload?.data as EmployeeInsights) ?? null;
 }
 
 /**
@@ -620,9 +624,10 @@ export async function fetchEmployeeAudit(params: {
 		throw new Error('Failed to fetch employee audit');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as EmployeeAuditEvent[],
-		pagination: response.data?.pagination ?? {
+		data: (payload?.data ?? []) as EmployeeAuditEvent[],
+		pagination: payload?.pagination ?? {
 			total: 0,
 			limit: params.limit ?? 20,
 			offset: params.offset ?? 0,
@@ -685,9 +690,10 @@ export async function fetchDevicesList(
 		throw new Error('Failed to fetch devices');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as Device[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as Device[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -746,9 +752,10 @@ export async function fetchLocationsList(
 		throw new Error('Failed to fetch locations');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as Location[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as Location[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -775,7 +782,8 @@ export async function fetchLocationById(id: string): Promise<Location | null> {
 		return null;
 	}
 
-	return (response.data?.data as Location) ?? null;
+	const payload = getApiResponseData(response);
+	return (payload?.data as Location) ?? null;
 }
 
 /**
@@ -823,8 +831,9 @@ export async function fetchLocationsAll(params?: {
 			throw new Error('Failed to fetch locations');
 		}
 
-		const batch = (response.data?.data ?? []) as Location[];
-		const pagination = response.data?.pagination ?? {
+		const payload = getApiResponseData(response);
+		const batch = (payload?.data ?? []) as Location[];
+		const pagination = payload?.pagination ?? {
 			total: 0,
 			limit,
 			offset,
@@ -909,8 +918,9 @@ export async function fetchJobPositionsList(
 		throw new Error('Failed to fetch job positions');
 	}
 
+	const payload = getApiResponseData(response);
 	const positions =
-		(response.data?.data as
+		(payload?.data as
 			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: string | number })[]
 			| undefined) ?? [];
 
@@ -919,7 +929,7 @@ export async function fetchJobPositionsList(
 			...jp,
 			dailyPay: Number(jp.dailyPay ?? 0),
 		})),
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -997,9 +1007,10 @@ export async function fetchAttendanceRecords(
 		throw new Error('Failed to fetch attendance records');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as AttendanceRecord[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as AttendanceRecord[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -1029,7 +1040,8 @@ export async function fetchAttendancePresent(
 		throw new Error('Failed to fetch attendance present records');
 	}
 
-	return (response.data?.data ?? []) as AttendancePresentRecord[];
+	const payload = getApiResponseData(response);
+	return (payload?.data ?? []) as AttendancePresentRecord[];
 }
 
 // ============================================================================
@@ -1138,11 +1150,12 @@ export async function fetchVacationRequestsList(
 		throw new Error('Failed to fetch vacation requests');
 	}
 
+	const responsePayload = getApiResponseData(response);
 	const payload =
-		(response.data?.data as VacationRequestPayload[] | undefined) ?? [];
+		(responsePayload?.data as VacationRequestPayload[] | undefined) ?? [];
 	return {
 		data: payload.map(normalizeVacationRequest),
-		pagination: response.data?.pagination ?? {
+		pagination: responsePayload?.pagination ?? {
 			total: 0,
 			limit: query.limit,
 			offset: query.offset,
@@ -1171,7 +1184,8 @@ export async function fetchVacationBalance(params?: {
 		return null;
 	}
 
-	const payload = response.data?.data as VacationBalancePayload | undefined;
+	const responsePayload = getApiResponseData(response);
+	const payload = responsePayload?.data as VacationBalancePayload | undefined;
 	return payload ? normalizeVacationBalance(payload) : null;
 }
 
@@ -1437,7 +1451,8 @@ export async function fetchPayrollSettings(
 		return null;
 	}
 
-	return normalizePayrollSettings(response.data?.data as PayrollSettingsPayload | undefined);
+	const payload = getApiResponseData(response);
+	return normalizePayrollSettings(payload?.data as PayrollSettingsPayload | undefined);
 }
 
 export async function calculatePayroll(params: {
@@ -1458,7 +1473,11 @@ export async function calculatePayroll(params: {
 		throw new Error('Failed to calculate payroll');
 	}
 
-	return response.data?.data as PayrollCalculationResult;
+	const payload = getApiResponseData(response);
+	if (!payload?.data) {
+		throw new Error('Failed to calculate payroll');
+	}
+	return payload.data as PayrollCalculationResult;
 }
 
 export async function processPayroll(params: {
@@ -1479,9 +1498,9 @@ export async function processPayroll(params: {
 		throw new Error('Failed to process payroll');
 	}
 
-	const payload = response.data?.data as unknown as
+	const payload = (getApiResponseData(response)?.data as unknown as
 		| { run: PayrollRun; calculation: PayrollCalculationResult }
-		| undefined;
+		| undefined) ?? undefined;
 	if (!payload) {
 		throw new Error('Failed to process payroll: empty response');
 	}
@@ -1520,8 +1539,9 @@ export async function fetchPayrollRuns(params?: {
 	}
 
 	const runs =
-		(response.data?.data as (PayrollRun & { totalAmount?: number | string })[] | undefined) ??
-		[];
+		(getApiResponseData(response)?.data as
+			| (PayrollRun & { totalAmount?: number | string })[]
+			| undefined) ?? [];
 	return runs.map((run) => ({
 		...run,
 		totalAmount: Number(run.totalAmount ?? 0),
@@ -1549,7 +1569,7 @@ export async function fetchPayrollRunDetail(
 		return null;
 	}
 
-	const payload = response.data?.data as unknown as
+	const payload = (getApiResponseData(response)?.data as unknown as
 		| {
 				run: PayrollRun & { totalAmount?: number | string };
 				employees: (PayrollRunEmployee & {
@@ -1573,7 +1593,7 @@ export async function fetchPayrollRunDetail(
 					updatedAt: string | Date;
 				})[];
 		  }
-		| undefined;
+		| undefined) ?? undefined;
 	if (!payload) {
 		return null;
 	}
@@ -1664,12 +1684,18 @@ export async function fetchDashboardCounts(params?: {
 			api.attendance.get({ $query: baseQuery }),
 		]);
 
+	const employeesPayload = getApiResponseData(employeesRes);
+	const devicesPayload = getApiResponseData(devicesRes);
+	const locationsPayload = getApiResponseData(locationsRes);
+	const organizationsPayload = getApiResponseData(organizationsRes);
+	const attendancePayload = getApiResponseData(attendanceRes);
+
 	return {
-		employees: employeesRes.data?.pagination?.total ?? 0,
-		devices: devicesRes.data?.pagination?.total ?? 0,
-		locations: locationsRes.data?.pagination?.total ?? 0,
-		organizations: organizationsRes.data?.length ?? 0,
-		attendance: attendanceRes.data?.pagination?.total ?? 0,
+		employees: employeesPayload?.pagination?.total ?? 0,
+		devices: devicesPayload?.pagination?.total ?? 0,
+		locations: locationsPayload?.pagination?.total ?? 0,
+		organizations: organizationsPayload?.length ?? 0,
+		attendance: attendancePayload?.pagination?.total ?? 0,
 	};
 }
 
@@ -1695,7 +1721,8 @@ export async function fetchApiKeys(): Promise<ApiKey[]> {
 		throw new Error('Failed to fetch API keys');
 	}
 
-	return (response.data ?? []) as ApiKey[];
+	const payload = getApiResponseData(response);
+	return (payload ?? []) as ApiKey[];
 }
 
 // ============================================================================
@@ -1720,7 +1747,8 @@ export async function fetchOrganizations(): Promise<Organization[]> {
 		throw new Error('Failed to fetch organizations');
 	}
 
-	return (response.data ?? []) as Organization[];
+	const payload = getApiResponseData(response);
+	return (payload ?? []) as Organization[];
 }
 
 /**
@@ -1760,9 +1788,10 @@ export async function fetchAllOrganizations(
 		throw new Error('Failed to fetch organizations');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		organizations: (response.data?.organizations ?? []) as Organization[],
-		total: response.data?.total ?? 0,
+		organizations: (payload?.organizations ?? []) as Organization[],
+		total: payload?.total ?? 0,
 	};
 }
 
@@ -1806,9 +1835,10 @@ export async function fetchOrganizationMembers(params: {
 		throw new Error('Failed to fetch organization members');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		members: (response.data?.members ?? []) as OrganizationMember[],
-		total: response.data?.total ?? 0,
+		members: (payload?.members ?? []) as OrganizationMember[],
+		total: payload?.total ?? 0,
 	};
 }
 
@@ -1840,7 +1870,8 @@ export async function fetchUsers(params?: UsersQueryParams): Promise<User[]> {
 		throw new Error('Failed to fetch users');
 	}
 
-	return (response.data?.users ?? []) as User[];
+	const payload = getApiResponseData(response);
+	return (payload?.users ?? []) as User[];
 }
 
 // ============================================================================
@@ -1958,9 +1989,10 @@ export async function fetchScheduleTemplatesList(
 		throw new Error('Failed to fetch schedule templates');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as ScheduleTemplate[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as ScheduleTemplate[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -1977,7 +2009,8 @@ export async function fetchScheduleTemplateDetail(id: string): Promise<ScheduleT
 		return null;
 	}
 
-	return (response.data?.data as ScheduleTemplate) ?? null;
+	const payload = getApiResponseData(response);
+	return (payload?.data as ScheduleTemplate) ?? null;
 }
 
 /**
@@ -2029,9 +2062,10 @@ export async function fetchScheduleExceptionsList(
 		throw new Error('Failed to fetch schedule exceptions');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as ScheduleException[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as ScheduleException[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -2063,5 +2097,6 @@ export async function fetchCalendar(params: CalendarQueryParams): Promise<Calend
 		throw new Error('Failed to fetch scheduling calendar');
 	}
 
-	return (response.data?.data ?? []) as CalendarEmployee[];
+	const payload = getApiResponseData(response);
+	return (payload?.data ?? []) as CalendarEmployee[];
 }

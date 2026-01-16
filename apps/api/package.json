@@ -11,7 +11,10 @@
 		"start": "bun run scripts/start.js",
 		"start:prod": "NODE_ENV=production bun run scripts/start.js",
 		"lint": "eslint src scripts --ext .ts --max-warnings 0",
-		"test": "bun test",
+		"test": "bun run test:unit",
+		"test:unit": "bun test ./src/**/*.unit.test.ts",
+		"test:contract": "bun run scripts/test/bootstrap.ts && bun test ./src/**/*.contract.test.ts",
+		"test:ci": "bun run test:unit && bun run test:contract",
 		"db:mig": "bunx --bun drizzle-kit migrate --config drizzle.config.ts",
 		"db:gen": "bunx --bun drizzle-kit generate --config drizzle.config.ts",
 		"db:seed": "bun run scripts/seed.ts",
@@ -34,6 +37,7 @@
 		"zod": "^3.24.0"
 	},
 	"devDependencies": {
+		"@elysiajs/eden": "^1.4.5",
 		"@sen-checkin/eslint-config": "workspace:*",
 		"@types/pg": "^8.15.6",
 		"bun-types": "latest",

@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import db from '../db/index.js';
 import { device, location, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import {
 	createDeviceSchema,
 	deviceQuerySchema,
@@ -66,8 +67,9 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			let baseQuery = db.select().from(device);
@@ -142,7 +144,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			const record = results[0];
 			if (!record) {
 				set.status = 404;
-				return { error: 'Device not found' };
+				return buildErrorResponse('Device not found', 404);
 			}
 
 			if (
@@ -155,7 +157,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this device' };
+				return buildErrorResponse('You do not have access to this device', 403);
 			}
 
 			return { data: record };
@@ -200,8 +202,9 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const normalizedDeviceType =
@@ -213,7 +216,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			if (existing[0]) {
 				if (existing[0].organizationId && existing[0].organizationId !== organizationId) {
 					set.status = 403;
-					return { error: 'Device code is registered to another organization' };
+					return buildErrorResponse('Device code is registered to another organization', 403);
 				}
 
 				const updates: Partial<typeof device.$inferInsert> = {
@@ -321,8 +324,9 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Verify organization exists
@@ -334,7 +338,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (!organizationExists[0]) {
 				set.status = 400;
-				return { error: 'Organization not found' };
+				return buildErrorResponse('Organization not found', 400);
 			}
 
 			// Verify location exists if provided
@@ -347,7 +351,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 				if (!locationExists[0]) {
 					set.status = 400;
-					return { error: 'Location not found' };
+					return buildErrorResponse('Location not found', 400);
 				}
 
 				if (
@@ -355,7 +359,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 					locationExists[0].organizationId !== organizationId
 				) {
 					set.status = 403;
-					return { error: 'Location does not belong to this organization' };
+					return buildErrorResponse('Location does not belong to this organization', 403);
 				}
 			}
 
@@ -364,7 +368,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (codeExists[0]) {
 				set.status = 409;
-				return { error: 'Device code already exists' };
+				return buildErrorResponse('Device code already exists', 409);
 			}
 
 			const id = crypto.randomUUID();
@@ -423,7 +427,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Device not found' };
+				return buildErrorResponse('Device not found', 404);
 			}
 
 			if (
@@ -436,7 +440,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this device' };
+				return buildErrorResponse('You do not have access to this device', 403);
 			}
 
 			const targetOrgId = existing[0].organizationId ?? null;
@@ -451,7 +455,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (!resolvedOrganizationId) {
 				set.status = 403;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 403);
 			}
 
 			// Check if code is unique (if being updated)
@@ -464,7 +468,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 				if (codeExists[0]) {
 					set.status = 409;
-					return { error: 'Device code already exists' };
+					return buildErrorResponse('Device code already exists', 409);
 				}
 			}
 
@@ -478,7 +482,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 				if (!locationExists[0]) {
 					set.status = 400;
-					return { error: 'Location not found' };
+					return buildErrorResponse('Location not found', 400);
 				}
 
 				if (
@@ -486,7 +490,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 					locationExists[0].organizationId !== resolvedOrganizationId
 				) {
 					set.status = 403;
-					return { error: 'Location does not belong to this organization' };
+					return buildErrorResponse('Location does not belong to this organization', 403);
 				}
 			}
 
@@ -532,7 +536,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Device not found' };
+				return buildErrorResponse('Device not found', 404);
 			}
 
 			if (
@@ -545,7 +549,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this device' };
+				return buildErrorResponse('You do not have access to this device', 403);
 			}
 
 			await db.delete(device).where(eq(device.id, id));
@@ -582,7 +586,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Device not found' };
+				return buildErrorResponse('Device not found', 404);
 			}
 
 			if (
@@ -595,7 +599,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this device' };
+				return buildErrorResponse('You do not have access to this device', 403);
 			}
 
 			const now = new Date();

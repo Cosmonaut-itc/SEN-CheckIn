@@ -5,6 +5,7 @@ import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import db from '../db/index.js';
 import { jobPosition, location, organization, payrollSetting } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import { resolveMinimumWageRequirement, type MinimumWageZone } from '../utils/minimum-wage.js';
 import {
@@ -152,8 +153,9 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Build conditions array
@@ -225,7 +227,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			const record = results[0];
 			if (!record) {
 				set.status = 404;
-				return { error: 'Job position not found' };
+				return buildErrorResponse('Job position not found', 404);
 			}
 
 			// Enforce organization scoping
@@ -239,7 +241,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this job position' };
+				return buildErrorResponse('You do not have access to this job position', 403);
 			}
 
 			return { data: record };
@@ -286,8 +288,9 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Verify organization exists
@@ -299,7 +302,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			if (!organizationExists[0]) {
 				set.status = 400;
-				return { error: 'Organization not found' };
+				return buildErrorResponse('Organization not found', 400);
 			}
 
 			const id = crypto.randomUUID();
@@ -307,7 +310,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			if (normalizedDailyPay <= 0) {
 				set.status = 400;
-				return { error: 'Daily pay must be greater than 0' };
+				return buildErrorResponse('Daily pay must be greater than 0', 400);
 			}
 
 			const { overtimeEnforcement, warning: minimumWageWarning } =
@@ -315,10 +318,10 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			if (minimumWageWarning && overtimeEnforcement === 'BLOCK') {
 				set.status = 400;
-				return {
-					error: 'BELOW_MINIMUM_WAGE',
+				return buildErrorResponse('Daily pay is below the minimum wage', 400, {
+					code: 'BELOW_MINIMUM_WAGE',
 					details: minimumWageWarning.details,
-				};
+				});
 			}
 
 			const newPosition = {
@@ -379,7 +382,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Job position not found' };
+				return buildErrorResponse('Job position not found', 404);
 			}
 
 			if (
@@ -392,7 +395,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this job position' };
+				return buildErrorResponse('You do not have access to this job position', 403);
 			}
 
 			const resolvedOrganizationId = resolveOrganizationId({
@@ -406,7 +409,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			if (!resolvedOrganizationId) {
 				set.status = 403;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 403);
 			}
 
 			// Only update if there are fields to update
@@ -425,10 +428,10 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				minimumWageWarning = warning;
 				if (minimumWageWarning && overtimeEnforcement === 'BLOCK') {
 					set.status = 400;
-					return {
-						error: 'BELOW_MINIMUM_WAGE',
+					return buildErrorResponse('Daily pay is below the minimum wage', 400, {
+						code: 'BELOW_MINIMUM_WAGE',
 						details: minimumWageWarning.details,
-					};
+					});
 				}
 			}
 
@@ -494,7 +497,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return { error: 'Job position not found' };
+				return buildErrorResponse('Job position not found', 404);
 			}
 
 			if (
@@ -507,7 +510,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this job position' };
+				return buildErrorResponse('You do not have access to this job position', 403);
 			}
 
 			await db.delete(jobPosition).where(eq(jobPosition.id, id));

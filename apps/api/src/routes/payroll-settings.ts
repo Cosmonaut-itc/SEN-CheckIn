@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import db from '../db/index.js';
 import { payrollSetting } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { payrollSettingsSchema } from '../schemas/payroll.js';
 
@@ -37,8 +38,9 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const existing = await db
@@ -100,8 +102,9 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const existing = await db

@@ -16,6 +16,7 @@ import {
 } from '../db/schema.js';
 import type { AuthSession } from '../plugins/auth.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { idParamSchema } from '../schemas/crud.js';
 import {
 	vacationRequestCreateSchema,
@@ -489,7 +490,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
-				return { error: 'Session authentication required' };
+				return buildErrorResponse('Session authentication required', 403);
 			}
 
 			const organizationId = resolveOrganizationId({
@@ -503,17 +504,21 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 400);
 			}
 
 			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
 			if (!employeeRecord) {
-				return { error: 'Employee not found for this user' };
+				const status = typeof set.status === 'number' ? set.status : 404;
+				return buildErrorResponse('Employee not found for this user', status);
 			}
 
 			if (!employeeRecord.hireDate) {
 				set.status = 400;
-				return { error: 'Employee hire date is required for vacation balance' };
+				return buildErrorResponse(
+					'Employee hire date is required for vacation balance',
+					400,
+				);
 			}
 
 			const settings = await db
@@ -554,7 +559,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
-				return { error: 'Session authentication required' };
+				return buildErrorResponse('Session authentication required', 403);
 			}
 
 			const organizationId = resolveOrganizationId({
@@ -568,12 +573,13 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 400);
 			}
 
 			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
 			if (!employeeRecord) {
-				return { error: 'Employee not found for this user' };
+				const status = typeof set.status === 'number' ? set.status : 404;
+				return buildErrorResponse('Employee not found for this user', status);
 			}
 
 			const result = await fetchVacationRequests({
@@ -616,7 +622,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
-				return { error: 'Session authentication required' };
+				return buildErrorResponse('Session authentication required', 403);
 			}
 
 			const organizationId = resolveOrganizationId({
@@ -630,16 +636,20 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 400);
 			}
 
 			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
 			if (!employeeRecord) {
-				return { error: 'Employee not found for this user' };
+				const status = typeof set.status === 'number' ? set.status : 404;
+				return buildErrorResponse('Employee not found for this user', status);
 			}
 			if (!employeeRecord.hireDate) {
 				set.status = 400;
-				return { error: 'Employee hire date is required for vacation requests' };
+				return buildErrorResponse(
+					'Employee hire date is required for vacation requests',
+					400,
+				);
 			}
 
 			const settings = await db
@@ -659,7 +669,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			} catch (error) {
 				if (error instanceof RangeError) {
 					set.status = 400;
-					return { error: error.message };
+					return buildErrorResponse(error.message, 400);
 				}
 				throw error;
 			}
@@ -671,9 +681,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			);
 			if (invalidServiceDays) {
 				set.status = 400;
-				return {
-					error: 'Vacation days cannot be requested before completing a year of service',
-				};
+				return buildErrorResponse(
+					'Vacation days cannot be requested before completing a year of service',
+					400,
+				);
 			}
 
 			const balanceOk = await validateVacationBalance(
@@ -687,7 +698,8 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				set,
 			);
 			if (!balanceOk) {
-				return { error: 'Insufficient vacation balance' };
+				const status = typeof set.status === 'number' ? set.status : 409;
+				return buildErrorResponse('Insufficient vacation balance', status);
 			}
 
 			const overlap = await db
@@ -706,7 +718,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (overlap[0]) {
 				set.status = 409;
-				return { error: 'Vacation request overlaps an approved request' };
+				return buildErrorResponse(
+					'Vacation request overlaps an approved request',
+					409,
+				);
 			}
 
 			const requestId = crypto.randomUUID();
@@ -762,7 +777,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 		}) => {
 			if (authType !== 'session' || !session) {
 				set.status = 403;
-				return { error: 'Session authentication required' };
+				return buildErrorResponse('Session authentication required', 403);
 			}
 
 			const organizationId = resolveOrganizationId({
@@ -776,12 +791,13 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 400);
 			}
 
 			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
 			if (!employeeRecord) {
-				return { error: 'Employee not found for this user' };
+				const status = typeof set.status === 'number' ? set.status : 404;
+				return buildErrorResponse('Employee not found for this user', status);
 			}
 
 			const requestRows = await db
@@ -797,12 +813,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const request = requestRows[0];
 			if (!request) {
 				set.status = 404;
-				return { error: 'Vacation request not found' };
+				return buildErrorResponse('Vacation request not found', 404);
 			}
 
 			if (request.status === 'CANCELLED' || request.status === 'REJECTED') {
 				set.status = 400;
-				return { error: 'Vacation request cannot be cancelled' };
+				return buildErrorResponse('Vacation request cannot be cancelled', 400);
 			}
 
 			await db.transaction(async (tx) => {
@@ -857,13 +873,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
-				return { error: 'Not authorized' };
+				const status = typeof set.status === 'number' ? set.status : 403;
+				return buildErrorResponse('Not authorized', status);
 			}
 
 			const result = await fetchVacationRequests({
@@ -914,18 +932,20 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
-				return { error: 'Not authorized' };
+				const status = typeof set.status === 'number' ? set.status : 403;
+				return buildErrorResponse('Not authorized', status);
 			}
 
 			if (!body.employeeId) {
 				set.status = 400;
-				return { error: 'employeeId is required' };
+				return buildErrorResponse('employeeId is required', 400);
 			}
 
 			const employeeRows = await db
@@ -941,18 +961,21 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const employeeRecord = employeeRows[0];
 			if (!employeeRecord) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			const status = body.status ?? 'SUBMITTED';
 			const hireDate = employeeRecord.hireDate ?? null;
 			if (status !== 'DRAFT' && status !== 'SUBMITTED') {
 				set.status = 400;
-				return { error: 'Invalid status for vacation request' };
+				return buildErrorResponse('Invalid status for vacation request', 400);
 			}
 			if (status === 'SUBMITTED' && !hireDate) {
 				set.status = 400;
-				return { error: 'Employee hire date is required for vacation requests' };
+				return buildErrorResponse(
+					'Employee hire date is required for vacation requests',
+					400,
+				);
 			}
 
 			const settings = await db
@@ -972,7 +995,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			} catch (error) {
 				if (error instanceof RangeError) {
 					set.status = 400;
-					return { error: error.message };
+					return buildErrorResponse(error.message, 400);
 				}
 				throw error;
 			}
@@ -984,9 +1007,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			);
 			if (status === 'SUBMITTED' && invalidServiceDays) {
 				set.status = 400;
-				return {
-					error: 'Vacation days cannot be requested before completing a year of service',
-				};
+				return buildErrorResponse(
+					'Vacation days cannot be requested before completing a year of service',
+					400,
+				);
 			}
 
 			if (status === 'SUBMITTED' && hireDate) {
@@ -1001,7 +1025,8 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					set,
 				);
 				if (!balanceOk) {
-					return { error: 'Insufficient vacation balance' };
+					const statusCode = typeof set.status === 'number' ? set.status : 409;
+					return buildErrorResponse('Insufficient vacation balance', statusCode);
 				}
 
 				const overlap = await db
@@ -1020,7 +1045,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 				if (overlap[0]) {
 					set.status = 409;
-					return { error: 'Vacation request overlaps an approved request' };
+					return buildErrorResponse(
+						'Vacation request overlaps an approved request',
+						409,
+					);
 				}
 			}
 
@@ -1085,13 +1113,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
-				return { error: 'Not authorized' };
+				const status = typeof set.status === 'number' ? set.status : 403;
+				return buildErrorResponse('Not authorized', status);
 			}
 
 			const rows = await db
@@ -1107,17 +1137,17 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const request = rows[0];
 			if (!request) {
 				set.status = 404;
-				return { error: 'Vacation request not found' };
+				return buildErrorResponse('Vacation request not found', 404);
 			}
 
 			if (request.status === 'APPROVED') {
 				set.status = 400;
-				return { error: 'Vacation request is already approved' };
+				return buildErrorResponse('Vacation request is already approved', 400);
 			}
 
 			if (request.status === 'CANCELLED' || request.status === 'REJECTED') {
 				set.status = 400;
-				return { error: 'Vacation request cannot be approved' };
+				return buildErrorResponse('Vacation request cannot be approved', 400);
 			}
 
 			const dayRows = await db
@@ -1137,9 +1167,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			);
 			if (invalidServiceDays) {
 				set.status = 400;
-				return {
-					error: 'Vacation days cannot be requested before completing a year of service',
-				};
+				return buildErrorResponse(
+					'Vacation days cannot be requested before completing a year of service',
+					400,
+				);
 			}
 
 			for (const day of dayRows) {
@@ -1168,7 +1199,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const hireDate = employeeRows[0]?.hireDate ?? null;
 			if (!hireDate) {
 				set.status = 400;
-				return { error: 'Employee hire date is required for vacation requests' };
+				return buildErrorResponse(
+					'Employee hire date is required for vacation requests',
+					400,
+				);
 			}
 
 			const balanceOk = await validateVacationBalance(
@@ -1183,7 +1217,8 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				set,
 			);
 			if (!balanceOk) {
-				return { error: 'Insufficient vacation balance' };
+				const statusCode = typeof set.status === 'number' ? set.status : 409;
+				return buildErrorResponse('Insufficient vacation balance', statusCode);
 			}
 
 			const overlap = await db
@@ -1203,7 +1238,10 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (overlap[0]) {
 				set.status = 409;
-				return { error: 'Vacation request overlaps an approved request' };
+				return buildErrorResponse(
+					'Vacation request overlaps an approved request',
+					409,
+				);
 			}
 
 			const exceptionDates = dayRows
@@ -1223,14 +1261,18 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 				if (existingExceptions.length > 0) {
 					set.status = 409;
-					return {
-						error: 'Schedule exceptions already exist for the requested dates',
-						data: {
-							conflicts: existingExceptions.map((row) =>
-								format(row.exceptionDate, 'yyyy-MM-dd'),
-							),
+					return buildErrorResponse(
+						'Schedule exceptions already exist for the requested dates',
+						409,
+						{
+							code: 'SCHEDULE_EXCEPTION_CONFLICT',
+							details: {
+								conflicts: existingExceptions.map((row) =>
+									format(row.exceptionDate, 'yyyy-MM-dd'),
+								),
+							},
 						},
-					};
+					);
 				}
 			}
 
@@ -1295,13 +1337,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
-				return { error: 'Not authorized' };
+				const status = typeof set.status === 'number' ? set.status : 403;
+				return buildErrorResponse('Not authorized', status);
 			}
 
 			const rows = await db
@@ -1317,12 +1361,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const request = rows[0];
 			if (!request) {
 				set.status = 404;
-				return { error: 'Vacation request not found' };
+				return buildErrorResponse('Vacation request not found', 404);
 			}
 
 			if (request.status !== 'SUBMITTED') {
 				set.status = 400;
-				return { error: 'Only submitted requests can be rejected' };
+				return buildErrorResponse('Only submitted requests can be rejected', 400);
 			}
 
 			await db
@@ -1370,13 +1414,15 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const authorized = await ensureAdminRole({ authType, session, organizationId }, set);
 			if (!authorized) {
-				return { error: 'Not authorized' };
+				const status = typeof set.status === 'number' ? set.status : 403;
+				return buildErrorResponse('Not authorized', status);
 			}
 
 			const rows = await db
@@ -1392,12 +1438,12 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const request = rows[0];
 			if (!request) {
 				set.status = 404;
-				return { error: 'Vacation request not found' };
+				return buildErrorResponse('Vacation request not found', 404);
 			}
 
 			if (request.status === 'CANCELLED' || request.status === 'REJECTED') {
 				set.status = 400;
-				return { error: 'Vacation request cannot be cancelled' };
+				return buildErrorResponse('Vacation request cannot be cancelled', 400);
 			}
 
 			await db.transaction(async (tx) => {

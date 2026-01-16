@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,13 +23,27 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"],
-      "@sen-checkin/api-contract": ["../../packages/api-contract/src"],
-      "@sen-checkin/api-contract/*": ["../../packages/api-contract/src/*"],
-      "@sen-checkin/api": ["../../apps/api/src"],
-      "@sen-checkin/api/*": ["../../apps/api/src/*"],
-      "@sen-checkin/types": ["../../packages/types/src/index.ts"],
-      "@sen-checkin/types/*": ["../../packages/types/src/*"]
+      "@/*": [
+        "./*"
+      ],
+      "@sen-checkin/api-contract": [
+        "../../packages/api-contract/src"
+      ],
+      "@sen-checkin/api-contract/*": [
+        "../../packages/api-contract/src/*"
+      ],
+      "@sen-checkin/api": [
+        "../../apps/api/src"
+      ],
+      "@sen-checkin/api/*": [
+        "../../apps/api/src/*"
+      ],
+      "@sen-checkin/types": [
+        "../../packages/types/src/index.ts"
+      ],
+      "@sen-checkin/types/*": [
+        "../../packages/types/src/*"
+      ]
     }
   },
   "include": [
@@ -34,7 +52,10 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    ".next/dev/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }

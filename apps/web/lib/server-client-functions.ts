@@ -10,6 +10,7 @@
  */
 
 import { authClient } from '@/lib/auth-client';
+import { getApiResponseData } from '@/lib/api-response';
 import type {
 	ApiKey,
 	AttendanceRecord,
@@ -139,9 +140,10 @@ export async function fetchEmployeesListServer(
 		throw new Error('Failed to fetch employees');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as Employee[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as Employee[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -200,9 +202,10 @@ export async function fetchDevicesListServer(
 		throw new Error('Failed to fetch devices');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as Device[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as Device[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -261,9 +264,10 @@ export async function fetchLocationsListServer(
 		throw new Error('Failed to fetch locations');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as Location[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as Location[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -331,8 +335,9 @@ export async function fetchJobPositionsListServer(
 		throw new Error('Failed to fetch job positions');
 	}
 
+	const payload = getApiResponseData(response);
 	const positions =
-		(response.data?.data as
+		(payload?.data as
 			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: number | string })[]
 			| undefined) ?? [];
 
@@ -341,7 +346,7 @@ export async function fetchJobPositionsListServer(
 			...jp,
 			dailyPay: Number(jp.dailyPay ?? 0),
 		})),
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -423,9 +428,10 @@ export async function fetchAttendanceRecordsServer(
 		throw new Error('Failed to fetch attendance records');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as AttendanceRecord[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as AttendanceRecord[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -467,12 +473,18 @@ export async function fetchDashboardCountsServer(
 			api.attendance.get({ $query: baseQuery }),
 		]);
 
+	const employeesPayload = getApiResponseData(employeesRes);
+	const devicesPayload = getApiResponseData(devicesRes);
+	const locationsPayload = getApiResponseData(locationsRes);
+	const organizationsPayload = getApiResponseData(organizationsRes);
+	const attendancePayload = getApiResponseData(attendanceRes);
+
 	return {
-		employees: employeesRes.data?.pagination?.total ?? 0,
-		devices: devicesRes.data?.pagination?.total ?? 0,
-		locations: locationsRes.data?.pagination?.total ?? 0,
-		organizations: organizationsRes.data?.length ?? 0,
-		attendance: attendanceRes.data?.pagination?.total ?? 0,
+		employees: employeesPayload?.pagination?.total ?? 0,
+		devices: devicesPayload?.pagination?.total ?? 0,
+		locations: locationsPayload?.pagination?.total ?? 0,
+		organizations: organizationsPayload?.length ?? 0,
+		attendance: attendancePayload?.pagination?.total ?? 0,
 	};
 }
 
@@ -495,7 +507,8 @@ export async function fetchApiKeysServer(headers: Headers): Promise<ApiKey[]> {
 		throw new Error('Failed to fetch API keys');
 	}
 
-	return (response.data ?? []) as ApiKey[];
+	const payload = getApiResponseData(response);
+	return (payload ?? []) as ApiKey[];
 }
 
 // ============================================================================
@@ -517,7 +530,8 @@ export async function fetchOrganizationsServer(headers: Headers): Promise<Organi
 		throw new Error('Failed to fetch organizations');
 	}
 
-	return (response.data ?? []) as Organization[];
+	const payload = getApiResponseData(response);
+	return (payload ?? []) as Organization[];
 }
 
 /**
@@ -563,9 +577,10 @@ export async function fetchAllOrganizationsServer(
 		throw new Error('Failed to fetch organizations');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		organizations: (response.data?.organizations ?? []) as Organization[],
-		total: response.data?.total ?? 0,
+		organizations: (payload?.organizations ?? []) as Organization[],
+		total: payload?.total ?? 0,
 	};
 }
 
@@ -614,9 +629,10 @@ export async function fetchOrganizationMembersServer(
 		throw new Error('Failed to fetch organization members');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		members: (response.data?.members ?? []) as OrganizationMember[],
-		total: response.data?.total ?? 0,
+		members: (payload?.members ?? []) as OrganizationMember[],
+		total: payload?.total ?? 0,
 	};
 }
 
@@ -651,7 +667,8 @@ export async function fetchUsersServer(
 		throw new Error('Failed to fetch users');
 	}
 
-	return (response.data?.users ?? []) as User[];
+	const payload = getApiResponseData(response);
+	return (payload?.users ?? []) as User[];
 }
 
 // ============================================================================
@@ -733,7 +750,8 @@ export async function fetchPayrollSettingsServer(
 		return null;
 	}
 
-	return normalizePayrollSettings(response.data?.data as PayrollSettingsPayload | undefined);
+	const payload = getApiResponseData(response);
+	return normalizePayrollSettings(payload?.data as PayrollSettingsPayload | undefined);
 }
 
 export async function calculatePayrollServer(
@@ -748,7 +766,11 @@ export async function calculatePayrollServer(
 		throw new Error('Failed to calculate payroll');
 	}
 
-	return response.data?.data as PayrollCalculationResult;
+	const payload = getApiResponseData(response);
+	if (!payload?.data) {
+		throw new Error('Failed to calculate payroll');
+	}
+	return payload.data as PayrollCalculationResult;
 }
 
 export async function fetchPayrollRunsServer(
@@ -770,8 +792,9 @@ export async function fetchPayrollRunsServer(
 	}
 
 	const runs =
-		(response.data?.data as (PayrollRun & { totalAmount?: number | string })[] | undefined) ??
-		[];
+		(getApiResponseData(response)?.data as
+			| (PayrollRun & { totalAmount?: number | string })[]
+			| undefined) ?? [];
 	return runs.map((run) => ({
 		...run,
 		totalAmount: Number(run.totalAmount ?? 0),
@@ -790,7 +813,7 @@ export async function fetchPayrollRunDetailServer(
 		return null;
 	}
 
-	const payload = response.data?.data as
+	const payload = (getApiResponseData(response)?.data as
 		| {
 				run: PayrollRun & { totalAmount?: number | string };
 				employees: (PayrollRunEmployee & {
@@ -814,7 +837,7 @@ export async function fetchPayrollRunDetailServer(
 				updatedAt: string | Date;
 				})[];
 		  }
-		| undefined;
+		| undefined) ?? undefined;
 	if (!payload) {
 		return null;
 	}
@@ -896,9 +919,10 @@ export async function fetchScheduleTemplatesListServer(
 		throw new Error('Failed to fetch schedule templates');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as ScheduleTemplate[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as ScheduleTemplate[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -917,7 +941,8 @@ export async function fetchScheduleTemplateDetailServer(
 		return null;
 	}
 
-	return (response.data?.data as ScheduleTemplate) ?? null;
+	const payload = getApiResponseData(response);
+	return (payload?.data as ScheduleTemplate) ?? null;
 }
 
 /**
@@ -967,9 +992,10 @@ export async function fetchScheduleExceptionsListServer(
 		throw new Error('Failed to fetch schedule exceptions');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as ScheduleException[],
-		pagination: response.data?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		data: (payload?.data ?? []) as ScheduleException[],
+		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
 
@@ -997,7 +1023,8 @@ export async function fetchCalendarServer(
 		throw new Error('Failed to fetch scheduling calendar');
 	}
 
-	return (response.data?.data ?? []) as CalendarEmployee[];
+	const payload = getApiResponseData(response);
+	return (payload?.data ?? []) as CalendarEmployee[];
 }
 
 // ============================================================================
@@ -1066,9 +1093,10 @@ export async function fetchVacationRequestsListServer(
 		throw new Error('Failed to fetch vacation requests');
 	}
 
+	const payload = getApiResponseData(response);
 	return {
-		data: (response.data?.data ?? []) as VacationRequest[],
-		pagination: response.data?.pagination ?? {
+		data: (payload?.data ?? []) as VacationRequest[],
+		pagination: payload?.pagination ?? {
 			total: 0,
 			limit: query.limit,
 			offset: query.offset,

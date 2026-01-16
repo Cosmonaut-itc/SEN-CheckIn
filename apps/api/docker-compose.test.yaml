@@ -1,0 +1,16 @@
+# docker-compose.test.yaml
+services:
+  postgres:
+    image: postgres:17
+    container_name: sen-checkin-postgres-test
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5435:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: ${SEN_CHECKIN_PG_PASSWORD}
+      POSTGRES_DB: sen_checkin_test
+    volumes:
+      - sen_checkin_pgdata_test:/var/lib/postgresql/data
+volumes:
+  sen_checkin_pgdata_test:

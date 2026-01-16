@@ -22,6 +22,7 @@ import {
 	vacationRequestDay,
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import type { AuthSession } from '../plugins/auth.js';
 import {
@@ -569,8 +570,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Build conditions array
@@ -710,7 +712,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const record = results[0];
 			if (!record) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			if (
@@ -723,7 +725,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this employee' };
+				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
 			const schedule = await db
@@ -775,7 +777,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const employeeRecord = rows[0];
 			if (!employeeRecord) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			if (
@@ -788,12 +790,12 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this employee' };
+				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
 			if (!employeeRecord.organizationId) {
 				set.status = 403;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 403);
 			}
 
 			const timeZoneCandidate = employeeRecord.timeZone ?? 'America/Mexico_City';
@@ -913,7 +915,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (!employeeRecord) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			if (
@@ -926,7 +928,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this employee' };
+				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
 			const rows = await db
@@ -1021,8 +1023,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			// Verify organization exists
@@ -1034,7 +1037,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (!organizationExists[0]) {
 				set.status = 400;
-				return { error: 'Organization not found' };
+				return buildErrorResponse('Organization not found', 400);
 			}
 
 			// Verify location exists and belongs to this organization
@@ -1045,7 +1048,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.limit(1);
 			if (!locationExists[0]) {
 				set.status = 400;
-				return { error: 'Location not found' };
+				return buildErrorResponse('Location not found', 400);
 			}
 
 			if (
@@ -1053,7 +1056,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				locationExists[0].organizationId !== organizationId
 			) {
 				set.status = 403;
-				return { error: 'Location does not belong to this organization' };
+				return buildErrorResponse('Location does not belong to this organization', 403);
 			}
 
 			// Verify job position exists (required for new employees)
@@ -1064,7 +1067,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.limit(1);
 			if (!positionExists[0]) {
 				set.status = 400;
-				return { error: 'Job position not found' };
+				return buildErrorResponse('Job position not found', 400);
 			}
 
 			if (
@@ -1072,7 +1075,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				positionExists[0].organizationId !== organizationId
 			) {
 				set.status = 403;
-				return { error: 'Job position does not belong to this organization' };
+				return buildErrorResponse('Job position does not belong to this organization', 403);
 			}
 
 			const resolvedUserId = userId?.trim() ? userId.trim() : null;
@@ -1082,7 +1085,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					set,
 				);
 				if (!canLink) {
-					return { error: 'Only organization admins can link users to employees' };
+					const status = typeof set.status === 'number' ? set.status : 403;
+					return buildErrorResponse(
+						'Only organization admins can link users to employees',
+						status,
+					);
 				}
 
 				const linkValid = await validateEmployeeUserLink(
@@ -1090,7 +1097,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					set,
 				);
 				if (!linkValid) {
-					return { error: 'User is not eligible for linking' };
+					const status = typeof set.status === 'number' ? set.status : 400;
+					return buildErrorResponse('User is not eligible for linking', status);
 				}
 			}
 
@@ -1104,14 +1112,15 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.limit(1);
 			if (codeExists[0]) {
 				set.status = 409;
-				return { error: 'Employee code already exists' };
+				return buildErrorResponse('Employee code already exists', 409);
 			}
 
 			if (schedule && scheduleTemplateId) {
 				set.status = 400;
-				return {
-					error: 'Provide either a scheduleTemplateId or a custom schedule, not both',
-				};
+				return buildErrorResponse(
+					'Provide either a scheduleTemplateId or a custom schedule, not both',
+					400,
+				);
 			}
 
 			let templateDays: {
@@ -1131,7 +1140,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 				if (!templateRecord[0]) {
 					set.status = 404;
-					return { error: 'Schedule template not found' };
+					return buildErrorResponse('Schedule template not found', 404);
 				}
 
 				if (
@@ -1139,7 +1148,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					templateRecord[0].organizationId !== organizationId
 				) {
 					set.status = 403;
-					return { error: 'Schedule template does not belong to this organization' };
+					return buildErrorResponse(
+						'Schedule template does not belong to this organization',
+						403,
+					);
 				}
 
 				selectedTemplate = templateRecord[0] ?? null;
@@ -1258,7 +1270,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const existingRecord = existing[0];
 			if (!existingRecord) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			if (
@@ -1271,7 +1283,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this employee' };
+				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
 			const targetOrgId = existingRecord.organizationId ?? null;
@@ -1286,7 +1298,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (!resolvedOrganizationId) {
 				set.status = 403;
-				return { error: 'Organization is required or not permitted' };
+				return buildErrorResponse('Organization is required or not permitted', 403);
 			}
 			const auditActor = resolveEmployeeAuditActor(authType, session);
 			const beforeSnapshot = buildEmployeeAuditSnapshot(existingRecord);
@@ -1300,7 +1312,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					.limit(1);
 				if (!locationExists[0]) {
 					set.status = 400;
-					return { error: 'Location not found' };
+					return buildErrorResponse('Location not found', 400);
 				}
 
 				if (
@@ -1309,7 +1321,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					locationExists[0].organizationId !== resolvedOrganizationId
 				) {
 					set.status = 403;
-					return { error: 'Location does not belong to this organization' };
+					return buildErrorResponse('Location does not belong to this organization', 403);
 				}
 			}
 
@@ -1322,7 +1334,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					.limit(1);
 				if (!positionExists[0]) {
 					set.status = 400;
-					return { error: 'Job position not found' };
+					return buildErrorResponse('Job position not found', 400);
 				}
 
 				if (
@@ -1331,7 +1343,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					positionExists[0].organizationId !== resolvedOrganizationId
 				) {
 					set.status = 403;
-					return { error: 'Job position does not belong to this organization' };
+					return buildErrorResponse('Job position does not belong to this organization', 403);
 				}
 			}
 
@@ -1343,7 +1355,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					set,
 				);
 				if (!canLink) {
-					return { error: 'Only organization admins can link users to employees' };
+					const status = typeof set.status === 'number' ? set.status : 403;
+					return buildErrorResponse(
+						'Only organization admins can link users to employees',
+						status,
+					);
 				}
 
 				if (resolvedUserId) {
@@ -1352,7 +1368,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						set,
 					);
 					if (!linkValid) {
-						return { error: 'User is not eligible for linking' };
+						const status = typeof set.status === 'number' ? set.status : 400;
+						return buildErrorResponse('User is not eligible for linking', status);
 					}
 				}
 			}
@@ -1364,9 +1381,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (body.schedule && body.scheduleTemplateId) {
 				set.status = 400;
-				return {
-					error: 'Provide either a scheduleTemplateId or a custom schedule, not both',
-				};
+				return buildErrorResponse(
+					'Provide either a scheduleTemplateId or a custom schedule, not both',
+					400,
+				);
 			}
 
 			let templateDays: {
@@ -1386,7 +1404,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 				if (!templateRecord[0]) {
 					set.status = 404;
-					return { error: 'Schedule template not found' };
+					return buildErrorResponse('Schedule template not found', 404);
 				}
 
 				if (
@@ -1394,7 +1412,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					templateRecord[0].organizationId !== resolvedOrganizationId
 				) {
 					set.status = 403;
-					return { error: 'Schedule template does not belong to this organization' };
+					return buildErrorResponse(
+						'Schedule template does not belong to this organization',
+						403,
+					);
 				}
 
 				selectedTemplate = templateRecord[0] ?? null;
@@ -1538,7 +1559,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (!result.updatedRecord) {
 				set.status = 500;
-				return { error: 'Employee update failed' };
+				return buildErrorResponse('Employee update failed', 500);
 			}
 
 			return { data: { ...result.updatedRecord, schedule: result.updatedSchedule } };
@@ -1573,7 +1594,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const existingRecord = existing[0];
 			if (!existingRecord) {
 				set.status = 404;
-				return { error: 'Employee not found' };
+				return buildErrorResponse('Employee not found', 404);
 			}
 
 			if (
@@ -1586,7 +1607,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this employee' };
+				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
 			const auditActor = resolveEmployeeAuditActor(authType, session);
@@ -1662,6 +1683,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					userId: null,
 					employeeId,
 					message: 'Employee not found',
+					errorCode: 'EMPLOYEE_NOT_FOUND',
 				};
 			}
 
@@ -1682,6 +1704,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					userId: null,
 					employeeId,
 					message: 'You do not have access to this employee',
+					errorCode: 'EMPLOYEE_FORBIDDEN',
 				};
 			}
 
@@ -1693,6 +1716,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					userId: employeeRecord.rekognitionUserId,
 					employeeId,
 					message: 'Employee already has a Rekognition user',
+					errorCode: 'REKOGNITION_USER_EXISTS',
 				};
 			}
 
@@ -1706,6 +1730,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					userId: null,
 					employeeId,
 					message: result.message ?? 'Failed to create Rekognition user',
+					errorCode: 'REKOGNITION_USER_CREATE_FAILED',
 				};
 			}
 
@@ -1798,6 +1823,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					employeeId,
 					associated: false,
 					message: 'Employee not found',
+					errorCode: 'EMPLOYEE_NOT_FOUND',
 				};
 			}
 
@@ -1819,6 +1845,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					employeeId,
 					associated: false,
 					message: 'You do not have access to this employee',
+					errorCode: 'EMPLOYEE_FORBIDDEN',
 				};
 			}
 
@@ -1830,6 +1857,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					employeeId,
 					associated: false,
 					message: 'Employee does not have a Rekognition user. Create one first.',
+					errorCode: 'REKOGNITION_USER_MISSING',
 				};
 			}
 
@@ -1845,6 +1873,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					employeeId,
 					associated: false,
 					message: 'Invalid base64 image data',
+					errorCode: 'INVALID_IMAGE_BASE64',
 				};
 			}
 
@@ -1860,6 +1889,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					employeeId,
 					associated: false,
 					message: indexResult.message ?? 'Failed to index face',
+					errorCode: 'REKOGNITION_INDEX_FAILED',
 				};
 			}
 
@@ -1903,7 +1933,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			session,
 			sessionOrganizationIds,
 			apiKeyOrganizationIds,
-		}): Promise<{ success: boolean; message: string }> => {
+		}): Promise<{ success: boolean; message: string; errorCode?: string }> => {
 			const { id: employeeId } = params;
 
 			// Verify employee exists
@@ -1919,6 +1949,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return {
 					success: false,
 					message: 'Employee not found',
+					errorCode: 'EMPLOYEE_NOT_FOUND',
 				};
 			}
 
@@ -1935,6 +1966,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return {
 					success: false,
 					message: 'You do not have access to this employee',
+					errorCode: 'EMPLOYEE_FORBIDDEN',
 				};
 			}
 
@@ -1948,6 +1980,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return {
 					success: false,
 					message: 'Employee does not have a Rekognition user',
+					errorCode: 'REKOGNITION_USER_MISSING',
 				};
 			}
 
@@ -1970,6 +2003,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return {
 					success: false,
 					message: deleteResult.message ?? 'Failed to delete Rekognition user',
+					errorCode: 'REKOGNITION_USER_DELETE_FAILED',
 				};
 			}
 

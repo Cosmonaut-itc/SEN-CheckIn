@@ -75,6 +75,8 @@ export const faceEnrollmentResultSchema = z.object({
 	associated: z.boolean(),
 	/** Optional message providing additional context or error details */
 	message: z.string().optional(),
+	/** Optional error code for failed enrollment scenarios */
+	errorCode: z.string().optional(),
 });
 
 /**
@@ -90,6 +92,8 @@ export const userCreationResultSchema = z.object({
 	employeeId: z.string(),
 	/** Optional message providing additional context or error details */
 	message: z.string().optional(),
+	/** Optional error code for failed user creation scenarios */
+	errorCode: z.string().optional(),
 });
 
 /**
@@ -131,6 +135,10 @@ export const recognitionResultSchema = z.object({
 	employee: matchedEmployeeSchema.nullable(),
 	/** Confidence score of the searched face detection, or null if detection failed */
 	searchedFaceConfidence: z.number().nullable(),
+	/** Optional message providing additional context or error details */
+	message: z.string().optional(),
+	/** Optional error code for failed recognition scenarios */
+	errorCode: z.string().optional(),
 });
 
 // ============================================================================

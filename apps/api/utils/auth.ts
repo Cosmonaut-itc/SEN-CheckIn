@@ -67,7 +67,9 @@ const authOptions: AuthOptions = {
 		/**
 		 * API Key plugin for programmatic authentication.
 		 */
-		apiKey(),
+		apiKey({
+			enableMetadata: true,
+		}),
 		/**
 		 * Admin plugin for user management.
 		 * Allows listing users, changing roles, banning/unbanning users.

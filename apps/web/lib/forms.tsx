@@ -466,15 +466,20 @@ export function ToggleField({
 
 /**
  * Submit button that tracks form submission state.
+ *
+ * @param props - Submit button props
+ * @returns The submit button element
  */
 export function SubmitButton({
 	label,
 	loadingLabel,
 	className,
+	dataTestId,
 }: {
 	label: string;
 	loadingLabel?: string;
 	className?: string;
+	dataTestId?: string;
 }): React.ReactElement {
 	const form = useFormContext();
 	const t = useTranslations('Common');
@@ -483,7 +488,12 @@ export function SubmitButton({
 	return (
 		<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
 			{([canSubmit, isSubmitting]) => (
-				<Button type="submit" disabled={!canSubmit || isSubmitting} className={className}>
+				<Button
+					type="submit"
+					disabled={!canSubmit || isSubmitting}
+					className={className}
+					data-testid={dataTestId}
+				>
 					{isSubmitting ? (
 						<>
 							<Loader2 className="mr-2 h-4 w-4 animate-spin" />

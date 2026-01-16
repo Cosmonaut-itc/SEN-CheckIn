@@ -6,6 +6,7 @@ import { auth } from '../../utils/auth.js';
 import db from '../db/index.js';
 import { member, organization, user as userTable } from '../db/schema.js';
 import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { organizationAllQuerySchema, organizationMembersQuerySchema } from '../schemas/crud.js';
 
 const addMemberSchema = z.object({
@@ -268,7 +269,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 		async ({ query, set, user }) => {
 			if (user.role !== 'admin') {
 				set.status = 403;
-				return { error: 'Only superusers can list all organizations' };
+				return buildErrorResponse('Only superusers can list all organizations', 403);
 			}
 
 			const { limit, offset, search, sortBy, sortDir } = query;
@@ -347,7 +348,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required', code: 'ORGANIZATION_REQUIRED' };
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
 			}
 
 			if (!isSuperUser) {
@@ -364,7 +367,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				if (!membership[0]) {
 					set.status = 403;
-					return { error: 'You must belong to the organization to view members' };
+					return buildErrorResponse(
+						'You must belong to the organization to view members',
+						403,
+					);
 				}
 			}
 
@@ -439,7 +445,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required' };
+				return buildErrorResponse('Organization is required', 400);
 			}
 
 			if (!isSuperUser) {
@@ -458,12 +464,15 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				if (!callerRole) {
 					set.status = 403;
-					return { error: 'You must belong to the organization to add members' };
+					return buildErrorResponse(
+						'You must belong to the organization to add members',
+						403,
+					);
 				}
 
 				if (callerRole !== 'admin' && callerRole !== 'owner') {
 					set.status = 403;
-					return { error: 'Only organization admins can add members' };
+					return buildErrorResponse('Only organization admins can add members', 403);
 				}
 			}
 
@@ -494,7 +503,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				if (!success) {
 					set.status = 400;
-					return { error: errorMessage ?? 'Failed to add member' };
+					return buildErrorResponse(errorMessage ?? 'Failed to add member', 400);
 				}
 
 				const memberId = (result as { data?: { id?: string } })?.data?.id ?? null;
@@ -503,7 +512,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			} catch (error) {
 				console.error('Failed to add member to organization:', error);
 				set.status = 500;
-				return { error: 'Failed to add member to organization' };
+				return buildErrorResponse('Failed to add member to organization', 500);
 			}
 		},
 		{
@@ -526,7 +535,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return { error: 'Organization is required' };
+				return buildErrorResponse('Organization is required', 400);
 			}
 
 			if (!isSuperUser) {
@@ -545,18 +554,18 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				if (!callerRole) {
 					set.status = 403;
-					return {
-						error: 'You must belong to the organization to add members',
-						code: 'ORGANIZATION_MEMBERSHIP_REQUIRED',
-					};
+					return buildErrorResponse(
+						'You must belong to the organization to add members',
+						403,
+						{ code: 'ORGANIZATION_MEMBERSHIP_REQUIRED' },
+					);
 				}
 
 				if (callerRole !== 'admin' && callerRole !== 'owner') {
 					set.status = 403;
-					return {
-						error: 'Only organization admins can add members',
+					return buildErrorResponse('Only organization admins can add members', 403, {
 						code: 'ORGANIZATION_ADMIN_REQUIRED',
-					};
+					});
 				}
 			}
 
@@ -580,10 +589,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						error: signUpCall.error,
 					});
 					set.status = signUpCall.error.status;
-					return {
-						error: signUpCall.error.message,
+					return buildErrorResponse(signUpCall.error.message, signUpCall.error.status, {
 						code: signUpCall.error.code ?? 'USER_SIGNUP_FAILED',
-					};
+					});
 				}
 
 				createdUserId = extractSignUpUserId(signUpCall.data);
@@ -593,7 +601,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						organizationId,
 					});
 					set.status = 400;
-					return { error: 'Failed to create user', code: 'USER_SIGNUP_FAILED' };
+					return buildErrorResponse('Failed to create user', 400, {
+						code: 'USER_SIGNUP_FAILED',
+					});
 				}
 
 				const addMemberCall = await callBetterAuth(
@@ -630,10 +640,11 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					}
 
 					set.status = addMemberCall.error.status;
-					return {
-						error: addMemberCall.error.message,
-						code: addMemberCall.error.code ?? 'ADD_MEMBER_FAILED',
-					};
+					return buildErrorResponse(
+						addMemberCall.error.message,
+						addMemberCall.error.status,
+						{ code: addMemberCall.error.code ?? 'ADD_MEMBER_FAILED' },
+					);
 				}
 
 				const addMemberResult = addMemberCall.data as {
@@ -665,7 +676,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					}
 
 					set.status = 400;
-					return { error: addMemberError ?? 'Failed to add member' };
+					return buildErrorResponse(addMemberError ?? 'Failed to add member', 400, {
+						code: 'ADD_MEMBER_FAILED',
+					});
 				}
 
 				return { success: true, data: { userId: createdUserId } };
@@ -686,7 +699,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 				console.error('Failed to provision organization user:', error);
 				set.status = 500;
-				return { error: 'Failed to provision user', code: 'PROVISION_USER_FAILED' };
+				return buildErrorResponse('Failed to provision user', 500, {
+					code: 'PROVISION_USER_FAILED',
+				});
 			}
 		},
 		{

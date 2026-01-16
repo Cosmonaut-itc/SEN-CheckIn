@@ -13,6 +13,7 @@ import {
 	scheduleTemplateDay,
 } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { calendarQuerySchema, scheduleTemplateDaySchema } from '../schemas/schedules.js';
 import { shiftTypeEnum } from '../schemas/crud.js';
@@ -167,7 +168,7 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 
 			if (isAfter(normalizedStart, normalizedEnd)) {
 				set.status = 400;
-				return { error: 'startDate must be on or before endDate' };
+				return buildErrorResponse('startDate must be on or before endDate', 400);
 			}
 
 			const organizationId = resolveOrganizationId({
@@ -180,8 +181,9 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
@@ -320,7 +322,7 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 			const templateRecord = template[0];
 			if (!templateRecord) {
 				set.status = 404;
-				return { error: 'Schedule template not found' };
+				return buildErrorResponse('Schedule template not found', 404);
 			}
 
 			const organizationId = templateRecord.organizationId;
@@ -336,7 +338,7 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 
 			if (!resolvedOrgId || resolvedOrgId !== organizationId) {
 				set.status = 403;
-				return { error: 'You do not have access to this template' };
+				return buildErrorResponse('You do not have access to this template', 403);
 			}
 
 			const employeesToUpdate = await db
@@ -346,7 +348,7 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 
 			if (employeesToUpdate.length === 0) {
 				set.status = 404;
-				return { error: 'No matching employees found' };
+				return buildErrorResponse('No matching employees found', 404);
 			}
 
 			const invalidEmployees = employeesToUpdate.filter(
@@ -354,7 +356,10 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 			);
 			if (invalidEmployees.length > 0) {
 				set.status = 403;
-				return { error: 'One or more employees do not belong to this organization' };
+				return buildErrorResponse(
+					'One or more employees do not belong to this organization',
+					403,
+				);
 			}
 
 			const templateDays = await db
@@ -419,8 +424,9 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const enforcement = await getOvertimeEnforcement(organizationId);

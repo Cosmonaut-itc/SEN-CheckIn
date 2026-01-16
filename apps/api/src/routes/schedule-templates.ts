@@ -5,6 +5,7 @@ import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 import db from '../db/index.js';
 import { payrollSetting, scheduleTemplate, scheduleTemplateDay } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import {
 	createScheduleTemplateSchema,
@@ -84,8 +85,9 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const conditions: SQL<unknown>[] = [
@@ -155,7 +157,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 
 			if (!record) {
 				set.status = 404;
-				return { error: 'Schedule template not found' };
+				return buildErrorResponse('Schedule template not found', 404);
 			}
 
 			if (
@@ -168,7 +170,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this schedule template' };
+				return buildErrorResponse('You do not have access to this schedule template', 403);
 			}
 
 			const days = await db
@@ -209,8 +211,9 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const enforcement = await getOvertimeEnforcement(organizationId);
@@ -222,7 +225,9 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 
 			if (!validation.valid && enforcement === 'BLOCK') {
 				set.status = 400;
-				return { error: 'Schedule exceeds legal limits', validation };
+				return buildErrorResponse('Schedule exceeds legal limits', 400, {
+					details: { validation },
+				});
 			}
 
 			const templateId = crypto.randomUUID();
@@ -272,7 +277,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 
 			if (!existing) {
 				set.status = 404;
-				return { error: 'Schedule template not found' };
+				return buildErrorResponse('Schedule template not found', 404);
 			}
 
 			if (
@@ -285,7 +290,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this schedule template' };
+				return buildErrorResponse('You do not have access to this schedule template', 403);
 			}
 
 			const resolvedShiftType = body.shiftType ?? existing.shiftType ?? 'DIURNA';
@@ -311,7 +316,9 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 
 			if (!validation.valid && enforcement === 'BLOCK') {
 				set.status = 400;
-				return { error: 'Schedule exceeds legal limits', validation };
+				return buildErrorResponse('Schedule exceeds legal limits', 400, {
+					details: { validation },
+				});
 			}
 
 			const updatePayload: Partial<TemplateInsert> = {};
@@ -383,7 +390,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 
 			if (!existing) {
 				set.status = 404;
-				return { error: 'Schedule template not found' };
+				return buildErrorResponse('Schedule template not found', 404);
 			}
 
 			if (
@@ -396,7 +403,7 @@ export const scheduleTemplateRoutes = new Elysia({ prefix: '/schedule-templates'
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this schedule template' };
+				return buildErrorResponse('You do not have access to this schedule template', 403);
 			}
 
 			await db.delete(scheduleTemplate).where(eq(scheduleTemplate.id, id));

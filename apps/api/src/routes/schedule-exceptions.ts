@@ -6,6 +6,7 @@ import { endOfDay, startOfDay } from 'date-fns';
 import db from '../db/index.js';
 import { employee, scheduleException } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
 import type { AuthSession } from '../plugins/auth.js';
 import {
@@ -94,8 +95,9 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 			});
 
 			if (!organizationId) {
-				set.status = authType === 'apiKey' ? 403 : 400;
-				return { error: 'Organization is required or not permitted' };
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
 			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
@@ -177,7 +179,8 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 			);
 
 			if (!employeeRecord) {
-				return { error: 'Employee not found or not permitted' };
+				const status = typeof set.status === 'number' ? set.status : 403;
+				return buildErrorResponse('Employee not found or not permitted', status);
 			}
 
 			const normalizedDate = startOfDay(exceptionDate);
@@ -191,7 +194,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				});
 				if (minutes <= 0) {
 					set.status = 400;
-					return { error: 'Invalid start and end time for exception' };
+					return buildErrorResponse('Invalid start and end time for exception', 400);
 				}
 			}
 
@@ -208,7 +211,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 
 			if (exists[0]) {
 				set.status = 409;
-				return { error: 'An exception already exists for this date' };
+				return buildErrorResponse('An exception already exists for this date', 409);
 			}
 
 			const newException: ScheduleExceptionInsert = {
@@ -267,7 +270,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 
 			if (!record) {
 				set.status = 404;
-				return { error: 'Schedule exception not found' };
+				return buildErrorResponse('Schedule exception not found', 404);
 			}
 
 			if (
@@ -280,7 +283,10 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this schedule exception' };
+				return buildErrorResponse(
+					'You do not have access to this schedule exception',
+					403,
+				);
 			}
 
 			const nextType = body.exceptionType ?? record.exceptionType;
@@ -299,7 +305,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				});
 				if (minutes <= 0) {
 					set.status = 400;
-					return { error: 'Invalid start and end time for exception' };
+					return buildErrorResponse('Invalid start and end time for exception', 400);
 				}
 			}
 
@@ -316,7 +322,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 					.limit(1);
 				if (duplicate[0]) {
 					set.status = 409;
-					return { error: 'An exception already exists for this date' };
+					return buildErrorResponse('An exception already exists for this date', 409);
 				}
 			}
 
@@ -385,7 +391,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 
 			if (!record) {
 				set.status = 404;
-				return { error: 'Schedule exception not found' };
+				return buildErrorResponse('Schedule exception not found', 404);
 			}
 
 			if (
@@ -398,7 +404,10 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				)
 			) {
 				set.status = 403;
-				return { error: 'You do not have access to this schedule exception' };
+				return buildErrorResponse(
+					'You do not have access to this schedule exception',
+					403,
+				);
 			}
 
 			await db.delete(scheduleException).where(eq(scheduleException.id, id));

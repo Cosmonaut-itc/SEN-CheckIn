@@ -11,6 +11,7 @@
 
 import { headers } from 'next/headers';
 
+import { getApiResponseData } from '@/lib/api-response';
 import { createServerApiClient } from '@/lib/server-api';
 import type { VacationRequest } from '@/lib/client-functions';
 
@@ -87,7 +88,8 @@ export async function createVacationRequestAction(
 			return { success: false, error: 'Failed to create vacation request' };
 		}
 
-		return { success: true, data: response.data?.data as VacationRequest };
+		const payload = getApiResponseData(response);
+		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to create vacation request:', error);
 		return { success: false, error: 'Failed to create vacation request' };
@@ -115,7 +117,8 @@ export async function approveVacationRequestAction(
 			return { success: false, error: 'Failed to approve vacation request' };
 		}
 
-		return { success: true, data: response.data?.data as VacationRequest };
+		const payload = getApiResponseData(response);
+		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to approve vacation request:', error);
 		return { success: false, error: 'Failed to approve vacation request' };
@@ -143,7 +146,8 @@ export async function rejectVacationRequestAction(
 			return { success: false, error: 'Failed to reject vacation request' };
 		}
 
-		return { success: true, data: response.data?.data as VacationRequest };
+		const payload = getApiResponseData(response);
+		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to reject vacation request:', error);
 		return { success: false, error: 'Failed to reject vacation request' };
@@ -171,7 +175,8 @@ export async function cancelVacationRequestAction(
 			return { success: false, error: 'Failed to cancel vacation request' };
 		}
 
-		return { success: true, data: response.data?.data as VacationRequest };
+		const payload = getApiResponseData(response);
+		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to cancel vacation request:', error);
 		return { success: false, error: 'Failed to cancel vacation request' };

@@ -1831,8 +1831,28 @@
 			"startCamera": "Iniciar cámara",
 			"capturePhoto": "Capturar foto",
 			"tryAgain": "Intentar de nuevo",
+			"devices": {
+				"title": "Cámaras detectadas",
+				"refresh": "Actualizar",
+				"loading": "Buscando cámaras...",
+				"empty": "No se detectaron cámaras.",
+				"unnamed": "Cámara {index}",
+				"selectLabel": "Selecciona la cámara",
+				"selectPlaceholder": "Elige una cámara"
+			},
+			"zoom": {
+				"label": "Zoom",
+				"level": "Nivel {value}x"
+			},
 			"errors": {
-				"unavailable": "No se pudo acceder a la cámara. Asegúrate de haber otorgado permisos."
+				"unavailable": "No se pudo acceder a la cámara. Asegúrate de haber otorgado permisos.",
+				"noFeed": "No se pudo obtener video de la cámara.",
+				"notFound": "No se encontró ninguna cámara disponible.",
+				"permissionDenied": "Permite el acceso a la cámara para continuar.",
+				"notSupported": "Tu navegador no admite el uso de la cámara.",
+				"constraints": "No se pudo iniciar la cámara con la configuración actual.",
+				"inUse": "La cámara está en uso por otra aplicación.",
+				"detail": "Detalle técnico: {detail}"
 			}
 		},
 		"guidelines": {

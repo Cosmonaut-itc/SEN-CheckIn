@@ -1,29 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAppForm, useStore } from '@/lib/forms';
+import { createEmployee, deleteEmployee, updateEmployee } from '@/actions/employees';
+import { deleteRekognitionUser } from '@/actions/employees-rekognition';
+import { DataTable } from '@/components/data-table/data-table';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { useTranslations } from 'next-intl';
-import dynamic from 'next/dynamic';
-import { DataTable } from '@/components/data-table/data-table';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
 import {
 	Dialog,
 	DialogContent,
@@ -40,47 +22,65 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 import {
-	Plus,
-	Pencil,
-	Eye,
-	HelpCircle,
-	Trash2,
-	Search,
-	Loader2,
-	MoreHorizontal,
-	UserCheck,
-	UserX,
-	ScanFace,
-} from 'lucide-react';
-import { format } from 'date-fns';
-import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
-import { queryKeys, mutationKeys } from '@/lib/query-keys';
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
-	fetchEmployeesList,
-	fetchJobPositionsList,
-	fetchLocationsList,
-	fetchEmployeeById,
-	fetchEmployeeAudit,
-	fetchEmployeeInsights,
-	fetchOrganizationMembers,
 	type Employee,
 	type EmployeeScheduleEntry,
 	type EmployeeStatus,
 	type JobPosition,
 	type Location,
 	type OrganizationMember,
+	fetchEmployeeAudit,
+	fetchEmployeeById,
+	fetchEmployeeInsights,
+	fetchEmployeesList,
+	fetchJobPositionsList,
+	fetchLocationsList,
+	fetchOrganizationMembers,
 } from '@/lib/client-functions';
-import { createEmployee, updateEmployee, deleteEmployee } from '@/actions/employees';
-import { deleteRekognitionUser } from '@/actions/employees-rekognition';
+import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
+import { useAppForm, useStore } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
-import { Label } from '@/components/ui/label';
+import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import { format } from 'date-fns';
+import {
+	Eye,
+	HelpCircle,
+	Loader2,
+	MoreHorizontal,
+	Pencil,
+	Plus,
+	ScanFace,
+	Search,
+	Trash2,
+	UserCheck,
+	UserX,
+} from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import dynamic from 'next/dynamic';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 
 /**
  * Lazily loads the face enrollment dialog to reduce the initial bundle size.

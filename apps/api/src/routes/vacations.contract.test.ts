@@ -113,7 +113,7 @@ describe('vacation routes (contract)', () => {
 		expect(response.status).toBe(400);
 		const errorPayload = requireErrorResponse(response, 'invalid vacation status');
 		expect(errorPayload.error.message).toBe('Invalid status for vacation request');
-		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+		expect(errorPayload.error.code).toBe('VACATION_INVALID_STATUS');
 	});
 
 	it('creates and approves vacation requests as admin', async () => {

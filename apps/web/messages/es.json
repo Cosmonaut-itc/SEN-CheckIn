@@ -23,6 +23,7 @@
 		"save": "Guardar",
 		"saving": "Guardando...",
 		"search": "Buscar",
+		"selectDate": "Selecciona una fecha",
 		"submit": "Enviar"
 	},
 	"Map": {
@@ -1218,7 +1219,22 @@
 			"rejectSuccess": "Solicitud rechazada correctamente",
 			"rejectError": "No se pudo rechazar la solicitud",
 			"cancelSuccess": "Solicitud cancelada correctamente",
-			"cancelError": "No se pudo cancelar la solicitud"
+			"cancelError": "No se pudo cancelar la solicitud",
+			"errors": {
+				"badRequest": "Revisa la información e intenta de nuevo.",
+				"unauthorized": "Tu sesión expiró. Vuelve a iniciar sesión.",
+				"forbidden": "No tienes permisos para administrar vacaciones.",
+				"notFound": "No encontramos la solicitud solicitada.",
+				"conflict": "La solicitud tiene un conflicto con registros existentes.",
+				"employeeRequired": "Selecciona un empleado para crear la solicitud.",
+				"employeeNotFound": "No encontramos al empleado seleccionado.",
+				"invalidStatus": "El estatus seleccionado no es válido.",
+				"hireDateRequired": "El empleado necesita fecha de ingreso registrada.",
+				"invalidRange": "El rango de fechas no es válido.",
+				"serviceYearIncomplete": "No se pueden solicitar vacaciones antes de cumplir un año de servicio.",
+				"insufficientBalance": "El saldo de vacaciones es insuficiente.",
+				"overlap": "La solicitud se traslapa con una solicitud aprobada."
+			}
 		}
 	},
 	"ApiKeys": {

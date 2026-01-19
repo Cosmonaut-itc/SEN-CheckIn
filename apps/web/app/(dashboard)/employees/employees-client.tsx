@@ -1485,7 +1485,7 @@ export function EmployeesPageClient(): React.ReactElement {
 											<p className="text-muted-foreground">
 												{t('fields.user')}
 											</p>
-											<p className="font-medium">
+											<p className="font-medium truncate">
 												{activeEmployee?.userId ??
 													t('placeholders.noUser')}
 											</p>

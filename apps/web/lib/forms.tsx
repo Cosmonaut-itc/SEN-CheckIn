@@ -12,9 +12,15 @@
 
 import React from 'react';
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
+import { format, isValid, parse } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { CalendarIcon, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -22,9 +28,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 // ============================================================================
@@ -350,21 +354,50 @@ export function DateField({
 	orientation = 'horizontal',
 }: CommonFieldProps & { orientation?: 'horizontal' | 'vertical' }): React.ReactElement {
 	const field = useFieldContext();
+	const rawValue = (field.state.value as string) ?? '';
+	const parsedValue = rawValue ? parse(rawValue, 'yyyy-MM-dd', new Date()) : undefined;
+	const selectedDate = parsedValue && isValid(parsedValue) ? parsedValue : undefined;
+	const resolvedPlaceholder = placeholder ?? label;
+
+	const datePicker = (
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					id={field.name}
+					type="button"
+					variant="outline"
+					data-empty={!selectedDate}
+					className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+					disabled={disabled}
+					onBlur={field.handleBlur}
+				>
+					<CalendarIcon className="mr-2 h-4 w-4" />
+					{selectedDate ? (
+						format(selectedDate, 'PPP', { locale: es })
+					) : (
+						<span>{resolvedPlaceholder}</span>
+					)}
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent className="w-auto p-0" align="start">
+				<Calendar
+					mode="single"
+					selected={selectedDate}
+					onSelect={(date) => {
+						field.handleChange(date ? format(date, 'yyyy-MM-dd') : '');
+						field.handleBlur();
+					}}
+					initialFocus
+				/>
+			</PopoverContent>
+		</Popover>
+	);
 
 	if (orientation === 'vertical') {
 		return (
 			<div className="grid gap-2">
 				<Label htmlFor={field.name}>{label}</Label>
-				<Input
-					id={field.name}
-					name={field.name}
-					type="date"
-					value={(field.state.value as string) ?? ''}
-					onChange={(e) => field.handleChange(e.target.value)}
-					onBlur={field.handleBlur}
-					placeholder={placeholder}
-					disabled={disabled}
-				/>
+				{datePicker}
 				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">
@@ -381,16 +414,7 @@ export function DateField({
 				{label}
 			</Label>
 			<div className="col-span-3">
-				<Input
-					id={field.name}
-					name={field.name}
-					type="date"
-					value={(field.state.value as string) ?? ''}
-					onChange={(e) => field.handleChange(e.target.value)}
-					onBlur={field.handleBlur}
-					placeholder={placeholder}
-					disabled={disabled}
-				/>
+				{datePicker}
 				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (
 					<p className="mt-1 text-sm text-destructive">

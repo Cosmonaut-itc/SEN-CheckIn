@@ -1,5 +1,6 @@
-import { PropsWithChildren, useState } from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import type { JSX, PropsWithChildren } from 'react';
+import { useState } from 'react';
+import { TouchableOpacity, type ViewStyle } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -7,7 +8,16 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 
-export function Collapsible({ children, title }: PropsWithChildren & { title: string }) {
+/**
+ * Collapsible section that toggles visibility of its children.
+ *
+ * @param props - Title label and collapsible content
+ * @returns {JSX.Element} Collapsible view with toggle control
+ */
+export function Collapsible({
+	children,
+	title,
+}: PropsWithChildren & { title: string }): JSX.Element {
 	const [isOpen, setIsOpen] = useState(false);
 	const theme = useColorScheme() ?? 'light';
 
@@ -33,14 +43,14 @@ export function Collapsible({ children, title }: PropsWithChildren & { title: st
 	);
 }
 
-const styles = StyleSheet.create({
+const styles: Record<string, ViewStyle> = {
 	heading: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 6,
 	},
 	content: {
-		marginTop: 6,
-		marginLeft: 24,
+		paddingTop: 6,
+		paddingLeft: 24,
 	},
-});
+};

@@ -1,12 +1,21 @@
-import { Ionicons } from '@expo/vector-icons';
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import {
+	Animated,
+	ScrollView,
+	Text,
+	View,
+	useWindowDimensions,
+	type TextStyle,
+	type ViewStyle,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors, type ThemeColors } from '@/constants/theme';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
@@ -47,19 +56,23 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
  * @returns {JSX.Element} The scanner screen with camera view and controls
  */
 export default function ScannerScreen(): JSX.Element {
-	const router = useRouter();
 	const cameraRef = useRef<CameraView | null>(null);
 	const [permission, requestPermission] = useCameraPermissions();
+	const router = useRouter();
 	const { settings } = useDeviceContext();
 	const { colorScheme, isDarkMode } = useTheme();
+	const insets = useSafeAreaInsets();
 	const themeColors = useMemo<ThemeColors>(
 		() => (colorScheme === 'dark' ? Colors.dark : Colors.light),
 		[colorScheme],
 	);
 	const styles = useMemo(
-		() => createScannerStyles(themeColors, isDarkMode),
-		[isDarkMode, themeColors],
+		() => createScannerStyles(themeColors, isDarkMode, insets.bottom),
+		[insets.bottom, isDarkMode, themeColors],
 	);
+	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
+	const isIOS = process.env.EXPO_OS === 'ios';
+	const isAndroid = process.env.EXPO_OS === 'android';
 
 	// Use state for camera facing to ensure proper initialization
 	// This fixes a race condition where the camera may initialize with the wrong facing direction
@@ -120,8 +133,10 @@ export default function ScannerScreen(): JSX.Element {
 				currentIndex >= 0 ? (currentIndex + 1) % ATTENDANCE_TYPE_ORDER.length : 0;
 			return ATTENDANCE_TYPE_ORDER[nextIndex] ?? 'CHECK_IN';
 		});
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-	}, []);
+		if (isIOS) {
+			Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+		}
+	}, [isIOS]);
 
 	/**
 	 * Starts a pulsing animation for the face guide during scanning
@@ -215,14 +230,6 @@ export default function ScannerScreen(): JSX.Element {
 	}, [scanStatus.state, startPulseAnimation, stopAnimations, animateBorderColor]);
 
 	/**
-	 * Navigates to the settings screen
-	 * @returns {void} Opens the settings route for device configuration
-	 */
-	const handleOpenSettings = () => {
-		router.push('/(main)/settings');
-	};
-
-	/**
 	 * Captures a photo and verifies the face against the recognition API
 	 * Records attendance on successful verification
 	 * @returns {Promise<void>} Resolves after attempting verification and recording attendance
@@ -230,7 +237,9 @@ export default function ScannerScreen(): JSX.Element {
 	const handleCapture = async () => {
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
-			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+			if (isIOS) {
+				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+			}
 			return;
 		}
 
@@ -241,12 +250,14 @@ export default function ScannerScreen(): JSX.Element {
 			const photo = await cameraRef.current.takePictureAsync({
 				quality: 0.5,
 				base64: true,
-				skipProcessing: Platform.OS === 'android', // Skip processing on Android for speed
+				skipProcessing: isAndroid, // Skip processing on Android for speed
 			});
 
 			if (!photo?.base64) {
 				setScanStatus({ state: 'error', message: i18n.t('Scanner.status.captureFailed') });
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+				if (isIOS) {
+					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+				}
 				return;
 			}
 
@@ -285,7 +296,9 @@ export default function ScannerScreen(): JSX.Element {
 				});
 
 				// Success haptic feedback
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+				if (isIOS) {
+					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+				}
 
 				// Reset status after 3 seconds
 				setTimeout(() => {
@@ -299,7 +312,9 @@ export default function ScannerScreen(): JSX.Element {
 					state: 'error',
 					message: i18n.t('Scanner.status.faceNotRecognized'),
 				});
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+				if (isIOS) {
+					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+				}
 
 				// Reset status after 2 seconds
 				setTimeout(() => {
@@ -315,7 +330,9 @@ export default function ScannerScreen(): JSX.Element {
 				state: 'error',
 				message: i18n.t('Scanner.status.verificationFailed'),
 			});
-			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+			if (isIOS) {
+				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+			}
 		} finally {
 			setIsProcessing(false);
 		}
@@ -330,220 +347,275 @@ export default function ScannerScreen(): JSX.Element {
 	// Loading state while permissions are being determined
 	if (!permission) {
 		return (
-			<View style={styles.centeredContainer}>
-				<Spinner size="lg" color={themeColors.primary} />
-				<Text style={styles.loadingText}>{i18n.t('Scanner.permission.initializing')}</Text>
-			</View>
+			<ScrollView
+				style={styles.scroll}
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerStyle={styles.scrollContent}
+				scrollEnabled={false}
+			>
+				<View style={styles.centeredContainer}>
+					<Spinner size="lg" color={themeColors.primary} />
+					<Text style={styles.loadingText}>
+						{i18n.t('Scanner.permission.initializing')}
+					</Text>
+				</View>
+			</ScrollView>
 		);
 	}
 
 	// Permission denied state
 	if (!permission.granted) {
 		return (
-			<View style={styles.centeredContainer}>
-				<Card variant="default" className="max-w-xs w-full border-default-200">
-					<Card.Body className="gap-4 p-6 items-center">
-						<Ionicons name="camera-outline" size={64} color={themeColors.primary} />
-						<View className="gap-2">
-							<Card.Title className="text-center text-xl">
-								{i18n.t('Scanner.permission.title')}
-							</Card.Title>
-							<Card.Description className="text-center text-base">
-								{i18n.t('Scanner.permission.description')}
-							</Card.Description>
-						</View>
-						<Button onPress={requestPermission} className="w-full">
-							<Button.Label>{i18n.t('Scanner.permission.grant')}</Button.Label>
-						</Button>
-					</Card.Body>
-				</Card>
-			</View>
+			<ScrollView
+				style={styles.scroll}
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerStyle={styles.scrollContent}
+				scrollEnabled={false}
+			>
+				<View style={styles.centeredContainer}>
+					<Card variant="default" className="max-w-xs w-full border-default-200">
+						<Card.Body className="gap-4 p-6 items-center">
+							<IconSymbol
+								name="camera"
+								size={64}
+								color={themeColors.primary}
+								weight="regular"
+							/>
+							<View className="gap-2">
+								<Card.Title className="text-center text-xl">
+									{i18n.t('Scanner.permission.title')}
+								</Card.Title>
+								<Card.Description className="text-center text-base">
+									{i18n.t('Scanner.permission.description')}
+								</Card.Description>
+							</View>
+							<Button onPress={requestPermission} className="w-full">
+								<Button.Label>{i18n.t('Scanner.permission.grant')}</Button.Label>
+							</Button>
+						</Card.Body>
+					</Card>
+				</View>
+			</ScrollView>
 		);
 	}
 
 	return (
-		<View style={styles.container}>
-			{/* Camera View - uses StyleSheet for proper rendering */}
-			{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
-			{isCameraReady && (
-				<CameraView
-					key={`camera-${cameraFacing}`}
-					ref={cameraRef}
-					style={styles.camera}
-					facing={cameraFacing}
-					enableTorch={false}
-					animateShutter
-				/>
-			)}
+		<ScrollView
+			style={styles.scroll}
+			contentInsetAdjustmentBehavior="automatic"
+			contentContainerStyle={styles.scrollContent}
+			scrollEnabled={false}
+		>
+			<View style={styles.container}>
+				{/* Camera View */}
+				{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
+					{isCameraReady && (
+						<CameraView
+							key={`camera-${cameraFacing}`}
+							ref={cameraRef}
+							pointerEvents="none"
+							style={styles.camera}
+							facing={cameraFacing}
+							enableTorch={false}
+							animateShutter
+						/>
+					)}
 
-			{/* Top Bar - Attendance Type Toggle & Settings */}
-			<View style={styles.topBar}>
-				<Button
-					variant="secondary"
-					size="md"
-					className="flex-1 mr-3 flex-row items-center gap-2 justify-center rounded-full"
-					onPress={toggleAttendanceType}
-				>
-					<View style={styles.toggleIndicator}>
-						<View style={[styles.toggleDot, { backgroundColor: attendanceAccent }]} />
-					</View>
-					<Button.Label className="text-base font-semibold">
-						{attendanceLabels[attendanceType]}
-					</Button.Label>
-					<Ionicons name="swap-horizontal" size={18} color={themeColors.foreground500} />
-				</Button>
+				{/* Top Bar - Attendance Type Toggle & Settings */}
+				<View style={styles.topBar}>
+					<Button
+						variant="secondary"
+						size="md"
+						className="flex-1 flex-row items-center gap-2 justify-center rounded-full"
+						onPress={toggleAttendanceType}
+					>
+						<View style={styles.toggleIndicator}>
+							<View
+								style={[styles.toggleDot, { backgroundColor: attendanceAccent }]}
+							/>
+						</View>
+						<Button.Label className="text-base font-semibold">
+							{attendanceLabels[attendanceType]}
+						</Button.Label>
+						<IconSymbol
+							name="arrow.left.arrow.right"
+							size={18}
+							color={themeColors.foreground500}
+						/>
+					</Button>
+					<Button
+						variant="secondary"
+						isIconOnly
+						size="md"
+						className="w-12 h-12 rounded-full"
+						onPress={() => router.push('/(main)/settings')}
+					>
+						<IconSymbol
+							name="gearshape"
+							size={20}
+							color={themeColors.foreground}
+						/>
+					</Button>
+				</View>
 
-				<Button
-					variant="secondary"
-					isIconOnly
-					size="sm"
-					className="rounded-full"
-					onPress={handleOpenSettings}
-				>
-					<Ionicons name="settings-outline" size={20} color={themeColors.foreground} />
-				</Button>
-			</View>
-
-			{/* Face Guide Overlay */}
-			<View style={styles.faceGuideContainer}>
-				<Animated.View
-					style={[
-						styles.faceGuideWrapper,
-						{
-							width: faceGuideSize,
-							height: faceGuideSize,
-							transform: [{ scale: pulseAnim }],
-						},
-					]}
-				>
+				{/* Face Guide Overlay */}
+				<View style={styles.faceGuideContainer}>
 					<Animated.View
 						style={[
-							styles.faceGuide,
+							styles.faceGuideWrapper,
 							{
-								width: '100%',
-								height: '100%',
-								borderRadius: faceGuideSize / 2,
-								borderColor: borderColor as unknown as string,
+								width: faceGuideSize,
+								height: faceGuideSize,
+								transform: [{ scale: pulseAnim }],
 							},
 						]}
 					>
-						{/* Corner accents */}
-						<View style={[styles.cornerAccent, styles.cornerTopLeft]} />
-						<View style={[styles.cornerAccent, styles.cornerTopRight]} />
-						<View style={[styles.cornerAccent, styles.cornerBottomLeft]} />
-						<View style={[styles.cornerAccent, styles.cornerBottomRight]} />
-					</Animated.View>
-				</Animated.View>
-
-				{/* Instruction text below face guide */}
-				<Animated.View style={[styles.instructionContainer, { opacity: statusOpacity }]}>
-					{scanStatus.state === 'success' && scanStatus.employeeName ? (
-						<>
-							<Ionicons
-								name="checkmark-circle"
-								size={28}
-								color={themeColors.success}
-							/>
-							<Text style={styles.employeeName}>{scanStatus.employeeName}</Text>
-						</>
-					) : scanStatus.state === 'error' ? (
-						<Ionicons name="close-circle" size={28} color={themeColors.error} />
-					) : scanStatus.state === 'scanning' ? (
-						<Spinner size="sm" color={themeColors.foreground} />
-					) : null}
-					<Text style={styles.instructionText}>{scanStatus.message}</Text>
-				</Animated.View>
-			</View>
-
-			{/* Bottom Status Card */}
-			<View style={styles.bottomContainer}>
-				<Card
-					variant="default"
-					className="bg-background/90 backdrop-blur-md border-default-200"
-				>
-					<Card.Body className="p-4">
-						{/* Device status row */}
-						<View className="flex-row items-center justify-between mb-4">
-							<View className="flex-row items-center gap-2">
-								<View
-									className={`w-2.5 h-2.5 rounded-full ${settings?.deviceId ? 'bg-success-500' : 'bg-warning-500'}`}
-								/>
-								<Text className="text-foreground text-sm font-medium">
-									{settings?.deviceId
-										? settings.name ||
-											i18n.t('Scanner.deviceStatus.terminalFallback')
-										: i18n.t('Scanner.deviceStatus.deviceNotLinked')}
-								</Text>
-							</View>
-							<View className="flex-row items-center gap-1">
-								<Ionicons
-									name={settings?.deviceId ? 'checkmark-circle' : 'alert-circle'}
-									size={14}
-									color={
-										settings?.deviceId
-											? themeColors.success
-											: themeColors.warning
-									}
-								/>
-								<Text className="text-foreground-400 text-xs">
-									{settings?.deviceId
-										? i18n.t('Scanner.deviceStatus.connected')
-										: i18n.t('Scanner.deviceStatus.setupRequired')}
-								</Text>
-							</View>
-						</View>
-
-						{/* Scan button */}
-						<Button
-							onPress={handleCapture}
-							isDisabled={isProcessing || !settings?.deviceId}
-							variant="primary"
-							className="w-full h-14"
-							style={{
-								backgroundColor: ctaBackground,
-								borderColor: ctaBackground,
-							}}
+						<Animated.View
+							style={[
+								styles.faceGuide,
+								{
+									width: '100%',
+									height: '100%',
+									borderRadius: faceGuideSize / 2,
+									borderColor: borderColor as unknown as string,
+								},
+							]}
 						>
-							{isProcessing ? (
-								<View className="flex-row items-center gap-3">
-									<Spinner size="sm" color={ctaContentColor} />
-									<Button.Label className="text-lg">
-										{i18n.t('Scanner.actions.verifying')}
-									</Button.Label>
-								</View>
-							) : (
-								<View className="flex-row items-center gap-2">
-									<Ionicons name="scan" size={22} color={ctaContentColor} />
-									<Button.Label
-										className="text-lg"
-										style={{ color: ctaContentColor }}
-									>
-										{attendanceActionLabels[attendanceType]}
-									</Button.Label>
-								</View>
-							)}
-						</Button>
+							{/* Corner accents */}
+							<View style={[styles.cornerAccent, styles.cornerTopLeft]} />
+							<View style={[styles.cornerAccent, styles.cornerTopRight]} />
+							<View style={[styles.cornerAccent, styles.cornerBottomLeft]} />
+							<View style={[styles.cornerAccent, styles.cornerBottomRight]} />
+						</Animated.View>
+					</Animated.View>
 
-						{/* Link device prompt */}
-						{!settings?.deviceId && (
-							<Button
-								variant="tertiary"
-								size="sm"
-								className="mt-3"
-								onPress={handleOpenSettings}
-							>
+					{/* Instruction text below face guide */}
+					<Animated.View style={[styles.instructionContainer, { opacity: statusOpacity }]}>
+						{scanStatus.state === 'success' && scanStatus.employeeName ? (
+							<>
+								<IconSymbol
+									name="checkmark.circle"
+									size={28}
+									color={themeColors.success}
+								/>
+								<Text style={styles.employeeName}>{scanStatus.employeeName}</Text>
+							</>
+						) : scanStatus.state === 'error' ? (
+							<IconSymbol
+								name="xmark.circle"
+								size={28}
+								color={themeColors.error}
+							/>
+						) : scanStatus.state === 'scanning' ? (
+							<Spinner size="sm" color={themeColors.foreground} />
+						) : null}
+						<Text style={styles.instructionText}>{scanStatus.message}</Text>
+					</Animated.View>
+				</View>
+
+				{/* Bottom Status Card */}
+				<View style={styles.bottomContainer}>
+					<Card
+						variant="default"
+						className="bg-background/90 backdrop-blur-md border-default-200"
+						style={continuousCurve}
+					>
+						<Card.Body className="p-4 gap-4">
+							{/* Device status row */}
+							<View className="flex-row items-center justify-between">
 								<View className="flex-row items-center gap-2">
-									<Ionicons name="link" size={16} color={themeColors.warning} />
-									<Button.Label className="text-warning-500 font-semibold">
-										{i18n.t('Scanner.actions.tapToLink')}
-									</Button.Label>
+									<View
+										className={`w-2.5 h-2.5 rounded-full ${settings?.deviceId ? 'bg-success-500' : 'bg-warning-500'}`}
+									/>
+									<Text className="text-foreground text-sm font-medium">
+										{settings?.deviceId
+											? settings.name ||
+												i18n.t('Scanner.deviceStatus.terminalFallback')
+											: i18n.t('Scanner.deviceStatus.deviceNotLinked')}
+									</Text>
 								</View>
+								<View className="flex-row items-center gap-1">
+									<IconSymbol
+										name={
+											settings?.deviceId
+												? 'checkmark.circle'
+												: 'exclamationmark.circle'
+										}
+										size={14}
+										color={
+											settings?.deviceId
+												? themeColors.success
+												: themeColors.warning
+										}
+									/>
+									<Text className="text-foreground-400 text-xs">
+										{settings?.deviceId
+											? i18n.t('Scanner.deviceStatus.connected')
+											: i18n.t('Scanner.deviceStatus.setupRequired')}
+									</Text>
+								</View>
+							</View>
+
+							{/* Scan button */}
+							<Button
+								onPress={handleCapture}
+								isDisabled={isProcessing || !settings?.deviceId}
+								variant="primary"
+								className="w-full h-14"
+								style={{
+									backgroundColor: ctaBackground,
+									borderColor: ctaBackground,
+								}}
+							>
+								{isProcessing ? (
+									<View className="flex-row items-center gap-3">
+										<Spinner size="sm" color={ctaContentColor} />
+										<Button.Label className="text-lg">
+											{i18n.t('Scanner.actions.verifying')}
+										</Button.Label>
+									</View>
+								) : (
+									<View className="flex-row items-center gap-2">
+										<IconSymbol
+											name="viewfinder"
+											size={22}
+											color={ctaContentColor}
+										/>
+										<Button.Label
+											className="text-lg"
+											style={{ color: ctaContentColor }}
+										>
+											{attendanceActionLabels[attendanceType]}
+										</Button.Label>
+									</View>
+								)}
 							</Button>
-						)}
-					</Card.Body>
-				</Card>
+
+							{/* Link device prompt */}
+							{!settings?.deviceId && (
+								<Link href="/(main)/settings">
+									<Link.Trigger>
+										<Button variant="tertiary" size="sm">
+											<View className="flex-row items-center gap-2">
+												<IconSymbol
+													name="link"
+													size={16}
+													color={themeColors.warning}
+												/>
+												<Button.Label className="text-warning-500 font-semibold">
+													{i18n.t('Scanner.actions.tapToLink')}
+												</Button.Label>
+											</View>
+										</Button>
+									</Link.Trigger>
+									<Link.Preview />
+								</Link>
+							)}
+						</Card.Body>
+					</Card>
+				</View>
 			</View>
-		</View>
+		</ScrollView>
 	);
 }
 
@@ -552,18 +624,63 @@ export default function ScannerScreen(): JSX.Element {
  *
  * @param themeColors - Palette derived from the active color scheme
  * @param isDarkMode - Whether dark mode is currently enabled
- * @returns StyleSheet configured with theme-aware values
+ * @param bottomInset - Safe area inset for bottom padding
+ * @returns Theme-aware style object for the scanner screen
  */
-const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
-	StyleSheet.create({
+type ScannerStyles = {
+	scroll: ViewStyle;
+	scrollContent: ViewStyle;
+	container: ViewStyle;
+	camera: ViewStyle;
+	centeredContainer: ViewStyle;
+	loadingText: TextStyle;
+	permissionCard: ViewStyle;
+	permissionTitle: TextStyle;
+	permissionDescription: TextStyle;
+	topBar: ViewStyle;
+	attendanceToggle: ViewStyle;
+	checkInToggle: ViewStyle;
+	checkOutToggle: ViewStyle;
+	toggleIndicator: ViewStyle;
+	toggleDot: ViewStyle;
+	toggleText: TextStyle;
+	settingsButton: ViewStyle;
+	faceGuideContainer: ViewStyle;
+	faceGuideWrapper: ViewStyle;
+	faceGuide: ViewStyle;
+	cornerAccent: ViewStyle;
+	cornerTopLeft: ViewStyle;
+	cornerTopRight: ViewStyle;
+	cornerBottomLeft: ViewStyle;
+	cornerBottomRight: ViewStyle;
+	instructionContainer: ViewStyle;
+	employeeName: TextStyle;
+	instructionText: TextStyle;
+	bottomContainer: ViewStyle;
+};
+
+const createScannerStyles = (
+	themeColors: ThemeColors,
+	isDarkMode: boolean,
+	bottomInset: number,
+): ScannerStyles => ({
+		scroll: {
+			flex: 1,
+			backgroundColor: themeColors.background,
+		},
+		scrollContent: {
+			flexGrow: 1,
+		},
 		container: {
 			flex: 1,
 			backgroundColor: themeColors.background,
 		},
 		camera: {
-			flex: 1,
-			width: '100%',
-			height: '100%',
+			position: 'absolute',
+			top: 0,
+			right: 0,
+			bottom: 0,
+			left: 0,
 		},
 		centeredContainer: {
 			flex: 1,
@@ -571,9 +688,9 @@ const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
 			justifyContent: 'center',
 			backgroundColor: themeColors.background,
 			padding: 24,
+			gap: 16,
 		},
 		loadingText: {
-			marginTop: 16,
 			fontSize: 16,
 			color: themeColors.foreground500,
 		},
@@ -591,13 +708,11 @@ const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
 			fontSize: 22,
 			fontWeight: '700',
 			color: themeColors.text,
-			marginTop: 20,
 			textAlign: 'center',
 		},
 		permissionDescription: {
 			fontSize: 15,
 			color: themeColors.foreground400,
-			marginTop: 12,
 			textAlign: 'center',
 			lineHeight: 22,
 		},
@@ -607,11 +722,13 @@ const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
 			left: 0,
 			right: 0,
 			flexDirection: 'row',
-			justifyContent: 'space-between',
+			justifyContent: 'flex-start',
 			alignItems: 'center',
-			paddingTop: Platform.OS === 'ios' ? 56 : 40,
+			gap: 12,
+			paddingTop: 16,
 			paddingHorizontal: 16,
 			paddingBottom: 12,
+			zIndex: 2,
 		},
 		attendanceToggle: {
 			flexDirection: 'row',
@@ -665,6 +782,7 @@ const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
 			bottom: 160,
 			alignItems: 'center',
 			justifyContent: 'center',
+			gap: 24,
 		},
 		faceGuideWrapper: {
 			alignItems: 'center',
@@ -712,7 +830,6 @@ const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
 			borderBottomRightRadius: 8,
 		},
 		instructionContainer: {
-			marginTop: 24,
 			alignItems: 'center',
 			gap: 8,
 			paddingHorizontal: 24,
@@ -737,6 +854,7 @@ const createScannerStyles = (themeColors: ThemeColors, isDarkMode: boolean) =>
 			left: 0,
 			right: 0,
 			paddingHorizontal: 16,
-			paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+			paddingBottom: Math.max(16, bottomInset + 16),
+			zIndex: 2,
 		},
 	});

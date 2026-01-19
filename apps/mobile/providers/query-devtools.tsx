@@ -1,6 +1,5 @@
 import type { JSX } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import * as ExpoDevice from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
@@ -43,7 +42,8 @@ function resolveDevServerHost(): string | null {
 function generateDeviceId(): string {
 	const timestamp = Date.now();
 	const random = Math.random().toString(36).substring(2, 8);
-	return `${Platform.OS}-${timestamp}-${random}`;
+	const platform = process.env.EXPO_OS ?? 'unknown';
+	return `${platform}-${timestamp}-${random}`;
 }
 
 /**
@@ -110,13 +110,20 @@ export function QueryDevtoolsBridge({ queryClient }: QueryDevtoolsBridgeProps): 
 		const host = resolveDevServerHost() ?? 'localhost';
 		return `http://${host}:${DEVTOOLS_PORT}`;
 	}, []);
+	const platform = useMemo((): 'ios' | 'android' | 'web' => {
+		const envPlatform = process.env.EXPO_OS;
+		if (envPlatform === 'ios' || envPlatform === 'android' || envPlatform === 'web') {
+			return envPlatform;
+		}
+		return 'web';
+	}, []);
 
 	// Build extra device info for DevTools display (must be Record<string, string>)
 	const extraDeviceInfo = useMemo(
 		(): Record<string, string> => ({
 			brand: ExpoDevice.brand ?? 'Unknown',
 			modelName: ExpoDevice.modelName ?? 'Unknown',
-			osName: ExpoDevice.osName ?? Platform.OS,
+			osName: ExpoDevice.osName ?? (process.env.EXPO_OS ?? 'unknown'),
 			osVersion: ExpoDevice.osVersion ?? 'Unknown',
 			appVersion: Constants.expoConfig?.version ?? '1.0.0',
 			deviceType: ExpoDevice.isDevice ? 'Physical Device' : 'Simulator/Emulator',
@@ -128,12 +135,14 @@ export function QueryDevtoolsBridge({ queryClient }: QueryDevtoolsBridgeProps): 
 	useSyncQueriesExternal({
 		queryClient,
 		socketURL,
-		platform: Platform.OS,
+		platform,
 		isDevice: ExpoDevice.isDevice,
-		deviceId: deviceId ?? `${Platform.OS}-initializing`,
+		deviceId: deviceId ?? `${process.env.EXPO_OS ?? 'unknown'}-initializing`,
 		deviceName:
 			ExpoDevice.deviceName ??
-			`${Platform.OS} ${ExpoDevice.isDevice ? 'Device' : 'Simulator'}`,
+			`${process.env.EXPO_OS ?? 'unknown'} ${
+				ExpoDevice.isDevice ? 'Device' : 'Simulator'
+			}`,
 		extraDeviceInfo,
 		enableLogs: false, // Set to true to debug connection issues
 	});

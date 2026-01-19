@@ -10,9 +10,13 @@ import {
 	TouchableOpacity,
 	TouchableWithoutFeedback,
 	View,
+	type ViewStyle,
 } from 'react-native';
 
+import { i18n } from '@/lib/i18n';
+
 const formContexts = createFormHookContexts();
+const CONTINUOUS_CURVE: ViewStyle = { borderCurve: 'continuous' };
 
 export const fieldContext: Context<AnyFieldApi> = formContexts.fieldContext;
 export const formContext: Context<AnyFormApi> = formContexts.formContext;
@@ -31,6 +35,12 @@ type SelectOption<TValue extends string> = {
 	label: string;
 };
 
+/**
+ * Text field wrapper that binds TanStack form state to HeroUI Native TextField.
+ *
+ * @param props - Field configuration including label, type, and value formatter
+ * @returns {JSX.Element} Bound text field with validation UI
+ */
 export function AppTextField({
 	label,
 	placeholder,
@@ -64,6 +74,7 @@ export function AppTextField({
 				placeholder={placeholder}
 				keyboardType={keyboardType}
 				className="px-4 py-3 rounded-xl text-foreground"
+				style={CONTINUOUS_CURVE}
 			/>
 			{description ? <TextField.Description>{description}</TextField.Description> : null}
 			{errors.length > 0 ? (
@@ -117,9 +128,12 @@ export function SelectField<TValue extends string>({
 				onValueChange={handleValueChange}
 				isDisabled={disabled}
 			>
-				<Select.Trigger className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1 active:bg-content2">
+				<Select.Trigger
+					className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1 active:bg-content2"
+					style={CONTINUOUS_CURVE}
+				>
 					<Select.Value
-						placeholder={placeholder ?? 'Select an option'}
+						placeholder={placeholder ?? i18n.t('Common.selectOption')}
 						className="text-base text-foreground"
 					/>
 				</Select.Trigger>
@@ -131,19 +145,23 @@ export function SelectField<TValue extends string>({
 							presentation === 'dialog'
 								? {
 										wrapper: 'px-5',
-										content: 'rounded-2xl bg-background shadow-xl',
+										content: 'rounded-2xl bg-background gap-2',
 									}
 								: undefined
 						}
 						className={
 							presentation !== 'dialog'
-								? 'rounded-2xl bg-background shadow-xl'
+								? 'rounded-2xl bg-background gap-2'
 								: undefined
 						}
+						style={{
+							boxShadow: '0 12px 28px rgba(15, 23, 42, 0.2)',
+							borderCurve: 'continuous',
+						}}
 					>
 						{presentation === 'dialog' && <Select.Close />}
 						{presentation === 'dialog' && label ? (
-							<Select.ListLabel className="text-lg font-bold text-foreground mb-2">
+							<Select.ListLabel className="text-lg font-bold text-foreground">
 								{label}
 							</Select.ListLabel>
 						) : null}
@@ -152,7 +170,8 @@ export function SelectField<TValue extends string>({
 								key={opt.value}
 								value={opt.value}
 								label={opt.label}
-								className="px-4 py-3.5 rounded-xl active:bg-content2 mb-1"
+								className="px-4 py-3.5 rounded-xl active:bg-content2"
+								style={CONTINUOUS_CURVE}
 							>
 								<View className="flex-row items-center gap-3 flex-1">
 									<Select.ItemLabel className="text-base text-foreground flex-1" />
@@ -172,7 +191,9 @@ export function SelectField<TValue extends string>({
 				<Text className="text-sm text-foreground-400 leading-5">{description}</Text>
 			) : null}
 			{errors.length > 0 ? (
-				<Text className="text-sm text-danger-500 font-medium">{errors.join(', ')}</Text>
+				<Text className="text-sm text-danger-500 font-medium" selectable>
+					{errors.join(', ')}
+				</Text>
 			) : null}
 		</View>
 	);
@@ -228,7 +249,7 @@ export function NativeSelectField<TValue extends string>({
 		setIsModalVisible(true);
 	}, [disabled]);
 
-	const placeholderText = placeholder ?? 'Select an option';
+	const placeholderText = placeholder ?? i18n.t('Common.selectOption');
 	const displayLabel = currentOption?.label ?? placeholderText;
 	const isPlaceholder = !currentOption;
 
@@ -241,6 +262,7 @@ export function NativeSelectField<TValue extends string>({
 				disabled={disabled}
 				onPress={handleOpenPicker}
 				hitSlop={8}
+				style={CONTINUOUS_CURVE}
 			>
 				<Text
 					className={`text-base ${isPlaceholder ? 'text-foreground-400' : 'text-foreground'}`}
@@ -252,7 +274,9 @@ export function NativeSelectField<TValue extends string>({
 				<Text className="text-sm text-foreground-400 leading-5">{description}</Text>
 			) : null}
 			{errors.length > 0 ? (
-				<Text className="text-sm text-danger-500 font-medium">{errors.join(', ')}</Text>
+				<Text className="text-sm text-danger-500 font-medium" selectable>
+					{errors.join(', ')}
+				</Text>
 			) : null}
 
 			<Modal
@@ -266,14 +290,15 @@ export function NativeSelectField<TValue extends string>({
 						<View className="absolute inset-0" />
 					</TouchableWithoutFeedback>
 
-					<View className="bg-background rounded-2xl p-4" style={{ maxHeight: '70%' }}>
-						<Text className="text-base font-semibold text-foreground mb-3">
-							{label}
-						</Text>
+					<View
+						className="bg-background rounded-2xl p-4 gap-3"
+						style={[{ maxHeight: '70%' }, CONTINUOUS_CURVE]}
+					>
+						<Text className="text-base font-semibold text-foreground">{label}</Text>
 						<ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
 							{options.length === 0 ? (
 								<Text className="text-foreground-400 py-4">
-									No options available
+									{i18n.t('Common.noOptionsAvailable')}
 								</Text>
 							) : (
 								options.map((opt) => {
@@ -284,6 +309,7 @@ export function NativeSelectField<TValue extends string>({
 											activeOpacity={0.85}
 											className="py-3 px-2 rounded-lg flex-row items-center justify-between"
 											onPress={() => handleSelectValue(opt.value)}
+											style={CONTINUOUS_CURVE}
 										>
 											<Text className="text-base text-foreground">
 												{opt.label}
@@ -300,10 +326,13 @@ export function NativeSelectField<TValue extends string>({
 						</ScrollView>
 						<TouchableOpacity
 							activeOpacity={0.85}
-							className="mt-3 py-3 rounded-xl border border-default-200 items-center"
+							className="py-3 rounded-xl border border-default-200 items-center"
 							onPress={() => setIsModalVisible(false)}
+							style={CONTINUOUS_CURVE}
 						>
-							<Text className="text-foreground font-semibold">Cancel</Text>
+							<Text className="text-foreground font-semibold">
+								{i18n.t('Common.cancel')}
+							</Text>
 						</TouchableOpacity>
 					</View>
 				</View>
@@ -312,9 +341,15 @@ export function NativeSelectField<TValue extends string>({
 	);
 }
 
+/**
+ * Submit button that reacts to form submission state.
+ *
+ * @param props - Button labels and optional className
+ * @returns {JSX.Element} Submit button wired to form state
+ */
 export function SubmitButton({
 	label,
-	loadingLabel = 'Saving...',
+	loadingLabel = i18n.t('Common.saving'),
 	className,
 }: {
 	label: string;

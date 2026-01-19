@@ -12,9 +12,11 @@ export function HelloWave(): ReactElement {
 			style={{
 				fontSize: 28,
 				lineHeight: 32,
-				marginTop: -6,
+				transform: [{ translateY: -6 }],
 				animationName: {
-					'50%': { transform: [{ rotate: '25deg' }] },
+					'0%': { transform: [{ translateY: -6 }, { rotate: '0deg' }] },
+					'50%': { transform: [{ translateY: -6 }, { rotate: '25deg' }] },
+					'100%': { transform: [{ translateY: -6 }, { rotate: '0deg' }] },
 				},
 				animationIterationCount: 4,
 				animationDuration: '300ms',

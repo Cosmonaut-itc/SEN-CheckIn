@@ -1,6 +1,13 @@
-import { SymbolView, SymbolViewProps, SymbolWeight } from 'expo-symbols';
-import { StyleProp, ViewStyle } from 'react-native';
+import type { JSX } from 'react';
+import { SymbolView, type SymbolViewProps, type SymbolWeight } from 'expo-symbols';
+import type { StyleProp, ViewStyle } from 'react-native';
 
+/**
+ * Render an SF Symbol using expo-symbols on iOS.
+ *
+ * @param props - Symbol configuration including name, size, color, weight, and style overrides
+ * @returns {JSX.Element} SymbolView element for the requested symbol
+ */
 export function IconSymbol({
 	name,
 	size = 24,
@@ -13,7 +20,7 @@ export function IconSymbol({
 	color: string;
 	style?: StyleProp<ViewStyle>;
 	weight?: SymbolWeight;
-}) {
+}): JSX.Element {
 	return (
 		<SymbolView
 			weight={weight}

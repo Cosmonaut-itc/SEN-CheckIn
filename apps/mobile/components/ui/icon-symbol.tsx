@@ -1,41 +1,94 @@
-// Fallback for using MaterialIcons on Android and web.
+import type { JSX } from 'react';
+import { SymbolView, type SymbolViewProps, type SymbolWeight } from 'expo-symbols';
+import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
-import { ComponentProps } from 'react';
-import { OpaqueColorValue, type StyleProp, type TextStyle } from 'react-native';
-
-type IconMapping = Record<SymbolViewProps['name'], ComponentProps<typeof MaterialIcons>['name']>;
-type IconSymbolName = keyof typeof MAPPING;
+const FALLBACK_SYMBOLS: Record<string, string> = {
+	'arrow.left.arrow.right': '↔︎',
+	'checkmark.circle': '✅',
+	'camera': '📷',
+	'chevron.right': '›',
+	'doc.on.doc': '📄',
+	'exclamationmark.circle': '⚠️',
+	'gearshape': '⚙️',
+	'link': '🔗',
+	'list.dash': '≡',
+	'nosign': '⛔️',
+	'square.and.arrow.up': '↗︎',
+	'trash': '🗑️',
+	'viewfinder': '📷',
+	'xmark.circle': '❌',
+};
 
 /**
- * Add your SF Symbols to Material Icons mappings here.
- * - see Material Icons in the [Icons Directory](https://icons.expo.fyi).
- * - see SF Symbols in the [SF Symbols](https://developer.apple.com/sf-symbols/) app.
+ * Resolve a fallback glyph for platforms that do not support native SF Symbols.
+ *
+ * @param symbolName - SF Symbols name requested by the caller
+ * @returns Fallback glyph string
  */
-const MAPPING = {
-	'house.fill': 'home',
-	'paperplane.fill': 'send',
-	'chevron.left.forwardslash.chevron.right': 'code',
-	'chevron.right': 'chevron-right',
-} as IconMapping;
+function resolveFallbackSymbol(symbolName: SymbolViewProps['name']): string {
+	if (typeof symbolName !== 'string') return '•';
+	return FALLBACK_SYMBOLS[symbolName] ?? '•';
+}
 
 /**
- * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.
- * This ensures a consistent look across platforms, and optimal resource usage.
- * Icon `name`s are based on SF Symbols and require manual mapping to Material Icons.
+ * Render a platform symbol using expo-symbols.
+ *
+ * @param props - Symbol configuration including name, size, color, weight, and style overrides
+ * @returns {JSX.Element} SymbolView element for the requested symbol
  */
 export function IconSymbol({
 	name,
 	size = 24,
 	color,
 	style,
+	weight = 'regular',
 }: {
-	name: IconSymbolName;
+	name: SymbolViewProps['name'];
 	size?: number;
-	color: string | OpaqueColorValue;
-	style?: StyleProp<TextStyle>;
+	color: string;
+	style?: StyleProp<ViewStyle>;
 	weight?: SymbolWeight;
-}) {
-	return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+}): JSX.Element {
+	if (process.env.EXPO_OS !== 'ios') {
+		return (
+			<View
+				style={[
+					{
+						width: size,
+						height: size,
+						alignItems: 'center',
+						justifyContent: 'center',
+					},
+					style,
+				]}
+			>
+				<Text
+					style={{
+						fontSize: size,
+						lineHeight: size,
+						color,
+						textAlign: 'center',
+					}}
+					allowFontScaling={false}
+				>
+					{resolveFallbackSymbol(name)}
+				</Text>
+			</View>
+		);
+	}
+	return (
+		<SymbolView
+			weight={weight}
+			tintColor={color}
+			resizeMode="scaleAspectFit"
+			name={name}
+			style={[
+				{
+					width: size,
+					height: size,
+				},
+				style,
+			]}
+		/>
+	);
 }

@@ -148,6 +148,13 @@
       "when": 1767731991597,
       "tag": "0020_flashy_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1768856702639,
+      "tag": "0021_attendance_authorized_exit",
+      "breakpoints": true
     }
   ]
 }

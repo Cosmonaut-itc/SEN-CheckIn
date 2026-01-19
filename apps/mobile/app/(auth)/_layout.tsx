@@ -1,8 +1,10 @@
 import type { JSX } from 'react';
-import { Redirect, Stack, useSegments } from 'expo-router';
+import { Redirect, useSegments } from 'expo-router';
+import { Stack } from 'expo-router/stack';
 
 import { useAuthContext } from '@/providers/auth-provider';
 import { useDeviceContext } from '@/lib/device-context';
+import { i18n } from '@/lib/i18n';
 
 /**
  * Layout for authentication screens.
@@ -26,9 +28,12 @@ export default function AuthLayout(): JSX.Element {
 	}
 
 	return (
-		<Stack screenOptions={{ headerShown: false }}>
-			<Stack.Screen name="login" />
-			<Stack.Screen name="device-setup" />
+		<Stack screenOptions={{ headerTitleAlign: 'center' }}>
+			<Stack.Screen name="login" options={{ title: i18n.t('Login.header.title') }} />
+			<Stack.Screen
+				name="device-setup"
+				options={{ title: i18n.t('DeviceSetup.header.title') }}
+			/>
 		</Stack>
 	);
 }

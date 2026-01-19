@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import * as ExpoDevice from 'expo-device';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Card, Select, Spinner } from 'heroui-native';
 import { type JSX, useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View, type ViewStyle } from 'react-native';
 
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
@@ -37,7 +37,7 @@ function normalizeParam(value: string | string[] | undefined): string | null {
  * Device setup screen shown immediately after registration when a device lacks a location.
  * Collects a friendly name and required location before entering the scanner.
  *
- * @returns Device setup JSX element
+ * @returns {JSX.Element} Device setup screen content
  */
 export default function DeviceSetupScreen(): JSX.Element {
 	const router = useRouter();
@@ -56,6 +56,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 			session?.session?.activeOrganizationId ??
 			null,
 		[params.organizationId, session?.session?.activeOrganizationId, settings?.organizationId],
+	);
+	const continuousCurve = useMemo(
+		() => ({ borderCurve: 'continuous' } satisfies ViewStyle),
+		[],
 	);
 
 	const defaultName = useMemo(
@@ -141,10 +145,16 @@ export default function DeviceSetupScreen(): JSX.Element {
 
 	if (!deviceId) {
 		return (
-			<View className="flex-1 bg-background items-center justify-center px-6">
+			<ScrollView
+				className="flex-1 bg-background"
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerClassName="flex-1 items-center justify-center px-6"
+				showsVerticalScrollIndicator={false}
+			>
 				<Card
 					variant="default"
 					className="p-8 w-full max-w-md items-center gap-5 rounded-3xl"
+					style={continuousCurve}
 				>
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
@@ -158,31 +168,36 @@ export default function DeviceSetupScreen(): JSX.Element {
 							{i18n.t('DeviceSetup.errors.deviceNotFound.description')}
 						</Text>
 					</View>
-					<Button
-						className="w-full mt-2"
-						size="lg"
-						onPress={() => router.replace('/(auth)/login')}
-					>
-						<Button.Label>
-							{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
-						</Button.Label>
-					</Button>
+					<Link href="/(auth)/login" replace>
+						<Link.Trigger>
+							<Button className="w-full" size="lg">
+								<Button.Label>
+									{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
+								</Button.Label>
+							</Button>
+						</Link.Trigger>
+						<Link.Preview />
+					</Link>
 				</Card>
-			</View>
+			</ScrollView>
 		);
 	}
 
 	return (
 		<ScrollView
 			className="flex-1 bg-background"
-			contentContainerClassName="px-5 pt-14 pb-10"
+			contentInsetAdjustmentBehavior="automatic"
+			contentContainerClassName="px-5 pt-6 pb-10"
 			showsVerticalScrollIndicator={false}
 		>
 			<View className="gap-8 max-w-lg w-full self-center">
 				{/* Header Section */}
 				<View className="gap-3">
-					<View className="flex-row items-center gap-3 mb-1">
-						<View className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center">
+					<View className="flex-row items-center gap-3">
+						<View
+							className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center"
+							style={continuousCurve}
+						>
 							<Text className="text-2xl">📱</Text>
 						</View>
 						<View className="flex-1">
@@ -191,9 +206,6 @@ export default function DeviceSetupScreen(): JSX.Element {
 							</Text>
 						</View>
 					</View>
-					<Text className="text-3xl font-extrabold text-foreground tracking-tight">
-						{i18n.t('DeviceSetup.header.title')}
-					</Text>
 					<Text className="text-foreground-400 text-base leading-6">
 						{i18n.t('DeviceSetup.header.subtitle')}
 					</Text>
@@ -201,26 +213,34 @@ export default function DeviceSetupScreen(): JSX.Element {
 
 				{/* Device Info Badge */}
 				<View className="flex-row gap-3">
-					<View className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200">
-						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold mb-1">
+					<View
+						className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200 gap-1"
+						style={continuousCurve}
+					>
+						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold">
 							{i18n.t('DeviceSetup.deviceInfo.deviceId')}
 						</Text>
 						<Text
 							className="text-foreground font-mono text-sm"
 							numberOfLines={1}
 							ellipsizeMode="middle"
+							selectable
 						>
 							{deviceId}
 						</Text>
 					</View>
-					<View className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200">
-						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold mb-1">
+					<View
+						className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200 gap-1"
+						style={continuousCurve}
+					>
+						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold">
 							{i18n.t('DeviceSetup.deviceInfo.organization')}
 						</Text>
 						<Text
 							className="text-foreground font-mono text-sm"
 							numberOfLines={1}
 							ellipsizeMode="middle"
+							selectable
 						>
 							{organizationId ?? '—'}
 						</Text>
@@ -228,7 +248,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</View>
 
 				{/* Form Card */}
-				<Card variant="default" className="p-6 gap-6 rounded-3xl">
+				<Card
+					variant="default"
+					className="p-6 gap-6 rounded-3xl"
+					style={continuousCurve}
+				>
 					<form.AppField
 						name="name"
 						validators={{
@@ -311,6 +335,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 												width={280}
 												className="rounded-2xl"
 												placement="bottom"
+												style={continuousCurve}
 											>
 												{locationOptions.length === 0 ? (
 													<View className="py-4">
@@ -342,7 +367,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 										</Select.Portal>
 									</Select>
 									{hasError ? (
-										<Text className="text-sm text-danger-500 font-medium">
+										<Text
+											className="text-sm text-danger-500 font-medium"
+											selectable
+										>
 											{field.state.meta.errors.join(', ')}
 										</Text>
 									) : null}
@@ -353,7 +381,6 @@ export default function DeviceSetupScreen(): JSX.Element {
 
 					<form.AppForm>
 						<Button
-							className="mt-3"
 							size="lg"
 							variant="primary"
 							isDisabled={isLocationsPending}
@@ -376,11 +403,14 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</Card>
 
 				{/* Tip Section */}
-				<View className="p-5 bg-content2/60 rounded-2xl border border-default-200/60">
+				<View
+					className="p-5 bg-content2/60 rounded-2xl border border-default-200/60"
+					style={continuousCurve}
+				>
 					<View className="flex-row items-start gap-3">
 						<Text className="text-lg">💡</Text>
-						<View className="flex-1">
-							<Text className="text-sm font-semibold text-foreground mb-1">
+						<View className="flex-1 gap-1">
+							<Text className="text-sm font-semibold text-foreground">
 								{i18n.t('DeviceSetup.tip.title')}
 							</Text>
 							<Text className="text-sm text-foreground-400 leading-5">

@@ -1,6 +1,7 @@
 import type { PropsWithChildren, JSX } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { AppState, type AppStateStatus, Platform } from 'react-native';
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import * as React from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
 import * as ExpoDevice from 'expo-device';
@@ -54,10 +55,13 @@ const bytesToHex = (bytes: Uint8Array): string =>
 const buildDeviceFingerprint = async (): Promise<string | null> => {
 	try {
 		const installTime = await Application.getInstallationTimeAsync();
+		const platform = process.env.EXPO_OS ?? 'unknown';
 		const platformId =
-			Platform.OS === 'android'
+			platform === 'android'
 				? Application.getAndroidId?.()
-				: await Application.getIosIdForVendorAsync?.();
+				: platform === 'ios'
+					? await Application.getIosIdForVendorAsync?.()
+					: undefined;
 
 		const parts = [
 			platformId ?? null,
@@ -346,7 +350,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
  * @throws Error when accessed outside of DeviceProvider
  */
 export function useDeviceContext(): DeviceContextValue {
-	const ctx = useContext(DeviceContext);
+	const ctx = React.use(DeviceContext);
 	if (!ctx) {
 		throw new Error('useDeviceContext must be used within DeviceProvider');
 	}

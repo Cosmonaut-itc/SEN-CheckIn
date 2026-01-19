@@ -12,13 +12,11 @@
 		"android:client": "expo start --android --dev-client",
 		"ios:client": "expo start --ios --dev-client",
 		"web": "expo start --web",
-		"build": "expo export --platform web --output-dir dist",
 		"lint": "expo lint",
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@better-auth/expo": "^1.4.4",
-		"@expo/vector-icons": "^15.0.3",
 		"@gorhom/bottom-sheet": "^5",
 		"@react-native-community/netinfo": "^11.4.1",
 		"@react-navigation/bottom-tabs": "^7.4.0",

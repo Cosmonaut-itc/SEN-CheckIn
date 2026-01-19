@@ -1,4 +1,5 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
+import type { JSX } from 'react';
+import { Text, type TextProps, type TextStyle } from 'react-native';
 
 import { useThemeColor } from '@/hooks/use-theme-color';
 
@@ -8,13 +9,19 @@ export type ThemedTextProps = TextProps & {
 	type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
 };
 
+/**
+ * Theme-aware text component that applies typographic presets.
+ *
+ * @param props - Text props plus theme overrides and type preset
+ * @returns {JSX.Element} Styled Text element
+ */
 export function ThemedText({
 	style,
 	lightColor,
 	darkColor,
 	type = 'default',
 	...rest
-}: ThemedTextProps) {
+}: ThemedTextProps): JSX.Element {
 	const color = useThemeColor(
 		{ light: lightColor, dark: darkColor },
 		type === 'link' ? 'tint' : 'text',
@@ -36,7 +43,7 @@ export function ThemedText({
 	);
 }
 
-const styles = StyleSheet.create({
+const styles: Record<string, TextStyle> = {
 	default: {
 		fontSize: 16,
 		lineHeight: 24,
@@ -60,4 +67,4 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: '600',
 	},
-});
+};

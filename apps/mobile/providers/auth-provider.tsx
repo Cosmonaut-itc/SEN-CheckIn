@@ -1,5 +1,6 @@
 import type { JSX, PropsWithChildren } from 'react';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import * as React from 'react';
 
 import { primeAuthStorage, useSession } from '@/lib/auth-client';
 
@@ -97,7 +98,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
  * @throws Error if used outside AuthProvider
  */
 export function useAuthContext(): AuthContextValue {
-	const ctx = useContext(AuthContext);
+	const ctx = React.use(AuthContext);
 	if (!ctx) {
 		throw new Error('useAuthContext must be used within AuthProvider');
 	}

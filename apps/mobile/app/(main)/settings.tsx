@@ -1,9 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
 import { Button, Card, Divider, Select, useToast } from 'heroui-native';
 import type { JSX } from 'react';
 import { useEffect, useMemo } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View, type ViewStyle } from 'react-native';
 
 import { signOut } from '@/lib/auth-client';
 import { fetchLocationsList } from '@/lib/client-functions';
@@ -12,16 +11,13 @@ import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
-import { useTheme } from '@/providers/theme-provider';
 
 /**
  * Settings screen for configuring device metadata and linkage.
  *
- * @returns JSX Element that renders the device settings form and navigation controls
+ * @returns {JSX.Element} Settings screen with device configuration controls
  */
 export default function SettingsScreen(): JSX.Element {
-	const router = useRouter();
-	const { isDarkMode } = useTheme();
 	const { toast } = useToast();
 	const { session } = useAuthContext();
 	const {
@@ -105,39 +101,30 @@ export default function SettingsScreen(): JSX.Element {
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');
+	const continuousCurve = useMemo(
+		() => ({ borderCurve: 'continuous' } satisfies ViewStyle),
+		[],
+	);
 
 	return (
 		<ScrollView
-			className="flex-1 bg-background px-4 pt-10"
+			className="flex-1 bg-background"
 			contentInsetAdjustmentBehavior="automatic"
+			contentContainerClassName="px-4 pt-4 pb-10 gap-6"
 			showsVerticalScrollIndicator={false}
 		>
-			<View className="mb-6 gap-3">
-				<Button
-					size="sm"
-					variant="tertiary"
-					className={`self-start px-4 ${
-						isDarkMode ? 'bg-white' : 'bg-black'
-					} rounded-xl border border-default-200`}
-					onPress={() => router.replace('/(main)/scanner')}
-				>
-					<Button.Label className={isDarkMode ? 'text-black' : 'text-white'}>
-						{i18n.t('Settings.navigation.backToScanner')}
-					</Button.Label>
-				</Button>
-				<View className="gap-1">
-					<Text className="text-3xl font-extrabold text-foreground">
-						{i18n.t('Settings.title')}
-					</Text>
-					<Text className="text-base text-foreground-500">
-						{i18n.t('Settings.subtitle')}
-					</Text>
-				</View>
+			<View className="gap-1">
+				<Text className="text-base text-foreground-500">
+					{i18n.t('Settings.subtitle')}
+				</Text>
 			</View>
 
-			<Card variant="default" className="mb-4">
+			<Card variant="default" style={continuousCurve}>
 				<Card.Header className="flex-row items-center gap-3 px-5 pt-5 pb-2">
-					<View className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center">
+					<View
+						className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
+						style={continuousCurve}
+					>
 						<Text className="text-lg">🏢</Text>
 					</View>
 					<View className="flex-1">
@@ -154,13 +141,14 @@ export default function SettingsScreen(): JSX.Element {
 						className="text-foreground-500 font-mono text-sm"
 						numberOfLines={1}
 						ellipsizeMode="middle"
+						selectable
 					>
 						{i18n.t('Settings.organization.idLabel')}: {organizationId}
 					</Text>
 				</Card.Body>
 			</Card>
 
-			<Card variant="default" className="mb-10">
+			<Card variant="default" style={continuousCurve}>
 				<Card.Body className="p-5 gap-5">
 					<form.AppField
 						name="name"
@@ -226,11 +214,12 @@ export default function SettingsScreen(): JSX.Element {
 										</Select.Trigger>
 										<Select.Portal>
 											<Select.Overlay />
-											<Select.Content
-												width={280}
-												className="rounded-2xl"
-												placement="bottom"
-											>
+										<Select.Content
+											width={280}
+											className="rounded-2xl"
+											placement="bottom"
+											style={continuousCurve}
+										>
 												{locationOptions.length === 0 ? (
 													<View className="py-4">
 														<Text className="text-foreground-400 text-center">
@@ -261,7 +250,10 @@ export default function SettingsScreen(): JSX.Element {
 										</Select.Portal>
 									</Select>
 									{hasError ? (
-										<Text className="text-sm text-danger-500 font-medium">
+										<Text
+											className="text-sm text-danger-500 font-medium"
+											selectable
+										>
 											{field.state.meta.errors.join(', ')}
 										</Text>
 									) : null}
@@ -278,7 +270,6 @@ export default function SettingsScreen(): JSX.Element {
 									: i18n.t('Settings.form.actions.linkDeviceFirst')
 							}
 							loadingLabel={i18n.t('Common.saving')}
-							className="mt-2"
 						/>
 					</form.AppForm>
 
@@ -290,6 +281,7 @@ export default function SettingsScreen(): JSX.Element {
 							className="text-foreground font-mono text-sm"
 							numberOfLines={1}
 							ellipsizeMode="middle"
+							selectable
 						>
 							{settings?.deviceId ?? i18n.t('Settings.deviceId.notSet')}
 						</Text>

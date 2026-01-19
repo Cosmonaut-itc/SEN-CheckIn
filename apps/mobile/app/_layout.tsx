@@ -1,5 +1,5 @@
 import type { JSX } from 'react';
-import { Stack } from 'expo-router';
+import { Stack } from 'expo-router/stack';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HeroUINativeProvider, type HeroUINativeConfig } from 'heroui-native';

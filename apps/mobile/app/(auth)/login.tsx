@@ -4,7 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, Platform, Text, View } from 'react-native';
+import { Animated, Easing, Linking, ScrollView, Text, View } from 'react-native';
 import QRCode from 'react-qr-code';
 
 import { ENV, envErrors } from '@/constants/env';
@@ -20,6 +20,7 @@ import { useAuthContext } from '@/providers/auth-provider';
 const DEVICE_CLIENT_ID = 'sen-checkin-mobile';
 const DEVICE_SCOPE = 'openid profile';
 const GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:device_code';
+const PLATFORM = process.env.EXPO_OS ?? 'unknown';
 
 interface DeviceCodeApiResponse {
 	device_code: string;
@@ -72,7 +73,7 @@ function normalizeUserCode(value: string): string {
  */
 function formatUserCode(value: string): string {
 	const normalized = normalizeUserCode(value);
-	return normalized.match(/.{1,4}/g)?.join('-') ?? normalized;
+	return normalized.match(/.{1,4}/g)?.join('\n') ?? normalized;
 }
 
 /**
@@ -113,6 +114,8 @@ function deriveErrorMessage(error: unknown): string {
 
 /**
  * Animated dots component for loading states.
+ *
+ * @returns {JSX.Element} Animated dots text element
  */
 function AnimatedDots(): JSX.Element {
 	const [dots, setDots] = useState('');
@@ -129,6 +132,9 @@ function AnimatedDots(): JSX.Element {
 
 /**
  * Pulsing animation wrapper for approved state.
+ *
+ * @param props - Wrapper children to animate
+ * @returns {JSX.Element} Animated container for approved state UI
  */
 function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Element {
 	const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -157,12 +163,18 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 	return <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>{children}</Animated.View>;
 }
 
+/**
+ * Login screen for device authorization.
+ *
+ * @returns {JSX.Element} Device authorization UI
+ */
 export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
 	const { session, isLoading, setSession } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
 	const accentColor = useThemeColor({}, 'primary');
 	const qrForeground = Colors.light.text;
+	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
 
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);
 	const [status, setStatus] = useState<AuthorizationStatus>({
@@ -276,7 +288,7 @@ export default function LoginScreen(): JSX.Element {
 					ExpoDevice.modelName ??
 					i18n.t('Login.defaults.deviceName'),
 				deviceType: ExpoDevice.modelName ?? 'MOBILE',
-				platform: Platform.OS,
+				platform: PLATFORM,
 			});
 			const registered = await registerDevice({
 				code: stableCode,
@@ -285,7 +297,7 @@ export default function LoginScreen(): JSX.Element {
 					ExpoDevice.modelName ??
 					i18n.t('Login.defaults.deviceName'),
 				deviceType: ExpoDevice.modelName ?? 'MOBILE',
-				platform: Platform.OS,
+				platform: PLATFORM,
 				organizationId,
 			});
 
@@ -608,14 +620,14 @@ export default function LoginScreen(): JSX.Element {
 		if (isApproved) {
 			return (
 				<PulseAnimation>
-					<Card variant="default">
-						<Card.Body className="gap-1 items-center py-6">
-							<Text className="text-4xl mb-1">✓</Text>
+					<Card variant="default" style={continuousCurve}>
+						<Card.Body className="gap-2 items-center py-4">
+							<Text className="text-4xl">✓</Text>
 							<Card.Title className="text-success-700 text-2xl">
 								{i18n.t('Login.approved.title')}
 								<AnimatedDots />
 							</Card.Title>
-							<Card.Description className="text-success-600 mt-1">
+							<Card.Description className="text-success-600">
 								{i18n.t('Login.approved.subtitle')}
 							</Card.Description>
 						</Card.Body>
@@ -626,8 +638,8 @@ export default function LoginScreen(): JSX.Element {
 
 		if (status.state === 'waiting' || status.state === 'requesting') {
 			return (
-				<Card variant="default">
-					<Card.Body className="flex-row items-center justify-center gap-3 py-3">
+				<Card variant="default" style={continuousCurve}>
+					<Card.Body className="flex-row items-center justify-center gap-3 py-2">
 						<Spinner size="sm" color={accentColor} />
 						<Card.Description className="text-base">{status.message}</Card.Description>
 					</Card.Body>
@@ -637,9 +649,9 @@ export default function LoginScreen(): JSX.Element {
 
 		if (status.state === 'denied') {
 			return (
-				<Card variant="default">
-					<Card.Body className="items-center gap-1 py-4">
-						<Text className="text-xl mb-1">✕</Text>
+				<Card variant="default" style={continuousCurve}>
+					<Card.Body className="items-center gap-2 py-3">
+						<Text className="text-xl">✕</Text>
 						<Card.Title className="text-danger-700 text-base">
 							{status.message}
 						</Card.Title>
@@ -650,9 +662,9 @@ export default function LoginScreen(): JSX.Element {
 
 		if (status.state === 'expired') {
 			return (
-				<Card variant="default">
-					<Card.Body className="items-center gap-1 py-4">
-						<Text className="text-xl mb-1">⏱</Text>
+				<Card variant="default" style={continuousCurve}>
+					<Card.Body className="items-center gap-2 py-3">
+						<Text className="text-xl">⏱</Text>
 						<Card.Title className="text-warning-700 text-base">
 							{status.message}
 						</Card.Title>
@@ -663,9 +675,9 @@ export default function LoginScreen(): JSX.Element {
 
 		if (status.state === 'error') {
 			return (
-				<Card variant="default">
-					<Card.Body className="items-center gap-1 py-4">
-						<Text className="text-xl mb-1">⚠</Text>
+				<Card variant="default" style={continuousCurve}>
+					<Card.Body className="items-center gap-2 py-3">
+						<Text className="text-xl">⚠</Text>
 						<Card.Title className="text-danger-700 text-base">
 							{status.message}
 						</Card.Title>
@@ -675,15 +687,17 @@ export default function LoginScreen(): JSX.Element {
 		}
 
 		return null;
-	}, [accentColor, isApproved, status.message, status.state]);
+	}, [accentColor, continuousCurve, isApproved, status.message, status.state]);
 
 	return (
-		<View className="flex-1 bg-background px-5 pt-12">
+		<ScrollView
+			className="flex-1 bg-background"
+			contentInsetAdjustmentBehavior="automatic"
+			contentContainerClassName="px-5 pt-4 pb-6 gap-4"
+			showsVerticalScrollIndicator={false}
+		>
 			{/* Header */}
-			<View className="mb-6">
-				<Text className="text-3xl font-bold text-foreground mb-2">
-					{i18n.t('Login.header.title')}
-				</Text>
+			<View className="gap-2">
 				<Text className="text-base text-foreground-500 leading-relaxed">
 					{i18n.t('Login.header.subtitle')}
 				</Text>
@@ -691,7 +705,7 @@ export default function LoginScreen(): JSX.Element {
 
 			{/* Environment Warning - only show for actual config errors */}
 			{envErrors && status.state === 'error' ? (
-				<Card variant="default" className="mb-4">
+				<Card variant="default" style={continuousCurve}>
 					<Card.Body className="gap-2 p-4">
 						<Card.Title className="text-warning-800 text-base">
 							{i18n.t('Login.envWarning.title')}
@@ -704,14 +718,20 @@ export default function LoginScreen(): JSX.Element {
 			) : null}
 
 			{/* Main Card */}
-			<Card variant="tertiary" className="p-6 gap-5">
+			<Card variant="tertiary" className="p-5 gap-3" style={continuousCurve}>
 				{/* User Code Display */}
-				<View className="items-center">
-					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest mb-3">
+				<View className="items-center gap-2">
+					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest">
 						{i18n.t('Login.code.label')}
 					</Text>
-					<View className="bg-default-100 rounded-2xl px-8 py-4">
-						<Text className="text-5xl font-black tracking-[0.3em] text-foreground">
+					<View
+						className="bg-default-100 rounded-2xl px-6 py-3"
+						style={continuousCurve}
+					>
+						<Text
+							className="text-5xl font-black tracking-[0.3em] text-foreground"
+							selectable
+						>
 							{codeState?.formattedUserCode ?? '————'}
 						</Text>
 					</View>
@@ -719,17 +739,23 @@ export default function LoginScreen(): JSX.Element {
 
 				{/* QR Code Section */}
 				{verificationUrl && !isApproved ? (
-					<View className="items-center py-4">
-						<View className="bg-white p-4 rounded-2xl shadow-sm">
+					<View className="items-center py-2 gap-2">
+						<View
+							className="bg-white p-3 rounded-2xl"
+							style={{
+								boxShadow: '0 4px 14px rgba(15, 23, 42, 0.16)',
+								borderCurve: 'continuous',
+							}}
+						>
 							<QRCode
 								value={verificationUrl}
-								size={160}
+								size={140}
 								bgColor="white"
 								fgColor={qrForeground}
 								level="M"
 							/>
 						</View>
-						<Text className="text-xs text-foreground-400 mt-3 text-center">
+						<Text className="text-xs text-foreground-400 text-center">
 							{i18n.t('Login.qr.caption')}
 						</Text>
 					</View>
@@ -740,13 +766,13 @@ export default function LoginScreen(): JSX.Element {
 
 				{/* Action Buttons - hide when approved */}
 				{!isApproved ? (
-					<View className="flex-row gap-3 mt-2">
+					<View className="gap-2">
 						<Button
 							onPress={requestDeviceCode}
 							isDisabled={isRequestingCode}
-							className="flex-1"
-							variant="secondary"
-							size="lg"
+							className="w-full"
+							variant="primary"
+							size="md"
 						>
 							<Button.Label>
 								{isRequestingCode
@@ -757,8 +783,8 @@ export default function LoginScreen(): JSX.Element {
 						{verificationUrl ? (
 							<Button
 								variant="primary"
-								className="flex-1"
-								size="lg"
+								className="w-full"
+								size="md"
 								onPress={() => {
 									void Linking.openURL(verificationUrl);
 								}}
@@ -772,8 +798,8 @@ export default function LoginScreen(): JSX.Element {
 
 			{/* Error Details - only show for actual errors, not during normal polling */}
 			{lastError && status.state === 'error' ? (
-				<Card variant="default" className="mt-4">
-					<Card.Body className="gap-1 p-4">
+				<Card variant="default" style={continuousCurve}>
+					<Card.Body className="gap-1 p-3">
 						<Card.Title className="text-danger-700 text-base">
 							{i18n.t('Login.errorDetails.title')}
 						</Card.Title>
@@ -781,7 +807,7 @@ export default function LoginScreen(): JSX.Element {
 							{lastError}
 						</Card.Description>
 						{!API_ENV_VALID ? (
-							<Card.Description className="text-danger-500 mt-1 text-xs">
+							<Card.Description className="text-danger-500 text-xs">
 								{i18n.t('Login.errorDetails.tip')}
 							</Card.Description>
 						) : null}
@@ -791,18 +817,18 @@ export default function LoginScreen(): JSX.Element {
 
 			{/* Terminal State Actions */}
 			{isTerminal && !isApproved ? (
-				<View className="mt-4">
+				<View>
 					<Button
 						onPress={requestDeviceCode}
 						isDisabled={isRequestingCode}
-						variant="tertiary"
-						size="lg"
+						variant="primary"
+						size="md"
 						className="w-full"
 					>
 						<Button.Label>{i18n.t('Login.actions.tryAgain')}</Button.Label>
 					</Button>
 				</View>
 			) : null}
-		</View>
+		</ScrollView>
 	);
 }

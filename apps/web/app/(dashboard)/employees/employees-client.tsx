@@ -1390,7 +1390,7 @@ export function EmployeesPageClient(): React.ReactElement {
 													<Badge
 														variant={
 															statusVariants[
-																activeEmployee.status
+															activeEmployee.status
 															]
 														}
 													>
@@ -1438,9 +1438,9 @@ export function EmployeesPageClient(): React.ReactElement {
 											<p className="font-medium">
 												{activeEmployee?.hireDate
 													? format(
-															new Date(activeEmployee.hireDate),
-															t('dateFormat'),
-														)
+														new Date(activeEmployee.hireDate),
+														t('dateFormat'),
+													)
 													: tCommon('notAvailable')}
 											</p>
 										</div>
@@ -1451,8 +1451,8 @@ export function EmployeesPageClient(): React.ReactElement {
 											<p className="font-medium">
 												{activeEmployee?.shiftType
 													? t(
-															`shiftTypeLabels.${activeEmployee.shiftType}`,
-														)
+														`shiftTypeLabels.${activeEmployee.shiftType}`,
+													)
 													: tCommon('notAvailable')}
 											</p>
 										</div>
@@ -1707,7 +1707,7 @@ export function EmployeesPageClient(): React.ReactElement {
 															<Skeleton className="h-4 w-28" />
 														</div>
 													) : attendanceSummary &&
-													  attendanceSummary.absentDateKeys.length > 0 ? (
+														attendanceSummary.absentDateKeys.length > 0 ? (
 														<ul className="space-y-2 text-sm">
 															{attendanceSummary.absentDateKeys.map(
 																(dateKey) => (
@@ -2092,16 +2092,16 @@ export function EmployeesPageClient(): React.ReactElement {
 															);
 															const fieldsLabel =
 																event.changedFields &&
-																event.changedFields.length > 0
+																	event.changedFields.length > 0
 																	? event.changedFields
-																			.map(
-																				(field) =>
-																					auditFieldLabels[field] ??
-																					t('audit.fields.unknown', {
-																						field,
-																					}),
-																			)
-																			.join(', ')
+																		.map(
+																			(field) =>
+																				auditFieldLabels[field] ??
+																				t('audit.fields.unknown', {
+																					field,
+																				}),
+																		)
+																		.join(', ')
 																	: t('audit.fields.none');
 
 															return (
@@ -2139,324 +2139,324 @@ export function EmployeesPageClient(): React.ReactElement {
 									form.handleSubmit();
 								}}
 							>
-							<div className="grid gap-4 py-4 sm:grid-cols-2">
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField
-										name="code"
-										validators={{
-											onChange: ({ value }) =>
-												!value.trim()
-													? t('validation.codeRequired')
-													: undefined,
-										}}
-									>
-										{(field) => (
-											<field.TextField
-												label={t('fields.code')}
-												onValueChange={(next) => {
-													setHasCustomCode(true);
-													return next;
-												}}
-												disabled={isEditMode}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField
-										name="firstName"
-										validators={{
-											onChange: ({ value }) =>
-												!value.trim()
-													? t('validation.firstNameRequired')
-													: undefined,
-										}}
-									>
-										{(field) => (
-											<field.TextField label={t('fields.firstName')} />
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField
-										name="lastName"
-										validators={{
-											onChange: ({ value }) =>
-												!value.trim()
-													? t('validation.lastNameRequired')
-													: undefined,
-										}}
-									>
-										{(field) => (
-											<field.TextField label={t('fields.lastName')} />
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="email">
-										{(field) => (
-											<field.TextField
-												label={t('fields.email')}
-												type="email"
-												placeholder={tCommon('optional')}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="userId">
-										{(field) => (
-											<field.SelectField
-												label={t('fields.user')}
-												options={memberOptions}
-												placeholder={
-													isLoadingMembers
-														? tCommon('loading')
-														: t('placeholders.selectUser')
-												}
-												disabled={isLoadingMembers}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="phone">
-										{(field) => (
-											<field.TextField
-												label={t('fields.phone')}
-												placeholder={tCommon('optional')}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField
-										name="locationId"
-										validators={{
-											onChange: ({ value }) =>
-												!value
-													? t('validation.locationRequired')
-													: undefined,
-										}}
-									>
-										{(field) => (
-											<field.SelectField
-												label={t('fields.location')}
-												options={locations.map((location) => ({
-													value: location.id,
-													label: location.name,
-												}))}
-												placeholder={
-													isLoadingLocations
-														? tCommon('loading')
-														: t('placeholders.selectLocation')
-												}
-												disabled={isLoadingLocations}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField
-										name="jobPositionId"
-										validators={{
-											onChange: ({ value }) =>
-												isCreateMode && !value
-													? t('validation.jobPositionRequired')
-													: undefined,
-										}}
-									>
-										{(field) => (
-											<field.SelectField
-												label={t('fields.jobPosition')}
-												options={jobPositions.map((position) => ({
-													value: position.id,
-													label: position.name,
-												}))}
-												placeholder={
-													isLoadingJobPositions
-														? tCommon('loading')
-														: t('placeholders.selectJobPosition')
-												}
-												disabled={isLoadingJobPositions}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="department">
-										{(field) => (
-											<field.TextField
-												label={t('fields.department')}
-												placeholder={tCommon('optional')}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="status">
-										{(field) => (
-											<field.SelectField
-												label={t('fields.status')}
-												options={[
-													{ value: 'ACTIVE', label: t('status.ACTIVE') },
-													{
-														value: 'INACTIVE',
-														label: t('status.INACTIVE'),
-													},
-													{
-														value: 'ON_LEAVE',
-														label: t('status.ON_LEAVE'),
-													},
-												]}
-												placeholder={t('placeholders.selectStatus')}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="shiftType">
-										{(field) => (
-											<field.SelectField
-												label={t('fields.shiftType')}
-												options={shiftTypeOptions.map((option) => ({
-													value: option.value,
-													label: t(option.labelKey),
-												}))}
-												placeholder={t('placeholders.selectShiftType')}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField name="hireDate">
-										{(field) => (
-											<field.DateField
-												label={t('fields.hireDate')}
-												placeholder={t('placeholders.hireDate')}
-												disabled={isEditMode}
-											/>
-										)}
-									</form.AppField>
-								</div>
-								<div className="col-span-2 sm:col-span-1">
-									<form.AppField
-										name="sbcDailyOverride"
-										validators={{
-											onChange: ({ value }) => {
-												const trimmed = value.trim();
-												if (!trimmed) {
+								<div className="grid gap-4 py-4 sm:grid-cols-2">
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="code"
+											validators={{
+												onChange: ({ value }) =>
+													!value.trim()
+														? t('validation.codeRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('fields.code')}
+													onValueChange={(next) => {
+														setHasCustomCode(true);
+														return next;
+													}}
+													disabled={isEditMode}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="firstName"
+											validators={{
+												onChange: ({ value }) =>
+													!value.trim()
+														? t('validation.firstNameRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.TextField label={t('fields.firstName')} />
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="lastName"
+											validators={{
+												onChange: ({ value }) =>
+													!value.trim()
+														? t('validation.lastNameRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.TextField label={t('fields.lastName')} />
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="email">
+											{(field) => (
+												<field.TextField
+													label={t('fields.email')}
+													type="email"
+													placeholder={tCommon('optional')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="userId">
+											{(field) => (
+												<field.SelectField
+													label={t('fields.user')}
+													options={memberOptions}
+													placeholder={
+														isLoadingMembers
+															? tCommon('loading')
+															: t('placeholders.selectUser')
+													}
+													disabled={isLoadingMembers}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="phone">
+											{(field) => (
+												<field.TextField
+													label={t('fields.phone')}
+													placeholder={tCommon('optional')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="locationId"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('validation.locationRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.SelectField
+													label={t('fields.location')}
+													options={locations.map((location) => ({
+														value: location.id,
+														label: location.name,
+													}))}
+													placeholder={
+														isLoadingLocations
+															? tCommon('loading')
+															: t('placeholders.selectLocation')
+													}
+													disabled={isLoadingLocations}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="jobPositionId"
+											validators={{
+												onChange: ({ value }) =>
+													isCreateMode && !value
+														? t('validation.jobPositionRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.SelectField
+													label={t('fields.jobPosition')}
+													options={jobPositions.map((position) => ({
+														value: position.id,
+														label: position.name,
+													}))}
+													placeholder={
+														isLoadingJobPositions
+															? tCommon('loading')
+															: t('placeholders.selectJobPosition')
+													}
+													disabled={isLoadingJobPositions}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="department">
+											{(field) => (
+												<field.TextField
+													label={t('fields.department')}
+													placeholder={tCommon('optional')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="status">
+											{(field) => (
+												<field.SelectField
+													label={t('fields.status')}
+													options={[
+														{ value: 'ACTIVE', label: t('status.ACTIVE') },
+														{
+															value: 'INACTIVE',
+															label: t('status.INACTIVE'),
+														},
+														{
+															value: 'ON_LEAVE',
+															label: t('status.ON_LEAVE'),
+														},
+													]}
+													placeholder={t('placeholders.selectStatus')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="shiftType">
+											{(field) => (
+												<field.SelectField
+													label={t('fields.shiftType')}
+													options={shiftTypeOptions.map((option) => ({
+														value: option.value,
+														label: t(option.labelKey),
+													}))}
+													placeholder={t('placeholders.selectShiftType')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="hireDate">
+											{(field) => (
+												<field.DateField
+													label={t('fields.hireDate')}
+													placeholder={t('placeholders.hireDate')}
+													disabled={isEditMode}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="sbcDailyOverride"
+											validators={{
+												onChange: ({ value }) => {
+													const trimmed = value.trim();
+													if (!trimmed) {
+														return undefined;
+													}
+													const parsed = Number(trimmed);
+													if (!Number.isFinite(parsed) || parsed <= 0) {
+														return t('validation.sbcDailyOverride');
+													}
 													return undefined;
-												}
-												const parsed = Number(trimmed);
-												if (!Number.isFinite(parsed) || parsed <= 0) {
-													return t('validation.sbcDailyOverride');
-												}
-												return undefined;
-											},
-										}}
-									>
-										{(field) => (
-											<field.TextField
-												label={t('fields.sbcDailyOverride')}
-												placeholder={t('placeholders.sbcDailyOverride')}
-												description={t('helpers.sbcDailyOverride')}
-											/>
-										)}
-									</form.AppField>
-								</div>
+												},
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('fields.sbcDailyOverride')}
+													placeholder={t('placeholders.sbcDailyOverride')}
+													description={t('helpers.sbcDailyOverride')}
+												/>
+											)}
+										</form.AppField>
+									</div>
 
-								<div className="col-span-2 space-y-2 rounded-md border p-3">
-									<div className="flex items-center justify-between">
-										<div>
-											<p className="text-sm font-medium">
-												{t('schedule.title')}
-											</p>
-											<p className="text-xs text-muted-foreground">
-												{t('schedule.subtitle')}
-											</p>
-										</div>
-										{isScheduleLoading && (
-											<div className="flex items-center gap-2 text-xs text-muted-foreground">
-												<Loader2 className="h-4 w-4 animate-spin" />
-												{t('schedule.loading')}
+									<div className="col-span-2 space-y-2 rounded-md border p-3">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-sm font-medium">
+													{t('schedule.title')}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{t('schedule.subtitle')}
+												</p>
 											</div>
-										)}
-									</div>
-									<div className="grid gap-2">
-										{daysOfWeek.map((day) => {
-											const entry = schedule.find(
-												(item) => item.dayOfWeek === day.value,
-											) ?? {
-												dayOfWeek: day.value,
-												startTime: '09:00',
-												endTime: '17:00',
-												isWorkingDay: day.value >= 1 && day.value <= 5,
-											};
-											return (
-												<div
-													key={day.value}
-													className="grid grid-cols-12 items-center gap-2 rounded-md border p-2"
-												>
-													<div className="col-span-3 flex items-center gap-2">
-														<input
-															type="checkbox"
-															className="h-4 w-4 accent-primary"
-															checked={entry.isWorkingDay}
-															onChange={(e) =>
-																upsertScheduleEntry(day.value, {
-																	isWorkingDay: e.target.checked,
-																})
-															}
-														/>
-														<span className="text-sm">
-															{t(day.labelKey)}
-														</span>
-													</div>
-													<div className="col-span-4">
-														<Label className="text-xs text-muted-foreground">
-															{t('schedule.start')}
-														</Label>
-														<Input
-															type="time"
-															value={entry.startTime}
-															disabled={!entry.isWorkingDay}
-															onChange={(e) =>
-																upsertScheduleEntry(day.value, {
-																	startTime: e.target.value,
-																})
-															}
-														/>
-													</div>
-													<div className="col-span-4">
-														<Label className="text-xs text-muted-foreground">
-															{t('schedule.end')}
-														</Label>
-														<Input
-															type="time"
-															value={entry.endTime}
-															disabled={!entry.isWorkingDay}
-															onChange={(e) =>
-																upsertScheduleEntry(day.value, {
-																	endTime: e.target.value,
-																})
-															}
-														/>
-													</div>
+											{isScheduleLoading && (
+												<div className="flex items-center gap-2 text-xs text-muted-foreground">
+													<Loader2 className="h-4 w-4 animate-spin" />
+													{t('schedule.loading')}
 												</div>
-											);
-										})}
+											)}
+										</div>
+										<div className="grid gap-2">
+											{daysOfWeek.map((day) => {
+												const entry = schedule.find(
+													(item) => item.dayOfWeek === day.value,
+												) ?? {
+													dayOfWeek: day.value,
+													startTime: '09:00',
+													endTime: '17:00',
+													isWorkingDay: day.value >= 1 && day.value <= 5,
+												};
+												return (
+													<div
+														key={day.value}
+														className="grid grid-cols-12 items-center gap-2 rounded-md border p-2"
+													>
+														<div className="col-span-3 flex items-center gap-2">
+															<input
+																type="checkbox"
+																className="h-4 w-4 accent-primary"
+																checked={entry.isWorkingDay}
+																onChange={(e) =>
+																	upsertScheduleEntry(day.value, {
+																		isWorkingDay: e.target.checked,
+																	})
+																}
+															/>
+															<span className="text-sm">
+																{t(day.labelKey)}
+															</span>
+														</div>
+														<div className="col-span-4">
+															<Label className="text-xs text-muted-foreground">
+																{t('schedule.start')}
+															</Label>
+															<Input
+																type="time"
+																value={entry.startTime}
+																disabled={!entry.isWorkingDay}
+																onChange={(e) =>
+																	upsertScheduleEntry(day.value, {
+																		startTime: e.target.value,
+																	})
+																}
+															/>
+														</div>
+														<div className="col-span-4">
+															<Label className="text-xs text-muted-foreground">
+																{t('schedule.end')}
+															</Label>
+															<Input
+																type="time"
+																value={entry.endTime}
+																disabled={!entry.isWorkingDay}
+																onChange={(e) =>
+																	upsertScheduleEntry(day.value, {
+																		endTime: e.target.value,
+																	})
+																}
+															/>
+														</div>
+													</div>
+												);
+											})}
+										</div>
 									</div>
 								</div>
-							</div>
-							<DialogFooter>
-								<form.AppForm>
-									<form.SubmitButton
-										label={tCommon('save')}
-										loadingLabel={tCommon('saving')}
-									/>
-								</form.AppForm>
-							</DialogFooter>
+								<DialogFooter>
+									<form.AppForm>
+										<form.SubmitButton
+											label={tCommon('save')}
+											loadingLabel={tCommon('saving')}
+										/>
+									</form.AppForm>
+								</DialogFooter>
 							</form>
 						)}
 					</DialogContent>

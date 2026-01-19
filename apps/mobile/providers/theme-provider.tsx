@@ -1,5 +1,6 @@
 import type { JSX, PropsWithChildren } from 'react';
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useMemo } from 'react';
+import * as React from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import type { ThemeName } from '@/constants/theme';
@@ -42,7 +43,7 @@ export function ThemeProvider({ children }: PropsWithChildren): JSX.Element {
  * @throws Error when invoked outside of ThemeProvider
  */
 export function useTheme(): ThemeContextValue {
-	const context = useContext(ThemeContext);
+	const context = React.use(ThemeContext);
 
 	if (!context) {
 		throw new Error('useTheme must be used within ThemeProvider');

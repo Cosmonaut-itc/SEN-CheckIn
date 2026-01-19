@@ -419,64 +419,70 @@ export function ScheduleExceptionsTab({
 					</SelectContent>
 				</Select>
 
-				<div className="flex items-center gap-2">
+				<div className="flex items-center gap-3">
 					<span className="text-sm text-muted-foreground">
 						{t('exceptions.filters.from')}
 					</span>
-					<Popover>
-						<PopoverTrigger asChild>
-							<Button
-								variant="outline"
-								data-empty={!fromDateValue}
-								className="data-[empty=true]:text-muted-foreground w-[180px] justify-start text-left font-normal"
-							>
-								<CalendarIcon className="mr-2 h-4 w-4" />
-								{fromDateValue ? (
-									format(fromDateValue, 'PPP', { locale: es })
-								) : (
-									<span>{tCommon('selectDate')}</span>
-								)}
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent className="w-auto p-0" align="start">
-							<Calendar
-								mode="single"
-								selected={fromDateValue}
-								onSelect={(date) =>
-									handleFromDateChange(date ? toDateKey(date) : '')
-								}
-								initialFocus
-							/>
-						</PopoverContent>
-					</Popover>
+					<div className="w-[240px]">
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!fromDateValue}
+									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{fromDateValue ? (
+										format(fromDateValue, 'PPP', { locale: es })
+									) : (
+										<span>{tCommon('selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={fromDateValue}
+									onSelect={(date) =>
+										handleFromDateChange(date ? toDateKey(date) : '')
+									}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
+					</div>
 
 					<span className="text-sm text-muted-foreground">
 						{t('exceptions.filters.to')}
 					</span>
-					<Popover>
-						<PopoverTrigger asChild>
-							<Button
-								variant="outline"
-								data-empty={!toDateValue}
-								className="data-[empty=true]:text-muted-foreground w-[180px] justify-start text-left font-normal"
-							>
-								<CalendarIcon className="mr-2 h-4 w-4" />
-								{toDateValue ? (
-									format(toDateValue, 'PPP', { locale: es })
-								) : (
-									<span>{tCommon('selectDate')}</span>
-								)}
-							</Button>
-						</PopoverTrigger>
-						<PopoverContent className="w-auto p-0" align="start">
-							<Calendar
-								mode="single"
-								selected={toDateValue}
-								onSelect={(date) => handleToDateChange(date ? toDateKey(date) : '')}
-								initialFocus
-							/>
-						</PopoverContent>
-					</Popover>
+					<div className="w-[240px]">
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!toDateValue}
+									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{toDateValue ? (
+										format(toDateValue, 'PPP', { locale: es })
+									) : (
+										<span>{tCommon('selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={toDateValue}
+									onSelect={(date) =>
+										handleToDateChange(date ? toDateKey(date) : '')
+									}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
+					</div>
 				</div>
 			</div>
 

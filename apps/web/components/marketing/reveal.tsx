@@ -1,7 +1,7 @@
 'use client';
 
 import React, { type ReactNode } from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -30,12 +30,18 @@ export function Reveal({
 	delay = 0,
 	yOffset = 18,
 }: RevealProps): React.ReactElement {
+	const prefersReducedMotion = useReducedMotion();
+	const initialState = prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: yOffset };
+	const transition = prefersReducedMotion
+		? { duration: 0 }
+		: { duration: 0.6, delay };
+
 	return (
 		<motion.div
 			className={cn(className)}
-			initial={{ opacity: 0, y: yOffset }}
+			initial={initialState}
 			whileInView={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.6, ease: 'easeOut', delay }}
+			transition={transition}
 			viewport={{ once: true, amount: 0.3 }}
 		>
 			{children}

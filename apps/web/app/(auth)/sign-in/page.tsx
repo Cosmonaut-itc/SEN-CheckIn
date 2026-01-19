@@ -102,7 +102,11 @@ function SignInContent(): React.ReactElement {
 				<form onSubmit={handleSubmit} data-testid="sign-in-form">
 					<CardContent className="space-y-4 pt-6">
 						{error && (
-							<div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+							<div
+								role="alert"
+								aria-live="assertive"
+								className="rounded-md bg-destructive/10 p-3 text-sm text-destructive"
+							>
 								{error}
 							</div>
 						)}
@@ -123,6 +127,8 @@ function SignInContent(): React.ReactElement {
 										placeholder="m@example.com"
 										orientation="vertical"
 										startIcon={Mail}
+										autoComplete="email"
+										spellCheck={false}
 									/>
 								)}
 							</form.AppField>
@@ -142,6 +148,8 @@ function SignInContent(): React.ReactElement {
 										placeholder="••••••••"
 										orientation="vertical"
 										startIcon={Lock}
+										autoComplete="current-password"
+										spellCheck={false}
 									/>
 								)}
 							</form.AppField>

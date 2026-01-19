@@ -74,6 +74,8 @@
 		"users": "Usuarios",
 		"organizations": "Organizaciones",
 		"signOut": "Cerrar Sesión",
+		"userAvatarAlt": "Foto de perfil de {name}",
+		"userAvatarAltFallback": "Foto de perfil del usuario",
 		"userFallback": "Usuario",
 		"superUserBadge": "Superusuario",
 		"toggleSidebar": "Alternar Barra Lateral"
@@ -1226,7 +1228,9 @@
 			"create": "Crear clave de API",
 			"createKey": "Crear clave",
 			"creating": "Creando...",
-			"done": "Listo"
+			"done": "Listo",
+			"showKey": "Mostrar clave",
+			"hideKey": "Ocultar clave"
 		},
 		"created": {
 			"title": "Clave de API creada",
@@ -1811,7 +1815,8 @@
 			"noEmployee": "Selecciona un empleado para registrar"
 		},
 		"image": {
-			"alt": "Rostro capturado"
+			"alt": "Rostro capturado",
+			"clear": "Eliminar imagen"
 		},
 		"tabs": {
 			"upload": "Subir",

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Camera, Loader2, Upload, X, RefreshCw, UserCheck } from 'lucide-react';
@@ -107,6 +107,7 @@ export function FaceEnrollmentDialog({
 	const [digitalZoom, setDigitalZoom] = useState<number>(1);
 	const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
 	const [webcamErrorDetail, setWebcamErrorDetail] = useState<string | null>(null);
+	const zoomLabelId = useId();
 
 	const DIGITAL_ZOOM_RANGE = { min: 1, max: 2.5, step: 0.1 };
 
@@ -1008,6 +1009,7 @@ export function FaceEnrollmentDialog({
 									className="absolute top-2 right-2"
 									onClick={clearImage}
 									disabled={isSubmitting}
+									aria-label={t('image.clear')}
 								>
 									<X className="h-4 w-4" />
 								</Button>
@@ -1105,7 +1107,7 @@ export function FaceEnrollmentDialog({
 										</div>
 										<div className="space-y-2">
 											<div className="flex items-center justify-between text-xs text-muted-foreground">
-												<span className="font-medium">
+												<span id={zoomLabelId} className="font-medium">
 													{t('webcam.zoom.label')}
 												</span>
 												<span>
@@ -1124,6 +1126,7 @@ export function FaceEnrollmentDialog({
 												value={zoomRange ? zoomValue : digitalZoom}
 												onChange={handleZoomChange}
 												className="w-full accent-primary"
+												aria-labelledby={zoomLabelId}
 											/>
 										</div>
 									</div>

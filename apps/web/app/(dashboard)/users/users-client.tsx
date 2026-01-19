@@ -4,8 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type React from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -86,6 +85,169 @@ function getInitials(name: string): string {
 	}
 	return name.substring(0, 2).toUpperCase();
 }
+
+/**
+ * Props for the memoized users table section.
+ */
+interface UsersTableSectionProps {
+	/** Whether the current user can access super admin features. */
+	isSuperUser: boolean;
+	/** Organization options for the selector. */
+	organizationOptions: { value: string; label: string }[];
+	/** Whether organizations are loading. */
+	isFetchingOrganizations: boolean;
+	/** Selected organization id for the selector. */
+	resolvedSelectedOrganizationId: string | null;
+	/** Callback to update organization selection. */
+	onOrganizationSelection: (value: string) => void;
+	/** Effective organization id for table data. */
+	effectiveOrganizationId: string | null;
+	/** Global search filter value. */
+	globalFilter: string;
+	/** Callback to update the global filter. */
+	onGlobalFilterChange: React.Dispatch<React.SetStateAction<string>>;
+	/** Table column definitions. */
+	columns: ColumnDef<OrganizationMember>[];
+	/** Member rows to display. */
+	members: OrganizationMember[];
+	/** Current sorting state. */
+	sorting: SortingState;
+	/** Callback to update sorting state. */
+	onSortingChange: React.Dispatch<React.SetStateAction<SortingState>>;
+	/** Current pagination state. */
+	pagination: PaginationState;
+	/** Callback to update pagination state. */
+	onPaginationChange: React.Dispatch<React.SetStateAction<PaginationState>>;
+	/** Current column filter state. */
+	columnFilters: ColumnFiltersState;
+	/** Callback to update column filters. */
+	onColumnFiltersChange: React.Dispatch<React.SetStateAction<ColumnFiltersState>>;
+	/** Total number of rows for server pagination. */
+	rowCount: number;
+	/** Loading indicator for table content. */
+	isLoading: boolean;
+	/** Empty state label for the table. */
+	emptyState: string;
+	/** Search input placeholder. */
+	searchPlaceholder: string;
+	/** Organization selector label. */
+	organizationLabel: string;
+	/** Organization selector placeholder. */
+	organizationPlaceholder: string;
+	/** Organization selector loading placeholder. */
+	organizationLoadingLabel: string;
+	/** Organization selector helper text. */
+	organizationHelper: string;
+	/** Member count label. */
+	memberCountLabel: string;
+}
+
+/**
+ * Memoized table section to avoid rerendering on unrelated state changes.
+ *
+ * @param props - Table section props.
+ * @returns The users table section React element.
+ */
+function UsersTableSection({
+	isSuperUser,
+	organizationOptions,
+	isFetchingOrganizations,
+	resolvedSelectedOrganizationId,
+	onOrganizationSelection,
+	effectiveOrganizationId,
+	globalFilter,
+	onGlobalFilterChange,
+	columns,
+	members,
+	sorting,
+	onSortingChange,
+	pagination,
+	onPaginationChange,
+	columnFilters,
+	onColumnFiltersChange,
+	rowCount,
+	isLoading,
+	emptyState,
+	searchPlaceholder,
+	organizationLabel,
+	organizationPlaceholder,
+	organizationLoadingLabel,
+	organizationHelper,
+	memberCountLabel,
+}: UsersTableSectionProps): React.ReactElement {
+	return (
+		<div className="space-y-4">
+			{isSuperUser ? (
+				<div className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-3">
+					<div className="flex items-center gap-3">
+						<span className="text-sm font-medium text-foreground">
+							{organizationLabel}
+						</span>
+						<Select
+							value={resolvedSelectedOrganizationId ?? ''}
+							onValueChange={onOrganizationSelection}
+							disabled={isFetchingOrganizations}
+						>
+							<SelectTrigger className="w-[260px]">
+								<SelectValue
+									placeholder={
+										isFetchingOrganizations
+											? organizationLoadingLabel
+											: organizationPlaceholder
+									}
+								/>
+							</SelectTrigger>
+							<SelectContent>
+								{organizationOptions.map((option) => (
+									<SelectItem key={option.value} value={option.value}>
+										{option.label}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+					{!effectiveOrganizationId ? (
+						<span className="text-sm text-muted-foreground">{organizationHelper}</span>
+					) : null}
+				</div>
+			) : null}
+
+			<div className="flex items-center gap-4">
+				<div className="relative flex-1 max-w-sm">
+					<Input
+						placeholder={searchPlaceholder}
+						value={globalFilter}
+						onChange={(event) => onGlobalFilterChange(event.target.value)}
+						className="pl-3"
+						disabled={isLoading || !effectiveOrganizationId}
+					/>
+				</div>
+				<Badge variant="outline">{memberCountLabel}</Badge>
+			</div>
+
+			<DataTable
+				columns={columns}
+				data={members}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
+				pagination={pagination}
+				onPaginationChange={onPaginationChange}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={onColumnFiltersChange}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={onGlobalFilterChange}
+				showToolbar={false}
+				manualPagination
+				manualFiltering
+				rowCount={rowCount}
+				emptyState={emptyState}
+				isLoading={isLoading}
+			/>
+		</div>
+	);
+}
+
+const MemoizedUsersTableSection = React.memo(UsersTableSection);
 
 export function UsersPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
@@ -626,73 +788,32 @@ export function UsersPageClient(): React.ReactElement {
 				</div>
 			</div>
 
-			{isSuperUser ? (
-				<div className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-3">
-					<div className="flex items-center gap-3">
-						<span className="text-sm font-medium text-foreground">
-							{t('organizationSelector.label')}
-						</span>
-						<Select
-							value={resolvedSelectedOrganizationId ?? ''}
-							onValueChange={handleOrganizationSelection}
-							disabled={isFetchingOrganizations}
-						>
-							<SelectTrigger className="w-[260px]">
-								<SelectValue
-									placeholder={
-										isFetchingOrganizations
-											? t('organizationSelector.loading')
-											: t('organizationSelector.placeholder')
-									}
-								/>
-							</SelectTrigger>
-							<SelectContent>
-								{organizationOptions.map((option) => (
-									<SelectItem key={option.value} value={option.value}>
-										{option.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					{!effectiveOrganizationId ? (
-						<span className="text-sm text-muted-foreground">
-							{t('organizationSelector.helper')}
-						</span>
-					) : null}
-				</div>
-			) : null}
-
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
-					<Input
-						placeholder={t('search.placeholder')}
-						value={globalFilter}
-						onChange={(e) => handleGlobalFilterChange(e.target.value)}
-						className="pl-3"
-						disabled={isLoading || !effectiveOrganizationId}
-					/>
-				</div>
-				<Badge variant="outline">{t('memberCount', { count: totalRows })}</Badge>
-			</div>
-
-			<DataTable
+			<MemoizedUsersTableSection
+				isSuperUser={Boolean(isSuperUser)}
+				organizationOptions={organizationOptions}
+				isFetchingOrganizations={isFetchingOrganizations}
+				resolvedSelectedOrganizationId={resolvedSelectedOrganizationId}
+				onOrganizationSelection={handleOrganizationSelection}
+				effectiveOrganizationId={effectiveOrganizationId}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={handleGlobalFilterChange}
 				columns={columns}
-				data={members}
+				members={members}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}
 				onPaginationChange={setPagination}
 				columnFilters={columnFilters}
 				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				showToolbar={false}
-				manualPagination
-				manualFiltering
 				rowCount={totalRows}
-				emptyState={tableEmptyState}
 				isLoading={isLoading}
+				emptyState={tableEmptyState}
+				searchPlaceholder={t('search.placeholder')}
+				organizationLabel={t('organizationSelector.label')}
+				organizationPlaceholder={t('organizationSelector.placeholder')}
+				organizationLoadingLabel={t('organizationSelector.loading')}
+				organizationHelper={t('organizationSelector.helper')}
+				memberCountLabel={t('memberCount', { count: totalRows })}
 			/>
 		</div>
 	);

@@ -217,6 +217,11 @@ export function ApiKeysPageClient(): React.ReactElement {
 							size="icon"
 							className="h-6 w-6"
 							onClick={() => toggleKeyVisibility(row.original.id)}
+							aria-label={
+								visibleKeys.has(row.original.id)
+									? t('actions.hideKey')
+									: t('actions.showKey')
+							}
 						>
 							{visibleKeys.has(row.original.id) ? (
 								<EyeOff className="h-3 w-3" />
@@ -278,7 +283,11 @@ export function ApiKeysPageClient(): React.ReactElement {
 						}
 					>
 						<DialogTrigger asChild>
-							<Button variant="ghost" size="icon">
+							<Button
+								variant="ghost"
+								size="icon"
+								aria-label={t('dialogs.delete.title')}
+							>
 								<Trash2 className="h-4 w-4 text-destructive" />
 							</Button>
 						</DialogTrigger>

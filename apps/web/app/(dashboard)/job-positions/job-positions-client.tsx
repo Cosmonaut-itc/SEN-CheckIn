@@ -419,6 +419,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 							variant="ghost"
 							size="icon"
 							onClick={() => handleEdit(row.original)}
+							aria-label={t('dialog.title.edit')}
 						>
 							<Pencil className="h-4 w-4" />
 						</Button>
@@ -429,7 +430,11 @@ export function JobPositionsPageClient(): React.ReactElement {
 							}
 						>
 							<DialogTrigger asChild>
-								<Button variant="ghost" size="icon">
+								<Button
+									variant="ghost"
+									size="icon"
+									aria-label={t('dialogs.delete.title')}
+								>
 									<Trash2 className="h-4 w-4 text-destructive" />
 								</Button>
 							</DialogTrigger>

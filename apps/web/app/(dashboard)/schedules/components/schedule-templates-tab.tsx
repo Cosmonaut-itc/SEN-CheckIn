@@ -280,6 +280,7 @@ export function ScheduleTemplatesTab({
 							size="icon"
 							onClick={() => handleEdit(row.original)}
 							title={t('templates.actions.editTitle')}
+							aria-label={t('templates.actions.editTitle')}
 						>
 							<Pencil className="h-4 w-4" />
 						</Button>
@@ -290,6 +291,7 @@ export function ScheduleTemplatesTab({
 								setDeleteId(row.original.id);
 							}}
 							title={t('templates.actions.deleteTitle')}
+							aria-label={t('templates.actions.deleteTitle')}
 						>
 							<Trash2 className="h-4 w-4 text-destructive" />
 						</Button>
@@ -301,6 +303,7 @@ export function ScheduleTemplatesTab({
 								setSelectedEmployeeIds([]);
 							}}
 							title={t('templates.actions.assignTitle')}
+							aria-label={t('templates.actions.assignTitle')}
 						>
 							<Users className="h-4 w-4" />
 						</Button>

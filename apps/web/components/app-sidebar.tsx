@@ -300,7 +300,16 @@ export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): 
 					) : (
 						<>
 							<Avatar className="h-9 w-9">
-								<AvatarImage src={session?.user?.image ?? undefined} />
+								<AvatarImage
+									src={session?.user?.image ?? undefined}
+									alt={
+										session?.user?.name
+											? tSidebar('userAvatarAlt', {
+													name: session.user.name,
+												})
+											: tSidebar('userAvatarAltFallback')
+									}
+								/>
 								<AvatarFallback className="bg-primary/10 text-primary text-sm">
 									{getInitials(session?.user?.name)}
 								</AvatarFallback>
@@ -327,6 +336,7 @@ export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): 
 						size="icon"
 						onClick={handleSignOut}
 						className="h-8 w-8 shrink-0"
+						aria-label={tSidebar('signOut')}
 						title={tSidebar('signOut')}
 					>
 						<LogOut className="h-4 w-4" />

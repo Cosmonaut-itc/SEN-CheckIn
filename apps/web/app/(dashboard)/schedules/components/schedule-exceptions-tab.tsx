@@ -324,6 +324,7 @@ export function ScheduleExceptionsTab({
 								setIsFormOpen(true);
 							}}
 							title={t('exceptions.actions.editTitle')}
+							aria-label={t('exceptions.actions.editTitle')}
 						>
 							<Pencil className="h-4 w-4" />
 						</Button>
@@ -332,6 +333,7 @@ export function ScheduleExceptionsTab({
 							size="icon"
 							onClick={() => setDeleteId(row.original.id)}
 							title={t('exceptions.actions.deleteTitle')}
+							aria-label={t('exceptions.actions.deleteTitle')}
 						>
 							<Trash2 className="h-4 w-4 text-destructive" />
 						</Button>

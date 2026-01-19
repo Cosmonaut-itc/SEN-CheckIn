@@ -1,5 +1,4 @@
 import { getServerFetchOptions, serverAuthClient } from '@/lib/server-auth-client';
-import { after } from 'next/server';
 import { cache } from 'react';
 
 export interface ActiveOrganizationContext {
@@ -87,16 +86,14 @@ async function resolveActiveOrganizationContext(
 	if (!organizationId && organizations.length > 0) {
 		const fallback = organizations[0] ?? null;
 		if (fallback) {
-			after(async () => {
-				try {
-					await serverAuthClient.organization.setActive(
-						{ organizationId: fallback.id },
-						fetchOptions,
-					);
-				} catch (error) {
-					console.error('[organization-context] Failed to set active organization', error);
-				}
-			});
+			try {
+				await serverAuthClient.organization.setActive(
+					{ organizationId: fallback.id },
+					fetchOptions,
+				);
+			} catch (error) {
+				console.error('[organization-context] Failed to set active organization', error);
+			}
 			organizationId = fallback.id;
 			activeOrg = fallback;
 		}

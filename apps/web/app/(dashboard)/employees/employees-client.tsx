@@ -204,7 +204,7 @@ interface EmployeesTableSectionProps {
  * Memoized table section to avoid rerendering on unrelated state changes.
  *
  * @param props - Table section props.
- * @returns The employees table section.
+ * @returns The employees table section React element.
  */
 function EmployeesTableSection({
 	search,

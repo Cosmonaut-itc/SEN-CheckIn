@@ -146,7 +146,7 @@ interface UsersTableSectionProps {
  * Memoized table section to avoid rerendering on unrelated state changes.
  *
  * @param props - Table section props.
- * @returns The users table section.
+ * @returns The users table section React element.
  */
 function UsersTableSection({
 	isSuperUser,

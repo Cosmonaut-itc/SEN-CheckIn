@@ -49,6 +49,8 @@ type CommonFieldProps = {
 	disabled?: boolean;
 	orientation?: 'horizontal' | 'vertical';
 	startIcon?: React.ComponentType<{ className?: string }>;
+	autoComplete?: string;
+	spellCheck?: boolean;
 };
 
 /**
@@ -63,6 +65,8 @@ export function TextField({
 	onValueChange,
 	orientation = 'horizontal',
 	startIcon: StartIcon,
+	autoComplete,
+	spellCheck,
 }: CommonFieldProps & {
 	type?: string;
 	onValueChange?: (value: string) => string;
@@ -93,6 +97,8 @@ export function TextField({
 						onBlur={field.handleBlur}
 						placeholder={placeholder}
 						disabled={disabled}
+						autoComplete={autoComplete}
+						spellCheck={spellCheck}
 						className={cn(StartIcon && 'pl-10')}
 					/>
 				</div>
@@ -124,6 +130,8 @@ export function TextField({
 					onBlur={field.handleBlur}
 					placeholder={placeholder}
 					disabled={disabled}
+					autoComplete={autoComplete}
+					spellCheck={spellCheck}
 				/>
 				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (

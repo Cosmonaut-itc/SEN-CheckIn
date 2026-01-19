@@ -12,7 +12,7 @@ import { Colors } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
 import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
-import { type RegisterDeviceResponse, registerDevice } from '@/lib/client-functions';
+import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
 import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { useAuthContext } from '@/providers/auth-provider';
@@ -73,7 +73,7 @@ function normalizeUserCode(value: string): string {
  */
 function formatUserCode(value: string): string {
 	const normalized = normalizeUserCode(value);
-	return normalized.match(/.{1,4}/g)?.join('\n') ?? normalized;
+	return normalized.match(/.{1,4}/g)?.join('-') ?? normalized;
 }
 
 /**

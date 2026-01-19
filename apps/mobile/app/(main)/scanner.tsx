@@ -1,6 +1,6 @@
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { Link, useFocusEffect } from 'expo-router';
+import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -58,6 +58,7 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
 export default function ScannerScreen(): JSX.Element {
 	const cameraRef = useRef<CameraView | null>(null);
 	const [permission, requestPermission] = useCameraPermissions();
+	const router = useRouter();
 	const { settings } = useDeviceContext();
 	const { colorScheme, isDarkMode } = useTheme();
 	const insets = useSafeAreaInsets();
@@ -408,16 +409,17 @@ export default function ScannerScreen(): JSX.Element {
 			<View style={styles.container}>
 				{/* Camera View */}
 				{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
-				{isCameraReady && (
-					<CameraView
-						key={`camera-${cameraFacing}`}
-						ref={cameraRef}
-						style={styles.camera}
-						facing={cameraFacing}
-						enableTorch={false}
-						animateShutter
-					/>
-				)}
+					{isCameraReady && (
+						<CameraView
+							key={`camera-${cameraFacing}`}
+							ref={cameraRef}
+							pointerEvents="none"
+							style={styles.camera}
+							facing={cameraFacing}
+							enableTorch={false}
+							animateShutter
+						/>
+					)}
 
 				{/* Top Bar - Attendance Type Toggle & Settings */}
 				<View style={styles.topBar}>
@@ -441,23 +443,19 @@ export default function ScannerScreen(): JSX.Element {
 							color={themeColors.foreground500}
 						/>
 					</Button>
-					<Link href="/(main)/settings">
-						<Link.Trigger>
-							<Button
-								variant="secondary"
-								isIconOnly
-								size="sm"
-								className="rounded-full"
-							>
-								<IconSymbol
-									name="gearshape"
-									size={20}
-									color={themeColors.foreground}
-								/>
-							</Button>
-						</Link.Trigger>
-						<Link.Preview />
-					</Link>
+					<Button
+						variant="secondary"
+						isIconOnly
+						size="md"
+						className="w-12 h-12 rounded-full"
+						onPress={() => router.push('/(main)/settings')}
+					>
+						<IconSymbol
+							name="gearshape"
+							size={20}
+							color={themeColors.foreground}
+						/>
+					</Button>
 				</View>
 
 				{/* Face Guide Overlay */}
@@ -678,9 +676,11 @@ const createScannerStyles = (
 			backgroundColor: themeColors.background,
 		},
 		camera: {
-			flex: 1,
-			width: '100%',
-			height: '100%',
+			position: 'absolute',
+			top: 0,
+			right: 0,
+			bottom: 0,
+			left: 0,
 		},
 		centeredContainer: {
 			flex: 1,
@@ -728,6 +728,7 @@ const createScannerStyles = (
 			paddingTop: 16,
 			paddingHorizontal: 16,
 			paddingBottom: 12,
+			zIndex: 2,
 		},
 		attendanceToggle: {
 			flexDirection: 'row',
@@ -854,5 +855,6 @@ const createScannerStyles = (
 			right: 0,
 			paddingHorizontal: 16,
 			paddingBottom: Math.max(16, bottomInset + 16),
+			zIndex: 2,
 		},
 	});

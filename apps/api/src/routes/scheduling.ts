@@ -26,6 +26,7 @@ type CalendarDay = {
 	endTime: string | null;
 	source: 'template' | 'manual' | 'exception' | 'none';
 	exceptionType?: 'DAY_OFF' | 'MODIFIED' | 'EXTRA_DAY';
+	reason?: string | null;
 };
 
 type CalendarEmployee = {
@@ -249,6 +250,7 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 								endTime: null,
 								source: 'exception',
 								exceptionType: exception.exceptionType,
+								reason: exception.reason ?? null,
 							};
 						}
 
@@ -259,6 +261,7 @@ export const schedulingRoutes = new Elysia({ prefix: '/scheduling' })
 							endTime: exception.endTime ?? null,
 							source: 'exception',
 							exceptionType: exception.exceptionType,
+							reason: exception.reason ?? null,
 						};
 					}
 

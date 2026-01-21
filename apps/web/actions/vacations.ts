@@ -11,7 +11,7 @@
 
 import { headers } from 'next/headers';
 
-import { getApiResponseData } from '@/lib/api-response';
+import { getApiResponseData, type ApiErrorPayload } from '@/lib/api-response';
 import { createServerApiClient } from '@/lib/server-api';
 import type { VacationRequest } from '@/lib/client-functions';
 
@@ -49,8 +49,142 @@ export interface MutationResult<T = unknown> {
 	success: boolean;
 	/** The data returned from the operation */
 	data?: T;
+	/** Error code if the operation failed */
+	errorCode?: VacationMutationErrorCode;
 	/** Error message if the operation failed */
 	error?: string;
+}
+
+/**
+ * Error codes for vacation request mutations.
+ */
+export type VacationMutationErrorCode =
+	| 'BAD_REQUEST'
+	| 'UNAUTHORIZED'
+	| 'FORBIDDEN'
+	| 'NOT_FOUND'
+	| 'CONFLICT'
+	| 'VACATION_EMPLOYEE_REQUIRED'
+	| 'VACATION_EMPLOYEE_NOT_FOUND'
+	| 'VACATION_INVALID_STATUS'
+	| 'VACATION_HIRE_DATE_REQUIRED'
+	| 'VACATION_INVALID_RANGE'
+	| 'VACATION_SERVICE_YEAR_INCOMPLETE'
+	| 'VACATION_INSUFFICIENT_BALANCE'
+	| 'VACATION_OVERLAP'
+	| 'UNKNOWN';
+
+type VacationErrorPayload = ApiErrorPayload | { error?: string };
+
+const VACATION_ERROR_CODE_SET = new Set<VacationMutationErrorCode>([
+	'BAD_REQUEST',
+	'UNAUTHORIZED',
+	'FORBIDDEN',
+	'NOT_FOUND',
+	'CONFLICT',
+	'VACATION_EMPLOYEE_REQUIRED',
+	'VACATION_EMPLOYEE_NOT_FOUND',
+	'VACATION_INVALID_STATUS',
+	'VACATION_HIRE_DATE_REQUIRED',
+	'VACATION_INVALID_RANGE',
+	'VACATION_SERVICE_YEAR_INCOMPLETE',
+	'VACATION_INSUFFICIENT_BALANCE',
+	'VACATION_OVERLAP',
+	'UNKNOWN',
+]);
+
+/**
+ * Checks whether an error code is supported by vacation mutations.
+ *
+ * @param code - Error code candidate
+ * @returns True when the code is a known vacation mutation error
+ */
+function isVacationErrorCode(code: string): code is VacationMutationErrorCode {
+	return VACATION_ERROR_CODE_SET.has(code as VacationMutationErrorCode);
+}
+
+/**
+ * Extracts the error code from an API response error payload.
+ *
+ * @param error - Error payload from Eden Treaty response
+ * @returns Error code when available, otherwise null
+ */
+function extractVacationErrorCode(error: unknown): string | null {
+	const payload = error as { value?: VacationErrorPayload } | null;
+	const value = payload?.value;
+
+	if (!value || typeof value !== 'object') {
+		return null;
+	}
+
+	if ('error' in value && value.error) {
+		if (typeof value.error === 'string') {
+			return value.error;
+		}
+		if (
+			typeof value.error === 'object' &&
+			'code' in value.error &&
+			typeof value.error.code === 'string'
+		) {
+			return value.error.code;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Resolves a mutation error code from the API response.
+ *
+ * @param status - HTTP status code from the API response
+ * @param error - Error payload from the API response
+ * @returns Normalized error code for UI handling
+ */
+function resolveVacationErrorCode(
+	status: number | undefined,
+	error: unknown,
+): VacationMutationErrorCode {
+	const errorCode = extractVacationErrorCode(error);
+	if (errorCode && isVacationErrorCode(errorCode)) {
+		return errorCode;
+	}
+
+	switch (status) {
+		case 400:
+			return 'BAD_REQUEST';
+		case 401:
+			return 'UNAUTHORIZED';
+		case 403:
+			return 'FORBIDDEN';
+		case 404:
+			return 'NOT_FOUND';
+		case 409:
+			return 'CONFLICT';
+		default:
+			return 'UNKNOWN';
+	}
+}
+
+/**
+ * Logs API errors for vacation actions with contextual metadata.
+ *
+ * @param action - Action identifier for logging
+ * @param status - HTTP status code from the API response
+ * @param error - Error payload from the API response
+ * @param meta - Additional log context
+ * @returns void
+ */
+function logVacationActionError(
+	action: string,
+	status: number | undefined,
+	error: unknown,
+	meta?: Record<string, unknown>,
+): void {
+	console.error(`[vacations:${action}] API error`, {
+		status,
+		error,
+		...(meta ?? {}),
+	});
 }
 
 /**
@@ -85,14 +219,24 @@ export async function createVacationRequestAction(
 		});
 
 		if (response.error) {
-			return { success: false, error: 'Failed to create vacation request' };
+			logVacationActionError('create', response.status, response.error, {
+				employeeId: input.employeeId,
+				startDateKey: input.startDateKey,
+				endDateKey: input.endDateKey,
+				status: input.status ?? 'SUBMITTED',
+				notesLength: requestedNotes?.length ?? 0,
+			});
+			return {
+				success: false,
+				errorCode: resolveVacationErrorCode(response.status, response.error),
+			};
 		}
 
 		const payload = getApiResponseData(response);
 		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to create vacation request:', error);
-		return { success: false, error: 'Failed to create vacation request' };
+		return { success: false, errorCode: 'UNKNOWN' };
 	}
 }
 
@@ -114,14 +258,21 @@ export async function approveVacationRequestAction(
 		});
 
 		if (response.error) {
-			return { success: false, error: 'Failed to approve vacation request' };
+			logVacationActionError('approve', response.status, response.error, {
+				requestId: input.id,
+				notesLength: decisionNotes?.length ?? 0,
+			});
+			return {
+				success: false,
+				errorCode: resolveVacationErrorCode(response.status, response.error),
+			};
 		}
 
 		const payload = getApiResponseData(response);
 		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to approve vacation request:', error);
-		return { success: false, error: 'Failed to approve vacation request' };
+		return { success: false, errorCode: 'UNKNOWN' };
 	}
 }
 
@@ -143,14 +294,21 @@ export async function rejectVacationRequestAction(
 		});
 
 		if (response.error) {
-			return { success: false, error: 'Failed to reject vacation request' };
+			logVacationActionError('reject', response.status, response.error, {
+				requestId: input.id,
+				notesLength: decisionNotes?.length ?? 0,
+			});
+			return {
+				success: false,
+				errorCode: resolveVacationErrorCode(response.status, response.error),
+			};
 		}
 
 		const payload = getApiResponseData(response);
 		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to reject vacation request:', error);
-		return { success: false, error: 'Failed to reject vacation request' };
+		return { success: false, errorCode: 'UNKNOWN' };
 	}
 }
 
@@ -172,13 +330,20 @@ export async function cancelVacationRequestAction(
 		});
 
 		if (response.error) {
-			return { success: false, error: 'Failed to cancel vacation request' };
+			logVacationActionError('cancel', response.status, response.error, {
+				requestId: input.id,
+				notesLength: decisionNotes?.length ?? 0,
+			});
+			return {
+				success: false,
+				errorCode: resolveVacationErrorCode(response.status, response.error),
+			};
 		}
 
 		const payload = getApiResponseData(response);
 		return { success: true, data: payload?.data as VacationRequest };
 	} catch (error) {
 		console.error('Failed to cancel vacation request:', error);
-		return { success: false, error: 'Failed to cancel vacation request' };
+		return { success: false, errorCode: 'UNKNOWN' };
 	}
 }

@@ -57,6 +57,17 @@ type VacationRequestResponse = VacationRequestRow & {
 	summary: VacationRequestSummary;
 };
 
+const VACATION_ERROR_CODES = {
+	EMPLOYEE_REQUIRED: 'VACATION_EMPLOYEE_REQUIRED',
+	EMPLOYEE_NOT_FOUND: 'VACATION_EMPLOYEE_NOT_FOUND',
+	INVALID_STATUS: 'VACATION_INVALID_STATUS',
+	HIRE_DATE_REQUIRED: 'VACATION_HIRE_DATE_REQUIRED',
+	INVALID_RANGE: 'VACATION_INVALID_RANGE',
+	SERVICE_YEAR_INCOMPLETE: 'VACATION_SERVICE_YEAR_INCOMPLETE',
+	INSUFFICIENT_BALANCE: 'VACATION_INSUFFICIENT_BALANCE',
+	OVERLAP: 'VACATION_OVERLAP',
+} as const;
+
 /**
  * Ensures the caller is an organization admin or owner.
  *
@@ -642,13 +653,16 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const employeeRecord = await getEmployeeForSession(organizationId, session, set);
 			if (!employeeRecord) {
 				const status = typeof set.status === 'number' ? set.status : 404;
-				return buildErrorResponse('Employee not found for this user', status);
+				return buildErrorResponse('Employee not found for this user', status, {
+					code: VACATION_ERROR_CODES.EMPLOYEE_NOT_FOUND,
+				});
 			}
 			if (!employeeRecord.hireDate) {
 				set.status = 400;
 				return buildErrorResponse(
 					'Employee hire date is required for vacation requests',
 					400,
+					{ code: VACATION_ERROR_CODES.HIRE_DATE_REQUIRED },
 				);
 			}
 
@@ -669,7 +683,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			} catch (error) {
 				if (error instanceof RangeError) {
 					set.status = 400;
-					return buildErrorResponse(error.message, 400);
+					return buildErrorResponse(error.message, 400, {
+						code: VACATION_ERROR_CODES.INVALID_RANGE,
+					});
 				}
 				throw error;
 			}
@@ -684,6 +700,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return buildErrorResponse(
 					'Vacation days cannot be requested before completing a year of service',
 					400,
+					{ code: VACATION_ERROR_CODES.SERVICE_YEAR_INCOMPLETE },
 				);
 			}
 
@@ -699,7 +716,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			);
 			if (!balanceOk) {
 				const status = typeof set.status === 'number' ? set.status : 409;
-				return buildErrorResponse('Insufficient vacation balance', status);
+				return buildErrorResponse('Insufficient vacation balance', status, {
+					code: VACATION_ERROR_CODES.INSUFFICIENT_BALANCE,
+				});
 			}
 
 			const overlap = await db
@@ -721,6 +740,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return buildErrorResponse(
 					'Vacation request overlaps an approved request',
 					409,
+					{ code: VACATION_ERROR_CODES.OVERLAP },
 				);
 			}
 
@@ -945,7 +965,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (!body.employeeId) {
 				set.status = 400;
-				return buildErrorResponse('employeeId is required', 400);
+				return buildErrorResponse('employeeId is required', 400, {
+					code: VACATION_ERROR_CODES.EMPLOYEE_REQUIRED,
+				});
 			}
 
 			const employeeRows = await db
@@ -961,20 +983,25 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			const employeeRecord = employeeRows[0];
 			if (!employeeRecord) {
 				set.status = 404;
-				return buildErrorResponse('Employee not found', 404);
+				return buildErrorResponse('Employee not found', 404, {
+					code: VACATION_ERROR_CODES.EMPLOYEE_NOT_FOUND,
+				});
 			}
 
 			const status = body.status ?? 'SUBMITTED';
 			const hireDate = employeeRecord.hireDate ?? null;
 			if (status !== 'DRAFT' && status !== 'SUBMITTED') {
 				set.status = 400;
-				return buildErrorResponse('Invalid status for vacation request', 400);
+				return buildErrorResponse('Invalid status for vacation request', 400, {
+					code: VACATION_ERROR_CODES.INVALID_STATUS,
+				});
 			}
 			if (status === 'SUBMITTED' && !hireDate) {
 				set.status = 400;
 				return buildErrorResponse(
 					'Employee hire date is required for vacation requests',
 					400,
+					{ code: VACATION_ERROR_CODES.HIRE_DATE_REQUIRED },
 				);
 			}
 
@@ -995,7 +1022,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			} catch (error) {
 				if (error instanceof RangeError) {
 					set.status = 400;
-					return buildErrorResponse(error.message, 400);
+					return buildErrorResponse(error.message, 400, {
+						code: VACATION_ERROR_CODES.INVALID_RANGE,
+					});
 				}
 				throw error;
 			}
@@ -1010,6 +1039,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return buildErrorResponse(
 					'Vacation days cannot be requested before completing a year of service',
 					400,
+					{ code: VACATION_ERROR_CODES.SERVICE_YEAR_INCOMPLETE },
 				);
 			}
 
@@ -1026,7 +1056,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				);
 				if (!balanceOk) {
 					const statusCode = typeof set.status === 'number' ? set.status : 409;
-					return buildErrorResponse('Insufficient vacation balance', statusCode);
+					return buildErrorResponse('Insufficient vacation balance', statusCode, {
+						code: VACATION_ERROR_CODES.INSUFFICIENT_BALANCE,
+					});
 				}
 
 				const overlap = await db
@@ -1048,6 +1080,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					return buildErrorResponse(
 						'Vacation request overlaps an approved request',
 						409,
+						{ code: VACATION_ERROR_CODES.OVERLAP },
 					);
 				}
 			}

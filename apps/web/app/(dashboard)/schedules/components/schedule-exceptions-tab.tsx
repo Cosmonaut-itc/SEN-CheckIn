@@ -2,8 +2,12 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, isValid, parse } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { DataTable } from '@/components/data-table/data-table';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -20,7 +24,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Pencil } from 'lucide-react';
+import { CalendarIcon, Pencil, Plus, Trash2 } from 'lucide-react';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { formatShortDateUtc } from '@/lib/date-format';
 import {
@@ -46,6 +50,30 @@ function getCurrentMonthRange(): { start: string; end: string } {
 	const start = new Date(now.getFullYear(), now.getMonth(), 1);
 	const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 	return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
+}
+
+/**
+ * Parses a date key (`yyyy-MM-dd`) into a local Date instance.
+ *
+ * @param dateKey - Date key value
+ * @returns Parsed Date or undefined when invalid
+ */
+function parseDateKey(dateKey: string): Date | undefined {
+	if (!dateKey) {
+		return undefined;
+	}
+	const parsed = parse(dateKey, 'yyyy-MM-dd', new Date());
+	return isValid(parsed) ? parsed : undefined;
+}
+
+/**
+ * Formats a Date into a date key (`yyyy-MM-dd`).
+ *
+ * @param date - Date instance to format
+ * @returns Date key string
+ */
+function toDateKey(date: Date): string {
+	return format(date, 'yyyy-MM-dd');
 }
 
 /**
@@ -84,6 +112,8 @@ export function ScheduleExceptionsTab({
 	const monthRange = useMemo(() => getCurrentMonthRange(), []);
 	const [fromDate, setFromDate] = useState<string>(monthRange.start);
 	const [toDate, setToDate] = useState<string>(monthRange.end);
+	const fromDateValue = parseDateKey(fromDate);
+	const toDateValue = parseDateKey(toDate);
 	const selectedEmployeeIdValue =
 		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as
 			| string
@@ -389,25 +419,70 @@ export function ScheduleExceptionsTab({
 					</SelectContent>
 				</Select>
 
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
-					<label className="flex items-center gap-2">
-						<span>{t('exceptions.filters.from')}</span>
-						<input
-							type="date"
-							className="rounded border px-2 py-1 text-sm"
-							value={fromDate}
-							onChange={(event) => handleFromDateChange(event.target.value)}
-						/>
-					</label>
-					<label className="flex items-center gap-2">
-						<span>{t('exceptions.filters.to')}</span>
-						<input
-							type="date"
-							className="rounded border px-2 py-1 text-sm"
-							value={toDate}
-							onChange={(event) => handleToDateChange(event.target.value)}
-						/>
-					</label>
+				<div className="flex items-center gap-3">
+					<span className="text-sm text-muted-foreground">
+						{t('exceptions.filters.from')}
+					</span>
+					<div className="w-[240px]">
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!fromDateValue}
+									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{fromDateValue ? (
+										format(fromDateValue, 'PPP', { locale: es })
+									) : (
+										<span>{tCommon('selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={fromDateValue}
+									onSelect={(date) =>
+										handleFromDateChange(date ? toDateKey(date) : '')
+									}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
+					</div>
+
+					<span className="text-sm text-muted-foreground">
+						{t('exceptions.filters.to')}
+					</span>
+					<div className="w-[240px]">
+						<Popover>
+							<PopoverTrigger asChild>
+								<Button
+									variant="outline"
+									data-empty={!toDateValue}
+									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+								>
+									<CalendarIcon className="mr-2 h-4 w-4" />
+									{toDateValue ? (
+										format(toDateValue, 'PPP', { locale: es })
+									) : (
+										<span>{tCommon('selectDate')}</span>
+									)}
+								</Button>
+							</PopoverTrigger>
+							<PopoverContent className="w-auto p-0" align="start">
+								<Calendar
+									mode="single"
+									selected={toDateValue}
+									onSelect={(date) =>
+										handleToDateChange(date ? toDateKey(date) : '')
+									}
+									initialFocus
+								/>
+							</PopoverContent>
+						</Popover>
+					</div>
 				</div>
 			</div>
 

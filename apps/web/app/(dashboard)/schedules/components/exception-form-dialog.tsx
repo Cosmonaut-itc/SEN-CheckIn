@@ -102,14 +102,14 @@ export function ExceptionFormDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-xl">
+			<DialogContent className="max-w-3xl">
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();
 						event.stopPropagation();
 						form.handleSubmit();
 					}}
-					className="space-y-4"
+					className="space-y-6"
 				>
 					<DialogHeader>
 						<DialogTitle>
@@ -120,7 +120,7 @@ export function ExceptionFormDialog({
 						<DialogDescription>{t('exceptions.form.description')}</DialogDescription>
 					</DialogHeader>
 
-					<div className="grid gap-4 sm:grid-cols-2">
+					<div className="grid gap-6 sm:grid-cols-2">
 						<form.AppField
 							name="employeeId"
 							validators={{
@@ -187,7 +187,7 @@ export function ExceptionFormDialog({
 					</div>
 
 					{showTimeInputs && (
-						<div className="grid gap-4 sm:grid-cols-2">
+						<div className="grid gap-6 sm:grid-cols-2">
 							<form.AppField name="startTime">
 								{(field) => (
 									<field.TimeField

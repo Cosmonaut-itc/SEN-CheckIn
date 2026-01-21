@@ -26,6 +26,48 @@ function getRequestKey(request: Request): string {
 }
 
 /**
+ * Extracts structured error metadata from a response payload.
+ *
+ * @param responseValue - Response payload returned by a handler
+ * @returns Error metadata when available, otherwise null
+ */
+function getErrorMeta(responseValue: unknown): Record<string, unknown> | null {
+	if (!responseValue || typeof responseValue !== 'object') {
+		return null;
+	}
+
+	if (!('error' in responseValue)) {
+		return null;
+	}
+
+	const errorValue = (responseValue as { error?: unknown }).error;
+	if (!errorValue) {
+		return null;
+	}
+
+	if (typeof errorValue === 'string') {
+		return { errorMessage: errorValue };
+	}
+
+	if (typeof errorValue === 'object') {
+		const message = (errorValue as { message?: unknown }).message;
+		const code = (errorValue as { code?: unknown }).code;
+		const meta: Record<string, unknown> = {};
+
+		if (typeof code === 'string') {
+			meta.errorCode = code;
+		}
+		if (typeof message === 'string') {
+			meta.errorMessage = message;
+		}
+
+		return Object.keys(meta).length > 0 ? meta : null;
+	}
+
+	return null;
+}
+
+/**
  * Elysia plugin that provides automatic request/response logging.
  *
  * Features:
@@ -69,7 +111,7 @@ export const loggerPlugin = new Elysia({ name: 'request-logger' })
 		});
 	})
 	// Log responses - use 'scoped' to apply to parent and descendants
-	.onAfterResponse({ as: 'scoped' }, ({ request, set, requestKey }) => {
+	.onAfterResponse({ as: 'scoped' }, ({ request, set, requestKey, responseValue }) => {
 		const url = new URL(request.url);
 		const path = url.pathname;
 
@@ -90,7 +132,14 @@ export const loggerPlugin = new Elysia({ name: 'request-logger' })
 		// Clean up timing entry
 		requestTimings.delete(requestKey);
 
-		logger.response(method, path, status, durationMs);
+		const errorMeta = status >= 400 ? getErrorMeta(responseValue) : null;
+		logger.response(
+			method,
+			path,
+			status,
+			durationMs,
+			errorMeta ?? undefined,
+		);
 	});
 
 /**

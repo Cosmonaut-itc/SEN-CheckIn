@@ -49,6 +49,7 @@ import {
 	createVacationRequestAction,
 	approveVacationRequestAction,
 	rejectVacationRequestAction,
+	type VacationMutationErrorCode,
 } from '@/actions/vacations';
 import {
 	fetchEmployeesList,
@@ -92,6 +93,16 @@ function toUtcDate(dateKey: string): Date {
 }
 
 /**
+ * Converts a date key to a local Date instance (midnight local time).
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Date instance at local midnight
+ */
+function toLocalDate(dateKey: string): Date {
+	return new Date(`${dateKey}T00:00:00`);
+}
+
+/**
  * Formats a Date instance to YYYY-MM-DD using local time.
  *
  * @param date - Date instance
@@ -99,6 +110,51 @@ function toUtcDate(dateKey: string): Date {
  */
 function toDateKey(date: Date): string {
 	return format(date, 'yyyy-MM-dd');
+}
+
+/**
+ * Resolves the error toast message for vacation mutations.
+ *
+ * @param t - Translation helper for Vacations namespace
+ * @param errorCode - Error code from the mutation result
+ * @param fallbackKey - Translation key for the fallback message
+ * @returns Localized error message
+ */
+function getVacationErrorMessage(
+	t: (key: string) => string,
+	errorCode: VacationMutationErrorCode | undefined,
+	fallbackKey: string,
+): string {
+	switch (errorCode) {
+		case 'VACATION_EMPLOYEE_REQUIRED':
+			return t('toast.errors.employeeRequired');
+		case 'VACATION_EMPLOYEE_NOT_FOUND':
+			return t('toast.errors.employeeNotFound');
+		case 'VACATION_INVALID_STATUS':
+			return t('toast.errors.invalidStatus');
+		case 'VACATION_HIRE_DATE_REQUIRED':
+			return t('toast.errors.hireDateRequired');
+		case 'VACATION_INVALID_RANGE':
+			return t('toast.errors.invalidRange');
+		case 'VACATION_SERVICE_YEAR_INCOMPLETE':
+			return t('toast.errors.serviceYearIncomplete');
+		case 'VACATION_INSUFFICIENT_BALANCE':
+			return t('toast.errors.insufficientBalance');
+		case 'VACATION_OVERLAP':
+			return t('toast.errors.overlap');
+		case 'BAD_REQUEST':
+			return t('toast.errors.badRequest');
+		case 'UNAUTHORIZED':
+			return t('toast.errors.unauthorized');
+		case 'FORBIDDEN':
+			return t('toast.errors.forbidden');
+		case 'NOT_FOUND':
+			return t('toast.errors.notFound');
+		case 'CONFLICT':
+			return t('toast.errors.conflict');
+		default:
+			return t(fallbackKey);
+	}
 }
 
 /**
@@ -356,7 +412,9 @@ export function VacationsPageClient(): React.ReactElement {
 				setIsCreateOpen(false);
 				createForm.reset();
 			} else {
-				toast.error(result.error ?? t('toast.createError'));
+				toast.error(
+					getVacationErrorMessage(t, result.errorCode, 'toast.createError'),
+				);
 			}
 		},
 		onError: () => {
@@ -373,7 +431,9 @@ export function VacationsPageClient(): React.ReactElement {
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
 				setDetailRequestWithNotes(result.data ?? null);
 			} else {
-				toast.error(result.error ?? t('toast.approveError'));
+				toast.error(
+					getVacationErrorMessage(t, result.errorCode, 'toast.approveError'),
+				);
 			}
 		},
 		onError: () => toast.error(t('toast.approveError')),
@@ -388,7 +448,9 @@ export function VacationsPageClient(): React.ReactElement {
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
 				setDetailRequestWithNotes(result.data ?? null);
 			} else {
-				toast.error(result.error ?? t('toast.rejectError'));
+				toast.error(
+					getVacationErrorMessage(t, result.errorCode, 'toast.rejectError'),
+				);
 			}
 		},
 		onError: () => toast.error(t('toast.rejectError')),
@@ -403,7 +465,9 @@ export function VacationsPageClient(): React.ReactElement {
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
 				setDetailRequestWithNotes(result.data ?? null);
 			} else {
-				toast.error(result.error ?? t('toast.cancelError'));
+				toast.error(
+					getVacationErrorMessage(t, result.errorCode, 'toast.cancelError'),
+				);
 			}
 		},
 		onError: () => toast.error(t('toast.cancelError')),
@@ -557,7 +621,7 @@ export function VacationsPageClient(): React.ReactElement {
 								<DialogDescription>{t('form.description')}</DialogDescription>
 							</DialogHeader>
 
-							<div className="grid gap-4 sm:grid-cols-2">
+							<div className="grid gap-8 sm:grid-cols-2">
 								<createForm.AppField
 									name="employeeId"
 									validators={{
@@ -627,7 +691,7 @@ export function VacationsPageClient(): React.ReactElement {
 														mode="single"
 														selected={
 															field.state.value
-																? toUtcDate(field.state.value)
+																? toLocalDate(field.state.value)
 																: undefined
 														}
 														onSelect={(date) => {
@@ -688,7 +752,7 @@ export function VacationsPageClient(): React.ReactElement {
 														mode="single"
 														selected={
 															field.state.value
-																? toUtcDate(field.state.value)
+																? toLocalDate(field.state.value)
 																: undefined
 														}
 														onSelect={(date) => {

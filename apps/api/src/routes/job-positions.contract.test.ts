@@ -32,27 +32,16 @@ describe('job position routes (contract)', () => {
 		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
-	it('creates, updates, and deletes a job position with warnings', async () => {
+	it('creates, updates, and deletes a job position', async () => {
 		const createResponse = await client['job-positions'].post({
 			name: `Contrato ${Date.now()}`,
 			description: 'Posicion de prueba',
-			dailyPay: 1,
-			paymentFrequency: 'WEEKLY',
 			organizationId: seed.organizationId,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(createResponse.status).toBe(201);
 		const createPayload = requireResponseData(createResponse);
-		if ('warnings' in createPayload) {
-			const warnings = createPayload.warnings;
-			if (!Array.isArray(warnings)) {
-				throw new Error('Expected minimum wage warnings array.');
-			}
-			expect(warnings.length).toBeGreaterThan(0);
-		} else {
-			throw new Error('Expected minimum wage warnings in create response.');
-		}
 
 		if (!('data' in createPayload) || !createPayload.data) {
 			throw new Error('Expected job position data in create response.');
@@ -68,7 +57,6 @@ describe('job position routes (contract)', () => {
 		);
 		const updateResponse = await jobPositionRoutes.put({
 			description: 'Posicion actualizada',
-			dailyPay: 2,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

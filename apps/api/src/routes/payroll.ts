@@ -8,7 +8,6 @@ import {
 	attendanceRecord,
 	employee,
 	employeeSchedule,
-	jobPosition,
 	location,
 	payrollRun,
 	payrollRunEmployee,
@@ -114,14 +113,13 @@ const calculatePayroll = async (args: {
 			lastPayrollDate: employee.lastPayrollDate,
 			hireDate: employee.hireDate,
 			sbcDailyOverride: employee.sbcDailyOverride,
-			dailyPay: jobPosition.dailyPay,
-			paymentFrequency: jobPosition.paymentFrequency,
+			dailyPay: employee.dailyPay,
+			paymentFrequency: employee.paymentFrequency,
 			shiftType: employee.shiftType,
 			locationGeographicZone: location.geographicZone,
 			locationTimeZone: location.timeZone,
 		})
 		.from(employee)
-		.leftJoin(jobPosition, eq(employee.jobPositionId, jobPosition.id))
 		.leftJoin(location, eq(employee.locationId, location.id))
 		.where(eq(employee.organizationId, organizationId));
 

@@ -59,6 +59,8 @@ export interface Employee {
 	department: string | null;
 	status: EmployeeStatus;
 	hireDate: Date | null;
+	dailyPay: number;
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	sbcDailyOverride: number | null;
 	locationId: string | null;
 	organizationId: string | null;
@@ -118,8 +120,6 @@ export interface JobPosition {
 	id: string;
 	name: string;
 	description: string | null;
-	dailyPay: number;
-	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId: string | null;
 	createdAt: Date;
 	updatedAt: Date;
@@ -471,6 +471,28 @@ export async function denyDeviceCode(userCode: string): Promise<boolean> {
 // Employee Functions
 // ============================================================================
 
+type EmployeePayload = Omit<Employee, 'dailyPay' | 'sbcDailyOverride'> & {
+	dailyPay?: number | string;
+	sbcDailyOverride?: number | string | null;
+};
+
+/**
+ * Normalizes employee payloads with numeric strings into typed values.
+ *
+ * @param record - Raw employee payload from the API
+ * @returns Normalized employee record
+ */
+function normalizeEmployeeRecord(record: EmployeePayload): Employee {
+	return {
+		...record,
+		dailyPay: Number(record.dailyPay ?? 0),
+		sbcDailyOverride:
+			record.sbcDailyOverride === null || record.sbcDailyOverride === undefined
+				? null
+				: Number(record.sbcDailyOverride),
+	};
+}
+
 /**
  * Fetches a paginated list of employees from the API.
  *
@@ -546,8 +568,9 @@ export async function fetchEmployeesList(
 	}
 
 	const payload = getApiResponseData(response);
+	const employees = (payload?.data as EmployeePayload[] | undefined) ?? [];
 	return {
-		data: (payload?.data ?? []) as Employee[],
+		data: employees.map(normalizeEmployeeRecord),
 		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
@@ -572,7 +595,8 @@ export async function fetchEmployeeById(id: string): Promise<Employee | null> {
 	}
 
 	const payload = getApiResponseData(response);
-	return (payload?.data as Employee) ?? null;
+	const record = payload?.data as EmployeePayload | undefined;
+	return record ? normalizeEmployeeRecord(record) : null;
 }
 
 /**
@@ -919,16 +943,10 @@ export async function fetchJobPositionsList(
 	}
 
 	const payload = getApiResponseData(response);
-	const positions =
-		(payload?.data as
-			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: string | number })[]
-			| undefined) ?? [];
+	const positions = (payload?.data as JobPosition[] | undefined) ?? [];
 
 	return {
-		data: positions.map((jp) => ({
-			...jp,
-			dailyPay: Number(jp.dailyPay ?? 0),
-		})),
+		data: positions,
 		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }

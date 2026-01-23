@@ -444,10 +444,6 @@ export const jobPosition = pgTable('job_position', {
 	name: text('name').notNull(),
 	/** Optional description of the position */
 	description: text('description'),
-	/** Daily pay rate for payroll calculations (salario diario) */
-	dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
-	/** Payment frequency for this position */
-	paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
 	/** Organization this position belongs to (replaces legacy client linkage) */
 	organizationId: text('organization_id').references(() => organization.id, {
 		onDelete: 'cascade',
@@ -515,58 +511,62 @@ export const scheduleTemplateDay = pgTable(
 export const employee = pgTable(
 	'employee',
 	{
-	id: text('id').primaryKey(),
-	/** Unique employee code/badge number */
-	code: text('code').notNull().unique(),
-	firstName: text('first_name').notNull(),
-	lastName: text('last_name').notNull(),
-	email: text('email'),
-	/** Contact phone number */
-	phone: text('phone'),
-	/** Reference to employee's job position */
-	jobPositionId: text('job_position_id').references(() => jobPosition.id, {
-		onDelete: 'set null',
-	}),
-	/** Department name */
-	department: text('department'),
-	/** Employee status (ACTIVE, INACTIVE, ON_LEAVE) */
-	status: employeeStatus('status').default('ACTIVE').notNull(),
-	/** Employee shift type used for hour limits */
-	shiftType: shiftType('shift_type').default('DIURNA').notNull(),
-	/** Date when employee was hired */
-	hireDate: timestamp('hire_date'),
-	/**
-	 * Optional SBC daily override (Salario Base de Cotización diario).
-	 * When provided, this value overrides the automatic SDI/SBC calculation.
-	 */
-	sbcDailyOverride: numeric('sbc_daily_override', { precision: 10, scale: 2 }),
-	/** Location where employee works */
-	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
-	/** Assigned schedule template */
-	scheduleTemplateId: text('schedule_template_id').references(() => scheduleTemplate.id, {
-		onDelete: 'set null',
-	}),
-	/** Organization that the employee belongs to */
-	organizationId: text('organization_id').references(() => organization.id, {
-		onDelete: 'cascade',
-	}),
-	/** Linked BetterAuth user for self-service access */
-	userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
-	/**
-	 * Last time payroll was processed for this employee.
-	 * Set by payroll runs to avoid double-payment in a period.
-	 */
-	lastPayrollDate: timestamp('last_payroll_date'),
-	/**
-	 * Rekognition user ID for face recognition.
-	 * Links the employee to their User Vector in the AWS Rekognition collection.
-	 */
-	rekognitionUserId: text('rekognition_user_id'),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
+		id: text('id').primaryKey(),
+		/** Unique employee code/badge number */
+		code: text('code').notNull().unique(),
+		firstName: text('first_name').notNull(),
+		lastName: text('last_name').notNull(),
+		email: text('email'),
+		/** Contact phone number */
+		phone: text('phone'),
+		/** Reference to employee's job position */
+		jobPositionId: text('job_position_id').references(() => jobPosition.id, {
+			onDelete: 'set null',
+		}),
+		/** Department name */
+		department: text('department'),
+		/** Employee status (ACTIVE, INACTIVE, ON_LEAVE) */
+		status: employeeStatus('status').default('ACTIVE').notNull(),
+		/** Employee shift type used for hour limits */
+		shiftType: shiftType('shift_type').default('DIURNA').notNull(),
+		/** Date when employee was hired */
+		hireDate: timestamp('hire_date'),
+		/** Daily pay rate for payroll calculations (salario diario) */
+		dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+		/** Payment frequency for this employee */
+		paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
+		/**
+		 * Optional SBC daily override (Salario Base de Cotización diario).
+		 * When provided, this value overrides the automatic SDI/SBC calculation.
+		 */
+		sbcDailyOverride: numeric('sbc_daily_override', { precision: 10, scale: 2 }),
+		/** Location where employee works */
+		locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+		/** Assigned schedule template */
+		scheduleTemplateId: text('schedule_template_id').references(() => scheduleTemplate.id, {
+			onDelete: 'set null',
+		}),
+		/** Organization that the employee belongs to */
+		organizationId: text('organization_id').references(() => organization.id, {
+			onDelete: 'cascade',
+		}),
+		/** Linked BetterAuth user for self-service access */
+		userId: text('user_id').references(() => user.id, { onDelete: 'set null' }),
+		/**
+		 * Last time payroll was processed for this employee.
+		 * Set by payroll runs to avoid double-payment in a period.
+		 */
+		lastPayrollDate: timestamp('last_payroll_date'),
+		/**
+		 * Rekognition user ID for face recognition.
+		 * Links the employee to their User Vector in the AWS Rekognition collection.
+		 */
+		rekognitionUserId: text('rekognition_user_id'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
 	},
 	(table) => [uniqueIndex('employee_org_user_uniq').on(table.organizationId, table.userId)],
 );

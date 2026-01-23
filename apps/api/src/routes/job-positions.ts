@@ -3,11 +3,10 @@ import crypto from 'node:crypto';
 import { and, eq, ilike, or, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { jobPosition, location, organization, payrollSetting } from '../db/schema.js';
+import { jobPosition, organization } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
-import { resolveMinimumWageRequirement, type MinimumWageZone } from '../utils/minimum-wage.js';
 import {
 	idParamSchema,
 	jobPositionQuerySchema,
@@ -25,99 +24,6 @@ import {
 /**
  * Job Position routes plugin for Elysia.
  */
-type MinimumWageWarning = {
-	code: 'BELOW_MINIMUM_WAGE';
-	details: {
-		dailyPay: number;
-		minimumRequiredDailyPay: number;
-		zones: MinimumWageZone[];
-	};
-};
-
-/**
- * Fetches the overtime enforcement policy for an organization.
- *
- * @param organizationId - Organization identifier
- * @returns Overtime enforcement policy
- */
-async function getOvertimeEnforcement(organizationId: string): Promise<'WARN' | 'BLOCK'> {
-	const existing = await db
-		.select()
-		.from(payrollSetting)
-		.where(eq(payrollSetting.organizationId, organizationId))
-		.limit(1);
-	return existing[0]?.overtimeEnforcement ?? 'WARN';
-}
-
-/**
- * Fetches the geographic zones configured for an organization's locations.
- *
- * @param organizationId - Organization identifier
- * @returns List of geographic zones (defaults to GENERAL when none exist)
- */
-async function getOrganizationZones(organizationId: string): Promise<MinimumWageZone[]> {
-	const rows = await db
-		.select({ geographicZone: location.geographicZone })
-		.from(location)
-		.where(eq(location.organizationId, organizationId));
-
-	if (rows.length === 0) {
-		return ['GENERAL'];
-	}
-
-	return Array.from(new Set(rows.map((row) => row.geographicZone ?? 'GENERAL')));
-}
-
-/**
- * Builds a minimum wage warning payload.
- *
- * @param dailyPay - Daily pay to validate
- * @param minimumRequiredDailyPay - Required minimum daily pay
- * @param zones - Geographic zones considered
- * @returns Minimum wage warning payload
- */
-function buildMinimumWageWarning(
-	dailyPay: number,
-	minimumRequiredDailyPay: number,
-	zones: MinimumWageZone[],
-): MinimumWageWarning {
-	return {
-		code: 'BELOW_MINIMUM_WAGE',
-		details: {
-			dailyPay,
-			minimumRequiredDailyPay,
-			zones,
-		},
-	};
-}
-
-/**
- * Resolves minimum wage validation for an organization and daily pay amount.
- *
- * @param organizationId - Organization identifier
- * @param dailyPay - Daily pay to validate
- * @returns Enforcement policy and optional warning
- */
-async function getMinimumWageValidation(
-	organizationId: string,
-	dailyPay: number,
-): Promise<{ overtimeEnforcement: 'WARN' | 'BLOCK'; warning: MinimumWageWarning | null }> {
-	const [overtimeEnforcement, organizationZones] = await Promise.all([
-		getOvertimeEnforcement(organizationId),
-		getOrganizationZones(organizationId),
-	]);
-	const minimumWageRequirement = resolveMinimumWageRequirement(organizationZones);
-	const warning =
-		dailyPay < minimumWageRequirement.minimumRequiredDailyPay
-			? buildMinimumWageWarning(
-					dailyPay,
-					minimumWageRequirement.minimumRequiredDailyPay,
-					minimumWageRequirement.zones,
-				)
-			: null;
-
-	return { overtimeEnforcement, warning };
-}
 
 export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 	.use(combinedAuthPlugin)
@@ -275,8 +181,6 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				name,
 				description,
 				organizationId: organizationIdInput,
-				dailyPay,
-				paymentFrequency,
 			} = body;
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -306,30 +210,11 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			}
 
 			const id = crypto.randomUUID();
-			const normalizedDailyPay = Number(dailyPay);
-
-			if (normalizedDailyPay <= 0) {
-				set.status = 400;
-				return buildErrorResponse('Daily pay must be greater than 0', 400);
-			}
-
-			const { overtimeEnforcement, warning: minimumWageWarning } =
-				await getMinimumWageValidation(organizationId, normalizedDailyPay);
-
-			if (minimumWageWarning && overtimeEnforcement === 'BLOCK') {
-				set.status = 400;
-				return buildErrorResponse('Daily pay is below the minimum wage', 400, {
-					code: 'BELOW_MINIMUM_WAGE',
-					details: minimumWageWarning.details,
-				});
-			}
 
 			const newPosition = {
 				id,
 				name,
 				description: description ?? null,
-				dailyPay: normalizedDailyPay.toString(),
-				paymentFrequency: paymentFrequency ?? 'MONTHLY',
 				organizationId,
 				clientId: null,
 			};
@@ -343,7 +228,6 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 					createdAt: new Date(),
 					updatedAt: new Date(),
 				},
-				...(minimumWageWarning ? { warnings: [minimumWageWarning] } : {}),
 			};
 		},
 		{
@@ -417,36 +301,12 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 				return { data: existing[0] };
 			}
 
-			let minimumWageWarning: MinimumWageWarning | null = null;
-
-			if (body.dailyPay !== undefined) {
-				const normalizedDailyPay = Number(body.dailyPay);
-				const { overtimeEnforcement, warning } = await getMinimumWageValidation(
-					resolvedOrganizationId,
-					normalizedDailyPay,
-				);
-				minimumWageWarning = warning;
-				if (minimumWageWarning && overtimeEnforcement === 'BLOCK') {
-					set.status = 400;
-					return buildErrorResponse('Daily pay is below the minimum wage', 400, {
-						code: 'BELOW_MINIMUM_WAGE',
-						details: minimumWageWarning.details,
-					});
-				}
-			}
-
 			const updatePayload: Partial<typeof jobPosition.$inferInsert> = {};
 			if (body.name !== undefined) {
 				updatePayload.name = body.name;
 			}
 			if (body.description !== undefined) {
 				updatePayload.description = body.description;
-			}
-			if (body.dailyPay !== undefined) {
-				updatePayload.dailyPay = body.dailyPay.toString();
-			}
-			if (body.paymentFrequency !== undefined) {
-				updatePayload.paymentFrequency = body.paymentFrequency;
 			}
 
 			await db.update(jobPosition).set(updatePayload).where(eq(jobPosition.id, id));
@@ -460,7 +320,6 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 
 			return {
 				data: updated[0],
-				...(minimumWageWarning ? { warnings: [minimumWageWarning] } : {}),
 			};
 		},
 		{

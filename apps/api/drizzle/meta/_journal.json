@@ -155,6 +155,13 @@
       "when": 1768856702639,
       "tag": "0021_attendance_authorized_exit",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1769195100429,
+      "tag": "0022_salario_por_empleado",
+      "breakpoints": true
     }
   ]
 }

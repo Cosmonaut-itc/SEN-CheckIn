@@ -35,6 +35,8 @@ describe('employee routes (contract)', () => {
 			organizationId: seed.organizationId,
 			scheduleTemplateId: seed.scheduleTemplateId,
 			status: 'ACTIVE',
+			dailyPay: 450,
+			paymentFrequency: 'BIWEEKLY',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -92,6 +94,9 @@ describe('employee routes (contract)', () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const response = await employeeRoutes.put({
 			department: 'Operaciones',
+			hireDate: new Date('2024-02-01'),
+			dailyPay: 500,
+			paymentFrequency: 'MONTHLY',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -210,6 +215,8 @@ describe('employee routes (contract)', () => {
 			organizationId: seed.organizationId,
 			scheduleTemplateId: seed.scheduleTemplateId,
 			status: 'ACTIVE',
+			dailyPay: 380,
+			paymentFrequency: 'WEEKLY',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 

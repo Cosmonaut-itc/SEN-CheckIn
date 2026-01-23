@@ -33,6 +33,11 @@ export const paginationSchema = z.object({
 export const shiftTypeEnum = z.enum(['DIURNA', 'NOCTURNA', 'MIXTA']);
 
 /**
+ * Payment frequency enumeration.
+ */
+export const paymentFrequencyEnum = z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
+
+/**
  * Geographic zone enumeration (CONASAMI)
  */
 export const geographicZoneEnum = z.enum(['GENERAL', 'ZLFN']);
@@ -137,8 +142,6 @@ export const locationQuerySchema = paginationSchema.extend({
 export const createJobPositionSchema = z.object({
 	name: z.string().min(1, 'Name is required').max(255),
 	description: z.string().max(1000).optional(),
-	dailyPay: z.coerce.number().positive('Daily pay must be greater than 0'),
-	paymentFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
 	organizationId: z.string().optional(),
 });
 
@@ -148,8 +151,6 @@ export const createJobPositionSchema = z.object({
 export const updateJobPositionSchema = z.object({
 	name: z.string().min(1).max(255).optional(),
 	description: z.string().max(1000).nullable().optional(),
-	dailyPay: z.coerce.number().positive().optional(),
-	paymentFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
 });
 
 /**
@@ -183,6 +184,8 @@ export const createEmployeeSchema = z.object({
 	department: z.string().max(100).optional(),
 	status: employeeStatusEnum.default('ACTIVE'),
 	hireDate: z.coerce.date().optional(),
+	dailyPay: z.coerce.number().positive('Daily pay must be greater than 0'),
+	paymentFrequency: paymentFrequencyEnum,
 	sbcDailyOverride: z.coerce.number().positive('SBC must be greater than 0').optional(),
 	locationId: z.string().uuid(),
 	organizationId: z.string().optional(),
@@ -215,7 +218,9 @@ export const updateEmployeeSchema = z.object({
 	jobPositionId: z.string().uuid().nullable().optional(),
 	department: z.string().max(100).nullable().optional(),
 	status: employeeStatusEnum.optional(),
-	hireDate: z.never().optional(),
+	hireDate: z.coerce.date().nullable().optional(),
+	dailyPay: z.coerce.number().positive().optional(),
+	paymentFrequency: paymentFrequencyEnum.optional(),
 	sbcDailyOverride: z.coerce.number().positive().nullable().optional(),
 	locationId: z.string().uuid().optional(),
 	shiftType: shiftTypeEnum.optional(),
@@ -397,7 +402,7 @@ export type GeographicZone = z.infer<typeof geographicZoneEnum>;
 export type CreateJobPositionInput = z.infer<typeof createJobPositionSchema>;
 export type UpdateJobPositionInput = z.infer<typeof updateJobPositionSchema>;
 export type JobPositionQuery = z.infer<typeof jobPositionQuerySchema>;
-export type PaymentFrequency = z.infer<typeof createJobPositionSchema>['paymentFrequency'];
+export type PaymentFrequency = z.infer<typeof paymentFrequencyEnum>;
 
 // Employee
 export type EmployeeStatus = z.infer<typeof employeeStatusEnum>;

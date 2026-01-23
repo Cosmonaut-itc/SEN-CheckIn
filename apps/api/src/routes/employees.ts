@@ -14,6 +14,7 @@ import {
 	organization,
 	payrollRun,
 	payrollRunEmployee,
+	payrollSetting,
 	scheduleException,
 	scheduleTemplate,
 	scheduleTemplateDay,
@@ -55,7 +56,8 @@ import {
 	listFacesByExternalId,
 } from '../services/rekognition.js';
 import { buildEmployeeVacationBalance } from '../services/vacation-balance.js';
-import { addDaysToDateKey } from '../utils/date-key.js';
+import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
+import { resolveMinimumWageRequirement, type MinimumWageZone } from '../utils/minimum-wage.js';
 import { getUtcDateForZonedMidnight, isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
 import type {
 	EmployeeInsights,
@@ -86,6 +88,99 @@ function decodeBase64Image(base64String: string): Uint8Array {
 		bytes[i] = binaryString.charCodeAt(i);
 	}
 	return bytes;
+}
+
+/**
+ * Validates daily pay against minimum wage requirements based on organization settings.
+ *
+ * @param args - Validation inputs
+ * @param args.organizationId - Organization identifier
+ * @param args.locationId - Location identifier (or null if not yet set)
+ * @param args.dailyPay - Daily pay amount to validate
+ * @param args.dateKey - Optional date key for minimum wage lookup (defaults to today)
+ * @returns Validation result with error code (if BLOCK) or warnings (if WARN)
+ */
+async function validateMinimumWage(args: {
+	organizationId: string;
+	locationId: string | null;
+	dailyPay: number;
+	dateKey?: string;
+}): Promise<
+	| { isValid: true; errorCode?: never; warnings?: never }
+	| { isValid: false; errorCode: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }
+	| { isValid: true; warnings: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }> }
+> {
+	const { organizationId, locationId, dailyPay, dateKey = toDateKeyUtc(new Date()) } = args;
+
+	// Fetch payroll settings to get overtimeEnforcement
+	const payrollSettings = await db
+		.select({ overtimeEnforcement: payrollSetting.overtimeEnforcement })
+		.from(payrollSetting)
+		.where(eq(payrollSetting.organizationId, organizationId))
+		.limit(1);
+
+	const overtimeEnforcement = payrollSettings[0]?.overtimeEnforcement ?? 'WARN';
+
+	// Determine geographic zones from organization locations
+	let zones: MinimumWageZone[] = ['GENERAL'];
+
+	if (locationId) {
+		// If location is provided, use its geographic zone
+		const locationRecord = await db
+			.select({ geographicZone: location.geographicZone })
+			.from(location)
+			.where(eq(location.id, locationId))
+			.limit(1);
+
+		if (locationRecord[0]?.geographicZone) {
+			zones = [locationRecord[0].geographicZone as MinimumWageZone];
+		}
+	} else {
+		// If no location yet, get all zones from organization's locations
+		const organizationLocations = await db
+			.select({ geographicZone: location.geographicZone })
+			.from(location)
+			.where(eq(location.organizationId, organizationId));
+
+		if (organizationLocations.length > 0) {
+			const uniqueZones = Array.from(
+				new Set(organizationLocations.map((loc) => loc.geographicZone)),
+			) as MinimumWageZone[];
+			zones = uniqueZones.length > 0 ? uniqueZones : ['GENERAL'];
+		}
+	}
+
+	// Calculate minimum required daily pay
+	const requirement = resolveMinimumWageRequirement(zones, dateKey);
+
+	if (dailyPay < requirement.minimumRequiredDailyPay) {
+		const details = {
+			dailyPay,
+			minimumRequiredDailyPay: requirement.minimumRequiredDailyPay,
+			zones: requirement.zones,
+		};
+
+		if (overtimeEnforcement === 'BLOCK') {
+			return {
+				isValid: false,
+				errorCode: 'BELOW_MINIMUM_WAGE',
+				details,
+			};
+		}
+
+		// WARN mode: allow but return warning
+		return {
+			isValid: true,
+			warnings: [
+				{
+					code: 'BELOW_MINIMUM_WAGE',
+					details,
+				},
+			],
+		};
+	}
+
+	return { isValid: true };
 }
 
 /**
@@ -612,6 +707,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					dailyPay: employee.dailyPay,
+					paymentFrequency: employee.paymentFrequency,
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -691,6 +788,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					dailyPay: employee.dailyPay,
+					paymentFrequency: employee.paymentFrequency,
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -1004,6 +1103,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department,
 				status: empStatus,
 				hireDate,
+				dailyPay,
+				paymentFrequency,
 				sbcDailyOverride,
 				locationId,
 				organizationId: organizationIdInput,
@@ -1166,6 +1267,31 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const id = crypto.randomUUID();
 
 			const resolvedShiftType = shiftType ?? selectedTemplate?.shiftType ?? 'DIURNA';
+			const normalizedDailyPay = Number(dailyPay);
+
+			if (!Number.isFinite(normalizedDailyPay) || normalizedDailyPay <= 0) {
+				set.status = 400;
+				return buildErrorResponse('Daily pay must be greater than 0', 400);
+			}
+
+			// Validate minimum wage based on organization payroll settings
+			const minWageValidation = await validateMinimumWage({
+				organizationId,
+				locationId,
+				dailyPay: normalizedDailyPay,
+			});
+
+			if (!minWageValidation.isValid) {
+				set.status = 400;
+				return buildErrorResponse(
+					'Daily pay is below the minimum wage requirement',
+					400,
+					{
+						code: minWageValidation.errorCode,
+						details: minWageValidation.details,
+					},
+				);
+			}
 
 			const newEmployee = {
 				id,
@@ -1178,6 +1304,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department: department ?? null,
 				status: empStatus,
 				hireDate: hireDate ?? null,
+				dailyPay: normalizedDailyPay.toFixed(2),
+				paymentFrequency: paymentFrequency ?? 'MONTHLY',
 				sbcDailyOverride:
 					sbcDailyOverride === undefined || sbcDailyOverride === null
 						? null
@@ -1227,7 +1355,16 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			});
 
 			set.status = 201;
-			return {
+			const response: {
+				data: typeof newEmployee & {
+					rekognitionUserId: null;
+					createdAt: Date;
+					updatedAt: Date;
+					scheduleTemplateName: string | null;
+					scheduleTemplateShiftType: string | null;
+				};
+				warnings?: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }>;
+			} = {
 				data: {
 					...newEmployee,
 					rekognitionUserId: null,
@@ -1237,6 +1374,12 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					scheduleTemplateShiftType: selectedTemplate?.shiftType ?? null,
 				},
 			};
+
+			if (minWageValidation.warnings) {
+				response.warnings = minWageValidation.warnings;
+			}
+
+			return response;
 		},
 		{
 			body: createEmployeeSchema,
@@ -1434,14 +1577,52 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				sbcDailyOverride,
 				userId: userIdInput,
 				code: _code,
-				hireDate: _hireDate,
+				dailyPay: dailyPayInput,
 				...employeeUpdate
 			} = body;
 			void _code;
-			void _hireDate;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
 			};
+
+			// Store minimum wage validation result for potential warnings in response
+			let minWageValidation:
+				| { isValid: true; errorCode?: never; warnings?: never }
+				| { isValid: false; errorCode: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }
+				| { isValid: true; warnings: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }> } = {
+					isValid: true,
+				};
+
+			if (dailyPayInput !== undefined) {
+				const normalizedDailyPay = Number(dailyPayInput);
+				if (!Number.isFinite(normalizedDailyPay) || normalizedDailyPay <= 0) {
+					set.status = 400;
+					return buildErrorResponse('Daily pay must be greater than 0', 400);
+				}
+
+				// Validate minimum wage based on organization payroll settings
+				// Use the new locationId if being updated, otherwise use existing employee's locationId
+				const effectiveLocationId = body.locationId ?? existingRecord.locationId ?? null;
+				minWageValidation = await validateMinimumWage({
+					organizationId: resolvedOrganizationId,
+					locationId: effectiveLocationId,
+					dailyPay: normalizedDailyPay,
+				});
+
+				if (!minWageValidation.isValid) {
+					set.status = 400;
+					return buildErrorResponse(
+						'Daily pay is below the minimum wage requirement',
+						400,
+						{
+							code: minWageValidation.errorCode,
+							details: minWageValidation.details,
+						},
+					);
+				}
+
+				updatePayload.dailyPay = normalizedDailyPay.toFixed(2);
+			}
 
 			if (sbcDailyOverride !== undefined) {
 				updatePayload.sbcDailyOverride =
@@ -1507,6 +1688,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						status: employee.status,
 						shiftType: employee.shiftType,
 						hireDate: employee.hireDate,
+						dailyPay: employee.dailyPay,
+						paymentFrequency: employee.paymentFrequency,
 						sbcDailyOverride: employee.sbcDailyOverride,
 						locationId: employee.locationId,
 						organizationId: employee.organizationId,
@@ -1562,7 +1745,18 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('Employee update failed', 500);
 			}
 
-			return { data: { ...result.updatedRecord, schedule: result.updatedSchedule } };
+			const response: {
+				data: typeof result.updatedRecord & { schedule: typeof result.updatedSchedule };
+				warnings?: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }>;
+			} = {
+				data: { ...result.updatedRecord, schedule: result.updatedSchedule },
+			};
+
+			if (minWageValidation.warnings) {
+				response.warnings = minWageValidation.warnings;
+			}
+
+			return response;
 		},
 		{
 			params: idParamSchema,

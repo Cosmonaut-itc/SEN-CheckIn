@@ -60,6 +60,28 @@ const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
 // Employee Functions
 // ============================================================================
 
+type EmployeePayload = Omit<Employee, 'dailyPay' | 'sbcDailyOverride'> & {
+	dailyPay?: number | string;
+	sbcDailyOverride?: number | string | null;
+};
+
+/**
+ * Normalizes employee payloads with numeric strings into typed values.
+ *
+ * @param record - Raw employee payload from the API
+ * @returns Normalized employee record
+ */
+function normalizeEmployeeRecord(record: EmployeePayload): Employee {
+	return {
+		...record,
+		dailyPay: Number(record.dailyPay ?? 0),
+		sbcDailyOverride:
+			record.sbcDailyOverride === null || record.sbcDailyOverride === undefined
+				? null
+				: Number(record.sbcDailyOverride),
+	};
+}
+
 /**
  * Fetches a paginated list of employees from the API (server-side).
  *
@@ -141,8 +163,9 @@ export async function fetchEmployeesListServer(
 	}
 
 	const payload = getApiResponseData(response);
+	const employees = (payload?.data ?? []) as EmployeePayload[];
 	return {
-		data: (payload?.data ?? []) as Employee[],
+		data: employees.map(normalizeEmployeeRecord),
 		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }
@@ -336,16 +359,10 @@ export async function fetchJobPositionsListServer(
 	}
 
 	const payload = getApiResponseData(response);
-	const positions =
-		(payload?.data as
-			| (Omit<JobPosition, 'dailyPay'> & { dailyPay?: number | string })[]
-			| undefined) ?? [];
+	const positions = (payload?.data as JobPosition[] | undefined) ?? [];
 
 	return {
-		data: positions.map((jp) => ({
-			...jp,
-			dailyPay: Number(jp.dailyPay ?? 0),
-		})),
+		data: positions,
 		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
 }

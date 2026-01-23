@@ -17,8 +17,9 @@ import {
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Smartphone, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import Link from 'next/link';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import {
 	fetchDevicesList,
@@ -388,6 +389,16 @@ export function DevicesPageClient(): React.ReactElement {
 					<p className="text-muted-foreground">{t('subtitle')}</p>
 					<p className="text-sm text-muted-foreground">{t('description')}</p>
 				</div>
+				<Button
+					asChild
+					variant="secondary"
+					aria-label={t('mobileSetup.ariaLabel')}
+				>
+					<Link href="/device" className="flex items-center gap-2">
+						<Smartphone className="h-4 w-4" />
+						<span>{t('mobileSetup.label')}</span>
+					</Link>
+				</Button>
 			</div>
 
 			<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>

@@ -61,11 +61,16 @@ interface StepItem {
  */
 function renderHeroStat(stat: HeroStat, index: number): React.ReactElement {
 	return (
-		<div key={`${stat.label}-${index}`} className="space-y-1">
-			<p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+		<div
+			key={`${stat.label}-${index}`}
+			className="rounded-[22px] border border-black/10 bg-[color:var(--mk-paper)]/80 p-4 shadow-[0_18px_40px_-28px_rgba(12,24,28,0.45)] backdrop-blur dark:border-white/10 dark:bg-white/5"
+		>
+			<p className="font-[var(--font-display)] text-2xl font-semibold leading-none tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 				{stat.value}
 			</p>
-			<p className="text-xs text-muted-foreground">{stat.label}</p>
+			<p className="mt-2 text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+				{stat.label}
+			</p>
 		</div>
 	);
 }
@@ -82,16 +87,19 @@ function renderFeatureCard(feature: FeatureItem, index: number): React.ReactElem
 
 	return (
 		<Reveal key={`${feature.title}-${index}`} delay={index * 0.08}>
-			<Card className="h-full border-zinc-200/80 bg-white/80 shadow-md shadow-zinc-900/5 backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/60">
-				<CardContent className="flex h-full flex-col gap-4">
-					<div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+			<Card className="relative h-full overflow-hidden rounded-[28px] border border-black/10 bg-[color:var(--mk-paper)]/80 shadow-[0_24px_60px_-36px_rgba(12,24,28,0.45)] backdrop-blur dark:border-white/10 dark:bg-white/5">
+				<div className="pointer-events-none absolute -right-12 top-6 h-24 w-24 rounded-full bg-[radial-gradient(circle_at_center,var(--mk-copper-soft)_0%,transparent_70%)] opacity-60 dark:opacity-40" />
+				<CardContent className="relative flex h-full flex-col gap-4 p-5">
+					<div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-black/5 bg-[color:var(--mk-sea-soft)] text-[color:var(--mk-sea)] shadow-[0_10px_20px_-14px_rgba(31,111,107,0.6)] dark:border-white/10 dark:bg-[#10201f] dark:text-[#bfe8e1]">
 						<Icon className="h-5 w-5" />
 					</div>
 					<div className="space-y-2">
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+						<h3 className="font-[var(--font-display)] text-base font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 							{feature.title}
 						</h3>
-						<p className="text-sm text-muted-foreground">{feature.description}</p>
+						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{feature.description}
+						</p>
 					</div>
 				</CardContent>
 			</Card>
@@ -111,16 +119,18 @@ function renderStepCard(step: StepItem, index: number): React.ReactElement {
 
 	return (
 		<Reveal key={`${step.title}-${index}`} delay={index * 0.1}>
-			<div className="rounded-2xl border border-zinc-200/70 bg-white/80 p-5 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<div className="flex items-center gap-3">
-					<div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-700 dark:bg-amber-400/10 dark:text-amber-300">
+			<div className="rounded-[24px] border border-dashed border-black/15 bg-[color:var(--mk-paper)]/70 p-5 shadow-[0_20px_40px_-30px_rgba(12,24,28,0.35)] backdrop-blur dark:border-white/10 dark:bg-white/5">
+				<div className="flex items-start gap-3">
+					<div className="flex h-10 w-10 items-center justify-center rounded-full border border-black/5 bg-[color:var(--mk-copper-soft)] text-[color:var(--mk-copper)] shadow-[0_10px_20px_-14px_rgba(200,116,61,0.45)] dark:border-white/10 dark:bg-[#2a1b12] dark:text-[#f0b78a]">
 						<Icon className="h-5 w-5" />
 					</div>
-					<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+					<h3 className="font-[var(--font-display)] text-base font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 						{step.title}
 					</h3>
 				</div>
-				<p className="mt-3 text-sm text-muted-foreground">{step.description}</p>
+				<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+					{step.description}
+				</p>
 			</div>
 		</Reveal>
 	);
@@ -137,9 +147,9 @@ function renderSecurityItem(item: string, index: number): React.ReactElement {
 	return (
 		<li
 			key={`${item}-${index}`}
-			className="flex items-start gap-3 text-sm text-muted-foreground"
+			className="flex items-start gap-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]"
 		>
-			<span className="mt-1 h-2 w-2 rounded-full bg-emerald-500/80" />
+			<span className="mt-2 h-2.5 w-2.5 rounded-full bg-[color:var(--mk-copper)] shadow-[0_0_0_4px_rgba(200,116,61,0.18)]" />
 			<span>{item}</span>
 		</li>
 	);
@@ -155,7 +165,7 @@ function renderPrivacyLink(chunks: ReactNode): React.ReactElement {
 	return (
 		<Link
 			href="/privacidad"
-			className="font-medium text-emerald-700 hover:underline dark:text-emerald-300"
+			className="font-semibold text-[color:var(--mk-copper)] underline-offset-4 hover:underline dark:text-[#f0b78a]"
 		>
 			{chunks}
 		</Link>
@@ -262,9 +272,9 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 	];
 
 	const themeStyle = {
-		'--landing-accent': '#0f766e',
-		'--landing-accent-light': '#5eead4',
-		'--landing-accent-soft': '#ecfeff',
+		'--mk-hero-glow': '#f1d7bf',
+		'--mk-hero-water': '#d6efe8',
+		'--mk-hero-ember': '#c8743d',
 	} as CSSProperties;
 
 	const privacyNote = t.rich('sections.security.note', {
@@ -272,76 +282,84 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 	});
 
 	return (
-		<div
-			style={themeStyle}
-			className="relative overflow-hidden bg-[radial-gradient(900px_circle_at_top,var(--landing-accent-soft)_0%,transparent_70%)]"
-		>
-			<div className="pointer-events-none absolute -top-32 right-0 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,var(--landing-accent-light)_0%,transparent_70%)] opacity-30 blur-3xl" />
-			<div className="pointer-events-none absolute bottom-0 left-0 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,var(--landing-accent)_0%,transparent_70%)] opacity-20 blur-3xl" />
+		<div style={themeStyle} className="relative overflow-hidden">
+			<div className="pointer-events-none absolute -top-32 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,var(--mk-hero-glow)_0%,transparent_70%)] opacity-70 blur-3xl" />
+			<div className="pointer-events-none absolute -bottom-24 left-10 h-64 w-64 rounded-full bg-[radial-gradient(circle_at_center,var(--mk-hero-water)_0%,transparent_70%)] opacity-60 blur-3xl" />
+			<div className="pointer-events-none absolute right-0 top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle_at_center,var(--mk-hero-ember)_0%,transparent_70%)] opacity-30 blur-3xl" />
 
-			<section className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-16 pt-16 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
+			<section className="relative mx-auto grid w-full max-w-6xl gap-12 px-4 pb-16 pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
 				<Reveal className="space-y-6" delay={0.05}>
-					<Badge className="w-fit bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+					<Badge className="w-fit rounded-full border border-black/10 bg-[color:var(--mk-copper-soft)]/70 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--mk-ink)] dark:border-white/10 dark:bg-[#2a1b12] dark:text-[#f0b78a]">
 						{t('hero.kicker')}
 					</Badge>
 					<div className="space-y-4">
-						<h1 className="text-4xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 sm:text-5xl">
+						<h1 className="font-[var(--font-display)] text-[clamp(2.6rem,5vw,4.6rem)] font-semibold leading-[1.05] tracking-[-0.02em] text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 							{t('hero.title')}
 						</h1>
-						<p className="text-base text-muted-foreground sm:text-lg">
+						<p className="max-w-xl text-base text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-lg">
 							{t('hero.subtitle')}
 						</p>
 					</div>
 					<div className="flex flex-wrap gap-3">
-						<Button asChild size="lg">
+						<Button
+							asChild
+							size="lg"
+							className="rounded-full bg-[color:var(--mk-ink)] text-[color:var(--mk-cream)] shadow-[0_18px_45px_-28px_rgba(12,24,28,0.7)] hover:bg-[#0b1b1d] dark:bg-[#f4efe7] dark:text-[#0a1213] dark:hover:bg-white"
+						>
 							<Link href="/login">{t('hero.primaryCta')}</Link>
 						</Button>
-						<Button asChild size="lg" variant="outline">
+						<Button
+							asChild
+							size="lg"
+							variant="outline"
+							className="rounded-full border-black/20 text-[color:var(--mk-ink)] hover:bg-black/5 dark:border-white/20 dark:text-[#f4efe7] dark:hover:bg-white/10"
+						>
 							<Link href="/privacidad">{t('hero.secondaryCta')}</Link>
 						</Button>
 					</div>
-					<p className="text-sm text-muted-foreground">{privacyNote}</p>
-					<div className="grid gap-4 sm:grid-cols-3">{heroStats.map(renderHeroStat)}</div>
+					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">{privacyNote}</p>
+					<div className="grid gap-3 sm:grid-cols-3">{heroStats.map(renderHeroStat)}</div>
 				</Reveal>
 
 				<Reveal className="relative" delay={0.15}>
-					<div className="relative rounded-3xl border border-zinc-200/80 bg-white/80 p-6 shadow-2xl shadow-emerald-500/10 backdrop-blur dark:border-zinc-800/80 dark:bg-zinc-950/60">
-						<div className="flex items-center justify-between">
-							<p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+					<div className="relative rounded-[32px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.9)_0%,rgba(248,241,231,0.75)_100%)] p-6 shadow-[0_30px_80px_-50px_rgba(12,24,28,0.6)] backdrop-blur dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(16,25,27,0.92)_0%,rgba(12,18,19,0.9)_100%)]">
+						<div className="pointer-events-none absolute inset-0 rounded-[32px] bg-[linear-gradient(120deg,rgba(200,116,61,0.12),transparent,rgba(31,111,107,0.12))] dark:opacity-70" />
+						<div className="relative flex items-center justify-between">
+							<p className="text-sm font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 								{t('hero.panel.title')}
 							</p>
-							<span className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
+							<span className="rounded-full border border-black/10 bg-white/70 px-3 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.25em] text-[color:var(--mk-ink-soft)] dark:border-white/10 dark:bg-white/10 dark:text-[#cdd6cf]">
 								{t('hero.panel.badge')}
 							</span>
 						</div>
-						<div className="mt-6 grid gap-4">
-							<div className="flex items-center justify-between rounded-2xl border border-zinc-200/60 bg-white/90 p-4 dark:border-zinc-800/60 dark:bg-zinc-950/60">
+						<div className="relative mt-6 grid gap-4">
+							<div className="flex items-center justify-between rounded-[22px] border border-black/10 bg-white/90 p-4 shadow-[0_10px_25px_-18px_rgba(12,24,28,0.35)] dark:border-white/10 dark:bg-white/5">
 								<div>
-									<p className="text-xs text-muted-foreground">
+									<p className="text-xs uppercase tracking-[0.2em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 										{t('hero.panel.present.label')}
 									</p>
-									<p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
+									<p className="font-[var(--font-display)] text-2xl font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 										{t('hero.panel.present.value')}
 									</p>
 								</div>
-								<span className="text-xs font-medium text-emerald-600 dark:text-emerald-300">
+								<span className="text-xs font-semibold uppercase tracking-[0.2em] text-[color:var(--mk-copper)] dark:text-[#f0b78a]">
 									{t('hero.panel.present.delta')}
 								</span>
 							</div>
 							<div className="grid gap-3 sm:grid-cols-2">
-								<div className="rounded-2xl border border-zinc-200/60 bg-white/90 p-4 dark:border-zinc-800/60 dark:bg-zinc-950/60">
-									<p className="text-xs text-muted-foreground">
+								<div className="rounded-[22px] border border-black/10 bg-white/90 p-4 dark:border-white/10 dark:bg-white/5">
+									<p className="text-xs uppercase tracking-[0.2em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 										{t('hero.panel.devices.label')}
 									</p>
-									<p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+									<p className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 										{t('hero.panel.devices.value')}
 									</p>
 								</div>
-								<div className="rounded-2xl border border-zinc-200/60 bg-white/90 p-4 dark:border-zinc-800/60 dark:bg-zinc-950/60">
-									<p className="text-xs text-muted-foreground">
+								<div className="rounded-[22px] border border-black/10 bg-white/90 p-4 dark:border-white/10 dark:bg-white/5">
+									<p className="text-xs uppercase tracking-[0.2em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 										{t('hero.panel.locations.label')}
 									</p>
-									<p className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+									<p className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 										{t('hero.panel.locations.value')}
 									</p>
 								</div>
@@ -349,11 +367,13 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 						</div>
 					</div>
 
-					<div className="absolute -bottom-8 -left-8 hidden rounded-2xl border border-emerald-200/50 bg-white/90 p-4 shadow-xl shadow-emerald-500/15 backdrop-blur dark:border-emerald-500/30 dark:bg-zinc-950/70 lg:block">
-						<p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+					<div className="absolute -bottom-8 -left-8 hidden max-w-[220px] rounded-[24px] border border-black/10 bg-[color:var(--mk-paper)]/90 p-4 shadow-[0_20px_45px_-30px_rgba(12,24,28,0.6)] backdrop-blur dark:border-white/10 dark:bg-white/5 lg:block">
+						<p className="text-xs font-semibold uppercase tracking-[0.25em] text-[color:var(--mk-copper)] dark:text-[#f0b78a]">
 							{t('hero.pill.title')}
 						</p>
-						<p className="mt-2 text-sm text-muted-foreground">{t('hero.pill.description')}</p>
+						<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('hero.pill.description')}
+						</p>
 					</div>
 				</Reveal>
 			</section>
@@ -361,13 +381,13 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			<section className="mx-auto w-full max-w-6xl space-y-10 px-4 pb-16">
 				<Reveal>
 					<div className="space-y-3">
-						<p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
+						<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--mk-copper)] dark:text-[#f0b78a]">
 							{t('sections.web.kicker')}
 						</p>
-						<h2 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
+						<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 							{t('sections.web.title')}
 						</h2>
-						<p className="text-sm text-muted-foreground sm:text-base">
+						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-base">
 							{t('sections.web.subtitle')}
 						</p>
 					</div>
@@ -380,13 +400,13 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			<section className="mx-auto w-full max-w-6xl space-y-10 px-4 pb-16">
 				<Reveal>
 					<div className="space-y-3">
-						<p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
+						<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--mk-sea)] dark:text-[#7fe0d6]">
 							{t('sections.mobile.kicker')}
 						</p>
-						<h2 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
+						<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 							{t('sections.mobile.title')}
 						</h2>
-						<p className="text-sm text-muted-foreground sm:text-base">
+						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-base">
 							{t('sections.mobile.subtitle')}
 						</p>
 					</div>
@@ -399,13 +419,13 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			<section className="mx-auto w-full max-w-6xl space-y-10 px-4 pb-16">
 				<Reveal>
 					<div className="space-y-3">
-						<p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-600 dark:text-amber-300">
+						<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--mk-copper)] dark:text-[#f0b78a]">
 							{t('sections.how.kicker')}
 						</p>
-						<h2 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
+						<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 							{t('sections.how.title')}
 						</h2>
-						<p className="text-sm text-muted-foreground sm:text-base">
+						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-base">
 							{t('sections.how.subtitle')}
 						</p>
 					</div>
@@ -415,17 +435,17 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 
 			<section className="mx-auto w-full max-w-6xl gap-10 px-4 pb-16 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
 				<Reveal className="space-y-4">
-					<p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
+					<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--mk-sea)] dark:text-[#7fe0d6]">
 						{t('sections.security.kicker')}
 					</p>
-					<h2 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
+					<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 						{t('sections.security.title')}
 					</h2>
-					<p className="text-sm text-muted-foreground sm:text-base">
+					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-base">
 						{t('sections.security.subtitle')}
 					</p>
 					<ul className="space-y-3">{securityItems.map(renderSecurityItem)}</ul>
-					<p className="text-sm text-muted-foreground">{privacyNote}</p>
+					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">{privacyNote}</p>
 				</Reveal>
 				<Reveal className="mt-10 lg:mt-0" delay={0.1}>
 					<CardStack items={testimonials} className="mx-auto lg:mx-0" />
@@ -434,24 +454,33 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 
 			<section className="mx-auto w-full max-w-6xl px-4 pb-20">
 				<Reveal>
-					<div className="rounded-3xl border border-emerald-200/70 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-8 shadow-xl shadow-emerald-500/10 dark:border-emerald-500/20 dark:from-emerald-500/10 dark:via-zinc-950 dark:to-cyan-500/10">
+					<div className="rounded-[36px] border border-black/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.92)_0%,rgba(242,210,181,0.55)_45%,rgba(215,239,233,0.5)_100%)] p-8 shadow-[0_35px_80px_-50px_rgba(12,24,28,0.6)] dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(16,25,27,0.9)_0%,rgba(42,27,18,0.75)_45%,rgba(16,25,27,0.95)_100%)]">
 						<div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
 							<div className="space-y-3">
-								<p className="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
+								<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--mk-copper)] dark:text-[#f0b78a]">
 									{t('cta.kicker')}
 								</p>
-								<h2 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
+								<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 									{t('cta.title')}
 								</h2>
-								<p className="text-sm text-muted-foreground sm:text-base">
+								<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-base">
 									{t('cta.subtitle')}
 								</p>
 							</div>
 							<div className="flex flex-wrap gap-3 lg:justify-end">
-								<Button asChild size="lg">
+								<Button
+									asChild
+									size="lg"
+									className="rounded-full bg-[color:var(--mk-ink)] text-[color:var(--mk-cream)] shadow-[0_18px_45px_-28px_rgba(12,24,28,0.7)] hover:bg-[#0b1b1d] dark:bg-[#f4efe7] dark:text-[#0a1213] dark:hover:bg-white"
+								>
 									<Link href="/login">{t('cta.primary')}</Link>
 								</Button>
-								<Button asChild size="lg" variant="outline">
+								<Button
+									asChild
+									size="lg"
+									variant="outline"
+									className="rounded-full border-black/20 text-[color:var(--mk-ink)] hover:bg-black/5 dark:border-white/20 dark:text-[#f4efe7] dark:hover:bg-white/10"
+								>
 									<Link href="/privacidad">{t('cta.secondary')}</Link>
 								</Button>
 							</div>

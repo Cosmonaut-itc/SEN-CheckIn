@@ -21,7 +21,7 @@ interface PolicyListItem {
  */
 function renderPolicySubItem(item: string, index: number): React.ReactElement {
 	return (
-		<li key={`${item}-${index}`} className="text-sm text-muted-foreground">
+		<li key={`${item}-${index}`} className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 			{item}
 		</li>
 	);
@@ -37,7 +37,9 @@ function renderPolicySubItem(item: string, index: number): React.ReactElement {
 function renderPolicyItem(item: PolicyListItem, index: number): React.ReactElement {
 	return (
 		<li key={`${item.text}-${index}`} className="space-y-2">
-			<p className="text-sm text-muted-foreground">{item.text}</p>
+			<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+				{item.text}
+			</p>
 			{item.subItems && item.subItems.length > 0 ? (
 				<ul className="ml-5 list-disc space-y-1">{item.subItems.map(renderPolicySubItem)}</ul>
 			) : null}
@@ -157,273 +159,303 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 		{ text: t('sections.limitation.items.cookies') },
 	];
 
+	const sectionClassName =
+		'relative overflow-hidden rounded-[28px] border border-black/10 bg-[color:var(--mk-paper)]/80 p-6 shadow-[0_18px_45px_-32px_rgba(12,24,28,0.45)] backdrop-blur before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] before:bg-[color:var(--mk-copper)]/35 dark:border-white/10 dark:bg-white/5 dark:before:bg-[#f0b78a]/30';
+
 	return (
-		<div className="mx-auto w-full max-w-4xl space-y-10 px-4 py-16">
-			<header className="space-y-4">
-				<Badge className="w-fit bg-emerald-500/10 text-emerald-700 dark:bg-emerald-400/10 dark:text-emerald-300">
-					{t('badge')}
-				</Badge>
-				<div className="space-y-2">
-					<h1 className="text-3xl font-semibold text-zinc-900 dark:text-zinc-100">
-						{t('title')}
-					</h1>
-					<p className="text-sm text-muted-foreground">
-						{t('lastUpdatedLabel')} {t('lastUpdatedDate')}
-					</p>
-					<p className="text-sm text-muted-foreground">{t('intro')}</p>
+		<div className="relative mx-auto w-full max-w-6xl px-4 py-16">
+			<div className="pointer-events-none absolute right-10 top-10 h-40 w-40 rounded-full bg-[radial-gradient(circle_at_center,var(--mk-copper-soft)_0%,transparent_70%)] opacity-60 blur-3xl" />
+			<div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
+				<header className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+					<Badge className="w-fit rounded-full border border-black/10 bg-[color:var(--mk-copper-soft)]/70 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--mk-ink)] dark:border-white/10 dark:bg-[#2a1b12] dark:text-[#f0b78a]">
+						{t('badge')}
+					</Badge>
+					<div className="space-y-3">
+						<h1 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('title')}
+						</h1>
+						<p className="text-xs uppercase tracking-[0.3em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('lastUpdatedLabel')} {t('lastUpdatedDate')}
+						</p>
+						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('intro')}
+						</p>
+					</div>
+				</header>
+
+				<div className="space-y-6">
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.responsible.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.responsible.description')}
+						</p>
+						<ul className="mt-4 space-y-2">{responsibleItems.map(renderPolicyItem)}</ul>
+						<p className="mt-4 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.responsible.note')}
+						</p>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.scope.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.scope.description')}
+						</p>
+						<ul className="mt-4 space-y-2">{scopeItems.map(renderPolicyItem)}</ul>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.data.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.data.description')}
+						</p>
+
+						<div className="mt-5 space-y-4">
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.data.account.title')}
+								</h3>
+								<ul className="mt-3 space-y-2">{accountItems.map(renderPolicyItem)}</ul>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.data.operational.title')}
+								</h3>
+								<ul className="mt-3 space-y-2">{operationalItems.map(renderPolicyItem)}</ul>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.data.biometric.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.data.biometric.description')}
+								</p>
+								<ul className="mt-3 space-y-2">{biometricItems.map(renderPolicyItem)}</ul>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.data.biometric.note')}
+								</p>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.data.technical.title')}
+								</h3>
+								<ul className="mt-3 space-y-2">{technicalItems.map(renderPolicyItem)}</ul>
+							</div>
+						</div>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.purposes.title')}
+						</h2>
+
+						<div className="mt-4 space-y-4">
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.purposes.primary.title')}
+								</h3>
+								<ul className="mt-3 space-y-2">{primaryPurposeItems.map(renderPolicyItem)}</ul>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.purposes.consent.title')}
+								</h3>
+								<ul className="mt-3 space-y-2">{consentPurposeItems.map(renderPolicyItem)}</ul>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.purposes.consent.notice')}
+								</p>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.purposes.consent.noMarketing')}
+								</p>
+							</div>
+						</div>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.consent.title')}
+						</h2>
+
+						<div className="mt-4 space-y-4">
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.consent.express.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.consent.express.description')}
+								</p>
+								<ul className="mt-3 space-y-2">{consentMethodItems.map(renderPolicyItem)}</ul>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.consent.revocation.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.consent.revocation.description')}
+								</p>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.consent.revocation.note')}
+								</p>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.consent.opposition.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.consent.opposition.description')}
+								</p>
+							</div>
+						</div>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.camera.title')}
+						</h2>
+						<div className="mt-4 space-y-4">
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.camera.mobile.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.camera.mobile.description')}
+								</p>
+								<ul className="mt-3 space-y-2">{cameraMobileItems.map(renderPolicyItem)}</ul>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.camera.mobile.note')}
+								</p>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.camera.web.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.camera.web.description')}
+								</p>
+							</div>
+						</div>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.retention.title')}
+						</h2>
+						<ul className="mt-4 space-y-2">{retentionItems.map(renderPolicyItem)}</ul>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.transfers.title')}
+						</h2>
+
+						<div className="mt-4 space-y-4">
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.transfers.processors.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.transfers.processors.description')}
+								</p>
+								<ul className="mt-3 space-y-2">{processorItems.map(renderPolicyItem)}</ul>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.transfers.processors.note')}
+								</p>
+							</div>
+
+							<div>
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+									{t('sections.transfers.thirdParties.title')}
+								</h3>
+								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.transfers.thirdParties.description')}
+								</p>
+								<ul className="mt-3 space-y-2">{thirdPartyItems.map(renderPolicyItem)}</ul>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.transfers.thirdParties.consentNotice')}
+								</p>
+								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+									{t('sections.transfers.thirdParties.noSelling')}
+								</p>
+							</div>
+						</div>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.security.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.security.description')}
+						</p>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.security.confidentiality')}
+						</p>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.security.breachNotice')}
+						</p>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.arco.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.arco.description')}
+						</p>
+						<ul className="mt-4 space-y-2">{arcoContactItems.map(renderPolicyItem)}</ul>
+						<h3 className="mt-5 font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.arco.requirements.title')}
+						</h3>
+						<ul className="mt-3 space-y-2">{arcoRequirementItems.map(renderPolicyItem)}</ul>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.arco.timeline')}
+						</p>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.arco.biometricsNote')}
+						</p>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.limitation.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.limitation.description')}
+						</p>
+						<ul className="mt-4 space-y-2">{limitationItems.map(renderPolicyItem)}</ul>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.changes.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.changes.description')}
+						</p>
+					</section>
+
+					<section className={sectionClassName}>
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							{t('sections.minors.title')}
+						</h2>
+						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							{t('sections.minors.description')}
+						</p>
+					</section>
 				</div>
-			</header>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.responsible.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">
-					{t('sections.responsible.description')}
-				</p>
-				<ul className="mt-4 space-y-2">{responsibleItems.map(renderPolicyItem)}</ul>
-				<p className="mt-4 text-sm text-muted-foreground">
-					{t('sections.responsible.note')}
-				</p>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.scope.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.scope.description')}</p>
-				<ul className="mt-4 space-y-2">{scopeItems.map(renderPolicyItem)}</ul>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.data.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.data.description')}</p>
-
-				<div className="mt-5 space-y-4">
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.data.account.title')}
-						</h3>
-						<ul className="mt-3 space-y-2">{accountItems.map(renderPolicyItem)}</ul>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.data.operational.title')}
-						</h3>
-						<ul className="mt-3 space-y-2">{operationalItems.map(renderPolicyItem)}</ul>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.data.biometric.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.data.biometric.description')}
-						</p>
-						<ul className="mt-3 space-y-2">{biometricItems.map(renderPolicyItem)}</ul>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.data.biometric.note')}
-						</p>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.data.technical.title')}
-						</h3>
-						<ul className="mt-3 space-y-2">{technicalItems.map(renderPolicyItem)}</ul>
-					</div>
-				</div>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.purposes.title')}
-				</h2>
-
-				<div className="mt-4 space-y-4">
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.purposes.primary.title')}
-						</h3>
-						<ul className="mt-3 space-y-2">{primaryPurposeItems.map(renderPolicyItem)}</ul>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.purposes.consent.title')}
-						</h3>
-						<ul className="mt-3 space-y-2">{consentPurposeItems.map(renderPolicyItem)}</ul>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.purposes.consent.notice')}
-						</p>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.purposes.consent.noMarketing')}
-						</p>
-					</div>
-				</div>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.consent.title')}
-				</h2>
-
-				<div className="mt-4 space-y-4">
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.consent.express.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.consent.express.description')}
-						</p>
-						<ul className="mt-3 space-y-2">{consentMethodItems.map(renderPolicyItem)}</ul>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.consent.revocation.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.consent.revocation.description')}
-						</p>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.consent.revocation.note')}
-						</p>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.consent.opposition.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.consent.opposition.description')}
-						</p>
-					</div>
-				</div>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.camera.title')}
-				</h2>
-				<div className="mt-4 space-y-4">
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.camera.mobile.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.camera.mobile.description')}
-						</p>
-						<ul className="mt-3 space-y-2">{cameraMobileItems.map(renderPolicyItem)}</ul>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.camera.mobile.note')}
-						</p>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.camera.web.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.camera.web.description')}
-						</p>
-					</div>
-				</div>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.retention.title')}
-				</h2>
-				<ul className="mt-4 space-y-2">{retentionItems.map(renderPolicyItem)}</ul>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.transfers.title')}
-				</h2>
-
-				<div className="mt-4 space-y-4">
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.transfers.processors.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.transfers.processors.description')}
-						</p>
-						<ul className="mt-3 space-y-2">{processorItems.map(renderPolicyItem)}</ul>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.transfers.processors.note')}
-						</p>
-					</div>
-
-					<div>
-						<h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-							{t('sections.transfers.thirdParties.title')}
-						</h3>
-						<p className="mt-2 text-sm text-muted-foreground">
-							{t('sections.transfers.thirdParties.description')}
-						</p>
-						<ul className="mt-3 space-y-2">{thirdPartyItems.map(renderPolicyItem)}</ul>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.transfers.thirdParties.consentNotice')}
-						</p>
-						<p className="mt-3 text-sm text-muted-foreground">
-							{t('sections.transfers.thirdParties.noSelling')}
-						</p>
-					</div>
-				</div>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.security.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.security.description')}</p>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.security.confidentiality')}</p>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.security.breachNotice')}</p>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.arco.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.arco.description')}</p>
-				<ul className="mt-4 space-y-2">{arcoContactItems.map(renderPolicyItem)}</ul>
-				<h3 className="mt-5 text-base font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.arco.requirements.title')}
-				</h3>
-				<ul className="mt-3 space-y-2">{arcoRequirementItems.map(renderPolicyItem)}</ul>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.arco.timeline')}</p>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.arco.biometricsNote')}</p>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.limitation.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">
-					{t('sections.limitation.description')}
-				</p>
-				<ul className="mt-4 space-y-2">{limitationItems.map(renderPolicyItem)}</ul>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.changes.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.changes.description')}</p>
-			</section>
-
-			<section className="rounded-3xl border border-zinc-200/70 bg-white/80 p-6 shadow-sm shadow-zinc-900/5 dark:border-zinc-800/70 dark:bg-zinc-950/60">
-				<h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
-					{t('sections.minors.title')}
-				</h2>
-				<p className="mt-3 text-sm text-muted-foreground">{t('sections.minors.description')}</p>
-			</section>
+			</div>
 		</div>
 	);
 }

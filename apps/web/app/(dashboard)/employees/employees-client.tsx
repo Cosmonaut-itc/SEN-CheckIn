@@ -63,7 +63,7 @@ import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
-import { format } from 'date-fns';
+import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
 import {
 	Eye,
 	HelpCircle,
@@ -2423,11 +2423,40 @@ export function EmployeesPageClient(): React.ReactElement {
 										</form.AppField>
 									</div>
 									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="hireDate">
+										<form.AppField
+											name="hireDate"
+											validators={{
+												onChange: ({ value }) => {
+													const trimmedValue = value.trim();
+													if (!trimmedValue) {
+														return undefined;
+													}
+													const parsedValue = parse(
+														trimmedValue,
+														'yyyy-MM-dd',
+														new Date(),
+													);
+													if (
+														!isValid(parsedValue) ||
+														format(parsedValue, 'yyyy-MM-dd') !== trimmedValue
+													) {
+														return t('validation.hireDateInvalid');
+													}
+													const today = startOfDay(new Date());
+													if (isAfter(parsedValue, today)) {
+														return t('validation.hireDateFutureNotAllowed');
+													}
+													return undefined;
+												},
+											}}
+										>
 											{(field) => (
 												<field.DateField
 													label={t('fields.hireDate')}
 													placeholder={t('placeholders.hireDate')}
+													variant="input"
+													minYear={1950}
+													maxDate={new Date()}
 												/>
 											)}
 										</form.AppField>

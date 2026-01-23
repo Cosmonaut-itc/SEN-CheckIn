@@ -420,7 +420,9 @@
 			"jobPositionRequired": "El puesto es requerido",
 			"paymentFrequencyRequired": "La frecuencia de pago es requerida",
 			"periodPayGreaterThanZero": "El salario del periodo debe ser mayor a 0",
-			"sbcDailyOverride": "Ingresa un SBC diario válido."
+			"sbcDailyOverride": "Ingresa un SBC diario válido.",
+			"hireDateInvalid": "La fecha debe tener formato YYYY-MM-DD.",
+			"hireDateFutureNotAllowed": "La fecha de ingreso no puede ser posterior a hoy."
 		},
 		"paymentFrequency": {
 			"WEEKLY": "Semanal",

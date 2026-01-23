@@ -14,7 +14,6 @@
 
 import { headers } from 'next/headers';
 import { createServerApiClient } from '@/lib/server-api';
-import type { ApiErrorPayload } from '@/lib/api-response';
 
 /**
  * Input data for creating a new job position.
@@ -24,10 +23,6 @@ export interface CreateJobPositionInput {
 	name: string;
 	/** Job position description (optional) */
 	description?: string;
-	/** Daily pay rate (salario diario) */
-	dailyPay: number;
-	/** Payment frequency */
-	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional organization override for API key flows (defaults to active org) */
 	organizationId?: string;
 }
@@ -42,32 +37,6 @@ export interface UpdateJobPositionInput {
 	name?: string;
 	/** Job position description (optional, can be null to clear) */
 	description?: string | null;
-	/** Daily pay rate (salario diario) */
-	dailyPay?: number;
-	/** Payment frequency */
-	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
-}
-
-/**
- * Warning details for minimum wage validation.
- */
-export interface JobPositionMinimumWageDetails {
-	/** Daily pay provided for the position */
-	dailyPay: number;
-	/** Required minimum daily pay for the organization zones */
-	minimumRequiredDailyPay: number;
-	/** Geographic zones considered when validating the minimum wage */
-	zones: Array<'GENERAL' | 'ZLFN'>;
-}
-
-/**
- * Warning payloads for job position mutations.
- */
-export interface JobPositionWarning {
-	/** Warning code identifier */
-	code: 'BELOW_MINIMUM_WAGE';
-	/** Additional details for the warning */
-	details: JobPositionMinimumWageDetails;
 }
 
 /**
@@ -77,7 +46,6 @@ export type JobPositionMutationErrorCode =
 	| 'BAD_REQUEST'
 	| 'FORBIDDEN'
 	| 'NOT_FOUND'
-	| 'BELOW_MINIMUM_WAGE'
 	| 'UNKNOWN';
 
 /**
@@ -90,15 +58,7 @@ export interface MutationResult<T = unknown> {
 	data?: T;
 	/** Error code if the operation failed */
 	errorCode?: JobPositionMutationErrorCode;
-	/** Warnings returned by the API (non-blocking) */
-	warnings?: JobPositionWarning[];
 }
-
-type JobPositionErrorPayload = ApiErrorPayload | { error?: string };
-
-type JobPositionApiResponse = {
-	warnings?: JobPositionWarning[];
-};
 
 /**
  * Retrieves the cookie header string from the incoming request.
@@ -111,40 +71,13 @@ async function getCookieHeader(): Promise<string> {
 }
 
 /**
- * Resolves a mutation error code from the API response.
- *
- * Supports both the new nested error structure ({ error: { code, message, details } })
- * and the legacy string format ({ error: string }) for backward compatibility.
+ * Resolves a mutation error code from the API response status.
  *
  * @param status - HTTP status code from the API response
  * @param error - Error payload from the API response
  * @returns Normalized error code for UI handling
  */
-function resolveErrorCode(
-	status: number | undefined,
-	error: unknown,
-): JobPositionMutationErrorCode {
-	const payload = error as { value?: JobPositionErrorPayload } | null;
-	const value = payload?.value;
-
-	if (value && typeof value === 'object') {
-		// Check new nested structure: { error: { code: 'BELOW_MINIMUM_WAGE', ... } }
-		if (
-			'error' in value &&
-			typeof value.error === 'object' &&
-			value.error !== null &&
-			'code' in value.error &&
-			value.error.code === 'BELOW_MINIMUM_WAGE'
-		) {
-			return 'BELOW_MINIMUM_WAGE';
-		}
-
-		// Check legacy string format: { error: 'BELOW_MINIMUM_WAGE' }
-		if ('error' in value && value.error === 'BELOW_MINIMUM_WAGE') {
-			return 'BELOW_MINIMUM_WAGE';
-		}
-	}
-
+function resolveErrorCode(status: number | undefined): JobPositionMutationErrorCode {
 	switch (status) {
 		case 400:
 			return 'BAD_REQUEST';
@@ -155,20 +88,6 @@ function resolveErrorCode(
 		default:
 			return 'UNKNOWN';
 	}
-}
-
-/**
- * Extracts warnings from an API response payload.
- *
- * @param payload - API response payload
- * @returns Warning list when present
- */
-function extractWarnings(payload: unknown): JobPositionWarning[] | undefined {
-	const data = payload as JobPositionApiResponse | null;
-	if (!data?.warnings || data.warnings.length === 0) {
-		return undefined;
-	}
-	return data.warnings;
 }
 
 /**
@@ -193,22 +112,19 @@ export async function createJobPosition(input: CreateJobPositionInput): Promise<
 		const response = await api['job-positions'].post({
 			name: input.name,
 			description: input.description || undefined,
-			dailyPay: input.dailyPay,
-			paymentFrequency: input.paymentFrequency,
 			organizationId: input.organizationId,
 		});
 
 		if (response.error) {
 			return {
 				success: false,
-				errorCode: resolveErrorCode(response.status, response.error),
+				errorCode: resolveErrorCode(response.status),
 			};
 		}
 
 		return {
 			success: true,
 			data: response.data,
-			warnings: extractWarnings(response.data),
 		};
 	} catch (error) {
 		console.error('Failed to create job position:', error);
@@ -241,8 +157,6 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 		const updatePayload: {
 			name?: string;
 			description?: string | null;
-			dailyPay?: number;
-			paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 		} = {};
 
 		if (input.name !== undefined) {
@@ -253,27 +167,18 @@ export async function updateJobPosition(input: UpdateJobPositionInput): Promise<
 			updatePayload.description = input.description;
 		}
 
-		if (input.dailyPay !== undefined) {
-			updatePayload.dailyPay = input.dailyPay;
-		}
-
-		if (input.paymentFrequency !== undefined) {
-			updatePayload.paymentFrequency = input.paymentFrequency;
-		}
-
 		const response = await api['job-positions'][input.id].put(updatePayload);
 
 		if (response.error) {
 			return {
 				success: false,
-				errorCode: resolveErrorCode(response.status, response.error),
+				errorCode: resolveErrorCode(response.status),
 			};
 		}
 
 		return {
 			success: true,
 			data: response.data,
-			warnings: extractWarnings(response.data),
 		};
 	} catch (error) {
 		console.error('Failed to update job position:', error);
@@ -305,7 +210,7 @@ export async function deleteJobPosition(id: string): Promise<MutationResult> {
 		if (response.error) {
 			return {
 				success: false,
-				errorCode: resolveErrorCode(response.status, response.error),
+				errorCode: resolveErrorCode(response.status),
 			};
 		}
 

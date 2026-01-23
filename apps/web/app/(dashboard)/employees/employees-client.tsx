@@ -109,6 +109,8 @@ const FaceEnrollmentDialog = dynamic(loadFaceEnrollmentDialog, {
 /**
  * Form values interface for creating/editing employees.
  */
+type PaymentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+
 interface EmployeeFormValues {
 	/** Unique employee code */
 	code: string;
@@ -132,6 +134,10 @@ interface EmployeeFormValues {
 	status: EmployeeStatus;
 	/** Employee hire date (YYYY-MM-DD) */
 	hireDate: string;
+	/** Payment frequency */
+	paymentFrequency: PaymentFrequency;
+	/** Pay for the full period */
+	periodPay: string;
 	/** Optional SBC daily override */
 	sbcDailyOverride: string;
 	/** Employee shift type */
@@ -336,6 +342,8 @@ const initialFormValues: EmployeeFormValues = {
 	department: '',
 	status: 'ACTIVE',
 	hireDate: '',
+	paymentFrequency: 'MONTHLY',
+	periodPay: '',
 	sbcDailyOverride: '',
 	shiftType: 'DIURNA',
 };
@@ -394,6 +402,58 @@ function toUtcDate(dateKey: string): Date {
  */
 function formatCurrency(value: number): string {
 	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+}
+
+/**
+ * Resolves the divisor for a payment frequency.
+ *
+ * @param frequency - Payment frequency selection
+ * @returns Day divisor for the period
+ */
+function getPayPeriodDivisor(frequency: PaymentFrequency): 7 | 14 | 30 {
+	switch (frequency) {
+		case 'WEEKLY':
+			return 7;
+		case 'BIWEEKLY':
+			return 14;
+		case 'MONTHLY':
+		default:
+			return 30;
+	}
+}
+
+/**
+ * Rounds a numeric value to two decimals.
+ *
+ * @param value - Raw numeric value
+ * @returns Rounded numeric value
+ */
+function roundToTwoDecimals(value: number): number {
+	return Number(value.toFixed(2));
+}
+
+/**
+ * Calculates daily pay from a period pay amount and frequency.
+ *
+ * @param periodPay - Total pay for the period
+ * @param frequency - Payment frequency selection
+ * @returns Daily pay rounded to two decimals
+ */
+function calculateDailyPayFromPeriodPay(periodPay: number, frequency: PaymentFrequency): number {
+	const divisor = getPayPeriodDivisor(frequency);
+	return roundToTwoDecimals(periodPay / divisor);
+}
+
+/**
+ * Calculates period pay from a daily pay amount and frequency.
+ *
+ * @param dailyPay - Daily pay amount
+ * @param frequency - Payment frequency selection
+ * @returns Period pay rounded to two decimals
+ */
+function calculatePeriodPayFromDailyPay(dailyPay: number, frequency: PaymentFrequency): number {
+	const divisor = getPayPeriodDivisor(frequency);
+	return roundToTwoDecimals(dailyPay * divisor);
 }
 
 /**
@@ -809,7 +869,14 @@ export function EmployeesPageClient(): React.ReactElement {
 				return;
 			}
 			const trimmedHireDate = value.hireDate.trim();
+			const trimmedPeriodPay = value.periodPay.trim();
 			const trimmedSbcOverride = value.sbcDailyOverride.trim();
+			const parsedPeriodPay =
+				trimmedPeriodPay === '' ? Number.NaN : Number(trimmedPeriodPay);
+			if (!Number.isFinite(parsedPeriodPay) || parsedPeriodPay <= 0) {
+				toast.error(t('validation.periodPayGreaterThanZero'));
+				return;
+			}
 			const parsedSbcOverride =
 				trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
 			if (parsedSbcOverride !== null) {
@@ -818,6 +885,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					return;
 				}
 			}
+			const paymentFrequency = value.paymentFrequency ?? 'MONTHLY';
+			const dailyPay = calculateDailyPayFromPeriodPay(parsedPeriodPay, paymentFrequency);
 			const resolvedUserIdForCreate =
 				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
 			const normalizedUserIdForUpdate =
@@ -837,6 +906,9 @@ export function EmployeesPageClient(): React.ReactElement {
 					locationId: value.locationId,
 					department: value.department || undefined,
 					status: value.status,
+					hireDate: trimmedHireDate === '' ? null : trimmedHireDate,
+					dailyPay,
+					paymentFrequency,
 					sbcDailyOverride: parsedSbcOverride,
 					shiftType: value.shiftType,
 					schedule,
@@ -859,6 +931,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					department: value.department || undefined,
 					status: value.status,
 					hireDate: trimmedHireDate === '' ? undefined : trimmedHireDate,
+					dailyPay,
+					paymentFrequency,
 					sbcDailyOverride: trimmedSbcOverride === '' ? undefined : parsedSbcOverride ?? undefined,
 					shiftType: value.shiftType,
 					schedule,
@@ -874,6 +948,16 @@ export function EmployeesPageClient(): React.ReactElement {
 	const firstName = useStore(form.store, (state) => state.values.firstName);
 	const lastName = useStore(form.store, (state) => state.values.lastName);
 	const codeValue = useStore(form.store, (state) => state.values.code);
+	const periodPayValue = useStore(form.store, (state) => state.values.periodPay);
+	const paymentFrequencyValue =
+		useStore(form.store, (state) => state.values.paymentFrequency) ?? 'MONTHLY';
+	const computedDailyPay = calculateDailyPayFromPeriodPay(
+		Number(periodPayValue || 0),
+		paymentFrequencyValue,
+	);
+	const periodPayLabel = t('fields.periodPay', {
+		period: t(`paymentFrequency.${paymentFrequencyValue}`),
+	});
 
 	const generateEmployeeCode = (first: string, last: string): string => {
 		const random = Math.floor(1000 + Math.random() * 9000).toString();
@@ -971,6 +1055,16 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue(
 				'hireDate',
 				employee.hireDate ? format(new Date(employee.hireDate), 'yyyy-MM-dd') : '',
+			);
+			form.setFieldValue('paymentFrequency', employee.paymentFrequency ?? 'MONTHLY');
+			form.setFieldValue(
+				'periodPay',
+				String(
+					calculatePeriodPayFromDailyPay(
+						employee.dailyPay ?? 0,
+						employee.paymentFrequency ?? 'MONTHLY',
+					),
+				),
 			);
 			form.setFieldValue(
 				'sbcDailyOverride',
@@ -2334,10 +2428,73 @@ export function EmployeesPageClient(): React.ReactElement {
 												<field.DateField
 													label={t('fields.hireDate')}
 													placeholder={t('placeholders.hireDate')}
-													disabled={isEditMode}
 												/>
 											)}
 										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="paymentFrequency"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('validation.paymentFrequencyRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.SelectField
+													label={t('fields.paymentFrequency')}
+													options={[
+														{
+															value: 'WEEKLY',
+															label: t('paymentFrequency.WEEKLY'),
+														},
+														{
+															value: 'BIWEEKLY',
+															label: t('paymentFrequency.BIWEEKLY'),
+														},
+														{
+															value: 'MONTHLY',
+															label: t('paymentFrequency.MONTHLY'),
+														},
+													]}
+													placeholder={t('placeholders.selectPaymentFrequency')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField
+											name="periodPay"
+											validators={{
+												onChange: ({ value }) =>
+													Number(value) <= 0
+														? t('validation.periodPayGreaterThanZero')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={periodPayLabel}
+													type="number"
+													placeholder={t('placeholders.periodPayExample')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2">
+										<div className="grid grid-cols-4 items-center gap-4">
+											<Label className="text-right">
+												{t('fields.dailyPayCalculated')}
+											</Label>
+											<Input
+												className="col-span-3"
+												value={computedDailyPay.toFixed(2)}
+												readOnly
+												disabled
+											/>
+										</div>
 									</div>
 									<div className="col-span-2 sm:col-span-1">
 										<form.AppField

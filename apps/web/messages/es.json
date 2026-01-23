@@ -387,6 +387,9 @@
 			"status": "Estatus",
 			"shiftType": "Tipo de turno",
 			"hireDate": "Fecha de ingreso",
+			"paymentFrequency": "Frecuencia de pago",
+			"periodPay": "Salario del periodo {period} (MXN)",
+			"dailyPayCalculated": "Salario diario calculado (MXN)",
 			"sbcDailyOverride": "SBC diario (override)"
 		},
 		"placeholders": {
@@ -397,7 +400,9 @@
 			"selectStatus": "Selecciona un estatus",
 			"selectShiftType": "Selecciona un tipo de turno",
 			"hireDate": "YYYY-MM-DD",
-			"sbcDailyOverride": "p. ej., 320.50"
+			"sbcDailyOverride": "p. ej., 320.50",
+			"selectPaymentFrequency": "Selecciona la frecuencia",
+			"periodPayExample": "p. ej., 1951.60"
 		},
 		"helpers": {
 			"sbcDailyOverride": "Deja vacío para calcular automático con SDI/SBC."
@@ -408,7 +413,14 @@
 			"lastNameRequired": "El apellido es requerido",
 			"locationRequired": "La ubicación es requerida",
 			"jobPositionRequired": "El puesto es requerido",
+			"paymentFrequencyRequired": "La frecuencia de pago es requerida",
+			"periodPayGreaterThanZero": "El salario del periodo debe ser mayor a 0",
 			"sbcDailyOverride": "Ingresa un SBC diario válido."
+		},
+		"paymentFrequency": {
+			"WEEKLY": "Semanal",
+			"BIWEEKLY": "Quincenal",
+			"MONTHLY": "Mensual"
 		},
 		"schedule": {
 			"title": "Horario",
@@ -536,31 +548,14 @@
 		},
 		"fields": {
 			"name": "Nombre",
-			"description": "Descripción",
-			"periodPay": "Salario del periodo {period} (MXN)",
-			"dailyPay": "Salario Diario (MXN)",
-			"dailyPayCalculated": "Salario diario calculado (MXN)",
-			"hourlyPay": "Salario por hora (MXN)",
-			"paymentFrequency": "Frecuencia de pago"
+			"description": "Descripción"
 		},
 		"placeholders": {
 			"nameExample": "p. ej., Ingeniero de Software",
-			"descriptionOptional": "Descripción opcional del puesto",
-			"periodPayExample": "p. ej., 1951.60",
-			"dailyPayExample": "p. ej., 278.80",
-			"hourlyPayExample": "p. ej., 25.00",
-			"selectPaymentFrequency": "Selecciona la frecuencia"
+			"descriptionOptional": "Descripción opcional del puesto"
 		},
 		"validation": {
-			"nameRequired": "El nombre es requerido",
-			"periodPayGreaterThanZero": "El salario del periodo debe ser mayor a 0",
-			"dailyPayGreaterThanZero": "El salario diario debe ser mayor a 0",
-			"hourlyPayGreaterThanZero": "El salario por hora debe ser mayor a 0"
-		},
-		"paymentFrequency": {
-			"WEEKLY": "Semanal",
-			"BIWEEKLY": "Quincenal",
-			"MONTHLY": "Mensual"
+			"nameRequired": "El nombre es requerido"
 		},
 		"search": {
 			"placeholder": "Buscar puestos..."
@@ -569,9 +564,6 @@
 			"headers": {
 				"name": "Nombre",
 				"description": "Descripción",
-				"dailyPay": "Salario diario",
-				"hourlyPay": "Salario por hora",
-				"paymentFrequency": "Frecuencia",
 				"created": "Creado",
 				"actions": "Acciones"
 			},
@@ -591,8 +583,6 @@
 			"updateError": "No se pudo actualizar el puesto",
 			"deleteSuccess": "Puesto eliminado correctamente",
 			"deleteError": "No se pudo eliminar el puesto",
-			"belowMinimumWageWarning": "El salario diario esta por debajo del salario minimo. Se guardo como advertencia.",
-			"belowMinimumWageBlocked": "El salario diario esta por debajo del salario minimo y fue bloqueado por la politica de nomina.",
 			"noOrganization": "No hay una organización activa. Selecciona una organización primero."
 		}
 	},
@@ -817,7 +807,7 @@
 	},
 	"Payroll": {
 		"title": "Nómina",
-		"subtitle": "Calcula nómina a partir de asistencia y salarios por puesto.",
+		"subtitle": "Calcula nómina a partir de asistencia y salarios por empleado.",
 		"noOrganization": "Selecciona una organización activa para calcular nómina.",
 		"legalRules": {
 			"title": "Reglas legales (LFT México)",

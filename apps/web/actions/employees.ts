@@ -40,6 +40,10 @@ export interface CreateEmployeeInput {
 	status: EmployeeStatus;
 	/** Employee hire date (YYYY-MM-DD) */
 	hireDate?: string;
+	/** Daily pay rate (salario diario) */
+	dailyPay: number;
+	/** Payment frequency */
+	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional SBC daily override */
 	sbcDailyOverride?: number;
 	/** Employee shift type */
@@ -72,6 +76,12 @@ export interface UpdateEmployeeInput {
 	department?: string;
 	/** Employee's status */
 	status: EmployeeStatus;
+	/** Employee hire date (YYYY-MM-DD) */
+	hireDate?: string | null;
+	/** Daily pay rate (salario diario) */
+	dailyPay?: number;
+	/** Payment frequency */
+	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional SBC daily override */
 	sbcDailyOverride?: number | null;
 	/** Employee shift type */
@@ -130,6 +140,8 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			department: input.department || undefined,
 			status: input.status,
 			hireDate,
+			dailyPay: input.dailyPay,
+			paymentFrequency: input.paymentFrequency,
 			sbcDailyOverride: input.sbcDailyOverride ?? undefined,
 			shiftType: input.shiftType ?? 'DIURNA',
 			userId: resolvedUserId ? resolvedUserId : undefined,
@@ -185,6 +197,12 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 		const api = createServerApiClient(cookieHeader);
 		const resolvedUserId =
 			input.userId === undefined ? undefined : input.userId?.trim() || null;
+		const resolvedHireDate =
+			input.hireDate === undefined
+				? undefined
+				: input.hireDate === null
+					? null
+					: new Date(input.hireDate);
 
 		const response = await api.employees[input.id].put({
 			firstName: input.firstName,
@@ -195,6 +213,9 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			locationId: input.locationId,
 			department: input.department || undefined,
 			status: input.status,
+			hireDate: resolvedHireDate,
+			dailyPay: input.dailyPay,
+			paymentFrequency: input.paymentFrequency,
 			sbcDailyOverride:
 				input.sbcDailyOverride === null ? null : input.sbcDailyOverride ?? undefined,
 			shiftType: input.shiftType,

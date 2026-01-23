@@ -299,6 +299,10 @@ async function insertDomainBaseline(args: {
 	locations: SeedLocation[];
 	jobPositions: SeedJobPosition[];
 	templates: SeedScheduleTemplate[];
+	positionPayDefaults: Map<
+		string,
+		{ dailyPay: string; paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' }
+	>;
 }> {
 	const { seedNumber, organizations } = args;
 
@@ -355,62 +359,76 @@ async function insertDomainBaseline(args: {
 	await db.insert(location).values(locationsToInsert);
 	const locationsInserted = await db.select().from(location);
 
-	const positionsToInsert: Array<typeof jobPosition.$inferInsert> = [
+	const positionSeedConfig = [
 		{
 			id: deterministicUuid(seedNumber, 'job:sen:operador'),
 			name: 'Operador',
 			description: 'Personal operativo',
 			dailyPay: money(400),
-			paymentFrequency: 'WEEKLY',
+			paymentFrequency: 'WEEKLY' as const,
 			organizationId: primaryOrg.id,
-			clientId: null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'job:sen:supervisor'),
 			name: 'Supervisor',
 			description: 'Supervisión de turno',
 			dailyPay: money(600),
-			paymentFrequency: 'BIWEEKLY',
+			paymentFrequency: 'BIWEEKLY' as const,
 			organizationId: primaryOrg.id,
-			clientId: null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'job:sen:gerente'),
 			name: 'Gerente',
 			description: 'Gestión de sucursal',
 			dailyPay: money(1000),
-			paymentFrequency: 'MONTHLY',
+			paymentFrequency: 'MONTHLY' as const,
 			organizationId: primaryOrg.id,
-			clientId: null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'job:demo:operador'),
 			name: 'Operador',
 			description: 'Personal operativo',
 			dailyPay: money(380),
-			paymentFrequency: 'WEEKLY',
+			paymentFrequency: 'WEEKLY' as const,
 			organizationId: secondaryOrg.id,
-			clientId: null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'job:demo:supervisor'),
 			name: 'Supervisor',
 			description: 'Supervisión de turno',
 			dailyPay: money(560),
-			paymentFrequency: 'BIWEEKLY',
+			paymentFrequency: 'BIWEEKLY' as const,
 			organizationId: secondaryOrg.id,
-			clientId: null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'job:demo:gerente'),
 			name: 'Gerente',
 			description: 'Gestión de sucursal',
 			dailyPay: money(900),
-			paymentFrequency: 'MONTHLY',
+			paymentFrequency: 'MONTHLY' as const,
 			organizationId: secondaryOrg.id,
-			clientId: null,
 		},
 	];
+
+	const positionsToInsert: Array<typeof jobPosition.$inferInsert> = positionSeedConfig.map(
+		(position) => ({
+			id: position.id,
+			name: position.name,
+			description: position.description,
+			organizationId: position.organizationId,
+			clientId: null,
+		}),
+	);
+
+	const positionPayDefaults = new Map(
+		positionSeedConfig.map((position) => [
+			position.id,
+			{
+				dailyPay: position.dailyPay,
+				paymentFrequency: position.paymentFrequency,
+			},
+		]),
+	);
 
 	await db.insert(jobPosition).values(positionsToInsert);
 	const positionsInserted = await db.select().from(jobPosition);
@@ -501,6 +519,7 @@ async function insertDomainBaseline(args: {
 		locations: locationsInserted,
 		jobPositions: positionsInserted,
 		templates: templatesInserted,
+		positionPayDefaults,
 	};
 }
 
@@ -568,8 +587,12 @@ async function seedEmployees(args: {
 	locations: SeedLocation[];
 	jobPositions: SeedJobPosition[];
 	templates: SeedScheduleTemplate[];
+	positionPayDefaults: Map<
+		string,
+		{ dailyPay: string; paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' }
+	>;
 }): Promise<SeedEmployee[]> {
-	const { seedNumber, organizations, locations, jobPositions, templates } = args;
+	const { seedNumber, organizations, locations, jobPositions, templates, positionPayDefaults } = args;
 
 	const orgLocations = new Map<string, string[]>();
 	for (const loc of locations) {
@@ -652,14 +675,29 @@ async function seedEmployees(args: {
 	const employees = await db.select().from(employee);
 
 	for (const row of employees) {
-		if (!row.scheduleTemplateId) {
-			continue;
+		const updatePayload: Partial<typeof employee.$inferInsert> = {};
+		if (row.scheduleTemplateId) {
+			const desired = templateShiftMap.get(row.scheduleTemplateId);
+			if (desired && row.shiftType !== desired) {
+				updatePayload.shiftType = desired;
+			}
 		}
-		const desired = templateShiftMap.get(row.scheduleTemplateId);
-		if (!desired || row.shiftType === desired) {
-			continue;
+
+		if (row.jobPositionId) {
+			const payDefaults = positionPayDefaults.get(row.jobPositionId);
+			if (payDefaults) {
+				if (row.dailyPay !== payDefaults.dailyPay) {
+					updatePayload.dailyPay = payDefaults.dailyPay;
+				}
+				if (row.paymentFrequency !== payDefaults.paymentFrequency) {
+					updatePayload.paymentFrequency = payDefaults.paymentFrequency;
+				}
+			}
 		}
-		await db.update(employee).set({ shiftType: desired }).where(eq(employee.id, row.id));
+
+		if (Object.keys(updatePayload).length > 0) {
+			await db.update(employee).set(updatePayload).where(eq(employee.id, row.id));
+		}
 	}
 
 	return db.select().from(employee);
@@ -1224,11 +1262,8 @@ async function insertPayrollRuns(args: {
 	seedNumber: number;
 	organizations: SeedOrganization[];
 	employees: SeedEmployee[];
-	jobPositions: SeedJobPosition[];
 }): Promise<void> {
-	const { seedNumber, organizations, employees, jobPositions } = args;
-
-	const jobById = new Map(jobPositions.map((p) => [p.id, p]));
+	const { seedNumber, organizations, employees } = args;
 
 	const nowUtcKey = new Date().toISOString().slice(0, 10);
 	const periodStartKey = addDaysToDateKey(nowUtcKey, -13);
@@ -1260,8 +1295,7 @@ async function insertPayrollRuns(args: {
 		let totalAmount = 0;
 
 		for (const emp of orgEmployees) {
-			const pos = emp.jobPositionId ? jobById.get(emp.jobPositionId) : undefined;
-			const dailyPay = pos ? Number(pos.dailyPay) : 0;
+			const dailyPay = Number(emp.dailyPay ?? 0);
 			const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
 			const divisor = SHIFT_LIMITS[shiftKey]?.divisor ?? 8;
 			const hourlyPay = divisor > 0 ? dailyPay / divisor : 0;
@@ -1361,6 +1395,7 @@ async function main(): Promise<void> {
 		locations: baseline.locations,
 		jobPositions: baseline.jobPositions,
 		templates: baseline.templates,
+		positionPayDefaults: baseline.positionPayDefaults,
 	});
 
 	await insertEmployeeSchedules(args.seed, employees);
@@ -1397,7 +1432,6 @@ async function main(): Promise<void> {
 		seedNumber: args.seed,
 		organizations,
 		employees,
-		jobPositions: baseline.jobPositions,
 	});
 
 	console.log('✅ Seed completed.');

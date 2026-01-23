@@ -612,6 +612,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					dailyPay: employee.dailyPay,
+					paymentFrequency: employee.paymentFrequency,
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -691,6 +693,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					status: employee.status,
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
+					dailyPay: employee.dailyPay,
+					paymentFrequency: employee.paymentFrequency,
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -1004,6 +1008,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department,
 				status: empStatus,
 				hireDate,
+				dailyPay,
+				paymentFrequency,
 				sbcDailyOverride,
 				locationId,
 				organizationId: organizationIdInput,
@@ -1166,6 +1172,12 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const id = crypto.randomUUID();
 
 			const resolvedShiftType = shiftType ?? selectedTemplate?.shiftType ?? 'DIURNA';
+			const normalizedDailyPay = Number(dailyPay);
+
+			if (!Number.isFinite(normalizedDailyPay) || normalizedDailyPay <= 0) {
+				set.status = 400;
+				return buildErrorResponse('Daily pay must be greater than 0', 400);
+			}
 
 			const newEmployee = {
 				id,
@@ -1178,6 +1190,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				department: department ?? null,
 				status: empStatus,
 				hireDate: hireDate ?? null,
+				dailyPay: normalizedDailyPay.toFixed(2),
+				paymentFrequency: paymentFrequency ?? 'MONTHLY',
 				sbcDailyOverride:
 					sbcDailyOverride === undefined || sbcDailyOverride === null
 						? null
@@ -1434,14 +1448,22 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				sbcDailyOverride,
 				userId: userIdInput,
 				code: _code,
-				hireDate: _hireDate,
+				dailyPay: dailyPayInput,
 				...employeeUpdate
 			} = body;
 			void _code;
-			void _hireDate;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
 			};
+
+			if (dailyPayInput !== undefined) {
+				const normalizedDailyPay = Number(dailyPayInput);
+				if (!Number.isFinite(normalizedDailyPay) || normalizedDailyPay <= 0) {
+					set.status = 400;
+					return buildErrorResponse('Daily pay must be greater than 0', 400);
+				}
+				updatePayload.dailyPay = normalizedDailyPay.toFixed(2);
+			}
 
 			if (sbcDailyOverride !== undefined) {
 				updatePayload.sbcDailyOverride =
@@ -1507,6 +1529,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						status: employee.status,
 						shiftType: employee.shiftType,
 						hireDate: employee.hireDate,
+						dailyPay: employee.dailyPay,
+						paymentFrequency: employee.paymentFrequency,
 						sbcDailyOverride: employee.sbcDailyOverride,
 						locationId: employee.locationId,
 						organizationId: employee.organizationId,

@@ -268,8 +268,8 @@
 		},
 		"summary": {
 			"availableDays": "Dias disponibles",
-			"absences": "Ausencias",
-			"leaves": "Permisos",
+			"absences": "Ausencias injustificadas",
+			"leaves": "Ausencias justificadas (sin goce)",
 			"payrollRuns": "Corridas de nomina",
 			"upcomingExceptions": "Excepciones proximas",
 			"last90Days": "Ultimos 90 dias",
@@ -291,10 +291,10 @@
 			}
 		},
 		"attendance": {
-			"absencesTitle": "Ausencias",
-			"emptyAbsences": "Sin ausencias recientes.",
-			"leavesTitle": "Permisos",
-			"emptyLeaves": "Sin permisos recientes.",
+			"absencesTitle": "Ausencias injustificadas",
+			"emptyAbsences": "Sin ausencias injustificadas recientes.",
+			"leavesTitle": "Ausencias justificadas (sin goce)",
+			"emptyLeaves": "Sin ausencias justificadas (sin goce) recientes.",
 			"noReason": "Sin motivo"
 		},
 		"vacations": {
@@ -1520,6 +1520,8 @@
 				"noEmployees": "Sin empleados",
 				"more": "+{count} más",
 				"tooltipDate": "{day}, {date}",
+				"justifiedLabel": "Ausencias justificadas (sin goce)",
+				"justifiedCount": "{count, plural, one {# ausencia justificada (sin goce)} other {# ausencias justificadas (sin goce)}}",
 				"badges": {
 					"source": {
 						"template": "Plantilla",
@@ -1528,7 +1530,7 @@
 						"none": "Sin horario"
 					},
 					"exceptionType": {
-						"DAY_OFF": "Día libre",
+						"DAY_OFF": "Ausencia justificada (sin goce)",
 						"MODIFIED": "Horas modificadas",
 						"EXTRA_DAY": "Día extra"
 					}

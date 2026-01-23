@@ -1924,6 +1924,7 @@ export interface CalendarDay {
 	endTime: string | null;
 	source: 'template' | 'manual' | 'exception' | 'none';
 	exceptionType?: ScheduleExceptionType;
+	reason?: string | null;
 }
 
 export interface CalendarEmployee {

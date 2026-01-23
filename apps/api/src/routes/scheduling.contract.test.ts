@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
-import { addDays } from 'date-fns';
+import { addDays, format } from 'date-fns';
 
 import {
 	createTestClient,
@@ -7,6 +7,7 @@ import {
 	getSeedData,
 	requireErrorResponse,
 	requireResponseData,
+	requireRoute,
 } from '../test-utils/contract-helpers.js';
 
 describe('scheduling routes (contract)', () => {
@@ -32,6 +33,66 @@ describe('scheduling routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
+	it('includes exception reasons in calendar entries', async () => {
+		const exceptionDate = addDays(new Date(), 14);
+		const reason = 'Ausencia justificada';
+		const createResponse = await client['schedule-exceptions'].post({
+			employeeId: seed.employeeId,
+			exceptionDate,
+			exceptionType: 'DAY_OFF',
+			reason,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		const createdException = createPayload.data;
+		if (!createdException) {
+			throw new Error('Expected schedule exception record in create response.');
+		}
+		const exceptionId = createdException.id;
+		if (!exceptionId) {
+			throw new Error('Expected schedule exception ID in create response.');
+		}
+
+		const calendarResponse = await client.scheduling.calendar.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				startDate: exceptionDate,
+				endDate: exceptionDate,
+			},
+		});
+
+		expect(calendarResponse.status).toBe(200);
+		const calendarPayload = requireResponseData(calendarResponse);
+		const employeeEntry = calendarPayload.data.find(
+			(entry) => entry.employeeId === seed.employeeId,
+		);
+		if (!employeeEntry) {
+			throw new Error('Expected calendar entry for the seeded employee.');
+		}
+
+		const dateKey = format(exceptionDate, 'yyyy-MM-dd');
+		const dayEntry = employeeEntry.days.find((day) => day.date === dateKey);
+		if (!dayEntry) {
+			throw new Error(`Expected calendar day entry for ${dateKey}.`);
+		}
+
+		expect(dayEntry.source).toBe('exception');
+		expect(dayEntry.exceptionType).toBe('DAY_OFF');
+		expect(dayEntry.reason).toBe(reason);
+
+		const scheduleExceptionRoute = requireRoute(
+			client['schedule-exceptions'][exceptionId],
+			'Schedule exception route',
+		);
+		const deleteResponse = await scheduleExceptionRoute.delete({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(deleteResponse.status).toBe(200);
 	});
 
 	it('rejects invalid calendar date ranges', async () => {

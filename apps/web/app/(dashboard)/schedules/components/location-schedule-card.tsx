@@ -83,6 +83,15 @@ interface ExpectedEmployeeEntry {
 }
 
 /**
+ * Display row for a justified absence entry on a given day.
+ */
+interface JustifiedAbsenceEntry {
+	employeeId: string;
+	employeeName: string;
+	reason: string | null;
+}
+
+/**
  * Converts a date to a local date representing the same UTC calendar day.
  *
  * @param date - Reference date
@@ -293,6 +302,33 @@ export function LocationScheduleCard({
 		return map;
 	}, [filteredCalendarEmployees]);
 
+	const justifiedAbsencesByDate = useMemo(() => {
+		const map = new Map<string, JustifiedAbsenceEntry[]>();
+
+		for (const employeeEntry of filteredCalendarEmployees) {
+			for (const day of employeeEntry.days) {
+				if (day.source !== 'exception' || day.exceptionType !== 'DAY_OFF') {
+					continue;
+				}
+
+				const list = map.get(day.date) ?? [];
+				list.push({
+					employeeId: employeeEntry.employeeId,
+					employeeName: employeeEntry.employeeName,
+					reason: day.reason ?? null,
+				});
+				map.set(day.date, list);
+			}
+		}
+
+		for (const [key, list] of map.entries()) {
+			list.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+			map.set(key, list);
+		}
+
+		return map;
+	}, [filteredCalendarEmployees]);
+
 	const daysInRangeUtc = useMemo(() => {
 		const daysLocal = eachDayOfInterval({
 			start: toUtcCalendarDateLocal(rangeStart),
@@ -358,6 +394,7 @@ export function LocationScheduleCard({
 							{daysInRangeUtc.slice(0, 7).map((dayUtc) => {
 								const dayKey = formatUtcDateKey(dayUtc);
 								const expected = expectedByDate.get(dayKey) ?? [];
+								const justified = justifiedAbsencesByDate.get(dayKey) ?? [];
 								const dayOfWeekIndex = getUtcDayOfWeekIndex(dayUtc);
 								const dayTranslationKey: DayKey = DAY_KEYS[dayOfWeekIndex] ?? 'sun';
 								const label = t(`days.short.${dayTranslationKey}`);
@@ -421,6 +458,50 @@ export function LocationScheduleCard({
 												))
 											)}
 										</div>
+										{justified.length > 0 && (
+											<div className="space-y-1 border-t border-amber-100 pt-2">
+												<div className="text-[11px] font-semibold text-amber-700">
+													{t('calendar.locationCard.justifiedLabel')}
+												</div>
+												<div className="space-y-1">
+													{justified.map((entry) => {
+														const absenceBadge = (
+															<Badge
+																variant="outline"
+																className="border-amber-200 bg-amber-50 text-[10px] uppercase text-amber-700"
+															>
+																{t(
+																	EXCEPTION_TYPE_LABEL_KEYS.DAY_OFF,
+																)}
+															</Badge>
+														);
+
+														return (
+															<div
+																key={`${dayKey}-leave-${entry.employeeId}`}
+																className="flex items-center justify-between gap-2 rounded-md border border-amber-100 bg-amber-50/40 px-2 py-1"
+															>
+																<span className="min-w-0 truncate text-xs font-medium">
+																	{entry.employeeName}
+																</span>
+																{entry.reason ? (
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			{absenceBadge}
+																		</TooltipTrigger>
+																		<TooltipContent className="max-w-xs text-xs">
+																			{entry.reason}
+																		</TooltipContent>
+																	</Tooltip>
+																) : (
+																	absenceBadge
+																)}
+															</div>
+														);
+													})}
+												</div>
+											</div>
+										)}
 									</div>
 								);
 							})}
@@ -458,6 +539,7 @@ export function LocationScheduleCard({
 
 								const dayKey = formatUtcDateKey(dayUtc);
 								const expected = expectedByDate.get(dayKey) ?? [];
+								const justified = justifiedAbsencesByDate.get(dayKey) ?? [];
 								const visible = expected.slice(0, 3);
 								const remaining = Math.max(0, expected.length - visible.length);
 								const dayNumber = format(toUtcCalendarDateLocal(dayUtc), 'd');
@@ -497,11 +579,18 @@ export function LocationScheduleCard({
 													})}
 												</div>
 											)}
+											{justified.length > 0 && (
+												<div className="text-[11px] font-medium text-amber-700">
+													{t('calendar.locationCard.justifiedCount', {
+														count: justified.length,
+													})}
+												</div>
+											)}
 										</div>
 									</div>
 								);
 
-								if (expected.length === 0) {
+								if (expected.length === 0 && justified.length === 0) {
 									return <div key={dayKey}>{cell}</div>;
 								}
 
@@ -568,6 +657,30 @@ export function LocationScheduleCard({
 														</div>
 													</div>
 												))}
+												{justified.length > 0 && (
+													<div className="space-y-1 pt-1">
+														<div className="text-[11px] font-semibold text-amber-700">
+															{t(
+																'calendar.locationCard.justifiedLabel',
+															)}
+														</div>
+														{justified.map((entry) => (
+															<div
+																key={`${dayKey}-justified-${entry.employeeId}`}
+																className="text-[11px]"
+															>
+																<div className="font-medium">
+																	{entry.employeeName}
+																</div>
+																{entry.reason && (
+																	<div className="text-muted-foreground">
+																		{entry.reason}
+																	</div>
+																)}
+															</div>
+														))}
+													</div>
+												)}
 											</div>
 										</TooltipContent>
 									</Tooltip>

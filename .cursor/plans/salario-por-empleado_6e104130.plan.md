@@ -92,13 +92,13 @@ ALTER TABLE "job_position" DROP COLUMN "payment_frequency";
     - Ajustar `fetchJobPositionsListServer` para ya no mapear `dailyPay`.
     - Ajustar `fetchEmployeesListServer` para incluir/normalizar `dailyPay`.
 - UI de puestos:
-  - `[apps/web/app/(dashboard)/job-positions/job-positions-client.tsx](apps/web/app/\\\(dashboard)/job-positions/job-positions-client.tsx)`:
+  - `[apps/web/app/(dashboard)/job-positions/job-positions-client.tsx](apps/web/app/\\\\(dashboard)/job-positions/job-positions-client.tsx)`:
     - Quitar `paymentFrequency`, `periodPay`, cálculo de diario y columnas de tabla relacionadas.
     - Form/dialog: solo `name` y `description`.
   - [`apps/web/actions/job-positions.ts`](apps/web/actions/job-positions.ts):
     - Remover `dailyPay`/`paymentFrequency` de inputs y payload.
 - UI de empleados:
-  - `[apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\(dashboard)/employees/employees-client.tsx)`:
+  - `[apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx)`:
     - Agregar al form:
       - `paymentFrequency` (select)
       - `periodPay` (input numérico) + cálculo a `dailyPay` (read-only)

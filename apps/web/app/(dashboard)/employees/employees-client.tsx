@@ -2443,7 +2443,7 @@ export function EmployeesPageClient(): React.ReactElement {
 														return t('validation.hireDateInvalid');
 													}
 													const today = startOfDay(new Date());
-													if (isAfter(parsedValue, today)) {
+													if (isAfter(startOfDay(parsedValue), today)) {
 														return t('validation.hireDateFutureNotAllowed');
 													}
 													return undefined;

@@ -17,7 +17,7 @@ export default async function LoginPage({
 
 	// Build query string from search parameters
 	const searchParamsObj = new URLSearchParams();
-	
+
 	for (const [key, value] of Object.entries(params)) {
 		if (value !== undefined) {
 			if (Array.isArray(value)) {
@@ -34,6 +34,6 @@ export default async function LoginPage({
 	// Build the redirect URL with preserved query parameters
 	const queryString = searchParamsObj.toString();
 	const targetPath = queryString ? `/sign-in?${queryString}` : '/sign-in';
-	
+
 	redirect(targetPath);
 }

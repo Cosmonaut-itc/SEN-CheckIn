@@ -622,6 +622,10 @@
 		"actions": {
 			"saveChanges": "Guardar cambios"
 		},
+		"mobileSetup": {
+			"ariaLabel": "Abrir configuración de dispositivo en la app móvil",
+			"label": "Configurar dispositivo móvil"
+		},
 		"search": {
 			"placeholder": "Buscar dispositivos..."
 		},

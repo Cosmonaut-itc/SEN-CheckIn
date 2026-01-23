@@ -12,7 +12,7 @@
 
 import React from 'react';
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
-import { format, isValid, parse } from 'date-fns';
+import { format, isValid, parse, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -340,10 +340,16 @@ export function TimeField({
 	);
 }
 
+type DateFieldProps = CommonFieldProps & {
+	variant?: 'button' | 'input';
+	minYear?: number;
+	maxDate?: Date;
+};
+
 /**
  * Date input field with label and error display.
  *
- * @param props - Component props including label and optional description
+ * @param props - Component props including label, variant, and date constraints
  * @returns A rendered date input field
  */
 export function DateField({
@@ -352,46 +358,149 @@ export function DateField({
 	description,
 	disabled,
 	orientation = 'horizontal',
-}: CommonFieldProps & { orientation?: 'horizontal' | 'vertical' }): React.ReactElement {
+	variant = 'button',
+	minYear,
+	maxDate,
+}: DateFieldProps): React.ReactElement {
 	const field = useFieldContext();
+	const tCommon = useTranslations('Common');
 	const rawValue = (field.state.value as string) ?? '';
 	const parsedValue = rawValue ? parse(rawValue, 'yyyy-MM-dd', new Date()) : undefined;
-	const selectedDate = parsedValue && isValid(parsedValue) ? parsedValue : undefined;
+	const isParsedValid =
+		parsedValue !== undefined &&
+		isValid(parsedValue) &&
+		format(parsedValue, 'yyyy-MM-dd') === rawValue;
+	const selectedDate = isParsedValid ? parsedValue : undefined;
 	const resolvedPlaceholder = placeholder ?? label;
-
-	const datePicker = (
-		<Popover>
-			<PopoverTrigger asChild>
-				<Button
-					id={field.name}
-					type="button"
-					variant="outline"
-					data-empty={!selectedDate}
-					className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
-					disabled={disabled}
-					onBlur={field.handleBlur}
-				>
-					<CalendarIcon className="mr-2 h-4 w-4" />
-					{selectedDate ? (
-						format(selectedDate, 'PPP', { locale: es })
-					) : (
-						<span>{resolvedPlaceholder}</span>
-					)}
-				</Button>
-			</PopoverTrigger>
-			<PopoverContent className="w-auto p-0" align="start">
-				<Calendar
-					mode="single"
-					selected={selectedDate}
-					onSelect={(date) => {
-						field.handleChange(date ? format(date, 'yyyy-MM-dd') : '');
-						field.handleBlur();
-					}}
-					initialFocus
-				/>
-			</PopoverContent>
-		</Popover>
+	const resolvedMinYear = minYear ?? (variant === 'input' ? 1950 : undefined);
+	const resolvedMaxDate = maxDate
+		? startOfDay(maxDate)
+		: variant === 'input'
+			? startOfDay(new Date())
+			: undefined;
+	const startMonth = resolvedMinYear ? new Date(resolvedMinYear, 0, 1) : undefined;
+	const [open, setOpen] = React.useState(false);
+	const [month, setMonth] = React.useState<Date>(
+		() => selectedDate ?? resolvedMaxDate ?? new Date(),
 	);
+
+	React.useEffect(() => {
+		if (selectedDate) {
+			setMonth(selectedDate);
+		}
+	}, [selectedDate]);
+
+	const calendarRangeProps: {
+		startMonth?: Date;
+		endMonth?: Date;
+		disabled?: React.ComponentProps<typeof Calendar>['disabled'];
+	} = {};
+
+	if (startMonth) {
+		calendarRangeProps.startMonth = startMonth;
+	}
+
+	if (resolvedMaxDate) {
+		calendarRangeProps.endMonth = resolvedMaxDate;
+		calendarRangeProps.disabled = { after: resolvedMaxDate };
+	}
+
+	const calendarMonthProps =
+		variant === 'input'
+			? {
+					month,
+					onMonthChange: setMonth,
+				}
+			: {};
+
+	const calendar = (
+		<Calendar
+			mode="single"
+			selected={selectedDate}
+			onSelect={(date) => {
+				field.handleChange(date ? format(date, 'yyyy-MM-dd') : '');
+				field.handleBlur();
+				if (date) {
+					setMonth(date);
+				}
+			}}
+			initialFocus
+			captionLayout={variant === 'input' ? 'dropdown' : undefined}
+			{...calendarRangeProps}
+			{...calendarMonthProps}
+		/>
+	);
+
+	const datePicker =
+		variant === 'input' ? (
+			<Popover open={open} onOpenChange={setOpen}>
+				<div className="relative">
+					<Input
+						id={field.name}
+						name={field.name}
+						value={rawValue}
+						onChange={(event) => {
+							const nextValue = event.target.value;
+							field.handleChange(nextValue);
+							const nextParsed = nextValue
+								? parse(nextValue, 'yyyy-MM-dd', new Date())
+								: undefined;
+							const isNextValid =
+								nextParsed !== undefined &&
+								isValid(nextParsed) &&
+								format(nextParsed, 'yyyy-MM-dd') === nextValue;
+							if (isNextValid) {
+								setMonth(nextParsed);
+							}
+						}}
+						onBlur={field.handleBlur}
+						placeholder={resolvedPlaceholder}
+						disabled={disabled}
+						className="pr-10"
+					/>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="absolute right-1 top-1/2 -translate-y-1/2"
+							disabled={disabled}
+							aria-label={tCommon('selectDate')}
+						>
+							<CalendarIcon className="h-4 w-4" />
+							<span className="sr-only">{tCommon('selectDate')}</span>
+						</Button>
+					</PopoverTrigger>
+				</div>
+				<PopoverContent className="w-auto p-0" align="start">
+					{calendar}
+				</PopoverContent>
+			</Popover>
+		) : (
+			<Popover>
+				<PopoverTrigger asChild>
+					<Button
+						id={field.name}
+						type="button"
+						variant="outline"
+						data-empty={!selectedDate}
+						className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+						disabled={disabled}
+						onBlur={field.handleBlur}
+					>
+						<CalendarIcon className="mr-2 h-4 w-4" />
+						{selectedDate ? (
+							format(selectedDate, 'PPP', { locale: es })
+						) : (
+							<span>{resolvedPlaceholder}</span>
+						)}
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent className="w-auto p-0" align="start">
+					{calendar}
+				</PopoverContent>
+			</Popover>
+		);
 
 	if (orientation === 'vertical') {
 		return (

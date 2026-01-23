@@ -26,6 +26,11 @@
 		"selectDate": "Selecciona una fecha",
 		"submit": "Enviar"
 	},
+	"UpdateToast": {
+		"title": "Hay una actualización disponible",
+		"description": "Recarga la página para obtener la versión más reciente.",
+		"action": "Recargar"
+	},
 	"Map": {
 		"controls": {
 			"zoomIn": "Acercar",

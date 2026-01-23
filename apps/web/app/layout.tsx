@@ -4,6 +4,7 @@ import React, { type ReactNode } from 'react';
 import { Geist, Geist_Mono } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
+import { DeploymentUpdateToast } from '@/components/deployment-update-toast';
 import { Toaster } from '@/components/ui/sonner';
 import { Providers } from './providers';
 import './globals.css';
@@ -74,6 +75,7 @@ export default async function RootLayout({
 				<NextIntlClientProvider locale="es" messages={messages}>
 					<Providers>
 						{children}
+						<DeploymentUpdateToast />
 						<Toaster richColors position="top-right" />
 					</Providers>
 				</NextIntlClientProvider>

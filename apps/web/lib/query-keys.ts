@@ -520,6 +520,8 @@ export const mutationKeys = {
 		create: ['employees', 'create'] as const,
 		update: ['employees', 'update'] as const,
 		delete: ['employees', 'delete'] as const,
+		previewTermination: ['employees', 'previewTermination'] as const,
+		terminate: ['employees', 'terminate'] as const,
 		createRekognitionUser: ['employees', 'createRekognitionUser'] as const,
 		enrollFace: ['employees', 'enrollFace'] as const,
 		deleteRekognitionUser: ['employees', 'deleteRekognitionUser'] as const,

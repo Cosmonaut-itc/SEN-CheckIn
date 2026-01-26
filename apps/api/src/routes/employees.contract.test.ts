@@ -138,6 +138,96 @@ describe('employee routes (contract)', () => {
 		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
+	it('previews and confirms an employee termination', async () => {
+		const createResponse = await client.employees.post({
+			code: `EMP-${randomUUID().slice(0, 8)}`,
+			firstName: 'Finiquito',
+			lastName: 'Contrato',
+			email: `finiquito.${Date.now()}@example.com`,
+			phone: '+52 55 5555 1212',
+			jobPositionId: seed.jobPositionId,
+			locationId: seed.locationId,
+			organizationId: seed.organizationId,
+			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
+			hireDate: new Date('2024-01-01'),
+			dailyPay: 500,
+			paymentFrequency: 'MONTHLY',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		const createdEmployee = createPayload.data;
+		if (!createdEmployee?.id) {
+			throw new Error('Expected employee record for termination test.');
+		}
+
+		const employeeRoutes = requireRoute(
+			client.employees[createdEmployee.id],
+			'Employee route',
+		);
+		const terminationRoute = requireRoute(
+			employeeRoutes.termination,
+			'Employee termination route',
+		);
+		const previewRoute = requireRoute(
+			terminationRoute.preview,
+			'Employee termination preview route',
+		);
+
+		const previewResponse = await previewRoute.post({
+			terminationDateKey: '2026-01-15',
+			terminationReason: 'voluntary_resignation',
+			contractType: 'indefinite',
+			unpaidDays: 2,
+			otherDue: 100,
+			vacationBalanceDays: 5,
+			dailySalaryIndemnizacion: 600,
+			terminationNotes: 'Salida voluntaria',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(previewResponse.status).toBe(200);
+		const previewPayload = requireResponseData(previewResponse);
+		expect(previewPayload.data.breakdown.finiquito.salaryDue).toBe(1000);
+
+		const terminateResponse = await terminationRoute.post({
+			terminationDateKey: '2026-01-15',
+			terminationReason: 'voluntary_resignation',
+			contractType: 'indefinite',
+			unpaidDays: 2,
+			otherDue: 100,
+			vacationBalanceDays: 5,
+			dailySalaryIndemnizacion: 600,
+			terminationNotes: 'Salida voluntaria',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(terminateResponse.status).toBe(200);
+		const terminatePayload = requireResponseData(terminateResponse);
+		expect(terminatePayload.data.employee.status).toBe('INACTIVE');
+		expect(terminatePayload.data.employee.terminationDateKey).toBe('2026-01-15');
+		expect(terminatePayload.data.settlement.calculation.breakdown.finiquito.salaryDue).toBe(1000);
+
+		const duplicateResponse = await terminationRoute.post({
+			terminationDateKey: '2026-01-15',
+			terminationReason: 'voluntary_resignation',
+			contractType: 'indefinite',
+			unpaidDays: 2,
+			otherDue: 100,
+			vacationBalanceDays: 5,
+			dailySalaryIndemnizacion: 600,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(duplicateResponse.status).toBe(409);
+
+		await employeeRoutes.delete({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+	});
+
 	it('manages rekognition enrollment for an employee', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const enrollFaceRoute = requireRoute(

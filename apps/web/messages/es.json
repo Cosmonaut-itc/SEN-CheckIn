@@ -268,6 +268,7 @@
 			"attendance": "Asistencia",
 			"vacations": "Vacaciones",
 			"payroll": "Nomina",
+			"finiquito": "Finiquito",
 			"exceptions": "Excepciones",
 			"audit": "Auditoria"
 		},
@@ -335,6 +336,97 @@
 				"PROCESSED": "Procesada"
 			}
 		},
+		"finiquito": {
+			"form": {
+				"title": "Cálculo de finiquito",
+				"subtitle": "Ingresa los datos para obtener el desglose."
+			},
+			"fields": {
+				"terminationDate": "Fecha de baja",
+				"lastDayWorkedDate": "Último día laborado",
+				"terminationReason": "Motivo de baja",
+				"contractType": "Tipo de contrato",
+				"unpaidDays": "Días no pagados",
+				"otherDue": "Otros adeudos (MXN)",
+				"vacationBalanceDays": "Saldo de vacaciones (días)",
+				"dailySalaryIndemnizacion": "Salario diario para indemnización (MXN)",
+				"terminationNotes": "Notas de baja"
+			},
+			"placeholders": {
+				"terminationDate": "YYYY-MM-DD",
+				"lastDayWorkedDate": "YYYY-MM-DD",
+				"terminationReason": "Selecciona un motivo",
+				"contractType": "Selecciona un tipo",
+				"unpaidDays": "p. ej., 3",
+				"otherDue": "p. ej., 1200.00",
+				"vacationBalanceDays": "p. ej., 6.5",
+				"dailySalaryIndemnizacion": "p. ej., 650.00",
+				"terminationNotes": "Opcional"
+			},
+			"helpers": {
+				"vacationBalanceDays": "Deja vacío para calcular el saldo al corte.",
+				"dailySalaryIndemnizacion": "Deja vacío para usar el SDI/SBC calculado."
+			},
+			"actions": {
+				"preview": "Calcular",
+				"previewLoading": "Calculando...",
+				"confirm": "Confirmar baja",
+				"confirmLoading": "Confirmando baja..."
+			},
+			"results": {
+				"finiquitoTitle": "Finiquito",
+				"liquidacionTitle": "Liquidación / indemnización",
+				"totalTitle": "Total general"
+			},
+			"breakdown": {
+				"salaryDue": "Salarios pendientes",
+				"aguinaldoProp": "Aguinaldo proporcional",
+				"vacationPay": "Vacaciones no gozadas",
+				"vacationPremium": "Prima vacacional",
+				"otherDue": "Otros adeudos",
+				"totalGross": "Total bruto",
+				"indemnizacion3Meses": "Indemnización 3 meses",
+				"indemnizacion20Dias": "Indemnización 20 días/año",
+				"primaAntiguedad": "Prima de antigüedad"
+			},
+			"empty": {
+				"preview": "Ingresa los datos y calcula para ver el desglose.",
+				"liquidacion": "Sin conceptos de liquidación."
+			},
+			"validation": {
+				"employeeRequired": "Selecciona un empleado válido para continuar.",
+				"terminationDate": "La fecha de baja es obligatoria y debe ser válida.",
+				"lastDayWorkedDate": "La fecha del último día laborado no es válida.",
+				"lastDayWorkedAfterTermination": "El último día laborado no puede ser posterior a la baja.",
+				"unpaidDays": "Los días no pagados deben ser un número mayor o igual a 0.",
+				"otherDue": "Los otros adeudos deben ser un número mayor o igual a 0.",
+				"vacationBalanceDays": "El saldo de vacaciones debe ser un número mayor o igual a 0.",
+				"dailySalaryIndemnizacion": "El salario para indemnización debe ser mayor a 0.",
+				"previewRequired": "Calcula el finiquito antes de confirmar la baja."
+			},
+			"toast": {
+				"previewError": "No se pudo calcular el finiquito.",
+				"terminateSuccess": "La baja se confirmó correctamente.",
+				"terminateError": "No se pudo confirmar la baja."
+			},
+			"dialog": {
+				"title": "Confirmar baja",
+				"description": "Vas a dar de baja a {name} con un total de {total}. ¿Deseas continuar?"
+			}
+		},
+		"terminationReasons": {
+			"voluntary_resignation": "Renuncia voluntaria",
+			"justified_rescission": "Rescisión justificada",
+			"unjustified_dismissal": "Despido injustificado",
+			"end_of_contract": "Fin de contrato",
+			"mutual_agreement": "Mutuo acuerdo",
+			"death": "Fallecimiento"
+		},
+		"contractTypes": {
+			"indefinite": "Tiempo indeterminado",
+			"fixed_term": "Tiempo determinado",
+			"specific_work": "Obra determinada"
+		},
 		"exceptions": {
 			"table": {
 				"headers": {
@@ -364,6 +456,7 @@
 				"created": "Creado",
 				"updated": "Actualizado",
 				"deleted": "Eliminado",
+				"terminated": "Baja confirmada",
 				"rekognition_created": "Registro facial creado",
 				"rekognition_deleted": "Registro facial eliminado",
 				"payroll_updated": "Nomina actualizada"
@@ -390,6 +483,11 @@
 			"jobPosition": "Puesto",
 			"department": "Departamento",
 			"status": "Estatus",
+			"terminationDate": "Fecha de baja",
+			"lastDayWorkedDate": "Último día laborado",
+			"terminationReason": "Motivo de baja",
+			"contractType": "Tipo de contrato",
+			"terminationNotes": "Notas de baja",
 			"shiftType": "Tipo de turno",
 			"hireDate": "Fecha de ingreso",
 			"paymentFrequency": "Frecuencia de pago",

@@ -52,11 +52,11 @@ isProject: false
 - Cambio: extender `PayrollRunEmployee` con `employeeName` y `employeeCode`, y ajustar `fetchPayrollRunDetail()` para conservarlos.
 
 - Añadir acciones de “Recibos” al historial:
-- Archivo: [apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\(dashboard)/payroll/payroll-client.tsx)
+- Archivo: [apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\(dashboard)/payroll/payroll-client.tsx)
 - Cambio: agregar una columna `actions` a `runColumns` y renderizar un trigger `Recibos`.
 
 - Crear un diálogo para listar empleados y descargas:
-- Archivo nuevo (propuesto): [apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx](apps/web/app/\\(dashboard)/payroll/payroll-run-receipts-dialog.tsx)
+- Archivo nuevo (propuesto): [apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx](apps/web/app/\\\(dashboard)/payroll/payroll-run-receipts-dialog.tsx)
 - UX:
 - Al abrir, cargar `fetchPayrollRunDetail(runId)` con `queryKeys.payroll.runDetail(runId)`.
 - Mostrar:
@@ -86,18 +86,18 @@ isProject: false
 - `getAdminAccessContext()` para asegurar sesión/organización.
 - `createServerApiClient(cookieHeader)` y `GET /payroll/runs/:id`.
 - Buscar `employeeId`, generar PDF y responder con:
-  - `Content-Type: application/pdf`
-  - `Content-Disposition: attachment; filename="...pdf"`
-  - `Cache-Control: no-store`
+- `Content-Type: application/pdf`
+- `Content-Disposition: attachment; filename="...pdf"`
+- `Cache-Control: no-store`
 - ZIP (todos los recibos del run):
 - Archivo nuevo: [apps/web/app/api/payroll/receipts/run/[runId]/all/route.ts](apps/web/app/api/payroll/receipts/run/[runId]/all/route.ts)
 - Flujo:
 - Cargar run detail una vez.
 - Generar PDF por empleado y agregarlos al ZIP con `jszip`.
 - Responder con:
-  - `Content-Type: application/zip`
-  - `Content-Disposition: attachment; filename="recibos_nomina_{start}_{end}.zip"`
-  - `Cache-Control: no-store`
+- `Content-Type: application/zip`
+- `Content-Disposition: attachment; filename="recibos_nomina_{start}_{end}.zip"`
+- `Cache-Control: no-store`
 
 ## Pruebas
 

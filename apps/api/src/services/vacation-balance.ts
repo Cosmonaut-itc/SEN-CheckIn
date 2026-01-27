@@ -1,4 +1,4 @@
-import { and, eq, inArray, ne, type SQL } from 'drizzle-orm';
+import { and, eq, inArray, lte, ne, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import { vacationRequest, vacationRequestDay } from '../db/schema.js';
@@ -19,6 +19,7 @@ import type { EmployeeVacationBalance } from '@sen-checkin/types';
  * @param args.employeeId - Employee identifier
  * @param args.statuses - Vacation request statuses to include
  * @param args.excludeRequestId - Optional request ID to exclude
+ * @param args.asOfDateKey - Optional inclusive cutoff date key (YYYY-MM-DD)
  * @returns Map of serviceYearNumber -> used days count
  */
 export async function getVacationUsageByServiceYear(args: {
@@ -26,6 +27,11 @@ export async function getVacationUsageByServiceYear(args: {
 	employeeId: string;
 	statuses: VacationRequestStatus[];
 	excludeRequestId?: string;
+	/**
+	 * Optional inclusive cutoff date key (YYYY-MM-DD).
+	 * When provided, only request days on or before this date are counted.
+	 */
+	asOfDateKey?: string;
 }): Promise<Map<number, number>> {
 	const conditions: SQL<unknown>[] = [
 		eq(vacationRequest.organizationId, args.organizationId),
@@ -36,6 +42,9 @@ export async function getVacationUsageByServiceYear(args: {
 
 	if (args.excludeRequestId) {
 		conditions.push(ne(vacationRequest.id, args.excludeRequestId));
+	}
+	if (args.asOfDateKey) {
+		conditions.push(lte(vacationRequestDay.dateKey, args.asOfDateKey));
 	}
 
 	const rows = await db
@@ -82,11 +91,13 @@ export async function buildEmployeeVacationBalance(args: {
 		organizationId: args.organizationId,
 		employeeId: args.employeeId,
 		statuses: ['APPROVED'],
+		asOfDateKey,
 	});
 	const pendingDays = await getVacationUsageByServiceYear({
 		organizationId: args.organizationId,
 		employeeId: args.employeeId,
 		statuses: ['SUBMITTED'],
+		asOfDateKey,
 	});
 
 	const usedDays = approvedDays.get(currentServiceYear) ?? 0;

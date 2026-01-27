@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 
+import { calculateVacationAccrual, getServiceYearNumber } from '../services/vacations.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -10,8 +11,108 @@ import {
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
 import { setupRekognitionMocks } from '../test-utils/contract-mocks.js';
+import { roundCurrency } from '../utils/money.js';
 
 setupRekognitionMocks();
+
+type VacationRequestDayPayload = {
+	dateKey: string;
+	countsAsVacationDay: boolean;
+	serviceYearNumber: number | null;
+};
+
+type VacationRequestSummaryPayload = {
+	totalDays: number;
+	vacationDays: number;
+};
+
+type VacationRequestPayload = {
+	id: string;
+	status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+	days: VacationRequestDayPayload[];
+	summary: VacationRequestSummaryPayload;
+};
+
+/**
+ * Ensures a value matches the vacation request response shape.
+ *
+ * @param value - Unknown payload to validate
+ * @returns Parsed vacation request payload
+ * @throws Error when the payload is invalid
+ */
+function requireVacationRequestPayload(value: unknown): VacationRequestPayload {
+	if (!value || typeof value !== 'object') {
+		throw new Error('Expected vacation request payload to be an object.');
+	}
+	const record = value as {
+		id?: unknown;
+		status?: unknown;
+		days?: unknown;
+		summary?: unknown;
+	};
+	if (typeof record.id !== 'string' || !record.id) {
+		throw new Error('Expected vacation request id in response.');
+	}
+	const status = record.status;
+	if (
+		status !== 'DRAFT' &&
+		status !== 'SUBMITTED' &&
+		status !== 'APPROVED' &&
+		status !== 'REJECTED' &&
+		status !== 'CANCELLED'
+	) {
+		throw new Error('Expected vacation request status in response.');
+	}
+	if (!Array.isArray(record.days)) {
+		throw new Error('Expected vacation request days array in response.');
+	}
+	const days: VacationRequestDayPayload[] = record.days.map((day, index) => {
+		if (!day || typeof day !== 'object') {
+			throw new Error(`Expected vacation request day ${index} to be an object.`);
+		}
+		const dayRecord = day as {
+			dateKey?: unknown;
+			countsAsVacationDay?: unknown;
+			serviceYearNumber?: unknown;
+		};
+		if (typeof dayRecord.dateKey !== 'string') {
+			throw new Error(`Expected vacation request day ${index} to include dateKey.`);
+		}
+		if (typeof dayRecord.countsAsVacationDay !== 'boolean') {
+			throw new Error(`Expected vacation request day ${index} to include countsAsVacationDay.`);
+		}
+		const serviceYearNumber = dayRecord.serviceYearNumber;
+		if (!(serviceYearNumber === null || typeof serviceYearNumber === 'number')) {
+			throw new Error(`Expected vacation request day ${index} to include serviceYearNumber.`);
+		}
+		return {
+			dateKey: dayRecord.dateKey,
+			countsAsVacationDay: dayRecord.countsAsVacationDay,
+			serviceYearNumber,
+		};
+	});
+
+	if (!record.summary || typeof record.summary !== 'object') {
+		throw new Error('Expected vacation request summary in response.');
+	}
+	const summaryRecord = record.summary as {
+		totalDays?: unknown;
+		vacationDays?: unknown;
+	};
+	if (typeof summaryRecord.totalDays !== 'number' || typeof summaryRecord.vacationDays !== 'number') {
+		throw new Error('Expected vacation request summary totals in response.');
+	}
+
+	return {
+		id: record.id,
+		status,
+		days,
+		summary: {
+			totalDays: summaryRecord.totalDays,
+			vacationDays: summaryRecord.vacationDays,
+		},
+	};
+}
 
 describe('employee routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -226,6 +327,138 @@ describe('employee routes (contract)', () => {
 		await employeeRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
+	});
+
+	it('does not subtract future approved vacation days from termination payout', async () => {
+		let employeeId: string | null = null;
+		try {
+			const hireDate = new Date('2024-01-01T00:00:00Z');
+			const dailyPay = 500;
+
+			const createEmployeeResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Vacaciones',
+				lastName: 'Finiquito',
+				email: `vacaciones.finiquito.${Date.now()}@example.com`,
+				phone: '+52 55 5555 9999',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				hireDate,
+				dailyPay,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createEmployeeResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createEmployeeResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for vacation/termination test.');
+			}
+			employeeId = createdEmployee.id;
+
+			const startDateKey = '2026-12-07';
+			const endDateKey = '2026-12-11';
+
+			const createRequestResponse = await client.vacations.requests.post({
+				employeeId,
+				startDateKey,
+				endDateKey,
+				status: 'SUBMITTED',
+				requestedNotes: 'Vacaciones futuras',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createRequestResponse.status).toBe(200);
+			const createdRequest = requireVacationRequestPayload(
+				requireResponseData(createRequestResponse).data,
+			);
+
+			const adminRequestRoutes = requireRoute(
+				client.vacations.requests[createdRequest.id],
+				'Vacation admin request route',
+			);
+			const approveRoute = requireRoute(
+				adminRequestRoutes.approve,
+				'Vacation request approve route',
+			);
+			const approveResponse = await approveRoute.post({
+				decisionNotes: 'Aprobado',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(approveResponse.status).toBe(200);
+			const approvedRequest = requireVacationRequestPayload(
+				requireResponseData(approveResponse).data,
+			);
+			expect(approvedRequest.status).toBe('APPROVED');
+
+			const terminationDateKey = '2026-10-01';
+			const terminationServiceYear = getServiceYearNumber(hireDate, terminationDateKey) ?? 0;
+			expect(terminationServiceYear).toBeGreaterThan(0);
+
+			const approvedVacationDays = approvedRequest.days.filter((day) => day.countsAsVacationDay);
+			expect(approvedVacationDays.length).toBeGreaterThan(0);
+			expect(approvedVacationDays.every((day) => day.dateKey > terminationDateKey)).toBe(true);
+			expect(
+				approvedVacationDays.every((day) => day.serviceYearNumber === terminationServiceYear),
+			).toBe(true);
+
+			const employeeRoutes = requireRoute(
+				client.employees[employeeId],
+				'Employee route',
+			);
+			const terminationRoute = requireRoute(
+				employeeRoutes.termination,
+				'Employee termination route',
+			);
+			const previewRoute = requireRoute(
+				terminationRoute.preview,
+				'Employee termination preview route',
+			);
+
+			const previewResponse = await previewRoute.post({
+				terminationDateKey,
+				terminationReason: 'voluntary_resignation',
+				contractType: 'indefinite',
+				unpaidDays: 0,
+				otherDue: 0,
+				vacationBalanceDays: null,
+				dailySalaryIndemnizacion: 600,
+				terminationNotes: 'Prueba balance vacaciones',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(previewResponse.status).toBe(200);
+			const previewPayload = requireResponseData(previewResponse);
+			const settlement = previewPayload.data;
+
+			const serviceYearNumber = getServiceYearNumber(hireDate, terminationDateKey) ?? 0;
+			const accrual = calculateVacationAccrual({
+				hireDate,
+				serviceYearNumber,
+				asOfDateKey: terminationDateKey,
+			});
+			const expectedVacationBalanceDays = Math.max(0, accrual.accruedDays);
+			const expectedVacationPay = roundCurrency(
+				roundCurrency(dailyPay) * expectedVacationBalanceDays,
+			);
+
+			expect(settlement.inputsUsed.vacationBalanceDays).toBeCloseTo(
+				expectedVacationBalanceDays,
+				6,
+			);
+			expect(settlement.breakdown.finiquito.vacationPay).toBe(expectedVacationPay);
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
 	});
 
 	it('manages rekognition enrollment for an employee', async () => {

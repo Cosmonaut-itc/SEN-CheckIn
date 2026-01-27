@@ -619,6 +619,173 @@ async function loadPayrollRunSummaries(
 }
 
 /**
+ * Validates employee termination request and calculates settlement.
+ * Shared logic between preview and confirm endpoints.
+ *
+ * @param args - Validation and calculation inputs
+ * @param args.employeeId - Employee UUID
+ * @param args.body - Termination request body
+ * @param args.authType - Authentication type
+ * @param args.session - User session
+ * @param args.sessionOrganizationIds - Session organization IDs
+ * @param args.apiKeyOrganizationIds - API key organization IDs
+ * @returns Object containing employee record and calculated settlement, or error details
+ */
+async function validateAndCalculateTerminationSettlement({
+	employeeId,
+	body,
+	authType,
+	session,
+	sessionOrganizationIds,
+	apiKeyOrganizationIds,
+}: {
+	employeeId: string;
+	body: EmployeeTerminationInput;
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	sessionOrganizationIds: string[];
+	apiKeyOrganizationIds: string[];
+}): Promise<
+	| {
+			success: true;
+			employeeRecord: typeof employee.$inferSelect;
+			calculation: ReturnType<typeof calculateEmployeeTerminationSettlement>;
+	  }
+	| {
+			success: false;
+			status: number;
+			message: string;
+			code?: string;
+	  }
+> {
+	const employeeRows = await db
+		.select()
+		.from(employee)
+		.where(eq(employee.id, employeeId))
+		.limit(1);
+	const employeeRecord = employeeRows[0];
+
+	if (!employeeRecord) {
+		return { success: false, status: 404, message: 'Employee not found' };
+	}
+
+	if (
+		!hasOrganizationAccess(
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			employeeRecord.organizationId,
+		)
+	) {
+		return {
+			success: false,
+			status: 403,
+			message: 'You do not have access to this employee',
+		};
+	}
+
+	if (employeeRecord.status === 'INACTIVE' || employeeRecord.terminationDateKey) {
+		return {
+			success: false,
+			status: 409,
+			message: 'Employee already terminated',
+			code: 'EMPLOYEE_ALREADY_TERMINATED',
+		};
+	}
+
+	if (!employeeRecord.organizationId) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Employee organization is required',
+		};
+	}
+
+	if (!employeeRecord.hireDate) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Employee hire date is required',
+			code: 'MISSING_HIRE_DATE',
+		};
+	}
+
+	const hireDateKey = toDateKeyUtc(employeeRecord.hireDate);
+	if (body.terminationDateKey < hireDateKey) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Termination date cannot be before hire date',
+			code: 'INVALID_TERMINATION_DATE',
+		};
+	}
+
+	const resolvedLastDayWorkedDateKey =
+		body.lastDayWorkedDateKey ?? body.terminationDateKey;
+
+	const locationRows = employeeRecord.locationId
+		? await db
+				.select({
+					geographicZone: location.geographicZone,
+					timeZone: location.timeZone,
+				})
+				.from(location)
+				.where(eq(location.id, employeeRecord.locationId))
+				.limit(1)
+		: [];
+
+	const locationRecord = locationRows[0];
+	const timeZoneCandidate = locationRecord?.timeZone ?? 'America/Mexico_City';
+	const timeZone = isValidIanaTimeZone(timeZoneCandidate)
+		? timeZoneCandidate
+		: 'America/Mexico_City';
+
+	const settingsRows = await db
+		.select({
+			aguinaldoDays: payrollSetting.aguinaldoDays,
+			vacationPremiumRate: payrollSetting.vacationPremiumRate,
+		})
+		.from(payrollSetting)
+		.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
+		.limit(1);
+	const settingsRecord = settingsRows[0];
+
+	const vacationBalance = await buildEmployeeVacationBalance({
+		employeeId,
+		organizationId: employeeRecord.organizationId,
+		hireDate: employeeRecord.hireDate,
+		timeZone,
+		asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
+	});
+
+	const calculation = calculateEmployeeTerminationSettlement({
+		employeeId,
+		hireDate: employeeRecord.hireDate,
+		dailyPay: Number(employeeRecord.dailyPay ?? 0),
+		sbcDailyOverride:
+			employeeRecord.sbcDailyOverride === null ||
+			employeeRecord.sbcDailyOverride === undefined
+				? null
+				: Number(employeeRecord.sbcDailyOverride),
+		terminationDateKey: body.terminationDateKey,
+		lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+		terminationReason: body.terminationReason,
+		contractType: body.contractType,
+		unpaidDays: body.unpaidDays,
+		otherDue: body.otherDue,
+		vacationBalanceDays: body.vacationBalanceDays ?? null,
+		vacationUsedDays: vacationBalance.usedDays,
+		dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
+		locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
+		aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
+		vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
+	});
+
+	return { success: true, employeeRecord, calculation };
+}
+
+/**
  * Employee routes plugin for Elysia.
  * Provides CRUD operations and Rekognition face enrollment endpoints.
  */
@@ -990,174 +1157,6 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			params: idParamSchema,
 		},
 	)
-
-	/**
-	 * Validates employee termination request and calculates settlement.
-	 * Shared logic between preview and confirm endpoints.
-	 *
-	 * @param args - Validation and calculation inputs
-	 * @param args.employeeId - Employee UUID
-	 * @param args.body - Termination request body
-	 * @param args.authType - Authentication type
-	 * @param args.session - User session
-	 * @param args.sessionOrganizationIds - Session organization IDs
-	 * @param args.apiKeyOrganizationIds - API key organization IDs
-	 * @returns Object containing employee record and calculated settlement, or error details
-	 */
-	async function validateAndCalculateTerminationSettlement({
-		employeeId,
-		body,
-		authType,
-		session,
-		sessionOrganizationIds,
-		apiKeyOrganizationIds,
-	}: {
-		employeeId: string;
-		body: EmployeeTerminationInput;
-		authType: 'session' | 'apiKey';
-		session: AuthSession | null;
-		sessionOrganizationIds: string[];
-		apiKeyOrganizationIds: string[];
-	}): Promise<
-		| {
-				success: true;
-				employeeRecord: typeof employee.$inferSelect;
-				calculation: ReturnType<typeof calculateEmployeeTerminationSettlement>;
-		  }
-		| {
-				success: false;
-				status: number;
-				message: string;
-				code?: string;
-		  }
-	> {
-		const employeeRows = await db
-			.select()
-			.from(employee)
-			.where(eq(employee.id, employeeId))
-			.limit(1);
-		const employeeRecord = employeeRows[0];
-
-		if (!employeeRecord) {
-			return { success: false, status: 404, message: 'Employee not found' };
-		}
-
-		if (
-			!hasOrganizationAccess(
-				authType,
-				session,
-				sessionOrganizationIds,
-				apiKeyOrganizationIds,
-				employeeRecord.organizationId,
-			)
-		) {
-			return {
-				success: false,
-				status: 403,
-				message: 'You do not have access to this employee',
-			};
-		}
-
-		if (employeeRecord.status === 'INACTIVE' || employeeRecord.terminationDateKey) {
-			return {
-				success: false,
-				status: 409,
-				message: 'Employee already terminated',
-				code: 'EMPLOYEE_ALREADY_TERMINATED',
-			};
-		}
-
-		if (!employeeRecord.organizationId) {
-			return {
-				success: false,
-				status: 400,
-				message: 'Employee organization is required',
-			};
-		}
-
-		if (!employeeRecord.hireDate) {
-			return {
-				success: false,
-				status: 400,
-				message: 'Employee hire date is required',
-				code: 'MISSING_HIRE_DATE',
-			};
-		}
-
-		const hireDateKey = toDateKeyUtc(employeeRecord.hireDate);
-		if (body.terminationDateKey < hireDateKey) {
-			return {
-				success: false,
-				status: 400,
-				message: 'Termination date cannot be before hire date',
-				code: 'INVALID_TERMINATION_DATE',
-			};
-		}
-
-		const resolvedLastDayWorkedDateKey =
-			body.lastDayWorkedDateKey ?? body.terminationDateKey;
-
-		const locationRows = employeeRecord.locationId
-			? await db
-					.select({
-						geographicZone: location.geographicZone,
-						timeZone: location.timeZone,
-					})
-					.from(location)
-					.where(eq(location.id, employeeRecord.locationId))
-					.limit(1)
-			: [];
-
-		const locationRecord = locationRows[0];
-		const timeZoneCandidate = locationRecord?.timeZone ?? 'America/Mexico_City';
-		const timeZone = isValidIanaTimeZone(timeZoneCandidate)
-			? timeZoneCandidate
-			: 'America/Mexico_City';
-
-		const settingsRows = await db
-			.select({
-				aguinaldoDays: payrollSetting.aguinaldoDays,
-				vacationPremiumRate: payrollSetting.vacationPremiumRate,
-			})
-			.from(payrollSetting)
-			.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
-			.limit(1);
-		const settingsRecord = settingsRows[0];
-
-		const vacationBalance = await buildEmployeeVacationBalance({
-			employeeId,
-			organizationId: employeeRecord.organizationId,
-			hireDate: employeeRecord.hireDate,
-			timeZone,
-			asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
-		});
-
-		const calculation = calculateEmployeeTerminationSettlement({
-			employeeId,
-			hireDate: employeeRecord.hireDate,
-			dailyPay: Number(employeeRecord.dailyPay ?? 0),
-			sbcDailyOverride:
-				employeeRecord.sbcDailyOverride === null ||
-				employeeRecord.sbcDailyOverride === undefined
-					? null
-					: Number(employeeRecord.sbcDailyOverride),
-			terminationDateKey: body.terminationDateKey,
-			lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
-			terminationReason: body.terminationReason,
-			contractType: body.contractType,
-			unpaidDays: body.unpaidDays,
-			otherDue: body.otherDue,
-			vacationBalanceDays: body.vacationBalanceDays ?? null,
-			vacationUsedDays: vacationBalance.usedDays,
-			dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
-			locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
-			aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
-			vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
-		});
-
-		return { success: true, employeeRecord, calculation };
-	}
-
 	/**
 	 * Previews termination settlement for an employee (no persistence).
 	 *

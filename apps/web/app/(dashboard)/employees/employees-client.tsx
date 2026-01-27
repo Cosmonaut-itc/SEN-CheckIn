@@ -246,6 +246,7 @@ function TerminationDateField({
 	const initialMonth = selectedDate ?? resolvedMaxDate ?? new Date();
 	const [month, setMonth] = useState<Date>(() => startOfMonth(initialMonth));
 
+	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
 		if (!selectedDate) {
 			return;
@@ -261,6 +262,7 @@ function TerminationDateField({
 			return startOfMonth(selectedDate);
 		});
 	}, [selectedDate, selectedDateKey]);
+	/* eslint-enable react-hooks/set-state-in-effect */
 
 	const calendarRangeProps: {
 		startMonth?: Date;

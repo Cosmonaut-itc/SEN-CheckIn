@@ -18,14 +18,17 @@ function isLocalhostUrl(value: string): boolean {
 }
 
 /**
- * Resolves the upstream BetterAuth origin from environment configuration.
- * Falls back to localhost for local development when no env var is set.
+ * Resolves the upstream BetterAuth origin, forcing local API usage in dev/test.
  *
  * @returns Upstream API origin URL
  */
 function resolveApiOrigin(): string {
 	const envUrl = process.env.NEXT_PUBLIC_API_URL;
 	if (!envUrl) {
+		return LOCAL_API_ORIGIN;
+	}
+
+	if (process.env.NODE_ENV !== 'production' && !isLocalhostUrl(envUrl)) {
 		return LOCAL_API_ORIGIN;
 	}
 

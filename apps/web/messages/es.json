@@ -372,7 +372,9 @@
 				"preview": "Calcular",
 				"previewLoading": "Calculando...",
 				"confirm": "Confirmar baja",
-				"confirmLoading": "Confirmando baja..."
+				"confirmLoading": "Confirmando baja...",
+				"downloadReceipt": "Descargar recibo",
+				"downloadReceiptLoading": "Buscando recibo..."
 			},
 			"results": {
 				"finiquitoTitle": "Finiquito",
@@ -477,6 +479,8 @@
 			"code": "Código",
 			"firstName": "Nombre",
 			"lastName": "Apellido",
+			"nss": "NSS",
+			"rfc": "RFC",
 			"email": "Correo electrónico",
 			"user": "Usuario",
 			"phone": "Teléfono",
@@ -1103,6 +1107,29 @@
 			"DRAFT": "Borrador",
 			"PROCESSED": "Procesado"
 		},
+		"receipts": {
+			"title": "Recibos de nómina",
+			"description": "Descarga recibos individuales o el paquete completo en ZIP.",
+			"trigger": "Recibos",
+			"unavailable": "Disponible al procesar",
+			"summary": {
+				"processedAt": "Procesado el {date}",
+				"employeesLabel": "Empleados",
+				"employees": "{count, plural, one {# empleado} other {# empleados}}",
+				"total": "Total del periodo"
+			},
+			"actions": {
+				"downloadAll": "Descargar todos (ZIP)",
+				"downloadOne": "Descargar PDF"
+			},
+			"table": {
+				"employee": "Empleado",
+				"code": "Clave",
+				"netPay": "Neto",
+				"actions": "Acciones"
+			},
+			"empty": "No hay recibos para esta ejecución."
+		},
 		"runHistory": {
 			"title": "Historial de ejecuciones",
 			"description": "Ejecuciones recientes de nómina.",
@@ -1113,7 +1140,8 @@
 				"frequency": "Frecuencia",
 				"status": "Estatus",
 				"total": "Total",
-				"processed": "Procesado"
+				"processed": "Procesado",
+				"receipts": "Recibos"
 			}
 		},
 		"dateFormat": "dd/MM/yyyy",

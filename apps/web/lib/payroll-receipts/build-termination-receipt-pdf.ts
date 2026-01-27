@@ -11,7 +11,6 @@ import {
 import type {
 	EmployeeLatestPayroll,
 	EmployeeTerminationSettlementRecord,
-	PayrollRunEmployee,
 } from '@/lib/client-functions';
 
 type TerminationReceiptLine = {
@@ -42,9 +41,9 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat('es-MX', {
 	currency: 'MXN',
 });
 
-const COLOR_POSITIVE = rgb(0.06, 0.5, 0.3);
-const COLOR_WARNING = rgb(0.8, 0.5, 0.1);
-const COLOR_NEGATIVE = rgb(0.78, 0.2, 0.2);
+const SUMMARY_COLOR_POSITIVE = { r: 0.06, g: 0.5, b: 0.3 };
+const SUMMARY_COLOR_WARNING = { r: 0.8, g: 0.5, b: 0.1 };
+const SUMMARY_COLOR_NEGATIVE = { r: 0.78, g: 0.2, b: 0.2 };
 const COLOR_MUTED = rgb(0.42, 0.42, 0.42);
 const COLOR_BORDER = rgb(0.85, 0.85, 0.85);
 
@@ -337,7 +336,7 @@ export async function buildTerminationReceiptPdf(
 	const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 	const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-	const page = pdfDoc.addPage(PageSizes.LETTER);
+	const page = pdfDoc.addPage(PageSizes.Letter);
 	const { width, height } = page.getSize();
 	const margin = 40;
 	const contentWidth = width - margin * 2;
@@ -375,27 +374,27 @@ export async function buildTerminationReceiptPdf(
 		{
 			label: 'Tu trabajo vale para la empresa',
 			value: summaryValues?.companyCost ?? null,
-			color: { r: COLOR_POSITIVE.r, g: COLOR_POSITIVE.g, b: COLOR_POSITIVE.b },
+			color: SUMMARY_COLOR_POSITIVE,
 		},
 		{
 			label: 'La empresa te paga',
 			value: summaryValues?.grossPay ?? null,
-			color: { r: COLOR_POSITIVE.r, g: COLOR_POSITIVE.g, b: COLOR_POSITIVE.b },
+			color: SUMMARY_COLOR_POSITIVE,
 		},
 		{
 			label: 'La empresa le paga al gobierno por tu cuenta',
 			value: summaryValues?.employerCostsTotal ?? null,
-			color: { r: COLOR_WARNING.r, g: COLOR_WARNING.g, b: COLOR_WARNING.b },
+			color: SUMMARY_COLOR_WARNING,
 		},
 		{
 			label: 'Después, el gobierno te quita',
 			value: summaryValues?.employeeWithholdingsTotal ?? null,
-			color: { r: COLOR_NEGATIVE.r, g: COLOR_NEGATIVE.g, b: COLOR_NEGATIVE.b },
+			color: SUMMARY_COLOR_NEGATIVE,
 		},
 		{
 			label: 'Te quedan',
 			value: summaryValues?.netPay ?? null,
-			color: { r: COLOR_POSITIVE.r, g: COLOR_POSITIVE.g, b: COLOR_POSITIVE.b },
+			color: SUMMARY_COLOR_POSITIVE,
 		},
 	];
 

@@ -636,7 +636,8 @@ describe('employee routes (contract)', () => {
 			if (!createdEmployee?.id) {
 				throw new Error('Expected employee record for payroll latest test.');
 			}
-			employeeId = createdEmployee.id;
+			const resolvedEmployeeId = createdEmployee.id;
+			employeeId = resolvedEmployeeId;
 
 			const todayKey = toDateKeyUtc(new Date());
 			const startKey = addDaysToDateKey(todayKey, -7);
@@ -655,8 +656,12 @@ describe('employee routes (contract)', () => {
 				throw new Error('Expected payroll run id for payroll latest test.');
 			}
 
+			const employeeRoutes = requireRoute(
+				client.employees[resolvedEmployeeId],
+				'Employee route',
+			);
 			const payrollLatestRoute = requireRoute(
-				client.employees[employeeId].payroll.latest,
+				employeeRoutes.payroll.latest,
 				'Employee payroll latest route',
 			);
 			const latestResponse = await payrollLatestRoute.get({
@@ -665,6 +670,9 @@ describe('employee routes (contract)', () => {
 
 			expect(latestResponse.status).toBe(200);
 			const latestPayload = requireResponseData(latestResponse);
+			if (!latestPayload.data) {
+				throw new Error('Expected latest payroll data payload.');
+			}
 			expect(latestPayload.data.payrollRunId).toBe(runId);
 			expect(latestPayload.data.taxBreakdown).toBeDefined();
 		} finally {

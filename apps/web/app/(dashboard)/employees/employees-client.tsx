@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
@@ -36,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -81,8 +83,9 @@ import type {
 } from '@sen-checkin/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
-import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
+import { format, isAfter, isValid, parse, startOfDay, startOfMonth } from 'date-fns';
 import {
+	Calendar as CalendarIcon,
 	Eye,
 	HelpCircle,
 	Loader2,
@@ -184,6 +187,150 @@ interface TerminationFormValues {
 	dailySalaryIndemnizacion: string;
 	/** Optional termination notes. */
 	terminationNotes: string;
+}
+
+type TerminationDateFieldProps = {
+	label: string;
+	placeholder?: string;
+	value: string;
+	onChange: (value: string) => void;
+	disabled?: boolean;
+	minYear?: number;
+	maxDate?: Date;
+};
+
+/**
+ * Standalone date field for the finiquito form.
+ *
+ * @param props - Date field props including value and date constraints.
+ * @returns A rendered date field with input and calendar popover.
+ */
+function TerminationDateField({
+	label,
+	placeholder,
+	value,
+	onChange,
+	disabled,
+	minYear = 1950,
+	maxDate,
+}: TerminationDateFieldProps): React.ReactElement {
+	const tCommon = useTranslations('Common');
+	const resolvedPlaceholder = placeholder ?? label;
+	const parsedValue = useMemo(
+		() => (value ? parse(value, 'yyyy-MM-dd', new Date()) : undefined),
+		[value],
+	);
+	const isParsedValid =
+		parsedValue !== undefined &&
+		isValid(parsedValue) &&
+		format(parsedValue, 'yyyy-MM-dd') === value;
+	const selectedDateKey = isParsedValid ? value : '';
+	const selectedDate = useMemo(
+		() =>
+			selectedDateKey
+				? parse(selectedDateKey, 'yyyy-MM-dd', new Date())
+				: undefined,
+		[selectedDateKey],
+	);
+	const resolvedMaxDate = useMemo(
+		() => (maxDate ? startOfDay(maxDate) : startOfDay(new Date())),
+		[maxDate],
+	);
+	const startMonth = useMemo(() => new Date(minYear, 0, 1), [minYear]);
+	const [open, setOpen] = useState(false);
+	const initialMonth = selectedDate ?? resolvedMaxDate ?? new Date();
+	const [month, setMonth] = useState<Date>(() => startOfMonth(initialMonth));
+
+	useEffect(() => {
+		if (!selectedDate) {
+			return;
+		}
+		setMonth((current) => {
+			const currentYear = current.getFullYear();
+			const currentMonth = current.getMonth();
+			const nextYear = selectedDate.getFullYear();
+			const nextMonth = selectedDate.getMonth();
+			if (currentYear === nextYear && currentMonth === nextMonth) {
+				return current;
+			}
+			return startOfMonth(selectedDate);
+		});
+	}, [selectedDate, selectedDateKey]);
+
+	const calendarRangeProps: {
+		startMonth?: Date;
+		endMonth?: Date;
+		disabled?: React.ComponentProps<typeof Calendar>['disabled'];
+	} = {};
+
+	if (startMonth) {
+		calendarRangeProps.startMonth = startMonth;
+	}
+
+	if (resolvedMaxDate) {
+		calendarRangeProps.endMonth = resolvedMaxDate;
+		calendarRangeProps.disabled = { after: resolvedMaxDate };
+	}
+
+	return (
+		<div className="space-y-2">
+			<Label>{label}</Label>
+			<Popover open={open} onOpenChange={setOpen}>
+				<div className="relative">
+					<Input
+						value={value}
+						onChange={(event) => {
+							const nextValue = event.target.value;
+							onChange(nextValue);
+							const nextParsed = nextValue
+								? parse(nextValue, 'yyyy-MM-dd', new Date())
+								: undefined;
+							const isNextValid =
+								nextParsed !== undefined &&
+								isValid(nextParsed) &&
+								format(nextParsed, 'yyyy-MM-dd') === nextValue;
+							if (isNextValid) {
+								setMonth(startOfMonth(nextParsed));
+							}
+						}}
+						placeholder={resolvedPlaceholder}
+						disabled={disabled}
+						className="pr-10"
+					/>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="absolute right-1 top-1/2 -translate-y-1/2"
+							disabled={disabled}
+							aria-label={tCommon('selectDate')}
+						>
+							<CalendarIcon className="h-4 w-4" />
+							<span className="sr-only">{tCommon('selectDate')}</span>
+						</Button>
+					</PopoverTrigger>
+				</div>
+				<PopoverContent className="w-auto p-0" align="start">
+					<Calendar
+						mode="single"
+						selected={selectedDate}
+						onSelect={(date) => {
+							onChange(date ? format(date, 'yyyy-MM-dd') : '');
+							if (date) {
+								setMonth(startOfMonth(date));
+							}
+						}}
+						initialFocus
+						captionLayout="dropdown"
+						month={month}
+						onMonthChange={(nextMonth) => setMonth(startOfMonth(nextMonth))}
+						{...calendarRangeProps}
+					/>
+				</PopoverContent>
+			</Popover>
+		</div>
+	);
 }
 
 /**
@@ -2404,37 +2551,28 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardHeader>
 												<CardContent>
 													<div className="grid gap-4 sm:grid-cols-2">
-														<div className="space-y-2">
-															<Label>
-																{t('finiquito.fields.terminationDate')}
-															</Label>
-															<Input
-																type="date"
-																value={terminationForm.terminationDateKey}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		terminationDateKey: event.target.value,
-																	})
-																}
-																disabled={isTerminationLocked}
-															/>
-														</div>
-														<div className="space-y-2">
-															<Label>
-																{t('finiquito.fields.lastDayWorkedDate')}
-															</Label>
-															<Input
-																type="date"
-																value={terminationForm.lastDayWorkedDateKey}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		lastDayWorkedDateKey: event.target.value,
-																	})
-																}
-																placeholder={t('finiquito.placeholders.lastDayWorkedDate')}
-																disabled={isTerminationLocked}
-															/>
-														</div>
+														<TerminationDateField
+															label={t('finiquito.fields.terminationDate')}
+															placeholder={t('finiquito.placeholders.terminationDate')}
+															value={terminationForm.terminationDateKey}
+															onChange={(nextValue) =>
+																updateTerminationForm({
+																	terminationDateKey: nextValue,
+																})
+															}
+															disabled={isTerminationLocked}
+														/>
+														<TerminationDateField
+															label={t('finiquito.fields.lastDayWorkedDate')}
+															placeholder={t('finiquito.placeholders.lastDayWorkedDate')}
+															value={terminationForm.lastDayWorkedDateKey}
+															onChange={(nextValue) =>
+																updateTerminationForm({
+																	lastDayWorkedDateKey: nextValue,
+																})
+															}
+															disabled={isTerminationLocked}
+														/>
 														<div className="space-y-2">
 															<Label>
 																{t('finiquito.fields.terminationReason')}
@@ -2592,73 +2730,44 @@ export function EmployeesPageClient(): React.ReactElement {
 														</div>
 													</div>
 
-													<div className="mt-4 flex flex-wrap gap-2">
-														<Button
-															onClick={handleTerminationPreview}
-															disabled={
-																isTerminationLocked ||
-																terminationPreviewMutation.isPending
-															}
-														>
-															{terminationPreviewMutation.isPending ? (
-																<>
-																	<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																	{t('finiquito.actions.previewLoading')}
-																</>
-															) : (
-																t('finiquito.actions.preview')
-															)}
-														</Button>
+													<div className="mt-4 space-y-3">
+														<div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+															<HelpCircle className="mt-0.5 h-4 w-4" />
+															<span>
+																{t('finiquito.form.previewHint', {
+																	action: t('finiquito.actions.preview'),
+																})}
+															</span>
+														</div>
+														<div className="flex flex-wrap gap-2">
+															<Button
+																onClick={handleTerminationPreview}
+																disabled={
+																	isTerminationLocked ||
+																	terminationPreviewMutation.isPending
+																}
+															>
+																{terminationPreviewMutation.isPending ? (
+																	<>
+																		<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																		{t('finiquito.actions.previewLoading')}
+																	</>
+																) : (
+																	t('finiquito.actions.preview')
+																)}
+															</Button>
 
-														<Dialog
-															open={isTerminateDialogOpen}
-															onOpenChange={setIsTerminateDialogOpen}
-														>
-															<DialogTrigger asChild>
-																<Button
-																	variant="destructive"
-																	disabled={
-																		!canConfirmTermination ||
-																		terminationMutation.isPending
-																	}
-																>
-																	{terminationMutation.isPending ? (
-																		<>
-																			<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																			{t('finiquito.actions.confirmLoading')}
-																		</>
-																	) : (
-																		t('finiquito.actions.confirm')
-																	)}
-																</Button>
-															</DialogTrigger>
-															<DialogContent>
-																<DialogHeader>
-																	<DialogTitle>
-																		{t('finiquito.dialog.title')}
-																	</DialogTitle>
-																	<DialogDescription>
-																		{t('finiquito.dialog.description', {
-																			name: activeEmployeeName || tCommon('notAvailable'),
-																			total: terminationPreview
-																				? formatCurrency(
-																						terminationPreview.totals.grossTotal,
-																					)
-																				: tCommon('notAvailable'),
-																		})}
-																	</DialogDescription>
-																</DialogHeader>
-																<DialogFooter>
-																	<Button
-																		variant="outline"
-																		onClick={() => setIsTerminateDialogOpen(false)}
-																	>
-																		{tCommon('cancel')}
-																	</Button>
+															<Dialog
+																open={isTerminateDialogOpen}
+																onOpenChange={setIsTerminateDialogOpen}
+															>
+																<DialogTrigger asChild>
 																	<Button
 																		variant="destructive"
-																		onClick={handleTerminateEmployee}
-																		disabled={terminationMutation.isPending}
+																		disabled={
+																			!canConfirmTermination ||
+																			terminationMutation.isPending
+																		}
 																	>
 																		{terminationMutation.isPending ? (
 																			<>
@@ -2666,12 +2775,51 @@ export function EmployeesPageClient(): React.ReactElement {
 																				{t('finiquito.actions.confirmLoading')}
 																			</>
 																		) : (
-																			tCommon('confirm')
+																			t('finiquito.actions.confirm')
 																		)}
 																	</Button>
-																</DialogFooter>
-															</DialogContent>
-														</Dialog>
+																</DialogTrigger>
+																<DialogContent>
+																	<DialogHeader>
+																		<DialogTitle>
+																			{t('finiquito.dialog.title')}
+																		</DialogTitle>
+																		<DialogDescription>
+																			{t('finiquito.dialog.description', {
+																				name: activeEmployeeName || tCommon('notAvailable'),
+																				total: terminationPreview
+																					? formatCurrency(
+																							terminationPreview.totals.grossTotal,
+																						)
+																					: tCommon('notAvailable'),
+																			})}
+																		</DialogDescription>
+																	</DialogHeader>
+																	<DialogFooter>
+																		<Button
+																			variant="outline"
+																			onClick={() => setIsTerminateDialogOpen(false)}
+																		>
+																			{tCommon('cancel')}
+																		</Button>
+																		<Button
+																			variant="destructive"
+																			onClick={handleTerminateEmployee}
+																			disabled={terminationMutation.isPending}
+																		>
+																			{terminationMutation.isPending ? (
+																				<>
+																					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																					{t('finiquito.actions.confirmLoading')}
+																				</>
+																			) : (
+																				tCommon('confirm')
+																			)}
+																		</Button>
+																	</DialogFooter>
+																</DialogContent>
+															</Dialog>
+														</div>
 													</div>
 												</CardContent>
 											</Card>
@@ -3170,7 +3318,6 @@ export function EmployeesPageClient(): React.ReactElement {
 													placeholder={t('placeholders.hireDate')}
 													variant="input"
 													minYear={1950}
-													maxDate={new Date()}
 												/>
 											)}
 										</form.AppField>

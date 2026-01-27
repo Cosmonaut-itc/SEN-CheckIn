@@ -14,6 +14,7 @@ todos:
   - id: verify-web-checks
     content: Correr `bun run lint:web` y `bun run check-types:web` y hacer smoke test del diálogo de empleado (fechas antiguas y futuras).
     status: pending
+isProject: false
 ---
 
 # Mejorar UX de “Fecha de ingreso” (alta de empleado)
@@ -25,7 +26,7 @@ todos:
 
 Archivos clave:
 
-- UI del formulario de empleados: [apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\(dashboard)/employees/employees-client.tsx)
+- UI del formulario de empleados: [apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx)
 - Implementación del `DateField`: [apps/web/lib/forms.tsx](apps/web/lib/forms.tsx)
 - Wrapper del calendario (shadcn): [apps/web/components/ui/calendar.tsx](apps/web/components/ui/calendar.tsx)
 - Traducciones: [apps/web/messages/es.json](apps/web/messages/es.json)
@@ -59,7 +60,7 @@ En [apps/web/lib/forms.tsx](apps/web/lib/forms.tsx):
 
 ### 2) Usar la nueva variante solo en “Fecha de ingreso”
 
-En [apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\(dashboard)/employees/employees-client.tsx):
+En [apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx):
 
 - En el bloque actual:
 - `form.AppField name="hireDate"` → cambiar a:

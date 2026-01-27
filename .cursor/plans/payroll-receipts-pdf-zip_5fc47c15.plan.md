@@ -1,9 +1,18 @@
 ---
 name: payroll-receipts-pdf-zip
-overview: Agregar descarga de recibos de nómina (PDF) por empleado y en ZIP para una ejecución PROCESADA, accesible desde el historial por periodo/fecha.
+overview: Agregar descarga de recibos de nómina (PDF) por empleado y en ZIP para una ejecución PROCESADA, accesible desde el historial por periodo/fecha; incluir recibo imprimible (PDF) de baja/finiquito con firma.
 todos:
   - id: api-run-detail-employee-fields
     content: Modificar `GET /payroll/runs/:id` para incluir `employeeName` y `employeeCode` en cada línea (join con `employee`).
+    status: pending
+  - id: employee-identifiers
+    content: Agregar campos opcionales `nss` y `rfc` en `employee` (DB+API+Web) para mostrarlos en recibos cuando existan.
+    status: pending
+  - id: termination-receipt-api
+    content: Agregar endpoints API para (1) obtener el settlement de terminación (último) y (2) obtener el último payroll run PROCESADO del empleado con `taxBreakdown` para el resumen fiscal del recibo.
+    status: pending
+  - id: termination-receipt-pdf
+    content: Implementar PDF de recibo de baja/finiquito (firma) en Next.js route y conectarlo al UI de empleados (descarga post-terminación + re-descarga).
     status: pending
   - id: web-types-run-detail
     content: Actualizar `PayrollRunEmployee` + `fetchPayrollRunDetail()` en `apps/web/lib/client-functions.ts` para manejar los nuevos campos.
@@ -44,6 +53,8 @@ isProject: false
 - `employeeName` (nombre completo)
 - `employeeCode`
 - Motivo: `payroll_run_employee` no almacena nombre/código; el UI y los PDFs lo necesitan.
+- Campos opcionales para recibos (si existen en la empresa/empleado):
+- Agregar `employee.nss` y `employee.rfc` (nullable) en [`apps/api/src/db/schema.ts`](apps/api/src/db/schema.ts) y exponerlos en `employees` create/update/detail.
 
 ## Cambios necesarios (Web UI)
 
@@ -52,11 +63,11 @@ isProject: false
 - Cambio: extender `PayrollRunEmployee` con `employeeName` y `employeeCode`, y ajustar `fetchPayrollRunDetail()` para conservarlos.
 
 - Añadir acciones de “Recibos” al historial:
-- Archivo: [apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\(dashboard)/payroll/payroll-client.tsx)
+- Archivo: [apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/payroll/payroll-client.tsx)
 - Cambio: agregar una columna `actions` a `runColumns` y renderizar un trigger `Recibos`.
 
 - Crear un diálogo para listar empleados y descargas:
-- Archivo nuevo (propuesto): [apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx](apps/web/app/\\\\\\(dashboard)/payroll/payroll-run-receipts-dialog.tsx)
+- Archivo nuevo (propuesto): [apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/payroll/payroll-run-receipts-dialog.tsx)
 - UX:
 - Al abrir, cargar `fetchPayrollRunDetail(runId)` con `queryKeys.payroll.runDetail(runId)`.
 - Mostrar:
@@ -66,6 +77,8 @@ isProject: false
 - i18n:
 - Archivo: [apps/web/messages/es.json](apps/web/messages/es.json)
 - Agregar strings para botones/diálogo (todo en español).
+- Datos opcionales del empleado (para mostrar en PDF si existen):
+- Actualizar el modelo de empleado en web (`apps/web/lib/client-functions.ts`) + formularios de alta/edición de empleado para capturar `nss` y `rfc` (opcionales).
 
 ## Generación de documentos (Web API routes)
 
@@ -77,7 +90,20 @@ isProject: false
 - Archivo nuevo (propuesto): [apps/web/lib/payroll-receipts/build-payroll-receipt-pdf.ts](apps/web/lib/payroll-receipts/build-payroll-receipt-pdf.ts)
 - Entrada: org + run + línea de empleado (con taxBreakdown) y valores numéricos normalizados.
 - Salida: `Promise<Uint8Array>`.
-- Diseño: inspirado en la imagen (sin emojis) y alineado al estilo del app (tipografía simple, secciones claras, barras verde/roja para neto y aportaciones, área de firma).
+- Diseño (comparación de imágenes):
+- **Mínimo obligatorio (2ª imagen)**: recibo tipo “comprobante” con estructura de tabla:
+- Encabezado con periodo (inicio–fin) y fecha de pago/procesado.
+- Datos del empleado (nombre, clave/código). NSS/RFC son **opcionales**: mostrarlos si existen; si no, `—`.
+- Secciones **Ingresos** y **Deducciones** (tabla), con totales.
+- Sección de “Neto recibido” y un área de **firma del empleado** + leyenda de “Recibí de la empresa…”.
+- Forma de pago: por ahora **asumir 100% “Efectivo”** (y “Pago tarjeta” = 0) para mantener compatibilidad con el layout sin agregar flujo de captura.
+- **Agregar resumen fiscal (1ª imagen, sin emojis)** arriba del recibo:
+- “Tu trabajo vale para la empresa”: costo total empresa.
+- “La empresa te paga”: percepciones.
+- “La empresa le paga al gobierno por tu cuenta”: aportaciones patrón (IMSS, INFONAVIT, SAR, etc.).
+- “Después, el gobierno te quita”: retenciones trabajador (ISR/IMSS obrero, etc.).
+- “Te quedan”: neto a pagar.
+- Estilo: tipografía simple (Helvetica), líneas y secciones claras, colores alineados a la UI (verde/rojo para barras/resúmenes), sin emojis.
 
 - Implementar endpoints Next.js para descargas:
 - PDF individual:
@@ -122,3 +148,77 @@ isProject: false
 - `bun run test:web:e2e`
 - `bun run lint`
 - `bun run check-types`
+
+---
+
+# Recibo de baja / finiquito (PDF imprimible + firma)
+
+## Objetivo
+
+Cuando el admin confirma la baja del empleado (flujo ya existente en `POST /employees/:id/termination`), debe poder **descargar/impimir un recibo** para que el empleado **firme** y reconozca el monto recibido.
+
+## Fuente de datos (lo que ya existe vs lo que falta)
+
+- **Ya existe** (implementado en API/Web):
+- `POST /employees/:id/termination/preview` y `POST /employees/:id/termination`
+- Persistencia de `employee_termination_settlement` con snapshot `calculation` y totales
+- **Falta** (para el recibo):
+- Endpoint API para leer el último settlement (y permitir re-descarga).
+- Datos opcionales NSS/RFC en `employee` (ya están en este plan como todo).
+- Resumen fiscal “tipo 1ª imagen” basado en la **última nómina PROCESADA** del empleado (desde `payroll_run_employee.taxBreakdown`).
+
+## Diseño (comparación de imágenes)
+
+- **Mínimo obligatorio (2ª imagen)**:
+- Encabezado con título y fecha de pago (usar `createdAt` del settlement o fecha de confirmación).
+- Datos del empleado: nombre, clave/código y **NSS/RFC opcionales** (mostrar `—` si faltan).
+- Tabla estilo recibo:
+- **Ingresos**: conceptos del finiquito y, si aplica, liquidación/indemnización (del `calculation.breakdown`).
+- **Deducciones**: por ahora `0.00` (o futuros campos).
+- Totales: **total** y **neto recibido**.
+- Forma de pago: por ahora **asumir 100% “Efectivo”** (tarjeta = 0) para cumplir layout sin nuevo flujo de captura.
+- Leyenda de recibo + “Firma del empleado” (línea) + folio del documento (usar `settlement.id`).
+- **Agregar resumen fiscal (1ª imagen, sin emojis)** arriba del recibo:
+- Bloque de “Resumen fiscal” con barras/filas:
+- “Tu trabajo vale para la empresa”: costo total empresa (aprox: `companyCost` del último payroll)
+- “La empresa te paga”: percepciones (aprox: `grossPay`)
+- “La empresa le paga al gobierno por tu cuenta”: aportaciones patrón (aprox: `employerCosts.total`)
+- “Después, el gobierno te quita”: retenciones trabajador (aprox: `employeeWithholdings.total`)
+- “Te quedan”: neto (aprox: `netPay`)
+- Nota: el finiquito/liquidación V1 es **bruto**; el resumen fiscal se toma de la última nómina (si existe) y se muestra como contexto.
+
+## Endpoints propuestos (API)
+
+- **Leer último settlement**:
+- `GET /employees/:id/termination/settlement` → devuelve el último `employee_termination_settlement` (calculation + totales + createdAt) para re-descarga.
+- **Última nómina PROCESADA del empleado (para resumen fiscal)**:
+- `GET /employees/:id/payroll/latest` → devuelve el último `payroll_run_employee` asociado a un `payroll_run.status = PROCESSED` (incluye `taxBreakdown` + periodo + processedAt).
+- Alternativa: incluir este bloque como `lastPayrollTaxBreakdown` dentro del endpoint de settlement.
+
+## Web (Next.js route de descarga)
+
+- Crear endpoint que genere el PDF con `pdf-lib`:
+- Sugerido: `apps/web/app/api/employees/[employeeId]/termination/receipt/route.ts`
+- Flujo:
+- `getAdminAccessContext()` → `createServerApiClient(cookieHeader)`
+- `GET /employees/:id/termination/settlement` (y `GET /employees/:id/payroll/latest` si se separa)
+- Generar PDF y responder con:
+- `Content-Type: application/pdf`
+- `Content-Disposition: attachment; filename="recibo_baja_{employeeCode}_{terminationDateKey}.pdf"`
+- `Cache-Control: no-store`
+
+## UI (Admin)
+
+- En `apps/web/app/(dashboard)/employees/employees-client.tsx` (pestaña Finiquito):
+- Mostrar botón **“Descargar recibo”**:
+- Después de terminar con éxito.
+- Y cuando el empleado ya esté `INACTIVE` y exista settlement (re-descarga).
+
+## Pruebas
+
+- **API contract**:
+- Agregar tests para `GET /employees/:id/termination/settlement` y `GET /employees/:id/payroll/latest` (o la variante consolidada).
+- **Playwright e2e**:
+- Terminar un empleado y descargar el PDF; validar:
+- filename sugerido termina en `.pdf`
+- bytes empiezan con `%PDF-`

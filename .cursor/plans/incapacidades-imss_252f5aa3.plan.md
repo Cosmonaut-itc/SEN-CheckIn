@@ -129,7 +129,7 @@ isProject: false
 ## Web (Next.js)
 
 - Nuevo módulo HR/admin:
-  - Página `[apps/web/app/(dashboard)/incapacities/page.tsx](apps/web/app/\\\\\(dashboard)/incapacities/page.tsx) `+ `incapacities-client.tsx` + `loading.tsx`.
+  - Página `[apps/web/app/(dashboard)/incapacities/page.tsx](apps/web/app/\\\\\\\\(dashboard)/incapacities/page.tsx) `+ `incapacities-client.tsx` + `loading.tsx`.
   - Server actions [`apps/web/actions/incapacities.ts`](apps/web/actions/incapacities.ts).
   - Client functions [`apps/web/lib/client-functions.ts`](apps/web/lib/client-functions.ts) + query keys.
   - i18n: agregar strings a [`apps/web/messages/es.json`](apps/web/messages/es.json) (no hardcode).
@@ -138,7 +138,7 @@ isProject: false
   - Modal “Crear incapacidad” (inputs del doc).
   - Sección “Documento IMSS”: subir archivo -> presign -> POST a S3 -> confirm.
 - Nómina UI:
-  - En `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\(dashboard)/payroll/payroll-client.tsx) `mostrar (opcional) columnas/tooltip con `días de incapacidad` y `subsidio IMSS esperado` para dar trazabilidad.
+  - En `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\(dashboard)/payroll/payroll-client.tsx) `mostrar (opcional) columnas/tooltip con `días de incapacidad` y `subsidio IMSS esperado` para dar trazabilidad.
 
 ## Pruebas
 

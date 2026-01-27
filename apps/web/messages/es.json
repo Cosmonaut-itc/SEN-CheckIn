@@ -339,7 +339,8 @@
 		"finiquito": {
 			"form": {
 				"title": "Cálculo de finiquito",
-				"subtitle": "Ingresa los datos para obtener el desglose."
+				"subtitle": "Ingresa los datos para obtener el desglose.",
+				"previewHint": "Haz clic en {action} para ver el desglose y después confirmar la baja."
 			},
 			"fields": {
 				"terminationDate": "Fecha de baja",

@@ -4,28 +4,35 @@ overview: Implementar un flujo de baja de empleado que calcule finiquito (siempr
 todos:
   - id: db-termination-fields
     content: Agregar enums + campos de terminación en `employee` y crear tabla `employee_termination_settlement` con snapshot JSONB + totales.
-    status: pending
+    status: completed
   - id: api-finiquito-service
     content: Implementar `finiquito-calculation` reutilizando `getSbcDaily`, `resolveMinimumWageDaily`, `roundCurrency` y cálculo de vacaciones/aguinaldo por dateKey.
-    status: pending
+    status: completed
   - id: api-employee-termination-routes
     content: "Agregar `POST /employees/:id/termination/preview` y `POST /employees/:id/termination` (transacción: insert settlement + update employee INACTIVE + audit)."
-    status: pending
+    status: completed
   - id: types-shared
     content: Agregar tipos compartidos de terminación/finiquito en `packages/types` y reutilizarlos en API/Web.
-    status: pending
+    status: completed
   - id: web-ui-finiquito-tab
     content: Añadir pestaña “Finiquito” en el dialog de empleado con formulario + resultado; `Accordion` para sección de liquidación; botón “Confirmar baja”.
-    status: pending
+    status: completed
   - id: web-actions-i18n
     content: Crear server actions para preview/terminate y añadir traducciones en `apps/web/messages/es.json`.
-    status: pending
+    status: completed
+  - id: web-termination-receipt
+    content: Agregar recibo PDF imprimible (firma) al confirmar la baja y permitir re-descarga desde el historial del empleado.
+    status: cancelled
   - id: tests
     content: Añadir contract tests para preview/terminate y unit tests del motor de cálculo con escenarios del doc.
-    status: pending
+    status: completed
 ---
 
-# Feature: cálculo y registro de finiquito por baja
+# Feature: cálculo y registro de finiquito por baja (COMPLETADO)
+
+Este plan se considera **completado** (feature ya implementada). El trabajo restante/activo para **recibos PDF** se consolidó en:
+
+- `.cursor/plans/payroll-receipts-pdf-zip_5fc47c15.plan.md`
 
 ## Documentación (reglas de terminación)
 
@@ -44,6 +51,7 @@ todos:
   - `terminationReason` (pgEnum con valores del doc)
   - `contractType` (pgEnum: `indefinite | fixed_term | specific_work`)
   - (opcional) `terminationNotes` (text nullable)
+  - (opcional) `nss` y `rfc` (text nullable) para mostrar en recibos cuando existan
 - **Nueva tabla** `employee_termination_settlement` (o nombre similar) para snapshot auditable:
   - `id`, `employeeId`, `organizationId`, `createdAt`
   - `calculation` (jsonb) con el output del doc (incluye `inputs_used` + `breakdown` + `totals`)
@@ -119,6 +127,41 @@ usando `createServerApiClient` de [`apps/web/lib/server-api.ts`](apps/web/lib/se
 i18n:
 
 - Agregar keys en [`apps/web/messages/es.json`](apps/web/messages/es.json) bajo `Employees.*` para labels, placeholders, mensajes de validación y el enum de motivos/tipo contrato.
+
+## Recibo imprimible (PDF) de baja (firma)
+
+Objetivo: al **confirmar la baja** (`POST /employees/:id/termination`), el admin debe poder **descargar/impimir un recibo** para que el empleado **firme** y reconozca el monto recibido.
+
+Diseño (comparación de imágenes):
+
+- **Mínimo obligatorio (2ª imagen)**:
+  - Encabezado con título (p.ej. “RECIBO DE FINIQUITO / BAJA”) y fecha de pago.
+  - Datos del empleado: nombre, clave/ID interno y NSS/RFC (opcionales; mostrar `—` si faltan).
+  - Tabla tipo recibo con secciones:
+    - **Ingresos**: conceptos del finiquito (y, si aplica, sección liquidación/indemnización).
+    - **Deducciones**: por ahora 0 / o futuras deducciones configurables.
+    - Totales (mínimo: total y “neto recibido”).
+  - Leyenda “Recibí de la empresa … la cantidad anotada … y declaro que …”.
+  - Campo “Firma del empleado” (línea) y folio/identificador del documento.
+- **Agregar resumen fiscal (1ª imagen, sin emojis) — recomendado**:
+  - Mostrar arriba un bloque “Resumen fiscal” para contextualizar (p.ej. percepciones, retenciones del trabajador y aportaciones del patrón) **cuando exista una última nómina PROCESADA** del empleado.
+  - Nota: el cálculo de finiquito/liquidación en V1 es *bruto*; no modela impuestos del finiquito. Por eso, el resumen fiscal se toma de la última nómina (si existe) y no del finiquito.
+
+Implementación propuesta:
+
+- **API (leer settlement persistido)**:
+  - Agregar `GET /employees/:id/termination/settlement` (o `/settlements/latest`) en [`apps/api/src/routes/employees.ts`](apps/api/src/routes/employees.ts) para devolver el último `employee_termination_settlement` (incluye `calculation`, `createdAt`, `totals*`).
+  - Validar acceso con `hasOrganizationAccess`/org del empleado.
+- **Web (descarga PDF)**:
+  - Agregar endpoint Next.js que genere PDF con `pdf-lib`:
+    - Sugerido: [`apps/web/app/api/employees/[employeeId]/termination/receipt/route.ts`](apps/web/app/api/employees/[employeeId]/termination/receipt/route.ts)
+    - Flujo: `getAdminAccessContext()` → `createServerApiClient(cookieHeader)` → `GET /employees/:id/termination/settlement` → construir PDF → responder `Content-Type: application/pdf` + `Content-Disposition: attachment`.
+  - UI: después de terminar con éxito, mostrar botón “Descargar recibo” en la pestaña **Finiquito** (y también permitir re-descarga si el empleado ya está INACTIVE y hay settlement).
+
+Tests (mínimo):
+
+- Contract test: extender [`apps/api/src/routes/employees.contract.test.ts`](apps/api/src/routes/employees.contract.test.ts) para validar el nuevo `GET /employees/:id/termination/settlement`.
+- E2E (Playwright): terminar un empleado y verificar que el botón descargue un PDF cuyo contenido inicia con `%PDF-` y filename esperado.
 
 ## Shared types
 

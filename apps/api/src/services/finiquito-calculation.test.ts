@@ -22,6 +22,22 @@ const BASE_INPUT = {
 	vacationPremiumRatePolicy: 0.25,
 };
 
+const TERMINATION_REASONS = [
+	'voluntary_resignation',
+	'justified_rescission',
+	'unjustified_dismissal',
+	'end_of_contract',
+	'mutual_agreement',
+	'death',
+] as const;
+
+const LONG_TENURE_INPUT = {
+	...BASE_INPUT,
+	hireDate: new Date('2005-01-01T00:00:00Z'),
+	terminationDateKey: '2026-01-15',
+	lastDayWorkedDateKey: '2026-01-15',
+};
+
 describe('finiquito calculation', () => {
 	it('calculates finiquito-only amounts for voluntary resignation', () => {
 		const result = calculateEmployeeTerminationSettlement(BASE_INPUT);
@@ -87,5 +103,85 @@ describe('finiquito calculation', () => {
 		expect(result.breakdown.liquidacion.primaAntiguedad).toBeGreaterThan(0);
 		expect(result.breakdown.liquidacion.indemnizacion3Meses).toBe(0);
 		expect(result.breakdown.liquidacion.indemnizacion20Dias).toBe(0);
+	});
+
+	it('covers all termination reasons for indemnizacion and prima', () => {
+		for (const reason of TERMINATION_REASONS) {
+			const result = calculateEmployeeTerminationSettlement({
+				...LONG_TENURE_INPUT,
+				terminationReason: reason,
+			});
+
+			if (reason === 'unjustified_dismissal') {
+				expect(result.breakdown.liquidacion.indemnizacion3Meses).toBeGreaterThan(0);
+				expect(result.breakdown.liquidacion.indemnizacion20Dias).toBeGreaterThan(0);
+			} else {
+				expect(result.breakdown.liquidacion.indemnizacion3Meses).toBe(0);
+				expect(result.breakdown.liquidacion.indemnizacion20Dias).toBe(0);
+			}
+
+			if (
+				reason === 'unjustified_dismissal' ||
+				reason === 'justified_rescission' ||
+				reason === 'death' ||
+				reason === 'voluntary_resignation'
+			) {
+				expect(result.breakdown.liquidacion.primaAntiguedad).toBeGreaterThan(0);
+			} else {
+				expect(result.breakdown.liquidacion.primaAntiguedad).toBe(0);
+			}
+		}
+	});
+
+	it('calculates indemnizacion20Dias for fixed-term contracts under one year', () => {
+		const result = calculateEmployeeTerminationSettlement({
+			...BASE_INPUT,
+			hireDate: new Date('2025-09-01T00:00:00Z'),
+			terminationDateKey: '2026-01-15',
+			lastDayWorkedDateKey: '2026-01-15',
+			terminationReason: 'unjustified_dismissal',
+			contractType: 'fixed_term',
+			dailySalaryIndemnizacion: 500,
+		});
+
+		expect(result.inputsUsed.serviceYearsForIndemnizacion).toBeLessThan(1);
+		const expected20Dias = roundCurrency(
+			result.inputsUsed.dailySalaryIndemnizacion * (result.inputsUsed.serviceDays / 2),
+		);
+		expect(result.breakdown.liquidacion.indemnizacion20Dias).toBe(expected20Dias);
+	});
+
+	it('calculates indemnizacion20Dias for specific-work contracts after one year', () => {
+		const result = calculateEmployeeTerminationSettlement({
+			...BASE_INPUT,
+			hireDate: new Date('2023-01-01T00:00:00Z'),
+			terminationDateKey: '2026-01-15',
+			lastDayWorkedDateKey: '2026-01-15',
+			terminationReason: 'unjustified_dismissal',
+			contractType: 'specific_work',
+			dailySalaryIndemnizacion: 500,
+		});
+
+		expect(result.inputsUsed.serviceYearsForIndemnizacion).toBeGreaterThanOrEqual(1);
+		const expected20Dias = roundCurrency(
+			result.inputsUsed.dailySalaryIndemnizacion * (6 * 30) +
+				result.inputsUsed.dailySalaryIndemnizacion *
+					20 *
+					Math.max(0, result.inputsUsed.serviceYearsForIndemnizacion - 1),
+		);
+		expect(result.breakdown.liquidacion.indemnizacion20Dias).toBe(expected20Dias);
+	});
+
+	it('uses last day worked when earlier than termination date for service days', () => {
+		const result = calculateEmployeeTerminationSettlement({
+			...BASE_INPUT,
+			terminationDateKey: '2026-01-15',
+			lastDayWorkedDateKey: '2026-01-10',
+		});
+
+		const startMs = Date.parse('2024-01-01T00:00:00Z');
+		const endMs = Date.parse('2026-01-10T00:00:00Z');
+		const expectedServiceDays = Math.floor((endMs - startMs) / (24 * 60 * 60 * 1000)) + 1;
+		expect(result.inputsUsed.serviceDays).toBe(expectedServiceDays);
 	});
 });

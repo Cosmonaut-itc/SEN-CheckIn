@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
 
@@ -723,6 +723,14 @@ async function validateAndCalculateTerminationSettlement({
 
 	const resolvedLastDayWorkedDateKey =
 		body.lastDayWorkedDateKey ?? body.terminationDateKey;
+	if (resolvedLastDayWorkedDateKey < hireDateKey) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Last day worked cannot be before hire date',
+			code: 'INVALID_LAST_DAY_WORKED_DATE',
+		};
+	}
 
 	const locationRows = employeeRecord.locationId
 		? await db
@@ -1249,57 +1257,54 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				result = await db.transaction(async (tx) => {
 					await setEmployeeAuditSkip(tx);
 
-					// Re-check termination status inside transaction to prevent race conditions
-					const lockedEmployeeRows = await tx
-						.select()
-						.from(employee)
-						.where(eq(employee.id, id))
-						.limit(1);
-					const lockedEmployeeRecord = lockedEmployeeRows[0];
+				// Update only if still active to prevent duplicate terminations.
+				const updatedRows = await tx
+					.update(employee)
+					.set({
+						status: 'INACTIVE',
+						terminationDateKey: body.terminationDateKey,
+						lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+						terminationReason: body.terminationReason,
+						contractType: body.contractType,
+						terminationNotes: body.terminationNotes?.trim() || null,
+					})
+					.where(
+						and(
+							eq(employee.id, id),
+							eq(employee.status, 'ACTIVE'),
+							isNull(employee.terminationDateKey),
+						),
+					)
+					.returning({ id: employee.id });
 
-					if (
-						!lockedEmployeeRecord ||
-						lockedEmployeeRecord.status === 'INACTIVE' ||
-						lockedEmployeeRecord.terminationDateKey
-					) {
-						throw new Error('EMPLOYEE_ALREADY_TERMINATED');
-					}
+				if (updatedRows.length === 0) {
+					throw new Error('EMPLOYEE_ALREADY_TERMINATED');
+				}
 
-					const settlementRows = await tx
-						.insert(employeeTerminationSettlement)
-						.values({
-							employeeId: id,
-							organizationId: employeeRecord.organizationId,
-							calculation,
-							totalsGross: calculation.totals.grossTotal.toFixed(2),
-							finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
-							liquidacionTotalGross: calculation.totals.liquidacionTotalGross.toFixed(2),
-						})
-						.returning({
-							id: employeeTerminationSettlement.id,
-							employeeId: employeeTerminationSettlement.employeeId,
-							organizationId: employeeTerminationSettlement.organizationId,
-							calculation: employeeTerminationSettlement.calculation,
-							totalsGross: employeeTerminationSettlement.totalsGross,
-							finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
-							liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
-							createdAt: employeeTerminationSettlement.createdAt,
-						});
+				const settlementRows = await tx
+					.insert(employeeTerminationSettlement)
+					.values({
+						employeeId: id,
+						organizationId: employeeRecord.organizationId,
+						calculation,
+						totalsGross: calculation.totals.grossTotal.toFixed(2),
+						finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
+						liquidacionTotalGross: calculation.totals.liquidacionTotalGross.toFixed(2),
+					})
+					.returning({
+						id: employeeTerminationSettlement.id,
+						employeeId: employeeTerminationSettlement.employeeId,
+						organizationId: employeeTerminationSettlement.organizationId,
+						calculation: employeeTerminationSettlement.calculation,
+						totalsGross: employeeTerminationSettlement.totalsGross,
+						finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
+						liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
+						createdAt: employeeTerminationSettlement.createdAt,
+					});
 
-					await tx
-						.update(employee)
-						.set({
-							status: 'INACTIVE',
-							terminationDateKey: body.terminationDateKey,
-							lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
-							terminationReason: body.terminationReason,
-							contractType: body.contractType,
-							terminationNotes: body.terminationNotes?.trim() || null,
-						})
-						.where(eq(employee.id, id));
-
-					const updatedRows = await tx.select().from(employee).where(eq(employee.id, id)).limit(1);
-					const updatedRecord = updatedRows[0] ?? null;
+				const updatedRecord = (
+					await tx.select().from(employee).where(eq(employee.id, id)).limit(1)
+				)[0] ?? null;
 
 					if (updatedRecord) {
 						const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);

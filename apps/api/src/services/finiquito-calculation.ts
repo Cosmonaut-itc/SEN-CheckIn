@@ -228,17 +228,6 @@ export function calculateEmployeeTerminationSettlement(
 		zone: input.locationZone,
 	});
 
-	const vacationBalanceDays =
-		input.vacationBalanceDays !== null && input.vacationBalanceDays !== undefined
-			? Math.max(0, input.vacationBalanceDays)
-			: buildDefaultVacationBalanceDays({
-					hireDate: input.hireDate,
-					asOfDateKey: input.terminationDateKey,
-					usedDays: input.vacationUsedDays,
-				});
-
-	const salaryDue = roundCurrency(dailySalaryBase * unpaidDays);
-
 	const hireDateKey = toDateKeyUtc(input.hireDate);
 	// Use lastDayWorkedDateKey for service calculations when it's earlier than terminationDateKey
 	// to avoid overpaying for days the employee did not actually work
@@ -246,6 +235,17 @@ export function calculateEmployeeTerminationSettlement(
 		input.lastDayWorkedDateKey < input.terminationDateKey
 			? input.lastDayWorkedDateKey
 			: input.terminationDateKey;
+
+	const vacationBalanceDays =
+		input.vacationBalanceDays !== null && input.vacationBalanceDays !== undefined
+			? Math.max(0, input.vacationBalanceDays)
+			: buildDefaultVacationBalanceDays({
+					hireDate: input.hireDate,
+					asOfDateKey: effectiveServiceEndDateKey,
+					usedDays: input.vacationUsedDays,
+				});
+
+	const salaryDue = roundCurrency(dailySalaryBase * unpaidDays);
 
 	const aguinaldoStartDateKey = getYearStartDateKey(input.terminationDateKey);
 	const aguinaldoAccrualStart =

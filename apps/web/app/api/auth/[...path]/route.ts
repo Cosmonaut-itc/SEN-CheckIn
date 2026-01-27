@@ -180,7 +180,7 @@ async function handleAuthProxy(
 		const body =
 			request.method === 'GET' || request.method === 'HEAD'
 				? undefined
-				: await request.text();
+				: await request.arrayBuffer();
 
 		let upstreamResponse: Response;
 		try {

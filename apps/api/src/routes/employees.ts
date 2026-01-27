@@ -34,7 +34,10 @@ import {
 	paginationSchema,
 	updateEmployeeSchema,
 } from '../schemas/crud.js';
-import { employeeTerminationSchema } from '../schemas/termination.js';
+import {
+	employeeTerminationSchema,
+	type EmployeeTerminationInput,
+} from '../schemas/termination.js';
 import {
 	employeeIdParamsSchema,
 	imageBodySchema,
@@ -989,6 +992,173 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	)
 
 	/**
+	 * Validates employee termination request and calculates settlement.
+	 * Shared logic between preview and confirm endpoints.
+	 *
+	 * @param args - Validation and calculation inputs
+	 * @param args.employeeId - Employee UUID
+	 * @param args.body - Termination request body
+	 * @param args.authType - Authentication type
+	 * @param args.session - User session
+	 * @param args.sessionOrganizationIds - Session organization IDs
+	 * @param args.apiKeyOrganizationIds - API key organization IDs
+	 * @returns Object containing employee record and calculated settlement, or error details
+	 */
+	async function validateAndCalculateTerminationSettlement({
+		employeeId,
+		body,
+		authType,
+		session,
+		sessionOrganizationIds,
+		apiKeyOrganizationIds,
+	}: {
+		employeeId: string;
+		body: EmployeeTerminationInput;
+		authType: 'session' | 'apiKey';
+		session: AuthSession | null;
+		sessionOrganizationIds: string[];
+		apiKeyOrganizationIds: string[];
+	}): Promise<
+		| {
+				success: true;
+				employeeRecord: typeof employee.$inferSelect;
+				calculation: ReturnType<typeof calculateEmployeeTerminationSettlement>;
+		  }
+		| {
+				success: false;
+				status: number;
+				message: string;
+				code?: string;
+		  }
+	> {
+		const employeeRows = await db
+			.select()
+			.from(employee)
+			.where(eq(employee.id, employeeId))
+			.limit(1);
+		const employeeRecord = employeeRows[0];
+
+		if (!employeeRecord) {
+			return { success: false, status: 404, message: 'Employee not found' };
+		}
+
+		if (
+			!hasOrganizationAccess(
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+				employeeRecord.organizationId,
+			)
+		) {
+			return {
+				success: false,
+				status: 403,
+				message: 'You do not have access to this employee',
+			};
+		}
+
+		if (employeeRecord.status === 'INACTIVE' || employeeRecord.terminationDateKey) {
+			return {
+				success: false,
+				status: 409,
+				message: 'Employee already terminated',
+				code: 'EMPLOYEE_ALREADY_TERMINATED',
+			};
+		}
+
+		if (!employeeRecord.organizationId) {
+			return {
+				success: false,
+				status: 400,
+				message: 'Employee organization is required',
+			};
+		}
+
+		if (!employeeRecord.hireDate) {
+			return {
+				success: false,
+				status: 400,
+				message: 'Employee hire date is required',
+				code: 'MISSING_HIRE_DATE',
+			};
+		}
+
+		const hireDateKey = toDateKeyUtc(employeeRecord.hireDate);
+		if (body.terminationDateKey < hireDateKey) {
+			return {
+				success: false,
+				status: 400,
+				message: 'Termination date cannot be before hire date',
+				code: 'INVALID_TERMINATION_DATE',
+			};
+		}
+
+		const resolvedLastDayWorkedDateKey =
+			body.lastDayWorkedDateKey ?? body.terminationDateKey;
+
+		const locationRows = employeeRecord.locationId
+			? await db
+					.select({
+						geographicZone: location.geographicZone,
+						timeZone: location.timeZone,
+					})
+					.from(location)
+					.where(eq(location.id, employeeRecord.locationId))
+					.limit(1)
+			: [];
+
+		const locationRecord = locationRows[0];
+		const timeZoneCandidate = locationRecord?.timeZone ?? 'America/Mexico_City';
+		const timeZone = isValidIanaTimeZone(timeZoneCandidate)
+			? timeZoneCandidate
+			: 'America/Mexico_City';
+
+		const settingsRows = await db
+			.select({
+				aguinaldoDays: payrollSetting.aguinaldoDays,
+				vacationPremiumRate: payrollSetting.vacationPremiumRate,
+			})
+			.from(payrollSetting)
+			.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
+			.limit(1);
+		const settingsRecord = settingsRows[0];
+
+		const vacationBalance = await buildEmployeeVacationBalance({
+			employeeId,
+			organizationId: employeeRecord.organizationId,
+			hireDate: employeeRecord.hireDate,
+			timeZone,
+			asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
+		});
+
+		const calculation = calculateEmployeeTerminationSettlement({
+			employeeId,
+			hireDate: employeeRecord.hireDate,
+			dailyPay: Number(employeeRecord.dailyPay ?? 0),
+			sbcDailyOverride:
+				employeeRecord.sbcDailyOverride === null ||
+				employeeRecord.sbcDailyOverride === undefined
+					? null
+					: Number(employeeRecord.sbcDailyOverride),
+			terminationDateKey: body.terminationDateKey,
+			lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+			terminationReason: body.terminationReason,
+			contractType: body.contractType,
+			unpaidDays: body.unpaidDays,
+			otherDue: body.otherDue,
+			vacationBalanceDays: body.vacationBalanceDays ?? null,
+			vacationUsedDays: vacationBalance.usedDays,
+			dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
+			locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
+			aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
+			vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
+		});
+
+		return { success: true, employeeRecord, calculation };
+	}
+
+	/**
 	 * Previews termination settlement for an employee (no persistence).
 	 *
 	 * @route POST /employees/:id/termination/preview
@@ -1008,120 +1178,23 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		}) => {
 			const { id } = params;
 
-			const employeeRows = await db
-				.select()
-				.from(employee)
-				.where(eq(employee.id, id))
-				.limit(1);
-			const employeeRecord = employeeRows[0];
-
-			if (!employeeRecord) {
-				set.status = 404;
-				return buildErrorResponse('Employee not found', 404);
-			}
-
-			if (
-				!hasOrganizationAccess(
-					authType,
-					session,
-					sessionOrganizationIds,
-					apiKeyOrganizationIds,
-					employeeRecord.organizationId,
-				)
-			) {
-				set.status = 403;
-				return buildErrorResponse('You do not have access to this employee', 403);
-			}
-
-			if (employeeRecord.status === 'INACTIVE' || employeeRecord.terminationDateKey) {
-				set.status = 409;
-				return buildErrorResponse('Employee already terminated', 409, {
-					code: 'EMPLOYEE_ALREADY_TERMINATED',
-				});
-			}
-
-			if (!employeeRecord.organizationId) {
-				set.status = 400;
-				return buildErrorResponse('Employee organization is required', 400);
-			}
-
-			if (!employeeRecord.hireDate) {
-				set.status = 400;
-				return buildErrorResponse('Employee hire date is required', 400, {
-					code: 'MISSING_HIRE_DATE',
-				});
-			}
-
-			const hireDateKey = toDateKeyUtc(employeeRecord.hireDate);
-			if (body.terminationDateKey < hireDateKey) {
-				set.status = 400;
-				return buildErrorResponse('Termination date cannot be before hire date', 400, {
-					code: 'INVALID_TERMINATION_DATE',
-				});
-			}
-
-			const resolvedLastDayWorkedDateKey =
-				body.lastDayWorkedDateKey ?? body.terminationDateKey;
-
-			const locationRows = employeeRecord.locationId
-				? await db
-						.select({
-							geographicZone: location.geographicZone,
-							timeZone: location.timeZone,
-						})
-						.from(location)
-						.where(eq(location.id, employeeRecord.locationId))
-						.limit(1)
-				: [];
-
-			const locationRecord = locationRows[0];
-			const timeZoneCandidate = locationRecord?.timeZone ?? 'America/Mexico_City';
-			const timeZone = isValidIanaTimeZone(timeZoneCandidate)
-				? timeZoneCandidate
-				: 'America/Mexico_City';
-
-			const settingsRows = await db
-				.select({
-					aguinaldoDays: payrollSetting.aguinaldoDays,
-					vacationPremiumRate: payrollSetting.vacationPremiumRate,
-				})
-				.from(payrollSetting)
-				.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
-				.limit(1);
-			const settingsRecord = settingsRows[0];
-
-			const vacationBalance = await buildEmployeeVacationBalance({
+			const result = await validateAndCalculateTerminationSettlement({
 				employeeId: id,
-				organizationId: employeeRecord.organizationId,
-				hireDate: employeeRecord.hireDate,
-				timeZone,
-				asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
+				body,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
 			});
 
-			const calculation = calculateEmployeeTerminationSettlement({
-				employeeId: id,
-				hireDate: employeeRecord.hireDate,
-				dailyPay: Number(employeeRecord.dailyPay ?? 0),
-				sbcDailyOverride:
-					employeeRecord.sbcDailyOverride === null ||
-					employeeRecord.sbcDailyOverride === undefined
-						? null
-						: Number(employeeRecord.sbcDailyOverride),
-				terminationDateKey: body.terminationDateKey,
-				lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
-				terminationReason: body.terminationReason,
-				contractType: body.contractType,
-				unpaidDays: body.unpaidDays,
-				otherDue: body.otherDue,
-				vacationBalanceDays: body.vacationBalanceDays ?? null,
-				vacationUsedDays: vacationBalance.usedDays,
-				dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
-				locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
-				aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
-				vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
-			});
+			if (!result.success) {
+				set.status = result.status;
+				return buildErrorResponse(result.message, result.status, {
+					code: result.code,
+				});
+			}
 
-			return { data: calculation };
+			return { data: result.calculation };
 		},
 		{
 			params: idParamSchema,
@@ -1149,185 +1222,119 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		}) => {
 			const { id } = params;
 
-			const employeeRows = await db
-				.select()
-				.from(employee)
-				.where(eq(employee.id, id))
-				.limit(1);
-			const employeeRecord = employeeRows[0];
+			const validationResult = await validateAndCalculateTerminationSettlement({
+				employeeId: id,
+				body,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+			});
 
-			if (!employeeRecord) {
-				set.status = 404;
-				return buildErrorResponse('Employee not found', 404);
-			}
-
-			if (
-				!hasOrganizationAccess(
-					authType,
-					session,
-					sessionOrganizationIds,
-					apiKeyOrganizationIds,
-					employeeRecord.organizationId,
-				)
-			) {
-				set.status = 403;
-				return buildErrorResponse('You do not have access to this employee', 403);
-			}
-
-			if (employeeRecord.status === 'INACTIVE' || employeeRecord.terminationDateKey) {
-				set.status = 409;
-				return buildErrorResponse('Employee already terminated', 409, {
-					code: 'EMPLOYEE_ALREADY_TERMINATED',
+			if (!validationResult.success) {
+				set.status = validationResult.status;
+				return buildErrorResponse(validationResult.message, validationResult.status, {
+					code: validationResult.code,
 				});
 			}
 
-			if (!employeeRecord.organizationId) {
-				set.status = 400;
-				return buildErrorResponse('Employee organization is required', 400);
-			}
-
-			if (!employeeRecord.hireDate) {
-				set.status = 400;
-				return buildErrorResponse('Employee hire date is required', 400, {
-					code: 'MISSING_HIRE_DATE',
-				});
-			}
-
-			const hireDateKey = toDateKeyUtc(employeeRecord.hireDate);
-			if (body.terminationDateKey < hireDateKey) {
-				set.status = 400;
-				return buildErrorResponse('Termination date cannot be before hire date', 400, {
-					code: 'INVALID_TERMINATION_DATE',
-				});
-			}
-
+			const { employeeRecord, calculation } = validationResult;
 			const resolvedLastDayWorkedDateKey =
 				body.lastDayWorkedDateKey ?? body.terminationDateKey;
-
-			const locationRows = employeeRecord.locationId
-				? await db
-						.select({
-							geographicZone: location.geographicZone,
-							timeZone: location.timeZone,
-						})
-						.from(location)
-						.where(eq(location.id, employeeRecord.locationId))
-						.limit(1)
-				: [];
-
-			const locationRecord = locationRows[0];
-			const timeZoneCandidate = locationRecord?.timeZone ?? 'America/Mexico_City';
-			const timeZone = isValidIanaTimeZone(timeZoneCandidate)
-				? timeZoneCandidate
-				: 'America/Mexico_City';
-
-			const settingsRows = await db
-				.select({
-					aguinaldoDays: payrollSetting.aguinaldoDays,
-					vacationPremiumRate: payrollSetting.vacationPremiumRate,
-				})
-				.from(payrollSetting)
-				.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
-				.limit(1);
-			const settingsRecord = settingsRows[0];
-
-			const vacationBalance = await buildEmployeeVacationBalance({
-				employeeId: id,
-				organizationId: employeeRecord.organizationId,
-				hireDate: employeeRecord.hireDate,
-				timeZone,
-				asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
-			});
-
-			const calculation = calculateEmployeeTerminationSettlement({
-				employeeId: id,
-				hireDate: employeeRecord.hireDate,
-				dailyPay: Number(employeeRecord.dailyPay ?? 0),
-				sbcDailyOverride:
-					employeeRecord.sbcDailyOverride === null ||
-					employeeRecord.sbcDailyOverride === undefined
-						? null
-						: Number(employeeRecord.sbcDailyOverride),
-				terminationDateKey: body.terminationDateKey,
-				lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
-				terminationReason: body.terminationReason,
-				contractType: body.contractType,
-				unpaidDays: body.unpaidDays,
-				otherDue: body.otherDue,
-				vacationBalanceDays: body.vacationBalanceDays ?? null,
-				vacationUsedDays: vacationBalance.usedDays,
-				dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
-				locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
-				aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
-				vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
-			});
 
 			const auditActor = resolveEmployeeAuditActor(authType, session);
 			const beforeSnapshot = buildEmployeeAuditSnapshot(employeeRecord);
 
-			const result = await db.transaction(async (tx) => {
-				await setEmployeeAuditSkip(tx);
+			let result;
+			try {
+				result = await db.transaction(async (tx) => {
+					await setEmployeeAuditSkip(tx);
 
-				const settlementRows = await tx
-					.insert(employeeTerminationSettlement)
-					.values({
-						employeeId: id,
-						organizationId: employeeRecord.organizationId,
-						calculation,
-						totalsGross: calculation.totals.grossTotal.toFixed(2),
-						finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
-						liquidacionTotalGross: calculation.totals.liquidacionTotalGross.toFixed(2),
-					})
-					.returning({
-						id: employeeTerminationSettlement.id,
-						employeeId: employeeTerminationSettlement.employeeId,
-						organizationId: employeeTerminationSettlement.organizationId,
-						calculation: employeeTerminationSettlement.calculation,
-						totalsGross: employeeTerminationSettlement.totalsGross,
-						finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
-						liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
-						createdAt: employeeTerminationSettlement.createdAt,
-					});
+					// Re-check termination status inside transaction to prevent race conditions
+					const lockedEmployeeRows = await tx
+						.select()
+						.from(employee)
+						.where(eq(employee.id, id))
+						.limit(1);
+					const lockedEmployeeRecord = lockedEmployeeRows[0];
 
-				await tx
-					.update(employee)
-					.set({
-						status: 'INACTIVE',
-						terminationDateKey: body.terminationDateKey,
-						lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
-						terminationReason: body.terminationReason,
-						contractType: body.contractType,
-						terminationNotes: body.terminationNotes?.trim() || null,
-					})
-					.where(eq(employee.id, id));
+					if (
+						!lockedEmployeeRecord ||
+						lockedEmployeeRecord.status === 'INACTIVE' ||
+						lockedEmployeeRecord.terminationDateKey
+					) {
+						throw new Error('EMPLOYEE_ALREADY_TERMINATED');
+					}
 
-				const updatedRows = await tx.select().from(employee).where(eq(employee.id, id)).limit(1);
-				const updatedRecord = updatedRows[0] ?? null;
+					const settlementRows = await tx
+						.insert(employeeTerminationSettlement)
+						.values({
+							employeeId: id,
+							organizationId: employeeRecord.organizationId,
+							calculation,
+							totalsGross: calculation.totals.grossTotal.toFixed(2),
+							finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
+							liquidacionTotalGross: calculation.totals.liquidacionTotalGross.toFixed(2),
+						})
+						.returning({
+							id: employeeTerminationSettlement.id,
+							employeeId: employeeTerminationSettlement.employeeId,
+							organizationId: employeeTerminationSettlement.organizationId,
+							calculation: employeeTerminationSettlement.calculation,
+							totalsGross: employeeTerminationSettlement.totalsGross,
+							finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
+							liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
+							createdAt: employeeTerminationSettlement.createdAt,
+						});
 
-				if (updatedRecord) {
-					const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
-					const changedFields = getEmployeeAuditChangedFields(
-						beforeSnapshot,
-						afterSnapshot,
-					);
+					await tx
+						.update(employee)
+						.set({
+							status: 'INACTIVE',
+							terminationDateKey: body.terminationDateKey,
+							lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+							terminationReason: body.terminationReason,
+							contractType: body.contractType,
+							terminationNotes: body.terminationNotes?.trim() || null,
+						})
+						.where(eq(employee.id, id));
 
-					await createEmployeeAuditEvent(tx, {
-						employeeId: id,
-						organizationId: updatedRecord.organizationId,
-						action: 'terminated',
-						actorType: auditActor.actorType,
-						actorUserId: auditActor.actorUserId,
-						before: beforeSnapshot,
-						after: afterSnapshot,
-						changedFields,
+					const updatedRows = await tx.select().from(employee).where(eq(employee.id, id)).limit(1);
+					const updatedRecord = updatedRows[0] ?? null;
+
+					if (updatedRecord) {
+						const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
+						const changedFields = getEmployeeAuditChangedFields(
+							beforeSnapshot,
+							afterSnapshot,
+						);
+
+						await createEmployeeAuditEvent(tx, {
+							employeeId: id,
+							organizationId: updatedRecord.organizationId,
+							action: 'terminated',
+							actorType: auditActor.actorType,
+							actorUserId: auditActor.actorUserId,
+							before: beforeSnapshot,
+							after: afterSnapshot,
+							changedFields,
+						});
+					}
+
+					return {
+						settlement: settlementRows[0] ?? null,
+						employee: updatedRecord,
+					};
+				});
+			} catch (error) {
+				if (error instanceof Error && error.message === 'EMPLOYEE_ALREADY_TERMINATED') {
+					set.status = 409;
+					return buildErrorResponse('Employee already terminated', 409, {
+						code: 'EMPLOYEE_ALREADY_TERMINATED',
 					});
 				}
-
-				return {
-					settlement: settlementRows[0] ?? null,
-					employee: updatedRecord,
-				};
-			});
+				throw error;
+			}
 
 			if (!result.settlement || !result.employee) {
 				set.status = 500;

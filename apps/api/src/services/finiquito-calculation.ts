@@ -239,13 +239,20 @@ export function calculateEmployeeTerminationSettlement(
 
 	const salaryDue = roundCurrency(dailySalaryBase * unpaidDays);
 
-	const aguinaldoStartDateKey = getYearStartDateKey(input.terminationDateKey);
 	const hireDateKey = toDateKeyUtc(input.hireDate);
+	// Use lastDayWorkedDateKey for service calculations when it's earlier than terminationDateKey
+	// to avoid overpaying for days the employee did not actually work
+	const effectiveServiceEndDateKey =
+		input.lastDayWorkedDateKey < input.terminationDateKey
+			? input.lastDayWorkedDateKey
+			: input.terminationDateKey;
+
+	const aguinaldoStartDateKey = getYearStartDateKey(input.terminationDateKey);
 	const aguinaldoAccrualStart =
 		hireDateKey > aguinaldoStartDateKey ? hireDateKey : aguinaldoStartDateKey;
 	const aguinaldoDaysWorkedInYear = getInclusiveDayCount(
 		aguinaldoAccrualStart,
-		input.terminationDateKey,
+		effectiveServiceEndDateKey,
 	);
 	const aguinaldoYearDays = resolveYearDays(input.terminationDateKey);
 	const aguinaldoProp = roundCurrency(
@@ -265,7 +272,7 @@ export function calculateEmployeeTerminationSettlement(
 		otherDue,
 	]);
 
-	const serviceDays = getInclusiveDayCount(hireDateKey, input.terminationDateKey);
+	const serviceDays = getInclusiveDayCount(hireDateKey, effectiveServiceEndDateKey);
 	const serviceYears = serviceDays / DAYS_IN_YEAR_FOR_INDEMNIZATION;
 	const serviceYearsForAntiguedad = serviceYears;
 	const serviceYearsForIndemnizacion = serviceYears;

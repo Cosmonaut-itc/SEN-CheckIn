@@ -1885,6 +1885,76 @@
 				"signIn": "Iniciar sesión"
 			}
 		},
+		"testRegistration": {
+			"title": "Registro de entorno de pruebas",
+			"subtitle": "Crea una organización y cuentas de prueba para desarrollo y QA.",
+			"helper": "Esto puede tardar unos segundos mientras se crean las cuentas.",
+			"sections": {
+				"organization": "Organización",
+				"admin": "Administrador",
+				"member": "Miembro"
+			},
+			"fields": {
+				"organizationName": "Nombre de la organización",
+				"organizationSlug": "Slug de la organización",
+				"adminName": "Nombre del administrador",
+				"adminEmail": "Correo del administrador",
+				"adminPassword": "Contraseña del administrador",
+				"adminConfirmPassword": "Confirmar contraseña del administrador",
+				"memberName": "Nombre del miembro",
+				"memberEmail": "Correo del miembro",
+				"memberPassword": "Contraseña del miembro",
+				"memberConfirmPassword": "Confirmar contraseña del miembro"
+			},
+			"placeholders": {
+				"organizationName": "SEN CheckIn QA",
+				"organizationSlug": "sen-checkin-qa",
+				"adminName": "Administrador de pruebas",
+				"adminEmail": "admin.qa@sen-checkin.test",
+				"adminPassword": "Crea una contraseña segura",
+				"adminConfirmPassword": "Repite la contraseña",
+				"memberName": "Miembro de pruebas",
+				"memberEmail": "miembro.qa@sen-checkin.test",
+				"memberPassword": "Crea una contraseña segura",
+				"memberConfirmPassword": "Repite la contraseña"
+			},
+			"validation": {
+				"organizationNameRequired": "El nombre de la organización es requerido",
+				"organizationSlugRequired": "El slug de la organización es requerido",
+				"adminNameRequired": "El nombre del administrador es requerido",
+				"adminEmailRequired": "El correo del administrador es requerido",
+				"adminPasswordRequired": "La contraseña del administrador es requerida",
+				"adminConfirmPasswordRequired": "Confirma la contraseña del administrador",
+				"memberNameRequired": "El nombre del miembro es requerido",
+				"memberEmailRequired": "El correo del miembro es requerido",
+				"memberPasswordRequired": "La contraseña del miembro es requerida",
+				"memberConfirmPasswordRequired": "Confirma la contraseña del miembro"
+			},
+			"actions": {
+				"submit": "Crear entorno de pruebas",
+				"submitting": "Creando entorno...",
+				"goToSignIn": "Ir a iniciar sesión"
+			},
+			"errors": {
+				"adminPasswordMismatch": "Las contraseñas del administrador no coinciden",
+				"memberPasswordMismatch": "Las contraseñas del miembro no coinciden",
+				"passwordTooShort": "La contraseña debe tener al menos 8 caracteres",
+				"organizationRequired": "La organización es requerida",
+				"signUpFailed": "No se pudo crear el usuario administrador",
+				"signUpFailedDetailed": "No se pudo crear el usuario administrador: {detail}",
+				"organizationFailed": "No se pudo crear la organización",
+				"memberProvisionFailed": "No se pudo crear el usuario miembro"
+			},
+			"success": {
+				"title": "Entorno creado",
+				"description": "Las cuentas de prueba están listas. Inicia sesión con las credenciales registradas.",
+				"organization": "Organización",
+				"admin": "Administrador",
+				"member": "Miembro"
+			},
+			"productionDisabled": "El registro de pruebas está deshabilitado en producción.",
+			"returnToSignIn": "Volver a iniciar sesión"
+		},
 		"device": {
 			"headerLabel": "Autorización de dispositivo (código de dispositivo OAuth 2.0)",
 			"title": "Ingresa el código del dispositivo",

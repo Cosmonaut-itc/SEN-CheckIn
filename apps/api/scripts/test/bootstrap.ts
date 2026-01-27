@@ -33,6 +33,7 @@ const TEST_DB_NAME = 'sen_checkin_test';
 const TEST_DB_USER = 'admin';
 const TEST_DB_HOST = '127.0.0.1';
 const TEST_DB_PORT = 5435;
+const TEST_COMPOSE_PROJECT = 'sen-checkin-test';
 
 const TEST_USERS: TestUserSeed[] = [
 	{
@@ -327,10 +328,14 @@ async function main(): Promise<void> {
 	process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
 
 	console.log('[bootstrap] Starting test Postgres via Docker...');
-	await runCommand('docker', ['compose', '-f', composePath, 'up', '-d'], {
-		cwd: apiRoot,
-		env: process.env,
-	});
+	await runCommand(
+		'docker',
+		['compose', '--project-name', TEST_COMPOSE_PROJECT, '-f', composePath, 'up', '-d'],
+		{
+			cwd: apiRoot,
+			env: process.env,
+		},
+	);
 
 	console.log('[bootstrap] Waiting for database readiness...');
 	await waitForDatabase(testDatabaseUrl, 30_000, 1_000);

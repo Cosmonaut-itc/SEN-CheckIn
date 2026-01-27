@@ -83,7 +83,8 @@ const authOptions: AuthOptions = {
 		 */
 		organization({
 			// Restrict organization creation to platform superusers.
-			allowUserToCreateOrganization: async (user) => user.role === 'admin',
+			allowUserToCreateOrganization: async (user) =>
+				process.env.NODE_ENV === 'production' ? user.role === 'admin' : true,
 		}),
 		/**
 		 * Username plugin to enable username-based sign-in.

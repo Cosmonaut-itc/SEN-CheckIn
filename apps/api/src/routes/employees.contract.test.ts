@@ -2,16 +2,118 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 
+import { calculateVacationAccrual, getServiceYearNumber } from '../services/vacations.js';
 import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
 import { setupRekognitionMocks } from '../test-utils/contract-mocks.js';
+import { roundCurrency } from '../utils/money.js';
 
 setupRekognitionMocks();
+
+type VacationRequestDayPayload = {
+	dateKey: string;
+	countsAsVacationDay: boolean;
+	serviceYearNumber: number | null;
+};
+
+type VacationRequestSummaryPayload = {
+	totalDays: number;
+	vacationDays: number;
+};
+
+type VacationRequestPayload = {
+	id: string;
+	status: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+	days: VacationRequestDayPayload[];
+	summary: VacationRequestSummaryPayload;
+};
+
+/**
+ * Ensures a value matches the vacation request response shape.
+ *
+ * @param value - Unknown payload to validate
+ * @returns Parsed vacation request payload
+ * @throws Error when the payload is invalid
+ */
+function requireVacationRequestPayload(value: unknown): VacationRequestPayload {
+	if (!value || typeof value !== 'object') {
+		throw new Error('Expected vacation request payload to be an object.');
+	}
+	const record = value as {
+		id?: unknown;
+		status?: unknown;
+		days?: unknown;
+		summary?: unknown;
+	};
+	if (typeof record.id !== 'string' || !record.id) {
+		throw new Error('Expected vacation request id in response.');
+	}
+	const status = record.status;
+	if (
+		status !== 'DRAFT' &&
+		status !== 'SUBMITTED' &&
+		status !== 'APPROVED' &&
+		status !== 'REJECTED' &&
+		status !== 'CANCELLED'
+	) {
+		throw new Error('Expected vacation request status in response.');
+	}
+	if (!Array.isArray(record.days)) {
+		throw new Error('Expected vacation request days array in response.');
+	}
+	const days: VacationRequestDayPayload[] = record.days.map((day, index) => {
+		if (!day || typeof day !== 'object') {
+			throw new Error(`Expected vacation request day ${index} to be an object.`);
+		}
+		const dayRecord = day as {
+			dateKey?: unknown;
+			countsAsVacationDay?: unknown;
+			serviceYearNumber?: unknown;
+		};
+		if (typeof dayRecord.dateKey !== 'string') {
+			throw new Error(`Expected vacation request day ${index} to include dateKey.`);
+		}
+		if (typeof dayRecord.countsAsVacationDay !== 'boolean') {
+			throw new Error(`Expected vacation request day ${index} to include countsAsVacationDay.`);
+		}
+		const serviceYearNumber = dayRecord.serviceYearNumber;
+		if (!(serviceYearNumber === null || typeof serviceYearNumber === 'number')) {
+			throw new Error(`Expected vacation request day ${index} to include serviceYearNumber.`);
+		}
+		return {
+			dateKey: dayRecord.dateKey,
+			countsAsVacationDay: dayRecord.countsAsVacationDay,
+			serviceYearNumber,
+		};
+	});
+
+	if (!record.summary || typeof record.summary !== 'object') {
+		throw new Error('Expected vacation request summary in response.');
+	}
+	const summaryRecord = record.summary as {
+		totalDays?: unknown;
+		vacationDays?: unknown;
+	};
+	if (typeof summaryRecord.totalDays !== 'number' || typeof summaryRecord.vacationDays !== 'number') {
+		throw new Error('Expected vacation request summary totals in response.');
+	}
+
+	return {
+		id: record.id,
+		status,
+		days,
+		summary: {
+			totalDays: summaryRecord.totalDays,
+			vacationDays: summaryRecord.vacationDays,
+		},
+	};
+}
 
 describe('employee routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -136,6 +238,489 @@ describe('employee routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
+	it('rejects termination when hire date is missing', async () => {
+		let employeeId: string | null = null;
+		try {
+			const createResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Sin',
+				lastName: 'Ingreso',
+				email: `sin.ingreso.${Date.now()}@example.com`,
+				phone: '+52 55 2222 1111',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				dailyPay: 450,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for termination validation test.');
+			}
+			employeeId = createdEmployee.id;
+
+			const employeeRoutes = requireRoute(
+				client.employees[employeeId],
+				'Employee route',
+			);
+			const terminationRoute = requireRoute(
+				employeeRoutes.termination,
+				'Employee termination route',
+			);
+			const previewRoute = requireRoute(
+				terminationRoute.preview,
+				'Employee termination preview route',
+			);
+
+			const response = await previewRoute.post({
+				terminationDateKey: '2026-01-15',
+				terminationReason: 'voluntary_resignation',
+				contractType: 'indefinite',
+				unpaidDays: 0,
+				otherDue: 0,
+				vacationBalanceDays: 0,
+				dailySalaryIndemnizacion: 600,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(response.status).toBe(400);
+			const errorPayload = requireErrorResponse(response, 'missing hire date');
+			expect(errorPayload.error.message).toBe('Employee hire date is required');
+			expect(errorPayload.error.code).toBe('MISSING_HIRE_DATE');
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
+	});
+
+	it('rejects termination when last day worked exceeds termination date', async () => {
+		let employeeId: string | null = null;
+		try {
+			const createResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Fechas',
+				lastName: 'Invalidas',
+				email: `fechas.invalidas.${Date.now()}@example.com`,
+				phone: '+52 55 2222 3333',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				hireDate: new Date('2024-01-01'),
+				dailyPay: 450,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for termination date validation test.');
+			}
+			employeeId = createdEmployee.id;
+
+			const employeeRoutes = requireRoute(
+				client.employees[employeeId],
+				'Employee route',
+			);
+			const terminationRoute = requireRoute(
+				employeeRoutes.termination,
+				'Employee termination route',
+			);
+			const previewRoute = requireRoute(
+				terminationRoute.preview,
+				'Employee termination preview route',
+			);
+
+			const response = await previewRoute.post({
+				terminationDateKey: '2026-01-15',
+				lastDayWorkedDateKey: '2026-01-20',
+				terminationReason: 'voluntary_resignation',
+				contractType: 'indefinite',
+				unpaidDays: 0,
+				otherDue: 0,
+				vacationBalanceDays: 0,
+				dailySalaryIndemnizacion: 600,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(response.status).toBe(400);
+			const errorPayload = requireErrorResponse(response, 'invalid last day worked');
+			expect(errorPayload.error.message).toBe('Validation failed');
+			expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
+	});
+
+	it('rejects termination when termination date precedes hire date', async () => {
+		let employeeId: string | null = null;
+		try {
+			const createResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Fecha',
+				lastName: 'Anterior',
+				email: `fecha.anterior.${Date.now()}@example.com`,
+				phone: '+52 55 2222 4444',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				hireDate: new Date('2025-06-01'),
+				dailyPay: 450,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for termination date validation test.');
+			}
+			employeeId = createdEmployee.id;
+
+			const employeeRoutes = requireRoute(
+				client.employees[employeeId],
+				'Employee route',
+			);
+			const terminationRoute = requireRoute(
+				employeeRoutes.termination,
+				'Employee termination route',
+			);
+			const previewRoute = requireRoute(
+				terminationRoute.preview,
+				'Employee termination preview route',
+			);
+
+			const response = await previewRoute.post({
+				terminationDateKey: '2025-05-31',
+				terminationReason: 'voluntary_resignation',
+				contractType: 'indefinite',
+				unpaidDays: 0,
+				otherDue: 0,
+				vacationBalanceDays: 0,
+				dailySalaryIndemnizacion: 600,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(response.status).toBe(400);
+			const errorPayload = requireErrorResponse(response, 'termination date before hire date');
+			expect(errorPayload.error.message).toBe('Termination date cannot be before hire date');
+			expect(errorPayload.error.code).toBe('INVALID_TERMINATION_DATE');
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
+	});
+
+	it('rejects termination when last day worked precedes hire date', async () => {
+		let employeeId: string | null = null;
+		try {
+			const createResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Ultimo',
+				lastName: 'Dia',
+				email: `ultimo.dia.${Date.now()}@example.com`,
+				phone: '+52 55 2222 5555',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				hireDate: new Date('2025-06-01'),
+				dailyPay: 450,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for last day worked validation test.');
+			}
+			employeeId = createdEmployee.id;
+
+			const employeeRoutes = requireRoute(
+				client.employees[employeeId],
+				'Employee route',
+			);
+			const terminationRoute = requireRoute(
+				employeeRoutes.termination,
+				'Employee termination route',
+			);
+			const previewRoute = requireRoute(
+				terminationRoute.preview,
+				'Employee termination preview route',
+			);
+
+			const response = await previewRoute.post({
+				terminationDateKey: '2025-06-15',
+				lastDayWorkedDateKey: '2025-05-31',
+				terminationReason: 'voluntary_resignation',
+				contractType: 'indefinite',
+				unpaidDays: 0,
+				otherDue: 0,
+				vacationBalanceDays: 0,
+				dailySalaryIndemnizacion: 600,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(response.status).toBe(400);
+			const errorPayload = requireErrorResponse(response, 'last day worked before hire date');
+			expect(errorPayload.error.message).toBe('Last day worked cannot be before hire date');
+			expect(errorPayload.error.code).toBe('INVALID_LAST_DAY_WORKED_DATE');
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
+	});
+
+	it('previews and confirms an employee termination', async () => {
+		const createResponse = await client.employees.post({
+			code: `EMP-${randomUUID().slice(0, 8)}`,
+			firstName: 'Finiquito',
+			lastName: 'Contrato',
+			email: `finiquito.${Date.now()}@example.com`,
+			phone: '+52 55 5555 1212',
+			jobPositionId: seed.jobPositionId,
+			locationId: seed.locationId,
+			organizationId: seed.organizationId,
+			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
+			hireDate: new Date('2024-01-01'),
+			dailyPay: 500,
+			paymentFrequency: 'MONTHLY',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		const createdEmployee = createPayload.data;
+		if (!createdEmployee?.id) {
+			throw new Error('Expected employee record for termination test.');
+		}
+
+		const employeeRoutes = requireRoute(
+			client.employees[createdEmployee.id],
+			'Employee route',
+		);
+		const terminationRoute = requireRoute(
+			employeeRoutes.termination,
+			'Employee termination route',
+		);
+		const previewRoute = requireRoute(
+			terminationRoute.preview,
+			'Employee termination preview route',
+		);
+
+		const previewResponse = await previewRoute.post({
+			terminationDateKey: '2026-01-15',
+			terminationReason: 'voluntary_resignation',
+			contractType: 'indefinite',
+			unpaidDays: 2,
+			otherDue: 100,
+			vacationBalanceDays: 5,
+			dailySalaryIndemnizacion: 600,
+			terminationNotes: 'Salida voluntaria',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(previewResponse.status).toBe(200);
+		const previewPayload = requireResponseData(previewResponse);
+		expect(previewPayload.data.breakdown.finiquito.salaryDue).toBe(1000);
+
+		const terminateResponse = await terminationRoute.post({
+			terminationDateKey: '2026-01-15',
+			terminationReason: 'voluntary_resignation',
+			contractType: 'indefinite',
+			unpaidDays: 2,
+			otherDue: 100,
+			vacationBalanceDays: 5,
+			dailySalaryIndemnizacion: 600,
+			terminationNotes: 'Salida voluntaria',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(terminateResponse.status).toBe(200);
+		const terminatePayload = requireResponseData(terminateResponse);
+		expect(terminatePayload.data.employee.status).toBe('INACTIVE');
+		expect(terminatePayload.data.employee.terminationDateKey).toBe('2026-01-15');
+		expect(terminatePayload.data.settlement.calculation.breakdown.finiquito.salaryDue).toBe(1000);
+
+		const duplicateResponse = await terminationRoute.post({
+			terminationDateKey: '2026-01-15',
+			terminationReason: 'voluntary_resignation',
+			contractType: 'indefinite',
+			unpaidDays: 2,
+			otherDue: 100,
+			vacationBalanceDays: 5,
+			dailySalaryIndemnizacion: 600,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(duplicateResponse.status).toBe(409);
+
+		await employeeRoutes.delete({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+	});
+
+	it('does not subtract future approved vacation days from termination payout', async () => {
+		let employeeId: string | null = null;
+		try {
+			const hireDate = new Date('2024-01-01T00:00:00Z');
+			const dailyPay = 500;
+
+			const createEmployeeResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Vacaciones',
+				lastName: 'Finiquito',
+				email: `vacaciones.finiquito.${Date.now()}@example.com`,
+				phone: '+52 55 5555 9999',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				hireDate,
+				dailyPay,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createEmployeeResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createEmployeeResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for vacation/termination test.');
+			}
+			employeeId = createdEmployee.id;
+
+			const startDateKey = '2026-12-07';
+			const endDateKey = '2026-12-11';
+
+			const createRequestResponse = await client.vacations.requests.post({
+				employeeId,
+				startDateKey,
+				endDateKey,
+				status: 'SUBMITTED',
+				requestedNotes: 'Vacaciones futuras',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createRequestResponse.status).toBe(200);
+			const createdRequest = requireVacationRequestPayload(
+				requireResponseData(createRequestResponse).data,
+			);
+
+			const adminRequestRoutes = requireRoute(
+				client.vacations.requests[createdRequest.id],
+				'Vacation admin request route',
+			);
+			const approveRoute = requireRoute(
+				adminRequestRoutes.approve,
+				'Vacation request approve route',
+			);
+			const approveResponse = await approveRoute.post({
+				decisionNotes: 'Aprobado',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(approveResponse.status).toBe(200);
+			const approvedRequest = requireVacationRequestPayload(
+				requireResponseData(approveResponse).data,
+			);
+			expect(approvedRequest.status).toBe('APPROVED');
+
+			const terminationDateKey = '2026-10-01';
+			const terminationServiceYear = getServiceYearNumber(hireDate, terminationDateKey) ?? 0;
+			expect(terminationServiceYear).toBeGreaterThan(0);
+
+			const approvedVacationDays = approvedRequest.days.filter((day) => day.countsAsVacationDay);
+			expect(approvedVacationDays.length).toBeGreaterThan(0);
+			expect(approvedVacationDays.every((day) => day.dateKey > terminationDateKey)).toBe(true);
+			expect(
+				approvedVacationDays.every((day) => day.serviceYearNumber === terminationServiceYear),
+			).toBe(true);
+
+			const employeeRoutes = requireRoute(
+				client.employees[employeeId],
+				'Employee route',
+			);
+			const terminationRoute = requireRoute(
+				employeeRoutes.termination,
+				'Employee termination route',
+			);
+			const previewRoute = requireRoute(
+				terminationRoute.preview,
+				'Employee termination preview route',
+			);
+
+			const previewResponse = await previewRoute.post({
+				terminationDateKey,
+				terminationReason: 'voluntary_resignation',
+				contractType: 'indefinite',
+				unpaidDays: 0,
+				otherDue: 0,
+				vacationBalanceDays: null,
+				dailySalaryIndemnizacion: 600,
+				terminationNotes: 'Prueba balance vacaciones',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(previewResponse.status).toBe(200);
+			const previewPayload = requireResponseData(previewResponse);
+			const settlement = previewPayload.data;
+
+			const serviceYearNumber = getServiceYearNumber(hireDate, terminationDateKey) ?? 0;
+			const accrual = calculateVacationAccrual({
+				hireDate,
+				serviceYearNumber,
+				asOfDateKey: terminationDateKey,
+			});
+			const expectedVacationBalanceDays = Math.max(0, accrual.accruedDays);
+			const expectedVacationPay = roundCurrency(
+				roundCurrency(dailyPay) * expectedVacationBalanceDays,
+			);
+
+			expect(settlement.inputsUsed.vacationBalanceDays).toBeCloseTo(
+				expectedVacationBalanceDays,
+				6,
+			);
+			expect(settlement.breakdown.finiquito.vacationPay).toBe(expectedVacationPay);
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
 	});
 
 	it('manages rekognition enrollment for an employee', async () => {

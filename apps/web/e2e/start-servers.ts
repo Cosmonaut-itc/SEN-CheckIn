@@ -173,14 +173,17 @@ const webRoot = resolve(repoRoot, 'apps', 'web');
 
 loadEnvFile(resolve(repoRoot, '.env'));
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
-const webUrl = process.env.NEXT_PUBLIC_WEB_URL ?? 'http://localhost:3001';
+const API_PORT = 3002;
+const WEB_PORT = 3001;
+const apiUrl = `http://localhost:${API_PORT}`;
+const webUrl = `http://localhost:${WEB_PORT}`;
 
 const testDatabaseUrl = resolveTestDatabaseUrl();
 
 const apiProcess = startServer('api', apiRoot, {
 	...process.env,
 	SEN_DB_URL: testDatabaseUrl,
+	PORT: String(API_PORT),
 	NODE_ENV: process.env.NODE_ENV ?? 'test',
 });
 

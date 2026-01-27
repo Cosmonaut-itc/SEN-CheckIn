@@ -162,6 +162,13 @@
       "when": 1769195100429,
       "tag": "0022_salario_por_empleado",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1769457789629,
+      "tag": "0023_messy_odin",
+      "breakpoints": true
     }
   ]
 }

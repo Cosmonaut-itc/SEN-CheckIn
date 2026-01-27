@@ -1,10 +1,23 @@
 'use client';
 
-import { createEmployee, deleteEmployee, updateEmployee } from '@/actions/employees';
+import {
+	createEmployee,
+	deleteEmployee,
+	previewEmployeeTermination,
+	terminateEmployee,
+	updateEmployee,
+} from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
 import { DataTable } from '@/components/data-table/data-table';
+import {
+	Accordion,
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from '@/components/ui/accordion';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
@@ -24,6 +37,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -41,6 +55,7 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
 	type Employee,
@@ -61,10 +76,16 @@ import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm, useStore } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import type {
+	EmployeeTerminationSettlement,
+	EmploymentContractType,
+	TerminationReason,
+} from '@sen-checkin/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
-import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
+import { format, isAfter, isValid, parse, startOfDay, startOfMonth } from 'date-fns';
 import {
+	Calendar as CalendarIcon,
 	Eye,
 	HelpCircle,
 	Loader2,
@@ -142,6 +163,174 @@ interface EmployeeFormValues {
 	sbcDailyOverride: string;
 	/** Employee shift type */
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
+}
+
+/**
+ * Form values for termination (finiquito) preview/confirmation.
+ */
+interface TerminationFormValues {
+	/** Termination date key (YYYY-MM-DD). */
+	terminationDateKey: string;
+	/** Last day worked date key (YYYY-MM-DD). */
+	lastDayWorkedDateKey: string;
+	/** Termination reason. */
+	terminationReason: TerminationReason;
+	/** Employment contract type. */
+	contractType: EmploymentContractType;
+	/** Unpaid days. */
+	unpaidDays: string;
+	/** Other dues amount. */
+	otherDue: string;
+	/** Optional vacation balance override (days). */
+	vacationBalanceDays: string;
+	/** Optional daily salary override for indemnizations. */
+	dailySalaryIndemnizacion: string;
+	/** Optional termination notes. */
+	terminationNotes: string;
+}
+
+type TerminationDateFieldProps = {
+	label: string;
+	placeholder?: string;
+	value: string;
+	onChange: (value: string) => void;
+	disabled?: boolean;
+	minYear?: number;
+	maxDate?: Date;
+};
+
+/**
+ * Standalone date field for the finiquito form.
+ *
+ * @param props - Date field props including value and date constraints.
+ * @returns A rendered date field with input and calendar popover.
+ */
+function TerminationDateField({
+	label,
+	placeholder,
+	value,
+	onChange,
+	disabled,
+	minYear = 1950,
+	maxDate,
+}: TerminationDateFieldProps): React.ReactElement {
+	const tCommon = useTranslations('Common');
+	const resolvedPlaceholder = placeholder ?? label;
+	const parsedValue = useMemo(
+		() => (value ? parse(value, 'yyyy-MM-dd', new Date()) : undefined),
+		[value],
+	);
+	const isParsedValid =
+		parsedValue !== undefined &&
+		isValid(parsedValue) &&
+		format(parsedValue, 'yyyy-MM-dd') === value;
+	const selectedDateKey = isParsedValid ? value : '';
+	const selectedDate = useMemo(
+		() =>
+			selectedDateKey
+				? parse(selectedDateKey, 'yyyy-MM-dd', new Date())
+				: undefined,
+		[selectedDateKey],
+	);
+	const resolvedMaxDate = useMemo(
+		() => (maxDate ? startOfDay(maxDate) : startOfDay(new Date())),
+		[maxDate],
+	);
+	const startMonth = useMemo(() => new Date(minYear, 0, 1), [minYear]);
+	const [open, setOpen] = useState(false);
+	const initialMonth = selectedDate ?? resolvedMaxDate ?? new Date();
+	const [month, setMonth] = useState<Date>(() => startOfMonth(initialMonth));
+
+	useEffect(() => {
+		if (!selectedDate) {
+			return;
+		}
+		setMonth((current) => {
+			const currentYear = current.getFullYear();
+			const currentMonth = current.getMonth();
+			const nextYear = selectedDate.getFullYear();
+			const nextMonth = selectedDate.getMonth();
+			if (currentYear === nextYear && currentMonth === nextMonth) {
+				return current;
+			}
+			return startOfMonth(selectedDate);
+		});
+	}, [selectedDate, selectedDateKey]);
+
+	const calendarRangeProps: {
+		startMonth?: Date;
+		endMonth?: Date;
+		disabled?: React.ComponentProps<typeof Calendar>['disabled'];
+	} = {};
+
+	if (startMonth) {
+		calendarRangeProps.startMonth = startMonth;
+	}
+
+	if (resolvedMaxDate) {
+		calendarRangeProps.endMonth = resolvedMaxDate;
+		calendarRangeProps.disabled = { after: resolvedMaxDate };
+	}
+
+	return (
+		<div className="space-y-2">
+			<Label>{label}</Label>
+			<Popover open={open} onOpenChange={setOpen}>
+				<div className="relative">
+					<Input
+						value={value}
+						onChange={(event) => {
+							const nextValue = event.target.value;
+							onChange(nextValue);
+							const nextParsed = nextValue
+								? parse(nextValue, 'yyyy-MM-dd', new Date())
+								: undefined;
+							const isNextValid =
+								nextParsed !== undefined &&
+								isValid(nextParsed) &&
+								format(nextParsed, 'yyyy-MM-dd') === nextValue;
+							if (isNextValid) {
+								setMonth(startOfMonth(nextParsed));
+							}
+						}}
+						placeholder={resolvedPlaceholder}
+						disabled={disabled}
+						className="pr-10"
+					/>
+					<PopoverTrigger asChild>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							className="absolute right-1 top-1/2 -translate-y-1/2"
+							disabled={disabled}
+							aria-label={tCommon('selectDate')}
+						>
+							<CalendarIcon className="h-4 w-4" />
+							<span className="sr-only">{tCommon('selectDate')}</span>
+						</Button>
+					</PopoverTrigger>
+				</div>
+				<PopoverContent className="w-auto p-0" align="start">
+					<Calendar
+						mode="single"
+						selected={selectedDate}
+						onSelect={(date) => {
+							onChange(date ? format(date, 'yyyy-MM-dd') : '');
+							if (date) {
+								setMonth(startOfMonth(date));
+							}
+						}}
+						initialFocus
+						captionLayout="dropdown"
+						month={month}
+						onMonthChange={(nextMonth) => setMonth(startOfMonth(nextMonth))}
+						{...calendarRangeProps}
+					/>
+				</PopoverContent>
+			</Popover>
+		</div>
+	);
 }
 
 /**
@@ -348,6 +537,25 @@ const initialFormValues: EmployeeFormValues = {
 	shiftType: 'DIURNA',
 };
 
+/**
+ * Builds default termination form values for the finiquito tab.
+ *
+ * @returns Default termination form values
+ */
+function createDefaultTerminationFormValues(): TerminationFormValues {
+	return {
+		terminationDateKey: format(new Date(), 'yyyy-MM-dd'),
+		lastDayWorkedDateKey: '',
+		terminationReason: 'voluntary_resignation',
+		contractType: 'indefinite',
+		unpaidDays: '0',
+		otherDue: '0',
+		vacationBalanceDays: '',
+		dailySalaryIndemnizacion: '',
+		terminationNotes: '',
+	};
+}
+
 const daysOfWeek: { labelKey: string; value: number }[] = [
 	{ labelKey: 'days.sunday', value: 0 },
 	{ labelKey: 'days.monday', value: 1 },
@@ -362,6 +570,21 @@ const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; labelKey: stri
 	{ value: 'DIURNA', labelKey: 'shiftTypes.DIURNA' },
 	{ value: 'NOCTURNA', labelKey: 'shiftTypes.NOCTURNA' },
 	{ value: 'MIXTA', labelKey: 'shiftTypes.MIXTA' },
+];
+
+const terminationReasonOptions: { value: TerminationReason; labelKey: string }[] = [
+	{ value: 'voluntary_resignation', labelKey: 'terminationReasons.voluntary_resignation' },
+	{ value: 'justified_rescission', labelKey: 'terminationReasons.justified_rescission' },
+	{ value: 'unjustified_dismissal', labelKey: 'terminationReasons.unjustified_dismissal' },
+	{ value: 'end_of_contract', labelKey: 'terminationReasons.end_of_contract' },
+	{ value: 'mutual_agreement', labelKey: 'terminationReasons.mutual_agreement' },
+	{ value: 'death', labelKey: 'terminationReasons.death' },
+];
+
+const contractTypeOptions: { value: EmploymentContractType; labelKey: string }[] = [
+	{ value: 'indefinite', labelKey: 'contractTypes.indefinite' },
+	{ value: 'fixed_term', labelKey: 'contractTypes.fixed_term' },
+	{ value: 'specific_work', labelKey: 'contractTypes.specific_work' },
 ];
 
 const ALL_FILTER_VALUE = '__all__';
@@ -392,6 +615,20 @@ function createDefaultSchedule(): EmployeeScheduleEntry[] {
  */
 function toUtcDate(dateKey: string): Date {
 	return new Date(`${dateKey}T00:00:00Z`);
+}
+
+/**
+ * Validates a date key string in YYYY-MM-DD format.
+ *
+ * @param value - Date key string to validate
+ * @returns True when the value is a valid date key
+ */
+function isValidDateKey(value: string): boolean {
+	if (!value.trim()) {
+		return false;
+	}
+	const parsed = parse(value, 'yyyy-MM-dd', new Date());
+	return isValid(parsed) && format(parsed, 'yyyy-MM-dd') === value;
 }
 
 /**
@@ -499,6 +736,12 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [hasCustomCode, setHasCustomCode] = useState<boolean>(false);
 	const [schedule, setSchedule] = useState<EmployeeScheduleEntry[]>(createDefaultSchedule());
 	const [isScheduleLoading, setIsScheduleLoading] = useState<boolean>(false);
+	const [terminationForm, setTerminationForm] = useState<TerminationFormValues>(
+		createDefaultTerminationFormValues(),
+	);
+	const [terminationPreview, setTerminationPreview] =
+		useState<EmployeeTerminationSettlement | null>(null);
+	const [isTerminateDialogOpen, setIsTerminateDialogOpen] = useState<boolean>(false);
 
 	const isCreateMode = dialogMode === 'create';
 	const isEditMode = dialogMode === 'edit';
@@ -630,6 +873,9 @@ export function EmployeesPageClient(): React.ReactElement {
 		return `${activeEmployee.firstName} ${activeEmployee.lastName}`.trim();
 	}, [activeEmployee]);
 
+	const isTerminationLocked = activeEmployee?.status === 'INACTIVE';
+	const canConfirmTermination = Boolean(terminationPreview) && !isTerminationLocked;
+
 	const activeEmployeeLocation = useMemo(() => {
 		if (!activeEmployee?.locationId) {
 			return tCommon('notAvailable');
@@ -755,6 +1001,109 @@ export function EmployeesPageClient(): React.ReactElement {
 		[resetPagination],
 	);
 
+	/**
+	 * Updates termination form values and clears any existing preview.
+	 *
+	 * @param values - Partial termination form values to apply
+	 * @returns void
+	 */
+	const updateTerminationForm = useCallback(
+		(values: Partial<TerminationFormValues>): void => {
+			setTerminationForm((prev) => ({ ...prev, ...values }));
+			setTerminationPreview(null);
+		},
+		[],
+	);
+
+	/**
+	 * Resets termination form state and clears any preview data.
+	 *
+	 * @returns void
+	 */
+	const resetTerminationState = useCallback((): void => {
+		setTerminationForm(createDefaultTerminationFormValues());
+		setTerminationPreview(null);
+		setIsTerminateDialogOpen(false);
+	}, []);
+
+	/**
+	 * Builds a termination payload from the current form state.
+	 *
+	 * @returns Termination payload or null when validation fails
+	 */
+	const buildTerminationPayload = useCallback(() => {
+		if (!activeEmployee) {
+			toast.error(t('finiquito.validation.employeeRequired'));
+			return null;
+		}
+
+		const terminationDateKey = terminationForm.terminationDateKey.trim();
+		if (!isValidDateKey(terminationDateKey)) {
+			toast.error(t('finiquito.validation.terminationDate'));
+			return null;
+		}
+
+		const lastDayWorkedDateKey = terminationForm.lastDayWorkedDateKey.trim();
+		if (lastDayWorkedDateKey && !isValidDateKey(lastDayWorkedDateKey)) {
+			toast.error(t('finiquito.validation.lastDayWorkedDate'));
+			return null;
+		}
+		if (lastDayWorkedDateKey && lastDayWorkedDateKey > terminationDateKey) {
+			toast.error(t('finiquito.validation.lastDayWorkedAfterTermination'));
+			return null;
+		}
+
+		const unpaidDays = Number(terminationForm.unpaidDays);
+		if (!Number.isFinite(unpaidDays) || unpaidDays < 0) {
+			toast.error(t('finiquito.validation.unpaidDays'));
+			return null;
+		}
+
+		const otherDue = Number(terminationForm.otherDue);
+		if (!Number.isFinite(otherDue) || otherDue < 0) {
+			toast.error(t('finiquito.validation.otherDue'));
+			return null;
+		}
+
+		const vacationBalanceDays = terminationForm.vacationBalanceDays.trim();
+		const parsedVacationBalance =
+			vacationBalanceDays === '' ? null : Number(vacationBalanceDays);
+		if (
+			parsedVacationBalance !== null &&
+			(!Number.isFinite(parsedVacationBalance) || parsedVacationBalance < 0)
+		) {
+			toast.error(t('finiquito.validation.vacationBalanceDays'));
+			return null;
+		}
+
+		const dailySalaryIndemnizacion = terminationForm.dailySalaryIndemnizacion.trim();
+		const parsedDailySalaryIndemnizacion =
+			dailySalaryIndemnizacion === '' ? null : Number(dailySalaryIndemnizacion);
+		if (
+			parsedDailySalaryIndemnizacion !== null &&
+			(!Number.isFinite(parsedDailySalaryIndemnizacion) ||
+				parsedDailySalaryIndemnizacion <= 0)
+		) {
+			toast.error(t('finiquito.validation.dailySalaryIndemnizacion'));
+			return null;
+		}
+
+		const payload: Parameters<typeof previewEmployeeTermination>[0] = {
+			employeeId: activeEmployee.id,
+			terminationDateKey,
+			lastDayWorkedDateKey: lastDayWorkedDateKey || undefined,
+			terminationReason: terminationForm.terminationReason,
+			contractType: terminationForm.contractType,
+			unpaidDays,
+			otherDue,
+			vacationBalanceDays: parsedVacationBalance,
+			dailySalaryIndemnizacion: parsedDailySalaryIndemnizacion,
+			terminationNotes: terminationForm.terminationNotes.trim() || null,
+		};
+
+		return payload;
+	}, [activeEmployee, terminationForm, t]);
+
 	const vacationBalance = insights?.vacation.balance ?? null;
 	const vacationRequests = insights?.vacation.requests ?? [];
 	const attendanceSummary = insights?.attendance ?? null;
@@ -762,6 +1111,42 @@ export function EmployeesPageClient(): React.ReactElement {
 	const upcomingExceptions = insights?.exceptions.items ?? [];
 	const payrollRuns = insights?.payroll.runs ?? [];
 	const auditEvents = auditResponse?.data ?? [];
+
+	const finiquitoLines = useMemo(() => {
+		if (!terminationPreview) {
+			return [];
+		}
+		return [
+			{ key: 'salaryDue', label: t('finiquito.breakdown.salaryDue'), value: terminationPreview.breakdown.finiquito.salaryDue },
+			{ key: 'aguinaldoProp', label: t('finiquito.breakdown.aguinaldoProp'), value: terminationPreview.breakdown.finiquito.aguinaldoProp },
+			{ key: 'vacationPay', label: t('finiquito.breakdown.vacationPay'), value: terminationPreview.breakdown.finiquito.vacationPay },
+			{ key: 'vacationPremium', label: t('finiquito.breakdown.vacationPremium'), value: terminationPreview.breakdown.finiquito.vacationPremium },
+			{ key: 'otherDue', label: t('finiquito.breakdown.otherDue'), value: terminationPreview.breakdown.finiquito.otherDue },
+		];
+	}, [terminationPreview, t]);
+
+	const liquidacionLines = useMemo(() => {
+		if (!terminationPreview) {
+			return [];
+		}
+		return [
+			{
+				key: 'indemnizacion3Meses',
+				label: t('finiquito.breakdown.indemnizacion3Meses'),
+				value: terminationPreview.breakdown.liquidacion.indemnizacion3Meses,
+			},
+			{
+				key: 'indemnizacion20Dias',
+				label: t('finiquito.breakdown.indemnizacion20Dias'),
+				value: terminationPreview.breakdown.liquidacion.indemnizacion20Dias,
+			},
+			{
+				key: 'primaAntiguedad',
+				label: t('finiquito.breakdown.primaAntiguedad'),
+				value: terminationPreview.breakdown.liquidacion.primaAntiguedad,
+			},
+		];
+	}, [terminationPreview, t]);
 
 	const auditFieldLabels = useMemo<Record<string, string>>(
 		() => ({
@@ -773,6 +1158,11 @@ export function EmployeesPageClient(): React.ReactElement {
 			jobPositionId: t('fields.jobPosition'),
 			department: t('fields.department'),
 			status: t('fields.status'),
+			terminationDateKey: t('fields.terminationDate'),
+			lastDayWorkedDateKey: t('fields.lastDayWorkedDate'),
+			terminationReason: t('fields.terminationReason'),
+			contractType: t('fields.contractType'),
+			terminationNotes: t('fields.terminationNotes'),
 			shiftType: t('fields.shiftType'),
 			hireDate: t('fields.hireDate'),
 			sbcDailyOverride: t('fields.sbcDailyOverride'),
@@ -837,6 +1227,45 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		onError: () => {
 			toast.error(t('toast.deleteError'));
+		},
+	});
+
+	// Termination preview mutation
+	const terminationPreviewMutation = useMutation({
+		mutationKey: mutationKeys.employees.previewTermination,
+		mutationFn: previewEmployeeTermination,
+		onSuccess: (result) => {
+			if (result.success && result.data) {
+				setTerminationPreview(result.data);
+			} else {
+				toast.error(result.error ?? t('finiquito.toast.previewError'));
+			}
+		},
+		onError: () => {
+			toast.error(t('finiquito.toast.previewError'));
+		},
+	});
+
+	// Termination confirm mutation
+	const terminationMutation = useMutation({
+		mutationKey: mutationKeys.employees.terminate,
+		mutationFn: terminateEmployee,
+		onSuccess: (result) => {
+			if (result.success && result.data) {
+				const terminationData = result.data;
+				toast.success(t('finiquito.toast.terminateSuccess'));
+				setIsTerminateDialogOpen(false);
+				setTerminationPreview(terminationData.settlement.calculation);
+				setActiveEmployee((prev) =>
+					prev ? { ...prev, status: terminationData.employee.status } : prev,
+				);
+				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+			} else {
+				toast.error(result.error ?? t('finiquito.toast.terminateError'));
+			}
+		},
+		onError: () => {
+			toast.error(t('finiquito.toast.terminateError'));
 		},
 	});
 
@@ -1009,16 +1438,47 @@ export function EmployeesPageClient(): React.ReactElement {
 	);
 
 	/**
+	 * Requests a finiquito preview for the active employee.
+	 *
+	 * @returns void
+	 */
+	const handleTerminationPreview = useCallback((): void => {
+		const payload = buildTerminationPayload();
+		if (!payload) {
+			return;
+		}
+		terminationPreviewMutation.mutate(payload);
+	}, [buildTerminationPayload, terminationPreviewMutation]);
+
+	/**
+	 * Confirms employee termination and persists the settlement.
+	 *
+	 * @returns void
+	 */
+	const handleTerminateEmployee = useCallback((): void => {
+		if (!terminationPreview) {
+			toast.error(t('finiquito.validation.previewRequired'));
+			return;
+		}
+		const payload = buildTerminationPayload();
+		if (!payload) {
+			return;
+		}
+		terminationMutation.mutate(payload);
+	}, [buildTerminationPayload, terminationMutation, terminationPreview, t]);
+
+	/**
 	 * Opens the dialog for creating a new employee.
 	 */
 	const handleCreateNew = useCallback((): void => {
+		resetTerminationState();
 		setDialogMode('create');
 		setActiveEmployee(null);
 		form.reset();
 		setHasCustomCode(false);
 		setSchedule(createDefaultSchedule());
 		setIsDialogOpen(true);
-	}, [form]);
+	}, [form, resetTerminationState]);
 
 	/**
 	 * Opens the dialog for viewing employee details.
@@ -1026,10 +1486,11 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @param employee - The employee to view
 	 */
 	const handleViewDetails = useCallback((employee: Employee): void => {
+		resetTerminationState();
 		setActiveEmployee(employee);
 		setDialogMode('view');
 		setIsDialogOpen(true);
-	}, []);
+	}, [resetTerminationState]);
 
 	/**
 	 * Opens the dialog for editing an existing employee.
@@ -1038,6 +1499,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const handleEdit = useCallback(
 		async (employee: Employee): Promise<void> => {
+			resetTerminationState();
 			setIsScheduleLoading(true);
 			setActiveEmployee(employee);
 			setDialogMode('edit');
@@ -1088,7 +1550,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			setIsScheduleLoading(false);
 			setIsDialogOpen(true);
 		},
-		[form],
+		[form, resetTerminationState],
 	);
 
 	/**
@@ -1115,9 +1577,10 @@ export function EmployeesPageClient(): React.ReactElement {
 				form.reset();
 				setHasCustomCode(false);
 				setSchedule(createDefaultSchedule());
+				resetTerminationState();
 			}
 		},
-		[form],
+		[form, resetTerminationState],
 	);
 
 	/**
@@ -1601,6 +2064,9 @@ export function EmployeesPageClient(): React.ReactElement {
 										<TabsTrigger value="payroll">
 											{t('tabs.payroll')}
 										</TabsTrigger>
+										<TabsTrigger value="finiquito">
+											{t('tabs.finiquito')}
+										</TabsTrigger>
 										<TabsTrigger value="exceptions">
 											{t('tabs.exceptions')}
 										</TabsTrigger>
@@ -2072,6 +2538,402 @@ export function EmployeesPageClient(): React.ReactElement {
 										</div>
 									</TabsContent>
 
+									<TabsContent value="finiquito">
+										<div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('finiquito.form.title')}
+													</CardTitle>
+													<p className="text-xs text-muted-foreground">
+														{t('finiquito.form.subtitle')}
+													</p>
+												</CardHeader>
+												<CardContent>
+													<div className="grid gap-4 sm:grid-cols-2">
+														<TerminationDateField
+															label={t('finiquito.fields.terminationDate')}
+															placeholder={t('finiquito.placeholders.terminationDate')}
+															value={terminationForm.terminationDateKey}
+															onChange={(nextValue) =>
+																updateTerminationForm({
+																	terminationDateKey: nextValue,
+																})
+															}
+															disabled={isTerminationLocked}
+														/>
+														<TerminationDateField
+															label={t('finiquito.fields.lastDayWorkedDate')}
+															placeholder={t('finiquito.placeholders.lastDayWorkedDate')}
+															value={terminationForm.lastDayWorkedDateKey}
+															onChange={(nextValue) =>
+																updateTerminationForm({
+																	lastDayWorkedDateKey: nextValue,
+																})
+															}
+															disabled={isTerminationLocked}
+														/>
+														<div className="space-y-2">
+															<Label>
+																{t('finiquito.fields.terminationReason')}
+															</Label>
+															<Select
+																value={terminationForm.terminationReason}
+																onValueChange={(value) =>
+																	updateTerminationForm({
+																		terminationReason: value as TerminationReason,
+																	})
+																}
+																disabled={isTerminationLocked}
+															>
+																<SelectTrigger>
+																	<SelectValue
+																		placeholder={t(
+																			'finiquito.placeholders.terminationReason',
+																		)}
+																	/>
+																</SelectTrigger>
+																<SelectContent>
+																	{terminationReasonOptions.map((option) => (
+																		<SelectItem
+																			key={option.value}
+																			value={option.value}
+																		>
+																			{t(option.labelKey)}
+																		</SelectItem>
+																	))}
+																</SelectContent>
+															</Select>
+														</div>
+														<div className="space-y-2">
+															<Label>{t('finiquito.fields.contractType')}</Label>
+															<Select
+																value={terminationForm.contractType}
+																onValueChange={(value) =>
+																	updateTerminationForm({
+																		contractType: value as EmploymentContractType,
+																	})
+																}
+																disabled={isTerminationLocked}
+															>
+																<SelectTrigger>
+																	<SelectValue
+																		placeholder={t(
+																			'finiquito.placeholders.contractType',
+																		)}
+																	/>
+																</SelectTrigger>
+																<SelectContent>
+																	{contractTypeOptions.map((option) => (
+																		<SelectItem
+																			key={option.value}
+																			value={option.value}
+																		>
+																			{t(option.labelKey)}
+																		</SelectItem>
+																	))}
+																</SelectContent>
+															</Select>
+														</div>
+														<div className="space-y-2">
+															<Label>{t('finiquito.fields.unpaidDays')}</Label>
+															<Input
+																type="number"
+																min="0"
+																step="0.01"
+																value={terminationForm.unpaidDays}
+																onChange={(event) =>
+																	updateTerminationForm({
+																		unpaidDays: event.target.value,
+																	})
+																}
+																placeholder={t('finiquito.placeholders.unpaidDays')}
+																disabled={isTerminationLocked}
+															/>
+														</div>
+														<div className="space-y-2">
+															<Label>{t('finiquito.fields.otherDue')}</Label>
+															<Input
+																type="number"
+																min="0"
+																step="0.01"
+																value={terminationForm.otherDue}
+																onChange={(event) =>
+																	updateTerminationForm({
+																		otherDue: event.target.value,
+																	})
+																}
+																placeholder={t('finiquito.placeholders.otherDue')}
+																disabled={isTerminationLocked}
+															/>
+														</div>
+														<div className="space-y-2">
+															<Label>
+																{t('finiquito.fields.vacationBalanceDays')}
+															</Label>
+															<Input
+																type="number"
+																min="0"
+																step="0.01"
+																value={terminationForm.vacationBalanceDays}
+																onChange={(event) =>
+																	updateTerminationForm({
+																		vacationBalanceDays: event.target.value,
+																	})
+																}
+																placeholder={t(
+																	'finiquito.placeholders.vacationBalanceDays',
+																)}
+																disabled={isTerminationLocked}
+															/>
+															<p className="text-xs text-muted-foreground">
+																{t('finiquito.helpers.vacationBalanceDays')}
+															</p>
+														</div>
+														<div className="space-y-2">
+															<Label>
+																{t('finiquito.fields.dailySalaryIndemnizacion')}
+															</Label>
+															<Input
+																type="number"
+																min="0"
+																step="0.01"
+																value={terminationForm.dailySalaryIndemnizacion}
+																onChange={(event) =>
+																	updateTerminationForm({
+																		dailySalaryIndemnizacion: event.target.value,
+																	})
+																}
+																placeholder={t(
+																	'finiquito.placeholders.dailySalaryIndemnizacion',
+																)}
+																disabled={isTerminationLocked}
+															/>
+															<p className="text-xs text-muted-foreground">
+																{t('finiquito.helpers.dailySalaryIndemnizacion')}
+															</p>
+														</div>
+														<div className="space-y-2 sm:col-span-2">
+															<Label>{t('finiquito.fields.terminationNotes')}</Label>
+															<Textarea
+																value={terminationForm.terminationNotes}
+																onChange={(event) =>
+																	updateTerminationForm({
+																		terminationNotes: event.target.value,
+																	})
+																}
+																placeholder={t(
+																	'finiquito.placeholders.terminationNotes',
+																)}
+																disabled={isTerminationLocked}
+															/>
+														</div>
+													</div>
+
+													<div className="mt-4 space-y-3">
+														<div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+															<HelpCircle className="mt-0.5 h-4 w-4" />
+															<span>
+																{t('finiquito.form.previewHint', {
+																	action: t('finiquito.actions.preview'),
+																})}
+															</span>
+														</div>
+														<div className="flex flex-wrap gap-2">
+															<Button
+																onClick={handleTerminationPreview}
+																disabled={
+																	isTerminationLocked ||
+																	terminationPreviewMutation.isPending
+																}
+															>
+																{terminationPreviewMutation.isPending ? (
+																	<>
+																		<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																		{t('finiquito.actions.previewLoading')}
+																	</>
+																) : (
+																	t('finiquito.actions.preview')
+																)}
+															</Button>
+
+															<Dialog
+																open={isTerminateDialogOpen}
+																onOpenChange={setIsTerminateDialogOpen}
+															>
+																<DialogTrigger asChild>
+																	<Button
+																		variant="destructive"
+																		disabled={
+																			!canConfirmTermination ||
+																			terminationMutation.isPending
+																		}
+																	>
+																		{terminationMutation.isPending ? (
+																			<>
+																				<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																				{t('finiquito.actions.confirmLoading')}
+																			</>
+																		) : (
+																			t('finiquito.actions.confirm')
+																		)}
+																	</Button>
+																</DialogTrigger>
+																<DialogContent>
+																	<DialogHeader>
+																		<DialogTitle>
+																			{t('finiquito.dialog.title')}
+																		</DialogTitle>
+																		<DialogDescription>
+																			{t('finiquito.dialog.description', {
+																				name: activeEmployeeName || tCommon('notAvailable'),
+																				total: terminationPreview
+																					? formatCurrency(
+																							terminationPreview.totals.grossTotal,
+																						)
+																					: tCommon('notAvailable'),
+																			})}
+																		</DialogDescription>
+																	</DialogHeader>
+																	<DialogFooter>
+																		<Button
+																			variant="outline"
+																			onClick={() => setIsTerminateDialogOpen(false)}
+																		>
+																			{tCommon('cancel')}
+																		</Button>
+																		<Button
+																			variant="destructive"
+																			onClick={handleTerminateEmployee}
+																			disabled={terminationMutation.isPending}
+																		>
+																			{terminationMutation.isPending ? (
+																				<>
+																					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																					{t('finiquito.actions.confirmLoading')}
+																				</>
+																			) : (
+																				tCommon('confirm')
+																			)}
+																		</Button>
+																	</DialogFooter>
+																</DialogContent>
+															</Dialog>
+														</div>
+													</div>
+												</CardContent>
+											</Card>
+
+											<div className="space-y-4">
+												<Card>
+													<CardHeader>
+														<CardTitle className="text-sm font-medium">
+															{t('finiquito.results.finiquitoTitle')}
+														</CardTitle>
+													</CardHeader>
+													<CardContent>
+														{terminationPreview ? (
+															<div className="space-y-2 text-sm">
+																{finiquitoLines.map((line) => (
+																	<div
+																		key={line.key}
+																		className="flex items-center justify-between"
+																	>
+																		<span>{line.label}</span>
+																		<span className="font-medium">
+																			{formatCurrency(line.value)}
+																		</span>
+																	</div>
+																))}
+																<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+																	<span>
+																		{t('finiquito.breakdown.totalGross')}
+																	</span>
+																	<span>
+																		{formatCurrency(
+																			terminationPreview.totals.finiquitoTotalGross,
+																		)}
+																	</span>
+																</div>
+															</div>
+														) : (
+															<p className="text-sm text-muted-foreground">
+																{t('finiquito.empty.preview')}
+															</p>
+														)}
+													</CardContent>
+												</Card>
+
+												<Card>
+													<CardHeader>
+														<CardTitle className="text-sm font-medium">
+															{t('finiquito.results.totalTitle')}
+														</CardTitle>
+													</CardHeader>
+													<CardContent>
+														{terminationPreview ? (
+															<div className="text-2xl font-semibold">
+																{formatCurrency(
+																	terminationPreview.totals.grossTotal,
+																)}
+															</div>
+														) : (
+															<p className="text-sm text-muted-foreground">
+																{t('finiquito.empty.preview')}
+															</p>
+														)}
+													</CardContent>
+												</Card>
+
+												<Accordion type="single" collapsible>
+													<AccordionItem value="liquidacion">
+														<AccordionTrigger>
+															{t('finiquito.results.liquidacionTitle')}
+														</AccordionTrigger>
+														<AccordionContent>
+															{terminationPreview ? (
+																<div className="space-y-2 text-sm">
+																	{liquidacionLines.map((line) => (
+																		<div
+																			key={line.key}
+																			className="flex items-center justify-between"
+																		>
+																			<span>{line.label}</span>
+																			<span className="font-medium">
+																				{formatCurrency(line.value)}
+																			</span>
+																		</div>
+																	))}
+																	<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+																		<span>
+																			{t('finiquito.breakdown.totalGross')}
+																		</span>
+																		<span>
+																			{formatCurrency(
+																				terminationPreview.totals
+																					.liquidacionTotalGross,
+																			)}
+																		</span>
+																	</div>
+																	{terminationPreview.totals
+																		.liquidacionTotalGross === 0 && (
+																		<p className="text-xs text-muted-foreground">
+																			{t('finiquito.empty.liquidacion')}
+																		</p>
+																	)}
+																</div>
+															) : (
+																<p className="text-sm text-muted-foreground">
+																	{t('finiquito.empty.preview')}
+																</p>
+															)}
+														</AccordionContent>
+													</AccordionItem>
+												</Accordion>
+											</div>
+										</div>
+									</TabsContent>
+
 									<TabsContent value="exceptions">
 										<div className="rounded-md border">
 											<Table>
@@ -2456,7 +3318,6 @@ export function EmployeesPageClient(): React.ReactElement {
 													placeholder={t('placeholders.hireDate')}
 													variant="input"
 													minYear={1950}
-													maxDate={new Date()}
 												/>
 											)}
 										</form.AppField>

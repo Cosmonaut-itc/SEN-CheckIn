@@ -1,14 +1,13 @@
 'use client';
 
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { signUp } from '@/lib/auth-client';
-import { useAppForm } from '@/lib/forms';
 import { Loader2, Lock, Mail, ShieldCheck, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { signUp } from '@/lib/auth-client';
+import { useAppForm } from '@/lib/forms';
 /**
  * Sign Up page component.
  * Provides registration form for new admin users.
@@ -16,6 +15,16 @@ import { useState } from 'react';
  * @returns The sign up page JSX element
  */
 export default function SignUpPage(): React.ReactElement {
+	return <SignUpForm />;
+}
+
+/**
+ * Sign up form component.
+ * Provides registration form for new admin users.
+ *
+ * @returns The sign up form JSX element
+ */
+function SignUpForm(): React.ReactElement {
 	const t = useTranslations('Auth');
 	const router = useRouter();
 	const [error, setError] = useState<string | null>(null);

@@ -1,10 +1,45 @@
 import { type NextRequest, NextResponse } from 'next/server';
 
+const LOCAL_API_ORIGIN = 'http://localhost:3000';
+
+/**
+ * Determines if a URL points to a localhost/loopback origin.
+ *
+ * @param value - URL string to evaluate
+ * @returns True when the URL hostname is local
+ */
+function isLocalhostUrl(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return ['localhost', '127.0.0.1', '0.0.0.0'].includes(url.hostname);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Resolves the upstream BetterAuth origin, forcing local API usage in dev/test.
+ *
+ * @returns Upstream API origin URL
+ */
+function resolveApiOrigin(): string {
+	const envUrl = process.env.NEXT_PUBLIC_API_URL;
+	if (!envUrl) {
+		return LOCAL_API_ORIGIN;
+	}
+
+	if (process.env.NODE_ENV !== 'production' && !isLocalhostUrl(envUrl)) {
+		return LOCAL_API_ORIGIN;
+	}
+
+	return envUrl;
+}
+
 /**
  * Upstream BetterAuth base URL (API service).
  * Falls back to localhost for local development.
  */
-const API_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
+const API_ORIGIN: string = resolveApiOrigin();
 const API_AUTH_BASE: string = API_ORIGIN.endsWith('/api/auth')
 	? API_ORIGIN
 	: `${API_ORIGIN}/api/auth`;
@@ -52,6 +87,7 @@ function shouldAttachDomain(cookieDomain: string): boolean {
  *
  * @param cookies - Raw Set-Cookie header values from the upstream response
  * @param host - The current web host (e.g., app.example.com)
+ * @param isSecureRequest - Whether the incoming request was over HTTPS
  * @returns Sanitized Set-Cookie header values for the client response
  */
 function rewriteSetCookieHeaders(
@@ -127,63 +163,84 @@ async function handleAuthProxy(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
 ): Promise<NextResponse> {
-	const resolvedParams = await context.params;
-	const targetUrl = buildUpstreamUrl(request, resolvedParams);
-	const isSecureRequest =
-		request.nextUrl.protocol === 'https:' ||
-		request.headers.get('x-forwarded-proto') === 'https';
-	const requestHeaders = new Headers(request.headers);
+	try {
+		const resolvedParams = await context.params;
+		const targetUrl = buildUpstreamUrl(request, resolvedParams);
+		const isSecureRequest =
+			request.nextUrl.protocol === 'https:' ||
+			request.headers.get('x-forwarded-proto') === 'https';
+		const requestHeaders = new Headers(request.headers);
 
-	// Remove hop-by-hop headers and let fetch compute content length
-	requestHeaders.delete('host');
-	requestHeaders.delete('connection');
-	requestHeaders.delete('content-length');
-	requestHeaders.set('origin', request.nextUrl.origin);
+		// Remove hop-by-hop headers and let fetch compute content length
+		requestHeaders.delete('host');
+		requestHeaders.delete('connection');
+		requestHeaders.delete('content-length');
+		requestHeaders.set('origin', request.nextUrl.origin);
 
-	const body =
-		request.method === 'GET' || request.method === 'HEAD'
-			? undefined
-			: await request.arrayBuffer();
+		const body =
+			request.method === 'GET' || request.method === 'HEAD'
+				? undefined
+				: await request.arrayBuffer();
 
-	const upstreamResponse = await fetch(targetUrl, {
-		method: request.method,
-		headers: requestHeaders,
-		body,
-		// Keep credentials to allow upstream to read cookies and issue new ones
-		credentials: 'include',
-	});
-
-	const responseHeaders = new Headers(upstreamResponse.headers);
-	// Capture and rewrite Set-Cookie headers for the web host
-	const rawSetCookies =
-		typeof upstreamResponse.headers.getSetCookie === 'function'
-			? upstreamResponse.headers.getSetCookie()
-			: (() => {
-					const single = upstreamResponse.headers.get('set-cookie');
-					return single ? [single] : [];
-				})();
-	responseHeaders.delete('set-cookie');
-
-	const proxyResponse = new NextResponse(upstreamResponse.body, {
-		status: upstreamResponse.status,
-		statusText: upstreamResponse.statusText,
-		headers: responseHeaders,
-	});
-
-	if (rawSetCookies.length > 0) {
-		const host = request.headers.get('host') ?? new URL(request.url).host;
-		const rewritten = rewriteSetCookieHeaders(rawSetCookies, host, isSecureRequest);
-		for (const cookie of rewritten) {
-			proxyResponse.headers.append('Set-Cookie', cookie);
+		let upstreamResponse: Response;
+		try {
+			upstreamResponse = await fetch(targetUrl, {
+				method: request.method,
+				headers: requestHeaders,
+				body,
+				// Keep credentials to allow upstream to read cookies and issue new ones
+				credentials: 'include',
+			});
+		} catch (error) {
+			console.error('[auth-proxy] Upstream request failed', error);
+			return NextResponse.json(
+				{ error: 'Auth proxy upstream request failed' },
+				{ status: 502 },
+			);
 		}
-	}
 
-	return proxyResponse;
+		const responseHeaders = new Headers(upstreamResponse.headers);
+		// Capture and rewrite Set-Cookie headers for the web host
+		const rawSetCookies =
+			typeof upstreamResponse.headers.getSetCookie === 'function'
+				? upstreamResponse.headers.getSetCookie()
+				: (() => {
+						const single = upstreamResponse.headers.get('set-cookie');
+						return single ? [single] : [];
+					})();
+		responseHeaders.delete('set-cookie');
+
+		const proxyResponse = new NextResponse(upstreamResponse.body, {
+			status: upstreamResponse.status,
+			statusText: upstreamResponse.statusText,
+			headers: responseHeaders,
+		});
+
+		if (rawSetCookies.length > 0) {
+			const host = request.headers.get('host') ?? new URL(request.url).host;
+			const rewritten = rewriteSetCookieHeaders(rawSetCookies, host, isSecureRequest);
+			for (const cookie of rewritten) {
+				proxyResponse.headers.append('Set-Cookie', cookie);
+			}
+		}
+
+		return proxyResponse;
+	} catch (error) {
+		console.error('[auth-proxy] Unexpected error', error);
+		return NextResponse.json({ error: 'Auth proxy failed' }, { status: 500 });
+	}
 }
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+/**
+ * Proxies GET requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function GET(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
@@ -191,6 +248,13 @@ export async function GET(
 	return handleAuthProxy(request, context);
 }
 
+/**
+ * Proxies POST requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function POST(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
@@ -198,6 +262,13 @@ export async function POST(
 	return handleAuthProxy(request, context);
 }
 
+/**
+ * Proxies PUT requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function PUT(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
@@ -205,6 +276,13 @@ export async function PUT(
 	return handleAuthProxy(request, context);
 }
 
+/**
+ * Proxies PATCH requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function PATCH(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
@@ -212,6 +290,13 @@ export async function PATCH(
 	return handleAuthProxy(request, context);
 }
 
+/**
+ * Proxies DELETE requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function DELETE(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
@@ -219,6 +304,13 @@ export async function DELETE(
 	return handleAuthProxy(request, context);
 }
 
+/**
+ * Proxies OPTIONS requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function OPTIONS(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },
@@ -226,6 +318,13 @@ export async function OPTIONS(
 	return handleAuthProxy(request, context);
 }
 
+/**
+ * Proxies HEAD requests to the BetterAuth service.
+ *
+ * @param request - Incoming Next.js request
+ * @param context - Route context containing dynamic params
+ * @returns Proxied response from the BetterAuth service
+ */
 export async function HEAD(
 	request: NextRequest,
 	context: { params: RouteParams | Promise<RouteParams> },

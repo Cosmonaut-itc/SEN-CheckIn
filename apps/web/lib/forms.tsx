@@ -12,7 +12,7 @@
 
 import React from 'react';
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
-import { format, isValid, parse, startOfDay } from 'date-fns';
+import { format, isValid, parse, startOfDay, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -365,30 +365,59 @@ export function DateField({
 	const field = useFieldContext();
 	const tCommon = useTranslations('Common');
 	const rawValue = (field.state.value as string) ?? '';
-	const parsedValue = rawValue ? parse(rawValue, 'yyyy-MM-dd', new Date()) : undefined;
+	const parsedValue = React.useMemo(
+		() => (rawValue ? parse(rawValue, 'yyyy-MM-dd', new Date()) : undefined),
+		[rawValue],
+	);
 	const isParsedValid =
 		parsedValue !== undefined &&
 		isValid(parsedValue) &&
 		format(parsedValue, 'yyyy-MM-dd') === rawValue;
-	const selectedDate = isParsedValid ? parsedValue : undefined;
-	const resolvedPlaceholder = placeholder ?? label;
-	const resolvedMinYear = minYear ?? (variant === 'input' ? 1950 : undefined);
-	const resolvedMaxDate = maxDate
-		? startOfDay(maxDate)
-		: variant === 'input'
-			? startOfDay(new Date())
-			: undefined;
-	const startMonth = resolvedMinYear ? new Date(resolvedMinYear, 0, 1) : undefined;
-	const [open, setOpen] = React.useState(false);
-	const [month, setMonth] = React.useState<Date>(
-		() => selectedDate ?? resolvedMaxDate ?? new Date(),
+	const selectedDateKey = isParsedValid ? rawValue : '';
+	const selectedDate = React.useMemo(
+		() =>
+			selectedDateKey
+				? parse(selectedDateKey, 'yyyy-MM-dd', new Date())
+				: undefined,
+		[selectedDateKey],
 	);
+	const resolvedPlaceholder = placeholder ?? label;
+	const resolvedMinYear = React.useMemo(
+		() => minYear ?? (variant === 'input' ? 1950 : undefined),
+		[minYear, variant],
+	);
+	const resolvedMaxDate = React.useMemo(() => {
+		if (maxDate) {
+			return startOfDay(maxDate);
+		}
+		if (variant === 'input') {
+			return startOfDay(new Date());
+		}
+		return undefined;
+	}, [maxDate, variant]);
+	const startMonth = React.useMemo(
+		() => (resolvedMinYear ? new Date(resolvedMinYear, 0, 1) : undefined),
+		[resolvedMinYear],
+	);
+	const [open, setOpen] = React.useState(false);
+	const initialMonth = selectedDate ?? resolvedMaxDate ?? new Date();
+	const [month, setMonth] = React.useState<Date>(() => startOfMonth(initialMonth));
 
 	React.useEffect(() => {
-		if (selectedDate) {
-			setMonth(selectedDate);
+		if (!selectedDate) {
+			return;
 		}
-	}, [selectedDate]);
+		setMonth((current) => {
+			const currentYear = current.getFullYear();
+			const currentMonth = current.getMonth();
+			const nextYear = selectedDate.getFullYear();
+			const nextMonth = selectedDate.getMonth();
+			if (currentYear === nextYear && currentMonth === nextMonth) {
+				return current;
+			}
+			return startOfMonth(selectedDate);
+		});
+	}, [selectedDate, selectedDateKey]);
 
 	const calendarRangeProps: {
 		startMonth?: Date;
@@ -409,7 +438,7 @@ export function DateField({
 		variant === 'input'
 			? {
 					month,
-					onMonthChange: setMonth,
+					onMonthChange: (nextMonth: Date) => setMonth(startOfMonth(nextMonth)),
 				}
 			: {};
 
@@ -421,7 +450,7 @@ export function DateField({
 				field.handleChange(date ? format(date, 'yyyy-MM-dd') : '');
 				field.handleBlur();
 				if (date) {
-					setMonth(date);
+					setMonth(startOfMonth(date));
 				}
 			}}
 			initialFocus
@@ -450,7 +479,7 @@ export function DateField({
 								isValid(nextParsed) &&
 								format(nextParsed, 'yyyy-MM-dd') === nextValue;
 							if (isNextValid) {
-								setMonth(nextParsed);
+								setMonth(startOfMonth(nextParsed));
 							}
 						}}
 						onBlur={field.handleBlur}

@@ -440,3 +440,122 @@ export interface EmployeeAuditEvent {
 	/** Event creation timestamp */
 	createdAt: Date;
 }
+
+// ============================================================================
+// Employee Termination (Finiquito) Types
+// ============================================================================
+
+/**
+ * Termination reason codes aligned with LFT guidance.
+ */
+export type TerminationReason =
+	| 'voluntary_resignation'
+	| 'justified_rescission'
+	| 'unjustified_dismissal'
+	| 'end_of_contract'
+	| 'mutual_agreement'
+	| 'death';
+
+/**
+ * Employment contract types for indemnization rules.
+ */
+export type EmploymentContractType = 'indefinite' | 'fixed_term' | 'specific_work';
+
+/**
+ * Input payload for termination preview and confirmation.
+ */
+export interface EmployeeTerminationPreviewInput {
+	/** Termination date key (YYYY-MM-DD). */
+	terminationDateKey: string;
+	/** Last day worked date key (YYYY-MM-DD). Defaults to terminationDateKey. */
+	lastDayWorkedDateKey?: string;
+	/** Termination reason. */
+	terminationReason: TerminationReason;
+	/** Employment contract type. */
+	contractType: EmploymentContractType;
+	/** Unpaid days to include in salary due. */
+	unpaidDays: number;
+	/** Additional pending amounts to include in finiquito. */
+	otherDue: number;
+	/** Optional vacation balance override (days, supports decimals). */
+	vacationBalanceDays?: number | null;
+	/** Optional daily salary override for indemnizations (LFT Art. 89). */
+	dailySalaryIndemnizacion?: number | null;
+	/** Optional termination notes for audit/logging. */
+	terminationNotes?: string | null;
+}
+
+/**
+ * Core finiquito breakdown.
+ */
+export interface EmployeeFiniquitoBreakdown {
+	/** Salary due for unpaid days. */
+	salaryDue: number;
+	/** Proportional aguinaldo. */
+	aguinaldoProp: number;
+	/** Vacation pay for unused days. */
+	vacationPay: number;
+	/** Vacation premium amount. */
+	vacationPremium: number;
+	/** Other pending dues. */
+	otherDue: number;
+	/** Finiquito total gross amount. */
+	totalGross: number;
+}
+
+/**
+ * Liquidation/indemnization breakdown (when applicable).
+ */
+export interface EmployeeLiquidacionBreakdown {
+	/** 3-month indemnization (Art. 48). */
+	indemnizacion3Meses: number;
+	/** 20 days per year indemnization (Art. 50). */
+	indemnizacion20Dias: number;
+	/** Prima de antigüedad (Art. 162). */
+	primaAntiguedad: number;
+	/** Liquidation total gross amount. */
+	totalGross: number;
+}
+
+/**
+ * Auditable termination settlement calculation payload.
+ */
+export interface EmployeeTerminationSettlement {
+	/** Employee identifier. */
+	employeeId: string;
+	/** Termination metadata. */
+	termination: {
+		terminationDateKey: string;
+		lastDayWorkedDateKey: string;
+		terminationReason: TerminationReason;
+		contractType: EmploymentContractType;
+	};
+	/** Inputs used for the calculation (audit trail). */
+	inputsUsed: {
+		dailySalaryBase: number;
+		dailySalaryIndemnizacion: number;
+		minimumWageDaily: number;
+		aguinaldoDaysPolicy: number;
+		vacationPremiumRatePolicy: number;
+		vacationBalanceDays: number;
+		unpaidDays: number;
+		otherDue: number;
+		aguinaldoDaysWorkedInYear: number;
+		aguinaldoYearDays: number;
+		serviceDays: number;
+		serviceYears: number;
+		serviceYearsForAntiguedad: number;
+		serviceYearsForIndemnizacion: number;
+	};
+	/** Finiquito and liquidación breakdowns. */
+	breakdown: {
+		finiquito: EmployeeFiniquitoBreakdown;
+		liquidacion: EmployeeLiquidacionBreakdown;
+	};
+	/** Totalized gross amounts. */
+	totals: {
+		finiquitoTotalGross: number;
+		liquidacionTotalGross: number;
+		grossTotal: number;
+	};
+}

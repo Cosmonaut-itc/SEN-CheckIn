@@ -14,6 +14,7 @@ import {
 	uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { randomUUID } from 'node:crypto';
+import type { EmployeeTerminationSettlement } from '@sen-checkin/types';
 
 // ============================================================================
 // Auth Tables (Managed by BetterAuth)
@@ -271,6 +272,7 @@ export const apikeyRelations = relations(apikey, ({ one }) => ({
 export const organizationRelations = relations(organization, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
+	terminationSettlements: many(employeeTerminationSettlement),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -319,6 +321,27 @@ export const attendanceType = pgEnum('attendance_type', [
  * Enum for employee status
  */
 export const employeeStatus = pgEnum('employee_status', ['ACTIVE', 'INACTIVE', 'ON_LEAVE']);
+
+/**
+ * Enum for employee termination reasons.
+ */
+export const terminationReason = pgEnum('termination_reason', [
+	'voluntary_resignation',
+	'justified_rescission',
+	'unjustified_dismissal',
+	'end_of_contract',
+	'mutual_agreement',
+	'death',
+]);
+
+/**
+ * Enum for employment contract types.
+ */
+export const employmentContractType = pgEnum('employment_contract_type', [
+	'indefinite',
+	'fixed_term',
+	'specific_work',
+]);
 
 /**
  * Enum for device status
@@ -527,6 +550,16 @@ export const employee = pgTable(
 		department: text('department'),
 		/** Employee status (ACTIVE, INACTIVE, ON_LEAVE) */
 		status: employeeStatus('status').default('ACTIVE').notNull(),
+		/** Termination date key (YYYY-MM-DD) */
+		terminationDateKey: text('termination_date_key'),
+		/** Last day worked date key (YYYY-MM-DD) */
+		lastDayWorkedDateKey: text('last_day_worked_date_key'),
+		/** Termination reason (nullable until terminated) */
+		terminationReason: terminationReason('termination_reason'),
+		/** Employment contract type (nullable until terminated) */
+		contractType: employmentContractType('contract_type'),
+		/** Optional termination notes */
+		terminationNotes: text('termination_notes'),
 		/** Employee shift type used for hour limits */
 		shiftType: shiftType('shift_type').default('DIURNA').notNull(),
 		/** Date when employee was hired */
@@ -597,6 +630,39 @@ export const employeeAuditEvent = pgTable(
 	(table) => [
 		index('employee_audit_employee_idx').on(table.employeeId),
 		index('employee_audit_org_idx').on(table.organizationId),
+	],
+);
+
+/**
+ * Employee termination settlements - auditable finiquito/liquidación snapshots.
+ */
+export const employeeTerminationSettlement = pgTable(
+	'employee_termination_settlement',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id').references(() => organization.id, {
+			onDelete: 'cascade',
+		}),
+		calculation: jsonb('calculation').$type<EmployeeTerminationSettlement>().notNull(),
+		totalsGross: numeric('totals_gross', { precision: 12, scale: 2 })
+			.default('0')
+			.notNull(),
+		finiquitoTotalGross: numeric('finiquito_total_gross', { precision: 12, scale: 2 })
+			.default('0')
+			.notNull(),
+		liquidacionTotalGross: numeric('liquidacion_total_gross', { precision: 12, scale: 2 })
+			.default('0')
+			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+	},
+	(table) => [
+		index('employee_termination_settlement_employee_idx').on(table.employeeId),
+		index('employee_termination_settlement_org_idx').on(table.organizationId),
 	],
 );
 
@@ -894,6 +960,7 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	vacationRequests: many(vacationRequest),
 	vacationRequestDays: many(vacationRequestDay),
 	auditEvents: many(employeeAuditEvent),
+	terminationSettlements: many(employeeTerminationSettlement),
 }));
 
 export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({
@@ -910,6 +977,20 @@ export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one 
 		references: [user.id],
 	}),
 }));
+
+export const employeeTerminationSettlementRelations = relations(
+	employeeTerminationSettlement,
+	({ one }) => ({
+		employee: one(employee, {
+			fields: [employeeTerminationSettlement.employeeId],
+			references: [employee.id],
+		}),
+		organization: one(organization, {
+			fields: [employeeTerminationSettlement.organizationId],
+			references: [organization.id],
+		}),
+	}),
+);
 
 export const scheduleExceptionRelations = relations(scheduleException, ({ one }) => ({
 	employee: one(employee, {

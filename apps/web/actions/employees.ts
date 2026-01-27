@@ -14,6 +14,12 @@
 
 import type { EmployeeScheduleEntry, EmployeeStatus } from '@/lib/client-functions';
 import { createServerApiClient } from '@/lib/server-api';
+import type {
+	EmployeeTerminationPreviewInput,
+	EmployeeTerminationSettlement,
+	EmploymentContractType,
+	TerminationReason,
+} from '@sen-checkin/types';
 import { headers } from 'next/headers';
 
 /**
@@ -282,6 +288,178 @@ export async function deleteEmployee(id: string): Promise<MutationResult> {
 		return {
 			success: false,
 			error: 'Failed to delete employee',
+		};
+	}
+}
+
+/**
+ * Input data for termination preview/confirmation.
+ */
+export interface EmployeeTerminationActionInput extends EmployeeTerminationPreviewInput {
+	/** Employee identifier */
+	employeeId: string;
+}
+
+/**
+ * Persisted termination settlement response payload.
+ */
+export interface EmployeeTerminationResult {
+	/** Saved settlement record */
+	settlement: {
+		id: string;
+		employeeId: string;
+		organizationId: string | null;
+		calculation: EmployeeTerminationSettlement;
+		totalsGross: number;
+		finiquitoTotalGross: number;
+		liquidacionTotalGross: number;
+		createdAt: string | Date;
+	};
+	/** Updated employee summary */
+	employee: {
+		id: string;
+		status: EmployeeStatus;
+		terminationDateKey: string | null;
+		lastDayWorkedDateKey: string | null;
+		terminationReason: TerminationReason | null;
+		contractType: EmploymentContractType | null;
+		terminationNotes: string | null;
+	};
+}
+
+type EmployeeTerminationSettlementApi = Omit<
+	EmployeeTerminationResult['settlement'],
+	'totalsGross' | 'finiquitoTotalGross' | 'liquidacionTotalGross'
+> & {
+	totalsGross: string;
+	finiquitoTotalGross: string;
+	liquidacionTotalGross: string;
+};
+
+/**
+ * Normalizes numeric string totals from the settlement record.
+ *
+ * @param settlement - Raw settlement payload from the API
+ * @returns Settlement payload with numeric totals
+ */
+function normalizeSettlementTotals(
+	settlement: EmployeeTerminationSettlementApi,
+): EmployeeTerminationResult['settlement'] {
+	return {
+		...settlement,
+		totalsGross: Number(settlement.totalsGross ?? 0),
+		finiquitoTotalGross: Number(settlement.finiquitoTotalGross ?? 0),
+		liquidacionTotalGross: Number(settlement.liquidacionTotalGross ?? 0),
+	};
+}
+
+/**
+ * Requests a termination settlement preview for an employee.
+ *
+ * @param input - Termination preview inputs
+ * @returns A promise resolving to the preview result
+ */
+export async function previewEmployeeTermination(
+	input: EmployeeTerminationActionInput,
+): Promise<MutationResult<EmployeeTerminationSettlement>> {
+	try {
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
+
+		const response = await api.employees[input.employeeId].termination.preview.post({
+			terminationDateKey: input.terminationDateKey,
+			lastDayWorkedDateKey: input.lastDayWorkedDateKey ?? undefined,
+			terminationReason: input.terminationReason,
+			contractType: input.contractType,
+			unpaidDays: input.unpaidDays,
+			otherDue: input.otherDue,
+			vacationBalanceDays: input.vacationBalanceDays ?? undefined,
+			dailySalaryIndemnizacion: input.dailySalaryIndemnizacion ?? undefined,
+			terminationNotes: input.terminationNotes ?? undefined,
+		});
+
+		if (response.error) {
+			return {
+				success: false,
+				error: 'Failed to preview termination',
+			};
+		}
+
+		const payload = response.data ?? null;
+		if (!payload || 'error' in payload) {
+			return {
+				success: false,
+				error: 'Failed to preview termination',
+			};
+		}
+
+		return {
+			success: true,
+			data: payload.data,
+		};
+	} catch (error) {
+		console.error('Failed to preview termination:', error);
+		return {
+			success: false,
+			error: 'Failed to preview termination',
+		};
+	}
+}
+
+/**
+ * Confirms an employee termination and persists the settlement.
+ *
+ * @param input - Termination inputs
+ * @returns A promise resolving to the persisted settlement result
+ */
+export async function terminateEmployee(
+	input: EmployeeTerminationActionInput,
+): Promise<MutationResult<EmployeeTerminationResult>> {
+	try {
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
+
+		const response = await api.employees[input.employeeId].termination.post({
+			terminationDateKey: input.terminationDateKey,
+			lastDayWorkedDateKey: input.lastDayWorkedDateKey ?? undefined,
+			terminationReason: input.terminationReason,
+			contractType: input.contractType,
+			unpaidDays: input.unpaidDays,
+			otherDue: input.otherDue,
+			vacationBalanceDays: input.vacationBalanceDays ?? undefined,
+			dailySalaryIndemnizacion: input.dailySalaryIndemnizacion ?? undefined,
+			terminationNotes: input.terminationNotes ?? undefined,
+		});
+
+		if (response.error) {
+			return {
+				success: false,
+				error: 'Failed to terminate employee',
+			};
+		}
+
+		const payload = response.data ?? null;
+		if (!payload || 'error' in payload) {
+			return {
+				success: false,
+				error: 'Failed to terminate employee',
+			};
+		}
+
+		return {
+			success: true,
+			data: {
+				...payload.data,
+				settlement: normalizeSettlementTotals(payload.data.settlement),
+			},
+		};
+	} catch (error) {
+		console.error('Failed to terminate employee:', error);
+		return {
+			success: false,
+			error: 'Failed to terminate employee',
 		};
 	}
 }

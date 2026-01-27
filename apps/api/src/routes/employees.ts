@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, inArray, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
 
@@ -8,6 +8,7 @@ import {
 	employee,
 	employeeAuditEvent,
 	employeeSchedule,
+	employeeTerminationSettlement,
 	jobPosition,
 	location,
 	member,
@@ -34,6 +35,10 @@ import {
 	updateEmployeeSchema,
 } from '../schemas/crud.js';
 import {
+	employeeTerminationSchema,
+	type EmployeeTerminationInput,
+} from '../schemas/termination.js';
+import {
 	employeeIdParamsSchema,
 	imageBodySchema,
 	type FaceEnrollmentResult,
@@ -46,6 +51,7 @@ import {
 	resolveEmployeeAuditActor,
 	setEmployeeAuditSkip,
 } from '../services/employee-audit.js';
+import { calculateEmployeeTerminationSettlement } from '../services/finiquito-calculation.js';
 import {
 	associateFaces,
 	createUser,
@@ -613,6 +619,181 @@ async function loadPayrollRunSummaries(
 }
 
 /**
+ * Validates employee termination request and calculates settlement.
+ * Shared logic between preview and confirm endpoints.
+ *
+ * @param args - Validation and calculation inputs
+ * @param args.employeeId - Employee UUID
+ * @param args.body - Termination request body
+ * @param args.authType - Authentication type
+ * @param args.session - User session
+ * @param args.sessionOrganizationIds - Session organization IDs
+ * @param args.apiKeyOrganizationIds - API key organization IDs
+ * @returns Object containing employee record and calculated settlement, or error details
+ */
+async function validateAndCalculateTerminationSettlement({
+	employeeId,
+	body,
+	authType,
+	session,
+	sessionOrganizationIds,
+	apiKeyOrganizationIds,
+}: {
+	employeeId: string;
+	body: EmployeeTerminationInput;
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	sessionOrganizationIds: string[];
+	apiKeyOrganizationIds: string[];
+}): Promise<
+	| {
+			success: true;
+			employeeRecord: typeof employee.$inferSelect;
+			calculation: ReturnType<typeof calculateEmployeeTerminationSettlement>;
+	  }
+	| {
+			success: false;
+			status: number;
+			message: string;
+			code?: string;
+	  }
+> {
+	const employeeRows = await db
+		.select()
+		.from(employee)
+		.where(eq(employee.id, employeeId))
+		.limit(1);
+	const employeeRecord = employeeRows[0];
+
+	if (!employeeRecord) {
+		return { success: false, status: 404, message: 'Employee not found' };
+	}
+
+	if (
+		!hasOrganizationAccess(
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+			employeeRecord.organizationId,
+		)
+	) {
+		return {
+			success: false,
+			status: 403,
+			message: 'You do not have access to this employee',
+		};
+	}
+
+	if (employeeRecord.status === 'INACTIVE' || employeeRecord.terminationDateKey) {
+		return {
+			success: false,
+			status: 409,
+			message: 'Employee already terminated',
+			code: 'EMPLOYEE_ALREADY_TERMINATED',
+		};
+	}
+
+	if (!employeeRecord.organizationId) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Employee organization is required',
+		};
+	}
+
+	if (!employeeRecord.hireDate) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Employee hire date is required',
+			code: 'MISSING_HIRE_DATE',
+		};
+	}
+
+	const hireDateKey = toDateKeyUtc(employeeRecord.hireDate);
+	if (body.terminationDateKey < hireDateKey) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Termination date cannot be before hire date',
+			code: 'INVALID_TERMINATION_DATE',
+		};
+	}
+
+	const resolvedLastDayWorkedDateKey =
+		body.lastDayWorkedDateKey ?? body.terminationDateKey;
+	if (resolvedLastDayWorkedDateKey < hireDateKey) {
+		return {
+			success: false,
+			status: 400,
+			message: 'Last day worked cannot be before hire date',
+			code: 'INVALID_LAST_DAY_WORKED_DATE',
+		};
+	}
+
+	const locationRows = employeeRecord.locationId
+		? await db
+				.select({
+					geographicZone: location.geographicZone,
+					timeZone: location.timeZone,
+				})
+				.from(location)
+				.where(eq(location.id, employeeRecord.locationId))
+				.limit(1)
+		: [];
+
+	const locationRecord = locationRows[0];
+	const timeZoneCandidate = locationRecord?.timeZone ?? 'America/Mexico_City';
+	const timeZone = isValidIanaTimeZone(timeZoneCandidate)
+		? timeZoneCandidate
+		: 'America/Mexico_City';
+
+	const settingsRows = await db
+		.select({
+			aguinaldoDays: payrollSetting.aguinaldoDays,
+			vacationPremiumRate: payrollSetting.vacationPremiumRate,
+		})
+		.from(payrollSetting)
+		.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
+		.limit(1);
+	const settingsRecord = settingsRows[0];
+
+	const vacationBalance = await buildEmployeeVacationBalance({
+		employeeId,
+		organizationId: employeeRecord.organizationId,
+		hireDate: employeeRecord.hireDate,
+		timeZone,
+		asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
+	});
+
+	const calculation = calculateEmployeeTerminationSettlement({
+		employeeId,
+		hireDate: employeeRecord.hireDate,
+		dailyPay: Number(employeeRecord.dailyPay ?? 0),
+		sbcDailyOverride:
+			employeeRecord.sbcDailyOverride === null ||
+			employeeRecord.sbcDailyOverride === undefined
+				? null
+				: Number(employeeRecord.sbcDailyOverride),
+		terminationDateKey: body.terminationDateKey,
+		lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+		terminationReason: body.terminationReason,
+		contractType: body.contractType,
+		unpaidDays: body.unpaidDays,
+		otherDue: body.otherDue,
+		vacationBalanceDays: body.vacationBalanceDays ?? null,
+		vacationUsedDays: vacationBalance.usedDays,
+		dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
+		locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
+		aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
+		vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
+	});
+
+	return { success: true, employeeRecord, calculation };
+}
+
+/**
  * Employee routes plugin for Elysia.
  * Provides CRUD operations and Rekognition face enrollment endpoints.
  */
@@ -982,6 +1163,206 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		},
 		{
 			params: idParamSchema,
+		},
+	)
+	/**
+	 * Previews termination settlement for an employee (no persistence).
+	 *
+	 * @route POST /employees/:id/termination/preview
+	 * @param id - Employee UUID
+	 * @returns Termination settlement preview payload
+	 */
+	.post(
+		'/:id/termination/preview',
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const result = await validateAndCalculateTerminationSettlement({
+				employeeId: id,
+				body,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+			});
+
+			if (!result.success) {
+				set.status = result.status;
+				return buildErrorResponse(result.message, result.status, {
+					code: result.code,
+				});
+			}
+
+			return { data: result.calculation };
+		},
+		{
+			params: idParamSchema,
+			body: employeeTerminationSchema,
+		},
+	)
+
+	/**
+	 * Confirms employee termination and persists settlement snapshot.
+	 *
+	 * @route POST /employees/:id/termination
+	 * @param id - Employee UUID
+	 * @returns Persisted settlement and employee summary
+	 */
+	.post(
+		'/:id/termination',
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const validationResult = await validateAndCalculateTerminationSettlement({
+				employeeId: id,
+				body,
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationIds,
+			});
+
+			if (!validationResult.success) {
+				set.status = validationResult.status;
+				return buildErrorResponse(validationResult.message, validationResult.status, {
+					code: validationResult.code,
+				});
+			}
+
+			const { employeeRecord, calculation } = validationResult;
+			const resolvedLastDayWorkedDateKey =
+				body.lastDayWorkedDateKey ?? body.terminationDateKey;
+
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+			const beforeSnapshot = buildEmployeeAuditSnapshot(employeeRecord);
+
+			let result;
+			try {
+				result = await db.transaction(async (tx) => {
+					await setEmployeeAuditSkip(tx);
+
+				// Update only if still active to prevent duplicate terminations.
+				const updatedRows = await tx
+					.update(employee)
+					.set({
+						status: 'INACTIVE',
+						terminationDateKey: body.terminationDateKey,
+						lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+						terminationReason: body.terminationReason,
+						contractType: body.contractType,
+						terminationNotes: body.terminationNotes?.trim() || null,
+					})
+					.where(
+						and(
+							eq(employee.id, id),
+							eq(employee.status, 'ACTIVE'),
+							isNull(employee.terminationDateKey),
+						),
+					)
+					.returning({ id: employee.id });
+
+				if (updatedRows.length === 0) {
+					throw new Error('EMPLOYEE_ALREADY_TERMINATED');
+				}
+
+				const settlementRows = await tx
+					.insert(employeeTerminationSettlement)
+					.values({
+						employeeId: id,
+						organizationId: employeeRecord.organizationId,
+						calculation,
+						totalsGross: calculation.totals.grossTotal.toFixed(2),
+						finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
+						liquidacionTotalGross: calculation.totals.liquidacionTotalGross.toFixed(2),
+					})
+					.returning({
+						id: employeeTerminationSettlement.id,
+						employeeId: employeeTerminationSettlement.employeeId,
+						organizationId: employeeTerminationSettlement.organizationId,
+						calculation: employeeTerminationSettlement.calculation,
+						totalsGross: employeeTerminationSettlement.totalsGross,
+						finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
+						liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
+						createdAt: employeeTerminationSettlement.createdAt,
+					});
+
+				const updatedRecord = (
+					await tx.select().from(employee).where(eq(employee.id, id)).limit(1)
+				)[0] ?? null;
+
+					if (updatedRecord) {
+						const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
+						const changedFields = getEmployeeAuditChangedFields(
+							beforeSnapshot,
+							afterSnapshot,
+						);
+
+						await createEmployeeAuditEvent(tx, {
+							employeeId: id,
+							organizationId: updatedRecord.organizationId,
+							action: 'terminated',
+							actorType: auditActor.actorType,
+							actorUserId: auditActor.actorUserId,
+							before: beforeSnapshot,
+							after: afterSnapshot,
+							changedFields,
+						});
+					}
+
+					return {
+						settlement: settlementRows[0] ?? null,
+						employee: updatedRecord,
+					};
+				});
+			} catch (error) {
+				if (error instanceof Error && error.message === 'EMPLOYEE_ALREADY_TERMINATED') {
+					set.status = 409;
+					return buildErrorResponse('Employee already terminated', 409, {
+						code: 'EMPLOYEE_ALREADY_TERMINATED',
+					});
+				}
+				throw error;
+			}
+
+			if (!result.settlement || !result.employee) {
+				set.status = 500;
+				return buildErrorResponse('Employee termination failed', 500);
+			}
+
+			return {
+				data: {
+					settlement: result.settlement,
+					employee: {
+						id: result.employee.id,
+						status: result.employee.status,
+						terminationDateKey: result.employee.terminationDateKey,
+						lastDayWorkedDateKey: result.employee.lastDayWorkedDateKey,
+						terminationReason: result.employee.terminationReason,
+						contractType: result.employee.contractType,
+						terminationNotes: result.employee.terminationNotes,
+					},
+				},
+			};
+		},
+		{
+			params: idParamSchema,
+			body: employeeTerminationSchema,
 		},
 	)
 
@@ -1686,6 +2067,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						jobPositionId: employee.jobPositionId,
 						department: employee.department,
 						status: employee.status,
+						terminationDateKey: employee.terminationDateKey,
+						lastDayWorkedDateKey: employee.lastDayWorkedDateKey,
+						terminationReason: employee.terminationReason,
+						contractType: employee.contractType,
+						terminationNotes: employee.terminationNotes,
 						shiftType: employee.shiftType,
 						hireDate: employee.hireDate,
 						dailyPay: employee.dailyPay,

@@ -242,6 +242,17 @@ export const queryKeys = {
 		 */
 		audit: (params: { employeeId: string; limit?: number; offset?: number }) =>
 			queryKeyConstructor(['employees', 'audit'] as const, params),
+		/**
+		 * Generates a query key for termination settlement lookup.
+		 * @param id - The employee ID
+		 */
+		terminationSettlement: (id: string) =>
+			['employees', 'termination', 'settlement', id] as const,
+		/**
+		 * Generates a query key for latest payroll run lookup.
+		 * @param id - The employee ID
+		 */
+		latestPayroll: (id: string) => ['employees', 'payroll', 'latest', id] as const,
 	},
 
 	/**

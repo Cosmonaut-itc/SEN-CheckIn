@@ -535,11 +535,15 @@ export const employee = pgTable(
 	'employee',
 	{
 		id: text('id').primaryKey(),
-		/** Unique employee code/badge number */
-		code: text('code').notNull().unique(),
-		firstName: text('first_name').notNull(),
-		lastName: text('last_name').notNull(),
-		email: text('email'),
+	/** Unique employee code/badge number */
+	code: text('code').notNull().unique(),
+	firstName: text('first_name').notNull(),
+	lastName: text('last_name').notNull(),
+	/** Employee NSS (Número de Seguridad Social) */
+	nss: text('nss'),
+	/** Employee RFC (Registro Federal de Contribuyentes) */
+	rfc: text('rfc'),
+	email: text('email'),
 		/** Contact phone number */
 		phone: text('phone'),
 		/** Reference to employee's job position */

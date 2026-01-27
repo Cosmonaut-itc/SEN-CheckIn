@@ -880,6 +880,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					code: employee.code,
 					firstName: employee.firstName,
 					lastName: employee.lastName,
+					nss: employee.nss,
+					rfc: employee.rfc,
 					email: employee.email,
 					phone: employee.phone,
 					jobPositionId: employee.jobPositionId,
@@ -961,6 +963,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					code: employee.code,
 					firstName: employee.firstName,
 					lastName: employee.lastName,
+					nss: employee.nss,
+					rfc: employee.rfc,
 					email: employee.email,
 					phone: employee.phone,
 					jobPositionId: employee.jobPositionId,
@@ -1365,6 +1369,153 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			body: employeeTerminationSchema,
 		},
 	)
+	/**
+	 * Fetches the latest termination settlement for an employee.
+	 *
+	 * @route GET /employees/:id/termination/settlement
+	 * @param id - Employee UUID
+	 * @returns Latest termination settlement record
+	 */
+	.get(
+		'/:id/termination/settlement',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this employee', 403);
+			}
+
+			const settlementRows = await db
+				.select({
+					id: employeeTerminationSettlement.id,
+					employeeId: employeeTerminationSettlement.employeeId,
+					organizationId: employeeTerminationSettlement.organizationId,
+					calculation: employeeTerminationSettlement.calculation,
+					totalsGross: employeeTerminationSettlement.totalsGross,
+					finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
+					liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
+					createdAt: employeeTerminationSettlement.createdAt,
+				})
+				.from(employeeTerminationSettlement)
+				.where(eq(employeeTerminationSettlement.employeeId, id))
+				.orderBy(desc(employeeTerminationSettlement.createdAt))
+				.limit(1);
+
+			const settlement = settlementRows[0];
+			if (!settlement) {
+				set.status = 404;
+				return buildErrorResponse('Termination settlement not found', 404);
+			}
+
+			return { data: settlement };
+		},
+		{
+			params: idParamSchema,
+		},
+	)
+	/**
+	 * Fetches the latest processed payroll run detail for an employee.
+	 *
+	 * @route GET /employees/:id/payroll/latest
+	 * @param id - Employee UUID
+	 * @returns Latest payroll run detail including tax breakdown
+	 */
+	.get(
+		'/:id/payroll/latest',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this employee', 403);
+			}
+
+			const payrollRows = await db
+				.select({
+					payrollRunId: payrollRunEmployee.payrollRunId,
+					periodStart: payrollRun.periodStart,
+					periodEnd: payrollRun.periodEnd,
+					paymentFrequency: payrollRun.paymentFrequency,
+					processedAt: payrollRun.processedAt,
+					taxBreakdown: payrollRunEmployee.taxBreakdown,
+					totalPay: payrollRunEmployee.totalPay,
+				})
+				.from(payrollRunEmployee)
+				.leftJoin(payrollRun, eq(payrollRunEmployee.payrollRunId, payrollRun.id))
+				.where(
+					and(
+						eq(payrollRunEmployee.employeeId, id),
+						eq(payrollRun.status, 'PROCESSED'),
+					),
+				)
+				.orderBy(desc(payrollRun.processedAt), desc(payrollRun.periodEnd))
+				.limit(1);
+
+			const latestPayroll = payrollRows[0];
+			if (!latestPayroll) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			return { data: latestPayroll };
+		},
+		{
+			params: idParamSchema,
+		},
+	)
 
 	/**
 	 * Returns audit events for an employee.
@@ -1478,6 +1629,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				code,
 				firstName,
 				lastName,
+				nss,
+				rfc,
 				email,
 				phone,
 				jobPositionId,
@@ -1561,6 +1714,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			const resolvedUserId = userId?.trim() ? userId.trim() : null;
+			const resolvedNss = nss?.trim() ? nss.trim() : null;
+			const resolvedRfc = rfc?.trim() ? rfc.trim() : null;
 			if (resolvedUserId) {
 				const canLink = await ensureAdminRoleForLinking(
 					{ authType, session, organizationId },
@@ -1679,6 +1834,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				code,
 				firstName,
 				lastName,
+				nss: resolvedNss,
+				rfc: resolvedRfc,
 				email: email ?? null,
 				phone: phone ?? null,
 				jobPositionId,
@@ -1959,12 +2116,20 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				userId: userIdInput,
 				code: _code,
 				dailyPay: dailyPayInput,
+				nss,
+				rfc,
 				...employeeUpdate
 			} = body;
 			void _code;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
 			};
+			if (nss !== undefined) {
+				updatePayload.nss = nss?.trim() ? nss.trim() : null;
+			}
+			if (rfc !== undefined) {
+				updatePayload.rfc = rfc?.trim() ? rfc.trim() : null;
+			}
 
 			// Store minimum wage validation result for potential warnings in response
 			let minWageValidation:
@@ -2062,6 +2227,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						code: employee.code,
 						firstName: employee.firstName,
 						lastName: employee.lastName,
+						nss: employee.nss,
+						rfc: employee.rfc,
 						email: employee.email,
 						phone: employee.phone,
 						jobPositionId: employee.jobPositionId,

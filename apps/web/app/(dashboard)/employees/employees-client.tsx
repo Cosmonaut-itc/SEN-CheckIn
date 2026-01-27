@@ -67,6 +67,7 @@ import {
 	fetchEmployeeAudit,
 	fetchEmployeeById,
 	fetchEmployeeInsights,
+	fetchEmployeeTerminationSettlement,
 	fetchEmployeesList,
 	fetchJobPositionsList,
 	fetchLocationsList,
@@ -139,6 +140,10 @@ interface EmployeeFormValues {
 	firstName: string;
 	/** Employee's last name */
 	lastName: string;
+	/** Employee NSS (Número de Seguridad Social) */
+	nss: string;
+	/** Employee RFC (Registro Federal de Contribuyentes) */
+	rfc: string;
 	/** Employee's email address */
 	email: string;
 	/** Linked user ID */
@@ -523,6 +528,8 @@ const initialFormValues: EmployeeFormValues = {
 	code: '',
 	firstName: '',
 	lastName: '',
+	nss: '',
+	rfc: '',
 	email: '',
 	userId: 'none',
 	phone: '',
@@ -832,6 +839,14 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: insightsEnabled,
 	});
 
+	const terminationSettlementEnabled =
+		Boolean(activeEmployee?.id) && isDialogOpen && isViewMode;
+	const { data: terminationSettlement, isLoading: isLoadingTerminationSettlement } = useQuery({
+		queryKey: queryKeys.employees.terminationSettlement(activeEmployee?.id ?? ''),
+		queryFn: () => fetchEmployeeTerminationSettlement(activeEmployee?.id ?? ''),
+		enabled: terminationSettlementEnabled,
+	});
+
 	const auditParams = useMemo(
 		() => ({
 			employeeId: activeEmployee?.id ?? '',
@@ -875,6 +890,10 @@ export function EmployeesPageClient(): React.ReactElement {
 
 	const isTerminationLocked = activeEmployee?.status === 'INACTIVE';
 	const canConfirmTermination = Boolean(terminationPreview) && !isTerminationLocked;
+	const canDownloadTerminationReceipt = Boolean(terminationSettlement);
+	const terminationReceiptUrl = activeEmployee?.id
+		? `/api/employees/${activeEmployee.id}/termination/receipt`
+		: '#';
 
 	const activeEmployeeLocation = useMemo(() => {
 		if (!activeEmployee?.locationId) {
@@ -1153,6 +1172,8 @@ export function EmployeesPageClient(): React.ReactElement {
 			code: t('fields.code'),
 			firstName: t('fields.firstName'),
 			lastName: t('fields.lastName'),
+			nss: t('fields.nss'),
+			rfc: t('fields.rfc'),
 			email: t('fields.email'),
 			phone: t('fields.phone'),
 			jobPositionId: t('fields.jobPosition'),
@@ -1260,6 +1281,11 @@ export function EmployeesPageClient(): React.ReactElement {
 					prev ? { ...prev, status: terminationData.employee.status } : prev,
 				);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+				queryClient.invalidateQueries({
+					queryKey: queryKeys.employees.terminationSettlement(
+						terminationData.employee.id,
+					),
+				});
 			} else {
 				toast.error(result.error ?? t('finiquito.toast.terminateError'));
 			}
@@ -1300,6 +1326,8 @@ export function EmployeesPageClient(): React.ReactElement {
 			const trimmedHireDate = value.hireDate.trim();
 			const trimmedPeriodPay = value.periodPay.trim();
 			const trimmedSbcOverride = value.sbcDailyOverride.trim();
+			const trimmedNss = value.nss.trim();
+			const trimmedRfc = value.rfc.trim();
 			const parsedPeriodPay =
 				trimmedPeriodPay === '' ? Number.NaN : Number(trimmedPeriodPay);
 			if (!Number.isFinite(parsedPeriodPay) || parsedPeriodPay <= 0) {
@@ -1328,6 +1356,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					id: activeEmployee.id,
 					firstName: value.firstName,
 					lastName: value.lastName,
+					nss: trimmedNss === '' ? null : trimmedNss,
+					rfc: trimmedRfc === '' ? null : trimmedRfc,
 					email: value.email || undefined,
 					userId: resolvedUserIdForUpdate,
 					phone: value.phone || undefined,
@@ -1352,6 +1382,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					code: value.code,
 					firstName: value.firstName,
 					lastName: value.lastName,
+					nss: trimmedNss === '' ? undefined : trimmedNss,
+					rfc: trimmedRfc === '' ? undefined : trimmedRfc,
 					email: value.email || undefined,
 					userId: resolvedUserIdForCreate,
 					phone: value.phone || undefined,
@@ -1506,6 +1538,8 @@ export function EmployeesPageClient(): React.ReactElement {
 			form.setFieldValue('code', employee.code);
 			form.setFieldValue('firstName', employee.firstName);
 			form.setFieldValue('lastName', employee.lastName);
+			form.setFieldValue('nss', employee.nss ?? '');
+			form.setFieldValue('rfc', employee.rfc ?? '');
 			form.setFieldValue('email', employee.email ?? '');
 			form.setFieldValue('userId', employee.userId ?? 'none');
 			form.setFieldValue('phone', employee.phone ?? '');
@@ -2027,6 +2061,22 @@ export function EmployeesPageClient(): React.ReactElement {
 											</p>
 											<p className="font-medium">
 												{activeEmployee?.phone ?? tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.nss')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.nss ?? tCommon('notAvailable')}
+											</p>
+										</div>
+										<div className="space-y-1">
+											<p className="text-muted-foreground">
+												{t('fields.rfc')}
+											</p>
+											<p className="font-medium">
+												{activeEmployee?.rfc ?? tCommon('notAvailable')}
 											</p>
 										</div>
 										<div className="space-y-1">
@@ -2819,6 +2869,34 @@ export function EmployeesPageClient(): React.ReactElement {
 																	</DialogFooter>
 																</DialogContent>
 															</Dialog>
+															{canDownloadTerminationReceipt ? (
+																<Button variant="outline" asChild>
+																	<a
+																		href={terminationReceiptUrl}
+																		target="_blank"
+																		rel="noopener noreferrer"
+																	>
+																		{t('finiquito.actions.downloadReceipt')}
+																	</a>
+																</Button>
+															) : (
+																<Button
+																	variant="outline"
+																	disabled={
+																		isLoadingTerminationSettlement ||
+																		!canDownloadTerminationReceipt
+																	}
+																>
+																	{isLoadingTerminationSettlement ? (
+																		<>
+																			<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																			{t('finiquito.actions.downloadReceiptLoading')}
+																		</>
+																	) : (
+																		t('finiquito.actions.downloadReceipt')
+																	)}
+																</Button>
+															)}
 														</div>
 													</div>
 												</CardContent>
@@ -3145,6 +3223,26 @@ export function EmployeesPageClient(): React.ReactElement {
 										>
 											{(field) => (
 												<field.TextField label={t('fields.lastName')} />
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="nss">
+											{(field) => (
+												<field.TextField
+													label={t('fields.nss')}
+													placeholder={tCommon('optional')}
+												/>
+											)}
+										</form.AppField>
+									</div>
+									<div className="col-span-2 sm:col-span-1">
+										<form.AppField name="rfc">
+											{(field) => (
+												<field.TextField
+													label={t('fields.rfc')}
+													placeholder={tCommon('optional')}
+												/>
 											)}
 										</form.AppField>
 									</div>

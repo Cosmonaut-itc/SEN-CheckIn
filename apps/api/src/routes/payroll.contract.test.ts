@@ -100,6 +100,19 @@ describe('payroll routes (contract)', () => {
 			throw new Error('Expected payroll run in detail response.');
 		}
 		expect(run.id).toBe(runId);
+		const employees = (detail as { employees?: Array<{ employeeName?: string; employeeCode?: string }> })
+			.employees;
+		if (!employees) {
+			throw new Error('Expected payroll run employees in detail response.');
+		}
+		if (employees.length > 0) {
+			for (const employee of employees) {
+				expect(typeof employee.employeeName).toBe('string');
+				expect(employee.employeeName?.length).toBeGreaterThan(0);
+				expect(typeof employee.employeeCode).toBe('string');
+				expect(employee.employeeCode?.length).toBeGreaterThan(0);
+			}
+		}
 	});
 
 	it('returns 404 for unknown payroll runs', async () => {

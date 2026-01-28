@@ -89,8 +89,12 @@ export async function GET(
 		organizationName: adminContext.organization.organizationName ?? undefined,
 	});
 
+	const resolvedEmployeeCode =
+		employee.employeeCode?.trim() ||
+		(employee.employeeId ?? employee.id ? `empleado-${employee.employeeId ?? employee.id}` : '');
 	const fileName = buildPayrollReceiptFileName({
-		employeeCode: employee.employeeCode,
+		employeeCode: resolvedEmployeeCode,
+		employeeId: employee.employeeId ?? employee.id,
 		periodStart: detail.run.periodStart,
 		periodEnd: detail.run.periodEnd,
 	});

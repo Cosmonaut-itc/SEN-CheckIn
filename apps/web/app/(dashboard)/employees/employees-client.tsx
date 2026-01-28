@@ -61,6 +61,7 @@ import {
 	type Employee,
 	type EmployeeScheduleEntry,
 	type EmployeeStatus,
+	type EmployeeTerminationSettlementRecord,
 	type JobPosition,
 	type Location,
 	type OrganizationMember,
@@ -1276,6 +1277,13 @@ export function EmployeesPageClient(): React.ReactElement {
 		onSuccess: (result) => {
 			if (result.success && result.data) {
 				const terminationData = result.data;
+				const resolvedSettlement: EmployeeTerminationSettlementRecord = {
+					...terminationData.settlement,
+					totalsGross: Number(terminationData.settlement.totalsGross ?? 0),
+					finiquitoTotalGross: Number(terminationData.settlement.finiquitoTotalGross ?? 0),
+					liquidacionTotalGross: Number(terminationData.settlement.liquidacionTotalGross ?? 0),
+					createdAt: new Date(terminationData.settlement.createdAt),
+				};
 				toast.success(t('finiquito.toast.terminateSuccess'));
 				setIsTerminateDialogOpen(false);
 				setTerminationPreview(terminationData.settlement.calculation);
@@ -1283,6 +1291,10 @@ export function EmployeesPageClient(): React.ReactElement {
 					prev ? { ...prev, status: terminationData.employee.status } : prev,
 				);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+				queryClient.setQueryData(
+					queryKeys.employees.terminationSettlement(terminationData.employee.id),
+					resolvedSettlement,
+				);
 				queryClient.invalidateQueries({
 					queryKey: queryKeys.employees.terminationSettlement(
 						terminationData.employee.id,

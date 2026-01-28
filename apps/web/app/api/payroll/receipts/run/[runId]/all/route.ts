@@ -38,6 +38,34 @@ function buildZipResponse(zipBytes: ArrayBuffer, fileName: string): NextResponse
 }
 
 /**
+ * Ensures filenames are unique by appending an index when needed.
+ *
+ * @param fileName - Base filename to check
+ * @param usedNames - Set of filenames already used
+ * @returns Unique filename safe to add to the ZIP
+ */
+function resolveUniqueFileName(fileName: string, usedNames: Set<string>): string {
+	if (!usedNames.has(fileName)) {
+		usedNames.add(fileName);
+		return fileName;
+	}
+
+	const extensionIndex = fileName.lastIndexOf('.');
+	const baseName = extensionIndex >= 0 ? fileName.slice(0, extensionIndex) : fileName;
+	const extension = extensionIndex >= 0 ? fileName.slice(extensionIndex) : '';
+
+	let counter = 2;
+	let candidate = `${baseName}_${counter}${extension}`;
+	while (usedNames.has(candidate)) {
+		counter += 1;
+		candidate = `${baseName}_${counter}${extension}`;
+	}
+
+	usedNames.add(candidate);
+	return candidate;
+}
+
+/**
  * Resolves the cookie header from the incoming request.
  *
  * @returns Cookie header string or empty string
@@ -62,18 +90,24 @@ async function buildPayrollReceiptsZip(args: {
 	organizationName?: string | null;
 }): Promise<ArrayBuffer> {
 	const zip = new JSZip();
+	const usedFileNames = new Set<string>();
 
 	await Promise.all(
 		args.employees.map(async (employee) => {
+			const resolvedEmployeeCode =
+				employee.employeeCode?.trim() ||
+				(employee.employeeId ?? employee.id ? `empleado-${employee.employeeId ?? employee.id}` : '');
+			const baseFileName = buildPayrollReceiptFileName({
+				employeeCode: resolvedEmployeeCode,
+				employeeId: employee.employeeId ?? employee.id,
+				periodStart: args.run.periodStart,
+				periodEnd: args.run.periodEnd,
+			});
+			const fileName = resolveUniqueFileName(baseFileName, usedFileNames);
 			const pdfBytes = await buildPayrollReceiptPdf({
 				run: args.run,
 				employee,
 				organizationName: args.organizationName ?? undefined,
-			});
-			const fileName = buildPayrollReceiptFileName({
-				employeeCode: employee.employeeCode,
-				periodStart: args.run.periodStart,
-				periodEnd: args.run.periodEnd,
 			});
 			zip.file(fileName, pdfBytes);
 		}),

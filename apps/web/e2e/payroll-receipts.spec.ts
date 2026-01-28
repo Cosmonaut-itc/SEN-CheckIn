@@ -2,6 +2,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { format } from 'date-fns';
 import { readFile } from 'node:fs/promises';
+import JSZip from 'jszip';
 
 import { buildTestRegistrationPayload, registerTestAccounts, signIn } from './helpers/auth';
 
@@ -157,6 +158,7 @@ test('downloads payroll receipts and termination receipt PDFs', async ({ page })
 	const locationId = await createLocation(request, registration.organizationName);
 	const jobPositionId = await createJobPosition(request);
 	const employeeId = await createEmployee(request, { jobPositionId, locationId });
+	await createEmployee(request, { jobPositionId, locationId });
 
 	const periodStartDateKey = '2026-01-01';
 	const periodEndDateKey = '2026-01-07';
@@ -186,6 +188,19 @@ test('downloads payroll receipts and termination receipt PDFs', async ({ page })
 	}
 	const zipBuffer = await readFile(zipPath);
 	expect(zipBuffer.subarray(0, 2).toString('utf8')).toBe('PK');
+	const zip = await JSZip.loadAsync(zipBuffer);
+	const zipEntries = Object.values(zip.files).filter(
+		(entry) => !entry.dir && entry.name.endsWith('.pdf'),
+	);
+	expect(zipEntries).toHaveLength(2);
+	const zipEntryNames = zipEntries.map((entry) => entry.name);
+	expect(new Set(zipEntryNames).size).toBe(2);
+	const zipPdfBuffers = await Promise.all(
+		zipEntries.map(async (entry) => Buffer.from(await entry.async('uint8array'))),
+	);
+	for (const pdfBuffer of zipPdfBuffers) {
+		expect(pdfBuffer.subarray(0, 5).toString('utf8')).toBe('%PDF-');
+	}
 
 	const [pdfDownload] = await Promise.all([
 		page.waitForEvent('download'),

@@ -35,19 +35,25 @@ export function sanitizeFileNamePart(value: string, fallback = FILE_PART_FALLBAC
  *
  * @param args - File name inputs
  * @param args.employeeCode - Employee code used in the filename
+ * @param args.employeeId - Employee identifier used as a fallback for uniqueness
  * @param args.periodStart - Payroll period start date
  * @param args.periodEnd - Payroll period end date
  * @returns Payroll receipt filename
  */
 export function buildPayrollReceiptFileName(args: {
 	employeeCode?: string | null;
+	employeeId?: string | null;
 	periodStart: Date;
 	periodEnd: Date;
 }): string {
-	const codePart = sanitizeFileNamePart(args.employeeCode ?? '', 'empleado');
+	const codePart = sanitizeFileNamePart(args.employeeCode ?? '', '');
+	const idPart = sanitizeFileNamePart(args.employeeId ?? '', '');
+	const identifier =
+		codePart ||
+		(idPart ? `empleado-${idPart.slice(0, 8)}` : 'empleado');
 	const startKey = formatDateKey(args.periodStart);
 	const endKey = formatDateKey(args.periodEnd);
-	return `recibo_nomina_${codePart}_${startKey}_${endKey}.pdf`;
+	return `recibo_nomina_${identifier}_${startKey}_${endKey}.pdf`;
 }
 
 /**

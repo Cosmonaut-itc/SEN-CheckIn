@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { paginationSchema } from './crud.js';
 import { dateKeySchema } from './vacations.js';
 
-const MAX_INCAPACITY_RANGE_DAYS = 2000;
+export const MAX_INCAPACITY_RANGE_DAYS = 2000;
 
 /**
  * Incapacity type enumeration.

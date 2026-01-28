@@ -691,31 +691,31 @@ export function IncapacitiesPageClient(): React.ReactElement {
 							<createForm.AppForm>
 								<div className="grid gap-4 md:grid-cols-2">
 									<createForm.AppField name="employeeId">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.employee'),
-												placeholder: t('form.placeholders.employee'),
-												options: employees.map((emp) => ({
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.employee')}
+												placeholder={t('form.placeholders.employee')}
+												options={employees.map((emp) => ({
 													label: `${emp.firstName} ${emp.lastName}`,
 													value: emp.id,
-												})),
-											})
-										}
+												}))}
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="caseId">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.caseId'),
-												placeholder: t('form.placeholders.caseId'),
-											})
-										}
+										{(field) => (
+											<field.TextField
+												label={t('form.fields.caseId')}
+												placeholder={t('form.placeholders.caseId')}
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="type">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.type'),
-												placeholder: t('form.placeholders.type'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.type')}
+												placeholder={t('form.placeholders.type')}
+												options={[
 													{ label: t('type.EG'), value: 'EG' },
 													{ label: t('type.RT'), value: 'RT' },
 													{ label: t('type.MAT'), value: 'MAT' },
@@ -723,61 +723,51 @@ export function IncapacitiesPageClient(): React.ReactElement {
 														label: t('type.LIC140BIS'),
 														value: 'LIC140BIS',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="startDateKey">
-										{(field) =>
-											field.DateField({
-												label: t('form.fields.startDate'),
-											})
-										}
+										{(field) => <field.DateField label={t('form.fields.startDate')} />}
 									</createForm.AppField>
 									<createForm.AppField name="endDateKey">
-										{(field) =>
-											field.DateField({
-												label: t('form.fields.endDate'),
-											})
-										}
+										{(field) => <field.DateField label={t('form.fields.endDate')} />}
 									</createForm.AppField>
 									<createForm.AppField name="daysAuthorized">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.daysAuthorized'),
-												type: 'number',
-											})
-										}
+										{(field) => (
+											<field.TextField
+												label={t('form.fields.daysAuthorized')}
+												type="number"
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="certificateFolio">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.certificateFolio'),
-												placeholder: t(
-													'form.placeholders.certificateFolio',
-												),
-											})
-										}
+										{(field) => (
+											<field.TextField
+												label={t('form.fields.certificateFolio')}
+												placeholder={t('form.placeholders.certificateFolio')}
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="issuedBy">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.issuedBy'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.issuedBy')}
+												options={[
 													{ label: t('issuedBy.IMSS'), value: 'IMSS' },
 													{
 														label: t('issuedBy.recognized_by_IMSS'),
 														value: 'recognized_by_IMSS',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="sequence">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.sequence'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.sequence')}
+												options={[
 													{
 														label: t('sequence.inicial'),
 														value: 'inicial',
@@ -790,17 +780,17 @@ export function IncapacitiesPageClient(): React.ReactElement {
 														label: t('sequence.recaida'),
 														value: 'recaida',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</createForm.AppField>
 									<createForm.AppField name="percentOverride">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.percentOverride'),
-												placeholder: t('form.placeholders.percentOverride'),
-											})
-										}
+										{(field) => (
+											<field.TextField
+												label={t('form.fields.percentOverride')}
+												placeholder={t('form.placeholders.percentOverride')}
+											/>
+										)}
 									</createForm.AppField>
 								</div>
 								<DialogFooter className="mt-4">
@@ -974,17 +964,13 @@ export function IncapacitiesPageClient(): React.ReactElement {
 							<editForm.AppForm>
 								<div className="grid gap-4 md:grid-cols-2">
 									<editForm.AppField name="caseId">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.caseId'),
-											})
-										}
+										{(field) => <field.TextField label={t('form.fields.caseId')} />}
 									</editForm.AppField>
 									<editForm.AppField name="type">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.type'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.type')}
+												options={[
 													{ label: t('type.EG'), value: 'EG' },
 													{ label: t('type.RT'), value: 'RT' },
 													{ label: t('type.MAT'), value: 'MAT' },
@@ -992,54 +978,48 @@ export function IncapacitiesPageClient(): React.ReactElement {
 														label: t('type.LIC140BIS'),
 														value: 'LIC140BIS',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</editForm.AppField>
 									<editForm.AppField name="startDateKey">
-										{(field) =>
-											field.DateField({ label: t('form.fields.startDate') })
-										}
+										{(field) => <field.DateField label={t('form.fields.startDate')} />}
 									</editForm.AppField>
 									<editForm.AppField name="endDateKey">
-										{(field) =>
-											field.DateField({ label: t('form.fields.endDate') })
-										}
+										{(field) => <field.DateField label={t('form.fields.endDate')} />}
 									</editForm.AppField>
 									<editForm.AppField name="daysAuthorized">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.daysAuthorized'),
-												type: 'number',
-											})
-										}
+										{(field) => (
+											<field.TextField
+												label={t('form.fields.daysAuthorized')}
+												type="number"
+											/>
+										)}
 									</editForm.AppField>
 									<editForm.AppField name="certificateFolio">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.certificateFolio'),
-											})
-										}
+										{(field) => (
+											<field.TextField label={t('form.fields.certificateFolio')} />
+										)}
 									</editForm.AppField>
 									<editForm.AppField name="issuedBy">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.issuedBy'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.issuedBy')}
+												options={[
 													{ label: t('issuedBy.IMSS'), value: 'IMSS' },
 													{
 														label: t('issuedBy.recognized_by_IMSS'),
 														value: 'recognized_by_IMSS',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</editForm.AppField>
 									<editForm.AppField name="sequence">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.sequence'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.sequence')}
+												options={[
 													{
 														label: t('sequence.inicial'),
 														value: 'inicial',
@@ -1052,31 +1032,31 @@ export function IncapacitiesPageClient(): React.ReactElement {
 														label: t('sequence.recaida'),
 														value: 'recaida',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</editForm.AppField>
 									<editForm.AppField name="percentOverride">
-										{(field) =>
-											field.TextField({
-												label: t('form.fields.percentOverride'),
-												placeholder: t('form.placeholders.percentOverride'),
-											})
-										}
+										{(field) => (
+											<field.TextField
+												label={t('form.fields.percentOverride')}
+												placeholder={t('form.placeholders.percentOverride')}
+											/>
+										)}
 									</editForm.AppField>
 									<editForm.AppField name="status">
-										{(field) =>
-											field.SelectField({
-												label: t('form.fields.status'),
-												options: [
+										{(field) => (
+											<field.SelectField
+												label={t('form.fields.status')}
+												options={[
 													{ label: t('status.ACTIVE'), value: 'ACTIVE' },
 													{
 														label: t('status.CANCELLED'),
 														value: 'CANCELLED',
 													},
-												],
-											})
-										}
+												]}
+											/>
+										)}
 									</editForm.AppField>
 								</div>
 								<DialogFooter className="mt-4">

@@ -117,11 +117,36 @@ describe('vacation routes (contract)', () => {
 	});
 
 	it('creates and approves vacation requests as admin', async () => {
-		const startDateKey = addDaysToDateKey('2030-01-15', 10);
+		const hireDate = new Date('2020-01-01T00:00:00Z');
+		const createEmployeeResponse = await client.employees.post({
+			code: `VAC-${Date.now()}`,
+			firstName: 'Vacaciones',
+			lastName: 'Admin',
+			email: `vacaciones.admin.${Date.now()}@example.com`,
+			phone: '+52 55 0000 0000',
+			jobPositionId: seed.jobPositionId,
+			locationId: seed.locationId,
+			organizationId: seed.organizationId,
+			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
+			hireDate,
+			dailyPay: 500,
+			paymentFrequency: 'BIWEEKLY',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createEmployeeResponse.status).toBe(201);
+		const createEmployeePayload = requireResponseData(createEmployeeResponse);
+		const createdEmployee = createEmployeePayload.data;
+		if (!createdEmployee?.id) {
+			throw new Error('Expected employee record in admin vacation create test.');
+		}
+
+		const startDateKey = '2026-12-15';
 		const endDateKey = addDaysToDateKey(startDateKey, 1);
 
 		const createResponse = await client.vacations.requests.post({
-			employeeId: seed.employeeId,
+			employeeId: createdEmployee.id,
 			startDateKey,
 			endDateKey,
 			status: 'SUBMITTED',

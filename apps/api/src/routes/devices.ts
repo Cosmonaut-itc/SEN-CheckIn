@@ -216,7 +216,10 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			if (existing[0]) {
 				if (existing[0].organizationId && existing[0].organizationId !== organizationId) {
 					set.status = 403;
-					return buildErrorResponse('Device code is registered to another organization', 403);
+					return buildErrorResponse(
+						'Device code is registered to another organization',
+						403,
+					);
 				}
 
 				const updates: Partial<typeof device.$inferInsert> = {

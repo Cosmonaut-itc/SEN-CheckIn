@@ -7,6 +7,7 @@ import db from '../db/index.js';
 import {
 	attendanceRecord,
 	employee,
+	employeeIncapacity,
 	employeeSchedule,
 	location,
 	organization,
@@ -30,6 +31,7 @@ import {
 	type AttendanceRow,
 	type PayrollCalculationRow,
 } from '../services/payroll-calculation.js';
+import type { IncapacityRecordInput } from '../services/incapacities.js';
 import {
 	buildEmployeeAuditSnapshot,
 	createEmployeeAuditEvent,
@@ -190,7 +192,51 @@ const calculatePayroll = async (args: {
 		vacationDayCounts[row.employeeId] = (vacationDayCounts[row.employeeId] ?? 0) + 1;
 	}
 
-	const { employees: results, totalAmount, taxSummary } = calculatePayrollFromData({
+	const incapacityRows =
+		employeeIds.length === 0
+			? []
+			: await db
+					.select({
+						id: employeeIncapacity.id,
+						employeeId: employeeIncapacity.employeeId,
+						caseId: employeeIncapacity.caseId,
+						type: employeeIncapacity.type,
+						satTipoIncapacidad: employeeIncapacity.satTipoIncapacidad,
+						startDateKey: employeeIncapacity.startDateKey,
+						endDateKey: employeeIncapacity.endDateKey,
+						daysAuthorized: employeeIncapacity.daysAuthorized,
+						percentOverride: employeeIncapacity.percentOverride,
+					})
+					.from(employeeIncapacity)
+					.where(
+						and(
+							eq(employeeIncapacity.organizationId, organizationId),
+							inArray(employeeIncapacity.employeeId, employeeIds),
+							eq(employeeIncapacity.status, 'ACTIVE'),
+							lte(employeeIncapacity.startDateKey, periodEndDateKey),
+							gte(employeeIncapacity.endDateKey, periodStartDateKey),
+						),
+					);
+
+	const incapacityRecordsByEmployee: Record<string, IncapacityRecordInput[]> = {};
+	for (const row of incapacityRows) {
+		if (!incapacityRecordsByEmployee[row.employeeId]) {
+			incapacityRecordsByEmployee[row.employeeId] = [];
+		}
+		incapacityRecordsByEmployee[row.employeeId]?.push({
+			...row,
+			percentOverride:
+				row.percentOverride !== null && row.percentOverride !== undefined
+					? Number(row.percentOverride)
+					: null,
+		});
+	}
+
+	const {
+		employees: results,
+		totalAmount,
+		taxSummary,
+	} = calculatePayrollFromData({
 		employees: filteredEmployees,
 		schedules,
 		attendanceRows,
@@ -203,6 +249,7 @@ const calculatePayroll = async (args: {
 		defaultTimeZone: timeZone,
 		payrollSettings: payrollSettingsSnapshot,
 		vacationDayCounts,
+		incapacityRecordsByEmployee,
 	});
 
 	return {
@@ -581,7 +628,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEnd: line.periodEnd,
 				createdAt: line.createdAt,
 				updatedAt: line.updatedAt,
-				employeeName: `${line.employeeFirstName ?? ''} ${line.employeeLastName ?? ''}`.trim(),
+				employeeName:
+					`${line.employeeFirstName ?? ''} ${line.employeeLastName ?? ''}`.trim(),
 				employeeCode: line.employeeCode ?? '',
 				employeeNss: line.employeeNss ?? null,
 				employeeRfc: line.employeeRfc ?? null,

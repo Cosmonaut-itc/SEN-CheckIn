@@ -2,43 +2,43 @@
 name: Employee details + audit (v2)
 overview: Rediseñar el diálogo de empleado como vista central de Detalles con edición explícita y campos inmutables, agregar insights (vacaciones/nómina/ausencias/licencias/excepciones) y auditoría end-to-end híbrida. Incluye mostrar días de vacaciones disponibles con tooltip explicando el cálculo.
 todos:
-  - id: ui-details-modes
-    content: Implementar modos `create|view|edit` en `apps/web/app/(dashboard)/employees/employees-client.tsx` y cambiar la acción a “Ver detalles” + botón “Editar” interno.
-    status: pending
-  - id: ui-vacation-balance-tooltip
-    content: Agregar tarjeta “Días disponibles” y tooltip explicando cálculo (asignados/usados/pendientes/disponibles, año de servicio y corte) con `next-intl`.
-    status: pending
-    dependencies:
-      - ui-details-modes
-  - id: api-employee-insights
-    content: Agregar `GET /employees/:id/insights` en `apps/api/src/routes/employees.ts` para alimentar el diálogo (vacaciones/nómina/ausencias/licencias/excepciones) con ventanas estándar.
-    status: pending
-  - id: immutability-code-hiredate
-    content: "Bloquear `code` y `hireDate` en edición: ajustar `updateEmployeeSchema` (rechazo), route de employees, y `apps/web/actions/employees.ts` para no enviar esos campos."
-    status: pending
-    dependencies:
-      - ui-details-modes
-  - id: audit-schema-migration
-    content: Crear tabla `employee_audit_event` en `apps/api/src/db/schema.ts` + migración Drizzle en `apps/api/drizzle/`.
-    status: pending
-  - id: audit-api-triggers
-    content: Implementar auditoría híbrida (API con actor + triggers de respaldo) y exponer `GET /employees/:id/audit`.
-    status: pending
-    dependencies:
-      - audit-schema-migration
-  - id: i18n-web
-    content: Agregar llaves en `apps/web/messages/es.json` para tabs, KPI, tooltip de balance de vacaciones, y auditoría (sin strings hardcodeadas).
-    status: pending
-    dependencies:
-      - ui-vacation-balance-tooltip
-  - id: run-checks
-    content: "Al finalizar: correr `bun run check-types` y `bun run lint` y corregir errores."
-    status: pending
-    dependencies:
-      - i18n-web
-      - api-employee-insights
-      - immutability-code-hiredate
-      - audit-api-triggers
+    - id: ui-details-modes
+      content: Implementar modos `create|view|edit` en `apps/web/app/(dashboard)/employees/employees-client.tsx` y cambiar la acción a “Ver detalles” + botón “Editar” interno.
+      status: pending
+    - id: ui-vacation-balance-tooltip
+      content: Agregar tarjeta “Días disponibles” y tooltip explicando cálculo (asignados/usados/pendientes/disponibles, año de servicio y corte) con `next-intl`.
+      status: pending
+      dependencies:
+          - ui-details-modes
+    - id: api-employee-insights
+      content: Agregar `GET /employees/:id/insights` en `apps/api/src/routes/employees.ts` para alimentar el diálogo (vacaciones/nómina/ausencias/licencias/excepciones) con ventanas estándar.
+      status: pending
+    - id: immutability-code-hiredate
+      content: 'Bloquear `code` y `hireDate` en edición: ajustar `updateEmployeeSchema` (rechazo), route de employees, y `apps/web/actions/employees.ts` para no enviar esos campos.'
+      status: pending
+      dependencies:
+          - ui-details-modes
+    - id: audit-schema-migration
+      content: Crear tabla `employee_audit_event` en `apps/api/src/db/schema.ts` + migración Drizzle en `apps/api/drizzle/`.
+      status: pending
+    - id: audit-api-triggers
+      content: Implementar auditoría híbrida (API con actor + triggers de respaldo) y exponer `GET /employees/:id/audit`.
+      status: pending
+      dependencies:
+          - audit-schema-migration
+    - id: i18n-web
+      content: Agregar llaves en `apps/web/messages/es.json` para tabs, KPI, tooltip de balance de vacaciones, y auditoría (sin strings hardcodeadas).
+      status: pending
+      dependencies:
+          - ui-vacation-balance-tooltip
+    - id: run-checks
+      content: 'Al finalizar: correr `bun run check-types` y `bun run lint` y corregir errores.'
+      status: pending
+      dependencies:
+          - i18n-web
+          - api-employee-insights
+          - immutability-code-hiredate
+          - audit-api-triggers
 ---
 
 # Rediseño de diálogo de empleado (Detalles) + auditoría end-to-end

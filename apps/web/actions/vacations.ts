@@ -72,6 +72,7 @@ export type VacationMutationErrorCode =
 	| 'VACATION_SERVICE_YEAR_INCOMPLETE'
 	| 'VACATION_INSUFFICIENT_BALANCE'
 	| 'VACATION_OVERLAP'
+	| 'VACATION_INCAPACITY_OVERLAP'
 	| 'UNKNOWN';
 
 type VacationErrorPayload = ApiErrorPayload | { error?: string };
@@ -90,6 +91,7 @@ const VACATION_ERROR_CODE_SET = new Set<VacationMutationErrorCode>([
 	'VACATION_SERVICE_YEAR_INCOMPLETE',
 	'VACATION_INSUFFICIENT_BALANCE',
 	'VACATION_OVERLAP',
+	'VACATION_INCAPACITY_OVERLAP',
 	'UNKNOWN',
 ]);
 

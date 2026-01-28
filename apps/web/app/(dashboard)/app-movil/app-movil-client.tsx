@@ -61,9 +61,7 @@ export function AppMovilPageClient(): React.ReactElement {
 						className="relative rounded-xl bg-white p-4 shadow-sm"
 						aria-label={t('qr.ariaLabel')}
 					>
-						{isLoading && (
-							<Skeleton className="h-[220px] w-[220px] rounded-lg" />
-						)}
+						{isLoading && <Skeleton className="h-[220px] w-[220px] rounded-lg" />}
 						<Image
 							src={qrImageUrl}
 							width={220}
@@ -71,7 +69,7 @@ export function AppMovilPageClient(): React.ReactElement {
 							alt={t('qr.alt')}
 							className={cn(
 								'h-[220px] w-[220px] transition-opacity duration-300',
-								isLoading ? 'absolute opacity-0' : 'opacity-100'
+								isLoading ? 'absolute opacity-0' : 'opacity-100',
 							)}
 							onLoad={() => setIsLoading(false)}
 							sizes="220px"
@@ -80,9 +78,7 @@ export function AppMovilPageClient(): React.ReactElement {
 					</div>
 					<div className="w-full rounded-md border bg-muted/20 p-3 text-sm">
 						<span className="text-muted-foreground">{t('link.label')} </span>
-						<span className="break-all font-mono">
-							{GOOGLE_PLAY_INTERNAL_TEST_URL}
-						</span>
+						<span className="break-all font-mono">{GOOGLE_PLAY_INTERNAL_TEST_URL}</span>
 					</div>
 				</CardContent>
 				<CardFooter className="justify-end">

@@ -64,7 +64,11 @@ import {
 import { buildEmployeeVacationBalance } from '../services/vacation-balance.js';
 import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { resolveMinimumWageRequirement, type MinimumWageZone } from '../utils/minimum-wage.js';
-import { getUtcDateForZonedMidnight, isValidIanaTimeZone, toDateKeyInTimeZone } from '../utils/time-zone.js';
+import {
+	getUtcDateForZonedMidnight,
+	isValidIanaTimeZone,
+	toDateKeyInTimeZone,
+} from '../utils/time-zone.js';
 import type {
 	EmployeeInsights,
 	EmployeePayrollRunSummary,
@@ -114,7 +118,10 @@ async function validateMinimumWage(args: {
 }): Promise<
 	| { isValid: true; errorCode?: never; warnings?: never }
 	| { isValid: false; errorCode: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }
-	| { isValid: true; warnings: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }> }
+	| {
+			isValid: true;
+			warnings: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }>;
+	  }
 > {
 	const { organizationId, locationId, dailyPay, dateKey = toDateKeyUtc(new Date()) } = args;
 
@@ -211,7 +218,12 @@ async function ensureAdminRoleForLinking(
 	const membership = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(and(eq(member.userId, args.session.userId), eq(member.organizationId, args.organizationId)))
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
 		.limit(1);
 
 	const role = membership[0]?.role ?? null;
@@ -251,7 +263,9 @@ async function validateEmployeeUserLink(
 	const existing = await db
 		.select({ id: employee.id })
 		.from(employee)
-		.where(and(eq(employee.organizationId, args.organizationId), eq(employee.userId, args.userId)))
+		.where(
+			and(eq(employee.organizationId, args.organizationId), eq(employee.userId, args.userId)),
+		)
 		.limit(1);
 
 	if (existing[0] && existing[0].id !== args.employeeId) {
@@ -721,8 +735,7 @@ async function validateAndCalculateTerminationSettlement({
 		};
 	}
 
-	const resolvedLastDayWorkedDateKey =
-		body.lastDayWorkedDateKey ?? body.terminationDateKey;
+	const resolvedLastDayWorkedDateKey = body.lastDayWorkedDateKey ?? body.terminationDateKey;
 	if (resolvedLastDayWorkedDateKey < hireDateKey) {
 		return {
 			success: false,
@@ -1261,54 +1274,56 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				result = await db.transaction(async (tx) => {
 					await setEmployeeAuditSkip(tx);
 
-				// Update only if still active to prevent duplicate terminations.
-				const updatedRows = await tx
-					.update(employee)
-					.set({
-						status: 'INACTIVE',
-						terminationDateKey: body.terminationDateKey,
-						lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
-						terminationReason: body.terminationReason,
-						contractType: body.contractType,
-						terminationNotes: body.terminationNotes?.trim() || null,
-					})
-					.where(
-						and(
-							eq(employee.id, id),
-							eq(employee.status, 'ACTIVE'),
-							isNull(employee.terminationDateKey),
-						),
-					)
-					.returning({ id: employee.id });
+					// Update only if still active to prevent duplicate terminations.
+					const updatedRows = await tx
+						.update(employee)
+						.set({
+							status: 'INACTIVE',
+							terminationDateKey: body.terminationDateKey,
+							lastDayWorkedDateKey: resolvedLastDayWorkedDateKey,
+							terminationReason: body.terminationReason,
+							contractType: body.contractType,
+							terminationNotes: body.terminationNotes?.trim() || null,
+						})
+						.where(
+							and(
+								eq(employee.id, id),
+								eq(employee.status, 'ACTIVE'),
+								isNull(employee.terminationDateKey),
+							),
+						)
+						.returning({ id: employee.id });
 
-				if (updatedRows.length === 0) {
-					throw new Error('EMPLOYEE_ALREADY_TERMINATED');
-				}
+					if (updatedRows.length === 0) {
+						throw new Error('EMPLOYEE_ALREADY_TERMINATED');
+					}
 
-				const settlementRows = await tx
-					.insert(employeeTerminationSettlement)
-					.values({
-						employeeId: id,
-						organizationId: employeeRecord.organizationId,
-						calculation,
-						totalsGross: calculation.totals.grossTotal.toFixed(2),
-						finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
-						liquidacionTotalGross: calculation.totals.liquidacionTotalGross.toFixed(2),
-					})
-					.returning({
-						id: employeeTerminationSettlement.id,
-						employeeId: employeeTerminationSettlement.employeeId,
-						organizationId: employeeTerminationSettlement.organizationId,
-						calculation: employeeTerminationSettlement.calculation,
-						totalsGross: employeeTerminationSettlement.totalsGross,
-						finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
-						liquidacionTotalGross: employeeTerminationSettlement.liquidacionTotalGross,
-						createdAt: employeeTerminationSettlement.createdAt,
-					});
+					const settlementRows = await tx
+						.insert(employeeTerminationSettlement)
+						.values({
+							employeeId: id,
+							organizationId: employeeRecord.organizationId,
+							calculation,
+							totalsGross: calculation.totals.grossTotal.toFixed(2),
+							finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
+							liquidacionTotalGross:
+								calculation.totals.liquidacionTotalGross.toFixed(2),
+						})
+						.returning({
+							id: employeeTerminationSettlement.id,
+							employeeId: employeeTerminationSettlement.employeeId,
+							organizationId: employeeTerminationSettlement.organizationId,
+							calculation: employeeTerminationSettlement.calculation,
+							totalsGross: employeeTerminationSettlement.totalsGross,
+							finiquitoTotalGross: employeeTerminationSettlement.finiquitoTotalGross,
+							liquidacionTotalGross:
+								employeeTerminationSettlement.liquidacionTotalGross,
+							createdAt: employeeTerminationSettlement.createdAt,
+						});
 
-				const updatedRecord = (
-					await tx.select().from(employee).where(eq(employee.id, id)).limit(1)
-				)[0] ?? null;
+					const updatedRecord =
+						(await tx.select().from(employee).where(eq(employee.id, id)).limit(1))[0] ??
+						null;
 
 					if (updatedRecord) {
 						const afterSnapshot = buildEmployeeAuditSnapshot(updatedRecord);
@@ -1496,10 +1511,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.from(payrollRunEmployee)
 				.leftJoin(payrollRun, eq(payrollRunEmployee.payrollRunId, payrollRun.id))
 				.where(
-					and(
-						eq(payrollRunEmployee.employeeId, id),
-						eq(payrollRun.status, 'PROCESSED'),
-					),
+					and(eq(payrollRunEmployee.employeeId, id), eq(payrollRun.status, 'PROCESSED')),
 				)
 				.orderBy(desc(payrollRun.processedAt), desc(payrollRun.periodEnd))
 				.limit(1);
@@ -1819,14 +1831,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			if (!minWageValidation.isValid) {
 				set.status = 400;
-				return buildErrorResponse(
-					'Daily pay is below the minimum wage requirement',
-					400,
-					{
-						code: minWageValidation.errorCode,
-						details: minWageValidation.details,
-					},
-				);
+				return buildErrorResponse('Daily pay is below the minimum wage requirement', 400, {
+					code: minWageValidation.errorCode,
+					details: minWageValidation.details,
+				});
 			}
 
 			const newEmployee = {
@@ -2024,12 +2032,19 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					positionExists[0].organizationId !== resolvedOrganizationId
 				) {
 					set.status = 403;
-					return buildErrorResponse('Job position does not belong to this organization', 403);
+					return buildErrorResponse(
+						'Job position does not belong to this organization',
+						403,
+					);
 				}
 			}
 
 			const resolvedUserId =
-				body.userId === undefined ? undefined : body.userId?.trim() ? body.userId.trim() : null;
+				body.userId === undefined
+					? undefined
+					: body.userId?.trim()
+						? body.userId.trim()
+						: null;
 			if (resolvedUserId !== undefined) {
 				const canLink = await ensureAdminRoleForLinking(
 					{ authType, session, organizationId: resolvedOrganizationId },
@@ -2045,7 +2060,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 				if (resolvedUserId) {
 					const linkValid = await validateEmployeeUserLink(
-						{ organizationId: resolvedOrganizationId, userId: resolvedUserId, employeeId: id },
+						{
+							organizationId: resolvedOrganizationId,
+							userId: resolvedUserId,
+							employeeId: id,
+						},
 						set,
 					);
 					if (!linkValid) {
@@ -2134,10 +2153,20 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			// Store minimum wage validation result for potential warnings in response
 			let minWageValidation:
 				| { isValid: true; errorCode?: never; warnings?: never }
-				| { isValid: false; errorCode: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }
-				| { isValid: true; warnings: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }> } = {
-					isValid: true,
-				};
+				| {
+						isValid: false;
+						errorCode: 'BELOW_MINIMUM_WAGE';
+						details: Record<string, unknown>;
+				  }
+				| {
+						isValid: true;
+						warnings: Array<{
+							code: 'BELOW_MINIMUM_WAGE';
+							details: Record<string, unknown>;
+						}>;
+				  } = {
+				isValid: true,
+			};
 
 			if (dailyPayInput !== undefined) {
 				const normalizedDailyPay = Number(dailyPayInput);
@@ -2256,7 +2285,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						updatedAt: employee.updatedAt,
 					})
 					.from(employee)
-					.leftJoin(scheduleTemplate, eq(employee.scheduleTemplateId, scheduleTemplate.id))
+					.leftJoin(
+						scheduleTemplate,
+						eq(employee.scheduleTemplateId, scheduleTemplate.id),
+					)
 					.where(eq(employee.id, id))
 					.limit(1);
 				const updatedSchedule = await tx

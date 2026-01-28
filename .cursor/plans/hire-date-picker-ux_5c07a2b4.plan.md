@@ -1,19 +1,19 @@
 ---
 name: hire-date-picker-ux
-overview: "Mejorar la UX del selector de “Fecha de ingreso” en el diálogo de crear/editar empleado: permitir escribir la fecha (YYYY-MM-DD) y, en el calendario, poder saltar por mes/año con dropdown; además, bloquear fechas futuras."
+overview: 'Mejorar la UX del selector de “Fecha de ingreso” en el diálogo de crear/editar empleado: permitir escribir la fecha (YYYY-MM-DD) y, en el calendario, poder saltar por mes/año con dropdown; además, bloquear fechas futuras.'
 todos:
-  - id: datefield-input-variant
-    content: Extender `DateField` en `apps/web/lib/forms.tsx` con variante `input` + popover y `captionLayout="dropdown"`, soportando rango (minYear) y bloqueo de fechas futuras (maxDate/hoy).
-    status: pending
-  - id: employees-hiredate-wireup
-    content: Actualizar `apps/web/app/(dashboard)/employees/employees-client.tsx` para usar `variant="input"` en `hireDate` y añadir validadores (formato válido + no futuro).
-    status: pending
-  - id: i18n-validation-messages
-    content: Agregar claves nuevas en `apps/web/messages/es.json` para errores de fecha inválida y fecha futura no permitida.
-    status: pending
-  - id: verify-web-checks
-    content: Correr `bun run lint:web` y `bun run check-types:web` y hacer smoke test del diálogo de empleado (fechas antiguas y futuras).
-    status: pending
+    - id: datefield-input-variant
+      content: Extender `DateField` en `apps/web/lib/forms.tsx` con variante `input` + popover y `captionLayout="dropdown"`, soportando rango (minYear) y bloqueo de fechas futuras (maxDate/hoy).
+      status: pending
+    - id: employees-hiredate-wireup
+      content: Actualizar `apps/web/app/(dashboard)/employees/employees-client.tsx` para usar `variant="input"` en `hireDate` y añadir validadores (formato válido + no futuro).
+      status: pending
+    - id: i18n-validation-messages
+      content: Agregar claves nuevas en `apps/web/messages/es.json` para errores de fecha inválida y fecha futura no permitida.
+      status: pending
+    - id: verify-web-checks
+      content: Correr `bun run lint:web` y `bun run check-types:web` y hacer smoke test del diálogo de empleado (fechas antiguas y futuras).
+      status: pending
 isProject: false
 ---
 
@@ -26,7 +26,7 @@ isProject: false
 
 Archivos clave:
 
-- UI del formulario de empleados: [apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx)
+- UI del formulario de empleados: [apps/web/app/(dashboard)/employees/employees-client.tsx](<apps/web/app/(dashboard)/employees/employees-client.tsx>)
 - Implementación del `DateField`: [apps/web/lib/forms.tsx](apps/web/lib/forms.tsx)
 - Wrapper del calendario (shadcn): [apps/web/components/ui/calendar.tsx](apps/web/components/ui/calendar.tsx)
 - Traducciones: [apps/web/messages/es.json](apps/web/messages/es.json)
@@ -60,7 +60,7 @@ En [apps/web/lib/forms.tsx](apps/web/lib/forms.tsx):
 
 ### 2) Usar la nueva variante solo en “Fecha de ingreso”
 
-En [apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/\\\\(dashboard)/employees/employees-client.tsx):
+En [apps/web/app/(dashboard)/employees/employees-client.tsx](<apps/web/app/(dashboard)/employees/employees-client.tsx>):
 
 - En el bloque actual:
 - `form.AppField name="hireDate"` → cambiar a:

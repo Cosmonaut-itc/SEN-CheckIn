@@ -21,6 +21,7 @@ import { cache } from 'react';
 import {
 	type AttendanceQueryParams,
 	type CalendarQueryParams,
+	type IncapacityQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
 	type OrganizationAllQueryParams,
@@ -36,6 +37,7 @@ import {
 	fetchDashboardCountsServer,
 	fetchDevicesListServer,
 	fetchEmployeesListServer,
+	fetchIncapacitiesListServer,
 	fetchJobPositionsListServer,
 	fetchLocationsListServer,
 	fetchAllOrganizationsServer,
@@ -596,6 +598,34 @@ export function prefetchVacationRequests(
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchVacationRequestsListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchVacationRequestsListServer(cookieHeader, params);
+		},
+	});
+}
+
+// ============================================================================
+// Incapacity Prefetch Functions
+// ============================================================================
+
+/**
+ * Prefetches incapacity records list for server-side streaming.
+ *
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional query parameters for filtering and pagination
+ * @returns Nothing
+ */
+export function prefetchIncapacities(
+	queryClient: QueryClient,
+	params?: IncapacityQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.incapacities.list(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchIncapacitiesListServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchIncapacitiesListServer(cookieHeader, params);
 		},
 	});
 }

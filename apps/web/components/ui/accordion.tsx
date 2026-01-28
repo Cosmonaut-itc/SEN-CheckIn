@@ -12,10 +12,7 @@ import { cn } from '@/lib/utils';
  * @param props - Props for AccordionPrimitive.Root.
  * @returns Accordion root element.
  */
-function Accordion({
-	className,
-	...props
-}: React.ComponentProps<typeof AccordionPrimitive.Root>) {
+function Accordion({ className, ...props }: React.ComponentProps<typeof AccordionPrimitive.Root>) {
 	return (
 		<AccordionPrimitive.Root
 			data-slot="accordion"

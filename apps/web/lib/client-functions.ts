@@ -11,15 +11,24 @@ import { api } from '@/lib/api';
 import { getApiResponseData } from '@/lib/api-response';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
+import { clampPaginationLimit, clampPaginationOffset } from '@/lib/pagination';
 import type {
 	EmployeeAuditEvent,
+	EmployeeIncapacity,
+	EmployeeIncapacityDocument,
 	EmployeeInsights,
 	EmployeeTerminationSettlement,
+	IncapacityIssuedBy,
+	IncapacitySequence,
+	IncapacityStatus,
+	IncapacityType,
+	SatTipoIncapacidad,
 } from '@sen-checkin/types';
 import type {
 	AttendancePresentQueryParams,
 	AttendanceQueryParams,
 	CalendarQueryParams,
+	IncapacityQueryParams,
 	ListQueryParams,
 	OrganizationAllQueryParams,
 	ScheduleExceptionQueryParams,
@@ -164,12 +173,7 @@ export interface AttendancePresentRecord {
 /**
  * Vacation request status values.
  */
-export type VacationRequestStatus =
-	| 'DRAFT'
-	| 'SUBMITTED'
-	| 'APPROVED'
-	| 'REJECTED'
-	| 'CANCELLED';
+export type VacationRequestStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 /**
  * Vacation day classification values.
@@ -179,7 +183,8 @@ export type VacationDayType =
 	| 'SCHEDULED_REST_DAY'
 	| 'EXCEPTION_WORKDAY'
 	| 'EXCEPTION_DAY_OFF'
-	| 'MANDATORY_REST_DAY';
+	| 'MANDATORY_REST_DAY'
+	| 'INCAPACITY';
 
 /**
  * Vacation request day detail.
@@ -519,13 +524,16 @@ export async function fetchEmployeesList(
 		status?: EmployeeStatus;
 	},
 ): Promise<PaginatedResponse<Employee>> {
+	const limit = clampPaginationLimit(params?.limit);
+	const offset = clampPaginationOffset(params?.offset);
+
 	if (params?.organizationId === null) {
 		return {
 			data: [],
 			pagination: {
 				total: 0,
-				limit: params?.limit ?? 100,
-				offset: params?.offset ?? 0,
+				limit,
+				offset,
 			},
 		};
 	}
@@ -541,8 +549,8 @@ export async function fetchEmployeesList(
 		jobPositionId?: string;
 		status?: EmployeeStatus;
 	} = {
-		limit: params?.limit ?? 100,
-		offset: params?.offset ?? 0,
+		limit,
+		offset,
 	};
 
 	// Only add search if it has a non-empty value
@@ -577,7 +585,7 @@ export async function fetchEmployeesList(
 	const employees = (payload?.data as EmployeePayload[] | undefined) ?? [];
 	return {
 		data: employees.map(normalizeEmployeeRecord),
-		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		pagination: payload?.pagination ?? { total: 0, limit, offset },
 	};
 }
 
@@ -650,7 +658,12 @@ export async function fetchEmployeeAudit(params: {
 	});
 
 	if (response.error) {
-		console.error('Failed to fetch employee audit:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to fetch employee audit:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to fetch employee audit');
 	}
 
@@ -1310,13 +1323,17 @@ export async function fetchVacationRequestsList(
 	const response = await api.vacations.requests.get({ $query: query });
 
 	if (response.error) {
-		console.error('Failed to fetch vacation requests:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to fetch vacation requests:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to fetch vacation requests');
 	}
 
 	const responsePayload = getApiResponseData(response);
-	const payload =
-		(responsePayload?.data as VacationRequestPayload[] | undefined) ?? [];
+	const payload = (responsePayload?.data as VacationRequestPayload[] | undefined) ?? [];
 	return {
 		data: payload.map(normalizeVacationRequest),
 		pagination: responsePayload?.pagination ?? {
@@ -1344,13 +1361,160 @@ export async function fetchVacationBalance(params?: {
 	const response = await api.vacations.me.balance.get({ $query: query });
 
 	if (response.error) {
-		console.error('Failed to fetch vacation balance:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to fetch vacation balance:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		return null;
 	}
 
 	const responsePayload = getApiResponseData(response);
 	const payload = responsePayload?.data as VacationBalancePayload | undefined;
 	return payload ? normalizeVacationBalance(payload) : null;
+}
+
+// ============================================================================
+// Incapacity Functions
+// ============================================================================
+
+export type IncapacityDocument = EmployeeIncapacityDocument;
+
+export interface IncapacityRecord extends EmployeeIncapacity {
+	employeeName: string | null;
+	employeeLastName: string | null;
+	documents: IncapacityDocument[];
+}
+
+export interface IncapacityCreateInput {
+	employeeId: string;
+	caseId: string;
+	type: IncapacityType;
+	satTipoIncapacidad?: SatTipoIncapacidad;
+	startDateKey: string;
+	endDateKey: string;
+	daysAuthorized: number;
+	certificateFolio?: string;
+	issuedBy?: IncapacityIssuedBy;
+	sequence?: IncapacitySequence;
+	percentOverride?: number | null;
+}
+
+export interface IncapacityUpdateInput extends IncapacityCreateInput {
+	id: string;
+	status?: IncapacityStatus;
+}
+
+type IncapacityRecordPayload = Omit<IncapacityRecord, 'createdAt' | 'updatedAt' | 'documents'> & {
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	documents?: (Omit<IncapacityDocument, 'uploadedAt' | 'createdAt'> & {
+		uploadedAt: string | Date;
+		createdAt: string | Date;
+	})[];
+};
+
+/**
+ * Normalizes incapacity record payload timestamps into Date objects.
+ *
+ * @param payload - Raw incapacity payload
+ * @returns Normalized incapacity record
+ */
+function normalizeIncapacityRecord(payload: IncapacityRecordPayload): IncapacityRecord {
+	return {
+		...payload,
+		createdAt: new Date(payload.createdAt),
+		updatedAt: new Date(payload.updatedAt),
+		documents: (payload.documents ?? []).map((document) => ({
+			...document,
+			uploadedAt: new Date(document.uploadedAt),
+			createdAt: new Date(document.createdAt),
+		})),
+	};
+}
+
+/**
+ * Fetches incapacity records list for HR/admin workflows.
+ *
+ * @param params - Query parameters for incapacity records
+ * @returns Paginated incapacity records
+ * @throws Error if the API request fails
+ */
+export async function fetchIncapacitiesList(
+	params?: IncapacityQueryParams & { organizationId?: string | null },
+): Promise<PaginatedResponse<IncapacityRecord>> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: params?.limit ?? 50,
+				offset: params?.offset ?? 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId?: string;
+		search?: string;
+		employeeId?: string;
+		type?: IncapacityType;
+		status?: IncapacityStatus;
+		from?: string;
+		to?: string;
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (params?.search) {
+		query.search = params.search;
+	}
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params?.type) {
+		query.type = params.type;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.from) {
+		query.from = params.from;
+	}
+	if (params?.to) {
+		query.to = params.to;
+	}
+
+	const response = await api.incapacities.get({ $query: query });
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch incapacity records:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch incapacity records');
+	}
+
+	const responsePayload = getApiResponseData(response);
+	const payload = (responsePayload?.data as IncapacityRecordPayload[] | undefined) ?? [];
+
+	return {
+		data: payload.map(normalizeIncapacityRecord),
+		pagination: responsePayload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
 }
 
 // ============================================================================
@@ -1445,6 +1609,24 @@ export interface PayrollTaxSummary {
 	companyCostTotal: number;
 }
 
+export interface PayrollIncapacitySummaryByType {
+	days: number;
+	subsidyDays: number;
+	subsidyRate: number;
+	expectedSubsidyAmount: number;
+}
+
+export interface PayrollIncapacitySummary {
+	daysIncapacityTotal: number;
+	expectedImssSubsidyAmount: number;
+	byType: {
+		EG: PayrollIncapacitySummaryByType;
+		RT: PayrollIncapacitySummaryByType;
+		MAT: PayrollIncapacitySummaryByType;
+		LIC140BIS: PayrollIncapacitySummaryByType;
+	};
+}
+
 export interface PayrollCalculationEmployee {
 	employeeId: string;
 	name: string;
@@ -1476,6 +1658,7 @@ export interface PayrollCalculationEmployee {
 	informationalLines: PayrollInformationalLines;
 	netPay: number;
 	companyCost: number;
+	incapacitySummary: PayrollIncapacitySummary;
 	warnings: PayrollWarning[];
 }
 
@@ -1667,9 +1850,10 @@ export async function processPayroll(params: {
 		throw new Error('Failed to process payroll');
 	}
 
-	const payload = (getApiResponseData(response)?.data as unknown as
-		| { run: PayrollRun; calculation: PayrollCalculationResult }
-		| undefined) ?? undefined;
+	const payload =
+		(getApiResponseData(response)?.data as unknown as
+			| { run: PayrollRun; calculation: PayrollCalculationResult }
+			| undefined) ?? undefined;
 	if (!payload) {
 		throw new Error('Failed to process payroll: empty response');
 	}
@@ -1738,31 +1922,32 @@ export async function fetchPayrollRunDetail(
 		return null;
 	}
 
-	const payload = (getApiResponseData(response)?.data as unknown as
-		| {
-				run: PayrollRun & { totalAmount?: number | string };
-				employees: (PayrollRunEmployee & {
-					hoursWorked?: number | string;
-					hourlyPay?: number | string;
-					totalPay?: number | string;
-					normalHours?: number | string;
-					normalPay?: number | string;
-					overtimeDoubleHours?: number | string;
-					overtimeDoublePay?: number | string;
-					overtimeTripleHours?: number | string;
-					overtimeTriplePay?: number | string;
-					sundayPremiumAmount?: number | string;
-					mandatoryRestDayPremiumAmount?: number | string;
-					vacationDaysPaid?: number | string;
-					vacationPayAmount?: number | string;
-					vacationPremiumAmount?: number | string;
-					periodStart: string | Date;
-					periodEnd: string | Date;
-					createdAt: string | Date;
-					updatedAt: string | Date;
-				})[];
-		  }
-		| undefined) ?? undefined;
+	const payload =
+		(getApiResponseData(response)?.data as unknown as
+			| {
+					run: PayrollRun & { totalAmount?: number | string };
+					employees: (PayrollRunEmployee & {
+						hoursWorked?: number | string;
+						hourlyPay?: number | string;
+						totalPay?: number | string;
+						normalHours?: number | string;
+						normalPay?: number | string;
+						overtimeDoubleHours?: number | string;
+						overtimeDoublePay?: number | string;
+						overtimeTripleHours?: number | string;
+						overtimeTriplePay?: number | string;
+						sundayPremiumAmount?: number | string;
+						mandatoryRestDayPremiumAmount?: number | string;
+						vacationDaysPaid?: number | string;
+						vacationPayAmount?: number | string;
+						vacationPremiumAmount?: number | string;
+						periodStart: string | Date;
+						periodEnd: string | Date;
+						createdAt: string | Date;
+						updatedAt: string | Date;
+					})[];
+			  }
+			| undefined) ?? undefined;
 	if (!payload) {
 		return null;
 	}

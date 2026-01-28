@@ -130,10 +130,7 @@ async function processPayroll(
  * @param employeeId - Employee identifier
  * @returns Nothing
  */
-async function terminateEmployee(
-	request: APIRequestContext,
-	employeeId: string,
-): Promise<void> {
+async function terminateEmployee(request: APIRequestContext, employeeId: string): Promise<void> {
 	const response = await request.post(`/api/employees/${employeeId}/termination`, {
 		data: {
 			terminationDateKey: '2026-01-15',

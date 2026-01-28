@@ -436,7 +436,9 @@ export function LocationScheduleCard({
 														</div>
 														<div className="flex shrink-0 flex-wrap items-center gap-1">
 															<Badge
-																variant={sourceVariant(entry.source)}
+																variant={sourceVariant(
+																	entry.source,
+																)}
 																className="text-[10px] uppercase"
 															>
 																{t(SOURCE_LABEL_KEYS[entry.source])}

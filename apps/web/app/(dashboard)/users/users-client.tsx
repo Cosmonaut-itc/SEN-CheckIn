@@ -40,7 +40,12 @@ import { useSession } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 import {
 	Select,
 	SelectContent,
@@ -286,7 +291,8 @@ export function UsersPageClient(): React.ReactElement {
 	const organizations = useMemo<Organization[]>(
 		() =>
 			isSuperUser
-				? (organizationsResponse as OrganizationsAllResponse | undefined)?.organizations ?? []
+				? ((organizationsResponse as OrganizationsAllResponse | undefined)?.organizations ??
+					[])
 				: [],
 		[isSuperUser, organizationsResponse],
 	);
@@ -320,7 +326,7 @@ export function UsersPageClient(): React.ReactElement {
 		[effectiveOrganizationId, organizations],
 	);
 	const organizationLabel = isSuperUser
-		? selectedOrganization?.name ?? t('organizationSelector.fallback')
+		? (selectedOrganization?.name ?? t('organizationSelector.fallback'))
 		: (organizationName ?? t('fallbackOrganization'));
 
 	const membersQueryParams = {
@@ -357,7 +363,9 @@ export function UsersPageClient(): React.ReactElement {
 		? t('table.empty')
 		: t('table.emptyNoOrganization');
 
-	const createUserErrorMessages = useMemo<Partial<Record<CreateOrganizationUserErrorCode, string>>>(
+	const createUserErrorMessages = useMemo<
+		Partial<Record<CreateOrganizationUserErrorCode, string>>
+	>(
 		() => ({
 			PASSWORD_TOO_SHORT: t('errors.passwordTooShort'),
 			PASSWORD_TOO_LONG: t('errors.passwordTooLong'),
@@ -494,13 +502,10 @@ export function UsersPageClient(): React.ReactElement {
 	 * @param value - Next global filter value or updater
 	 * @returns void
 	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleGlobalFilterChange = useCallback((value: React.SetStateAction<string>): void => {
+		setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	/**
 	 * Updates the selected organization for superusers and resets pagination.
@@ -517,8 +522,7 @@ export function UsersPageClient(): React.ReactElement {
 		() => [
 			{
 				id: 'member',
-				accessorFn: (row) =>
-					`${row.user.name ?? ''} ${row.user.email ?? ''}`.trim(),
+				accessorFn: (row) => `${row.user.name ?? ''} ${row.user.email ?? ''}`.trim(),
 				header: t('table.headers.member'),
 				cell: ({ row }) => (
 					<div className="flex items-center gap-3">
@@ -603,7 +607,9 @@ export function UsersPageClient(): React.ReactElement {
 								>
 									<DialogHeader>
 										<DialogTitle>{t('assignDialog.title')}</DialogTitle>
-										<DialogDescription>{t('assignDialog.description')}</DialogDescription>
+										<DialogDescription>
+											{t('assignDialog.description')}
+										</DialogDescription>
 									</DialogHeader>
 									<assignForm.AppForm>
 										<div className="mt-6 space-y-6">
@@ -611,36 +617,47 @@ export function UsersPageClient(): React.ReactElement {
 												name="userId"
 												validators={{
 													onChange: ({ value }) =>
-														value ? undefined : t('validation.userRequired'),
+														value
+															? undefined
+															: t('validation.userRequired'),
 												}}
 											>
-											{(field) => (
-												<field.SelectField
-													label={t('fields.existingUser')}
-													placeholder={
-														isFetchingUsers
-															? t('assignDialog.loadingUsers')
-															: t('placeholders.existingUser')
-													}
-													options={userOptions}
-													disabled={isFetchingUsers || userOptions.length === 0}
-													orientation="vertical"
-												/>
-											)}
-										</assignForm.AppField>
-										<assignForm.AppField name="role">
-											{(field) => (
-												<field.SelectField
-													label={t('fields.role')}
-													placeholder={t('placeholders.selectRole')}
-													options={[
-														{ value: 'admin', label: t('roles.admin') },
-														{ value: 'member', label: t('roles.member') },
-													]}
-													orientation="vertical"
-												/>
-											)}
-										</assignForm.AppField>
+												{(field) => (
+													<field.SelectField
+														label={t('fields.existingUser')}
+														placeholder={
+															isFetchingUsers
+																? t('assignDialog.loadingUsers')
+																: t('placeholders.existingUser')
+														}
+														options={userOptions}
+														disabled={
+															isFetchingUsers ||
+															userOptions.length === 0
+														}
+														orientation="vertical"
+													/>
+												)}
+											</assignForm.AppField>
+											<assignForm.AppField name="role">
+												{(field) => (
+													<field.SelectField
+														label={t('fields.role')}
+														placeholder={t('placeholders.selectRole')}
+														options={[
+															{
+																value: 'admin',
+																label: t('roles.admin'),
+															},
+															{
+																value: 'member',
+																label: t('roles.member'),
+															},
+														]}
+														orientation="vertical"
+													/>
+												)}
+											</assignForm.AppField>
 										</div>
 										<DialogFooter className="mt-4">
 											<Button
@@ -685,7 +702,9 @@ export function UsersPageClient(): React.ReactElement {
 											name="organizationId"
 											validators={{
 												onChange: ({ value }) =>
-													value ? undefined : t('validation.organizationRequired'),
+													value
+														? undefined
+														: t('validation.organizationRequired'),
 											}}
 										>
 											{(field) => (
@@ -750,7 +769,9 @@ export function UsersPageClient(): React.ReactElement {
 												<field.TextField
 													label={t('fields.temporaryPassword')}
 													type="password"
-													placeholder={t('placeholders.temporaryPassword')}
+													placeholder={t(
+														'placeholders.temporaryPassword',
+													)}
 													orientation="vertical"
 												/>
 											)}
@@ -762,7 +783,10 @@ export function UsersPageClient(): React.ReactElement {
 													placeholder={t('placeholders.selectRole')}
 													options={[
 														{ value: 'admin', label: t('roles.admin') },
-														{ value: 'member', label: t('roles.member') },
+														{
+															value: 'member',
+															label: t('roles.member'),
+														},
 													]}
 												/>
 											)}

@@ -24,10 +24,7 @@ export interface MinimumWageRequirement {
  * @param args.zone - Geographic zone identifier
  * @returns Minimum wage daily value
  */
-export function resolveMinimumWageDaily(args: {
-	dateKey: string;
-	zone: MinimumWageZone;
-}): number {
+export function resolveMinimumWageDaily(args: { dateKey: string; zone: MinimumWageZone }): number {
 	const { dateKey, zone } = args;
 	const effectiveYear = dateKey >= '2026-01-01' ? 2026 : 2025;
 	return MINIMUM_WAGE_BY_YEAR[effectiveYear][zone];
@@ -47,9 +44,7 @@ export function resolveMinimumWageRequirement(
 	const normalizedZones =
 		zones.length > 0 ? Array.from(new Set(zones)) : (['GENERAL'] as MinimumWageZone[]);
 	const minimumRequiredDailyPay = Math.max(
-		...normalizedZones.map((zone) =>
-			resolveMinimumWageDaily({ dateKey, zone }),
-		),
+		...normalizedZones.map((zone) => resolveMinimumWageDaily({ dateKey, zone })),
 	);
 	return {
 		zones: normalizedZones,

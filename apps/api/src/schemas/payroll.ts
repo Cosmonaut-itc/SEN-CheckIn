@@ -188,6 +188,36 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	}),
 	netPay: z.number(),
 	companyCost: z.number(),
+	incapacitySummary: z.object({
+		daysIncapacityTotal: z.number(),
+		expectedImssSubsidyAmount: z.number(),
+		byType: z.object({
+			EG: z.object({
+				days: z.number(),
+				subsidyDays: z.number(),
+				subsidyRate: z.number(),
+				expectedSubsidyAmount: z.number(),
+			}),
+			RT: z.object({
+				days: z.number(),
+				subsidyDays: z.number(),
+				subsidyRate: z.number(),
+				expectedSubsidyAmount: z.number(),
+			}),
+			MAT: z.object({
+				days: z.number(),
+				subsidyDays: z.number(),
+				subsidyRate: z.number(),
+				expectedSubsidyAmount: z.number(),
+			}),
+			LIC140BIS: z.object({
+				days: z.number(),
+				subsidyDays: z.number(),
+				subsidyRate: z.number(),
+				expectedSubsidyAmount: z.number(),
+			}),
+		}),
+	}),
 	warnings: z.array(payrollWarningSchema),
 });
 

@@ -32,11 +32,7 @@ type ScanStatus =
 
 /** Maximum size for face guide circle on larger devices (tablets) */
 const MAX_FACE_GUIDE_SIZE = 400;
-const ATTENDANCE_TYPE_ORDER: AttendanceType[] = [
-	'CHECK_IN',
-	'CHECK_OUT_AUTHORIZED',
-	'CHECK_OUT',
-];
+const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
 
 /**
  * Calculates the responsive face guide size based on screen dimensions
@@ -267,9 +263,7 @@ export default function ScannerScreen(): JSX.Element {
 				const metadata =
 					attendanceType === 'CHECK_OUT_AUTHORIZED'
 						? {
-								reason: i18n.t(
-									'Scanner.attendanceType.checkOutAuthorizedReason',
-								),
+								reason: i18n.t('Scanner.attendanceType.checkOutAuthorizedReason'),
 								similarity: match.match?.similarity,
 								searchedFaceConfidence: match.searchedFaceConfidence,
 							}
@@ -409,17 +403,17 @@ export default function ScannerScreen(): JSX.Element {
 			<View style={styles.container}>
 				{/* Camera View */}
 				{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
-					{isCameraReady && (
-						<CameraView
-							key={`camera-${cameraFacing}`}
-							ref={cameraRef}
-							pointerEvents="none"
-							style={styles.camera}
-							facing={cameraFacing}
-							enableTorch={false}
-							animateShutter
-						/>
-					)}
+				{isCameraReady && (
+					<CameraView
+						key={`camera-${cameraFacing}`}
+						ref={cameraRef}
+						pointerEvents="none"
+						style={styles.camera}
+						facing={cameraFacing}
+						enableTorch={false}
+						animateShutter
+					/>
+				)}
 
 				{/* Top Bar - Attendance Type Toggle & Settings */}
 				<View style={styles.topBar}>
@@ -450,11 +444,7 @@ export default function ScannerScreen(): JSX.Element {
 						className="w-12 h-12 rounded-full"
 						onPress={() => router.push('/(main)/settings')}
 					>
-						<IconSymbol
-							name="gearshape"
-							size={20}
-							color={themeColors.foreground}
-						/>
+						<IconSymbol name="gearshape" size={20} color={themeColors.foreground} />
 					</Button>
 				</View>
 
@@ -490,7 +480,9 @@ export default function ScannerScreen(): JSX.Element {
 					</Animated.View>
 
 					{/* Instruction text below face guide */}
-					<Animated.View style={[styles.instructionContainer, { opacity: statusOpacity }]}>
+					<Animated.View
+						style={[styles.instructionContainer, { opacity: statusOpacity }]}
+					>
 						{scanStatus.state === 'success' && scanStatus.employeeName ? (
 							<>
 								<IconSymbol
@@ -501,11 +493,7 @@ export default function ScannerScreen(): JSX.Element {
 								<Text style={styles.employeeName}>{scanStatus.employeeName}</Text>
 							</>
 						) : scanStatus.state === 'error' ? (
-							<IconSymbol
-								name="xmark.circle"
-								size={28}
-								color={themeColors.error}
-							/>
+							<IconSymbol name="xmark.circle" size={28} color={themeColors.error} />
 						) : scanStatus.state === 'scanning' ? (
 							<Spinner size="sm" color={themeColors.foreground} />
 						) : null}
@@ -664,197 +652,197 @@ const createScannerStyles = (
 	isDarkMode: boolean,
 	bottomInset: number,
 ): ScannerStyles => ({
-		scroll: {
-			flex: 1,
-			backgroundColor: themeColors.background,
-		},
-		scrollContent: {
-			flexGrow: 1,
-		},
-		container: {
-			flex: 1,
-			backgroundColor: themeColors.background,
-		},
-		camera: {
-			position: 'absolute',
-			top: 0,
-			right: 0,
-			bottom: 0,
-			left: 0,
-		},
-		centeredContainer: {
-			flex: 1,
-			alignItems: 'center',
-			justifyContent: 'center',
-			backgroundColor: themeColors.background,
-			padding: 24,
-			gap: 16,
-		},
-		loadingText: {
-			fontSize: 16,
-			color: themeColors.foreground500,
-		},
-		permissionCard: {
-			alignItems: 'center',
-			backgroundColor: themeColors.content1,
-			borderRadius: 24,
-			padding: 32,
-			width: '100%',
-			maxWidth: 340,
-			borderWidth: 1,
-			borderColor: themeColors.border,
-		},
-		permissionTitle: {
-			fontSize: 22,
-			fontWeight: '700',
-			color: themeColors.text,
-			textAlign: 'center',
-		},
-		permissionDescription: {
-			fontSize: 15,
-			color: themeColors.foreground400,
-			textAlign: 'center',
-			lineHeight: 22,
-		},
-		topBar: {
-			position: 'absolute',
-			top: 0,
-			left: 0,
-			right: 0,
-			flexDirection: 'row',
-			justifyContent: 'flex-start',
-			alignItems: 'center',
-			gap: 12,
-			paddingTop: 16,
-			paddingHorizontal: 16,
-			paddingBottom: 12,
-			zIndex: 2,
-		},
-		attendanceToggle: {
-			flexDirection: 'row',
-			alignItems: 'center',
-			gap: 10,
-			paddingHorizontal: 16,
-			paddingVertical: 12,
-			borderRadius: 28,
-			borderWidth: 1,
-			backgroundColor: themeColors.overlay,
-		},
-		checkInToggle: {
-			borderColor: themeColors.success,
-		},
-		checkOutToggle: {
-			borderColor: themeColors.error,
-		},
-		toggleIndicator: {
-			width: 20,
-			height: 20,
-			borderRadius: 10,
-			backgroundColor: themeColors.overlayMuted,
-			alignItems: 'center',
-			justifyContent: 'center',
-		},
-		toggleDot: {
-			width: 10,
-			height: 10,
-			borderRadius: 5,
-		},
-		toggleText: {
-			color: themeColors.foreground,
-			fontSize: 15,
-			fontWeight: '600',
-		},
-		settingsButton: {
-			width: 44,
-			height: 44,
-			borderRadius: 22,
-			backgroundColor: themeColors.overlay,
-			alignItems: 'center',
-			justifyContent: 'center',
-			borderWidth: 1,
-			borderColor: themeColors.border,
-		},
-		faceGuideContainer: {
-			position: 'absolute',
-			top: 0,
-			left: 0,
-			right: 0,
-			bottom: 160,
-			alignItems: 'center',
-			justifyContent: 'center',
-			gap: 24,
-		},
-		faceGuideWrapper: {
-			alignItems: 'center',
-			justifyContent: 'center',
-		},
-		faceGuide: {
-			borderWidth: 3,
-			backgroundColor: 'transparent',
-			position: 'relative',
-			borderColor: themeColors.foreground500,
-		},
-		cornerAccent: {
-			position: 'absolute',
-			width: 30,
-			height: 30,
-			borderColor: '#FFFFFF',
-			borderWidth: 3,
-		},
-		cornerTopLeft: {
-			top: 20,
-			left: 20,
-			borderRightWidth: 0,
-			borderBottomWidth: 0,
-			borderTopLeftRadius: 8,
-		},
-		cornerTopRight: {
-			top: 20,
-			right: 20,
-			borderLeftWidth: 0,
-			borderBottomWidth: 0,
-			borderTopRightRadius: 8,
-		},
-		cornerBottomLeft: {
-			bottom: 20,
-			left: 20,
-			borderRightWidth: 0,
-			borderTopWidth: 0,
-			borderBottomLeftRadius: 8,
-		},
-		cornerBottomRight: {
-			bottom: 20,
-			right: 20,
-			borderLeftWidth: 0,
-			borderTopWidth: 0,
-			borderBottomRightRadius: 8,
-		},
-		instructionContainer: {
-			alignItems: 'center',
-			gap: 8,
-			paddingHorizontal: 24,
-		},
-		employeeName: {
-			fontSize: 20,
-			fontWeight: '700',
-			color: themeColors.success,
-			textAlign: 'center',
-		},
-		instructionText: {
-			fontSize: 16,
-			color: '#FFFFFF',
-			textAlign: 'center',
-			textShadowColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.65)',
-			textShadowOffset: { width: 0, height: 1 },
-			textShadowRadius: 4,
-		},
-		bottomContainer: {
-			position: 'absolute',
-			bottom: 0,
-			left: 0,
-			right: 0,
-			paddingHorizontal: 16,
-			paddingBottom: Math.max(16, bottomInset + 16),
-			zIndex: 2,
-		},
-	});
+	scroll: {
+		flex: 1,
+		backgroundColor: themeColors.background,
+	},
+	scrollContent: {
+		flexGrow: 1,
+	},
+	container: {
+		flex: 1,
+		backgroundColor: themeColors.background,
+	},
+	camera: {
+		position: 'absolute',
+		top: 0,
+		right: 0,
+		bottom: 0,
+		left: 0,
+	},
+	centeredContainer: {
+		flex: 1,
+		alignItems: 'center',
+		justifyContent: 'center',
+		backgroundColor: themeColors.background,
+		padding: 24,
+		gap: 16,
+	},
+	loadingText: {
+		fontSize: 16,
+		color: themeColors.foreground500,
+	},
+	permissionCard: {
+		alignItems: 'center',
+		backgroundColor: themeColors.content1,
+		borderRadius: 24,
+		padding: 32,
+		width: '100%',
+		maxWidth: 340,
+		borderWidth: 1,
+		borderColor: themeColors.border,
+	},
+	permissionTitle: {
+		fontSize: 22,
+		fontWeight: '700',
+		color: themeColors.text,
+		textAlign: 'center',
+	},
+	permissionDescription: {
+		fontSize: 15,
+		color: themeColors.foreground400,
+		textAlign: 'center',
+		lineHeight: 22,
+	},
+	topBar: {
+		position: 'absolute',
+		top: 0,
+		left: 0,
+		right: 0,
+		flexDirection: 'row',
+		justifyContent: 'flex-start',
+		alignItems: 'center',
+		gap: 12,
+		paddingTop: 16,
+		paddingHorizontal: 16,
+		paddingBottom: 12,
+		zIndex: 2,
+	},
+	attendanceToggle: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 10,
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+		borderRadius: 28,
+		borderWidth: 1,
+		backgroundColor: themeColors.overlay,
+	},
+	checkInToggle: {
+		borderColor: themeColors.success,
+	},
+	checkOutToggle: {
+		borderColor: themeColors.error,
+	},
+	toggleIndicator: {
+		width: 20,
+		height: 20,
+		borderRadius: 10,
+		backgroundColor: themeColors.overlayMuted,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	toggleDot: {
+		width: 10,
+		height: 10,
+		borderRadius: 5,
+	},
+	toggleText: {
+		color: themeColors.foreground,
+		fontSize: 15,
+		fontWeight: '600',
+	},
+	settingsButton: {
+		width: 44,
+		height: 44,
+		borderRadius: 22,
+		backgroundColor: themeColors.overlay,
+		alignItems: 'center',
+		justifyContent: 'center',
+		borderWidth: 1,
+		borderColor: themeColors.border,
+	},
+	faceGuideContainer: {
+		position: 'absolute',
+		top: 0,
+		left: 0,
+		right: 0,
+		bottom: 160,
+		alignItems: 'center',
+		justifyContent: 'center',
+		gap: 24,
+	},
+	faceGuideWrapper: {
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	faceGuide: {
+		borderWidth: 3,
+		backgroundColor: 'transparent',
+		position: 'relative',
+		borderColor: themeColors.foreground500,
+	},
+	cornerAccent: {
+		position: 'absolute',
+		width: 30,
+		height: 30,
+		borderColor: '#FFFFFF',
+		borderWidth: 3,
+	},
+	cornerTopLeft: {
+		top: 20,
+		left: 20,
+		borderRightWidth: 0,
+		borderBottomWidth: 0,
+		borderTopLeftRadius: 8,
+	},
+	cornerTopRight: {
+		top: 20,
+		right: 20,
+		borderLeftWidth: 0,
+		borderBottomWidth: 0,
+		borderTopRightRadius: 8,
+	},
+	cornerBottomLeft: {
+		bottom: 20,
+		left: 20,
+		borderRightWidth: 0,
+		borderTopWidth: 0,
+		borderBottomLeftRadius: 8,
+	},
+	cornerBottomRight: {
+		bottom: 20,
+		right: 20,
+		borderLeftWidth: 0,
+		borderTopWidth: 0,
+		borderBottomRightRadius: 8,
+	},
+	instructionContainer: {
+		alignItems: 'center',
+		gap: 8,
+		paddingHorizontal: 24,
+	},
+	employeeName: {
+		fontSize: 20,
+		fontWeight: '700',
+		color: themeColors.success,
+		textAlign: 'center',
+	},
+	instructionText: {
+		fontSize: 16,
+		color: '#FFFFFF',
+		textAlign: 'center',
+		textShadowColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.65)',
+		textShadowOffset: { width: 0, height: 1 },
+		textShadowRadius: 4,
+	},
+	bottomContainer: {
+		position: 'absolute',
+		bottom: 0,
+		left: 0,
+		right: 0,
+		paddingHorizontal: 16,
+		paddingBottom: Math.max(16, bottomInset + 16),
+		zIndex: 2,
+	},
+});

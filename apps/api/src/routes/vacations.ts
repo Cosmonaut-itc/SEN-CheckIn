@@ -6,6 +6,7 @@ import crypto from 'node:crypto';
 import db from '../db/index.js';
 import {
 	employee,
+	employeeIncapacity,
 	employeeSchedule,
 	member,
 	payrollSetting,
@@ -34,7 +35,10 @@ import {
 } from '../services/vacations.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { isValidIanaTimeZone } from '../utils/time-zone.js';
-import { buildEmployeeVacationBalance, getVacationUsageByServiceYear } from '../services/vacation-balance.js';
+import {
+	buildEmployeeVacationBalance,
+	getVacationUsageByServiceYear,
+} from '../services/vacation-balance.js';
 
 type VacationRequestRow = typeof vacationRequest.$inferSelect;
 
@@ -66,6 +70,7 @@ const VACATION_ERROR_CODES = {
 	SERVICE_YEAR_INCOMPLETE: 'VACATION_SERVICE_YEAR_INCOMPLETE',
 	INSUFFICIENT_BALANCE: 'VACATION_INSUFFICIENT_BALANCE',
 	OVERLAP: 'VACATION_OVERLAP',
+	INCAPACITY_OVERLAP: 'VACATION_INCAPACITY_OVERLAP',
 } as const;
 
 /**
@@ -207,6 +212,39 @@ async function loadScheduleExceptionsForRange(
 		exceptionDate: row.exceptionDate,
 		exceptionType: row.exceptionType,
 	}));
+}
+
+/**
+ * Finds active incapacity overlaps for a date range.
+ *
+ * @param organizationId - Organization identifier
+ * @param employeeId - Employee identifier
+ * @param startDateKey - Range start date key (YYYY-MM-DD)
+ * @param endDateKey - Range end date key (YYYY-MM-DD)
+ * @returns Overlapping incapacity ranges
+ */
+async function findIncapacityOverlaps(args: {
+	organizationId: string;
+	employeeId: string;
+	startDateKey: string;
+	endDateKey: string;
+}): Promise<{ startDateKey: string; endDateKey: string; type: string }[]> {
+	return await db
+		.select({
+			startDateKey: employeeIncapacity.startDateKey,
+			endDateKey: employeeIncapacity.endDateKey,
+			type: employeeIncapacity.type,
+		})
+		.from(employeeIncapacity)
+		.where(
+			and(
+				eq(employeeIncapacity.organizationId, args.organizationId),
+				eq(employeeIncapacity.employeeId, args.employeeId),
+				eq(employeeIncapacity.status, 'ACTIVE'),
+				lte(employeeIncapacity.startDateKey, args.endDateKey),
+				gte(employeeIncapacity.endDateKey, args.startDateKey),
+			)!,
+		);
 }
 
 /**
@@ -737,11 +775,24 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (overlap[0]) {
 				set.status = 409;
-				return buildErrorResponse(
-					'Vacation request overlaps an approved request',
-					409,
-					{ code: VACATION_ERROR_CODES.OVERLAP },
-				);
+				return buildErrorResponse('Vacation request overlaps an approved request', 409, {
+					code: VACATION_ERROR_CODES.OVERLAP,
+				});
+			}
+
+			const incapacityOverlaps = await findIncapacityOverlaps({
+				organizationId,
+				employeeId: employeeRecord.id,
+				startDateKey: body.startDateKey,
+				endDateKey: body.endDateKey,
+			});
+
+			if (incapacityOverlaps.length > 0) {
+				set.status = 409;
+				return buildErrorResponse('Vacation request overlaps an active incapacity', 409, {
+					code: VACATION_ERROR_CODES.INCAPACITY_OVERLAP,
+					details: { conflicts: incapacityOverlaps },
+				});
 			}
 
 			const requestId = crypto.randomUUID();
@@ -1083,6 +1134,25 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 						{ code: VACATION_ERROR_CODES.OVERLAP },
 					);
 				}
+
+				const incapacityOverlaps = await findIncapacityOverlaps({
+					organizationId,
+					employeeId: employeeRecord.id,
+					startDateKey: body.startDateKey,
+					endDateKey: body.endDateKey,
+				});
+
+				if (incapacityOverlaps.length > 0) {
+					set.status = 409;
+					return buildErrorResponse(
+						'Vacation request overlaps an active incapacity',
+						409,
+						{
+							code: VACATION_ERROR_CODES.INCAPACITY_OVERLAP,
+							details: { conflicts: incapacityOverlaps },
+						},
+					);
+				}
 			}
 
 			const requestId = crypto.randomUUID();
@@ -1271,10 +1341,22 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 
 			if (overlap[0]) {
 				set.status = 409;
-				return buildErrorResponse(
-					'Vacation request overlaps an approved request',
-					409,
-				);
+				return buildErrorResponse('Vacation request overlaps an approved request', 409);
+			}
+
+			const incapacityOverlaps = await findIncapacityOverlaps({
+				organizationId,
+				employeeId: request.employeeId,
+				startDateKey: request.startDateKey,
+				endDateKey: request.endDateKey,
+			});
+
+			if (incapacityOverlaps.length > 0) {
+				set.status = 409;
+				return buildErrorResponse('Vacation request overlaps an active incapacity', 409, {
+					code: VACATION_ERROR_CODES.INCAPACITY_OVERLAP,
+					details: { conflicts: incapacityOverlaps },
+				});
 			}
 
 			const exceptionDates = dayRows

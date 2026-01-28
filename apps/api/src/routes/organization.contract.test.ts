@@ -111,25 +111,21 @@ describe('organization routes (contract)', () => {
 		expect(payload.success).toBe(true);
 	});
 
-	it(
-		'provisions a user and adds them to the organization',
-		async () => {
-			const suffix = randomUUID().slice(0, 8);
-			const response = await client.organization['provision-user'].post({
-				name: 'Nuevo Usuario',
-				email: `provision.${suffix}@example.com`,
-				username: `prov_${suffix}`,
-				password: 'User123!Test',
-				role: 'member',
-				organizationId: seed.organizationId,
-				$headers: { cookie: adminSession.cookieHeader },
-			});
+	it('provisions a user and adds them to the organization', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const response = await client.organization['provision-user'].post({
+			name: 'Nuevo Usuario',
+			email: `provision.${suffix}@example.com`,
+			username: `prov_${suffix}`,
+			password: 'User123!Test',
+			role: 'member',
+			organizationId: seed.organizationId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
 
-			expect(response.status).toBe(200);
-			const payload = requireResponseData(response);
-			expect(payload.success).toBe(true);
-			expect(payload.data?.userId).toBeDefined();
-		},
-		15_000,
-	);
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.success).toBe(true);
+		expect(payload.data?.userId).toBeDefined();
+	}, 15_000);
 });

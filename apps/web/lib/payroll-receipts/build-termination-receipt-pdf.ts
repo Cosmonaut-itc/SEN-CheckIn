@@ -1,12 +1,5 @@
 import { format } from 'date-fns';
-import {
-	PDFDocument,
-	PageSizes,
-	StandardFonts,
-	rgb,
-	type PDFPage,
-	type PDFFont,
-} from 'pdf-lib';
+import { PDFDocument, PageSizes, StandardFonts, rgb, type PDFPage, type PDFFont } from 'pdf-lib';
 
 import type {
 	EmployeeLatestPayroll,
@@ -105,12 +98,7 @@ function formatDate(value: Date | string | null | undefined): string {
  * @param maxWidth - Max width allowed per line
  * @returns Array of wrapped lines
  */
-function wrapText(
-	text: string,
-	font: PDFFont,
-	fontSize: number,
-	maxWidth: number,
-): string[] {
+function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
 	const words = text.split(/\s+/);
 	const lines: string[] = [];
 	let currentLine = '';
@@ -201,14 +189,7 @@ function drawSummaryRow(
 		font,
 		color: COLOR_MUTED,
 	});
-	drawRightAlignedText(
-		page,
-		formatCurrency(row.value),
-		fontBold,
-		10,
-		x + width,
-		y,
-	);
+	drawRightAlignedText(page, formatCurrency(row.value), fontBold, 10, x + width, y);
 }
 
 /**
@@ -282,14 +263,7 @@ function drawLineItemsColumn(
 		size: 10,
 		font: fontBold,
 	});
-	drawRightAlignedText(
-		page,
-		formatCurrency(totalValue),
-		fontBold,
-		10,
-		x + width,
-		cursorY,
-	);
+	drawRightAlignedText(page, formatCurrency(totalValue), fontBold, 10, x + width, cursorY);
 	cursorY -= 16;
 
 	return cursorY;
@@ -301,9 +275,7 @@ function drawLineItemsColumn(
  * @param latestPayroll - Latest payroll payload
  * @returns Summary values or null when missing
  */
-function resolveLatestPayrollSummary(
-	latestPayroll: EmployeeLatestPayroll | null,
-): {
+function resolveLatestPayrollSummary(latestPayroll: EmployeeLatestPayroll | null): {
 	grossPay: number;
 	employeeWithholdingsTotal: number;
 	employerCostsTotal: number;
@@ -511,9 +483,7 @@ export async function buildTerminationReceiptPdf(
 		},
 	].filter((line) => line.value > 0);
 
-	const incomeLines = [...finiquitoLines, ...liquidacionLines].filter(
-		(line) => line.value > 0,
-	);
+	const incomeLines = [...finiquitoLines, ...liquidacionLines].filter((line) => line.value > 0);
 	if (incomeLines.length === 0) {
 		incomeLines.push({ label: 'Total finiquito', value: input.settlement.totalsGross });
 	}

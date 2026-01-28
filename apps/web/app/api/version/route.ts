@@ -33,9 +33,7 @@ function resolveVercelEnv(value: string | undefined): VercelEnv | null {
  */
 function resolveGitSha(): string | null {
 	return (
-		process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
-		process.env.VERCEL_GIT_COMMIT_SHA ??
-		null
+		process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null
 	);
 }
 

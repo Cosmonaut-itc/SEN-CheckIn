@@ -8,12 +8,7 @@ import { NoOrganizationState } from '@/components/no-organization-state';
 /**
  * Admin-only route prefixes under the dashboard layout.
  */
-const ADMIN_ROUTE_PREFIXES = [
-	'/api-keys',
-	'/payroll-settings',
-	'/users',
-	'/organizations',
-];
+const ADMIN_ROUTE_PREFIXES = ['/api-keys', '/payroll-settings', '/users', '/organizations'];
 
 /**
  * Determines whether a path points to an admin-only dashboard route.

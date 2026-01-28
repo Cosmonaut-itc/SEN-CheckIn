@@ -227,9 +227,7 @@ export function createTestClient() {
 		return app.handle(buildRequest(requestInput, init));
 	}) as typeof fetch;
 
-	fetcher.preconnect = fetch.preconnect
-		? fetch.preconnect.bind(fetch)
-		: noopPreconnect;
+	fetcher.preconnect = fetch.preconnect ? fetch.preconnect.bind(fetch) : noopPreconnect;
 
 	return edenTreaty<App>('http://localhost', { fetcher });
 }
@@ -273,9 +271,7 @@ function isErrorPayload(value: unknown): value is ErrorPayload {
  * @returns Data payload from the response
  * @throws Error when the response data is missing or contains an error payload
  */
-export function requireResponseData<T>(
-	response: { data?: T | null },
-): Exclude<T, ErrorPayload> {
+export function requireResponseData<T>(response: { data?: T | null }): Exclude<T, ErrorPayload> {
 	if (response.data === undefined || response.data === null) {
 		throw new Error('Expected response data to be defined.');
 	}

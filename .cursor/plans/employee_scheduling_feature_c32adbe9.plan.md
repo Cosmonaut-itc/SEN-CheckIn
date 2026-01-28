@@ -340,7 +340,7 @@ apps/web/app/(dashboard)/schedules/
 
 ### 6.3 Main Schedules Page
 
-[`apps/web/app/(dashboard)/schedules/page.tsx`](<apps/web/app/\(dashboard)/schedules/page.tsx>):
+[`apps/web/app/(dashboard)/schedules/page.tsx`](<apps/web/app/(dashboard)/schedules/page.tsx>):
 
 - Force dynamic rendering
 - Prefetch schedule templates, calendar data for current week
@@ -348,7 +348,7 @@ apps/web/app/(dashboard)/schedules/
 
 ### 6.4 Schedules Client Component
 
-[`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](<apps/web/app/\(dashboard)/schedules/schedules-client.tsx>):
+[`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](<apps/web/app/(dashboard)/schedules/schedules-client.tsx>):
 
 **Layout with Tabs:**
 

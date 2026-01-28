@@ -21,7 +21,10 @@ interface PolicyListItem {
  */
 function renderPolicySubItem(item: string, index: number): React.ReactElement {
 	return (
-		<li key={`${item}-${index}`} className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+		<li
+			key={`${item}-${index}`}
+			className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]"
+		>
 			{item}
 		</li>
 	);
@@ -41,7 +44,9 @@ function renderPolicyItem(item: PolicyListItem, index: number): React.ReactEleme
 				{item.text}
 			</p>
 			{item.subItems && item.subItems.length > 0 ? (
-				<ul className="ml-5 list-disc space-y-1">{item.subItems.map(renderPolicySubItem)}</ul>
+				<ul className="ml-5 list-disc space-y-1">
+					{item.subItems.map(renderPolicySubItem)}
+				</ul>
 			) : null}
 		</li>
 	);
@@ -220,14 +225,18 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 									{t('sections.data.account.title')}
 								</h3>
-								<ul className="mt-3 space-y-2">{accountItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{accountItems.map(renderPolicyItem)}
+								</ul>
 							</div>
 
 							<div>
 								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 									{t('sections.data.operational.title')}
 								</h3>
-								<ul className="mt-3 space-y-2">{operationalItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{operationalItems.map(renderPolicyItem)}
+								</ul>
 							</div>
 
 							<div>
@@ -237,7 +246,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.data.biometric.description')}
 								</p>
-								<ul className="mt-3 space-y-2">{biometricItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{biometricItems.map(renderPolicyItem)}
+								</ul>
 								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.data.biometric.note')}
 								</p>
@@ -247,7 +258,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 									{t('sections.data.technical.title')}
 								</h3>
-								<ul className="mt-3 space-y-2">{technicalItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{technicalItems.map(renderPolicyItem)}
+								</ul>
 							</div>
 						</div>
 					</section>
@@ -262,14 +275,18 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 									{t('sections.purposes.primary.title')}
 								</h3>
-								<ul className="mt-3 space-y-2">{primaryPurposeItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{primaryPurposeItems.map(renderPolicyItem)}
+								</ul>
 							</div>
 
 							<div>
 								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 									{t('sections.purposes.consent.title')}
 								</h3>
-								<ul className="mt-3 space-y-2">{consentPurposeItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{consentPurposeItems.map(renderPolicyItem)}
+								</ul>
 								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.purposes.consent.notice')}
 								</p>
@@ -293,7 +310,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.consent.express.description')}
 								</p>
-								<ul className="mt-3 space-y-2">{consentMethodItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{consentMethodItems.map(renderPolicyItem)}
+								</ul>
 							</div>
 
 							<div>
@@ -331,7 +350,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.camera.mobile.description')}
 								</p>
-								<ul className="mt-3 space-y-2">{cameraMobileItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{cameraMobileItems.map(renderPolicyItem)}
+								</ul>
 								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.camera.mobile.note')}
 								</p>
@@ -368,7 +389,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.transfers.processors.description')}
 								</p>
-								<ul className="mt-3 space-y-2">{processorItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{processorItems.map(renderPolicyItem)}
+								</ul>
 								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.transfers.processors.note')}
 								</p>
@@ -381,7 +404,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.transfers.thirdParties.description')}
 								</p>
-								<ul className="mt-3 space-y-2">{thirdPartyItems.map(renderPolicyItem)}</ul>
+								<ul className="mt-3 space-y-2">
+									{thirdPartyItems.map(renderPolicyItem)}
+								</ul>
 								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 									{t('sections.transfers.thirdParties.consentNotice')}
 								</p>
@@ -418,7 +443,9 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 						<h3 className="mt-5 font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
 							{t('sections.arco.requirements.title')}
 						</h3>
-						<ul className="mt-3 space-y-2">{arcoRequirementItems.map(renderPolicyItem)}</ul>
+						<ul className="mt-3 space-y-2">
+							{arcoRequirementItems.map(renderPolicyItem)}
+						</ul>
 						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
 							{t('sections.arco.timeline')}
 						</p>

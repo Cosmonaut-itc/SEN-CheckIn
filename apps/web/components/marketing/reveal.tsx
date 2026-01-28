@@ -32,9 +32,7 @@ export function Reveal({
 }: RevealProps): React.ReactElement {
 	const prefersReducedMotion = useReducedMotion();
 	const initialState = prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: yOffset };
-	const transition = prefersReducedMotion
-		? { duration: 0 }
-		: { duration: 0.6, delay };
+	const transition = prefersReducedMotion ? { duration: 0 } : { duration: 0.6, delay };
 
 	return (
 		<motion.div

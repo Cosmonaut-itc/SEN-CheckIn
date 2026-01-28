@@ -133,13 +133,7 @@ export const loggerPlugin = new Elysia({ name: 'request-logger' })
 		requestTimings.delete(requestKey);
 
 		const errorMeta = status >= 400 ? getErrorMeta(responseValue) : null;
-		logger.response(
-			method,
-			path,
-			status,
-			durationMs,
-			errorMeta ?? undefined,
-		);
+		logger.response(method, path, status, durationMs, errorMeta ?? undefined);
 	});
 
 /**

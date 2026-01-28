@@ -101,10 +101,7 @@ export default function SettingsScreen(): JSX.Element {
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');
-	const continuousCurve = useMemo(
-		() => ({ borderCurve: 'continuous' } satisfies ViewStyle),
-		[],
-	);
+	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' }) satisfies ViewStyle, []);
 
 	return (
 		<ScrollView
@@ -114,9 +111,7 @@ export default function SettingsScreen(): JSX.Element {
 			showsVerticalScrollIndicator={false}
 		>
 			<View className="gap-1">
-				<Text className="text-base text-foreground-500">
-					{i18n.t('Settings.subtitle')}
-				</Text>
+				<Text className="text-base text-foreground-500">{i18n.t('Settings.subtitle')}</Text>
 			</View>
 
 			<Card variant="default" style={continuousCurve}>
@@ -175,9 +170,10 @@ export default function SettingsScreen(): JSX.Element {
 							);
 							const hasError = field.state.meta.errors.length > 0;
 
-							const handleLocationChange = (
-								option: { value: string; label: string },
-							): void => {
+							const handleLocationChange = (option: {
+								value: string;
+								label: string;
+							}): void => {
 								field.handleChange(option.value);
 							};
 
@@ -214,12 +210,12 @@ export default function SettingsScreen(): JSX.Element {
 										</Select.Trigger>
 										<Select.Portal>
 											<Select.Overlay />
-										<Select.Content
-											width={280}
-											className="rounded-2xl"
-											placement="bottom"
-											style={continuousCurve}
-										>
+											<Select.Content
+												width={280}
+												className="rounded-2xl"
+												placement="bottom"
+												style={continuousCurve}
+											>
 												{locationOptions.length === 0 ? (
 													<View className="py-4">
 														<Text className="text-foreground-400 text-center">

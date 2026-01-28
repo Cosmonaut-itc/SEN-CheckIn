@@ -74,10 +74,7 @@ export async function GET(
 	}
 
 	if (detail.run.status !== 'PROCESSED') {
-		return NextResponse.json(
-			{ error: 'PAYROLL_RUN_NOT_PROCESSED' },
-			{ status: 409 },
-		);
+		return NextResponse.json({ error: 'PAYROLL_RUN_NOT_PROCESSED' }, { status: 409 });
 	}
 
 	const employee = detail.employees.find((entry) => entry.employeeId === employeeId);
@@ -94,7 +91,9 @@ export async function GET(
 
 	const resolvedEmployeeCode =
 		employee.employeeCode?.trim() ||
-		(employee.employeeId ?? employee.id ? `empleado-${employee.employeeId ?? employee.id}` : '');
+		((employee.employeeId ?? employee.id)
+			? `empleado-${employee.employeeId ?? employee.id}`
+			: '');
 	const fileName = buildPayrollReceiptFileName({
 		employeeCode: resolvedEmployeeCode,
 		employeeId: employee.employeeId ?? employee.id,

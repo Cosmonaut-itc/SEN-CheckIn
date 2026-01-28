@@ -48,9 +48,7 @@ export function buildPayrollReceiptFileName(args: {
 }): string {
 	const codePart = sanitizeFileNamePart(args.employeeCode ?? '', '');
 	const idPart = sanitizeFileNamePart(args.employeeId ?? '', '');
-	const identifier =
-		codePart ||
-		(idPart ? `empleado-${idPart.slice(0, 8)}` : 'empleado');
+	const identifier = codePart || (idPart ? `empleado-${idPart.slice(0, 8)}` : 'empleado');
 	const startKey = formatDateKey(args.periodStart);
 	const endKey = formatDateKey(args.periodEnd);
 	return `recibo_nomina_${identifier}_${startKey}_${endKey}.pdf`;

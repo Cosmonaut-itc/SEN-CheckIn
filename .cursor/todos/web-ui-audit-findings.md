@@ -1,6 +1,7 @@
 # apps/web UI review (Web Interface Guidelines)
 
 ## Top fixes
+
 - apps/web/components/app-sidebar.tsx:303 - Avatar image missing alt text (add alt or alt="").
 - apps/web/components/app-sidebar.tsx:325 - Icon-only sign-out button lacks aria-label (title is not a label).
 - apps/web/components/face-enrollment-dialog.tsx:1005 - Icon-only clear-image button lacks aria-label/sr-only text.
@@ -25,6 +26,7 @@
 - apps/web/components/ui/sidebar.tsx:276 - Clickable sidebar rail removed from tab order (tabIndex=-1).
 
 ## Quick wins
+
 - apps/web/app/(auth)/sign-in/page.tsx:120 - Email/password fields missing autocomplete + spellCheck={false} for credentials.
 - apps/web/components/ui/sidebar.tsx:285 - transition-all used; list properties explicitly.
 - apps/web/components/ui/button.tsx:8 - transition-all used; list properties explicitly.

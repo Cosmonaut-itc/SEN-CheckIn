@@ -1,45 +1,45 @@
 ---
 name: Nomina MX impuestos + tests 2 corridas
-overview: "Extender la nómina actual para calcular impuestos México (ISR+subsidio, IMSS, INFONAVIT, SAR, ISN) y “séptimo día”, con seguir/replicar el reporte de referencia. El testing se vuelve robusto con dos corridas: con absorción patronal (IMSS+ISR) y sin absorción, y al final se ejecuta `bun run test` (Turbo) según `package.json`."
+overview: 'Extender la nómina actual para calcular impuestos México (ISR+subsidio, IMSS, INFONAVIT, SAR, ISN) y “séptimo día”, con seguir/replicar el reporte de referencia. El testing se vuelve robusto con dos corridas: con absorción patronal (IMSS+ISR) y sin absorción, y al final se ejecuta `bun run test` (Turbo) según `package.json`.'
 todos:
-  - id: db-migration
-    content: Actualizar Drizzle schema + migración para payroll_setting (tasas/flags), employee (override SBC) y payroll_run/payroll_run_employee (snapshot/vals fiscales).
-    status: pending
-  - id: mexico-tax-engine
-    content: Implementar motor fiscal MX (SDI/SBC auto+override, ISR+subsidio, IMSS/SAR/INFONAVIT, ISN, RT, absorciones) con util de money/rounding y JSDoc completo.
-    status: pending
-    dependencies:
-      - db-migration
-  - id: payroll-engine-integration
-    content: Integrar séptimo día + taxes en payroll-calculation y en rutas /payroll y /payroll/process (incluyendo persistencia).
-    status: pending
-    dependencies:
-      - mexico-tax-engine
-  - id: web-settings-ui
-    content: Extender Payroll Settings (UI+actions+types) para tasas/flags fiscales y séptimo día, con i18n en español.
-    status: pending
-    dependencies:
-      - db-migration
-  - id: web-employee-ui
-    content: Extender Employees UI+actions+API para capturar hireDate y SBC override (mixto auto+override).
-    status: pending
-    dependencies:
-      - db-migration
-  - id: web-payroll-ui
-    content: Actualizar Payroll UI para mostrar Resumen fiscal y detalle por empleado sin romper UX actual.
-    status: pending
-    dependencies:
-      - payroll-engine-integration
-  - id: tests-impuestos-2-runs
-    content: Actualizar payroll-calculation.test.ts con 2 corridas completas (absorción ON/OFF) basadas en impuestos-test.md + tests extra (override SBC y séptimo día).
-    status: pending
-    dependencies:
-      - payroll-engine-integration
-  - id: final-run-tests
-    content: Ejecutar `bun run test` (root) al final para validar la suite vía Turbo, según `package.json`.
-    status: pending
-    dependencies:
-      - tests-impuestos-2-runs
+    - id: db-migration
+      content: Actualizar Drizzle schema + migración para payroll_setting (tasas/flags), employee (override SBC) y payroll_run/payroll_run_employee (snapshot/vals fiscales).
+      status: pending
+    - id: mexico-tax-engine
+      content: Implementar motor fiscal MX (SDI/SBC auto+override, ISR+subsidio, IMSS/SAR/INFONAVIT, ISN, RT, absorciones) con util de money/rounding y JSDoc completo.
+      status: pending
+      dependencies:
+          - db-migration
+    - id: payroll-engine-integration
+      content: Integrar séptimo día + taxes en payroll-calculation y en rutas /payroll y /payroll/process (incluyendo persistencia).
+      status: pending
+      dependencies:
+          - mexico-tax-engine
+    - id: web-settings-ui
+      content: Extender Payroll Settings (UI+actions+types) para tasas/flags fiscales y séptimo día, con i18n en español.
+      status: pending
+      dependencies:
+          - db-migration
+    - id: web-employee-ui
+      content: Extender Employees UI+actions+API para capturar hireDate y SBC override (mixto auto+override).
+      status: pending
+      dependencies:
+          - db-migration
+    - id: web-payroll-ui
+      content: Actualizar Payroll UI para mostrar Resumen fiscal y detalle por empleado sin romper UX actual.
+      status: pending
+      dependencies:
+          - payroll-engine-integration
+    - id: tests-impuestos-2-runs
+      content: Actualizar payroll-calculation.test.ts con 2 corridas completas (absorción ON/OFF) basadas en impuestos-test.md + tests extra (override SBC y séptimo día).
+      status: pending
+      dependencies:
+          - payroll-engine-integration
+    - id: final-run-tests
+      content: Ejecutar `bun run test` (root) al final para validar la suite vía Turbo, según `package.json`.
+      status: pending
+      dependencies:
+          - tests-impuestos-2-runs
 ---
 
 # Upgrade de nómina México (impuestos + séptimo día) con testing robusto
@@ -59,7 +59,7 @@ Ampliar el resultado por empleado para separar:
 
 - **Percepciones (gross)**: cálculo actual + `seventhDayPay`.
 - **Retenciones del trabajador** (`employeeWithholdings`): ISR retenido (cuando no se absorbe), IMSS obrero (cuando no se absorbe), etc.
-- **Costos del patrón** (`employerCosts`): IMSS patronal, INFONAVIT 5%, SAR 2%, ISN, RT, Guarderías, y *absorciones* cuando apliquen.
+- **Costos del patrón** (`employerCosts`): IMSS patronal, INFONAVIT 5%, SAR 2%, ISN, RT, Guarderías, y _absorciones_ cuando apliquen.
 - **Informativos** (`informationalLines`): ISR antes de subsidio, subsidio aplicado, etc.
 - **Neto** (`netPay`) y **costo empresa** (`companyCost`).
 
@@ -91,7 +91,7 @@ Esto sigue el criterio de `documentacion/impuestos-mx-detailed.md` (separar dedu
 Debe cubrir:
 
 - **SDI/SBC automático (LFT 2023+)**
-- FI: \(FI = (365 + aguinaldoDays + vacationDays * vacationPremiumRate) / 365\)
+- FI: \(FI = (365 + aguinaldoDays + vacationDays \* vacationPremiumRate) / 365\)
 - Vacaciones por años cumplidos (tabla nueva) y cálculo determinista por fecha (usar periodo para decidir años).
 - `sbcDaily = sbcDailyOverride ?? (dailyPay * FI)`.
 - **ISR + subsidio al empleo (2025)**
@@ -224,6 +224,7 @@ Asserts **completos**:
 ## Verificación final (requisito)
 
 - Al final de la implementación, ejecutar **`bun run test`** (script del `package.json` raíz) para correr Turbo y validar `apps/api` (`bun test`).
+
 ```mermaid
 flowchart TD
   PayrollUI-->ClientFunctions

@@ -1,4 +1,8 @@
-import type { EmploymentContractType, EmployeeTerminationSettlement, TerminationReason } from '@sen-checkin/types';
+import type {
+	EmploymentContractType,
+	EmployeeTerminationSettlement,
+	TerminationReason,
+} from '@sen-checkin/types';
 
 import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { roundCurrency, sumMoney } from '../utils/money.js';
@@ -214,13 +218,13 @@ export function calculateEmployeeTerminationSettlement(
 		input.dailySalaryIndemnizacion && input.dailySalaryIndemnizacion > 0
 			? input.dailySalaryIndemnizacion
 			: getSbcDaily({
-				dailyPay: dailySalaryBase,
-				hireDate: input.hireDate,
-				sbcDailyOverride: input.sbcDailyOverride ?? undefined,
-				aguinaldoDays: aguinaldoDaysPolicy,
-				vacationPremiumRate: vacationPremiumRatePolicy,
-				periodEndDateKey: input.terminationDateKey,
-			}),
+					dailyPay: dailySalaryBase,
+					hireDate: input.hireDate,
+					sbcDailyOverride: input.sbcDailyOverride ?? undefined,
+					aguinaldoDays: aguinaldoDaysPolicy,
+					vacationPremiumRate: vacationPremiumRatePolicy,
+					periodEndDateKey: input.terminationDateKey,
+				}),
 	);
 
 	const minimumWageDaily = resolveMinimumWageDaily({
@@ -295,9 +299,7 @@ export function calculateEmployeeTerminationSettlement(
 			);
 		} else {
 			if (serviceYearsForIndemnizacion < 1) {
-				indemnizacion20Dias = roundCurrency(
-					dailySalaryIndemnizacion * (serviceDays / 2),
-				);
+				indemnizacion20Dias = roundCurrency(dailySalaryIndemnizacion * (serviceDays / 2));
 			} else {
 				indemnizacion20Dias = roundCurrency(
 					dailySalaryIndemnizacion * (6 * DAYS_IN_MONTH_LFT) +

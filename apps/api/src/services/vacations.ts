@@ -9,7 +9,8 @@ export type VacationDayType =
 	| 'SCHEDULED_REST_DAY'
 	| 'EXCEPTION_WORKDAY'
 	| 'EXCEPTION_DAY_OFF'
-	| 'MANDATORY_REST_DAY';
+	| 'MANDATORY_REST_DAY'
+	| 'INCAPACITY';
 
 export type VacationScheduleExceptionType = 'DAY_OFF' | 'MODIFIED' | 'EXTRA_DAY';
 
@@ -190,10 +191,7 @@ export function calculateVacationAccrual(args: {
 		};
 	}
 
-	const daysInServiceYear = getInclusiveDayCount(
-		serviceYearStartDateKey,
-		serviceYearEndDateKey,
-	);
+	const daysInServiceYear = getInclusiveDayCount(serviceYearStartDateKey, serviceYearEndDateKey);
 	const clampedAsOfDateKey =
 		asOfDateKey < serviceYearStartDateKey
 			? serviceYearStartDateKey
@@ -274,7 +272,11 @@ function getValidatedRangeDays(startDateKey: string, endDateKey: string): number
 	const startDate = new Date(`${startDateKey}T00:00:00Z`);
 	const endDate = new Date(`${endDateKey}T00:00:00Z`);
 
-	if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime()) || endDate < startDate) {
+	if (
+		Number.isNaN(startDate.getTime()) ||
+		Number.isNaN(endDate.getTime()) ||
+		endDate < startDate
+	) {
 		throw new RangeError('Invalid vacation date range');
 	}
 

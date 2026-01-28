@@ -19,14 +19,15 @@ import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, type JobPosition } from '@/lib/client-functions';
-import {
-	createJobPosition,
-	updateJobPosition,
-	deleteJobPosition,
-} from '@/actions/job-positions';
+import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 /**
  * Form values interface for job position create/edit form.
@@ -225,37 +226,29 @@ export function JobPositionsPageClient(): React.ReactElement {
 	 * @param value - Next global filter value or updater
 	 * @returns void
 	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleGlobalFilterChange = useCallback((value: React.SetStateAction<string>): void => {
+		setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	const columns = useMemo<ColumnDef<JobPosition>[]>(
 		() => [
 			{
 				accessorKey: 'name',
 				header: t('table.headers.name'),
-				cell: ({ row }) => (
-					<span className="font-medium">{row.original.name}</span>
-				),
+				cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
 			},
 			{
 				accessorKey: 'description',
 				header: t('table.headers.description'),
 				cell: ({ row }) => (
-					<span className="max-w-xs truncate">
-						{row.original.description ?? '-'}
-					</span>
+					<span className="max-w-xs truncate">{row.original.description ?? '-'}</span>
 				),
 			},
 			{
 				accessorKey: 'createdAt',
 				header: t('table.headers.created'),
-				cell: ({ row }) =>
-					format(new Date(row.original.createdAt), t('dateFormat')),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
 			},
 			{
 				id: 'actions',

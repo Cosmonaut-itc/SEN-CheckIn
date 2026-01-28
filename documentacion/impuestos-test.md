@@ -20,12 +20,12 @@ Movimientos por empleado (formato largo)
 |---:|---|---:|---|---:|---:|
 | 002 | PERCEPCION | 1 | Sueldo | 6.0 | 1672.80 |
 | 002 | PERCEPCION | 3 | Séptimo día | 1.0 | 278.80 |
-| 002 | DEDUCCION | 32 | Subs al Empleo acreditado |  | -109.38 |
-| 002 | DEDUCCION | 41 | I.S.R. antes de Subs al Empleo |  | 139.32 |
+| 002 | DEDUCCION | 32 | Subs al Empleo acreditado | | -109.38 |
+| 002 | DEDUCCION | 41 | I.S.R. antes de Subs al Empleo | | 139.32 |
 | 003 | PERCEPCION | 1 | Sueldo | 6.0 | 1672.80 |
 | 003 | PERCEPCION | 3 | Séptimo día | 1.0 | 278.80 |
-| 003 | DEDUCCION | 32 | Subs al Empleo acreditado |  | -109.38 |
-| 003 | DEDUCCION | 41 | I.S.R. antes de Subs al Empleo |  | 139.32 |
+| 003 | DEDUCCION | 32 | Subs al Empleo acreditado | | -109.38 |
+| 003 | DEDUCCION | 41 | I.S.R. antes de Subs al Empleo | | 139.32 |
 Totales de departamento
 | clave | concepto | tipo | importe |
 |---:|---|---|---:|

@@ -113,11 +113,7 @@ function getUtcDateForZonedTime(
  * @param checkOut - Check-out instant
  * @returns Attendance rows in chronological order
  */
-function createAttendancePair(
-	employeeId: string,
-	checkIn: Date,
-	checkOut: Date,
-): AttendanceRow[] {
+function createAttendancePair(employeeId: string, checkIn: Date, checkOut: Date): AttendanceRow[] {
 	return [
 		{ employeeId, timestamp: checkIn, type: 'CHECK_IN' },
 		{ employeeId, timestamp: checkOut, type: 'CHECK_OUT' },
@@ -161,9 +157,10 @@ function getTableName(table: unknown): string | null {
  * @param condition - Drizzle-like condition tree
  * @returns Date bounds when present
  */
-function extractDateRange(
-	condition: DrizzleCondition | null,
-): { start: Date | null; end: Date | null } {
+function extractDateRange(condition: DrizzleCondition | null): {
+	start: Date | null;
+	end: Date | null;
+} {
 	if (!condition) {
 		return { start: null, end: null };
 	}
@@ -202,9 +199,10 @@ function extractDateRange(
  * @param condition - Drizzle-like condition tree
  * @returns Date key bounds when present
  */
-function extractDateKeyRange(
-	condition: DrizzleCondition | null,
-): { start: string | null; end: string | null } {
+function extractDateKeyRange(condition: DrizzleCondition | null): {
+	start: string | null;
+	end: string | null;
+} {
 	if (!condition) {
 		return { start: null, end: null };
 	}
@@ -407,31 +405,41 @@ function createFakeDb(state: FakeDbState): {
 			}
 
 			if (tableName === 'employee') {
-				const rows = state.employees.filter((row) => row.organizationId === state.organizationId);
+				const rows = state.employees.filter(
+					(row) => row.organizationId === state.organizationId,
+				);
 				return rows;
 			}
 
 			if (tableName === 'employee_schedule') {
-				const employeeIds = extractInArrayValues(this.whereCondition)
-					?.filter((value): value is string => typeof value === 'string') ?? [];
+				const employeeIds =
+					extractInArrayValues(this.whereCondition)?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
 				return state.schedules.filter((row) =>
 					employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
 				);
 			}
 
 			if (tableName === 'attendance_record') {
-				const employeeIds = extractInArrayValues(this.whereCondition)
-					?.filter((value): value is string => typeof value === 'string') ?? [];
+				const employeeIds =
+					extractInArrayValues(this.whereCondition)?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
 				const { start, end } = extractDateRange(this.whereCondition);
 				return state.attendanceRecords
-					.filter((row) => (employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId)))
+					.filter((row) =>
+						employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
+					)
 					.filter((row) => (start ? row.timestamp >= start : true))
 					.filter((row) => (end ? row.timestamp <= end : true));
 			}
 
 			if (tableName === 'vacation_request_day') {
-				const employeeIds = extractInArrayValues(this.whereCondition)
-					?.filter((value): value is string => typeof value === 'string') ?? [];
+				const employeeIds =
+					extractInArrayValues(this.whereCondition)?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
 				const { start, end } = extractDateKeyRange(this.whereCondition);
 				const countsFilter = extractEqValue(
 					this.whereCondition,
@@ -448,15 +456,17 @@ function createFakeDb(state: FakeDbState): {
 					(value) => typeof value === 'string' && value === state.organizationId,
 				);
 
-				const requestsById = new Map(
-					state.vacationRequests.map((row) => [row.id, row]),
-				);
+				const requestsById = new Map(state.vacationRequests.map((row) => [row.id, row]));
 
 				return state.vacationRequestDays
 					.filter((row) =>
 						employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
 					)
-					.filter((row) => (typeof countsFilter === 'boolean' ? row.countsAsVacationDay === countsFilter : true))
+					.filter((row) =>
+						typeof countsFilter === 'boolean'
+							? row.countsAsVacationDay === countsFilter
+							: true,
+					)
 					.filter((row) => (start ? row.dateKey >= start : true))
 					.filter((row) => (end ? row.dateKey <= end : true))
 					.filter((row) => {
@@ -478,7 +488,9 @@ function createFakeDb(state: FakeDbState): {
 				const whereEq = this.whereCondition?.kind === 'eq' ? this.whereCondition : null;
 				const id = typeof whereEq?.value === 'string' ? whereEq.value : null;
 				const rows =
-					id === null ? state.payrollRuns : state.payrollRuns.filter((row) => row.id === id);
+					id === null
+						? state.payrollRuns
+						: state.payrollRuns.filter((row) => row.id === id);
 				const sliced = rows.slice(this.offsetCount);
 				return this.limitCount ? sliced.slice(0, this.limitCount) : sliced;
 			}
@@ -518,8 +530,14 @@ function createFakeDb(state: FakeDbState): {
 	 * @returns Transaction client with insert/update/select helpers
 	 */
 	const createTransaction = (): {
-		insert: (table: unknown) => { values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> };
-		update: (table: unknown) => { set: (values: Record<string, unknown>) => { where: (condition: DrizzleCondition) => Promise<void> } };
+		insert: (table: unknown) => {
+			values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void>;
+		};
+		update: (table: unknown) => {
+			set: (values: Record<string, unknown>) => {
+				where: (condition: DrizzleCondition) => Promise<void>;
+			};
+		};
 		select: (selection?: unknown) => unknown;
 		execute: (query: unknown) => Promise<void>;
 	} => {
@@ -580,12 +598,16 @@ function createFakeDb(state: FakeDbState): {
 					if (tableName !== 'employee') {
 						return;
 					}
-					const employeeIds = extractInArrayValues(condition)?.filter(
-						(value): value is string => typeof value === 'string',
-					) ?? [];
+					const employeeIds =
+						extractInArrayValues(condition)?.filter(
+							(value): value is string => typeof value === 'string',
+						) ?? [];
 					for (const emp of state.employees) {
 						if (employeeIds.includes(emp.id)) {
-							if (values.lastPayrollDate instanceof Date || values.lastPayrollDate === null) {
+							if (
+								values.lastPayrollDate instanceof Date ||
+								values.lastPayrollDate === null
+							) {
 								emp.lastPayrollDate = values.lastPayrollDate;
 							}
 						}
@@ -684,7 +706,11 @@ mock.module('drizzle-orm', () => {
 		}),
 		eq: (column: unknown, value: unknown) => ({ kind: 'eq' as const, column, value }),
 		gte: (column: unknown, value: Date) => ({ kind: 'gte' as const, column, value }),
-		inArray: (column: unknown, values: unknown[]) => ({ kind: 'inArray' as const, column, values }),
+		inArray: (column: unknown, values: unknown[]) => ({
+			kind: 'inArray' as const,
+			column,
+			values,
+		}),
 		lte: (column: unknown, value: Date) => ({ kind: 'lte' as const, column, value }),
 		relations: () => ({}),
 		sql: sqlTag,
@@ -892,7 +918,9 @@ describe('payroll routes', () => {
 		expect(row?.normalHours).toBe(8);
 		expect(row?.overtimeDoubleHours).toBe(4);
 		expect(row?.overtimeTripleHours).toBe(0);
-		expect(row?.warnings.some((warning) => warning.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(true);
+		expect(row?.warnings.some((warning) => warning.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(
+			true,
+		);
 	});
 
 	it('blocks /payroll/process when overtimeEnforcement is BLOCK and there are error warnings', async () => {
@@ -995,7 +1023,9 @@ describe('payroll routes', () => {
 		expect(dbState.payrollRunEmployees).toHaveLength(1);
 
 		const employeeAfter = dbState.employees[0];
-		expect(employeeAfter?.lastPayrollDate?.getTime()).toBe(periodBounds.periodEndInclusiveUtc.getTime());
+		expect(employeeAfter?.lastPayrollDate?.getTime()).toBe(
+			periodBounds.periodEndInclusiveUtc.getTime(),
+		);
 	});
 
 	it('adds vacation pay and premium for approved vacation days in /payroll/calculate', async () => {

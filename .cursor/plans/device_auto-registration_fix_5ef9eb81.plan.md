@@ -34,9 +34,9 @@ This plan addresses the device validation error and implements automatic device 
 - [`apps/api/src/routes/devices.ts`](apps/api/src/routes/devices.ts) - Add auto-register endpoint
 - [`apps/api/src/schemas/crud.ts`](apps/api/src/schemas/crud.ts) - Add register schema
 - [`apps/mobile/lib/device-context.tsx`](apps/mobile/lib/device-context.tsx) - Add device registration
-- [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/\(auth)/login.tsx>) - Register device on approval
+- [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/(auth)/login.tsx>) - Register device on approval
 - [`apps/mobile/lib/client-functions.ts`](apps/mobile/lib/client-functions.ts) - Add registration function
-- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](<apps/web/app/\(dashboard)/devices/devices-client.tsx>) - Remove create device UI
+- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](<apps/web/app/(dashboard)/devices/devices-client.tsx>) - Remove create device UI
 
 ---
 
@@ -73,7 +73,7 @@ Update [`apps/api/src/schemas/crud.ts`](apps/api/src/schemas/crud.ts) with `regi
 
 Devices should ONLY be created via mobile app registration during OAuth device code flow.
 
-In [`apps/web/app/(dashboard)/devices/devices-client.tsx`](<apps/web/app/\(dashboard)/devices/devices-client.tsx>):
+In [`apps/web/app/(dashboard)/devices/devices-client.tsx`](<apps/web/app/(dashboard)/devices/devices-client.tsx>):
 
 - Remove "Add Device" button and create dialog
 - Remove `createDevice` mutation and related form handling
@@ -84,7 +84,7 @@ In [`apps/web/app/(dashboard)/devices/devices-client.tsx`](<apps/web/app/\(dashb
 
 ## Phase 4: Mobile Device Registration Flow
 
-In [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/\(auth)/login.tsx>):
+In [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/(auth)/login.tsx>):
 
 1. After successful device authorization (when access token is received)
 2. Generate stable device ID

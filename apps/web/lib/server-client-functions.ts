@@ -21,6 +21,7 @@ import type {
 	Employee,
 	JobPosition,
 	Location,
+	IncapacityRecord,
 	Organization,
 	OrganizationsAllResponse,
 	OrganizationMember,
@@ -40,6 +41,7 @@ import type {
 	AttendanceQueryParams,
 	CalendarQueryParams,
 	JobPositionQueryParams,
+	IncapacityQueryParams,
 	ListQueryParams,
 	OrganizationAllQueryParams,
 	PayrollCalculateParams,
@@ -48,6 +50,7 @@ import type {
 	VacationRequestQueryParams,
 	UsersQueryParams,
 } from '@/lib/query-keys';
+import { clampPaginationLimit, clampPaginationOffset } from '@/lib/pagination';
 import { type ServerApiClient, createServerApiClient } from '@/lib/server-api';
 import { serverAuthClient } from '@/lib/server-auth-client';
 
@@ -100,6 +103,8 @@ export async function fetchEmployeesListServer(
 	},
 ): Promise<PaginatedResponse<Employee>> {
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const limit = clampPaginationLimit(params?.limit);
+	const offset = clampPaginationOffset(params?.offset);
 
 	// Resolve organization ID from params or BetterAuth session
 	let organizationId = params?.organizationId ?? null;
@@ -115,7 +120,7 @@ export async function fetchEmployeesListServer(
 	if (!organizationId) {
 		return {
 			data: [],
-			pagination: { total: 0, limit: params?.limit ?? 100, offset: params?.offset ?? 0 },
+			pagination: { total: 0, limit, offset },
 		};
 	}
 
@@ -128,8 +133,8 @@ export async function fetchEmployeesListServer(
 		jobPositionId?: string;
 		status?: Employee['status'];
 	} = {
-		limit: params?.limit ?? 100,
-		offset: params?.offset ?? 0,
+		limit,
+		offset,
 	};
 
 	if (params?.search) {
@@ -166,7 +171,7 @@ export async function fetchEmployeesListServer(
 	const employees = (payload?.data ?? []) as EmployeePayload[];
 	return {
 		data: employees.map(normalizeEmployeeRecord),
-		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
+		pagination: payload?.pagination ?? { total: 0, limit, offset },
 	};
 }
 
@@ -830,31 +835,32 @@ export async function fetchPayrollRunDetailServer(
 		return null;
 	}
 
-	const payload = (getApiResponseData(response)?.data as
-		| {
-				run: PayrollRun & { totalAmount?: number | string };
-				employees: (PayrollRunEmployee & {
-					hoursWorked?: number | string;
-					hourlyPay?: number | string;
-					totalPay?: number | string;
-					normalHours?: number | string;
-					normalPay?: number | string;
-					overtimeDoubleHours?: number | string;
-					overtimeDoublePay?: number | string;
-					overtimeTripleHours?: number | string;
-				overtimeTriplePay?: number | string;
-				sundayPremiumAmount?: number | string;
-				mandatoryRestDayPremiumAmount?: number | string;
-				vacationDaysPaid?: number | string;
-				vacationPayAmount?: number | string;
-				vacationPremiumAmount?: number | string;
-				periodStart: string | Date;
-				periodEnd: string | Date;
-				createdAt: string | Date;
-				updatedAt: string | Date;
-				})[];
-		  }
-		| undefined) ?? undefined;
+	const payload =
+		(getApiResponseData(response)?.data as
+			| {
+					run: PayrollRun & { totalAmount?: number | string };
+					employees: (PayrollRunEmployee & {
+						hoursWorked?: number | string;
+						hourlyPay?: number | string;
+						totalPay?: number | string;
+						normalHours?: number | string;
+						normalPay?: number | string;
+						overtimeDoubleHours?: number | string;
+						overtimeDoublePay?: number | string;
+						overtimeTripleHours?: number | string;
+						overtimeTriplePay?: number | string;
+						sundayPremiumAmount?: number | string;
+						mandatoryRestDayPremiumAmount?: number | string;
+						vacationDaysPaid?: number | string;
+						vacationPayAmount?: number | string;
+						vacationPremiumAmount?: number | string;
+						periodStart: string | Date;
+						periodEnd: string | Date;
+						createdAt: string | Date;
+						updatedAt: string | Date;
+					})[];
+			  }
+			| undefined) ?? undefined;
 	if (!payload) {
 		return null;
 	}
@@ -1114,6 +1120,91 @@ export async function fetchVacationRequestsListServer(
 	const payload = getApiResponseData(response);
 	return {
 		data: (payload?.data ?? []) as VacationRequest[],
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+// ============================================================================
+// Incapacity Functions
+// ============================================================================
+
+/**
+ * Fetches incapacity records list for HR/admin workflows (server-side).
+ *
+ * @param cookieHeader - Cookie header string from incoming request
+ * @param params - Query parameters for incapacity records
+ * @returns Paginated incapacity records
+ * @throws Error if the API request fails
+ */
+export async function fetchIncapacitiesListServer(
+	cookieHeader: string,
+	params?: IncapacityQueryParams,
+): Promise<PaginatedResponse<IncapacityRecord>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: { total: 0, limit: params?.limit ?? 50, offset: params?.offset ?? 0 },
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		organizationId?: string;
+		search?: string;
+		employeeId?: string;
+		type?: IncapacityQueryParams['type'];
+		status?: IncapacityQueryParams['status'];
+		from?: string;
+		to?: string;
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (params?.search) {
+		query.search = params.search;
+	}
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params?.type) {
+		query.type = params.type;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.from) {
+		query.from = params.from;
+	}
+	if (params?.to) {
+		query.to = params.to;
+	}
+
+	const response = await api.incapacities.get({ $query: query });
+
+	if (response.error) {
+		console.error(
+			'[Server] Failed to fetch incapacity records:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch incapacity records');
+	}
+
+	const payload = getApiResponseData(response);
+	return {
+		data: (payload?.data ?? []) as IncapacityRecord[],
 		pagination: payload?.pagination ?? {
 			total: 0,
 			limit: query.limit,

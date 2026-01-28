@@ -91,6 +91,7 @@ export interface MexicoPayrollTaxInput {
 	locationGeographicZone?: MinimumWageZone | null;
 	settings: MexicoPayrollTaxSettings;
 	umaDaily?: number;
+	imssExemptDateKeys?: string[];
 }
 
 type IsrTableRow = {
@@ -280,7 +281,7 @@ type UmaDependentTotals = {
  * @param overrideUmaDaily - Optional override UMA value for the entire period
  * @returns UMA daily value for the date
  */
-function resolveUmaDaily(dateKey: string, overrideUmaDaily?: number): number {
+export function resolveUmaDaily(dateKey: string, overrideUmaDaily?: number): number {
 	if (overrideUmaDaily && overrideUmaDaily > 0) {
 		return overrideUmaDaily;
 	}
@@ -294,10 +295,7 @@ function resolveUmaDaily(dateKey: string, overrideUmaDaily?: number): number {
  * @param frequency - Payroll payment frequency
  * @returns ISR table rows for the effective year
  */
-function resolveIsrTable(
-	dateKey: string,
-	frequency: PayrollPaymentFrequency,
-): IsrTableRow[] {
+function resolveIsrTable(dateKey: string, frequency: PayrollPaymentFrequency): IsrTableRow[] {
 	const tables = dateKey >= '2026-01-01' ? ISR_TABLES_2026 : ISR_TABLES_2025;
 	return tables[frequency];
 }
@@ -337,6 +335,7 @@ function resolveCvRateTable(dateKey: string): CvRateTable {
  * @param args.sbcDaily - SBC daily amount (non-capped)
  * @param args.zone - Geographic minimum wage zone
  * @param args.umaDailyOverride - Optional fixed UMA daily override
+ * @param args.excludeDateKeys - Optional set of date keys to skip from totals
  * @returns Aggregated UMA-dependent raw totals
  */
 function buildUmaDependentTotals(args: {
@@ -345,6 +344,7 @@ function buildUmaDependentTotals(args: {
 	sbcDaily: number;
 	zone: MinimumWageZone;
 	umaDailyOverride?: number;
+	excludeDateKeys?: Set<string>;
 }): UmaDependentTotals {
 	if (args.periodEndDateKey < args.periodStartDateKey) {
 		return {
@@ -364,6 +364,13 @@ function buildUmaDependentTotals(args: {
 
 	let cursor = args.periodStartDateKey;
 	for (let i = 0; i < 400 && cursor <= args.periodEndDateKey; i += 1) {
+		if (args.excludeDateKeys?.has(cursor)) {
+			if (cursor === args.periodEndDateKey) {
+				break;
+			}
+			cursor = addDaysToDateKey(cursor, 1);
+			continue;
+		}
 		const umaDaily = resolveUmaDaily(cursor, args.umaDailyOverride);
 		const minimumWageDaily = resolveMinimumWageDaily({
 			dateKey: cursor,
@@ -474,14 +481,24 @@ export function getSbcDaily(args: {
 	vacationPremiumRate: number;
 	periodEndDateKey: string;
 }): number {
-	const { dailyPay, hireDate, sbcDailyOverride, aguinaldoDays, vacationPremiumRate, periodEndDateKey } =
-		args;
+	const {
+		dailyPay,
+		hireDate,
+		sbcDailyOverride,
+		aguinaldoDays,
+		vacationPremiumRate,
+		periodEndDateKey,
+	} = args;
 	if (sbcDailyOverride && sbcDailyOverride > 0) {
 		return roundCurrency(sbcDailyOverride);
 	}
 	const completedYears = hireDate ? getCompletedYears(hireDate, periodEndDateKey) : 0;
 	const vacationDays = getVacationDaysForYears(completedYears);
-	const integrationFactor = getIntegrationFactor(aguinaldoDays, vacationDays, vacationPremiumRate);
+	const integrationFactor = getIntegrationFactor(
+		aguinaldoDays,
+		vacationDays,
+		vacationPremiumRate,
+	);
 	return roundCurrency(dailyPay * integrationFactor);
 }
 
@@ -532,8 +549,9 @@ export function calculateIsrFromTable(
 	}
 	const table = resolveIsrTable(dateKey, frequency);
 	const row =
-		table.find((entry) => isrBase >= entry.lower && (entry.upper === null || isrBase <= entry.upper)) ??
-		table[table.length - 1];
+		table.find(
+			(entry) => isrBase >= entry.lower && (entry.upper === null || isrBase <= entry.upper),
+		) ?? table[table.length - 1];
 	if (!row) {
 		return 0;
 	}
@@ -560,6 +578,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		locationGeographicZone,
 		settings,
 		umaDaily: umaDailyOverride,
+		imssExemptDateKeys,
 	} = input;
 	const daysInPeriod = getInclusiveDayCount(periodStartDateKey, periodEndDateKey);
 	const zone: MinimumWageZone = locationGeographicZone ?? 'GENERAL';
@@ -584,14 +603,23 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		zone,
 		umaDailyOverride,
 	});
-	const sbcPeriod = umaDependentTotals.sbcPeriodRaw;
+	const imssExemptDateKeySet = new Set(imssExemptDateKeys ?? []);
+	const umaDependentTotalsImss =
+		imssExemptDateKeySet.size > 0
+			? buildUmaDependentTotals({
+					periodStartDateKey,
+					periodEndDateKey,
+					sbcDaily,
+					zone,
+					umaDailyOverride,
+					excludeDateKeys: imssExemptDateKeySet,
+				})
+			: umaDependentTotals;
+	const sbcPeriodTotal = umaDependentTotals.sbcPeriodRaw;
+	const sbcPeriodImssBase = umaDependentTotalsImss.sbcPeriodRaw;
 
 	const isrBase = roundCurrency(grossPay);
-	const isrBeforeSubsidy = calculateIsrFromTable(
-		isrBase,
-		paymentFrequency,
-		periodEndDateKey,
-	);
+	const isrBeforeSubsidy = calculateIsrFromTable(isrBase, paymentFrequency, periodEndDateKey);
 	const subsidyRule = resolveSubsidyRule(periodEndDateKey);
 	const subsidyPeriod = roundCurrency(
 		Math.min(subsidyRule.monthlyMax, umaDependentTotals.subsidyPeriodRaw),
@@ -603,19 +631,19 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		: 0;
 	const isrWithheldCalculated = roundCurrency(Math.max(0, isrBeforeSubsidy - subsidyApplied));
 
-	const excessOver3UmaPeriod = umaDependentTotals.excessOver3UmaPeriodRaw;
-	const emFixedEmployerRaw = umaDependentTotals.emFixedEmployerRaw;
+	const excessOver3UmaPeriod = umaDependentTotalsImss.excessOver3UmaPeriodRaw;
+	const emFixedEmployerRaw = umaDependentTotalsImss.emFixedEmployerRaw;
 	const emExcessEmployerRaw = excessOver3UmaPeriod * 0.011;
 	const emExcessEmployeeRaw = excessOver3UmaPeriod * 0.004;
-	const pdEmployerRaw = sbcPeriod * 0.007;
-	const pdEmployeeRaw = sbcPeriod * 0.0025;
-	const gmpEmployerRaw = sbcPeriod * 0.0105;
-	const gmpEmployeeRaw = sbcPeriod * 0.00375;
-	const ivEmployerRaw = sbcPeriod * 0.0175;
-	const ivEmployeeRaw = sbcPeriod * 0.00625;
-	const cvEmployerRaw = umaDependentTotals.cvEmployerRaw;
-	const cvEmployeeRaw = sbcPeriod * 0.01125;
-	const guarderiasRaw = sbcPeriod * 0.01;
+	const pdEmployerRaw = sbcPeriodImssBase * 0.007;
+	const pdEmployeeRaw = sbcPeriodImssBase * 0.0025;
+	const gmpEmployerRaw = sbcPeriodImssBase * 0.0105;
+	const gmpEmployeeRaw = sbcPeriodImssBase * 0.00375;
+	const ivEmployerRaw = sbcPeriodImssBase * 0.0175;
+	const ivEmployeeRaw = sbcPeriodImssBase * 0.00625;
+	const cvEmployerRaw = umaDependentTotalsImss.cvEmployerRaw;
+	const cvEmployeeRaw = sbcPeriodImssBase * 0.01125;
+	const guarderiasRaw = sbcPeriodImssBase * 0.01;
 	const emFixedEmployer = roundCurrency(emFixedEmployerRaw);
 	const emExcessEmployer = roundCurrency(emExcessEmployerRaw);
 	const emExcessEmployee = roundCurrency(emExcessEmployeeRaw);
@@ -628,9 +656,9 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 	const cvEmployer = roundCurrency(cvEmployerRaw);
 	const cvEmployee = roundCurrency(cvEmployeeRaw);
 	const guarderias = roundCurrency(guarderiasRaw);
-	const sarRetiro = roundCurrency(sbcPeriod * 0.02);
-	const infonavit = roundCurrency(sbcPeriod * 0.05);
-	const riskWork = roundCurrency(sbcPeriod * settings.riskWorkRate);
+	const sarRetiro = roundCurrency(sbcPeriodTotal * 0.02);
+	const infonavit = roundCurrency(sbcPeriodTotal * 0.05);
+	const riskWork = roundCurrency(sbcPeriodImssBase * settings.riskWorkRate);
 	const isn = roundCurrency(isrBase * settings.statePayrollTaxRate);
 
 	const imssEmployeeTotalRaw =
@@ -674,26 +702,26 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 
 	const imssEmployer: ImssEmployerBreakdown = settings.absorbImssEmployeeShare
 		? {
-			...imssEmployerBase,
-			emExcess: emExcessCombined,
-			pd: pdCombined,
-			gmp: gmpCombined,
-			iv: ivCombined,
-			cv: cvCombined,
-			total: roundCurrency(imssEmployerAbsorbTotalRaw),
-		}
+				...imssEmployerBase,
+				emExcess: emExcessCombined,
+				pd: pdCombined,
+				gmp: gmpCombined,
+				iv: ivCombined,
+				cv: cvCombined,
+				total: roundCurrency(imssEmployerAbsorbTotalRaw),
+			}
 		: imssEmployerBase;
 
 	const employeeWithholdings: PayrollEmployeeWithholdings = {
 		imssEmployee: settings.absorbImssEmployeeShare
 			? {
-				emExcess: 0,
-				pd: 0,
-				gmp: 0,
-				iv: 0,
-				cv: 0,
-				total: 0,
-			}
+					emExcess: 0,
+					pd: 0,
+					gmp: 0,
+					iv: 0,
+					cv: 0,
+					total: 0,
+				}
 			: imssEmployee,
 		isrWithheld: settings.absorbIsr ? 0 : isrWithheldCalculated,
 		infonavitCredit: 0,
@@ -733,7 +761,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 	return {
 		bases: {
 			sbcDaily,
-			sbcPeriod: roundCurrency(sbcPeriod),
+			sbcPeriod: roundCurrency(sbcPeriodImssBase),
 			isrBase,
 			daysInPeriod,
 			umaDaily: effectiveUmaDaily,

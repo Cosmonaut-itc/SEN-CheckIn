@@ -7,6 +7,8 @@
  * @module query-keys
  */
 
+import type { IncapacityStatus, IncapacityType } from '@sen-checkin/types';
+
 /**
  * Query parameters for paginated list endpoints.
  */
@@ -124,12 +126,7 @@ export interface ScheduleExceptionQueryParams extends ListQueryParams {
 /**
  * Vacation request status values.
  */
-export type VacationRequestStatus =
-	| 'DRAFT'
-	| 'SUBMITTED'
-	| 'APPROVED'
-	| 'REJECTED'
-	| 'CANCELLED';
+export type VacationRequestStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 
 /**
  * Query parameters for vacation requests list.
@@ -138,6 +135,18 @@ export interface VacationRequestQueryParams extends ListQueryParams {
 	organizationId?: string;
 	employeeId?: string;
 	status?: VacationRequestStatus;
+	from?: string;
+	to?: string;
+}
+
+/**
+ * Query parameters for incapacity list.
+ */
+export interface IncapacityQueryParams extends ListQueryParams {
+	organizationId?: string;
+	employeeId?: string;
+	type?: IncapacityType;
+	status?: IncapacityStatus;
 	from?: string;
 	to?: string;
 }
@@ -489,6 +498,15 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for incapacity records.
+	 */
+	incapacities: {
+		all: ['incapacities'] as const,
+		list: (params?: IncapacityQueryParams) =>
+			queryKeyConstructor(['incapacities', 'list'] as const, params),
+	},
+
+	/**
 	 * Query keys for scheduling/calendar queries.
 	 */
 	scheduling: {
@@ -609,6 +627,17 @@ export const mutationKeys = {
 		approve: ['vacations', 'approve'] as const,
 		reject: ['vacations', 'reject'] as const,
 		cancel: ['vacations', 'cancel'] as const,
+	},
+
+	/**
+	 * Mutation keys for incapacity workflows.
+	 */
+	incapacities: {
+		create: ['incapacities', 'create'] as const,
+		update: ['incapacities', 'update'] as const,
+		cancel: ['incapacities', 'cancel'] as const,
+		presign: ['incapacities', 'presign'] as const,
+		confirm: ['incapacities', 'confirm'] as const,
 	},
 
 	/**

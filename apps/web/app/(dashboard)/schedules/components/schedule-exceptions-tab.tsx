@@ -38,7 +38,12 @@ import {
 	updateScheduleException,
 } from '@/actions/schedules';
 import { ExceptionFormDialog } from './exception-form-dialog';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 /**
  * Derives the first and last day of the current month.
@@ -115,9 +120,8 @@ export function ScheduleExceptionsTab({
 	const fromDateValue = parseDateKey(fromDate);
 	const toDateValue = parseDateKey(toDate);
 	const selectedEmployeeIdValue =
-		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as
-			| string
-			| undefined) ?? 'all';
+		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as string | undefined) ??
+		'all';
 
 	const listParams = useMemo(
 		() => ({
@@ -402,10 +406,7 @@ export function ScheduleExceptionsTab({
 			</div>
 
 			<div className="flex flex-wrap items-center gap-3">
-				<Select
-					value={selectedEmployeeIdValue}
-					onValueChange={handleEmployeeFilterChange}
-				>
+				<Select value={selectedEmployeeIdValue} onValueChange={handleEmployeeFilterChange}>
 					<SelectTrigger className="w-[240px]">
 						<SelectValue placeholder={t('exceptions.filters.allEmployees')} />
 					</SelectTrigger>

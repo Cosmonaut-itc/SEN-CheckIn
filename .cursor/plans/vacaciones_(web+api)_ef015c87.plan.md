@@ -1,56 +1,56 @@
 ---
 name: Vacaciones (web+api)
-overview: "Implementar un módulo de Vacaciones (LFT México) con enfoque híbrido: UI web para RH/Admin y endpoints de self‑service en API (para consumo futuro), integrando el pago de vacaciones + prima en Nómina desde el primer release."
+overview: 'Implementar un módulo de Vacaciones (LFT México) con enfoque híbrido: UI web para RH/Admin y endpoints de self‑service en API (para consumo futuro), integrando el pago de vacaciones + prima en Nómina desde el primer release.'
 todos:
-  - id: db-schema
-    content: "Definir cambios en `apps/api/src/db/schema.ts`: employee.userId, schedule_exception.vacationRequestId, tablas vacation_request(+_day), y columnas de payroll_run_employee para vacaciones."
-    status: pending
-  - id: db-migration
-    content: Generar y aplicar migración Drizzle con `bun run db:gen` y `bun run db:mig` (requiere `SEN_DB_URL`).
-    status: pending
-    dependencies:
-      - db-schema
-  - id: api-vacations
-    content: Implementar schemas+routes+services de vacaciones en API y registrar en `apps/api/src/index.ts` (incluye permisos RH/Admin y self-service).
-    status: pending
-    dependencies:
-      - db-migration
-  - id: api-employee-link
-    content: Extender API de empleados para permitir asociar `employee.userId` y validar pertenencia a la organización.
-    status: pending
-    dependencies:
-      - db-migration
-  - id: payroll-integration-api
-    content: "Integrar vacaciones en cálculo y procesamiento de nómina (API): sumar vacation pay + prima, persistir campos en payroll_run_employee, y actualizar responses."
-    status: pending
-    dependencies:
-      - db-migration
-      - api-vacations
-  - id: payroll-premium-min
-    content: Enforce prima vacacional mínima 0.25 en API (`apps/api/src/schemas/payroll.ts`) y Web (`payroll-settings-client.tsx`).
-    status: pending
-  - id: web-vacations-page
-    content: "Agregar página RH/Admin de Vacaciones en web: i18n, sidebar, query keys, fetchers, server actions, UI con shadcn+TanStack Form."
-    status: pending
-    dependencies:
-      - api-vacations
-  - id: web-employee-link-ui
-    content: Agregar campo UI para asociar Usuario↔Empleado en pantalla de empleados (usa organization members).
-    status: pending
-    dependencies:
-      - api-employee-link
-  - id: payroll-integration-web
-    content: Actualizar UI/CSV de Nómina para mostrar/exportar vacaciones + prima; actualizar tipos en `apps/web/lib/client-functions.ts`.
-    status: pending
-    dependencies:
-      - payroll-integration-api
-      - payroll-premium-min
-  - id: tests
-    content: Actualizar/crear pruebas Bun para vacaciones y ajustar `payroll.test.ts` por la integración.
-    status: pending
-    dependencies:
-      - api-vacations
-      - payroll-integration-api
+    - id: db-schema
+      content: 'Definir cambios en `apps/api/src/db/schema.ts`: employee.userId, schedule_exception.vacationRequestId, tablas vacation_request(+_day), y columnas de payroll_run_employee para vacaciones.'
+      status: pending
+    - id: db-migration
+      content: Generar y aplicar migración Drizzle con `bun run db:gen` y `bun run db:mig` (requiere `SEN_DB_URL`).
+      status: pending
+      dependencies:
+          - db-schema
+    - id: api-vacations
+      content: Implementar schemas+routes+services de vacaciones en API y registrar en `apps/api/src/index.ts` (incluye permisos RH/Admin y self-service).
+      status: pending
+      dependencies:
+          - db-migration
+    - id: api-employee-link
+      content: Extender API de empleados para permitir asociar `employee.userId` y validar pertenencia a la organización.
+      status: pending
+      dependencies:
+          - db-migration
+    - id: payroll-integration-api
+      content: 'Integrar vacaciones en cálculo y procesamiento de nómina (API): sumar vacation pay + prima, persistir campos en payroll_run_employee, y actualizar responses.'
+      status: pending
+      dependencies:
+          - db-migration
+          - api-vacations
+    - id: payroll-premium-min
+      content: Enforce prima vacacional mínima 0.25 en API (`apps/api/src/schemas/payroll.ts`) y Web (`payroll-settings-client.tsx`).
+      status: pending
+    - id: web-vacations-page
+      content: 'Agregar página RH/Admin de Vacaciones en web: i18n, sidebar, query keys, fetchers, server actions, UI con shadcn+TanStack Form.'
+      status: pending
+      dependencies:
+          - api-vacations
+    - id: web-employee-link-ui
+      content: Agregar campo UI para asociar Usuario↔Empleado en pantalla de empleados (usa organization members).
+      status: pending
+      dependencies:
+          - api-employee-link
+    - id: payroll-integration-web
+      content: Actualizar UI/CSV de Nómina para mostrar/exportar vacaciones + prima; actualizar tipos en `apps/web/lib/client-functions.ts`.
+      status: pending
+      dependencies:
+          - payroll-integration-api
+          - payroll-premium-min
+    - id: tests
+      content: Actualizar/crear pruebas Bun para vacaciones y ajustar `payroll.test.ts` por la integración.
+      status: pending
+      dependencies:
+          - api-vacations
+          - payroll-integration-api
 ---
 
 # Plan de implementación — Vacaciones (LFT México) en SEN-CheckIn
@@ -82,8 +82,6 @@ flowchart TD
   PayrollService --> ApiPayrollRoutes
   ApiPayrollRoutes --> WebAdmin
 ```
-
-
 
 ## Modelo de datos (DB)
 
@@ -193,7 +191,7 @@ En `approve` (transacción):
 ### 1) Enforce legal mínimo: prima vacacional >= 0.25
 
 - API: actualizar [`apps/api/src/schemas/payroll.ts`](apps/api/src/schemas/payroll.ts) para `vacationPremiumRate: z.coerce.number().min(0.25).max(1)`.
-- Web: actualizar validación en [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\\(dashboard)/payroll-settings/payroll-settings-client.tsx) para `min: 0.25`.
+- Web: actualizar validación en [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](<apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx>) para `min: 0.25`.
 
 ### 2) Cálculo
 
@@ -210,7 +208,7 @@ En `approve` (transacción):
 ### 3) Web Nómina
 
 - Actualizar tipos en [`apps/web/lib/client-functions.ts`](apps/web/lib/client-functions.ts) (`PayrollCalculationEmployee`, `PayrollRunEmployee`).
-- Actualizar UI/CSV en [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\\(dashboard)/payroll/payroll-client.tsx) para mostrar/exportar vacaciones y prima.
+- Actualizar UI/CSV en [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](<apps/web/app/(dashboard)/payroll/payroll-client.tsx>) para mostrar/exportar vacaciones y prima.
 
 ## Web (apps/web) — UI RH/Admin
 
@@ -223,7 +221,7 @@ En `approve` (transacción):
 
 ### 2) Página nueva
 
-Crear carpeta: [`apps/web/app/(dashboard)/vacations/`](apps/web/app/\\\(dashboard)/vacations/)
+Crear carpeta: [`apps/web/app/(dashboard)/vacations/`](<apps/web/app/(dashboard)/vacations/>)
 
 - `page.tsx`: server component con `dynamic='force-dynamic'`, prefetch (sin await) siguiendo Release 04.
 - `vacations-client.tsx`: client component con React Query.
@@ -262,7 +260,7 @@ Patrón: `'use server'` + `await headers()` + `createServerApiClient(cookieHeade
 - API: extender rutas y schemas de empleados para aceptar `userId` (solo RH/Admin), validando que el usuario sea miembro de la organización.
 - Archivos: [`apps/api/src/routes/employees.ts`](apps/api/src/routes/employees.ts), [`apps/api/src/schemas/crud.ts`](apps/api/src/schemas/crud.ts)
 - Web: agregar campo “Usuario” en crear/editar empleado (Select con `fetchOrganizationMembers`).
-- Archivos: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\\(dashboard)/employees/employees-client.tsx) + acciones ya existentes en [`apps/web/actions/employees.ts`](apps/web/actions/employees.ts)
+- Archivos: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](<apps/web/app/(dashboard)/employees/employees-client.tsx>) + acciones ya existentes en [`apps/web/actions/employees.ts`](apps/web/actions/employees.ts)
 
 ## Pruebas
 

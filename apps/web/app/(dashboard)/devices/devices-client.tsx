@@ -30,7 +30,12 @@ import {
 } from '@/lib/client-functions';
 import { updateDevice, deleteDevice } from '@/actions/devices';
 import { useOrgContext } from '@/lib/org-client-context';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 /**
  * Form values for creating/editing devices.
@@ -249,22 +254,17 @@ export function DevicesPageClient(): React.ReactElement {
 	 * @param value - Next global filter value or updater
 	 * @returns void
 	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleGlobalFilterChange = useCallback((value: React.SetStateAction<string>): void => {
+		setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	const columns = useMemo<ColumnDef<Device>[]>(
 		() => [
 			{
 				accessorKey: 'code',
 				header: t('table.headers.code'),
-				cell: ({ row }) => (
-					<span className="font-medium">{row.original.code}</span>
-				),
+				cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
 			},
 			{
 				accessorKey: 'name',
@@ -281,7 +281,7 @@ export function DevicesPageClient(): React.ReactElement {
 				header: t('table.headers.location'),
 				cell: ({ row }) =>
 					row.original.locationId
-						? locationLookup.get(row.original.locationId) ?? row.original.locationId
+						? (locationLookup.get(row.original.locationId) ?? row.original.locationId)
 						: '-',
 			},
 			{
@@ -306,8 +306,7 @@ export function DevicesPageClient(): React.ReactElement {
 			{
 				accessorKey: 'createdAt',
 				header: t('table.headers.created'),
-				cell: ({ row }) =>
-					format(new Date(row.original.createdAt), t('dateFormat')),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
 				enableGlobalFilter: false,
 			},
 			{
@@ -389,11 +388,7 @@ export function DevicesPageClient(): React.ReactElement {
 					<p className="text-muted-foreground">{t('subtitle')}</p>
 					<p className="text-sm text-muted-foreground">{t('description')}</p>
 				</div>
-				<Button
-					asChild
-					variant="secondary"
-					aria-label={t('mobileSetup.ariaLabel')}
-				>
+				<Button asChild variant="secondary" aria-label={t('mobileSetup.ariaLabel')}>
 					<Link href="/device" className="flex items-center gap-2">
 						<Smartphone className="h-4 w-4" />
 						<span>{t('mobileSetup.label')}</span>

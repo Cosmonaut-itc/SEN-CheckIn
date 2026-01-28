@@ -2,30 +2,30 @@
 name: Superusuario y permisos
 overview: Implementar un rol de superusuario (plataforma) con capacidad global para crear organizaciones/usuarios y asignar miembros, corregir la revocación de sesión al crear miembros, y bloquear completamente el acceso del rol de organización `member` al portal de administración (apps/web).
 todos:
-  - id: role-model
-    content: "Confirmar/implementar el modelo de roles: superusuario = platform `user.role === admin`, admin de org = member.role admin/owner, member bloqueado del portal."
-    status: pending
-  - id: deny-member-portal
-    content: Agregar guard en `apps/web/app/(dashboard)/layout.tsx` usando `organization.getActiveMemberRole` + nueva página `app/acceso-restringido` + ocultar nav en `AppSidebar`.
-    status: pending
-    dependencies:
-      - role-model
-  - id: fix-session-revoke
-    content: Reemplazar `createOrganizationUser` por un endpoint del API `POST /organization/provision-user` que cree user vía sign-up email + agregue member sin tocar cookies del caller; actualizar action web y validar que no revoca sesión.
-    status: pending
-    dependencies:
-      - role-model
-  - id: superuser-global-admin
-    content: Restringir creación de organización en `apps/api/utils/auth.ts` (allowUserToCreateOrganization) y agregar endpoints globales (listar orgs, consultar miembros cross-org, add-member para super).
-    status: pending
-    dependencies:
-      - role-model
-  - id: web-superuser-ui
-    content: "Actualizar `/users` y `/organizations` UI para superusuario: selector de organización, creación/asignación de usuarios, DataTable + TanStack Form + i18n."
-    status: pending
-    dependencies:
-      - superuser-global-admin
-      - deny-member-portal
+    - id: role-model
+      content: 'Confirmar/implementar el modelo de roles: superusuario = platform `user.role === admin`, admin de org = member.role admin/owner, member bloqueado del portal.'
+      status: pending
+    - id: deny-member-portal
+      content: Agregar guard en `apps/web/app/(dashboard)/layout.tsx` usando `organization.getActiveMemberRole` + nueva página `app/acceso-restringido` + ocultar nav en `AppSidebar`.
+      status: pending
+      dependencies:
+          - role-model
+    - id: fix-session-revoke
+      content: Reemplazar `createOrganizationUser` por un endpoint del API `POST /organization/provision-user` que cree user vía sign-up email + agregue member sin tocar cookies del caller; actualizar action web y validar que no revoca sesión.
+      status: pending
+      dependencies:
+          - role-model
+    - id: superuser-global-admin
+      content: Restringir creación de organización en `apps/api/utils/auth.ts` (allowUserToCreateOrganization) y agregar endpoints globales (listar orgs, consultar miembros cross-org, add-member para super).
+      status: pending
+      dependencies:
+          - role-model
+    - id: web-superuser-ui
+      content: 'Actualizar `/users` y `/organizations` UI para superusuario: selector de organización, creación/asignación de usuarios, DataTable + TanStack Form + i18n.'
+      status: pending
+      dependencies:
+          - superuser-global-admin
+          - deny-member-portal
 ---
 
 # Superusuario + autorización de rutas + fix de sesión (apps/web)
@@ -40,7 +40,7 @@ todos:
 ## Modelo de roles (alineado a tu requerimiento)
 
 - **Superusuario (plataforma)**: `user.role === 'admin'` (BetterAuth admin plugin). Tiene facultades globales: crear organizaciones, crear usuarios y asignar usuarios a cualquier organización.
-- **Admin de organización**: `member.role ∈ { 'owner', 'admin' }` (BetterAuth organization plugin). Administra recursos *solo de su organización*.
+- **Admin de organización**: `member.role ∈ { 'owner', 'admin' }` (BetterAuth organization plugin). Administra recursos _solo de su organización_.
 - **Member de organización**: `member.role === 'member'`. **No puede acceder** al portal web de administración (rutas del grupo `(dashboard)`), ni aunque escriba la URL.
 
 > Nota: conservamos `user.role === 'admin'` como “superusuario” para evitar migraciones grandes. En la UI lo etiquetamos como **Superusuario** y a la pertenencia organizacional como **Admin/Miembro**.

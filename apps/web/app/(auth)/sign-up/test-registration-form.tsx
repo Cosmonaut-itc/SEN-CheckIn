@@ -370,9 +370,7 @@ export function TestRegistrationForm(): React.ReactElement {
 				<div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
 					<ShieldCheck className="h-6 w-6" />
 				</div>
-				<h1 className="text-2xl font-bold tracking-tight">
-					{t('testRegistration.title')}
-				</h1>
+				<h1 className="text-2xl font-bold tracking-tight">{t('testRegistration.title')}</h1>
 				<p className="text-balance text-sm text-muted-foreground">
 					{t('testRegistration.subtitle')}
 				</p>
@@ -406,14 +404,18 @@ export function TestRegistrationForm(): React.ReactElement {
 								validators={{
 									onChange: ({ value }) =>
 										!value.trim()
-											? t('testRegistration.validation.organizationNameRequired')
+											? t(
+													'testRegistration.validation.organizationNameRequired',
+												)
 											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
 										label={t('testRegistration.fields.organizationName')}
-										placeholder={t('testRegistration.placeholders.organizationName')}
+										placeholder={t(
+											'testRegistration.placeholders.organizationName',
+										)}
 										orientation="vertical"
 									/>
 								)}
@@ -423,14 +425,18 @@ export function TestRegistrationForm(): React.ReactElement {
 								validators={{
 									onChange: ({ value }) =>
 										!value.trim()
-											? t('testRegistration.validation.organizationSlugRequired')
+											? t(
+													'testRegistration.validation.organizationSlugRequired',
+												)
 											: undefined,
 								}}
 							>
 								{(field) => (
 									<field.TextField
 										label={t('testRegistration.fields.organizationSlug')}
-										placeholder={t('testRegistration.placeholders.organizationSlug')}
+										placeholder={t(
+											'testRegistration.placeholders.organizationSlug',
+										)}
 										orientation="vertical"
 									/>
 								)}
@@ -491,7 +497,9 @@ export function TestRegistrationForm(): React.ReactElement {
 									<field.TextField
 										label={t('testRegistration.fields.adminPassword')}
 										type="password"
-										placeholder={t('testRegistration.placeholders.adminPassword')}
+										placeholder={t(
+											'testRegistration.placeholders.adminPassword',
+										)}
 										orientation="vertical"
 										autoComplete="new-password"
 										spellCheck={false}
@@ -503,7 +511,9 @@ export function TestRegistrationForm(): React.ReactElement {
 								validators={{
 									onChange: ({ value }) =>
 										!value.trim()
-											? t('testRegistration.validation.adminConfirmPasswordRequired')
+											? t(
+													'testRegistration.validation.adminConfirmPasswordRequired',
+												)
 											: undefined,
 								}}
 							>
@@ -568,7 +578,9 @@ export function TestRegistrationForm(): React.ReactElement {
 								validators={{
 									onChange: ({ value }) =>
 										!value.trim()
-											? t('testRegistration.validation.memberPasswordRequired')
+											? t(
+													'testRegistration.validation.memberPasswordRequired',
+												)
 											: undefined,
 								}}
 							>
@@ -576,7 +588,9 @@ export function TestRegistrationForm(): React.ReactElement {
 									<field.TextField
 										label={t('testRegistration.fields.memberPassword')}
 										type="password"
-										placeholder={t('testRegistration.placeholders.memberPassword')}
+										placeholder={t(
+											'testRegistration.placeholders.memberPassword',
+										)}
 										orientation="vertical"
 										autoComplete="new-password"
 										spellCheck={false}
@@ -588,7 +602,9 @@ export function TestRegistrationForm(): React.ReactElement {
 								validators={{
 									onChange: ({ value }) =>
 										!value.trim()
-											? t('testRegistration.validation.memberConfirmPasswordRequired')
+											? t(
+													'testRegistration.validation.memberConfirmPasswordRequired',
+												)
 											: undefined,
 								}}
 							>

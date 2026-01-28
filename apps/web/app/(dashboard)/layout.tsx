@@ -25,8 +25,7 @@ interface DashboardLayoutProps {
 export default async function DashboardLayout({
 	children,
 }: DashboardLayoutProps): Promise<React.ReactElement> {
-	const { organization, userRole, isSuperUser, organizationRole } =
-		await getAdminAccessContext();
+	const { organization, userRole, isSuperUser, organizationRole } = await getAdminAccessContext();
 
 	return (
 		<SidebarProvider>

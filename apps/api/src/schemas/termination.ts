@@ -17,11 +17,7 @@ export const terminationReasonEnum = z.enum([
 /**
  * Employment contract type enumeration.
  */
-export const employmentContractTypeEnum = z.enum([
-	'indefinite',
-	'fixed_term',
-	'specific_work',
-]);
+export const employmentContractTypeEnum = z.enum(['indefinite', 'fixed_term', 'specific_work']);
 
 /**
  * Validates that the last day worked does not exceed termination date.

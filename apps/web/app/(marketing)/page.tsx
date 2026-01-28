@@ -317,7 +317,9 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 							<Link href="/privacidad">{t('hero.secondaryCta')}</Link>
 						</Button>
 					</div>
-					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">{privacyNote}</p>
+					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						{privacyNote}
+					</p>
 					<div className="grid gap-3 sm:grid-cols-3">{heroStats.map(renderHeroStat)}</div>
 				</Reveal>
 
@@ -445,7 +447,9 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 						{t('sections.security.subtitle')}
 					</p>
 					<ul className="space-y-3">{securityItems.map(renderSecurityItem)}</ul>
-					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">{privacyNote}</p>
+					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						{privacyNote}
+					</p>
 				</Reveal>
 				<Reveal className="mt-10 lg:mt-0" delay={0.1}>
 					<CardStack items={testimonials} className="mx-auto lg:mx-0" />

@@ -283,10 +283,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				)
 			) {
 				set.status = 403;
-				return buildErrorResponse(
-					'You do not have access to this schedule exception',
-					403,
-				);
+				return buildErrorResponse('You do not have access to this schedule exception', 403);
 			}
 
 			const nextType = body.exceptionType ?? record.exceptionType;
@@ -404,10 +401,7 @@ export const scheduleExceptionRoutes = new Elysia({ prefix: '/schedule-exception
 				)
 			) {
 				set.status = 403;
-				return buildErrorResponse(
-					'You do not have access to this schedule exception',
-					403,
-				);
+				return buildErrorResponse('You do not have access to this schedule exception', 403);
 			}
 
 			await db.delete(scheduleException).where(eq(scheduleException.id, id));

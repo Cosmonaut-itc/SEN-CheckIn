@@ -16,14 +16,14 @@ Nota: esto no es asesoría legal; es un análisis técnico del comportamiento ob
 
 Actualización: con la implementación actual del repo, estos puntos quedan **resueltos**:
 
-- [x] 11) Subcálculo por cruces de `periodStart/periodEnd`: query de asistencia con rango extendido + clamp por segmento a `[periodStart..periodEnd]`.
-- [x] 12) Selector de fechas en Web (UTC / `periodEnd` 00:00): contrato por `periodStartDateKey/periodEndDateKey` (YYYY-MM-DD) sin `new Date('YYYY-MM-DD')`.
-- [x] 13) Overtime diario subestimado en turnos overnight: overtime diario calculado por sesión `CHECK_IN→CHECK_OUT` (no por split de medianoche).
-- [x] 14) Ambigüedad `dailyPay/hourlyPay`: fuente de verdad `dailyPay`; `hourlyPay` se deriva por divisor de jornada.
-- [x] 15) Clasificación MIXTA/NOCTURNA: warning de `SHIFT_TYPE_MISMATCH` + preset MIXTA que mantiene nocturnidad < 3.5h.
-- [x] 16) Salario mínimo: política definida como **warning-only** (sin bloqueo).
-- [x] 17) `expectedHours`: cálculo por date keys (no depende de `Date.getDay()` en zona local).
-- [x] 18) Rendimiento: consulta única de asistencia (sin N+1 por empleado).
+- [x]   11. Subcálculo por cruces de `periodStart/periodEnd`: query de asistencia con rango extendido + clamp por segmento a `[periodStart..periodEnd]`.
+- [x]   12. Selector de fechas en Web (UTC / `periodEnd` 00:00): contrato por `periodStartDateKey/periodEndDateKey` (YYYY-MM-DD) sin `new Date('YYYY-MM-DD')`.
+- [x]   13. Overtime diario subestimado en turnos overnight: overtime diario calculado por sesión `CHECK_IN→CHECK_OUT` (no por split de medianoche).
+- [x]   14. Ambigüedad `dailyPay/hourlyPay`: fuente de verdad `dailyPay`; `hourlyPay` se deriva por divisor de jornada.
+- [x]   15. Clasificación MIXTA/NOCTURNA: warning de `SHIFT_TYPE_MISMATCH` + preset MIXTA que mantiene nocturnidad < 3.5h.
+- [x]   16. Salario mínimo: política definida como **warning-only** (sin bloqueo).
+- [x]   17. `expectedHours`: cálculo por date keys (no depende de `Date.getDay()` en zona local).
+- [x]   18. Rendimiento: consulta única de asistencia (sin N+1 por empleado).
 
 Nota de timezone: el periodo se interpreta con `payrollSetting.timeZone`; los cortes por día (domingo/feriados) y el `workdayKey` se calculan por `location.timeZone` (con fallback a `payrollSetting.timeZone`).
 

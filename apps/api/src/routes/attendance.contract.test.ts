@@ -72,10 +72,7 @@ describe('attendance routes (contract)', () => {
 		if (!recordId) {
 			throw new Error('Expected attendance record ID.');
 		}
-		const attendanceById = requireRoute(
-			client.attendance[recordId],
-			'Attendance record route',
-		);
+		const attendanceById = requireRoute(client.attendance[recordId], 'Attendance record route');
 		const getResponse = await attendanceById.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});

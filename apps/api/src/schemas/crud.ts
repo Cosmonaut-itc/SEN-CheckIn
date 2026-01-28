@@ -339,11 +339,7 @@ export const organizationAllQuerySchema = paginationSchema.extend({
 /**
  * Valid attendance type values.
  */
-export const attendanceTypeEnum = z.enum([
-	'CHECK_IN',
-	'CHECK_OUT',
-	'CHECK_OUT_AUTHORIZED',
-]);
+export const attendanceTypeEnum = z.enum(['CHECK_IN', 'CHECK_OUT', 'CHECK_OUT_AUTHORIZED']);
 
 /**
  * Schema for creating an attendance record.

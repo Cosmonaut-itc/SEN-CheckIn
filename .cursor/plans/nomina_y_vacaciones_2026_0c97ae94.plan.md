@@ -2,49 +2,49 @@
 name: Nomina y Vacaciones 2026
 overview: Actualizar el motor de nómina (ISR/Subsidio/IMSS/SAR/INFONAVIT) con reglas 2026 basadas en fecha sin romper fixtures 2025, y migrar Vacaciones a un modelo de devengo lineal con enforcement en balance + validación de solicitudes. Al final, generar un reporte técnico en documentacion con lo implementado y los comandos de calidad requeridos.
 todos:
-  - id: payroll-effective-constants
-    content: Implementar resolvers por fecha para UMA/SM/Subsidio/ISR/CV (2025 vs 2026) en el motor de impuestos MX.
-    status: pending
-  - id: payroll-taxes-update
-    content: Actualizar `calculateMexicoPayrollTaxes` para sumar por día los componentes dependientes de UMA (incluye periodos que crucen 01-feb).
-    status: pending
-    dependencies:
-      - payroll-effective-constants
-  - id: payroll-tests-2026
-    content: Agregar/actualizar tests para validar tablas ISR 2026, subsidio enero vs febrero 2026 y switch UMA, preservando el fixture de Periodo 51 (2025).
-    status: pending
-    dependencies:
-      - payroll-taxes-update
-  - id: min-wage-date-warning
-    content: Actualizar warning de salario mínimo para usar el mínimo vigente por fecha (2025 vs 2026).
-    status: pending
-    dependencies:
-      - payroll-effective-constants
-  - id: vacations-accrual
-    content: Implementar devengo lineal en `buildEmployeeVacationBalance` y agregar `accruedDays` + nueva lógica de `availableDays` (enforcement).
-    status: pending
-  - id: vacations-validation
-    content: Actualizar validación de solicitudes de vacaciones para comparar contra días devengados as-of el fin de la solicitud.
-    status: pending
-    dependencies:
-      - vacations-accrual
-  - id: vacations-types-ui
-    content: Actualizar tipos compartidos y UI (tooltip/labels) para mostrar devengo y nueva fórmula en español.
-    status: pending
-    dependencies:
-      - vacations-accrual
-  - id: vacations-tests
-    content: Agregar tests unitarios para el cálculo de devengo y disponibilidad de vacaciones.
-    status: pending
-    dependencies:
-      - vacations-accrual
-  - id: doc-report
-    content: Escribir reporte técnico en `documentacion/` describiendo implementaciones y recordando seguir `AGENTS.md` + correr `bun run lint` y `bun run check-types`.
-    status: pending
-    dependencies:
-      - payroll-tests-2026
-      - vacations-tests
-      - vacations-types-ui
+    - id: payroll-effective-constants
+      content: Implementar resolvers por fecha para UMA/SM/Subsidio/ISR/CV (2025 vs 2026) en el motor de impuestos MX.
+      status: pending
+    - id: payroll-taxes-update
+      content: Actualizar `calculateMexicoPayrollTaxes` para sumar por día los componentes dependientes de UMA (incluye periodos que crucen 01-feb).
+      status: pending
+      dependencies:
+          - payroll-effective-constants
+    - id: payroll-tests-2026
+      content: Agregar/actualizar tests para validar tablas ISR 2026, subsidio enero vs febrero 2026 y switch UMA, preservando el fixture de Periodo 51 (2025).
+      status: pending
+      dependencies:
+          - payroll-taxes-update
+    - id: min-wage-date-warning
+      content: Actualizar warning de salario mínimo para usar el mínimo vigente por fecha (2025 vs 2026).
+      status: pending
+      dependencies:
+          - payroll-effective-constants
+    - id: vacations-accrual
+      content: Implementar devengo lineal en `buildEmployeeVacationBalance` y agregar `accruedDays` + nueva lógica de `availableDays` (enforcement).
+      status: pending
+    - id: vacations-validation
+      content: Actualizar validación de solicitudes de vacaciones para comparar contra días devengados as-of el fin de la solicitud.
+      status: pending
+      dependencies:
+          - vacations-accrual
+    - id: vacations-types-ui
+      content: Actualizar tipos compartidos y UI (tooltip/labels) para mostrar devengo y nueva fórmula en español.
+      status: pending
+      dependencies:
+          - vacations-accrual
+    - id: vacations-tests
+      content: Agregar tests unitarios para el cálculo de devengo y disponibilidad de vacaciones.
+      status: pending
+      dependencies:
+          - vacations-accrual
+    - id: doc-report
+      content: Escribir reporte técnico en `documentacion/` describiendo implementaciones y recordando seguir `AGENTS.md` + correr `bun run lint` y `bun run check-types`.
+      status: pending
+      dependencies:
+          - payroll-tests-2026
+          - vacations-tests
+          - vacations-types-ui
 ---
 
 # Actualización Nómina & Vacaciones (MX) 2026

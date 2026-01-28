@@ -64,10 +64,7 @@ export const createScheduleExceptionSchema = z
 			.string()
 			.regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS')
 			.optional(),
-		endTime: z
-			.string()
-			.regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS')
-			.optional(),
+		endTime: z.string().regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS').optional(),
 		reason: z.string().max(500).optional(),
 	})
 	.superRefine((value, ctx) => {
@@ -102,10 +99,7 @@ export const updateScheduleExceptionSchema = z
 			.string()
 			.regex(timeStringRegex, 'Start time must be HH:MM or HH:MM:SS')
 			.optional(),
-		endTime: z
-			.string()
-			.regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS')
-			.optional(),
+		endTime: z.string().regex(timeStringRegex, 'End time must be HH:MM or HH:MM:SS').optional(),
 		reason: z.string().max(500).nullable().optional(),
 	})
 	.superRefine((value, ctx) => {
@@ -163,9 +157,3 @@ export type CreateScheduleExceptionInput = z.infer<typeof createScheduleExceptio
 export type UpdateScheduleExceptionInput = z.infer<typeof updateScheduleExceptionSchema>;
 export type ScheduleExceptionQuery = z.infer<typeof scheduleExceptionQuerySchema>;
 export type CalendarQuery = z.infer<typeof calendarQuerySchema>;
-
-
-
-
-
-

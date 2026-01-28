@@ -41,11 +41,7 @@ function getUtcDateForZonedTime(
  * @param checkOut - Check-out instant
  * @returns Attendance rows in chronological order
  */
-function createAttendancePair(
-	employeeId: string,
-	checkIn: Date,
-	checkOut: Date,
-): AttendanceRow[] {
+function createAttendancePair(employeeId: string, checkIn: Date, checkOut: Date): AttendanceRow[] {
 	return [
 		{ employeeId, timestamp: checkIn, type: 'CHECK_IN' },
 		{ employeeId, timestamp: checkOut, type: 'CHECK_OUT' },
@@ -150,7 +146,9 @@ describe('payroll-calculation', () => {
 		});
 
 		expect(toDateKeyInTimeZone(periodBounds.periodStartUtc, timeZone)).toBe(periodStartDateKey);
-		expect(toDateKeyInTimeZone(periodBounds.periodEndExclusiveUtc, timeZone)).toBe('2025-01-02');
+		expect(toDateKeyInTimeZone(periodBounds.periodEndExclusiveUtc, timeZone)).toBe(
+			'2025-01-02',
+		);
 
 		const checkIn = getUtcDateForZonedTime('2024-12-31', 23, 0, timeZone);
 		const checkOut = getUtcDateForZonedTime('2025-01-01', 1, 0, timeZone);
@@ -191,7 +189,9 @@ describe('payroll-calculation', () => {
 		});
 
 		expect(toDateKeyInTimeZone(periodBounds.periodStartUtc, timeZone)).toBe(periodStartDateKey);
-		expect(toDateKeyInTimeZone(periodBounds.periodEndExclusiveUtc, timeZone)).toBe('2025-01-02');
+		expect(toDateKeyInTimeZone(periodBounds.periodEndExclusiveUtc, timeZone)).toBe(
+			'2025-01-02',
+		);
 
 		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 23, 0, timeZone);
 		const checkOut = getUtcDateForZonedTime('2025-01-02', 1, 0, timeZone);
@@ -436,16 +436,13 @@ describe('payroll-calculation', () => {
 			timeZone,
 		});
 
-		const sessions = [
-			'2025-01-06',
-			'2025-01-07',
-			'2025-01-08',
-			'2025-01-09',
-		].flatMap((dayKey) => {
-			const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
-			const checkOut = getUtcDateForZonedTime(dayKey, 22, 0, timeZone);
-			return createAttendancePair(employeeId, checkIn, checkOut);
-		});
+		const sessions = ['2025-01-06', '2025-01-07', '2025-01-08', '2025-01-09'].flatMap(
+			(dayKey) => {
+				const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
+				const checkOut = getUtcDateForZonedTime(dayKey, 22, 0, timeZone);
+				return createAttendancePair(employeeId, checkIn, checkOut);
+			},
+		);
 
 		const { employees } = calculatePayrollFromData({
 			...baseArgs,
@@ -648,16 +645,13 @@ describe('payroll-calculation', () => {
 			timeZone,
 		});
 
-		const sessions = [
-			'2025-01-06',
-			'2025-01-07',
-			'2025-01-08',
-			'2025-01-09',
-		].flatMap((dayKey) => {
-			const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
-			const checkOut = getUtcDateForZonedTime(dayKey, 17, 0, timeZone);
-			return createAttendancePair(employeeId, checkIn, checkOut);
-		});
+		const sessions = ['2025-01-06', '2025-01-07', '2025-01-08', '2025-01-09'].flatMap(
+			(dayKey) => {
+				const checkIn = getUtcDateForZonedTime(dayKey, 8, 0, timeZone);
+				const checkOut = getUtcDateForZonedTime(dayKey, 17, 0, timeZone);
+				return createAttendancePair(employeeId, checkIn, checkOut);
+			},
+		);
 
 		const { employees } = calculatePayrollFromData({
 			...baseArgs,
@@ -1240,7 +1234,9 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(row.employeeWithholdings.total).toBe(0);
 			expect(row.employeeWithholdings.isrWithheld).toBe(0);
 			expect(row.netPay).toBe(1951.6);
-			expect(row.companyCost).toBe(Number((row.grossPay + row.employerCosts.total).toFixed(2)));
+			expect(row.companyCost).toBe(
+				Number((row.grossPay + row.employerCosts.total).toFixed(2)),
+			);
 		}
 
 		const imssEmployerTotal = sumRounded(
@@ -1379,12 +1375,8 @@ describe('payroll-calculation mexico taxes', () => {
 		});
 
 		for (const row of results) {
-			const expectedNet = Number(
-				(row.grossPay - row.employeeWithholdings.total).toFixed(2),
-			);
-			const expectedCompanyCost = Number(
-				(row.grossPay + row.employerCosts.total).toFixed(2),
-			);
+			const expectedNet = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			const expectedCompanyCost = Number((row.grossPay + row.employerCosts.total).toFixed(2));
 			expect(row.grossPay).toBe(row.totalPay);
 			expect(row.netPay).toBe(expectedNet);
 			expect(row.companyCost).toBe(expectedCompanyCost);

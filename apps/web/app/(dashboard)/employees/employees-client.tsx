@@ -843,7 +843,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	});
 
 	const terminationSettlementEnabled =
-		Boolean(activeEmployee?.id) && isDialogOpen && isViewMode;
+		Boolean(activeEmployee?.id) &&
+		isDialogOpen &&
+		isViewMode &&
+		activeEmployee?.status === 'INACTIVE';
 	const { data: terminationSettlement, isLoading: isLoadingTerminationSettlement } = useQuery({
 		queryKey: queryKeys.employees.terminationSettlement(activeEmployee?.id ?? ''),
 		queryFn: () => fetchEmployeeTerminationSettlement(activeEmployee?.id ?? ''),

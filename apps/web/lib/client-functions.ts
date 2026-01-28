@@ -754,21 +754,29 @@ function normalizeEmployeeLatestPayroll(
 export async function fetchEmployeeTerminationSettlement(
 	id: string,
 ): Promise<EmployeeTerminationSettlementRecord | null> {
-	const response = await api.employees[id].termination.settlement.get();
+	try {
+		const response = await api.employees[id].termination.settlement.get();
 
-	if (response.error) {
-		console.error(
-			'Failed to fetch termination settlement:',
-			response.error,
-			'Status:',
-			response.status,
-		);
+		if (response.error) {
+			if (response.error.status === 404) {
+				return null;
+			}
+			console.error(
+				'Failed to fetch termination settlement:',
+				response.error,
+				'Status:',
+				response.status,
+			);
+			return null;
+		}
+
+		const payload = getApiResponseData(response);
+		const record = payload?.data as EmployeeTerminationSettlementPayload | undefined;
+		return record ? normalizeTerminationSettlement(record) : null;
+	} catch (error) {
+		console.error('Failed to fetch termination settlement:', error);
 		return null;
 	}
-
-	const payload = getApiResponseData(response);
-	const record = payload?.data as EmployeeTerminationSettlementPayload | undefined;
-	return record ? normalizeTerminationSettlement(record) : null;
 }
 
 /**

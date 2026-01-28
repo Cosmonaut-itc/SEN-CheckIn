@@ -455,8 +455,9 @@ export async function buildTerminationReceiptPdf(
 	});
 
 	let detailRightY = cursorY - 18;
-	const settlementDate = formatDate(input.settlement.createdAt);
-	page.drawText(`Fecha de baja: ${settlementDate}`, {
+	const terminationDateKey = input.settlement.calculation.termination.terminationDateKey;
+	const terminationDate = formatDate(new Date(`${terminationDateKey}T00:00:00`));
+	page.drawText(`Fecha de baja: ${terminationDate}`, {
 		x: detailRightX,
 		y: detailRightY,
 		size: 10,

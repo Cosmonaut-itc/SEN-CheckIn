@@ -1565,6 +1565,7 @@
 			"documentPresignError": "No se pudo preparar la carga del documento.",
 			"documentUploadSuccess": "Documento cargado correctamente.",
 			"documentUploadError": "No se pudo cargar el documento.",
+			"documentUploadNetworkError": "No se pudo conectar al almacenamiento. Verifica la configuración del bucket y CORS.",
 			"documentFetchError": "No se pudo obtener el documento.",
 			"errors": {
 				"employeeRequired": "Selecciona un empleado.",

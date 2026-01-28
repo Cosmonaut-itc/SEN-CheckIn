@@ -52,6 +52,7 @@ import {
 import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
+import { useSession } from '@/lib/auth-client';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import type {
 	ColumnDef,
@@ -160,7 +161,13 @@ function getIncapacityErrorMessage(
  */
 export function IncapacitiesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationRole, userRole } = useOrgContext();
+	const { data: session } = useSession();
+	const isAdminUser =
+		session?.user?.role === 'admin' ||
+		userRole === 'admin' ||
+		organizationRole === 'admin' ||
+		organizationRole === 'owner';
 	const t = useTranslations('Incapacities');
 
 	const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -523,12 +530,31 @@ export function IncapacitiesPageClient(): React.ReactElement {
 				});
 				formData.append('file', file);
 
-				const uploadResponse = await fetch(presignResult.data.url, {
-					method: 'POST',
-					body: formData,
-				});
+				let uploadResponse: Response | null = null;
+				try {
+					uploadResponse = await fetch(presignResult.data.url, {
+						method: 'POST',
+						body: formData,
+					});
+				} catch (error) {
+					if (error instanceof TypeError) {
+						try {
+							uploadResponse = await fetch(presignResult.data.url, {
+								method: 'POST',
+								body: formData,
+								mode: 'no-cors',
+							});
+						} catch (fallbackError) {
+							console.error('[incapacities] upload failed', fallbackError);
+							toast.error(t('toast.documentUploadNetworkError'));
+							return;
+						}
+					} else {
+						throw error;
+					}
+				}
 
-				if (!uploadResponse.ok) {
+				if (uploadResponse && uploadResponse.type !== 'opaque' && !uploadResponse.ok) {
 					toast.error(t('toast.documentUploadError'));
 					return;
 				}
@@ -544,6 +570,22 @@ export function IncapacitiesPageClient(): React.ReactElement {
 				});
 
 				if (confirmResult.success) {
+					if (confirmResult.data) {
+						setEditingRecord((prev) => {
+							if (!prev || prev.id !== record.id) {
+								return prev;
+							}
+							const exists = prev.documents.some(
+								(document) => document.id === confirmResult.data?.id,
+							);
+							return exists
+								? prev
+								: {
+										...prev,
+										documents: [...prev.documents, confirmResult.data],
+									};
+						});
+					}
 					toast.success(t('toast.documentUploadSuccess'));
 					queryClient.invalidateQueries({ queryKey: queryKeys.incapacities.all });
 				} else {
@@ -656,19 +698,11 @@ export function IncapacitiesPageClient(): React.ReactElement {
 						>
 							{t('table.actions.view')}
 						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={row.original.status === 'CANCELLED'}
-							onClick={() => cancelMutation.mutate({ id: row.original.id })}
-						>
-							{t('table.actions.cancel')}
-						</Button>
 					</div>
 				),
 			},
 		],
-		[cancelMutation, t],
+		[t],
 	);
 
 	return (
@@ -1306,15 +1340,17 @@ export function IncapacitiesPageClient(): React.ReactElement {
 									</Table>
 								)}
 							</div>
-							<div className="flex justify-end">
-								<Button
-									variant="destructive"
-									disabled={editingRecord.status === 'CANCELLED'}
-									onClick={() => cancelMutation.mutate({ id: editingRecord.id })}
-								>
-									{t('actions.cancel')}
-								</Button>
-							</div>
+							{isAdminUser ? (
+								<div className="flex justify-end">
+									<Button
+										variant="destructive"
+										disabled={editingRecord.status === 'CANCELLED'}
+										onClick={() => cancelMutation.mutate({ id: editingRecord.id })}
+									>
+										{t('actions.cancel')}
+									</Button>
+								</div>
+							) : null}
 						</div>
 					) : null}
 				</DialogContent>

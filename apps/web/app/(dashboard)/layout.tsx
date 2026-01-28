@@ -44,7 +44,15 @@ export default async function DashboardLayout({
 						organizationRole={organizationRole}
 						hasOrganization={organization.organizationId !== null}
 					>
-						<OrgProvider value={organization}>{children}</OrgProvider>
+	<OrgProvider
+		value={{
+			...organization,
+			organizationRole,
+			userRole,
+		}}
+	>
+		{children}
+	</OrgProvider>
 					</OrganizationGate>
 				</main>
 			</SidebarInset>

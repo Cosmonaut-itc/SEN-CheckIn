@@ -689,113 +689,195 @@ export function IncapacitiesPageClient(): React.ReactElement {
 								<DialogDescription>{t('form.description')}</DialogDescription>
 							</DialogHeader>
 							<createForm.AppForm>
-								<div className="grid gap-4 md:grid-cols-2">
-									<createForm.AppField name="employeeId">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.employee')}
-												placeholder={t('form.placeholders.employee')}
-												options={employees.map((emp) => ({
-													label: `${emp.firstName} ${emp.lastName}`,
-													value: emp.id,
-												}))}
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="caseId">
-										{(field) => (
-											<field.TextField
-												label={t('form.fields.caseId')}
-												placeholder={t('form.placeholders.caseId')}
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="type">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.type')}
-												placeholder={t('form.placeholders.type')}
-												options={[
-													{ label: t('type.EG'), value: 'EG' },
-													{ label: t('type.RT'), value: 'RT' },
-													{ label: t('type.MAT'), value: 'MAT' },
-													{
-														label: t('type.LIC140BIS'),
-														value: 'LIC140BIS',
-													},
-												]}
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="startDateKey">
-										{(field) => <field.DateField label={t('form.fields.startDate')} />}
-									</createForm.AppField>
-									<createForm.AppField name="endDateKey">
-										{(field) => <field.DateField label={t('form.fields.endDate')} />}
-									</createForm.AppField>
-									<createForm.AppField name="daysAuthorized">
-										{(field) => (
-											<field.TextField
-												label={t('form.fields.daysAuthorized')}
-												type="number"
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="certificateFolio">
-										{(field) => (
-											<field.TextField
-												label={t('form.fields.certificateFolio')}
-												placeholder={t('form.placeholders.certificateFolio')}
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="issuedBy">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.issuedBy')}
-												options={[
-													{ label: t('issuedBy.IMSS'), value: 'IMSS' },
-													{
-														label: t('issuedBy.recognized_by_IMSS'),
-														value: 'recognized_by_IMSS',
-													},
-												]}
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="sequence">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.sequence')}
-												options={[
-													{
-														label: t('sequence.inicial'),
-														value: 'inicial',
-													},
-													{
-														label: t('sequence.subsecuente'),
-														value: 'subsecuente',
-													},
-													{
-														label: t('sequence.recaida'),
-														value: 'recaida',
-													},
-												]}
-											/>
-										)}
-									</createForm.AppField>
-									<createForm.AppField name="percentOverride">
-										{(field) => (
-											<field.TextField
-												label={t('form.fields.percentOverride')}
-												placeholder={t('form.placeholders.percentOverride')}
-											/>
-										)}
-									</createForm.AppField>
-								</div>
-								<DialogFooter className="mt-4">
-									<createForm.SubmitButton label={t('form.actions.submit')} />
-								</DialogFooter>
+								<form
+									onSubmit={(event) => {
+										event.preventDefault();
+										event.stopPropagation();
+										createForm.handleSubmit();
+									}}
+								>
+									<div className="grid gap-4 md:grid-cols-2">
+										<createForm.AppField
+											name="employeeId"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('form.validation.employeeRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.employee')}
+													placeholder={t('form.placeholders.employee')}
+													options={employees.map((emp) => ({
+														label: `${emp.firstName} ${emp.lastName}`,
+														value: emp.id,
+													}))}
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField
+											name="caseId"
+											validators={{
+												onChange: ({ value }) =>
+													!value || !value.trim()
+														? t('form.validation.caseIdRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.caseId')}
+													placeholder={t('form.placeholders.caseId')}
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField name="type">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.type')}
+													placeholder={t('form.placeholders.type')}
+													options={[
+														{ label: t('type.EG'), value: 'EG' },
+														{ label: t('type.RT'), value: 'RT' },
+														{ label: t('type.MAT'), value: 'MAT' },
+														{
+															label: t('type.LIC140BIS'),
+															value: 'LIC140BIS',
+														},
+													]}
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField
+											name="startDateKey"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('form.validation.startDateRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.DateField label={t('form.fields.startDate')} />
+											)}
+										</createForm.AppField>
+										<createForm.AppField
+											name="endDateKey"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('form.validation.endDateRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.DateField label={t('form.fields.endDate')} />
+											)}
+										</createForm.AppField>
+										<createForm.AppField
+											name="daysAuthorized"
+											validators={{
+												onChange: ({ value }) => {
+													const numericValue = Number(value);
+													return !Number.isFinite(numericValue) ||
+														numericValue <= 0
+														? t('form.validation.daysAuthorizedInvalid')
+														: undefined;
+												},
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.daysAuthorized')}
+													type="number"
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField name="certificateFolio">
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.certificateFolio')}
+													placeholder={t('form.placeholders.certificateFolio')}
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField name="issuedBy">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.issuedBy')}
+													options={[
+														{ label: t('issuedBy.IMSS'), value: 'IMSS' },
+														{
+															label: t('issuedBy.recognized_by_IMSS'),
+															value: 'recognized_by_IMSS',
+														},
+													]}
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField name="sequence">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.sequence')}
+													options={[
+														{
+															label: t('sequence.inicial'),
+															value: 'inicial',
+														},
+														{
+															label: t('sequence.subsecuente'),
+															value: 'subsecuente',
+														},
+														{
+															label: t('sequence.recaida'),
+															value: 'recaida',
+														},
+													]}
+												/>
+											)}
+										</createForm.AppField>
+										<createForm.AppField
+											name="percentOverride"
+											validators={{
+												onChange: ({ value }) => {
+													if (!value) {
+														return undefined;
+													}
+													const numericValue = Number(value);
+													return !Number.isFinite(numericValue) ||
+														numericValue < 0 ||
+														numericValue > 1
+														? t('form.validation.percentOverrideInvalid')
+														: undefined;
+												},
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.percentOverride')}
+													placeholder={t('form.placeholders.percentOverride')}
+												/>
+											)}
+										</createForm.AppField>
+									</div>
+									<DialogFooter className="mt-4 flex flex-col items-end gap-2">
+										<createForm.SubmitButton
+											label={t('form.actions.submit')}
+											loadingLabel={t('form.actions.submitting')}
+										/>
+										<createForm.Subscribe selector={(state) => [state.canSubmit]}>
+											{([canSubmit]) =>
+												canSubmit ? null : (
+													<p className="text-xs text-muted-foreground">
+														{t('form.helper')}
+													</p>
+												)
+											}
+										</createForm.Subscribe>
+									</DialogFooter>
+								</form>
 							</createForm.AppForm>
 						</DialogContent>
 					</Dialog>
@@ -962,106 +1044,184 @@ export function IncapacitiesPageClient(): React.ReactElement {
 							</div>
 
 							<editForm.AppForm>
-								<div className="grid gap-4 md:grid-cols-2">
-									<editForm.AppField name="caseId">
-										{(field) => <field.TextField label={t('form.fields.caseId')} />}
-									</editForm.AppField>
-									<editForm.AppField name="type">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.type')}
-												options={[
-													{ label: t('type.EG'), value: 'EG' },
-													{ label: t('type.RT'), value: 'RT' },
-													{ label: t('type.MAT'), value: 'MAT' },
-													{
-														label: t('type.LIC140BIS'),
-														value: 'LIC140BIS',
-													},
-												]}
-											/>
-										)}
-									</editForm.AppField>
-									<editForm.AppField name="startDateKey">
-										{(field) => <field.DateField label={t('form.fields.startDate')} />}
-									</editForm.AppField>
-									<editForm.AppField name="endDateKey">
-										{(field) => <field.DateField label={t('form.fields.endDate')} />}
-									</editForm.AppField>
-									<editForm.AppField name="daysAuthorized">
-										{(field) => (
-											<field.TextField
-												label={t('form.fields.daysAuthorized')}
-												type="number"
-											/>
-										)}
-									</editForm.AppField>
-									<editForm.AppField name="certificateFolio">
-										{(field) => (
-											<field.TextField label={t('form.fields.certificateFolio')} />
-										)}
-									</editForm.AppField>
-									<editForm.AppField name="issuedBy">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.issuedBy')}
-												options={[
-													{ label: t('issuedBy.IMSS'), value: 'IMSS' },
-													{
-														label: t('issuedBy.recognized_by_IMSS'),
-														value: 'recognized_by_IMSS',
-													},
-												]}
-											/>
-										)}
-									</editForm.AppField>
-									<editForm.AppField name="sequence">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.sequence')}
-												options={[
-													{
-														label: t('sequence.inicial'),
-														value: 'inicial',
-													},
-													{
-														label: t('sequence.subsecuente'),
-														value: 'subsecuente',
-													},
-													{
-														label: t('sequence.recaida'),
-														value: 'recaida',
-													},
-												]}
-											/>
-										)}
-									</editForm.AppField>
-									<editForm.AppField name="percentOverride">
-										{(field) => (
-											<field.TextField
-												label={t('form.fields.percentOverride')}
-												placeholder={t('form.placeholders.percentOverride')}
-											/>
-										)}
-									</editForm.AppField>
-									<editForm.AppField name="status">
-										{(field) => (
-											<field.SelectField
-												label={t('form.fields.status')}
-												options={[
-													{ label: t('status.ACTIVE'), value: 'ACTIVE' },
-													{
-														label: t('status.CANCELLED'),
-														value: 'CANCELLED',
-													},
-												]}
-											/>
-										)}
-									</editForm.AppField>
-								</div>
-								<DialogFooter className="mt-4">
-									<editForm.SubmitButton label={t('actions.update')} />
-								</DialogFooter>
+								<form
+									onSubmit={(event) => {
+										event.preventDefault();
+										event.stopPropagation();
+										editForm.handleSubmit();
+									}}
+								>
+									<div className="grid gap-4 md:grid-cols-2">
+										<editForm.AppField
+											name="caseId"
+											validators={{
+												onChange: ({ value }) =>
+													!value || !value.trim()
+														? t('form.validation.caseIdRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.TextField label={t('form.fields.caseId')} />
+											)}
+										</editForm.AppField>
+										<editForm.AppField name="type">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.type')}
+													options={[
+														{ label: t('type.EG'), value: 'EG' },
+														{ label: t('type.RT'), value: 'RT' },
+														{ label: t('type.MAT'), value: 'MAT' },
+														{
+															label: t('type.LIC140BIS'),
+															value: 'LIC140BIS',
+														},
+													]}
+												/>
+											)}
+										</editForm.AppField>
+										<editForm.AppField
+											name="startDateKey"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('form.validation.startDateRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.DateField label={t('form.fields.startDate')} />
+											)}
+										</editForm.AppField>
+										<editForm.AppField
+											name="endDateKey"
+											validators={{
+												onChange: ({ value }) =>
+													!value
+														? t('form.validation.endDateRequired')
+														: undefined,
+											}}
+										>
+											{(field) => (
+												<field.DateField label={t('form.fields.endDate')} />
+											)}
+										</editForm.AppField>
+										<editForm.AppField
+											name="daysAuthorized"
+											validators={{
+												onChange: ({ value }) => {
+													const numericValue = Number(value);
+													return !Number.isFinite(numericValue) ||
+														numericValue <= 0
+														? t('form.validation.daysAuthorizedInvalid')
+														: undefined;
+												},
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.daysAuthorized')}
+													type="number"
+												/>
+											)}
+										</editForm.AppField>
+										<editForm.AppField name="certificateFolio">
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.certificateFolio')}
+												/>
+											)}
+										</editForm.AppField>
+										<editForm.AppField name="issuedBy">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.issuedBy')}
+													options={[
+														{ label: t('issuedBy.IMSS'), value: 'IMSS' },
+														{
+															label: t('issuedBy.recognized_by_IMSS'),
+															value: 'recognized_by_IMSS',
+														},
+													]}
+												/>
+											)}
+										</editForm.AppField>
+										<editForm.AppField name="sequence">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.sequence')}
+													options={[
+														{
+															label: t('sequence.inicial'),
+															value: 'inicial',
+														},
+														{
+															label: t('sequence.subsecuente'),
+															value: 'subsecuente',
+														},
+														{
+															label: t('sequence.recaida'),
+															value: 'recaida',
+														},
+													]}
+												/>
+											)}
+										</editForm.AppField>
+										<editForm.AppField
+											name="percentOverride"
+											validators={{
+												onChange: ({ value }) => {
+													if (!value) {
+														return undefined;
+													}
+													const numericValue = Number(value);
+													return !Number.isFinite(numericValue) ||
+														numericValue < 0 ||
+														numericValue > 1
+														? t('form.validation.percentOverrideInvalid')
+														: undefined;
+												},
+											}}
+										>
+											{(field) => (
+												<field.TextField
+													label={t('form.fields.percentOverride')}
+													placeholder={t('form.placeholders.percentOverride')}
+												/>
+											)}
+										</editForm.AppField>
+										<editForm.AppField name="status">
+											{(field) => (
+												<field.SelectField
+													label={t('form.fields.status')}
+													options={[
+														{ label: t('status.ACTIVE'), value: 'ACTIVE' },
+														{
+															label: t('status.CANCELLED'),
+															value: 'CANCELLED',
+														},
+													]}
+												/>
+											)}
+										</editForm.AppField>
+									</div>
+									<DialogFooter className="mt-4 flex flex-col items-end gap-2">
+										<editForm.SubmitButton
+											label={t('actions.update')}
+											loadingLabel={t('actions.updating')}
+										/>
+										<editForm.Subscribe selector={(state) => [state.canSubmit]}>
+											{([canSubmit]) =>
+												canSubmit ? null : (
+													<p className="text-xs text-muted-foreground">
+														{t('form.helper')}
+													</p>
+												)
+											}
+										</editForm.Subscribe>
+									</DialogFooter>
+								</form>
 							</editForm.AppForm>
 
 							<div className="space-y-3 rounded-lg border p-4">

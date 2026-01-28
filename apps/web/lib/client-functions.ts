@@ -758,7 +758,7 @@ export async function fetchEmployeeTerminationSettlement(
 		const response = await api.employees[id].termination.settlement.get();
 
 		if (response.error) {
-			if (response.error.status === 404) {
+			if (response.status === 404) {
 				return null;
 			}
 			console.error(

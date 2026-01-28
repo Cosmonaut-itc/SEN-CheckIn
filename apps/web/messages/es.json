@@ -1540,6 +1540,7 @@
 			"description": "Sube todos los documentos relacionados con la incapacidad.",
 			"upload": "Subir documento",
 			"uploading": "Subiendo...",
+			"processing": "Procesando...",
 			"empty": "Aún no hay documentos.",
 			"errors": {
 				"sizeExceeded": "El archivo supera el tamaño máximo (10 MB).",

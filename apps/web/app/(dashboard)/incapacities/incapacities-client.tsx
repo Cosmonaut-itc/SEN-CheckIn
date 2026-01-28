@@ -72,6 +72,34 @@ const ALL_TYPES_VALUE = '__all__';
 const ALL_STATUS_VALUE = '__all__';
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+const CONFIRM_RETRY_DELAYS_MS = [400, 800, 1200];
+
+/**
+ * Delay helper for retry flows.
+ *
+ * @param ms - Milliseconds to wait
+ * @returns Promise that resolves after the delay
+ */
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+/**
+ * Determines whether a document confirm should retry.
+ *
+ * @param errorCode - Error code returned from confirm action
+ * @returns True when the error is likely transient
+ */
+function shouldRetryConfirm(
+	errorCode: IncapacityMutationErrorCode | undefined,
+): boolean {
+	return (
+		errorCode === 'INCAPACITY_DOCUMENT_NOT_FOUND' ||
+		errorCode === 'INCAPACITY_DOCUMENT_INVALID'
+	);
+}
 
 /**
  * Ensures incapacity document timestamps are Date instances.
@@ -200,6 +228,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 	const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
 	const [editingRecord, setEditingRecord] = useState<IncapacityRecord | null>(null);
 	const [uploadingDocumentId, setUploadingDocumentId] = useState<string | null>(null);
+	const [processingDocumentId, setProcessingDocumentId] = useState<string | null>(null);
 
 	/**
 	 * Resets pagination to the first page.
@@ -577,7 +606,8 @@ export function IncapacitiesPageClient(): React.ReactElement {
 					return;
 				}
 
-				const confirmResult = await confirmIncapacityDocumentAction({
+				setProcessingDocumentId(record.id);
+				let confirmResult = await confirmIncapacityDocumentAction({
 					incapacityId: record.id,
 					documentId: presignResult.data.documentId,
 					objectKey: presignResult.data.objectKey,
@@ -586,6 +616,27 @@ export function IncapacitiesPageClient(): React.ReactElement {
 					sizeBytes: file.size,
 					sha256,
 				});
+
+				if (!confirmResult.success && shouldRetryConfirm(confirmResult.errorCode)) {
+					for (const delay of CONFIRM_RETRY_DELAYS_MS) {
+						await sleep(delay);
+						confirmResult = await confirmIncapacityDocumentAction({
+							incapacityId: record.id,
+							documentId: presignResult.data.documentId,
+							objectKey: presignResult.data.objectKey,
+							fileName: file.name,
+							contentType: file.type,
+							sizeBytes: file.size,
+							sha256,
+						});
+						if (confirmResult.success) {
+							break;
+						}
+						if (!shouldRetryConfirm(confirmResult.errorCode)) {
+							break;
+						}
+					}
+				}
 
 				if (confirmResult.success) {
 					if (confirmResult.data) {
@@ -620,6 +671,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 				console.error('[incapacities] upload failed', error);
 				toast.error(t('toast.documentUploadError'));
 			} finally {
+				setProcessingDocumentId(null);
 				setUploadingDocumentId(null);
 			}
 		},
@@ -1288,14 +1340,27 @@ export function IncapacitiesPageClient(): React.ReactElement {
 									<Button
 										variant="outline"
 										size="sm"
-										disabled={uploadingDocumentId === editingRecord.id}
+										disabled={
+											uploadingDocumentId === editingRecord.id ||
+											processingDocumentId === editingRecord.id
+										}
 										asChild
 									>
 										<label>
 											<FileUp className="mr-2 h-4 w-4" />
-											{uploadingDocumentId === editingRecord.id
-												? t('documents.uploading')
-												: t('documents.upload')}
+											{uploadingDocumentId === editingRecord.id ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													{t('documents.uploading')}
+												</>
+											) : processingDocumentId === editingRecord.id ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													{t('documents.processing')}
+												</>
+											) : (
+												t('documents.upload')
+											)}
 											<input
 												type="file"
 												className="hidden"
@@ -1318,45 +1383,47 @@ export function IncapacitiesPageClient(): React.ReactElement {
 										{t('documents.empty')}
 									</p>
 								) : (
-									<Table>
-										<TableHeader>
-											<TableRow>
-												<TableHead>{t('documents.table.file')}</TableHead>
-												<TableHead>
-													{t('documents.table.uploadedAt')}
-												</TableHead>
-												<TableHead>
-													{t('documents.table.actions')}
-												</TableHead>
-											</TableRow>
-										</TableHeader>
-										<TableBody>
-											{editingRecord.documents.map((doc) => (
-												<TableRow key={doc.id}>
-													<TableCell className="font-medium">
-														{doc.fileName}
-													</TableCell>
-													<TableCell>
-														{formatShortDateUtc(doc.uploadedAt)}
-													</TableCell>
-													<TableCell>
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() =>
-																handleDocumentView(
-																	editingRecord,
-																	doc.id,
-																)
-															}
-														>
-															{t('documents.actions.view')}
-														</Button>
-													</TableCell>
+									<div className="max-h-64 overflow-y-auto rounded-md border">
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>{t('documents.table.file')}</TableHead>
+													<TableHead>
+														{t('documents.table.uploadedAt')}
+													</TableHead>
+													<TableHead>
+														{t('documents.table.actions')}
+													</TableHead>
 												</TableRow>
-											))}
-										</TableBody>
-									</Table>
+											</TableHeader>
+											<TableBody>
+												{editingRecord.documents.map((doc) => (
+													<TableRow key={doc.id}>
+														<TableCell className="font-medium">
+															{doc.fileName}
+														</TableCell>
+														<TableCell>
+															{formatShortDateUtc(doc.uploadedAt)}
+														</TableCell>
+														<TableCell>
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() =>
+																	handleDocumentView(
+																		editingRecord,
+																		doc.id,
+																	)
+																}
+															>
+																{t('documents.actions.view')}
+															</Button>
+														</TableCell>
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</div>
 								)}
 							</div>
 							{isAdminUser ? (

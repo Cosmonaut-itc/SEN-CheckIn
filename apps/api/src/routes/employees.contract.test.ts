@@ -12,6 +12,7 @@ import {
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
 import { setupRekognitionMocks } from '../test-utils/contract-mocks.js';
+import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { roundCurrency } from '../utils/money.js';
 
 setupRekognitionMocks();
@@ -130,6 +131,8 @@ describe('employee routes (contract)', () => {
 			code: `EMP-${randomUUID().slice(0, 8)}`,
 			firstName: 'Empleado',
 			lastName: 'Contrato',
+			nss: '12345678901',
+			rfc: 'CONM901211ABC',
 			email: `empleado.${Date.now()}@example.com`,
 			phone: '+52 55 1234 5678',
 			jobPositionId: seed.jobPositionId,
@@ -190,12 +193,16 @@ describe('employee routes (contract)', () => {
 		}
 		expect(employeeRecord.id).toBe(baseEmployeeId);
 		expect(Array.isArray(employeeRecord.schedule)).toBe(true);
+		expect(employeeRecord.nss).toBe('12345678901');
+		expect(employeeRecord.rfc).toBe('CONM901211ABC');
 	});
 
 	it('updates an employee record', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const response = await employeeRoutes.put({
 			department: 'Operaciones',
+			nss: '98765432109',
+			rfc: 'CONM901211XYZ',
 			hireDate: new Date('2024-02-01'),
 			dailyPay: 500,
 			paymentFrequency: 'MONTHLY',
@@ -209,6 +216,8 @@ describe('employee routes (contract)', () => {
 			throw new Error('Expected employee record in update response.');
 		}
 		expect(employeeRecord.department).toBe('Operaciones');
+		expect(employeeRecord.nss).toBe('98765432109');
+		expect(employeeRecord.rfc).toBe('CONM901211XYZ');
 	});
 
 	it('returns insights for an employee', async () => {
@@ -573,6 +582,17 @@ describe('employee routes (contract)', () => {
 		expect(terminatePayload.data.employee.terminationDateKey).toBe('2026-01-15');
 		expect(terminatePayload.data.settlement.calculation.breakdown.finiquito.salaryDue).toBe(1000);
 
+		const settlementRoute = requireRoute(
+			terminationRoute.settlement,
+			'Employee termination settlement route',
+		);
+		const settlementResponse = await settlementRoute.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(settlementResponse.status).toBe(200);
+		const settlementPayload = requireResponseData(settlementResponse);
+		expect(settlementPayload.data.employeeId).toBe(createdEmployee.id);
+
 		const duplicateResponse = await terminationRoute.post({
 			terminationDateKey: '2026-01-15',
 			terminationReason: 'voluntary_resignation',
@@ -589,6 +609,80 @@ describe('employee routes (contract)', () => {
 		await employeeRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
+	});
+
+	it('returns latest payroll run details for an employee', async () => {
+		let employeeId: string | null = null;
+		try {
+			const createResponse = await client.employees.post({
+				code: `EMP-${randomUUID().slice(0, 8)}`,
+				firstName: 'Nomina',
+				lastName: 'Latest',
+				email: `nomina.latest.${Date.now()}@example.com`,
+				phone: '+52 55 9999 1111',
+				jobPositionId: seed.jobPositionId,
+				locationId: seed.locationId,
+				organizationId: seed.organizationId,
+				scheduleTemplateId: seed.scheduleTemplateId,
+				status: 'ACTIVE',
+				hireDate: new Date('2024-01-01'),
+				dailyPay: 420,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(createResponse.status).toBe(201);
+			const createdEmployee = requireResponseData(createResponse).data;
+			if (!createdEmployee?.id) {
+				throw new Error('Expected employee record for payroll latest test.');
+			}
+			const resolvedEmployeeId = createdEmployee.id;
+			employeeId = resolvedEmployeeId;
+
+			const todayKey = toDateKeyUtc(new Date());
+			const startKey = addDaysToDateKey(todayKey, -7);
+
+			const processResponse = await client.payroll.process.post({
+				periodStartDateKey: startKey,
+				periodEndDateKey: todayKey,
+				paymentFrequency: 'MONTHLY',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(processResponse.status).toBe(200);
+			const processPayload = requireResponseData(processResponse);
+			const runId = (processPayload.data as { run?: { id?: string } }).run?.id;
+			if (!runId) {
+				throw new Error('Expected payroll run id for payroll latest test.');
+			}
+
+			const employeeRoutes = requireRoute(
+				client.employees[resolvedEmployeeId],
+				'Employee route',
+			);
+			const payrollLatestRoute = requireRoute(
+				employeeRoutes.payroll.latest,
+				'Employee payroll latest route',
+			);
+			const latestResponse = await payrollLatestRoute.get({
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(latestResponse.status).toBe(200);
+			const latestPayload = requireResponseData(latestResponse);
+			if (!latestPayload.data) {
+				throw new Error('Expected latest payroll data payload.');
+			}
+			expect(latestPayload.data.payrollRunId).toBe(runId);
+			expect(latestPayload.data.taxBreakdown).toBeDefined();
+		} finally {
+			if (employeeId) {
+				const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
+				await employeeRoutes.delete({
+					$headers: { cookie: adminSession.cookieHeader },
+				});
+			}
+		}
 	});
 
 	it('does not subtract future approved vacation days from termination payout', async () => {

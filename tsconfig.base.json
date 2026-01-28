@@ -3,7 +3,8 @@
 	"compilerOptions": {
 		"baseUrl": ".",
 		"paths": {
-			"@sen-checkin/types": ["packages/types/src"],
+			"@sen-checkin/types": ["packages/types/src/index.ts"],
+			"@sen-checkin/types/*": ["packages/types/src/*"],
 			"@sen-checkin/api": ["apps/api/src"],
 			"@sen-checkin/api/*": ["apps/api/src/*"],
 			"@sen-checkin/api-contract": ["packages/api-contract/src"],

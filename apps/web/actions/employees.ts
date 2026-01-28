@@ -32,6 +32,10 @@ export interface CreateEmployeeInput {
 	firstName: string;
 	/** Employee's last name */
 	lastName: string;
+	/** Employee NSS (Número de Seguridad Social) */
+	nss?: string;
+	/** Employee RFC (Registro Federal de Contribuyentes) */
+	rfc?: string;
 	/** Employee's email address */
 	email?: string;
 	/** Employee's phone number */
@@ -70,6 +74,10 @@ export interface UpdateEmployeeInput {
 	firstName: string;
 	/** Employee's last name */
 	lastName: string;
+	/** Employee NSS (Número de Seguridad Social) */
+	nss?: string | null;
+	/** Employee RFC (Registro Federal de Contribuyentes) */
+	rfc?: string | null;
 	/** Employee's email address */
 	email?: string;
 	/** Employee's phone number */
@@ -135,10 +143,14 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 		const hireDate = input.hireDate ? new Date(input.hireDate) : undefined;
 		const resolvedUserId = input.userId?.trim();
 
+		const resolvedNss = input.nss?.trim();
+		const resolvedRfc = input.rfc?.trim();
 		const response = await api.employees.post({
 			code: input.code,
 			firstName: input.firstName,
 			lastName: input.lastName,
+			nss: resolvedNss || undefined,
+			rfc: resolvedRfc || undefined,
 			email: input.email || undefined,
 			phone: input.phone || undefined,
 			jobPositionId: input.jobPositionId,
@@ -209,10 +221,16 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 				: input.hireDate === null
 					? null
 					: new Date(input.hireDate);
+		const resolvedNss =
+			input.nss === undefined ? undefined : input.nss?.trim() ? input.nss.trim() : null;
+		const resolvedRfc =
+			input.rfc === undefined ? undefined : input.rfc?.trim() ? input.rfc.trim() : null;
 
 		const response = await api.employees[input.id].put({
 			firstName: input.firstName,
 			lastName: input.lastName,
+			nss: resolvedNss,
+			rfc: resolvedRfc,
 			email: input.email || undefined,
 			phone: input.phone || undefined,
 			jobPositionId: input.jobPositionId || undefined,

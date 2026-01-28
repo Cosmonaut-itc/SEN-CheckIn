@@ -145,6 +145,10 @@ export interface Employee {
 	firstName: string;
 	/** Last name */
 	lastName: string;
+	/** NSS (Número de Seguridad Social) */
+	nss: string | null;
+	/** RFC (Registro Federal de Contribuyentes) */
+	rfc: string | null;
 	/** Email address (optional) */
 	email: string | null;
 	/** Location ID reference (optional) */

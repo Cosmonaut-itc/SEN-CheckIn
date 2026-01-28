@@ -860,6 +860,7 @@ export async function fetchPayrollRunDetailServer(
 	}
 	const normalizedRun: PayrollRun = {
 		...payload.run,
+		organizationName: payload.run.organizationName ?? null,
 		totalAmount: Number(payload.run.totalAmount ?? 0),
 		periodStart: new Date(payload.run.periodStart),
 		periodEnd: new Date(payload.run.periodEnd),

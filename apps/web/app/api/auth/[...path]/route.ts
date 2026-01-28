@@ -37,7 +37,7 @@ function resolveApiOrigin(): string {
 
 /**
  * Upstream BetterAuth base URL (API service).
- * Falls back to localhost for local development.
+ * Uses NEXT_PUBLIC_API_URL if set, otherwise falls back to localhost.
  */
 const API_ORIGIN: string = resolveApiOrigin();
 const API_AUTH_BASE: string = API_ORIGIN.endsWith('/api/auth')

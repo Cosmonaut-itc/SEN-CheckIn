@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 
 import { processPayrollAction } from '@/actions/payroll';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -67,6 +68,8 @@ import {
 } from '@/lib/date-key';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
 import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+
+import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
@@ -533,6 +536,19 @@ export function PayrollPageClient(): React.ReactElement {
 					row.original.processedAt
 						? format(new Date(row.original.processedAt), t('dateFormat'))
 						: '-',
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'receipts',
+				header: t('runHistory.table.receipts'),
+				cell: ({ row }) =>
+					row.original.status === 'PROCESSED' ? (
+						<PayrollRunReceiptsDialog run={row.original} />
+					) : (
+						<Badge variant="outline" className="text-xs text-muted-foreground">
+							{t('receipts.unavailable')}
+						</Badge>
+					),
 				enableGlobalFilter: false,
 			},
 		],

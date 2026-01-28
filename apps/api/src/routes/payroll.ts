@@ -9,6 +9,7 @@ import {
 	employee,
 	employeeSchedule,
 	location,
+	organization,
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
@@ -516,11 +517,76 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('You do not have access to this payroll run', 403);
 			}
 
+			const organizationRows = await db
+				.select({ name: organization.name })
+				.from(organization)
+				.where(eq(organization.id, record.organizationId))
+				.limit(1);
+			const organizationName = organizationRows[0]?.name ?? null;
+
 			const lines = await db
-				.select()
+				.select({
+					id: payrollRunEmployee.id,
+					payrollRunId: payrollRunEmployee.payrollRunId,
+					employeeId: payrollRunEmployee.employeeId,
+					hoursWorked: payrollRunEmployee.hoursWorked,
+					hourlyPay: payrollRunEmployee.hourlyPay,
+					totalPay: payrollRunEmployee.totalPay,
+					normalHours: payrollRunEmployee.normalHours,
+					normalPay: payrollRunEmployee.normalPay,
+					overtimeDoubleHours: payrollRunEmployee.overtimeDoubleHours,
+					overtimeDoublePay: payrollRunEmployee.overtimeDoublePay,
+					overtimeTripleHours: payrollRunEmployee.overtimeTripleHours,
+					overtimeTriplePay: payrollRunEmployee.overtimeTriplePay,
+					sundayPremiumAmount: payrollRunEmployee.sundayPremiumAmount,
+					mandatoryRestDayPremiumAmount: payrollRunEmployee.mandatoryRestDayPremiumAmount,
+					vacationDaysPaid: payrollRunEmployee.vacationDaysPaid,
+					vacationPayAmount: payrollRunEmployee.vacationPayAmount,
+					vacationPremiumAmount: payrollRunEmployee.vacationPremiumAmount,
+					taxBreakdown: payrollRunEmployee.taxBreakdown,
+					periodStart: payrollRunEmployee.periodStart,
+					periodEnd: payrollRunEmployee.periodEnd,
+					createdAt: payrollRunEmployee.createdAt,
+					updatedAt: payrollRunEmployee.updatedAt,
+					employeeFirstName: employee.firstName,
+					employeeLastName: employee.lastName,
+					employeeCode: employee.code,
+					employeeNss: employee.nss,
+					employeeRfc: employee.rfc,
+				})
 				.from(payrollRunEmployee)
+				.leftJoin(employee, eq(payrollRunEmployee.employeeId, employee.id))
 				.where(eq(payrollRunEmployee.payrollRunId, id));
 
-			return { data: { run: record, employees: lines } };
+			const employees = lines.map((line) => ({
+				id: line.id,
+				payrollRunId: line.payrollRunId,
+				employeeId: line.employeeId,
+				hoursWorked: line.hoursWorked,
+				hourlyPay: line.hourlyPay,
+				totalPay: line.totalPay,
+				normalHours: line.normalHours,
+				normalPay: line.normalPay,
+				overtimeDoubleHours: line.overtimeDoubleHours,
+				overtimeDoublePay: line.overtimeDoublePay,
+				overtimeTripleHours: line.overtimeTripleHours,
+				overtimeTriplePay: line.overtimeTriplePay,
+				sundayPremiumAmount: line.sundayPremiumAmount,
+				mandatoryRestDayPremiumAmount: line.mandatoryRestDayPremiumAmount,
+				vacationDaysPaid: line.vacationDaysPaid,
+				vacationPayAmount: line.vacationPayAmount,
+				vacationPremiumAmount: line.vacationPremiumAmount,
+				taxBreakdown: line.taxBreakdown,
+				periodStart: line.periodStart,
+				periodEnd: line.periodEnd,
+				createdAt: line.createdAt,
+				updatedAt: line.updatedAt,
+				employeeName: `${line.employeeFirstName ?? ''} ${line.employeeLastName ?? ''}`.trim(),
+				employeeCode: line.employeeCode ?? '',
+				employeeNss: line.employeeNss ?? null,
+				employeeRfc: line.employeeRfc ?? null,
+			}));
+
+			return { data: { run: { ...record, organizationName }, employees } };
 		},
 	);

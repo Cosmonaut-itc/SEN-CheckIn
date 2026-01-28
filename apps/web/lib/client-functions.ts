@@ -11,7 +11,11 @@ import { api } from '@/lib/api';
 import { getApiResponseData } from '@/lib/api-response';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
-import type { EmployeeAuditEvent, EmployeeInsights } from '@sen-checkin/types';
+import type {
+	EmployeeAuditEvent,
+	EmployeeInsights,
+	EmployeeTerminationSettlement,
+} from '@sen-checkin/types';
 import type {
 	AttendancePresentQueryParams,
 	AttendanceQueryParams,
@@ -51,6 +55,8 @@ export interface Employee {
 	code: string;
 	firstName: string;
 	lastName: string;
+	nss: string | null;
+	rfc: string | null;
 	email: string | null;
 	phone: string | null;
 	jobPositionId: string | null;
@@ -657,6 +663,146 @@ export async function fetchEmployeeAudit(params: {
 			offset: params.offset ?? 0,
 		},
 	};
+}
+
+export interface EmployeeTerminationSettlementRecord {
+	id: string;
+	employeeId: string;
+	organizationId: string | null;
+	calculation: EmployeeTerminationSettlement;
+	totalsGross: number;
+	finiquitoTotalGross: number;
+	liquidacionTotalGross: number;
+	createdAt: Date;
+}
+
+type EmployeeTerminationSettlementPayload = Omit<
+	EmployeeTerminationSettlementRecord,
+	'totalsGross' | 'finiquitoTotalGross' | 'liquidacionTotalGross' | 'createdAt'
+> & {
+	totalsGross: number | string;
+	finiquitoTotalGross: number | string;
+	liquidacionTotalGross: number | string;
+	createdAt: string | Date;
+};
+
+/**
+ * Normalizes termination settlement payload values.
+ *
+ * @param record - Raw settlement payload from the API
+ * @returns Normalized settlement record
+ */
+function normalizeTerminationSettlement(
+	record: EmployeeTerminationSettlementPayload,
+): EmployeeTerminationSettlementRecord {
+	return {
+		...record,
+		totalsGross: Number(record.totalsGross ?? 0),
+		finiquitoTotalGross: Number(record.finiquitoTotalGross ?? 0),
+		liquidacionTotalGross: Number(record.liquidacionTotalGross ?? 0),
+		createdAt: new Date(record.createdAt),
+	};
+}
+
+export interface EmployeeLatestPayroll {
+	payrollRunId: string;
+	periodStart: Date;
+	periodEnd: Date;
+	paymentFrequency: PayrollRun['paymentFrequency'];
+	processedAt: Date | null;
+	taxBreakdown: PayrollRunEmployee['taxBreakdown'];
+	totalPay: number;
+}
+
+type EmployeeLatestPayrollPayload = Omit<
+	EmployeeLatestPayroll,
+	'periodStart' | 'periodEnd' | 'processedAt' | 'totalPay'
+> & {
+	periodStart: string | Date;
+	periodEnd: string | Date;
+	processedAt?: string | Date | null;
+	totalPay?: number | string | null;
+	taxBreakdown?: PayrollRunEmployee['taxBreakdown'];
+};
+
+/**
+ * Normalizes latest payroll payload values.
+ *
+ * @param record - Raw payroll payload from the API
+ * @returns Normalized payroll record
+ */
+function normalizeEmployeeLatestPayroll(
+	record: EmployeeLatestPayrollPayload,
+): EmployeeLatestPayroll {
+	return {
+		payrollRunId: record.payrollRunId,
+		periodStart: new Date(record.periodStart),
+		periodEnd: new Date(record.periodEnd),
+		paymentFrequency: record.paymentFrequency,
+		processedAt: record.processedAt ? new Date(record.processedAt) : null,
+		taxBreakdown: record.taxBreakdown,
+		totalPay: Number(record.totalPay ?? 0),
+	};
+}
+
+/**
+ * Fetches the latest termination settlement for an employee.
+ *
+ * @param id - Employee ID
+ * @returns Termination settlement record or null when missing
+ */
+export async function fetchEmployeeTerminationSettlement(
+	id: string,
+): Promise<EmployeeTerminationSettlementRecord | null> {
+	try {
+		const response = await api.employees[id].termination.settlement.get();
+
+		if (response.error) {
+			if (response.status === 404) {
+				return null;
+			}
+			console.error(
+				'Failed to fetch termination settlement:',
+				response.error,
+				'Status:',
+				response.status,
+			);
+			return null;
+		}
+
+		const payload = getApiResponseData(response);
+		const record = payload?.data as EmployeeTerminationSettlementPayload | undefined;
+		return record ? normalizeTerminationSettlement(record) : null;
+	} catch (error) {
+		console.error('Failed to fetch termination settlement:', error);
+		return null;
+	}
+}
+
+/**
+ * Fetches the latest processed payroll run for an employee.
+ *
+ * @param id - Employee ID
+ * @returns Latest payroll run payload or null when missing
+ */
+export async function fetchEmployeeLatestPayroll(
+	id: string,
+): Promise<EmployeeLatestPayroll | null> {
+	const response = await api.employees[id].payroll.latest.get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch latest payroll run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = getApiResponseData(response);
+	const record = payload?.data as EmployeeLatestPayrollPayload | undefined;
+	return record ? normalizeEmployeeLatestPayroll(record) : null;
 }
 
 // ============================================================================
@@ -1346,6 +1492,7 @@ export interface PayrollCalculationResult {
 export interface PayrollRun {
 	id: string;
 	organizationId: string;
+	organizationName?: string | null;
 	periodStart: Date;
 	periodEnd: Date;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
@@ -1361,6 +1508,10 @@ export interface PayrollRunEmployee {
 	id: string;
 	payrollRunId: string;
 	employeeId: string;
+	employeeName: string;
+	employeeCode: string;
+	employeeNss?: string | null;
+	employeeRfc?: string | null;
 	hoursWorked: number;
 	hourlyPay: number;
 	totalPay: number;

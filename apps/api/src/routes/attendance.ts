@@ -104,9 +104,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			}
 			const normalizedSearch = search?.trim();
 			if (normalizedSearch) {
-				conditions.push(
-					ilike(attendanceRecord.employeeId, `%${normalizedSearch}%`),
-				);
+				conditions.push(ilike(attendanceRecord.employeeId, `%${normalizedSearch}%`));
 			}
 
 			let baseQuery = db
@@ -225,7 +223,9 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const latestAttendance = db
 				.select({
 					employeeId: attendanceRecord.employeeId,
-					lastTimestamp: sql<Date>`max(${attendanceRecord.timestamp})`.as('lastTimestamp'),
+					lastTimestamp: sql<Date>`max(${attendanceRecord.timestamp})`.as(
+						'lastTimestamp',
+					),
 				})
 				.from(attendanceRecord)
 				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
@@ -337,8 +337,12 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				return buildErrorResponse('You do not have access to this attendance record', 403);
 			}
 
-			const { employeeOrgId: _employeeOrgId, employeeFirstName, employeeLastName, ...rest } =
-				record;
+			const {
+				employeeOrgId: _employeeOrgId,
+				employeeFirstName,
+				employeeLastName,
+				...rest
+			} = record;
 			void _employeeOrgId;
 
 			return {
@@ -413,7 +417,10 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				)
 			) {
 				set.status = 403;
-				return buildErrorResponse('Employee does not belong to an allowed organization', 403);
+				return buildErrorResponse(
+					'Employee does not belong to an allowed organization',
+					403,
+				);
 			}
 
 			if (
@@ -449,7 +456,10 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				existingDevice.organizationId !== resolvedOrganizationId
 			) {
 				set.status = 403;
-				return buildErrorResponse('Device does not belong to the resolved organization', 403);
+				return buildErrorResponse(
+					'Device does not belong to the resolved organization',
+					403,
+				);
 			}
 
 			const id = crypto.randomUUID();

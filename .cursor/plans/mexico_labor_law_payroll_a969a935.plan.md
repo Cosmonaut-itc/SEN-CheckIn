@@ -259,7 +259,7 @@ File: [`apps/web/lib/query-keys.ts`](apps/web/lib/query-keys.ts)
 
 ### 5.1 Update Job Positions Page
 
-File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](<apps/web/app/\(dashboard)/job-positions/job-positions-client.tsx>)
+File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](<apps/web/app/(dashboard)/job-positions/job-positions-client.tsx>)
 
 - Add `dailyPay` number input field with label "Salario Diario (MXN)"
 - Add helper text explaining relationship: "El pago por hora se calcula automáticamente según el tipo de jornada"
@@ -267,7 +267,7 @@ File: [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](<apps/
 
 ### 5.2 Update Employees Page
 
-File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](<apps/web/app/\(dashboard)/employees/employees-client.tsx>)
+File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](<apps/web/app/(dashboard)/employees/employees-client.tsx>)
 
 - Add shift type selector with options:
     - Diurna (06:00-20:00, 8h máx)
@@ -277,7 +277,7 @@ File: [`apps/web/app/(dashboard)/employees/employees-client.tsx`](<apps/web/app/
 
 ### 5.3 Update Locations Page
 
-File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](<apps/web/app/\(dashboard)/locations/locations-client.tsx>)
+File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](<apps/web/app/(dashboard)/locations/locations-client.tsx>)
 
 - Add geographic zone selector:
     - General (Salario mínimo: $278.80 MXN)
@@ -286,7 +286,7 @@ File: [`apps/web/app/(dashboard)/locations/locations-client.tsx`](<apps/web/app/
 
 ### 5.4 Update Payroll Settings Page
 
-File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](<apps/web/app/\(dashboard)/payroll-settings/payroll-settings-client.tsx>)
+File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](<apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx>)
 
 - Add overtime enforcement toggle:
     - Advertir (mostrar avisos pero permitir procesar)
@@ -299,7 +299,7 @@ File: [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](
 
 ### 5.5 Refactor Payroll Page
 
-File: [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](<apps/web/app/\(dashboard)/payroll/payroll-client.tsx>)
+File: [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](<apps/web/app/(dashboard)/payroll/payroll-client.tsx>)
 
 **Add Information Panel:**
 

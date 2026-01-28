@@ -177,11 +177,7 @@ export const jobPositionRoutes = new Elysia({ prefix: '/job-positions' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const {
-				name,
-				description,
-				organizationId: organizationIdInput,
-			} = body;
+			const { name, description, organizationId: organizationIdInput } = body;
 			const organizationId = resolveOrganizationId({
 				authType,
 				session,

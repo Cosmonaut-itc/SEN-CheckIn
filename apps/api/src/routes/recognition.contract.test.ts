@@ -8,7 +8,10 @@ import {
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
-import { setSearchUsersByImageResult, setupRekognitionMocks } from '../test-utils/contract-mocks.js';
+import {
+	setSearchUsersByImageResult,
+	setupRekognitionMocks,
+} from '../test-utils/contract-mocks.js';
 
 setupRekognitionMocks();
 

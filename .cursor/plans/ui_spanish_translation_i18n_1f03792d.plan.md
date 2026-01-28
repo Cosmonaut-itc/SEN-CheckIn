@@ -109,37 +109,37 @@ Key files to update (using `useTranslations` hook):
 
 **Dashboard Pages (13 client components):**
 
-- [`apps/web/app/(dashboard)/dashboard/dashboard-client.tsx`](apps/web/app/\\(dashboard)/dashboard/dashboard-client.tsx)
-- [`apps/web/app/(dashboard)/employees/employees-client.tsx`](apps/web/app/\\(dashboard)/employees/employees-client.tsx)
-- [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](apps/web/app/\\(dashboard)/job-positions/job-positions-client.tsx)
-- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](apps/web/app/\\(dashboard)/devices/devices-client.tsx)
-- [`apps/web/app/(dashboard)/locations/locations-client.tsx`](apps/web/app/\\(dashboard)/locations/locations-client.tsx)
-- [`apps/web/app/(dashboard)/attendance/attendance-client.tsx`](apps/web/app/\\(dashboard)/attendance/attendance-client.tsx)
-- [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](apps/web/app/\\(dashboard)/payroll/payroll-client.tsx)
-- [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](apps/web/app/\\(dashboard)/payroll-settings/payroll-settings-client.tsx)
-- [`apps/web/app/(dashboard)/api-keys/api-keys-client.tsx`](apps/web/app/\\(dashboard)/api-keys/api-keys-client.tsx)
-- [`apps/web/app/(dashboard)/users/users-client.tsx`](apps/web/app/\\(dashboard)/users/users-client.tsx)
-- [`apps/web/app/(dashboard)/organizations/organizations-client.tsx`](apps/web/app/\\(dashboard)/organizations/organizations-client.tsx)
-- [`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](apps/web/app/\\(dashboard)/schedules/schedules-client.tsx) **(NEW)**
-- [`apps/web/app/(dashboard)/error.tsx`](apps/web/app/\\(dashboard)/error.tsx)
+- [`apps/web/app/(dashboard)/dashboard/dashboard-client.tsx`](<apps/web/app/(dashboard)/dashboard/dashboard-client.tsx>)
+- [`apps/web/app/(dashboard)/employees/employees-client.tsx`](<apps/web/app/(dashboard)/employees/employees-client.tsx>)
+- [`apps/web/app/(dashboard)/job-positions/job-positions-client.tsx`](<apps/web/app/(dashboard)/job-positions/job-positions-client.tsx>)
+- [`apps/web/app/(dashboard)/devices/devices-client.tsx`](<apps/web/app/(dashboard)/devices/devices-client.tsx>)
+- [`apps/web/app/(dashboard)/locations/locations-client.tsx`](<apps/web/app/(dashboard)/locations/locations-client.tsx>)
+- [`apps/web/app/(dashboard)/attendance/attendance-client.tsx`](<apps/web/app/(dashboard)/attendance/attendance-client.tsx>)
+- [`apps/web/app/(dashboard)/payroll/payroll-client.tsx`](<apps/web/app/(dashboard)/payroll/payroll-client.tsx>)
+- [`apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx`](<apps/web/app/(dashboard)/payroll-settings/payroll-settings-client.tsx>)
+- [`apps/web/app/(dashboard)/api-keys/api-keys-client.tsx`](<apps/web/app/(dashboard)/api-keys/api-keys-client.tsx>)
+- [`apps/web/app/(dashboard)/users/users-client.tsx`](<apps/web/app/(dashboard)/users/users-client.tsx>)
+- [`apps/web/app/(dashboard)/organizations/organizations-client.tsx`](<apps/web/app/(dashboard)/organizations/organizations-client.tsx>)
+- [`apps/web/app/(dashboard)/schedules/schedules-client.tsx`](<apps/web/app/(dashboard)/schedules/schedules-client.tsx>) **(NEW)**
+- [`apps/web/app/(dashboard)/error.tsx`](<apps/web/app/(dashboard)/error.tsx>)
 
 **Schedules Sub-components (8 files - NEW):**
 
-- [`apps/web/app/(dashboard)/schedules/components/calendar-view.tsx`](apps/web/app/\\(dashboard)/schedules/components/calendar-view.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/day-schedule-editor.tsx`](apps/web/app/\\(dashboard)/schedules/components/day-schedule-editor.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/exception-form-dialog.tsx`](apps/web/app/\\(dashboard)/schedules/components/exception-form-dialog.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`](apps/web/app/\\(dashboard)/schedules/components/labor-law-warnings.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/location-schedule-card.tsx`](apps/web/app/\\(dashboard)/schedules/components/location-schedule-card.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/schedule-exceptions-tab.tsx`](apps/web/app/\\(dashboard)/schedules/components/schedule-exceptions-tab.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/schedule-templates-tab.tsx`](apps/web/app/\\(dashboard)/schedules/components/schedule-templates-tab.tsx)
-- [`apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx`](apps/web/app/\\(dashboard)/schedules/components/template-form-dialog.tsx)
+- [`apps/web/app/(dashboard)/schedules/components/calendar-view.tsx`](<apps/web/app/(dashboard)/schedules/components/calendar-view.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/day-schedule-editor.tsx`](<apps/web/app/(dashboard)/schedules/components/day-schedule-editor.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/exception-form-dialog.tsx`](<apps/web/app/(dashboard)/schedules/components/exception-form-dialog.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx`](<apps/web/app/(dashboard)/schedules/components/labor-law-warnings.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/location-schedule-card.tsx`](<apps/web/app/(dashboard)/schedules/components/location-schedule-card.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/schedule-exceptions-tab.tsx`](<apps/web/app/(dashboard)/schedules/components/schedule-exceptions-tab.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/schedule-templates-tab.tsx`](<apps/web/app/(dashboard)/schedules/components/schedule-templates-tab.tsx>)
+- [`apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx`](<apps/web/app/(dashboard)/schedules/components/template-form-dialog.tsx>)
 
 **Auth Pages (4 files):**
 
-- [`apps/web/app/(auth)/sign-in/page.tsx`](apps/web/app/\\(auth)/sign-in/page.tsx)
-- [`apps/web/app/(auth)/sign-up/page.tsx`](apps/web/app/\\(auth)/sign-up/page.tsx)
-- [`apps/web/app/(auth)/device/device-client.tsx`](apps/web/app/\\(auth)/device/device-client.tsx) **(NEW)**
-- [`apps/web/app/(auth)/layout.tsx`](apps/web/app/\\(auth)/layout.tsx)
+- [`apps/web/app/(auth)/sign-in/page.tsx`](<apps/web/app/(auth)/sign-in/page.tsx>)
+- [`apps/web/app/(auth)/sign-up/page.tsx`](<apps/web/app/(auth)/sign-up/page.tsx>)
+- [`apps/web/app/(auth)/device/device-client.tsx`](<apps/web/app/(auth)/device/device-client.tsx>) **(NEW)**
+- [`apps/web/app/(auth)/layout.tsx`](<apps/web/app/(auth)/layout.tsx>)
 
 **Shared Components:**
 
@@ -177,10 +177,10 @@ bun run add:mobile -- expo-localization i18n-js
 
 Key files to update (using `i18n.t()` function):
 
-- [`apps/mobile/app/(main)/scanner.tsx`](<apps/mobile/app/\\\\(main)/scanner.tsx>) - Scanner UI strings
-- [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/\\\\(auth)/login.tsx>) - Login flow strings
-- [`apps/mobile/app/(auth)/device-setup.tsx`](<apps/mobile/app/\\\\(auth)/device-setup.tsx>) - Setup strings
-- [`apps/mobile/app/(main)/settings.tsx`](<apps/mobile/app/\\\\(main)/settings.tsx>) - Settings strings
+- [`apps/mobile/app/(main)/scanner.tsx`](<apps/mobile/app/(main)/scanner.tsx>) - Scanner UI strings
+- [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/(auth)/login.tsx>) - Login flow strings
+- [`apps/mobile/app/(auth)/device-setup.tsx`](<apps/mobile/app/(auth)/device-setup.tsx>) - Setup strings
+- [`apps/mobile/app/(main)/settings.tsx`](<apps/mobile/app/(main)/settings.tsx>) - Settings strings
 
 ---
 

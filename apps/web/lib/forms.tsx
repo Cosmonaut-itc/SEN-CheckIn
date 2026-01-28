@@ -375,10 +375,7 @@ export function DateField({
 		format(parsedValue, 'yyyy-MM-dd') === rawValue;
 	const selectedDateKey = isParsedValid ? rawValue : '';
 	const selectedDate = React.useMemo(
-		() =>
-			selectedDateKey
-				? parse(selectedDateKey, 'yyyy-MM-dd', new Date())
-				: undefined,
+		() => (selectedDateKey ? parse(selectedDateKey, 'yyyy-MM-dd', new Date()) : undefined),
 		[selectedDateKey],
 	);
 	const resolvedPlaceholder = placeholder ?? label;

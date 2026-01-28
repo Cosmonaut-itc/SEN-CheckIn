@@ -592,7 +592,8 @@ async function seedEmployees(args: {
 		{ dailyPay: string; paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' }
 	>;
 }): Promise<SeedEmployee[]> {
-	const { seedNumber, organizations, locations, jobPositions, templates, positionPayDefaults } = args;
+	const { seedNumber, organizations, locations, jobPositions, templates, positionPayDefaults } =
+		args;
 
 	const orgLocations = new Map<string, string[]>();
 	for (const loc of locations) {
@@ -922,8 +923,7 @@ async function insertVacationRequests(args: {
 			}
 
 			const exceptions = exceptionsByEmployee.get(employeeRecord.id) ?? [];
-			const additionalMandatoryRestDays =
-				additionalRestDaysByOrg.get(org.id) ?? [];
+			const additionalMandatoryRestDays = additionalRestDaysByOrg.get(org.id) ?? [];
 			const mandatoryRestDayKeys = buildMandatoryRestDayKeys(
 				startDateKey,
 				endDateKey,

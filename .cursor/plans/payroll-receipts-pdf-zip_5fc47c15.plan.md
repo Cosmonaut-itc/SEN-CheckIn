@@ -2,36 +2,36 @@
 name: payroll-receipts-pdf-zip
 overview: Agregar descarga de recibos de nómina (PDF) por empleado y en ZIP para una ejecución PROCESADA, accesible desde el historial por periodo/fecha; incluir recibo imprimible (PDF) de baja/finiquito con firma.
 todos:
-  - id: api-run-detail-employee-fields
-    content: Modificar `GET /payroll/runs/:id` para incluir `employeeName` y `employeeCode` en cada línea (join con `employee`).
-    status: pending
-  - id: employee-identifiers
-    content: Agregar campos opcionales `nss` y `rfc` en `employee` (DB+API+Web) para mostrarlos en recibos cuando existan.
-    status: pending
-  - id: termination-receipt-api
-    content: Agregar endpoints API para (1) obtener el settlement de terminación (último) y (2) obtener el último payroll run PROCESADO del empleado con `taxBreakdown` para el resumen fiscal del recibo.
-    status: pending
-  - id: termination-receipt-pdf
-    content: Implementar PDF de recibo de baja/finiquito (firma) en Next.js route y conectarlo al UI de empleados (descarga post-terminación + re-descarga).
-    status: pending
-  - id: web-types-run-detail
-    content: Actualizar `PayrollRunEmployee` + `fetchPayrollRunDetail()` en `apps/web/lib/client-functions.ts` para manejar los nuevos campos.
-    status: pending
-  - id: web-ui-receipts-dialog
-    content: Agregar columna de acciones en historial y crear diálogo “Recibos” con descargas individual/ZIP en `apps/web/app/(dashboard)/payroll/`.
-    status: pending
-  - id: pdf-generator
-    content: Agregar utilidad `buildPayrollReceiptPdf()` con `pdf-lib` para renderizar el recibo en PDF con área de firma y secciones tipo la imagen.
-    status: pending
-  - id: next-routes-downloads
-    content: Implementar routes Next.js para descargar PDF individual y ZIP de todos los recibos (con `jszip`).
-    status: pending
-  - id: tests-e2e-and-contract
-    content: "Añadir/ajustar pruebas: contract API para campos nuevos y Playwright e2e para descargas (ZIP/PDF)."
-    status: pending
-  - id: run-checks
-    content: Ejecutar tests + lint + check-types al final y corregir cualquier fallo.
-    status: pending
+    - id: api-run-detail-employee-fields
+      content: Modificar `GET /payroll/runs/:id` para incluir `employeeName` y `employeeCode` en cada línea (join con `employee`).
+      status: pending
+    - id: employee-identifiers
+      content: Agregar campos opcionales `nss` y `rfc` en `employee` (DB+API+Web) para mostrarlos en recibos cuando existan.
+      status: pending
+    - id: termination-receipt-api
+      content: Agregar endpoints API para (1) obtener el settlement de terminación (último) y (2) obtener el último payroll run PROCESADO del empleado con `taxBreakdown` para el resumen fiscal del recibo.
+      status: pending
+    - id: termination-receipt-pdf
+      content: Implementar PDF de recibo de baja/finiquito (firma) en Next.js route y conectarlo al UI de empleados (descarga post-terminación + re-descarga).
+      status: pending
+    - id: web-types-run-detail
+      content: Actualizar `PayrollRunEmployee` + `fetchPayrollRunDetail()` en `apps/web/lib/client-functions.ts` para manejar los nuevos campos.
+      status: pending
+    - id: web-ui-receipts-dialog
+      content: Agregar columna de acciones en historial y crear diálogo “Recibos” con descargas individual/ZIP en `apps/web/app/(dashboard)/payroll/`.
+      status: pending
+    - id: pdf-generator
+      content: Agregar utilidad `buildPayrollReceiptPdf()` con `pdf-lib` para renderizar el recibo en PDF con área de firma y secciones tipo la imagen.
+      status: pending
+    - id: next-routes-downloads
+      content: Implementar routes Next.js para descargar PDF individual y ZIP de todos los recibos (con `jszip`).
+      status: pending
+    - id: tests-e2e-and-contract
+      content: 'Añadir/ajustar pruebas: contract API para campos nuevos y Playwright e2e para descargas (ZIP/PDF).'
+      status: pending
+    - id: run-checks
+      content: Ejecutar tests + lint + check-types al final y corregir cualquier fallo.
+      status: pending
 isProject: false
 ---
 
@@ -63,11 +63,11 @@ isProject: false
 - Cambio: extender `PayrollRunEmployee` con `employeeName` y `employeeCode`, y ajustar `fetchPayrollRunDetail()` para conservarlos.
 
 - Añadir acciones de “Recibos” al historial:
-- Archivo: [apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\\\\\\(dashboard)/payroll/payroll-client.tsx)
+- Archivo: [apps/web/app/(dashboard)/payroll/payroll-client.tsx](<apps/web/app/(dashboard)/payroll/payroll-client.tsx>)
 - Cambio: agregar una columna `actions` a `runColumns` y renderizar un trigger `Recibos`.
 
 - Crear un diálogo para listar empleados y descargas:
-- Archivo nuevo (propuesto): [apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx](apps/web/app/\\\\\\\\\\\\\(dashboard)/payroll/payroll-run-receipts-dialog.tsx)
+- Archivo nuevo (propuesto): [apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx](<apps/web/app/(dashboard)/payroll/payroll-run-receipts-dialog.tsx>)
 - UX:
 - Al abrir, cargar `fetchPayrollRunDetail(runId)` con `queryKeys.payroll.runDetail(runId)`.
 - Mostrar:

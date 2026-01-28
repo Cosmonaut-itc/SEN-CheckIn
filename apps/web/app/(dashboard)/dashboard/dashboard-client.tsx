@@ -4,14 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { endOfDay, formatDistanceToNowStrict, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import {
-	Building2,
-	MapPin,
-	RefreshCw,
-	Search,
-	Smartphone,
-	Users,
-} from 'lucide-react';
+import { Building2, MapPin, RefreshCw, Search, Smartphone, Users } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
@@ -85,7 +78,7 @@ function getEmployeeInitials(name: string): string {
 	}
 	const parts = trimmed.split(/\s+/).filter(Boolean);
 	const first = parts[0]?.[0] ?? '';
-	const second = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+	const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
 	return `${first}${second}`.toUpperCase();
 }
 
@@ -135,10 +128,7 @@ export function DashboardPageClient(): React.ReactElement {
 			}),
 		enabled: Boolean(organizationId),
 	});
-	const {
-		data: locations = [],
-		isFetching: isLocationsFetching,
-	} = useQuery({
+	const { data: locations = [], isFetching: isLocationsFetching } = useQuery({
 		queryKey: queryKeys.locations.allList(organizationId),
 		queryFn: () => fetchLocationsAll({ organizationId }),
 		enabled: Boolean(organizationId),
@@ -310,9 +300,7 @@ export function DashboardPageClient(): React.ReactElement {
 								<p className="text-xs uppercase tracking-wide text-muted-foreground">
 									{t('map.title')}
 								</p>
-								<p className="text-base font-semibold">
-									{t('map.subtitle')}
-								</p>
+								<p className="text-base font-semibold">{t('map.subtitle')}</p>
 							</div>
 							<div className="flex flex-wrap gap-4">
 								{metrics.map((metric) => (
@@ -391,7 +379,9 @@ export function DashboardPageClient(): React.ReactElement {
 										<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 											{t('map.sections.withCoords')}
 										</p>
-										<Badge variant="secondary">{filteredWithCoords.length}</Badge>
+										<Badge variant="secondary">
+											{filteredWithCoords.length}
+										</Badge>
 									</div>
 									{isLocationsFetching && locations.length === 0 ? (
 										<div className="space-y-2">
@@ -406,7 +396,8 @@ export function DashboardPageClient(): React.ReactElement {
 									) : (
 										<Accordion type="multiple" className="space-y-2">
 											{filteredWithCoords.map((location) => {
-												const present = presentByLocationId.get(location.id) ?? [];
+												const present =
+													presentByLocationId.get(location.id) ?? [];
 												const presentCount = present.length;
 												return (
 													<AccordionItem
@@ -415,7 +406,9 @@ export function DashboardPageClient(): React.ReactElement {
 														className="rounded-lg border"
 													>
 														<AccordionTrigger
-															onClick={() => handleLocationFocus(location.id)}
+															onClick={() =>
+																handleLocationFocus(location.id)
+															}
 															className="px-4 text-left"
 														>
 															<div className="flex w-full items-start pr-6">
@@ -424,7 +417,10 @@ export function DashboardPageClient(): React.ReactElement {
 																		<p className="m-0 flex-1 break-words whitespace-normal text-sm font-medium text-left">
 																			{location.name}
 																		</p>
-																		<Badge variant="secondary" className="shrink-0">
+																		<Badge
+																			variant="secondary"
+																			className="shrink-0"
+																		>
 																			{presentCount}
 																		</Badge>
 																	</div>
@@ -443,15 +439,22 @@ export function DashboardPageClient(): React.ReactElement {
 																<div className="space-y-3">
 																	{present.map((record) => {
 																		const displayName =
-																			record.employeeName || record.employeeCode;
-																		const initials = getEmployeeInitials(displayName);
-																		const relativeTime = formatDistanceToNowStrict(
-																			new Date(record.checkedInAt),
-																			{
-																				addSuffix: false,
-																				locale: es,
-																			},
-																		);
+																			record.employeeName ||
+																			record.employeeCode;
+																		const initials =
+																			getEmployeeInitials(
+																				displayName,
+																			);
+																		const relativeTime =
+																			formatDistanceToNowStrict(
+																				new Date(
+																					record.checkedInAt,
+																				),
+																				{
+																					addSuffix: false,
+																					locale: es,
+																				},
+																			);
 																		return (
 																			<div
 																				key={`${record.employeeId}-${record.checkedInAt}`}
@@ -460,22 +463,34 @@ export function DashboardPageClient(): React.ReactElement {
 																				<div className="flex items-center gap-3">
 																					<Avatar className="h-7 w-7">
 																						<AvatarFallback>
-																							{initials || t('map.popup.fallbackInitials')}
+																							{initials ||
+																								t(
+																									'map.popup.fallbackInitials',
+																								)}
 																						</AvatarFallback>
-																						</Avatar>
-																						<div>
-																							<p className="text-sm font-medium">
-																								{displayName}
-																							</p>
-																							<p className="text-xs text-muted-foreground">
-																								{record.employeeCode}
-																							</p>
-																						</div>
+																					</Avatar>
+																					<div>
+																						<p className="text-sm font-medium">
+																							{
+																								displayName
+																							}
+																						</p>
+																						<p className="text-xs text-muted-foreground">
+																							{
+																								record.employeeCode
+																							}
+																						</p>
 																					</div>
-																					<span className="text-xs text-muted-foreground">
-																						{t('map.popup.timeAgo', { time: relativeTime })}
-																					</span>
 																				</div>
+																				<span className="text-xs text-muted-foreground">
+																					{t(
+																						'map.popup.timeAgo',
+																						{
+																							time: relativeTime,
+																						},
+																					)}
+																				</span>
+																			</div>
 																		);
 																	})}
 																</div>
@@ -504,7 +519,8 @@ export function DashboardPageClient(): React.ReactElement {
 									) : (
 										<Accordion type="multiple" className="space-y-2">
 											{filteredWithoutCoords.map((location) => {
-												const present = presentByLocationId.get(location.id) ?? [];
+												const present =
+													presentByLocationId.get(location.id) ?? [];
 												return (
 													<AccordionItem
 														key={location.id}
@@ -518,7 +534,10 @@ export function DashboardPageClient(): React.ReactElement {
 																		<p className="m-0 flex-1 break-words whitespace-normal text-sm font-medium text-left">
 																			{location.name}
 																		</p>
-																		<Badge variant="secondary" className="shrink-0">
+																		<Badge
+																			variant="secondary"
+																			className="shrink-0"
+																		>
 																			{present.length}
 																		</Badge>
 																	</div>
@@ -538,8 +557,12 @@ export function DashboardPageClient(): React.ReactElement {
 																	<div className="space-y-2">
 																		{present.map((record) => {
 																			const displayName =
-																				record.employeeName || record.employeeCode;
-																			const initials = getEmployeeInitials(displayName);
+																				record.employeeName ||
+																				record.employeeCode;
+																			const initials =
+																				getEmployeeInitials(
+																					displayName,
+																				);
 																			return (
 																				<div
 																					key={`${record.employeeId}-${record.checkedInAt}`}
@@ -547,15 +570,22 @@ export function DashboardPageClient(): React.ReactElement {
 																				>
 																					<Avatar className="h-7 w-7">
 																						<AvatarFallback>
-																							{initials || t('map.popup.fallbackInitials')}
+																							{initials ||
+																								t(
+																									'map.popup.fallbackInitials',
+																								)}
 																						</AvatarFallback>
 																					</Avatar>
 																					<div>
 																						<p className="text-sm font-medium">
-																							{displayName}
+																							{
+																								displayName
+																							}
 																						</p>
 																						<p className="text-xs text-muted-foreground">
-																							{record.employeeCode}
+																							{
+																								record.employeeCode
+																							}
 																						</p>
 																					</div>
 																				</div>
@@ -563,9 +593,17 @@ export function DashboardPageClient(): React.ReactElement {
 																		})}
 																	</div>
 																)}
-																<Button asChild variant="outline" size="sm">
-																	<Link href={`/locations?edit=${location.id}`}>
-																		{t('map.actions.editLocation')}
+																<Button
+																	asChild
+																	variant="outline"
+																	size="sm"
+																>
+																	<Link
+																		href={`/locations?edit=${location.id}`}
+																	>
+																		{t(
+																			'map.actions.editLocation',
+																		)}
 																	</Link>
 																</Button>
 															</div>
@@ -583,7 +621,9 @@ export function DashboardPageClient(): React.ReactElement {
 											<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 												{t('map.sections.unassigned')}
 											</p>
-											<Badge variant="secondary">{unassignedPresent.length}</Badge>
+											<Badge variant="secondary">
+												{unassignedPresent.length}
+											</Badge>
 										</div>
 										<div className="space-y-2 rounded-lg border p-3">
 											{unassignedPresent.map((record) => {
@@ -597,11 +637,14 @@ export function DashboardPageClient(): React.ReactElement {
 													>
 														<Avatar className="h-7 w-7">
 															<AvatarFallback>
-																{initials || t('map.popup.fallbackInitials')}
+																{initials ||
+																	t('map.popup.fallbackInitials')}
 															</AvatarFallback>
 														</Avatar>
 														<div>
-															<p className="text-sm font-medium">{displayName}</p>
+															<p className="text-sm font-medium">
+																{displayName}
+															</p>
 															<p className="text-xs text-muted-foreground">
 																{record.employeeCode}
 															</p>

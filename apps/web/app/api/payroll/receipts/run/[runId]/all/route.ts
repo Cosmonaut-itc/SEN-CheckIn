@@ -99,7 +99,9 @@ async function buildPayrollReceiptsZip(args: {
 		args.employees.map(async (employee) => {
 			const resolvedEmployeeCode =
 				employee.employeeCode?.trim() ||
-				(employee.employeeId ?? employee.id ? `empleado-${employee.employeeId ?? employee.id}` : '');
+				((employee.employeeId ?? employee.id)
+					? `empleado-${employee.employeeId ?? employee.id}`
+					: '');
 			const baseFileName = buildPayrollReceiptFileName({
 				employeeCode: resolvedEmployeeCode,
 				employeeId: employee.employeeId ?? employee.id,
@@ -150,10 +152,7 @@ export async function GET(
 	}
 
 	if (detail.run.status !== 'PROCESSED') {
-		return NextResponse.json(
-			{ error: 'PAYROLL_RUN_NOT_PROCESSED' },
-			{ status: 409 },
-		);
+		return NextResponse.json({ error: 'PAYROLL_RUN_NOT_PROCESSED' }, { status: 409 });
 	}
 
 	if (detail.employees.length === 0) {
@@ -167,10 +166,7 @@ export async function GET(
 		t,
 	});
 
-	const fileName = buildPayrollReceiptsZipFileName(
-		detail.run.periodStart,
-		detail.run.periodEnd,
-	);
+	const fileName = buildPayrollReceiptsZipFileName(detail.run.periodStart, detail.run.periodEnd);
 
 	return buildZipResponse(zipBytes, fileName);
 }

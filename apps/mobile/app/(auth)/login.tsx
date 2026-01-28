@@ -724,10 +724,7 @@ export default function LoginScreen(): JSX.Element {
 					<Text className="text-xs font-semibold text-foreground-400 uppercase tracking-widest">
 						{i18n.t('Login.code.label')}
 					</Text>
-					<View
-						className="bg-default-100 rounded-2xl px-6 py-3"
-						style={continuousCurve}
-					>
+					<View className="bg-default-100 rounded-2xl px-6 py-3" style={continuousCurve}>
 						<Text
 							className="text-5xl font-black tracking-[0.3em] text-foreground"
 							selectable

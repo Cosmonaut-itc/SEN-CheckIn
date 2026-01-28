@@ -5,17 +5,17 @@ import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
 const FALLBACK_SYMBOLS: Record<string, string> = {
 	'arrow.left.arrow.right': '↔︎',
 	'checkmark.circle': '✅',
-	'camera': '📷',
+	camera: '📷',
 	'chevron.right': '›',
 	'doc.on.doc': '📄',
 	'exclamationmark.circle': '⚠️',
-	'gearshape': '⚙️',
-	'link': '🔗',
+	gearshape: '⚙️',
+	link: '🔗',
 	'list.dash': '≡',
-	'nosign': '⛔️',
+	nosign: '⛔️',
 	'square.and.arrow.up': '↗︎',
-	'trash': '🗑️',
-	'viewfinder': '📷',
+	trash: '🗑️',
+	viewfinder: '📷',
 	'xmark.circle': '❌',
 };
 

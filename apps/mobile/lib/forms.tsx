@@ -123,11 +123,7 @@ export function SelectField<TValue extends string>({
 	return (
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
-			<Select
-				value={currentOption}
-				onValueChange={handleValueChange}
-				isDisabled={disabled}
-			>
+			<Select value={currentOption} onValueChange={handleValueChange} isDisabled={disabled}>
 				<Select.Trigger
 					className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1 active:bg-content2"
 					style={CONTINUOUS_CURVE}

@@ -4,7 +4,9 @@ import type React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrganizationGate } from '@/components/organization-gate';
-import messages from '@/messages/es.json';
+import rawMessages from '@/messages/es.json';
+
+const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
 
 const replace = vi.fn();
 let mockPathname = '/dashboard';
@@ -19,14 +21,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-	default: ({
-		href,
-		children,
-		...props
-	}: {
-		href: string;
-		children: React.ReactNode;
-	}) => (
+	default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
 		<a href={href} {...props}>
 			{children}
 		</a>
@@ -55,11 +50,7 @@ describe('OrganizationGate', () => {
 
 	it('renders children when access is allowed', () => {
 		renderWithIntl(
-			<OrganizationGate
-				role="user"
-				organizationRole="member"
-				hasOrganization={true}
-			>
+			<OrganizationGate role="user" organizationRole="member" hasOrganization={true}>
 				<div data-testid="gate-content" />
 			</OrganizationGate>,
 		);
@@ -71,11 +62,7 @@ describe('OrganizationGate', () => {
 		mockPathname = '/users';
 
 		renderWithIntl(
-			<OrganizationGate
-				role="user"
-				organizationRole="member"
-				hasOrganization={true}
-			>
+			<OrganizationGate role="user" organizationRole="member" hasOrganization={true}>
 				<div data-testid="gate-content" />
 			</OrganizationGate>,
 		);
@@ -88,11 +75,7 @@ describe('OrganizationGate', () => {
 
 	it('hides content when no organization is selected', () => {
 		renderWithIntl(
-			<OrganizationGate
-				role="user"
-				organizationRole={null}
-				hasOrganization={false}
-			>
+			<OrganizationGate role="user" organizationRole={null} hasOrganization={false}>
 				<div data-testid="gate-content" />
 			</OrganizationGate>,
 		);
@@ -105,11 +88,7 @@ describe('OrganizationGate', () => {
 		mockPathname = '/organizations';
 
 		renderWithIntl(
-			<OrganizationGate
-				role="admin"
-				organizationRole={null}
-				hasOrganization={false}
-			>
+			<OrganizationGate role="admin" organizationRole={null} hasOrganization={false}>
 				<div data-testid="gate-content" />
 			</OrganizationGate>,
 		);

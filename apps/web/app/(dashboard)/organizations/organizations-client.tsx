@@ -26,7 +26,12 @@ import { useSession } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import type { OrganizationAllQueryParams } from '@/lib/query-keys';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { Edit, Plus, Trash2, Users } from 'lucide-react';
@@ -111,7 +116,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 	}, [isSuperUser, organizationsResponse]);
 
 	const totalRows = isSuperUser
-		? (organizationsResponse as OrganizationsAllResponse | undefined)?.total ?? 0
+		? ((organizationsResponse as OrganizationsAllResponse | undefined)?.total ?? 0)
 		: organizations.length;
 	const canCreateOrganization = isSuperUser;
 	const isLoading = isFetching || isSessionPending;
@@ -305,13 +310,10 @@ export function OrganizationsPageClient(): React.ReactElement {
 	 * @param value - Next global filter value or updater
 	 * @returns void
 	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleGlobalFilterChange = useCallback((value: React.SetStateAction<string>): void => {
+		setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	/**
 	 * Updates the sorting state and resets pagination.
@@ -319,22 +321,17 @@ export function OrganizationsPageClient(): React.ReactElement {
 	 * @param value - Next sorting state or updater
 	 * @returns void
 	 */
-	const handleSortingChange = useCallback(
-		(value: React.SetStateAction<SortingState>): void => {
-			setSorting((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleSortingChange = useCallback((value: React.SetStateAction<SortingState>): void => {
+		setSorting((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	const columns = useMemo<ColumnDef<Organization>[]>(
 		() => [
 			{
 				accessorKey: 'name',
 				header: t('table.headers.name'),
-				cell: ({ row }) => (
-					<span className="font-medium">{row.original.name}</span>
-				),
+				cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
 			},
 			{
 				accessorKey: 'slug',
@@ -344,8 +341,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 			{
 				accessorKey: 'createdAt',
 				header: t('table.headers.created'),
-				cell: ({ row }) =>
-					format(new Date(row.original.createdAt), t('dateFormat')),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
 			},
 			{
 				id: 'actions',
@@ -413,12 +409,8 @@ export function OrganizationsPageClient(): React.ReactElement {
 			<div className="flex flex-col items-center gap-3">
 				<Users className="h-8 w-8 text-muted-foreground" />
 				<div className="space-y-1">
-					<p className="font-medium text-foreground">
-						{t('table.empty.title')}
-					</p>
-					<p className="text-sm text-muted-foreground">
-						{t('table.empty.description')}
-					</p>
+					<p className="font-medium text-foreground">{t('table.empty.title')}</p>
+					<p className="text-sm text-muted-foreground">{t('table.empty.description')}</p>
 				</div>
 				{canCreateOrganization ? (
 					<DialogTrigger asChild>

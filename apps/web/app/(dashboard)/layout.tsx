@@ -25,8 +25,7 @@ interface DashboardLayoutProps {
 export default async function DashboardLayout({
 	children,
 }: DashboardLayoutProps): Promise<React.ReactElement> {
-	const { organization, userRole, isSuperUser, organizationRole } =
-		await getAdminAccessContext();
+	const { organization, userRole, isSuperUser, organizationRole } = await getAdminAccessContext();
 
 	return (
 		<SidebarProvider>
@@ -45,7 +44,15 @@ export default async function DashboardLayout({
 						organizationRole={organizationRole}
 						hasOrganization={organization.organizationId !== null}
 					>
-						<OrgProvider value={organization}>{children}</OrgProvider>
+	<OrgProvider
+		value={{
+			...organization,
+			organizationRole,
+			userRole,
+		}}
+	>
+		{children}
+	</OrgProvider>
 					</OrganizationGate>
 				</main>
 			</SidebarInset>

@@ -71,10 +71,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 	const query = searchParams.get('q')?.trim() ?? '';
 
 	if (query.length < MIN_QUERY_LENGTH) {
-		return NextResponse.json(
-			{ errorCode: 'QUERY_TOO_SHORT' },
-			{ status: 400 },
-		);
+		return NextResponse.json({ errorCode: 'QUERY_TOO_SHORT' }, { status: 400 });
 	}
 
 	const url = buildNominatimUrl(query);
@@ -89,10 +86,7 @@ export async function GET(request: Request): Promise<NextResponse> {
 		});
 
 		if (!response.ok) {
-			return NextResponse.json(
-				{ errorCode: 'UPSTREAM_ERROR' },
-				{ status: response.status },
-			);
+			return NextResponse.json({ errorCode: 'UPSTREAM_ERROR' }, { status: response.status });
 		}
 
 		const data = (await response.json()) as NominatimResult[];

@@ -6,6 +6,8 @@ export interface OrgContextValue {
 	organizationId: string | null;
 	organizationSlug: string | null;
 	organizationName: string | null;
+	organizationRole?: 'admin' | 'owner' | 'member' | null;
+	userRole?: string;
 }
 
 const OrgContext = createContext<OrgContextValue | undefined>(undefined);

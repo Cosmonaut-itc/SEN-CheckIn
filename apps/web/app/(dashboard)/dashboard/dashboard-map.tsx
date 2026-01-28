@@ -48,7 +48,7 @@ function getEmployeeInitials(name: string): string {
 	}
 	const parts = trimmed.split(/\s+/).filter(Boolean);
 	const first = parts[0]?.[0] ?? '';
-	const second = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+	const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
 	return `${first}${second}`.toUpperCase();
 }
 
@@ -164,14 +164,18 @@ export function DashboardMap({
 									<MarkerLabel>{location.name}</MarkerLabel>
 								</div>
 							</MarkerContent>
-							<MarkerTooltip>{t('map.tooltip', { count: presentCount })}</MarkerTooltip>
+							<MarkerTooltip>
+								{t('map.tooltip', { count: presentCount })}
+							</MarkerTooltip>
 							<MarkerPopup className="p-0 w-72">
 								<Card className="border-0 shadow-none">
 									<CardContent className="space-y-3 p-3">
 										<div>
 											<p className="text-sm font-semibold">{location.name}</p>
 											<p className="text-xs text-muted-foreground">
-												{t('map.popup.presentCount', { count: presentCount })}
+												{t('map.popup.presentCount', {
+													count: presentCount,
+												})}
 											</p>
 										</div>
 										{presentCount === 0 ? (
@@ -183,15 +187,18 @@ export function DashboardMap({
 												<div className="space-y-3">
 													{present.map((record) => {
 														const displayName =
-															record.employeeName || record.employeeCode;
-														const initials = getEmployeeInitials(displayName);
-														const relativeTime = formatDistanceToNowStrict(
-															new Date(record.checkedInAt),
-															{
-																addSuffix: false,
-																locale: es,
-															},
-														);
+															record.employeeName ||
+															record.employeeCode;
+														const initials =
+															getEmployeeInitials(displayName);
+														const relativeTime =
+															formatDistanceToNowStrict(
+																new Date(record.checkedInAt),
+																{
+																	addSuffix: false,
+																	locale: es,
+																},
+															);
 														return (
 															<div
 																key={`${record.employeeId}-${record.checkedInAt}`}
@@ -201,7 +208,9 @@ export function DashboardMap({
 																	<Avatar className="h-8 w-8">
 																		<AvatarFallback>
 																			{initials ||
-																				t('map.popup.fallbackInitials')}
+																				t(
+																					'map.popup.fallbackInitials',
+																				)}
 																		</AvatarFallback>
 																	</Avatar>
 																	<div>

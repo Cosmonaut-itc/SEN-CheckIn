@@ -22,7 +22,12 @@ import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchApiKeys, type ApiKey } from '@/lib/client-functions';
 import { createApiKey, deleteApiKey } from '@/actions/api-keys';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 /**
  * Form values for creating API keys.
@@ -181,13 +186,10 @@ export function ApiKeysPageClient(): React.ReactElement {
 	 * @param value - Next global filter value or updater
 	 * @returns void
 	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleGlobalFilterChange = useCallback((value: React.SetStateAction<string>): void => {
+		setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	const columns = useMemo<ColumnDef<ApiKey>[]>(
 		() => [
@@ -196,9 +198,7 @@ export function ApiKeysPageClient(): React.ReactElement {
 				accessorFn: (row) => row.name ?? '',
 				header: t('table.headers.name'),
 				cell: ({ row }) => (
-					<span className="font-medium">
-						{row.original.name || t('unnamed')}
-					</span>
+					<span className="font-medium">{row.original.name || t('unnamed')}</span>
 				),
 			},
 			{
@@ -244,8 +244,7 @@ export function ApiKeysPageClient(): React.ReactElement {
 			},
 			{
 				id: 'lastRequest',
-				accessorFn: (row) =>
-					row.lastRequest ? new Date(row.lastRequest).getTime() : 0,
+				accessorFn: (row) => (row.lastRequest ? new Date(row.lastRequest).getTime() : 0),
 				header: t('table.headers.lastUsed'),
 				cell: ({ row }) =>
 					row.original.lastRequest
@@ -278,9 +277,7 @@ export function ApiKeysPageClient(): React.ReactElement {
 				cell: ({ row }) => (
 					<Dialog
 						open={deleteConfirmId === row.original.id}
-						onOpenChange={(open) =>
-							setDeleteConfirmId(open ? row.original.id : null)
-						}
+						onOpenChange={(open) => setDeleteConfirmId(open ? row.original.id : null)}
 					>
 						<DialogTrigger asChild>
 							<Button
@@ -294,13 +291,12 @@ export function ApiKeysPageClient(): React.ReactElement {
 						<DialogContent>
 							<DialogHeader>
 								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
-								<DialogDescription>{t('dialogs.delete.description')}</DialogDescription>
+								<DialogDescription>
+									{t('dialogs.delete.description')}
+								</DialogDescription>
 							</DialogHeader>
 							<DialogFooter>
-								<Button
-									variant="outline"
-									onClick={() => setDeleteConfirmId(null)}
-								>
+								<Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
 									{tCommon('cancel')}
 								</Button>
 								<Button

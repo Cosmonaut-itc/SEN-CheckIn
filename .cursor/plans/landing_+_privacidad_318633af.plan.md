@@ -2,36 +2,36 @@
 name: Landing + privacidad
 overview: Crear una landing pública en apps/web con UI consistente (incluyendo componentes de Aceternity UI) y una página pública de Política de Privacidad (por permiso de cámara), asegurando que / muestre la landing y /login lleve al login existente.
 todos:
-  - id: routes-marketing
-    content: Crear route group (marketing) con landing en / y política en /privacidad; eliminar el redirect actual a /dashboard y resolver colisión de rutas /.
-    status: pending
-  - id: login-alias
-    content: Agregar /login como alias que redirige a /sign-in y enlazarlo desde el header de la landing.
-    status: pending
-    dependencies:
-      - routes-marketing
-  - id: middleware-protect
-    content: Crear/activar middleware de protección de rutas (reusar lógica de apps/web/proxy.ts), asegurando que dashboard quede protegido y landing/política queden públicas.
-    status: pending
-    dependencies:
-      - routes-marketing
-  - id: aceternity-components
-    content: Integrar 1–2 componentes estilo Aceternity UI (mínimo CardStack) usando Motion; agregar dependencia motion y componentes en apps/web/components.
-    status: pending
-    dependencies:
-      - routes-marketing
-  - id: i18n-content
-    content: Agregar llaves de traducción Landing.* y PrivacyPolicy.* a apps/web/messages/es.json y consumirlas con next-intl (incluyendo t.rich para links).
-    status: pending
-    dependencies:
-      - routes-marketing
+    - id: routes-marketing
+      content: Crear route group (marketing) con landing en / y política en /privacidad; eliminar el redirect actual a /dashboard y resolver colisión de rutas /.
+      status: pending
+    - id: login-alias
+      content: Agregar /login como alias que redirige a /sign-in y enlazarlo desde el header de la landing.
+      status: pending
+      dependencies:
+          - routes-marketing
+    - id: middleware-protect
+      content: Crear/activar middleware de protección de rutas (reusar lógica de apps/web/proxy.ts), asegurando que dashboard quede protegido y landing/política queden públicas.
+      status: pending
+      dependencies:
+          - routes-marketing
+    - id: aceternity-components
+      content: Integrar 1–2 componentes estilo Aceternity UI (mínimo CardStack) usando Motion; agregar dependencia motion y componentes en apps/web/components.
+      status: pending
+      dependencies:
+          - routes-marketing
+    - id: i18n-content
+      content: Agregar llaves de traducción Landing.* y PrivacyPolicy.* a apps/web/messages/es.json y consumirlas con next-intl (incluyendo t.rich para links).
+      status: pending
+      dependencies:
+          - routes-marketing
 ---
 
 # Landing pública + Política de Privacidad (cámara)
 
 ## Objetivo
 
-- Convertir `apps/web` en un sitio **mixto**: 
+- Convertir `apps/web` en un sitio **mixto**:
 - **Marketing público** en `/` (landing) y `/privacidad` (política)
 - **App admin protegida** en rutas del dashboard (p. ej. `/dashboard`, `/employees`, etc.)
 - Incluir un **botón de login** visible en la landing.
@@ -41,7 +41,7 @@ todos:
 ## Hallazgos relevantes del repo
 
 - Hoy `/` **redirige a** `/dashboard` en [`apps/web/app/page.tsx`](apps/web/app/page.tsx).
-- Existe también [`apps/web/app/(dashboard)/page.tsx`](apps/web/app/\\\(dashboard)/page.tsx), que también redirige a `/dashboard` y **puede generar conflicto de ruta** (ambas mapean a `/` por ser route group).
+- Existe también [`apps/web/app/(dashboard)/page.tsx`](<apps/web/app/(dashboard)/page.tsx>), que también redirige a `/dashboard` y **puede generar conflicto de ruta** (ambas mapean a `/` por ser route group).
 - `apps/web` ya tiene `next-intl`, Tailwind y UI tipo shadcn.
 - La app móvil (`apps/mobile`) usa `expo-camera` y envía una foto (base64) al API `/recognition/identify` para verificación; el API usa **Amazon Rekognition** (User Vectors). Esto debe reflejarse en la política.
 
@@ -50,16 +50,16 @@ todos:
 ### 1) Rutas: separar “marketing” y “dashboard” con route groups
 
 - Crear un nuevo route group **`(marketing)`** para servir landing y política:
-- [`apps/web/app/(marketing)/layout.tsx`](apps/web/app/\\\(marketing)/layout.tsx)
+- [`apps/web/app/(marketing)/layout.tsx`](<apps/web/app/(marketing)/layout.tsx>)
     - Header con logo/nombre, `ThemeModeToggle` y botón principal **“Iniciar sesión”** (link a `/login` o `/sign-in`).
     - Footer con links a `/privacidad`.
-- [`apps/web/app/(marketing)/page.tsx`](apps/web/app/\\\(marketing)/page.tsx)
+- [`apps/web/app/(marketing)/page.tsx`](<apps/web/app/(marketing)/page.tsx>)
     - Landing de marketing (secciones: hero, features web, features móvil, cómo funciona, seguridad/privacidad, CTA).
-- [`apps/web/app/(marketing)/privacidad/page.tsx`](apps/web/app/\\\(marketing)/privacidad/page.tsx)
+- [`apps/web/app/(marketing)/privacidad/page.tsx`](<apps/web/app/(marketing)/privacidad/page.tsx>)
     - Página pública de Política de Privacidad (texto del anexo).
 - Eliminar el comportamiento actual de “siempre ir al dashboard”:
 - Reemplazar/retirar [`apps/web/app/page.tsx`](apps/web/app/page.tsx) (ya no debe redirigir a `/dashboard`).
-- Retirar [`apps/web/app/(dashboard)/page.tsx`](apps/web/app/\\\(dashboard)/page.tsx) para evitar colisión de `/`.
+- Retirar [`apps/web/app/(dashboard)/page.tsx`](<apps/web/app/(dashboard)/page.tsx>) para evitar colisión de `/`.
 
 > Resultado: navegar a `https://tu-dominio/` siempre cae en la landing.
 

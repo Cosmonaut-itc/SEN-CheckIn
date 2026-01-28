@@ -100,8 +100,9 @@ describe('payroll routes (contract)', () => {
 			throw new Error('Expected payroll run in detail response.');
 		}
 		expect(run.id).toBe(runId);
-		const employees = (detail as { employees?: Array<{ employeeName?: string; employeeCode?: string }> })
-			.employees;
+		const employees = (
+			detail as { employees?: Array<{ employeeName?: string; employeeCode?: string }> }
+		).employees;
 		if (!employees) {
 			throw new Error('Expected payroll run employees in detail response.');
 		}

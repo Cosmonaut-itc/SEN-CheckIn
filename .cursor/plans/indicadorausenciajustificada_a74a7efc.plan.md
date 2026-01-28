@@ -2,21 +2,21 @@
 name: IndicadorAusenciaJustificada
 overview: Mostrar en Web un indicador claro para días con excepción DAY_OFF (aprobada) como “ausencia justificada sin goce”, sin contarlos como ausencia injustificada, tanto en el calendario de Horarios como en Detalles del empleado.
 todos:
-  - id: api-calendar-reason
-    content: Agregar `reason` a CalendarDay cuando source=exception en `apps/api/src/routes/scheduling.ts` + actualizar `apps/api/src/routes/scheduling.contract.test.ts`.
-    status: pending
-  - id: web-calendar-types
-    content: "Extender `CalendarDay` en `apps/web/lib/client-functions.ts` para incluir `reason?: string | null`."
-    status: pending
-  - id: web-schedules-indicator
-    content: Renderizar excepciones DAY_OFF como “ausencia justificada (sin goce)” en `LocationScheduleCard` (week+month, con tooltip si hay reason).
-    status: pending
-  - id: web-employee-indicator
-    content: Ajustar Detalle de empleado (`employees-client.tsx`) para mostrar `leaves.items` como “Ausencias justificadas (sin goce)” y mantener `absentDateKeys` como ausencias.
-    status: pending
-  - id: i18n-es
-    content: Actualizar llaves en `apps/web/messages/es.json` para los nuevos labels (Schedules + Employees).
-    status: pending
+    - id: api-calendar-reason
+      content: Agregar `reason` a CalendarDay cuando source=exception en `apps/api/src/routes/scheduling.ts` + actualizar `apps/api/src/routes/scheduling.contract.test.ts`.
+      status: pending
+    - id: web-calendar-types
+      content: 'Extender `CalendarDay` en `apps/web/lib/client-functions.ts` para incluir `reason?: string | null`.'
+      status: pending
+    - id: web-schedules-indicator
+      content: Renderizar excepciones DAY_OFF como “ausencia justificada (sin goce)” en `LocationScheduleCard` (week+month, con tooltip si hay reason).
+      status: pending
+    - id: web-employee-indicator
+      content: Ajustar Detalle de empleado (`employees-client.tsx`) para mostrar `leaves.items` como “Ausencias justificadas (sin goce)” y mantener `absentDateKeys` como ausencias.
+      status: pending
+    - id: i18n-es
+      content: Actualizar llaves en `apps/web/messages/es.json` para los nuevos labels (Schedules + Employees).
+      status: pending
 ---
 
 # Indicador visual: ausencia justificada (sin goce)

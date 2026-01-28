@@ -241,7 +241,7 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			dailyPay: input.dailyPay,
 			paymentFrequency: input.paymentFrequency,
 			sbcDailyOverride:
-				input.sbcDailyOverride === null ? null : input.sbcDailyOverride ?? undefined,
+				input.sbcDailyOverride === null ? null : (input.sbcDailyOverride ?? undefined),
 			shiftType: input.shiftType,
 			userId: resolvedUserId === undefined ? undefined : resolvedUserId,
 			schedule: input.schedule?.map((entry) => ({

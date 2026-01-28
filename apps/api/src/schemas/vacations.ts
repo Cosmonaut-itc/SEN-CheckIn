@@ -52,6 +52,7 @@ export const vacationDayTypeEnum = z.enum([
 	'EXCEPTION_WORKDAY',
 	'EXCEPTION_DAY_OFF',
 	'MANDATORY_REST_DAY',
+	'INCAPACITY',
 ]);
 
 /**

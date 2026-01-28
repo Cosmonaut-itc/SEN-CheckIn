@@ -21,11 +21,7 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -63,7 +59,12 @@ import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 type StatusFilter = 'all' | VacationRequestStatus;
 
@@ -142,6 +143,8 @@ function getVacationErrorMessage(
 			return t('toast.errors.insufficientBalance');
 		case 'VACATION_OVERLAP':
 			return t('toast.errors.overlap');
+		case 'VACATION_INCAPACITY_OVERLAP':
+			return t('toast.errors.incapacityOverlap');
 		case 'BAD_REQUEST':
 			return t('toast.errors.badRequest');
 		case 'UNAUTHORIZED':
@@ -298,9 +301,8 @@ export function VacationsPageClient(): React.ReactElement {
 			| StatusFilter
 			| undefined) ?? 'all';
 	const selectedEmployeeIdValue =
-		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as
-			| string
-			| undefined) ?? 'all';
+		(columnFilters.find((filter) => filter.id === 'employeeId')?.value as string | undefined) ??
+		'all';
 
 	const employeeQueryParams = useMemo(
 		() => ({
@@ -336,8 +338,7 @@ export function VacationsPageClient(): React.ReactElement {
 			limit: pagination.pageSize,
 			offset: pagination.pageIndex * pagination.pageSize,
 			organizationId: organizationId ?? undefined,
-			employeeId:
-				selectedEmployeeIdValue !== 'all' ? selectedEmployeeIdValue : undefined,
+			employeeId: selectedEmployeeIdValue !== 'all' ? selectedEmployeeIdValue : undefined,
 			status: statusFilterValue !== 'all' ? statusFilterValue : undefined,
 			from: fromDate || undefined,
 			to: toDate || undefined,
@@ -412,9 +413,7 @@ export function VacationsPageClient(): React.ReactElement {
 				setIsCreateOpen(false);
 				createForm.reset();
 			} else {
-				toast.error(
-					getVacationErrorMessage(t, result.errorCode, 'toast.createError'),
-				);
+				toast.error(getVacationErrorMessage(t, result.errorCode, 'toast.createError'));
 			}
 		},
 		onError: () => {
@@ -431,9 +430,7 @@ export function VacationsPageClient(): React.ReactElement {
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
 				setDetailRequestWithNotes(result.data ?? null);
 			} else {
-				toast.error(
-					getVacationErrorMessage(t, result.errorCode, 'toast.approveError'),
-				);
+				toast.error(getVacationErrorMessage(t, result.errorCode, 'toast.approveError'));
 			}
 		},
 		onError: () => toast.error(t('toast.approveError')),
@@ -448,9 +445,7 @@ export function VacationsPageClient(): React.ReactElement {
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
 				setDetailRequestWithNotes(result.data ?? null);
 			} else {
-				toast.error(
-					getVacationErrorMessage(t, result.errorCode, 'toast.rejectError'),
-				);
+				toast.error(getVacationErrorMessage(t, result.errorCode, 'toast.rejectError'));
 			}
 		},
 		onError: () => toast.error(t('toast.rejectError')),
@@ -465,9 +460,7 @@ export function VacationsPageClient(): React.ReactElement {
 				queryClient.invalidateQueries({ queryKey: queryKeys.vacations.all });
 				setDetailRequestWithNotes(result.data ?? null);
 			} else {
-				toast.error(
-					getVacationErrorMessage(t, result.errorCode, 'toast.cancelError'),
-				);
+				toast.error(getVacationErrorMessage(t, result.errorCode, 'toast.cancelError'));
 			}
 		},
 		onError: () => toast.error(t('toast.cancelError')),
@@ -479,13 +472,17 @@ export function VacationsPageClient(): React.ReactElement {
 	 * @param request - Vacation request record
 	 * @returns Display name for the employee
 	 */
-	const getEmployeeName = useCallback((request: VacationRequest): string => {
-		const fullName = `${request.employeeName ?? ''} ${request.employeeLastName ?? ''}`.trim();
-		if (fullName) {
-			return fullName;
-		}
-		return employeeLookup.get(request.employeeId) ?? request.employeeId;
-	}, [employeeLookup]);
+	const getEmployeeName = useCallback(
+		(request: VacationRequest): string => {
+			const fullName =
+				`${request.employeeName ?? ''} ${request.employeeLastName ?? ''}`.trim();
+			if (fullName) {
+				return fullName;
+			}
+			return employeeLookup.get(request.employeeId) ?? request.employeeId;
+		},
+		[employeeLookup],
+	);
 
 	/**
 	 * Handles decision actions for a selected request.
@@ -525,6 +522,7 @@ export function VacationsPageClient(): React.ReactElement {
 		EXCEPTION_WORKDAY: t('dayTypes.EXCEPTION_WORKDAY'),
 		EXCEPTION_DAY_OFF: t('dayTypes.EXCEPTION_DAY_OFF'),
 		MANDATORY_REST_DAY: t('dayTypes.MANDATORY_REST_DAY'),
+		INCAPACITY: t('dayTypes.INCAPACITY'),
 	};
 	const columns = useMemo<ColumnDef<VacationRequest>[]>(
 		() => [
@@ -626,7 +624,9 @@ export function VacationsPageClient(): React.ReactElement {
 									name="employeeId"
 									validators={{
 										onChange: ({ value }) =>
-											!value ? t('form.validation.employeeRequired') : undefined,
+											!value
+												? t('form.validation.employeeRequired')
+												: undefined,
 									}}
 								>
 									{(field) => (
@@ -651,7 +651,10 @@ export function VacationsPageClient(): React.ReactElement {
 										<field.SelectField
 											label={t('form.fields.status')}
 											options={[
-												{ value: 'SUBMITTED', label: t('status.SUBMITTED') },
+												{
+													value: 'SUBMITTED',
+													label: t('status.SUBMITTED'),
+												},
 												{ value: 'DRAFT', label: t('status.DRAFT') },
 											]}
 											placeholder={t('form.placeholders.status')}
@@ -665,7 +668,9 @@ export function VacationsPageClient(): React.ReactElement {
 									name="startDateKey"
 									validators={{
 										onChange: ({ value }) =>
-											!value ? t('form.validation.startDateRequired') : undefined,
+											!value
+												? t('form.validation.startDateRequired')
+												: undefined,
 									}}
 								>
 									{(field) => (
@@ -680,13 +685,20 @@ export function VacationsPageClient(): React.ReactElement {
 													>
 														<CalendarIcon className="mr-2 h-4 w-4" />
 														{field.state.value ? (
-															formatShortDateUtc(toUtcDate(field.state.value))
+															formatShortDateUtc(
+																toUtcDate(field.state.value),
+															)
 														) : (
-															<span>{t('form.placeholders.startDate')}</span>
+															<span>
+																{t('form.placeholders.startDate')}
+															</span>
 														)}
 													</Button>
 												</PopoverTrigger>
-												<PopoverContent className="w-auto p-0" align="start">
+												<PopoverContent
+													className="w-auto p-0"
+													align="start"
+												>
 													<Calendar
 														mode="single"
 														selected={
@@ -741,13 +753,20 @@ export function VacationsPageClient(): React.ReactElement {
 													>
 														<CalendarIcon className="mr-2 h-4 w-4" />
 														{field.state.value ? (
-															formatShortDateUtc(toUtcDate(field.state.value))
+															formatShortDateUtc(
+																toUtcDate(field.state.value),
+															)
 														) : (
-															<span>{t('form.placeholders.endDate')}</span>
+															<span>
+																{t('form.placeholders.endDate')}
+															</span>
 														)}
 													</Button>
 												</PopoverTrigger>
-												<PopoverContent className="w-auto p-0" align="start">
+												<PopoverContent
+													className="w-auto p-0"
+													align="start"
+												>
 													<Calendar
 														mode="single"
 														selected={
@@ -803,10 +822,7 @@ export function VacationsPageClient(): React.ReactElement {
 					<CardDescription>{t('filters.description')}</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<Tabs
-						value={statusFilterValue}
-						onValueChange={handleStatusFilterChange}
-					>
+					<Tabs value={statusFilterValue} onValueChange={handleStatusFilterChange}>
 						<TabsList className="flex flex-wrap">
 							{statusTabs.map((tab) => (
 								<TabsTrigger key={tab.value} value={tab.value}>
@@ -891,11 +907,17 @@ export function VacationsPageClient(): React.ReactElement {
 
 							<div className="grid gap-3 text-sm">
 								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">{t('detail.labels.employee')}</span>
-									<span className="font-medium">{getEmployeeName(detailRequest)}</span>
+									<span className="text-muted-foreground">
+										{t('detail.labels.employee')}
+									</span>
+									<span className="font-medium">
+										{getEmployeeName(detailRequest)}
+									</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">{t('detail.labels.period')}</span>
+									<span className="text-muted-foreground">
+										{t('detail.labels.period')}
+									</span>
 									<span>
 										{formatDateRangeUtc(
 											toUtcDate(detailRequest.startDateKey),
@@ -904,13 +926,17 @@ export function VacationsPageClient(): React.ReactElement {
 									</span>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">{t('detail.labels.status')}</span>
+									<span className="text-muted-foreground">
+										{t('detail.labels.status')}
+									</span>
 									<Badge variant={statusVariants[detailRequest.status]}>
 										{t(`status.${detailRequest.status}`)}
 									</Badge>
 								</div>
 								<div className="flex items-center justify-between">
-									<span className="text-muted-foreground">{t('detail.labels.daysSummary')}</span>
+									<span className="text-muted-foreground">
+										{t('detail.labels.daysSummary')}
+									</span>
 									<span>
 										{t('table.daysSummary', {
 											vacation: detailRequest.summary.vacationDays,
@@ -919,13 +945,17 @@ export function VacationsPageClient(): React.ReactElement {
 									</span>
 								</div>
 								<div className="grid gap-2">
-									<span className="text-muted-foreground">{t('detail.labels.requestedNotes')}</span>
+									<span className="text-muted-foreground">
+										{t('detail.labels.requestedNotes')}
+									</span>
 									<p className="rounded-md border bg-muted/40 p-2 text-sm">
 										{detailRequest.requestedNotes || tCommon('notAvailable')}
 									</p>
 								</div>
 								<div className="grid gap-2">
-									<span className="text-muted-foreground">{t('detail.labels.decisionNotes')}</span>
+									<span className="text-muted-foreground">
+										{t('detail.labels.decisionNotes')}
+									</span>
 									<p className="rounded-md border bg-muted/40 p-2 text-sm">
 										{detailRequest.decisionNotes || tCommon('notAvailable')}
 									</p>
@@ -936,23 +966,35 @@ export function VacationsPageClient(): React.ReactElement {
 								<Table>
 									<TableHeader>
 										<TableRow>
-											<TableHead>{t('detail.dayTable.headers.date')}</TableHead>
-											<TableHead>{t('detail.dayTable.headers.dayType')}</TableHead>
-											<TableHead>{t('detail.dayTable.headers.counts')}</TableHead>
-											<TableHead>{t('detail.dayTable.headers.serviceYear')}</TableHead>
+											<TableHead>
+												{t('detail.dayTable.headers.date')}
+											</TableHead>
+											<TableHead>
+												{t('detail.dayTable.headers.dayType')}
+											</TableHead>
+											<TableHead>
+												{t('detail.dayTable.headers.counts')}
+											</TableHead>
+											<TableHead>
+												{t('detail.dayTable.headers.serviceYear')}
+											</TableHead>
 										</TableRow>
 									</TableHeader>
 									<TableBody>
 										{detailRequest.days.map((day) => (
 											<TableRow key={day.dateKey}>
-												<TableCell>{formatShortDateUtc(toUtcDate(day.dateKey))}</TableCell>
+												<TableCell>
+													{formatShortDateUtc(toUtcDate(day.dateKey))}
+												</TableCell>
 												<TableCell>{dayTypeLabels[day.dayType]}</TableCell>
 												<TableCell>
 													{day.countsAsVacationDay
 														? t('detail.dayTable.counts.yes')
 														: t('detail.dayTable.counts.no')}
 												</TableCell>
-												<TableCell>{day.serviceYearNumber ?? '-'}</TableCell>
+												<TableCell>
+													{day.serviceYearNumber ?? '-'}
+												</TableCell>
 											</TableRow>
 										))}
 									</TableBody>
@@ -963,18 +1005,24 @@ export function VacationsPageClient(): React.ReactElement {
 							detailRequest.status !== 'CANCELLED' ? (
 								<div className="space-y-3">
 									<div>
-										<p className="text-sm font-medium">{t('detail.actions.title')}</p>
+										<p className="text-sm font-medium">
+											{t('detail.actions.title')}
+										</p>
 										<p className="text-xs text-muted-foreground">
 											{t('detail.actions.description')}
 										</p>
 									</div>
 									<div className="grid gap-2">
-										<Label htmlFor="decision-notes">{t('detail.actions.notesLabel')}</Label>
+										<Label htmlFor="decision-notes">
+											{t('detail.actions.notesLabel')}
+										</Label>
 										<Textarea
 											id="decision-notes"
 											placeholder={t('detail.actions.notesPlaceholder')}
 											value={decisionNotes}
-											onChange={(event) => setDecisionNotes(event.target.value)}
+											onChange={(event) =>
+												setDecisionNotes(event.target.value)
+											}
 										/>
 									</div>
 									<div className="flex flex-wrap items-center gap-2">
@@ -1028,7 +1076,10 @@ export function VacationsPageClient(): React.ReactElement {
 							) : null}
 
 							<DialogFooter>
-								<Button variant="outline" onClick={() => setDetailRequestWithNotes(null)}>
+								<Button
+									variant="outline"
+									onClick={() => setDetailRequestWithNotes(null)}
+								>
 									{tCommon('close')}
 								</Button>
 							</DialogFooter>

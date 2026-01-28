@@ -72,6 +72,7 @@
 		"attendance": "Asistencia",
 		"schedules": "Horarios",
 		"vacations": "Vacaciones",
+		"incapacities": "Incapacidades IMSS",
 		"payroll": "Nómina",
 		"resources": "Recursos",
 		"apiKeys": "Claves de API",
@@ -996,6 +997,8 @@
 				"vacationPay": "Pago de vacaciones",
 				"vacationPremium": "Prima vacacional",
 				"vacationDays": "{count, plural, one {# día} other {# días}}",
+				"incapacityDays": "Días de incapacidad",
+				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"total": "Total",
 				"warnings": "Alertas",
 				"detail": "Detalle fiscal"
@@ -1050,6 +1053,8 @@
 				"baseDaysInPeriod": "dias_periodo",
 				"informationalIsrBeforeSubsidy": "isr_antes_subsidio",
 				"informationalSubsidyApplied": "subsidio_aplicado",
+				"incapacityDays": "incapacidad_dias",
+				"incapacitySubsidy": "incapacidad_subsidio_imss",
 				"warningsCount": "avisos_cantidad",
 				"warnings": "avisos"
 			}
@@ -1078,6 +1083,8 @@
 				"grossPay": "Percepciones (bruto)",
 				"vacationDays": "Días de vacaciones",
 				"vacationPay": "Pago de vacaciones",
+				"incapacityDays": "Días de incapacidad",
+				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"vacationPremium": "Prima vacacional",
 				"employeeWithholdings": "Retenciones",
 				"netPay": "Neto",
@@ -1394,7 +1401,8 @@
 			"SCHEDULED_REST_DAY": "Día de descanso",
 			"EXCEPTION_WORKDAY": "Día laborable (excepción)",
 			"EXCEPTION_DAY_OFF": "Día libre (excepción)",
-			"MANDATORY_REST_DAY": "Descanso obligatorio"
+			"MANDATORY_REST_DAY": "Descanso obligatorio",
+			"INCAPACITY": "Incapacidad IMSS"
 		},
 		"toast": {
 			"noOrganization": "No hay una organización activa seleccionada.",
@@ -1419,7 +1427,160 @@
 				"invalidRange": "El rango de fechas no es válido.",
 				"serviceYearIncomplete": "No se pueden solicitar vacaciones antes de cumplir un año de servicio.",
 				"insufficientBalance": "El saldo de vacaciones es insuficiente.",
-				"overlap": "La solicitud se traslapa con una solicitud aprobada."
+				"overlap": "La solicitud se traslapa con una solicitud aprobada.",
+				"incapacityOverlap": "La solicitud se traslapa con una incapacidad activa."
+			}
+		}
+	},
+	"Incapacities": {
+		"title": "Incapacidades IMSS",
+		"subtitle": "Administra incapacidades IMSS y sus documentos.",
+		"noOrganization": "Selecciona una organización activa para administrar incapacidades.",
+		"actions": {
+			"create": "Registrar incapacidad",
+			"refresh": "Actualizar",
+			"update": "Guardar cambios",
+			"updating": "Guardando...",
+			"cancel": "Cancelar"
+		},
+		"filters": {
+			"search": "Buscar...",
+			"employee": "Empleado",
+			"allEmployees": "Todos los empleados",
+			"type": "Tipo",
+			"allTypes": "Todos",
+			"status": "Estatus",
+			"allStatus": "Todos",
+			"from": "Desde",
+			"to": "Hasta"
+		},
+		"type": {
+			"EG": "Enfermedad general",
+			"RT": "Riesgo de trabajo",
+			"MAT": "Maternidad",
+			"LIC140BIS": "Licencia 140 Bis"
+		},
+		"status": {
+			"ACTIVE": "Activa",
+			"CANCELLED": "Cancelada"
+		},
+		"issuedBy": {
+			"IMSS": "IMSS",
+			"recognized_by_IMSS": "Reconocida por IMSS"
+		},
+		"sequence": {
+			"inicial": "Inicial",
+			"subsecuente": "Subsecuente",
+			"recaida": "Recaída"
+		},
+		"table": {
+			"headers": {
+				"employee": "Empleado",
+				"type": "Tipo",
+				"period": "Periodo",
+				"days": "Días autorizados",
+				"folio": "Folio/Case",
+				"status": "Estatus",
+				"actions": "Acciones"
+			},
+			"actions": {
+				"view": "Ver detalle",
+				"cancel": "Cancelar"
+			},
+			"empty": "No se encontraron incapacidades."
+		},
+		"form": {
+			"title": "Registrar incapacidad",
+			"description": "Captura la incapacidad IMSS del colaborador.",
+			"helper": "Completa los campos requeridos para registrar.",
+			"fields": {
+				"employee": "Empleado",
+				"caseId": "Folio del caso",
+				"type": "Tipo de incapacidad",
+				"startDate": "Inicio",
+				"endDate": "Fin",
+				"daysAuthorized": "Días autorizados",
+				"certificateFolio": "Folio del certificado",
+				"issuedBy": "Emitida por",
+				"sequence": "Secuencia",
+				"percentOverride": "Porcentaje (opcional)",
+				"status": "Estatus"
+			},
+			"placeholders": {
+				"employee": "Selecciona un empleado",
+				"caseId": "Ej. 123-ABC",
+				"type": "Selecciona el tipo",
+				"certificateFolio": "Opcional",
+				"percentOverride": "Ej. 0.6"
+			},
+			"validation": {
+				"employeeRequired": "Selecciona un empleado.",
+				"caseIdRequired": "El folio del caso es requerido.",
+				"startDateRequired": "La fecha de inicio es requerida.",
+				"endDateRequired": "La fecha de fin es requerida.",
+				"dateRange": "La fecha de fin debe ser posterior o igual a la fecha de inicio.",
+				"daysAuthorizedInvalid": "Los días autorizados deben ser un número mayor a 0.",
+				"percentOverrideInvalid": "El porcentaje debe estar entre 0 y 1."
+			},
+			"actions": {
+				"submit": "Registrar",
+				"submitting": "Registrando..."
+			}
+		},
+		"detail": {
+			"title": "Detalle de incapacidad",
+			"description": "Actualiza datos y gestiona documentos IMSS.",
+			"labels": {
+				"employee": "Empleado",
+				"period": "Periodo"
+			}
+		},
+		"documents": {
+			"title": "Documentos de incapacidad",
+			"description": "Sube todos los documentos relacionados con la incapacidad.",
+			"upload": "Subir documento",
+			"uploading": "Subiendo...",
+			"processing": "Procesando...",
+			"empty": "Aún no hay documentos.",
+			"errors": {
+				"sizeExceeded": "El archivo supera el tamaño máximo (10 MB).",
+				"invalidType": "Tipo de archivo no permitido."
+			},
+			"table": {
+				"file": "Archivo",
+				"uploadedAt": "Subido",
+				"actions": "Acciones"
+			},
+			"actions": {
+				"view": "Ver"
+			}
+		},
+		"toast": {
+			"noOrganization": "Selecciona una organización activa.",
+			"createSuccess": "Incapacidad registrada correctamente.",
+			"createError": "No se pudo registrar la incapacidad.",
+			"updateSuccess": "Incapacidad actualizada correctamente.",
+			"updateError": "No se pudo actualizar la incapacidad.",
+			"cancelSuccess": "Incapacidad cancelada correctamente.",
+			"cancelError": "No se pudo cancelar la incapacidad.",
+			"documentPresignError": "No se pudo preparar la carga del documento.",
+			"documentUploadSuccess": "Documento cargado correctamente.",
+			"documentUploadError": "No se pudo cargar el documento.",
+			"documentUploadNetworkError": "No se pudo conectar al almacenamiento. Verifica la configuración del bucket y CORS.",
+			"documentFetchError": "No se pudo obtener el documento.",
+			"errors": {
+				"employeeRequired": "Selecciona un empleado.",
+				"employeeNotFound": "No encontramos al empleado seleccionado.",
+				"invalidRange": "El rango de fechas no es válido.",
+				"satMismatch": "El tipo SAT no coincide con el tipo IMSS.",
+				"bucketNotConfigured": "El almacenamiento no está configurado.",
+				"documentInvalid": "El documento no es válido.",
+				"documentNotFound": "No encontramos el documento en el almacenamiento.",
+				"badRequest": "Revisa la información e intenta de nuevo.",
+				"unauthorized": "Tu sesión expiró. Vuelve a iniciar sesión.",
+				"forbidden": "No tienes permisos para administrar incapacidades.",
+				"notFound": "No encontramos el registro solicitado.",
+				"conflict": "La incapacidad tiene conflictos con registros existentes."
 			}
 		}
 	},

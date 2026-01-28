@@ -42,11 +42,7 @@ export interface UpdateJobPositionInput {
 /**
  * Error codes for job position mutations.
  */
-export type JobPositionMutationErrorCode =
-	| 'BAD_REQUEST'
-	| 'FORBIDDEN'
-	| 'NOT_FOUND'
-	| 'UNKNOWN';
+export type JobPositionMutationErrorCode = 'BAD_REQUEST' | 'FORBIDDEN' | 'NOT_FOUND' | 'UNKNOWN';
 
 /**
  * Result of a mutation operation.

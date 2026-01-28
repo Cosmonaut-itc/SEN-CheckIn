@@ -28,6 +28,7 @@ import {
 	MapPin,
 	CalendarCheck,
 	CalendarDays,
+	FileText,
 	Settings2,
 	Smartphone,
 	UserCog,
@@ -104,6 +105,11 @@ const mainNavItems: NavItem[] = [
 		titleKey: 'vacations',
 		href: '/vacations',
 		icon: CalendarCheck,
+	},
+	{
+		titleKey: 'incapacities',
+		href: '/incapacities',
+		icon: FileText,
 	},
 	{
 		titleKey: 'payroll',

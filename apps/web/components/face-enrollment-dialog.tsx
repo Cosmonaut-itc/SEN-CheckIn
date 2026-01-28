@@ -209,9 +209,7 @@ export function FaceEnrollmentDialog({
 		const message =
 			'message' in error && typeof error.message === 'string' ? error.message : '';
 		const constraint =
-			'constraint' in error && typeof error.constraint === 'string'
-				? error.constraint
-				: '';
+			'constraint' in error && typeof error.constraint === 'string' ? error.constraint : '';
 
 		const parts = [name, message, constraint].filter((value) => value.length > 0);
 
@@ -259,7 +257,6 @@ export function FaceEnrollmentDialog({
 			setIsDevicesLoading(false);
 		}
 	}, [getWebcamErrorMessage, t]);
-
 
 	/**
 	 * Formats a display label for a camera device.
@@ -341,7 +338,9 @@ export function FaceEnrollmentDialog({
 				return;
 			}
 
-			const range = getZoomRange(track.getCapabilities() as ZoomCapableMediaTrackCapabilities);
+			const range = getZoomRange(
+				track.getCapabilities() as ZoomCapableMediaTrackCapabilities,
+			);
 
 			if (!range) {
 				setZoomRange(null);
@@ -351,7 +350,7 @@ export function FaceEnrollmentDialog({
 
 			const settings = track.getSettings() as ZoomCapableMediaTrackSettings;
 			const initialZoom =
-				typeof settings.zoom === 'number' ? settings.zoom : range.min ?? 1;
+				typeof settings.zoom === 'number' ? settings.zoom : (range.min ?? 1);
 
 			setZoomRange(range);
 			setZoomValue(initialZoom);
@@ -365,30 +364,33 @@ export function FaceEnrollmentDialog({
 	 * @param value - Desired zoom level
 	 * @returns Promise resolved after applying constraints
 	 */
-	const applyZoom = useCallback(async (value: number): Promise<void> => {
-		if (!streamRef.current || !zoomRange) {
-			return;
-		}
+	const applyZoom = useCallback(
+		async (value: number): Promise<void> => {
+			if (!streamRef.current || !zoomRange) {
+				return;
+			}
 
-		const [track] = streamRef.current.getVideoTracks();
+			const [track] = streamRef.current.getVideoTracks();
 
-		if (!track) {
-			return;
-		}
+			if (!track) {
+				return;
+			}
 
-		const clampedValue = Math.min(Math.max(value, zoomRange.min), zoomRange.max);
+			const clampedValue = Math.min(Math.max(value, zoomRange.min), zoomRange.max);
 
-		try {
-			const constraints = {
-				advanced: [{ zoom: clampedValue }],
-			} as unknown as MediaTrackConstraints;
+			try {
+				const constraints = {
+					advanced: [{ zoom: clampedValue }],
+				} as unknown as MediaTrackConstraints;
 
-			await track.applyConstraints(constraints);
-			setZoomValue(clampedValue);
-		} catch (error) {
-			console.error('Failed to apply zoom:', error);
-		}
-	}, [zoomRange]);
+				await track.applyConstraints(constraints);
+				setZoomValue(clampedValue);
+			} catch (error) {
+				console.error('Failed to apply zoom:', error);
+			}
+		},
+		[zoomRange],
+	);
 
 	/**
 	 * Waits for the video element metadata to load.
@@ -396,40 +398,37 @@ export function FaceEnrollmentDialog({
 	 * @param video - Video element receiving the stream
 	 * @returns Promise resolved when metadata is available
 	 */
-	const waitForVideoMetadata = useCallback(
-		(video: HTMLVideoElement): Promise<void> => {
-			if (video.readyState >= 2 && video.videoWidth > 0) {
-				return Promise.resolve();
-			}
+	const waitForVideoMetadata = useCallback((video: HTMLVideoElement): Promise<void> => {
+		if (video.readyState >= 2 && video.videoWidth > 0) {
+			return Promise.resolve();
+		}
 
-			return new Promise((resolve, reject) => {
-				const timeoutId = window.setTimeout(() => {
-					cleanup();
-					reject(new Error('VideoMetadataTimeout'));
-				}, 8000);
+		return new Promise((resolve, reject) => {
+			const timeoutId = window.setTimeout(() => {
+				cleanup();
+				reject(new Error('VideoMetadataTimeout'));
+			}, 8000);
 
-				const handleLoaded = (): void => {
-					cleanup();
-					resolve();
-				};
+			const handleLoaded = (): void => {
+				cleanup();
+				resolve();
+			};
 
-				const handleError = (): void => {
-					cleanup();
-					reject(new Error('VideoMetadataError'));
-				};
+			const handleError = (): void => {
+				cleanup();
+				reject(new Error('VideoMetadataError'));
+			};
 
-				const cleanup = (): void => {
-					window.clearTimeout(timeoutId);
-					video.removeEventListener('loadedmetadata', handleLoaded);
-					video.removeEventListener('error', handleError);
-				};
+			const cleanup = (): void => {
+				window.clearTimeout(timeoutId);
+				video.removeEventListener('loadedmetadata', handleLoaded);
+				video.removeEventListener('error', handleError);
+			};
 
-				video.addEventListener('loadedmetadata', handleLoaded);
-				video.addEventListener('error', handleError);
-			});
-		},
-		[],
-	);
+			video.addEventListener('loadedmetadata', handleLoaded);
+			video.addEventListener('error', handleError);
+		});
+	}, []);
 
 	/**
 	 * Waits until the video element has produced a usable frame.
@@ -437,78 +436,75 @@ export function FaceEnrollmentDialog({
 	 * @param video - Video element receiving the stream
 	 * @returns Promise resolved when a frame is available
 	 */
-	const waitForVideoFrame = useCallback(
-		(video: HTMLVideoElement): Promise<void> => {
-			if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-				return Promise.resolve();
+	const waitForVideoFrame = useCallback((video: HTMLVideoElement): Promise<void> => {
+		if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+			return Promise.resolve();
+		}
+
+		return new Promise((resolve, reject) => {
+			let rafId: number | null = null;
+			let frameHandle: number | null = null;
+
+			const timeoutId = window.setTimeout(() => {
+				cleanup();
+				reject(new Error('VideoFrameTimeout'));
+			}, 12000);
+
+			const handleLoaded = (): void => {
+				if (video.videoWidth > 0 && video.videoHeight > 0) {
+					cleanup();
+					resolve();
+				}
+			};
+
+			const handleError = (): void => {
+				cleanup();
+				reject(new Error('VideoFrameError'));
+			};
+
+			const cleanup = (): void => {
+				window.clearTimeout(timeoutId);
+				if (rafId !== null) {
+					window.cancelAnimationFrame(rafId);
+				}
+				if (frameHandle !== null) {
+					const withCallback = video as HTMLVideoElement & {
+						cancelVideoFrameCallback?: (handle: number) => void;
+					};
+					withCallback.cancelVideoFrameCallback?.(frameHandle);
+				}
+				video.removeEventListener('loadeddata', handleLoaded);
+				video.removeEventListener('error', handleError);
+			};
+
+			video.addEventListener('loadeddata', handleLoaded);
+			video.addEventListener('error', handleError);
+
+			const withCallback = video as HTMLVideoElement & {
+				requestVideoFrameCallback?: (callback: VideoFrameRequestCallback) => number;
+			};
+
+			if (withCallback.requestVideoFrameCallback) {
+				frameHandle = withCallback.requestVideoFrameCallback(() => {
+					cleanup();
+					resolve();
+				});
+				return;
 			}
 
-			return new Promise((resolve, reject) => {
-				let rafId: number | null = null;
-				let frameHandle: number | null = null;
-
-				const timeoutId = window.setTimeout(() => {
+			const poll = (): void => {
+				if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
 					cleanup();
-					reject(new Error('VideoFrameTimeout'));
-				}, 12000);
-
-				const handleLoaded = (): void => {
-					if (video.videoWidth > 0 && video.videoHeight > 0) {
-						cleanup();
-						resolve();
-					}
-				};
-
-				const handleError = (): void => {
-					cleanup();
-					reject(new Error('VideoFrameError'));
-				};
-
-				const cleanup = (): void => {
-					window.clearTimeout(timeoutId);
-					if (rafId !== null) {
-						window.cancelAnimationFrame(rafId);
-					}
-					if (frameHandle !== null) {
-						const withCallback = video as HTMLVideoElement & {
-							cancelVideoFrameCallback?: (handle: number) => void;
-						};
-						withCallback.cancelVideoFrameCallback?.(frameHandle);
-					}
-					video.removeEventListener('loadeddata', handleLoaded);
-					video.removeEventListener('error', handleError);
-				};
-
-				video.addEventListener('loadeddata', handleLoaded);
-				video.addEventListener('error', handleError);
-
-				const withCallback = video as HTMLVideoElement & {
-					requestVideoFrameCallback?: (callback: VideoFrameRequestCallback) => number;
-				};
-
-				if (withCallback.requestVideoFrameCallback) {
-					frameHandle = withCallback.requestVideoFrameCallback(() => {
-						cleanup();
-						resolve();
-					});
+					resolve();
 					return;
 				}
 
-				const poll = (): void => {
-					if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-						cleanup();
-						resolve();
-						return;
-					}
-
-					rafId = window.requestAnimationFrame(poll);
-				};
-
 				rafId = window.requestAnimationFrame(poll);
-			});
-		},
-		[],
-	);
+			};
+
+			rafId = window.requestAnimationFrame(poll);
+		});
+	}, []);
 
 	/**
 	 * Attempts to acquire a media stream with the provided constraints.
@@ -615,149 +611,152 @@ export function FaceEnrollmentDialog({
 	 * @param deviceId - Optional device ID to use. If provided, this takes precedence over selectedDeviceId state.
 	 * @returns Promise resolved when the webcam stream is ready or fails gracefully
 	 */
-	const startWebcam = useCallback(async (deviceId?: string | null): Promise<void> => {
-		if (isStartingRef.current) {
-			return;
-		}
-
-		isStartingRef.current = true;
-
-		try {
-			setWebcamError(null);
-			setWebcamErrorDetail(null);
-			if (!navigator.mediaDevices?.getUserMedia) {
-				setWebcamError(t('webcam.errors.notSupported'));
-				setIsWebcamActive(false);
+	const startWebcam = useCallback(
+		async (deviceId?: string | null): Promise<void> => {
+			if (isStartingRef.current) {
 				return;
 			}
 
-			const targetDeviceId = deviceId ?? selectedDeviceId;
+			isStartingRef.current = true;
 
-			const preferredConstraints: MediaStreamConstraints = targetDeviceId
-				? {
-						video: {
-							deviceId: { exact: targetDeviceId },
-							width: { ideal: 640 },
-							height: { ideal: 480 },
-						},
-					}
-				: {
-						video: {
-							width: { ideal: 640 },
-							height: { ideal: 480 },
-							facingMode: 'user',
-						},
-					};
+			try {
+				setWebcamError(null);
+				setWebcamErrorDetail(null);
+				if (!navigator.mediaDevices?.getUserMedia) {
+					setWebcamError(t('webcam.errors.notSupported'));
+					setIsWebcamActive(false);
+					return;
+				}
 
-			let stream: MediaStream | null = null;
-			let lastError: unknown | null = null;
+				const targetDeviceId = deviceId ?? selectedDeviceId;
 
-			const preferredAttempt = await tryGetStream(preferredConstraints);
+				const preferredConstraints: MediaStreamConstraints = targetDeviceId
+					? {
+							video: {
+								deviceId: { exact: targetDeviceId },
+								width: { ideal: 640 },
+								height: { ideal: 480 },
+							},
+						}
+					: {
+							video: {
+								width: { ideal: 640 },
+								height: { ideal: 480 },
+								facingMode: 'user',
+							},
+						};
 
-			if (preferredAttempt.stream) {
-				stream = preferredAttempt.stream;
-			} else {
-				lastError = preferredAttempt.error;
-				const fallbackAttempt = await tryGetStream({ video: true });
+				let stream: MediaStream | null = null;
+				let lastError: unknown | null = null;
 
-				if (fallbackAttempt.stream) {
-					stream = fallbackAttempt.stream;
+				const preferredAttempt = await tryGetStream(preferredConstraints);
+
+				if (preferredAttempt.stream) {
+					stream = preferredAttempt.stream;
 				} else {
-					lastError = fallbackAttempt.error ?? lastError;
-					const deviceAttempt = await tryDevicesFallback();
+					lastError = preferredAttempt.error;
+					const fallbackAttempt = await tryGetStream({ video: true });
 
-					if (deviceAttempt.stream) {
-						stream = deviceAttempt.stream;
+					if (fallbackAttempt.stream) {
+						stream = fallbackAttempt.stream;
 					} else {
-						lastError = deviceAttempt.error ?? lastError;
+						lastError = fallbackAttempt.error ?? lastError;
+						const deviceAttempt = await tryDevicesFallback();
+
+						if (deviceAttempt.stream) {
+							stream = deviceAttempt.stream;
+						} else {
+							lastError = deviceAttempt.error ?? lastError;
+						}
 					}
 				}
-			}
 
-			if (!stream) {
-				const fallbackError = lastError ?? new Error('CameraUnavailable');
-				console.error('Failed to access webcam:', fallbackError);
-				setWebcamError(getWebcamErrorMessage(fallbackError));
-				setWebcamErrorDetail(getWebcamErrorDetail(fallbackError));
-				setIsWebcamActive(false);
-				return;
-			}
-
-			streamRef.current = stream;
-			setIsWebcamActive(true);
-
-			await new Promise<void>((resolve) => {
-				window.requestAnimationFrame(() => resolve());
-			});
-
-			if (!videoRef.current) {
-				stream.getTracks().forEach((track) => track.stop());
-				streamRef.current = null;
-				setWebcamError(t('webcam.errors.unavailable'));
-				setIsWebcamActive(false);
-				return;
-			}
-
-			videoRef.current.srcObject = stream;
-
-			try {
-				const playPromise = videoRef.current.play();
-
-				if (playPromise) {
-					playPromise.catch((playError) => {
-						console.warn('Webcam playback deferred:', playError);
-						setWebcamErrorDetail(getWebcamErrorDetail(playError));
-					});
+				if (!stream) {
+					const fallbackError = lastError ?? new Error('CameraUnavailable');
+					console.error('Failed to access webcam:', fallbackError);
+					setWebcamError(getWebcamErrorMessage(fallbackError));
+					setWebcamErrorDetail(getWebcamErrorDetail(fallbackError));
+					setIsWebcamActive(false);
+					return;
 				}
-			} catch (playError) {
-				console.warn('Webcam playback deferred:', playError);
-				setWebcamErrorDetail(getWebcamErrorDetail(playError));
-			}
 
-			try {
-				await waitForVideoMetadata(videoRef.current);
-				await waitForVideoFrame(videoRef.current);
-			} catch (frameError) {
-				console.error('Failed to receive webcam frames:', frameError);
-				stream.getTracks().forEach((track) => track.stop());
-				streamRef.current = null;
-				setWebcamError(getWebcamErrorMessage(frameError));
-				setWebcamErrorDetail(getWebcamErrorDetail(frameError));
+				streamRef.current = stream;
+				setIsWebcamActive(true);
+
+				await new Promise<void>((resolve) => {
+					window.requestAnimationFrame(() => resolve());
+				});
+
+				if (!videoRef.current) {
+					stream.getTracks().forEach((track) => track.stop());
+					streamRef.current = null;
+					setWebcamError(t('webcam.errors.unavailable'));
+					setIsWebcamActive(false);
+					return;
+				}
+
+				videoRef.current.srcObject = stream;
+
+				try {
+					const playPromise = videoRef.current.play();
+
+					if (playPromise) {
+						playPromise.catch((playError) => {
+							console.warn('Webcam playback deferred:', playError);
+							setWebcamErrorDetail(getWebcamErrorDetail(playError));
+						});
+					}
+				} catch (playError) {
+					console.warn('Webcam playback deferred:', playError);
+					setWebcamErrorDetail(getWebcamErrorDetail(playError));
+				}
+
+				try {
+					await waitForVideoMetadata(videoRef.current);
+					await waitForVideoFrame(videoRef.current);
+				} catch (frameError) {
+					console.error('Failed to receive webcam frames:', frameError);
+					stream.getTracks().forEach((track) => track.stop());
+					streamRef.current = null;
+					setWebcamError(getWebcamErrorMessage(frameError));
+					setWebcamErrorDetail(getWebcamErrorDetail(frameError));
+					setIsWebcamActive(false);
+					return;
+				}
+
+				if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) {
+					stream.getTracks().forEach((track) => track.stop());
+					streamRef.current = null;
+					setWebcamError(t('webcam.errors.noFeed'));
+					setWebcamErrorDetail(getWebcamErrorDetail(new Error('VideoFrameEmpty')));
+					setIsWebcamActive(false);
+					return;
+				}
+
+				updateZoomFromStream(stream);
+				void loadVideoDevices();
+			} catch (error) {
+				console.error('Failed to access webcam:', error);
+				setWebcamError(getWebcamErrorMessage(error));
+				setWebcamErrorDetail(getWebcamErrorDetail(error));
 				setIsWebcamActive(false);
-				return;
+			} finally {
+				isStartingRef.current = false;
 			}
-
-			if (!videoRef.current.videoWidth || !videoRef.current.videoHeight) {
-				stream.getTracks().forEach((track) => track.stop());
-				streamRef.current = null;
-				setWebcamError(t('webcam.errors.noFeed'));
-				setWebcamErrorDetail(getWebcamErrorDetail(new Error('VideoFrameEmpty')));
-				setIsWebcamActive(false);
-				return;
-			}
-
-			updateZoomFromStream(stream);
-			void loadVideoDevices();
-		} catch (error) {
-			console.error('Failed to access webcam:', error);
-			setWebcamError(getWebcamErrorMessage(error));
-			setWebcamErrorDetail(getWebcamErrorDetail(error));
-			setIsWebcamActive(false);
-		} finally {
-			isStartingRef.current = false;
-		}
-	}, [
-		getWebcamErrorDetail,
-		getWebcamErrorMessage,
-		loadVideoDevices,
-		selectedDeviceId,
-		t,
-		tryDevicesFallback,
-		tryGetStream,
-		updateZoomFromStream,
-		waitForVideoFrame,
-		waitForVideoMetadata,
-	]);
+		},
+		[
+			getWebcamErrorDetail,
+			getWebcamErrorMessage,
+			loadVideoDevices,
+			selectedDeviceId,
+			t,
+			tryDevicesFallback,
+			tryGetStream,
+			updateZoomFromStream,
+			waitForVideoFrame,
+			waitForVideoMetadata,
+		],
+	);
 
 	/**
 	 * Handles tab changes and auto-starts the webcam when needed.
@@ -807,7 +806,6 @@ export function FaceEnrollmentDialog({
 			void startWebcam(deviceId);
 		}
 	};
-
 
 	/**
 	 * Captures a frame from the webcam video stream.
@@ -1015,10 +1013,7 @@ export function FaceEnrollmentDialog({
 								</Button>
 							</div>
 						) : (
-							<Tabs
-								value={activeTab}
-								onValueChange={handleTabChange}
-							>
+							<Tabs value={activeTab} onValueChange={handleTabChange}>
 								<TabsList className="grid w-full grid-cols-2">
 									<TabsTrigger value="upload" className="flex items-center gap-2">
 										<Upload className="h-4 w-4" />
@@ -1078,59 +1073,71 @@ export function FaceEnrollmentDialog({
 												</Button>
 											</div>
 										) : isWebcamActive ? (
-									<div className="space-y-4 w-full">
-										<div className="relative rounded-lg overflow-hidden border bg-black">
-											<video
-												ref={videoRef}
-												autoPlay
-												playsInline
-												muted
-												className="w-full aspect-[4/3] object-cover"
-												style={
-													zoomRange
-														? undefined
-														: {
-																transform: `scale(${digitalZoom})`,
-																transformOrigin: 'center center',
-															}
-												}
-											/>
-										</div>
-										<div className="flex gap-2 justify-center">
-											<Button onClick={captureFromWebcam}>
-												<Camera className="h-4 w-4 mr-2" />
-												{t('webcam.capturePhoto')}
-											</Button>
-											<Button variant="outline" onClick={stopWebcam}>
-												{tCommon('cancel')}
-											</Button>
-										</div>
-										<div className="space-y-2">
-											<div className="flex items-center justify-between text-xs text-muted-foreground">
-												<span id={zoomLabelId} className="font-medium">
-													{t('webcam.zoom.label')}
-												</span>
-												<span>
-													{t('webcam.zoom.level', {
-														value: (
-															zoomRange ? zoomValue : digitalZoom
-														).toFixed(1),
-													})}
-												</span>
+											<div className="space-y-4 w-full">
+												<div className="relative rounded-lg overflow-hidden border bg-black">
+													<video
+														ref={videoRef}
+														autoPlay
+														playsInline
+														muted
+														className="w-full aspect-[4/3] object-cover"
+														style={
+															zoomRange
+																? undefined
+																: {
+																		transform: `scale(${digitalZoom})`,
+																		transformOrigin:
+																			'center center',
+																	}
+														}
+													/>
+												</div>
+												<div className="flex gap-2 justify-center">
+													<Button onClick={captureFromWebcam}>
+														<Camera className="h-4 w-4 mr-2" />
+														{t('webcam.capturePhoto')}
+													</Button>
+													<Button variant="outline" onClick={stopWebcam}>
+														{tCommon('cancel')}
+													</Button>
+												</div>
+												<div className="space-y-2">
+													<div className="flex items-center justify-between text-xs text-muted-foreground">
+														<span
+															id={zoomLabelId}
+															className="font-medium"
+														>
+															{t('webcam.zoom.label')}
+														</span>
+														<span>
+															{t('webcam.zoom.level', {
+																value: (zoomRange
+																	? zoomValue
+																	: digitalZoom
+																).toFixed(1),
+															})}
+														</span>
+													</div>
+													<input
+														type="range"
+														min={
+															zoomRange?.min ?? DIGITAL_ZOOM_RANGE.min
+														}
+														max={
+															zoomRange?.max ?? DIGITAL_ZOOM_RANGE.max
+														}
+														step={
+															zoomRange?.step ??
+															DIGITAL_ZOOM_RANGE.step
+														}
+														value={zoomRange ? zoomValue : digitalZoom}
+														onChange={handleZoomChange}
+														className="w-full accent-primary"
+														aria-labelledby={zoomLabelId}
+													/>
+												</div>
 											</div>
-											<input
-												type="range"
-												min={zoomRange?.min ?? DIGITAL_ZOOM_RANGE.min}
-												max={zoomRange?.max ?? DIGITAL_ZOOM_RANGE.max}
-												step={zoomRange?.step ?? DIGITAL_ZOOM_RANGE.step}
-												value={zoomRange ? zoomValue : digitalZoom}
-												onChange={handleZoomChange}
-												className="w-full accent-primary"
-												aria-labelledby={zoomLabelId}
-											/>
-										</div>
-									</div>
-								) : (
+										) : (
 											<div className="flex flex-col items-center justify-center border rounded-lg p-8 text-center">
 												<Camera className="h-12 w-12 text-muted-foreground mb-4" />
 												<p className="text-sm text-muted-foreground mb-4">
@@ -1178,23 +1185,28 @@ export function FaceEnrollmentDialog({
 																)}
 															/>
 														</SelectTrigger>
-													<SelectContent>
-														{videoDevices
-															.filter((device) => device.deviceId)
-															.map((device, index) => (
-																<SelectItem
-																	key={device.deviceId}
-																	value={device.deviceId}
-																>
-																	{formatDeviceLabel(device, index)}
-																</SelectItem>
-															))}
-													</SelectContent>
+														<SelectContent>
+															{videoDevices
+																.filter((device) => device.deviceId)
+																.map((device, index) => (
+																	<SelectItem
+																		key={device.deviceId}
+																		value={device.deviceId}
+																	>
+																		{formatDeviceLabel(
+																			device,
+																			index,
+																		)}
+																	</SelectItem>
+																))}
+														</SelectContent>
 													</Select>
 												</div>
 											)}
 											{isDevicesLoading ? (
-												<p className="mt-2">{t('webcam.devices.loading')}</p>
+												<p className="mt-2">
+													{t('webcam.devices.loading')}
+												</p>
 											) : videoDevices.length > 0 ? (
 												<ul className="mt-2 space-y-1">
 													{videoDevices.map((device, index) => (

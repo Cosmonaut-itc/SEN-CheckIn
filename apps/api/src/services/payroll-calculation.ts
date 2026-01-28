@@ -17,9 +17,15 @@ import {
 } from '../utils/time-zone.js';
 import {
 	calculateMexicoPayrollTaxes,
+	getSbcDaily,
 	type MexicoPayrollTaxResult,
 	type MexicoPayrollTaxSettings,
 } from './mexico-payroll-taxes.js';
+import {
+	calculateIncapacitySummary,
+	type IncapacityRecordInput,
+	type IncapacitySummary,
+} from './incapacities.js';
 
 export type AttendanceRow = {
 	employeeId: string;
@@ -71,6 +77,7 @@ export type PayrollCalculationRow = {
 	informationalLines: MexicoPayrollTaxResult['informationalLines'];
 	netPay: number;
 	companyCost: number;
+	incapacitySummary: PayrollIncapacitySummary;
 	warnings: {
 		type:
 			| 'OVERTIME_DAILY_EXCEEDED'
@@ -114,6 +121,7 @@ export interface CalculatePayrollFromDataArgs {
 	defaultTimeZone: string;
 	payrollSettings?: Partial<MexicoPayrollTaxSettings> & { enableSeventhDayPay?: boolean };
 	vacationDayCounts?: Record<string, number>;
+	incapacityRecordsByEmployee?: Record<string, IncapacityRecordInput[]>;
 }
 
 export interface CalculatePayrollFromDataResult {
@@ -128,6 +136,12 @@ export interface PayrollTaxSummary {
 	employerCostsTotal: number;
 	netPayTotal: number;
 	companyCostTotal: number;
+}
+
+export interface PayrollIncapacitySummary {
+	daysIncapacityTotal: number;
+	expectedImssSubsidyAmount: number;
+	byType: IncapacitySummary['byType'];
 }
 
 const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: boolean } = {
@@ -385,7 +399,9 @@ export function getPayrollPeriodBounds(args: {
  * @param args - Payroll calculation inputs
  * @returns Employee breakdowns and total amount for the period
  */
-export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): CalculatePayrollFromDataResult {
+export function calculatePayrollFromData(
+	args: CalculatePayrollFromDataArgs,
+): CalculatePayrollFromDataResult {
 	const {
 		employees,
 		schedules,
@@ -738,6 +754,25 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			});
 		}
 
+		const sbcDaily = getSbcDaily({
+			dailyPay: effectiveDailyPay,
+			hireDate: emp.hireDate ?? null,
+			sbcDailyOverride:
+				typeof emp.sbcDailyOverride === 'string'
+					? Number(emp.sbcDailyOverride)
+					: (emp.sbcDailyOverride ?? null),
+			aguinaldoDays: resolvedTaxSettings.aguinaldoDays,
+			vacationPremiumRate: resolvedTaxSettings.vacationPremiumRate,
+			periodEndDateKey,
+		});
+
+		const incapacityResult = calculateIncapacitySummary({
+			periodStartDateKey,
+			periodEndDateKey,
+			sbcDaily,
+			incapacityRecords: args.incapacityRecordsByEmployee?.[emp.id] ?? [],
+		});
+
 		const taxBreakdown = calculateMexicoPayrollTaxes({
 			dailyPay: effectiveDailyPay,
 			grossPay,
@@ -748,9 +783,10 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			sbcDailyOverride:
 				typeof emp.sbcDailyOverride === 'string'
 					? Number(emp.sbcDailyOverride)
-					: emp.sbcDailyOverride ?? null,
+					: (emp.sbcDailyOverride ?? null),
 			locationGeographicZone: emp.locationGeographicZone ?? 'GENERAL',
 			settings: resolvedTaxSettings,
+			imssExemptDateKeys: incapacityResult.imssExemptDateKeys,
 		});
 
 		grossTotalCents += toCents(grossPay);
@@ -790,6 +826,11 @@ export function calculatePayrollFromData(args: CalculatePayrollFromDataArgs): Ca
 			informationalLines: taxBreakdown.informationalLines,
 			netPay: taxBreakdown.netPay,
 			companyCost: taxBreakdown.companyCost,
+			incapacitySummary: {
+				daysIncapacityTotal: incapacityResult.incapacitySummary.daysIncapacityTotal,
+				expectedImssSubsidyAmount: incapacityResult.imssSubsidy.expectedSubsidyAmount,
+				byType: incapacityResult.incapacitySummary.byType,
+			},
 			warnings,
 		});
 	}

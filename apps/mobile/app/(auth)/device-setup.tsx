@@ -57,10 +57,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 			null,
 		[params.organizationId, session?.session?.activeOrganizationId, settings?.organizationId],
 	);
-	const continuousCurve = useMemo(
-		() => ({ borderCurve: 'continuous' } satisfies ViewStyle),
-		[],
-	);
+	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' }) satisfies ViewStyle, []);
 
 	const defaultName = useMemo(
 		() =>
@@ -248,11 +245,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</View>
 
 				{/* Form Card */}
-				<Card
-					variant="default"
-					className="p-6 gap-6 rounded-3xl"
-					style={continuousCurve}
-				>
+				<Card variant="default" className="p-6 gap-6 rounded-3xl" style={continuousCurve}>
 					<form.AppField
 						name="name"
 						validators={{
@@ -292,9 +285,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 							 *
 							 * @param option - The selected option object
 							 */
-							const handleLocationChange = (
-								option: { value: string; label: string },
-							): void => {
+							const handleLocationChange = (option: {
+								value: string;
+								label: string;
+							}): void => {
 								field.handleChange(option.value);
 							};
 

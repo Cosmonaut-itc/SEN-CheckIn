@@ -1,12 +1,5 @@
 import { format } from 'date-fns';
-import {
-	PDFDocument,
-	PageSizes,
-	StandardFonts,
-	rgb,
-	type PDFPage,
-	type PDFFont,
-} from 'pdf-lib';
+import { PDFDocument, PageSizes, StandardFonts, rgb, type PDFPage, type PDFFont } from 'pdf-lib';
 
 import type { PayrollRun, PayrollRunEmployee } from '@/lib/client-functions';
 
@@ -104,12 +97,7 @@ function formatDate(
  * @param maxWidth - Max width allowed per line
  * @returns Array of wrapped lines
  */
-function wrapText(
-	text: string,
-	font: PDFFont,
-	fontSize: number,
-	maxWidth: number,
-): string[] {
+function wrapText(text: string, font: PDFFont, fontSize: number, maxWidth: number): string[] {
 	const words = text.split(/\s+/);
 	const lines: string[] = [];
 	let currentLine = '';
@@ -202,14 +190,7 @@ function drawSummaryRow(
 		font,
 		color: COLOR_MUTED,
 	});
-	drawRightAlignedText(
-		page,
-		formatValue(row.value),
-		fontBold,
-		10,
-		x + width,
-		y,
-	);
+	drawRightAlignedText(page, formatValue(row.value), fontBold, 10, x + width, y);
 }
 
 /**
@@ -289,14 +270,7 @@ function drawLineItemsColumn(
 		size: 10,
 		font: fontBold,
 	});
-	drawRightAlignedText(
-		page,
-		formatValue(totalValue),
-		fontBold,
-		10,
-		x + width,
-		cursorY,
-	);
+	drawRightAlignedText(page, formatValue(totalValue), fontBold, 10, x + width, cursorY);
 	cursorY -= 16;
 
 	return cursorY;
@@ -308,9 +282,7 @@ function drawLineItemsColumn(
  * @param input - Receipt data including run + employee line
  * @returns Serialized PDF bytes
  */
-export async function buildPayrollReceiptPdf(
-	input: PayrollReceiptInput,
-): Promise<Uint8Array> {
+export async function buildPayrollReceiptPdf(input: PayrollReceiptInput): Promise<Uint8Array> {
 	const pdfDoc = await PDFDocument.create();
 	const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 	const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);

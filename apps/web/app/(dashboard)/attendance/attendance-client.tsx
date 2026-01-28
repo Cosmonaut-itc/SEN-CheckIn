@@ -6,11 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Input } from '@/components/ui/input';
 import { useTranslations } from 'next-intl';
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Calendar as CalendarIcon, Download, RefreshCw, Search } from 'lucide-react';
@@ -41,7 +37,12 @@ import {
 	type Location,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 /**
  * Date filter preset options.
@@ -93,10 +94,7 @@ const typeVariants: Record<AttendanceType, 'default' | 'secondary' | 'outline'> 
  * @param type - Attendance type value
  * @returns Localized attendance type label
  */
-function getAttendanceTypeLabel(
-	t: (key: string) => string,
-	type: AttendanceType,
-): string {
+function getAttendanceTypeLabel(t: (key: string) => string, type: AttendanceType): string {
 	switch (type) {
 		case 'CHECK_IN':
 			return t('typeFilter.checkIn');
@@ -346,10 +344,7 @@ export function AttendancePageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
-	const locations = useMemo(
-		() => (locationsData?.data ?? []) as Location[],
-		[locationsData],
-	);
+	const locations = useMemo(() => (locationsData?.data ?? []) as Location[], [locationsData]);
 	const locationOptions = useMemo(
 		() => [
 			{ value: ALL_LOCATIONS_VALUE, label: t('locationFilter.all') },
@@ -509,8 +504,7 @@ export function AttendancePageClient(): React.ReactElement {
 				id: 'date',
 				accessorFn: (row) => row.timestamp,
 				header: t('table.headers.date'),
-				cell: ({ row }) =>
-					format(new Date(row.original.timestamp), t('dateFormat')),
+				cell: ({ row }) => format(new Date(row.original.timestamp), t('dateFormat')),
 				enableGlobalFilter: false,
 			},
 		],
@@ -700,27 +694,21 @@ export function AttendancePageClient(): React.ReactElement {
 					</>
 				)}
 
-				<Select
-					value={typeFilter}
-					onValueChange={handleTypeFilterChange}
-				>
+				<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
 					<SelectTrigger className="w-[170px]">
 						<SelectValue placeholder={t('typeFilter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
-					<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
-					<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
-					<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
-					<SelectItem value="CHECK_OUT_AUTHORIZED">
-						{t('typeFilter.checkOutAuthorized')}
-					</SelectItem>
-				</SelectContent>
-			</Select>
+						<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
+						<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
+						<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
+						<SelectItem value="CHECK_OUT_AUTHORIZED">
+							{t('typeFilter.checkOutAuthorized')}
+						</SelectItem>
+					</SelectContent>
+				</Select>
 
-				<Select
-					value={locationFilterValue}
-					onValueChange={handleLocationFilterChange}
-				>
+				<Select value={locationFilterValue} onValueChange={handleLocationFilterChange}>
 					<SelectTrigger className="w-[200px]">
 						<SelectValue placeholder={t('locationFilter.placeholder')} />
 					</SelectTrigger>

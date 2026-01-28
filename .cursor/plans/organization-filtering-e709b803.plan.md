@@ -95,7 +95,7 @@ This enables username-based sign-in and makes user creation simpler.
 
 ### Phase 4: No-Organization State Handling (Web)
 
-Update [layout.tsx](<apps/web/app/\(dashboard)/layout.tsx>) to:
+Update [layout.tsx](<apps/web/app/(dashboard)/layout.tsx>) to:
 
 1. Fetch active org via `getActiveOrganizationContext()`
 2. Fetch user role from session
@@ -111,7 +111,7 @@ Create a new component `NoOrganizationState` that renders the appropriate messag
 
 ### Phase 5: Organization Members Page (Web)
 
-Transform [users-client.tsx](<apps/web/app/\(dashboard)/users/users-client.tsx>) to show organization members:
+Transform [users-client.tsx](<apps/web/app/(dashboard)/users/users-client.tsx>) to show organization members:
 
 1. **Replace data source**: Use `authClient.organization.listMembers()` instead of `admin.listUsers()`
 2. **Add role badges**: Display Owner/Admin/Member badges using the member's `role` field

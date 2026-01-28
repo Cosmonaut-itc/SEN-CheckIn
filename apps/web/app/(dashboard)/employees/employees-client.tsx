@@ -84,7 +84,12 @@ import type {
 	TerminationReason,
 } from '@sen-checkin/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 import { format, isAfter, isValid, parse, startOfDay, startOfMonth } from 'date-fns';
 import {
 	Calendar as CalendarIcon,
@@ -232,10 +237,7 @@ function TerminationDateField({
 		format(parsedValue, 'yyyy-MM-dd') === value;
 	const selectedDateKey = isParsedValid ? value : '';
 	const selectedDate = useMemo(
-		() =>
-			selectedDateKey
-				? parse(selectedDateKey, 'yyyy-MM-dd', new Date())
-				: undefined,
+		() => (selectedDateKey ? parse(selectedDateKey, 'yyyy-MM-dd', new Date()) : undefined),
 		[selectedDateKey],
 	);
 	const resolvedMaxDate = useMemo(
@@ -767,9 +769,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		...baseParams,
 		...(search ? { search } : {}),
 		...(locationFilter !== ALL_FILTER_VALUE ? { locationId: locationFilter } : {}),
-		...(jobPositionFilter !== ALL_FILTER_VALUE
-			? { jobPositionId: jobPositionFilter }
-			: {}),
+		...(jobPositionFilter !== ALL_FILTER_VALUE ? { jobPositionId: jobPositionFilter } : {}),
 		...(statusFilter !== ALL_FILTER_VALUE ? { status: statusFilter } : {}),
 	};
 
@@ -872,19 +872,14 @@ export function EmployeesPageClient(): React.ReactElement {
 			value: member.userId,
 			label: member.user?.name
 				? `${member.user.name} (${member.user.email})`
-				: member.user?.email ?? member.userId,
+				: (member.user?.email ?? member.userId),
 		}));
 		options.sort((a, b) => a.label.localeCompare(b.label));
-		return [
-			{ value: 'none', label: t('placeholders.noUser') },
-			...options,
-		];
+		return [{ value: 'none', label: t('placeholders.noUser') }, ...options];
 	}, [members, t]);
 
 	const locationLookup = useMemo(() => {
-		return new Map<string, string>(
-			locations.map((loc) => [loc.id, loc.name || loc.code]),
-		);
+		return new Map<string, string>(locations.map((loc) => [loc.id, loc.name || loc.code]));
 	}, [locations]);
 
 	const activeEmployeeName = useMemo(() => {
@@ -1032,13 +1027,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @param values - Partial termination form values to apply
 	 * @returns void
 	 */
-	const updateTerminationForm = useCallback(
-		(values: Partial<TerminationFormValues>): void => {
-			setTerminationForm((prev) => ({ ...prev, ...values }));
-			setTerminationPreview(null);
-		},
-		[],
-	);
+	const updateTerminationForm = useCallback((values: Partial<TerminationFormValues>): void => {
+		setTerminationForm((prev) => ({ ...prev, ...values }));
+		setTerminationPreview(null);
+	}, []);
 
 	/**
 	 * Resets termination form state and clears any preview data.
@@ -1142,11 +1134,31 @@ export function EmployeesPageClient(): React.ReactElement {
 			return [];
 		}
 		return [
-			{ key: 'salaryDue', label: t('finiquito.breakdown.salaryDue'), value: terminationPreview.breakdown.finiquito.salaryDue },
-			{ key: 'aguinaldoProp', label: t('finiquito.breakdown.aguinaldoProp'), value: terminationPreview.breakdown.finiquito.aguinaldoProp },
-			{ key: 'vacationPay', label: t('finiquito.breakdown.vacationPay'), value: terminationPreview.breakdown.finiquito.vacationPay },
-			{ key: 'vacationPremium', label: t('finiquito.breakdown.vacationPremium'), value: terminationPreview.breakdown.finiquito.vacationPremium },
-			{ key: 'otherDue', label: t('finiquito.breakdown.otherDue'), value: terminationPreview.breakdown.finiquito.otherDue },
+			{
+				key: 'salaryDue',
+				label: t('finiquito.breakdown.salaryDue'),
+				value: terminationPreview.breakdown.finiquito.salaryDue,
+			},
+			{
+				key: 'aguinaldoProp',
+				label: t('finiquito.breakdown.aguinaldoProp'),
+				value: terminationPreview.breakdown.finiquito.aguinaldoProp,
+			},
+			{
+				key: 'vacationPay',
+				label: t('finiquito.breakdown.vacationPay'),
+				value: terminationPreview.breakdown.finiquito.vacationPay,
+			},
+			{
+				key: 'vacationPremium',
+				label: t('finiquito.breakdown.vacationPremium'),
+				value: terminationPreview.breakdown.finiquito.vacationPremium,
+			},
+			{
+				key: 'otherDue',
+				label: t('finiquito.breakdown.otherDue'),
+				value: terminationPreview.breakdown.finiquito.otherDue,
+			},
 		];
 	}, [terminationPreview, t]);
 
@@ -1283,8 +1295,12 @@ export function EmployeesPageClient(): React.ReactElement {
 				const resolvedSettlement: EmployeeTerminationSettlementRecord = {
 					...terminationData.settlement,
 					totalsGross: Number(terminationData.settlement.totalsGross ?? 0),
-					finiquitoTotalGross: Number(terminationData.settlement.finiquitoTotalGross ?? 0),
-					liquidacionTotalGross: Number(terminationData.settlement.liquidacionTotalGross ?? 0),
+					finiquitoTotalGross: Number(
+						terminationData.settlement.finiquitoTotalGross ?? 0,
+					),
+					liquidacionTotalGross: Number(
+						terminationData.settlement.liquidacionTotalGross ?? 0,
+					),
 					createdAt: new Date(terminationData.settlement.createdAt),
 				};
 				toast.success(t('finiquito.toast.terminateSuccess'));
@@ -1345,14 +1361,12 @@ export function EmployeesPageClient(): React.ReactElement {
 			const trimmedSbcOverride = value.sbcDailyOverride.trim();
 			const trimmedNss = value.nss.trim();
 			const trimmedRfc = value.rfc.trim();
-			const parsedPeriodPay =
-				trimmedPeriodPay === '' ? Number.NaN : Number(trimmedPeriodPay);
+			const parsedPeriodPay = trimmedPeriodPay === '' ? Number.NaN : Number(trimmedPeriodPay);
 			if (!Number.isFinite(parsedPeriodPay) || parsedPeriodPay <= 0) {
 				toast.error(t('validation.periodPayGreaterThanZero'));
 				return;
 			}
-			const parsedSbcOverride =
-				trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
+			const parsedSbcOverride = trimmedSbcOverride === '' ? null : Number(trimmedSbcOverride);
 			if (parsedSbcOverride !== null) {
 				if (!Number.isFinite(parsedSbcOverride) || parsedSbcOverride <= 0) {
 					toast.error(t('validation.sbcDailyOverride'));
@@ -1411,7 +1425,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					hireDate: trimmedHireDate === '' ? undefined : trimmedHireDate,
 					dailyPay,
 					paymentFrequency,
-					sbcDailyOverride: trimmedSbcOverride === '' ? undefined : parsedSbcOverride ?? undefined,
+					sbcDailyOverride:
+						trimmedSbcOverride === '' ? undefined : (parsedSbcOverride ?? undefined),
 					shiftType: value.shiftType,
 					schedule,
 				});
@@ -1534,12 +1549,15 @@ export function EmployeesPageClient(): React.ReactElement {
 	 *
 	 * @param employee - The employee to view
 	 */
-	const handleViewDetails = useCallback((employee: Employee): void => {
-		resetTerminationState();
-		setActiveEmployee(employee);
-		setDialogMode('view');
-		setIsDialogOpen(true);
-	}, [resetTerminationState]);
+	const handleViewDetails = useCallback(
+		(employee: Employee): void => {
+			resetTerminationState();
+			setActiveEmployee(employee);
+			setDialogMode('view');
+			setIsDialogOpen(true);
+		},
+		[resetTerminationState],
+	);
 
 	/**
 	 * Opens the dialog for editing an existing employee.
@@ -1676,9 +1694,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			{
 				accessorKey: 'code',
 				header: t('table.headers.code'),
-				cell: ({ row }) => (
-					<span className="font-medium">{row.original.code}</span>
-				),
+				cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
 			},
 			{
 				id: 'name',
@@ -1732,9 +1748,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				accessorKey: 'shiftType',
 				header: t('table.headers.shift'),
 				cell: ({ row }) =>
-					row.original.shiftType
-						? t(`shiftTypeLabels.${row.original.shiftType}`)
-						: '-',
+					row.original.shiftType ? t(`shiftTypeLabels.${row.original.shiftType}`) : '-',
 			},
 			{
 				accessorKey: 'status',
@@ -1782,8 +1796,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			{
 				accessorKey: 'createdAt',
 				header: t('table.headers.created'),
-				cell: ({ row }) =>
-					format(new Date(row.original.createdAt), t('dateFormat')),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
 				enableGlobalFilter: false,
 			},
 			{
@@ -1801,9 +1814,7 @@ export function EmployeesPageClient(): React.ReactElement {
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
-								<DropdownMenuItem
-									onClick={() => handleViewDetails(row.original)}
-								>
+								<DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
 									<Eye className="mr-2 h-4 w-4" />
 									{t('menu.viewDetails')}
 								</DropdownMenuItem>
@@ -1997,14 +2008,10 @@ export function EmployeesPageClient(): React.ReactElement {
 												{activeEmployee?.status && (
 													<Badge
 														variant={
-															statusVariants[
-															activeEmployee.status
-															]
+															statusVariants[activeEmployee.status]
 														}
 													>
-														{t(
-															`status.${activeEmployee.status}`,
-														)}
+														{t(`status.${activeEmployee.status}`)}
 													</Badge>
 												)}
 											</div>
@@ -2026,9 +2033,7 @@ export function EmployeesPageClient(): React.ReactElement {
 											<p className="text-muted-foreground">
 												{t('fields.location')}
 											</p>
-											<p className="font-medium">
-												{activeEmployeeLocation}
-											</p>
+											<p className="font-medium">{activeEmployeeLocation}</p>
 										</div>
 										<div className="space-y-1">
 											<p className="text-muted-foreground">
@@ -2046,9 +2051,9 @@ export function EmployeesPageClient(): React.ReactElement {
 											<p className="font-medium">
 												{activeEmployee?.hireDate
 													? format(
-														new Date(activeEmployee.hireDate),
-														t('dateFormat'),
-													)
+															new Date(activeEmployee.hireDate),
+															t('dateFormat'),
+														)
 													: tCommon('notAvailable')}
 											</p>
 										</div>
@@ -2059,8 +2064,8 @@ export function EmployeesPageClient(): React.ReactElement {
 											<p className="font-medium">
 												{activeEmployee?.shiftType
 													? t(
-														`shiftTypeLabels.${activeEmployee.shiftType}`,
-													)
+															`shiftTypeLabels.${activeEmployee.shiftType}`,
+														)
 													: tCommon('notAvailable')}
 											</p>
 										</div>
@@ -2110,8 +2115,7 @@ export function EmployeesPageClient(): React.ReactElement {
 												{t('fields.user')}
 											</p>
 											<p className="font-medium truncate">
-												{activeEmployee?.userId ??
-													t('placeholders.noUser')}
+												{activeEmployee?.userId ?? t('placeholders.noUser')}
 											</p>
 										</div>
 									</div>
@@ -2137,9 +2141,7 @@ export function EmployeesPageClient(): React.ReactElement {
 										<TabsTrigger value="exceptions">
 											{t('tabs.exceptions')}
 										</TabsTrigger>
-										<TabsTrigger value="audit">
-											{t('tabs.audit')}
-										</TabsTrigger>
+										<TabsTrigger value="audit">{t('tabs.audit')}</TabsTrigger>
 									</TabsList>
 
 									<TabsContent value="summary">
@@ -2152,58 +2154,91 @@ export function EmployeesPageClient(): React.ReactElement {
 																<Tooltip>
 																	<TooltipTrigger asChild>
 																		<span className="inline-flex items-center gap-1">
-																			{t('summary.availableDays')}
+																			{t(
+																				'summary.availableDays',
+																			)}
 																			<HelpCircle className="h-4 w-4 text-muted-foreground" />
 																		</span>
 																	</TooltipTrigger>
 																	<TooltipContent className="max-w-xs">
 																		<div className="space-y-1 text-sm">
 																			<p className="font-medium">
-																				{t('vacationBalance.tooltip.title')}
+																				{t(
+																					'vacationBalance.tooltip.title',
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.formula')}
+																				{t(
+																					'vacationBalance.tooltip.formula',
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.entitled', {
-																					value: vacationBalance.entitledDays,
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.entitled',
+																					{
+																						value: vacationBalance.entitledDays,
+																					},
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.accrued', {
-																					value: vacationBalance.accruedDays.toFixed(2),
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.accrued',
+																					{
+																						value: vacationBalance.accruedDays.toFixed(
+																							2,
+																						),
+																					},
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.used', {
-																					value: vacationBalance.usedDays,
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.used',
+																					{
+																						value: vacationBalance.usedDays,
+																					},
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.pending', {
-																					value: vacationBalance.pendingDays,
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.pending',
+																					{
+																						value: vacationBalance.pendingDays,
+																					},
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.available', {
-																					value: vacationBalance.availableDays,
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.available',
+																					{
+																						value: vacationBalance.availableDays,
+																					},
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.serviceYear', {
-																					number: vacationBalance.serviceYearNumber,
-																					start:
-																						vacationBalance.serviceYearStartDateKey ??
-																						tCommon('notAvailable'),
-																					end:
-																						vacationBalance.serviceYearEndDateKey ??
-																						tCommon('notAvailable'),
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.serviceYear',
+																					{
+																						number: vacationBalance.serviceYearNumber,
+																						start:
+																							vacationBalance.serviceYearStartDateKey ??
+																							tCommon(
+																								'notAvailable',
+																							),
+																						end:
+																							vacationBalance.serviceYearEndDateKey ??
+																							tCommon(
+																								'notAvailable',
+																							),
+																					},
+																				)}
 																			</p>
 																			<p>
-																				{t('vacationBalance.tooltip.asOf', {
-																					date: vacationBalance.asOfDateKey,
-																				})}
+																				{t(
+																					'vacationBalance.tooltip.asOf',
+																					{
+																						date: vacationBalance.asOfDateKey,
+																					},
+																				)}
 																			</p>
 																		</div>
 																	</TooltipContent>
@@ -2334,7 +2369,8 @@ export function EmployeesPageClient(): React.ReactElement {
 															<Skeleton className="h-4 w-28" />
 														</div>
 													) : attendanceSummary &&
-														attendanceSummary.absentDateKeys.length > 0 ? (
+													  attendanceSummary.absentDateKeys.length >
+															0 ? (
 														<ul className="space-y-2 text-sm">
 															{attendanceSummary.absentDateKeys.map(
 																(dateKey) => (
@@ -2388,7 +2424,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																	</span>
 																	<span className="text-xs text-muted-foreground">
 																		{item.reason ??
-																			t('attendance.noReason')}
+																			t(
+																				'attendance.noReason',
+																			)}
 																	</span>
 																</li>
 															))}
@@ -2421,7 +2459,9 @@ export function EmployeesPageClient(): React.ReactElement {
 														<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
 															<div className="space-y-1">
 																<p className="text-xs text-muted-foreground">
-																	{t('vacations.balance.entitled')}
+																	{t(
+																		'vacations.balance.entitled',
+																	)}
 																</p>
 																<p className="text-lg font-semibold">
 																	{vacationBalance.entitledDays}
@@ -2432,7 +2472,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																	{t('vacations.balance.accrued')}
 																</p>
 																<p className="text-lg font-semibold">
-																	{vacationBalance.accruedDays.toFixed(2)}
+																	{vacationBalance.accruedDays.toFixed(
+																		2,
+																	)}
 																</p>
 															</div>
 															<div className="space-y-1">
@@ -2453,7 +2495,9 @@ export function EmployeesPageClient(): React.ReactElement {
 															</div>
 															<div className="space-y-1">
 																<p className="text-xs text-muted-foreground">
-																	{t('vacations.balance.available')}
+																	{t(
+																		'vacations.balance.available',
+																	)}
 																</p>
 																<p className="text-lg font-semibold">
 																	{vacationBalance.availableDays}
@@ -2473,13 +2517,17 @@ export function EmployeesPageClient(): React.ReactElement {
 													<TableHeader>
 														<TableRow>
 															<TableHead>
-																{t('vacations.table.headers.period')}
+																{t(
+																	'vacations.table.headers.period',
+																)}
 															</TableHead>
 															<TableHead>
 																{t('vacations.table.headers.days')}
 															</TableHead>
 															<TableHead>
-																{t('vacations.table.headers.status')}
+																{t(
+																	'vacations.table.headers.status',
+																)}
 															</TableHead>
 														</TableRow>
 													</TableHeader>
@@ -2502,7 +2550,10 @@ export function EmployeesPageClient(): React.ReactElement {
 															)
 														) : vacationRequests.length === 0 ? (
 															<TableRow>
-																<TableCell colSpan={3} className="h-20 text-center">
+																<TableCell
+																	colSpan={3}
+																	className="h-20 text-center"
+																>
 																	{t('vacations.table.empty')}
 																</TableCell>
 															</TableRow>
@@ -2520,10 +2571,14 @@ export function EmployeesPageClient(): React.ReactElement {
 																		)}
 																	</TableCell>
 																	<TableCell>
-																		{tVacations('table.daysSummary', {
-																			vacation: request.vacationDays,
-																			total: request.totalDays,
-																		})}
+																		{tVacations(
+																			'table.daysSummary',
+																			{
+																				vacation:
+																					request.vacationDays,
+																				total: request.totalDays,
+																			},
+																		)}
 																	</TableCell>
 																	<TableCell>
 																		<Badge variant="outline">
@@ -2559,22 +2614,27 @@ export function EmployeesPageClient(): React.ReactElement {
 												</TableHeader>
 												<TableBody>
 													{isLoadingInsights ? (
-														Array.from({ length: 3 }).map((_, index) => (
-															<TableRow key={index}>
-																<TableCell>
-																	<Skeleton className="h-4 w-24" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-20" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-16" />
-																</TableCell>
-															</TableRow>
-														))
+														Array.from({ length: 3 }).map(
+															(_, index) => (
+																<TableRow key={index}>
+																	<TableCell>
+																		<Skeleton className="h-4 w-24" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-20" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-16" />
+																	</TableCell>
+																</TableRow>
+															),
+														)
 													) : payrollRuns.length === 0 ? (
 														<TableRow>
-															<TableCell colSpan={3} className="h-20 text-center">
+															<TableCell
+																colSpan={3}
+																className="h-20 text-center"
+															>
 																{t('payroll.table.empty')}
 															</TableCell>
 														</TableRow>
@@ -2619,9 +2679,15 @@ export function EmployeesPageClient(): React.ReactElement {
 												<CardContent>
 													<div className="grid gap-4 sm:grid-cols-2">
 														<TerminationDateField
-															label={t('finiquito.fields.terminationDate')}
-															placeholder={t('finiquito.placeholders.terminationDate')}
-															value={terminationForm.terminationDateKey}
+															label={t(
+																'finiquito.fields.terminationDate',
+															)}
+															placeholder={t(
+																'finiquito.placeholders.terminationDate',
+															)}
+															value={
+																terminationForm.terminationDateKey
+															}
 															onChange={(nextValue) =>
 																updateTerminationForm({
 																	terminationDateKey: nextValue,
@@ -2630,9 +2696,15 @@ export function EmployeesPageClient(): React.ReactElement {
 															disabled={isTerminationLocked}
 														/>
 														<TerminationDateField
-															label={t('finiquito.fields.lastDayWorkedDate')}
-															placeholder={t('finiquito.placeholders.lastDayWorkedDate')}
-															value={terminationForm.lastDayWorkedDateKey}
+															label={t(
+																'finiquito.fields.lastDayWorkedDate',
+															)}
+															placeholder={t(
+																'finiquito.placeholders.lastDayWorkedDate',
+															)}
+															value={
+																terminationForm.lastDayWorkedDateKey
+															}
 															onChange={(nextValue) =>
 																updateTerminationForm({
 																	lastDayWorkedDateKey: nextValue,
@@ -2642,13 +2714,18 @@ export function EmployeesPageClient(): React.ReactElement {
 														/>
 														<div className="space-y-2">
 															<Label>
-																{t('finiquito.fields.terminationReason')}
+																{t(
+																	'finiquito.fields.terminationReason',
+																)}
 															</Label>
 															<Select
-																value={terminationForm.terminationReason}
+																value={
+																	terminationForm.terminationReason
+																}
 																onValueChange={(value) =>
 																	updateTerminationForm({
-																		terminationReason: value as TerminationReason,
+																		terminationReason:
+																			value as TerminationReason,
 																	})
 																}
 																disabled={isTerminationLocked}
@@ -2661,24 +2738,29 @@ export function EmployeesPageClient(): React.ReactElement {
 																	/>
 																</SelectTrigger>
 																<SelectContent>
-																	{terminationReasonOptions.map((option) => (
-																		<SelectItem
-																			key={option.value}
-																			value={option.value}
-																		>
-																			{t(option.labelKey)}
-																		</SelectItem>
-																	))}
+																	{terminationReasonOptions.map(
+																		(option) => (
+																			<SelectItem
+																				key={option.value}
+																				value={option.value}
+																			>
+																				{t(option.labelKey)}
+																			</SelectItem>
+																		),
+																	)}
 																</SelectContent>
 															</Select>
 														</div>
 														<div className="space-y-2">
-															<Label>{t('finiquito.fields.contractType')}</Label>
+															<Label>
+																{t('finiquito.fields.contractType')}
+															</Label>
 															<Select
 																value={terminationForm.contractType}
 																onValueChange={(value) =>
 																	updateTerminationForm({
-																		contractType: value as EmploymentContractType,
+																		contractType:
+																			value as EmploymentContractType,
 																	})
 																}
 																disabled={isTerminationLocked}
@@ -2691,19 +2773,23 @@ export function EmployeesPageClient(): React.ReactElement {
 																	/>
 																</SelectTrigger>
 																<SelectContent>
-																	{contractTypeOptions.map((option) => (
-																		<SelectItem
-																			key={option.value}
-																			value={option.value}
-																		>
-																			{t(option.labelKey)}
-																		</SelectItem>
-																	))}
+																	{contractTypeOptions.map(
+																		(option) => (
+																			<SelectItem
+																				key={option.value}
+																				value={option.value}
+																			>
+																				{t(option.labelKey)}
+																			</SelectItem>
+																		),
+																	)}
 																</SelectContent>
 															</Select>
 														</div>
 														<div className="space-y-2">
-															<Label>{t('finiquito.fields.unpaidDays')}</Label>
+															<Label>
+																{t('finiquito.fields.unpaidDays')}
+															</Label>
 															<Input
 																type="number"
 																min="0"
@@ -2711,15 +2797,20 @@ export function EmployeesPageClient(): React.ReactElement {
 																value={terminationForm.unpaidDays}
 																onChange={(event) =>
 																	updateTerminationForm({
-																		unpaidDays: event.target.value,
+																		unpaidDays:
+																			event.target.value,
 																	})
 																}
-																placeholder={t('finiquito.placeholders.unpaidDays')}
+																placeholder={t(
+																	'finiquito.placeholders.unpaidDays',
+																)}
 																disabled={isTerminationLocked}
 															/>
 														</div>
 														<div className="space-y-2">
-															<Label>{t('finiquito.fields.otherDue')}</Label>
+															<Label>
+																{t('finiquito.fields.otherDue')}
+															</Label>
 															<Input
 																type="number"
 																min="0"
@@ -2727,25 +2818,33 @@ export function EmployeesPageClient(): React.ReactElement {
 																value={terminationForm.otherDue}
 																onChange={(event) =>
 																	updateTerminationForm({
-																		otherDue: event.target.value,
+																		otherDue:
+																			event.target.value,
 																	})
 																}
-																placeholder={t('finiquito.placeholders.otherDue')}
+																placeholder={t(
+																	'finiquito.placeholders.otherDue',
+																)}
 																disabled={isTerminationLocked}
 															/>
 														</div>
 														<div className="space-y-2">
 															<Label>
-																{t('finiquito.fields.vacationBalanceDays')}
+																{t(
+																	'finiquito.fields.vacationBalanceDays',
+																)}
 															</Label>
 															<Input
 																type="number"
 																min="0"
 																step="0.01"
-																value={terminationForm.vacationBalanceDays}
+																value={
+																	terminationForm.vacationBalanceDays
+																}
 																onChange={(event) =>
 																	updateTerminationForm({
-																		vacationBalanceDays: event.target.value,
+																		vacationBalanceDays:
+																			event.target.value,
 																	})
 																}
 																placeholder={t(
@@ -2754,21 +2853,28 @@ export function EmployeesPageClient(): React.ReactElement {
 																disabled={isTerminationLocked}
 															/>
 															<p className="text-xs text-muted-foreground">
-																{t('finiquito.helpers.vacationBalanceDays')}
+																{t(
+																	'finiquito.helpers.vacationBalanceDays',
+																)}
 															</p>
 														</div>
 														<div className="space-y-2">
 															<Label>
-																{t('finiquito.fields.dailySalaryIndemnizacion')}
+																{t(
+																	'finiquito.fields.dailySalaryIndemnizacion',
+																)}
 															</Label>
 															<Input
 																type="number"
 																min="0"
 																step="0.01"
-																value={terminationForm.dailySalaryIndemnizacion}
+																value={
+																	terminationForm.dailySalaryIndemnizacion
+																}
 																onChange={(event) =>
 																	updateTerminationForm({
-																		dailySalaryIndemnizacion: event.target.value,
+																		dailySalaryIndemnizacion:
+																			event.target.value,
 																	})
 																}
 																placeholder={t(
@@ -2777,16 +2883,25 @@ export function EmployeesPageClient(): React.ReactElement {
 																disabled={isTerminationLocked}
 															/>
 															<p className="text-xs text-muted-foreground">
-																{t('finiquito.helpers.dailySalaryIndemnizacion')}
+																{t(
+																	'finiquito.helpers.dailySalaryIndemnizacion',
+																)}
 															</p>
 														</div>
 														<div className="space-y-2 sm:col-span-2">
-															<Label>{t('finiquito.fields.terminationNotes')}</Label>
+															<Label>
+																{t(
+																	'finiquito.fields.terminationNotes',
+																)}
+															</Label>
 															<Textarea
-																value={terminationForm.terminationNotes}
+																value={
+																	terminationForm.terminationNotes
+																}
 																onChange={(event) =>
 																	updateTerminationForm({
-																		terminationNotes: event.target.value,
+																		terminationNotes:
+																			event.target.value,
 																	})
 																}
 																placeholder={t(
@@ -2802,7 +2917,9 @@ export function EmployeesPageClient(): React.ReactElement {
 															<HelpCircle className="mt-0.5 h-4 w-4" />
 															<span>
 																{t('finiquito.form.previewHint', {
-																	action: t('finiquito.actions.preview'),
+																	action: t(
+																		'finiquito.actions.preview',
+																	),
 																})}
 															</span>
 														</div>
@@ -2817,7 +2934,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																{terminationPreviewMutation.isPending ? (
 																	<>
 																		<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																		{t('finiquito.actions.previewLoading')}
+																		{t(
+																			'finiquito.actions.previewLoading',
+																		)}
 																	</>
 																) : (
 																	t('finiquito.actions.preview')
@@ -2826,7 +2945,9 @@ export function EmployeesPageClient(): React.ReactElement {
 
 															<Dialog
 																open={isTerminateDialogOpen}
-																onOpenChange={setIsTerminateDialogOpen}
+																onOpenChange={
+																	setIsTerminateDialogOpen
+																}
 															>
 																<DialogTrigger asChild>
 																	<Button
@@ -2839,45 +2960,72 @@ export function EmployeesPageClient(): React.ReactElement {
 																		{terminationMutation.isPending ? (
 																			<>
 																				<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																				{t('finiquito.actions.confirmLoading')}
+																				{t(
+																					'finiquito.actions.confirmLoading',
+																				)}
 																			</>
 																		) : (
-																			t('finiquito.actions.confirm')
+																			t(
+																				'finiquito.actions.confirm',
+																			)
 																		)}
 																	</Button>
 																</DialogTrigger>
 																<DialogContent>
 																	<DialogHeader>
 																		<DialogTitle>
-																			{t('finiquito.dialog.title')}
+																			{t(
+																				'finiquito.dialog.title',
+																			)}
 																		</DialogTitle>
 																		<DialogDescription>
-																			{t('finiquito.dialog.description', {
-																				name: activeEmployeeName || tCommon('notAvailable'),
-																				total: terminationPreview
-																					? formatCurrency(
-																							terminationPreview.totals.grossTotal,
-																						)
-																					: tCommon('notAvailable'),
-																			})}
+																			{t(
+																				'finiquito.dialog.description',
+																				{
+																					name:
+																						activeEmployeeName ||
+																						tCommon(
+																							'notAvailable',
+																						),
+																					total: terminationPreview
+																						? formatCurrency(
+																								terminationPreview
+																									.totals
+																									.grossTotal,
+																							)
+																						: tCommon(
+																								'notAvailable',
+																							),
+																				},
+																			)}
 																		</DialogDescription>
 																	</DialogHeader>
 																	<DialogFooter>
 																		<Button
 																			variant="outline"
-																			onClick={() => setIsTerminateDialogOpen(false)}
+																			onClick={() =>
+																				setIsTerminateDialogOpen(
+																					false,
+																				)
+																			}
 																		>
 																			{tCommon('cancel')}
 																		</Button>
 																		<Button
 																			variant="destructive"
-																			onClick={handleTerminateEmployee}
-																			disabled={terminationMutation.isPending}
+																			onClick={
+																				handleTerminateEmployee
+																			}
+																			disabled={
+																				terminationMutation.isPending
+																			}
 																		>
 																			{terminationMutation.isPending ? (
 																				<>
 																					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																					{t('finiquito.actions.confirmLoading')}
+																					{t(
+																						'finiquito.actions.confirmLoading',
+																					)}
 																				</>
 																			) : (
 																				tCommon('confirm')
@@ -2893,7 +3041,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																		target="_blank"
 																		rel="noopener noreferrer"
 																	>
-																		{t('finiquito.actions.downloadReceipt')}
+																		{t(
+																			'finiquito.actions.downloadReceipt',
+																		)}
 																	</a>
 																</Button>
 															) : (
@@ -2907,10 +3057,14 @@ export function EmployeesPageClient(): React.ReactElement {
 																	{isLoadingTerminationSettlement ? (
 																		<>
 																			<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																			{t('finiquito.actions.downloadReceiptLoading')}
+																			{t(
+																				'finiquito.actions.downloadReceiptLoading',
+																			)}
 																		</>
 																	) : (
-																		t('finiquito.actions.downloadReceipt')
+																		t(
+																			'finiquito.actions.downloadReceipt',
+																		)
 																	)}
 																</Button>
 															)}
@@ -2936,17 +3090,23 @@ export function EmployeesPageClient(): React.ReactElement {
 																	>
 																		<span>{line.label}</span>
 																		<span className="font-medium">
-																			{formatCurrency(line.value)}
+																			{formatCurrency(
+																				line.value,
+																			)}
 																		</span>
 																	</div>
 																))}
 																<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
 																	<span>
-																		{t('finiquito.breakdown.totalGross')}
+																		{t(
+																			'finiquito.breakdown.totalGross',
+																		)}
 																	</span>
 																	<span>
 																		{formatCurrency(
-																			terminationPreview.totals.finiquitoTotalGross,
+																			terminationPreview
+																				.totals
+																				.finiquitoTotalGross,
 																		)}
 																	</span>
 																</div>
@@ -2969,7 +3129,8 @@ export function EmployeesPageClient(): React.ReactElement {
 														{terminationPreview ? (
 															<div className="text-2xl font-semibold">
 																{formatCurrency(
-																	terminationPreview.totals.grossTotal,
+																	terminationPreview.totals
+																		.grossTotal,
 																)}
 															</div>
 														) : (
@@ -2983,37 +3144,51 @@ export function EmployeesPageClient(): React.ReactElement {
 												<Accordion type="single" collapsible>
 													<AccordionItem value="liquidacion">
 														<AccordionTrigger>
-															{t('finiquito.results.liquidacionTitle')}
+															{t(
+																'finiquito.results.liquidacionTitle',
+															)}
 														</AccordionTrigger>
 														<AccordionContent>
 															{terminationPreview ? (
 																<div className="space-y-2 text-sm">
-																	{liquidacionLines.map((line) => (
-																		<div
-																			key={line.key}
-																			className="flex items-center justify-between"
-																		>
-																			<span>{line.label}</span>
-																			<span className="font-medium">
-																				{formatCurrency(line.value)}
-																			</span>
-																		</div>
-																	))}
+																	{liquidacionLines.map(
+																		(line) => (
+																			<div
+																				key={line.key}
+																				className="flex items-center justify-between"
+																			>
+																				<span>
+																					{line.label}
+																				</span>
+																				<span className="font-medium">
+																					{formatCurrency(
+																						line.value,
+																					)}
+																				</span>
+																			</div>
+																		),
+																	)}
 																	<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
 																		<span>
-																			{t('finiquito.breakdown.totalGross')}
+																			{t(
+																				'finiquito.breakdown.totalGross',
+																			)}
 																		</span>
 																		<span>
 																			{formatCurrency(
-																				terminationPreview.totals
+																				terminationPreview
+																					.totals
 																					.liquidacionTotalGross,
 																			)}
 																		</span>
 																	</div>
 																	{terminationPreview.totals
-																		.liquidacionTotalGross === 0 && (
+																		.liquidacionTotalGross ===
+																		0 && (
 																		<p className="text-xs text-muted-foreground">
-																			{t('finiquito.empty.liquidacion')}
+																			{t(
+																				'finiquito.empty.liquidacion',
+																			)}
 																		</p>
 																	)}
 																</div>
@@ -3047,22 +3222,27 @@ export function EmployeesPageClient(): React.ReactElement {
 												</TableHeader>
 												<TableBody>
 													{isLoadingInsights ? (
-														Array.from({ length: 3 }).map((_, index) => (
-															<TableRow key={index}>
-																<TableCell>
-																	<Skeleton className="h-4 w-24" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-20" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-28" />
-																</TableCell>
-															</TableRow>
-														))
+														Array.from({ length: 3 }).map(
+															(_, index) => (
+																<TableRow key={index}>
+																	<TableCell>
+																		<Skeleton className="h-4 w-24" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-20" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-28" />
+																	</TableCell>
+																</TableRow>
+															),
+														)
 													) : upcomingExceptions.length === 0 ? (
 														<TableRow>
-															<TableCell colSpan={3} className="h-20 text-center">
+															<TableCell
+																colSpan={3}
+																className="h-20 text-center"
+															>
 																{t('exceptions.table.empty')}
 															</TableCell>
 														</TableRow>
@@ -3080,7 +3260,8 @@ export function EmployeesPageClient(): React.ReactElement {
 																	)}
 																</TableCell>
 																<TableCell>
-																	{item.reason ?? tCommon('notAvailable')}
+																	{item.reason ??
+																		tCommon('notAvailable')}
 																</TableCell>
 															</TableRow>
 														))
@@ -3111,31 +3292,37 @@ export function EmployeesPageClient(): React.ReactElement {
 												</TableHeader>
 												<TableBody>
 													{isLoadingAudit ? (
-														Array.from({ length: 3 }).map((_, index) => (
-															<TableRow key={index}>
-																<TableCell>
-																	<Skeleton className="h-4 w-24" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-24" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-28" />
-																</TableCell>
-																<TableCell>
-																	<Skeleton className="h-4 w-32" />
-																</TableCell>
-															</TableRow>
-														))
+														Array.from({ length: 3 }).map(
+															(_, index) => (
+																<TableRow key={index}>
+																	<TableCell>
+																		<Skeleton className="h-4 w-24" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-24" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-28" />
+																	</TableCell>
+																	<TableCell>
+																		<Skeleton className="h-4 w-32" />
+																	</TableCell>
+																</TableRow>
+															),
+														)
 													) : auditEvents.length === 0 ? (
 														<TableRow>
-															<TableCell colSpan={4} className="h-20 text-center">
+															<TableCell
+																colSpan={4}
+																className="h-20 text-center"
+															>
 																{t('audit.table.empty')}
 															</TableCell>
 														</TableRow>
 													) : (
 														auditEvents.map((event) => {
-															const actorLabel = event.actorName ??
+															const actorLabel =
+																event.actorName ??
 																event.actorEmail ??
 																event.actorUserId;
 															const actorTypeLabel = t(
@@ -3143,35 +3330,46 @@ export function EmployeesPageClient(): React.ReactElement {
 															);
 															const fieldsLabel =
 																event.changedFields &&
-																	event.changedFields.length > 0
+																event.changedFields.length > 0
 																	? event.changedFields
-																		.map(
-																			(field) =>
-																				auditFieldLabels[field] ??
-																				t('audit.fields.unknown', {
-																					field,
-																				}),
-																		)
-																		.join(', ')
+																			.map(
+																				(field) =>
+																					auditFieldLabels[
+																						field
+																					] ??
+																					t(
+																						'audit.fields.unknown',
+																						{
+																							field,
+																						},
+																					),
+																			)
+																			.join(', ')
 																	: t('audit.fields.none');
 
 															return (
 																<TableRow key={event.id}>
 																	<TableCell>
 																		{format(
-																			new Date(event.createdAt),
+																			new Date(
+																				event.createdAt,
+																			),
 																			t('dateFormat'),
 																		)}
 																	</TableCell>
 																	<TableCell>
-																		{t(`audit.actions.${event.action}`)}
+																		{t(
+																			`audit.actions.${event.action}`,
+																		)}
 																	</TableCell>
 																	<TableCell>
 																		{actorLabel
 																			? `${actorTypeLabel} - ${actorLabel}`
 																			: actorTypeLabel}
 																	</TableCell>
-																	<TableCell>{fieldsLabel}</TableCell>
+																	<TableCell>
+																		{fieldsLabel}
+																	</TableCell>
 																</TableRow>
 															);
 														})
@@ -3370,7 +3568,10 @@ export function EmployeesPageClient(): React.ReactElement {
 												<field.SelectField
 													label={t('fields.status')}
 													options={[
-														{ value: 'ACTIVE', label: t('status.ACTIVE') },
+														{
+															value: 'ACTIVE',
+															label: t('status.ACTIVE'),
+														},
 														{
 															value: 'INACTIVE',
 															label: t('status.INACTIVE'),
@@ -3415,13 +3616,16 @@ export function EmployeesPageClient(): React.ReactElement {
 													);
 													if (
 														!isValid(parsedValue) ||
-														format(parsedValue, 'yyyy-MM-dd') !== trimmedValue
+														format(parsedValue, 'yyyy-MM-dd') !==
+															trimmedValue
 													) {
 														return t('validation.hireDateInvalid');
 													}
 													const today = startOfDay(new Date());
 													if (isAfter(startOfDay(parsedValue), today)) {
-														return t('validation.hireDateFutureNotAllowed');
+														return t(
+															'validation.hireDateFutureNotAllowed',
+														);
 													}
 													return undefined;
 												},
@@ -3464,7 +3668,9 @@ export function EmployeesPageClient(): React.ReactElement {
 															label: t('paymentFrequency.MONTHLY'),
 														},
 													]}
-													placeholder={t('placeholders.selectPaymentFrequency')}
+													placeholder={t(
+														'placeholders.selectPaymentFrequency',
+													)}
 												/>
 											)}
 										</form.AppField>
@@ -3567,7 +3773,8 @@ export function EmployeesPageClient(): React.ReactElement {
 																checked={entry.isWorkingDay}
 																onChange={(e) =>
 																	upsertScheduleEntry(day.value, {
-																		isWorkingDay: e.target.checked,
+																		isWorkingDay:
+																			e.target.checked,
 																	})
 																}
 															/>

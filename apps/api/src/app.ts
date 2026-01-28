@@ -17,6 +17,7 @@ import { buildErrorResponse } from './utils/error-response.js';
 import { attendanceRoutes } from './routes/attendance.js';
 import { deviceRoutes } from './routes/devices.js';
 import { employeeRoutes } from './routes/employees.js';
+import { incapacityRoutes } from './routes/incapacities.js';
 import { jobPositionRoutes } from './routes/job-positions.js';
 import { locationRoutes } from './routes/locations.js';
 import { recognitionRoutes } from './routes/recognition.js';
@@ -87,23 +88,26 @@ const isOriginAllowed = (origin?: string | null): boolean => {
  * @returns Elysia plugin containing authenticated domain routes
  */
 const createProtectedRoutes = () => {
-	return new Elysia({ name: 'protected-routes' })
-		.use(combinedAuthPlugin)
-		// Domain entity CRUD routes (all require authentication)
-		.use(locationRoutes)
-		.use(jobPositionRoutes)
-		.use(employeeRoutes)
-		.use(deviceRoutes)
-		.use(attendanceRoutes)
-		.use(organizationRoutes)
-		.use(payrollSettingsRoutes)
-		.use(payrollRoutes)
-		.use(scheduleTemplateRoutes)
-		.use(scheduleExceptionRoutes)
-		.use(schedulingRoutes)
-		.use(vacationRoutes)
-		// Face recognition routes (requires authentication)
-		.use(recognitionRoutes);
+	return (
+		new Elysia({ name: 'protected-routes' })
+			.use(combinedAuthPlugin)
+			// Domain entity CRUD routes (all require authentication)
+			.use(locationRoutes)
+			.use(jobPositionRoutes)
+			.use(employeeRoutes)
+			.use(deviceRoutes)
+			.use(attendanceRoutes)
+			.use(organizationRoutes)
+			.use(payrollSettingsRoutes)
+			.use(payrollRoutes)
+			.use(scheduleTemplateRoutes)
+			.use(scheduleExceptionRoutes)
+			.use(schedulingRoutes)
+			.use(vacationRoutes)
+			.use(incapacityRoutes)
+			// Face recognition routes (requires authentication)
+			.use(recognitionRoutes)
+	);
 };
 
 /**
@@ -114,54 +118,55 @@ const createProtectedRoutes = () => {
 export const createApp = () => {
 	// Configure logger based on environment
 	configureLogger({
-		level:
-			(process.env.LOG_LEVEL as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') ?? 'INFO',
+		level: (process.env.LOG_LEVEL as 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'SILENT') ?? 'INFO',
 		colorize: process.env.NODE_ENV !== 'production',
 	});
 
-	return new Elysia()
-		// Core plugins - order matters: CORS, error handler and logger should be first
-		.use(
-			cors({
-				origin: (request: Request) => isOriginAllowed(request.headers.get('origin')),
-				methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-				credentials: true,
-				allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
-			}),
-		)
-		.use(errorHandlerPlugin)
-		.use(loggerPlugin)
-		.use(
-			openapi({
-				documentation: {
-					info: {
-						title: 'Sen Checkin API Documentation',
-						version: '0.0.2',
-					},
-					components: {
-						securitySchemes: {
-							bearerAuth: {
-								type: 'http',
-								scheme: 'bearer',
-								description: 'Session token or API key',
-							},
-							apiKey: {
-								type: 'apiKey',
-								in: 'header',
-								name: 'x-api-key',
-								description: 'API key for machine-to-machine authentication',
+	return (
+		new Elysia()
+			// Core plugins - order matters: CORS, error handler and logger should be first
+			.use(
+				cors({
+					origin: (request: Request) => isOriginAllowed(request.headers.get('origin')),
+					methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+					credentials: true,
+					allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+				}),
+			)
+			.use(errorHandlerPlugin)
+			.use(loggerPlugin)
+			.use(
+				openapi({
+					documentation: {
+						info: {
+							title: 'Sen Checkin API Documentation',
+							version: '0.0.2',
+						},
+						components: {
+							securitySchemes: {
+								bearerAuth: {
+									type: 'http',
+									scheme: 'bearer',
+									description: 'Session token or API key',
+								},
+								apiKey: {
+									type: 'apiKey',
+									in: 'header',
+									name: 'x-api-key',
+									description: 'API key for machine-to-machine authentication',
+								},
 							},
 						},
+						security: [{ bearerAuth: [] }, { apiKey: [] }],
 					},
-					security: [{ bearerAuth: [] }, { apiKey: [] }],
-				},
-			}),
-		)
-		.use(opentelemetry())
-		// Public authentication routes (sign-in, sign-up, etc.)
-		.all('/api/auth/*', betterAuthView)
-		// All protected routes (require authentication)
-		.use(createProtectedRoutes());
+				}),
+			)
+			.use(opentelemetry())
+			// Public authentication routes (sign-in, sign-up, etc.)
+			.all('/api/auth/*', betterAuthView)
+			// All protected routes (require authentication)
+			.use(createProtectedRoutes())
+	);
 };
 
 export type App = ReturnType<typeof createApp>;

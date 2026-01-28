@@ -2,39 +2,39 @@
 name: Mapa + ubicaciones
 overview: Refactorizar el dashboard para que sea un mapa a pantalla completa (mapcn) con marcadores de ubicaciones y overlays de insights + lista lateral; mejorar el flujo de alta/edición de ubicaciones con búsqueda por dirección (Nominatim) + ajuste en mapa, guardando lat/lng.
 todos:
-  - id: db-add-location-coords
-    content: Agregar latitude/longitude (nullable) a tabla location en API + migración Drizzle + actualizar schemas/crud y routes/locations.
-    status: pending
-  - id: types-update-location
-    content: Actualizar tipos Location (packages/types y apps/web/lib/client-functions) para incluir coords y normalización si aplica.
-    status: pending
-    dependencies:
-      - db-add-location-coords
-  - id: web-geocode-endpoint
-    content: Crear route handler /api/geocode que proxyee Nominatim (search) con validación, tipado y caching.
-    status: pending
-  - id: locations-ui-map-picker
-    content: "Mejorar Locations UI: combobox búsqueda de dirección + mapa para ajustar coords + enviar coords en server actions; i18n + UX pulida."
-    status: pending
-    dependencies:
-      - web-geocode-endpoint
-      - types-update-location
-  - id: dashboard-map-refactor
-    content: Refactor Dashboard a mapa full-page con overlays (insights + lista) y marcadores (hover count, click popup con empleados).
-    status: pending
-    dependencies:
-      - types-update-location
-  - id: i18n-es-strings
-    content: Agregar llaves nuevas en apps/web/messages/es.json (Dashboard/Locations) y eliminar cualquier string de UI hardcodeado nuevo.
-    status: pending
-    dependencies:
-      - locations-ui-map-picker
-      - dashboard-map-refactor
-  - id: final-quality-checks
-    content: Correr bun run check-types y bun run lint y corregir cualquier issue introducido.
-    status: pending
-    dependencies:
-      - i18n-es-strings
+    - id: db-add-location-coords
+      content: Agregar latitude/longitude (nullable) a tabla location en API + migración Drizzle + actualizar schemas/crud y routes/locations.
+      status: pending
+    - id: types-update-location
+      content: Actualizar tipos Location (packages/types y apps/web/lib/client-functions) para incluir coords y normalización si aplica.
+      status: pending
+      dependencies:
+          - db-add-location-coords
+    - id: web-geocode-endpoint
+      content: Crear route handler /api/geocode que proxyee Nominatim (search) con validación, tipado y caching.
+      status: pending
+    - id: locations-ui-map-picker
+      content: 'Mejorar Locations UI: combobox búsqueda de dirección + mapa para ajustar coords + enviar coords en server actions; i18n + UX pulida.'
+      status: pending
+      dependencies:
+          - web-geocode-endpoint
+          - types-update-location
+    - id: dashboard-map-refactor
+      content: Refactor Dashboard a mapa full-page con overlays (insights + lista) y marcadores (hover count, click popup con empleados).
+      status: pending
+      dependencies:
+          - types-update-location
+    - id: i18n-es-strings
+      content: Agregar llaves nuevas en apps/web/messages/es.json (Dashboard/Locations) y eliminar cualquier string de UI hardcodeado nuevo.
+      status: pending
+      dependencies:
+          - locations-ui-map-picker
+          - dashboard-map-refactor
+    - id: final-quality-checks
+      content: Correr bun run check-types y bun run lint y corregir cualquier issue introducido.
+      status: pending
+      dependencies:
+          - i18n-es-strings
 ---
 
 # Dashboard con mapa + flujo de ubicaciones
@@ -195,7 +195,5 @@ flowchart TD
   Locations --> SideList
   Present --> SideList
 ```
-
-
 
 ## Verificaciones al final (obligatorio)

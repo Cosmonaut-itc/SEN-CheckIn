@@ -14,11 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -67,7 +63,12 @@ import {
 	getWeekStartDateKey,
 } from '@/lib/date-key';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
 
@@ -230,11 +231,7 @@ export function PayrollPageClient(): React.ReactElement {
 
 	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
-		const next = computePeriod(
-			settings?.weekStartDay ?? 1,
-			paymentFrequency,
-			payrollTimeZone,
-		);
+		const next = computePeriod(settings?.weekStartDay ?? 1, paymentFrequency, payrollTimeZone);
 		setPeriodStartDateKey(next.periodStartDateKey);
 		setPeriodEndDateKey(next.periodEndDateKey);
 	}, [settings?.weekStartDay, payrollTimeZone, paymentFrequency]);
@@ -250,14 +247,8 @@ export function PayrollPageClient(): React.ReactElement {
 		[organizationId, paymentFrequency, periodEndDateKey, periodStartDateKey],
 	);
 
-	const periodStartDate = useMemo(
-		() => parseDateKey(periodStartDateKey),
-		[periodStartDateKey],
-	);
-	const periodEndDate = useMemo(
-		() => parseDateKey(periodEndDateKey),
-		[periodEndDateKey],
-	);
+	const periodStartDate = useMemo(() => parseDateKey(periodStartDateKey), [periodStartDateKey]);
+	const periodEndDate = useMemo(() => parseDateKey(periodEndDateKey), [periodEndDateKey]);
 
 	const isInvalidPeriodRange =
 		Boolean(periodStartDate) &&
@@ -284,7 +275,9 @@ export function PayrollPageClient(): React.ReactElement {
 		if (!effectiveCalculation) {
 			return null;
 		}
-		return effectiveCalculation.taxSummary ?? aggregateTaxSummary(effectiveCalculation.employees);
+		return (
+			effectiveCalculation.taxSummary ?? aggregateTaxSummary(effectiveCalculation.employees)
+		);
 	}, [effectiveCalculation]);
 
 	const onExportCsv = (): void => {
@@ -317,6 +310,11 @@ export function PayrollPageClient(): React.ReactElement {
 			{
 				key: 'vacationPremiumAmount',
 				label: t('csv.headers.vacationPremiumAmount'),
+			},
+			{ key: 'incapacityDays', label: t('csv.headers.incapacityDays') },
+			{
+				key: 'incapacitySubsidy',
+				label: t('csv.headers.incapacitySubsidy'),
 			},
 			{ key: 'seventhDayPay', label: t('csv.headers.seventhDayPay') },
 			{ key: 'totalPay', label: t('csv.headers.totalPay') },
@@ -387,6 +385,8 @@ export function PayrollPageClient(): React.ReactElement {
 				vacationDaysPaid: row.vacationDaysPaid ?? 0,
 				vacationPayAmount: row.vacationPayAmount ?? 0,
 				vacationPremiumAmount: row.vacationPremiumAmount ?? 0,
+				incapacityDays: row.incapacitySummary?.daysIncapacityTotal ?? 0,
+				incapacitySubsidy: row.incapacitySummary?.expectedImssSubsidyAmount ?? 0,
 				seventhDayPay: row.seventhDayPay ?? 0,
 				totalPay: row.totalPay,
 				grossPay: row.grossPay ?? row.totalPay,
@@ -395,8 +395,7 @@ export function PayrollPageClient(): React.ReactElement {
 				employeeWithholdingsImssTotal: row.employeeWithholdings?.imssEmployee?.total ?? 0,
 				employerCostsTotal: row.employerCosts?.total ?? 0,
 				employerCostsImssTotal: row.employerCosts?.imssEmployer?.total ?? 0,
-				employerCostsImssGuarderias:
-					row.employerCosts?.imssEmployer?.guarderias ?? 0,
+				employerCostsImssGuarderias: row.employerCosts?.imssEmployer?.guarderias ?? 0,
 				employerCostsSarRetiro: row.employerCosts?.sarRetiro ?? 0,
 				employerCostsInfonavit: row.employerCosts?.infonavit ?? 0,
 				employerCostsRiskWork: row.employerCosts?.riskWork ?? 0,
@@ -513,8 +512,7 @@ export function PayrollPageClient(): React.ReactElement {
 			{
 				accessorKey: 'paymentFrequency',
 				header: t('runHistory.table.frequency'),
-				cell: ({ row }) =>
-					t(`paymentFrequency.${row.original.paymentFrequency}`),
+				cell: ({ row }) => t(`paymentFrequency.${row.original.paymentFrequency}`),
 			},
 			{
 				accessorKey: 'status',
@@ -529,8 +527,7 @@ export function PayrollPageClient(): React.ReactElement {
 			},
 			{
 				id: 'processedAt',
-				accessorFn: (row) =>
-					row.processedAt ? new Date(row.processedAt).getTime() : 0,
+				accessorFn: (row) => (row.processedAt ? new Date(row.processedAt).getTime() : 0),
 				header: t('runHistory.table.processed'),
 				cell: ({ row }) =>
 					row.original.processedAt
@@ -602,7 +599,9 @@ export function PayrollPageClient(): React.ReactElement {
 				<CardContent>
 					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 						<div className="space-y-2">
-							<p className="text-sm font-medium">{t('insights.sections.minimumWage')}</p>
+							<p className="text-sm font-medium">
+								{t('insights.sections.minimumWage')}
+							</p>
 							<ul className="space-y-1 text-sm text-muted-foreground">
 								<li>
 									{t('insights.items.minimumWageGeneral', {
@@ -873,11 +872,15 @@ export function PayrollPageClient(): React.ReactElement {
 											<TableHead>
 												{t('preview.table.mandatoryRest')}
 											</TableHead>
-											<TableHead>
-												{t('preview.table.vacationPay')}
-											</TableHead>
+											<TableHead>{t('preview.table.vacationPay')}</TableHead>
 											<TableHead>
 												{t('preview.table.vacationPremium')}
+											</TableHead>
+											<TableHead>
+												{t('preview.table.incapacityDays')}
+											</TableHead>
+											<TableHead>
+												{t('preview.table.incapacitySubsidy')}
 											</TableHead>
 											<TableHead>{t('preview.table.total')}</TableHead>
 											<TableHead>{t('preview.table.warnings')}</TableHead>
@@ -925,6 +928,20 @@ export function PayrollPageClient(): React.ReactElement {
 														: '-'}
 												</TableCell>
 												<TableCell>
+													{row.incapacitySummary?.daysIncapacityTotal
+														? row.incapacitySummary.daysIncapacityTotal
+														: '-'}
+												</TableCell>
+												<TableCell>
+													{row.incapacitySummary
+														?.expectedImssSubsidyAmount
+														? formatCurrency(
+																row.incapacitySummary
+																	.expectedImssSubsidyAmount,
+															)
+														: '-'}
+												</TableCell>
+												<TableCell>
 													{formatCurrency(row.totalPay)}
 												</TableCell>
 												<TableCell>
@@ -966,136 +983,151 @@ export function PayrollPageClient(): React.ReactElement {
 															<div className="space-y-4 text-sm">
 																<div>
 																	<p className="font-medium">
-																		{t('taxDetail.sections.summary')}
+																		{t(
+																			'taxDetail.sections.summary',
+																		)}
 																	</p>
 																	<div className="mt-2 grid gap-2">
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.grossPay')}
+																				{t(
+																					'taxDetail.labels.grossPay',
+																				)}
 																			</span>
 																			<span className="font-medium">
-																				{formatCurrency(row.grossPay)}
+																				{formatCurrency(
+																					row.grossPay,
+																				)}
 																			</span>
 																		</div>
-																		{row.vacationDaysPaid > 0 && (
+																		{row.vacationDaysPaid >
+																			0 && (
 																			<div className="flex items-center justify-between">
 																				<span className="text-muted-foreground">
-																					{t('taxDetail.labels.vacationDays')}
-																				</span>
-																				<span>{row.vacationDaysPaid}</span>
-																			</div>
-																		)}
-																		{row.vacationPayAmount > 0 && (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t('taxDetail.labels.vacationPay')}
+																					{t(
+																						'taxDetail.labels.vacationDays',
+																					)}
 																				</span>
 																				<span>
-																					{formatCurrency(row.vacationPayAmount)}
+																					{
+																						row.vacationDaysPaid
+																					}
 																				</span>
 																			</div>
 																		)}
-																		{row.vacationPremiumAmount > 0 && (
+																		{row.vacationPayAmount >
+																			0 && (
 																			<div className="flex items-center justify-between">
 																				<span className="text-muted-foreground">
-																					{t('taxDetail.labels.vacationPremium')}
+																					{t(
+																						'taxDetail.labels.vacationPay',
+																					)}
 																				</span>
 																				<span>
-																					{formatCurrency(row.vacationPremiumAmount)}
+																					{formatCurrency(
+																						row.vacationPayAmount,
+																					)}
 																				</span>
 																			</div>
 																		)}
+																		{row.vacationPremiumAmount >
+																			0 && (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t(
+																						'taxDetail.labels.vacationPremium',
+																					)}
+																				</span>
+																				<span>
+																					{formatCurrency(
+																						row.vacationPremiumAmount,
+																					)}
+																				</span>
+																			</div>
+																		)}
+																		{row.incapacitySummary
+																			?.daysIncapacityTotal ? (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t(
+																						'taxDetail.labels.incapacityDays',
+																					)}
+																				</span>
+																				<span>
+																					{
+																						row
+																							.incapacitySummary
+																							.daysIncapacityTotal
+																					}
+																				</span>
+																			</div>
+																		) : null}
+																		{row.incapacitySummary
+																			?.expectedImssSubsidyAmount ? (
+																			<div className="flex items-center justify-between">
+																				<span className="text-muted-foreground">
+																					{t(
+																						'taxDetail.labels.incapacitySubsidy',
+																					)}
+																				</span>
+																				<span>
+																					{formatCurrency(
+																						row
+																							.incapacitySummary
+																							.expectedImssSubsidyAmount,
+																					)}
+																				</span>
+																			</div>
+																		) : null}
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.employeeWithholdings')}
+																				{t(
+																					'taxDetail.labels.employeeWithholdings',
+																				)}
 																			</span>
 																			<span>
 																				{formatCurrency(
-																					row.employeeWithholdings.total,
+																					row
+																						.employeeWithholdings
+																						.total,
 																				)}
 																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.netPay')}
+																				{t(
+																					'taxDetail.labels.netPay',
+																				)}
 																			</span>
 																			<span className="font-medium">
-																				{formatCurrency(row.netPay)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.employerCosts')}
-																			</span>
-																			<span>
 																				{formatCurrency(
-																					row.employerCosts.total,
+																					row.netPay,
 																				)}
 																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.companyCost')}
+																				{t(
+																					'taxDetail.labels.employerCosts',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employerCosts
+																						.total,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.companyCost',
+																				)}
 																			</span>
 																			<span className="font-medium">
-																				{formatCurrency(row.companyCost)}
-																			</span>
-																		</div>
-																	</div>
-																</div>
-																<div>
-																	<p className="font-medium">
-																		{t('taxDetail.sections.bases')}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.sbcDaily')}
-																			</span>
-																			<span>{formatCurrency(row.bases.sbcDaily)}</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.sbcPeriod')}
-																			</span>
-																			<span>{formatCurrency(row.bases.sbcPeriod)}</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.isrBase')}
-																			</span>
-																			<span>{formatCurrency(row.bases.isrBase)}</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.daysInPeriod')}
-																			</span>
-																			<span>{row.bases.daysInPeriod}</span>
-																		</div>
-																	</div>
-																</div>
-																<div>
-																	<p className="font-medium">
-																		{t('taxDetail.sections.employeeWithholdings')}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.isrWithheld')}
-																			</span>
-																			<span>
 																				{formatCurrency(
-																					row.employeeWithholdings.isrWithheld,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.imssEmployee')}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row.employeeWithholdings.imssEmployee.total,
+																					row.companyCost,
 																				)}
 																			</span>
 																		</div>
@@ -1103,44 +1135,184 @@ export function PayrollPageClient(): React.ReactElement {
 																</div>
 																<div>
 																	<p className="font-medium">
-																		{t('taxDetail.sections.employerCosts')}
+																		{t(
+																			'taxDetail.sections.bases',
+																		)}
 																	</p>
 																	<div className="mt-2 grid gap-2">
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.imssEmployer')}
+																				{t(
+																					'taxDetail.labels.sbcDaily',
+																				)}
 																			</span>
 																			<span>
 																				{formatCurrency(
-																					row.employerCosts.imssEmployer.total,
+																					row.bases
+																						.sbcDaily,
 																				)}
 																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.sarRetiro')}
+																				{t(
+																					'taxDetail.labels.sbcPeriod',
+																				)}
 																			</span>
-																			<span>{formatCurrency(row.employerCosts.sarRetiro)}</span>
+																			<span>
+																				{formatCurrency(
+																					row.bases
+																						.sbcPeriod,
+																				)}
+																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.infonavit')}
+																				{t(
+																					'taxDetail.labels.isrBase',
+																				)}
 																			</span>
-																			<span>{formatCurrency(row.employerCosts.infonavit)}</span>
+																			<span>
+																				{formatCurrency(
+																					row.bases
+																						.isrBase,
+																				)}
+																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.riskWork')}
+																				{t(
+																					'taxDetail.labels.daysInPeriod',
+																				)}
 																			</span>
-																			<span>{formatCurrency(row.employerCosts.riskWork)}</span>
+																			<span>
+																				{
+																					row.bases
+																						.daysInPeriod
+																				}
+																			</span>
+																		</div>
+																	</div>
+																</div>
+																<div>
+																	<p className="font-medium">
+																		{t(
+																			'taxDetail.sections.employeeWithholdings',
+																		)}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.isrWithheld',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employeeWithholdings
+																						.isrWithheld,
+																				)}
+																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.isn')}
+																				{t(
+																					'taxDetail.labels.imssEmployee',
+																				)}
 																			</span>
-																			<span>{formatCurrency(row.employerCosts.isn)}</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employeeWithholdings
+																						.imssEmployee
+																						.total,
+																				)}
+																			</span>
 																		</div>
-																		{row.employerCosts.absorbedImssEmployeeShare > 0 ? (
+																	</div>
+																</div>
+																<div>
+																	<p className="font-medium">
+																		{t(
+																			'taxDetail.sections.employerCosts',
+																		)}
+																	</p>
+																	<div className="mt-2 grid gap-2">
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.imssEmployer',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employerCosts
+																						.imssEmployer
+																						.total,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.sarRetiro',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employerCosts
+																						.sarRetiro,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.infonavit',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employerCosts
+																						.infonavit,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.riskWork',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employerCosts
+																						.riskWork,
+																				)}
+																			</span>
+																		</div>
+																		<div className="flex items-center justify-between">
+																			<span className="text-muted-foreground">
+																				{t(
+																					'taxDetail.labels.isn',
+																				)}
+																			</span>
+																			<span>
+																				{formatCurrency(
+																					row
+																						.employerCosts
+																						.isn,
+																				)}
+																			</span>
+																		</div>
+																		{row.employerCosts
+																			.absorbedImssEmployeeShare >
+																		0 ? (
 																			<div className="flex items-center justify-between">
 																				<span className="text-muted-foreground">
 																					{t(
@@ -1149,19 +1321,26 @@ export function PayrollPageClient(): React.ReactElement {
 																				</span>
 																				<span>
 																					{formatCurrency(
-																						row.employerCosts.absorbedImssEmployeeShare,
+																						row
+																							.employerCosts
+																							.absorbedImssEmployeeShare,
 																					)}
 																				</span>
 																			</div>
 																		) : null}
-																		{row.employerCosts.absorbedIsr > 0 ? (
+																		{row.employerCosts
+																			.absorbedIsr > 0 ? (
 																			<div className="flex items-center justify-between">
 																				<span className="text-muted-foreground">
-																					{t('taxDetail.labels.absorbedIsr')}
+																					{t(
+																						'taxDetail.labels.absorbedIsr',
+																					)}
 																				</span>
 																				<span>
 																					{formatCurrency(
-																						row.employerCosts.absorbedIsr,
+																						row
+																							.employerCosts
+																							.absorbedIsr,
 																					)}
 																				</span>
 																			</div>
@@ -1170,26 +1349,36 @@ export function PayrollPageClient(): React.ReactElement {
 																</div>
 																<div>
 																	<p className="font-medium">
-																		{t('taxDetail.sections.informational')}
+																		{t(
+																			'taxDetail.sections.informational',
+																		)}
 																	</p>
 																	<div className="mt-2 grid gap-2">
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.isrBeforeSubsidy')}
+																				{t(
+																					'taxDetail.labels.isrBeforeSubsidy',
+																				)}
 																			</span>
 																			<span>
 																				{formatCurrency(
-																					row.informationalLines.isrBeforeSubsidy,
+																					row
+																						.informationalLines
+																						.isrBeforeSubsidy,
 																				)}
 																			</span>
 																		</div>
 																		<div className="flex items-center justify-between">
 																			<span className="text-muted-foreground">
-																				{t('taxDetail.labels.subsidyApplied')}
+																				{t(
+																					'taxDetail.labels.subsidyApplied',
+																				)}
 																			</span>
 																			<span>
 																				{formatCurrency(
-																					row.informationalLines.subsidyApplied,
+																					row
+																						.informationalLines
+																						.subsidyApplied,
 																				)}
 																			</span>
 																		</div>
@@ -1204,7 +1393,9 @@ export function PayrollPageClient(): React.ReactElement {
 									</TableBody>
 								</Table>
 							</div>
-							{effectiveCalculation.employees.some((emp) => emp.warnings.length > 0) && (
+							{effectiveCalculation.employees.some(
+								(emp) => emp.warnings.length > 0,
+							) && (
 								<div className="mt-4 rounded-md border bg-muted/50 p-3">
 									<p className="text-sm font-medium">{t('compliance.title')}</p>
 									<div className="mt-2 space-y-2 text-sm">

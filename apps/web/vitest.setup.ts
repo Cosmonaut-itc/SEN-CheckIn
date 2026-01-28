@@ -75,9 +75,7 @@ function createMockTranslator(): (key: string) => string {
  * @param props - Provider props with children
  * @returns Rendered children
  */
-function MockNextIntlProvider(props: {
-	children: React.ReactNode;
-}): React.ReactElement {
+function MockNextIntlProvider(props: { children: React.ReactNode }): React.ReactElement {
 	return React.createElement(React.Fragment, null, props.children);
 }
 

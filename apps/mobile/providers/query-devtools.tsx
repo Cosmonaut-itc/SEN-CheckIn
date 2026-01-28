@@ -123,7 +123,7 @@ export function QueryDevtoolsBridge({ queryClient }: QueryDevtoolsBridgeProps): 
 		(): Record<string, string> => ({
 			brand: ExpoDevice.brand ?? 'Unknown',
 			modelName: ExpoDevice.modelName ?? 'Unknown',
-			osName: ExpoDevice.osName ?? (process.env.EXPO_OS ?? 'unknown'),
+			osName: ExpoDevice.osName ?? process.env.EXPO_OS ?? 'unknown',
 			osVersion: ExpoDevice.osVersion ?? 'Unknown',
 			appVersion: Constants.expoConfig?.version ?? '1.0.0',
 			deviceType: ExpoDevice.isDevice ? 'Physical Device' : 'Simulator/Emulator',
@@ -140,9 +140,7 @@ export function QueryDevtoolsBridge({ queryClient }: QueryDevtoolsBridgeProps): 
 		deviceId: deviceId ?? `${process.env.EXPO_OS ?? 'unknown'}-initializing`,
 		deviceName:
 			ExpoDevice.deviceName ??
-			`${process.env.EXPO_OS ?? 'unknown'} ${
-				ExpoDevice.isDevice ? 'Device' : 'Simulator'
-			}`,
+			`${process.env.EXPO_OS ?? 'unknown'} ${ExpoDevice.isDevice ? 'Device' : 'Simulator'}`,
 		extraDeviceInfo,
 		enableLogs: false, // Set to true to debug connection issues
 	});

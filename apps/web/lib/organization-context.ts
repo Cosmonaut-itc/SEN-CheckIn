@@ -31,17 +31,15 @@ interface SessionAndOrganizationsResult {
  *
  * @returns Request headers plus session and organization list results
  */
-const getSessionAndOrganizations = cache(
-	async (): Promise<SessionAndOrganizationsResult> => {
-		const fetchOptions = await getServerFetchOptions();
-		const [sessionResult, organizationsResponse] = await Promise.all([
-			serverAuthClient.getSession(undefined, fetchOptions),
-			serverAuthClient.organization.list(undefined, fetchOptions),
-		]);
+const getSessionAndOrganizations = cache(async (): Promise<SessionAndOrganizationsResult> => {
+	const fetchOptions = await getServerFetchOptions();
+	const [sessionResult, organizationsResponse] = await Promise.all([
+		serverAuthClient.getSession(undefined, fetchOptions),
+		serverAuthClient.organization.list(undefined, fetchOptions),
+	]);
 
-		return { fetchOptions, sessionResult, organizationsResponse };
-	},
-);
+	return { fetchOptions, sessionResult, organizationsResponse };
+});
 
 /**
  * Resolves the active organization context from the session and org list.
@@ -123,11 +121,7 @@ export const getActiveOrganizationContext = cache(
 		const { fetchOptions, sessionResult, organizationsResponse } =
 			await getSessionAndOrganizations();
 
-		return resolveActiveOrganizationContext(
-			fetchOptions,
-			sessionResult,
-			organizationsResponse,
-		);
+		return resolveActiveOrganizationContext(fetchOptions, sessionResult, organizationsResponse);
 	},
 );
 
@@ -156,7 +150,11 @@ export const getAdminAccessContext = cache(
 					fetchOptions,
 				);
 				const resolvedRole = memberRoleResult.data?.role ?? null;
-				if (resolvedRole === 'admin' || resolvedRole === 'owner' || resolvedRole === 'member') {
+				if (
+					resolvedRole === 'admin' ||
+					resolvedRole === 'owner' ||
+					resolvedRole === 'member'
+				) {
 					organizationRole = resolvedRole;
 				}
 			} catch (error) {

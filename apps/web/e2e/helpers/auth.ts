@@ -64,16 +64,12 @@ export async function registerTestAccounts(
 	await form.locator('input[name="adminName"]').fill(payload.admin.name);
 	await form.locator('input[name="adminEmail"]').fill(payload.admin.email);
 	await form.locator('input[name="adminPassword"]').fill(payload.admin.password);
-	await form
-		.locator('input[name="adminConfirmPassword"]')
-		.fill(payload.admin.password);
+	await form.locator('input[name="adminConfirmPassword"]').fill(payload.admin.password);
 
 	await form.locator('input[name="memberName"]').fill(payload.member.name);
 	await form.locator('input[name="memberEmail"]').fill(payload.member.email);
 	await form.locator('input[name="memberPassword"]').fill(payload.member.password);
-	await form
-		.locator('input[name="memberConfirmPassword"]')
-		.fill(payload.member.password);
+	await form.locator('input[name="memberConfirmPassword"]').fill(payload.member.password);
 
 	const signUpResponsePromise = page.waitForResponse((response) => {
 		if (response.request().method() !== 'POST') {
@@ -105,11 +101,7 @@ export async function registerTestAccounts(
  * @param password - Login password
  * @returns Promise that resolves after the dashboard is reached
  */
-export async function signIn(
-	page: Page,
-	email: string,
-	password: string,
-): Promise<void> {
+export async function signIn(page: Page, email: string, password: string): Promise<void> {
 	await page.goto('/sign-in');
 	const form = page.getByTestId('sign-in-form');
 	await form.locator('input[name="email"]').fill(email);

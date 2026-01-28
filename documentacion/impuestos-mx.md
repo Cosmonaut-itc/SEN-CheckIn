@@ -17,7 +17,7 @@ La Unidad de Medida y Actualización (UMA) para 2025 es:
 > | FI | Factor de integración | Integra aguinaldo, vacaciones y prima vacacional (para SDI/SBC). |
 > | SDI | Salario Diario Integrado | Base típica para IMSS/INFONAVIT (antes de topes). |
 > | SBC | Salario Base de Cotización | En práctica suele ser el SDI con topes y reglas de integración. |
-> | UMA_d | UMA diaria | 113.14 (2025). |
+> | UMA*d | UMA diaria | 113.14 (2025). |
 > | UMA_m | UMA mensual | 3,439.46 (2025). |
 > | tope_SBC | Tope del SBC | IMSS suele topar en 25 UMA (por día). |
 > | dias_cot | Días cotizados del periodo | Para cuotas IMSS (usualmente por mes; RCV e INFONAVIT se pagan bimestralmente). |
@@ -25,13 +25,13 @@ La Unidad de Medida y Actualización (UMA) para 2025 es:
 > | prima_RT | Prima de Riesgo de Trabajo | Porcentaje anual del patrón (depende de siniestralidad y clase). |
 > | base_ISR | Ingreso gravable del periodo | No es lo mismo que SDI/SBC; sale de percepciones gravadas del CFDI. |
 > | periodo_ISR | Días del periodo para tarifa ISR | 1 (diario), 7 (semanal), 10 (decenal), 15 (quincenal), 30.4 (mensual). |
-> _\*\*2) IMSS: cuotas obrero–patronales (y SAR/AFORE dentro de IMSS)
+> *\*\*2) IMSS: cuotas obrero–patronales (y SAR/AFORE dentro de IMSS)
 > El IMSS se calcula sobre SBC (salario base de cotización) con límites y reglas específicas. En términos de implementación, el patrón calcula:
 > cuotas patronales (costo empresa), y
 > cuotas obreras (retención al trabajador).
 > 2.1 Resumen de tasas (lo que se multiplica por base)
 > En esta tabla, cuando digo “%” es porcentaje sobre la base indicada.  
-> Donde aplique “por día”, en código normalmente haces: monto = base_diaria _ días * tasa.
+> Donde aplique “por día”, en código normalmente haces: monto = base*diaria * días * tasa.
 > | Concepto IMSS | Base típica | Patrón | Trabajador | Notas prácticas |
 > |---|---:|---:|---:|---|
 > | Riesgos de Trabajo (RT) | SBC | Variable (prima_RT) | 0% | Solo patrón. La prima depende de tu empresa y su siniestralidad. |
@@ -64,33 +64,33 @@ La Unidad de Medida y Actualización (UMA) para 2025 es:
 > IMSS_patronal =
 > RT: SBC_d * dias_cot \* prima_RT
 
-- EM cuota fija: UMA_d _ dias_cot _ 0.204
-- EM excedente >3UMA: exced_3UMA _ dias_cot _ 0.011
-- EM prest. dinero: SBC_d _ dias_cot _ 0.007
-- EM pensionados: SBC_d _ dias_cot _ 0.0105
-- Invalidez y vida: SBC_d _ dias_cot _ 0.0175
-- Guarderías: SBC_d _ dias_cot _ 0.01
-- Retiro: SBC_d _ dias_cot _ 0.02
-- Cesantía y vejez: SBC_d _ dias_cot _ tasa_CV_patronal_2025(rango)
+- EM cuota fija: UMA*d * dias*cot * 0.204
+- EM excedente >3UMA: exced*3UMA * dias*cot * 0.011
+- EM prest. dinero: SBC*d * dias*cot * 0.007
+- EM pensionados: SBC*d * dias*cot * 0.0105
+- Invalidez y vida: SBC*d * dias*cot * 0.0175
+- Guarderías: SBC*d * dias*cot * 0.01
+- Retiro: SBC*d * dias*cot * 0.02
+- Cesantía y vejez: SBC*d * dias*cot * tasa*CV_patronal_2025(rango)
   IMSS_trabajador =
-  EM excedente >3UMA: exced_3UMA _ dias_cot _ 0.004
-- EM prest. dinero: SBC_d _ dias_cot _ 0.0025
-- EM pensionados: SBC_d _ dias_cot _ 0.00375
-- Invalidez y vida: SBC_d _ dias_cot _ 0.00625
-- Cesantía y vejez: SBC_d _ dias_cot _ 0.01125
+  EM excedente >3UMA: exced_3UMA * dias*cot * 0.004
+- EM prest. dinero: SBC*d * dias*cot * 0.0025
+- EM pensionados: SBC*d * dias*cot * 0.00375
+- Invalidez y vida: SBC*d * dias*cot * 0.00625
+- Cesantía y vejez: SBC*d * dias*cot * 0.01125
   _\*\*3) INFONAVIT (aportación patronal + posible descuento de crédito)
   3.1 Aportación patronal INFONAVIT (costo empresa)
   La aportación patronal al INFONAVIT (fondo de vivienda) es:
   5% sobre el SBC (típicamente el mismo SBC usado para IMSS), usualmente en pago bimestral.
   Fórmula por periodo (si lo quieres provisionar):
-  INFONAVIT_patronal = SBC_d _ dias_cot _ 0.05
+  INFONAVIT_patronal = SBC_d _ dias*cot * 0.05
   3.2 Amortización de crédito INFONAVIT (retención al trabajador, si aplica)
   Si el trabajador tiene crédito INFONAVIT, el patrón debe retener y enterar una amortización según el “Aviso de Retención” (ahí viene el tipo de descuento y el valor):
   | Tipo de descuento (ejemplos comunes) | Cómo se calcula (idea general) |
   |---|---|
   | Porcentaje | descuento = base _ % (base según aviso y reglas) |
   | Cuota fija en pesos | descuento = cuota_diaria _ días o prorrateo por periodo |
-  | Veces salario mínimo / UMA | descuento = factor _ unidad \* días (según aviso) |
+  | Veces salario mínimo / UMA | descuento = factor \_ unidad \* días (según aviso) |
     > En implementación, lo correcto es: usar exactamente el tipo y factor que INFONAVIT te notifica para ese trabajador.
     > ***4) ISR (retención de sueldos y salarios) + Subsidio para el empleo (2025)
     > 4.1 ISR: algoritmo

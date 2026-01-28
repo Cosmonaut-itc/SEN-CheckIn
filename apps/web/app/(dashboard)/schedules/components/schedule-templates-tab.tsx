@@ -31,7 +31,12 @@ import {
 	type ScheduleTemplateDayInput,
 } from '@/actions/schedules';
 import { TemplateFormDialog } from './template-form-dialog';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 
 const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 type DayKey = (typeof DAY_KEYS)[number];
@@ -245,9 +250,7 @@ export function ScheduleTemplatesTab({
 			{
 				accessorKey: 'name',
 				header: t('templates.table.headers.name'),
-				cell: ({ row }) => (
-					<span className="font-medium">{row.original.name}</span>
-				),
+				cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
 			},
 			{
 				accessorKey: 'shiftType',

@@ -304,6 +304,99 @@ export interface EmployeeVacationRequestSummary {
 	createdAt: Date;
 }
 
+// ============================================================================
+// Incapacity Types
+// ============================================================================
+
+/**
+ * IMSS incapacity type values.
+ */
+export type IncapacityType = 'EG' | 'RT' | 'MAT' | 'LIC140BIS';
+
+/**
+ * SAT incapacity codes (CFDI nómina).
+ */
+export type SatTipoIncapacidad = '01' | '02' | '03' | '04';
+
+/**
+ * IMSS incapacity issuance source.
+ */
+export type IncapacityIssuedBy = 'IMSS' | 'recognized_by_IMSS';
+
+/**
+ * Incapacity sequence values.
+ */
+export type IncapacitySequence = 'inicial' | 'subsecuente' | 'recaida';
+
+/**
+ * Incapacity record status.
+ */
+export type IncapacityStatus = 'ACTIVE' | 'CANCELLED';
+
+/**
+ * IMSS incapacity document metadata.
+ */
+export interface EmployeeIncapacityDocument {
+	/** Document identifier */
+	id: string;
+	/** Parent incapacity identifier */
+	incapacityId: string;
+	/** Bucket name where the document is stored */
+	bucket: string;
+	/** Object key in the bucket */
+	objectKey: string;
+	/** Original file name */
+	fileName: string;
+	/** MIME content type */
+	contentType: string;
+	/** File size in bytes */
+	sizeBytes: number;
+	/** SHA-256 hash (hex) */
+	sha256: string;
+	/** Upload timestamp */
+	uploadedAt: Date;
+	/** Record creation timestamp */
+	createdAt: Date;
+}
+
+/**
+ * IMSS incapacity record.
+ */
+export interface EmployeeIncapacity {
+	/** Incapacity identifier */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** IMSS case identifier */
+	caseId: string;
+	/** IMSS incapacity type */
+	type: IncapacityType;
+	/** SAT incapacity code */
+	satTipoIncapacidad: SatTipoIncapacidad;
+	/** Start date key */
+	startDateKey: string;
+	/** End date key */
+	endDateKey: string;
+	/** Authorized days */
+	daysAuthorized: number;
+	/** Certificate folio */
+	certificateFolio: string | null;
+	/** Issuance origin */
+	issuedBy: IncapacityIssuedBy;
+	/** Sequence for the case */
+	sequence: IncapacitySequence;
+	/** Percent override (0-1) */
+	percentOverride: number | null;
+	/** Record status */
+	status: IncapacityStatus;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record update timestamp */
+	updatedAt: Date;
+}
+
 /**
  * Summary of a schedule exception for employee insights.
  */

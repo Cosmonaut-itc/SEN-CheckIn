@@ -30,12 +30,12 @@ import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
 /**
  * Gets the AWS region from environment variables.
  * @returns The AWS region string
- * @throws Error if AWS_REGION is not set
+ * @throws Error if AWS_REGION_RKG is not set
  */
 function getAwsRegion(): string {
-	const region = process.env.AWS_REGION;
+	const region = process.env.AWS_REGION_RKG;
 	if (!region) {
-		throw new Error('AWS_REGION environment variable is required but not set.');
+		throw new Error('AWS_REGION_RKG environment variable is required but not set.');
 	}
 	return region;
 }
@@ -43,16 +43,37 @@ function getAwsRegion(): string {
 /**
  * Gets the Rekognition collection ID from environment variables.
  * @returns The collection ID string
- * @throws Error if AWS_REKOGNITION_COLLECTION_ID is not set
+ * @throws Error if AWS_REKOGNITION_COLLECTION_ID_RKG is not set
  */
 function getCollectionId(): string {
-	const collectionId = process.env.AWS_REKOGNITION_COLLECTION_ID;
+	const collectionId = process.env.AWS_REKOGNITION_COLLECTION_ID_RKG;
 	if (!collectionId) {
 		throw new Error(
-			'AWS_REKOGNITION_COLLECTION_ID environment variable is required but not set.',
+			'AWS_REKOGNITION_COLLECTION_ID_RKG environment variable is required but not set.',
 		);
 	}
 	return collectionId;
+}
+
+/**
+ * Gets explicit Rekognition credentials from environment variables when provided.
+ *
+ * @returns Credential object or undefined to use default AWS provider chain
+ */
+function getRekognitionCredentials():
+	| {
+			accessKeyId: string;
+			secretAccessKey: string;
+	  }
+	| undefined {
+	const accessKeyId = process.env.AWS_ACCESS_KEY_ID_RKG;
+	const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY_RKG;
+
+	if (!accessKeyId || !secretAccessKey) {
+		return undefined;
+	}
+
+	return { accessKeyId, secretAccessKey };
 }
 
 /**
@@ -67,8 +88,10 @@ let rekognitionClient: RekognitionClient | null = null;
  */
 function getClient(): RekognitionClient {
 	if (!rekognitionClient) {
+		const credentials = getRekognitionCredentials();
 		rekognitionClient = new RekognitionClient({
 			region: getAwsRegion(),
+			credentials,
 		});
 	}
 	return rekognitionClient;

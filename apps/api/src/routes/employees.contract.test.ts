@@ -81,7 +81,9 @@ function requireVacationRequestPayload(value: unknown): VacationRequestPayload {
 			throw new Error(`Expected vacation request day ${index} to include dateKey.`);
 		}
 		if (typeof dayRecord.countsAsVacationDay !== 'boolean') {
-			throw new Error(`Expected vacation request day ${index} to include countsAsVacationDay.`);
+			throw new Error(
+				`Expected vacation request day ${index} to include countsAsVacationDay.`,
+			);
 		}
 		const serviceYearNumber = dayRecord.serviceYearNumber;
 		if (!(serviceYearNumber === null || typeof serviceYearNumber === 'number')) {
@@ -101,7 +103,10 @@ function requireVacationRequestPayload(value: unknown): VacationRequestPayload {
 		totalDays?: unknown;
 		vacationDays?: unknown;
 	};
-	if (typeof summaryRecord.totalDays !== 'number' || typeof summaryRecord.vacationDays !== 'number') {
+	if (
+		typeof summaryRecord.totalDays !== 'number' ||
+		typeof summaryRecord.vacationDays !== 'number'
+	) {
 		throw new Error('Expected vacation request summary totals in response.');
 	}
 
@@ -275,10 +280,7 @@ describe('employee routes (contract)', () => {
 			}
 			employeeId = createdEmployee.id;
 
-			const employeeRoutes = requireRoute(
-				client.employees[employeeId],
-				'Employee route',
-			);
+			const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
 			const terminationRoute = requireRoute(
 				employeeRoutes.termination,
 				'Employee termination route',
@@ -340,10 +342,7 @@ describe('employee routes (contract)', () => {
 			}
 			employeeId = createdEmployee.id;
 
-			const employeeRoutes = requireRoute(
-				client.employees[employeeId],
-				'Employee route',
-			);
+			const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
 			const terminationRoute = requireRoute(
 				employeeRoutes.termination,
 				'Employee termination route',
@@ -406,10 +405,7 @@ describe('employee routes (contract)', () => {
 			}
 			employeeId = createdEmployee.id;
 
-			const employeeRoutes = requireRoute(
-				client.employees[employeeId],
-				'Employee route',
-			);
+			const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
 			const terminationRoute = requireRoute(
 				employeeRoutes.termination,
 				'Employee termination route',
@@ -431,7 +427,10 @@ describe('employee routes (contract)', () => {
 			});
 
 			expect(response.status).toBe(400);
-			const errorPayload = requireErrorResponse(response, 'termination date before hire date');
+			const errorPayload = requireErrorResponse(
+				response,
+				'termination date before hire date',
+			);
 			expect(errorPayload.error.message).toBe('Termination date cannot be before hire date');
 			expect(errorPayload.error.code).toBe('INVALID_TERMINATION_DATE');
 		} finally {
@@ -471,10 +470,7 @@ describe('employee routes (contract)', () => {
 			}
 			employeeId = createdEmployee.id;
 
-			const employeeRoutes = requireRoute(
-				client.employees[employeeId],
-				'Employee route',
-			);
+			const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
 			const terminationRoute = requireRoute(
 				employeeRoutes.termination,
 				'Employee termination route',
@@ -535,10 +531,7 @@ describe('employee routes (contract)', () => {
 			throw new Error('Expected employee record for termination test.');
 		}
 
-		const employeeRoutes = requireRoute(
-			client.employees[createdEmployee.id],
-			'Employee route',
-		);
+		const employeeRoutes = requireRoute(client.employees[createdEmployee.id], 'Employee route');
 		const terminationRoute = requireRoute(
 			employeeRoutes.termination,
 			'Employee termination route',
@@ -580,7 +573,9 @@ describe('employee routes (contract)', () => {
 		const terminatePayload = requireResponseData(terminateResponse);
 		expect(terminatePayload.data.employee.status).toBe('INACTIVE');
 		expect(terminatePayload.data.employee.terminationDateKey).toBe('2026-01-15');
-		expect(terminatePayload.data.settlement.calculation.breakdown.finiquito.salaryDue).toBe(1000);
+		expect(terminatePayload.data.settlement.calculation.breakdown.finiquito.salaryDue).toBe(
+			1000,
+		);
 
 		const settlementRoute = requireRoute(
 			terminationRoute.settlement,
@@ -755,17 +750,20 @@ describe('employee routes (contract)', () => {
 			const terminationServiceYear = getServiceYearNumber(hireDate, terminationDateKey) ?? 0;
 			expect(terminationServiceYear).toBeGreaterThan(0);
 
-			const approvedVacationDays = approvedRequest.days.filter((day) => day.countsAsVacationDay);
+			const approvedVacationDays = approvedRequest.days.filter(
+				(day) => day.countsAsVacationDay,
+			);
 			expect(approvedVacationDays.length).toBeGreaterThan(0);
-			expect(approvedVacationDays.every((day) => day.dateKey > terminationDateKey)).toBe(true);
+			expect(approvedVacationDays.every((day) => day.dateKey > terminationDateKey)).toBe(
+				true,
+			);
 			expect(
-				approvedVacationDays.every((day) => day.serviceYearNumber === terminationServiceYear),
+				approvedVacationDays.every(
+					(day) => day.serviceYearNumber === terminationServiceYear,
+				),
 			).toBe(true);
 
-			const employeeRoutes = requireRoute(
-				client.employees[employeeId],
-				'Employee route',
-			);
+			const employeeRoutes = requireRoute(client.employees[employeeId], 'Employee route');
 			const terminationRoute = requireRoute(
 				employeeRoutes.termination,
 				'Employee termination route',

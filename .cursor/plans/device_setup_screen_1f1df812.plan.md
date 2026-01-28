@@ -98,7 +98,7 @@ Create new file `apps/mobile/app/(auth)/device-setup.tsx`:
 
 ### Phase 4: Modify Login Flow Navigation
 
-Update [`apps/mobile/app/(auth)/login.tsx`](apps/mobile/app/(auth)/login.tsx):
+Update [`apps/mobile/app/(auth)/login.tsx`](<apps/mobile/app/(auth)/login.tsx>):
 
 Change `registerApprovedDevice()` to:
 

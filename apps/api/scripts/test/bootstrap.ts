@@ -180,10 +180,7 @@ async function getSeedOrganizationId(context: SeedContext): Promise<string> {
  * @returns User ID
  * @throws Error when the user cannot be created or resolved
  */
-async function ensureUser(
-	context: SeedContext,
-	userSeed: TestUserSeed,
-): Promise<string> {
+async function ensureUser(context: SeedContext, userSeed: TestUserSeed): Promise<string> {
 	const { user } = context.schema;
 	const existing = await context.db
 		.select({ id: user.id })
@@ -193,10 +190,7 @@ async function ensureUser(
 
 	const existingId = existing[0]?.id ?? null;
 	if (existingId) {
-		await context.db
-			.update(user)
-			.set({ role: userSeed.role })
-			.where(eq(user.id, existingId));
+		await context.db.update(user).set({ role: userSeed.role }).where(eq(user.id, existingId));
 		return existingId;
 	}
 
@@ -290,9 +284,7 @@ async function linkEmployeeToUser(context: SeedContext, userId: string): Promise
 	const available = await context.db
 		.select({ id: employee.id })
 		.from(employee)
-		.where(
-			and(eq(employee.organizationId, context.organizationId), isNull(employee.userId)),
-		)
+		.where(and(eq(employee.organizationId, context.organizationId), isNull(employee.userId)))
 		.limit(1);
 
 	const target = available[0]

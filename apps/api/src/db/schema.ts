@@ -387,7 +387,37 @@ export const vacationDayType = pgEnum('vacation_day_type', [
 	'EXCEPTION_WORKDAY',
 	'EXCEPTION_DAY_OFF',
 	'MANDATORY_REST_DAY',
+	'INCAPACITY',
 ]);
+
+/**
+ * Enum for IMSS incapacity types.
+ */
+export const incapacityType = pgEnum('incapacity_type', ['EG', 'RT', 'MAT', 'LIC140BIS']);
+
+/**
+ * Enum for SAT incapacity types.
+ */
+export const satTipoIncapacidad = pgEnum('sat_tipo_incapacidad', ['01', '02', '03', '04']);
+
+/**
+ * Enum for incapacity issuance.
+ */
+export const incapacityIssuedBy = pgEnum('incapacity_issued_by', ['IMSS', 'recognized_by_IMSS']);
+
+/**
+ * Enum for incapacity sequences.
+ */
+export const incapacitySequence = pgEnum('incapacity_sequence', [
+	'inicial',
+	'subsecuente',
+	'recaida',
+]);
+
+/**
+ * Enum for incapacity record status.
+ */
+export const incapacityStatus = pgEnum('incapacity_status', ['ACTIVE', 'CANCELLED']);
 
 /**
  * Enum for geographic zones (CONASAMI)
@@ -535,15 +565,15 @@ export const employee = pgTable(
 	'employee',
 	{
 		id: text('id').primaryKey(),
-	/** Unique employee code/badge number */
-	code: text('code').notNull().unique(),
-	firstName: text('first_name').notNull(),
-	lastName: text('last_name').notNull(),
-	/** Employee NSS (Número de Seguridad Social) */
-	nss: text('nss'),
-	/** Employee RFC (Registro Federal de Contribuyentes) */
-	rfc: text('rfc'),
-	email: text('email'),
+		/** Unique employee code/badge number */
+		code: text('code').notNull().unique(),
+		firstName: text('first_name').notNull(),
+		lastName: text('last_name').notNull(),
+		/** Employee NSS (Número de Seguridad Social) */
+		nss: text('nss'),
+		/** Employee RFC (Registro Federal de Contribuyentes) */
+		rfc: text('rfc'),
+		email: text('email'),
 		/** Contact phone number */
 		phone: text('phone'),
 		/** Reference to employee's job position */
@@ -653,9 +683,7 @@ export const employeeTerminationSettlement = pgTable(
 			onDelete: 'cascade',
 		}),
 		calculation: jsonb('calculation').$type<EmployeeTerminationSettlement>().notNull(),
-		totalsGross: numeric('totals_gross', { precision: 12, scale: 2 })
-			.default('0')
-			.notNull(),
+		totalsGross: numeric('totals_gross', { precision: 12, scale: 2 }).default('0').notNull(),
 		finiquitoTotalGross: numeric('finiquito_total_gross', { precision: 12, scale: 2 })
 			.default('0')
 			.notNull(),
@@ -828,6 +856,71 @@ export const vacationRequestDay = pgTable(
 );
 
 /**
+ * Employee incapacity table - stores IMSS incapacity/licence records.
+ */
+export const employeeIncapacity = pgTable(
+	'employee_incapacity',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		caseId: text('case_id').notNull(),
+		type: incapacityType('type').notNull(),
+		satTipoIncapacidad: satTipoIncapacidad('sat_tipo_incapacidad').notNull(),
+		startDateKey: text('start_date_key').notNull(),
+		endDateKey: text('end_date_key').notNull(),
+		daysAuthorized: integer('days_authorized').notNull(),
+		certificateFolio: text('certificate_folio'),
+		issuedBy: incapacityIssuedBy('issued_by').default('IMSS').notNull(),
+		sequence: incapacitySequence('sequence').default('inicial').notNull(),
+		percentOverride: numeric('percent_override', { precision: 5, scale: 4 }),
+		status: incapacityStatus('status').default('ACTIVE').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('employee_incapacity_org_employee_idx').on(table.organizationId, table.employeeId),
+		index('employee_incapacity_org_status_idx').on(table.organizationId, table.status),
+		index('employee_incapacity_org_start_idx').on(table.organizationId, table.startDateKey),
+		index('employee_incapacity_org_end_idx').on(table.organizationId, table.endDateKey),
+		index('employee_incapacity_employee_start_idx').on(table.employeeId, table.startDateKey),
+	],
+);
+
+/**
+ * Employee incapacity document table - stores uploaded IMSS documents.
+ */
+export const employeeIncapacityDocument = pgTable(
+	'employee_incapacity_document',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		incapacityId: text('incapacity_id')
+			.notNull()
+			.references(() => employeeIncapacity.id, { onDelete: 'cascade' }),
+		bucket: text('bucket').notNull(),
+		objectKey: text('object_key').notNull(),
+		fileName: text('file_name').notNull(),
+		contentType: text('content_type').notNull(),
+		sizeBytes: integer('size_bytes').notNull(),
+		sha256: text('sha256').notNull(),
+		uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+	},
+	(table) => [uniqueIndex('employee_incapacity_document_object_key').on(table.objectKey)],
+);
+
+/**
  * Schedule Exception table - date-specific overrides for employee schedules.
  */
 export const scheduleException = pgTable(
@@ -845,6 +938,9 @@ export const scheduleException = pgTable(
 		endTime: time('end_time', { withTimezone: false }),
 		reason: text('reason'),
 		vacationRequestId: text('vacation_request_id').references(() => vacationRequest.id, {
+			onDelete: 'set null',
+		}),
+		incapacityId: text('incapacity_id').references(() => employeeIncapacity.id, {
 			onDelete: 'set null',
 		}),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -961,6 +1057,7 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	}),
 	scheduleEntries: many(employeeSchedule),
 	scheduleExceptions: many(scheduleException),
+	incapacities: many(employeeIncapacity),
 	vacationRequests: many(vacationRequest),
 	vacationRequestDays: many(vacationRequestDay),
 	auditEvents: many(employeeAuditEvent),
@@ -1005,7 +1102,34 @@ export const scheduleExceptionRelations = relations(scheduleException, ({ one })
 		fields: [scheduleException.vacationRequestId],
 		references: [vacationRequest.id],
 	}),
+	incapacity: one(employeeIncapacity, {
+		fields: [scheduleException.incapacityId],
+		references: [employeeIncapacity.id],
+	}),
 }));
+
+export const employeeIncapacityRelations = relations(employeeIncapacity, ({ one, many }) => ({
+	organization: one(organization, {
+		fields: [employeeIncapacity.organizationId],
+		references: [organization.id],
+	}),
+	employee: one(employee, {
+		fields: [employeeIncapacity.employeeId],
+		references: [employee.id],
+	}),
+	documents: many(employeeIncapacityDocument),
+	scheduleExceptions: many(scheduleException),
+}));
+
+export const employeeIncapacityDocumentRelations = relations(
+	employeeIncapacityDocument,
+	({ one }) => ({
+		incapacity: one(employeeIncapacity, {
+			fields: [employeeIncapacityDocument.incapacityId],
+			references: [employeeIncapacity.id],
+		}),
+	}),
+);
 
 export const vacationRequestRelations = relations(vacationRequest, ({ one, many }) => ({
 	organization: one(organization, {

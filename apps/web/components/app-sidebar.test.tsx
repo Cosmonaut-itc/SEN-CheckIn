@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider } from '@/components/ui/sidebar';
-import messages from '@/messages/es.json';
+import rawMessages from '@/messages/es.json';
+
+const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
 import { signOut, useSession } from '@/lib/auth-client';
 
 const push = vi.fn();
@@ -62,9 +64,7 @@ function SidebarProviderStub(props: { children: React.ReactNode }): React.ReactE
  * @param props - Image props
  * @returns Stub element
  */
-function AvatarImageStub(
-	props: React.ImgHTMLAttributes<HTMLImageElement>,
-): React.ReactElement {
+function AvatarImageStub(props: React.ImgHTMLAttributes<HTMLImageElement>): React.ReactElement {
 	void props;
 	return <span />;
 }
@@ -105,14 +105,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('next/link', () => ({
-	default: ({
-		href,
-		children,
-		...props
-	}: {
-		href: string;
-		children: React.ReactNode;
-	}) => (
+	default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
 		<a href={href} {...props}>
 			{children}
 		</a>

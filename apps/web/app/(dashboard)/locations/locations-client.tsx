@@ -31,11 +31,7 @@ import { toast } from 'sonner';
 import { Check, ChevronsUpDown, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
-import {
-	fetchLocationById,
-	fetchLocationsList,
-	type Location,
-} from '@/lib/client-functions';
+import { fetchLocationById, fetchLocationsList, type Location } from '@/lib/client-functions';
 import {
 	createLocation,
 	updateLocation,
@@ -43,7 +39,12 @@ import {
 	type LocationMutationErrorCode,
 } from '@/actions/locations';
 import { useOrgContext } from '@/lib/org-client-context';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 import type { LocationMapPickerProps } from './location-map-picker';
 
 /**
@@ -78,9 +79,7 @@ const loadLocationMapPicker = async () => {
  * @returns The map picker placeholder element
  */
 function LocationMapPickerFallback(): React.ReactElement {
-	return (
-		<div className="relative h-56 w-full overflow-hidden rounded-md border bg-muted/20" />
-	);
+	return <div className="relative h-56 w-full overflow-hidden rounded-md border bg-muted/20" />;
 }
 
 const LocationMapPicker = dynamic<LocationMapPickerProps>(loadLocationMapPicker, {
@@ -129,9 +128,7 @@ async function fetchGeocodeSuggestions(query: string): Promise<GeocodeSuggestion
 	const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
 
 	if (!response.ok) {
-		const payload = (await response.json().catch(() => null)) as
-			| { errorCode?: string }
-			| null;
+		const payload = (await response.json().catch(() => null)) as { errorCode?: string } | null;
 		throw new Error(payload?.errorCode ?? 'UNKNOWN_ERROR');
 	}
 
@@ -530,22 +527,17 @@ export function LocationsPageClient(): React.ReactElement {
 	 * @param value - Next global filter value or updater
 	 * @returns void
 	 */
-	const handleGlobalFilterChange = useCallback(
-		(value: React.SetStateAction<string>): void => {
-			setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
-			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
-		},
-		[],
-	);
+	const handleGlobalFilterChange = useCallback((value: React.SetStateAction<string>): void => {
+		setGlobalFilter((prev) => (typeof value === 'function' ? value(prev) : value));
+		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+	}, []);
 
 	const columns = useMemo<ColumnDef<Location>[]>(
 		() => [
 			{
 				accessorKey: 'code',
 				header: t('table.headers.code'),
-				cell: ({ row }) => (
-					<span className="font-medium">{row.original.code}</span>
-				),
+				cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
 			},
 			{
 				accessorKey: 'name',
@@ -560,8 +552,7 @@ export function LocationsPageClient(): React.ReactElement {
 			{
 				accessorKey: 'geographicZone',
 				header: t('table.headers.zone'),
-				cell: ({ row }) =>
-					t(`zones.${row.original.geographicZone ?? 'GENERAL'}`),
+				cell: ({ row }) => t(`zones.${row.original.geographicZone ?? 'GENERAL'}`),
 			},
 			{
 				accessorKey: 'timeZone',
@@ -571,8 +562,7 @@ export function LocationsPageClient(): React.ReactElement {
 			{
 				accessorKey: 'createdAt',
 				header: t('table.headers.created'),
-				cell: ({ row }) =>
-					format(new Date(row.original.createdAt), t('dateFormat')),
+				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
 			},
 			{
 				id: 'actions',
@@ -733,11 +723,17 @@ export function LocationsPageClient(): React.ReactElement {
 								<form.AppField name="address">
 									{(field) => (
 										<div className="grid grid-cols-4 items-start gap-4">
-											<Label htmlFor="location-address" className="pt-2 text-right">
+											<Label
+												htmlFor="location-address"
+												className="pt-2 text-right"
+											>
 												{t('fields.address')}
 											</Label>
 											<div className="col-span-3 space-y-2">
-												<Popover open={isAddressOpen} onOpenChange={setIsAddressOpen}>
+												<Popover
+													open={isAddressOpen}
+													onOpenChange={setIsAddressOpen}
+												>
 													<PopoverTrigger asChild>
 														<Button
 															variant="outline"
@@ -759,7 +755,9 @@ export function LocationsPageClient(): React.ReactElement {
 																value={addressValue}
 																onValueChange={handleAddressChange}
 																onBlur={field.handleBlur}
-																placeholder={t('address.searchPlaceholder')}
+																placeholder={t(
+																	'address.searchPlaceholder',
+																)}
 															/>
 															<CommandList>
 																{isGeocodeFetching && (
@@ -776,30 +774,45 @@ export function LocationsPageClient(): React.ReactElement {
 																	</div>
 																)}
 																{showGeocodeEmpty && (
-																	<CommandEmpty>{t('address.empty')}</CommandEmpty>
+																	<CommandEmpty>
+																		{t('address.empty')}
+																	</CommandEmpty>
 																)}
 																{geocodeSuggestions.length > 0 && (
-																	<CommandGroup heading={t('address.resultsTitle')}>
-																		{geocodeSuggestions.map((suggestion) => {
-																			const isSelected =
-																				suggestion.displayName === addressValue;
-																			return (
-																				<CommandItem
-																					key={`${suggestion.lat}-${suggestion.lng}-${suggestion.displayName}`}
-																					value={suggestion.displayName}
-																					onSelect={() =>
-																						handleGeocodeSelect(suggestion)
-																					}
-																				>
-																					<Check
-																						className={`h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
-																					/>
-																					<span className="text-sm">
-																						{suggestion.displayName}
-																					</span>
-																				</CommandItem>
-																			);
-																		})}
+																	<CommandGroup
+																		heading={t(
+																			'address.resultsTitle',
+																		)}
+																	>
+																		{geocodeSuggestions.map(
+																			(suggestion) => {
+																				const isSelected =
+																					suggestion.displayName ===
+																					addressValue;
+																				return (
+																					<CommandItem
+																						key={`${suggestion.lat}-${suggestion.lng}-${suggestion.displayName}`}
+																						value={
+																							suggestion.displayName
+																						}
+																						onSelect={() =>
+																							handleGeocodeSelect(
+																								suggestion,
+																							)
+																						}
+																					>
+																						<Check
+																							className={`h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
+																						/>
+																						<span className="text-sm">
+																							{
+																								suggestion.displayName
+																							}
+																						</span>
+																					</CommandItem>
+																				);
+																			},
+																		)}
 																	</CommandGroup>
 																)}
 															</CommandList>
@@ -821,7 +834,9 @@ export function LocationsPageClient(): React.ReactElement {
 									)}
 								</form.AppField>
 								<div className="grid grid-cols-4 items-start gap-4">
-									<Label className="pt-2 text-right">{t('mapPicker.title')}</Label>
+									<Label className="pt-2 text-right">
+										{t('mapPicker.title')}
+									</Label>
 									<div className="col-span-3 space-y-2">
 										<LocationMapPicker
 											latitude={latitudeValue}
@@ -837,7 +852,7 @@ export function LocationsPageClient(): React.ReactElement {
 												? t('mapPicker.coordinates', {
 														lat: latitudeValue?.toFixed(5) ?? '',
 														lng: longitudeValue?.toFixed(5) ?? '',
-												  })
+													})
 												: t('mapPicker.coordinatesEmpty')}
 										</p>
 									</div>

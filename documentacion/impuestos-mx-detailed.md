@@ -24,7 +24,7 @@ Vigencia: estos valores entran en vigor a partir del 1 de febrero de cada año (
     Son obligación del patrón (p. ej. IMSS patronal, INFONAVIT 5% patronal, Riesgo de trabajo,auarderías 1%, SAR 2%, etc.).
 3.  Montos informativos (se reportan pero no necesariamente impactan neto)  
      Ejemplo común: mostrar “ISR antes de subsidio” y “Subsidio acreditado” como renglones explicativos.
-    > Regla de oro para tu sistema: separa explícitamente employee*withholdings (neto) de employer_costs (costo).  
+    > Regla de oro para tu sistema: separa explícitamente employee\*withholdings (neto) de employer_costs (costo).  
     > Si mezclas ambos en una sola “columna de deducciones” acabarás con reportes confusos y netos incorrectos.
     > ***2) Entradas mínimas para calcular
     > Por trabajador (por periodo de pago)
@@ -112,7 +112,7 @@ Vigencia: estos valores entran en vigor a partir del 1 de febrero de cada año (
     > *\*\*6) INFONAVIT: 2 cosas distintas (y se confunden TODO el tiempo)
     > 6.1 Aportación patronal 5%
     > Esto no es un descuento al trabajador.
-    > INFONAVIT*pat = SBC_periodo * 5%
+    > INFONAVIT*pat = SBC_periodo \* 5%
     > 6.2 Amortización de crédito INFONAVIT (descuento al trabajador)
     > Esto sí es deducción.
     > Depende del “aviso” del INFONAVIT: puede ser porcentaje, cuota fija, o modalidad ligada a VSM/UMA según el crédito.

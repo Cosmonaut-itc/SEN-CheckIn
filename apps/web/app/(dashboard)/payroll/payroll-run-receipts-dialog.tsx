@@ -24,7 +24,11 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { fetchPayrollRunDetail, type PayrollRun, type PayrollRunEmployee } from '@/lib/client-functions';
+import {
+	fetchPayrollRunDetail,
+	type PayrollRun,
+	type PayrollRunEmployee,
+} from '@/lib/client-functions';
 import { queryKeys } from '@/lib/query-keys';
 
 /**
@@ -66,7 +70,9 @@ function resolveEmployeeNetPay(employee: PayrollRunEmployee): number {
  * @param props - Dialog props
  * @returns Dialog element with receipt downloads
  */
-export function PayrollRunReceiptsDialog({ run }: PayrollRunReceiptsDialogProps): React.ReactElement {
+export function PayrollRunReceiptsDialog({
+	run,
+}: PayrollRunReceiptsDialogProps): React.ReactElement {
 	const t = useTranslations('Payroll');
 	const tCommon = useTranslations('Common');
 	const [open, setOpen] = useState(false);
@@ -122,21 +128,25 @@ export function PayrollRunReceiptsDialog({ run }: PayrollRunReceiptsDialogProps)
 									<p className="text-xs text-muted-foreground">
 										{t('receipts.summary.employeesLabel')}
 									</p>
-								<p className="text-sm font-semibold tabular-nums">
-									{t('receipts.summary.employees', { count: employees.length })}
-								</p>
-							</div>
-							<div className="text-right">
-								<p className="text-xs text-muted-foreground">
-									{t('receipts.summary.total')}
-								</p>
-								<p className="text-sm font-semibold tabular-nums">
-									{formatCurrency(Number(run.totalAmount ?? 0))}
-								</p>
-							</div>
+									<p className="text-sm font-semibold tabular-nums">
+										{t('receipts.summary.employees', {
+											count: employees.length,
+										})}
+									</p>
+								</div>
+								<div className="text-right">
+									<p className="text-xs text-muted-foreground">
+										{t('receipts.summary.total')}
+									</p>
+									<p className="text-sm font-semibold tabular-nums">
+										{formatCurrency(Number(run.totalAmount ?? 0))}
+									</p>
+								</div>
 								{canDownloadAll ? (
 									<Button asChild size="sm">
-										<a href={downloadAllUrl}>{t('receipts.actions.downloadAll')}</a>
+										<a href={downloadAllUrl}>
+											{t('receipts.actions.downloadAll')}
+										</a>
 									</Button>
 								) : (
 									<Button size="sm" disabled>
@@ -150,72 +160,75 @@ export function PayrollRunReceiptsDialog({ run }: PayrollRunReceiptsDialogProps)
 					<div className="rounded-md border">
 						<div className="max-h-[360px] overflow-y-auto">
 							<Table>
-							<TableHeader className="sticky top-0 z-10 bg-background">
-								<TableRow>
-									<TableHead>{t('receipts.table.employee')}</TableHead>
-									<TableHead>{t('receipts.table.code')}</TableHead>
-									<TableHead className="text-right">
-										{t('receipts.table.netPay')}
-									</TableHead>
-									<TableHead className="text-right">
-										{t('receipts.table.actions')}
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{isLoading ? (
-									Array.from({ length: 3 }).map((_, index) => (
-										<TableRow key={`receipt-skeleton-${index}`}>
-											<TableCell>
-												<Skeleton className="h-4 w-32" />
-											</TableCell>
-											<TableCell>
-												<Skeleton className="h-4 w-20" />
-											</TableCell>
-											<TableCell>
-												<Skeleton className="h-4 w-20" />
-											</TableCell>
-											<TableCell>
-												<Skeleton className="h-8 w-28" />
-											</TableCell>
-										</TableRow>
-									))
-								) : employees.length === 0 ? (
+								<TableHeader className="sticky top-0 z-10 bg-background">
 									<TableRow>
-										<TableCell colSpan={4} className="h-20 text-center">
-											{t('receipts.empty')}
-										</TableCell>
+										<TableHead>{t('receipts.table.employee')}</TableHead>
+										<TableHead>{t('receipts.table.code')}</TableHead>
+										<TableHead className="text-right">
+											{t('receipts.table.netPay')}
+										</TableHead>
+										<TableHead className="text-right">
+											{t('receipts.table.actions')}
+										</TableHead>
 									</TableRow>
-								) : (
-									employees.map((employee) => {
-										const netPay = resolveEmployeeNetPay(employee);
-										const pdfUrl = `/api/payroll/receipts/run/${run.id}/employee/${employee.employeeId}`;
-										const employeeName =
-											employee.employeeName || tCommon('notAvailable');
-										return (
-											<TableRow key={employee.id}>
-												<TableCell
-													className="max-w-[240px] truncate font-medium"
-													title={employee.employeeName ?? undefined}
-												>
-													{employeeName}
+								</TableHeader>
+								<TableBody>
+									{isLoading ? (
+										Array.from({ length: 3 }).map((_, index) => (
+											<TableRow key={`receipt-skeleton-${index}`}>
+												<TableCell>
+													<Skeleton className="h-4 w-32" />
 												</TableCell>
 												<TableCell>
-													{employee.employeeCode || tCommon('notAvailable')}
+													<Skeleton className="h-4 w-20" />
 												</TableCell>
-												<TableCell className="text-right tabular-nums">
-													{formatCurrency(netPay)}
+												<TableCell>
+													<Skeleton className="h-4 w-20" />
 												</TableCell>
-												<TableCell className="text-right">
-													<Button variant="outline" size="sm" asChild>
-														<a href={pdfUrl}>{t('receipts.actions.downloadOne')}</a>
-													</Button>
+												<TableCell>
+													<Skeleton className="h-8 w-28" />
 												</TableCell>
 											</TableRow>
-										);
-									})
-								)}
-							</TableBody>
+										))
+									) : employees.length === 0 ? (
+										<TableRow>
+											<TableCell colSpan={4} className="h-20 text-center">
+												{t('receipts.empty')}
+											</TableCell>
+										</TableRow>
+									) : (
+										employees.map((employee) => {
+											const netPay = resolveEmployeeNetPay(employee);
+											const pdfUrl = `/api/payroll/receipts/run/${run.id}/employee/${employee.employeeId}`;
+											const employeeName =
+												employee.employeeName || tCommon('notAvailable');
+											return (
+												<TableRow key={employee.id}>
+													<TableCell
+														className="max-w-[240px] truncate font-medium"
+														title={employee.employeeName ?? undefined}
+													>
+														{employeeName}
+													</TableCell>
+													<TableCell>
+														{employee.employeeCode ||
+															tCommon('notAvailable')}
+													</TableCell>
+													<TableCell className="text-right tabular-nums">
+														{formatCurrency(netPay)}
+													</TableCell>
+													<TableCell className="text-right">
+														<Button variant="outline" size="sm" asChild>
+															<a href={pdfUrl}>
+																{t('receipts.actions.downloadOne')}
+															</a>
+														</Button>
+													</TableCell>
+												</TableRow>
+											);
+										})
+									)}
+								</TableBody>
 							</Table>
 						</div>
 					</div>

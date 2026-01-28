@@ -2,44 +2,44 @@
 name: tanstack-react-table-refactor
 overview: Create a single reusable DataTable component (shadcn Table + TanStack React Table) and refactor all main list/overview tables in apps/web to use it with pagination, filtering, and sorting managed by TanStack Table. Add a detailed architecture/how-to doc with a TanStack Table references section and reminders to follow AGENTS.md + run lint/type checks.
 todos:
-  - id: datatable-component
-    content: Implementar el componente reutilizable `DataTable` (shadcn Table + TanStack Table) con sorting/filtering/pagination (server+client modes).
-    status: completed
-  - id: datatable-i18n
-    content: Agregar/ajustar i18n para textos genéricos del DataTable (sin strings hardcodeadas) en `apps/web/messages/es.json` o un namespace nuevo.
-    status: completed
-  - id: migrate-employees
-    content: Migrar la tabla principal de `[apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/(dashboard)/employees/employees-client.tsx)` a `DataTable` con filtros + paginación + sorting.
-    status: completed
-  - id: migrate-attendance
-    content: Migrar `[apps/web/app/(dashboard)/attendance/attendance-client.tsx](apps/web/app/(dashboard)/attendance/attendance-client.tsx)` a `DataTable` (date/type/location) con paginación + filtros + sorting.
-    status: completed
-  - id: migrate-vacations
-    content: Migrar la tabla principal de `[apps/web/app/(dashboard)/vacations/vacations-client.tsx](apps/web/app/(dashboard)/vacations/vacations-client.tsx)` a `DataTable`.
-    status: completed
-  - id: migrate-payroll-history
-    content: Migrar el listado principal/historial en `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/(dashboard)/payroll/payroll-client.tsx)` a `DataTable` (sin tocar previews).
-    status: completed
-  - id: migrate-users
-    content: Migrar `[apps/web/app/(dashboard)/users/users-client.tsx](apps/web/app/(dashboard)/users/users-client.tsx)` a `DataTable` con búsqueda + paginación + sorting.
-    status: completed
-  - id: migrate-admin-crud
-    content: Migrar Organizations/Locations/Devices/ApiKeys/JobPositions/Schedules tabs a `DataTable` con paginación+filtros+sorting.
-    status: completed
-    dependencies:
-      - datatable-component
-      - datatable-i18n
-  - id: migrate-dashboard-presence
-    content: Migrar la tabla de presencia en `[apps/web/app/(dashboard)/dashboard/dashboard-client.tsx](apps/web/app/(dashboard)/dashboard/dashboard-client.tsx)` a `DataTable` (client mode).
-    status: completed
-    dependencies:
-      - datatable-component
-      - datatable-i18n
-  - id: datatable-docs
-    content: Crear `apps/web/docs/data-table-architecture.md` con arquitectura, how-to, checklist, referencias TanStack (Context7) y recordatorios AGENTS.md + lint/type-check.
-    status: completed
-    dependencies:
-      - datatable-component
+    - id: datatable-component
+      content: Implementar el componente reutilizable `DataTable` (shadcn Table + TanStack Table) con sorting/filtering/pagination (server+client modes).
+      status: completed
+    - id: datatable-i18n
+      content: Agregar/ajustar i18n para textos genéricos del DataTable (sin strings hardcodeadas) en `apps/web/messages/es.json` o un namespace nuevo.
+      status: completed
+    - id: migrate-employees
+      content: Migrar la tabla principal de `[apps/web/app/(dashboard)/employees/employees-client.tsx](apps/web/app/(dashboard)/employees/employees-client.tsx)` a `DataTable` con filtros + paginación + sorting.
+      status: completed
+    - id: migrate-attendance
+      content: Migrar `[apps/web/app/(dashboard)/attendance/attendance-client.tsx](apps/web/app/(dashboard)/attendance/attendance-client.tsx)` a `DataTable` (date/type/location) con paginación + filtros + sorting.
+      status: completed
+    - id: migrate-vacations
+      content: Migrar la tabla principal de `[apps/web/app/(dashboard)/vacations/vacations-client.tsx](apps/web/app/(dashboard)/vacations/vacations-client.tsx)` a `DataTable`.
+      status: completed
+    - id: migrate-payroll-history
+      content: Migrar el listado principal/historial en `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/(dashboard)/payroll/payroll-client.tsx)` a `DataTable` (sin tocar previews).
+      status: completed
+    - id: migrate-users
+      content: Migrar `[apps/web/app/(dashboard)/users/users-client.tsx](apps/web/app/(dashboard)/users/users-client.tsx)` a `DataTable` con búsqueda + paginación + sorting.
+      status: completed
+    - id: migrate-admin-crud
+      content: Migrar Organizations/Locations/Devices/ApiKeys/JobPositions/Schedules tabs a `DataTable` con paginación+filtros+sorting.
+      status: completed
+      dependencies:
+          - datatable-component
+          - datatable-i18n
+    - id: migrate-dashboard-presence
+      content: Migrar la tabla de presencia en `[apps/web/app/(dashboard)/dashboard/dashboard-client.tsx](apps/web/app/(dashboard)/dashboard/dashboard-client.tsx)` a `DataTable` (client mode).
+      status: completed
+      dependencies:
+          - datatable-component
+          - datatable-i18n
+    - id: datatable-docs
+      content: Crear `apps/web/docs/data-table-architecture.md` con arquitectura, how-to, checklist, referencias TanStack (Context7) y recordatorios AGENTS.md + lint/type-check.
+      status: completed
+      dependencies:
+          - datatable-component
 ---
 
 # Refactor de tablas (apps/web) a TanStack React Table
@@ -110,8 +110,6 @@ flowchart TD
   data --> dataTable[DataTable(useReactTable)]
   dataTable --> pageState
 ```
-
-
 
 ## Migración de tablas por pantalla
 

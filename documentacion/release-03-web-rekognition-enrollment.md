@@ -66,11 +66,13 @@ New TanStack Query mutation keys for cache management:
 
 ### Environment Variables
 
-| Variable                        | Description                | Required  |
-| ------------------------------- | -------------------------- | --------- |
-| `AWS_REGION`                    | AWS region for Rekognition | Yes (API) |
-| `AWS_REKOGNITION_COLLECTION_ID` | Rekognition collection ID  | Yes (API) |
-| `NEXT_PUBLIC_API_URL`           | API base URL               | Yes (Web) |
+| Variable                            | Description                | Required  |
+| ----------------------------------- | -------------------------- | --------- |
+| `AWS_REGION_RKG`                    | AWS region for Rekognition | Yes (API) |
+| `AWS_REKOGNITION_COLLECTION_ID_RKG` | Rekognition collection ID  | Yes (API) |
+| `AWS_ACCESS_KEY_ID_RKG`             | Rekognition access key     | Yes (API) |
+| `AWS_SECRET_ACCESS_KEY_RKG`         | Rekognition secret key     | Yes (API) |
+| `NEXT_PUBLIC_API_URL`               | API base URL               | Yes (Web) |
 
 ### AWS Permissions
 

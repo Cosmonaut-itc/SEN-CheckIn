@@ -1536,8 +1536,8 @@
 			}
 		},
 		"documents": {
-			"title": "Documento IMSS",
-			"description": "Sube el documento físico de la incapacidad.",
+			"title": "Documentos de incapacidad",
+			"description": "Sube todos los documentos relacionados con la incapacidad.",
 			"upload": "Subir documento",
 			"uploading": "Subiendo...",
 			"empty": "Aún no hay documentos.",

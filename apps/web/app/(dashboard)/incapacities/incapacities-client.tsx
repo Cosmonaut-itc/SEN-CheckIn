@@ -73,6 +73,24 @@ const ALL_STATUS_VALUE = '__all__';
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 const ALLOWED_UPLOAD_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 
+/**
+ * Ensures incapacity document timestamps are Date instances.
+ *
+ * @param document - Raw incapacity document payload
+ * @returns Normalized incapacity document
+ */
+function normalizeIncapacityDocument(document: IncapacityDocument): IncapacityDocument {
+	return {
+		...document,
+		uploadedAt:
+			document.uploadedAt instanceof Date
+				? document.uploadedAt
+				: new Date(document.uploadedAt),
+		createdAt:
+			document.createdAt instanceof Date ? document.createdAt : new Date(document.createdAt),
+	};
+}
+
 const statusVariants: Record<
 	IncapacityStatus,
 	'default' | 'secondary' | 'destructive' | 'outline'
@@ -571,18 +589,19 @@ export function IncapacitiesPageClient(): React.ReactElement {
 
 				if (confirmResult.success) {
 					if (confirmResult.data) {
+						const normalizedDocument = normalizeIncapacityDocument(confirmResult.data);
 						setEditingRecord((prev) => {
 							if (!prev || prev.id !== record.id) {
 								return prev;
 							}
 							const exists = prev.documents.some(
-								(document) => document.id === confirmResult.data?.id,
+								(document) => document.id === normalizedDocument.id,
 							);
 							return exists
 								? prev
 								: {
 										...prev,
-										documents: [...prev.documents, confirmResult.data],
+										documents: [...prev.documents, normalizedDocument],
 									};
 						});
 					}

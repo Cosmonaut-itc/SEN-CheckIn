@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
-import { Calendar as CalendarIcon, FileUp, RefreshCw, Search } from 'lucide-react';
+import { Calendar as CalendarIcon, FileUp, Loader2, RefreshCw, Search } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ import {
 import {
 	fetchEmployeesList,
 	fetchIncapacitiesList,
+	type IncapacityDocument,
 	type IncapacityRecord,
 } from '@/lib/client-functions';
 import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';

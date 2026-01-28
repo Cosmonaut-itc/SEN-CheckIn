@@ -1,40 +1,3 @@
----
-name: incapacidades-imss
-overview: Implementar un módulo completo de incapacidades IMSS (EG/RT/MAT/140Bis) para registrar certificados, calcular subsidios/días exentos, ajustar automáticamente vacaciones traslapadas y reflejar efectos en nómina (IMSS/RT/guarderías), con almacenamiento opcional del documento vía Railway Buckets (S3) y cobertura de pruebas en API + Web.
-todos:
-  - id: db-schema-migrations
-    content: Agregar tablas `employee_incapacity` + `employee_incapacity_document`, agregar `schedule_exception.incapacityId`, y extender `vacation_day_type` con `INCAPACITY` (Drizzle schema + migración).
-    status: pending
-  - id: types-domain
-    content: Agregar tipos compartidos de incapacidades y documentos en `packages/types/src/index.ts` (JSDoc + typing estricto).
-    status: pending
-  - id: incapacity-engine
-    content: Implementar motor de cálculo de incapacidades (EG día 4, RT/MAT/140Bis) y utilidades de intersección por periodo en `apps/api/src/services/incapacities.ts`.
-    status: pending
-  - id: taxes-imss-exempt
-    content: Extender `calculateMexicoPayrollTaxes` para aceptar `imssExemptDateKeys` y ajustar IMSS/RT/guarderías vs Retiro/INFONAVIT; actualizar schemas/outputs de nómina.
-    status: pending
-  - id: api-incapacity-routes
-    content: Crear rutas `apps/api/src/routes/incapacities.ts` (CRUD + cancel + presign/confirm/get-url) y registrarlas en `apps/api/src/app.ts`.
-    status: pending
-  - id: vacation-auto-adjust
-    content: "En creación/actualización de incapacidad: ajustar `vacationRequestDay` traslapados, eliminar schedule exceptions de vacaciones y crear day-offs por incapacidad; bloquear nuevas vacaciones que traslapan incapacidades."
-    status: pending
-  - id: railway-bucket-integration
-    content: "Integrar Railway Buckets: deps AWS S3, config env vars, key naming, CORS, endpoints presign/confirm."
-    status: pending
-  - id: web-incapacities-ui
-    content: Crear página Admin de incapacidades + upload de documento en `apps/web/app/(dashboard)/incapacities/*`, acciones y queries; actualizar `apps/web/messages/es.json`.
-    status: pending
-  - id: tests-api-web
-    content: Agregar pruebas API (unit+contract) y Web (unit; e2e opcional) cubriendo edge cases y flows principales.
-    status: pending
-  - id: quality-gates
-    content: Ejecutar `bun run lint`, `bun run check-types`, y suites de test relevantes (API + Web).
-    status: pending
-isProject: false
----
-
 # Feature: Incapacidades (IMSS) end‑to‑end
 
 ## Objetivo
@@ -129,7 +92,7 @@ isProject: false
 ## Web (Next.js)
 
 - Nuevo módulo HR/admin:
-  - Página `[apps/web/app/(dashboard)/incapacities/page.tsx](apps/web/app/\\\\\\\\(dashboard)/incapacities/page.tsx) `+ `incapacities-client.tsx` + `loading.tsx`.
+  - Página `[apps/web/app/(dashboard)/incapacities/page.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/incapacities/page.tsx) `+ `incapacities-client.tsx` + `loading.tsx`.
   - Server actions [`apps/web/actions/incapacities.ts`](apps/web/actions/incapacities.ts).
   - Client functions [`apps/web/lib/client-functions.ts`](apps/web/lib/client-functions.ts) + query keys.
   - i18n: agregar strings a [`apps/web/messages/es.json`](apps/web/messages/es.json) (no hardcode).
@@ -138,7 +101,7 @@ isProject: false
   - Modal “Crear incapacidad” (inputs del doc).
   - Sección “Documento IMSS”: subir archivo -> presign -> POST a S3 -> confirm.
 - Nómina UI:
-  - En `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\(dashboard)/payroll/payroll-client.tsx) `mostrar (opcional) columnas/tooltip con `días de incapacidad` y `subsidio IMSS esperado` para dar trazabilidad.
+  - En `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/payroll/payroll-client.tsx) `mostrar (opcional) columnas/tooltip con `días de incapacidad` y `subsidio IMSS esperado` para dar trazabilidad.
 
 ## Pruebas
 

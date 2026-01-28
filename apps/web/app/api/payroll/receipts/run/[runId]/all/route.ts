@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { headers } from 'next/headers';
+import { getTranslations } from 'next-intl/server';
 import { NextResponse } from 'next/server';
 
 import { getAdminAccessContext } from '@/lib/organization-context';
@@ -82,12 +83,14 @@ async function resolveCookieHeader(): Promise<string> {
  * @param args.run - Payroll run metadata
  * @param args.employees - Payroll run employees
  * @param args.organizationName - Optional organization name for PDF headers
+ * @param args.t - Translation helper for receipt labels
  * @returns Buffer containing ZIP archive
  */
 async function buildPayrollReceiptsZip(args: {
 	run: PayrollRun;
 	employees: PayrollRunEmployee[];
 	organizationName?: string | null;
+	t: (key: string, values?: Record<string, string | number>) => string;
 }): Promise<ArrayBuffer> {
 	const zip = new JSZip();
 	const usedFileNames = new Set<string>();
@@ -108,6 +111,7 @@ async function buildPayrollReceiptsZip(args: {
 				run: args.run,
 				employee,
 				organizationName: args.organizationName ?? undefined,
+				t: args.t,
 			});
 			zip.file(fileName, pdfBytes);
 		}),
@@ -127,10 +131,11 @@ export async function GET(
 	_request: Request,
 	context: { params: RouteParams | Promise<RouteParams> },
 ): Promise<NextResponse> {
-	const [adminContext, cookieHeader, resolvedParams] = await Promise.all([
+	const [adminContext, cookieHeader, resolvedParams, t] = await Promise.all([
 		getAdminAccessContext(),
 		resolveCookieHeader(),
 		context.params,
+		getTranslations('Payroll.receiptPdf'),
 	]);
 
 	if (!adminContext.canAccessAdminRoutes) {
@@ -158,7 +163,8 @@ export async function GET(
 	const zipBytes = await buildPayrollReceiptsZip({
 		run: detail.run,
 		employees: detail.employees,
-		organizationName: adminContext.organization.organizationName ?? undefined,
+		organizationName: detail.run.organizationName ?? undefined,
+		t,
 	});
 
 	const fileName = buildPayrollReceiptsZipFileName(

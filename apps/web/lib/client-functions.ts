@@ -1492,6 +1492,7 @@ export interface PayrollCalculationResult {
 export interface PayrollRun {
 	id: string;
 	organizationId: string;
+	organizationName?: string | null;
 	periodStart: Date;
 	periodEnd: Date;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';

@@ -25,6 +25,7 @@ type PayrollReceiptInput = {
 	run: PayrollRun;
 	employee: PayrollRunEmployee;
 	organizationName?: string | null;
+	t: (key: string, values?: Record<string, string | number>) => string;
 };
 
 const CURRENCY_FORMATTER = new Intl.NumberFormat('es-MX', {
@@ -61,11 +62,12 @@ function toNumber(value: number | string | null | undefined): number {
  * Formats a currency value, falling back to a dash when missing.
  *
  * @param value - Numeric value to format
+ * @param placeholder - Placeholder text when value is missing
  * @returns MXN formatted string or placeholder
  */
-function formatCurrency(value: number | null | undefined): string {
+function formatCurrency(value: number | null | undefined, placeholder: string): string {
 	if (value === null || value === undefined || Number.isNaN(value)) {
-		return '—';
+		return placeholder;
 	}
 	return CURRENCY_FORMATTER.format(value);
 }
@@ -74,17 +76,23 @@ function formatCurrency(value: number | null | undefined): string {
  * Formats a date value for display.
  *
  * @param value - Date instance or ISO string
+ * @param placeholder - Placeholder text when date is missing
+ * @param dateFormat - date-fns format string
  * @returns Formatted date or placeholder
  */
-function formatDate(value: Date | string | null | undefined): string {
+function formatDate(
+	value: Date | string | null | undefined,
+	placeholder: string,
+	dateFormat: string,
+): string {
 	if (!value) {
-		return '—';
+		return placeholder;
 	}
 	const date = value instanceof Date ? value : new Date(value);
 	if (Number.isNaN(date.getTime())) {
-		return '—';
+		return placeholder;
 	}
-	return format(date, 'dd/MM/yyyy');
+	return format(date, dateFormat);
 }
 
 /**
@@ -167,6 +175,7 @@ function drawRightAlignedText(
  * @param x - Left coordinate
  * @param y - Baseline coordinate
  * @param width - Available row width
+ * @param formatValue - Formats currency values
  * @returns Nothing
  */
 function drawSummaryRow(
@@ -177,6 +186,7 @@ function drawSummaryRow(
 	x: number,
 	y: number,
 	width: number,
+	formatValue: (value: number) => string,
 ): void {
 	page.drawRectangle({
 		x,
@@ -194,7 +204,7 @@ function drawSummaryRow(
 	});
 	drawRightAlignedText(
 		page,
-		formatCurrency(row.value),
+		formatValue(row.value),
 		fontBold,
 		10,
 		x + width,
@@ -214,6 +224,9 @@ function drawSummaryRow(
  * @param width - Column width
  * @param font - Regular font
  * @param fontBold - Bold font
+ * @param totalLabel - Label for totals row
+ * @param emptyLabel - Label when there are no line items
+ * @param formatValue - Formats currency values
  * @returns Y coordinate after rendering
  */
 function drawLineItemsColumn(
@@ -226,6 +239,9 @@ function drawLineItemsColumn(
 	width: number,
 	font: PDFFont,
 	fontBold: PDFFont,
+	totalLabel: string,
+	emptyLabel: string,
+	formatValue: (value: number) => string,
 ): number {
 	let cursorY = y;
 	page.drawText(title, {
@@ -236,7 +252,7 @@ function drawLineItemsColumn(
 	});
 	cursorY -= 16;
 
-	const resolvedLines = lines.length > 0 ? lines : [{ label: 'Sin conceptos', value: 0 }];
+	const resolvedLines = lines.length > 0 ? lines : [{ label: emptyLabel, value: 0 }];
 
 	for (const line of resolvedLines) {
 		page.drawText(line.label, {
@@ -248,7 +264,7 @@ function drawLineItemsColumn(
 		});
 		drawRightAlignedText(
 			page,
-			formatCurrency(line.value),
+			formatValue(line.value),
 			font,
 			9.5,
 			x + width,
@@ -267,7 +283,7 @@ function drawLineItemsColumn(
 	});
 	cursorY -= 8;
 
-	page.drawText('Total', {
+	page.drawText(totalLabel, {
 		x,
 		y: cursorY,
 		size: 10,
@@ -275,7 +291,7 @@ function drawLineItemsColumn(
 	});
 	drawRightAlignedText(
 		page,
-		formatCurrency(totalValue),
+		formatValue(totalValue),
 		fontBold,
 		10,
 		x + width,
@@ -298,6 +314,17 @@ export async function buildPayrollReceiptPdf(
 	const pdfDoc = await PDFDocument.create();
 	const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 	const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+	const placeholder = input.t('placeholder');
+	const dateFormat = input.t('dateFormat');
+	const formatCurrencyValue = (value: number | string | null | undefined): string => {
+		if (value === null || value === undefined) {
+			return formatCurrency(null, placeholder);
+		}
+		const numeric = typeof value === 'string' ? Number(value) : value;
+		return formatCurrency(Number.isNaN(numeric) ? null : numeric, placeholder);
+	};
+	const formatDateValue = (value: Date | string | null | undefined): string =>
+		formatDate(value, placeholder, dateFormat);
 
 	const page = pdfDoc.addPage(PageSizes.Letter);
 	const { width, height } = page.getSize();
@@ -312,7 +339,7 @@ export async function buildPayrollReceiptPdf(
 	const companyCost = toNumber(taxBreakdown?.companyCost ?? grossPay + employerCostsTotal);
 
 	let cursorY = height - margin;
-	page.drawText('Recibo de nómina', {
+	page.drawText(input.t('title'), {
 		x: margin,
 		y: cursorY,
 		size: 16,
@@ -330,7 +357,7 @@ export async function buildPayrollReceiptPdf(
 	}
 	cursorY -= 20;
 
-	page.drawText('Resumen fiscal', {
+	page.drawText(input.t('summary.title'), {
 		x: margin,
 		y: cursorY,
 		size: 12,
@@ -340,34 +367,43 @@ export async function buildPayrollReceiptPdf(
 
 	const summaryRows: PayrollReceiptSummary[] = [
 		{
-			label: 'Tu trabajo vale para la empresa',
+			label: input.t('summary.rows.companyCost'),
 			value: companyCost,
 			color: SUMMARY_COLOR_POSITIVE,
 		},
 		{
-			label: 'La empresa te paga',
+			label: input.t('summary.rows.grossPay'),
 			value: grossPay,
 			color: SUMMARY_COLOR_POSITIVE,
 		},
 		{
-			label: 'La empresa le paga al gobierno por tu cuenta',
+			label: input.t('summary.rows.employerCosts'),
 			value: employerCostsTotal,
 			color: SUMMARY_COLOR_WARNING,
 		},
 		{
-			label: 'Después, el gobierno te quita',
+			label: input.t('summary.rows.employeeWithholdings'),
 			value: employeeWithholdingsTotal,
 			color: SUMMARY_COLOR_NEGATIVE,
 		},
 		{
-			label: 'Te quedan',
+			label: input.t('summary.rows.netPay'),
 			value: netPay,
 			color: SUMMARY_COLOR_POSITIVE,
 		},
 	];
 
 	for (const row of summaryRows) {
-		drawSummaryRow(page, row, font, fontBold, margin, cursorY, contentWidth);
+		drawSummaryRow(
+			page,
+			row,
+			font,
+			fontBold,
+			margin,
+			cursorY,
+			contentWidth,
+			formatCurrencyValue,
+		);
 		cursorY -= 14;
 	}
 
@@ -387,33 +423,33 @@ export async function buildPayrollReceiptPdf(
 	const detailRightX = margin + contentWidth / 2 + 6;
 	let detailY = cursorY - 18;
 
-	const employeeName = input.employee.employeeName || '—';
-	const employeeCode = input.employee.employeeCode || '—';
-	const employeeNss = input.employee.employeeNss || '—';
-	const employeeRfc = input.employee.employeeRfc || '—';
+	const employeeName = input.employee.employeeName || placeholder;
+	const employeeCode = input.employee.employeeCode || placeholder;
+	const employeeNss = input.employee.employeeNss || placeholder;
+	const employeeRfc = input.employee.employeeRfc || placeholder;
 
-	page.drawText(`Empleado: ${employeeName}`, {
+	page.drawText(input.t('details.employee', { value: employeeName }), {
 		x: detailLeftX,
 		y: detailY,
 		size: 10,
 		font,
 	});
 	detailY -= 14;
-	page.drawText(`Clave: ${employeeCode}`, {
+	page.drawText(input.t('details.code', { value: employeeCode }), {
 		x: detailLeftX,
 		y: detailY,
 		size: 10,
 		font,
 	});
 	detailY -= 14;
-	page.drawText(`NSS: ${employeeNss}`, {
+	page.drawText(input.t('details.nss', { value: employeeNss }), {
 		x: detailLeftX,
 		y: detailY,
 		size: 10,
 		font,
 	});
 	detailY -= 14;
-	page.drawText(`RFC: ${employeeRfc}`, {
+	page.drawText(input.t('details.rfc', { value: employeeRfc }), {
 		x: detailLeftX,
 		y: detailY,
 		size: 10,
@@ -421,31 +457,33 @@ export async function buildPayrollReceiptPdf(
 	});
 
 	let detailRightY = cursorY - 18;
-	const periodLabel = `${formatDate(input.run.periodStart)} - ${formatDate(input.run.periodEnd)}`;
-	const processedAt = formatDate(input.run.processedAt ?? input.run.createdAt);
+	const periodLabel = `${formatDateValue(input.run.periodStart)} - ${formatDateValue(
+		input.run.periodEnd,
+	)}`;
+	const processedAt = formatDateValue(input.run.processedAt ?? input.run.createdAt);
 
-	page.drawText(`Periodo: ${periodLabel}`, {
+	page.drawText(input.t('details.period', { value: periodLabel }), {
 		x: detailRightX,
 		y: detailRightY,
 		size: 10,
 		font,
 	});
 	detailRightY -= 14;
-	page.drawText(`Fecha de pago: ${processedAt}`, {
+	page.drawText(input.t('details.paymentDate', { value: processedAt }), {
 		x: detailRightX,
 		y: detailRightY,
 		size: 10,
 		font,
 	});
 	detailRightY -= 14;
-	page.drawText('Forma de pago: Efectivo (100%)', {
+	page.drawText(input.t('details.paymentMethod', { value: input.t('paymentMethods.cash') }), {
 		x: detailRightX,
 		y: detailRightY,
 		size: 10,
 		font,
 	});
 	detailRightY -= 14;
-	page.drawText('Pago tarjeta: 0.00', {
+	page.drawText(input.t('details.cardPayment', { value: formatCurrencyValue(0) }), {
 		x: detailRightX,
 		y: detailRightY,
 		size: 10,
@@ -455,37 +493,55 @@ export async function buildPayrollReceiptPdf(
 	cursorY -= detailsHeight + 20;
 
 	const incomeLines: PayrollReceiptLine[] = [
-		{ label: 'Sueldo normal', value: toNumber(input.employee.normalPay) },
-		{ label: 'Horas extra dobles', value: toNumber(input.employee.overtimeDoublePay) },
-		{ label: 'Horas extra triples', value: toNumber(input.employee.overtimeTriplePay) },
-		{ label: 'Prima dominical', value: toNumber(input.employee.sundayPremiumAmount) },
 		{
-			label: 'Descanso obligatorio',
+			label: input.t('income.lines.normalSalary'),
+			value: toNumber(input.employee.normalPay),
+		},
+		{
+			label: input.t('income.lines.overtimeDouble'),
+			value: toNumber(input.employee.overtimeDoublePay),
+		},
+		{
+			label: input.t('income.lines.overtimeTriple'),
+			value: toNumber(input.employee.overtimeTriplePay),
+		},
+		{
+			label: input.t('income.lines.sundayPremium'),
+			value: toNumber(input.employee.sundayPremiumAmount),
+		},
+		{
+			label: input.t('income.lines.mandatoryRestDay'),
 			value: toNumber(input.employee.mandatoryRestDayPremiumAmount),
 		},
-		{ label: 'Vacaciones', value: toNumber(input.employee.vacationPayAmount) },
-		{ label: 'Prima vacacional', value: toNumber(input.employee.vacationPremiumAmount) },
 		{
-			label: 'Séptimo día',
+			label: input.t('income.lines.vacations'),
+			value: toNumber(input.employee.vacationPayAmount),
+		},
+		{
+			label: input.t('income.lines.vacationPremium'),
+			value: toNumber(input.employee.vacationPremiumAmount),
+		},
+		{
+			label: input.t('income.lines.seventhDay'),
 			value: toNumber(taxBreakdown?.seventhDayPay),
 		},
 	].filter((line) => line.value > 0);
 
 	if (incomeLines.length === 0) {
-		incomeLines.push({ label: 'Sueldo', value: grossPay });
+		incomeLines.push({ label: input.t('income.lines.fallbackSalary'), value: grossPay });
 	}
 
 	const deductionLines: PayrollReceiptLine[] = [
 		{
-			label: 'ISR',
+			label: input.t('deductions.lines.isr'),
 			value: toNumber(taxBreakdown?.employeeWithholdings?.isrWithheld),
 		},
 		{
-			label: 'IMSS',
+			label: input.t('deductions.lines.imss'),
 			value: toNumber(taxBreakdown?.employeeWithholdings?.imssEmployee?.total),
 		},
 		{
-			label: 'INFONAVIT',
+			label: input.t('deductions.lines.infonavit'),
 			value: toNumber(taxBreakdown?.employeeWithholdings?.infonavitCredit),
 		},
 	].filter((line) => line.value > 0);
@@ -497,7 +553,7 @@ export async function buildPayrollReceiptPdf(
 	const columnWidth = (contentWidth - columnGap) / 2;
 	const leftBottom = drawLineItemsColumn(
 		page,
-		'Ingresos',
+		input.t('income.title'),
 		incomeLines,
 		incomeTotal,
 		margin,
@@ -505,10 +561,13 @@ export async function buildPayrollReceiptPdf(
 		columnWidth,
 		font,
 		fontBold,
+		input.t('total'),
+		input.t('lineItems.empty'),
+		formatCurrencyValue,
 	);
 	const rightBottom = drawLineItemsColumn(
 		page,
-		'Deducciones',
+		input.t('deductions.title'),
 		deductionLines,
 		deductionTotal,
 		margin + columnWidth + columnGap,
@@ -516,20 +575,34 @@ export async function buildPayrollReceiptPdf(
 		columnWidth,
 		font,
 		fontBold,
+		input.t('total'),
+		input.t('lineItems.empty'),
+		formatCurrencyValue,
 	);
 
 	cursorY = Math.min(leftBottom, rightBottom) - 8;
 
-	page.drawText('Neto recibido', {
+	page.drawText(input.t('netReceived'), {
 		x: margin,
 		y: cursorY,
 		size: 12,
 		font: fontBold,
 	});
-	drawRightAlignedText(page, formatCurrency(netPay), fontBold, 12, margin + contentWidth, cursorY);
+	drawRightAlignedText(
+		page,
+		formatCurrencyValue(netPay),
+		fontBold,
+		12,
+		margin + contentWidth,
+		cursorY,
+	);
 	cursorY -= 26;
 
-	const receiptMessage = `Recibí de ${input.organizationName ?? 'la empresa'} la cantidad descrita en este recibo, correspondiente al periodo ${periodLabel}.`;
+	const organizationLabel = input.organizationName ?? input.t('organizationFallback');
+	const receiptMessage = input.t('receiptMessage', {
+		organization: organizationLabel,
+		period: periodLabel,
+	});
 	const receiptLines = wrapText(receiptMessage, font, 9, contentWidth);
 	for (const line of receiptLines) {
 		page.drawText(line, {
@@ -550,7 +623,7 @@ export async function buildPayrollReceiptPdf(
 		height: 0.6,
 		color: COLOR_BORDER,
 	});
-	page.drawText('Firma del empleado', {
+	page.drawText(input.t('signature'), {
 		x: margin,
 		y: signatureY - 12,
 		size: 9,

@@ -1,4 +1,5 @@
 import { headers } from 'next/headers';
+import { getTranslations } from 'next-intl/server';
 import { NextResponse } from 'next/server';
 
 import { getAdminAccessContext } from '@/lib/organization-context';
@@ -54,10 +55,11 @@ export async function GET(
 	_request: Request,
 	context: { params: RouteParams | Promise<RouteParams> },
 ): Promise<NextResponse> {
-	const [adminContext, cookieHeader, resolvedParams] = await Promise.all([
+	const [adminContext, cookieHeader, resolvedParams, t] = await Promise.all([
 		getAdminAccessContext(),
 		resolveCookieHeader(),
 		context.params,
+		getTranslations('Payroll.receiptPdf'),
 	]);
 
 	if (!adminContext.canAccessAdminRoutes) {
@@ -86,7 +88,8 @@ export async function GET(
 	const pdfBytes = await buildPayrollReceiptPdf({
 		run: detail.run,
 		employee,
-		organizationName: adminContext.organization.organizationName ?? undefined,
+		organizationName: detail.run.organizationName ?? undefined,
+		t,
 	});
 
 	const resolvedEmployeeCode =

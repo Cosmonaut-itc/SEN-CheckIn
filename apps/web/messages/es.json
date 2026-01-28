@@ -1130,6 +1130,64 @@
 			},
 			"empty": "No hay recibos para esta ejecución."
 		},
+		"receiptPdf": {
+			"title": "Recibo de nómina",
+			"summary": {
+				"title": "Resumen fiscal",
+				"rows": {
+					"companyCost": "Tu trabajo vale para la empresa",
+					"grossPay": "La empresa te paga",
+					"employerCosts": "La empresa le paga al gobierno por tu cuenta",
+					"employeeWithholdings": "Después, el gobierno te quita",
+					"netPay": "Te quedan"
+				}
+			},
+			"details": {
+				"employee": "Empleado: {value}",
+				"code": "Clave: {value}",
+				"nss": "NSS: {value}",
+				"rfc": "RFC: {value}",
+				"period": "Periodo: {value}",
+				"paymentDate": "Fecha de pago: {value}",
+				"paymentMethod": "Forma de pago: {value}",
+				"cardPayment": "Pago tarjeta: {value}"
+			},
+			"paymentMethods": {
+				"cash": "Efectivo (100%)"
+			},
+			"income": {
+				"title": "Ingresos",
+				"lines": {
+					"normalSalary": "Sueldo normal",
+					"overtimeDouble": "Horas extra dobles",
+					"overtimeTriple": "Horas extra triples",
+					"sundayPremium": "Prima dominical",
+					"mandatoryRestDay": "Descanso obligatorio",
+					"vacations": "Vacaciones",
+					"vacationPremium": "Prima vacacional",
+					"seventhDay": "Séptimo día",
+					"fallbackSalary": "Sueldo"
+				}
+			},
+			"deductions": {
+				"title": "Deducciones",
+				"lines": {
+					"isr": "ISR",
+					"imss": "IMSS",
+					"infonavit": "INFONAVIT"
+				}
+			},
+			"lineItems": {
+				"empty": "Sin conceptos"
+			},
+			"total": "Total",
+			"netReceived": "Neto recibido",
+			"receiptMessage": "Recibí de {organization} la cantidad descrita en este recibo, correspondiente al periodo {period}.",
+			"organizationFallback": "la empresa",
+			"signature": "Firma del empleado",
+			"placeholder": "—",
+			"dateFormat": "dd/MM/yyyy"
+		},
 		"runHistory": {
 			"title": "Historial de ejecuciones",
 			"description": "Ejecuciones recientes de nómina.",

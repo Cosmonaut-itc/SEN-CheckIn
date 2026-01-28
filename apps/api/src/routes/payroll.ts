@@ -9,6 +9,7 @@ import {
 	employee,
 	employeeSchedule,
 	location,
+	organization,
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
@@ -516,6 +517,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('You do not have access to this payroll run', 403);
 			}
 
+			const organizationRows = await db
+				.select({ name: organization.name })
+				.from(organization)
+				.where(eq(organization.id, record.organizationId))
+				.limit(1);
+			const organizationName = organizationRows[0]?.name ?? null;
+
 			const lines = await db
 				.select({
 					id: payrollRunEmployee.id,
@@ -579,6 +587,6 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				employeeRfc: line.employeeRfc ?? null,
 			}));
 
-			return { data: { run: record, employees } };
+			return { data: { run: { ...record, organizationName }, employees } };
 		},
 	);

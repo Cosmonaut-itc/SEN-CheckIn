@@ -14,6 +14,7 @@ import {
 	type UserMatch,
 } from '@aws-sdk/client-rekognition';
 
+import { logger } from '../logger/index.js';
 import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
 
 /**
@@ -81,6 +82,26 @@ function getRekognitionCredentials():
  * Uses AWS credentials from the environment (CLI, IAM role, etc.).
  */
 let rekognitionClient: RekognitionClient | null = null;
+let rekognitionConfigLogged = false;
+
+/**
+ * Logs Rekognition configuration details once, without exposing secrets.
+ *
+ * @returns void
+ */
+function logRekognitionConfig(): void {
+	if (rekognitionConfigLogged) {
+		return;
+	}
+	rekognitionConfigLogged = true;
+	logger.info('Rekognition client configured', {
+		region: process.env.AWS_REGION_RKG ?? null,
+		collectionId: process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ?? null,
+		hasExplicitCredentials: Boolean(
+			process.env.AWS_ACCESS_KEY_ID_RKG && process.env.AWS_SECRET_ACCESS_KEY_RKG,
+		),
+	});
+}
 
 /**
  * Gets or creates the Rekognition client singleton.
@@ -93,6 +114,7 @@ function getClient(): RekognitionClient {
 			region: getAwsRegion(),
 			credentials,
 		});
+		logRekognitionConfig();
 	}
 	return rekognitionClient;
 }
@@ -564,6 +586,12 @@ export async function searchUsersByImage(
 			message: 'No matching user found above similarity threshold',
 		};
 	} catch (error) {
+		logger.error('Rekognition searchUsersByImage failed', error, {
+			collectionId: process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ?? null,
+			region: process.env.AWS_REGION_RKG ?? null,
+			similarityThreshold,
+			imageBytesLength: imageBytes.length,
+		});
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error searching faces';
 		return {

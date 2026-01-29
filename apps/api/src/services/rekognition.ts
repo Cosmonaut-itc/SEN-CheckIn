@@ -14,6 +14,7 @@ import {
 	type UserMatch,
 } from '@aws-sdk/client-rekognition';
 
+import { logger } from '../logger/index.js';
 import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
 
 /**
@@ -564,6 +565,12 @@ export async function searchUsersByImage(
 			message: 'No matching user found above similarity threshold',
 		};
 	} catch (error) {
+		logger.error('Rekognition searchUsersByImage failed', error, {
+			collectionId: process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ?? null,
+			region: process.env.AWS_REGION_RKG ?? null,
+			similarityThreshold,
+			imageBytesLength: imageBytes.length,
+		});
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error searching faces';
 		return {

@@ -14,7 +14,6 @@ import {
 	type UserMatch,
 } from '@aws-sdk/client-rekognition';
 
-import { logger } from '../logger/index.js';
 import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
 
 /**
@@ -82,27 +81,6 @@ function getRekognitionCredentials():
  * Uses AWS credentials from the environment (CLI, IAM role, etc.).
  */
 let rekognitionClient: RekognitionClient | null = null;
-let rekognitionConfigLogged = false;
-
-/**
- * Logs Rekognition configuration details once, without exposing secrets.
- *
- * @returns void
- */
-function logRekognitionConfig(): void {
-	if (rekognitionConfigLogged) {
-		return;
-	}
-	rekognitionConfigLogged = true;
-	logger.info('Rekognition client configured', {
-		region: process.env.AWS_REGION_RKG ?? null,
-		collectionId: process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ?? null,
-		endpoint: process.env.AWS_ENDPOINT_URL ?? null,
-		hasExplicitCredentials: Boolean(
-			process.env.AWS_ACCESS_KEY_ID_RKG && process.env.AWS_SECRET_ACCESS_KEY_RKG,
-		),
-	});
-}
 
 /**
  * Builds the Rekognition service endpoint for a given region.
@@ -112,46 +90,6 @@ function logRekognitionConfig(): void {
  */
 function getRekognitionEndpoint(region: string): string {
 	return `https://rekognition.${region}.amazonaws.com`;
-}
-
-/**
- * Extracts AWS SDK error metadata for structured logging.
- *
- * @param error - Unknown error value
- * @returns Metadata for logging (empty when unavailable)
- */
-function getAwsErrorMetadata(error: unknown): Record<string, unknown> {
-	if (!error || typeof error !== 'object') {
-		return {};
-	}
-
-	const record = error as Record<string, unknown>;
-	const metadata = record.$metadata;
-	const result: Record<string, unknown> = {};
-
-	if (typeof record.name === 'string') {
-		result.awsErrorName = record.name;
-	}
-	if (typeof record.code === 'string') {
-		result.awsErrorCode = record.code;
-	}
-	if (metadata && typeof metadata === 'object') {
-		const metaRecord = metadata as Record<string, unknown>;
-		if (typeof metaRecord.httpStatusCode === 'number') {
-			result.httpStatusCode = metaRecord.httpStatusCode;
-		}
-		if (typeof metaRecord.requestId === 'string') {
-			result.requestId = metaRecord.requestId;
-		}
-		if (typeof metaRecord.extendedRequestId === 'string') {
-			result.extendedRequestId = metaRecord.extendedRequestId;
-		}
-		if (typeof metaRecord.cfId === 'string') {
-			result.cfId = metaRecord.cfId;
-		}
-	}
-
-	return result;
 }
 
 /**
@@ -168,7 +106,6 @@ function getClient(): RekognitionClient {
 			credentials,
 			endpoint,
 		});
-		logRekognitionConfig();
 	}
 	return rekognitionClient;
 }
@@ -640,13 +577,6 @@ export async function searchUsersByImage(
 			message: 'No matching user found above similarity threshold',
 		};
 	} catch (error) {
-		logger.error('Rekognition searchUsersByImage failed', error, {
-			collectionId: process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ?? null,
-			region: process.env.AWS_REGION_RKG ?? null,
-			similarityThreshold,
-			imageBytesLength: imageBytes.length,
-			...getAwsErrorMetadata(error),
-		});
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error searching faces';
 		return {

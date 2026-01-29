@@ -82,6 +82,26 @@ function getRekognitionCredentials():
  * Uses AWS credentials from the environment (CLI, IAM role, etc.).
  */
 let rekognitionClient: RekognitionClient | null = null;
+let rekognitionConfigLogged = false;
+
+/**
+ * Logs Rekognition configuration details once, without exposing secrets.
+ *
+ * @returns void
+ */
+function logRekognitionConfig(): void {
+	if (rekognitionConfigLogged) {
+		return;
+	}
+	rekognitionConfigLogged = true;
+	logger.info('Rekognition client configured', {
+		region: process.env.AWS_REGION_RKG ?? null,
+		collectionId: process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ?? null,
+		hasExplicitCredentials: Boolean(
+			process.env.AWS_ACCESS_KEY_ID_RKG && process.env.AWS_SECRET_ACCESS_KEY_RKG,
+		),
+	});
+}
 
 /**
  * Gets or creates the Rekognition client singleton.
@@ -94,6 +114,7 @@ function getClient(): RekognitionClient {
 			region: getAwsRegion(),
 			credentials,
 		});
+		logRekognitionConfig();
 	}
 	return rekognitionClient;
 }

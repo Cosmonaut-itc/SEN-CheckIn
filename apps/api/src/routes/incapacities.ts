@@ -24,6 +24,7 @@ import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { idParamSchema } from '../schemas/crud.js';
 import {
+	MAX_INCAPACITY_RANGE_DAYS,
 	incapacityCreateSchema,
 	incapacityDocumentConfirmSchema,
 	incapacityDocumentPresignSchema,
@@ -117,9 +118,23 @@ function buildDateKeyRange(startDateKey: string, endDateKey: string): string[] {
 	if (endDateKey < startDateKey) {
 		return [];
 	}
+
+	// Calculate the actual number of days in the range
+	const startDate = new Date(`${startDateKey}T00:00:00Z`);
+	const endDate = new Date(`${endDateKey}T00:00:00Z`);
+	if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+		return [];
+	}
+
+	const dayCount =
+		Math.floor((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
+
+	// Cap at MAX_INCAPACITY_RANGE_DAYS for safety, but allow the full calculated range
+	const maxIterations = Math.min(dayCount, MAX_INCAPACITY_RANGE_DAYS);
+
 	const dateKeys: string[] = [];
 	let cursor = startDateKey;
-	for (let i = 0; i < 400 && cursor <= endDateKey; i += 1) {
+	for (let i = 0; i < maxIterations && cursor <= endDateKey; i += 1) {
 		dateKeys.push(cursor);
 		if (cursor === endDateKey) {
 			break;

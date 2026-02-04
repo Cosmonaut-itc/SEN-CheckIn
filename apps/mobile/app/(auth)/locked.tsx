@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 
 import { i18n } from '@/lib/i18n';
+import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { useAuthContext } from '@/providers/auth-provider';
 
 /**
@@ -68,7 +69,16 @@ export default function LockedScreen(): JSX.Element {
 					size="md"
 					className="w-full"
 					onPress={() => {
-						router.replace('/(auth)/login');
+						void (async () => {
+							try {
+								await signOut();
+							} catch (error) {
+								console.warn('[locked] Failed to sign out', error);
+							} finally {
+								await clearAuthStorage();
+								router.replace('/(auth)/login');
+							}
+						})();
 					}}
 				>
 					<Button.Label>{i18n.t('Locked.actions.signIn')}</Button.Label>

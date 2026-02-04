@@ -21,6 +21,16 @@ const dayOptions = [
 	{ value: '6', labelKey: 'days.saturday' },
 ];
 
+const ptuModeOptions = [
+	{ value: 'DEFAULT_RULES', labelKey: 'ptu.modeOptions.default' },
+	{ value: 'MANUAL', labelKey: 'ptu.modeOptions.manual' },
+];
+
+const employerTypeOptions = [
+	{ value: 'PERSONA_MORAL', labelKey: 'ptu.employerTypeOptions.personaMoral' },
+	{ value: 'PERSONA_FISICA', labelKey: 'ptu.employerTypeOptions.personaFisica' },
+];
+
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
@@ -151,6 +161,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 			absorbImssEmployeeShare: false,
 			absorbIsr: false,
 			enableSeventhDayPay: false,
+			ptuEnabled: false,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: '',
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: true,
 		},
 		onSubmit: async ({ value }) => {
 			const trimmedTimeZone = value.timeZone.trim();
@@ -185,6 +201,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 				max: 1,
 			});
 
+			const trimmedPtuExemptReason = value.ptuExemptReason.trim();
+			if (value.ptuIsExempt && trimmedPtuExemptReason === '') {
+				toast.error(t('validation.ptuExemptReason'));
+				return;
+			}
+
 			if (
 				riskWorkRate === null ||
 				statePayrollTaxRate === null ||
@@ -207,6 +229,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 				aguinaldoDays,
 				vacationPremiumRate,
 				enableSeventhDayPay: value.enableSeventhDayPay,
+				ptuEnabled: value.ptuEnabled,
+				ptuMode: value.ptuMode as 'DEFAULT_RULES' | 'MANUAL',
+				ptuIsExempt: value.ptuIsExempt,
+				ptuExemptReason: value.ptuIsExempt ? trimmedPtuExemptReason : null,
+				employerType: value.employerType as 'PERSONA_MORAL' | 'PERSONA_FISICA',
+				aguinaldoEnabled: value.aguinaldoEnabled,
 			});
 		},
 	});
@@ -242,6 +270,24 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.enableSeventhDayPay !== undefined) {
 			form.setFieldValue('enableSeventhDayPay', data.enableSeventhDayPay);
 		}
+		if (data?.ptuEnabled !== undefined) {
+			form.setFieldValue('ptuEnabled', data.ptuEnabled);
+		}
+		if (data?.ptuMode !== undefined) {
+			form.setFieldValue('ptuMode', data.ptuMode);
+		}
+		if (data?.ptuIsExempt !== undefined) {
+			form.setFieldValue('ptuIsExempt', data.ptuIsExempt);
+		}
+		if (data?.ptuExemptReason !== undefined) {
+			form.setFieldValue('ptuExemptReason', data.ptuExemptReason ?? '');
+		}
+		if (data?.employerType !== undefined) {
+			form.setFieldValue('employerType', data.employerType);
+		}
+		if (data?.aguinaldoEnabled !== undefined) {
+			form.setFieldValue('aguinaldoEnabled', data.aguinaldoEnabled);
+		}
 		form.setFieldValue(
 			'additionalMandatoryRestDaysText',
 			(data?.additionalMandatoryRestDays ?? []).join('\n'),
@@ -257,6 +303,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.absorbImssEmployeeShare,
 		data?.absorbIsr,
 		data?.enableSeventhDayPay,
+		data?.ptuEnabled,
+		data?.ptuMode,
+		data?.ptuIsExempt,
+		data?.ptuExemptReason,
+		data?.employerType,
+		data?.aguinaldoEnabled,
 		data?.additionalMandatoryRestDays,
 		form,
 	]);
@@ -462,6 +514,74 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('taxSettings.fields.enableSeventhDayPay')}
 									description={t('taxSettings.helpers.enableSeventhDayPay')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+							<p className="font-medium text-foreground">{t('ptu.title')}</p>
+							<p className="mt-1 text-xs">{t('ptu.description')}</p>
+						</div>
+						<form.AppField name="ptuEnabled">
+							{(field) => (
+								<field.ToggleField
+									label={t('ptu.fields.enabled')}
+									description={t('ptu.helpers.enabled')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="ptuMode">
+							{(field) => (
+								<field.SelectField
+									label={t('ptu.fields.mode')}
+									options={ptuModeOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('ptu.placeholders.mode')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="ptuIsExempt">
+							{(field) => (
+								<field.ToggleField
+									label={t('ptu.fields.isExempt')}
+									description={t('ptu.helpers.isExempt')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						{form.state.values.ptuIsExempt ? (
+							<form.AppField name="ptuExemptReason">
+								{(field) => (
+									<field.TextField
+										label={t('ptu.fields.exemptReason')}
+										placeholder={t('ptu.placeholders.exemptReason')}
+										disabled={isLoading || mutation.isPending}
+									/>
+								)}
+							</form.AppField>
+						) : null}
+						<form.AppField name="employerType">
+							{(field) => (
+								<field.SelectField
+									label={t('ptu.fields.employerType')}
+									options={employerTypeOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('ptu.placeholders.employerType')}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="aguinaldoEnabled">
+							{(field) => (
+								<field.ToggleField
+									label={t('ptu.fields.aguinaldoEnabled')}
+									description={t('ptu.helpers.aguinaldoEnabled')}
 									disabled={isLoading || mutation.isPending}
 								/>
 							)}

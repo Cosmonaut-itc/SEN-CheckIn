@@ -65,14 +65,17 @@ import {
 	type JobPosition,
 	type Location,
 	type OrganizationMember,
+	type PtuHistoryRecord,
 	fetchEmployeeAudit,
 	fetchEmployeeById,
 	fetchEmployeeInsights,
+	fetchEmployeePtuHistory,
 	fetchEmployeeTerminationSettlement,
 	fetchEmployeesList,
 	fetchJobPositionsList,
 	fetchLocationsList,
 	fetchOrganizationMembers,
+	upsertEmployeePtuHistory,
 } from '@/lib/client-functions';
 import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm, useStore } from '@/lib/forms';
@@ -88,6 +91,7 @@ import type {
 	ColumnDef,
 	ColumnFiltersState,
 	PaginationState,
+	RowSelectionState,
 	SortingState,
 } from '@tanstack/react-table';
 import { format, isAfter, isValid, parse, startOfDay, startOfMonth } from 'date-fns';
@@ -172,6 +176,22 @@ interface EmployeeFormValues {
 	periodPay: string;
 	/** Optional SBC daily override */
 	sbcDailyOverride: string;
+	/** Employment type for PTU eligibility */
+	employmentType: 'PERMANENT' | 'EVENTUAL';
+	/** Trust employee flag */
+	isTrustEmployee: boolean;
+	/** Director/admin/general manager flag */
+	isDirectorAdminGeneralManager: boolean;
+	/** Domestic worker flag */
+	isDomesticWorker: boolean;
+	/** Platform worker flag */
+	isPlatformWorker: boolean;
+	/** Annual platform hours */
+	platformHoursYear: string;
+	/** PTU eligibility override */
+	ptuEligibilityOverride: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+	/** Aguinaldo days override */
+	aguinaldoDaysOverride: string;
 	/** Employee shift type */
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 }
@@ -198,6 +218,35 @@ interface TerminationFormValues {
 	dailySalaryIndemnizacion: string;
 	/** Optional termination notes. */
 	terminationNotes: string;
+}
+
+type BulkToggleValue = 'UNCHANGED' | 'YES' | 'NO';
+type BulkEmploymentType = 'UNCHANGED' | 'PERMANENT' | 'EVENTUAL';
+type BulkPtuOverrideValue = 'UNCHANGED' | 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+type BulkOverrideMode = 'UNCHANGED' | 'SET' | 'CLEAR';
+
+/**
+ * Bulk edit form values for employee PTU/Aguinaldo fields.
+ */
+interface BulkEditValues {
+	/** Employment type override. */
+	employmentType: BulkEmploymentType;
+	/** Trust employee override. */
+	isTrustEmployee: BulkToggleValue;
+	/** Director/admin/general manager override. */
+	isDirectorAdminGeneralManager: BulkToggleValue;
+	/** Domestic worker override. */
+	isDomesticWorker: BulkToggleValue;
+	/** Platform worker override. */
+	isPlatformWorker: BulkToggleValue;
+	/** Platform hours override (string for input). */
+	platformHoursYear: string;
+	/** PTU eligibility override. */
+	ptuEligibilityOverride: BulkPtuOverrideValue;
+	/** Aguinaldo override mode. */
+	aguinaldoOverrideMode: BulkOverrideMode;
+	/** Aguinaldo days override input. */
+	aguinaldoDaysOverride: string;
 }
 
 type TerminationDateFieldProps = {
@@ -403,6 +452,14 @@ interface EmployeesTableSectionProps {
 	jobPositionPlaceholder: string;
 	/** Status filter placeholder. */
 	statusPlaceholder: string;
+	/** Optional bulk actions node. */
+	bulkActions?: React.ReactNode;
+	/** Row selection state for bulk actions. */
+	rowSelection?: RowSelectionState;
+	/** Row selection change handler. */
+	onRowSelectionChange?: React.Dispatch<React.SetStateAction<RowSelectionState>>;
+	/** Optional row id resolver for selection. */
+	getRowId?: (row: Employee, index: number) => string;
 }
 
 /**
@@ -440,9 +497,14 @@ function EmployeesTableSection({
 	locationPlaceholder,
 	jobPositionPlaceholder,
 	statusPlaceholder,
+	bulkActions,
+	rowSelection,
+	onRowSelectionChange,
+	getRowId,
 }: EmployeesTableSectionProps): React.ReactElement {
 	return (
 		<div className="space-y-4">
+			{bulkActions ? <div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div> : null}
 			<div className="flex flex-wrap items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -519,6 +581,10 @@ function EmployeesTableSection({
 				rowCount={rowCount}
 				emptyState={emptyState}
 				isLoading={isLoading}
+				rowSelection={rowSelection}
+				onRowSelectionChange={onRowSelectionChange}
+				enableRowSelection={Boolean(onRowSelectionChange)}
+				getRowId={getRowId}
 			/>
 		</div>
 	);
@@ -546,6 +612,14 @@ const initialFormValues: EmployeeFormValues = {
 	paymentFrequency: 'MONTHLY',
 	periodPay: '',
 	sbcDailyOverride: '',
+	employmentType: 'PERMANENT',
+	isTrustEmployee: false,
+	isDirectorAdminGeneralManager: false,
+	isDomesticWorker: false,
+	isPlatformWorker: false,
+	platformHoursYear: '',
+	ptuEligibilityOverride: 'DEFAULT',
+	aguinaldoDaysOverride: '',
 	shiftType: 'DIURNA',
 };
 
@@ -568,6 +642,41 @@ function createDefaultTerminationFormValues(): TerminationFormValues {
 	};
 }
 
+/**
+ * Builds default bulk edit values for employee overrides.
+ *
+ * @returns Default bulk edit values
+ */
+function createDefaultBulkEditValues(): BulkEditValues {
+	return {
+		employmentType: 'UNCHANGED',
+		isTrustEmployee: 'UNCHANGED',
+		isDirectorAdminGeneralManager: 'UNCHANGED',
+		isDomesticWorker: 'UNCHANGED',
+		isPlatformWorker: 'UNCHANGED',
+		platformHoursYear: '',
+		ptuEligibilityOverride: 'UNCHANGED',
+		aguinaldoOverrideMode: 'UNCHANGED',
+		aguinaldoDaysOverride: '',
+	};
+}
+
+/**
+ * Resolves a tri-state bulk toggle into a boolean update.
+ *
+ * @param value - Tri-state toggle value
+ * @returns Boolean override or undefined when unchanged
+ */
+function resolveBulkToggleValue(value: BulkToggleValue): boolean | undefined {
+	if (value === 'YES') {
+		return true;
+	}
+	if (value === 'NO') {
+		return false;
+	}
+	return undefined;
+}
+
 const daysOfWeek: { labelKey: string; value: number }[] = [
 	{ labelKey: 'days.sunday', value: 0 },
 	{ labelKey: 'days.monday', value: 1 },
@@ -582,6 +691,20 @@ const shiftTypeOptions: { value: 'DIURNA' | 'NOCTURNA' | 'MIXTA'; labelKey: stri
 	{ value: 'DIURNA', labelKey: 'shiftTypes.DIURNA' },
 	{ value: 'NOCTURNA', labelKey: 'shiftTypes.NOCTURNA' },
 	{ value: 'MIXTA', labelKey: 'shiftTypes.MIXTA' },
+];
+
+const employmentTypeOptions: { value: 'PERMANENT' | 'EVENTUAL'; labelKey: string }[] = [
+	{ value: 'PERMANENT', labelKey: 'employmentType.PERMANENT' },
+	{ value: 'EVENTUAL', labelKey: 'employmentType.EVENTUAL' },
+];
+
+const ptuEligibilityOptions: {
+	value: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+	labelKey: string;
+}[] = [
+	{ value: 'DEFAULT', labelKey: 'ptuEligibility.DEFAULT' },
+	{ value: 'INCLUDE', labelKey: 'ptuEligibility.INCLUDE' },
+	{ value: 'EXCLUDE', labelKey: 'ptuEligibility.EXCLUDE' },
 ];
 
 const terminationReasonOptions: { value: TerminationReason; labelKey: string }[] = [
@@ -754,6 +877,13 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [terminationPreview, setTerminationPreview] =
 		useState<EmployeeTerminationSettlement | null>(null);
 	const [isTerminateDialogOpen, setIsTerminateDialogOpen] = useState<boolean>(false);
+	const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+	const [isBulkEditOpen, setIsBulkEditOpen] = useState<boolean>(false);
+	const [bulkEditValues, setBulkEditValues] = useState<BulkEditValues>(
+		createDefaultBulkEditValues(),
+	);
+	const [ptuHistoryYearInput, setPtuHistoryYearInput] = useState<string>('');
+	const [ptuHistoryAmountInput, setPtuHistoryAmountInput] = useState<string>('');
 
 	const isCreateMode = dialogMode === 'create';
 	const isEditMode = dialogMode === 'edit';
@@ -828,6 +958,32 @@ export function EmployeesPageClient(): React.ReactElement {
 
 	const employees = data?.data ?? [];
 	const totalRows = data?.pagination.total ?? 0;
+	const selectedEmployeeIds = useMemo(
+		() =>
+			Object.entries(rowSelection)
+				.filter(([, selected]) => Boolean(selected))
+				.map(([id]) => id),
+		[rowSelection],
+	);
+	const selectedEmployees = useMemo(
+		() => employees.filter((employee) => selectedEmployeeIds.includes(employee.id)),
+		[employees, selectedEmployeeIds],
+	);
+	const bulkActions = useMemo(() => {
+		if (selectedEmployeeIds.length === 0) {
+			return null;
+		}
+		return (
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<p className="text-sm text-muted-foreground">
+					{t('bulk.selected', { count: selectedEmployeeIds.length })}
+				</p>
+				<Button size="sm" onClick={() => setIsBulkEditOpen(true)}>
+					{t('bulk.actions.edit')}
+				</Button>
+			</div>
+		);
+	}, [selectedEmployeeIds.length, t]);
 	const jobPositions = useMemo<JobPosition[]>(
 		() => jobPositionsData?.data ?? [],
 		[jobPositionsData],
@@ -865,6 +1021,13 @@ export function EmployeesPageClient(): React.ReactElement {
 		queryKey: queryKeys.employees.audit(auditParams),
 		queryFn: () => fetchEmployeeAudit(auditParams),
 		enabled: Boolean(activeEmployee?.id) && isDialogOpen && isViewMode,
+	});
+
+	const ptuHistoryEnabled = Boolean(activeEmployee?.id) && isDialogOpen;
+	const { data: ptuHistoryData, isLoading: isLoadingPtuHistory } = useQuery({
+		queryKey: queryKeys.ptu.history(activeEmployee?.id ?? ''),
+		queryFn: () => fetchEmployeePtuHistory(activeEmployee?.id ?? ''),
+		enabled: ptuHistoryEnabled,
 	});
 
 	const memberOptions = useMemo(() => {
@@ -931,6 +1094,43 @@ export function EmployeesPageClient(): React.ReactElement {
 			{ value: 'ACTIVE', label: t('status.ACTIVE') },
 			{ value: 'INACTIVE', label: t('status.INACTIVE') },
 			{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
+		],
+		[t],
+	);
+
+	const bulkToggleOptions = useMemo(
+		() => [
+			{ value: 'UNCHANGED', label: t('bulk.options.unchanged') },
+			{ value: 'YES', label: t('bulk.options.yes') },
+			{ value: 'NO', label: t('bulk.options.no') },
+		],
+		[t],
+	);
+
+	const bulkEmploymentOptions = useMemo(
+		() => [
+			{ value: 'UNCHANGED', label: t('bulk.options.unchanged') },
+			{ value: 'PERMANENT', label: t('employmentType.PERMANENT') },
+			{ value: 'EVENTUAL', label: t('employmentType.EVENTUAL') },
+		],
+		[t],
+	);
+
+	const bulkPtuEligibilityOptions = useMemo(
+		() => [
+			{ value: 'UNCHANGED', label: t('bulk.options.unchanged') },
+			{ value: 'DEFAULT', label: t('ptuEligibility.DEFAULT') },
+			{ value: 'INCLUDE', label: t('ptuEligibility.INCLUDE') },
+			{ value: 'EXCLUDE', label: t('ptuEligibility.EXCLUDE') },
+		],
+		[t],
+	);
+
+	const bulkOverrideModeOptions = useMemo(
+		() => [
+			{ value: 'UNCHANGED', label: t('bulk.options.unchanged') },
+			{ value: 'SET', label: t('bulk.options.set') },
+			{ value: 'CLEAR', label: t('bulk.options.clear') },
 		],
 		[t],
 	);
@@ -1020,6 +1220,149 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		[resetPagination],
 	);
+
+	/**
+	 * Applies bulk updates to selected employees.
+	 *
+	 * @returns Promise<void>
+	 */
+	const handleBulkApply = useCallback(async (): Promise<void> => {
+		if (selectedEmployees.length === 0) {
+			toast.error(t('bulk.toast.noSelection'));
+			return;
+		}
+
+		const updates: Partial<Parameters<typeof updateEmployee>[0]> = {};
+
+		if (bulkEditValues.employmentType !== 'UNCHANGED') {
+			updates.employmentType = bulkEditValues.employmentType;
+		}
+
+		const trustValue = resolveBulkToggleValue(bulkEditValues.isTrustEmployee);
+		if (trustValue !== undefined) {
+			updates.isTrustEmployee = trustValue;
+		}
+
+		const directorValue = resolveBulkToggleValue(bulkEditValues.isDirectorAdminGeneralManager);
+		if (directorValue !== undefined) {
+			updates.isDirectorAdminGeneralManager = directorValue;
+		}
+
+		const domesticValue = resolveBulkToggleValue(bulkEditValues.isDomesticWorker);
+		if (domesticValue !== undefined) {
+			updates.isDomesticWorker = domesticValue;
+		}
+
+		const platformValue = resolveBulkToggleValue(bulkEditValues.isPlatformWorker);
+		if (platformValue !== undefined) {
+			updates.isPlatformWorker = platformValue;
+		}
+
+		if (bulkEditValues.ptuEligibilityOverride !== 'UNCHANGED') {
+			updates.ptuEligibilityOverride = bulkEditValues.ptuEligibilityOverride;
+		}
+
+		const trimmedPlatformHours = bulkEditValues.platformHoursYear.trim();
+		if (trimmedPlatformHours !== '') {
+			const parsedPlatformHours = Number(trimmedPlatformHours);
+			if (!Number.isFinite(parsedPlatformHours) || parsedPlatformHours < 0) {
+				toast.error(t('validation.platformHoursYear'));
+				return;
+			}
+			updates.platformHoursYear = parsedPlatformHours;
+		}
+
+		if (bulkEditValues.aguinaldoOverrideMode === 'SET') {
+			const trimmedOverride = bulkEditValues.aguinaldoDaysOverride.trim();
+			const parsedOverride = trimmedOverride === '' ? Number.NaN : Number(trimmedOverride);
+			if (!Number.isFinite(parsedOverride) || parsedOverride < 0) {
+				toast.error(t('validation.aguinaldoDaysOverride'));
+				return;
+			}
+			updates.aguinaldoDaysOverride = parsedOverride;
+		} else if (bulkEditValues.aguinaldoOverrideMode === 'CLEAR') {
+			updates.aguinaldoDaysOverride = null;
+		}
+
+		if (Object.keys(updates).length === 0) {
+			toast.error(t('bulk.toast.noChanges'));
+			return;
+		}
+
+		const results = await Promise.all(
+			selectedEmployees.map((employee) => {
+				if (!employee.locationId) {
+					return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
+				}
+				return updateEmployee({
+					id: employee.id,
+					status: employee.status,
+					locationId: employee.locationId,
+					...updates,
+				});
+			}),
+		);
+
+		const failures = results.filter((result) => !result.success);
+		if (failures.length > 0) {
+			toast.error(
+				t('bulk.toast.partialError', {
+					count: failures.length,
+				}),
+			);
+		} else {
+			toast.success(
+				t('bulk.toast.success', {
+					count: selectedEmployees.length,
+				}),
+			);
+		}
+
+		setRowSelection({});
+		setIsBulkEditOpen(false);
+		setBulkEditValues(createDefaultBulkEditValues());
+		queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
+	}, [
+		bulkEditValues,
+		queryClient,
+		selectedEmployees,
+		setBulkEditValues,
+		t,
+	]);
+
+	/**
+	 * Saves a PTU history entry for the active employee.
+	 *
+	 * @returns Promise<void>
+	 */
+	const handlePtuHistorySave = useCallback(async (): Promise<void> => {
+		if (!activeEmployee) {
+			return;
+		}
+		const fiscalYear = Number(ptuHistoryYearInput.trim());
+		if (!Number.isInteger(fiscalYear) || fiscalYear < 2000) {
+			toast.error(t('ptuHistory.validation.year'));
+			return;
+		}
+		const amount = Number(ptuHistoryAmountInput.trim());
+		if (!Number.isFinite(amount) || amount < 0) {
+			toast.error(t('ptuHistory.validation.amount'));
+			return;
+		}
+		await ptuHistoryMutation.mutateAsync({
+			employeeId: activeEmployee.id,
+			fiscalYear,
+			amount,
+		});
+		setPtuHistoryYearInput('');
+		setPtuHistoryAmountInput('');
+	}, [
+		activeEmployee,
+		ptuHistoryAmountInput,
+		ptuHistoryMutation,
+		ptuHistoryYearInput,
+		t,
+	]);
 
 	/**
 	 * Updates termination form values and clears any existing preview.
@@ -1128,6 +1471,11 @@ export function EmployeesPageClient(): React.ReactElement {
 	const upcomingExceptions = insights?.exceptions.items ?? [];
 	const payrollRuns = insights?.payroll.runs ?? [];
 	const auditEvents = auditResponse?.data ?? [];
+	const ptuHistory = useMemo<PtuHistoryRecord[]>(
+		() =>
+			(ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),
+		[ptuHistoryData],
+	);
 
 	const finiquitoLines = useMemo(() => {
 		if (!terminationPreview) {
@@ -1205,6 +1553,14 @@ export function EmployeesPageClient(): React.ReactElement {
 			shiftType: t('fields.shiftType'),
 			hireDate: t('fields.hireDate'),
 			sbcDailyOverride: t('fields.sbcDailyOverride'),
+			employmentType: t('fields.employmentType'),
+			isTrustEmployee: t('fields.isTrustEmployee'),
+			isDirectorAdminGeneralManager: t('fields.isDirectorAdminGeneralManager'),
+			isDomesticWorker: t('fields.isDomesticWorker'),
+			isPlatformWorker: t('fields.isPlatformWorker'),
+			platformHoursYear: t('fields.platformHoursYear'),
+			ptuEligibilityOverride: t('fields.ptuEligibilityOverride'),
+			aguinaldoDaysOverride: t('fields.aguinaldoDaysOverride'),
 			locationId: t('fields.location'),
 			scheduleTemplateId: t('details.scheduleTemplate'),
 			userId: t('fields.user'),
@@ -1248,6 +1604,28 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		onError: () => {
 			toast.error(t('toast.updateError'));
+		},
+	});
+
+	const ptuHistoryMutation = useMutation({
+		mutationKey: mutationKeys.ptuHistory.upsert,
+		mutationFn: ({
+			employeeId,
+			fiscalYear,
+			amount,
+		}: {
+			employeeId: string;
+			fiscalYear: number;
+			amount: number;
+		}) => upsertEmployeePtuHistory(employeeId, { fiscalYear, amount }),
+		onSuccess: (_record, variables) => {
+			toast.success(t('ptuHistory.toast.saveSuccess'));
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.ptu.history(variables.employeeId),
+			});
+		},
+		onError: () => {
+			toast.error(t('ptuHistory.toast.saveError'));
 		},
 	});
 
@@ -1373,6 +1751,31 @@ export function EmployeesPageClient(): React.ReactElement {
 					return;
 				}
 			}
+			const trimmedPlatformHours = value.platformHoursYear.trim();
+			const parsedPlatformHours =
+				trimmedPlatformHours === '' ? undefined : Number(trimmedPlatformHours);
+			if (
+				parsedPlatformHours !== undefined &&
+				(!Number.isFinite(parsedPlatformHours) || parsedPlatformHours < 0)
+			) {
+				toast.error(t('validation.platformHoursYear'));
+				return;
+			}
+			const trimmedAguinaldoOverride = value.aguinaldoDaysOverride.trim();
+			const parsedAguinaldoOverride =
+				trimmedAguinaldoOverride === ''
+					? isEditMode
+						? null
+						: undefined
+					: Number(trimmedAguinaldoOverride);
+			if (
+				parsedAguinaldoOverride !== undefined &&
+				parsedAguinaldoOverride !== null &&
+				(!Number.isFinite(parsedAguinaldoOverride) || parsedAguinaldoOverride < 0)
+			) {
+				toast.error(t('validation.aguinaldoDaysOverride'));
+				return;
+			}
 			const paymentFrequency = value.paymentFrequency ?? 'MONTHLY';
 			const dailyPay = calculateDailyPayFromPeriodPay(parsedPeriodPay, paymentFrequency);
 			const resolvedUserIdForCreate =
@@ -1400,6 +1803,14 @@ export function EmployeesPageClient(): React.ReactElement {
 					dailyPay,
 					paymentFrequency,
 					sbcDailyOverride: parsedSbcOverride,
+					employmentType: value.employmentType,
+					isTrustEmployee: value.isTrustEmployee,
+					isDirectorAdminGeneralManager: value.isDirectorAdminGeneralManager,
+					isDomesticWorker: value.isDomesticWorker,
+					isPlatformWorker: value.isPlatformWorker,
+					platformHoursYear: parsedPlatformHours,
+					ptuEligibilityOverride: value.ptuEligibilityOverride,
+					aguinaldoDaysOverride: parsedAguinaldoOverride,
 					shiftType: value.shiftType,
 					schedule,
 				});
@@ -1427,6 +1838,14 @@ export function EmployeesPageClient(): React.ReactElement {
 					paymentFrequency,
 					sbcDailyOverride:
 						trimmedSbcOverride === '' ? undefined : (parsedSbcOverride ?? undefined),
+					employmentType: value.employmentType,
+					isTrustEmployee: value.isTrustEmployee,
+					isDirectorAdminGeneralManager: value.isDirectorAdminGeneralManager,
+					isDomesticWorker: value.isDomesticWorker,
+					isPlatformWorker: value.isPlatformWorker,
+					platformHoursYear: parsedPlatformHours,
+					ptuEligibilityOverride: value.ptuEligibilityOverride,
+					aguinaldoDaysOverride: parsedAguinaldoOverride ?? undefined,
 					shiftType: value.shiftType,
 					schedule,
 				});
@@ -1541,8 +1960,10 @@ export function EmployeesPageClient(): React.ReactElement {
 		form.reset();
 		setHasCustomCode(false);
 		setSchedule(createDefaultSchedule());
+		setPtuHistoryYearInput('');
+		setPtuHistoryAmountInput('');
 		setIsDialogOpen(true);
-	}, [form, resetTerminationState]);
+	}, [form, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput]);
 
 	/**
 	 * Opens the dialog for viewing employee details.
@@ -1554,9 +1975,11 @@ export function EmployeesPageClient(): React.ReactElement {
 			resetTerminationState();
 			setActiveEmployee(employee);
 			setDialogMode('view');
+			setPtuHistoryYearInput('');
+			setPtuHistoryAmountInput('');
 			setIsDialogOpen(true);
 		},
-		[resetTerminationState],
+		[resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
 	);
 
 	/**
@@ -1601,7 +2024,31 @@ export function EmployeesPageClient(): React.ReactElement {
 				'sbcDailyOverride',
 				employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
 			);
+			form.setFieldValue('employmentType', employee.employmentType ?? 'PERMANENT');
+			form.setFieldValue('isTrustEmployee', Boolean(employee.isTrustEmployee));
+			form.setFieldValue(
+				'isDirectorAdminGeneralManager',
+				Boolean(employee.isDirectorAdminGeneralManager),
+			);
+			form.setFieldValue('isDomesticWorker', Boolean(employee.isDomesticWorker));
+			form.setFieldValue('isPlatformWorker', Boolean(employee.isPlatformWorker));
+			form.setFieldValue(
+				'platformHoursYear',
+				employee.platformHoursYear ? String(employee.platformHoursYear) : '',
+			);
+			form.setFieldValue(
+				'ptuEligibilityOverride',
+				employee.ptuEligibilityOverride ?? 'DEFAULT',
+			);
+			form.setFieldValue(
+				'aguinaldoDaysOverride',
+				employee.aguinaldoDaysOverride
+					? String(employee.aguinaldoDaysOverride)
+					: '',
+			);
 			setHasCustomCode(true);
+			setPtuHistoryYearInput('');
+			setPtuHistoryAmountInput('');
 
 			const detail = await fetchEmployeeById(employee.id);
 			if (detail?.schedule && detail.schedule.length > 0) {
@@ -1619,7 +2066,12 @@ export function EmployeesPageClient(): React.ReactElement {
 			setIsScheduleLoading(false);
 			setIsDialogOpen(true);
 		},
-		[form, resetTerminationState],
+		[
+			form,
+			resetTerminationState,
+			setPtuHistoryAmountInput,
+			setPtuHistoryYearInput,
+		],
 	);
 
 	/**
@@ -1701,9 +2153,33 @@ export function EmployeesPageClient(): React.ReactElement {
 				accessorFn: (row) => `${row.firstName} ${row.lastName}`.trim(),
 				header: t('table.headers.name'),
 				cell: ({ row }) => (
-					<span>
-						{row.original.firstName} {row.original.lastName}
-					</span>
+					<div className="space-y-1">
+						<span className="font-medium">
+							{row.original.firstName} {row.original.lastName}
+						</span>
+						<div className="flex flex-wrap gap-1">
+							<Badge variant="outline" className="text-xs">
+								{t(`employmentType.${row.original.employmentType ?? 'PERMANENT'}`)}
+							</Badge>
+							{row.original.ptuEligibilityOverride &&
+							row.original.ptuEligibilityOverride !== 'DEFAULT' ? (
+								<Badge variant="secondary" className="text-xs">
+									{t('badges.ptuOverride', {
+										value: t(
+											`ptuEligibility.${row.original.ptuEligibilityOverride}`,
+										),
+									})}
+								</Badge>
+							) : null}
+							{row.original.aguinaldoDaysOverride ? (
+								<Badge variant="secondary" className="text-xs">
+									{t('badges.aguinaldoOverride', {
+										days: row.original.aguinaldoDaysOverride,
+									})}
+								</Badge>
+							) : null}
+						</div>
+					</div>
 				),
 			},
 			{
@@ -2135,6 +2611,7 @@ export function EmployeesPageClient(): React.ReactElement {
 										<TabsTrigger value="payroll">
 											{t('tabs.payroll')}
 										</TabsTrigger>
+										<TabsTrigger value="ptu">{t('tabs.ptu')}</TabsTrigger>
 										<TabsTrigger value="finiquito">
 											{t('tabs.finiquito')}
 										</TabsTrigger>
@@ -2662,6 +3139,160 @@ export function EmployeesPageClient(): React.ReactElement {
 													)}
 												</TableBody>
 											</Table>
+										</div>
+									</TabsContent>
+
+									<TabsContent value="ptu">
+										<div className="grid gap-4 md:grid-cols-2">
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('ptuAguinaldo.title')}
+													</CardTitle>
+													<CardDescription>
+														{t('ptuAguinaldo.subtitle')}
+													</CardDescription>
+												</CardHeader>
+												<CardContent className="space-y-3 text-sm">
+													<div className="flex items-center justify-between">
+														<span className="text-muted-foreground">
+															{t('fields.employmentType')}
+														</span>
+														<span className="font-medium">
+															{t(
+																`employmentType.${activeEmployee?.employmentType ?? 'PERMANENT'}`,
+															)}
+														</span>
+													</div>
+													<div className="flex items-center justify-between">
+														<span className="text-muted-foreground">
+															{t('fields.ptuEligibilityOverride')}
+														</span>
+														<span className="font-medium">
+															{t(
+																`ptuEligibility.${activeEmployee?.ptuEligibilityOverride ?? 'DEFAULT'}`,
+															)}
+														</span>
+													</div>
+													<div className="flex items-center justify-between">
+														<span className="text-muted-foreground">
+															{t('fields.aguinaldoDaysOverride')}
+														</span>
+														<span className="font-medium">
+															{activeEmployee?.aguinaldoDaysOverride
+																? t('ptuAguinaldo.values.days', {
+																		days: activeEmployee.aguinaldoDaysOverride,
+																	})
+																: tCommon('notAvailable')}
+														</span>
+													</div>
+													<div className="flex items-center justify-between">
+														<span className="text-muted-foreground">
+															{t('fields.platformHoursYear')}
+														</span>
+														<span className="font-medium">
+															{activeEmployee?.platformHoursYear ?? tCommon('notAvailable')}
+														</span>
+													</div>
+													<div className="grid gap-2">
+														<div className="flex items-center justify-between">
+															<span className="text-muted-foreground">
+																{t('fields.isTrustEmployee')}
+															</span>
+															<span className="font-medium">
+																{activeEmployee?.isTrustEmployee
+																	? t('labels.yes')
+																	: t('labels.no')}
+															</span>
+														</div>
+														<div className="flex items-center justify-between">
+															<span className="text-muted-foreground">
+																{t('fields.isDirectorAdminGeneralManager')}
+															</span>
+															<span className="font-medium">
+																{activeEmployee?.isDirectorAdminGeneralManager
+																	? t('labels.yes')
+																	: t('labels.no')}
+															</span>
+														</div>
+														<div className="flex items-center justify-between">
+															<span className="text-muted-foreground">
+																{t('fields.isDomesticWorker')}
+															</span>
+															<span className="font-medium">
+																{activeEmployee?.isDomesticWorker
+																	? t('labels.yes')
+																	: t('labels.no')}
+															</span>
+														</div>
+														<div className="flex items-center justify-between">
+															<span className="text-muted-foreground">
+																{t('fields.isPlatformWorker')}
+															</span>
+															<span className="font-medium">
+																{activeEmployee?.isPlatformWorker
+																	? t('labels.yes')
+																	: t('labels.no')}
+															</span>
+														</div>
+													</div>
+												</CardContent>
+											</Card>
+											<Card>
+												<CardHeader>
+													<CardTitle className="text-sm font-medium">
+														{t('ptuHistory.title')}
+													</CardTitle>
+													<CardDescription>
+														{t('ptuHistory.subtitle')}
+													</CardDescription>
+												</CardHeader>
+												<CardContent>
+													<div className="rounded-md border">
+														<Table>
+															<TableHeader>
+																<TableRow>
+																	<TableHead>
+																		{t('ptuHistory.table.year')}
+																	</TableHead>
+																	<TableHead className="text-right">
+																		{t('ptuHistory.table.amount')}
+																	</TableHead>
+																</TableRow>
+															</TableHeader>
+															<TableBody>
+																{isLoadingPtuHistory ? (
+																	<TableRow>
+																		<TableCell colSpan={2}>
+																			<Skeleton className="h-4 w-full" />
+																		</TableCell>
+																	</TableRow>
+																) : ptuHistory.length === 0 ? (
+																	<TableRow>
+																		<TableCell
+																			colSpan={2}
+																			className="h-20 text-center"
+																		>
+																			{t('ptuHistory.table.empty')}
+																		</TableCell>
+																	</TableRow>
+																) : (
+																	ptuHistory.map((entry) => (
+																		<TableRow key={entry.id}>
+																			<TableCell>
+																				{entry.fiscalYear}
+																			</TableCell>
+																			<TableCell className="text-right tabular-nums">
+																				{formatCurrency(entry.amount)}
+																			</TableCell>
+																		</TableRow>
+																	))
+																)}
+															</TableBody>
+														</Table>
+													</div>
+												</CardContent>
+											</Card>
 										</div>
 									</TabsContent>
 
@@ -3734,6 +4365,225 @@ export function EmployeesPageClient(): React.ReactElement {
 										</form.AppField>
 									</div>
 
+									<div className="col-span-2 space-y-3 rounded-md border p-3">
+										<div>
+											<p className="text-sm font-medium">
+												{t('ptuAguinaldo.title')}
+											</p>
+											<p className="text-xs text-muted-foreground">
+												{t('ptuAguinaldo.subtitle')}
+											</p>
+										</div>
+										<div className="grid gap-4 sm:grid-cols-2">
+											<form.AppField name="employmentType">
+												{(field) => (
+													<field.SelectField
+														label={t('fields.employmentType')}
+														options={employmentTypeOptions.map((option) => ({
+															value: option.value,
+															label: t(option.labelKey),
+														}))}
+														placeholder={t('placeholders.selectEmploymentType')}
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="ptuEligibilityOverride">
+												{(field) => (
+													<field.SelectField
+														label={t('fields.ptuEligibilityOverride')}
+														options={ptuEligibilityOptions.map((option) => ({
+															value: option.value,
+															label: t(option.labelKey),
+														}))}
+														placeholder={t('placeholders.selectPtuEligibility')}
+													/>
+												)}
+											</form.AppField>
+											<form.AppField
+												name="aguinaldoDaysOverride"
+												validators={{
+													onChange: ({ value }) => {
+														const trimmed = value.trim();
+														if (!trimmed) {
+															return undefined;
+														}
+														const parsed = Number(trimmed);
+														if (!Number.isFinite(parsed) || parsed < 0) {
+															return t('validation.aguinaldoDaysOverride');
+														}
+														return undefined;
+													},
+												}}
+											>
+												{(field) => (
+													<field.TextField
+														label={t('fields.aguinaldoDaysOverride')}
+														placeholder={t('placeholders.aguinaldoDaysOverride')}
+														type="number"
+														description={t('helpers.aguinaldoDaysOverride')}
+													/>
+												)}
+											</form.AppField>
+											<form.AppField
+												name="platformHoursYear"
+												validators={{
+													onChange: ({ value }) => {
+														const trimmed = value.trim();
+														if (!trimmed) {
+															return undefined;
+														}
+														const parsed = Number(trimmed);
+														if (!Number.isFinite(parsed) || parsed < 0) {
+															return t('validation.platformHoursYear');
+														}
+														return undefined;
+													},
+												}}
+											>
+												{(field) => (
+													<field.TextField
+														label={t('fields.platformHoursYear')}
+														placeholder={t('placeholders.platformHoursYear')}
+														type="number"
+														description={t('helpers.platformHoursYear')}
+													/>
+												)}
+											</form.AppField>
+										</div>
+										<div className="grid gap-3 sm:grid-cols-2">
+											<form.AppField name="isTrustEmployee">
+												{(field) => (
+													<field.ToggleField
+														label={t('fields.isTrustEmployee')}
+														description={t('helpers.isTrustEmployee')}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="isDirectorAdminGeneralManager">
+												{(field) => (
+													<field.ToggleField
+														label={t('fields.isDirectorAdminGeneralManager')}
+														description={t(
+															'helpers.isDirectorAdminGeneralManager',
+														)}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="isDomesticWorker">
+												{(field) => (
+													<field.ToggleField
+														label={t('fields.isDomesticWorker')}
+														description={t('helpers.isDomesticWorker')}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="isPlatformWorker">
+												{(field) => (
+													<field.ToggleField
+														label={t('fields.isPlatformWorker')}
+														description={t('helpers.isPlatformWorker')}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+										</div>
+
+										<div className="rounded-md border bg-muted/30 p-3">
+											<div className="flex flex-wrap items-center justify-between gap-2">
+												<div>
+													<p className="text-xs font-medium">
+														{t('ptuHistory.title')}
+													</p>
+													<p className="text-xs text-muted-foreground">
+														{t('ptuHistory.subtitle')}
+													</p>
+												</div>
+												<Button
+													type="button"
+													size="sm"
+													onClick={() => void handlePtuHistorySave()}
+													disabled={ptuHistoryMutation.isPending || !activeEmployee}
+												>
+													{ptuHistoryMutation.isPending
+														? tCommon('saving')
+														: t('ptuHistory.actions.save')}
+												</Button>
+											</div>
+											<div className="mt-3 grid gap-3 sm:grid-cols-2">
+												<div className="flex flex-col gap-2">
+													<Label htmlFor="ptu-history-year">
+														{t('ptuHistory.fields.year')}
+													</Label>
+													<Input
+														id="ptu-history-year"
+														type="number"
+														min={2000}
+														value={ptuHistoryYearInput}
+														onChange={(event) =>
+															setPtuHistoryYearInput(event.target.value)
+														}
+													/>
+												</div>
+												<div className="flex flex-col gap-2">
+													<Label htmlFor="ptu-history-amount">
+														{t('ptuHistory.fields.amount')}
+													</Label>
+													<Input
+														id="ptu-history-amount"
+														type="number"
+														min={0}
+														step="0.01"
+														value={ptuHistoryAmountInput}
+														onChange={(event) =>
+															setPtuHistoryAmountInput(event.target.value)
+														}
+													/>
+												</div>
+											</div>
+											<div className="mt-3 rounded-md border bg-background">
+												<Table>
+													<TableHeader>
+														<TableRow>
+															<TableHead>
+																{t('ptuHistory.table.year')}
+															</TableHead>
+															<TableHead className="text-right">
+																{t('ptuHistory.table.amount')}
+															</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														{isLoadingPtuHistory ? (
+															<TableRow>
+																<TableCell colSpan={2}>
+																	<Skeleton className="h-4 w-full" />
+																</TableCell>
+															</TableRow>
+														) : ptuHistory.length === 0 ? (
+															<TableRow>
+																<TableCell colSpan={2} className="h-12 text-center text-xs text-muted-foreground">
+																	{t('ptuHistory.table.empty')}
+																</TableCell>
+															</TableRow>
+														) : (
+															ptuHistory.map((entry) => (
+																<TableRow key={entry.id}>
+																	<TableCell>{entry.fiscalYear}</TableCell>
+																	<TableCell className="text-right tabular-nums">
+																		{formatCurrency(entry.amount)}
+																	</TableCell>
+																</TableRow>
+															))
+														)}
+													</TableBody>
+												</Table>
+											</div>
+										</div>
+									</div>
+
 									<div className="col-span-2 space-y-2 rounded-md border p-3">
 										<div className="flex items-center justify-between">
 											<div>
@@ -3861,7 +4711,225 @@ export function EmployeesPageClient(): React.ReactElement {
 				locationPlaceholder={t('filters.location.placeholder')}
 				jobPositionPlaceholder={t('filters.jobPosition.placeholder')}
 				statusPlaceholder={t('filters.status.placeholder')}
+				bulkActions={bulkActions}
+				rowSelection={rowSelection}
+				onRowSelectionChange={setRowSelection}
+				getRowId={(row) => row.id}
 			/>
+
+			<Dialog open={isBulkEditOpen} onOpenChange={setIsBulkEditOpen}>
+				<DialogContent className="sm:max-w-2xl">
+					<DialogHeader>
+						<DialogTitle>{t('bulk.title')}</DialogTitle>
+						<DialogDescription>{t('bulk.description')}</DialogDescription>
+					</DialogHeader>
+					<div className="grid gap-4 sm:grid-cols-2">
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.employmentType')}</Label>
+							<Select
+								value={bulkEditValues.employmentType}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										employmentType: value as BulkEmploymentType,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.employmentType')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkEmploymentOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.ptuEligibilityOverride')}</Label>
+							<Select
+								value={bulkEditValues.ptuEligibilityOverride}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										ptuEligibilityOverride: value as BulkPtuOverrideValue,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.ptuEligibility')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkPtuEligibilityOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.isTrustEmployee')}</Label>
+							<Select
+								value={bulkEditValues.isTrustEmployee}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										isTrustEmployee: value as BulkToggleValue,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.toggle')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkToggleOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.isDirectorAdminGeneralManager')}</Label>
+							<Select
+								value={bulkEditValues.isDirectorAdminGeneralManager}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										isDirectorAdminGeneralManager: value as BulkToggleValue,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.toggle')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkToggleOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.isDomesticWorker')}</Label>
+							<Select
+								value={bulkEditValues.isDomesticWorker}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										isDomesticWorker: value as BulkToggleValue,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.toggle')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkToggleOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.isPlatformWorker')}</Label>
+							<Select
+								value={bulkEditValues.isPlatformWorker}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										isPlatformWorker: value as BulkToggleValue,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.toggle')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkToggleOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.platformHoursYear')}</Label>
+							<Input
+								type="number"
+								min={0}
+								value={bulkEditValues.platformHoursYear}
+								onChange={(event) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										platformHoursYear: event.target.value,
+									}))
+								}
+								placeholder={t('bulk.placeholders.platformHoursYear')}
+							/>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.aguinaldoOverrideMode')}</Label>
+							<Select
+								value={bulkEditValues.aguinaldoOverrideMode}
+								onValueChange={(value) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										aguinaldoOverrideMode: value as BulkOverrideMode,
+									}))
+								}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder={t('bulk.placeholders.aguinaldoOverride')} />
+								</SelectTrigger>
+								<SelectContent>
+									{bulkOverrideModeOptions.map((option) => (
+										<SelectItem key={option.value} value={option.value}>
+											{option.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-2">
+							<Label>{t('bulk.fields.aguinaldoDaysOverride')}</Label>
+							<Input
+								type="number"
+								min={0}
+								value={bulkEditValues.aguinaldoDaysOverride}
+								onChange={(event) =>
+									setBulkEditValues((prev) => ({
+										...prev,
+										aguinaldoDaysOverride: event.target.value,
+									}))
+								}
+								disabled={bulkEditValues.aguinaldoOverrideMode !== 'SET'}
+								placeholder={t('bulk.placeholders.aguinaldoDaysOverride')}
+							/>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setIsBulkEditOpen(false)}
+						>
+							{tCommon('cancel')}
+						</Button>
+						<Button onClick={() => void handleBulkApply()}>
+							{t('bulk.actions.apply')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{/* Face Enrollment Dialog */}
 			<FaceEnrollmentDialog

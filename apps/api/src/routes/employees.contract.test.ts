@@ -211,6 +211,14 @@ describe('employee routes (contract)', () => {
 			hireDate: new Date('2024-02-01'),
 			dailyPay: 500,
 			paymentFrequency: 'MONTHLY',
+			employmentType: 'PERMANENT',
+			isTrustEmployee: true,
+			isDirectorAdminGeneralManager: false,
+			isDomesticWorker: false,
+			isPlatformWorker: true,
+			platformHoursYear: 320,
+			ptuEligibilityOverride: 'INCLUDE',
+			aguinaldoDaysOverride: 20,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -223,6 +231,55 @@ describe('employee routes (contract)', () => {
 		expect(employeeRecord.department).toBe('Operaciones');
 		expect(employeeRecord.nss).toBe('98765432109');
 		expect(employeeRecord.rfc).toBe('CONM901211XYZ');
+		expect(employeeRecord.employmentType).toBe('PERMANENT');
+		expect(employeeRecord.isTrustEmployee).toBe(true);
+		expect(employeeRecord.isPlatformWorker).toBe(true);
+		expect(Number(employeeRecord.platformHoursYear)).toBe(320);
+		expect(employeeRecord.ptuEligibilityOverride).toBe('INCLUDE');
+		expect(employeeRecord.aguinaldoDaysOverride).toBe(20);
+	});
+
+	it('manages PTU history records for an employee', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const historyRoutes = requireRoute(
+			employeeRoutes['ptu-history'],
+			'Employee PTU history route',
+		);
+
+		const createResponse = await historyRoutes.post({
+			fiscalYear: 2024,
+			amount: 12000,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(200);
+		const createPayload = requireResponseData(createResponse);
+		const createdRecord = createPayload.data;
+		if (!createdRecord) {
+			throw new Error('Expected PTU history record in create response.');
+		}
+		expect(createdRecord.fiscalYear).toBe(2024);
+		expect(Number(createdRecord.amount)).toBe(12000);
+
+		const listResponse = await historyRoutes.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(listResponse.status).toBe(200);
+		const listPayload = requireResponseData(listResponse);
+		expect(Array.isArray(listPayload.data)).toBe(true);
+
+		const updateResponse = await historyRoutes.put({
+			fiscalYear: 2024,
+			amount: 15000,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(200);
+		const updatePayload = requireResponseData(updateResponse);
+		const updatedRecord = updatePayload.data;
+		if (!updatedRecord) {
+			throw new Error('Expected PTU history record in update response.');
+		}
+		expect(Number(updatedRecord.amount)).toBe(15000);
 	});
 
 	it('returns insights for an employee', async () => {

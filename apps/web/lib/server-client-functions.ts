@@ -30,6 +30,10 @@ import type {
 	PayrollRun,
 	PayrollRunEmployee,
 	PayrollSettings,
+	PtuRun,
+	PtuRunEmployee,
+	AguinaldoRun,
+	AguinaldoRunEmployee,
 	VacationRequest,
 	CalendarEmployee,
 	ScheduleException,
@@ -63,9 +67,14 @@ const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
 // Employee Functions
 // ============================================================================
 
-type EmployeePayload = Omit<Employee, 'dailyPay' | 'sbcDailyOverride'> & {
+type EmployeePayload = Omit<
+	Employee,
+	'dailyPay' | 'sbcDailyOverride' | 'platformHoursYear' | 'aguinaldoDaysOverride'
+> & {
 	dailyPay?: number | string;
 	sbcDailyOverride?: number | string | null;
+	platformHoursYear?: number | string | null;
+	aguinaldoDaysOverride?: number | string | null;
 };
 
 /**
@@ -78,6 +87,17 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 	return {
 		...record,
 		dailyPay: Number(record.dailyPay ?? 0),
+		employmentType: record.employmentType ?? 'PERMANENT',
+		isTrustEmployee: Boolean(record.isTrustEmployee ?? false),
+		isDirectorAdminGeneralManager: Boolean(record.isDirectorAdminGeneralManager ?? false),
+		isDomesticWorker: Boolean(record.isDomesticWorker ?? false),
+		isPlatformWorker: Boolean(record.isPlatformWorker ?? false),
+		platformHoursYear: Number(record.platformHoursYear ?? 0),
+		ptuEligibilityOverride: record.ptuEligibilityOverride ?? 'DEFAULT',
+		aguinaldoDaysOverride:
+			record.aguinaldoDaysOverride === null || record.aguinaldoDaysOverride === undefined
+				? null
+				: Number(record.aguinaldoDaysOverride),
 		sbcDailyOverride:
 			record.sbcDailyOverride === null || record.sbcDailyOverride === undefined
 				? null
@@ -706,6 +726,12 @@ type PayrollSettingsPayload = Omit<
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
+	| 'ptuEnabled'
+	| 'ptuMode'
+	| 'ptuIsExempt'
+	| 'ptuExemptReason'
+	| 'employerType'
+	| 'aguinaldoEnabled'
 > & {
 	riskWorkRate?: number | string | null;
 	statePayrollTaxRate?: number | string | null;
@@ -714,6 +740,12 @@ type PayrollSettingsPayload = Omit<
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
+	ptuEnabled?: boolean | null;
+	ptuMode?: 'DEFAULT_RULES' | 'MANUAL' | null;
+	ptuIsExempt?: boolean | null;
+	ptuExemptReason?: string | null;
+	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA' | null;
+	aguinaldoEnabled?: boolean | null;
 };
 
 /**
@@ -755,6 +787,12 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+		ptuEnabled: Boolean(payload.ptuEnabled ?? false),
+		ptuMode: payload.ptuMode ?? 'DEFAULT_RULES',
+		ptuIsExempt: Boolean(payload.ptuIsExempt ?? false),
+		ptuExemptReason: payload.ptuExemptReason ?? null,
+		employerType: payload.employerType ?? 'PERSONA_MORAL',
+		aguinaldoEnabled: Boolean(payload.aguinaldoEnabled ?? true),
 	};
 }
 
@@ -899,6 +937,227 @@ export async function fetchPayrollRunDetailServer(
 		run: normalizedRun,
 		employees: normalizedEmployees,
 	};
+}
+
+type PtuRunPayload = Omit<
+	PtuRun,
+	| 'paymentDate'
+	| 'processedAt'
+	| 'cancelledAt'
+	| 'createdAt'
+	| 'updatedAt'
+	| 'taxableIncome'
+	| 'ptuPercentage'
+	| 'totalAmount'
+	| 'employeeCount'
+> & {
+	paymentDate: string | Date;
+	processedAt?: string | Date | null;
+	cancelledAt?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	taxableIncome?: number | string;
+	ptuPercentage?: number | string;
+	totalAmount?: number | string;
+	employeeCount?: number | string;
+};
+
+type PtuRunEmployeePayload = Omit<
+	PtuRunEmployee,
+	| 'daysCounted'
+	| 'dailyQuota'
+	| 'annualSalaryBase'
+	| 'ptuByDays'
+	| 'ptuBySalary'
+	| 'ptuPreCap'
+	| 'capThreeMonths'
+	| 'capAvgThreeYears'
+	| 'capFinal'
+	| 'ptuFinal'
+	| 'exemptAmount'
+	| 'taxableAmount'
+	| 'withheldIsr'
+	| 'netAmount'
+	| 'createdAt'
+	| 'updatedAt'
+> & {
+	daysCounted?: number | string;
+	dailyQuota?: number | string;
+	annualSalaryBase?: number | string;
+	ptuByDays?: number | string;
+	ptuBySalary?: number | string;
+	ptuPreCap?: number | string;
+	capThreeMonths?: number | string;
+	capAvgThreeYears?: number | string;
+	capFinal?: number | string;
+	ptuFinal?: number | string;
+	exemptAmount?: number | string;
+	taxableAmount?: number | string;
+	withheldIsr?: number | string;
+	netAmount?: number | string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+type AguinaldoRunPayload = Omit<
+	AguinaldoRun,
+	| 'paymentDate'
+	| 'processedAt'
+	| 'cancelledAt'
+	| 'createdAt'
+	| 'updatedAt'
+	| 'totalAmount'
+	| 'employeeCount'
+> & {
+	paymentDate: string | Date;
+	processedAt?: string | Date | null;
+	cancelledAt?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	totalAmount?: number | string;
+	employeeCount?: number | string;
+};
+
+type AguinaldoRunEmployeePayload = Omit<
+	AguinaldoRunEmployee,
+	| 'daysCounted'
+	| 'dailySalaryBase'
+	| 'aguinaldoDaysPolicy'
+	| 'yearDays'
+	| 'grossAmount'
+	| 'exemptAmount'
+	| 'taxableAmount'
+	| 'withheldIsr'
+	| 'netAmount'
+	| 'createdAt'
+	| 'updatedAt'
+> & {
+	daysCounted?: number | string;
+	dailySalaryBase?: number | string;
+	aguinaldoDaysPolicy?: number | string;
+	yearDays?: number | string;
+	grossAmount?: number | string;
+	exemptAmount?: number | string;
+	taxableAmount?: number | string;
+	withheldIsr?: number | string;
+	netAmount?: number | string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+/**
+ * Retrieves a PTU run detail for a specific run.
+ *
+ * @param cookieHeader - Cookie header for authentication
+ * @param id - PTU run identifier
+ * @returns PTU run detail or null when missing
+ */
+export async function fetchPtuRunDetailServer(
+	cookieHeader: string,
+	id: string,
+): Promise<{ run: PtuRun; employees: PtuRunEmployee[] } | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.ptu.runs[id].get();
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch PTU run detail:', response.error);
+		return null;
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| { run: PtuRunPayload; employees: PtuRunEmployeePayload[] }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+
+	const normalizedRun: PtuRun = {
+		...payload.run,
+		paymentDate: new Date(payload.run.paymentDate),
+		taxableIncome: Number(payload.run.taxableIncome ?? 0),
+		ptuPercentage: Number(payload.run.ptuPercentage ?? 0),
+		totalAmount: Number(payload.run.totalAmount ?? 0),
+		employeeCount: Number(payload.run.employeeCount ?? 0),
+		processedAt: payload.run.processedAt ? new Date(payload.run.processedAt) : null,
+		cancelledAt: payload.run.cancelledAt ? new Date(payload.run.cancelledAt) : null,
+		createdAt: new Date(payload.run.createdAt),
+		updatedAt: new Date(payload.run.updatedAt),
+	};
+	const normalizedEmployees: PtuRunEmployee[] = payload.employees.map((employee) => ({
+		...employee,
+		daysCounted: Number(employee.daysCounted ?? 0),
+		dailyQuota: Number(employee.dailyQuota ?? 0),
+		annualSalaryBase: Number(employee.annualSalaryBase ?? 0),
+		ptuByDays: Number(employee.ptuByDays ?? 0),
+		ptuBySalary: Number(employee.ptuBySalary ?? 0),
+		ptuPreCap: Number(employee.ptuPreCap ?? 0),
+		capThreeMonths: Number(employee.capThreeMonths ?? 0),
+		capAvgThreeYears: Number(employee.capAvgThreeYears ?? 0),
+		capFinal: Number(employee.capFinal ?? 0),
+		ptuFinal: Number(employee.ptuFinal ?? 0),
+		exemptAmount: Number(employee.exemptAmount ?? 0),
+		taxableAmount: Number(employee.taxableAmount ?? 0),
+		withheldIsr: Number(employee.withheldIsr ?? 0),
+		netAmount: Number(employee.netAmount ?? 0),
+		createdAt: new Date(employee.createdAt),
+		updatedAt: new Date(employee.updatedAt),
+	}));
+
+	return { run: normalizedRun, employees: normalizedEmployees };
+}
+
+/**
+ * Retrieves an Aguinaldo run detail for a specific run.
+ *
+ * @param cookieHeader - Cookie header for authentication
+ * @param id - Aguinaldo run identifier
+ * @returns Aguinaldo run detail or null when missing
+ */
+export async function fetchAguinaldoRunDetailServer(
+	cookieHeader: string,
+	id: string,
+): Promise<{ run: AguinaldoRun; employees: AguinaldoRunEmployee[] } | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.aguinaldo.runs[id].get();
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch Aguinaldo run detail:', response.error);
+		return null;
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| { run: AguinaldoRunPayload; employees: AguinaldoRunEmployeePayload[] }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+
+	const normalizedRun: AguinaldoRun = {
+		...payload.run,
+		paymentDate: new Date(payload.run.paymentDate),
+		totalAmount: Number(payload.run.totalAmount ?? 0),
+		employeeCount: Number(payload.run.employeeCount ?? 0),
+		processedAt: payload.run.processedAt ? new Date(payload.run.processedAt) : null,
+		cancelledAt: payload.run.cancelledAt ? new Date(payload.run.cancelledAt) : null,
+		createdAt: new Date(payload.run.createdAt),
+		updatedAt: new Date(payload.run.updatedAt),
+	};
+	const normalizedEmployees: AguinaldoRunEmployee[] = payload.employees.map((employee) => ({
+		...employee,
+		daysCounted: Number(employee.daysCounted ?? 0),
+		dailySalaryBase: Number(employee.dailySalaryBase ?? 0),
+		aguinaldoDaysPolicy: Number(employee.aguinaldoDaysPolicy ?? 0),
+		yearDays: Number(employee.yearDays ?? 0),
+		grossAmount: Number(employee.grossAmount ?? 0),
+		exemptAmount: Number(employee.exemptAmount ?? 0),
+		taxableAmount: Number(employee.taxableAmount ?? 0),
+		withheldIsr: Number(employee.withheldIsr ?? 0),
+		netAmount: Number(employee.netAmount ?? 0),
+		createdAt: new Date(employee.createdAt),
+		updatedAt: new Date(employee.updatedAt),
+	}));
+
+	return { run: normalizedRun, employees: normalizedEmployees };
 }
 
 // ============================================================================

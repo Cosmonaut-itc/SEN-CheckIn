@@ -107,6 +107,48 @@ export interface PayrollCalculateParams {
 }
 
 /**
+ * Query parameters for PTU calculations.
+ */
+export interface PtuCalculateParams {
+	fiscalYear: number;
+	paymentDateKey: string;
+	taxableIncome: number;
+	ptuPercentage?: number;
+	includeInactive?: boolean;
+	smgDailyOverride?: number;
+	organizationId?: string;
+	[key: string]: unknown;
+}
+
+/**
+ * Query parameters for Aguinaldo calculations.
+ */
+export interface AguinaldoCalculateParams {
+	calendarYear: number;
+	paymentDateKey: string;
+	includeInactive?: boolean;
+	smgDailyOverride?: number;
+	organizationId?: string;
+	[key: string]: unknown;
+}
+
+/**
+ * Query parameters for PTU run listing.
+ */
+export interface PtuRunQueryParams extends ListQueryParams {
+	organizationId?: string;
+	fiscalYear?: number;
+}
+
+/**
+ * Query parameters for Aguinaldo run listing.
+ */
+export interface AguinaldoRunQueryParams extends ListQueryParams {
+	organizationId?: string;
+	calendarYear?: number;
+}
+
+/**
  * Query parameters for schedule templates.
  */
 export interface ScheduleTemplateQueryParams extends ListQueryParams {
@@ -464,6 +506,23 @@ export const queryKeys = {
 			queryKeyConstructor(['payroll', 'runs'] as const, params),
 		runDetail: (id: string) => ['payroll', 'runs', id] as const,
 	},
+	ptu: {
+		all: ['ptu'] as const,
+		calculate: (params: PtuCalculateParams) =>
+			queryKeyConstructor(['ptu', 'calculate'] as const, params),
+		runs: (params?: PtuRunQueryParams) =>
+			queryKeyConstructor(['ptu', 'runs'] as const, params),
+		runDetail: (id: string) => ['ptu', 'runs', id] as const,
+		history: (employeeId: string) => ['ptu', 'history', employeeId] as const,
+	},
+	aguinaldo: {
+		all: ['aguinaldo'] as const,
+		calculate: (params: AguinaldoCalculateParams) =>
+			queryKeyConstructor(['aguinaldo', 'calculate'] as const, params),
+		runs: (params?: AguinaldoRunQueryParams) =>
+			queryKeyConstructor(['aguinaldo', 'runs'] as const, params),
+		runDetail: (id: string) => ['aguinaldo', 'runs', id] as const,
+	},
 
 	/**
 	 * Query keys for schedule templates.
@@ -657,6 +716,23 @@ export const mutationKeys = {
 	},
 	payrollSettings: {
 		update: ['payrollSettings', 'update'] as const,
+	},
+	ptu: {
+		calculate: ['ptu', 'calculate'] as const,
+		create: ['ptu', 'create'] as const,
+		update: ['ptu', 'update'] as const,
+		process: ['ptu', 'process'] as const,
+		cancel: ['ptu', 'cancel'] as const,
+	},
+	aguinaldo: {
+		calculate: ['aguinaldo', 'calculate'] as const,
+		create: ['aguinaldo', 'create'] as const,
+		update: ['aguinaldo', 'update'] as const,
+		process: ['aguinaldo', 'process'] as const,
+		cancel: ['aguinaldo', 'cancel'] as const,
+	},
+	ptuHistory: {
+		upsert: ['ptu', 'history', 'upsert'] as const,
 	},
 
 	/**

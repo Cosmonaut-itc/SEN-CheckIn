@@ -68,6 +68,66 @@ export function buildPayrollReceiptsZipFileName(periodStart: Date, periodEnd: Da
 }
 
 /**
+ * Builds a filename for a PTU receipt PDF.
+ *
+ * @param args - File name inputs
+ * @param args.employeeCode - Employee code used in the filename
+ * @param args.employeeId - Employee identifier used as a fallback for uniqueness
+ * @param args.fiscalYear - Fiscal year for the PTU run
+ * @returns PTU receipt filename
+ */
+export function buildPtuReceiptFileName(args: {
+	employeeCode?: string | null;
+	employeeId?: string | null;
+	fiscalYear: number;
+}): string {
+	const codePart = sanitizeFileNamePart(args.employeeCode ?? '', '');
+	const idPart = sanitizeFileNamePart(args.employeeId ?? '', '');
+	const identifier = codePart || (idPart ? `empleado-${idPart.slice(0, 8)}` : 'empleado');
+	return `recibo_ptu_${identifier}_${args.fiscalYear}.pdf`;
+}
+
+/**
+ * Builds a filename for the PTU receipts ZIP archive.
+ *
+ * @param fiscalYear - Fiscal year for the PTU run
+ * @returns ZIP filename for PTU receipts
+ */
+export function buildPtuReceiptsZipFileName(fiscalYear: number): string {
+	return `recibos_ptu_${fiscalYear}.zip`;
+}
+
+/**
+ * Builds a filename for an Aguinaldo receipt PDF.
+ *
+ * @param args - File name inputs
+ * @param args.employeeCode - Employee code used in the filename
+ * @param args.employeeId - Employee identifier used as a fallback for uniqueness
+ * @param args.calendarYear - Calendar year for the Aguinaldo run
+ * @returns Aguinaldo receipt filename
+ */
+export function buildAguinaldoReceiptFileName(args: {
+	employeeCode?: string | null;
+	employeeId?: string | null;
+	calendarYear: number;
+}): string {
+	const codePart = sanitizeFileNamePart(args.employeeCode ?? '', '');
+	const idPart = sanitizeFileNamePart(args.employeeId ?? '', '');
+	const identifier = codePart || (idPart ? `empleado-${idPart.slice(0, 8)}` : 'empleado');
+	return `recibo_aguinaldo_${identifier}_${args.calendarYear}.pdf`;
+}
+
+/**
+ * Builds a filename for the Aguinaldo receipts ZIP archive.
+ *
+ * @param calendarYear - Calendar year for the Aguinaldo run
+ * @returns ZIP filename for Aguinaldo receipts
+ */
+export function buildAguinaldoReceiptsZipFileName(calendarYear: number): string {
+	return `recibos_aguinaldo_${calendarYear}.zip`;
+}
+
+/**
  * Builds a filename for a termination receipt PDF.
  *
  * @param args - File name inputs

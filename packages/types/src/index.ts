@@ -151,6 +151,22 @@ export interface Employee {
 	rfc: string | null;
 	/** Email address (optional) */
 	email: string | null;
+	/** Employment type for PTU eligibility */
+	employmentType?: 'PERMANENT' | 'EVENTUAL';
+	/** Trust employee flag */
+	isTrustEmployee?: boolean;
+	/** Director/admin/general manager flag */
+	isDirectorAdminGeneralManager?: boolean;
+	/** Domestic worker flag */
+	isDomesticWorker?: boolean;
+	/** Platform worker flag */
+	isPlatformWorker?: boolean;
+	/** Annual platform hours */
+	platformHoursYear?: number;
+	/** PTU eligibility override */
+	ptuEligibilityOverride?: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+	/** Aguinaldo days override */
+	aguinaldoDaysOverride?: number | null;
 	/** Location ID reference (optional) */
 	locationId: string | null;
 	/** Rekognition user ID for face recognition (optional) */
@@ -501,6 +517,238 @@ export interface EmployeeInsights {
 		/** Total runs returned */
 		total: number;
 	};
+}
+
+// ============================================================================
+// PTU / Aguinaldo Types
+// ============================================================================
+
+/**
+ * Shared warning structure for extra payment calculations.
+ */
+export interface ExtraPaymentWarning {
+	/** Warning type identifier */
+	type: string;
+	/** Human-readable warning message */
+	message: string;
+	/** Severity level */
+	severity: 'warning' | 'error';
+}
+
+/**
+ * Tax breakdown for PTU/Aguinaldo calculations.
+ */
+export interface ExtraPaymentTaxBreakdown {
+	/** Exempt portion of the payment */
+	exemptAmount: number;
+	/** Taxable portion of the payment */
+	taxableAmount: number;
+	/** ISR withheld for the payment */
+	withheldIsr: number;
+	/** Net amount after withholding */
+	netAmount: number;
+	/** Method used for withholding */
+	withholdingMethod: 'RLISR_174' | 'STANDARD';
+}
+
+/**
+ * PTU run status values.
+ */
+export type PtuRunStatus = 'DRAFT' | 'PROCESSED' | 'CANCELLED';
+
+/**
+ * Aguinaldo run status values.
+ */
+export type AguinaldoRunStatus = 'DRAFT' | 'PROCESSED' | 'CANCELLED';
+
+/**
+ * PTU run entity.
+ */
+export interface PtuRun {
+	/** Run identifier */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Fiscal year */
+	fiscalYear: number;
+	/** Payment date */
+	paymentDate: Date;
+	/** Taxable income (renta gravable) */
+	taxableIncome: number;
+	/** PTU percentage */
+	ptuPercentage: number;
+	/** Include inactive employees */
+	includeInactive: boolean;
+	/** Run status */
+	status: PtuRunStatus;
+	/** Total net amount */
+	totalAmount: number;
+	/** Employee count */
+	employeeCount: number;
+	/** Optional tax summary */
+	taxSummary?: Record<string, unknown> | null;
+	/** Optional settings snapshot */
+	settingsSnapshot?: Record<string, unknown> | null;
+	/** Processed timestamp */
+	processedAt: Date | null;
+	/** Cancelled timestamp */
+	cancelledAt: Date | null;
+	/** Cancel reason */
+	cancelReason: string | null;
+	/** Run creation timestamp */
+	createdAt: Date;
+	/** Run update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * PTU run employee line item.
+ */
+export interface PtuRunEmployee {
+	/** Line identifier */
+	id: string;
+	/** PTU run identifier */
+	ptuRunId: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** Eligibility flag */
+	isEligible: boolean;
+	/** Eligibility reasons */
+	eligibilityReasons: string[];
+	/** Days counted for PTU */
+	daysCounted: number;
+	/** Daily quota for PTU */
+	dailyQuota: number;
+	/** Annual salary base */
+	annualSalaryBase: number;
+	/** PTU by days half */
+	ptuByDays: number;
+	/** PTU by salary half */
+	ptuBySalary: number;
+	/** PTU before caps */
+	ptuPreCap: number;
+	/** Cap based on 3 months */
+	capThreeMonths: number;
+	/** Cap based on 3-year average */
+	capAvgThreeYears: number;
+	/** Final cap applied */
+	capFinal: number;
+	/** Final PTU amount */
+	ptuFinal: number;
+	/** Exempt amount */
+	exemptAmount: number;
+	/** Taxable amount */
+	taxableAmount: number;
+	/** ISR withheld */
+	withheldIsr: number;
+	/** Net amount */
+	netAmount: number;
+	/** Warnings */
+	warnings: ExtraPaymentWarning[];
+	/** Line creation timestamp */
+	createdAt: Date;
+	/** Line update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Aguinaldo run entity.
+ */
+export interface AguinaldoRun {
+	/** Run identifier */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Calendar year */
+	calendarYear: number;
+	/** Payment date */
+	paymentDate: Date;
+	/** Include inactive employees */
+	includeInactive: boolean;
+	/** Run status */
+	status: AguinaldoRunStatus;
+	/** Total net amount */
+	totalAmount: number;
+	/** Employee count */
+	employeeCount: number;
+	/** Optional tax summary */
+	taxSummary?: Record<string, unknown> | null;
+	/** Optional settings snapshot */
+	settingsSnapshot?: Record<string, unknown> | null;
+	/** Processed timestamp */
+	processedAt: Date | null;
+	/** Cancelled timestamp */
+	cancelledAt: Date | null;
+	/** Cancel reason */
+	cancelReason: string | null;
+	/** Run creation timestamp */
+	createdAt: Date;
+	/** Run update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Aguinaldo run employee line item.
+ */
+export interface AguinaldoRunEmployee {
+	/** Line identifier */
+	id: string;
+	/** Aguinaldo run identifier */
+	aguinaldoRunId: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** Eligibility flag */
+	isEligible: boolean;
+	/** Eligibility reasons */
+	eligibilityReasons: string[];
+	/** Days counted */
+	daysCounted: number;
+	/** Daily salary base */
+	dailySalaryBase: number;
+	/** Aguinaldo policy days */
+	aguinaldoDaysPolicy: number;
+	/** Days in year */
+	yearDays: number;
+	/** Gross amount */
+	grossAmount: number;
+	/** Exempt amount */
+	exemptAmount: number;
+	/** Taxable amount */
+	taxableAmount: number;
+	/** ISR withheld */
+	withheldIsr: number;
+	/** Net amount */
+	netAmount: number;
+	/** Warnings */
+	warnings: ExtraPaymentWarning[];
+	/** Line creation timestamp */
+	createdAt: Date;
+	/** Line update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * PTU calculation preview payload.
+ */
+export interface PtuCalculationResult {
+	/** Run summary */
+	run: PtuRun;
+	/** Employee lines */
+	employees: PtuRunEmployee[];
+	/** Calculation warnings */
+	warnings: ExtraPaymentWarning[];
+}
+
+/**
+ * Aguinaldo calculation preview payload.
+ */
+export interface AguinaldoCalculationResult {
+	/** Run summary */
+	run: AguinaldoRun;
+	/** Employee lines */
+	employees: AguinaldoRunEmployee[];
+	/** Calculation warnings */
+	warnings: ExtraPaymentWarning[];
 }
 
 /**

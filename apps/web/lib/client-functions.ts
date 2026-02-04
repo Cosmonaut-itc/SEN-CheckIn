@@ -76,6 +76,14 @@ export interface Employee {
 	hireDate: Date | null;
 	dailyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+	employmentType: 'PERMANENT' | 'EVENTUAL';
+	isTrustEmployee: boolean;
+	isDirectorAdminGeneralManager: boolean;
+	isDomesticWorker: boolean;
+	isPlatformWorker: boolean;
+	platformHoursYear: number;
+	ptuEligibilityOverride: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+	aguinaldoDaysOverride: number | null;
 	sbcDailyOverride: number | null;
 	locationId: string | null;
 	organizationId: string | null;
@@ -482,9 +490,14 @@ export async function denyDeviceCode(userCode: string): Promise<boolean> {
 // Employee Functions
 // ============================================================================
 
-type EmployeePayload = Omit<Employee, 'dailyPay' | 'sbcDailyOverride'> & {
+type EmployeePayload = Omit<
+	Employee,
+	'dailyPay' | 'sbcDailyOverride' | 'platformHoursYear' | 'aguinaldoDaysOverride'
+> & {
 	dailyPay?: number | string;
 	sbcDailyOverride?: number | string | null;
+	platformHoursYear?: number | string | null;
+	aguinaldoDaysOverride?: number | string | null;
 };
 
 /**
@@ -497,6 +510,17 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 	return {
 		...record,
 		dailyPay: Number(record.dailyPay ?? 0),
+		employmentType: record.employmentType ?? 'PERMANENT',
+		isTrustEmployee: Boolean(record.isTrustEmployee ?? false),
+		isDirectorAdminGeneralManager: Boolean(record.isDirectorAdminGeneralManager ?? false),
+		isDomesticWorker: Boolean(record.isDomesticWorker ?? false),
+		isPlatformWorker: Boolean(record.isPlatformWorker ?? false),
+		platformHoursYear: Number(record.platformHoursYear ?? 0),
+		ptuEligibilityOverride: record.ptuEligibilityOverride ?? 'DEFAULT',
+		aguinaldoDaysOverride:
+			record.aguinaldoDaysOverride === null || record.aguinaldoDaysOverride === undefined
+				? null
+				: Number(record.aguinaldoDaysOverride),
 		sbcDailyOverride:
 			record.sbcDailyOverride === null || record.sbcDailyOverride === undefined
 				? null
@@ -1535,6 +1559,12 @@ export interface PayrollSettings {
 	aguinaldoDays: number;
 	vacationPremiumRate: number;
 	enableSeventhDayPay: boolean;
+	ptuEnabled: boolean;
+	ptuMode: 'DEFAULT_RULES' | 'MANUAL';
+	ptuIsExempt: boolean;
+	ptuExemptReason: string | null;
+	employerType: 'PERSONA_MORAL' | 'PERSONA_FISICA';
+	aguinaldoEnabled: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -1725,6 +1755,155 @@ export interface PayrollRunEmployee {
 	updatedAt: Date;
 }
 
+// ============================================================================
+// PTU / Aguinaldo Types
+// ============================================================================
+
+export interface ExtraPaymentWarning {
+	type: string;
+	message: string;
+	severity: 'warning' | 'error';
+}
+
+export interface ExtraPaymentTaxBreakdown {
+	exemptAmount: number;
+	taxableAmount: number;
+	withheldIsr: number;
+	netAmount: number;
+	withholdingMethod: 'RLISR_174' | 'STANDARD';
+}
+
+export type PtuRunStatus = 'DRAFT' | 'PROCESSED' | 'CANCELLED';
+export type AguinaldoRunStatus = 'DRAFT' | 'PROCESSED' | 'CANCELLED';
+
+export interface PtuRun {
+	id: string;
+	organizationId: string;
+	fiscalYear: number;
+	paymentDate: Date;
+	taxableIncome: number;
+	ptuPercentage: number;
+	includeInactive: boolean;
+	status: PtuRunStatus;
+	totalAmount: number;
+	employeeCount: number;
+	taxSummary?: Record<string, unknown> | null;
+	settingsSnapshot?: Record<string, unknown> | null;
+	processedAt: Date | null;
+	cancelledAt: Date | null;
+	cancelReason: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PtuRunEmployee {
+	id: string;
+	ptuRunId: string;
+	employeeId: string;
+	employeeName?: string;
+	employeeCode?: string;
+	employeeNss?: string | null;
+	employeeRfc?: string | null;
+	isEligible: boolean;
+	eligibilityReasons: string[];
+	daysCounted: number;
+	dailyQuota: number;
+	annualSalaryBase: number;
+	ptuByDays: number;
+	ptuBySalary: number;
+	ptuPreCap: number;
+	capThreeMonths: number;
+	capAvgThreeYears: number;
+	capFinal: number;
+	ptuFinal: number;
+	exemptAmount: number;
+	taxableAmount: number;
+	withheldIsr: number;
+	netAmount: number;
+	warnings: ExtraPaymentWarning[];
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface AguinaldoRun {
+	id: string;
+	organizationId: string;
+	calendarYear: number;
+	paymentDate: Date;
+	includeInactive: boolean;
+	status: AguinaldoRunStatus;
+	totalAmount: number;
+	employeeCount: number;
+	taxSummary?: Record<string, unknown> | null;
+	settingsSnapshot?: Record<string, unknown> | null;
+	processedAt: Date | null;
+	cancelledAt: Date | null;
+	cancelReason: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface AguinaldoRunEmployee {
+	id: string;
+	aguinaldoRunId: string;
+	employeeId: string;
+	employeeName?: string;
+	employeeCode?: string;
+	employeeNss?: string | null;
+	employeeRfc?: string | null;
+	isEligible: boolean;
+	eligibilityReasons: string[];
+	daysCounted: number;
+	dailySalaryBase: number;
+	aguinaldoDaysPolicy: number;
+	yearDays: number;
+	grossAmount: number;
+	exemptAmount: number;
+	taxableAmount: number;
+	withheldIsr: number;
+	netAmount: number;
+	warnings: ExtraPaymentWarning[];
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PtuCalculationResult {
+	run: PtuRun;
+	employees: PtuRunEmployee[];
+	warnings: ExtraPaymentWarning[];
+}
+
+export interface AguinaldoCalculationResult {
+	run: AguinaldoRun;
+	employees: AguinaldoRunEmployee[];
+	warnings: ExtraPaymentWarning[];
+}
+
+export interface PtuEmployeeOverride {
+	employeeId: string;
+	daysCounted?: number;
+	dailyQuota?: number;
+	annualSalaryBase?: number;
+	eligibilityOverride?: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+}
+
+export interface AguinaldoEmployeeOverride {
+	employeeId: string;
+	daysCounted?: number;
+	dailySalaryBase?: number;
+	aguinaldoDaysPolicy?: number;
+}
+
+export interface PtuHistoryRecord {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	fiscalYear: number;
+	amount: number;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
 type PayrollSettingsPayload = Omit<
 	PayrollSettings,
 	| 'riskWorkRate'
@@ -1734,6 +1913,12 @@ type PayrollSettingsPayload = Omit<
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
+	| 'ptuEnabled'
+	| 'ptuMode'
+	| 'ptuIsExempt'
+	| 'ptuExemptReason'
+	| 'employerType'
+	| 'aguinaldoEnabled'
 > & {
 	riskWorkRate?: number | string | null;
 	statePayrollTaxRate?: number | string | null;
@@ -1742,6 +1927,12 @@ type PayrollSettingsPayload = Omit<
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
+	ptuEnabled?: boolean | null;
+	ptuMode?: 'DEFAULT_RULES' | 'MANUAL' | null;
+	ptuIsExempt?: boolean | null;
+	ptuExemptReason?: string | null;
+	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA' | null;
+	aguinaldoEnabled?: boolean | null;
 };
 
 /**
@@ -1783,6 +1974,12 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+		ptuEnabled: Boolean(payload.ptuEnabled ?? false),
+		ptuMode: payload.ptuMode ?? 'DEFAULT_RULES',
+		ptuIsExempt: Boolean(payload.ptuIsExempt ?? false),
+		ptuExemptReason: payload.ptuExemptReason ?? null,
+		employerType: payload.employerType ?? 'PERSONA_MORAL',
+		aguinaldoEnabled: Boolean(payload.aguinaldoEnabled ?? true),
 	};
 }
 
@@ -1987,6 +2184,674 @@ export async function fetchPayrollRunDetail(
 	return {
 		run: normalizedRun,
 		employees: normalizedEmployees,
+	};
+}
+
+// ============================================================================
+// PTU / Aguinaldo Functions
+// ============================================================================
+
+type PtuRunPayload = Omit<
+	PtuRun,
+	| 'paymentDate'
+	| 'processedAt'
+	| 'cancelledAt'
+	| 'createdAt'
+	| 'updatedAt'
+	| 'taxableIncome'
+	| 'ptuPercentage'
+	| 'totalAmount'
+	| 'employeeCount'
+> & {
+	paymentDate: string | Date;
+	processedAt?: string | Date | null;
+	cancelledAt?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	taxableIncome?: number | string;
+	ptuPercentage?: number | string;
+	totalAmount?: number | string;
+	employeeCount?: number | string;
+};
+
+type PtuRunEmployeePayload = Omit<
+	PtuRunEmployee,
+	| 'daysCounted'
+	| 'dailyQuota'
+	| 'annualSalaryBase'
+	| 'ptuByDays'
+	| 'ptuBySalary'
+	| 'ptuPreCap'
+	| 'capThreeMonths'
+	| 'capAvgThreeYears'
+	| 'capFinal'
+	| 'ptuFinal'
+	| 'exemptAmount'
+	| 'taxableAmount'
+	| 'withheldIsr'
+	| 'netAmount'
+	| 'createdAt'
+	| 'updatedAt'
+> & {
+	daysCounted?: number | string;
+	dailyQuota?: number | string;
+	annualSalaryBase?: number | string;
+	ptuByDays?: number | string;
+	ptuBySalary?: number | string;
+	ptuPreCap?: number | string;
+	capThreeMonths?: number | string;
+	capAvgThreeYears?: number | string;
+	capFinal?: number | string;
+	ptuFinal?: number | string;
+	exemptAmount?: number | string;
+	taxableAmount?: number | string;
+	withheldIsr?: number | string;
+	netAmount?: number | string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+type AguinaldoRunPayload = Omit<
+	AguinaldoRun,
+	| 'paymentDate'
+	| 'processedAt'
+	| 'cancelledAt'
+	| 'createdAt'
+	| 'updatedAt'
+	| 'totalAmount'
+	| 'employeeCount'
+> & {
+	paymentDate: string | Date;
+	processedAt?: string | Date | null;
+	cancelledAt?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	totalAmount?: number | string;
+	employeeCount?: number | string;
+};
+
+type AguinaldoRunEmployeePayload = Omit<
+	AguinaldoRunEmployee,
+	| 'daysCounted'
+	| 'dailySalaryBase'
+	| 'aguinaldoDaysPolicy'
+	| 'yearDays'
+	| 'grossAmount'
+	| 'exemptAmount'
+	| 'taxableAmount'
+	| 'withheldIsr'
+	| 'netAmount'
+	| 'createdAt'
+	| 'updatedAt'
+> & {
+	daysCounted?: number | string;
+	dailySalaryBase?: number | string;
+	aguinaldoDaysPolicy?: number | string;
+	yearDays?: number | string;
+	grossAmount?: number | string;
+	exemptAmount?: number | string;
+	taxableAmount?: number | string;
+	withheldIsr?: number | string;
+	netAmount?: number | string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+/**
+ * Normalizes PTU run payloads with numeric strings into typed values.
+ *
+ * @param record - Raw PTU run payload
+ * @returns Normalized PTU run
+ */
+function normalizePtuRun(record: PtuRunPayload): PtuRun {
+	return {
+		...record,
+		paymentDate: new Date(record.paymentDate),
+		taxableIncome: Number(record.taxableIncome ?? 0),
+		ptuPercentage: Number(record.ptuPercentage ?? 0),
+		totalAmount: Number(record.totalAmount ?? 0),
+		employeeCount: Number(record.employeeCount ?? 0),
+		processedAt: record.processedAt ? new Date(record.processedAt) : null,
+		cancelledAt: record.cancelledAt ? new Date(record.cancelledAt) : null,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
+}
+
+/**
+ * Normalizes PTU run employee payloads with numeric strings into typed values.
+ *
+ * @param record - Raw PTU run employee payload
+ * @returns Normalized PTU run employee
+ */
+function normalizePtuRunEmployee(record: PtuRunEmployeePayload): PtuRunEmployee {
+	return {
+		...record,
+		daysCounted: Number(record.daysCounted ?? 0),
+		dailyQuota: Number(record.dailyQuota ?? 0),
+		annualSalaryBase: Number(record.annualSalaryBase ?? 0),
+		ptuByDays: Number(record.ptuByDays ?? 0),
+		ptuBySalary: Number(record.ptuBySalary ?? 0),
+		ptuPreCap: Number(record.ptuPreCap ?? 0),
+		capThreeMonths: Number(record.capThreeMonths ?? 0),
+		capAvgThreeYears: Number(record.capAvgThreeYears ?? 0),
+		capFinal: Number(record.capFinal ?? 0),
+		ptuFinal: Number(record.ptuFinal ?? 0),
+		exemptAmount: Number(record.exemptAmount ?? 0),
+		taxableAmount: Number(record.taxableAmount ?? 0),
+		withheldIsr: Number(record.withheldIsr ?? 0),
+		netAmount: Number(record.netAmount ?? 0),
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
+}
+
+/**
+ * Normalizes Aguinaldo run payloads with numeric strings into typed values.
+ *
+ * @param record - Raw Aguinaldo run payload
+ * @returns Normalized Aguinaldo run
+ */
+function normalizeAguinaldoRun(record: AguinaldoRunPayload): AguinaldoRun {
+	return {
+		...record,
+		paymentDate: new Date(record.paymentDate),
+		totalAmount: Number(record.totalAmount ?? 0),
+		employeeCount: Number(record.employeeCount ?? 0),
+		processedAt: record.processedAt ? new Date(record.processedAt) : null,
+		cancelledAt: record.cancelledAt ? new Date(record.cancelledAt) : null,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
+}
+
+/**
+ * Normalizes Aguinaldo run employee payloads with numeric strings into typed values.
+ *
+ * @param record - Raw Aguinaldo run employee payload
+ * @returns Normalized Aguinaldo run employee
+ */
+function normalizeAguinaldoRunEmployee(
+	record: AguinaldoRunEmployeePayload,
+): AguinaldoRunEmployee {
+	return {
+		...record,
+		daysCounted: Number(record.daysCounted ?? 0),
+		dailySalaryBase: Number(record.dailySalaryBase ?? 0),
+		aguinaldoDaysPolicy: Number(record.aguinaldoDaysPolicy ?? 0),
+		yearDays: Number(record.yearDays ?? 0),
+		grossAmount: Number(record.grossAmount ?? 0),
+		exemptAmount: Number(record.exemptAmount ?? 0),
+		taxableAmount: Number(record.taxableAmount ?? 0),
+		withheldIsr: Number(record.withheldIsr ?? 0),
+		netAmount: Number(record.netAmount ?? 0),
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
+}
+
+export async function calculatePtu(params: {
+	fiscalYear: number;
+	paymentDateKey: string;
+	taxableIncome: number;
+	ptuPercentage?: number;
+	includeInactive?: boolean;
+	smgDailyOverride?: number;
+	organizationId?: string;
+	employeeOverrides?: PtuEmployeeOverride[];
+}): Promise<PtuCalculationResult> {
+	const response = await api.ptu.calculate.post({
+		fiscalYear: params.fiscalYear,
+		paymentDateKey: params.paymentDateKey,
+		taxableIncome: params.taxableIncome,
+		ptuPercentage: params.ptuPercentage,
+		includeInactive: params.includeInactive,
+		smgDailyOverride: params.smgDailyOverride,
+		organizationId: params.organizationId,
+		employeeOverrides: params.employeeOverrides,
+	});
+
+	if (response.error) {
+		console.error('Failed to calculate PTU:', response.error, 'Status:', response.status);
+		throw new Error('Failed to calculate PTU');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| {
+				run: PtuRunPayload;
+				employees: PtuRunEmployeePayload[];
+				warnings?: ExtraPaymentWarning[];
+		  }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to calculate PTU');
+	}
+
+	return {
+		run: normalizePtuRun(payload.run),
+		employees: payload.employees.map(normalizePtuRunEmployee),
+		warnings: payload.warnings ?? [],
+	};
+}
+
+export async function createPtuRun(params: {
+	fiscalYear: number;
+	paymentDateKey: string;
+	taxableIncome: number;
+	ptuPercentage?: number;
+	includeInactive?: boolean;
+	smgDailyOverride?: number;
+	organizationId?: string;
+	employeeOverrides?: PtuEmployeeOverride[];
+}): Promise<PtuCalculationResult> {
+	const response = await api.ptu.runs.post({
+		fiscalYear: params.fiscalYear,
+		paymentDateKey: params.paymentDateKey,
+		taxableIncome: params.taxableIncome,
+		ptuPercentage: params.ptuPercentage,
+		includeInactive: params.includeInactive,
+		smgDailyOverride: params.smgDailyOverride,
+		organizationId: params.organizationId,
+		employeeOverrides: params.employeeOverrides,
+	});
+
+	if (response.error) {
+		console.error('Failed to create PTU run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to create PTU run');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| {
+				run: PtuRunPayload;
+				employees: PtuRunEmployeePayload[];
+				warnings?: ExtraPaymentWarning[];
+		  }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to create PTU run');
+	}
+
+	return {
+		run: normalizePtuRun(payload.run),
+		employees: payload.employees.map(normalizePtuRunEmployee),
+		warnings: payload.warnings ?? [],
+	};
+}
+
+export async function updatePtuRun(
+	runId: string,
+	params: {
+		fiscalYear?: number;
+		paymentDateKey?: string;
+		taxableIncome?: number;
+		ptuPercentage?: number;
+		includeInactive?: boolean;
+		smgDailyOverride?: number;
+		organizationId?: string;
+		employeeOverrides?: PtuEmployeeOverride[];
+	},
+): Promise<PtuCalculationResult> {
+	const response = await api.ptu.runs[runId].put({
+		fiscalYear: params.fiscalYear,
+		paymentDateKey: params.paymentDateKey,
+		taxableIncome: params.taxableIncome,
+		ptuPercentage: params.ptuPercentage,
+		includeInactive: params.includeInactive,
+		smgDailyOverride: params.smgDailyOverride,
+		organizationId: params.organizationId,
+		employeeOverrides: params.employeeOverrides,
+	});
+
+	if (response.error) {
+		console.error('Failed to update PTU run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to update PTU run');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| {
+				run: PtuRunPayload;
+				employees: PtuRunEmployeePayload[];
+				warnings?: ExtraPaymentWarning[];
+		  }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to update PTU run');
+	}
+
+	return {
+		run: normalizePtuRun(payload.run),
+		employees: payload.employees.map(normalizePtuRunEmployee),
+		warnings: payload.warnings ?? [],
+	};
+}
+
+export async function processPtuRun(runId: string): Promise<boolean> {
+	const response = await api.ptu.runs[runId].process.post();
+	if (response.error) {
+		console.error('Failed to process PTU run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to process PTU run');
+	}
+	return true;
+}
+
+export async function cancelPtuRun(runId: string, reason: string): Promise<boolean> {
+	const response = await api.ptu.runs[runId].cancel.post({ reason });
+	if (response.error) {
+		console.error('Failed to cancel PTU run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to cancel PTU run');
+	}
+	return true;
+}
+
+export async function fetchPtuRuns(params?: {
+	organizationId?: string;
+	fiscalYear?: number;
+	limit?: number;
+	offset?: number;
+}): Promise<PtuRun[]> {
+	const response = await api.ptu.runs.get({
+		$query: {
+			organizationId: params?.organizationId,
+			fiscalYear: params?.fiscalYear,
+			limit: params?.limit ?? 50,
+			offset: params?.offset ?? 0,
+		},
+	});
+
+	if (response.error) {
+		console.error('Failed to fetch PTU runs:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch PTU runs');
+	}
+
+	const runs =
+		(getApiResponseData(response)?.data as PtuRunPayload[] | undefined) ?? [];
+	return runs.map(normalizePtuRun);
+}
+
+export async function fetchPtuRunDetail(
+	runId: string,
+): Promise<{ run: PtuRun; employees: PtuRunEmployee[] } | null> {
+	const response = await api.ptu.runs[runId].get();
+
+	if (response.error) {
+		console.error('Failed to fetch PTU run detail:', response.error, 'Status:', response.status);
+		return null;
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| { run: PtuRunPayload; employees: PtuRunEmployeePayload[] }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+
+	return {
+		run: normalizePtuRun(payload.run),
+		employees: payload.employees.map(normalizePtuRunEmployee),
+	};
+}
+
+export async function calculateAguinaldo(params: {
+	calendarYear: number;
+	paymentDateKey: string;
+	includeInactive?: boolean;
+	smgDailyOverride?: number;
+	organizationId?: string;
+	employeeOverrides?: AguinaldoEmployeeOverride[];
+}): Promise<AguinaldoCalculationResult> {
+	const response = await api.aguinaldo.calculate.post({
+		calendarYear: params.calendarYear,
+		paymentDateKey: params.paymentDateKey,
+		includeInactive: params.includeInactive,
+		smgDailyOverride: params.smgDailyOverride,
+		organizationId: params.organizationId,
+		employeeOverrides: params.employeeOverrides,
+	});
+
+	if (response.error) {
+		console.error('Failed to calculate Aguinaldo:', response.error, 'Status:', response.status);
+		throw new Error('Failed to calculate Aguinaldo');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| {
+				run: AguinaldoRunPayload;
+				employees: AguinaldoRunEmployeePayload[];
+				warnings?: ExtraPaymentWarning[];
+		  }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to calculate Aguinaldo');
+	}
+
+	return {
+		run: normalizeAguinaldoRun(payload.run),
+		employees: payload.employees.map(normalizeAguinaldoRunEmployee),
+		warnings: payload.warnings ?? [],
+	};
+}
+
+export async function createAguinaldoRun(params: {
+	calendarYear: number;
+	paymentDateKey: string;
+	includeInactive?: boolean;
+	smgDailyOverride?: number;
+	organizationId?: string;
+	employeeOverrides?: AguinaldoEmployeeOverride[];
+}): Promise<AguinaldoCalculationResult> {
+	const response = await api.aguinaldo.runs.post({
+		calendarYear: params.calendarYear,
+		paymentDateKey: params.paymentDateKey,
+		includeInactive: params.includeInactive,
+		smgDailyOverride: params.smgDailyOverride,
+		organizationId: params.organizationId,
+		employeeOverrides: params.employeeOverrides,
+	});
+
+	if (response.error) {
+		console.error('Failed to create Aguinaldo run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to create Aguinaldo run');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| {
+				run: AguinaldoRunPayload;
+				employees: AguinaldoRunEmployeePayload[];
+				warnings?: ExtraPaymentWarning[];
+		  }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to create Aguinaldo run');
+	}
+
+	return {
+		run: normalizeAguinaldoRun(payload.run),
+		employees: payload.employees.map(normalizeAguinaldoRunEmployee),
+		warnings: payload.warnings ?? [],
+	};
+}
+
+export async function updateAguinaldoRun(
+	runId: string,
+	params: {
+		calendarYear?: number;
+		paymentDateKey?: string;
+		includeInactive?: boolean;
+		smgDailyOverride?: number;
+		organizationId?: string;
+		employeeOverrides?: AguinaldoEmployeeOverride[];
+	},
+): Promise<AguinaldoCalculationResult> {
+	const response = await api.aguinaldo.runs[runId].put({
+		calendarYear: params.calendarYear,
+		paymentDateKey: params.paymentDateKey,
+		includeInactive: params.includeInactive,
+		smgDailyOverride: params.smgDailyOverride,
+		organizationId: params.organizationId,
+		employeeOverrides: params.employeeOverrides,
+	});
+
+	if (response.error) {
+		console.error('Failed to update Aguinaldo run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to update Aguinaldo run');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| {
+				run: AguinaldoRunPayload;
+				employees: AguinaldoRunEmployeePayload[];
+				warnings?: ExtraPaymentWarning[];
+		  }
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to update Aguinaldo run');
+	}
+
+	return {
+		run: normalizeAguinaldoRun(payload.run),
+		employees: payload.employees.map(normalizeAguinaldoRunEmployee),
+		warnings: payload.warnings ?? [],
+	};
+}
+
+export async function processAguinaldoRun(runId: string): Promise<boolean> {
+	const response = await api.aguinaldo.runs[runId].process.post();
+	if (response.error) {
+		console.error('Failed to process Aguinaldo run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to process Aguinaldo run');
+	}
+	return true;
+}
+
+export async function cancelAguinaldoRun(runId: string, reason: string): Promise<boolean> {
+	const response = await api.aguinaldo.runs[runId].cancel.post({ reason });
+	if (response.error) {
+		console.error('Failed to cancel Aguinaldo run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to cancel Aguinaldo run');
+	}
+	return true;
+}
+
+export async function fetchAguinaldoRuns(params?: {
+	organizationId?: string;
+	calendarYear?: number;
+	limit?: number;
+	offset?: number;
+}): Promise<AguinaldoRun[]> {
+	const response = await api.aguinaldo.runs.get({
+		$query: {
+			organizationId: params?.organizationId,
+			calendarYear: params?.calendarYear,
+			limit: params?.limit ?? 50,
+			offset: params?.offset ?? 0,
+		},
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch Aguinaldo runs:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch Aguinaldo runs');
+	}
+
+	const runs =
+		(getApiResponseData(response)?.data as AguinaldoRunPayload[] | undefined) ?? [];
+	return runs.map(normalizeAguinaldoRun);
+}
+
+export async function fetchAguinaldoRunDetail(
+	runId: string,
+): Promise<{ run: AguinaldoRun; employees: AguinaldoRunEmployee[] } | null> {
+	const response = await api.aguinaldo.runs[runId].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch Aguinaldo run detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| { run: AguinaldoRunPayload; employees: AguinaldoRunEmployeePayload[] }
+		| undefined;
+	if (!payload) {
+		return null;
+	}
+
+	return {
+		run: normalizeAguinaldoRun(payload.run),
+		employees: payload.employees.map(normalizeAguinaldoRunEmployee),
+	};
+}
+
+export async function fetchEmployeePtuHistory(
+	employeeId: string,
+): Promise<PtuHistoryRecord[]> {
+	const response = await api.employees[employeeId]['ptu-history'].get();
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch PTU history:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch PTU history');
+	}
+
+	const payload =
+		(getApiResponseData(response)?.data as
+			| Array<PtuHistoryRecord & { amount?: number | string; createdAt: string | Date; updatedAt: string | Date }>
+			| undefined) ?? [];
+	return payload.map((record) => ({
+		...record,
+		amount: Number(record.amount ?? 0),
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	}));
+}
+
+export async function upsertEmployeePtuHistory(
+	employeeId: string,
+	params: { fiscalYear: number; amount: number },
+): Promise<PtuHistoryRecord> {
+	const response = await api.employees[employeeId]['ptu-history'].post({
+		fiscalYear: params.fiscalYear,
+		amount: params.amount,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to upsert PTU history:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to upsert PTU history');
+	}
+
+	const payload = getApiResponseData(response)?.data as
+		| (PtuHistoryRecord & {
+				amount?: number | string;
+				createdAt: string | Date;
+				updatedAt: string | Date;
+		  })
+		| undefined;
+	if (!payload) {
+		throw new Error('Failed to upsert PTU history');
+	}
+
+	return {
+		...payload,
+		amount: Number(payload.amount ?? 0),
+		createdAt: new Date(payload.createdAt),
+		updatedAt: new Date(payload.updatedAt),
 	};
 }
 

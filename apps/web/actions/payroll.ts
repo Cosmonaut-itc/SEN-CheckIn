@@ -16,6 +16,12 @@ export interface UpdatePayrollSettingsInput {
 	aguinaldoDays?: number;
 	vacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
+	ptuEnabled?: boolean;
+	ptuMode?: 'DEFAULT_RULES' | 'MANUAL';
+	ptuIsExempt?: boolean;
+	ptuExemptReason?: string | null;
+	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA';
+	aguinaldoEnabled?: boolean;
 	organizationId?: string;
 }
 
@@ -62,6 +68,12 @@ export async function updatePayrollSettingsAction(
 			aguinaldoDays: input.aguinaldoDays,
 			vacationPremiumRate: input.vacationPremiumRate,
 			enableSeventhDayPay: input.enableSeventhDayPay,
+			ptuEnabled: input.ptuEnabled,
+			ptuMode: input.ptuMode,
+			ptuIsExempt: input.ptuIsExempt,
+			ptuExemptReason: input.ptuExemptReason,
+			employerType: input.employerType,
+			aguinaldoEnabled: input.aguinaldoEnabled,
 			organizationId: input.organizationId,
 		});
 

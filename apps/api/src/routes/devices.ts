@@ -605,6 +605,11 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 				return buildErrorResponse('You do not have access to this device', 403);
 			}
 
+			if (existing[0].status === 'MAINTENANCE') {
+				set.status = 403;
+				return buildErrorResponse('Device disabled', 403, { code: 'DEVICE_DISABLED' });
+			}
+
 			const now = new Date();
 
 			await db

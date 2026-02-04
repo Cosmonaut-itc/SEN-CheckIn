@@ -329,6 +329,43 @@ export async function updateDeviceSettings(
 }
 
 /**
+ * Error payload for heartbeat failures.
+ */
+export type HeartbeatErrorCode = 'DEVICE_DISABLED' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'UNKNOWN';
+
+/**
+ * Specialized error for heartbeat request failures.
+ */
+export class HeartbeatError extends Error {
+	readonly status: number;
+	readonly code: HeartbeatErrorCode;
+
+	/**
+	 * Construct a heartbeat error.
+	 *
+	 * @param message - Error message
+	 * @param status - HTTP status code
+	 * @param code - Optional error code
+	 */
+	constructor(message: string, status: number, code?: HeartbeatErrorCode) {
+		super(message);
+		this.name = 'HeartbeatError';
+		this.status = status;
+		this.code = code ?? 'UNKNOWN';
+	}
+}
+
+/**
+ * Type guard for heartbeat errors.
+ *
+ * @param error - Unknown error value
+ * @returns True when the error is a HeartbeatError
+ */
+export function isHeartbeatError(error: unknown): error is HeartbeatError {
+	return error instanceof HeartbeatError;
+}
+
+/**
  * Send a heartbeat to mark the device as online.
  * Updates the device's lastHeartbeat timestamp and sets status to ONLINE.
  *
@@ -340,7 +377,7 @@ export async function updateDeviceSettings(
  *
  * @param deviceId - Device identifier (UUID) to ping
  * @returns Updated device payload with the latest heartbeat timestamp, or null if not authenticated
- * @throws Error when the API response is not OK or lacks data (after authentication)
+ * @throws HeartbeatError when the API response is not OK or lacks data (after authentication)
  */
 export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetail | null> {
 	// Check if we have an access token before attempting the request
@@ -356,9 +393,29 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 	});
 
 	if (!response.ok) {
-		const errorText = await response.text().catch(() => 'Unknown error');
-		console.error('[sendDeviceHeartbeat] API error:', response.status, errorText);
-		throw new Error('Failed to send device heartbeat');
+		const payload = await response
+			.json()
+			.catch(() => null)
+			.then(
+				(data) =>
+					data as
+						| {
+								error?: { code?: string; message?: string };
+						  }
+						| null,
+			);
+		const rawCode = payload?.error?.code;
+		const code: HeartbeatErrorCode =
+			rawCode === 'DEVICE_DISABLED'
+				? 'DEVICE_DISABLED'
+				: rawCode === 'UNAUTHORIZED'
+					? 'UNAUTHORIZED'
+					: rawCode === 'FORBIDDEN'
+						? 'FORBIDDEN'
+						: 'UNKNOWN';
+		const message = payload?.error?.message ?? 'Failed to send device heartbeat';
+		console.error('[sendDeviceHeartbeat] API error:', response.status, message);
+		throw new HeartbeatError(message, response.status, code);
 	}
 
 	const json = (await response.json()) as { data?: DeviceDetail; error?: string };

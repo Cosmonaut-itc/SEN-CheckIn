@@ -63,6 +63,10 @@ const authOptions: AuthOptions = {
 	emailAndPassword: {
 		enabled: true,
 	},
+	session: {
+		expiresIn: 60 * 60 * 24 * 30,
+		updateAge: 60 * 60 * 24,
+	},
 	plugins: [
 		/**
 		 * API Key plugin for programmatic authentication.

@@ -8,7 +8,12 @@ import * as ExpoDevice from 'expo-device';
 import * as Crypto from 'expo-crypto';
 
 import type { Device } from '@sen-checkin/types';
-import { fetchDeviceDetail, sendDeviceHeartbeat, updateDeviceSettings } from './client-functions';
+import {
+	fetchDeviceDetail,
+	isHeartbeatError,
+	sendDeviceHeartbeat,
+	updateDeviceSettings,
+} from './client-functions';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type DeviceSettings = {
@@ -153,7 +158,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 	const [settings, setSettings] = useState<DeviceSettings | null>(null);
 	const [isHydrated, setIsHydrated] = useState(false);
 	const [isUpdating, setIsUpdating] = useState(false);
-	const { session, isLoading: isAuthLoading } = useAuthContext();
+	const { session, isLoading: isAuthLoading, requestReauth, authState } = useAuthContext();
 
 	useEffect(() => {
 		readStoredSettings().then((stored) => {
@@ -261,15 +266,34 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 	useEffect(() => {
 		let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
-		if (!settings?.deviceId || isAuthLoading || !session) {
+		if (!settings?.deviceId || isAuthLoading || !session || authState === 'locked') {
 			return undefined;
 		}
 
-		const sendHeartbeat = async () => {
+		const sendHeartbeat = async (attempt = 0) => {
 			if (!settings?.deviceId) return;
 			try {
 				await sendDeviceHeartbeat(settings.deviceId);
 			} catch (error) {
+				if (isHeartbeatError(error)) {
+					if (error.code === 'DEVICE_DISABLED') {
+						console.warn('[device-context] Device disabled, locking session', {
+							deviceId: settings.deviceId,
+						});
+						await requestReauth({ forceLock: true, reason: 'device_disabled' });
+						return;
+					}
+
+					if ((error.status === 401 || error.status === 403) && attempt === 0) {
+						console.warn('[device-context] Heartbeat unauthorized, retrying', {
+							status: error.status,
+						});
+						await requestReauth();
+						await sendHeartbeat(1);
+						return;
+					}
+				}
+
 				console.warn('[device-context] Heartbeat failed', error);
 			}
 		};
@@ -307,7 +331,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 			subscription.remove();
 			stopHeartbeat();
 		};
-	}, [isAuthLoading, session, settings?.deviceId]);
+	}, [authState, isAuthLoading, requestReauth, session, settings?.deviceId]);
 
 	/**
 	 * Clear persisted device settings from memory and storage.

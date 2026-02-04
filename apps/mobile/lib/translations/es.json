@@ -70,6 +70,19 @@
       "tryAgain": "Intentar de nuevo"
     }
   },
+  "Locked": {
+    "title": "Se requiere reautenticación",
+    "subtitle": "Este dispositivo necesita volver a autorizarse para continuar.",
+    "body": "Un administrador debe aprobar el dispositivo en el panel web.",
+    "reason": {
+      "deviceDisabled": "Este dispositivo fue deshabilitado en el panel.",
+      "refreshFailed": "No pudimos renovar la sesión."
+    },
+    "actions": {
+      "retry": "Reintentar",
+      "signIn": "Iniciar sesión"
+    }
+  },
   "Scanner": {
     "title": "Escáner",
     "permission": {

@@ -18,6 +18,8 @@ const STORAGE_PREFIX = 'sen-checkin';
 
 /** SecureStore key for persisting the device authorization access token */
 const ACCESS_TOKEN_KEY = `${STORAGE_PREFIX}_access_token`;
+const ACCESS_TOKEN_EXPIRES_AT_KEY = `${STORAGE_PREFIX}_access_token_expires_at`;
+const REFRESH_TOKEN_KEY = `${STORAGE_PREFIX}_refresh_token`;
 
 /**
  * In-memory cache for auth storage values.
@@ -31,6 +33,8 @@ let bootstrapPromise: Promise<void> | null = null;
  * Used by authedFetch to include the token in API requests.
  */
 let cachedAccessToken: string | null = null;
+let cachedAccessTokenExpiresAt: number | null = null;
+let cachedRefreshToken: string | null = null;
 
 /**
  * Preload BetterAuth cookie/session values from SecureStore into a synchronous cache.
@@ -70,6 +74,17 @@ export function primeAuthStorage(): Promise<void> {
 				cachedAccessToken = storedToken;
 				console.log('[auth-client] Loaded access token from SecureStore');
 			}
+
+			const storedExpiresAt = await SecureStore.getItemAsync(ACCESS_TOKEN_EXPIRES_AT_KEY);
+			if (storedExpiresAt) {
+				const parsed = Number(storedExpiresAt);
+				cachedAccessTokenExpiresAt = Number.isFinite(parsed) ? parsed : null;
+			}
+
+			const storedRefreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
+			if (storedRefreshToken) {
+				cachedRefreshToken = storedRefreshToken;
+			}
 		} catch (error) {
 			console.warn('[auth-client] Failed to prime auth storage', error);
 		}
@@ -89,6 +104,8 @@ export async function clearAuthStorage(): Promise<void> {
 		`${STORAGE_PREFIX}_cookie`,
 		`${STORAGE_PREFIX}_session_data`,
 		ACCESS_TOKEN_KEY,
+		ACCESS_TOKEN_EXPIRES_AT_KEY,
+		REFRESH_TOKEN_KEY,
 	];
 
 	for (const key of keysToClear) {
@@ -102,6 +119,8 @@ export async function clearAuthStorage(): Promise<void> {
 
 	// Also clear the in-memory access token cache
 	cachedAccessToken = null;
+	cachedAccessTokenExpiresAt = null;
+	cachedRefreshToken = null;
 	console.log('[auth-client] Auth storage cleared');
 }
 
@@ -110,13 +129,35 @@ export async function clearAuthStorage(): Promise<void> {
  * The token is persisted in SecureStore and cached in memory for performance.
  *
  * @param token - The access token received from device authorization flow
+ * @param options - Optional metadata to persist alongside the token
  * @returns Promise that resolves when the token is stored
  */
-export async function saveAccessToken(token: string): Promise<void> {
+export async function saveAccessToken(
+	token: string,
+	options?: {
+		expiresIn?: number;
+		refreshToken?: string;
+	},
+): Promise<void> {
 	cachedAccessToken = token;
 	try {
 		await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
 		console.log('[auth-client] Access token saved to SecureStore');
+		if (typeof options?.expiresIn === 'number' && options.expiresIn > 0) {
+			const expiresAt = Date.now() + options.expiresIn * 1000;
+			cachedAccessTokenExpiresAt = expiresAt;
+			await SecureStore.setItemAsync(ACCESS_TOKEN_EXPIRES_AT_KEY, String(expiresAt));
+		} else {
+			cachedAccessTokenExpiresAt = null;
+			await SecureStore.deleteItemAsync(ACCESS_TOKEN_EXPIRES_AT_KEY);
+		}
+		if (options?.refreshToken) {
+			cachedRefreshToken = options.refreshToken;
+			await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, options.refreshToken);
+		} else {
+			cachedRefreshToken = null;
+			await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+		}
 	} catch (error) {
 		console.warn('[auth-client] Failed to persist access token:', error);
 	}
@@ -130,6 +171,24 @@ export async function saveAccessToken(token: string): Promise<void> {
  */
 export function getAccessToken(): string | null {
 	return cachedAccessToken;
+}
+
+/**
+ * Retrieve the access token expiration timestamp (ms since epoch).
+ *
+ * @returns Expiration timestamp or null when unavailable
+ */
+export function getAccessTokenExpiresAt(): number | null {
+	return cachedAccessTokenExpiresAt;
+}
+
+/**
+ * Retrieve the cached refresh token for future renewal flows.
+ *
+ * @returns Cached refresh token or null when not available
+ */
+export function getRefreshToken(): string | null {
+	return cachedRefreshToken;
 }
 
 /**
@@ -170,6 +229,10 @@ export const authClient = createAuthClient({
 		mode: 'cors',
 		headers: {
 			Origin: AUTH_ORIGIN,
+		},
+		auth: {
+			type: 'Bearer',
+			token: () => getAccessToken() ?? '',
 		},
 	},
 	plugins: [

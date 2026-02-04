@@ -5,7 +5,7 @@ import { Redirect } from 'expo-router';
 import { useAuthContext } from '@/providers/auth-provider';
 
 export default function Index(): JSX.Element {
-	const { session, isLoading } = useAuthContext();
+	const { session, isLoading, authState } = useAuthContext();
 
 	if (isLoading) {
 		return (
@@ -22,7 +22,15 @@ export default function Index(): JSX.Element {
 		);
 	}
 
+	if (authState === 'locked') {
+		return <Redirect href="/(auth)/locked" />;
+	}
+
 	if (session) {
+		return <Redirect href="/(main)/scanner" />;
+	}
+
+	if (authState === 'grace' || authState === 'refreshing') {
 		return <Redirect href="/(main)/scanner" />;
 	}
 

@@ -170,7 +170,7 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
  */
 export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
-	const { session, isLoading, setSession } = useAuthContext();
+	const { session, isLoading, setSession, authState } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
 	const accentColor = useThemeColor({}, 'primary');
 	const qrForeground = Colors.light.text;
@@ -407,7 +407,10 @@ export default function LoginScreen(): JSX.Element {
 				setLastError(null);
 
 				// Store the access token for future API requests
-				await saveAccessToken(accessToken);
+				await saveAccessToken(accessToken, {
+					expiresIn: tokenResponse?.expires_in,
+					refreshToken: tokenResponse?.refresh_token,
+				});
 
 				try {
 					console.log('[login] Device approved, establishing session with token');
@@ -581,17 +584,34 @@ export default function LoginScreen(): JSX.Element {
 
 	// Kick off the first device code request once auth state is known and no session exists.
 	useEffect(() => {
-		if (isLoading || session || codeState || isRequestingCode || hasRequestedOnce) return;
+		if (
+			isLoading ||
+			session ||
+			codeState ||
+			isRequestingCode ||
+			hasRequestedOnce ||
+			authState === 'locked'
+		) {
+			return;
+		}
 		void requestDeviceCode();
-	}, [codeState, hasRequestedOnce, isLoading, isRequestingCode, requestDeviceCode, session]);
+	}, [
+		authState,
+		codeState,
+		hasRequestedOnce,
+		isLoading,
+		isRequestingCode,
+		requestDeviceCode,
+		session,
+	]);
 
 	// Redirect to the scanner when a session already exists.
 	useEffect(() => {
-		if (!isLoading && session && !pendingSetup && !isRoutingToSetup) {
+		if (!isLoading && session && !pendingSetup && !isRoutingToSetup && authState !== 'locked') {
 			console.log('[login] Auto-navigation to scanner (session present, no pending setup)');
 			replaceWhenReady('/(main)/scanner');
 		}
-	}, [isLoading, isRoutingToSetup, pendingSetup, replaceWhenReady, session]);
+	}, [authState, isLoading, isRoutingToSetup, pendingSetup, replaceWhenReady, session]);
 
 	useEffect(() => {
 		if (pendingSetup && !isRoutingToSetup) {

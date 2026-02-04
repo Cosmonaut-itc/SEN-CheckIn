@@ -14,16 +14,21 @@ import { i18n } from '@/lib/i18n';
  * @returns Auth layout JSX element
  */
 export default function AuthLayout(): JSX.Element {
-	const { session, isLoading } = useAuthContext();
+	const { session, isLoading, authState } = useAuthContext();
 	const { settings, isHydrated } = useDeviceContext();
 	const segments = useSegments();
 	const segmentList = Array.isArray(segments) ? (segments as readonly string[]) : [];
 
 	// Allow device-setup even with session (it's a post-auth onboarding step)
 	const isOnDeviceSetup = segmentList.includes('device-setup');
+	const isOnLocked = segmentList.includes('locked');
 	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
-	if (!isLoading && session && !isOnDeviceSetup && !needsDeviceSetup) {
+	if (!isLoading && authState === 'locked' && !isOnLocked) {
+		return <Redirect href="/(auth)/locked" />;
+	}
+
+	if (!isLoading && session && !isOnDeviceSetup && !needsDeviceSetup && authState !== 'locked') {
 		return <Redirect href="/(main)/scanner" />;
 	}
 
@@ -34,6 +39,7 @@ export default function AuthLayout(): JSX.Element {
 				name="device-setup"
 				options={{ title: i18n.t('DeviceSetup.header.title') }}
 			/>
+			<Stack.Screen name="locked" options={{ title: i18n.t('Locked.title') }} />
 		</Stack>
 	);
 }

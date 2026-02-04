@@ -6,9 +6,13 @@ import { useAuthContext } from '@/providers/auth-provider';
 import { i18n } from '@/lib/i18n';
 
 export default function MainLayout(): JSX.Element {
-	const { session, isLoading } = useAuthContext();
+	const { session, isLoading, authState } = useAuthContext();
 
-	if (!isLoading && !session) {
+	if (!isLoading && authState === 'locked') {
+		return <Redirect href="/(auth)/locked" />;
+	}
+
+	if (!isLoading && !session && authState !== 'grace' && authState !== 'refreshing') {
 		return <Redirect href="/(auth)/login" />;
 	}
 

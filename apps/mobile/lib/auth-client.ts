@@ -230,9 +230,12 @@ export const authClient = createAuthClient({
 		headers: {
 			Origin: AUTH_ORIGIN,
 		},
-		auth: {
-			type: 'Bearer',
-			token: () => getAccessToken() ?? '',
+		onRequest: (context) => {
+			const token = getAccessToken();
+			if (token) {
+				context.headers.set('authorization', `Bearer ${token}`);
+			}
+			return context;
 		},
 	},
 	plugins: [

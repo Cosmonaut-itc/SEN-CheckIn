@@ -60,12 +60,32 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 	const graceStartedAtRef = useRef<number | null>(null);
 	const keepaliveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
+	const authStateRef = useRef<AuthState>('ok');
+	const hasSessionRef = useRef<boolean>(false);
+	const storageReadyRef = useRef<boolean>(false);
+	const sessionPendingRef = useRef<boolean>(true);
 
 	useEffect(() => {
 		primeAuthStorage().finally(() => setStorageReady(true));
 	}, []);
 
 	const session = useSession();
+
+	useEffect(() => {
+		authStateRef.current = authState;
+	}, [authState]);
+
+	useEffect(() => {
+		hasSessionRef.current = Boolean((localSession ?? session.data)?.session);
+	}, [localSession, session.data]);
+
+	useEffect(() => {
+		storageReadyRef.current = storageReady;
+	}, [storageReady]);
+
+	useEffect(() => {
+		sessionPendingRef.current = session.isPending;
+	}, [session.isPending]);
 
 	/**
 	 * Transition to a locked state and stop grace tracking.
@@ -124,7 +144,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 			}
 
 			const refreshTask = (async () => {
-				const wasLocked = authState === 'locked';
+				const wasLocked = authStateRef.current === 'locked';
 				if (!wasLocked) {
 					setAuthState('refreshing');
 				}
@@ -168,7 +188,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 			refreshInFlightRef.current = refreshTask;
 			return refreshTask;
 		},
-		[authState, handleRefreshFailure, session.data],
+		[handleRefreshFailure, session.data],
 	);
 
 	/**
@@ -228,26 +248,28 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 	}, [localSession, session.data]);
 
 	useEffect(() => {
-		const canRefresh =
-			Boolean(effectiveSession?.session) ||
-			authState === 'grace' ||
-			authState === 'refreshing';
-		const shouldKeepalive =
-			storageReady && !session.isPending && canRefresh && authState !== 'locked';
+		const shouldKeepalive = () => {
+			const state = authStateRef.current;
+			const canRefresh =
+				hasSessionRef.current || state === 'grace' || state === 'refreshing';
+			return (
+				storageReadyRef.current &&
+				!sessionPendingRef.current &&
+				canRefresh &&
+				state !== 'locked'
+			);
+		};
 
-		if (!shouldKeepalive) {
-			if (keepaliveIntervalRef.current) {
-				clearInterval(keepaliveIntervalRef.current);
-				keepaliveIntervalRef.current = null;
-			}
-			return undefined;
-		}
+		const tick = () => {
+			if (!shouldKeepalive()) return;
+			void attemptRefresh('keepalive');
+		};
 
 		const startKeepalive = () => {
 			if (keepaliveIntervalRef.current) return;
-			void attemptRefresh('keepalive');
+			tick();
 			keepaliveIntervalRef.current = setInterval(() => {
-				void attemptRefresh('keepalive');
+				tick();
 			}, KEEPALIVE_INTERVAL_MS);
 		};
 
@@ -276,7 +298,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 			subscription.remove();
 			stopKeepalive();
 		};
-	}, [attemptRefresh, authState, effectiveSession?.session, session.isPending, storageReady]);
+	}, [attemptRefresh]);
 
 	const value = useMemo<AuthContextValue>(
 		() => ({

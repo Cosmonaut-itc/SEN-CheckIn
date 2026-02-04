@@ -584,26 +584,11 @@ export default function LoginScreen(): JSX.Element {
 
 	// Kick off the first device code request once auth state is known and no session exists.
 	useEffect(() => {
-		if (
-			isLoading ||
-			session ||
-			codeState ||
-			isRequestingCode ||
-			hasRequestedOnce ||
-			authState === 'locked'
-		) {
+		if (isLoading || session || codeState || isRequestingCode || hasRequestedOnce) {
 			return;
 		}
 		void requestDeviceCode();
-	}, [
-		authState,
-		codeState,
-		hasRequestedOnce,
-		isLoading,
-		isRequestingCode,
-		requestDeviceCode,
-		session,
-	]);
+	}, [codeState, hasRequestedOnce, isLoading, isRequestingCode, requestDeviceCode, session]);
 
 	// Redirect to the scanner when a session already exists.
 	useEffect(() => {

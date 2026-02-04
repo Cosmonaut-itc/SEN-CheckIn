@@ -22,9 +22,10 @@ export default function AuthLayout(): JSX.Element {
 	// Allow device-setup even with session (it's a post-auth onboarding step)
 	const isOnDeviceSetup = segmentList.includes('device-setup');
 	const isOnLocked = segmentList.includes('locked');
+	const isOnLogin = segmentList.includes('login');
 	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
-	if (!isLoading && authState === 'locked' && !isOnLocked) {
+	if (!isLoading && authState === 'locked' && !isOnLocked && !isOnLogin) {
 		return <Redirect href="/(auth)/locked" />;
 	}
 

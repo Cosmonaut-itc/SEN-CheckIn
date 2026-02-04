@@ -76,7 +76,11 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 	}, [authState]);
 
 	useEffect(() => {
-		hasSessionRef.current = Boolean((localSession ?? session.data)?.session);
+		const resolvedSession = localSession ?? session.data;
+		hasSessionRef.current = Boolean(
+			(resolvedSession as { session?: unknown } | null | undefined)?.session ??
+				resolvedSession,
+		);
 	}, [localSession, session.data]);
 
 	useEffect(() => {

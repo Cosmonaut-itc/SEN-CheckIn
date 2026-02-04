@@ -165,6 +165,13 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 						return false;
 					}
 
+					if (authStateRef.current === 'locked' && source === 'keepalive') {
+						console.warn('[AuthProvider] Refresh succeeded but session is locked', {
+							source,
+						});
+						return true;
+					}
+
 					graceStartedAtRef.current = null;
 					setLockReason(null);
 					setAuthState('ok');

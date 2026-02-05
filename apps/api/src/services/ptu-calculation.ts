@@ -320,8 +320,18 @@ export function calculatePtu(input: PtuCalculationInput): PtuCalculationResult {
 		0,
 	);
 
-	const factorDay = sumDays > 0 ? halfPool / sumDays : 0;
-	const factorSalary = sumSalary > 0 ? halfPool / sumSalary : 0;
+	const dayPool = sumDays > 0 && sumSalary > 0
+		? halfPool
+		: sumDays > 0
+			? ptuTotal
+			: 0;
+	const salaryPool = sumDays > 0 && sumSalary > 0
+		? roundCurrency(ptuTotal - dayPool)
+		: sumSalary > 0
+			? ptuTotal
+			: 0;
+	const factorDay = sumDays > 0 ? dayPool / sumDays : 0;
+	const factorSalary = sumSalary > 0 ? salaryPool / sumSalary : 0;
 
 	for (const employee of eligibleEmployees) {
 		employee.ptuByDays = roundCurrency(employee.daysCounted * factorDay);
@@ -371,9 +381,18 @@ export function calculatePtu(input: PtuCalculationInput): PtuCalculationResult {
 		if (remainingDays === 0 && remainingSalary === 0) {
 			break;
 		}
-		const halfExcess = roundCurrency(excessPool / 2);
-		const factorExcessDays = remainingDays > 0 ? halfExcess / remainingDays : 0;
-		const factorExcessSalary = remainingSalary > 0 ? halfExcess / remainingSalary : 0;
+		const excessDayPool = remainingDays > 0 && remainingSalary > 0
+			? roundCurrency(excessPool / 2)
+			: remainingDays > 0
+				? excessPool
+				: 0;
+		const excessSalaryPool = remainingDays > 0 && remainingSalary > 0
+			? roundCurrency(excessPool - excessDayPool)
+			: remainingSalary > 0
+				? excessPool
+				: 0;
+		const factorExcessDays = remainingDays > 0 ? excessDayPool / remainingDays : 0;
+		const factorExcessSalary = remainingSalary > 0 ? excessSalaryPool / remainingSalary : 0;
 		let newExcess = 0;
 		for (const employee of remaining) {
 			const addByDays = roundCurrency(employee.daysCounted * factorExcessDays);

@@ -84,6 +84,38 @@ describe('ptu-calculation', () => {
 		expect(emp2.ptuFinal).toBeCloseTo(500, 2);
 	});
 
+	it('allocates full PTU pool by days when salary base sum is zero', () => {
+		const employees = [
+			buildEmployee({
+				employeeId: 'emp-days-1',
+				daysCounted: 100,
+				annualSalaryBaseOverride: 0,
+				dailyPay: 500,
+			}),
+			buildEmployee({
+				employeeId: 'emp-days-2',
+				daysCounted: 300,
+				annualSalaryBaseOverride: 0,
+				dailyPay: 500,
+			}),
+		];
+		const result = calculatePtu(
+			buildInput({
+				taxableIncome: 10000,
+				employees,
+			}),
+		);
+
+		const emp1 = result.employees.find((row) => row.employeeId === 'emp-days-1');
+		const emp2 = result.employees.find((row) => row.employeeId === 'emp-days-2');
+		if (!emp1 || !emp2) {
+			throw new Error('Expected PTU employees for day-only distribution test.');
+		}
+		expect(emp1.ptuFinal).toBeCloseTo(250, 2);
+		expect(emp2.ptuFinal).toBeCloseTo(750, 2);
+		expect(emp1.ptuFinal + emp2.ptuFinal).toBeCloseTo(1000, 2);
+	});
+
 	it('excludes eventual employees below 60 days', () => {
 		const employees = [
 			buildEmployee({
@@ -165,6 +197,38 @@ describe('ptu-calculation', () => {
 		expect(high.ptuFinal).toBeGreaterThan(high.ptuPreCap);
 		const total = low.ptuFinal + high.ptuFinal;
 		expect(total).toBeCloseTo(50000, 1);
+	});
+
+	it('redistributes full excess when only one distribution factor remains', () => {
+		const employees = [
+			buildEmployee({
+				employeeId: 'emp-capped-days',
+				dailyPay: 1,
+				daysCounted: 200,
+				annualSalaryBaseOverride: 0,
+			}),
+			buildEmployee({
+				employeeId: 'emp-remaining-days',
+				dailyPay: 100,
+				daysCounted: 200,
+				annualSalaryBaseOverride: 0,
+			}),
+		];
+
+		const result = calculatePtu(
+			buildInput({
+				taxableIncome: 10000,
+				employees,
+			}),
+		);
+		const capped = result.employees.find((row) => row.employeeId === 'emp-capped-days');
+		const remaining = result.employees.find((row) => row.employeeId === 'emp-remaining-days');
+		if (!capped || !remaining) {
+			throw new Error('Expected PTU employees for excess redistribution test.');
+		}
+		expect(capped.ptuFinal).toBeCloseTo(90, 2);
+		expect(remaining.ptuFinal).toBeCloseTo(910, 2);
+		expect(capped.ptuFinal + remaining.ptuFinal).toBeCloseTo(1000, 2);
 	});
 
 	it('honors manual selection and eligibility overrides', () => {

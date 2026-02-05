@@ -29,6 +29,7 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
 	Table,
 	TableBody,
@@ -71,6 +72,8 @@ import type {
 } from '@tanstack/react-table';
 
 import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
+import { PtuTab } from './ptu-tab';
+import { AguinaldoTab } from './aguinaldo-tab';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
@@ -584,7 +587,19 @@ export function PayrollPageClient(): React.ReactElement {
 				</div>
 			</div>
 
-			<Card>
+			<Tabs defaultValue="payroll" className="space-y-4">
+				<TabsList>
+					<TabsTrigger value="payroll">{t('tabs.payroll')}</TabsTrigger>
+					<TabsTrigger value="ptu" disabled={!settings?.ptuEnabled}>
+						{t('tabs.ptu')}
+					</TabsTrigger>
+					<TabsTrigger value="aguinaldo" disabled={!settings?.aguinaldoEnabled}>
+						{t('tabs.aguinaldo')}
+					</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="payroll" className="space-y-6">
+					<Card>
 				<CardHeader>
 					<CardTitle>{t('legalRules.title')}</CardTitle>
 					<CardDescription>{t('legalRules.description')}</CardDescription>
@@ -1496,6 +1511,16 @@ export function PayrollPageClient(): React.ReactElement {
 					/>
 				</CardContent>
 			</Card>
+				</TabsContent>
+
+				<TabsContent value="ptu">
+					<PtuTab settings={settings ?? null} isLoading={!settings} />
+				</TabsContent>
+
+				<TabsContent value="aguinaldo">
+					<AguinaldoTab settings={settings ?? null} isLoading={!settings} />
+				</TabsContent>
+			</Tabs>
 		</div>
 	);
 }

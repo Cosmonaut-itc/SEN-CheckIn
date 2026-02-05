@@ -102,6 +102,7 @@ export interface PayrollEmployeeRow {
 	dailyPay: number | string | null;
 	hireDate?: Date | null;
 	sbcDailyOverride?: number | string | null;
+	aguinaldoDaysOverride?: number | string | null;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY' | null;
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA' | null;
 	locationGeographicZone: keyof typeof MINIMUM_WAGES | null;
@@ -754,6 +755,11 @@ export function calculatePayrollFromData(
 			});
 		}
 
+		const resolvedAguinaldoDays =
+			typeof emp.aguinaldoDaysOverride === 'string'
+				? Number(emp.aguinaldoDaysOverride)
+				: (emp.aguinaldoDaysOverride ?? resolvedTaxSettings.aguinaldoDays);
+
 		const sbcDaily = getSbcDaily({
 			dailyPay: effectiveDailyPay,
 			hireDate: emp.hireDate ?? null,
@@ -761,7 +767,7 @@ export function calculatePayrollFromData(
 				typeof emp.sbcDailyOverride === 'string'
 					? Number(emp.sbcDailyOverride)
 					: (emp.sbcDailyOverride ?? null),
-			aguinaldoDays: resolvedTaxSettings.aguinaldoDays,
+			aguinaldoDays: resolvedAguinaldoDays,
 			vacationPremiumRate: resolvedTaxSettings.vacationPremiumRate,
 			periodEndDateKey,
 		});
@@ -785,7 +791,10 @@ export function calculatePayrollFromData(
 					? Number(emp.sbcDailyOverride)
 					: (emp.sbcDailyOverride ?? null),
 			locationGeographicZone: emp.locationGeographicZone ?? 'GENERAL',
-			settings: resolvedTaxSettings,
+			settings: {
+				...resolvedTaxSettings,
+				aguinaldoDays: resolvedAguinaldoDays,
+			},
 			imssExemptDateKeys: incapacityResult.imssExemptDateKeys,
 		});
 

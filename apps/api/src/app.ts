@@ -24,6 +24,8 @@ import { recognitionRoutes } from './routes/recognition.js';
 import { organizationRoutes } from './routes/organization.js';
 import { payrollRoutes } from './routes/payroll.js';
 import { payrollSettingsRoutes } from './routes/payroll-settings.js';
+import { ptuRoutes } from './routes/ptu.js';
+import { aguinaldoRoutes } from './routes/aguinaldo.js';
 import { scheduleTemplateRoutes } from './routes/schedule-templates.js';
 import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
 import { schedulingRoutes } from './routes/scheduling.js';
@@ -100,6 +102,8 @@ const createProtectedRoutes = () => {
 			.use(organizationRoutes)
 			.use(payrollSettingsRoutes)
 			.use(payrollRoutes)
+			.use(ptuRoutes)
+			.use(aguinaldoRoutes)
 			.use(scheduleTemplateRoutes)
 			.use(scheduleExceptionRoutes)
 			.use(schedulingRoutes)

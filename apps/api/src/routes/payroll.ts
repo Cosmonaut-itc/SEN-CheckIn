@@ -116,6 +116,7 @@ const calculatePayroll = async (args: {
 			lastPayrollDate: employee.lastPayrollDate,
 			hireDate: employee.hireDate,
 			sbcDailyOverride: employee.sbcDailyOverride,
+			aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 			dailyPay: employee.dailyPay,
 			paymentFrequency: employee.paymentFrequency,
 			shiftType: employee.shiftType,

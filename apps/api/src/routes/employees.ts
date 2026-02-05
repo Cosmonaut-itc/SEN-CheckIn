@@ -16,6 +16,7 @@ import {
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
+	ptuHistory,
 	scheduleException,
 	scheduleTemplate,
 	scheduleTemplateDay,
@@ -34,6 +35,7 @@ import {
 	paginationSchema,
 	updateEmployeeSchema,
 } from '../schemas/crud.js';
+import { ptuHistoryUpsertSchema } from '../schemas/extra-payments.js';
 import {
 	employeeTerminationSchema,
 	type EmployeeTerminationInput,
@@ -780,6 +782,12 @@ async function validateAndCalculateTerminationSettlement({
 		asOfDate: getUtcDateForZonedMidnight(body.terminationDateKey, timeZone),
 	});
 
+	const aguinaldoDaysPolicy = Number(
+		employeeRecord.aguinaldoDaysOverride ??
+			settingsRecord?.aguinaldoDays ??
+			15,
+	);
+
 	const calculation = calculateEmployeeTerminationSettlement({
 		employeeId,
 		hireDate: employeeRecord.hireDate,
@@ -799,7 +807,7 @@ async function validateAndCalculateTerminationSettlement({
 		vacationUsedDays: vacationBalance.usedDays,
 		dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
 		locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
-		aguinaldoDaysPolicy: Number(settingsRecord?.aguinaldoDays ?? 15),
+		aguinaldoDaysPolicy,
 		vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
 	});
 
@@ -905,6 +913,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					hireDate: employee.hireDate,
 					dailyPay: employee.dailyPay,
 					paymentFrequency: employee.paymentFrequency,
+					employmentType: employee.employmentType,
+					isTrustEmployee: employee.isTrustEmployee,
+					isDirectorAdminGeneralManager: employee.isDirectorAdminGeneralManager,
+					isDomesticWorker: employee.isDomesticWorker,
+					isPlatformWorker: employee.isPlatformWorker,
+					platformHoursYear: employee.platformHoursYear,
+					ptuEligibilityOverride: employee.ptuEligibilityOverride,
+					aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -988,6 +1004,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					hireDate: employee.hireDate,
 					dailyPay: employee.dailyPay,
 					paymentFrequency: employee.paymentFrequency,
+					employmentType: employee.employmentType,
+					isTrustEmployee: employee.isTrustEmployee,
+					isDirectorAdminGeneralManager: employee.isDirectorAdminGeneralManager,
+					isDomesticWorker: employee.isDomesticWorker,
+					isPlatformWorker: employee.isPlatformWorker,
+					platformHoursYear: employee.platformHoursYear,
+					ptuEligibilityOverride: employee.ptuEligibilityOverride,
+					aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 					sbcDailyOverride: employee.sbcDailyOverride,
 					locationId: employee.locationId,
 					organizationId: employee.organizationId,
@@ -1528,6 +1552,261 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			params: idParamSchema,
 		},
 	)
+	/**
+	 * Fetches PTU history records for an employee.
+	 *
+	 * @route GET /employees/:id/ptu-history
+	 * @param id - Employee UUID
+	 * @returns PTU history records ordered by fiscal year
+	 */
+	.get(
+		'/:id/ptu-history',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this employee', 403);
+			}
+
+			const historyRows = await db
+				.select({
+					id: ptuHistory.id,
+					employeeId: ptuHistory.employeeId,
+					organizationId: ptuHistory.organizationId,
+					fiscalYear: ptuHistory.fiscalYear,
+					amount: ptuHistory.amount,
+					createdAt: ptuHistory.createdAt,
+					updatedAt: ptuHistory.updatedAt,
+				})
+				.from(ptuHistory)
+				.where(eq(ptuHistory.employeeId, id))
+				.orderBy(desc(ptuHistory.fiscalYear));
+
+			return { data: historyRows };
+		},
+		{
+			params: idParamSchema,
+		},
+	)
+	/**
+	 * Upserts a PTU history record for an employee.
+	 *
+	 * @route POST /employees/:id/ptu-history
+	 * @param id - Employee UUID
+	 * @returns Updated PTU history record
+	 */
+	.post(
+		'/:id/ptu-history',
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this employee', 403);
+			}
+
+			if (!employeeRecord.organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+
+			const amountValue = Number(body.amount ?? 0);
+			const insertPayload: typeof ptuHistory.$inferInsert = {
+				organizationId: employeeRecord.organizationId,
+				employeeId: id,
+				fiscalYear: body.fiscalYear,
+				amount: amountValue.toFixed(2),
+			};
+			await db
+				.insert(ptuHistory)
+				.values(insertPayload)
+				.onConflictDoUpdate({
+					target: [ptuHistory.employeeId, ptuHistory.fiscalYear],
+					set: {
+						amount: amountValue.toFixed(2),
+						updatedAt: new Date(),
+					},
+				});
+
+			const historyRows = await db
+				.select({
+					id: ptuHistory.id,
+					employeeId: ptuHistory.employeeId,
+					organizationId: ptuHistory.organizationId,
+					fiscalYear: ptuHistory.fiscalYear,
+					amount: ptuHistory.amount,
+					createdAt: ptuHistory.createdAt,
+					updatedAt: ptuHistory.updatedAt,
+				})
+				.from(ptuHistory)
+				.where(
+					and(eq(ptuHistory.employeeId, id), eq(ptuHistory.fiscalYear, body.fiscalYear)),
+				)
+				.limit(1);
+
+			const record = historyRows[0];
+			if (!record) {
+				set.status = 500;
+				return buildErrorResponse('Failed to save PTU history', 500);
+			}
+
+			return { data: record };
+		},
+		{
+			params: idParamSchema,
+			body: ptuHistoryUpsertSchema,
+		},
+	)
+	/**
+	 * Upserts a PTU history record for an employee.
+	 *
+	 * @route PUT /employees/:id/ptu-history
+	 * @param id - Employee UUID
+	 * @returns Updated PTU history record
+	 */
+	.put(
+		'/:id/ptu-history',
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this employee', 403);
+			}
+
+			if (!employeeRecord.organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+
+			const amountValue = Number(body.amount ?? 0);
+			const insertPayload: typeof ptuHistory.$inferInsert = {
+				organizationId: employeeRecord.organizationId,
+				employeeId: id,
+				fiscalYear: body.fiscalYear,
+				amount: amountValue.toFixed(2),
+			};
+			await db
+				.insert(ptuHistory)
+				.values(insertPayload)
+				.onConflictDoUpdate({
+					target: [ptuHistory.employeeId, ptuHistory.fiscalYear],
+					set: {
+						amount: amountValue.toFixed(2),
+						updatedAt: new Date(),
+					},
+				});
+
+			const historyRows = await db
+				.select({
+					id: ptuHistory.id,
+					employeeId: ptuHistory.employeeId,
+					organizationId: ptuHistory.organizationId,
+					fiscalYear: ptuHistory.fiscalYear,
+					amount: ptuHistory.amount,
+					createdAt: ptuHistory.createdAt,
+					updatedAt: ptuHistory.updatedAt,
+				})
+				.from(ptuHistory)
+				.where(
+					and(eq(ptuHistory.employeeId, id), eq(ptuHistory.fiscalYear, body.fiscalYear)),
+				)
+				.limit(1);
+
+			const record = historyRows[0];
+			if (!record) {
+				set.status = 500;
+				return buildErrorResponse('Failed to save PTU history', 500);
+			}
+
+			return { data: record };
+		},
+		{
+			params: idParamSchema,
+			body: ptuHistoryUpsertSchema,
+		},
+	)
 
 	/**
 	 * Returns audit events for an employee.
@@ -1651,6 +1930,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				hireDate,
 				dailyPay,
 				paymentFrequency,
+				employmentType,
+				isTrustEmployee,
+				isDirectorAdminGeneralManager,
+				isDomesticWorker,
+				isPlatformWorker,
+				platformHoursYear,
+				ptuEligibilityOverride,
+				aguinaldoDaysOverride,
 				sbcDailyOverride,
 				locationId,
 				organizationId: organizationIdInput,
@@ -1837,6 +2124,26 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				});
 			}
 
+			if (aguinaldoDaysOverride !== undefined && aguinaldoDaysOverride !== null) {
+				const payrollSettingsRows = await db
+					.select({ aguinaldoDays: payrollSetting.aguinaldoDays })
+					.from(payrollSetting)
+					.where(eq(payrollSetting.organizationId, organizationId))
+					.limit(1);
+				const policyDays = Number(payrollSettingsRows[0]?.aguinaldoDays ?? 15);
+				if (aguinaldoDaysOverride < 15 || aguinaldoDaysOverride < policyDays) {
+					set.status = 400;
+					return buildErrorResponse(
+						'Aguinaldo override must be at least the policy value and >= 15',
+						400,
+						{
+							code: 'AGUINALDO_OVERRIDE_INVALID',
+							details: { policyDays },
+						},
+					);
+				}
+			}
+
 			const newEmployee = {
 				id,
 				code,
@@ -1852,6 +2159,18 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				hireDate: hireDate ?? null,
 				dailyPay: normalizedDailyPay.toFixed(2),
 				paymentFrequency: paymentFrequency ?? 'MONTHLY',
+				employmentType: employmentType ?? 'PERMANENT',
+				isTrustEmployee: Boolean(isTrustEmployee ?? false),
+				isDirectorAdminGeneralManager: Boolean(isDirectorAdminGeneralManager ?? false),
+				isDomesticWorker: Boolean(isDomesticWorker ?? false),
+				isPlatformWorker: Boolean(isPlatformWorker ?? false),
+				platformHoursYear:
+					platformHoursYear === null || platformHoursYear === undefined
+						? '0'
+						: Number(platformHoursYear).toFixed(2),
+				ptuEligibilityOverride: ptuEligibilityOverride ?? 'DEFAULT',
+				aguinaldoDaysOverride:
+					aguinaldoDaysOverride === undefined ? null : aguinaldoDaysOverride,
 				sbcDailyOverride:
 					sbcDailyOverride === undefined || sbcDailyOverride === null
 						? null
@@ -2128,17 +2447,19 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Extract schedule updates separately to avoid passing to employee table
-			const {
-				schedule,
-				scheduleTemplateId,
-				sbcDailyOverride,
-				userId: userIdInput,
-				code: _code,
-				dailyPay: dailyPayInput,
-				nss,
-				rfc,
-				...employeeUpdate
-			} = body;
+				const {
+					schedule,
+					scheduleTemplateId,
+					sbcDailyOverride,
+					userId: userIdInput,
+					code: _code,
+					dailyPay: dailyPayInput,
+					nss,
+					rfc,
+					platformHoursYear,
+					aguinaldoDaysOverride,
+					...employeeUpdate
+				} = body;
 			void _code;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
@@ -2198,6 +2519,38 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 				updatePayload.dailyPay = normalizedDailyPay.toFixed(2);
 			}
+
+				if (aguinaldoDaysOverride !== undefined) {
+					if (aguinaldoDaysOverride === null) {
+						updatePayload.aguinaldoDaysOverride = null;
+					} else {
+						const payrollSettingsRows = await db
+							.select({ aguinaldoDays: payrollSetting.aguinaldoDays })
+							.from(payrollSetting)
+							.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
+							.limit(1);
+						const policyDays = Number(payrollSettingsRows[0]?.aguinaldoDays ?? 15);
+						if (aguinaldoDaysOverride < 15 || aguinaldoDaysOverride < policyDays) {
+							set.status = 400;
+							return buildErrorResponse(
+								'Aguinaldo override must be at least the policy value and >= 15',
+								400,
+								{
+									code: 'AGUINALDO_OVERRIDE_INVALID',
+									details: { policyDays },
+								},
+							);
+						}
+						updatePayload.aguinaldoDaysOverride = aguinaldoDaysOverride;
+					}
+				}
+
+				if (platformHoursYear !== undefined) {
+					updatePayload.platformHoursYear =
+						platformHoursYear === null
+							? '0'
+							: Number(platformHoursYear).toFixed(2);
+				}
 
 			if (sbcDailyOverride !== undefined) {
 				updatePayload.sbcDailyOverride =
@@ -2272,6 +2625,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						hireDate: employee.hireDate,
 						dailyPay: employee.dailyPay,
 						paymentFrequency: employee.paymentFrequency,
+						employmentType: employee.employmentType,
+						isTrustEmployee: employee.isTrustEmployee,
+						isDirectorAdminGeneralManager: employee.isDirectorAdminGeneralManager,
+						isDomesticWorker: employee.isDomesticWorker,
+						isPlatformWorker: employee.isPlatformWorker,
+						platformHoursYear: employee.platformHoursYear,
+						ptuEligibilityOverride: employee.ptuEligibilityOverride,
+						aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 						sbcDailyOverride: employee.sbcDailyOverride,
 						locationId: employee.locationId,
 						organizationId: employee.organizationId,

@@ -359,6 +359,30 @@ export const paymentFrequency = pgEnum('payment_frequency', ['WEEKLY', 'BIWEEKLY
 export const shiftType = pgEnum('shift_type', ['DIURNA', 'NOCTURNA', 'MIXTA']);
 
 /**
+ * Enum for employment types (permanent vs eventual).
+ */
+export const employmentType = pgEnum('employment_type', ['PERMANENT', 'EVENTUAL']);
+
+/**
+ * Enum for PTU eligibility overrides.
+ */
+export const ptuEligibilityOverride = pgEnum('ptu_eligibility_override', [
+	'DEFAULT',
+	'INCLUDE',
+	'EXCLUDE',
+]);
+
+/**
+ * Enum for PTU mode behavior.
+ */
+export const ptuMode = pgEnum('ptu_mode', ['DEFAULT_RULES', 'MANUAL']);
+
+/**
+ * Enum for employer type (persona moral/física).
+ */
+export const employerType = pgEnum('employer_type', ['PERSONA_MORAL', 'PERSONA_FISICA']);
+
+/**
  * Enum for schedule exception types.
  */
 export const scheduleExceptionType = pgEnum('schedule_exception_type', [
@@ -433,6 +457,20 @@ export const overtimeEnforcement = pgEnum('overtime_enforcement', ['WARN', 'BLOC
  * Enum for payroll run status
  */
 export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
+
+/**
+ * Enum for PTU run status.
+ */
+export const ptuRunStatus = pgEnum('ptu_run_status', ['DRAFT', 'PROCESSED', 'CANCELLED']);
+
+/**
+ * Enum for aguinaldo run status.
+ */
+export const aguinaldoRunStatus = pgEnum('aguinaldo_run_status', [
+	'DRAFT',
+	'PROCESSED',
+	'CANCELLED',
+]);
 
 // ============================================================================
 // Domain Tables
@@ -602,6 +640,28 @@ export const employee = pgTable(
 		dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 		/** Payment frequency for this employee */
 		paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
+		/** Employment type for PTU eligibility rules */
+		employmentType: employmentType('employment_type').default('PERMANENT').notNull(),
+		/** Trust employee flag (LFT 127-II) */
+		isTrustEmployee: boolean('is_trust_employee').default(false).notNull(),
+		/** Director/administrator/general manager flag (LFT 127-I) */
+		isDirectorAdminGeneralManager: boolean('is_director_admin_general_manager')
+			.default(false)
+			.notNull(),
+		/** Domestic worker flag (LFT 127-VI) */
+		isDomesticWorker: boolean('is_domestic_worker').default(false).notNull(),
+		/** Platform worker flag (LFT 127-IX) */
+		isPlatformWorker: boolean('is_platform_worker').default(false).notNull(),
+		/** Annual platform hours (used for PTU eligibility 288h rule) */
+		platformHoursYear: numeric('platform_hours_year', { precision: 10, scale: 2 })
+			.default('0')
+			.notNull(),
+		/** PTU eligibility override (DEFAULT/INCLUDE/EXCLUDE) */
+		ptuEligibilityOverride: ptuEligibilityOverride('ptu_eligibility_override')
+			.default('DEFAULT')
+			.notNull(),
+		/** Aguinaldo days override (per-employee total days) */
+		aguinaldoDaysOverride: integer('aguinaldo_days_override'),
 		/**
 		 * Optional SBC daily override (Salario Base de Cotización diario).
 		 * When provided, this value overrides the automatic SDI/SBC calculation.
@@ -1007,6 +1067,18 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull(),
 	/** Enables the seventh day pay calculation */
 	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
+	/** Whether PTU calculations are enabled */
+	ptuEnabled: boolean('ptu_enabled').default(false).notNull(),
+	/** PTU mode behavior (DEFAULT_RULES or MANUAL) */
+	ptuMode: ptuMode('ptu_mode').default('DEFAULT_RULES').notNull(),
+	/** Whether the employer is exempt from PTU */
+	ptuIsExempt: boolean('ptu_is_exempt').default(false).notNull(),
+	/** Optional PTU exemption reason code/text */
+	ptuExemptReason: text('ptu_exempt_reason'),
+	/** Employer type (persona moral/física) for PTU timelines */
+	employerType: employerType('employer_type').default('PERSONA_MORAL').notNull(),
+	/** Whether aguinaldo calculations are enabled */
+	aguinaldoEnabled: boolean('aguinaldo_enabled').default(true).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -1236,3 +1308,214 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 		.$onUpdate(() => /* @__PURE__ */ new Date())
 		.notNull(),
 });
+
+/**
+ * PTU run header table.
+ */
+export const ptuRun = pgTable(
+	'ptu_run',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		fiscalYear: integer('fiscal_year').notNull(),
+		paymentDate: timestamp('payment_date').notNull(),
+		taxableIncome: numeric('taxable_income', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		ptuPercentage: numeric('ptu_percentage', { precision: 6, scale: 4 })
+			.default('0.1')
+			.notNull(),
+		includeInactive: boolean('include_inactive').default(false).notNull(),
+		status: ptuRunStatus('status').default('DRAFT').notNull(),
+		totalAmount: numeric('total_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+		employeeCount: integer('employee_count').default(0).notNull(),
+		taxSummary: jsonb('tax_summary').$type<Record<string, unknown>>(),
+		settingsSnapshot: jsonb('settings_snapshot').$type<Record<string, unknown>>(),
+		processedAt: timestamp('processed_at'),
+		cancelledAt: timestamp('cancelled_at'),
+		cancelReason: text('cancel_reason'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('ptu_run_org_idx').on(table.organizationId),
+		index('ptu_run_year_idx').on(table.organizationId, table.fiscalYear),
+	],
+);
+
+/**
+ * PTU run line items per employee.
+ */
+export const ptuRunEmployee = pgTable(
+	'ptu_run_employee',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		ptuRunId: text('ptu_run_id')
+			.notNull()
+			.references(() => ptuRun.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		isEligible: boolean('is_eligible').default(true).notNull(),
+		eligibilityReasons: jsonb('eligibility_reasons').$type<string[]>().default([]).notNull(),
+		daysCounted: integer('days_counted').default(0).notNull(),
+		dailyQuota: numeric('daily_quota', { precision: 10, scale: 2 }).default('0').notNull(),
+		annualSalaryBase: numeric('annual_salary_base', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		ptuByDays: numeric('ptu_by_days', { precision: 14, scale: 2 }).default('0').notNull(),
+		ptuBySalary: numeric('ptu_by_salary', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		ptuPreCap: numeric('ptu_pre_cap', { precision: 14, scale: 2 }).default('0').notNull(),
+		capThreeMonths: numeric('cap_three_months', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		capAvgThreeYears: numeric('cap_avg_three_years', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		capFinal: numeric('cap_final', { precision: 14, scale: 2 }).default('0').notNull(),
+		ptuFinal: numeric('ptu_final', { precision: 14, scale: 2 }).default('0').notNull(),
+		exemptAmount: numeric('exempt_amount', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		taxableAmount: numeric('taxable_amount', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		withheldIsr: numeric('withheld_isr', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		netAmount: numeric('net_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+		warnings: jsonb('warnings').$type<Record<string, unknown>[]>().default([]).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('ptu_run_employee_run_idx').on(table.ptuRunId),
+		index('ptu_run_employee_employee_idx').on(table.employeeId),
+	],
+);
+
+/**
+ * PTU history table (manual or processed history by year).
+ */
+export const ptuHistory = pgTable(
+	'ptu_history',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		fiscalYear: integer('fiscal_year').notNull(),
+		amount: numeric('amount', { precision: 14, scale: 2 }).default('0').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('ptu_history_employee_idx').on(table.employeeId),
+		index('ptu_history_org_idx').on(table.organizationId),
+		uniqueIndex('ptu_history_employee_year_uniq').on(table.employeeId, table.fiscalYear),
+	],
+);
+
+/**
+ * Aguinaldo run header table.
+ */
+export const aguinaldoRun = pgTable(
+	'aguinaldo_run',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		calendarYear: integer('calendar_year').notNull(),
+		paymentDate: timestamp('payment_date').notNull(),
+		includeInactive: boolean('include_inactive').default(false).notNull(),
+		status: aguinaldoRunStatus('status').default('DRAFT').notNull(),
+		totalAmount: numeric('total_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+		employeeCount: integer('employee_count').default(0).notNull(),
+		taxSummary: jsonb('tax_summary').$type<Record<string, unknown>>(),
+		settingsSnapshot: jsonb('settings_snapshot').$type<Record<string, unknown>>(),
+		processedAt: timestamp('processed_at'),
+		cancelledAt: timestamp('cancelled_at'),
+		cancelReason: text('cancel_reason'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('aguinaldo_run_org_idx').on(table.organizationId),
+		index('aguinaldo_run_year_idx').on(table.organizationId, table.calendarYear),
+	],
+);
+
+/**
+ * Aguinaldo run line items per employee.
+ */
+export const aguinaldoRunEmployee = pgTable(
+	'aguinaldo_run_employee',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		aguinaldoRunId: text('aguinaldo_run_id')
+			.notNull()
+			.references(() => aguinaldoRun.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		isEligible: boolean('is_eligible').default(true).notNull(),
+		eligibilityReasons: jsonb('eligibility_reasons').$type<string[]>().default([]).notNull(),
+		daysCounted: integer('days_counted').default(0).notNull(),
+		dailySalaryBase: numeric('daily_salary_base', { precision: 10, scale: 2 })
+			.default('0')
+			.notNull(),
+		aguinaldoDaysPolicy: integer('aguinaldo_days_policy').default(15).notNull(),
+		yearDays: integer('year_days').default(365).notNull(),
+		grossAmount: numeric('gross_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+		exemptAmount: numeric('exempt_amount', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		taxableAmount: numeric('taxable_amount', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		withheldIsr: numeric('withheld_isr', { precision: 14, scale: 2 })
+			.default('0')
+			.notNull(),
+		netAmount: numeric('net_amount', { precision: 14, scale: 2 }).default('0').notNull(),
+		warnings: jsonb('warnings').$type<Record<string, unknown>[]>().default([]).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('aguinaldo_run_employee_run_idx').on(table.aguinaldoRunId),
+		index('aguinaldo_run_employee_employee_idx').on(table.employeeId),
+	],
+);

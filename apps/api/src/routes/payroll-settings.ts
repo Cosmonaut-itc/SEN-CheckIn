@@ -54,7 +54,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			}
 
 			// Create a default configuration if none exists
-			const defaultSetting = {
+			const defaultSetting: typeof payrollSetting.$inferInsert = {
 				organizationId,
 				weekStartDay: 1,
 				timeZone: 'America/Mexico_City',
@@ -66,6 +66,12 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: 15,
 				vacationPremiumRate: '0.25',
 				enableSeventhDayPay: false,
+				ptuEnabled: false,
+				ptuMode: 'DEFAULT_RULES',
+				ptuIsExempt: false,
+				ptuExemptReason: null,
+				employerType: 'PERSONA_MORAL',
+				aguinaldoEnabled: true,
 			};
 
 			const [insertedSetting] = await db
@@ -130,6 +136,15 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.vacationPremiumRate ?? existing[0]?.vacationPremiumRate ?? 0.25;
 			const resolvedEnableSeventhDayPay =
 				body.enableSeventhDayPay ?? existing[0]?.enableSeventhDayPay ?? false;
+			const resolvedPtuEnabled = body.ptuEnabled ?? existing[0]?.ptuEnabled ?? false;
+			const resolvedPtuMode = body.ptuMode ?? existing[0]?.ptuMode ?? 'DEFAULT_RULES';
+			const resolvedPtuIsExempt = body.ptuIsExempt ?? existing[0]?.ptuIsExempt ?? false;
+			const resolvedPtuExemptReason =
+				body.ptuExemptReason ?? existing[0]?.ptuExemptReason ?? null;
+			const resolvedEmployerType =
+				body.employerType ?? existing[0]?.employerType ?? 'PERSONA_MORAL';
+			const resolvedAguinaldoEnabled =
+				body.aguinaldoEnabled ?? existing[0]?.aguinaldoEnabled ?? true;
 			const resolvedRiskWorkRateValue =
 				typeof resolvedRiskWorkRate === 'number'
 					? resolvedRiskWorkRate.toFixed(4)
@@ -155,6 +170,12 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: resolvedAguinaldoDays,
 				vacationPremiumRate: resolvedVacationPremiumRateValue,
 				enableSeventhDayPay: resolvedEnableSeventhDayPay,
+				ptuEnabled: resolvedPtuEnabled,
+				ptuMode: resolvedPtuMode,
+				ptuIsExempt: resolvedPtuIsExempt,
+				ptuExemptReason: resolvedPtuExemptReason,
+				employerType: resolvedEmployerType,
+				aguinaldoEnabled: resolvedAguinaldoEnabled,
 				organizationId,
 			};
 
@@ -173,6 +194,12 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						aguinaldoDays: updatePayload.aguinaldoDays,
 						vacationPremiumRate: updatePayload.vacationPremiumRate,
 						enableSeventhDayPay: updatePayload.enableSeventhDayPay,
+						ptuEnabled: updatePayload.ptuEnabled,
+						ptuMode: updatePayload.ptuMode,
+						ptuIsExempt: updatePayload.ptuIsExempt,
+						ptuExemptReason: updatePayload.ptuExemptReason,
+						employerType: updatePayload.employerType,
+						aguinaldoEnabled: updatePayload.aguinaldoEnabled,
 					})
 					.where(eq(payrollSetting.organizationId, organizationId));
 			} else {

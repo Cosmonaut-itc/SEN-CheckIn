@@ -1,10 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
 	type ColumnDef,
 	type ColumnFiltersState,
+	type OnChangeFn,
 	type PaginationState,
+	type RowSelectionState,
 	type SortingState,
 	flexRender,
 	getCoreRowModel,
@@ -118,9 +120,49 @@ export interface DataTableProps<TData, TValue> {
 	pageSizeOptions?: number[];
 	/** Optional class name for the root container. */
 	className?: string;
+	/** Row selection state for bulk actions. */
+	rowSelection?: RowSelectionState;
+	/** Row selection change handler. */
+	onRowSelectionChange?: OnChangeFn<RowSelectionState>;
+	/** Enable row selection checkboxes. */
+	enableRowSelection?: boolean;
+	/** Custom row id resolver for selection. */
+	getRowId?: (originalRow: TData, index: number, parent?: unknown) => string;
 }
 
 const DEFAULT_PAGE_SIZES = [10, 20, 50];
+
+type IndeterminateCheckboxProps = React.InputHTMLAttributes<HTMLInputElement> & {
+	indeterminate?: boolean;
+};
+
+/**
+ * Checkbox input supporting indeterminate state for table selection.
+ *
+ * @param props - Checkbox props with optional indeterminate flag
+ * @returns Checkbox input element
+ */
+function IndeterminateCheckbox({
+	indeterminate,
+	...props
+}: IndeterminateCheckboxProps): React.ReactElement {
+	const ref = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		if (ref.current) {
+			ref.current.indeterminate = Boolean(indeterminate);
+		}
+	}, [indeterminate]);
+
+	return (
+		<input
+			ref={ref}
+			type="checkbox"
+			className="h-4 w-4 accent-primary"
+			{...props}
+		/>
+	);
+}
 
 /**
  * Shared data table component using TanStack Table + shadcn/ui Table primitives.
@@ -150,23 +192,64 @@ export function DataTable<TData, TValue>({
 	isLoading = false,
 	pageSizeOptions,
 	className,
+	rowSelection,
+	onRowSelectionChange,
+	enableRowSelection = false,
+	getRowId,
 }: DataTableProps<TData, TValue>): React.ReactElement {
 	const t = useTranslations('DataTable');
+
+	const selectionColumn = useMemo<ColumnDef<TData, TValue>>(
+		() => ({
+			id: 'select',
+			header: ({ table }) => (
+				<div className="flex items-center justify-center">
+					<IndeterminateCheckbox
+						checked={table.getIsAllPageRowsSelected()}
+						indeterminate={table.getIsSomePageRowsSelected()}
+						onChange={table.getToggleAllPageRowsSelectedHandler()}
+						aria-label={t('selection.selectAll')}
+					/>
+				</div>
+			),
+			cell: ({ row }) => (
+				<div className="flex items-center justify-center">
+					<IndeterminateCheckbox
+						checked={row.getIsSelected()}
+						indeterminate={row.getIsSomeSelected()}
+						onChange={row.getToggleSelectedHandler()}
+						aria-label={t('selection.selectRow')}
+					/>
+				</div>
+			),
+			enableSorting: false,
+			enableHiding: false,
+			size: 36,
+		}),
+		[t],
+	);
+
+	const resolvedColumns = useMemo(
+		() => (enableRowSelection ? [selectionColumn, ...columns] : columns),
+		[columns, enableRowSelection, selectionColumn],
+	);
 
 	// eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns non-memoizable helpers.
 	const table = useReactTable({
 		data,
-		columns,
+		columns: resolvedColumns,
 		state: {
 			sorting,
 			pagination,
 			columnFilters,
 			globalFilter,
+			rowSelection: rowSelection ?? {},
 		},
 		onSortingChange,
 		onPaginationChange,
 		onColumnFiltersChange,
 		onGlobalFilterChange,
+		onRowSelectionChange,
 		getCoreRowModel: getCoreRowModel(),
 		getSortedRowModel: getSortedRowModel(),
 		getFilteredRowModel: manualFiltering ? undefined : getFilteredRowModel(),
@@ -174,6 +257,8 @@ export function DataTable<TData, TValue>({
 		manualPagination,
 		manualFiltering,
 		rowCount,
+		enableRowSelection,
+		getRowId,
 	});
 
 	const resolvedPageSizes = pageSizeOptions ?? DEFAULT_PAGE_SIZES;

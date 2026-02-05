@@ -38,6 +38,16 @@ export const shiftTypeEnum = z.enum(['DIURNA', 'NOCTURNA', 'MIXTA']);
 export const paymentFrequencyEnum = z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
 
 /**
+ * Employment type enumeration (permanent vs eventual).
+ */
+export const employmentTypeEnum = z.enum(['PERMANENT', 'EVENTUAL']);
+
+/**
+ * PTU eligibility override enumeration.
+ */
+export const ptuEligibilityOverrideEnum = z.enum(['DEFAULT', 'INCLUDE', 'EXCLUDE']);
+
+/**
  * Geographic zone enumeration (CONASAMI)
  */
 export const geographicZoneEnum = z.enum(['GENERAL', 'ZLFN']);
@@ -188,6 +198,14 @@ export const createEmployeeSchema = z.object({
 	hireDate: z.coerce.date().optional(),
 	dailyPay: z.coerce.number().positive('Daily pay must be greater than 0'),
 	paymentFrequency: paymentFrequencyEnum,
+	employmentType: employmentTypeEnum.optional(),
+	isTrustEmployee: z.boolean().optional(),
+	isDirectorAdminGeneralManager: z.boolean().optional(),
+	isDomesticWorker: z.boolean().optional(),
+	isPlatformWorker: z.boolean().optional(),
+	platformHoursYear: z.coerce.number().min(0).optional(),
+	ptuEligibilityOverride: ptuEligibilityOverrideEnum.optional(),
+	aguinaldoDaysOverride: z.coerce.number().int().min(0).optional(),
 	sbcDailyOverride: z.coerce.number().positive('SBC must be greater than 0').optional(),
 	locationId: z.string().uuid(),
 	organizationId: z.string().optional(),
@@ -225,6 +243,14 @@ export const updateEmployeeSchema = z.object({
 	hireDate: z.coerce.date().nullable().optional(),
 	dailyPay: z.coerce.number().positive().optional(),
 	paymentFrequency: paymentFrequencyEnum.optional(),
+	employmentType: employmentTypeEnum.optional(),
+	isTrustEmployee: z.boolean().optional(),
+	isDirectorAdminGeneralManager: z.boolean().optional(),
+	isDomesticWorker: z.boolean().optional(),
+	isPlatformWorker: z.boolean().optional(),
+	platformHoursYear: z.coerce.number().min(0).nullable().optional(),
+	ptuEligibilityOverride: ptuEligibilityOverrideEnum.optional(),
+	aguinaldoDaysOverride: z.coerce.number().int().min(0).nullable().optional(),
 	sbcDailyOverride: z.coerce.number().positive().nullable().optional(),
 	locationId: z.string().uuid().optional(),
 	shiftType: shiftTypeEnum.optional(),

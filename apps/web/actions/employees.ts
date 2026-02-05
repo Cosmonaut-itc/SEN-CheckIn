@@ -56,6 +56,22 @@ export interface CreateEmployeeInput {
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional SBC daily override */
 	sbcDailyOverride?: number;
+	/** Employment type for PTU eligibility */
+	employmentType?: 'PERMANENT' | 'EVENTUAL';
+	/** Trust employee flag */
+	isTrustEmployee?: boolean;
+	/** Director/admin/general manager flag */
+	isDirectorAdminGeneralManager?: boolean;
+	/** Domestic worker flag */
+	isDomesticWorker?: boolean;
+	/** Platform worker flag */
+	isPlatformWorker?: boolean;
+	/** Annual platform hours */
+	platformHoursYear?: number;
+	/** PTU eligibility override */
+	ptuEligibilityOverride?: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+	/** Aguinaldo days override */
+	aguinaldoDaysOverride?: number | null;
 	/** Employee shift type */
 	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	/** Optional linked user ID */
@@ -98,6 +114,22 @@ export interface UpdateEmployeeInput {
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional SBC daily override */
 	sbcDailyOverride?: number | null;
+	/** Employment type for PTU eligibility */
+	employmentType?: 'PERMANENT' | 'EVENTUAL';
+	/** Trust employee flag */
+	isTrustEmployee?: boolean;
+	/** Director/admin/general manager flag */
+	isDirectorAdminGeneralManager?: boolean;
+	/** Domestic worker flag */
+	isDomesticWorker?: boolean;
+	/** Platform worker flag */
+	isPlatformWorker?: boolean;
+	/** Annual platform hours */
+	platformHoursYear?: number;
+	/** PTU eligibility override */
+	ptuEligibilityOverride?: 'DEFAULT' | 'INCLUDE' | 'EXCLUDE';
+	/** Aguinaldo days override */
+	aguinaldoDaysOverride?: number | null;
 	/** Employee shift type */
 	shiftType?: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	/** Optional linked user ID (null to unlink) */
@@ -161,6 +193,14 @@ export async function createEmployee(input: CreateEmployeeInput): Promise<Mutati
 			dailyPay: input.dailyPay,
 			paymentFrequency: input.paymentFrequency,
 			sbcDailyOverride: input.sbcDailyOverride ?? undefined,
+			employmentType: input.employmentType ?? undefined,
+			isTrustEmployee: input.isTrustEmployee ?? undefined,
+			isDirectorAdminGeneralManager: input.isDirectorAdminGeneralManager ?? undefined,
+			isDomesticWorker: input.isDomesticWorker ?? undefined,
+			isPlatformWorker: input.isPlatformWorker ?? undefined,
+			platformHoursYear: input.platformHoursYear ?? undefined,
+			ptuEligibilityOverride: input.ptuEligibilityOverride ?? undefined,
+			aguinaldoDaysOverride: input.aguinaldoDaysOverride ?? undefined,
 			shiftType: input.shiftType ?? 'DIURNA',
 			userId: resolvedUserId ? resolvedUserId : undefined,
 			schedule: input.schedule?.map((entry) => ({
@@ -242,6 +282,17 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			paymentFrequency: input.paymentFrequency,
 			sbcDailyOverride:
 				input.sbcDailyOverride === null ? null : (input.sbcDailyOverride ?? undefined),
+			employmentType: input.employmentType ?? undefined,
+			isTrustEmployee: input.isTrustEmployee ?? undefined,
+			isDirectorAdminGeneralManager: input.isDirectorAdminGeneralManager ?? undefined,
+			isDomesticWorker: input.isDomesticWorker ?? undefined,
+			isPlatformWorker: input.isPlatformWorker ?? undefined,
+			platformHoursYear: input.platformHoursYear ?? undefined,
+			ptuEligibilityOverride: input.ptuEligibilityOverride ?? undefined,
+			aguinaldoDaysOverride:
+				input.aguinaldoDaysOverride === null
+					? null
+					: (input.aguinaldoDaysOverride ?? undefined),
 			shiftType: input.shiftType,
 			userId: resolvedUserId === undefined ? undefined : resolvedUserId,
 			schedule: input.schedule?.map((entry) => ({

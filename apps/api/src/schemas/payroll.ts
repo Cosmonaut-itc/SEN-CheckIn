@@ -14,6 +14,16 @@ export const paymentFrequencyEnum = z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']);
 export const overtimeEnforcementEnum = z.enum(['WARN', 'BLOCK']);
 
 /**
+ * Enum for PTU mode behavior.
+ */
+export const ptuModeEnum = z.enum(['DEFAULT_RULES', 'MANUAL']);
+
+/**
+ * Enum for employer type (persona moral/física).
+ */
+export const employerTypeEnum = z.enum(['PERSONA_MORAL', 'PERSONA_FISICA']);
+
+/**
  * Schema for updating/creating payroll settings.
  */
 export const payrollSettingsSchema = z.object({
@@ -36,6 +46,12 @@ export const payrollSettingsSchema = z.object({
 	aguinaldoDays: z.coerce.number().int().min(0).optional(),
 	vacationPremiumRate: z.coerce.number().min(0.25).max(1).optional(),
 	enableSeventhDayPay: z.boolean().optional(),
+	ptuEnabled: z.boolean().optional(),
+	ptuMode: ptuModeEnum.optional(),
+	ptuIsExempt: z.boolean().optional(),
+	ptuExemptReason: z.string().max(255).nullable().optional(),
+	employerType: employerTypeEnum.optional(),
+	aguinaldoEnabled: z.boolean().optional(),
 });
 
 /**

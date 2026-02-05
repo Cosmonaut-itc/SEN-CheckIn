@@ -17,6 +17,7 @@ export default function LockedScreen(): JSX.Element {
 	const router = useRouter();
 	const { requestReauth, lockReason } = useAuthContext();
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
+	const isDeviceDisabled = lockReason === 'device_disabled';
 
 	const reasonMessage = useMemo(() => {
 		switch (lockReason) {
@@ -58,7 +59,9 @@ export default function LockedScreen(): JSX.Element {
 					variant="primary"
 					size="md"
 					className="w-full"
+					isDisabled={isDeviceDisabled}
 					onPress={() => {
+						if (isDeviceDisabled) return;
 						void requestReauth();
 					}}
 				>

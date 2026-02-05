@@ -250,9 +250,14 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 				return;
 			}
 
+			if (authStateRef.current === 'locked' && lockReason === 'device_disabled') {
+				console.warn('[AuthProvider] Skipping reauth while device is disabled');
+				return;
+			}
+
 			await attemptRefresh('manual');
 		},
-		[attemptRefresh, lockSession],
+		[attemptRefresh, lockSession, lockReason],
 	);
 
 	// Use localSession if available, otherwise fall back to useSession data

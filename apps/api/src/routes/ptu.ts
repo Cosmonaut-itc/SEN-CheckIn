@@ -1015,6 +1015,13 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				set.status = authType === 'apiKey' ? 403 : 400;
 				return buildErrorResponse('Organization is required or not permitted', set.status);
 			}
+			if (runRecord.status === 'PROCESSED') {
+				set.status = 409;
+				return buildErrorResponse(
+					'Processed PTU runs cannot be cancelled because PTU history is already recorded',
+					409,
+				);
+			}
 
 			await db
 				.update(ptuRun)

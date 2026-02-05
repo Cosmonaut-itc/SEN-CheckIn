@@ -477,6 +477,38 @@ describe('ptu routes (contract)', () => {
 		expect(cancelPayload.data?.success).toBe(true);
 	});
 
+	it('blocks cancellation of processed PTU runs', async () => {
+		const createResponse = await client.ptu.runs.post({
+			fiscalYear: 2045,
+			paymentDateKey: '2045-05-15',
+			taxableIncome: 200000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(200);
+		const createPayload = requireResponseData(createResponse);
+		const run = (createPayload.data as { run?: { id?: string } }).run;
+		if (!run?.id) {
+			throw new Error('Expected PTU run id in create response.');
+		}
+		await markPtuRunProcessed(run.id);
+
+		const runRoutes = requireRoute(client.ptu.runs[run.id], 'PTU run route');
+		const cancelRoute = requireRoute(runRoutes.cancel, 'PTU cancel route');
+		const cancelResponse = await cancelRoute.post({
+			reason: 'Cancelación procesada no permitida',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(cancelResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(cancelResponse, 'ptu processed cancel blocked');
+		expect(errorPayload.error.message).toBe(
+			'Processed PTU runs cannot be cancelled because PTU history is already recorded',
+		);
+		expect(errorPayload.error.code).toBe('CONFLICT');
+	});
+
 	it('blocks PTU when disabled', async () => {
 		await updatePtuSettings(client, adminSession.cookieHeader, false, false);
 

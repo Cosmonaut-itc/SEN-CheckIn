@@ -328,6 +328,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				const latest = latestPayroll.get(row.id);
 				const override = overridesByEmployee.get(row.id);
 				const fallbackMonthlyIncome = Number(row.dailyPay ?? 0) * 30.4;
+				const annualSalaryBaseFromPayroll =
+					aggregate && aggregate.totalGrossPay > 0 ? aggregate.totalGrossPay : null;
 				return {
 					employeeId: row.id,
 					status: row.status,
@@ -335,7 +337,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 					dailyPay: Number(row.dailyPay ?? 0),
 					dailyQuotaOverride: override?.dailyQuota ?? null,
 					daysCounted: override?.daysCounted ?? aggregate?.daysCounted ?? 0,
-					annualSalaryBaseOverride: override?.annualSalaryBase ?? null,
+					annualSalaryBaseOverride:
+						override?.annualSalaryBase ?? annualSalaryBaseFromPayroll,
 					isTrustEmployee: Boolean(row.isTrustEmployee ?? false),
 					isDirectorAdminGeneralManager: Boolean(row.isDirectorAdminGeneralManager ?? false),
 					isDomesticWorker: Boolean(row.isDomesticWorker ?? false),
@@ -491,6 +494,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				const latest = latestPayroll.get(row.id);
 				const override = overridesByEmployee.get(row.id);
 				const fallbackMonthlyIncome = Number(row.dailyPay ?? 0) * 30.4;
+				const annualSalaryBaseFromPayroll =
+					aggregate && aggregate.totalGrossPay > 0 ? aggregate.totalGrossPay : null;
 				return {
 					employeeId: row.id,
 					status: row.status,
@@ -498,7 +503,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 					dailyPay: Number(row.dailyPay ?? 0),
 					dailyQuotaOverride: override?.dailyQuota ?? null,
 					daysCounted: override?.daysCounted ?? aggregate?.daysCounted ?? 0,
-					annualSalaryBaseOverride: override?.annualSalaryBase ?? null,
+					annualSalaryBaseOverride:
+						override?.annualSalaryBase ?? annualSalaryBaseFromPayroll,
 					isTrustEmployee: Boolean(row.isTrustEmployee ?? false),
 					isDirectorAdminGeneralManager: Boolean(row.isDirectorAdminGeneralManager ?? false),
 					isDomesticWorker: Boolean(row.isDomesticWorker ?? false),
@@ -714,6 +720,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				const latest = latestPayroll.get(row.id);
 				const override = overridesByEmployee.get(row.id);
 				const fallbackMonthlyIncome = Number(row.dailyPay ?? 0) * 30.4;
+				const annualSalaryBaseFromPayroll =
+					aggregate && aggregate.totalGrossPay > 0 ? aggregate.totalGrossPay : null;
 				return {
 					employeeId: row.id,
 					status: row.status,
@@ -721,7 +729,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 					dailyPay: Number(row.dailyPay ?? 0),
 					dailyQuotaOverride: override?.dailyQuota ?? null,
 					daysCounted: override?.daysCounted ?? aggregate?.daysCounted ?? 0,
-					annualSalaryBaseOverride: override?.annualSalaryBase ?? null,
+					annualSalaryBaseOverride:
+						override?.annualSalaryBase ?? annualSalaryBaseFromPayroll,
 					isTrustEmployee: Boolean(row.isTrustEmployee ?? false),
 					isDirectorAdminGeneralManager: Boolean(row.isDirectorAdminGeneralManager ?? false),
 					isDomesticWorker: Boolean(row.isDomesticWorker ?? false),

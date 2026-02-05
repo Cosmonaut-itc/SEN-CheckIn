@@ -142,10 +142,12 @@ export function calculateAguinaldo(
 			eligibilityReasons.push('INACTIVE');
 		}
 		if (employee.dailySalaryBase <= 0) {
+			eligibilityReasons.push('MISSING_DAILY_BASE');
 			employeeWarnings.push({
 				type: 'MISSING_DAILY_BASE',
-				message: 'El empleado no tiene salario diario base válido.',
-				severity: 'error',
+				message:
+					'El empleado no tiene salario diario base calculado; se excluye hasta capturar una base manual.',
+				severity: 'warning',
 			});
 		}
 		if (!employee.minimumWageZone) {

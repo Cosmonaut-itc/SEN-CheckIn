@@ -137,4 +137,32 @@ describe('aguinaldo-calculation', () => {
 		expect(includedRow.isEligible).toBe(true);
 		expect(includedRow.grossAmount).toBeGreaterThan(0);
 	});
+
+	it('excludes employees with missing daily base using a warning', () => {
+		const employee = buildEmployee({
+			employeeId: 'emp-missing-base',
+			dailySalaryBase: 0,
+			daysCounted: 365,
+			aguinaldoDaysPolicy: 15,
+			yearDays: 365,
+		});
+
+		const result = calculateAguinaldo(buildInput({ employees: [employee] }));
+		const row = result.employees[0];
+		if (!row) {
+			throw new Error('Expected aguinaldo employee row.');
+		}
+		expect(row.isEligible).toBe(false);
+		expect(row.eligibilityReasons).toContain('MISSING_DAILY_BASE');
+		const missingBaseWarning = row.warnings.find(
+			(warning) => warning.type === 'MISSING_DAILY_BASE',
+		);
+		if (!missingBaseWarning) {
+			throw new Error('Expected missing daily base warning.');
+		}
+		expect(missingBaseWarning.severity).toBe('warning');
+		expect(row.warnings.some((warning) => warning.severity === 'error')).toBe(false);
+		expect(result.totals.employeeCount).toBe(0);
+		expect(result.totals.grossTotal).toBe(0);
+	});
 });

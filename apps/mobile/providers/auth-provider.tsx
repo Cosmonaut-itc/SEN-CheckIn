@@ -3,7 +3,13 @@ import { createContext, useCallback, useEffect, useMemo, useRef, useState } from
 import * as React from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 
-import { getAccessToken, primeAuthStorage, refreshSession, useSession } from '@/lib/auth-client';
+import {
+	getAccessToken,
+	getAccessTokenExpiresAt,
+	primeAuthStorage,
+	refreshSession,
+	useSession,
+} from '@/lib/auth-client';
 
 /**
  * Session data type from useSession hook.
@@ -154,7 +160,11 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 				}
 				try {
 					const token = getAccessToken();
-					const result = await refreshSession(token ?? undefined);
+					const expiresAt = getAccessTokenExpiresAt();
+					const hasExpiry = typeof expiresAt === 'number';
+					const isExpired = hasExpiry && expiresAt <= Date.now();
+					const tokenForRefresh = token && (!hasExpiry || !isExpired) ? token : undefined;
+					const result = await refreshSession(tokenForRefresh);
 					const hasSession = Boolean(result.data?.session);
 
 					if (result.error || !hasSession) {

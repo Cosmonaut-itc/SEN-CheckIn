@@ -235,8 +235,9 @@ export const authClient = createAuthClient({
 			const expiresAt = getAccessTokenExpiresAt();
 			const hasExpiry = typeof expiresAt === 'number';
 			const isExpired = hasExpiry && expiresAt <= Date.now();
+			const shouldAttachToken = Boolean(token) && (!hasExpiry || !isExpired);
 
-			if (token && hasExpiry && !isExpired) {
+			if (shouldAttachToken && token) {
 				context.headers.set('authorization', `Bearer ${token}`);
 			}
 			return context;

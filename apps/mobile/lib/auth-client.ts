@@ -232,7 +232,11 @@ export const authClient = createAuthClient({
 		},
 		onRequest: (context) => {
 			const token = getAccessToken();
-			if (token) {
+			const expiresAt = getAccessTokenExpiresAt();
+			const hasExpiry = typeof expiresAt === 'number';
+			const isExpired = hasExpiry && expiresAt <= Date.now();
+
+			if (token && hasExpiry && !isExpired) {
 				context.headers.set('authorization', `Bearer ${token}`);
 			}
 			return context;

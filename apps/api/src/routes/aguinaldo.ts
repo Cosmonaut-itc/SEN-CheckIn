@@ -142,8 +142,8 @@ async function loadPayrollAggregates(args: {
 			and(
 				eq(payrollRun.organizationId, args.organizationId),
 				eq(payrollRun.status, 'PROCESSED'),
+				lte(payrollRun.periodStart, end),
 				gte(payrollRun.periodEnd, start),
-				lte(payrollRun.periodEnd, end),
 			)!,
 		)
 		.orderBy(desc(payrollRun.periodEnd));
@@ -154,14 +154,24 @@ async function loadPayrollAggregates(args: {
 			continue;
 		}
 		const daysInPeriod = getInclusiveDayCount(row.periodStart, row.periodEnd);
-		const grossPay = resolveGrossPay(row.taxBreakdown, Number(row.totalPay ?? 0));
+		if (daysInPeriod <= 0) {
+			continue;
+		}
+		const overlapStart = row.periodStart > start ? row.periodStart : start;
+		const overlapEnd = row.periodEnd < end ? row.periodEnd : end;
+		const overlapDays = getInclusiveDayCount(overlapStart, overlapEnd);
+		if (overlapDays <= 0) {
+			continue;
+		}
+		const grossPayTotal = resolveGrossPay(row.taxBreakdown, Number(row.totalPay ?? 0));
+		const grossPay = (grossPayTotal * overlapDays) / daysInPeriod;
 		const current = byEmployee.get(row.employeeId) ?? {
 			employeeId: row.employeeId,
 			totalGrossPay: 0,
 			totalDays: 0,
 		};
 		current.totalGrossPay += grossPay;
-		current.totalDays += daysInPeriod;
+		current.totalDays += overlapDays;
 		byEmployee.set(row.employeeId, current);
 	}
 

@@ -97,6 +97,65 @@ async function setAguinaldoRunTotalAmount(runId: string, totalAmount: number): P
 }
 
 /**
+ * Seeds processed payroll runs that cross the calendar-year boundary.
+ *
+ * @param organizationId - Organization identifier
+ * @param employeeId - Employee identifier
+ * @returns Nothing
+ */
+async function seedCrossYearPayrollRuns(
+	organizationId: string,
+	employeeId: string,
+): Promise<void> {
+	const [{ default: db }, { payrollRun, payrollRunEmployee }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+
+	const crossRunId = crypto.randomUUID();
+	await db.insert(payrollRun).values({
+		id: crossRunId,
+		organizationId,
+		periodStart: new Date('2097-12-26T00:00:00.000Z'),
+		periodEnd: new Date('2098-01-02T23:59:59.000Z'),
+		paymentFrequency: 'WEEKLY',
+		status: 'PROCESSED',
+		totalAmount: '800.00',
+		employeeCount: 1,
+		processedAt: new Date('2098-01-03T00:00:00.000Z'),
+	});
+	await db.insert(payrollRunEmployee).values({
+		payrollRunId: crossRunId,
+		employeeId,
+		totalPay: '800.00',
+		taxBreakdown: { grossPay: 800 },
+		periodStart: new Date('2097-12-26T00:00:00.000Z'),
+		periodEnd: new Date('2098-01-02T23:59:59.000Z'),
+	});
+
+	const inYearRunId = crypto.randomUUID();
+	await db.insert(payrollRun).values({
+		id: inYearRunId,
+		organizationId,
+		periodStart: new Date('2098-06-01T00:00:00.000Z'),
+		periodEnd: new Date('2098-06-01T23:59:59.000Z'),
+		paymentFrequency: 'WEEKLY',
+		status: 'PROCESSED',
+		totalAmount: '1000.00',
+		employeeCount: 1,
+		processedAt: new Date('2098-06-02T00:00:00.000Z'),
+	});
+	await db.insert(payrollRunEmployee).values({
+		payrollRunId: inYearRunId,
+		employeeId,
+		totalPay: '1000.00',
+		taxBreakdown: { grossPay: 1000 },
+		periodStart: new Date('2098-06-01T00:00:00.000Z'),
+		periodEnd: new Date('2098-06-01T23:59:59.000Z'),
+	});
+}
+
+/**
  * Updates aguinaldo settings for the active organization.
  *
  * @param client - API test client
@@ -176,6 +235,39 @@ describe('aguinaldo routes (contract)', () => {
 			throw new Error('Expected aguinaldo employee row for fallback validation.');
 		}
 		expect(Number(employeeRow.dailySalaryBase ?? 0)).toBeGreaterThan(0);
+	});
+
+	it('prorates cross-year payroll runs when building aguinaldo daily base', async () => {
+		await seedCrossYearPayrollRuns(seed.organizationId, seed.employeeId);
+
+		const response = await client.aguinaldo.calculate.post({
+			calendarYear: 2098,
+			paymentDateKey: '2098-12-15',
+			smgDailyOverride: 300,
+			employeeOverrides: [
+				{
+					employeeId: seed.employeeId,
+					daysCounted: 365,
+				},
+			],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const data = payload.data as
+			| {
+					employees?: Array<{
+						employeeId?: string;
+						dailySalaryBase?: number;
+					}>;
+			  }
+			| undefined;
+		const employeeRow = data?.employees?.find((row) => row.employeeId === seed.employeeId);
+		if (!employeeRow) {
+			throw new Error('Expected aguinaldo employee row for cross-year proration validation.');
+		}
+		expect(Number(employeeRow.dailySalaryBase ?? 0)).toBeCloseTo(400, 2);
 	});
 
 	it('creates and updates aguinaldo runs', async () => {

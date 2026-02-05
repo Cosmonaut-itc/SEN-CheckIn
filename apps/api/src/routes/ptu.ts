@@ -869,6 +869,22 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				set.status = 409;
 				return buildErrorResponse('Organization is exempt from PTU', 409);
 			}
+			const existingProcessed = await db
+				.select({ id: ptuRun.id })
+				.from(ptuRun)
+				.where(
+					and(
+						eq(ptuRun.organizationId, organizationId),
+						eq(ptuRun.fiscalYear, runRecord.fiscalYear),
+						eq(ptuRun.status, 'PROCESSED'),
+						ne(ptuRun.id, id),
+					)!,
+				)
+				.limit(1);
+			if (existingProcessed[0]) {
+				set.status = 409;
+				return buildErrorResponse('PTU run already processed for this fiscal year', 409);
+			}
 
 			if (Number(runRecord.taxableIncome ?? 0) <= 0) {
 				set.status = 409;
@@ -895,22 +911,6 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			if (Number(runRecord.totalAmount ?? 0) <= 0) {
 				set.status = 409;
 				return buildErrorResponse('PTU total amount must be greater than 0', 409);
-			}
-			const existingProcessed = await db
-				.select({ id: ptuRun.id })
-				.from(ptuRun)
-				.where(
-					and(
-						eq(ptuRun.organizationId, organizationId),
-						eq(ptuRun.fiscalYear, runRecord.fiscalYear),
-						eq(ptuRun.status, 'PROCESSED'),
-						ne(ptuRun.id, id),
-					)!,
-				)
-				.limit(1);
-			if (existingProcessed[0]) {
-				set.status = 409;
-				return buildErrorResponse('PTU run already processed for this fiscal year', 409);
 			}
 
 			await db.transaction(async (tx) => {

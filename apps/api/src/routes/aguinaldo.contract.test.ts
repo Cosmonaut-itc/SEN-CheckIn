@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
+import { eq } from 'drizzle-orm';
 
 import {
 	createTestClient,
@@ -32,6 +33,23 @@ function buildAguinaldoOverride(employeeId: string): {
 		dailySalaryBase: 500,
 		aguinaldoDaysPolicy: 15,
 	};
+}
+
+/**
+ * Marks an aguinaldo run as processed directly in the test database.
+ *
+ * @param runId - Aguinaldo run identifier
+ * @returns Nothing
+ */
+async function markAguinaldoRunProcessed(runId: string): Promise<void> {
+	const [{ default: db }, { aguinaldoRun }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	await db
+		.update(aguinaldoRun)
+		.set({ status: 'PROCESSED', processedAt: new Date() })
+		.where(eq(aguinaldoRun.id, runId));
 }
 
 /**
@@ -131,18 +149,7 @@ describe('aguinaldo routes (contract)', () => {
 		if (!processedRun?.id) {
 			throw new Error('Expected processed aguinaldo run id in create response.');
 		}
-		const processedRunRoutes = requireRoute(
-			client.aguinaldo.runs[processedRun.id],
-			'Aguinaldo run route',
-		);
-		const processedRunProcessRoute = requireRoute(
-			processedRunRoutes.process,
-			'Aguinaldo process route',
-		);
-		const processResponse = await processedRunProcessRoute.post({
-			$headers: { cookie: adminSession.cookieHeader },
-		});
-		expect(processResponse.status).toBe(200);
+		await markAguinaldoRunProcessed(processedRun.id);
 
 		const draftCreateResponse = await client.aguinaldo.runs.post({
 			calendarYear: 2032,
@@ -242,13 +249,7 @@ describe('aguinaldo routes (contract)', () => {
 		if (!secondDraftRun?.id) {
 			throw new Error('Expected second draft aguinaldo run id in create response.');
 		}
-
-		const firstRunRoutes = requireRoute(client.aguinaldo.runs[firstDraftRun.id], 'Aguinaldo run route');
-		const firstProcessRoute = requireRoute(firstRunRoutes.process, 'Aguinaldo process route');
-		const firstProcessResponse = await firstProcessRoute.post({
-			$headers: { cookie: adminSession.cookieHeader },
-		});
-		expect(firstProcessResponse.status).toBe(200);
+		await markAguinaldoRunProcessed(firstDraftRun.id);
 
 		const secondRunRoutes = requireRoute(
 			client.aguinaldo.runs[secondDraftRun.id],

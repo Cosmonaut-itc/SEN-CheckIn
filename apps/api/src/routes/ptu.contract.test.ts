@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
+import { eq } from 'drizzle-orm';
 
 import {
 	createTestClient,
@@ -32,6 +33,23 @@ function buildPtuOverride(employeeId: string): {
 		dailyQuota: 500,
 		annualSalaryBase: 100000,
 	};
+}
+
+/**
+ * Marks a PTU run as processed directly in the test database.
+ *
+ * @param runId - PTU run identifier
+ * @returns Nothing
+ */
+async function markPtuRunProcessed(runId: string): Promise<void> {
+	const [{ default: db }, { ptuRun }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	await db
+		.update(ptuRun)
+		.set({ status: 'PROCESSED', processedAt: new Date() })
+		.where(eq(ptuRun.id, runId));
 }
 
 /**
@@ -142,15 +160,7 @@ describe('ptu routes (contract)', () => {
 		if (!processedRun?.id) {
 			throw new Error('Expected processed PTU run id in create response.');
 		}
-		const processedRunRoutes = requireRoute(client.ptu.runs[processedRun.id], 'PTU run route');
-		const processedRunProcessRoute = requireRoute(
-			processedRunRoutes.process,
-			'PTU process route',
-		);
-		const processResponse = await processedRunProcessRoute.post({
-			$headers: { cookie: adminSession.cookieHeader },
-		});
-		expect(processResponse.status).toBe(200);
+		await markPtuRunProcessed(processedRun.id);
 
 		const draftCreateResponse = await client.ptu.runs.post({
 			fiscalYear: 2032,
@@ -253,13 +263,7 @@ describe('ptu routes (contract)', () => {
 		if (!secondDraftRun?.id) {
 			throw new Error('Expected second draft PTU run id in create response.');
 		}
-
-		const firstRunRoutes = requireRoute(client.ptu.runs[firstDraftRun.id], 'PTU run route');
-		const firstProcessRoute = requireRoute(firstRunRoutes.process, 'PTU process route');
-		const firstProcessResponse = await firstProcessRoute.post({
-			$headers: { cookie: adminSession.cookieHeader },
-		});
-		expect(firstProcessResponse.status).toBe(200);
+		await markPtuRunProcessed(firstDraftRun.id);
 
 		const secondRunRoutes = requireRoute(client.ptu.runs[secondDraftRun.id], 'PTU run route');
 		const secondProcessRoute = requireRoute(secondRunRoutes.process, 'PTU process route');

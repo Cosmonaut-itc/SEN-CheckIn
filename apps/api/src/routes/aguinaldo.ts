@@ -804,6 +804,25 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				set.status = 409;
 				return buildErrorResponse('Aguinaldo is disabled for this organization', 409);
 			}
+			const existingProcessed = await db
+				.select({ id: aguinaldoRun.id })
+				.from(aguinaldoRun)
+				.where(
+					and(
+						eq(aguinaldoRun.organizationId, organizationId),
+						eq(aguinaldoRun.calendarYear, runRecord.calendarYear),
+						eq(aguinaldoRun.status, 'PROCESSED'),
+						ne(aguinaldoRun.id, id),
+					)!,
+				)
+				.limit(1);
+			if (existingProcessed[0]) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Aguinaldo run already processed for this calendar year',
+					409,
+				);
+			}
 
 			const employeeRows = await db
 				.select({ warnings: aguinaldoRunEmployee.warnings })
@@ -825,25 +844,6 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			if (Number(runRecord.totalAmount ?? 0) <= 0) {
 				set.status = 409;
 				return buildErrorResponse('Aguinaldo total amount must be greater than 0', 409);
-			}
-			const existingProcessed = await db
-				.select({ id: aguinaldoRun.id })
-				.from(aguinaldoRun)
-				.where(
-					and(
-						eq(aguinaldoRun.organizationId, organizationId),
-						eq(aguinaldoRun.calendarYear, runRecord.calendarYear),
-						eq(aguinaldoRun.status, 'PROCESSED'),
-						ne(aguinaldoRun.id, id),
-					)!,
-				)
-				.limit(1);
-			if (existingProcessed[0]) {
-				set.status = 409;
-				return buildErrorResponse(
-					'Aguinaldo run already processed for this calendar year',
-					409,
-				);
 			}
 
 			await db

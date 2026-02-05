@@ -895,6 +895,73 @@ export function EmployeesPageClient(): React.ReactElement {
 	const isCreateMode = dialogMode === 'create';
 	const isEditMode = dialogMode === 'edit';
 	const isViewMode = dialogMode === 'view';
+	const ptuAguinaldoOptionHelp = useMemo<
+		{ key: string; label: string; description: string }[]
+	>(
+		() => [
+			{
+				key: 'employmentTypePermanent',
+				label: t('employmentType.PERMANENT'),
+				description: t('ptuAguinaldo.optionsHelp.employmentTypePermanent'),
+			},
+			{
+				key: 'employmentTypeEventual',
+				label: t('employmentType.EVENTUAL'),
+				description: t('ptuAguinaldo.optionsHelp.employmentTypeEventual'),
+			},
+			{
+				key: 'ptuEligibilityDefault',
+				label: t('ptuEligibility.DEFAULT'),
+				description: t('ptuAguinaldo.optionsHelp.ptuEligibilityDefault'),
+			},
+			{
+				key: 'ptuEligibilityInclude',
+				label: t('ptuEligibility.INCLUDE'),
+				description: t('ptuAguinaldo.optionsHelp.ptuEligibilityInclude'),
+			},
+			{
+				key: 'ptuEligibilityExclude',
+				label: t('ptuEligibility.EXCLUDE'),
+				description: t('ptuAguinaldo.optionsHelp.ptuEligibilityExclude'),
+			},
+			{
+				key: 'isTrustEmployee',
+				label: t('fields.isTrustEmployee'),
+				description: t('ptuAguinaldo.optionsHelp.isTrustEmployee'),
+			},
+			{
+				key: 'isDirectorAdminGeneralManager',
+				label: t('fields.isDirectorAdminGeneralManager'),
+				description: t('ptuAguinaldo.optionsHelp.isDirectorAdminGeneralManager'),
+			},
+			{
+				key: 'isDomesticWorker',
+				label: t('fields.isDomesticWorker'),
+				description: t('ptuAguinaldo.optionsHelp.isDomesticWorker'),
+			},
+			{
+				key: 'isPlatformWorker',
+				label: t('fields.isPlatformWorker'),
+				description: t('ptuAguinaldo.optionsHelp.isPlatformWorker'),
+			},
+			{
+				key: 'platformHoursYear',
+				label: t('fields.platformHoursYear'),
+				description: t('ptuAguinaldo.optionsHelp.platformHoursYear'),
+			},
+			{
+				key: 'aguinaldoDaysOverride',
+				label: t('fields.aguinaldoDaysOverride'),
+				description: t('ptuAguinaldo.optionsHelp.aguinaldoDaysOverride'),
+			},
+			{
+				key: 'sbcDailyOverride',
+				label: t('fields.sbcDailyOverride'),
+				description: t('ptuAguinaldo.optionsHelp.sbcDailyOverride'),
+			},
+		],
+		[t],
+	);
 
 	// Build query params - only include search if it has a value
 	const baseParams = {
@@ -1138,6 +1205,77 @@ export function EmployeesPageClient(): React.ReactElement {
 			{ value: 'UNCHANGED', label: t('bulk.options.unchanged') },
 			{ value: 'SET', label: t('bulk.options.set') },
 			{ value: 'CLEAR', label: t('bulk.options.clear') },
+		],
+		[t],
+	);
+
+	const bulkOptionHelp = useMemo<{ key: string; label: string; description: string }[]>(
+		() => [
+			{
+				key: 'bulkUnchanged',
+				label: t('bulk.options.unchanged'),
+				description: t('bulk.optionsHelp.unchanged'),
+			},
+			{
+				key: 'bulkYes',
+				label: t('bulk.options.yes'),
+				description: t('bulk.optionsHelp.yes'),
+			},
+			{
+				key: 'bulkNo',
+				label: t('bulk.options.no'),
+				description: t('bulk.optionsHelp.no'),
+			},
+			{
+				key: 'bulkSet',
+				label: t('bulk.options.set'),
+				description: t('bulk.optionsHelp.set'),
+			},
+			{
+				key: 'bulkClear',
+				label: t('bulk.options.clear'),
+				description: t('bulk.optionsHelp.clear'),
+			},
+			{
+				key: 'bulkPermanent',
+				label: t('employmentType.PERMANENT'),
+				description: t('bulk.optionsHelp.employmentTypePermanent'),
+			},
+			{
+				key: 'bulkEventual',
+				label: t('employmentType.EVENTUAL'),
+				description: t('bulk.optionsHelp.employmentTypeEventual'),
+			},
+			{
+				key: 'bulkDefault',
+				label: t('ptuEligibility.DEFAULT'),
+				description: t('bulk.optionsHelp.ptuEligibilityDefault'),
+			},
+			{
+				key: 'bulkInclude',
+				label: t('ptuEligibility.INCLUDE'),
+				description: t('bulk.optionsHelp.ptuEligibilityInclude'),
+			},
+			{
+				key: 'bulkExclude',
+				label: t('ptuEligibility.EXCLUDE'),
+				description: t('bulk.optionsHelp.ptuEligibilityExclude'),
+			},
+			{
+				key: 'bulkPlatformHours',
+				label: t('bulk.fields.platformHoursYear'),
+				description: t('bulk.optionsHelp.platformHoursYear'),
+			},
+			{
+				key: 'bulkAguinaldoOverrideMode',
+				label: t('bulk.fields.aguinaldoOverrideMode'),
+				description: t('bulk.optionsHelp.aguinaldoOverrideMode'),
+			},
+			{
+				key: 'bulkAguinaldoDays',
+				label: t('bulk.fields.aguinaldoDaysOverride'),
+				description: t('bulk.optionsHelp.aguinaldoDaysOverride'),
+			},
 		],
 		[t],
 	);
@@ -4383,6 +4521,33 @@ export function EmployeesPageClient(): React.ReactElement {
 												{t('ptuAguinaldo.subtitle')}
 											</p>
 										</div>
+										<TooltipProvider>
+											<div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-2">
+												<p className="text-xs text-muted-foreground">
+													{t('ptuAguinaldo.optionsHelp.title')}
+												</p>
+												<div className="flex flex-wrap gap-2">
+													{ptuAguinaldoOptionHelp.map((item) => (
+														<Tooltip key={item.key}>
+															<TooltipTrigger asChild>
+																<Badge
+																	variant="outline"
+																	className="cursor-help gap-1"
+																>
+																	<HelpCircle className="h-3 w-3" />
+																	{item.label}
+																</Badge>
+															</TooltipTrigger>
+															<TooltipContent className="max-w-xs">
+																<p className="text-xs">
+																	{item.description}
+																</p>
+															</TooltipContent>
+														</Tooltip>
+													))}
+												</div>
+											</div>
+										</TooltipProvider>
 										<div className="grid gap-4 sm:grid-cols-2">
 											<form.AppField name="employmentType">
 												{(field) => (
@@ -4732,6 +4897,28 @@ export function EmployeesPageClient(): React.ReactElement {
 						<DialogTitle>{t('bulk.title')}</DialogTitle>
 						<DialogDescription>{t('bulk.description')}</DialogDescription>
 					</DialogHeader>
+					<TooltipProvider>
+						<div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-2">
+							<p className="text-xs text-muted-foreground">
+								{t('bulk.optionsHelp.title')}
+							</p>
+							<div className="flex flex-wrap gap-2">
+								{bulkOptionHelp.map((item) => (
+									<Tooltip key={item.key}>
+										<TooltipTrigger asChild>
+											<Badge variant="outline" className="cursor-help gap-1">
+												<HelpCircle className="h-3 w-3" />
+												{item.label}
+											</Badge>
+										</TooltipTrigger>
+										<TooltipContent className="max-w-xs">
+											<p className="text-xs">{item.description}</p>
+										</TooltipContent>
+									</Tooltip>
+								))}
+							</div>
+						</div>
+					</TooltipProvider>
 					<div className="grid gap-4 sm:grid-cols-2">
 						<div className="flex flex-col gap-2">
 							<Label>{t('bulk.fields.employmentType')}</Label>

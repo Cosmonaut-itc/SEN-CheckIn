@@ -2549,13 +2549,17 @@ export async function fetchPtuRuns(params?: {
 	limit?: number;
 	offset?: number;
 }): Promise<PtuRun[]> {
+	const query = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+		...(params?.organizationId ? { organizationId: params.organizationId } : {}),
+		...(typeof params?.fiscalYear === 'number'
+			? { fiscalYear: params.fiscalYear }
+			: {}),
+	};
+
 	const response = await api.ptu.runs.get({
-		$query: {
-			organizationId: params?.organizationId,
-			fiscalYear: params?.fiscalYear,
-			limit: params?.limit ?? 50,
-			offset: params?.offset ?? 0,
-		},
+		$query: query,
 	});
 
 	if (response.error) {
@@ -2738,13 +2742,17 @@ export async function fetchAguinaldoRuns(params?: {
 	limit?: number;
 	offset?: number;
 }): Promise<AguinaldoRun[]> {
+	const query = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+		...(params?.organizationId ? { organizationId: params.organizationId } : {}),
+		...(typeof params?.calendarYear === 'number'
+			? { calendarYear: params.calendarYear }
+			: {}),
+	};
+
 	const response = await api.aguinaldo.runs.get({
-		$query: {
-			organizationId: params?.organizationId,
-			calendarYear: params?.calendarYear,
-			limit: params?.limit ?? 50,
-			offset: params?.offset ?? 0,
-		},
+		$query: query,
 	});
 
 	if (response.error) {

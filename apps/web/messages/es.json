@@ -684,6 +684,21 @@
     "ptuAguinaldo": {
       "title": "PTU y Aguinaldo",
       "subtitle": "Configura elegibilidad PTU y overrides individuales.",
+      "optionsHelp": {
+        "title": "Ayuda rápida (pasa el cursor por cada opción):",
+        "employmentTypePermanent": "Planta: participa en PTU con reglas generales del reparto.",
+        "employmentTypeEventual": "Eventual: participa en PTU solo si acumuló al menos 60 días en el ejercicio fiscal.",
+        "ptuEligibilityDefault": "Regla por defecto: usa criterios automáticos de la LFT (perfil del trabajador, días y horas).",
+        "ptuEligibilityInclude": "Incluir PTU: fuerza la participación en el reparto para este empleado.",
+        "ptuEligibilityExclude": "Excluir PTU: fuerza que el empleado no participe en el reparto.",
+        "isTrustEmployee": "Confianza: aplica tope de salario PTU (máximo 20% sobre salario base/sindical más alto).",
+        "isDirectorAdminGeneralManager": "Director/Administrador/GM: no participa en PTU.",
+        "isDomesticWorker": "Trabajador del hogar: no participa en PTU.",
+        "isPlatformWorker": "Trabajador de plataforma: participa en PTU si supera 288 horas efectivas al año.",
+        "platformHoursYear": "Horas en plataforma (año): sirve para validar el umbral anual de 288 horas.",
+        "aguinaldoDaysOverride": "Días de aguinaldo (override): sobrescribe los días del empleado para el cálculo proporcional (mínimo legal 15 días).",
+        "sbcDailyOverride": "SBC diario (override): fija manualmente la base diaria; útil cuando necesitas ajustar cálculos por excepción."
+      },
       "values": {
         "days": "{days} días"
       }
@@ -733,6 +748,22 @@
         "no": "No",
         "set": "Establecer",
         "clear": "Limpiar"
+      },
+      "optionsHelp": {
+        "title": "Ayuda rápida (pasa el cursor por cada opción):",
+        "unchanged": "No modifica ese campo en los empleados seleccionados.",
+        "yes": "Aplica el valor Sí a todos los seleccionados.",
+        "no": "Aplica el valor No a todos los seleccionados.",
+        "set": "Activa la captura del override de aguinaldo y lo aplica al grupo.",
+        "clear": "Limpia el override de aguinaldo y regresa al cálculo por política.",
+        "employmentTypePermanent": "Planta: participa en PTU con reglas generales del reparto.",
+        "employmentTypeEventual": "Eventual: participa en PTU si acumuló al menos 60 días en el ejercicio fiscal.",
+        "ptuEligibilityDefault": "Usa reglas automáticas de elegibilidad PTU conforme a la LFT.",
+        "ptuEligibilityInclude": "Fuerza incluir al empleado en el reparto de PTU.",
+        "ptuEligibilityExclude": "Fuerza excluir al empleado del reparto de PTU.",
+        "platformHoursYear": "Se usa para validar el umbral anual de 288 horas en trabajadores de plataforma.",
+        "aguinaldoOverrideMode": "Define si el override de días de aguinaldo se conserva, se asigna o se limpia.",
+        "aguinaldoDaysOverride": "Número de días de aguinaldo manual cuando el modo es Establecer (mínimo legal 15 días)."
       },
       "placeholders": {
         "employmentType": "Sin cambios",
@@ -2897,6 +2928,12 @@
       "cancel": "Cancelar",
       "confirmCancel": "Confirmar cancelación"
     },
+    "cancel": {
+      "title": "Cancelar corrida",
+      "description": "Indica el motivo de cancelación de esta corrida.",
+      "reason": "Motivo de cancelación",
+      "placeholder": "Ej. Datos incorrectos en la corrida"
+    },
     "toast": {
       "calculateError": "No se pudo calcular PTU.",
       "draftCreated": "Borrador de PTU guardado.",
@@ -3081,6 +3118,12 @@
       "processing": "Procesando...",
       "cancel": "Cancelar",
       "confirmCancel": "Confirmar cancelación"
+    },
+    "cancel": {
+      "title": "Cancelar corrida",
+      "description": "Indica el motivo de cancelación de esta corrida.",
+      "reason": "Motivo de cancelación",
+      "placeholder": "Ej. Datos incorrectos en la corrida"
     },
     "toast": {
       "calculateError": "No se pudo calcular aguinaldo.",

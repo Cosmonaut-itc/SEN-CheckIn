@@ -91,6 +91,20 @@ function resolveGrossPay(taxBreakdown: unknown, totalPay: number): number {
 }
 
 /**
+ * Builds a display name from first and last name fields.
+ *
+ * @param firstName - Employee first name
+ * @param lastName - Employee last name
+ * @returns Trimmed full name
+ */
+function buildEmployeeDisplayName(
+	firstName: string | null,
+	lastName: string | null,
+): string {
+	return `${firstName ?? ''} ${lastName ?? ''}`.trim();
+}
+
+/**
  * Builds payroll aggregates per employee for a fiscal year.
  *
  * @param args - Aggregation inputs
@@ -305,6 +319,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			const employees = await db
 				.select({
 					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
 					status: employee.status,
 					employmentType: employee.employmentType,
 					dailyPay: employee.dailyPay,
@@ -376,6 +392,16 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				monthDaysForCaps: 30,
 				employees: inputs,
 			});
+			const employeeNamesById = new Map(
+				employees.map((row) => [
+					row.id,
+					buildEmployeeDisplayName(row.firstName, row.lastName),
+				]),
+			);
+			const calculationEmployees = calculation.employees.map((row) => ({
+				...row,
+				employeeName: employeeNamesById.get(row.employeeId) ?? row.employeeId,
+			}));
 
 			return {
 				data: {
@@ -403,7 +429,7 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 						createdAt: new Date(),
 						updatedAt: new Date(),
 					},
-					employees: calculation.employees,
+					employees: calculationEmployees,
 					warnings: calculation.warnings,
 				},
 			};
@@ -471,6 +497,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			const employees = await db
 				.select({
 					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
 					status: employee.status,
 					employmentType: employee.employmentType,
 					dailyPay: employee.dailyPay,
@@ -542,6 +570,16 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				monthDaysForCaps: 30,
 				employees: inputs,
 			});
+			const employeeNamesById = new Map(
+				employees.map((row) => [
+					row.id,
+					buildEmployeeDisplayName(row.firstName, row.lastName),
+				]),
+			);
+			const calculationEmployees = calculation.employees.map((row) => ({
+				...row,
+				employeeName: employeeNamesById.get(row.employeeId) ?? row.employeeId,
+			}));
 
 			const runId = crypto.randomUUID();
 			await db.transaction(async (tx) => {
@@ -617,7 +655,7 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 						createdAt: new Date(),
 						updatedAt: new Date(),
 					},
-					employees: calculation.employees,
+					employees: calculationEmployees,
 					warnings: calculation.warnings,
 				},
 			};
@@ -697,6 +735,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			const employees = await db
 				.select({
 					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
 					status: employee.status,
 					employmentType: employee.employmentType,
 					dailyPay: employee.dailyPay,
@@ -768,6 +808,16 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 				monthDaysForCaps: 30,
 				employees: inputs,
 			});
+			const employeeNamesById = new Map(
+				employees.map((row) => [
+					row.id,
+					buildEmployeeDisplayName(row.firstName, row.lastName),
+				]),
+			);
+			const calculationEmployees = calculation.employees.map((row) => ({
+				...row,
+				employeeName: employeeNamesById.get(row.employeeId) ?? row.employeeId,
+			}));
 
 			await db.transaction(async (tx) => {
 				await tx
@@ -835,7 +885,7 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 							employerType: setting?.employerType ?? 'PERSONA_MORAL',
 						},
 					},
-					employees: calculation.employees,
+					employees: calculationEmployees,
 					warnings: calculation.warnings,
 				},
 			};

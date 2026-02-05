@@ -2973,6 +2973,8 @@
       "title": "Detalle por empleado",
       "description": "Ajusta bases y revisa montos finales antes de procesar.",
       "empty": "No hay resultados para mostrar.",
+      "emptySearch": "No hay empleados que coincidan con la búsqueda.",
+      "searchPlaceholder": "Buscar empleado por nombre...",
       "headers": {
         "employee": "Empleado",
         "eligibility": "Elegibilidad",
@@ -3161,6 +3163,8 @@
       "title": "Detalle por empleado",
       "description": "Ajusta bases y revisa montos finales antes de procesar.",
       "empty": "No hay resultados para mostrar.",
+      "emptySearch": "No hay empleados que coincidan con la búsqueda.",
+      "searchPlaceholder": "Buscar empleado por nombre...",
       "headers": {
         "employee": "Empleado",
         "days": "Días",

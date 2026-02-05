@@ -206,6 +206,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 	const [overrideDrafts, setOverrideDrafts] = useState<Record<string, PtuOverrideDraft>>({});
 	const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
 	const [cancelReason, setCancelReason] = useState('');
+	const [employeeSearch, setEmployeeSearch] = useState<string>('');
 
 	const runsQuery = useQuery({
 		queryKey: queryKeys.ptu.runs({ organizationId: organizationId ?? undefined }),
@@ -320,7 +321,19 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 
 	const effectiveCalculation = calculation;
 	const effectiveRun = effectiveCalculation?.run ?? null;
-	const employeeRows = effectiveCalculation?.employees ?? [];
+	const employeeRows = useMemo(
+		() => effectiveCalculation?.employees ?? [],
+		[effectiveCalculation],
+	);
+	const filteredEmployeeRows = useMemo(() => {
+		const searchTerm = employeeSearch.trim().toLowerCase();
+		if (!searchTerm) {
+			return employeeRows;
+		}
+		return employeeRows.filter((employee) =>
+			resolveEmployeeName(employee).toLowerCase().includes(searchTerm),
+		);
+	}, [employeeRows, employeeSearch]);
 
 	const totals = useMemo(() => {
 		if (!effectiveCalculation) {
@@ -876,8 +889,18 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 						</div>
 					) : employeeRows.length === 0 ? (
 						<p className="text-sm text-muted-foreground">{t('table.empty')}</p>
+					) : filteredEmployeeRows.length === 0 ? (
+						<p className="text-sm text-muted-foreground">{t('table.emptySearch')}</p>
 					) : (
-						<div className="rounded-md border">
+						<div className="space-y-3">
+							<Input
+								id="ptu-employee-search"
+								value={employeeSearch}
+								onChange={(event) => setEmployeeSearch(event.target.value)}
+								placeholder={t('table.searchPlaceholder')}
+								className="max-w-sm"
+							/>
+							<div className="rounded-md border">
 							<Table>
 								<TableHeader>
 									<TableRow>
@@ -892,11 +915,11 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 									</TableRow>
 								</TableHeader>
 								<TableBody>
-									{employeeRows.map((employee) => {
+									{filteredEmployeeRows.map((employee) => {
 										const override = overrideDrafts[employee.employeeId];
 										const warningCount = employee.warnings?.length ?? 0;
 										return (
-											<TableRow key={employee.id}>
+											<TableRow key={employee.id ?? employee.employeeId}>
 												<TableCell className="font-medium">
 													{resolveEmployeeName(employee)}
 												</TableCell>
@@ -1009,6 +1032,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 									})}
 								</TableBody>
 							</Table>
+						</div>
 						</div>
 					)}
 				</CardContent>

@@ -112,6 +112,20 @@ function resolveAguinaldoDailySalaryBase(args: {
 }
 
 /**
+ * Builds a display name from first and last name fields.
+ *
+ * @param firstName - Employee first name
+ * @param lastName - Employee last name
+ * @returns Trimmed full name
+ */
+function buildEmployeeDisplayName(
+	firstName: string | null,
+	lastName: string | null,
+): string {
+	return `${firstName ?? ''} ${lastName ?? ''}`.trim();
+}
+
+/**
  * Builds payroll aggregates per employee for a calendar year.
  *
  * @param args - Aggregation inputs
@@ -277,6 +291,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			const employees = await db
 				.select({
 					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
 					status: employee.status,
 					hireDate: employee.hireDate,
 					terminationDateKey: employee.terminationDateKey,
@@ -337,6 +353,16 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				smgDailyOverride: body.smgDailyOverride ?? null,
 				employees: inputs,
 			});
+			const employeeNamesById = new Map(
+				employees.map((row) => [
+					row.id,
+					buildEmployeeDisplayName(row.firstName, row.lastName),
+				]),
+			);
+			const calculationEmployees = calculation.employees.map((row) => ({
+				...row,
+				employeeName: employeeNamesById.get(row.employeeId) ?? row.employeeId,
+			}));
 
 			return {
 				data: {
@@ -360,7 +386,7 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 						createdAt: new Date(),
 						updatedAt: new Date(),
 					},
-					employees: calculation.employees,
+					employees: calculationEmployees,
 					warnings: calculation.warnings,
 				},
 			};
@@ -446,6 +472,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			const employees = await db
 				.select({
 					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
 					status: employee.status,
 					hireDate: employee.hireDate,
 					terminationDateKey: employee.terminationDateKey,
@@ -506,6 +534,16 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				smgDailyOverride: body.smgDailyOverride ?? null,
 				employees: inputs,
 			});
+			const employeeNamesById = new Map(
+				employees.map((row) => [
+					row.id,
+					buildEmployeeDisplayName(row.firstName, row.lastName),
+				]),
+			);
+			const calculationEmployees = calculation.employees.map((row) => ({
+				...row,
+				employeeName: employeeNamesById.get(row.employeeId) ?? row.employeeId,
+			}));
 
 			const runId = crypto.randomUUID();
 			await db.transaction(async (tx) => {
@@ -568,7 +606,7 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 						createdAt: new Date(),
 						updatedAt: new Date(),
 					},
-					employees: calculation.employees,
+					employees: calculationEmployees,
 					warnings: calculation.warnings,
 				},
 			};
@@ -673,6 +711,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			const employees = await db
 				.select({
 					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
 					status: employee.status,
 					hireDate: employee.hireDate,
 					terminationDateKey: employee.terminationDateKey,
@@ -730,6 +770,16 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				smgDailyOverride: body.smgDailyOverride ?? null,
 				employees: inputs,
 			});
+			const employeeNamesById = new Map(
+				employees.map((row) => [
+					row.id,
+					buildEmployeeDisplayName(row.firstName, row.lastName),
+				]),
+			);
+			const calculationEmployees = calculation.employees.map((row) => ({
+				...row,
+				employeeName: employeeNamesById.get(row.employeeId) ?? row.employeeId,
+			}));
 
 			await db.transaction(async (tx) => {
 				await tx
@@ -786,7 +836,7 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 							aguinaldoDays: setting?.aguinaldoDays ?? 15,
 						},
 					},
-					employees: calculation.employees,
+					employees: calculationEmployees,
 					warnings: calculation.warnings,
 				},
 			};

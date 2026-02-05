@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { eq } from 'drizzle-orm';
 
@@ -97,6 +98,65 @@ async function setPtuRunTotalAmount(runId: string, totalAmount: number): Promise
 }
 
 /**
+ * Seeds processed payroll runs that cross the fiscal-year boundary.
+ *
+ * @param organizationId - Organization identifier
+ * @param employeeId - Employee identifier
+ * @returns Nothing
+ */
+async function seedCrossFiscalYearPayrollRuns(
+	organizationId: string,
+	employeeId: string,
+): Promise<void> {
+	const [{ default: db }, { payrollRun, payrollRunEmployee }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+
+	const crossRunId = crypto.randomUUID();
+	await db.insert(payrollRun).values({
+		id: crossRunId,
+		organizationId,
+		periodStart: new Date('2097-12-26T00:00:00.000Z'),
+		periodEnd: new Date('2098-01-02T23:59:59.000Z'),
+		paymentFrequency: 'WEEKLY',
+		status: 'PROCESSED',
+		totalAmount: '800.00',
+		employeeCount: 1,
+		processedAt: new Date('2098-01-03T00:00:00.000Z'),
+	});
+	await db.insert(payrollRunEmployee).values({
+		payrollRunId: crossRunId,
+		employeeId,
+		totalPay: '800.00',
+		taxBreakdown: { grossPay: 800 },
+		periodStart: new Date('2097-12-26T00:00:00.000Z'),
+		periodEnd: new Date('2098-01-02T23:59:59.000Z'),
+	});
+
+	const inYearRunId = crypto.randomUUID();
+	await db.insert(payrollRun).values({
+		id: inYearRunId,
+		organizationId,
+		periodStart: new Date('2098-06-01T00:00:00.000Z'),
+		periodEnd: new Date('2098-06-01T23:59:59.000Z'),
+		paymentFrequency: 'WEEKLY',
+		status: 'PROCESSED',
+		totalAmount: '1000.00',
+		employeeCount: 1,
+		processedAt: new Date('2098-06-02T00:00:00.000Z'),
+	});
+	await db.insert(payrollRunEmployee).values({
+		payrollRunId: inYearRunId,
+		employeeId,
+		totalPay: '1000.00',
+		taxBreakdown: { grossPay: 1000 },
+		periodStart: new Date('2098-06-01T00:00:00.000Z'),
+		periodEnd: new Date('2098-06-01T23:59:59.000Z'),
+	});
+}
+
+/**
  * Updates PTU settings for the active organization.
  *
  * @param client - API test client
@@ -152,6 +212,35 @@ describe('ptu routes (contract)', () => {
 			throw new Error('Expected PTU calculation payload.');
 		}
 		expect(data.run.fiscalYear).toBe(2026);
+	});
+
+	it('prorates cross-year payroll runs when building PTU aggregates', async () => {
+		await seedCrossFiscalYearPayrollRuns(seed.organizationId, seed.employeeId);
+
+		const response = await client.ptu.calculate.post({
+			fiscalYear: 2098,
+			paymentDateKey: '2098-05-15',
+			taxableIncome: 100000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [{ employeeId: seed.employeeId }],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const data = payload.data as
+			| {
+					employees?: Array<{
+						employeeId?: string;
+						daysCounted?: number;
+					}>;
+			  }
+			| undefined;
+		const employeeRow = data?.employees?.find((row) => row.employeeId === seed.employeeId);
+		if (!employeeRow) {
+			throw new Error('Expected PTU employee row for cross-year proration validation.');
+		}
+		expect(Number(employeeRow.daysCounted ?? 0)).toBe(3);
 	});
 
 	it('creates and updates PTU runs', async () => {

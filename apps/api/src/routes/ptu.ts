@@ -219,8 +219,12 @@ async function loadPtuHistory(args: {
 
 	const map = new Map<string, number[]>();
 	for (const row of rows) {
+		const amount = Number(row.amount ?? 0);
+		if (!Number.isFinite(amount) || amount <= 0) {
+			continue;
+		}
 		const values = map.get(row.employeeId) ?? [];
-		values.push(Number(row.amount ?? 0));
+		values.push(amount);
 		map.set(row.employeeId, values);
 	}
 	return map;
@@ -919,22 +923,31 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 					.set({ status: 'PROCESSED', processedAt: new Date() })
 					.where(eq(ptuRun.id, id));
 				const runEmployees = await tx
-					.select({ employeeId: ptuRunEmployee.employeeId, ptuFinal: ptuRunEmployee.ptuFinal })
+					.select({
+						employeeId: ptuRunEmployee.employeeId,
+						ptuFinal: ptuRunEmployee.ptuFinal,
+						isEligible: ptuRunEmployee.isEligible,
+					})
 					.from(ptuRunEmployee)
 					.where(eq(ptuRunEmployee.ptuRunId, id));
 				for (const row of runEmployees) {
+					const amount = Number(row.ptuFinal ?? 0);
+					if (!row.isEligible || !Number.isFinite(amount) || amount <= 0) {
+						continue;
+					}
+					const amountValue = amount.toFixed(2);
 					await tx
 						.insert(ptuHistory)
 						.values({
 							organizationId,
 							employeeId: row.employeeId,
 							fiscalYear: runRecord.fiscalYear,
-							amount: Number(row.ptuFinal ?? 0).toFixed(2),
+							amount: amountValue,
 						})
 						.onConflictDoUpdate({
 							target: [ptuHistory.employeeId, ptuHistory.fiscalYear],
 							set: {
-								amount: Number(row.ptuFinal ?? 0).toFixed(2),
+								amount: amountValue,
 								updatedAt: new Date(),
 							},
 						});

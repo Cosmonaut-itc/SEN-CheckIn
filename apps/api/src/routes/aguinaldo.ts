@@ -90,6 +90,28 @@ function resolveGrossPay(taxBreakdown: unknown, totalPay: number): number {
 }
 
 /**
+ * Resolves daily salary base for Aguinaldo using payroll averages with daily pay fallback.
+ *
+ * @param args - Resolution inputs
+ * @param args.aggregate - Yearly payroll aggregation for employee
+ * @param args.dailyPay - Employee daily pay
+ * @returns Daily salary base value
+ */
+function resolveAguinaldoDailySalaryBase(args: {
+	aggregate?: EmployeePayrollAggregation;
+	dailyPay: number;
+}): number {
+	const safeDailyPay = Number.isFinite(args.dailyPay) ? Math.max(0, args.dailyPay) : 0;
+	if (args.aggregate && args.aggregate.totalDays > 0) {
+		const averageDaily = args.aggregate.totalGrossPay / args.aggregate.totalDays;
+		if (Number.isFinite(averageDaily) && averageDaily > 0) {
+			return averageDaily;
+		}
+	}
+	return safeDailyPay;
+}
+
+/**
  * Builds payroll aggregates per employee for a calendar year.
  *
  * @param args - Aggregation inputs
@@ -268,7 +290,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				const aggregate = byEmployee.get(row.id);
 				const latest = latestPayroll.get(row.id);
 				const override = overridesByEmployee.get(row.id);
-				const fallbackMonthlyIncome = Number(row.dailyPay ?? 0) * 30.4;
+				const dailyPay = Number(row.dailyPay ?? 0);
+				const fallbackMonthlyIncome = dailyPay * 30.4;
 				const hireDateKey = row.hireDate ? toDateKeyUtc(row.hireDate) : null;
 				const startKey = hireDateKey && hireDateKey > yearStartKey ? hireDateKey : yearStartKey;
 				const endKey =
@@ -279,10 +302,10 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				const endDate = new Date(`${endKey}T00:00:00Z`);
 				const daysCounted =
 					startKey <= endKey ? getInclusiveDayCount(startDate, endDate) : 0;
-				const dailySalaryBase =
-					aggregate && aggregate.totalDays > 0
-						? aggregate.totalGrossPay / aggregate.totalDays
-						: 0;
+				const dailySalaryBase = resolveAguinaldoDailySalaryBase({
+					aggregate,
+					dailyPay,
+				});
 				const basePolicy = row.aguinaldoDaysOverride ?? Number(setting?.aguinaldoDays ?? 15);
 				const aguinaldoDaysPolicy = override?.aguinaldoDaysPolicy ?? basePolicy;
 				return {
@@ -436,7 +459,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				const aggregate = byEmployee.get(row.id);
 				const latest = latestPayroll.get(row.id);
 				const override = overridesByEmployee.get(row.id);
-				const fallbackMonthlyIncome = Number(row.dailyPay ?? 0) * 30.4;
+				const dailyPay = Number(row.dailyPay ?? 0);
+				const fallbackMonthlyIncome = dailyPay * 30.4;
 				const hireDateKey = row.hireDate ? toDateKeyUtc(row.hireDate) : null;
 				const startKey = hireDateKey && hireDateKey > yearStartKey ? hireDateKey : yearStartKey;
 				const endKey =
@@ -447,10 +471,10 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				const endDate = new Date(`${endKey}T00:00:00Z`);
 				const daysCounted =
 					startKey <= endKey ? getInclusiveDayCount(startDate, endDate) : 0;
-				const dailySalaryBase =
-					aggregate && aggregate.totalDays > 0
-						? aggregate.totalGrossPay / aggregate.totalDays
-						: 0;
+				const dailySalaryBase = resolveAguinaldoDailySalaryBase({
+					aggregate,
+					dailyPay,
+				});
 				const basePolicy = row.aguinaldoDaysOverride ?? Number(setting?.aguinaldoDays ?? 15);
 				const aguinaldoDaysPolicy = override?.aguinaldoDaysPolicy ?? basePolicy;
 				return {
@@ -659,7 +683,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				const aggregate = byEmployee.get(row.id);
 				const latest = latestPayroll.get(row.id);
 				const override = overridesByEmployee.get(row.id);
-				const fallbackMonthlyIncome = Number(row.dailyPay ?? 0) * 30.4;
+				const dailyPay = Number(row.dailyPay ?? 0);
+				const fallbackMonthlyIncome = dailyPay * 30.4;
 				const hireDateKey = row.hireDate ? toDateKeyUtc(row.hireDate) : null;
 				const startKey = hireDateKey && hireDateKey > yearStartKey ? hireDateKey : yearStartKey;
 				const endKey =
@@ -670,10 +695,10 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				const endDate = new Date(`${endKey}T00:00:00Z`);
 				const daysCounted =
 					startKey <= endKey ? getInclusiveDayCount(startDate, endDate) : 0;
-				const dailySalaryBase =
-					aggregate && aggregate.totalDays > 0
-						? aggregate.totalGrossPay / aggregate.totalDays
-						: 0;
+				const dailySalaryBase = resolveAguinaldoDailySalaryBase({
+					aggregate,
+					dailyPay,
+				});
 				const basePolicy = row.aguinaldoDaysOverride ?? Number(setting?.aguinaldoDays ?? 15);
 				const aguinaldoDaysPolicy = override?.aguinaldoDaysPolicy ?? basePolicy;
 				return {

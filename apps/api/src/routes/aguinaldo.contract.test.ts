@@ -147,6 +147,37 @@ describe('aguinaldo routes (contract)', () => {
 		expect(data.run.calendarYear).toBe(2026);
 	});
 
+	it('uses daily pay fallback when no payroll average exists for the year', async () => {
+		const response = await client.aguinaldo.calculate.post({
+			calendarYear: 2099,
+			paymentDateKey: '2099-12-15',
+			smgDailyOverride: 300,
+			employeeOverrides: [
+				{
+					employeeId: seed.employeeId,
+					daysCounted: 365,
+				},
+			],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const data = payload.data as
+			| {
+					employees?: Array<{
+						employeeId?: string;
+						dailySalaryBase?: number;
+					}>;
+			  }
+			| undefined;
+		const employeeRow = data?.employees?.find((row) => row.employeeId === seed.employeeId);
+		if (!employeeRow) {
+			throw new Error('Expected aguinaldo employee row for fallback validation.');
+		}
+		expect(Number(employeeRow.dailySalaryBase ?? 0)).toBeGreaterThan(0);
+	});
+
 	it('creates and updates aguinaldo runs', async () => {
 		const createResponse = await client.aguinaldo.runs.post({
 			calendarYear: 2025,

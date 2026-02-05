@@ -224,7 +224,17 @@ describe('employee routes (contract)', () => {
 
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
-		const employeeRecord = payload.data;
+		const employeeRecord = payload.data as {
+			department?: string | null;
+			nss?: string | null;
+			rfc?: string | null;
+			employmentType?: string | null;
+			isTrustEmployee?: boolean | null;
+			isPlatformWorker?: boolean | null;
+			platformHoursYear?: number | string | null;
+			ptuEligibilityOverride?: string | null;
+			aguinaldoDaysOverride?: number | null;
+		};
 		if (!employeeRecord) {
 			throw new Error('Expected employee record in update response.');
 		}
@@ -234,7 +244,7 @@ describe('employee routes (contract)', () => {
 		expect(employeeRecord.employmentType).toBe('PERMANENT');
 		expect(employeeRecord.isTrustEmployee).toBe(true);
 		expect(employeeRecord.isPlatformWorker).toBe(true);
-		expect(Number(employeeRecord.platformHoursYear)).toBe(320);
+		expect(Number(employeeRecord.platformHoursYear ?? 0)).toBe(320);
 		expect(employeeRecord.ptuEligibilityOverride).toBe('INCLUDE');
 		expect(employeeRecord.aguinaldoDaysOverride).toBe(20);
 	});

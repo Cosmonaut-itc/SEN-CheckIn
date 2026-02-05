@@ -54,7 +54,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			}
 
 			// Create a default configuration if none exists
-			const defaultSetting = {
+			const defaultSetting: typeof payrollSetting.$inferInsert = {
 				organizationId,
 				weekStartDay: 1,
 				timeZone: 'America/Mexico_City',

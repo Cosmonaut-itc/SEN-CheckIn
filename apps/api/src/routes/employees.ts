@@ -1659,15 +1659,21 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
+			if (!employeeRecord.organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+
 			const amountValue = Number(body.amount ?? 0);
+			const insertPayload: typeof ptuHistory.$inferInsert = {
+				organizationId: employeeRecord.organizationId,
+				employeeId: id,
+				fiscalYear: body.fiscalYear,
+				amount: amountValue.toFixed(2),
+			};
 			await db
 				.insert(ptuHistory)
-				.values({
-					organizationId: employeeRecord.organizationId,
-					employeeId: id,
-					fiscalYear: body.fiscalYear,
-					amount: amountValue.toFixed(2),
-				})
+				.values(insertPayload)
 				.onConflictDoUpdate({
 					target: [ptuHistory.employeeId, ptuHistory.fiscalYear],
 					set: {
@@ -1749,15 +1755,21 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 
+			if (!employeeRecord.organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+
 			const amountValue = Number(body.amount ?? 0);
+			const insertPayload: typeof ptuHistory.$inferInsert = {
+				organizationId: employeeRecord.organizationId,
+				employeeId: id,
+				fiscalYear: body.fiscalYear,
+				amount: amountValue.toFixed(2),
+			};
 			await db
 				.insert(ptuHistory)
-				.values({
-					organizationId: employeeRecord.organizationId,
-					employeeId: id,
-					fiscalYear: body.fiscalYear,
-					amount: amountValue.toFixed(2),
-				})
+				.values(insertPayload)
 				.onConflictDoUpdate({
 					target: [ptuHistory.employeeId, ptuHistory.fiscalYear],
 					set: {
@@ -2435,17 +2447,19 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Extract schedule updates separately to avoid passing to employee table
-			const {
-				schedule,
-				scheduleTemplateId,
-				sbcDailyOverride,
-				userId: userIdInput,
-				code: _code,
-				dailyPay: dailyPayInput,
-				nss,
-				rfc,
-				...employeeUpdate
-			} = body;
+				const {
+					schedule,
+					scheduleTemplateId,
+					sbcDailyOverride,
+					userId: userIdInput,
+					code: _code,
+					dailyPay: dailyPayInput,
+					nss,
+					rfc,
+					platformHoursYear,
+					aguinaldoDaysOverride,
+					...employeeUpdate
+				} = body;
 			void _code;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
@@ -2506,37 +2520,37 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				updatePayload.dailyPay = normalizedDailyPay.toFixed(2);
 			}
 
-			if (body.aguinaldoDaysOverride !== undefined) {
-				if (body.aguinaldoDaysOverride === null) {
-					updatePayload.aguinaldoDaysOverride = null;
-				} else {
-					const payrollSettingsRows = await db
-						.select({ aguinaldoDays: payrollSetting.aguinaldoDays })
-						.from(payrollSetting)
-						.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
-						.limit(1);
-					const policyDays = Number(payrollSettingsRows[0]?.aguinaldoDays ?? 15);
-					if (body.aguinaldoDaysOverride < 15 || body.aguinaldoDaysOverride < policyDays) {
-						set.status = 400;
-						return buildErrorResponse(
-							'Aguinaldo override must be at least the policy value and >= 15',
-							400,
-							{
-								code: 'AGUINALDO_OVERRIDE_INVALID',
-								details: { policyDays },
-							},
-						);
+				if (aguinaldoDaysOverride !== undefined) {
+					if (aguinaldoDaysOverride === null) {
+						updatePayload.aguinaldoDaysOverride = null;
+					} else {
+						const payrollSettingsRows = await db
+							.select({ aguinaldoDays: payrollSetting.aguinaldoDays })
+							.from(payrollSetting)
+							.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
+							.limit(1);
+						const policyDays = Number(payrollSettingsRows[0]?.aguinaldoDays ?? 15);
+						if (aguinaldoDaysOverride < 15 || aguinaldoDaysOverride < policyDays) {
+							set.status = 400;
+							return buildErrorResponse(
+								'Aguinaldo override must be at least the policy value and >= 15',
+								400,
+								{
+									code: 'AGUINALDO_OVERRIDE_INVALID',
+									details: { policyDays },
+								},
+							);
+						}
+						updatePayload.aguinaldoDaysOverride = aguinaldoDaysOverride;
 					}
-					updatePayload.aguinaldoDaysOverride = body.aguinaldoDaysOverride;
 				}
-			}
 
-			if (body.platformHoursYear !== undefined) {
-				updatePayload.platformHoursYear =
-					body.platformHoursYear === null
-						? '0'
-						: Number(body.platformHoursYear).toFixed(2);
-			}
+				if (platformHoursYear !== undefined) {
+					updatePayload.platformHoursYear =
+						platformHoursYear === null
+							? '0'
+							: Number(platformHoursYear).toFixed(2);
+				}
 
 			if (sbcDailyOverride !== undefined) {
 				updatePayload.sbcDailyOverride =
@@ -2611,6 +2625,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						hireDate: employee.hireDate,
 						dailyPay: employee.dailyPay,
 						paymentFrequency: employee.paymentFrequency,
+						employmentType: employee.employmentType,
+						isTrustEmployee: employee.isTrustEmployee,
+						isDirectorAdminGeneralManager: employee.isDirectorAdminGeneralManager,
+						isDomesticWorker: employee.isDomesticWorker,
+						isPlatformWorker: employee.isPlatformWorker,
+						platformHoursYear: employee.platformHoursYear,
+						ptuEligibilityOverride: employee.ptuEligibilityOverride,
+						aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 						sbcDailyOverride: employee.sbcDailyOverride,
 						locationId: employee.locationId,
 						organizationId: employee.organizationId,

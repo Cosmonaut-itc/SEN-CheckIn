@@ -174,6 +174,13 @@ export function calculateAguinaldo(
 				employee.aguinaldoDaysPolicy *
 				(employee.yearDays > 0 ? employee.daysCounted / employee.yearDays : 0),
 		);
+		const fallbackTax: ExtraPaymentTaxBreakdown = {
+			exemptAmount: 0,
+			taxableAmount: 0,
+			withheldIsr: 0,
+			netAmount: 0,
+			withholdingMethod: 'RLISR_174',
+		};
 		const tax = isEligible && employeeWarnings.every((w) => w.severity !== 'error')
 			? calculateExtraPaymentTaxes({
 					grossAmount,
@@ -182,13 +189,7 @@ export function calculateAguinaldo(
 					paymentDateKey: input.paymentDateKey,
 					ordinaryMonthlyIncome: employee.ordinaryMonthlyIncome,
 				})
-			: {
-				exemptAmount: 0,
-				taxableAmount: 0,
-				withheldIsr: 0,
-				netAmount: 0,
-				withholdingMethod: 'RLISR_174',
-			};
+			: fallbackTax;
 
 		return {
 			employeeId: employee.employeeId,

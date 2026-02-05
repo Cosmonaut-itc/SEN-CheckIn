@@ -18,7 +18,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from '@/components/ui/card';
 import {
 	Dialog,
 	DialogContent,
@@ -839,6 +845,7 @@ const statusVariants: Record<EmployeeStatus, 'default' | 'secondary' | 'outline'
 
 const EMPTY_LOCATIONS: Location[] = [];
 const EMPTY_MEMBERS: OrganizationMember[] = [];
+const EMPTY_EMPLOYEES: Employee[] = [];
 
 /**
  * Employees page client component.
@@ -956,7 +963,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 
-	const employees = data?.data ?? [];
+	const employees = useMemo(() => data?.data ?? EMPTY_EMPLOYEES, [data?.data]);
 	const totalRows = data?.pagination.total ?? 0;
 	const selectedEmployeeIds = useMemo(
 		() =>
@@ -1290,17 +1297,19 @@ export function EmployeesPageClient(): React.ReactElement {
 		}
 
 		const results = await Promise.all(
-			selectedEmployees.map((employee) => {
-				if (!employee.locationId) {
-					return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
-				}
-				return updateEmployee({
-					id: employee.id,
-					status: employee.status,
-					locationId: employee.locationId,
-					...updates,
-				});
-			}),
+				selectedEmployees.map((employee) => {
+					if (!employee.locationId) {
+						return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
+					}
+					return updateEmployee({
+						id: employee.id,
+						firstName: employee.firstName,
+						lastName: employee.lastName,
+						status: employee.status,
+						locationId: employee.locationId,
+						...updates,
+					});
+				}),
 		);
 
 		const failures = results.filter((result) => !result.success);
@@ -1327,40 +1336,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		queryClient,
 		selectedEmployees,
 		setBulkEditValues,
-		t,
-	]);
-
-	/**
-	 * Saves a PTU history entry for the active employee.
-	 *
-	 * @returns Promise<void>
-	 */
-	const handlePtuHistorySave = useCallback(async (): Promise<void> => {
-		if (!activeEmployee) {
-			return;
-		}
-		const fiscalYear = Number(ptuHistoryYearInput.trim());
-		if (!Number.isInteger(fiscalYear) || fiscalYear < 2000) {
-			toast.error(t('ptuHistory.validation.year'));
-			return;
-		}
-		const amount = Number(ptuHistoryAmountInput.trim());
-		if (!Number.isFinite(amount) || amount < 0) {
-			toast.error(t('ptuHistory.validation.amount'));
-			return;
-		}
-		await ptuHistoryMutation.mutateAsync({
-			employeeId: activeEmployee.id,
-			fiscalYear,
-			amount,
-		});
-		setPtuHistoryYearInput('');
-		setPtuHistoryAmountInput('');
-	}, [
-		activeEmployee,
-		ptuHistoryAmountInput,
-		ptuHistoryMutation,
-		ptuHistoryYearInput,
 		t,
 	]);
 
@@ -1628,6 +1603,40 @@ export function EmployeesPageClient(): React.ReactElement {
 			toast.error(t('ptuHistory.toast.saveError'));
 		},
 	});
+
+	/**
+	 * Saves a PTU history entry for the active employee.
+	 *
+	 * @returns Promise<void>
+	 */
+	const handlePtuHistorySave = useCallback(async (): Promise<void> => {
+		if (!activeEmployee) {
+			return;
+		}
+		const fiscalYear = Number(ptuHistoryYearInput.trim());
+		if (!Number.isInteger(fiscalYear) || fiscalYear < 2000) {
+			toast.error(t('ptuHistory.validation.year'));
+			return;
+		}
+		const amount = Number(ptuHistoryAmountInput.trim());
+		if (!Number.isFinite(amount) || amount < 0) {
+			toast.error(t('ptuHistory.validation.amount'));
+			return;
+		}
+		await ptuHistoryMutation.mutateAsync({
+			employeeId: activeEmployee.id,
+			fiscalYear,
+			amount,
+		});
+		setPtuHistoryYearInput('');
+		setPtuHistoryAmountInput('');
+	}, [
+		activeEmployee,
+		ptuHistoryAmountInput,
+		ptuHistoryMutation,
+		ptuHistoryYearInput,
+		t,
+	]);
 
 	// Delete mutation
 	const deleteMutation = useMutation({

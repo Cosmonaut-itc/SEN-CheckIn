@@ -50,6 +50,7 @@ async function updatePtuSettings(
 	isExempt = false,
 ): Promise<void> {
 	const response = await client['payroll-settings'].put({
+		weekStartDay: 1,
 		ptuEnabled: enabled,
 		ptuMode: 'DEFAULT_RULES',
 		ptuIsExempt: isExempt,
@@ -166,7 +167,8 @@ describe('ptu routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(csvResponse.status).toBe(200);
-		const contentType = csvResponse.headers.get('content-type');
+		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
+		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
 	});
 

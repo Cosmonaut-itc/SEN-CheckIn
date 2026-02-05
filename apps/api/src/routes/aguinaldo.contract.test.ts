@@ -48,6 +48,7 @@ async function updateAguinaldoSettings(
 	enabled: boolean,
 ): Promise<void> {
 	const response = await client['payroll-settings'].put({
+		weekStartDay: 1,
 		aguinaldoEnabled: enabled,
 		$headers: { cookie: cookieHeader },
 	});
@@ -109,7 +110,8 @@ describe('aguinaldo routes (contract)', () => {
 
 		expect(updateResponse.status).toBe(200);
 		const updatePayload = requireResponseData(updateResponse);
-		const updatedRun = (updatePayload.data as { run?: { paymentDate?: string } }).run;
+		const updatedRun = (updatePayload.data as unknown as { run?: { paymentDate?: Date | string } })
+			.run;
 		if (!updatedRun) {
 			throw new Error('Expected aguinaldo run in update response.');
 		}
@@ -154,7 +156,8 @@ describe('aguinaldo routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(csvResponse.status).toBe(200);
-		const contentType = csvResponse.headers.get('content-type');
+		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
+		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
 	});
 

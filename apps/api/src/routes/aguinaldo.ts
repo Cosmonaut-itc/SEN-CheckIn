@@ -506,7 +506,7 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 						taxableAmount: row.tax.taxableAmount.toFixed(2),
 						withheldIsr: row.tax.withheldIsr.toFixed(2),
 						netAmount: row.tax.netAmount.toFixed(2),
-						warnings: row.warnings,
+						warnings: row.warnings as unknown as Record<string, unknown>[],
 					}));
 					await tx.insert(aguinaldoRunEmployee).values(rows);
 				}
@@ -711,7 +711,7 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 						taxableAmount: row.tax.taxableAmount.toFixed(2),
 						withheldIsr: row.tax.withheldIsr.toFixed(2),
 						netAmount: row.tax.netAmount.toFixed(2),
-						warnings: row.warnings,
+						warnings: row.warnings as unknown as Record<string, unknown>[],
 					}));
 					await tx.insert(aguinaldoRunEmployee).values(rows);
 				}
@@ -795,9 +795,8 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 					(entry) =>
 						entry &&
 						typeof entry === 'object' &&
-						(entry as { severity?: string }).severity === 'error',
-					),
-				),
+						(entry as { severity?: string }).severity === 'error'
+				)
 			);
 			if (hasErrors) {
 				set.status = 409;
@@ -815,7 +814,7 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 				.where(eq(aguinaldoRun.id, id));
 
 			return { data: { success: true } };
-		},
+		}
 	)
 	.post(
 		'/runs/:id/cancel',

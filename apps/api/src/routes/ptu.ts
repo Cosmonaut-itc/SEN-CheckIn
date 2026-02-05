@@ -565,7 +565,7 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 						taxableAmount: row.tax.taxableAmount.toFixed(2),
 						withheldIsr: row.tax.withheldIsr.toFixed(2),
 						netAmount: row.tax.netAmount.toFixed(2),
-						warnings: row.warnings,
+						warnings: row.warnings as unknown as Record<string, unknown>[],
 					}));
 					await tx.insert(ptuRunEmployee).values(rows);
 				}
@@ -771,7 +771,7 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 						taxableAmount: row.tax.taxableAmount.toFixed(2),
 						withheldIsr: row.tax.withheldIsr.toFixed(2),
 						netAmount: row.tax.netAmount.toFixed(2),
-						warnings: row.warnings,
+						warnings: row.warnings as unknown as Record<string, unknown>[],
 					}));
 					await tx.insert(ptuRunEmployee).values(rows);
 				}
@@ -868,9 +868,8 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 					(entry) =>
 						entry &&
 						typeof entry === 'object' &&
-						(entry as { severity?: string }).severity === 'error',
-					),
-				),
+						(entry as { severity?: string }).severity === 'error'
+				)
 			);
 			if (hasErrors) {
 				set.status = 409;
@@ -911,7 +910,7 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			});
 
 			return { data: { success: true } };
-		},
+		}
 	)
 	.post(
 		'/runs/:id/cancel',

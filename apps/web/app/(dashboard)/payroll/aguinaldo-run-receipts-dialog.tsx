@@ -1,4 +1,3 @@
-/* eslint-disable react/no-array-index-key -- Skeleton rows use index-only keys. */
 'use client';
 
 import { useQuery } from '@tanstack/react-query';

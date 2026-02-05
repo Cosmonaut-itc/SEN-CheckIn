@@ -299,13 +299,18 @@ export async function authedFetch(input: RequestInfo | URL, init?: RequestInit):
 		Origin: AUTH_ORIGIN,
 	};
 
-	// Add Bearer token if available (from device authorization flow)
+	// Add Bearer token only when expiry is unknown or not yet expired.
 	const accessToken = getAccessToken();
-	if (accessToken) {
+	const expiresAt = getAccessTokenExpiresAt();
+	const hasExpiry = typeof expiresAt === 'number';
+	const isExpired = hasExpiry && expiresAt <= Date.now();
+	const shouldAttachToken = Boolean(accessToken) && (!hasExpiry || !isExpired);
+
+	if (shouldAttachToken && accessToken) {
 		headers.Authorization = `Bearer ${accessToken}`;
 		console.log('[authedFetch] Including Bearer token in request');
 	} else {
-		console.warn('[authedFetch] No access token available for request');
+		console.warn('[authedFetch] No valid access token available for request');
 	}
 
 	// Merge headers: our auth headers first, then caller's headers

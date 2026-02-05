@@ -905,10 +905,14 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			}
 
 			const employeeRows = await db
-				.select({ warnings: ptuRunEmployee.warnings })
+				.select({
+					isEligible: ptuRunEmployee.isEligible,
+					warnings: ptuRunEmployee.warnings,
+				})
 				.from(ptuRunEmployee)
 				.where(eq(ptuRunEmployee.ptuRunId, id));
 			const hasErrors = employeeRows.some((row) =>
+				row.isEligible &&
 				(Array.isArray(row.warnings) ? row.warnings : []).some(
 					(entry) =>
 						entry &&

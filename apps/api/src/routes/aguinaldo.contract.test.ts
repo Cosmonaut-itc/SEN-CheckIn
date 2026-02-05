@@ -53,6 +53,50 @@ async function markAguinaldoRunProcessed(runId: string): Promise<void> {
 }
 
 /**
+ * Marks all aguinaldo run employees as ineligible and attaches an error warning.
+ *
+ * @param runId - Aguinaldo run identifier
+ * @returns Nothing
+ */
+async function markAguinaldoRunEmployeesIneligibleWithError(runId: string): Promise<void> {
+	const [{ default: db }, { aguinaldoRunEmployee }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	await db
+		.update(aguinaldoRunEmployee)
+		.set({
+			isEligible: false,
+			warnings: [
+				{
+					type: 'TEST_INELIGIBLE_ERROR',
+					message: 'Error de prueba en empleado ineligible',
+					severity: 'error',
+				},
+			] as unknown as Record<string, unknown>[],
+		})
+		.where(eq(aguinaldoRunEmployee.aguinaldoRunId, runId));
+}
+
+/**
+ * Overrides aguinaldo run total amount directly in the test database.
+ *
+ * @param runId - Aguinaldo run identifier
+ * @param totalAmount - Total amount value
+ * @returns Nothing
+ */
+async function setAguinaldoRunTotalAmount(runId: string, totalAmount: number): Promise<void> {
+	const [{ default: db }, { aguinaldoRun }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	await db
+		.update(aguinaldoRun)
+		.set({ totalAmount: totalAmount.toFixed(2) })
+		.where(eq(aguinaldoRun.id, runId));
+}
+
+/**
  * Updates aguinaldo settings for the active organization.
  *
  * @param client - API test client
@@ -221,6 +265,30 @@ describe('aguinaldo routes (contract)', () => {
 		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
 		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
+	});
+
+	it('processes aguinaldo when only ineligible employees have error warnings', async () => {
+		const createResponse = await client.aguinaldo.runs.post({
+			calendarYear: 2044,
+			paymentDateKey: '2044-12-15',
+			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(200);
+		const createPayload = requireResponseData(createResponse);
+		const run = (createPayload.data as { run?: { id?: string } }).run;
+		if (!run?.id) {
+			throw new Error('Expected aguinaldo run id in create response.');
+		}
+		await markAguinaldoRunEmployeesIneligibleWithError(run.id);
+		await setAguinaldoRunTotalAmount(run.id, 100);
+
+		const runRoutes = requireRoute(client.aguinaldo.runs[run.id], 'Aguinaldo run route');
+		const processRoute = requireRoute(runRoutes.process, 'Aguinaldo process route');
+		const processResponse = await processRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(processResponse.status).toBe(200);
 	});
 
 	it('blocks processing aguinaldo when another run is already processed for the same calendar year', async () => {

@@ -825,10 +825,14 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			}
 
 			const employeeRows = await db
-				.select({ warnings: aguinaldoRunEmployee.warnings })
+				.select({
+					isEligible: aguinaldoRunEmployee.isEligible,
+					warnings: aguinaldoRunEmployee.warnings,
+				})
 				.from(aguinaldoRunEmployee)
 				.where(eq(aguinaldoRunEmployee.aguinaldoRunId, id));
 			const hasErrors = employeeRows.some((row) =>
+				row.isEligible &&
 				(Array.isArray(row.warnings) ? row.warnings : []).some(
 					(entry) =>
 						entry &&

@@ -53,6 +53,50 @@ async function markPtuRunProcessed(runId: string): Promise<void> {
 }
 
 /**
+ * Marks all PTU run employees as ineligible and attaches an error warning.
+ *
+ * @param runId - PTU run identifier
+ * @returns Nothing
+ */
+async function markPtuRunEmployeesIneligibleWithError(runId: string): Promise<void> {
+	const [{ default: db }, { ptuRunEmployee }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	await db
+		.update(ptuRunEmployee)
+		.set({
+			isEligible: false,
+			warnings: [
+				{
+					type: 'TEST_INELIGIBLE_ERROR',
+					message: 'Error de prueba en empleado ineligible',
+					severity: 'error',
+				},
+			] as unknown as Record<string, unknown>[],
+		})
+		.where(eq(ptuRunEmployee.ptuRunId, runId));
+}
+
+/**
+ * Overrides PTU run total amount directly in the test database.
+ *
+ * @param runId - PTU run identifier
+ * @param totalAmount - Total amount value
+ * @returns Nothing
+ */
+async function setPtuRunTotalAmount(runId: string, totalAmount: number): Promise<void> {
+	const [{ default: db }, { ptuRun }] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	await db
+		.update(ptuRun)
+		.set({ totalAmount: totalAmount.toFixed(2) })
+		.where(eq(ptuRun.id, runId));
+}
+
+/**
  * Updates PTU settings for the active organization.
  *
  * @param client - API test client
@@ -231,6 +275,32 @@ describe('ptu routes (contract)', () => {
 		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
 		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
+	});
+
+	it('processes PTU when only ineligible employees have error warnings', async () => {
+		const createResponse = await client.ptu.runs.post({
+			fiscalYear: 2044,
+			paymentDateKey: '2044-05-15',
+			taxableIncome: 210000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(200);
+		const createPayload = requireResponseData(createResponse);
+		const run = (createPayload.data as { run?: { id?: string } }).run;
+		if (!run?.id) {
+			throw new Error('Expected PTU run id in create response.');
+		}
+		await markPtuRunEmployeesIneligibleWithError(run.id);
+		await setPtuRunTotalAmount(run.id, 100);
+
+		const runRoutes = requireRoute(client.ptu.runs[run.id], 'PTU run route');
+		const processRoute = requireRoute(runRoutes.process, 'PTU process route');
+		const processResponse = await processRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(processResponse.status).toBe(200);
 	});
 
 	it('blocks processing PTU when another run is already processed for the same fiscal year', async () => {

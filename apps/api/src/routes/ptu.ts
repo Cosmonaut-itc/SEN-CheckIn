@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, desc, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 import { z } from 'zod';
 
 import db from '../db/index.js';
@@ -657,6 +657,22 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			const taxableIncome = body.taxableIncome ?? Number(runRecord.taxableIncome ?? 0);
 			const ptuPercentage = body.ptuPercentage ?? Number(runRecord.ptuPercentage ?? 0.1);
 			const includeInactive = body.includeInactive ?? runRecord.includeInactive ?? false;
+			const existingProcessed = await db
+				.select({ id: ptuRun.id })
+				.from(ptuRun)
+				.where(
+					and(
+						eq(ptuRun.organizationId, organizationId),
+						eq(ptuRun.fiscalYear, fiscalYear),
+						eq(ptuRun.status, 'PROCESSED'),
+						ne(ptuRun.id, id),
+					)!,
+				)
+				.limit(1);
+			if (existingProcessed[0]) {
+				set.status = 409;
+				return buildErrorResponse('PTU run already processed for this fiscal year', 409);
+			}
 
 			const employees = await db
 				.select({
@@ -879,6 +895,22 @@ export const ptuRoutes = new Elysia({ prefix: '/ptu' })
 			if (Number(runRecord.totalAmount ?? 0) <= 0) {
 				set.status = 409;
 				return buildErrorResponse('PTU total amount must be greater than 0', 409);
+			}
+			const existingProcessed = await db
+				.select({ id: ptuRun.id })
+				.from(ptuRun)
+				.where(
+					and(
+						eq(ptuRun.organizationId, organizationId),
+						eq(ptuRun.fiscalYear, runRecord.fiscalYear),
+						eq(ptuRun.status, 'PROCESSED'),
+						ne(ptuRun.id, id),
+					)!,
+				)
+				.limit(1);
+			if (existingProcessed[0]) {
+				set.status = 409;
+				return buildErrorResponse('PTU run already processed for this fiscal year', 409);
 			}
 
 			await db.transaction(async (tx) => {

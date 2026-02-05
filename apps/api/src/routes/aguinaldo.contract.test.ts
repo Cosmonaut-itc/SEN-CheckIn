@@ -118,6 +118,61 @@ describe('aguinaldo routes (contract)', () => {
 		expect(updatedRun.paymentDate).toBeDefined();
 	});
 
+	it('blocks moving an aguinaldo draft into an already processed calendar year', async () => {
+		const processedCreateResponse = await client.aguinaldo.runs.post({
+			calendarYear: 2031,
+			paymentDateKey: '2031-12-15',
+			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(processedCreateResponse.status).toBe(200);
+		const processedPayload = requireResponseData(processedCreateResponse);
+		const processedRun = (processedPayload.data as { run?: { id?: string } }).run;
+		if (!processedRun?.id) {
+			throw new Error('Expected processed aguinaldo run id in create response.');
+		}
+		const processedRunRoutes = requireRoute(
+			client.aguinaldo.runs[processedRun.id],
+			'Aguinaldo run route',
+		);
+		const processedRunProcessRoute = requireRoute(
+			processedRunRoutes.process,
+			'Aguinaldo process route',
+		);
+		const processResponse = await processedRunProcessRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(processResponse.status).toBe(200);
+
+		const draftCreateResponse = await client.aguinaldo.runs.post({
+			calendarYear: 2032,
+			paymentDateKey: '2032-12-15',
+			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(draftCreateResponse.status).toBe(200);
+		const draftPayload = requireResponseData(draftCreateResponse);
+		const draftRun = (draftPayload.data as { run?: { id?: string } }).run;
+		if (!draftRun?.id) {
+			throw new Error('Expected draft aguinaldo run id in create response.');
+		}
+		const draftRunRoutes = requireRoute(client.aguinaldo.runs[draftRun.id], 'Aguinaldo run route');
+		const updateResponse = await draftRunRoutes.put({
+			calendarYear: 2031,
+			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(
+			updateResponse,
+			'aguinaldo update processed year conflict',
+		);
+		expect(errorPayload.error.message).toBe(
+			'Aguinaldo run already processed for this calendar year',
+		);
+		expect(errorPayload.error.code).toBe('CONFLICT');
+	});
+
 	it('processes aguinaldo runs and returns details + CSV', async () => {
 		const createResponse = await client.aguinaldo.runs.post({
 			calendarYear: 2026,
@@ -159,6 +214,59 @@ describe('aguinaldo routes (contract)', () => {
 		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
 		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
+	});
+
+	it('blocks processing aguinaldo when another run is already processed for the same calendar year', async () => {
+		const firstDraftResponse = await client.aguinaldo.runs.post({
+			calendarYear: 2033,
+			paymentDateKey: '2033-12-15',
+			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstDraftResponse.status).toBe(200);
+		const firstDraftPayload = requireResponseData(firstDraftResponse);
+		const firstDraftRun = (firstDraftPayload.data as { run?: { id?: string } }).run;
+		if (!firstDraftRun?.id) {
+			throw new Error('Expected first draft aguinaldo run id in create response.');
+		}
+
+		const secondDraftResponse = await client.aguinaldo.runs.post({
+			calendarYear: 2033,
+			paymentDateKey: '2033-12-20',
+			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondDraftResponse.status).toBe(200);
+		const secondDraftPayload = requireResponseData(secondDraftResponse);
+		const secondDraftRun = (secondDraftPayload.data as { run?: { id?: string } }).run;
+		if (!secondDraftRun?.id) {
+			throw new Error('Expected second draft aguinaldo run id in create response.');
+		}
+
+		const firstRunRoutes = requireRoute(client.aguinaldo.runs[firstDraftRun.id], 'Aguinaldo run route');
+		const firstProcessRoute = requireRoute(firstRunRoutes.process, 'Aguinaldo process route');
+		const firstProcessResponse = await firstProcessRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstProcessResponse.status).toBe(200);
+
+		const secondRunRoutes = requireRoute(
+			client.aguinaldo.runs[secondDraftRun.id],
+			'Aguinaldo run route',
+		);
+		const secondProcessRoute = requireRoute(secondRunRoutes.process, 'Aguinaldo process route');
+		const secondProcessResponse = await secondProcessRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondProcessResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(
+			secondProcessResponse,
+			'aguinaldo process processed year conflict',
+		);
+		expect(errorPayload.error.message).toBe(
+			'Aguinaldo run already processed for this calendar year',
+		);
+		expect(errorPayload.error.code).toBe('CONFLICT');
 	});
 
 	it('lists aguinaldo runs', async () => {

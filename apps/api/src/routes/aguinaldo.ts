@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, ne } from 'drizzle-orm';
 import { z } from 'zod';
 
 import db from '../db/index.js';
@@ -616,6 +616,25 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			const yearDays = resolveYearDays(calendarYear);
 			const yearStartKey = `${calendarYear}-01-01`;
 			const yearEndKey = `${calendarYear}-12-31`;
+			const existingProcessed = await db
+				.select({ id: aguinaldoRun.id })
+				.from(aguinaldoRun)
+				.where(
+					and(
+						eq(aguinaldoRun.organizationId, organizationId),
+						eq(aguinaldoRun.calendarYear, calendarYear),
+						eq(aguinaldoRun.status, 'PROCESSED'),
+						ne(aguinaldoRun.id, id),
+					)!,
+				)
+				.limit(1);
+			if (existingProcessed[0]) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Aguinaldo run already processed for this calendar year',
+					409,
+				);
+			}
 
 			const employees = await db
 				.select({
@@ -806,6 +825,25 @@ export const aguinaldoRoutes = new Elysia({ prefix: '/aguinaldo' })
 			if (Number(runRecord.totalAmount ?? 0) <= 0) {
 				set.status = 409;
 				return buildErrorResponse('Aguinaldo total amount must be greater than 0', 409);
+			}
+			const existingProcessed = await db
+				.select({ id: aguinaldoRun.id })
+				.from(aguinaldoRun)
+				.where(
+					and(
+						eq(aguinaldoRun.organizationId, organizationId),
+						eq(aguinaldoRun.calendarYear, runRecord.calendarYear),
+						eq(aguinaldoRun.status, 'PROCESSED'),
+						ne(aguinaldoRun.id, id),
+					)!,
+				)
+				.limit(1);
+			if (existingProcessed[0]) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Aguinaldo run already processed for this calendar year',
+					409,
+				);
 			}
 
 			await db

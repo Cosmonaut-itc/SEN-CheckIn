@@ -127,6 +127,57 @@ describe('ptu routes (contract)', () => {
 		expect(updatedRun.taxableIncome).toBe(150000);
 	});
 
+	it('blocks moving a PTU draft into an already processed fiscal year', async () => {
+		const processedCreateResponse = await client.ptu.runs.post({
+			fiscalYear: 2031,
+			paymentDateKey: '2031-05-15',
+			taxableIncome: 125000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(processedCreateResponse.status).toBe(200);
+		const processedPayload = requireResponseData(processedCreateResponse);
+		const processedRun = (processedPayload.data as { run?: { id?: string } }).run;
+		if (!processedRun?.id) {
+			throw new Error('Expected processed PTU run id in create response.');
+		}
+		const processedRunRoutes = requireRoute(client.ptu.runs[processedRun.id], 'PTU run route');
+		const processedRunProcessRoute = requireRoute(
+			processedRunRoutes.process,
+			'PTU process route',
+		);
+		const processResponse = await processedRunProcessRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(processResponse.status).toBe(200);
+
+		const draftCreateResponse = await client.ptu.runs.post({
+			fiscalYear: 2032,
+			paymentDateKey: '2032-05-15',
+			taxableIncome: 125000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(draftCreateResponse.status).toBe(200);
+		const draftPayload = requireResponseData(draftCreateResponse);
+		const draftRun = (draftPayload.data as { run?: { id?: string } }).run;
+		if (!draftRun?.id) {
+			throw new Error('Expected draft PTU run id in create response.');
+		}
+		const draftRunRoutes = requireRoute(client.ptu.runs[draftRun.id], 'PTU run route');
+		const updateResponse = await draftRunRoutes.put({
+			fiscalYear: 2031,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(updateResponse, 'ptu update processed year conflict');
+		expect(errorPayload.error.message).toBe('PTU run already processed for this fiscal year');
+		expect(errorPayload.error.code).toBe('CONFLICT');
+	});
+
 	it('processes PTU runs and returns details + CSV', async () => {
 		const createResponse = await client.ptu.runs.post({
 			fiscalYear: 2026,
@@ -170,6 +221,58 @@ describe('ptu routes (contract)', () => {
 		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
 		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
+	});
+
+	it('blocks processing PTU when another run is already processed for the same fiscal year', async () => {
+		const firstDraftResponse = await client.ptu.runs.post({
+			fiscalYear: 2033,
+			paymentDateKey: '2033-05-15',
+			taxableIncome: 175000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstDraftResponse.status).toBe(200);
+		const firstDraftPayload = requireResponseData(firstDraftResponse);
+		const firstDraftRun = (firstDraftPayload.data as { run?: { id?: string } }).run;
+		if (!firstDraftRun?.id) {
+			throw new Error('Expected first draft PTU run id in create response.');
+		}
+
+		const secondDraftResponse = await client.ptu.runs.post({
+			fiscalYear: 2033,
+			paymentDateKey: '2033-05-20',
+			taxableIncome: 180000,
+			ptuPercentage: 0.1,
+			employeeOverrides: [buildPtuOverride(seed.employeeId)],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondDraftResponse.status).toBe(200);
+		const secondDraftPayload = requireResponseData(secondDraftResponse);
+		const secondDraftRun = (secondDraftPayload.data as { run?: { id?: string } }).run;
+		if (!secondDraftRun?.id) {
+			throw new Error('Expected second draft PTU run id in create response.');
+		}
+
+		const firstRunRoutes = requireRoute(client.ptu.runs[firstDraftRun.id], 'PTU run route');
+		const firstProcessRoute = requireRoute(firstRunRoutes.process, 'PTU process route');
+		const firstProcessResponse = await firstProcessRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstProcessResponse.status).toBe(200);
+
+		const secondRunRoutes = requireRoute(client.ptu.runs[secondDraftRun.id], 'PTU run route');
+		const secondProcessRoute = requireRoute(secondRunRoutes.process, 'PTU process route');
+		const secondProcessResponse = await secondProcessRoute.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondProcessResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(
+			secondProcessResponse,
+			'ptu process processed year conflict',
+		);
+		expect(errorPayload.error.message).toBe('PTU run already processed for this fiscal year');
+		expect(errorPayload.error.code).toBe('CONFLICT');
 	});
 
 	it('lists PTU runs', async () => {

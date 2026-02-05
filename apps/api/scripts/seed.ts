@@ -19,6 +19,8 @@ import { seedSchema } from '../src/db/seed-schema.js';
 import * as schema from '../src/db/schema.js';
 
 const {
+	aguinaldoRun,
+	aguinaldoRunEmployee,
 	attendanceRecord,
 	device,
 	employee,
@@ -26,6 +28,9 @@ const {
 	jobPosition,
 	location,
 	organization,
+	ptuHistory,
+	ptuRun,
+	ptuRunEmployee,
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
@@ -59,10 +64,17 @@ type ScheduleExceptionRow = typeof scheduleException.$inferInsert;
 type AttendanceRecordRow = typeof attendanceRecord.$inferInsert;
 type PayrollRunRow = typeof payrollRun.$inferInsert;
 type PayrollRunEmployeeRow = typeof payrollRunEmployee.$inferInsert;
+type PtuRunRow = typeof ptuRun.$inferInsert;
+type PtuRunEmployeeRow = typeof ptuRunEmployee.$inferInsert;
+type PtuHistoryRow = typeof ptuHistory.$inferInsert;
+type AguinaldoRunRow = typeof aguinaldoRun.$inferInsert;
+type AguinaldoRunEmployeeRow = typeof aguinaldoRunEmployee.$inferInsert;
 type PayrollSettingRow = typeof payrollSetting.$inferInsert;
 type VacationRequestRow = typeof vacationRequest.$inferInsert;
 type VacationRequestDayRow = typeof vacationRequestDay.$inferInsert;
 type VacationRequestStatus = NonNullable<VacationRequestRow['status']>;
+type PtuRunStatus = NonNullable<PtuRunRow['status']>;
+type AguinaldoRunStatus = NonNullable<AguinaldoRunRow['status']>;
 
 type VacationSeedTemplate = {
 	status: VacationRequestStatus;
@@ -208,6 +220,16 @@ function parseTimeToMinutes(timeString: string): number {
  */
 function money(value: number): string {
 	return value.toFixed(2);
+}
+
+/**
+ * Rounds a number to two decimal places for deterministic monetary math.
+ *
+ * @param value - Numeric value
+ * @returns Rounded value with 2 decimals
+ */
+function roundCurrency(value: number): number {
+	return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 /**
@@ -496,6 +518,8 @@ async function insertDomainBaseline(args: {
 			aguinaldoDays: 15,
 			vacationPremiumRate: '0.25',
 			enableSeventhDayPay: true,
+			ptuEnabled: true,
+			aguinaldoEnabled: true,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'payroll-setting:demo'),
@@ -511,6 +535,8 @@ async function insertDomainBaseline(args: {
 			aguinaldoDays: 15,
 			vacationPremiumRate: '0.25',
 			enableSeventhDayPay: false,
+			ptuEnabled: true,
+			aguinaldoEnabled: true,
 		},
 	];
 	await db.insert(payrollSetting).values(settingsToInsert);
@@ -1369,6 +1395,294 @@ async function insertPayrollRuns(args: {
 }
 
 /**
+ * Resolves organization employees eligible for PTU/Aguinaldo seed runs.
+ *
+ * @param employees - Seeded employees
+ * @param organizationId - Organization identifier
+ * @returns Eligible employees for extra payments
+ */
+function resolveExtraPaymentEligibleEmployees(
+	employees: SeedEmployee[],
+	organizationId: string,
+): SeedEmployee[] {
+	return employees.filter((employeeRow) => {
+		const status = employeeRow.status ?? 'ACTIVE';
+		return employeeRow.organizationId === organizationId && status !== 'INACTIVE';
+	});
+}
+
+/**
+ * Inserts deterministic PTU history entries for cap calculations.
+ *
+ * @param args - Seed inputs
+ * @returns Number of inserted PTU history rows
+ */
+async function insertPtuHistoryEntries(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	fiscalYear: number;
+}): Promise<number> {
+	const { seedNumber, organizations, employees, fiscalYear } = args;
+	const historyRows: PtuHistoryRow[] = [];
+
+	for (const org of organizations) {
+		const eligibleEmployees = resolveExtraPaymentEligibleEmployees(employees, org.id).slice(0, 15);
+		for (const employeeRow of eligibleEmployees) {
+			const dailyPay = Number(employeeRow.dailyPay ?? 0);
+
+			for (const yearsAgo of [3, 2, 1]) {
+				const year = fiscalYear - yearsAgo;
+				const baseAmount = roundCurrency(dailyPay * (5 + yearsAgo));
+				historyRows.push({
+					id: deterministicUuid(
+						seedNumber,
+						`ptu-history:${employeeRow.id}:${year}`,
+					),
+					organizationId: org.id,
+					employeeId: employeeRow.id,
+					fiscalYear: year,
+					amount: money(baseAmount),
+				});
+			}
+		}
+	}
+
+	if (historyRows.length > 0) {
+		await db.insert(ptuHistory).values(historyRows);
+	}
+
+	return historyRows.length;
+}
+
+/**
+ * Inserts PTU runs and employee line items for each seed organization.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for inserted run headers and line items
+ */
+async function insertPtuRuns(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	fiscalYear: number;
+}): Promise<{ runs: number; lineItems: number }> {
+	const { seedNumber, organizations, employees, fiscalYear } = args;
+	let runsInserted = 0;
+	let lineItemsInserted = 0;
+
+	for (const [orgIndex, org] of organizations.entries()) {
+		const eligibleEmployees = resolveExtraPaymentEligibleEmployees(employees, org.id);
+		if (eligibleEmployees.length === 0) {
+			continue;
+		}
+
+		const runId = deterministicUuid(seedNumber, `ptu-run:${org.slug}:${fiscalYear}`);
+		const paymentDate = new Date(Date.UTC(fiscalYear + 1, 4, 31, 12, 0, 0));
+		const status: PtuRunStatus = orgIndex === 0 ? 'PROCESSED' : 'DRAFT';
+		const ptuPercentage = 0.1;
+		const totalAnnualBase = eligibleEmployees.reduce(
+			(total, employeeRow) => total + Number(employeeRow.dailyPay ?? 0) * 365,
+			0,
+		);
+		const taxableIncome = roundCurrency(totalAnnualBase * 0.3);
+		const ptuPoolTotal = roundCurrency(taxableIncome * ptuPercentage);
+		const sharePerEmployee =
+			eligibleEmployees.length > 0 ? ptuPoolTotal / eligibleEmployees.length : 0;
+
+		const lineItems: PtuRunEmployeeRow[] = [];
+		let grossTotal = 0;
+		let exemptTotal = 0;
+		let taxableTotal = 0;
+		let withheldTotal = 0;
+		let netTotal = 0;
+
+		for (const employeeRow of eligibleEmployees) {
+			const dailyPay = Number(employeeRow.dailyPay ?? 0);
+			const annualSalaryBase = roundCurrency(dailyPay * 365);
+			const ptuByDays = roundCurrency(sharePerEmployee * 0.5);
+			const ptuBySalary = roundCurrency(sharePerEmployee * 0.5);
+			const ptuPreCap = roundCurrency(ptuByDays + ptuBySalary);
+			const capThreeMonths = roundCurrency(dailyPay * 90);
+			const capAvgThreeYears = roundCurrency(ptuPreCap * 1.1);
+			const capFinal = roundCurrency(Math.min(capThreeMonths, capAvgThreeYears));
+			const ptuFinal = roundCurrency(Math.min(ptuPreCap, capFinal));
+			const exemptAmount = roundCurrency(Math.min(ptuFinal, 500));
+			const taxableAmount = roundCurrency(Math.max(ptuFinal - exemptAmount, 0));
+			const withheldIsr = roundCurrency(taxableAmount * 0.1);
+			const netAmount = roundCurrency(ptuFinal - withheldIsr);
+
+			grossTotal += ptuFinal;
+			exemptTotal += exemptAmount;
+			taxableTotal += taxableAmount;
+			withheldTotal += withheldIsr;
+			netTotal += netAmount;
+
+			lineItems.push({
+				id: deterministicUuid(seedNumber, `ptu-run-employee:${runId}:${employeeRow.id}`),
+				ptuRunId: runId,
+				employeeId: employeeRow.id,
+				isEligible: true,
+				eligibilityReasons: [],
+				daysCounted: 365,
+				dailyQuota: money(dailyPay),
+				annualSalaryBase: money(annualSalaryBase),
+				ptuByDays: money(ptuByDays),
+				ptuBySalary: money(ptuBySalary),
+				ptuPreCap: money(ptuPreCap),
+				capThreeMonths: money(capThreeMonths),
+				capAvgThreeYears: money(capAvgThreeYears),
+				capFinal: money(capFinal),
+				ptuFinal: money(ptuFinal),
+				exemptAmount: money(exemptAmount),
+				taxableAmount: money(taxableAmount),
+				withheldIsr: money(withheldIsr),
+				netAmount: money(netAmount),
+				warnings: [],
+			});
+		}
+
+		const runRow: PtuRunRow = {
+			id: runId,
+			organizationId: org.id,
+			fiscalYear,
+			paymentDate,
+			taxableIncome: money(taxableIncome),
+			ptuPercentage: ptuPercentage.toFixed(4),
+			includeInactive: false,
+			status,
+			totalAmount: money(roundCurrency(netTotal)),
+			employeeCount: eligibleEmployees.length,
+			taxSummary: {
+				grossTotal: roundCurrency(grossTotal),
+				exemptTotal: roundCurrency(exemptTotal),
+				taxableTotal: roundCurrency(taxableTotal),
+				withheldTotal: roundCurrency(withheldTotal),
+				netTotal: roundCurrency(netTotal),
+				employeeCount: eligibleEmployees.length,
+			},
+			settingsSnapshot: {
+				ptuEnabled: true,
+				ptuMode: 'DEFAULT_RULES',
+			},
+			processedAt: status === 'PROCESSED' ? new Date() : null,
+			cancelledAt: null,
+			cancelReason: null,
+		};
+
+		await db.insert(ptuRun).values(runRow);
+		await db.insert(ptuRunEmployee).values(lineItems);
+		runsInserted += 1;
+		lineItemsInserted += lineItems.length;
+	}
+
+	return { runs: runsInserted, lineItems: lineItemsInserted };
+}
+
+/**
+ * Inserts Aguinaldo runs and employee line items for each seed organization.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for inserted run headers and line items
+ */
+async function insertAguinaldoRuns(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	calendarYear: number;
+}): Promise<{ runs: number; lineItems: number }> {
+	const { seedNumber, organizations, employees, calendarYear } = args;
+	let runsInserted = 0;
+	let lineItemsInserted = 0;
+
+	for (const [orgIndex, org] of organizations.entries()) {
+		const eligibleEmployees = resolveExtraPaymentEligibleEmployees(employees, org.id);
+		if (eligibleEmployees.length === 0) {
+			continue;
+		}
+
+		const runId = deterministicUuid(seedNumber, `aguinaldo-run:${org.slug}:${calendarYear}`);
+		const paymentDate = new Date(Date.UTC(calendarYear, 11, 20, 12, 0, 0));
+		const status: AguinaldoRunStatus = orgIndex === 0 ? 'PROCESSED' : 'DRAFT';
+		const lineItems: AguinaldoRunEmployeeRow[] = [];
+		let grossTotal = 0;
+		let exemptTotal = 0;
+		let taxableTotal = 0;
+		let withheldTotal = 0;
+		let netTotal = 0;
+
+		for (const employeeRow of eligibleEmployees) {
+			const dailyPay = Number(employeeRow.dailyPay ?? 0);
+			const grossAmount = roundCurrency(dailyPay * 15);
+			const exemptAmount = roundCurrency(Math.min(grossAmount, 3000));
+			const taxableAmount = roundCurrency(Math.max(grossAmount - exemptAmount, 0));
+			const withheldIsr = roundCurrency(taxableAmount * 0.1);
+			const netAmount = roundCurrency(grossAmount - withheldIsr);
+
+			grossTotal += grossAmount;
+			exemptTotal += exemptAmount;
+			taxableTotal += taxableAmount;
+			withheldTotal += withheldIsr;
+			netTotal += netAmount;
+
+			lineItems.push({
+				id: deterministicUuid(
+					seedNumber,
+					`aguinaldo-run-employee:${runId}:${employeeRow.id}`,
+				),
+				aguinaldoRunId: runId,
+				employeeId: employeeRow.id,
+				isEligible: true,
+				eligibilityReasons: [],
+				daysCounted: 365,
+				dailySalaryBase: money(dailyPay),
+				aguinaldoDaysPolicy: 15,
+				yearDays: 365,
+				grossAmount: money(grossAmount),
+				exemptAmount: money(exemptAmount),
+				taxableAmount: money(taxableAmount),
+				withheldIsr: money(withheldIsr),
+				netAmount: money(netAmount),
+				warnings: [],
+			});
+		}
+
+		const runRow: AguinaldoRunRow = {
+			id: runId,
+			organizationId: org.id,
+			calendarYear,
+			paymentDate,
+			includeInactive: false,
+			status,
+			totalAmount: money(roundCurrency(netTotal)),
+			employeeCount: eligibleEmployees.length,
+			taxSummary: {
+				grossTotal: roundCurrency(grossTotal),
+				exemptTotal: roundCurrency(exemptTotal),
+				taxableTotal: roundCurrency(taxableTotal),
+				withheldTotal: roundCurrency(withheldTotal),
+				netTotal: roundCurrency(netTotal),
+				employeeCount: eligibleEmployees.length,
+			},
+			settingsSnapshot: {
+				aguinaldoEnabled: true,
+				aguinaldoDays: 15,
+			},
+			processedAt: status === 'PROCESSED' ? new Date() : null,
+			cancelledAt: null,
+			cancelReason: null,
+		};
+
+		await db.insert(aguinaldoRun).values(runRow);
+		await db.insert(aguinaldoRunEmployee).values(lineItems);
+		runsInserted += 1;
+		lineItemsInserted += lineItems.length;
+	}
+
+	return { runs: runsInserted, lineItems: lineItemsInserted };
+}
+
+/**
  * Main entry point.
  *
  * @returns Promise<void>
@@ -1440,11 +1754,41 @@ async function main(): Promise<void> {
 		employees,
 	});
 
+	const currentYear = new Date().getUTCFullYear();
+	const ptuHistoryCount = await insertPtuHistoryEntries({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		fiscalYear: currentYear - 1,
+	});
+
+	const ptuSeedTotals = await insertPtuRuns({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		fiscalYear: currentYear - 1,
+	});
+
+	const aguinaldoSeedTotals = await insertAguinaldoRuns({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		calendarYear: currentYear,
+	});
+
 	console.log('✅ Seed completed.');
 	console.log('Organizations:', organizations.map((o) => o.slug).join(', '));
 	console.log('Employees:', employees.length);
 	console.log('Vacation requests:', vacationSeeds.requests.length);
 	console.log('Vacation request days:', vacationSeeds.requestDays.length);
+	console.log('PTU history rows:', ptuHistoryCount);
+	console.log('PTU runs:', ptuSeedTotals.runs, 'line items:', ptuSeedTotals.lineItems);
+	console.log(
+		'Aguinaldo runs:',
+		aguinaldoSeedTotals.runs,
+		'line items:',
+		aguinaldoSeedTotals.lineItems,
+	);
 }
 
 try {

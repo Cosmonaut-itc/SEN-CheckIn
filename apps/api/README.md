@@ -59,6 +59,11 @@ select count(*) from attendance_record;
 select count(*) from payroll_setting;
 select count(*) from payroll_run;
 select count(*) from payroll_run_employee;
+select count(*) from ptu_history;
+select count(*) from ptu_run;
+select count(*) from ptu_run_employee;
+select count(*) from aguinaldo_run;
+select count(*) from aguinaldo_run_employee;
 ```
 
 ### 2) Verificar endpoints (requiere sesión o API key)

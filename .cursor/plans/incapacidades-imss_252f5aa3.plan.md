@@ -1,8 +1,15 @@
+---
+name: ''
+overview: ''
+todos: []
+isProject: false
+---
+
 # Feature: Incapacidades (IMSS) end‑to‑end
 
 ## Objetivo
 
-- Implementar **captura + cálculo** de incapacidades IMSS basadas en [`documentacion/incapacidades.md`](documentacion/incapacidades.md).
+- Implementar **captura + cálculo** de incapacidades IMSS basadas en `[documentacion/incapacidades.md](documentacion/incapacidades.md)`.
 - Que funcione para **cualquier empleado** y afecte:
     - **Nómina**: exención de cuotas IMSS en días de incapacidad (excepto **Retiro**), y cálculo del **subsidio IMSS esperado** (informativo o pagado por el patrón si se habilita a futuro).
     - **Vacaciones**: **incapacidad tiene prioridad** y **ajusta automáticamente** días de vacaciones traslapados para que **no cuenten** como vacaciones.
@@ -21,7 +28,7 @@
 
 ## Modelo de datos (DB)
 
-- **Nueva tabla** `employee_incapacity` en [`apps/api/src/db/schema.ts`](apps/api/src/db/schema.ts):
+- **Nueva tabla** `employee_incapacity` en `[apps/api/src/db/schema.ts](apps/api/src/db/schema.ts)`:
     - `id`, `organizationId`, `employeeId`
     - `caseId` (requerido para EG “día 4” cruzando periodos)
     - `type` (`EG|RT|MAT|LIC140BIS`), `satTipoIncapacidad` (`01|02|03|04`)
@@ -33,27 +40,27 @@
     - `bucket`, `objectKey`, `fileName`, `contentType`, `sizeBytes`, `sha256`, `uploadedAt`
 - **Integración con calendario**: agregar `incapacityId` nullable a `schedule_exception` (tabla existente) para poder crear “DAY_OFF” por incapacidad sin perder trazabilidad (similar a `vacationRequestId`).
 - **Vacaciones**: extender enum `vacation_day_type` para agregar `INCAPACITY` (se usa al ajustar días traslapados).
-- **Migración**: generar y aplicar una nueva migración Drizzle en [`apps/api/drizzle/`](apps/api/drizzle/) (ej. `0024_*.sql`).
+- **Migración**: generar y aplicar una nueva migración Drizzle en `[apps/api/drizzle/](apps/api/drizzle/)` (ej. `0024_*.sql`).
 
 ## Motor de cálculo (API)
 
-- **Nuevo servicio puro** en [`apps/api/src/services/incapacities.ts`](apps/api/src/services/incapacities.ts):
+- **Nuevo servicio puro** en `[apps/api/src/services/incapacities.ts](apps/api/src/services/incapacities.ts)`:
     - Intersección por periodo (date keys) y dedupe.
     - Cálculo de `case_day_index` para EG (día 4+) incluso cruzando periodos.
-    - Cálculo de `expected_imss_subsidy_amount` usando SBC consistente con el motor actual (SBC diario calculado por [`apps/api/src/services/mexico-payroll-taxes.ts`](apps/api/src/services/mexico-payroll-taxes.ts) y topado por UMA\*25 por día).
+    - Cálculo de `expected_imss_subsidy_amount` usando SBC consistente con el motor actual (SBC diario calculado por `[apps/api/src/services/mexico-payroll-taxes.ts](apps/api/src/services/mexico-payroll-taxes.ts)` y topado por UMA25 por día).
     - Salida alineada a la sección “Estructura de salida recomendada” del doc.
 
 ## Ajustes de nómina (API)
 
-- Extender [`apps/api/src/services/mexico-payroll-taxes.ts`](apps/api/src/services/mexico-payroll-taxes.ts):
+- Extender `[apps/api/src/services/mexico-payroll-taxes.ts](apps/api/src/services/mexico-payroll-taxes.ts)`:
     - Aceptar `imssExemptDateKeys?: string[]`.
     - Calcular dos SBC de periodo:
         - `sbcPeriodTotal` (todos los días) -> **Retiro** e **INFONAVIT 5%**.
         - `sbcPeriodImssBase` (excluye `imssExemptDateKeys`) -> IMSS patronal/obrero, guarderías, RT.
-- Extender [`apps/api/src/routes/payroll.ts`](apps/api/src/routes/payroll.ts):
+- Extender `[apps/api/src/routes/payroll.ts](apps/api/src/routes/payroll.ts)`:
     - Cargar incapacidades activas que traslapan el periodo para todos los empleados del cálculo.
     - Pasar `imssExemptDateKeys` al motor de impuestos y agregar a la respuesta un resumen por empleado (días de incapacidad + subsidio IMSS esperado).
-- Actualizar schemas de respuesta en [`apps/api/src/schemas/payroll.ts`](apps/api/src/schemas/payroll.ts).
+- Actualizar schemas de respuesta en `[apps/api/src/schemas/payroll.ts](apps/api/src/schemas/payroll.ts)`.
 
 ## Vacaciones (API)
 
@@ -62,12 +69,12 @@
         - `countsAsVacationDay=false`, `dayType='INCAPACITY'`.
     - Si existían `schedule_exception` por vacaciones (`vacationRequestId`) en esas fechas, eliminarlas.
     - Crear `schedule_exception` por incapacidad (`exceptionType='DAY_OFF'`, `incapacityId=<id>`, `reason='Incapacidad IMSS …'`).
-- En [`apps/api/src/routes/vacations.ts`](apps/api/src/routes/vacations.ts):
+- En `[apps/api/src/routes/vacations.ts](apps/api/src/routes/vacations.ts)`:
     - Bloquear nuevas solicitudes (create/approve) si el rango traslapa incapacidades activas, devolviendo 409 con un código específico (p.ej. `VACATION_INCAPACITY_OVERLAP`) y fechas en conflicto.
 
 ## Rutas de incapacidades (API)
 
-- Nuevo plugin [`apps/api/src/routes/incapacities.ts`](apps/api/src/routes/incapacities.ts) y registro en [`apps/api/src/app.ts`](apps/api/src/app.ts).
+- Nuevo plugin `[apps/api/src/routes/incapacities.ts](apps/api/src/routes/incapacities.ts)` y registro en `[apps/api/src/app.ts](apps/api/src/app.ts)`.
 - Endpoints sugeridos:
     - `GET /incapacities` (admin) con filtros: `employeeId`, `from`, `to`, `status`, paginación.
     - `POST /incapacities` (admin) crear + auto‑ajuste vacaciones + crear schedule exceptions.
@@ -92,16 +99,16 @@
 ## Web (Next.js)
 
 - Nuevo módulo HR/admin:
-    - Página `[apps/web/app/(dashboard)/incapacities/page.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/incapacities/page.tsx) `+ `incapacities-client.tsx` + `loading.tsx`.
-    - Server actions [`apps/web/actions/incapacities.ts`](apps/web/actions/incapacities.ts).
-    - Client functions [`apps/web/lib/client-functions.ts`](apps/web/lib/client-functions.ts) + query keys.
-    - i18n: agregar strings a [`apps/web/messages/es.json`](apps/web/messages/es.json) (no hardcode).
+    - Página `[apps/web/app/(dashboard)/incapacities/page.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/incapacities/page.tsx)` + `incapacities-client.tsx` + `loading.tsx`.
+    - Server actions `[apps/web/actions/incapacities.ts](apps/web/actions/incapacities.ts)`.
+    - Client functions `[apps/web/lib/client-functions.ts](apps/web/lib/client-functions.ts)` + query keys.
+    - i18n: agregar strings a `[apps/web/messages/es.json](apps/web/messages/es.json)` (no hardcode).
 - UX:
     - Tabla con filtros (empleado, rango, tipo, estatus).
     - Modal “Crear incapacidad” (inputs del doc).
     - Sección “Documento IMSS”: subir archivo -> presign -> POST a S3 -> confirm.
 - Nómina UI:
-    - En `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/payroll/payroll-client.tsx) `mostrar (opcional) columnas/tooltip con `días de incapacidad` y `subsidio IMSS esperado` para dar trazabilidad.
+    - En `[apps/web/app/(dashboard)/payroll/payroll-client.tsx](apps/web/app/\\\\\\\\\\\(dashboard)/payroll/payroll-client.tsx)` mostrar (opcional) columnas/tooltip con `días de incapacidad` y `subsidio IMSS esperado` para dar trazabilidad.
 
 ## Pruebas
 

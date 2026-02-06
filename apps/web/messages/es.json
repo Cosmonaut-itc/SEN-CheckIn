@@ -276,7 +276,8 @@
       "finiquito": "Finiquito",
       "exceptions": "Excepciones",
       "audit": "Auditoria",
-      "ptu": "PTU y Aguinaldo"
+      "ptu": "PTU y Aguinaldo",
+      "documents": "Documentos"
     },
     "summary": {
       "availableDays": "Dias disponibles",
@@ -618,10 +619,14 @@
         "status": "Estatus",
         "face": "Rostro",
         "created": "Creado",
-        "actions": "Acciones"
+        "actions": "Acciones",
+        "documents": "Documentos"
       },
       "empty": "No se encontraron empleados.",
-      "unknownLocation": "Ubicación desconocida"
+      "unknownLocation": "Ubicación desconocida",
+      "documents": {
+        "missing": "{count, plural, one {# faltante} other {# faltantes}}"
+      }
     },
     "face": {
       "enrolled": "Registrado",
@@ -637,7 +642,8 @@
       "enrollFace": "Registrar rostro",
       "reEnrollFace": "Volver a registrar rostro",
       "removeFaceEnrollment": "Eliminar registro facial",
-      "deleteEmployee": "Eliminar empleado"
+      "deleteEmployee": "Eliminar empleado",
+      "viewDocuments": "Abrir documentos"
     },
     "dialogs": {
       "deleteEmployee": {
@@ -662,7 +668,8 @@
       "faceEnrollmentRemoved": "Se eliminó el registro facial",
       "faceEnrollmentRemoveError": "No se pudo eliminar el registro facial",
       "selectLocation": "Selecciona una ubicación",
-      "selectJobPosition": "Selecciona un puesto"
+      "selectJobPosition": "Selecciona un puesto",
+      "openDocumentsError": "No se pudo abrir el expediente documental del empleado."
     },
     "employmentType": {
       "PERMANENT": "Planta",
@@ -782,6 +789,134 @@
         "noChanges": "Define al menos un cambio para aplicar.",
         "success": "Cambios aplicados a {count} empleados.",
         "partialError": "No se pudieron actualizar {count} empleados."
+      }
+    },
+    "documents": {
+      "empty": "No hay información documental disponible para este empleado.",
+      "progress": {
+        "title": "Progreso documental",
+        "description": "Da seguimiento del avance del checklist y documentos legales.",
+        "percent": "Avance total",
+        "missing": "Requisitos pendientes",
+        "status": "Estado del flujo"
+      },
+      "workflowStatus": {
+        "INCOMPLETE": "Incompleto",
+        "IN_REVIEW": "En revisión",
+        "COMPLETE": "Completo"
+      },
+      "checklist": {
+        "title": "Checklist de documentos",
+        "description": "Sube y revisa documentos del expediente del empleado."
+      },
+      "requirements": {
+        "IDENTIFICATION": {
+          "title": "Identificación"
+        },
+        "TAX_CONSTANCY": {
+          "title": "Constancia fiscal"
+        },
+        "PROOF_OF_ADDRESS": {
+          "title": "Comprobante de domicilio"
+        },
+        "SOCIAL_SECURITY_EVIDENCE": {
+          "title": "Número de seguro social"
+        },
+        "EMPLOYMENT_PROFILE": {
+          "title": "Solicitud de empleo o currículum"
+        },
+        "SIGNED_CONTRACT": {
+          "title": "Contrato firmado"
+        },
+        "SIGNED_NDA": {
+          "title": "NDA firmado"
+        }
+      },
+      "reviewStatus": {
+        "APPROVED": "Aprobado",
+        "REJECTED": "Rechazado",
+        "PENDING_REVIEW": "Pendiente de revisión",
+        "NOT_UPLOADED": "Sin subir"
+      },
+      "badges": {
+        "required": "Requerido",
+        "optional": "Opcional",
+        "locked": "Bloqueado"
+      },
+      "actions": {
+        "view": "Ver",
+        "approve": "Aprobar",
+        "reject": "Rechazar",
+        "generate": "Generar",
+        "generating": "Generando...",
+        "signDigital": "Firma digital",
+        "signing": "Firmando..."
+      },
+      "fields": {
+        "identificationSubtype": "Tipo de identificación",
+        "employmentProfileSubtype": "Tipo de perfil laboral",
+        "file": "Archivo",
+        "uploadSignedPhysical": "Subir firmado físicamente"
+      },
+      "subtypes": {
+        "INE": "INE",
+        "PASSPORT": "Pasaporte",
+        "OTHER": "Otro",
+        "CURRICULUM": "Currículum",
+        "JOB_APPLICATION": "Solicitud de empleo"
+      },
+      "legal": {
+        "title": "Documentos legales",
+        "description": "Genera contrato/NDA y registra firma digital o física.",
+        "locked": "El gate legal se desbloquea con documentos base aprobados ({approved}/{required}).",
+        "templateVersion": "Plantilla v{version}",
+        "previewTitle": "Vista previa del documento generado",
+        "CONTRACT": {
+          "title": "Contrato"
+        },
+        "NDA": {
+          "title": "NDA (Confidencialidad)"
+        }
+      },
+      "history": {
+        "title": "Historial documental",
+        "description": "Consulta versiones previas y trazabilidad del expediente.",
+        "filterAll": "Todos los requisitos",
+        "headers": {
+          "requirement": "Requisito",
+          "version": "Versión",
+          "status": "Estatus",
+          "uploadedAt": "Fecha de carga",
+          "actions": "Acciones"
+        },
+        "empty": "No hay versiones registradas."
+      },
+      "signature": {
+        "title": "Firma digital del empleado",
+        "description": "Captura la firma para confirmar el documento legal.",
+        "clear": "Limpiar",
+        "confirm": "Confirmar firma"
+      },
+      "review": {
+        "rejectPrompt": "Indica el motivo del rechazo del documento."
+      },
+      "toast": {
+        "viewError": "No se pudo abrir el documento.",
+        "uploadForbidden": "No tienes permisos para subir documentos.",
+        "invalidSize": "El archivo excede el tamaño máximo permitido (10 MB).",
+        "invalidType": "Formato inválido. Solo se permiten PDF, JPG o PNG.",
+        "uploadError": "No se pudo subir el documento.",
+        "uploadSuccess": "Documento cargado correctamente.",
+        "reviewForbidden": "No tienes permisos para revisar documentos.",
+        "rejectCommentRequired": "Debes indicar un comentario al rechazar.",
+        "reviewError": "No se pudo registrar la revisión del documento.",
+        "approveSuccess": "Documento aprobado correctamente.",
+        "rejectSuccess": "Documento rechazado correctamente.",
+        "generateError": "No se pudo generar el documento legal.",
+        "generateSuccess": "Documento legal generado correctamente.",
+        "generationRequired": "Primero debes generar el documento legal.",
+        "signError": "No se pudo confirmar la firma digital.",
+        "signSuccess": "Firma digital confirmada."
       }
     }
   },
@@ -1475,6 +1610,87 @@
         "mode": "Selecciona un modo",
         "exemptReason": "Describe el motivo",
         "employerType": "Selecciona el tipo"
+      }
+    },
+    "documentWorkflow": {
+      "title": "Flujo documental",
+      "description": "Configura checklist, branding legal y plantillas de contrato/NDA.",
+      "forbidden": "Solo owner/admin puede editar la configuración documental.",
+      "config": {
+        "title": "Configuración del checklist",
+        "threshold": "Umbral de aprobación base para habilitar legales",
+        "requirements": "Requisitos por organización",
+        "required": "Requerido",
+        "badges": {
+          "base": "Base",
+          "legal": "Legal"
+        }
+      },
+      "requirements": {
+        "IDENTIFICATION": "Identificación",
+        "TAX_CONSTANCY": "Constancia fiscal",
+        "PROOF_OF_ADDRESS": "Comprobante de domicilio",
+        "SOCIAL_SECURITY_EVIDENCE": "Número de seguro social",
+        "EMPLOYMENT_PROFILE": "Solicitud de empleo o currículum",
+        "SIGNED_CONTRACT": "Contrato firmado",
+        "SIGNED_NDA": "NDA firmado"
+      },
+      "actions": {
+        "saveConfig": "Guardar configuración",
+        "saveBranding": "Guardar branding",
+        "createDraft": "Crear borrador",
+        "saveTemplate": "Guardar plantilla",
+        "publishTemplate": "Publicar plantilla",
+        "publishing": "Publicando..."
+      },
+      "toast": {
+        "invalidThreshold": "Ingresa un umbral válido (entero mayor o igual a 1).",
+        "saveError": "No se pudo guardar la configuración documental.",
+        "saveSuccess": "Configuración documental guardada."
+      },
+      "branding": {
+        "title": "Branding legal",
+        "fields": {
+          "displayName": "Nombre para documentos legales",
+          "logo": "Logo (opcional)",
+          "headerText": "Texto de encabezado legal"
+        },
+        "preview": "Vista previa del logo actual",
+        "logoAlt": "Logo legal de la organización",
+        "toast": {
+          "invalidSize": "El archivo de logo excede 10 MB.",
+          "invalidType": "Formato inválido. Solo PDF, JPG o PNG.",
+          "uploadError": "No se pudo cargar el logo legal.",
+          "saveError": "No se pudo guardar el branding legal.",
+          "saveSuccess": "Branding legal actualizado."
+        }
+      },
+      "templates": {
+        "CONTRACT": {
+          "title": "Plantilla de contrato",
+          "editorTitle": "Editor de contrato",
+          "editorDescription": "Edita el HTML y usa variables para autocompletar datos del empleado."
+        },
+        "NDA": {
+          "title": "Plantilla NDA",
+          "editorTitle": "Editor NDA",
+          "editorDescription": "Define cláusulas de confidencialidad con variables dinámicas."
+        },
+        "version": "Versión {version}",
+        "status": {
+          "DRAFT": "Borrador",
+          "PUBLISHED": "Publicada"
+        },
+        "noTemplate": "Sin plantilla",
+        "toast": {
+          "createDraftError": "No se pudo crear el borrador de plantilla.",
+          "createDraftSuccess": "Borrador creado correctamente.",
+          "saveError": "No se pudo guardar la plantilla.",
+          "saveSuccess": "Plantilla guardada.",
+          "publishMissingDraft": "Primero crea un borrador de plantilla.",
+          "publishError": "No se pudo publicar la plantilla.",
+          "publishSuccess": "Plantilla publicada correctamente."
+        }
       }
     }
   },

@@ -47,6 +47,7 @@ let cachedSeedData: SeedData | null = null;
 let cachedAdminSession: SessionContext | null = null;
 let cachedUserSession: SessionContext | null = null;
 let cachedApiKey: string | null = null;
+type TestApiClient = ReturnType<typeof edenTreaty<App>>;
 
 /**
  * Builds a Postgres connection string for the test database.
@@ -208,7 +209,7 @@ export function getTestApp(): Promise<App> {
  *
  * @returns Eden Treaty client
  */
-export function createTestClient() {
+export function createTestClient(): TestApiClient {
 	/**
 	 * No-op preconnect implementation for test fetcher.
 	 *

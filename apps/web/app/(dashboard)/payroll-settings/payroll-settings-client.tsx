@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DocumentWorkflowSettingsSection } from '@/components/document-workflow-settings-section';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchPayrollSettings } from '@/lib/client-functions';
 import { updatePayrollSettingsAction } from '@/actions/payroll';
@@ -606,6 +607,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 					</form>
 				</CardContent>
 			</Card>
+
+			<DocumentWorkflowSettingsSection />
 		</div>
 	);
 }

@@ -182,6 +182,12 @@ describe('employee routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
+		const first = payload.data[0];
+		if (first) {
+			expect(typeof first.documentProgressPercent).toBe('number');
+			expect(typeof first.documentMissingCount).toBe('number');
+			expect(first.documentWorkflowStatus).toBeDefined();
+		}
 	});
 
 	it('returns employee detail with schedule', async () => {

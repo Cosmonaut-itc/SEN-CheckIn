@@ -413,6 +413,57 @@ export interface EmployeeIncapacity {
 	updatedAt: Date;
 }
 
+// ============================================================================
+// Employee Document Workflow Types
+// ============================================================================
+
+/**
+ * Document requirement keys for employee onboarding workflow.
+ */
+export type EmployeeDocumentRequirementKey =
+	| 'IDENTIFICATION'
+	| 'TAX_CONSTANCY'
+	| 'PROOF_OF_ADDRESS'
+	| 'SOCIAL_SECURITY_EVIDENCE'
+	| 'EMPLOYMENT_PROFILE'
+	| 'SIGNED_CONTRACT'
+	| 'SIGNED_NDA';
+
+/**
+ * Review status for uploaded employee documents.
+ */
+export type EmployeeDocumentReviewStatus = 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED';
+
+/**
+ * Source that produced an employee document version.
+ */
+export type EmployeeDocumentSource = 'UPLOAD' | 'PHYSICAL_SIGNED_UPLOAD' | 'DIGITAL_SIGNATURE';
+
+/**
+ * Supported identification document subtypes.
+ */
+export type IdentificationSubtype = 'INE' | 'PASSPORT' | 'OTHER';
+
+/**
+ * Supported employment profile document subtypes.
+ */
+export type EmploymentProfileSubtype = 'CURRICULUM' | 'JOB_APPLICATION';
+
+/**
+ * Legal document kind for organization templates and employee generations.
+ */
+export type LegalDocumentKind = 'CONTRACT' | 'NDA';
+
+/**
+ * Status of legal template versions.
+ */
+export type LegalTemplateStatus = 'DRAFT' | 'PUBLISHED';
+
+/**
+ * Activation stage for organization document requirements.
+ */
+export type EmployeeDocumentActivationStage = 'BASE' | 'LEGAL_AFTER_GATE';
+
 /**
  * Summary of a schedule exception for employee insights.
  */

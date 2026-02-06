@@ -7,17 +7,25 @@
  * @module client-functions
  */
 
-import { api } from '@/lib/api';
+import { API_BASE_URL, api } from '@/lib/api';
 import { getApiResponseData } from '@/lib/api-response';
 import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import { clampPaginationLimit, clampPaginationOffset } from '@/lib/pagination';
 import type {
+	EmployeeDocumentRequirementKey,
+	EmployeeDocumentReviewStatus,
+	EmployeeDocumentSource,
+	EmployeeDocumentActivationStage,
+	EmploymentProfileSubtype,
 	EmployeeAuditEvent,
 	EmployeeIncapacity,
 	EmployeeIncapacityDocument,
 	EmployeeInsights,
 	EmployeeTerminationSettlement,
+	IdentificationSubtype,
+	LegalDocumentKind,
+	LegalTemplateStatus,
 	IncapacityIssuedBy,
 	IncapacitySequence,
 	IncapacityStatus,
@@ -89,6 +97,9 @@ export interface Employee {
 	organizationId: string | null;
 	userId: string | null;
 	rekognitionUserId: string | null;
+	documentProgressPercent?: number;
+	documentMissingCount?: number;
+	documentWorkflowStatus?: 'INCOMPLETE' | 'IN_REVIEW' | 'COMPLETE';
 	lastPayrollDate?: Date | null;
 	schedule?: EmployeeScheduleEntry[];
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
@@ -525,6 +536,15 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 			record.sbcDailyOverride === null || record.sbcDailyOverride === undefined
 				? null
 				: Number(record.sbcDailyOverride),
+		documentProgressPercent:
+			record.documentProgressPercent === undefined
+				? undefined
+				: Number(record.documentProgressPercent),
+		documentMissingCount:
+			record.documentMissingCount === undefined
+				? undefined
+				: Number(record.documentMissingCount),
+		documentWorkflowStatus: record.documentWorkflowStatus,
 	};
 }
 
@@ -840,6 +860,388 @@ export async function fetchEmployeeLatestPayroll(
 	const payload = getApiResponseData(response);
 	const record = payload?.data as EmployeeLatestPayrollPayload | undefined;
 	return record ? normalizeEmployeeLatestPayroll(record) : null;
+}
+
+// ============================================================================
+// Employee Document Workflow Functions
+// ============================================================================
+
+export type EmployeeDocumentWorkflowStatus = 'INCOMPLETE' | 'IN_REVIEW' | 'COMPLETE';
+
+export interface EmployeeLegalGenerationRecord {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	kind: LegalDocumentKind;
+	templateId: string;
+	templateVersionNumber: number;
+	generatedHtmlHash: string;
+	generatedPdfHash: string | null;
+	variablesSnapshot: Record<string, unknown>;
+	generatedByUserId: string | null;
+	generatedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface EmployeeDocumentVersionRecord {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	requirementKey: EmployeeDocumentRequirementKey;
+	versionNumber: number;
+	isCurrent: boolean;
+	reviewStatus: EmployeeDocumentReviewStatus;
+	reviewComment: string | null;
+	reviewedByUserId: string | null;
+	reviewedAt: Date | null;
+	source: EmployeeDocumentSource;
+	generationId: string | null;
+	identificationSubtype: IdentificationSubtype | null;
+	employmentProfileSubtype: EmploymentProfileSubtype | null;
+	signedAtDateKey: string | null;
+	verifiedByUserId: string | null;
+	bucket: string;
+	objectKey: string;
+	fileName: string;
+	contentType: string;
+	sizeBytes: number;
+	sha256: string;
+	uploadedByUserId: string | null;
+	uploadedAt: Date;
+	metadata: Record<string, unknown> | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface EmployeeDocumentRequirementState {
+	requirementKey: EmployeeDocumentRequirementKey;
+	isRequired: boolean;
+	displayOrder: number;
+	activationStage: EmployeeDocumentActivationStage;
+	isActive: boolean;
+	currentVersion: EmployeeDocumentVersionRecord | null;
+}
+
+export interface EmployeeDocumentsSummary {
+	employeeId: string;
+	employeeName: string;
+	baseApprovedThresholdForLegal: number;
+	gateUnlocked: boolean;
+	baseApprovedCount: number;
+	documentProgressPercent: number;
+	documentMissingCount: number;
+	documentWorkflowStatus: EmployeeDocumentWorkflowStatus;
+	approvedRequiredActive: number;
+	totalRequiredActive: number;
+	requirements: EmployeeDocumentRequirementState[];
+	latestGenerations: Partial<Record<LegalDocumentKind, EmployeeLegalGenerationRecord>>;
+}
+
+export interface EmployeeDocumentsHistoryResponse {
+	current: EmployeeDocumentVersionRecord[];
+	history: EmployeeDocumentVersionRecord[];
+}
+
+/**
+ * Response payload for employee document history queries.
+ */
+export interface EmployeeDocumentsHistoryQueryResult extends EmployeeDocumentsHistoryResponse {
+	pagination: PaginationMeta;
+}
+
+export interface OrganizationDocumentRequirementConfig {
+	id: string;
+	organizationId: string;
+	requirementKey: EmployeeDocumentRequirementKey;
+	isRequired: boolean;
+	displayOrder: number;
+	activationStage: EmployeeDocumentActivationStage;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface DocumentWorkflowConfigRecord {
+	id: string;
+	organizationId: string;
+	baseApprovedThresholdForLegal: number;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface DocumentWorkflowConfigResponse {
+	config: DocumentWorkflowConfigRecord;
+	requirements: OrganizationDocumentRequirementConfig[];
+}
+
+export interface LegalTemplateRecord {
+	id: string;
+	organizationId: string;
+	kind: LegalDocumentKind;
+	versionNumber: number;
+	status: LegalTemplateStatus;
+	htmlContent: string;
+	variablesSchemaSnapshot: Record<string, unknown>;
+	brandingSnapshot: Record<string, unknown> | null;
+	createdByUserId: string | null;
+	publishedByUserId: string | null;
+	publishedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface LegalBrandingRecord {
+	id: string;
+	organizationId: string;
+	displayName: string | null;
+	headerText: string | null;
+	logoBucket: string | null;
+	logoObjectKey: string | null;
+	logoFileName: string | null;
+	logoContentType: string | null;
+	logoSizeBytes: number | null;
+	logoSha256: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+/**
+ * Normalizes employee document version timestamps.
+ *
+ * @param payload - Raw version payload
+ * @returns Normalized document version
+ */
+function normalizeEmployeeDocumentVersion(
+	payload: EmployeeDocumentVersionRecord,
+): EmployeeDocumentVersionRecord {
+	return {
+		...payload,
+		reviewedAt: payload.reviewedAt ? new Date(payload.reviewedAt) : null,
+		uploadedAt: new Date(payload.uploadedAt),
+		createdAt: new Date(payload.createdAt),
+		updatedAt: new Date(payload.updatedAt),
+	};
+}
+
+/**
+ * Fetches JSON from the web API proxy using cookie credentials.
+ *
+ * @param path - API path beginning with "/"
+ * @returns Parsed JSON payload
+ * @throws Error when the request fails
+ */
+async function fetchDashboardApiJson(path: string): Promise<unknown> {
+	const response = await fetch(`${API_BASE_URL}${path}`, {
+		method: 'GET',
+		credentials: 'include',
+	});
+
+	if (!response.ok) {
+		throw new Error(`Request failed with status ${response.status}`);
+	}
+
+	return (await response.json()) as unknown;
+}
+
+/**
+ * Fetches employee document workflow summary.
+ *
+ * @param employeeId - Employee identifier
+ * @returns Workflow summary or null when not found
+ */
+export async function fetchEmployeeDocumentsSummary(
+	employeeId: string,
+): Promise<EmployeeDocumentsSummary | null> {
+	const response = await api.employees[employeeId].documents.summary.get();
+	if (response.error) {
+		if (response.status === 404) {
+			return null;
+		}
+		console.error(
+			'Failed to fetch employee document summary:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as EmployeeDocumentsSummary | undefined;
+	if (!data) {
+		return null;
+	}
+
+	return {
+		...data,
+		requirements: data.requirements.map((requirement) => ({
+			...requirement,
+			currentVersion: requirement.currentVersion
+				? normalizeEmployeeDocumentVersion(requirement.currentVersion)
+				: null,
+		})),
+		latestGenerations: Object.fromEntries(
+			Object.entries(data.latestGenerations ?? {}).map(([kind, generation]) => [
+				kind,
+				generation
+					? {
+							...generation,
+							generatedAt: new Date(generation.generatedAt),
+							createdAt: new Date(generation.createdAt),
+							updatedAt: new Date(generation.updatedAt),
+						}
+					: generation,
+			]),
+		) as Partial<Record<LegalDocumentKind, EmployeeLegalGenerationRecord>>,
+	};
+}
+
+/**
+ * Fetches current and historical employee document versions.
+ *
+ * @param args - Query arguments
+ * @returns Paginated history response
+ * @throws Error when the request fails
+ */
+export async function fetchEmployeeDocumentsHistory(args: {
+	employeeId: string;
+	limit?: number;
+	offset?: number;
+	requirementKey?: EmployeeDocumentRequirementKey;
+}): Promise<EmployeeDocumentsHistoryQueryResult> {
+	const response = await api.employees[args.employeeId].documents.get({
+		$query: {
+			limit: args.limit ?? 20,
+			offset: args.offset ?? 0,
+			requirementKey: args.requirementKey,
+		},
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch employee document history:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch employee documents');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = (payload?.data ?? {
+		current: [],
+		history: [],
+	}) as EmployeeDocumentsHistoryResponse;
+
+	return {
+		current: data.current.map((row) => normalizeEmployeeDocumentVersion(row)),
+		history: data.history.map((row) => normalizeEmployeeDocumentVersion(row)),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: args.limit ?? 20,
+			offset: args.offset ?? 0,
+		},
+	};
+}
+
+/**
+ * Fetches a presigned URL to view an employee document version.
+ *
+ * @param args - Employee/document identifiers
+ * @returns Presigned URL or null
+ */
+export async function fetchEmployeeDocumentUrl(args: {
+	employeeId: string;
+	docVersionId: string;
+}): Promise<string | null> {
+	const payload = (await fetchDashboardApiJson(
+		`/employees/${args.employeeId}/documents/${args.docVersionId}/url`,
+	)) as { data?: { url?: string } };
+	return payload?.data?.url ?? null;
+}
+
+/**
+ * Fetches organization document workflow configuration.
+ *
+ * @returns Workflow config and requirement ordering
+ */
+export async function fetchDocumentWorkflowConfig(): Promise<DocumentWorkflowConfigResponse | null> {
+	const response = await api['document-workflow'].config.get();
+	if (response.error) {
+		console.error(
+			'Failed to fetch document workflow config:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as DocumentWorkflowConfigResponse | undefined;
+	if (!data) {
+		return null;
+	}
+
+	return {
+		config: {
+			...data.config,
+			createdAt: new Date(data.config.createdAt),
+			updatedAt: new Date(data.config.updatedAt),
+		},
+		requirements: data.requirements.map((requirement) => ({
+			...requirement,
+			createdAt: new Date(requirement.createdAt),
+			updatedAt: new Date(requirement.updatedAt),
+		})),
+	};
+}
+
+/**
+ * Fetches legal templates for a specific kind.
+ *
+ * @param kind - Legal template kind
+ * @returns List of templates
+ * @throws Error when the request fails
+ */
+export async function fetchLegalTemplates(kind: LegalDocumentKind): Promise<LegalTemplateRecord[]> {
+	const payload = (await fetchDashboardApiJson(
+		`/document-workflow/templates/${kind}`,
+	)) as { data?: LegalTemplateRecord[] };
+	return (payload?.data ?? []).map((template) => ({
+		...template,
+		publishedAt: template.publishedAt ? new Date(template.publishedAt) : null,
+		createdAt: new Date(template.createdAt),
+		updatedAt: new Date(template.updatedAt),
+	}));
+}
+
+/**
+ * Fetches legal branding metadata and optional logo URL.
+ *
+ * @returns Branding payload and logo URL
+ * @throws Error when the request fails
+ */
+export async function fetchLegalBranding(): Promise<{
+	branding: LegalBrandingRecord | null;
+	url: string | null;
+}> {
+	const payload = (await fetchDashboardApiJson('/document-workflow/branding/url')) as {
+		data?: { branding?: LegalBrandingRecord | null; url?: string | null };
+	};
+
+	const branding = payload?.data?.branding
+		? {
+				...payload.data.branding,
+				createdAt: new Date(payload.data.branding.createdAt),
+				updatedAt: new Date(payload.data.branding.updatedAt),
+			}
+		: null;
+
+	return {
+		branding,
+		url: payload?.data?.url ?? null,
+	};
 }
 
 // ============================================================================

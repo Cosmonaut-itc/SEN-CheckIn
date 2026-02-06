@@ -83,3 +83,27 @@ vi.mock('next-intl', () => ({
 	NextIntlClientProvider: MockNextIntlProvider,
 	useTranslations: () => createMockTranslator(),
 }));
+
+/**
+ * Creates a permissive proxy for typed API clients in unit tests.
+ *
+ * @returns Proxy that supports chained property access and async calls
+ */
+function createApiClientProxy(): unknown {
+	const response = Promise.resolve({
+		data: null,
+		error: null,
+		status: 200,
+	});
+
+	const handler: ProxyHandler<(...args: unknown[]) => Promise<unknown>> = {
+		get: () => new Proxy(() => response, handler),
+		apply: () => response,
+	};
+
+	return new Proxy(() => response, handler);
+}
+
+vi.mock('@sen-checkin/api-contract', () => ({
+	createApiClient: () => createApiClientProxy(),
+}));

@@ -3,7 +3,7 @@ import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchEmployeesList, prefetchOrganizationMembers } from '@/lib/server-functions';
 import { EmployeesPageClient } from './employees-client';
 import React from 'react';
-import { getActiveOrganizationContext } from '@/lib/organization-context';
+import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
 
 /**
@@ -23,23 +23,29 @@ export const dynamic = 'force-dynamic';
  */
 export default async function EmployeesPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
-	const orgContext = await getActiveOrganizationContext();
+	const { organization, organizationRole, userRole } = await getAdminAccessContext();
 
 	// Prefetch without await for streaming support
 	prefetchEmployeesList(queryClient, {
 		limit: 100,
 		offset: 0,
-		organizationId: orgContext.organizationId,
+		organizationId: organization.organizationId,
 	});
 	prefetchOrganizationMembers(queryClient, {
-		organizationId: orgContext.organizationId ?? null,
+		organizationId: organization.organizationId ?? null,
 		limit: 200,
 		offset: 0,
 	});
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<OrgProvider value={orgContext}>
+			<OrgProvider
+				value={{
+					...organization,
+					organizationRole,
+					userRole,
+				}}
+			>
 				<EmployeesPageClient />
 			</OrgProvider>
 		</HydrationBoundary>

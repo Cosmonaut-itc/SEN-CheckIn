@@ -520,6 +520,21 @@ function buildLegalVariablesSnapshot(employeeRecord: EmployeeRecord): Record<str
 }
 
 /**
+ * Escapes HTML-sensitive characters to prevent markup/script injection in template output.
+ *
+ * @param value - Raw text value
+ * @returns HTML-escaped value
+ */
+function escapeHtml(value: string): string {
+	return value
+		.replaceAll('&', '&amp;')
+		.replaceAll('<', '&lt;')
+		.replaceAll('>', '&gt;')
+		.replaceAll('"', '&quot;')
+		.replaceAll("'", '&#39;');
+}
+
+/**
  * Flattens nested variable snapshots into template token/value pairs.
  *
  * @param snapshot - Variables snapshot object
@@ -546,7 +561,8 @@ function flattenTemplateVariables(snapshot: Record<string, unknown>): Record<str
 			return;
 		}
 
-		values[`{{${prefix}}}`] = value === null || value === undefined ? '' : String(value);
+		values[`{{${prefix}}}`] =
+			value === null || value === undefined ? '' : escapeHtml(String(value));
 	};
 
 	walk('', snapshot);

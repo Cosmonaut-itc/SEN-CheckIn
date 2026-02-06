@@ -641,35 +641,35 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 
 	return (
 		<div className="space-y-4">
-			<Card className="border-slate-200 bg-slate-50/60">
+			<Card className="border-border/70 bg-muted/30">
 				<CardHeader className="space-y-2">
 					<CardTitle className="text-base">{t('documents.progress.title')}</CardTitle>
 					<CardDescription>{t('documents.progress.description')}</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<div className="grid gap-3 md:grid-cols-3">
-						<div className="rounded-md border bg-white p-3">
+						<div className="rounded-md border border-border/70 bg-card/80 p-3">
 							<p className="text-xs text-muted-foreground">{t('documents.progress.percent')}</p>
-							<p className="text-2xl font-semibold text-slate-900">
+							<p className="text-2xl font-semibold text-foreground">
 								{summary.documentProgressPercent}%
 							</p>
 						</div>
-						<div className="rounded-md border bg-white p-3">
+						<div className="rounded-md border border-border/70 bg-card/80 p-3">
 							<p className="text-xs text-muted-foreground">{t('documents.progress.missing')}</p>
-							<p className="text-2xl font-semibold text-slate-900">
+							<p className="text-2xl font-semibold text-foreground">
 								{summary.documentMissingCount}
 							</p>
 						</div>
-						<div className="rounded-md border bg-white p-3">
+						<div className="rounded-md border border-border/70 bg-card/80 p-3">
 							<p className="text-xs text-muted-foreground">{t('documents.progress.status')}</p>
 							<Badge variant="outline" className="mt-1">
 								{t(`documents.workflowStatus.${summary.documentWorkflowStatus}`)}
 							</Badge>
 						</div>
 					</div>
-					<div className="h-2 overflow-hidden rounded-full bg-slate-200">
+					<div className="h-2 overflow-hidden rounded-full bg-muted">
 						<div
-							className="h-full rounded-full bg-slate-900 transition-all duration-300"
+							className="h-full rounded-full bg-primary transition-all duration-300"
 							style={{ width: `${summary.documentProgressPercent}%` }}
 						/>
 					</div>
@@ -693,7 +693,9 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 								key={requirement.requirementKey}
 								className={cn(
 									'rounded-md border p-3 transition-colors',
-									requirement.isActive ? 'bg-white' : 'bg-muted/40',
+									requirement.isActive
+										? 'border-border/70 bg-card/70'
+										: 'border-border/60 bg-muted/35',
 								)}
 							>
 								<div className="flex flex-wrap items-center justify-between gap-2">
@@ -867,7 +869,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 							const isPhysicalUploadPending = uploadingRequirementKey === `PHYSICAL_${kind}`;
 
 							return (
-								<Card key={kind} className="border-slate-200">
+								<Card key={kind} className="border-border/70 bg-card/80">
 									<CardHeader className="space-y-2">
 										<CardTitle className="text-sm">{t(`documents.legal.${kind}.title`)}</CardTitle>
 										<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -948,14 +950,14 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 										</div>
 
 										{legalPreviewByKind[kind] ? (
-											<div className="rounded-md border bg-muted/30 p-3">
+											<div className="rounded-md border border-border/70 bg-muted/30 p-3">
 												<p className="mb-2 text-xs text-muted-foreground">
 													{t('documents.legal.previewTitle')}
 												</p>
 												<iframe
 													title={`${kind}-preview`}
 													srcDoc={legalPreviewByKind[kind]}
-													className="h-48 w-full rounded border bg-white"
+													className="h-48 w-full rounded border border-border/70 bg-background"
 												/>
 											</div>
 										) : null}

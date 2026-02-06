@@ -342,21 +342,52 @@ function ensureAdminOrOwner(
 }
 
 /**
- * Ensures the caller can upload employee documents.
+ * Ensures the caller can upload the next version for a requirement.
  *
- * @param access - Access context
+ * Rules:
+ * - owner/admin can always upload
+ * - member can only upload when no previous version exists for that requirement
+ *
+ * @param args - Access context and requirement scope
  * @param set - Elysia status setter
- * @returns True when caller can upload
+ * @returns True when upload is allowed
  */
-function ensureCanUpload(
-	access: EmployeeAccessContext,
+async function ensureCanUploadRequirementVersion(
+	args: {
+		access: EmployeeAccessContext;
+		organizationId: string;
+		employeeId: string;
+		requirementKey: EmployeeDocumentRequirementKeyValue;
+	},
 	set: { status?: number | string } & Record<string, unknown>,
-): boolean {
-	if (access.role === 'owner' || access.role === 'admin' || access.role === 'member') {
+): Promise<boolean> {
+	if (args.access.role === 'owner' || args.access.role === 'admin') {
 		return true;
 	}
-	set.status = 403;
-	return false;
+
+	if (args.access.role !== 'member') {
+		set.status = 403;
+		return false;
+	}
+
+	const existing = await db
+		.select({ id: employeeDocumentVersion.id })
+		.from(employeeDocumentVersion)
+		.where(
+			and(
+				eq(employeeDocumentVersion.organizationId, args.organizationId),
+				eq(employeeDocumentVersion.employeeId, args.employeeId),
+				eq(employeeDocumentVersion.requirementKey, args.requirementKey),
+			),
+		)
+		.limit(1);
+
+	if (existing.length > 0) {
+		set.status = 403;
+		return false;
+	}
+
+	return true;
 }
 
 /**
@@ -1081,10 +1112,6 @@ export const employeeDocumentRoutes = new Elysia()
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
-			if (!ensureCanUpload(access, set)) {
-				return buildErrorResponse('Not authorized', 403);
-			}
-
 			if (!validateUploadPayload(body, set)) {
 				return buildErrorResponse('Invalid document upload payload', 400);
 			}
@@ -1093,6 +1120,25 @@ export const employeeDocumentRoutes = new Elysia()
 			if (!employeeRecord) {
 				set.status = 404;
 				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!(
+					await ensureCanUploadRequirementVersion(
+						{
+							access,
+							organizationId: access.organizationId,
+							employeeId: params.id,
+							requirementKey: params.documentRef,
+						},
+						set,
+					)
+				)
+			) {
+				return buildErrorResponse(
+					'Only admin/owner can upload a new version when a document already exists',
+					403,
+				);
 			}
 
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
@@ -1178,10 +1224,6 @@ export const employeeDocumentRoutes = new Elysia()
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
-			if (!ensureCanUpload(access, set)) {
-				return buildErrorResponse('Not authorized', 403);
-			}
-
 			if (!validateUploadPayload(body, set)) {
 				return buildErrorResponse('Invalid document upload payload', 400);
 			}
@@ -1190,6 +1232,25 @@ export const employeeDocumentRoutes = new Elysia()
 			if (!employeeRecord) {
 				set.status = 404;
 				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!(
+					await ensureCanUploadRequirementVersion(
+						{
+							access,
+							organizationId: access.organizationId,
+							employeeId: params.id,
+							requirementKey: params.documentRef,
+						},
+						set,
+					)
+				)
+			) {
+				return buildErrorResponse(
+					'Only admin/owner can upload a new version when a document already exists',
+					403,
+				);
 			}
 
 				const requirementValidationError = validateRequirementSpecificPayload(

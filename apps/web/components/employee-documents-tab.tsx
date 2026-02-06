@@ -227,8 +227,8 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 	const { organizationRole } = useOrgContext();
 
 	const canAdminReview = organizationRole === 'owner' || organizationRole === 'admin';
-	const canUpload = Boolean(
-		organizationRole === 'owner' || organizationRole === 'admin' || organizationRole === 'member',
+	const canCreateInitialUpload = Boolean(
+		canAdminReview || organizationRole === 'member',
 	);
 
 	const [historyFilter, setHistoryFilter] = useState<EmployeeDocumentRequirementKey | 'ALL'>('ALL');
@@ -334,7 +334,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 	 */
 	const handleUploadRequirement = useCallback(
 		async (requirementKey: EmployeeDocumentRequirementKey, file: File): Promise<void> => {
-			if (!canUpload) {
+			if (!canCreateInitialUpload) {
 				toast.error(t('documents.toast.uploadForbidden'));
 				return;
 			}
@@ -400,7 +400,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 			}
 		},
 		[
-			canUpload,
+			canCreateInitialUpload,
 			employeeId,
 			employmentProfileSubtype,
 			identificationSubtype,
@@ -626,11 +626,15 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 		(args: {
 			isActive: boolean;
 			isLegalRequirement: boolean;
-			canUploadRequirement: boolean;
+			canUploadByRole: boolean;
+			hasCurrentVersion: boolean;
 			isPendingUpload: boolean;
 		}): string | null => {
-			if (!args.canUploadRequirement) {
+			if (!args.canUploadByRole) {
 				return t('documents.fields.disabledReasons.noPermission');
+			}
+			if (organizationRole === 'member' && args.hasCurrentVersion) {
+				return t('documents.fields.disabledReasons.updateRestricted');
 			}
 			if (!args.isActive) {
 				return t('documents.fields.disabledReasons.legalGate');
@@ -643,7 +647,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 			}
 			return null;
 		},
-		[t],
+		[organizationRole, t],
 	);
 
 	if (summaryQuery.isLoading) {
@@ -716,11 +720,16 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 						const currentVersion = currentByRequirement.get(requirement.requirementKey) ?? requirement.currentVersion;
 						const isPendingUpload = uploadingRequirementKey === requirement.requirementKey;
 						const isLegalRequirement = Boolean(resolveLegalKindForRequirement(requirement.requirementKey));
-						const isUploadDisabled = !canUpload || isPendingUpload || isLegalRequirement;
+						const memberUpdateRestricted =
+							organizationRole === 'member' && Boolean(currentVersion);
+						const canUploadRequirement = canCreateInitialUpload && !memberUpdateRestricted;
+						const isUploadDisabled =
+							!canUploadRequirement || isPendingUpload || isLegalRequirement;
 						const uploadDisabledReason = resolveChecklistUploadDisabledReason({
 							isActive: requirement.isActive,
 							isLegalRequirement,
-							canUploadRequirement: canUpload,
+							canUploadByRole: canCreateInitialUpload,
+							hasCurrentVersion: Boolean(currentVersion),
 							isPendingUpload,
 						});
 
@@ -917,14 +926,19 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 							const latestGeneration = summary.latestGenerations?.[kind];
 							const isPhysicalUploadPending = uploadingRequirementKey === `PHYSICAL_${kind}`;
 							const isPhysicalUploadDisabled =
-								!summary.gateUnlocked || !latestGeneration?.id || isPhysicalUploadPending;
-							const physicalUploadDisabledReason = !summary.gateUnlocked
-								? t('documents.fields.disabledReasons.legalGate')
-								: !latestGeneration?.id
-									? t('documents.fields.disabledReasons.generateFirst')
-									: isPhysicalUploadPending
-										? t('documents.fields.disabledReasons.uploading')
-										: null;
+								!canAdminReview ||
+								!summary.gateUnlocked ||
+								!latestGeneration?.id ||
+								isPhysicalUploadPending;
+							const physicalUploadDisabledReason = !canAdminReview
+								? t('documents.fields.disabledReasons.noPermission')
+								: !summary.gateUnlocked
+									? t('documents.fields.disabledReasons.legalGate')
+									: !latestGeneration?.id
+										? t('documents.fields.disabledReasons.generateFirst')
+										: isPhysicalUploadPending
+											? t('documents.fields.disabledReasons.uploading')
+											: null;
 
 							return (
 								<Card key={kind} className="border-border/70 bg-card/80">

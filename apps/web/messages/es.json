@@ -863,6 +863,7 @@
         "disabledReasons": {
           "noPermission": "No tienes permisos para subir documentos en esta organización.",
           "uploading": "La carga está en progreso. Espera a que termine para subir otro archivo.",
+          "updateRestricted": "Solo admin u owner pueden reemplazar un documento ya cargado.",
           "generateFirst": "Primero genera el documento para habilitar la carga del firmado físico.",
           "legalGate": "Este campo se habilita cuando se desbloquea el gate legal con documentos base aprobados."
         }

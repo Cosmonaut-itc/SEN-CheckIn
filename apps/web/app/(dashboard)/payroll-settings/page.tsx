@@ -22,7 +22,8 @@ export const dynamic = 'force-dynamic';
  */
 export default async function PayrollSettingsPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
-	const { organization, canAccessAdminRoutes } = await getAdminAccessContext();
+	const { organization, organizationRole, userRole, canAccessAdminRoutes } =
+		await getAdminAccessContext();
 
 	if (!canAccessAdminRoutes) {
 		redirect('/acceso-restringido');
@@ -32,7 +33,13 @@ export default async function PayrollSettingsPage(): Promise<React.ReactElement>
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<OrgProvider value={organization}>
+			<OrgProvider
+				value={{
+					...organization,
+					organizationRole,
+					userRole,
+				}}
+			>
 				<PayrollSettingsClient />
 			</OrgProvider>
 		</HydrationBoundary>

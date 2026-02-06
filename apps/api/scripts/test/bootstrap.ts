@@ -190,8 +190,8 @@ async function ensureUser(context: SeedContext, userSeed: TestUserSeed): Promise
 
 	const existingId = existing[0]?.id ?? null;
 	if (existingId) {
-		await context.db.update(user).set({ role: userSeed.role }).where(eq(user.id, existingId));
-		return existingId;
+		// Recreate test users to guarantee deterministic credentials on each bootstrap run.
+		await context.db.delete(user).where(eq(user.id, existingId));
 	}
 
 	const signUpResult = await context.auth.api.signUpEmail({

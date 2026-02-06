@@ -1,3 +1,3 @@
-import { API_BASE_URL, createApiClient } from '@sen-checkin/api-contract';
+import { API_BASE_URL, createApiClient, type ApiClient } from '@sen-checkin/api-contract';
 
-export const apiClient = createApiClient(API_BASE_URL);
+export const apiClient: ApiClient = createApiClient(API_BASE_URL);

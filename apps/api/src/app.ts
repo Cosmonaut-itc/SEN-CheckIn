@@ -17,6 +17,7 @@ import { buildErrorResponse } from './utils/error-response.js';
 import { attendanceRoutes } from './routes/attendance.js';
 import { deviceRoutes } from './routes/devices.js';
 import { employeeRoutes } from './routes/employees.js';
+import { employeeDocumentRoutes } from './routes/employee-documents.js';
 import { incapacityRoutes } from './routes/incapacities.js';
 import { jobPositionRoutes } from './routes/job-positions.js';
 import { locationRoutes } from './routes/locations.js';
@@ -97,6 +98,7 @@ const createProtectedRoutes = () => {
 			.use(locationRoutes)
 			.use(jobPositionRoutes)
 			.use(employeeRoutes)
+			.use(employeeDocumentRoutes)
 			.use(deviceRoutes)
 			.use(attendanceRoutes)
 			.use(organizationRoutes)

@@ -39,6 +39,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			'@': resolve(rootDir, '.'),
+			'@sen-checkin/api-contract': resolve(repoRoot, 'packages/api-contract/src/index.ts'),
 			react: resolve(nodeModulesRoot, 'react'),
 			'react-dom': resolve(nodeModulesRoot, 'react-dom'),
 			'react-dom/client': resolve(nodeModulesRoot, 'react-dom/client'),

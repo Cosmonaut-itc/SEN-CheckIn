@@ -36,6 +36,12 @@ type S3Module = {
 	S3Client: new (config: S3ClientConfig) => S3ClientLike;
 	HeadObjectCommand: new (input: { Bucket: string; Key: string }) => unknown;
 	GetObjectCommand: new (input: { Bucket: string; Key: string }) => unknown;
+	PutObjectCommand: new (input: {
+		Bucket: string;
+		Key: string;
+		Body: string | Uint8Array;
+		ContentType?: string;
+	}) => unknown;
 };
 
 type PresignedPostModule = {
@@ -257,4 +263,30 @@ export async function createRailwayPresignedGetUrl(args: {
 	});
 
 	return await getSignedUrl(client, command, { expiresIn: args.expiresInSeconds ?? 900 });
+}
+
+/**
+ * Uploads an object directly into the Railway bucket from the API server.
+ *
+ * @param args - Upload parameters
+ * @returns Nothing
+ * @throws Error when bucket configuration or AWS SDK dependencies are missing
+ */
+export async function putRailwayObject(args: {
+	key: string;
+	body: string | Uint8Array;
+	contentType?: string;
+}): Promise<void> {
+	const client = await getRailwayBucketClient();
+	const config = getRailwayBucketConfig();
+	const { PutObjectCommand } = await loadS3Module();
+
+	await client.send(
+		new PutObjectCommand({
+			Bucket: config.bucket,
+			Key: args.key,
+			Body: args.body,
+			ContentType: args.contentType,
+		}),
+	);
 }

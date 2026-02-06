@@ -349,8 +349,8 @@ describe('aguinaldo routes (contract)', () => {
 
 	it('processes aguinaldo runs and returns details + CSV', async () => {
 		const createResponse = await client.aguinaldo.runs.post({
-			calendarYear: 2026,
-			paymentDateKey: '2026-12-15',
+			calendarYear: 2025,
+			paymentDateKey: '2025-12-15',
 			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
 			$headers: { cookie: adminSession.cookieHeader },
 		});
@@ -385,8 +385,14 @@ describe('aguinaldo routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(csvResponse.status).toBe(200);
-		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
-		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
+		const headers = (
+			csvResponse as {
+				headers?: Headers | Record<string, string>;
+			}
+		).headers;
+		const contentType = headers instanceof Headers
+			? headers.get('content-type') ?? ''
+			: headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
 	});
 
@@ -474,8 +480,8 @@ describe('aguinaldo routes (contract)', () => {
 
 	it('cancels aguinaldo runs', async () => {
 		const createResponse = await client.aguinaldo.runs.post({
-			calendarYear: 2025,
-			paymentDateKey: '2025-12-15',
+			calendarYear: 2027,
+			paymentDateKey: '2027-12-15',
 			employeeOverrides: [buildAguinaldoOverride(seed.employeeId)],
 			$headers: { cookie: adminSession.cookieHeader },
 		});

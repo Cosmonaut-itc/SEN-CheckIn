@@ -273,6 +273,12 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
 	terminationSettlements: many(employeeTerminationSettlement),
+	documentWorkflowConfigs: many(organizationDocumentWorkflowConfig),
+	documentRequirements: many(organizationDocumentRequirement),
+	legalBrandings: many(organizationLegalBranding),
+	legalTemplates: many(organizationLegalTemplate),
+	legalGenerations: many(employeeLegalGeneration),
+	documentVersions: many(employeeDocumentVersion),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -470,6 +476,72 @@ export const aguinaldoRunStatus = pgEnum('aguinaldo_run_status', [
 	'DRAFT',
 	'PROCESSED',
 	'CANCELLED',
+]);
+
+/**
+ * Enum for employee document requirement keys.
+ */
+export const employeeDocumentRequirementKey = pgEnum('employee_document_requirement_key', [
+	'IDENTIFICATION',
+	'TAX_CONSTANCY',
+	'PROOF_OF_ADDRESS',
+	'SOCIAL_SECURITY_EVIDENCE',
+	'EMPLOYMENT_PROFILE',
+	'SIGNED_CONTRACT',
+	'SIGNED_NDA',
+]);
+
+/**
+ * Enum for employee document review statuses.
+ */
+export const employeeDocumentReviewStatus = pgEnum('employee_document_review_status', [
+	'PENDING_REVIEW',
+	'APPROVED',
+	'REJECTED',
+]);
+
+/**
+ * Enum for employee document source values.
+ */
+export const employeeDocumentSource = pgEnum('employee_document_source', [
+	'UPLOAD',
+	'PHYSICAL_SIGNED_UPLOAD',
+	'DIGITAL_SIGNATURE',
+]);
+
+/**
+ * Enum for identification document subtype values.
+ */
+export const identificationSubtype = pgEnum('identification_subtype', [
+	'INE',
+	'PASSPORT',
+	'OTHER',
+]);
+
+/**
+ * Enum for employment profile subtype values.
+ */
+export const employmentProfileSubtype = pgEnum('employment_profile_subtype', [
+	'CURRICULUM',
+	'JOB_APPLICATION',
+]);
+
+/**
+ * Enum for legal document kind.
+ */
+export const legalDocumentKind = pgEnum('legal_document_kind', ['CONTRACT', 'NDA']);
+
+/**
+ * Enum for legal template status values.
+ */
+export const legalTemplateStatus = pgEnum('legal_template_status', ['DRAFT', 'PUBLISHED']);
+
+/**
+ * Enum for document requirement activation stage.
+ */
+export const documentRequirementActivationStage = pgEnum('document_requirement_activation_stage', [
+	'BASE',
+	'LEGAL_AFTER_GATE',
 ]);
 
 // ============================================================================
@@ -981,6 +1053,268 @@ export const employeeIncapacityDocument = pgTable(
 );
 
 /**
+ * Organization-level workflow configuration for employee document onboarding.
+ */
+export const organizationDocumentWorkflowConfig = pgTable(
+	'organization_document_workflow_config',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.unique()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		baseApprovedThresholdForLegal: integer('base_approved_threshold_for_legal')
+			.default(1)
+			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('organization_document_workflow_config_org_idx').on(table.organizationId),
+	],
+);
+
+/**
+ * Organization-level document requirements with ordering and activation stage.
+ */
+export const organizationDocumentRequirement = pgTable(
+	'organization_document_requirement',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		requirementKey: employeeDocumentRequirementKey('requirement_key').notNull(),
+		isRequired: boolean('is_required').default(true).notNull(),
+		displayOrder: integer('display_order').notNull(),
+		activationStage: documentRequirementActivationStage('activation_stage')
+			.default('BASE')
+			.notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('organization_document_requirement_org_key_uniq').on(
+			table.organizationId,
+			table.requirementKey,
+		),
+		index('organization_document_requirement_org_order_idx').on(
+			table.organizationId,
+			table.displayOrder,
+		),
+	],
+);
+
+/**
+ * Organization-level branding values for legal templates and generated documents.
+ */
+export const organizationLegalBranding = pgTable(
+	'organization_legal_branding',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.unique()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		displayName: text('display_name'),
+		headerText: text('header_text'),
+		logoBucket: text('logo_bucket'),
+		logoObjectKey: text('logo_object_key'),
+		logoFileName: text('logo_file_name'),
+		logoContentType: text('logo_content_type'),
+		logoSizeBytes: integer('logo_size_bytes'),
+		logoSha256: text('logo_sha256'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('organization_legal_branding_org_idx').on(table.organizationId),
+		uniqueIndex('organization_legal_branding_logo_object_key_uniq').on(table.logoObjectKey),
+	],
+);
+
+/**
+ * Versioned legal templates for contract and NDA generation per organization.
+ */
+export const organizationLegalTemplate = pgTable(
+	'organization_legal_template',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		kind: legalDocumentKind('kind').notNull(),
+		versionNumber: integer('version_number').notNull(),
+		status: legalTemplateStatus('status').default('DRAFT').notNull(),
+		htmlContent: text('html_content').notNull(),
+		variablesSchemaSnapshot: jsonb('variables_schema_snapshot')
+			.$type<Record<string, unknown>>()
+			.default({})
+			.notNull(),
+		brandingSnapshot: jsonb('branding_snapshot').$type<Record<string, unknown> | null>(),
+		createdByUserId: text('created_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		publishedByUserId: text('published_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		publishedAt: timestamp('published_at'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('organization_legal_template_org_kind_version_uniq').on(
+			table.organizationId,
+			table.kind,
+			table.versionNumber,
+		),
+		index('organization_legal_template_org_kind_status_idx').on(
+			table.organizationId,
+			table.kind,
+			table.status,
+		),
+	],
+);
+
+/**
+ * Generated legal document instances tied to a specific employee and template version.
+ */
+export const employeeLegalGeneration = pgTable(
+	'employee_legal_generation',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		kind: legalDocumentKind('kind').notNull(),
+		templateId: text('template_id')
+			.notNull()
+			.references(() => organizationLegalTemplate.id),
+		templateVersionNumber: integer('template_version_number').notNull(),
+		generatedHtmlHash: text('generated_html_hash').notNull(),
+		generatedPdfHash: text('generated_pdf_hash'),
+		variablesSnapshot: jsonb('variables_snapshot')
+			.$type<Record<string, unknown>>()
+			.default({})
+			.notNull(),
+		generatedByUserId: text('generated_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		generatedAt: timestamp('generated_at').defaultNow().notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('employee_legal_generation_org_employee_idx').on(table.organizationId, table.employeeId),
+		index('employee_legal_generation_employee_kind_idx').on(table.employeeId, table.kind),
+		index('employee_legal_generation_template_idx').on(table.templateId),
+	],
+);
+
+/**
+ * Versioned employee document uploads and generated signed legal documents.
+ */
+export const employeeDocumentVersion = pgTable(
+	'employee_document_version',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		requirementKey: employeeDocumentRequirementKey('requirement_key').notNull(),
+		versionNumber: integer('version_number').notNull(),
+		isCurrent: boolean('is_current').default(true).notNull(),
+		reviewStatus: employeeDocumentReviewStatus('review_status').default('PENDING_REVIEW').notNull(),
+		reviewComment: text('review_comment'),
+		reviewedByUserId: text('reviewed_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		reviewedAt: timestamp('reviewed_at'),
+		source: employeeDocumentSource('source').default('UPLOAD').notNull(),
+		generationId: text('generation_id').references(() => employeeLegalGeneration.id),
+		identificationSubtype: identificationSubtype('identification_subtype'),
+		employmentProfileSubtype: employmentProfileSubtype('employment_profile_subtype'),
+		signedAtDateKey: text('signed_at_date_key'),
+		verifiedByUserId: text('verified_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		bucket: text('bucket').notNull(),
+		objectKey: text('object_key').notNull(),
+		fileName: text('file_name').notNull(),
+		contentType: text('content_type').notNull(),
+		sizeBytes: integer('size_bytes').notNull(),
+		sha256: text('sha256').notNull(),
+		uploadedByUserId: text('uploaded_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+		metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('employee_document_version_employee_requirement_version_uniq').on(
+			table.employeeId,
+			table.requirementKey,
+			table.versionNumber,
+		),
+		uniqueIndex('employee_document_version_object_key_uniq').on(table.objectKey),
+		uniqueIndex('employee_document_version_generation_uniq').on(table.generationId),
+		index('employee_document_version_org_employee_idx').on(table.organizationId, table.employeeId),
+		index('employee_document_version_org_employee_current_idx').on(
+			table.organizationId,
+			table.employeeId,
+			table.isCurrent,
+		),
+		index('employee_document_version_org_current_review_idx').on(
+			table.organizationId,
+			table.isCurrent,
+			table.reviewStatus,
+		),
+		index('employee_document_version_employee_requirement_idx').on(
+			table.employeeId,
+			table.requirementKey,
+		),
+	],
+);
+
+/**
  * Schedule Exception table - date-specific overrides for employee schedules.
  */
 export const scheduleException = pgTable(
@@ -1134,6 +1468,8 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	vacationRequestDays: many(vacationRequestDay),
 	auditEvents: many(employeeAuditEvent),
 	terminationSettlements: many(employeeTerminationSettlement),
+	legalGenerations: many(employeeLegalGeneration),
+	documentVersions: many(employeeDocumentVersion),
 }));
 
 export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({
@@ -1199,6 +1535,108 @@ export const employeeIncapacityDocumentRelations = relations(
 		incapacity: one(employeeIncapacity, {
 			fields: [employeeIncapacityDocument.incapacityId],
 			references: [employeeIncapacity.id],
+		}),
+	}),
+);
+
+export const organizationDocumentWorkflowConfigRelations = relations(
+	organizationDocumentWorkflowConfig,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [organizationDocumentWorkflowConfig.organizationId],
+			references: [organization.id],
+		}),
+	}),
+);
+
+export const organizationDocumentRequirementRelations = relations(
+	organizationDocumentRequirement,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [organizationDocumentRequirement.organizationId],
+			references: [organization.id],
+		}),
+	}),
+);
+
+export const organizationLegalBrandingRelations = relations(
+	organizationLegalBranding,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [organizationLegalBranding.organizationId],
+			references: [organization.id],
+		}),
+	}),
+);
+
+export const organizationLegalTemplateRelations = relations(
+	organizationLegalTemplate,
+	({ one, many }) => ({
+		organization: one(organization, {
+			fields: [organizationLegalTemplate.organizationId],
+			references: [organization.id],
+		}),
+		createdBy: one(user, {
+			fields: [organizationLegalTemplate.createdByUserId],
+			references: [user.id],
+		}),
+		publishedBy: one(user, {
+			fields: [organizationLegalTemplate.publishedByUserId],
+			references: [user.id],
+		}),
+		generations: many(employeeLegalGeneration),
+	}),
+);
+
+export const employeeLegalGenerationRelations = relations(
+	employeeLegalGeneration,
+	({ one, many }) => ({
+		organization: one(organization, {
+			fields: [employeeLegalGeneration.organizationId],
+			references: [organization.id],
+		}),
+		employee: one(employee, {
+			fields: [employeeLegalGeneration.employeeId],
+			references: [employee.id],
+		}),
+		template: one(organizationLegalTemplate, {
+			fields: [employeeLegalGeneration.templateId],
+			references: [organizationLegalTemplate.id],
+		}),
+		generatedBy: one(user, {
+			fields: [employeeLegalGeneration.generatedByUserId],
+			references: [user.id],
+		}),
+		documentVersions: many(employeeDocumentVersion),
+	}),
+);
+
+export const employeeDocumentVersionRelations = relations(
+	employeeDocumentVersion,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [employeeDocumentVersion.organizationId],
+			references: [organization.id],
+		}),
+		employee: one(employee, {
+			fields: [employeeDocumentVersion.employeeId],
+			references: [employee.id],
+		}),
+		reviewedBy: one(user, {
+			fields: [employeeDocumentVersion.reviewedByUserId],
+			references: [user.id],
+		}),
+		verifiedBy: one(user, {
+			fields: [employeeDocumentVersion.verifiedByUserId],
+			references: [user.id],
+		}),
+		uploadedBy: one(user, {
+			fields: [employeeDocumentVersion.uploadedByUserId],
+			references: [user.id],
+		}),
+		generation: one(employeeLegalGeneration, {
+			fields: [employeeDocumentVersion.generationId],
+			references: [employeeLegalGeneration.id],
 		}),
 	}),
 );

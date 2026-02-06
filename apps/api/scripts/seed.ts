@@ -28,6 +28,8 @@ const {
 	jobPosition,
 	location,
 	organization,
+	organizationDocumentRequirement,
+	organizationDocumentWorkflowConfig,
 	ptuHistory,
 	ptuRun,
 	ptuRunEmployee,
@@ -75,6 +77,12 @@ type VacationRequestDayRow = typeof vacationRequestDay.$inferInsert;
 type VacationRequestStatus = NonNullable<VacationRequestRow['status']>;
 type PtuRunStatus = NonNullable<PtuRunRow['status']>;
 type AguinaldoRunStatus = NonNullable<AguinaldoRunRow['status']>;
+type EmployeeDocumentRequirementKeyValue = NonNullable<
+	typeof organizationDocumentRequirement.$inferInsert['requirementKey']
+>;
+type DocumentRequirementActivationStageValue = NonNullable<
+	typeof organizationDocumentRequirement.$inferInsert['activationStage']
+>;
 
 type VacationSeedTemplate = {
 	status: VacationRequestStatus;
@@ -84,6 +92,59 @@ type VacationSeedTemplate = {
 	decisionNotes: string | null;
 	createScheduleExceptions: boolean;
 };
+
+/**
+ * Default document workflow requirements seeded for every organization.
+ */
+const DEFAULT_DOCUMENT_REQUIREMENTS: ReadonlyArray<{
+	requirementKey: EmployeeDocumentRequirementKeyValue;
+	isRequired: boolean;
+	displayOrder: number;
+	activationStage: DocumentRequirementActivationStageValue;
+}> = [
+	{
+		requirementKey: 'IDENTIFICATION',
+		isRequired: true,
+		displayOrder: 1,
+		activationStage: 'BASE',
+	},
+	{
+		requirementKey: 'TAX_CONSTANCY',
+		isRequired: true,
+		displayOrder: 2,
+		activationStage: 'BASE',
+	},
+	{
+		requirementKey: 'PROOF_OF_ADDRESS',
+		isRequired: true,
+		displayOrder: 3,
+		activationStage: 'BASE',
+	},
+	{
+		requirementKey: 'SOCIAL_SECURITY_EVIDENCE',
+		isRequired: true,
+		displayOrder: 4,
+		activationStage: 'BASE',
+	},
+	{
+		requirementKey: 'EMPLOYMENT_PROFILE',
+		isRequired: true,
+		displayOrder: 5,
+		activationStage: 'BASE',
+	},
+	{
+		requirementKey: 'SIGNED_CONTRACT',
+		isRequired: true,
+		displayOrder: 6,
+		activationStage: 'LEGAL_AFTER_GATE',
+	},
+	{
+		requirementKey: 'SIGNED_NDA',
+		isRequired: true,
+		displayOrder: 7,
+		activationStage: 'LEGAL_AFTER_GATE',
+	},
+];
 
 /**
  * Parses CLI arguments for the seed script.
@@ -306,6 +367,60 @@ async function ensureSeedOrganizations(seedNumber: number): Promise<SeedOrganiza
 		const bIndex = indexBySlug.get(b.slug) ?? 0;
 		return aIndex - bIndex;
 	});
+}
+
+/**
+ * Inserts default document workflow config and requirement catalog for each organization.
+ *
+ * @param args - Seed inputs
+ * @returns Promise that resolves when workflow rows are inserted
+ */
+async function insertDocumentWorkflowBaseline(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+}): Promise<void> {
+	const { seedNumber, organizations } = args;
+
+	if (organizations.length === 0) {
+		return;
+	}
+
+	const workflowConfigRows: Array<typeof organizationDocumentWorkflowConfig.$inferInsert> =
+		organizations.map((org) => ({
+			id: deterministicUuid(seedNumber, `document-workflow-config:${org.id}`),
+			organizationId: org.id,
+			baseApprovedThresholdForLegal: 1,
+		}));
+
+	await db
+		.insert(organizationDocumentWorkflowConfig)
+		.values(workflowConfigRows)
+		.onConflictDoNothing({ target: organizationDocumentWorkflowConfig.organizationId });
+
+	const requirementRows: Array<typeof organizationDocumentRequirement.$inferInsert> =
+		organizations.flatMap((org) =>
+			DEFAULT_DOCUMENT_REQUIREMENTS.map((requirement) => ({
+				id: deterministicUuid(
+					seedNumber,
+					`document-workflow-requirement:${org.id}:${requirement.requirementKey}`,
+				),
+				organizationId: org.id,
+				requirementKey: requirement.requirementKey,
+				isRequired: requirement.isRequired,
+				displayOrder: requirement.displayOrder,
+				activationStage: requirement.activationStage,
+			})),
+		);
+
+	await db
+		.insert(organizationDocumentRequirement)
+		.values(requirementRows)
+		.onConflictDoNothing({
+			target: [
+				organizationDocumentRequirement.organizationId,
+				organizationDocumentRequirement.requirementKey,
+			],
+		});
 }
 
 /**
@@ -694,6 +809,14 @@ async function seedEmployees(args: {
 					lastDayWorkedDateKey: funcs.default({ defaultValue: null }),
 					terminationReason: funcs.default({ defaultValue: null }),
 					terminationNotes: funcs.default({ defaultValue: null }),
+					employmentType: funcs.default({ defaultValue: 'PERMANENT' }),
+					isTrustEmployee: funcs.default({ defaultValue: false }),
+					isDirectorAdminGeneralManager: funcs.default({ defaultValue: false }),
+					isDomesticWorker: funcs.default({ defaultValue: false }),
+					isPlatformWorker: funcs.default({ defaultValue: false }),
+					platformHoursYear: funcs.default({ defaultValue: '0' }),
+					ptuEligibilityOverride: funcs.default({ defaultValue: 'DEFAULT' }),
+					aguinaldoDaysOverride: funcs.default({ defaultValue: null }),
 					userId: funcs.default({ defaultValue: null }),
 					sbcDailyOverride: funcs.default({ defaultValue: null }),
 					lastPayrollDate: funcs.default({ defaultValue: null }),
@@ -1703,6 +1826,11 @@ async function main(): Promise<void> {
 	}
 
 	const baseline = await insertDomainBaseline({
+		seedNumber: args.seed,
+		organizations,
+	});
+
+	await insertDocumentWorkflowBaseline({
 		seedNumber: args.seed,
 		organizations,
 	});

@@ -1,4 +1,4 @@
-import { createApiClient } from '@sen-checkin/api-contract';
+import { createApiClient, type ApiClient } from '@sen-checkin/api-contract';
 
 import { ENV, envErrors, envIsValid } from '@/constants/env';
 import { getAccessToken } from './auth-client';
@@ -51,7 +51,7 @@ export async function authedFetchForEden(
  *
  * @see https://elysiajs.com/eden/treaty/config.html
  */
-export const api = createApiClient(API_BASE_URL, {
+export const api: ApiClient = createApiClient(API_BASE_URL, {
 	fetcher: authedFetchForEden,
 });
 

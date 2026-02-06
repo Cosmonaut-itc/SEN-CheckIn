@@ -304,6 +304,21 @@ export const queryKeys = {
 		 * @param id - The employee ID
 		 */
 		latestPayroll: (id: string) => ['employees', 'payroll', 'latest', id] as const,
+		/**
+		 * Generates a query key for employee document summary.
+		 * @param id - The employee ID
+		 */
+		documentsSummary: (id: string) => ['employees', 'documents', 'summary', id] as const,
+		/**
+		 * Generates a query key for employee document history.
+		 * @param params - Employee document history params
+		 */
+		documentsHistory: (params: {
+			employeeId: string;
+			limit?: number;
+			offset?: number;
+			requirementKey?: string;
+		}) => queryKeyConstructor(['employees', 'documents', 'history'] as const, params),
 	},
 
 	/**
@@ -566,6 +581,17 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for employee document workflow configuration.
+	 */
+	documentWorkflow: {
+		all: ['documentWorkflow'] as const,
+		config: ['documentWorkflow', 'config'] as const,
+		templates: (kind: 'CONTRACT' | 'NDA') =>
+			['documentWorkflow', 'templates', kind] as const,
+		branding: ['documentWorkflow', 'branding'] as const,
+	},
+
+	/**
 	 * Query keys for scheduling/calendar queries.
 	 */
 	scheduling: {
@@ -697,6 +723,31 @@ export const mutationKeys = {
 		cancel: ['incapacities', 'cancel'] as const,
 		presign: ['incapacities', 'presign'] as const,
 		confirm: ['incapacities', 'confirm'] as const,
+	},
+
+	/**
+	 * Mutation keys for employee document workflows.
+	 */
+	employeeDocuments: {
+		presign: ['employeeDocuments', 'presign'] as const,
+		confirm: ['employeeDocuments', 'confirm'] as const,
+		review: ['employeeDocuments', 'review'] as const,
+		generateLegal: ['employeeDocuments', 'generateLegal'] as const,
+		signDigital: ['employeeDocuments', 'signDigital'] as const,
+		signPhysicalPresign: ['employeeDocuments', 'signPhysicalPresign'] as const,
+		signPhysicalConfirm: ['employeeDocuments', 'signPhysicalConfirm'] as const,
+	},
+
+	/**
+	 * Mutation keys for organization document workflow configuration.
+	 */
+	documentWorkflow: {
+		updateConfig: ['documentWorkflow', 'updateConfig'] as const,
+		createTemplateDraft: ['documentWorkflow', 'createTemplateDraft'] as const,
+		updateTemplate: ['documentWorkflow', 'updateTemplate'] as const,
+		publishTemplate: ['documentWorkflow', 'publishTemplate'] as const,
+		presignBranding: ['documentWorkflow', 'presignBranding'] as const,
+		confirmBranding: ['documentWorkflow', 'confirmBranding'] as const,
 	},
 
 	/**

@@ -64,6 +64,7 @@ import {
 	listFacesByExternalId,
 } from '../services/rekognition.js';
 import { buildEmployeeVacationBalance } from '../services/vacation-balance.js';
+import { buildEmployeeDocumentProgressMap } from '../services/employee-documents.js';
 import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { resolveMinimumWageRequirement, type MinimumWageZone } from '../utils/minimum-wage.js';
 import {
@@ -945,6 +946,22 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.offset(offset)
 				.orderBy(employee.lastName, employee.firstName);
 
+			const progressByEmployee = await buildEmployeeDocumentProgressMap(
+				db,
+				organizationId,
+				results.map((row) => row.id),
+			);
+
+			const enrichedResults = results.map((row) => {
+				const progress = progressByEmployee.get(row.id);
+				return {
+					...row,
+					documentProgressPercent: progress?.documentProgressPercent ?? 0,
+					documentMissingCount: progress?.documentMissingCount ?? 0,
+					documentWorkflowStatus: progress?.documentWorkflowStatus ?? 'INCOMPLETE',
+				};
+			});
+
 			// Get total count with same filters
 			let countQuery = db.select().from(employee);
 			const countWhere = and(...conditions)!;
@@ -953,7 +970,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const total = countResult.length;
 
 			return {
-				data: results,
+				data: enrichedResults,
 				pagination: {
 					total,
 					limit,

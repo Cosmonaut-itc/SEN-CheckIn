@@ -16,6 +16,10 @@ type PtuRunDetail = {
 	employees?: Array<{ employeeId?: string }>;
 };
 
+const PTU_PRORATION_FISCAL_YEAR = 2108;
+const PTU_CREATE_UPDATE_FISCAL_YEAR = 2027;
+const PTU_CANCEL_FISCAL_YEAR = 2028;
+
 /**
  * Builds a PTU override payload for a given employee.
  *
@@ -107,52 +111,59 @@ async function setPtuRunTotalAmount(runId: string, totalAmount: number): Promise
 async function seedCrossFiscalYearPayrollRuns(
 	organizationId: string,
 	employeeId: string,
+	fiscalYear: number,
 ): Promise<void> {
 	const [{ default: db }, { payrollRun, payrollRunEmployee }] = await Promise.all([
 		import('../db/index.js'),
 		import('../db/schema.js'),
 	]);
+	const previousYear = fiscalYear - 1;
+	const crossStartDate = `${previousYear}-12-26`;
+	const crossEndDate = `${fiscalYear}-01-02`;
+	const crossProcessedAt = `${fiscalYear}-01-03`;
+	const inYearDate = `${fiscalYear}-06-01`;
+	const inYearProcessedAt = `${fiscalYear}-06-02`;
 
 	const crossRunId = crypto.randomUUID();
 	await db.insert(payrollRun).values({
 		id: crossRunId,
 		organizationId,
-		periodStart: new Date('2097-12-26T00:00:00.000Z'),
-		periodEnd: new Date('2098-01-02T23:59:59.000Z'),
+		periodStart: new Date(`${crossStartDate}T00:00:00.000Z`),
+		periodEnd: new Date(`${crossEndDate}T23:59:59.000Z`),
 		paymentFrequency: 'WEEKLY',
 		status: 'PROCESSED',
 		totalAmount: '800.00',
 		employeeCount: 1,
-		processedAt: new Date('2098-01-03T00:00:00.000Z'),
+		processedAt: new Date(`${crossProcessedAt}T00:00:00.000Z`),
 	});
 	await db.insert(payrollRunEmployee).values({
 		payrollRunId: crossRunId,
 		employeeId,
 		totalPay: '800.00',
 		taxBreakdown: { grossPay: 800 },
-		periodStart: new Date('2097-12-26T00:00:00.000Z'),
-		periodEnd: new Date('2098-01-02T23:59:59.000Z'),
+		periodStart: new Date(`${crossStartDate}T00:00:00.000Z`),
+		periodEnd: new Date(`${crossEndDate}T23:59:59.000Z`),
 	});
 
 	const inYearRunId = crypto.randomUUID();
 	await db.insert(payrollRun).values({
 		id: inYearRunId,
 		organizationId,
-		periodStart: new Date('2098-06-01T00:00:00.000Z'),
-		periodEnd: new Date('2098-06-01T23:59:59.000Z'),
+		periodStart: new Date(`${inYearDate}T00:00:00.000Z`),
+		periodEnd: new Date(`${inYearDate}T23:59:59.000Z`),
 		paymentFrequency: 'WEEKLY',
 		status: 'PROCESSED',
 		totalAmount: '1000.00',
 		employeeCount: 1,
-		processedAt: new Date('2098-06-02T00:00:00.000Z'),
+		processedAt: new Date(`${inYearProcessedAt}T00:00:00.000Z`),
 	});
 	await db.insert(payrollRunEmployee).values({
 		payrollRunId: inYearRunId,
 		employeeId,
 		totalPay: '1000.00',
 		taxBreakdown: { grossPay: 1000 },
-		periodStart: new Date('2098-06-01T00:00:00.000Z'),
-		periodEnd: new Date('2098-06-01T23:59:59.000Z'),
+		periodStart: new Date(`${inYearDate}T00:00:00.000Z`),
+		periodEnd: new Date(`${inYearDate}T23:59:59.000Z`),
 	});
 }
 
@@ -215,11 +226,15 @@ describe('ptu routes (contract)', () => {
 	});
 
 	it('prorates cross-year payroll runs when building PTU aggregates', async () => {
-		await seedCrossFiscalYearPayrollRuns(seed.organizationId, seed.employeeId);
+		await seedCrossFiscalYearPayrollRuns(
+			seed.organizationId,
+			seed.employeeId,
+			PTU_PRORATION_FISCAL_YEAR,
+		);
 
 		const response = await client.ptu.calculate.post({
-			fiscalYear: 2098,
-			paymentDateKey: '2098-05-15',
+			fiscalYear: PTU_PRORATION_FISCAL_YEAR,
+			paymentDateKey: `${PTU_PRORATION_FISCAL_YEAR}-05-15`,
 			taxableIncome: 100000,
 			ptuPercentage: 0.1,
 			employeeOverrides: [{ employeeId: seed.employeeId }],
@@ -245,8 +260,8 @@ describe('ptu routes (contract)', () => {
 
 	it('creates and updates PTU runs', async () => {
 		const createResponse = await client.ptu.runs.post({
-			fiscalYear: 2025,
-			paymentDateKey: '2025-05-15',
+			fiscalYear: PTU_CREATE_UPDATE_FISCAL_YEAR,
+			paymentDateKey: `${PTU_CREATE_UPDATE_FISCAL_YEAR}-05-15`,
 			taxableIncome: 120000,
 			ptuPercentage: 0.1,
 			employeeOverrides: [buildPtuOverride(seed.employeeId)],
@@ -361,8 +376,14 @@ describe('ptu routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(csvResponse.status).toBe(200);
-		const headers = (csvResponse as { headers?: Record<string, string> }).headers;
-		const contentType = headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
+		const headers = (
+			csvResponse as {
+				headers?: Headers | Record<string, string>;
+			}
+		).headers;
+		const contentType = headers instanceof Headers
+			? headers.get('content-type') ?? ''
+			: headers?.['content-type'] ?? headers?.['Content-Type'] ?? '';
 		expect(contentType).toContain('text/csv');
 	});
 
@@ -451,8 +472,8 @@ describe('ptu routes (contract)', () => {
 
 	it('cancels PTU runs', async () => {
 		const createResponse = await client.ptu.runs.post({
-			fiscalYear: 2025,
-			paymentDateKey: '2025-12-15',
+			fiscalYear: PTU_CANCEL_FISCAL_YEAR,
+			paymentDateKey: `${PTU_CANCEL_FISCAL_YEAR}-12-15`,
 			taxableIncome: 90000,
 			ptuPercentage: 0.1,
 			employeeOverrides: [buildPtuOverride(seed.employeeId)],

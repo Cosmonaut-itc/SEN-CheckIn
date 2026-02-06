@@ -104,6 +104,7 @@ import { format, isAfter, isValid, parse, startOfDay, startOfMonth } from 'date-
 import {
 	Calendar as CalendarIcon,
 	Eye,
+	FileText,
 	HelpCircle,
 	Loader2,
 	MoreHorizontal,
@@ -140,6 +141,21 @@ function FaceEnrollmentDialogFallback(): React.ReactElement | null {
 }
 
 const FaceEnrollmentDialog = dynamic(loadFaceEnrollmentDialog, {
+	ssr: false,
+	loading: FaceEnrollmentDialogFallback,
+});
+
+/**
+ * Lazily loads employee document workflow tab to keep initial bundle smaller.
+ *
+ * @returns Promise resolving to the EmployeeDocumentsTab component
+ */
+const loadEmployeeDocumentsTab = async () => {
+	const componentModule = await import('@/components/employee-documents-tab');
+	return componentModule.EmployeeDocumentsTab;
+};
+
+const EmployeeDocumentsTab = dynamic(loadEmployeeDocumentsTab, {
 	ssr: false,
 	loading: FaceEnrollmentDialogFallback,
 });
@@ -733,6 +749,16 @@ const ALL_FILTER_VALUE = '__all__';
 type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
+type EmployeeDetailTab =
+	| 'documents'
+	| 'summary'
+	| 'attendance'
+	| 'vacations'
+	| 'payroll'
+	| 'ptu'
+	| 'finiquito'
+	| 'exceptions'
+	| 'audit';
 
 /**
  * Generates a default Monday-Friday schedule 09:00-17:00.
@@ -835,6 +861,32 @@ function calculatePeriodPayFromDailyPay(dailyPay: number, frequency: PaymentFreq
 }
 
 /**
+ * Extracts created employee id from server action payload.
+ *
+ * @param payload - Raw mutation payload
+ * @returns Employee id when available
+ */
+function extractCreatedEmployeeId(payload: unknown): string | null {
+	if (!payload || typeof payload !== 'object') {
+		return null;
+	}
+
+	const dataRecord = payload as { data?: unknown; id?: unknown };
+	if (typeof dataRecord.id === 'string' && dataRecord.id.length > 0) {
+		return dataRecord.id;
+	}
+
+	if (dataRecord.data && typeof dataRecord.data === 'object') {
+		const nested = dataRecord.data as { id?: unknown };
+		if (typeof nested.id === 'string' && nested.id.length > 0) {
+			return nested.id;
+		}
+	}
+
+	return null;
+}
+
+/**
  * Status badge variant mapping.
  */
 const statusVariants: Record<EmployeeStatus, 'default' | 'secondary' | 'outline'> = {
@@ -869,6 +921,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [dialogMode, setDialogMode] = useState<EmployeeDialogMode>('create');
 	const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
+	const [detailTab, setDetailTab] = useState<EmployeeDetailTab>('summary');
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
@@ -1691,7 +1744,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		onSuccess: (result) => {
 			if (result.success) {
 				toast.success(t('toast.createSuccess'));
-				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
 				toast.error(result.error ?? t('toast.createError'));
@@ -1709,7 +1761,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		onSuccess: (result) => {
 			if (result.success) {
 				toast.success(t('toast.updateSuccess'));
-				setIsDialogOpen(false);
 				queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
 			} else {
 				toast.error(result.error ?? t('toast.updateError'));
@@ -1933,7 +1984,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			const resolvedUserIdForUpdate =
 				normalizedUserIdForUpdate === currentUserId ? undefined : normalizedUserIdForUpdate;
 			if (isEditMode && activeEmployee) {
-				await updateMutation.mutateAsync({
+				const updateResult = await updateMutation.mutateAsync({
 					id: activeEmployee.id,
 					firstName: value.firstName,
 					lastName: value.lastName,
@@ -1961,13 +2012,22 @@ export function EmployeesPageClient(): React.ReactElement {
 					shiftType: value.shiftType,
 					schedule,
 				});
+				if (!updateResult.success) {
+					return;
+				}
+				setIsDialogOpen(false);
+				setDialogMode('create');
+				setActiveEmployee(null);
+				setDetailTab('summary');
+				form.reset();
+				return;
 			} else if (isCreateMode) {
 				// Validate that jobPositionId is selected for new employees
 				if (!value.jobPositionId) {
 					toast.error(t('toast.selectJobPosition'));
 					return;
 				}
-				await createMutation.mutateAsync({
+				const createResult = await createMutation.mutateAsync({
 					code: value.code,
 					firstName: value.firstName,
 					lastName: value.lastName,
@@ -1996,11 +2056,34 @@ export function EmployeesPageClient(): React.ReactElement {
 					shiftType: value.shiftType,
 					schedule,
 				});
+				if (!createResult.success) {
+					return;
+				}
+
+				const createdEmployeeId = extractCreatedEmployeeId(createResult.data);
+				if (createdEmployeeId) {
+					const createdEmployee = await fetchEmployeeById(createdEmployeeId);
+					if (createdEmployee) {
+						setActiveEmployee(createdEmployee);
+						setDialogMode('view');
+						setDetailTab('documents');
+						setPtuHistoryYearInput('');
+						setPtuHistoryAmountInput('');
+						setHasCustomCode(false);
+						form.reset();
+						setIsDialogOpen(true);
+						return;
+					}
+				}
+
+				toast.error(t('toast.openDocumentsError'));
+				setIsDialogOpen(false);
+				setDialogMode('create');
+				setActiveEmployee(null);
+				setDetailTab('summary');
+				form.reset();
+				return;
 			}
-			setIsDialogOpen(false);
-			setDialogMode('create');
-			setActiveEmployee(null);
-			form.reset();
 		},
 	});
 
@@ -2104,6 +2187,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		resetTerminationState();
 		setDialogMode('create');
 		setActiveEmployee(null);
+		setDetailTab('summary');
 		form.reset();
 		setHasCustomCode(false);
 		setSchedule(createDefaultSchedule());
@@ -2113,20 +2197,54 @@ export function EmployeesPageClient(): React.ReactElement {
 	}, [form, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput]);
 
 	/**
+	 * Opens employee detail view in the requested tab.
+	 *
+	 * @param employee - Employee row payload
+	 * @param tab - Detail tab value
+	 */
+	const openEmployeeDetailTab = useCallback(
+		(employee: Employee, tab: EmployeeDetailTab): void => {
+			resetTerminationState();
+			setActiveEmployee(employee);
+			setDialogMode('view');
+			setDetailTab(tab);
+			setPtuHistoryYearInput('');
+			setPtuHistoryAmountInput('');
+			setIsDialogOpen(true);
+		},
+		[resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
+	);
+
+	/**
+	 * Fetches employee detail and opens the requested tab.
+	 *
+	 * @param employeeId - Employee identifier
+	 * @param tab - Detail tab value
+	 * @returns Promise<void>
+	 */
+	const openEmployeeDetailById = useCallback(
+		async (employeeId: string, tab: EmployeeDetailTab): Promise<void> => {
+			const detail = await fetchEmployeeById(employeeId);
+			if (!detail) {
+				toast.error(t('toast.openDocumentsError'));
+				return;
+			}
+
+			openEmployeeDetailTab(detail, tab);
+		},
+		[openEmployeeDetailTab, t],
+	);
+
+	/**
 	 * Opens the dialog for viewing employee details.
 	 *
 	 * @param employee - The employee to view
 	 */
 	const handleViewDetails = useCallback(
 		(employee: Employee): void => {
-			resetTerminationState();
-			setActiveEmployee(employee);
-			setDialogMode('view');
-			setPtuHistoryYearInput('');
-			setPtuHistoryAmountInput('');
-			setIsDialogOpen(true);
+			openEmployeeDetailTab(employee, 'summary');
 		},
-		[resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
+		[openEmployeeDetailTab],
 	);
 
 	/**
@@ -2211,6 +2329,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				setSchedule(createDefaultSchedule());
 			}
 			setIsScheduleLoading(false);
+			setDetailTab('summary');
 			setIsDialogOpen(true);
 		},
 		[
@@ -2242,6 +2361,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			if (!open) {
 				setDialogMode('create');
 				setActiveEmployee(null);
+				setDetailTab('summary');
 				form.reset();
 				setHasCustomCode(false);
 				setSchedule(createDefaultSchedule());
@@ -2384,6 +2504,31 @@ export function EmployeesPageClient(): React.ReactElement {
 				enableGlobalFilter: false,
 			},
 			{
+				id: 'documentProgress',
+				header: t('table.headers.documents'),
+				enableGlobalFilter: false,
+				cell: ({ row }) => {
+					const progress = row.original.documentProgressPercent ?? 0;
+					const missing = row.original.documentMissingCount ?? 0;
+					return (
+						<div className="min-w-[160px] space-y-1">
+							<div className="flex items-center justify-between text-xs">
+								<span className="font-medium">{progress}%</span>
+								<Badge variant={missing === 0 ? 'default' : 'secondary'}>
+									{t('table.documents.missing', { count: missing })}
+								</Badge>
+							</div>
+							<div className="h-1.5 overflow-hidden rounded-full bg-muted">
+								<div
+									className="h-full rounded-full bg-emerald-500 transition-all duration-300 dark:bg-emerald-400"
+									style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+								/>
+							</div>
+						</div>
+					);
+				},
+			},
+			{
 				id: 'face',
 				header: t('table.headers.face'),
 				enableSorting: false,
@@ -2440,6 +2585,14 @@ export function EmployeesPageClient(): React.ReactElement {
 								<DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
 									<Eye className="mr-2 h-4 w-4" />
 									{t('menu.viewDetails')}
+								</DropdownMenuItem>
+								<DropdownMenuItem
+									onClick={() =>
+										void openEmployeeDetailById(row.original.id, 'documents')
+									}
+								>
+									<FileText className="mr-2 h-4 w-4" />
+									{t('menu.viewDocuments')}
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									onClick={() => handleOpenEnrollDialog(row.original)}
@@ -2564,6 +2717,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		[
 			handleOpenEnrollDialog,
 			handleViewDetails,
+			openEmployeeDetailById,
 			locationLookup,
 			t,
 			tCommon,
@@ -2744,8 +2898,17 @@ export function EmployeesPageClient(): React.ReactElement {
 									</div>
 								</div>
 
-								<Tabs defaultValue="summary" className="w-full">
+								<Tabs
+									value={detailTab}
+									onValueChange={(value) =>
+										setDetailTab(value as EmployeeDetailTab)
+									}
+									className="w-full"
+								>
 									<TabsList className="flex flex-wrap">
+										<TabsTrigger value="documents">
+											{t('tabs.documents')}
+										</TabsTrigger>
 										<TabsTrigger value="summary">
 											{t('tabs.summary')}
 										</TabsTrigger>
@@ -2767,6 +2930,18 @@ export function EmployeesPageClient(): React.ReactElement {
 										</TabsTrigger>
 										<TabsTrigger value="audit">{t('tabs.audit')}</TabsTrigger>
 									</TabsList>
+
+									<TabsContent value="documents">
+										{activeEmployee?.id ? (
+											<EmployeeDocumentsTab employeeId={activeEmployee.id} />
+										) : (
+											<Card>
+												<CardContent className="py-8 text-sm text-muted-foreground">
+													{t('documents.empty')}
+												</CardContent>
+											</Card>
+										)}
+									</TabsContent>
 
 									<TabsContent value="summary">
 										<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

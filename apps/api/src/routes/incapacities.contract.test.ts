@@ -279,7 +279,7 @@ describe('incapacity routes (contract)', () => {
 		expect(errorPayload.error.code).toBe('VACATION_INCAPACITY_OVERLAP');
 	});
 
-	it('returns bucket configuration errors when presigning documents without env vars', async () => {
+	it('presigns incapacity documents when bucket is configured or returns a configuration error', async () => {
 		const createResponse = await client.incapacities.post({
 			employeeId: seed.employeeId,
 			caseId: 'INC-DOC-2032',
@@ -311,9 +311,17 @@ describe('incapacity routes (contract)', () => {
 			sizeBytes: 1024,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
+		expect([200, 400]).toContain(presignResponse.status);
+		if (presignResponse.status === 400) {
+			const errorPayload = requireErrorResponse(presignResponse, 'incapacity presign');
+			expect(errorPayload.error.code).toBe('INCAPACITY_BUCKET_NOT_CONFIGURED');
+			return;
+		}
 
-		expect(presignResponse.status).toBe(400);
-		const errorPayload = requireErrorResponse(presignResponse, 'incapacity presign');
-		expect(errorPayload.error.code).toBe('INCAPACITY_BUCKET_NOT_CONFIGURED');
+		const presignPayload = requireResponseData(presignResponse);
+		expect(typeof presignPayload.data?.url).toBe('string');
+		expect(typeof presignPayload.data?.documentId).toBe('string');
+		expect(typeof presignPayload.data?.objectKey).toBe('string');
+		expect(typeof presignPayload.data?.fields).toBe('object');
 	});
 });

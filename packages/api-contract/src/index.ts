@@ -2,6 +2,7 @@ import { edenTreaty } from '@elysiajs/eden';
 import type { App as ElysiaApp } from '@sen-checkin/api';
 
 export type AppType = ElysiaApp;
+export type ApiClient = ReturnType<typeof edenTreaty<AppType>>;
 
 export const API_BASE_URL = 'http://localhost:3000';
 
@@ -21,9 +22,9 @@ export type ApiClientOptions = Parameters<typeof edenTreaty<AppType>>[1];
 export const createApiClient = (
 	baseUrl = API_BASE_URL,
 	options?: ApiClientOptions,
-): ReturnType<typeof edenTreaty<AppType>> => edenTreaty<AppType>(baseUrl, options);
+): ApiClient => edenTreaty<AppType>(baseUrl, options);
 
 /**
  * Ready-to-use client instance for typical local development.
  */
-export const apiClient = createApiClient();
+export const apiClient: ApiClient = createApiClient();

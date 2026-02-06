@@ -1,10 +1,12 @@
 import type { JSX } from 'react';
-import { Redirect, useSegments } from 'expo-router';
+import { Redirect, type Href, useSegments } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 
 import { useAuthContext } from '@/providers/auth-provider';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
+
+const LOCKED_ROUTE = '/(auth)/locked' as Href;
 
 /**
  * Layout for authentication screens.
@@ -26,7 +28,7 @@ export default function AuthLayout(): JSX.Element {
 	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
 	if (!isLoading && authState === 'locked' && !isOnLocked && !isOnLogin) {
-		return <Redirect href="/(auth)/locked" />;
+		return <Redirect href={LOCKED_ROUTE} />;
 	}
 
 	if (!isLoading && session && !isOnDeviceSetup && !needsDeviceSetup && authState !== 'locked') {

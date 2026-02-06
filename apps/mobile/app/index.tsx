@@ -1,8 +1,10 @@
 import type { JSX } from 'react';
 import { ActivityIndicator, ScrollView, View } from 'react-native';
-import { Redirect } from 'expo-router';
+import { Redirect, type Href } from 'expo-router';
 
 import { useAuthContext } from '@/providers/auth-provider';
+
+const LOCKED_ROUTE = '/(auth)/locked' as Href;
 
 export default function Index(): JSX.Element {
 	const { session, isLoading, authState } = useAuthContext();
@@ -23,7 +25,7 @@ export default function Index(): JSX.Element {
 	}
 
 	if (authState === 'locked') {
-		return <Redirect href="/(auth)/locked" />;
+		return <Redirect href={LOCKED_ROUTE} />;
 	}
 
 	if (session) {

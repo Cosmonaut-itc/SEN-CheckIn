@@ -505,7 +505,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 								.map((requirement) => (
 									<div
 										key={requirement.requirementKey}
-										className="grid gap-2 rounded border bg-white p-3 md:grid-cols-[1fr_120px_120px]"
+										className="grid gap-2 rounded border border-border/70 bg-card/80 p-3 md:grid-cols-[1fr_120px_120px]"
 									>
 										<div className="flex items-center gap-2">
 											{requirement.activationStage === 'LEGAL_AFTER_GATE' ? (
@@ -595,7 +595,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 						/>
 					</div>
 					{brandingQuery.data?.url ? (
-						<div className="rounded-md border bg-white p-3">
+						<div className="rounded-md border border-border/70 bg-card/80 p-3">
 							<p className="mb-2 text-xs text-muted-foreground">
 								{t('documentWorkflow.branding.preview')}
 							</p>

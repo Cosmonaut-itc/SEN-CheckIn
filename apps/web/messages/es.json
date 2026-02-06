@@ -843,6 +843,9 @@
         "optional": "Opcional",
         "locked": "Bloqueado"
       },
+      "fileInfo": {
+        "current": "Archivo actual: {fileName} (v{version})"
+      },
       "actions": {
         "view": "Ver",
         "approve": "Aprobar",

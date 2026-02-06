@@ -755,6 +755,14 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 												<Badge variant="outline">{t('documents.badges.locked')}</Badge>
 											) : null}
 										</div>
+										{currentVersion ? (
+											<p className="text-xs text-muted-foreground">
+												{t('documents.fileInfo.current', {
+													fileName: currentVersion.fileName,
+													version: currentVersion.versionNumber,
+												})}
+											</p>
+										) : null}
 									</div>
 									<div className="flex flex-wrap items-center gap-2">
 										{canAdminReview && currentVersion ? (

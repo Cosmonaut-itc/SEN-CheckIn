@@ -293,6 +293,79 @@ describe('employee document workflow routes (contract)', () => {
 		expect(response.status).toBe(400);
 	});
 
+	it('rejects DIGITAL_SIGNATURE source on generic confirm upload endpoint', async () => {
+		const response = await requestJson({
+			method: 'POST',
+			path: `/employees/${employeeWithNoDocsId}/documents/TAX_CONSTANCY/confirm`,
+			cookieHeader: memberSession.cookieHeader,
+			body: {
+				docVersionId: randomUUID(),
+				objectKey: 'org/placeholder/tax-constancy.pdf',
+				fileName: 'constancia-fiscal.pdf',
+				contentType: 'application/pdf',
+				sizeBytes: 1024,
+				sha256: randomUUID().replace(/-/g, ''),
+				source: 'DIGITAL_SIGNATURE',
+			},
+		});
+		expect(response.status).toBe(400);
+		const payload = response.data as { error?: { message?: string } } | null;
+		expect(payload?.error?.message).toContain(
+			'DIGITAL_SIGNATURE source is only allowed through legal sign-digital confirmation',
+		);
+	});
+
+	it('rejects review requests for non-current document versions', async () => {
+		const historicalDocId = await seedEmployeeDocumentVersion({
+			organizationId: seed.organizationId,
+			employeeId: employeeWithNoDocsId,
+			uploadedByUserId: adminSession.userId,
+			requirementKey: 'PROOF_OF_ADDRESS',
+			reviewStatus: 'PENDING_REVIEW',
+		});
+		const currentDocId = await seedEmployeeDocumentVersion({
+			organizationId: seed.organizationId,
+			employeeId: employeeWithNoDocsId,
+			uploadedByUserId: adminSession.userId,
+			requirementKey: 'PROOF_OF_ADDRESS',
+			reviewStatus: 'PENDING_REVIEW',
+		});
+
+		const reviewResponse = await requestJson({
+			method: 'POST',
+			path: `/employees/${employeeWithNoDocsId}/documents/${historicalDocId}/review`,
+			cookieHeader: adminSession.cookieHeader,
+			body: {
+				reviewStatus: 'APPROVED',
+			},
+		});
+		expect(reviewResponse.status).toBe(409);
+
+		const rows = await db
+			.select({
+				id: employeeDocumentVersion.id,
+				isCurrent: employeeDocumentVersion.isCurrent,
+				reviewStatus: employeeDocumentVersion.reviewStatus,
+			})
+			.from(employeeDocumentVersion)
+			.where(
+				and(
+					eq(employeeDocumentVersion.organizationId, seed.organizationId),
+					eq(employeeDocumentVersion.employeeId, employeeWithNoDocsId),
+					eq(employeeDocumentVersion.requirementKey, 'PROOF_OF_ADDRESS'),
+				),
+			)
+			.orderBy(desc(employeeDocumentVersion.versionNumber))
+			.limit(2);
+
+		const currentRow = rows.find((row) => row.id === currentDocId);
+		const historicalRow = rows.find((row) => row.id === historicalDocId);
+		expect(currentRow?.isCurrent).toBe(true);
+		expect(currentRow?.reviewStatus).toBe('PENDING_REVIEW');
+		expect(historicalRow?.isCurrent).toBe(false);
+		expect(historicalRow?.reviewStatus).toBe('PENDING_REVIEW');
+	});
+
 	it('blocks legal generation when legal gate is still locked', async () => {
 		const draftResponse = await requestJson({
 			method: 'POST',

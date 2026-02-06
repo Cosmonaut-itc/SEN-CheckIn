@@ -1192,14 +1192,22 @@ export const employeeDocumentRoutes = new Elysia()
 				return buildErrorResponse('Employee not found', 404);
 			}
 
-			const requirementValidationError = validateRequirementSpecificPayload(
-				params.documentRef,
-				body,
-			);
-			if (requirementValidationError) {
-				set.status = 400;
-				return buildErrorResponse(requirementValidationError, 400);
-			}
+				const requirementValidationError = validateRequirementSpecificPayload(
+					params.documentRef,
+					body,
+				);
+				if (requirementValidationError) {
+					set.status = 400;
+					return buildErrorResponse(requirementValidationError, 400);
+				}
+
+				if (body.source === 'DIGITAL_SIGNATURE') {
+					set.status = 400;
+					return buildErrorResponse(
+						'DIGITAL_SIGNATURE source is only allowed through legal sign-digital confirmation',
+						400,
+					);
+				}
 
 			const expectedPrefix = buildEmployeeRequirementPrefix({
 				organizationId: access.organizationId,
@@ -1264,8 +1272,8 @@ export const employeeDocumentRoutes = new Elysia()
 				}
 			}
 
-			const source = body.source ?? 'UPLOAD';
-			const autoApprove = source === 'DIGITAL_SIGNATURE';
+				const source =
+					body.source === 'PHYSICAL_SIGNED_UPLOAD' ? 'PHYSICAL_SIGNED_UPLOAD' : 'UPLOAD';
 
 			const inserted = await db.transaction(async (tx) => {
 				const versionNumber = await prepareNextDocumentVersion(
@@ -1281,22 +1289,22 @@ export const employeeDocumentRoutes = new Elysia()
 						id: body.docVersionId,
 						organizationId: access.organizationId,
 						employeeId: params.id,
-						requirementKey: params.documentRef,
-						versionNumber,
-						isCurrent: true,
-						reviewStatus: autoApprove ? 'APPROVED' : 'PENDING_REVIEW',
-						reviewComment: null,
-						reviewedByUserId: autoApprove ? access.userId : null,
-						reviewedAt: autoApprove ? new Date() : null,
-						source,
-						generationId: body.generationId ?? null,
-						identificationSubtype: body.identificationSubtype ?? null,
-						employmentProfileSubtype: body.employmentProfileSubtype ?? null,
-						signedAtDateKey: body.signedAtDateKey ?? null,
-						verifiedByUserId: autoApprove ? access.userId : null,
-						bucket: bucketConfig.bucket,
-						objectKey: body.objectKey,
-						fileName: body.fileName,
+							requirementKey: params.documentRef,
+							versionNumber,
+							isCurrent: true,
+							reviewStatus: 'PENDING_REVIEW',
+							reviewComment: null,
+							reviewedByUserId: null,
+							reviewedAt: null,
+							source,
+							generationId: body.generationId ?? null,
+							identificationSubtype: body.identificationSubtype ?? null,
+							employmentProfileSubtype: body.employmentProfileSubtype ?? null,
+							signedAtDateKey: body.signedAtDateKey ?? null,
+							verifiedByUserId: null,
+							bucket: bucketConfig.bucket,
+							objectKey: body.objectKey,
+							fileName: body.fileName,
 						contentType: body.contentType,
 						sizeBytes: body.sizeBytes,
 						sha256: body.sha256,
@@ -1438,27 +1446,42 @@ export const employeeDocumentRoutes = new Elysia()
 				)
 				.limit(1);
 
-			const currentDocument = rows[0] ?? null;
-			if (!currentDocument) {
-				set.status = 404;
-				return buildErrorResponse('Document not found', 404);
-			}
+				const currentDocument = rows[0] ?? null;
+				if (!currentDocument) {
+					set.status = 404;
+					return buildErrorResponse('Document not found', 404);
+				}
 
-			const [updated] = await db
-				.update(employeeDocumentVersion)
+				if (!currentDocument.isCurrent) {
+					set.status = 409;
+					return buildErrorResponse('Only current document versions can be reviewed', 409);
+				}
+
+				const [updated] = await db
+					.update(employeeDocumentVersion)
 				.set({
 					reviewStatus: body.reviewStatus,
 					reviewComment:
 						body.reviewStatus === 'REJECTED'
 							? (body.reviewComment ?? null)
 							: null,
-					reviewedByUserId: access.userId,
-					reviewedAt: new Date(),
-				})
-				.where(eq(employeeDocumentVersion.id, currentDocument.id))
-				.returning();
+						reviewedByUserId: access.userId,
+						reviewedAt: new Date(),
+					})
+					.where(
+						and(
+							eq(employeeDocumentVersion.id, currentDocument.id),
+							eq(employeeDocumentVersion.isCurrent, true),
+						),
+					)
+					.returning();
 
-			return { data: updated ?? null };
+				if (!updated) {
+					set.status = 409;
+					return buildErrorResponse('Only current document versions can be reviewed', 409);
+				}
+
+				return { data: updated ?? null };
 		},
 		{
 			params: employeeDocumentVersionReferenceParamsSchema,

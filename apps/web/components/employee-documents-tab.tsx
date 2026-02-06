@@ -616,6 +616,36 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 
 	const legalKinds: LegalDocumentKind[] = ['CONTRACT', 'NDA'];
 
+	/**
+	 * Resolves a user-facing message explaining why a checklist upload input is disabled.
+	 *
+	 * @param args - Upload state flags
+	 * @returns Translated reason or null when enabled
+	 */
+	const resolveChecklistUploadDisabledReason = useCallback(
+		(args: {
+			isActive: boolean;
+			isLegalRequirement: boolean;
+			canUploadRequirement: boolean;
+			isPendingUpload: boolean;
+		}): string | null => {
+			if (!args.canUploadRequirement) {
+				return t('documents.fields.disabledReasons.noPermission');
+			}
+			if (!args.isActive) {
+				return t('documents.fields.disabledReasons.legalGate');
+			}
+			if (args.isLegalRequirement) {
+				return t('documents.fields.disabledReasons.generateFirst');
+			}
+			if (args.isPendingUpload) {
+				return t('documents.fields.disabledReasons.uploading');
+			}
+			return null;
+		},
+		[t],
+	);
+
 	if (summaryQuery.isLoading) {
 		return (
 			<Card>
@@ -687,6 +717,12 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 						const isPendingUpload = uploadingRequirementKey === requirement.requirementKey;
 						const isLegalRequirement = Boolean(resolveLegalKindForRequirement(requirement.requirementKey));
 						const isUploadDisabled = !canUpload || isPendingUpload || isLegalRequirement;
+						const uploadDisabledReason = resolveChecklistUploadDisabledReason({
+							isActive: requirement.isActive,
+							isLegalRequirement,
+							canUploadRequirement: canUpload,
+							isPendingUpload,
+						});
 
 						return (
 							<div
@@ -836,6 +872,11 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 													event.target.value = '';
 												}}
 											/>
+											{isUploadDisabled && uploadDisabledReason ? (
+												<p className="text-xs text-amber-600 dark:text-amber-400">
+													{uploadDisabledReason}
+												</p>
+											) : null}
 										</div>
 									</div>
 								) : null}
@@ -867,6 +908,15 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 							const currentVersion = currentByRequirement.get(requirementKey);
 							const latestGeneration = summary.latestGenerations?.[kind];
 							const isPhysicalUploadPending = uploadingRequirementKey === `PHYSICAL_${kind}`;
+							const isPhysicalUploadDisabled =
+								!summary.gateUnlocked || !latestGeneration?.id || isPhysicalUploadPending;
+							const physicalUploadDisabledReason = !summary.gateUnlocked
+								? t('documents.fields.disabledReasons.legalGate')
+								: !latestGeneration?.id
+									? t('documents.fields.disabledReasons.generateFirst')
+									: isPhysicalUploadPending
+										? t('documents.fields.disabledReasons.uploading')
+										: null;
 
 							return (
 								<Card key={kind} className="border-border/70 bg-card/80">
@@ -937,7 +987,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 												id={`physical-upload-${kind}`}
 												type="file"
 												accept=".pdf,image/jpeg,image/png"
-												disabled={!summary.gateUnlocked || !latestGeneration?.id || isPhysicalUploadPending}
+												disabled={isPhysicalUploadDisabled}
 												onChange={(event) => {
 													const file = event.target.files?.[0];
 													if (!file || !latestGeneration?.id) {
@@ -947,6 +997,11 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 													event.target.value = '';
 												}}
 											/>
+											{isPhysicalUploadDisabled && physicalUploadDisabledReason ? (
+												<p className="text-xs text-amber-600 dark:text-amber-400">
+													{physicalUploadDisabledReason}
+												</p>
+											) : null}
 										</div>
 
 										{legalPreviewByKind[kind] ? (

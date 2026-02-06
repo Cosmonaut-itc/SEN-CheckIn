@@ -856,7 +856,13 @@
         "identificationSubtype": "Tipo de identificación",
         "employmentProfileSubtype": "Tipo de perfil laboral",
         "file": "Archivo",
-        "uploadSignedPhysical": "Subir firmado físicamente"
+        "uploadSignedPhysical": "Subir firmado físicamente",
+        "disabledReasons": {
+          "noPermission": "No tienes permisos para subir documentos en esta organización.",
+          "uploading": "La carga está en progreso. Espera a que termine para subir otro archivo.",
+          "generateFirst": "Primero genera el documento para habilitar la carga del firmado físico.",
+          "legalGate": "Este campo se habilita cuando se desbloquea el gate legal con documentos base aprobados."
+        }
       },
       "subtypes": {
         "INE": "INE",

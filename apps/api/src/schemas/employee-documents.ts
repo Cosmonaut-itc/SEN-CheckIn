@@ -65,7 +65,18 @@ export const documentRequirementActivationStageEnum = z.enum(['BASE', 'LEGAL_AFT
  * Query schema for employee document history endpoint.
  */
 export const employeeDocumentHistoryQuerySchema = paginationSchema.extend({
-	requirementKey: employeeDocumentRequirementKeyEnum.optional(),
+	requirementKey: z.preprocess(
+		(value) => {
+			if (value === undefined || value === null) {
+				return undefined;
+			}
+			if (typeof value === 'string' && (value.trim() === '' || value === 'undefined')) {
+				return undefined;
+			}
+			return value;
+		},
+		employeeDocumentRequirementKeyEnum.optional(),
+	),
 });
 
 /**

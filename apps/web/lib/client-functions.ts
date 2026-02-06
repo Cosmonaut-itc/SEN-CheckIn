@@ -1109,12 +1109,21 @@ export async function fetchEmployeeDocumentsHistory(args: {
 	offset?: number;
 	requirementKey?: EmployeeDocumentRequirementKey;
 }): Promise<EmployeeDocumentsHistoryQueryResult> {
+	const query: {
+		limit: number;
+		offset: number;
+		requirementKey?: EmployeeDocumentRequirementKey;
+	} = {
+		limit: args.limit ?? 20,
+		offset: args.offset ?? 0,
+	};
+
+	if (args.requirementKey) {
+		query.requirementKey = args.requirementKey;
+	}
+
 	const response = await api.employees[args.employeeId].documents.get({
-		$query: {
-			limit: args.limit ?? 20,
-			offset: args.offset ?? 0,
-			requirementKey: args.requirementKey,
-		},
+		$query: query,
 	});
 
 	if (response.error) {

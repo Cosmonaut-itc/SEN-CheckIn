@@ -162,14 +162,23 @@ export async function ensureDocumentWorkflowSetup(
 	)[0];
 
 	if (!config) {
-		const inserted = await tx
+		await tx
 			.insert(organizationDocumentWorkflowConfig)
 			.values({
 				organizationId,
 				baseApprovedThresholdForLegal: DEFAULT_BASE_APPROVED_THRESHOLD_FOR_LEGAL,
 			})
-			.returning();
-		config = inserted[0];
+			.onConflictDoNothing({
+				target: organizationDocumentWorkflowConfig.organizationId,
+			});
+
+		config = (
+			await tx
+				.select()
+				.from(organizationDocumentWorkflowConfig)
+				.where(eq(organizationDocumentWorkflowConfig.organizationId, organizationId))
+				.limit(1)
+		)[0];
 	}
 
 	let requirements = await tx
@@ -179,7 +188,15 @@ export async function ensureDocumentWorkflowSetup(
 		.orderBy(asc(organizationDocumentRequirement.displayOrder));
 
 	if (requirements.length === 0) {
-		await tx.insert(organizationDocumentRequirement).values(buildDefaultRequirementRows(organizationId));
+		await tx
+			.insert(organizationDocumentRequirement)
+			.values(buildDefaultRequirementRows(organizationId))
+			.onConflictDoNothing({
+				target: [
+					organizationDocumentRequirement.organizationId,
+					organizationDocumentRequirement.requirementKey,
+				],
+			});
 		requirements = await tx
 			.select()
 			.from(organizationDocumentRequirement)
@@ -191,7 +208,15 @@ export async function ensureDocumentWorkflowSetup(
 			(row) => !existingKeys.has(row.requirementKey),
 		);
 		if (missingRows.length > 0) {
-			await tx.insert(organizationDocumentRequirement).values(missingRows);
+			await tx
+				.insert(organizationDocumentRequirement)
+				.values(missingRows)
+				.onConflictDoNothing({
+					target: [
+						organizationDocumentRequirement.organizationId,
+						organizationDocumentRequirement.requirementKey,
+					],
+				});
 			requirements = await tx
 				.select()
 				.from(organizationDocumentRequirement)

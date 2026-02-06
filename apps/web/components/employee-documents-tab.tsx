@@ -699,7 +699,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 					</div>
 					<div className="h-2 overflow-hidden rounded-full bg-muted">
 						<div
-							className="h-full rounded-full bg-primary transition-all duration-300"
+							className="h-full rounded-full bg-emerald-500 transition-all duration-300 dark:bg-emerald-400"
 							style={{ width: `${summary.documentProgressPercent}%` }}
 						/>
 					</div>

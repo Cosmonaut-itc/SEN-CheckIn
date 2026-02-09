@@ -11,6 +11,7 @@ import { useAppForm } from '@/lib/forms';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
+import { parseDateKey } from '@/lib/date-key';
 
 const dayOptions = [
 	{ value: '0', labelKey: 'days.sunday' },
@@ -65,6 +66,11 @@ function parseAdditionalMandatoryRestDaysText(value: string): string[] {
 
 	for (const line of lines) {
 		if (!DATE_KEY_REGEX.test(line)) {
+			throw new InvalidMandatoryRestDayDateError(line);
+		}
+		try {
+			parseDateKey(line);
+		} catch {
 			throw new InvalidMandatoryRestDayDateError(line);
 		}
 	}
@@ -168,7 +174,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			ptuExemptReason: '',
 			employerType: 'PERSONA_MORAL',
 			aguinaldoEnabled: true,
-			enableDisciplinaryMeasures: false,
+			enableDisciplinaryMeasures: true,
 		},
 		onSubmit: async ({ value }) => {
 			const trimmedTimeZone = value.timeZone.trim();

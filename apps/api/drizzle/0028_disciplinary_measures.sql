@@ -95,7 +95,7 @@ CREATE TABLE "employee_termination_draft" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );--> statement-breakpoint
 
-ALTER TABLE "payroll_setting" ADD COLUMN IF NOT EXISTS "enable_disciplinary_measures" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_setting" ADD COLUMN IF NOT EXISTS "enable_disciplinary_measures" boolean DEFAULT true NOT NULL;--> statement-breakpoint
 
 ALTER TABLE "organization_disciplinary_folio_counter" ADD CONSTRAINT "organization_disciplinary_folio_counter_organization_id_organization_id_fk" FOREIGN KEY ("organization_id") REFERENCES "public"."organization"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 

@@ -1720,7 +1720,7 @@ export const payrollSetting = pgTable('payroll_setting', {
 	aguinaldoEnabled: boolean('aguinaldo_enabled').default(true).notNull(),
 	/** Enables disciplinary measures module for this organization. */
 	enableDisciplinaryMeasures: boolean('enable_disciplinary_measures')
-		.default(false)
+		.default(true)
 		.notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')

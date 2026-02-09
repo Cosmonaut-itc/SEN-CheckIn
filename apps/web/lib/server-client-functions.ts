@@ -978,7 +978,7 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		ptuExemptReason: payload.ptuExemptReason ?? null,
 		employerType: payload.employerType ?? 'PERSONA_MORAL',
 		aguinaldoEnabled: Boolean(payload.aguinaldoEnabled ?? true),
-		enableDisciplinaryMeasures: Boolean(payload.enableDisciplinaryMeasures ?? false),
+		enableDisciplinaryMeasures: Boolean(payload.enableDisciplinaryMeasures ?? true),
 	};
 }
 

@@ -816,49 +816,49 @@ export function DisciplinaryMeasuresManager({
 		<div className="space-y-4">
 			{embedded ? null : (
 				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-					<Card className="border-amber-300/40 bg-gradient-to-br from-amber-50 to-white">
+					<Card className="border-amber-300/40 bg-gradient-to-br from-amber-50 to-white dark:border-amber-900/40 dark:from-amber-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
 								<p className="text-xs text-muted-foreground">{t('kpis.employeesWithMeasures')}</p>
 								<p className="text-2xl font-semibold">{kpis?.employeesWithMeasures ?? 0}</p>
 							</div>
-							<User className="h-4 w-4 text-amber-700" />
+							<User className="h-4 w-4 text-amber-700 dark:text-amber-300" />
 						</CardContent>
 					</Card>
-					<Card className="border-orange-300/40 bg-gradient-to-br from-orange-50 to-white">
+					<Card className="border-orange-300/40 bg-gradient-to-br from-orange-50 to-white dark:border-orange-900/40 dark:from-orange-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
 								<p className="text-xs text-muted-foreground">{t('kpis.measuresInPeriod')}</p>
 								<p className="text-2xl font-semibold">{kpis?.measuresInPeriod ?? 0}</p>
 							</div>
-							<FileWarning className="h-4 w-4 text-orange-700" />
+							<FileWarning className="h-4 w-4 text-orange-700 dark:text-orange-300" />
 						</CardContent>
 					</Card>
-					<Card className="border-rose-300/40 bg-gradient-to-br from-rose-50 to-white">
+					<Card className="border-rose-300/40 bg-gradient-to-br from-rose-50 to-white dark:border-rose-900/40 dark:from-rose-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
 								<p className="text-xs text-muted-foreground">{t('kpis.activeSuspensions')}</p>
 								<p className="text-2xl font-semibold">{kpis?.activeSuspensions ?? 0}</p>
 							</div>
-							<Clock3 className="h-4 w-4 text-rose-700" />
+							<Clock3 className="h-4 w-4 text-rose-700 dark:text-rose-300" />
 						</CardContent>
 					</Card>
-					<Card className="border-red-300/40 bg-gradient-to-br from-red-50 to-white">
+					<Card className="border-red-300/40 bg-gradient-to-br from-red-50 to-white dark:border-red-900/40 dark:from-red-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
 								<p className="text-xs text-muted-foreground">{t('kpis.terminationEscalations')}</p>
 								<p className="text-2xl font-semibold">{kpis?.terminationEscalations ?? 0}</p>
 							</div>
-							<ShieldAlert className="h-4 w-4 text-red-700" />
+							<ShieldAlert className="h-4 w-4 text-red-700 dark:text-red-300" />
 						</CardContent>
 					</Card>
-					<Card className="border-yellow-300/40 bg-gradient-to-br from-yellow-50 to-white">
+					<Card className="border-yellow-300/40 bg-gradient-to-br from-yellow-50 to-white dark:border-yellow-900/40 dark:from-yellow-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
 								<p className="text-xs text-muted-foreground">{t('kpis.openMeasures')}</p>
 								<p className="text-2xl font-semibold">{kpis?.openMeasures ?? 0}</p>
 							</div>
-							<AlertTriangle className="h-4 w-4 text-yellow-700" />
+							<AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
 						</CardContent>
 					</Card>
 				</div>
@@ -1278,7 +1278,7 @@ export function DisciplinaryMeasuresManager({
 								</div>
 
 								{selectedMeasureDetail.status !== 'CLOSED' ? (
-									<div className="space-y-4 rounded-lg border border-amber-300/40 bg-gradient-to-br from-amber-50/70 to-background p-4">
+									<div className="space-y-4 rounded-lg border border-amber-300/40 bg-gradient-to-br from-amber-100/55 via-amber-50/15 to-background p-4 dark:border-amber-900/40 dark:from-amber-900/20 dark:via-amber-950/10 dark:to-background">
 										<h3 className="text-sm font-semibold">{t('detail.actions.title')}</h3>
 										<div className="grid gap-3 xl:grid-cols-2">
 											<div className="space-y-2 rounded-md border bg-background p-3">

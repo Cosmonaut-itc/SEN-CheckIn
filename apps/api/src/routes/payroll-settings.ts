@@ -72,7 +72,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				ptuExemptReason: null,
 				employerType: 'PERSONA_MORAL',
 				aguinaldoEnabled: true,
-				enableDisciplinaryMeasures: false,
+				enableDisciplinaryMeasures: true,
 			};
 
 			const [insertedSetting] = await db
@@ -147,7 +147,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			const resolvedAguinaldoEnabled =
 				body.aguinaldoEnabled ?? existing[0]?.aguinaldoEnabled ?? true;
 			const resolvedEnableDisciplinaryMeasures =
-				body.enableDisciplinaryMeasures ?? existing[0]?.enableDisciplinaryMeasures ?? false;
+				body.enableDisciplinaryMeasures ?? existing[0]?.enableDisciplinaryMeasures ?? true;
 			const resolvedRiskWorkRateValue =
 				typeof resolvedRiskWorkRate === 'number'
 					? resolvedRiskWorkRate.toFixed(4)

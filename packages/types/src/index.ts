@@ -734,6 +734,106 @@ export interface EmployeePayrollRunSummary {
 }
 
 /**
+ * Holiday source values.
+ */
+export type HolidaySource = 'INTERNAL' | 'PROVIDER' | 'CUSTOM';
+
+/**
+ * Holiday review status values.
+ */
+export type HolidayStatus = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'DEACTIVATED';
+
+/**
+ * Holiday kind values.
+ */
+export type HolidayKind = 'MANDATORY' | 'OPTIONAL';
+
+/**
+ * Sync run lifecycle status values for holiday imports.
+ */
+export type HolidaySyncRunStatus = 'RUNNING' | 'COMPLETED' | 'FAILED';
+
+/**
+ * Holiday calendar entry.
+ */
+export interface HolidayCalendarEntry {
+	/** Entry identifier */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Date key in YYYY-MM-DD format */
+	dateKey: string;
+	/** Holiday display name */
+	name: string;
+	/** Holiday type (mandatory/optional) */
+	kind: HolidayKind;
+	/** Source layer */
+	source: HolidaySource;
+	/** Review status */
+	status: HolidayStatus;
+	/** Recurrence flag */
+	isRecurring: boolean;
+	/** Optional recurrence series ID */
+	seriesId: string | null;
+	/** Provider identifier (when source is PROVIDER) */
+	provider: string | null;
+	/** Provider external identifier */
+	providerExternalId: string | null;
+	/** Optional subdivision code */
+	subdivisionCode: string | null;
+	/** Optional short legal reference */
+	legalReference: string | null;
+	/** Optional conflict reason */
+	conflictReason: string | null;
+	/** Soft activation flag */
+	active: boolean;
+	/** Approval timestamp */
+	approvedAt: Date | null;
+	/** Rejection timestamp */
+	rejectedAt: Date | null;
+	/** Creation timestamp */
+	createdAt: Date;
+	/** Update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Employee-level holiday impact summary in payroll responses.
+ */
+export interface PayrollEmployeeHolidayImpact {
+	/** Holiday date keys that affected the employee */
+	affectedHolidayDateKeys: string[];
+	/** Estimated mandatory rest-day premium amount */
+	mandatoryPremiumAmount: number;
+}
+
+/**
+ * Payroll notice emitted when the selected period intersects holidays.
+ */
+export interface PayrollHolidayNotice {
+	/** Notice discriminator */
+	kind: 'HOLIDAY_PAYROLL_IMPACT';
+	/** Notice title */
+	title: string;
+	/** Notice message */
+	message: string;
+	/** Legal reference displayed in UI */
+	legalReference: 'LFT Art. 74' | 'LFT Art. 75' | 'LFT Art. 74/75';
+	/** Payroll period start date key */
+	periodStartDateKey: string;
+	/** Payroll period end date key */
+	periodEndDateKey: string;
+	/** Holiday date keys inside the period */
+	affectedHolidayDateKeys: string[];
+	/** Number of affected employees */
+	affectedEmployees: number;
+	/** Estimated mandatory premium total for the run */
+	estimatedMandatoryPremiumTotal: number;
+	/** Notice generation timestamp (ISO) */
+	generatedAt: string;
+}
+
+/**
  * Employee insights payload for the detail dialog.
  */
 export interface EmployeeInsights {

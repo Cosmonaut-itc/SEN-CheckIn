@@ -2,6 +2,12 @@ import { toDateKeyUtc } from './date-key.js';
 
 type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+export interface MexicoMandatoryRestDayEntry {
+	dateKey: string;
+	name: string;
+	legalReference: 'LFT Art. 74';
+}
+
 /**
  * Computes the date key for the Nth occurrence of a weekday in a given month.
  *
@@ -83,44 +89,80 @@ function getPresidentialTransitionDateKey(year: number): string | null {
  * @returns Set of YYYY-MM-DD date keys (UTC)
  */
 export function getMexicoMandatoryRestDayKeysForYear(year: number): Set<string> {
-	const keys = new Set<string>();
+	return new Set(getMexicoMandatoryRestDaysForYear(year).map((entry) => entry.dateKey));
+}
+
+/**
+ * Returns Mexico mandatory rest day entries for a given year (LFT Art. 74).
+ *
+ * @param year - Calendar year
+ * @returns Ordered mandatory rest day entries for the year
+ */
+export function getMexicoMandatoryRestDaysForYear(year: number): MexicoMandatoryRestDayEntry[] {
+	const entries: MexicoMandatoryRestDayEntry[] = [];
 
 	// Fixed dates
-	keys.add(`${year}-01-01`); // Año Nuevo
-	keys.add(`${year}-05-01`); // Día del Trabajo
-	keys.add(`${year}-09-16`); // Independencia
-	keys.add(`${year}-12-25`); // Navidad
+	entries.push({
+		dateKey: `${year}-01-01`,
+		name: 'Año Nuevo',
+		legalReference: 'LFT Art. 74',
+	});
+	entries.push({
+		dateKey: `${year}-05-01`,
+		name: 'Día del Trabajo',
+		legalReference: 'LFT Art. 74',
+	});
+	entries.push({
+		dateKey: `${year}-09-16`,
+		name: 'Independencia de México',
+		legalReference: 'LFT Art. 74',
+	});
+	entries.push({
+		dateKey: `${year}-12-25`,
+		name: 'Navidad',
+		legalReference: 'LFT Art. 74',
+	});
 
 	// Move-to-Monday dates
-	keys.add(
-		getNthWeekdayOfMonthDateKey({
+	entries.push({
+		dateKey: getNthWeekdayOfMonthDateKey({
 			year,
 			monthIndex: 1, // Feb
 			weekday: 1, // Monday
 			occurrence: 1,
 		}),
-	); // Día de la Constitución (primer lunes de febrero)
-	keys.add(
-		getNthWeekdayOfMonthDateKey({
+		name: 'Día de la Constitución',
+		legalReference: 'LFT Art. 74',
+	});
+	entries.push({
+		dateKey: getNthWeekdayOfMonthDateKey({
 			year,
 			monthIndex: 2, // Mar
 			weekday: 1, // Monday
 			occurrence: 3,
 		}),
-	); // Natalicio de Benito Juárez (tercer lunes de marzo)
-	keys.add(
-		getNthWeekdayOfMonthDateKey({
+		name: 'Natalicio de Benito Juárez',
+		legalReference: 'LFT Art. 74',
+	});
+	entries.push({
+		dateKey: getNthWeekdayOfMonthDateKey({
 			year,
 			monthIndex: 10, // Nov
 			weekday: 1, // Monday
 			occurrence: 3,
 		}),
-	); // Revolución Mexicana (tercer lunes de noviembre)
+		name: 'Día de la Revolución Mexicana',
+		legalReference: 'LFT Art. 74',
+	});
 
 	const transition = getPresidentialTransitionDateKey(year);
 	if (transition) {
-		keys.add(transition);
+		entries.push({
+			dateKey: transition,
+			name: 'Transmisión del Poder Ejecutivo Federal',
+			legalReference: 'LFT Art. 74',
+		});
 	}
 
-	return keys;
+	return entries.sort((a, b) => a.dateKey.localeCompare(b.dateKey));
 }

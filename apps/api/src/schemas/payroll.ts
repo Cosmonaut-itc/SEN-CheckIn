@@ -37,7 +37,19 @@ export const payrollSettingsSchema = z.object({
 	organizationId: z.string().optional(),
 	overtimeEnforcement: overtimeEnforcementEnum.default('WARN').optional(),
 	additionalMandatoryRestDays: z
-		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'))
+		.array(
+			z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+				.refine((value) => {
+					try {
+						parseDateKey(value);
+						return true;
+					} catch {
+						return false;
+					}
+				}, 'Invalid calendar date'),
+		)
 		.optional(),
 	riskWorkRate: z.coerce.number().min(0).max(1).optional(),
 	statePayrollTaxRate: z.coerce.number().min(0).max(1).optional(),
@@ -135,6 +147,43 @@ export const payrollWarningSchema = z.object({
 });
 
 /**
+ * Legal references used by payroll holiday notices.
+ */
+export const payrollHolidayLegalReferenceEnum = z.enum([
+	'LFT Art. 74',
+	'LFT Art. 75',
+	'LFT Art. 74/75',
+]);
+
+/**
+ * Employee-level holiday impact payload.
+ */
+export const payrollEmployeeHolidayImpactSchema = z.object({
+	affectedHolidayDateKeys: z.array(
+		z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+	),
+	mandatoryPremiumAmount: z.number(),
+});
+
+/**
+ * Payroll holiday notice payload.
+ */
+export const payrollHolidayNoticeSchema = z.object({
+	kind: z.literal('HOLIDAY_PAYROLL_IMPACT'),
+	title: z.string(),
+	message: z.string(),
+	legalReference: payrollHolidayLegalReferenceEnum,
+	periodStartDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+	periodEndDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+	affectedHolidayDateKeys: z.array(
+		z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+	),
+	affectedEmployees: z.number().int().min(0),
+	estimatedMandatoryPremiumTotal: z.number(),
+	generatedAt: z.string(),
+});
+
+/**
  * Detailed payroll breakdown per employee.
  */
 export const payrollEmployeeBreakdownSchema = z.object({
@@ -149,6 +198,9 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	overtimeTripleHours: z.number(),
 	sundayHoursWorked: z.number(),
 	mandatoryRestDaysWorkedCount: z.number(),
+	mandatoryRestDayDateKeys: z.array(
+		z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+	),
 	normalPay: z.number(),
 	overtimeDoublePay: z.number(),
 	overtimeTriplePay: z.number(),
@@ -236,6 +288,7 @@ export const payrollEmployeeBreakdownSchema = z.object({
 		}),
 	}),
 	warnings: z.array(payrollWarningSchema),
+	holidayImpact: payrollEmployeeHolidayImpactSchema.optional(),
 });
 
 export const payrollTaxSummarySchema = z.object({
@@ -252,6 +305,8 @@ export type PayrollCalculateInput = z.infer<typeof payrollCalculateSchema>;
 export type PayrollProcessInput = z.infer<typeof payrollProcessSchema>;
 export type PayrollRunQuery = z.infer<typeof payrollRunQuerySchema>;
 export type PayrollWarning = z.infer<typeof payrollWarningSchema>;
+export type PayrollEmployeeHolidayImpact = z.infer<typeof payrollEmployeeHolidayImpactSchema>;
+export type PayrollHolidayNotice = z.infer<typeof payrollHolidayNoticeSchema>;
 export type PayrollEmployeeBreakdown = z.infer<typeof payrollEmployeeBreakdownSchema>;
 export type PayrollTaxSummary = z.infer<typeof payrollTaxSummarySchema>;
 export type OvertimeEnforcement = z.infer<typeof overtimeEnforcementEnum>;

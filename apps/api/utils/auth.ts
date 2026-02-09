@@ -33,11 +33,14 @@ type PluginEndpoints = AuthPlugins[number]['endpoints'];
 
 type AuthApi = Auth<AuthOptions>['api'] & UnionToIntersection<PluginEndpoints>;
 
+const AUTH_BASE_URL = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
+
 const authOptions: AuthOptions = {
 	database: drizzleAdapter(db, {
 		provider: 'pg',
 		schema: schema,
 	}),
+	baseURL: AUTH_BASE_URL,
 	/**
 	 * Trusted origins are required for Better Auth to accept -origin requests
 	 * from the Next.js web app (dev runs on 3001). Update or extend as needed for

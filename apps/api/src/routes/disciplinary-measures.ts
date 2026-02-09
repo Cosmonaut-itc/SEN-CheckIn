@@ -231,6 +231,28 @@ function buildSuspensionRangeLabel(
 }
 
 /**
+ * Resolves Spanish label for disciplinary outcomes in legal templates.
+ *
+ * @param outcome - Outcome enum value
+ * @returns Human-readable outcome label
+ */
+function buildOutcomeLabel(
+	outcome: typeof employeeDisciplinaryMeasure.$inferSelect.outcome,
+): string {
+	switch (outcome) {
+		case 'warning':
+			return 'Amonestación';
+		case 'suspension':
+			return 'Suspensión';
+		case 'termination_process':
+			return 'Escalación a terminación';
+		case 'no_action':
+		default:
+			return 'Sin acción';
+	}
+}
+
+/**
  * Resolves access context for disciplinary operations.
  *
  * @param args - Auth context
@@ -277,7 +299,9 @@ async function resolveDisciplinaryAccessContext(
 	const membershipRows = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(and(eq(member.organizationId, organizationId), eq(member.userId, args.session.userId)))
+		.where(
+			and(eq(member.organizationId, organizationId), eq(member.userId, args.session.userId)),
+		)
 		.limit(1);
 
 	const role = membershipRows[0]?.role;
@@ -505,7 +529,7 @@ function buildDisciplinaryVariablesSnapshot(args: {
 			folio: args.measure.folio,
 			incidentDate: args.measure.incidentDateKey,
 			reason: args.measure.reason,
-			outcome: args.measure.outcome,
+			outcome: buildOutcomeLabel(args.measure.outcome),
 			policyReference: args.measure.policyReference,
 			suspensionRange,
 		},
@@ -557,7 +581,9 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				conditions.push(eq(employeeDisciplinaryMeasure.outcome, query.outcome));
 			}
 			if (query.fromDateKey) {
-				conditions.push(gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey));
+				conditions.push(
+					gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey),
+				);
 			}
 			if (query.toDateKey) {
 				conditions.push(lte(employeeDisciplinaryMeasure.incidentDateKey, query.toDateKey));
@@ -565,7 +591,10 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			if (query.search) {
 				conditions.push(
 					or(
-						ilike(sql<string>`${employeeDisciplinaryMeasure.folio}::text`, `%${query.search}%`),
+						ilike(
+							sql<string>`${employeeDisciplinaryMeasure.folio}::text`,
+							`%${query.search}%`,
+						),
 						ilike(employee.firstName, `%${query.search}%`),
 						ilike(employee.lastName, `%${query.search}%`),
 						ilike(employee.code, `%${query.search}%`),
@@ -659,58 +688,67 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				eq(employeeDisciplinaryMeasure.organizationId, access.organizationId),
 			];
 			if (query.fromDateKey) {
-				baseConditions.push(gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey));
+				baseConditions.push(
+					gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey),
+				);
 			}
 			if (query.toDateKey) {
-				baseConditions.push(lte(employeeDisciplinaryMeasure.incidentDateKey, query.toDateKey));
+				baseConditions.push(
+					lte(employeeDisciplinaryMeasure.incidentDateKey, query.toDateKey),
+				);
 			}
 
 			const whereClause = and(...baseConditions)!;
-			const [employeesWithMeasures, totalMeasures, activeSuspensions, escalations, openMeasures] =
-				await Promise.all([
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.employeeId) })
-						.from(employeeDisciplinaryMeasure)
-						.where(whereClause),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(whereClause),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(
-							and(
-								whereClause,
-								eq(employeeDisciplinaryMeasure.outcome, 'suspension'),
-								or(
-									eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
-									eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
-								),
+			const [
+				employeesWithMeasures,
+				totalMeasures,
+				activeSuspensions,
+				escalations,
+				openMeasures,
+			] = await Promise.all([
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.employeeId) })
+					.from(employeeDisciplinaryMeasure)
+					.where(whereClause),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(whereClause),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							whereClause,
+							eq(employeeDisciplinaryMeasure.outcome, 'suspension'),
+							or(
+								eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
+								eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
 							),
 						),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(
-							and(
-								whereClause,
-								eq(employeeDisciplinaryMeasure.outcome, 'termination_process'),
+					),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							whereClause,
+							eq(employeeDisciplinaryMeasure.outcome, 'termination_process'),
+						),
+					),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							whereClause,
+							or(
+								eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
+								eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
 							),
 						),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(
-							and(
-								whereClause,
-								or(
-									eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
-									eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
-								),
-							),
-						),
-				]);
+					),
+			]);
 
 			return {
 				data: {
@@ -755,7 +793,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			const employeeRows = await db
 				.select({ id: employee.id })
 				.from(employee)
-				.where(and(eq(employee.id, body.employeeId), eq(employee.organizationId, access.organizationId)))
+				.where(
+					and(
+						eq(employee.id, body.employeeId),
+						eq(employee.organizationId, access.organizationId),
+					),
+				)
 				.limit(1);
 			if (!employeeRows[0]) {
 				set.status = 404;
@@ -786,7 +829,9 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					policyReference: body.policyReference?.trim() || null,
 					outcome: body.outcome,
 					suspensionStartDateKey:
-						body.outcome === 'suspension' ? (body.suspensionStartDateKey ?? null) : null,
+						body.outcome === 'suspension'
+							? (body.suspensionStartDateKey ?? null)
+							: null,
 					suspensionEndDateKey:
 						body.outcome === 'suspension' ? (body.suspensionEndDateKey ?? null) : null,
 					createdByUserId: access.userId,
@@ -863,7 +908,8 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					suspensionStartDateKey: employeeDisciplinaryMeasure.suspensionStartDateKey,
 					suspensionEndDateKey: employeeDisciplinaryMeasure.suspensionEndDateKey,
 					signatureStatus: employeeDisciplinaryMeasure.signatureStatus,
-					generatedActaGenerationId: employeeDisciplinaryMeasure.generatedActaGenerationId,
+					generatedActaGenerationId:
+						employeeDisciplinaryMeasure.generatedActaGenerationId,
 					generatedRefusalGenerationId:
 						employeeDisciplinaryMeasure.generatedRefusalGenerationId,
 					closedAt: employeeDisciplinaryMeasure.closedAt,
@@ -975,7 +1021,11 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 						: body.suspensionEndDateKey
 					: null;
 
-			if (nextOutcome === 'suspension' && nextSuspensionStartDateKey && nextSuspensionEndDateKey) {
+			if (
+				nextOutcome === 'suspension' &&
+				nextSuspensionStartDateKey &&
+				nextSuspensionEndDateKey
+			) {
 				const validation = validateSuspensionRange({
 					startDateKey: nextSuspensionStartDateKey,
 					endDateKey: nextSuspensionEndDateKey,
@@ -1236,12 +1286,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				fileName: body.fileName,
 			});
 
-				const presigned = await createRailwayPresignedPost({
-					key: objectKey,
-					contentType: body.contentType,
-					expiresInSeconds: 300,
-					maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
-				});
+			const presigned = await createRailwayPresignedPost({
+				key: objectKey,
+				contentType: body.contentType,
+				expiresInSeconds: 300,
+				maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
+			});
 
 			return {
 				data: {
@@ -1333,33 +1383,33 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
-			} catch (error) {
-				if (isBucketDependencyError(error)) {
-					set.status = 503;
-					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				} catch (error) {
+					if (isBucketDependencyError(error)) {
+						set.status = 503;
+						return buildErrorResponse('Bucket service dependencies are not installed', 503);
+					}
+					throw error;
 				}
-				throw error;
-			}
-			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
-			try {
-				objectHead = await headRailwayObject({
-					key: body.objectKey,
-				});
-			} catch (error) {
-				if (isBucketDependencyError(error)) {
-					set.status = 503;
-					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+				try {
+					objectHead = await headRailwayObject({
+						key: body.objectKey,
+					});
+				} catch (error) {
+					if (isBucketDependencyError(error)) {
+						set.status = 503;
+						return buildErrorResponse('Bucket service dependencies are not installed', 503);
+					}
+					if (isBucketObjectNotFoundError(error)) {
+						set.status = 404;
+						return buildErrorResponse('Uploaded object not found', 404);
+					}
+					throw error;
 				}
-				if (isBucketObjectNotFoundError(error)) {
+				if (!objectHead) {
 					set.status = 404;
 					return buildErrorResponse('Uploaded object not found', 404);
 				}
-				throw error;
-			}
-			if (!objectHead) {
-				set.status = 404;
-				return buildErrorResponse('Uploaded object not found', 404);
-			}
 			if (
 				!objectMatchesRequest({
 					expectedContentType: body.contentType,
@@ -1597,7 +1647,10 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			}
 			if (!measure.generatedRefusalGenerationId) {
 				set.status = 400;
-				return buildErrorResponse('Generate refusal certificate before uploading signed file', 400);
+				return buildErrorResponse(
+					'Generate refusal certificate before uploading signed file',
+					400,
+				);
 			}
 
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
@@ -1621,12 +1674,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				fileName: body.fileName,
 			});
 
-				const presigned = await createRailwayPresignedPost({
-					key: objectKey,
-					contentType: body.contentType,
-					expiresInSeconds: 300,
-					maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
-				});
+			const presigned = await createRailwayPresignedPost({
+				key: objectKey,
+				contentType: body.contentType,
+				expiresInSeconds: 300,
+				maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
+			});
 
 			return {
 				data: {
@@ -1721,33 +1774,33 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
-			} catch (error) {
-				if (isBucketDependencyError(error)) {
-					set.status = 503;
-					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				} catch (error) {
+					if (isBucketDependencyError(error)) {
+						set.status = 503;
+						return buildErrorResponse('Bucket service dependencies are not installed', 503);
+					}
+					throw error;
 				}
-				throw error;
-			}
-			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
-			try {
-				objectHead = await headRailwayObject({
-					key: body.objectKey,
-				});
-			} catch (error) {
-				if (isBucketDependencyError(error)) {
-					set.status = 503;
-					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+				try {
+					objectHead = await headRailwayObject({
+						key: body.objectKey,
+					});
+				} catch (error) {
+					if (isBucketDependencyError(error)) {
+						set.status = 503;
+						return buildErrorResponse('Bucket service dependencies are not installed', 503);
+					}
+					if (isBucketObjectNotFoundError(error)) {
+						set.status = 404;
+						return buildErrorResponse('Uploaded object not found', 404);
+					}
+					throw error;
 				}
-				if (isBucketObjectNotFoundError(error)) {
+				if (!objectHead) {
 					set.status = 404;
 					return buildErrorResponse('Uploaded object not found', 404);
 				}
-				throw error;
-			}
-			if (!objectHead) {
-				set.status = 404;
-				return buildErrorResponse('Uploaded object not found', 404);
-			}
 			if (
 				!objectMatchesRequest({
 					expectedContentType: body.contentType,
@@ -1872,12 +1925,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				fileName: body.fileName,
 			});
 
-				const presigned = await createRailwayPresignedPost({
-					key: objectKey,
-					contentType: body.contentType,
-					expiresInSeconds: 300,
-					maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
-				});
+			const presigned = await createRailwayPresignedPost({
+				key: objectKey,
+				contentType: body.contentType,
+				expiresInSeconds: 300,
+				maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
+			});
 
 			return {
 				data: {
@@ -1955,33 +2008,33 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
-			} catch (error) {
-				if (isBucketDependencyError(error)) {
-					set.status = 503;
-					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				} catch (error) {
+					if (isBucketDependencyError(error)) {
+						set.status = 503;
+						return buildErrorResponse('Bucket service dependencies are not installed', 503);
+					}
+					throw error;
 				}
-				throw error;
-			}
-			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
-			try {
-				objectHead = await headRailwayObject({
-					key: body.objectKey,
-				});
-			} catch (error) {
-				if (isBucketDependencyError(error)) {
-					set.status = 503;
-					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+				try {
+					objectHead = await headRailwayObject({
+						key: body.objectKey,
+					});
+				} catch (error) {
+					if (isBucketDependencyError(error)) {
+						set.status = 503;
+						return buildErrorResponse('Bucket service dependencies are not installed', 503);
+					}
+					if (isBucketObjectNotFoundError(error)) {
+						set.status = 404;
+						return buildErrorResponse('Uploaded object not found', 404);
+					}
+					throw error;
 				}
-				if (isBucketObjectNotFoundError(error)) {
+				if (!objectHead) {
 					set.status = 404;
 					return buildErrorResponse('Uploaded object not found', 404);
 				}
-				throw error;
-			}
-			if (!objectHead) {
-				set.status = 404;
-				return buildErrorResponse('Uploaded object not found', 404);
-			}
 			if (
 				!objectMatchesRequest({
 					expectedContentType: body.contentType,
@@ -2224,10 +2277,10 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 
 			let url: string;
 			try {
-					url = await createRailwayPresignedGetUrl({
-						key: documentVersion.objectKey,
-						expiresInSeconds: 300,
-					});
+				url = await createRailwayPresignedGetUrl({
+					key: documentVersion.objectKey,
+					expiresInSeconds: 300,
+				});
 			} catch (error) {
 				if (isBucketDependencyError(error)) {
 					set.status = 503;

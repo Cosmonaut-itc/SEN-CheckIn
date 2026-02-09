@@ -37,7 +37,19 @@ export const payrollSettingsSchema = z.object({
 	organizationId: z.string().optional(),
 	overtimeEnforcement: overtimeEnforcementEnum.default('WARN').optional(),
 	additionalMandatoryRestDays: z
-		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'))
+		.array(
+			z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+				.refine((value) => {
+					try {
+						parseDateKey(value);
+						return true;
+					} catch {
+						return false;
+					}
+				}, 'Invalid calendar date'),
+		)
 		.optional(),
 	riskWorkRate: z.coerce.number().min(0).max(1).optional(),
 	statePayrollTaxRate: z.coerce.number().min(0).max(1).optional(),

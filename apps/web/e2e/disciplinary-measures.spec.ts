@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import { buildTestRegistrationPayload, registerTestAccounts, signIn } from './helpers/auth';
 
@@ -389,4 +390,44 @@ test('admin habilita módulo, completa flujo de acta firmada física y ve histor
 	await expect(measureRow.getByText('Cerrada')).toBeVisible();
 	await measureRow.getByRole('button', { name: 'Ver detalle' }).click();
 	await expect(page.getByText('La medida está cerrada y no admite modificaciones.')).toBeVisible();
+});
+
+test('admin genera acta desde UI y descarga PDF', async ({ page }) => {
+	const registration = buildTestRegistrationPayload();
+	await registerTestAccounts(page, registration);
+	await signIn(page, registration.admin.email, registration.admin.password);
+
+	const request = page.request;
+	const locationId = await createLocation(request, registration.organizationName);
+	const jobPositionId = await createJobPosition(request);
+	const employeeId = await createEmployee(request, {
+		locationId,
+		jobPositionId,
+	});
+
+	await enableDisciplinaryModule(request);
+	await ensureActaTemplate(request);
+
+	const measure = await createDisciplinaryMeasure(request, employeeId);
+
+	await page.goto('/disciplinary-measures');
+	const measureRow = page.getByRole('row', {
+		name: new RegExp(`#${measure.folio}\\b`),
+	});
+	await expect(measureRow).toBeVisible();
+	await measureRow.getByRole('button', { name: 'Ver detalle' }).click();
+	await expect(page.getByRole('button', { name: 'Generar acta' })).toBeVisible();
+
+	const [pdfDownload] = await Promise.all([
+		page.waitForEvent('download'),
+		page.getByRole('button', { name: 'Generar acta' }).click(),
+	]);
+
+	expect(pdfDownload.suggestedFilename()).toMatch(/\.pdf$/i);
+	const pdfPath = await pdfDownload.path();
+	if (!pdfPath) {
+		throw new Error('Expected PDF download path for disciplinary acta.');
+	}
+	const pdfBuffer = await readFile(pdfPath);
+	expect(pdfBuffer.subarray(0, 5).toString('utf8')).toBe('%PDF-');
 });

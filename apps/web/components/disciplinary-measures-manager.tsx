@@ -36,6 +36,7 @@ import {
 	presignDisciplinaryAttachmentAction,
 	presignDisciplinaryRefusalAction,
 	presignDisciplinarySignedActaAction,
+	type DisciplinaryMutationResult,
 } from '@/actions/disciplinary-measures';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
@@ -77,6 +78,7 @@ import {
 	type Employee,
 } from '@/lib/client-functions';
 import { formatShortDateUtc } from '@/lib/date-format';
+import { buildGeneratedLegalPdfFromHtml } from '@/lib/legal-documents/build-generated-legal-pdf';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 
@@ -115,6 +117,10 @@ interface CreateMeasureFormState {
 	suspensionEndDateKey: string;
 }
 
+interface DisciplinaryGenerationPayload {
+	renderedHtml?: string;
+}
+
 /**
  * Creates the default create-measure form state.
  *
@@ -131,6 +137,88 @@ function createDefaultCreateFormState(employeeId?: string): CreateMeasureFormSta
 		suspensionStartDateKey: '',
 		suspensionEndDateKey: '',
 	};
+}
+
+/**
+ * Extracts generated HTML payload from disciplinary generation mutations.
+ *
+ * @param result - Mutation result payload
+ * @returns Parsed generation payload or null
+ */
+function extractDisciplinaryGenerationPayload(
+	result: DisciplinaryMutationResult<Record<string, unknown>>,
+): DisciplinaryGenerationPayload | null {
+	if (!result.success || !result.data) {
+		return null;
+	}
+
+	const data = result.data as { renderedHtml?: string };
+	return {
+		renderedHtml: typeof data.renderedHtml === 'string' ? data.renderedHtml : undefined,
+	};
+}
+
+/**
+ * Sanitizes text segments for downloadable file names.
+ *
+ * @param value - Raw file name segment
+ * @returns Sanitized segment
+ */
+function sanitizeDisciplinaryFileNameSegment(value: string): string {
+	const normalized = value.trim().toLowerCase().replace(/\s+/g, '-');
+	const sanitized = normalized.replace(/[^a-z0-9-]/g, '');
+	return sanitized.length > 0 ? sanitized : 'documento';
+}
+
+/**
+ * Builds generated disciplinary document file name.
+ *
+ * @param args - Kind and folio metadata
+ * @returns Download file name
+ */
+function buildDisciplinaryGeneratedFileName(args: {
+	kind: 'acta' | 'refusal';
+	folio: number;
+}): string {
+	const prefix =
+		args.kind === 'acta' ? 'acta-administrativa' : 'constancia-negativa-firma';
+	const todayDateKey = new Date().toISOString().slice(0, 10);
+	const folioSegment = sanitizeDisciplinaryFileNameSegment(args.folio.toString());
+	return `${prefix}-${folioSegment}-${todayDateKey}.pdf`;
+}
+
+/**
+ * Triggers browser download for generated disciplinary PDF.
+ *
+ * @param args - Download payload
+ * @returns Nothing
+ */
+async function downloadDisciplinaryGeneratedPdf(args: {
+	html: string;
+	fileName: string;
+	title: string;
+}): Promise<void> {
+	const pdfBytes = await buildGeneratedLegalPdfFromHtml({
+		title: args.title,
+		html: args.html,
+	});
+	const normalizedPdfBytes = new Uint8Array(pdfBytes.length);
+	normalizedPdfBytes.set(pdfBytes);
+	const blob = new Blob([normalizedPdfBytes], { type: 'application/pdf' });
+	const objectUrl = URL.createObjectURL(blob);
+
+	try {
+		const anchor = document.createElement('a');
+		anchor.href = objectUrl;
+		anchor.download = args.fileName;
+		anchor.rel = 'noopener';
+		anchor.style.display = 'none';
+		document.body.append(anchor);
+		anchor.click();
+		anchor.remove();
+	} finally {
+		URL.revokeObjectURL(objectUrl);
+	}
 }
 
 /**
@@ -676,14 +764,35 @@ export function DisciplinaryMeasuresManager({
 			toast.error(t('toast.selectMeasureFirst'));
 			return;
 		}
-		const result = await generateActaMutation.mutateAsync({ id: selectedMeasure.id });
-		if (!result.success) {
-			toast.error(result.error ?? t('toast.generateActaError'));
-			return;
-		}
+		try {
+			const result = await generateActaMutation.mutateAsync({ id: selectedMeasure.id });
+			if (!result.success) {
+				toast.error(result.error ?? t('toast.generateActaError'));
+				return;
+			}
 
-		toast.success(t('toast.generateActaSuccess'));
-		await invalidateDisciplinaryQueries();
+			await invalidateDisciplinaryQueries();
+
+			const payload = extractDisciplinaryGenerationPayload(result);
+			if (!payload?.renderedHtml) {
+				toast.error(t('toast.generateActaError'));
+				return;
+			}
+
+			await downloadDisciplinaryGeneratedPdf({
+				html: payload.renderedHtml,
+				fileName: buildDisciplinaryGeneratedFileName({
+					kind: 'acta',
+					folio: selectedMeasure.folio,
+				}),
+				title: t('documentKinds.ACTA_ADMINISTRATIVA'),
+			});
+
+			toast.success(t('toast.generateActaSuccess'));
+		} catch (error) {
+			console.error('Failed to generate or download disciplinary acta:', error);
+			toast.error(t('toast.generateActaError'));
+		}
 	}, [generateActaMutation, invalidateDisciplinaryQueries, selectedMeasure, t]);
 
 	/**
@@ -696,14 +805,35 @@ export function DisciplinaryMeasuresManager({
 			toast.error(t('toast.selectMeasureFirst'));
 			return;
 		}
-		const result = await generateRefusalMutation.mutateAsync({ id: selectedMeasure.id });
-		if (!result.success) {
-			toast.error(result.error ?? t('toast.generateRefusalError'));
-			return;
-		}
+		try {
+			const result = await generateRefusalMutation.mutateAsync({ id: selectedMeasure.id });
+			if (!result.success) {
+				toast.error(result.error ?? t('toast.generateRefusalError'));
+				return;
+			}
 
-		toast.success(t('toast.generateRefusalSuccess'));
-		await invalidateDisciplinaryQueries();
+			await invalidateDisciplinaryQueries();
+
+			const payload = extractDisciplinaryGenerationPayload(result);
+			if (!payload?.renderedHtml) {
+				toast.error(t('toast.generateRefusalError'));
+				return;
+			}
+
+			await downloadDisciplinaryGeneratedPdf({
+				html: payload.renderedHtml,
+				fileName: buildDisciplinaryGeneratedFileName({
+					kind: 'refusal',
+					folio: selectedMeasure.folio,
+				}),
+				title: t('documentKinds.CONSTANCIA_NEGATIVA_FIRMA'),
+			});
+
+			toast.success(t('toast.generateRefusalSuccess'));
+		} catch (error) {
+			console.error('Failed to generate or download refusal certificate:', error);
+			toast.error(t('toast.generateRefusalError'));
+		}
 	}, [generateRefusalMutation, invalidateDisciplinaryQueries, selectedMeasure, t]);
 
 	/**

@@ -37,6 +37,42 @@ function getTodayDateKey(): string {
 }
 
 /**
+ * Resolves a long date label in Spanish for legal documents.
+ *
+ * @returns Date label (e.g. "9 de febrero de 2026")
+ */
+function getTodayDateLongLabel(): string {
+	return new Intl.DateTimeFormat('es-MX', {
+		day: 'numeric',
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'America/Mexico_City',
+	}).format(new Date());
+}
+
+/**
+ * Resolves a short time label in Spanish for legal documents.
+ *
+ * @returns Time label in 12h format (e.g. "11:00 am")
+ */
+function getCurrentTimeLabel(): string {
+	const value = new Intl.DateTimeFormat('es-MX', {
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: true,
+		timeZone: 'America/Mexico_City',
+	})
+		.format(new Date())
+		.toLowerCase();
+
+	return value
+		.replace('a. m.', 'am')
+		.replace('p. m.', 'pm')
+		.replace('a.m.', 'am')
+		.replace('p.m.', 'pm');
+}
+
+/**
  * Builds the default employee/document variable snapshot used by legal templates.
  *
  * @param employeeRecord - Employee data source
@@ -57,6 +93,8 @@ export function buildDefaultLegalVariablesSnapshot(
 		},
 		document: {
 			generatedDate: getTodayDateKey(),
+			generatedDateLong: getTodayDateLongLabel(),
+			generatedTimeLabel: getCurrentTimeLabel(),
 		},
 	};
 }

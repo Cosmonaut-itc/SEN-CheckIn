@@ -49,6 +49,8 @@ const TEMPLATE_TOKENS = [
 	'{{employee.locationName}}',
 	'{{employee.hireDate}}',
 	'{{document.generatedDate}}',
+	'{{document.generatedDateLong}}',
+	'{{document.generatedTimeLabel}}',
 	'{{disciplinary.folio}}',
 	'{{disciplinary.incidentDate}}',
 	'{{disciplinary.reason}}',
@@ -143,15 +145,42 @@ function buildDefaultTemplateHtml(kind: LegalDocumentKind): string {
 
 	if (kind === 'ACTA_ADMINISTRATIVA') {
 		return `
-<h1>Acta Administrativa</h1>
-<p>Folio: {{disciplinary.folio}}</p>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
-<p>Motivo: {{disciplinary.reason}}</p>
-<p>Resultado: {{disciplinary.outcome}}</p>
-<p>Referencia de política: {{disciplinary.policyReference}}</p>
-<p>Suspensión: {{disciplinary.suspensionRange}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
+<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.55; color: #111111;">
+	<p style="text-align: center; font-weight: 700; margin: 0 0 8px 0;">ACTA ADMINISTRATIVA</p>
+	<p style="text-align: center; margin: 0 0 28px 0;">Folio interno: {{disciplinary.folio}}</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		En la Ciudad de {{employee.locationName}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, se levanta la presente acta administrativa por una parte por la representación patronal y por la otra por la persona trabajadora {{employee.fullName}}, para dejar constancia de los acontecimientos reportados.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		Se levanta la presente acta administrativa con motivo de que la persona trabajadora identificada con código {{employee.code}} ha sido relacionada con hechos que constituyen faltas al Contrato Individual de Trabajo y/o Reglamento Interior de Trabajo.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		- El día {{disciplinary.incidentDate}} se registró la siguiente conducta: {{disciplinary.reason}}.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		Resultado disciplinario: {{disciplinary.outcome}}. Referencia de política: {{disciplinary.policyReference}}. Suspensión aplicable: {{disciplinary.suspensionRange}}.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 26px 0;">
+		La presente se redacta para constancia y surte sus efectos legales correspondientes como soporte para futuras acciones. La persona trabajadora firma de conformidad la presente, aceptando ser responsable del contenido de esta acta.
+	</p>
+
+	<p style="text-align: center; font-weight: 600; margin: 0 0 24px 0;">
+		{{employee.locationName}}, {{document.generatedDateLong}}
+	</p>
+
+	<p style="text-align: center; margin: 0 0 10px 0;">TRABAJADOR.</p>
+	<p style="text-align: center; margin: 0 0 8px 0;">________________________________________</p>
+	<p style="text-align: center; margin: 0 0 28px 0;">{{employee.fullName}}</p>
+
+	<p style="text-align: center; margin: 0 0 10px 0;">Testigo.                                      Testigo.</p>
+	<p style="text-align: center; margin: 0 0 8px 0;">______________________________      ______________________________</p>
+	<p style="text-align: center; margin: 0;">Nombre y firma                              Nombre y firma</p>
+</div>
 `.trim();
 	}
 

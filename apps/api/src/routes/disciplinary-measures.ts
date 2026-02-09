@@ -1277,6 +1277,14 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				set.status = 409;
 				return buildErrorResponse('Closed disciplinary measures cannot be modified', 409);
 			}
+			if (!measure.generatedActaGenerationId) {
+				set.status = 400;
+				return buildErrorResponse('Generate acta before uploading a signed version', 400);
+			}
+			if (body.generationId !== measure.generatedActaGenerationId) {
+				set.status = 400;
+				return buildErrorResponse('Invalid acta generation reference', 400);
+			}
 
 			const generation = await requireLegalGeneration({
 				organizationId: access.organizationId,
@@ -1289,10 +1297,19 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Invalid acta generation reference', 400);
 			}
 
-				const bucketConfig = getRailwayBucketConfig();
-				const objectHead = await headRailwayObject({
-					key: body.objectKey,
-				});
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
+			const objectHead = await headRailwayObject({
+				key: body.objectKey,
+			});
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1621,6 +1638,17 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				set.status = 409;
 				return buildErrorResponse('Closed disciplinary measures cannot be modified', 409);
 			}
+			if (!measure.generatedRefusalGenerationId) {
+				set.status = 400;
+				return buildErrorResponse(
+					'Generate refusal certificate before uploading signed file',
+					400,
+				);
+			}
+			if (body.generationId !== measure.generatedRefusalGenerationId) {
+				set.status = 400;
+				return buildErrorResponse('Invalid refusal generation reference', 400);
+			}
 
 			const generation = await requireLegalGeneration({
 				organizationId: access.organizationId,
@@ -1633,10 +1661,19 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Invalid refusal generation reference', 400);
 			}
 
-				const bucketConfig = getRailwayBucketConfig();
-				const objectHead = await headRailwayObject({
-					key: body.objectKey,
-				});
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
+			const objectHead = await headRailwayObject({
+				key: body.objectKey,
+			});
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1746,7 +1783,16 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
 			}
 
-			const bucketConfig = getRailwayBucketConfig();
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
 			const attachmentId = crypto.randomUUID();
 			const objectKey = buildDisciplinaryAttachmentObjectKey({
 				organizationId: access.organizationId,
@@ -1826,10 +1872,19 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
 			}
 
-				const bucketConfig = getRailwayBucketConfig();
-				const objectHead = await headRailwayObject({
-					key: body.objectKey,
-				});
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
+			const objectHead = await headRailwayObject({
+				key: body.objectKey,
+			});
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);

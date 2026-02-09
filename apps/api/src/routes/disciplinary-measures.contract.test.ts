@@ -77,7 +77,10 @@ async function ensurePublishedDisciplinaryTemplate(args: {
 	kind: LegalTemplateKind;
 }): Promise<void> {
 	ensureTestDatabaseUrl();
-	const [{ default: db }, schema] = await Promise.all([import('../db/index.js'), import('../db/schema.js')]);
+	const [{ default: db }, schema] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
 	const { organizationLegalTemplate } = schema;
 
 	const existing = await db
@@ -286,6 +289,91 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(confirmPayload.data?.kind).toBe('ACTA_ADMINISTRATIVA');
 	});
 
+	it('rejects signed acta confirm when generation belongs to a different measure', async () => {
+		const firstCreateResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-17',
+			reason: 'Validación de vínculo de acta 1',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstCreateResponse.status).toBe(201);
+		const firstMeasure = requireMeasurePayload(requireResponseData(firstCreateResponse));
+		const firstMeasureRoute = requireRoute(
+			client['disciplinary-measures'][firstMeasure.id],
+			'first disciplinary measure route',
+		);
+
+		const secondCreateResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-18',
+			reason: 'Validación de vínculo de acta 2',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondCreateResponse.status).toBe(201);
+		const secondMeasure = requireMeasurePayload(requireResponseData(secondCreateResponse));
+		const secondMeasureRoute = requireRoute(
+			client['disciplinary-measures'][secondMeasure.id],
+			'second disciplinary measure route',
+		);
+
+		const firstGenerateResponse = await firstMeasureRoute['generate-acta'].post({
+			templateId: undefined,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstGenerateResponse.status).toBe(200);
+
+		const secondGenerateResponse = await secondMeasureRoute['generate-acta'].post({
+			templateId: undefined,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondGenerateResponse.status).toBe(200);
+		const secondGeneratePayload = requireResponseData(secondGenerateResponse) as {
+			data?: {
+				generation?: { id?: string };
+			};
+		};
+		const secondGenerationId = secondGeneratePayload.data?.generation?.id;
+		if (!secondGenerationId) {
+			throw new Error('Expected second measure acta generation id.');
+		}
+
+		const firstPresignResponse = await firstMeasureRoute['signed-acta'].presign.post({
+			fileName: 'acta-vinculo.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstPresignResponse.status).toBe(200);
+		const firstPresignPayload = requireResponseData(firstPresignResponse) as {
+			data?: {
+				docVersionId?: string;
+				objectKey?: string;
+			};
+		};
+		const firstDocVersionId = firstPresignPayload.data?.docVersionId;
+		const firstObjectKey = firstPresignPayload.data?.objectKey;
+		if (!firstDocVersionId || !firstObjectKey) {
+			throw new Error('Expected first measure signed acta presign payload.');
+		}
+
+		const confirmResponse = await firstMeasureRoute['signed-acta'].confirm.post({
+			docVersionId: firstDocVersionId,
+			generationId: secondGenerationId,
+			objectKey: firstObjectKey,
+			fileName: 'acta-vinculo.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'acta-vinculo-invalido',
+			signedAtDateKey: '2026-01-17',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(400);
+		const confirmError = requireErrorResponse(confirmResponse, 'mismatched acta generation');
+		expect(confirmError.error.message).toBe('Invalid acta generation reference');
+	});
+
 	it('requires refusal certificate before close when employee refused to sign', async () => {
 		const createResponse = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,
@@ -306,7 +394,10 @@ describe('disciplinary measures routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(closeWithoutRefusal.status).toBe(400);
-		const closeError = requireErrorResponse(closeWithoutRefusal, 'close without refusal certificate');
+		const closeError = requireErrorResponse(
+			closeWithoutRefusal,
+			'close without refusal certificate',
+		);
 		expect(closeError.error.message).toContain('Refusal certificate is required');
 
 		const generateRefusalResponse = await measureRoute.refusal.generate.post({
@@ -362,6 +453,91 @@ describe('disciplinary measures routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(closeResponse.status).toBe(200);
+	});
+
+	it('rejects refusal confirm when generation belongs to a different measure', async () => {
+		const firstCreateResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-19',
+			reason: 'Validación de vínculo de constancia 1',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstCreateResponse.status).toBe(201);
+		const firstMeasure = requireMeasurePayload(requireResponseData(firstCreateResponse));
+		const firstMeasureRoute = requireRoute(
+			client['disciplinary-measures'][firstMeasure.id],
+			'first refusal measure route',
+		);
+
+		const secondCreateResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-20',
+			reason: 'Validación de vínculo de constancia 2',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondCreateResponse.status).toBe(201);
+		const secondMeasure = requireMeasurePayload(requireResponseData(secondCreateResponse));
+		const secondMeasureRoute = requireRoute(
+			client['disciplinary-measures'][secondMeasure.id],
+			'second refusal measure route',
+		);
+
+		const firstGenerateResponse = await firstMeasureRoute.refusal.generate.post({
+			refusalReason: 'Primera constancia para validar vínculo',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstGenerateResponse.status).toBe(200);
+
+		const secondGenerateResponse = await secondMeasureRoute.refusal.generate.post({
+			refusalReason: 'Segunda constancia para validar vínculo',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondGenerateResponse.status).toBe(200);
+		const secondGeneratePayload = requireResponseData(secondGenerateResponse) as {
+			data?: {
+				generation?: { id?: string };
+			};
+		};
+		const secondGenerationId = secondGeneratePayload.data?.generation?.id;
+		if (!secondGenerationId) {
+			throw new Error('Expected second measure refusal generation id.');
+		}
+
+		const firstPresignResponse = await firstMeasureRoute.refusal.presign.post({
+			fileName: 'constancia-vinculo.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstPresignResponse.status).toBe(200);
+		const firstPresignPayload = requireResponseData(firstPresignResponse) as {
+			data?: {
+				docVersionId?: string;
+				objectKey?: string;
+			};
+		};
+		const firstDocVersionId = firstPresignPayload.data?.docVersionId;
+		const firstObjectKey = firstPresignPayload.data?.objectKey;
+		if (!firstDocVersionId || !firstObjectKey) {
+			throw new Error('Expected first measure refusal presign payload.');
+		}
+
+		const confirmResponse = await firstMeasureRoute.refusal.confirm.post({
+			docVersionId: firstDocVersionId,
+			generationId: secondGenerationId,
+			objectKey: firstObjectKey,
+			fileName: 'constancia-vinculo.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'constancia-vinculo-invalido',
+			signedAtDateKey: '2026-01-19',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(400);
+		const confirmError = requireErrorResponse(confirmResponse, 'mismatched refusal generation');
+		expect(confirmError.error.message).toBe('Invalid refusal generation reference');
 	});
 
 	it('enforces immutability for closed measures', async () => {

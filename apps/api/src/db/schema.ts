@@ -246,6 +246,23 @@ export const userRelations = relations(user, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
 	deviceCodes: many(deviceCode),
+	disciplinaryMeasuresClosed: many(employeeDisciplinaryMeasure, {
+		relationName: 'disciplinaryMeasureClosedBy',
+	}),
+	disciplinaryMeasuresCreated: many(employeeDisciplinaryMeasure, {
+		relationName: 'disciplinaryMeasureCreatedBy',
+	}),
+	disciplinaryMeasuresUpdated: many(employeeDisciplinaryMeasure, {
+		relationName: 'disciplinaryMeasureUpdatedBy',
+	}),
+	disciplinaryDocumentsUploaded: many(employeeDisciplinaryDocumentVersion),
+	disciplinaryAttachmentsUploaded: many(employeeDisciplinaryAttachment),
+	terminationDraftsCreated: many(employeeTerminationDraft, {
+		relationName: 'terminationDraftCreatedBy',
+	}),
+	terminationDraftsUpdated: many(employeeTerminationDraft, {
+		relationName: 'terminationDraftUpdatedBy',
+	}),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -279,6 +296,11 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	legalTemplates: many(organizationLegalTemplate),
 	legalGenerations: many(employeeLegalGeneration),
 	documentVersions: many(employeeDocumentVersion),
+	disciplinaryFolioCounters: many(organizationDisciplinaryFolioCounter),
+	disciplinaryMeasures: many(employeeDisciplinaryMeasure),
+	disciplinaryDocumentVersions: many(employeeDisciplinaryDocumentVersion),
+	disciplinaryAttachments: many(employeeDisciplinaryAttachment),
+	terminationDrafts: many(employeeTerminationDraft),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -529,12 +551,61 @@ export const employmentProfileSubtype = pgEnum('employment_profile_subtype', [
 /**
  * Enum for legal document kind.
  */
-export const legalDocumentKind = pgEnum('legal_document_kind', ['CONTRACT', 'NDA']);
+export const legalDocumentKind = pgEnum('legal_document_kind', [
+	'CONTRACT',
+	'NDA',
+	'ACTA_ADMINISTRATIVA',
+	'CONSTANCIA_NEGATIVA_FIRMA',
+]);
 
 /**
  * Enum for legal template status values.
  */
 export const legalTemplateStatus = pgEnum('legal_template_status', ['DRAFT', 'PUBLISHED']);
+
+/**
+ * Enum for disciplinary measure status values.
+ */
+export const disciplinaryMeasureStatus = pgEnum('disciplinary_measure_status', [
+	'DRAFT',
+	'GENERATED',
+	'CLOSED',
+]);
+
+/**
+ * Enum for disciplinary outcomes.
+ */
+export const disciplinaryOutcome = pgEnum('disciplinary_outcome', [
+	'no_action',
+	'warning',
+	'suspension',
+	'termination_process',
+]);
+
+/**
+ * Enum for disciplinary signature status values.
+ */
+export const disciplinarySignatureStatus = pgEnum('disciplinary_signature_status', [
+	'signed_physical',
+	'refused_to_sign',
+]);
+
+/**
+ * Enum for disciplinary document kinds.
+ */
+export const disciplinaryDocumentKind = pgEnum('disciplinary_document_kind', [
+	'ACTA_ADMINISTRATIVA',
+	'CONSTANCIA_NEGATIVA_FIRMA',
+]);
+
+/**
+ * Enum for disciplinary termination draft status values.
+ */
+export const terminationDraftStatus = pgEnum('termination_draft_status', [
+	'ACTIVE',
+	'CANCELLED',
+	'CONSUMED',
+]);
 
 /**
  * Enum for document requirement activation stage.
@@ -1315,6 +1386,240 @@ export const employeeDocumentVersion = pgTable(
 );
 
 /**
+ * Per-organization disciplinary folio counter.
+ * The sequence is monotonic and may contain gaps.
+ */
+export const organizationDisciplinaryFolioCounter = pgTable(
+	'organization_disciplinary_folio_counter',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.unique()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		lastFolio: integer('last_folio').default(0).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [index('organization_disciplinary_folio_counter_org_idx').on(table.organizationId)],
+);
+
+/**
+ * Disciplinary measures issued per employee.
+ */
+export const employeeDisciplinaryMeasure = pgTable(
+	'employee_disciplinary_measure',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		folio: integer('folio').notNull(),
+		status: disciplinaryMeasureStatus('status').default('DRAFT').notNull(),
+		incidentDateKey: text('incident_date_key').notNull(),
+		reason: text('reason').notNull(),
+		policyReference: text('policy_reference'),
+		outcome: disciplinaryOutcome('outcome').default('no_action').notNull(),
+		suspensionStartDateKey: text('suspension_start_date_key'),
+		suspensionEndDateKey: text('suspension_end_date_key'),
+		signatureStatus: disciplinarySignatureStatus('signature_status'),
+		generatedActaGenerationId: text('generated_acta_generation_id').references(
+			() => employeeLegalGeneration.id,
+			{ onDelete: 'set null' },
+		),
+		generatedRefusalGenerationId: text('generated_refusal_generation_id').references(
+			() => employeeLegalGeneration.id,
+			{ onDelete: 'set null' },
+		),
+		closedAt: timestamp('closed_at'),
+		closedByUserId: text('closed_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		createdByUserId: text('created_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		updatedByUserId: text('updated_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('employee_disciplinary_measure_org_folio_uniq').on(
+			table.organizationId,
+			table.folio,
+		),
+		index('employee_disciplinary_measure_org_incident_date_idx').on(
+			table.organizationId,
+			table.incidentDateKey,
+		),
+		index('employee_disciplinary_measure_org_employee_idx').on(
+			table.organizationId,
+			table.employeeId,
+		),
+		index('employee_disciplinary_measure_org_status_idx').on(
+			table.organizationId,
+			table.status,
+		),
+		index('employee_disciplinary_measure_org_outcome_idx').on(
+			table.organizationId,
+			table.outcome,
+		),
+	],
+);
+
+/**
+ * Versioned signed disciplinary files generated from legal templates.
+ */
+export const employeeDisciplinaryDocumentVersion = pgTable(
+	'employee_disciplinary_document_version',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		measureId: text('measure_id')
+			.notNull()
+			.references(() => employeeDisciplinaryMeasure.id, { onDelete: 'cascade' }),
+		kind: disciplinaryDocumentKind('kind').notNull(),
+		versionNumber: integer('version_number').notNull(),
+		isCurrent: boolean('is_current').default(true).notNull(),
+		generationId: text('generation_id').references(() => employeeLegalGeneration.id, {
+			onDelete: 'set null',
+		}),
+		signedAtDateKey: text('signed_at_date_key'),
+		bucket: text('bucket').notNull(),
+		objectKey: text('object_key').notNull(),
+		fileName: text('file_name').notNull(),
+		contentType: text('content_type').notNull(),
+		sizeBytes: integer('size_bytes').notNull(),
+		sha256: text('sha256').notNull(),
+		uploadedByUserId: text('uploaded_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+		metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('employee_disciplinary_document_measure_kind_version_uniq').on(
+			table.measureId,
+			table.kind,
+			table.versionNumber,
+		),
+		uniqueIndex('employee_disciplinary_document_object_key_uniq').on(table.objectKey),
+		index('employee_disciplinary_document_measure_idx').on(table.measureId),
+	],
+);
+
+/**
+ * Additional disciplinary evidence attachments.
+ */
+export const employeeDisciplinaryAttachment = pgTable(
+	'employee_disciplinary_attachment',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		measureId: text('measure_id')
+			.notNull()
+			.references(() => employeeDisciplinaryMeasure.id, { onDelete: 'cascade' }),
+		bucket: text('bucket').notNull(),
+		objectKey: text('object_key').notNull(),
+		fileName: text('file_name').notNull(),
+		contentType: text('content_type').notNull(),
+		sizeBytes: integer('size_bytes').notNull(),
+		sha256: text('sha256').notNull(),
+		uploadedByUserId: text('uploaded_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		uploadedAt: timestamp('uploaded_at').defaultNow().notNull(),
+		metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('employee_disciplinary_attachment_object_key_uniq').on(table.objectKey),
+		index('employee_disciplinary_attachment_measure_idx').on(table.measureId),
+	],
+);
+
+/**
+ * Termination drafts created from disciplinary outcomes.
+ */
+export const employeeTerminationDraft = pgTable(
+	'employee_termination_draft',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		measureId: text('measure_id')
+			.notNull()
+			.references(() => employeeDisciplinaryMeasure.id, { onDelete: 'cascade' }),
+		status: terminationDraftStatus('status').default('ACTIVE').notNull(),
+		payload: jsonb('payload').$type<Record<string, unknown>>().default({}).notNull(),
+		consumedAt: timestamp('consumed_at'),
+		cancelledAt: timestamp('cancelled_at'),
+		createdByUserId: text('created_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		updatedByUserId: text('updated_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('employee_termination_draft_measure_uniq').on(table.measureId),
+		index('employee_termination_draft_org_employee_status_idx').on(
+			table.organizationId,
+			table.employeeId,
+			table.status,
+		),
+	],
+);
+
+/**
  * Schedule Exception table - date-specific overrides for employee schedules.
  */
 export const scheduleException = pgTable(
@@ -1413,6 +1718,10 @@ export const payrollSetting = pgTable('payroll_setting', {
 	employerType: employerType('employer_type').default('PERSONA_MORAL').notNull(),
 	/** Whether aguinaldo calculations are enabled */
 	aguinaldoEnabled: boolean('aguinaldo_enabled').default(true).notNull(),
+	/** Enables disciplinary measures module for this organization. */
+	enableDisciplinaryMeasures: boolean('enable_disciplinary_measures')
+		.default(false)
+		.notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -1470,6 +1779,10 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	terminationSettlements: many(employeeTerminationSettlement),
 	legalGenerations: many(employeeLegalGeneration),
 	documentVersions: many(employeeDocumentVersion),
+	disciplinaryMeasures: many(employeeDisciplinaryMeasure),
+	disciplinaryDocumentVersions: many(employeeDisciplinaryDocumentVersion),
+	disciplinaryAttachments: many(employeeDisciplinaryAttachment),
+	terminationDrafts: many(employeeTerminationDraft),
 }));
 
 export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({
@@ -1608,6 +1921,13 @@ export const employeeLegalGenerationRelations = relations(
 			references: [user.id],
 		}),
 		documentVersions: many(employeeDocumentVersion),
+		disciplinaryDocumentVersions: many(employeeDisciplinaryDocumentVersion),
+		disciplinaryActaMeasures: many(employeeDisciplinaryMeasure, {
+			relationName: 'disciplinaryActaGeneration',
+		}),
+		disciplinaryRefusalMeasures: many(employeeDisciplinaryMeasure, {
+			relationName: 'disciplinaryRefusalGeneration',
+		}),
 	}),
 );
 
@@ -1637,6 +1957,134 @@ export const employeeDocumentVersionRelations = relations(
 		generation: one(employeeLegalGeneration, {
 			fields: [employeeDocumentVersion.generationId],
 			references: [employeeLegalGeneration.id],
+		}),
+	}),
+);
+
+export const organizationDisciplinaryFolioCounterRelations = relations(
+	organizationDisciplinaryFolioCounter,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [organizationDisciplinaryFolioCounter.organizationId],
+			references: [organization.id],
+		}),
+	}),
+);
+
+export const employeeDisciplinaryMeasureRelations = relations(
+	employeeDisciplinaryMeasure,
+	({ one, many }) => ({
+		organization: one(organization, {
+			fields: [employeeDisciplinaryMeasure.organizationId],
+			references: [organization.id],
+		}),
+		employee: one(employee, {
+			fields: [employeeDisciplinaryMeasure.employeeId],
+			references: [employee.id],
+		}),
+		actaGeneration: one(employeeLegalGeneration, {
+			relationName: 'disciplinaryActaGeneration',
+			fields: [employeeDisciplinaryMeasure.generatedActaGenerationId],
+			references: [employeeLegalGeneration.id],
+		}),
+		refusalGeneration: one(employeeLegalGeneration, {
+			relationName: 'disciplinaryRefusalGeneration',
+			fields: [employeeDisciplinaryMeasure.generatedRefusalGenerationId],
+			references: [employeeLegalGeneration.id],
+		}),
+		closedBy: one(user, {
+			relationName: 'disciplinaryMeasureClosedBy',
+			fields: [employeeDisciplinaryMeasure.closedByUserId],
+			references: [user.id],
+		}),
+		createdBy: one(user, {
+			relationName: 'disciplinaryMeasureCreatedBy',
+			fields: [employeeDisciplinaryMeasure.createdByUserId],
+			references: [user.id],
+		}),
+		updatedBy: one(user, {
+			relationName: 'disciplinaryMeasureUpdatedBy',
+			fields: [employeeDisciplinaryMeasure.updatedByUserId],
+			references: [user.id],
+		}),
+		documentVersions: many(employeeDisciplinaryDocumentVersion),
+		attachments: many(employeeDisciplinaryAttachment),
+		terminationDrafts: many(employeeTerminationDraft),
+	}),
+);
+
+export const employeeDisciplinaryDocumentVersionRelations = relations(
+	employeeDisciplinaryDocumentVersion,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [employeeDisciplinaryDocumentVersion.organizationId],
+			references: [organization.id],
+		}),
+		employee: one(employee, {
+			fields: [employeeDisciplinaryDocumentVersion.employeeId],
+			references: [employee.id],
+		}),
+		measure: one(employeeDisciplinaryMeasure, {
+			fields: [employeeDisciplinaryDocumentVersion.measureId],
+			references: [employeeDisciplinaryMeasure.id],
+		}),
+		generation: one(employeeLegalGeneration, {
+			fields: [employeeDisciplinaryDocumentVersion.generationId],
+			references: [employeeLegalGeneration.id],
+		}),
+		uploadedBy: one(user, {
+			fields: [employeeDisciplinaryDocumentVersion.uploadedByUserId],
+			references: [user.id],
+		}),
+	}),
+);
+
+export const employeeDisciplinaryAttachmentRelations = relations(
+	employeeDisciplinaryAttachment,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [employeeDisciplinaryAttachment.organizationId],
+			references: [organization.id],
+		}),
+		employee: one(employee, {
+			fields: [employeeDisciplinaryAttachment.employeeId],
+			references: [employee.id],
+		}),
+		measure: one(employeeDisciplinaryMeasure, {
+			fields: [employeeDisciplinaryAttachment.measureId],
+			references: [employeeDisciplinaryMeasure.id],
+		}),
+		uploadedBy: one(user, {
+			fields: [employeeDisciplinaryAttachment.uploadedByUserId],
+			references: [user.id],
+		}),
+	}),
+);
+
+export const employeeTerminationDraftRelations = relations(
+	employeeTerminationDraft,
+	({ one }) => ({
+		organization: one(organization, {
+			fields: [employeeTerminationDraft.organizationId],
+			references: [organization.id],
+		}),
+		employee: one(employee, {
+			fields: [employeeTerminationDraft.employeeId],
+			references: [employee.id],
+		}),
+		measure: one(employeeDisciplinaryMeasure, {
+			fields: [employeeTerminationDraft.measureId],
+			references: [employeeDisciplinaryMeasure.id],
+		}),
+		createdBy: one(user, {
+			relationName: 'terminationDraftCreatedBy',
+			fields: [employeeTerminationDraft.createdByUserId],
+			references: [user.id],
+		}),
+		updatedBy: one(user, {
+			relationName: 'terminationDraftUpdatedBy',
+			fields: [employeeTerminationDraft.updatedByUserId],
+			references: [user.id],
 		}),
 	}),
 );

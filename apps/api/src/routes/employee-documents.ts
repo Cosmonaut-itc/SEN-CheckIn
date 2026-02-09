@@ -42,6 +42,11 @@ import {
 	type EmployeeDocumentRequirementKeyValue,
 } from '../services/employee-documents.js';
 import {
+	buildDefaultLegalVariablesSnapshot,
+	renderLegalHtml,
+	sha256Hex,
+} from '../services/legal-document-rendering.js';
+import {
 	createRailwayPresignedGetUrl,
 	createRailwayPresignedPost,
 	getRailwayBucketConfig,
@@ -77,16 +82,15 @@ type EmployeeRecord = {
 	locationName: string | null;
 };
 
-const LEGAL_REQUIREMENT_BY_KIND: Record<
-	(typeof legalDocumentKind.enumValues)[number],
-	EmployeeDocumentRequirementKeyValue
-> = {
+type OnboardingLegalKind = 'CONTRACT' | 'NDA';
+
+const LEGAL_REQUIREMENT_BY_KIND: Record<OnboardingLegalKind, EmployeeDocumentRequirementKeyValue> = {
 	CONTRACT: 'SIGNED_CONTRACT',
 	NDA: 'SIGNED_NDA',
 };
 
 const LEGAL_KIND_BY_REQUIREMENT: Partial<
-	Record<EmployeeDocumentRequirementKeyValue, (typeof legalDocumentKind.enumValues)[number]>
+	Record<EmployeeDocumentRequirementKeyValue, OnboardingLegalKind>
 > = {
 	SIGNED_CONTRACT: 'CONTRACT',
 	SIGNED_NDA: 'NDA',
@@ -105,7 +109,77 @@ const DEFAULT_TEMPLATE_VARIABLES: Record<string, unknown> = {
 	document: {
 		generatedDate: 'string',
 	},
+	disciplinary: {
+		folio: 'string',
+		incidentDate: 'string',
+		reason: 'string',
+		outcome: 'string',
+		policyReference: 'string|null',
+		suspensionRange: 'string|null',
+	},
 };
+
+/**
+ * Builds baseline default HTML content for legal templates by kind.
+ *
+ * @param kind - Legal template kind
+ * @returns Default HTML template
+ */
+function buildDefaultLegalTemplateHtml(
+	kind: (typeof legalDocumentKind.enumValues)[number],
+): string {
+	if (kind === 'CONTRACT') {
+		return `
+<h1>Contrato Laboral</h1>
+<p>Empleado: {{employee.fullName}}</p>
+<p>Código: {{employee.code}}</p>
+<p>Puesto: {{employee.jobPositionName}}</p>
+<p>Ubicación: {{employee.locationName}}</p>
+<p>RFC: {{employee.rfc}}</p>
+<p>NSS: {{employee.nss}}</p>
+<p>Fecha de ingreso: {{employee.hireDate}}</p>
+<p>Fecha de generación: {{document.generatedDate}}</p>
+`.trim();
+	}
+
+	if (kind === 'NDA') {
+		return `
+<h1>Convenio de Confidencialidad (NDA)</h1>
+<p>Empleado: {{employee.fullName}}</p>
+<p>Código: {{employee.code}}</p>
+<p>Puesto: {{employee.jobPositionName}}</p>
+<p>RFC: {{employee.rfc}}</p>
+<p>NSS: {{employee.nss}}</p>
+<p>Fecha de generación: {{document.generatedDate}}</p>
+`.trim();
+	}
+
+	if (kind === 'ACTA_ADMINISTRATIVA') {
+		return `
+<h1>Acta Administrativa</h1>
+<p>Folio: {{disciplinary.folio}}</p>
+<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
+<p>Empleado: {{employee.fullName}}</p>
+<p>Código: {{employee.code}}</p>
+<p>Motivo: {{disciplinary.reason}}</p>
+<p>Resultado: {{disciplinary.outcome}}</p>
+<p>Referencia de política: {{disciplinary.policyReference}}</p>
+<p>Suspensión: {{disciplinary.suspensionRange}}</p>
+<p>Fecha de generación: {{document.generatedDate}}</p>
+`.trim();
+	}
+
+	return `
+<h1>Constancia de Negativa de Firma</h1>
+<p>Folio de medida: {{disciplinary.folio}}</p>
+<p>Empleado: {{employee.fullName}}</p>
+<p>Código: {{employee.code}}</p>
+<p>Motivo del acta: {{disciplinary.reason}}</p>
+<p>Resultado aplicado: {{disciplinary.outcome}}</p>
+<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
+<p>Fecha de generación: {{document.generatedDate}}</p>
+`.trim();
+}
 
 /**
  * Sanitizes file names to prevent path traversal and unsafe key values.
@@ -138,7 +212,7 @@ function isBucketDependencyError(error: unknown): boolean {
  * @returns Requirement key used in employee document versions
  */
 function resolveRequirementKeyForKind(
-	kind: (typeof legalDocumentKind.enumValues)[number],
+	kind: OnboardingLegalKind,
 ): EmployeeDocumentRequirementKeyValue {
 	return LEGAL_REQUIREMENT_BY_KIND[kind];
 }
@@ -151,18 +225,27 @@ function resolveRequirementKeyForKind(
  */
 function resolveKindForRequirement(
 	requirementKey: EmployeeDocumentRequirementKeyValue,
-): (typeof legalDocumentKind.enumValues)[number] | null {
+): OnboardingLegalKind | null {
 	return LEGAL_KIND_BY_REQUIREMENT[requirementKey] ?? null;
 }
 
 /**
- * Builds a deterministic SHA-256 digest for string content.
+ * Ensures employee onboarding legal endpoints only process CONTRACT/NDA kinds.
  *
- * @param value - Content to hash
- * @returns SHA-256 hex digest
+ * @param kind - Requested legal document kind
+ * @param set - Elysia status setter
+ * @returns True when the kind is valid for onboarding flow
  */
-function sha256Hex(value: string): string {
-	return crypto.createHash('sha256').update(value).digest('hex');
+function ensureOnboardingLegalKind(
+	kind: (typeof legalDocumentKind.enumValues)[number],
+	set: { status?: number | string } & Record<string, unknown>,
+): kind is OnboardingLegalKind {
+	if (kind === 'CONTRACT' || kind === 'NDA') {
+		return true;
+	}
+
+	set.status = 400;
+	return false;
 }
 
 /**
@@ -230,7 +313,7 @@ function buildLegalBrandingObjectKey(args: {
 function buildDigitalSignedPrefix(args: {
 	organizationId: string;
 	employeeId: string;
-	kind: (typeof legalDocumentKind.enumValues)[number];
+	kind: OnboardingLegalKind;
 }): string {
 	return `org/${args.organizationId}/employees/${args.employeeId}/legal/${args.kind}/digital/`;
 }
@@ -244,7 +327,7 @@ function buildDigitalSignedPrefix(args: {
 function buildDigitalSignedObjectKey(args: {
 	organizationId: string;
 	employeeId: string;
-	kind: (typeof legalDocumentKind.enumValues)[number];
+	kind: OnboardingLegalKind;
 	generationId: string;
 }): string {
 	const suffix = `${args.generationId}-${Date.now()}.json`;
@@ -475,116 +558,22 @@ function objectMatchesRequest(
 }
 
 /**
- * Extracts a comparable date key for generated legal variables.
- *
- * @returns Date key in YYYY-MM-DD format
- */
-function getTodayDateKey(): string {
-	return new Date().toISOString().slice(0, 10);
-}
-
-/**
- * Converts nullable date values into date keys.
- *
- * @param value - Date value
- * @returns Date key or null
- */
-function toDateKey(value: Date | null): string | null {
-	if (!value) {
-		return null;
-	}
-	return value.toISOString().slice(0, 10);
-}
-
-/**
  * Builds template replacement variables from employee data.
  *
  * @param employeeRecord - Employee row
  * @returns Variable payload used for legal template rendering
  */
 function buildLegalVariablesSnapshot(employeeRecord: EmployeeRecord): Record<string, unknown> {
-	return {
-		employee: {
-			fullName: `${employeeRecord.firstName} ${employeeRecord.lastName}`.trim(),
-			code: employeeRecord.code,
-			rfc: employeeRecord.rfc,
-			nss: employeeRecord.nss,
-			jobPositionName: employeeRecord.jobPositionName,
-			locationName: employeeRecord.locationName,
-			hireDate: toDateKey(employeeRecord.hireDate),
-		},
-		document: {
-			generatedDate: getTodayDateKey(),
-		},
-	};
+	return buildDefaultLegalVariablesSnapshot(employeeRecord);
 }
 
 /**
- * Escapes HTML-sensitive characters to prevent markup/script injection in template output.
+ * Builds today's date key in UTC (YYYY-MM-DD).
  *
- * @param value - Raw text value
- * @returns HTML-escaped value
+ * @returns Current UTC date key
  */
-function escapeHtml(value: string): string {
-	return value
-		.replaceAll('&', '&amp;')
-		.replaceAll('<', '&lt;')
-		.replaceAll('>', '&gt;')
-		.replaceAll('"', '&quot;')
-		.replaceAll("'", '&#39;');
-}
-
-/**
- * Flattens nested variable snapshots into template token/value pairs.
- *
- * @param snapshot - Variables snapshot object
- * @returns Token map using template token notation
- */
-function flattenTemplateVariables(snapshot: Record<string, unknown>): Record<string, string> {
-	const values: Record<string, string> = {};
-
-	/**
-	 * Recursive walker for nested variable records.
-	 *
-	 * @param prefix - Key prefix path
-	 * @param value - Current nested value
-	 * @returns Nothing
-	 */
-	const walk = (prefix: string, value: unknown): void => {
-		if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-			for (const [nestedKey, nestedValue] of Object.entries(
-				value as Record<string, unknown>,
-			)) {
-				const nextPrefix = prefix ? `${prefix}.${nestedKey}` : nestedKey;
-				walk(nextPrefix, nestedValue);
-			}
-			return;
-		}
-
-		values[`{{${prefix}}}`] =
-			value === null || value === undefined ? '' : escapeHtml(String(value));
-	};
-
-	walk('', snapshot);
-	return values;
-}
-
-/**
- * Renders legal HTML by replacing known template tokens.
- *
- * @param htmlContent - Raw template HTML content
- * @param variables - Variables snapshot
- * @returns Rendered HTML output
- */
-function renderLegalHtml(htmlContent: string, variables: Record<string, unknown>): string {
-	const flattened = flattenTemplateVariables(variables);
-	let rendered = htmlContent;
-
-	for (const [token, value] of Object.entries(flattened)) {
-		rendered = rendered.split(token).join(value);
-	}
-
-	return rendered;
+function getTodayDateKey(): string {
+	return new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -682,10 +671,7 @@ async function fetchLatestGenerationByKind(
 	employeeId: string,
 ): Promise<
 	Partial<
-		Record<
-			(typeof legalDocumentKind.enumValues)[number],
-			typeof employeeLegalGeneration.$inferSelect
-		>
+		Record<OnboardingLegalKind, typeof employeeLegalGeneration.$inferSelect>
 	>
 > {
 	const rows = await db
@@ -700,13 +686,13 @@ async function fetchLatestGenerationByKind(
 		.orderBy(desc(employeeLegalGeneration.generatedAt));
 
 	const latest: Partial<
-		Record<
-			(typeof legalDocumentKind.enumValues)[number],
-			typeof employeeLegalGeneration.$inferSelect
-		>
+		Record<OnboardingLegalKind, typeof employeeLegalGeneration.$inferSelect>
 	> = {};
 
 	for (const row of rows) {
+		if (row.kind !== 'CONTRACT' && row.kind !== 'NDA') {
+			continue;
+		}
 		if (!latest[row.kind]) {
 			latest[row.kind] = row;
 		}
@@ -1600,6 +1586,13 @@ export const employeeDocumentRoutes = new Elysia()
 				return buildErrorResponse('Not authorized', 403);
 			}
 
+			if (!ensureOnboardingLegalKind(params.kind, set)) {
+				return buildErrorResponse(
+					'Disciplinary legal documents must be managed in disciplinary measures module',
+					400,
+				);
+			}
+
 			const employeeRecord = await fetchEmployeeRecord(access.organizationId, params.id);
 			if (!employeeRecord) {
 				set.status = 404;
@@ -1702,6 +1695,13 @@ export const employeeDocumentRoutes = new Elysia()
 
 			if (!ensureAdminOrOwner(access, set)) {
 				return buildErrorResponse('Not authorized', 403);
+			}
+
+			if (!ensureOnboardingLegalKind(params.kind, set)) {
+				return buildErrorResponse(
+					'Digital signature is not available for disciplinary legal documents',
+					400,
+				);
 			}
 
 			const employeeRecord = await fetchEmployeeRecord(access.organizationId, params.id);
@@ -1855,6 +1855,13 @@ export const employeeDocumentRoutes = new Elysia()
 				return buildErrorResponse('Not authorized', 403);
 			}
 
+			if (!ensureOnboardingLegalKind(params.kind, set)) {
+				return buildErrorResponse(
+					'Disciplinary legal documents must be managed in disciplinary measures module',
+					400,
+				);
+			}
+
 			if (!validateUploadPayload(body, set)) {
 				return buildErrorResponse('Invalid document upload payload', 400);
 			}
@@ -1958,6 +1965,13 @@ export const employeeDocumentRoutes = new Elysia()
 
 			if (!ensureAdminOrOwner(access, set)) {
 				return buildErrorResponse('Not authorized', 403);
+			}
+
+			if (!ensureOnboardingLegalKind(params.kind, set)) {
+				return buildErrorResponse(
+					'Disciplinary legal documents must be managed in disciplinary measures module',
+					400,
+				);
 			}
 
 			if (!validateUploadPayload(body, set)) {
@@ -2246,16 +2260,46 @@ export const employeeDocumentRoutes = new Elysia()
 				return buildErrorResponse('Not authorized', 403);
 			}
 
-			const templates = await db
+			let templates = await db
 				.select()
 				.from(organizationLegalTemplate)
 				.where(
 					and(
 						eq(organizationLegalTemplate.organizationId, access.organizationId),
-							eq(organizationLegalTemplate.kind, params.templateRef),
-						),
-					)
+						eq(organizationLegalTemplate.kind, params.templateRef),
+					),
+				)
 				.orderBy(desc(organizationLegalTemplate.versionNumber));
+
+			if (
+				templates.length === 0 &&
+				(params.templateRef === 'ACTA_ADMINISTRATIVA' ||
+					params.templateRef === 'CONSTANCIA_NEGATIVA_FIRMA')
+			) {
+				const brandingRows = await db
+					.select()
+					.from(organizationLegalBranding)
+					.where(eq(organizationLegalBranding.organizationId, access.organizationId))
+					.limit(1);
+
+				const insertedRows = await db
+					.insert(organizationLegalTemplate)
+					.values({
+						organizationId: access.organizationId,
+						kind: params.templateRef,
+						versionNumber: 1,
+						status: 'PUBLISHED',
+						htmlContent: buildDefaultLegalTemplateHtml(params.templateRef),
+						variablesSchemaSnapshot: DEFAULT_TEMPLATE_VARIABLES,
+						brandingSnapshot: brandingRows[0] ?? null,
+						createdByUserId: access.userId,
+						publishedByUserId: access.userId,
+						publishedAt: new Date(),
+					})
+					.returning();
+
+				templates = insertedRows;
+			}
 
 			return { data: templates };
 		},

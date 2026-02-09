@@ -52,6 +52,7 @@ export const payrollSettingsSchema = z.object({
 	ptuExemptReason: z.string().max(255).nullable().optional(),
 	employerType: employerTypeEnum.optional(),
 	aguinaldoEnabled: z.boolean().optional(),
+	enableDisciplinaryMeasures: z.boolean().optional(),
 });
 
 /**

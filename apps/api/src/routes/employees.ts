@@ -7,7 +7,9 @@ import {
 	attendanceRecord,
 	employee,
 	employeeAuditEvent,
+	employeeDisciplinaryMeasure,
 	employeeSchedule,
+	employeeTerminationDraft,
 	employeeTerminationSettlement,
 	jobPosition,
 	location,
@@ -951,14 +953,48 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				organizationId,
 				results.map((row) => row.id),
 			);
+			const employeeIds = results.map((row) => row.id);
+			const disciplinaryCountByEmployee = new Map<
+				string,
+				{ total: number; open: number }
+			>();
+			if (employeeIds.length > 0) {
+				const disciplinaryRows = await db
+					.select({
+						employeeId: employeeDisciplinaryMeasure.employeeId,
+						status: employeeDisciplinaryMeasure.status,
+					})
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							eq(employeeDisciplinaryMeasure.organizationId, organizationId),
+							inArray(employeeDisciplinaryMeasure.employeeId, employeeIds),
+						),
+					);
+
+				for (const row of disciplinaryRows) {
+					const current = disciplinaryCountByEmployee.get(row.employeeId) ?? {
+						total: 0,
+						open: 0,
+					};
+					current.total += 1;
+					if (row.status !== 'CLOSED') {
+						current.open += 1;
+					}
+					disciplinaryCountByEmployee.set(row.employeeId, current);
+				}
+			}
 
 			const enrichedResults = results.map((row) => {
 				const progress = progressByEmployee.get(row.id);
+				const disciplinaryCounts = disciplinaryCountByEmployee.get(row.id);
 				return {
 					...row,
 					documentProgressPercent: progress?.documentProgressPercent ?? 0,
 					documentMissingCount: progress?.documentMissingCount ?? 0,
 					documentWorkflowStatus: progress?.documentWorkflowStatus ?? 'INCOMPLETE',
+					disciplinaryMeasuresCount: disciplinaryCounts?.total ?? 0,
+					disciplinaryOpenMeasuresCount: disciplinaryCounts?.open ?? 0,
 				};
 			});
 
@@ -1303,9 +1339,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				});
 			}
 
-			const { employeeRecord, calculation } = validationResult;
-			const resolvedLastDayWorkedDateKey =
-				body.lastDayWorkedDateKey ?? body.terminationDateKey;
+				const { employeeRecord, calculation } = validationResult;
+				if (!employeeRecord.organizationId) {
+					set.status = 400;
+					return buildErrorResponse('Employee organization is required', 400);
+				}
+				const employeeOrganizationId = employeeRecord.organizationId;
+				const resolvedLastDayWorkedDateKey =
+					body.lastDayWorkedDateKey ?? body.terminationDateKey;
 
 			const auditActor = resolveEmployeeAuditActor(authType, session);
 			const beforeSnapshot = buildEmployeeAuditSnapshot(employeeRecord);
@@ -1343,7 +1384,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						.insert(employeeTerminationSettlement)
 						.values({
 							employeeId: id,
-							organizationId: employeeRecord.organizationId,
+							organizationId: employeeOrganizationId,
 							calculation,
 							totalsGross: calculation.totals.grossTotal.toFixed(2),
 							finiquitoTotalGross: calculation.totals.finiquitoTotalGross.toFixed(2),
@@ -1361,6 +1402,24 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 								employeeTerminationSettlement.liquidacionTotalGross,
 							createdAt: employeeTerminationSettlement.createdAt,
 						});
+
+					await tx
+						.update(employeeTerminationDraft)
+						.set({
+							status: 'CONSUMED',
+							consumedAt: new Date(),
+							updatedByUserId: auditActor.actorUserId ?? null,
+						})
+						.where(
+							and(
+								eq(employeeTerminationDraft.employeeId, id),
+								eq(
+									employeeTerminationDraft.organizationId,
+									employeeOrganizationId,
+								),
+								eq(employeeTerminationDraft.status, 'ACTIVE'),
+							),
+						);
 
 					const updatedRecord =
 						(await tx.select().from(employee).where(eq(employee.id, id)).limit(1))[0] ??
@@ -1423,6 +1482,72 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 		{
 			params: idParamSchema,
 			body: employeeTerminationSchema,
+		},
+	)
+	/**
+	 * Fetches the active termination draft for an employee.
+	 *
+	 * @route GET /employees/:id/termination/draft
+	 * @param id - Employee UUID
+	 * @returns Active termination draft payload or null
+	 */
+	.get(
+		'/:id/termination/draft',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+
+			const employeeRows = await db
+				.select({ organizationId: employee.organizationId })
+				.from(employee)
+				.where(eq(employee.id, id))
+				.limit(1);
+			const employeeRecord = employeeRows[0];
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					employeeRecord.organizationId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this employee', 403);
+			}
+			if (!employeeRecord.organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+
+			const draftRows = await db
+				.select()
+				.from(employeeTerminationDraft)
+				.where(
+					and(
+						eq(employeeTerminationDraft.employeeId, id),
+						eq(employeeTerminationDraft.organizationId, employeeRecord.organizationId),
+						eq(employeeTerminationDraft.status, 'ACTIVE'),
+					),
+				)
+				.orderBy(desc(employeeTerminationDraft.createdAt))
+				.limit(1);
+
+			return { data: draftRows[0] ?? null };
+		},
+		{
+			params: idParamSchema,
 		},
 	)
 	/**

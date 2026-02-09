@@ -7,7 +7,12 @@
  * @module query-keys
  */
 
-import type { IncapacityStatus, IncapacityType } from '@sen-checkin/types';
+import type {
+	DisciplinaryMeasureStatus,
+	DisciplinaryOutcome,
+	IncapacityStatus,
+	IncapacityType,
+} from '@sen-checkin/types';
 
 /**
  * Query parameters for paginated list endpoints.
@@ -205,6 +210,25 @@ export interface CalendarQueryParams extends Record<string, unknown> {
 }
 
 /**
+ * Query parameters for disciplinary measures list.
+ */
+export interface DisciplinaryMeasuresQueryParams extends ListQueryParams {
+	employeeId?: string;
+	fromDateKey?: string;
+	toDateKey?: string;
+	status?: DisciplinaryMeasureStatus;
+	outcome?: DisciplinaryOutcome;
+}
+
+/**
+ * Query parameters for disciplinary KPI aggregations.
+ */
+export interface DisciplinaryKpisQueryParams extends Record<string, unknown> {
+	fromDateKey?: string;
+	toDateKey?: string;
+}
+
+/**
  * Constructs a query key array from a base key and optional parameters.
  *
  * This utility function creates consistent, type-safe query keys that can be used
@@ -299,6 +323,11 @@ export const queryKeys = {
 		 */
 		terminationSettlement: (id: string) =>
 			['employees', 'termination', 'settlement', id] as const,
+		/**
+		 * Generates a query key for termination draft lookup.
+		 * @param id - The employee ID
+		 */
+		terminationDraft: (id: string) => ['employees', 'termination', 'draft', id] as const,
 		/**
 		 * Generates a query key for latest payroll run lookup.
 		 * @param id - The employee ID
@@ -540,6 +569,18 @@ export const queryKeys = {
 	},
 
 	/**
+	 * Query keys for disciplinary measure workflows.
+	 */
+	disciplinaryMeasures: {
+		all: ['disciplinaryMeasures'] as const,
+		list: (params?: DisciplinaryMeasuresQueryParams) =>
+			queryKeyConstructor(['disciplinaryMeasures', 'list'] as const, params),
+		kpis: (params?: DisciplinaryKpisQueryParams) =>
+			queryKeyConstructor(['disciplinaryMeasures', 'kpis'] as const, params),
+		detail: (id: string) => ['disciplinaryMeasures', 'detail', id] as const,
+	},
+
+	/**
 	 * Query keys for schedule templates.
 	 */
 	scheduleTemplates: {
@@ -586,7 +627,13 @@ export const queryKeys = {
 	documentWorkflow: {
 		all: ['documentWorkflow'] as const,
 		config: ['documentWorkflow', 'config'] as const,
-		templates: (kind: 'CONTRACT' | 'NDA') =>
+		templates: (
+			kind:
+				| 'CONTRACT'
+				| 'NDA'
+				| 'ACTA_ADMINISTRATIVA'
+				| 'CONSTANCIA_NEGATIVA_FIRMA',
+		) =>
 			['documentWorkflow', 'templates', kind] as const,
 		branding: ['documentWorkflow', 'branding'] as const,
 	},
@@ -784,6 +831,20 @@ export const mutationKeys = {
 	},
 	ptuHistory: {
 		upsert: ['ptu', 'history', 'upsert'] as const,
+	},
+	disciplinaryMeasures: {
+		create: ['disciplinaryMeasures', 'create'] as const,
+		update: ['disciplinaryMeasures', 'update'] as const,
+		generateActa: ['disciplinaryMeasures', 'generateActa'] as const,
+		presignActa: ['disciplinaryMeasures', 'presignActa'] as const,
+		confirmActa: ['disciplinaryMeasures', 'confirmActa'] as const,
+		generateRefusal: ['disciplinaryMeasures', 'generateRefusal'] as const,
+		presignRefusal: ['disciplinaryMeasures', 'presignRefusal'] as const,
+		confirmRefusal: ['disciplinaryMeasures', 'confirmRefusal'] as const,
+		presignAttachment: ['disciplinaryMeasures', 'presignAttachment'] as const,
+		confirmAttachment: ['disciplinaryMeasures', 'confirmAttachment'] as const,
+		deleteAttachment: ['disciplinaryMeasures', 'deleteAttachment'] as const,
+		close: ['disciplinaryMeasures', 'close'] as const,
 	},
 
 	/**

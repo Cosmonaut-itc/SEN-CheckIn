@@ -81,6 +81,7 @@ import {
 	fetchJobPositionsList,
 	fetchLocationsList,
 	fetchOrganizationMembers,
+	fetchPayrollSettings,
 	upsertEmployeePtuHistory,
 } from '@/lib/client-functions';
 import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
@@ -112,12 +113,14 @@ import {
 	Plus,
 	ScanFace,
 	Search,
+	ShieldAlert,
 	Trash2,
 	UserCheck,
 	UserX,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -156,6 +159,21 @@ const loadEmployeeDocumentsTab = async () => {
 };
 
 const EmployeeDocumentsTab = dynamic(loadEmployeeDocumentsTab, {
+	ssr: false,
+	loading: FaceEnrollmentDialogFallback,
+});
+
+/**
+ * Lazily loads employee disciplinary tab to avoid increasing initial bundle size.
+ *
+ * @returns Promise resolving to EmployeeDisciplinaryMeasuresTab component
+ */
+const loadEmployeeDisciplinaryMeasuresTab = async () => {
+	const componentModule = await import('@/components/employee-disciplinary-measures-tab');
+	return componentModule.EmployeeDisciplinaryMeasuresTab;
+};
+
+const EmployeeDisciplinaryMeasuresTab = dynamic(loadEmployeeDisciplinaryMeasuresTab, {
 	ssr: false,
 	loading: FaceEnrollmentDialogFallback,
 });
@@ -751,6 +769,7 @@ type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
 type EmployeeDetailTab =
 	| 'documents'
+	| 'disciplinary'
 	| 'summary'
 	| 'attendance'
 	| 'vacations'
@@ -907,7 +926,7 @@ const EMPTY_EMPLOYEES: Employee[] = [];
  */
 export function EmployeesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
 	const tVacations = useTranslations('Vacations');
@@ -1031,6 +1050,16 @@ export function EmployeesPageClient(): React.ReactElement {
 	};
 
 	const isOrgSelected = Boolean(organizationId);
+	const canAccessDisciplinary =
+		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
+
+	const { data: payrollSettings } = useQuery({
+		queryKey: queryKeys.payrollSettings.current(organizationId),
+		queryFn: () => fetchPayrollSettings(organizationId ?? undefined),
+		enabled: isOrgSelected,
+	});
+	const isDisciplinaryEnabled = Boolean(payrollSettings?.enableDisciplinaryMeasures);
+	const canUseDisciplinaryModule = canAccessDisciplinary && isDisciplinaryEnabled;
 
 	// Query for employees list
 	const { data, isFetching } = useQuery({
@@ -2445,6 +2474,22 @@ export function EmployeesPageClient(): React.ReactElement {
 									})}
 								</Badge>
 							) : null}
+							{canUseDisciplinaryModule &&
+							(row.original.disciplinaryMeasuresCount ?? 0) > 0 ? (
+								<Badge
+									variant={
+										(row.original.disciplinaryOpenMeasuresCount ?? 0) > 0
+											? 'destructive'
+											: 'secondary'
+									}
+									className="text-xs"
+								>
+									{t('table.disciplinary.badge', {
+										total: row.original.disciplinaryMeasuresCount ?? 0,
+										open: row.original.disciplinaryOpenMeasuresCount ?? 0,
+									})}
+								</Badge>
+							) : null}
 						</div>
 					</div>
 				),
@@ -2594,6 +2639,27 @@ export function EmployeesPageClient(): React.ReactElement {
 									<FileText className="mr-2 h-4 w-4" />
 									{t('menu.viewDocuments')}
 								</DropdownMenuItem>
+								{canUseDisciplinaryModule ? (
+									<DropdownMenuItem
+										onClick={() =>
+											void openEmployeeDetailById(
+												row.original.id,
+												'disciplinary',
+											)
+										}
+									>
+										<ShieldAlert className="mr-2 h-4 w-4" />
+										{t('menu.viewDisciplinaryMeasures')}
+									</DropdownMenuItem>
+								) : null}
+								{canUseDisciplinaryModule ? (
+									<DropdownMenuItem asChild>
+										<Link href={`/disciplinary-measures?employeeId=${row.original.id}`}>
+											<ShieldAlert className="mr-2 h-4 w-4" />
+											{t('menu.openDisciplinaryModule')}
+										</Link>
+									</DropdownMenuItem>
+								) : null}
 								<DropdownMenuItem
 									onClick={() => handleOpenEnrollDialog(row.original)}
 								>
@@ -2725,10 +2791,11 @@ export function EmployeesPageClient(): React.ReactElement {
 			deleteRekognitionConfirmId,
 			deleteMutation.isPending,
 			deleteRekognitionMutation.isPending,
-			handleDelete,
-			handleDeleteRekognition,
-		],
-	);
+				handleDelete,
+				handleDeleteRekognition,
+				canUseDisciplinaryModule,
+			],
+		);
 
 	if (!isOrgSelected) {
 		return (
@@ -2909,6 +2976,11 @@ export function EmployeesPageClient(): React.ReactElement {
 										<TabsTrigger value="documents">
 											{t('tabs.documents')}
 										</TabsTrigger>
+										{canUseDisciplinaryModule ? (
+											<TabsTrigger value="disciplinary">
+												{t('tabs.disciplinary')}
+											</TabsTrigger>
+										) : null}
 										<TabsTrigger value="summary">
 											{t('tabs.summary')}
 										</TabsTrigger>
@@ -2942,6 +3014,22 @@ export function EmployeesPageClient(): React.ReactElement {
 											</Card>
 										)}
 									</TabsContent>
+
+									{canUseDisciplinaryModule ? (
+										<TabsContent value="disciplinary">
+											{activeEmployee?.id ? (
+												<EmployeeDisciplinaryMeasuresTab
+													employeeId={activeEmployee.id}
+												/>
+											) : (
+												<Card>
+													<CardContent className="py-8 text-sm text-muted-foreground">
+														{t('disciplinary.empty')}
+													</CardContent>
+												</Card>
+											)}
+										</TabsContent>
+									) : null}
 
 									<TabsContent value="summary">
 										<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

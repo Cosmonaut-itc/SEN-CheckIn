@@ -15,6 +15,7 @@ import type {
 	ApiKey,
 	AttendanceRecord,
 	AttendanceType,
+	DisciplinaryMeasureRecord,
 	DashboardCounts,
 	Device,
 	DeviceClient,
@@ -44,6 +45,8 @@ import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
 	AttendanceQueryParams,
 	CalendarQueryParams,
+	DisciplinaryKpisQueryParams,
+	DisciplinaryMeasuresQueryParams,
 	JobPositionQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
@@ -57,6 +60,7 @@ import type {
 import { clampPaginationLimit, clampPaginationOffset } from '@/lib/pagination';
 import { type ServerApiClient, createServerApiClient } from '@/lib/server-api';
 import { serverAuthClient } from '@/lib/server-auth-client';
+import type { DisciplinaryKpis } from '@sen-checkin/types';
 
 const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
@@ -102,6 +106,23 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 			record.sbcDailyOverride === null || record.sbcDailyOverride === undefined
 				? null
 				: Number(record.sbcDailyOverride),
+		documentProgressPercent:
+			record.documentProgressPercent === undefined
+				? undefined
+				: Number(record.documentProgressPercent),
+		documentMissingCount:
+			record.documentMissingCount === undefined
+				? undefined
+				: Number(record.documentMissingCount),
+		documentWorkflowStatus: record.documentWorkflowStatus,
+		disciplinaryMeasuresCount:
+			record.disciplinaryMeasuresCount === undefined
+				? undefined
+				: Number(record.disciplinaryMeasuresCount),
+		disciplinaryOpenMeasuresCount:
+			record.disciplinaryOpenMeasuresCount === undefined
+				? undefined
+				: Number(record.disciplinaryOpenMeasuresCount),
 	};
 }
 
@@ -192,6 +213,168 @@ export async function fetchEmployeesListServer(
 	return {
 		data: employees.map(normalizeEmployeeRecord),
 		pagination: payload?.pagination ?? { total: 0, limit, offset },
+	};
+}
+
+// ============================================================================
+// Disciplinary Measures Functions
+// ============================================================================
+
+type DisciplinaryMeasurePayload = Omit<
+	DisciplinaryMeasureRecord,
+	'createdAt' | 'updatedAt' | 'closedAt'
+> & {
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	closedAt?: string | Date | null;
+};
+
+/**
+ * Normalizes disciplinary measure payload timestamps.
+ *
+ * @param record - Raw disciplinary measure payload
+ * @returns Normalized disciplinary measure
+ */
+function normalizeDisciplinaryMeasure(
+	record: DisciplinaryMeasurePayload,
+): DisciplinaryMeasureRecord {
+	return {
+		...record,
+		employeeCode: record.employeeCode ?? null,
+		employeeFirstName: record.employeeFirstName ?? null,
+		employeeLastName: record.employeeLastName ?? null,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+		closedAt: record.closedAt ? new Date(record.closedAt) : null,
+	};
+}
+
+/**
+ * Fetches a paginated list of disciplinary measures (server-side).
+ *
+ * @param cookieHeader - Request cookie header
+ * @param params - Optional filter and pagination params
+ * @returns Paginated disciplinary measure response
+ * @throws Error when the API request fails
+ */
+export async function fetchDisciplinaryMeasuresServer(
+	cookieHeader: string,
+	params?: DisciplinaryMeasuresQueryParams,
+): Promise<PaginatedResponse<DisciplinaryMeasureRecord>> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		search?: string;
+		fromDateKey?: string;
+		toDateKey?: string;
+		status?: DisciplinaryMeasuresQueryParams['status'];
+		outcome?: DisciplinaryMeasuresQueryParams['outcome'];
+	} = {
+		limit: clampPaginationLimit(params?.limit),
+		offset: clampPaginationOffset(params?.offset),
+	};
+
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params?.search) {
+		query.search = params.search;
+	}
+	if (params?.fromDateKey) {
+		query.fromDateKey = params.fromDateKey;
+	}
+	if (params?.toDateKey) {
+		query.toDateKey = params.toDateKey;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.outcome) {
+		query.outcome = params.outcome;
+	}
+
+	const response = await api['disciplinary-measures'].get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'[Server] Failed to fetch disciplinary measures:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch disciplinary measures');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as DisciplinaryMeasurePayload[] | undefined) ?? [];
+	return {
+		data: rows.map((row) => normalizeDisciplinaryMeasure(row)),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
+ * Fetches disciplinary KPI summary (server-side).
+ *
+ * @param cookieHeader - Request cookie header
+ * @param params - Optional date-range filters
+ * @returns KPI summary or null when unavailable
+ */
+export async function fetchDisciplinaryKpisServer(
+	cookieHeader: string,
+	params?: DisciplinaryKpisQueryParams,
+): Promise<DisciplinaryKpis | null> {
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		fromDateKey?: string;
+		toDateKey?: string;
+	} = {};
+	if (params?.fromDateKey) {
+		query.fromDateKey = params.fromDateKey;
+	}
+	if (params?.toDateKey) {
+		query.toDateKey = params.toDateKey;
+	}
+
+	const response = await api['disciplinary-measures'].kpis.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'[Server] Failed to fetch disciplinary KPIs:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = getApiResponseData(response);
+	const raw = (payload?.data ?? null) as
+		| (Partial<DisciplinaryKpis> & {
+				actasInPeriod?: number;
+				suspensionsActive?: number;
+		  })
+		| null;
+	if (!raw) {
+		return null;
+	}
+
+	return {
+		employeesWithMeasures: Number(raw.employeesWithMeasures ?? 0),
+		measuresInPeriod: Number(raw.measuresInPeriod ?? raw.actasInPeriod ?? 0),
+		activeSuspensions: Number(raw.activeSuspensions ?? raw.suspensionsActive ?? 0),
+		terminationEscalations: Number(raw.terminationEscalations ?? 0),
+		openMeasures: Number(raw.openMeasures ?? 0),
 	};
 }
 
@@ -732,6 +915,7 @@ type PayrollSettingsPayload = Omit<
 	| 'ptuExemptReason'
 	| 'employerType'
 	| 'aguinaldoEnabled'
+	| 'enableDisciplinaryMeasures'
 > & {
 	riskWorkRate?: number | string | null;
 	statePayrollTaxRate?: number | string | null;
@@ -746,6 +930,7 @@ type PayrollSettingsPayload = Omit<
 	ptuExemptReason?: string | null;
 	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA' | null;
 	aguinaldoEnabled?: boolean | null;
+	enableDisciplinaryMeasures?: boolean | null;
 };
 
 /**
@@ -793,6 +978,7 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		ptuExemptReason: payload.ptuExemptReason ?? null,
 		employerType: payload.employerType ?? 'PERSONA_MORAL',
 		aguinaldoEnabled: Boolean(payload.aguinaldoEnabled ?? true),
+		enableDisciplinaryMeasures: Boolean(payload.enableDisciplinaryMeasures ?? false),
 	};
 }
 

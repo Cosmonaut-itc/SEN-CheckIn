@@ -168,6 +168,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			ptuExemptReason: '',
 			employerType: 'PERSONA_MORAL',
 			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: false,
 		},
 		onSubmit: async ({ value }) => {
 			const trimmedTimeZone = value.timeZone.trim();
@@ -236,6 +237,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 				ptuExemptReason: value.ptuIsExempt ? trimmedPtuExemptReason : null,
 				employerType: value.employerType as 'PERSONA_MORAL' | 'PERSONA_FISICA',
 				aguinaldoEnabled: value.aguinaldoEnabled,
+				enableDisciplinaryMeasures: value.enableDisciplinaryMeasures,
 			});
 		},
 	});
@@ -289,6 +291,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.aguinaldoEnabled !== undefined) {
 			form.setFieldValue('aguinaldoEnabled', data.aguinaldoEnabled);
 		}
+		if (data?.enableDisciplinaryMeasures !== undefined) {
+			form.setFieldValue(
+				'enableDisciplinaryMeasures',
+				data.enableDisciplinaryMeasures,
+			);
+		}
 		form.setFieldValue(
 			'additionalMandatoryRestDaysText',
 			(data?.additionalMandatoryRestDays ?? []).join('\n'),
@@ -310,6 +318,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.ptuExemptReason,
 		data?.employerType,
 		data?.aguinaldoEnabled,
+		data?.enableDisciplinaryMeasures,
 		data?.additionalMandatoryRestDays,
 		form,
 	]);
@@ -597,6 +606,23 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<li>{t('legalRules.items.mandatoryRestDay')}</li>
 							</ul>
 						</div>
+						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+							<p className="font-medium text-foreground">
+								{t('disciplinary.title')}
+							</p>
+							<p className="mt-1 text-xs">{t('disciplinary.description')}</p>
+						</div>
+						<form.AppField name="enableDisciplinaryMeasures">
+							{(field) => (
+								<field.ToggleField
+									label={t('disciplinary.fields.enableDisciplinaryMeasures')}
+									description={t(
+										'disciplinary.helpers.enableDisciplinaryMeasures',
+									)}
+									disabled={isLoading || mutation.isPending}
+								/>
+							)}
+						</form.AppField>
 						<form.AppForm>
 							<form.SubmitButton
 								label={tCommon('save')}

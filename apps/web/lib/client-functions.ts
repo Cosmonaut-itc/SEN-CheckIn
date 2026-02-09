@@ -13,6 +13,12 @@ import { authClient } from '@/lib/auth-client';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import { clampPaginationLimit, clampPaginationOffset } from '@/lib/pagination';
 import type {
+	DisciplinaryKpis as DisciplinaryKpisContract,
+	DisciplinaryMeasure as DisciplinaryMeasureContract,
+	DisciplinaryMeasureAttachment as DisciplinaryMeasureAttachmentContract,
+	DisciplinaryMeasureDocument as DisciplinaryMeasureDocumentContract,
+	DisciplinaryMeasureStatus,
+	DisciplinaryOutcome,
 	EmployeeDocumentRequirementKey,
 	EmployeeDocumentReviewStatus,
 	EmployeeDocumentSource,
@@ -31,11 +37,14 @@ import type {
 	IncapacityStatus,
 	IncapacityType,
 	SatTipoIncapacidad,
+	TerminationDraft as TerminationDraftContract,
 } from '@sen-checkin/types';
 import type {
 	AttendancePresentQueryParams,
 	AttendanceQueryParams,
 	CalendarQueryParams,
+	DisciplinaryKpisQueryParams,
+	DisciplinaryMeasuresQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
 	OrganizationAllQueryParams,
@@ -100,6 +109,8 @@ export interface Employee {
 	documentProgressPercent?: number;
 	documentMissingCount?: number;
 	documentWorkflowStatus?: 'INCOMPLETE' | 'IN_REVIEW' | 'COMPLETE';
+	disciplinaryMeasuresCount?: number;
+	disciplinaryOpenMeasuresCount?: number;
 	lastPayrollDate?: Date | null;
 	schedule?: EmployeeScheduleEntry[];
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
@@ -545,6 +556,14 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 				? undefined
 				: Number(record.documentMissingCount),
 		documentWorkflowStatus: record.documentWorkflowStatus,
+		disciplinaryMeasuresCount:
+			record.disciplinaryMeasuresCount === undefined
+				? undefined
+				: Number(record.disciplinaryMeasuresCount),
+		disciplinaryOpenMeasuresCount:
+			record.disciplinaryOpenMeasuresCount === undefined
+				? undefined
+				: Number(record.disciplinaryOpenMeasuresCount),
 	};
 }
 
@@ -771,6 +790,13 @@ export interface EmployeeLatestPayroll {
 	totalPay: number;
 }
 
+export interface EmployeeTerminationDraftRecord extends TerminationDraftContract {
+	createdAt: Date;
+	updatedAt: Date;
+	consumedAt: Date | null;
+	cancelledAt: Date | null;
+}
+
 type EmployeeLatestPayrollPayload = Omit<
 	EmployeeLatestPayroll,
 	'periodStart' | 'periodEnd' | 'processedAt' | 'totalPay'
@@ -799,6 +825,38 @@ function normalizeEmployeeLatestPayroll(
 		processedAt: record.processedAt ? new Date(record.processedAt) : null,
 		taxBreakdown: record.taxBreakdown,
 		totalPay: Number(record.totalPay ?? 0),
+	};
+}
+
+/**
+ * Fetches the active termination draft for an employee.
+ *
+ * @param id - Employee identifier
+ * @returns Active draft or null when not found
+ */
+export async function fetchEmployeeTerminationDraft(
+	id: string,
+): Promise<EmployeeTerminationDraftRecord | null> {
+	const payload = (await fetchDashboardApiJson(`/employees/${id}/termination/draft`)) as {
+		data?: (TerminationDraftContract & {
+			createdAt: string | Date;
+			updatedAt: string | Date;
+			consumedAt?: string | Date | null;
+			cancelledAt?: string | Date | null;
+		}) | null;
+	};
+
+	const record = payload?.data;
+	if (!record) {
+		return null;
+	}
+
+	return {
+		...record,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+		consumedAt: record.consumedAt ? new Date(record.consumedAt) : null,
+		cancelledAt: record.cancelledAt ? new Date(record.cancelledAt) : null,
 	};
 }
 
@@ -1251,6 +1309,342 @@ export async function fetchLegalBranding(): Promise<{
 		branding,
 		url: payload?.data?.url ?? null,
 	};
+}
+
+// ============================================================================
+// Disciplinary Measures Functions
+// ============================================================================
+
+type DisciplinaryMeasureBase = Omit<
+	DisciplinaryMeasureContract,
+	| 'employeeCode'
+	| 'employeeName'
+	| 'documents'
+	| 'attachments'
+	| 'terminationDraft'
+	| 'createdAt'
+	| 'updatedAt'
+	| 'closedAt'
+>;
+
+export interface DisciplinaryMeasureRecord extends DisciplinaryMeasureBase {
+	employeeCode: string | null;
+	employeeFirstName: string | null;
+	employeeLastName: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+	closedAt: Date | null;
+}
+
+export interface DisciplinaryMeasureDocumentRecord extends DisciplinaryMeasureDocumentContract {
+	createdAt: Date;
+	updatedAt: Date;
+	uploadedAt: Date;
+}
+
+export interface DisciplinaryMeasureAttachmentRecord
+	extends DisciplinaryMeasureAttachmentContract {
+	createdAt: Date;
+	updatedAt: Date;
+	uploadedAt: Date;
+}
+
+export interface DisciplinaryMeasureDetailRecord extends DisciplinaryMeasureRecord {
+	generatedActaGenerationId: string | null;
+	generatedRefusalGenerationId: string | null;
+	documents: DisciplinaryMeasureDocumentRecord[];
+	attachments: DisciplinaryMeasureAttachmentRecord[];
+	terminationDraft: EmployeeTerminationDraftRecord | null;
+}
+
+type DisciplinaryMeasurePayload = DisciplinaryMeasureBase & {
+	employeeCode?: string | null;
+	employeeFirstName?: string | null;
+	employeeLastName?: string | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	closedAt?: string | Date | null;
+};
+
+type DisciplinaryMeasureDocumentPayload = Omit<
+	DisciplinaryMeasureDocumentRecord,
+	'createdAt' | 'updatedAt' | 'uploadedAt'
+> & {
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	uploadedAt: string | Date;
+};
+
+type DisciplinaryMeasureAttachmentPayload = Omit<
+	DisciplinaryMeasureAttachmentRecord,
+	'createdAt' | 'updatedAt' | 'uploadedAt'
+> & {
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	uploadedAt: string | Date;
+};
+
+type DisciplinaryMeasureDetailPayload = Omit<
+	DisciplinaryMeasurePayload,
+	'employeeCode' | 'employeeFirstName' | 'employeeLastName'
+> & {
+	employeeCode?: string | null;
+	employeeFirstName?: string | null;
+	employeeLastName?: string | null;
+	generatedActaGenerationId?: string | null;
+	generatedRefusalGenerationId?: string | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+	closedAt?: string | Date | null;
+	documents?: DisciplinaryMeasureDocumentPayload[];
+	attachments?: DisciplinaryMeasureAttachmentPayload[];
+	terminationDraft?:
+		| (TerminationDraftContract & {
+				createdAt: string | Date;
+				updatedAt: string | Date;
+				consumedAt?: string | Date | null;
+				cancelledAt?: string | Date | null;
+		  })
+		| null;
+};
+
+/**
+ * Normalizes a disciplinary measure record payload.
+ *
+ * @param record - Raw measure payload
+ * @returns Normalized measure record
+ */
+function normalizeDisciplinaryMeasureRecord(
+	record: DisciplinaryMeasurePayload,
+): DisciplinaryMeasureRecord {
+	return {
+		...record,
+		employeeCode: record.employeeCode ?? null,
+		employeeFirstName: record.employeeFirstName ?? null,
+		employeeLastName: record.employeeLastName ?? null,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+		closedAt: record.closedAt ? new Date(record.closedAt) : null,
+	};
+}
+
+/**
+ * Normalizes a disciplinary document version payload.
+ *
+ * @param record - Raw document payload
+ * @returns Normalized document record
+ */
+function normalizeDisciplinaryDocumentRecord(
+	record: DisciplinaryMeasureDocumentPayload,
+): DisciplinaryMeasureDocumentRecord {
+	return {
+		...record,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+		uploadedAt: new Date(record.uploadedAt),
+	};
+}
+
+/**
+ * Normalizes a disciplinary evidence attachment payload.
+ *
+ * @param record - Raw attachment payload
+ * @returns Normalized attachment record
+ */
+function normalizeDisciplinaryAttachmentRecord(
+	record: DisciplinaryMeasureAttachmentPayload,
+): DisciplinaryMeasureAttachmentRecord {
+	return {
+		...record,
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+		uploadedAt: new Date(record.uploadedAt),
+	};
+}
+
+/**
+ * Fetches paginated disciplinary measures.
+ *
+ * @param params - Optional filters and pagination
+ * @returns Paginated disciplinary measures payload
+ * @throws Error when request fails
+ */
+export async function fetchDisciplinaryMeasures(
+	params?: DisciplinaryMeasuresQueryParams,
+): Promise<PaginatedResponse<DisciplinaryMeasureRecord>> {
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		search?: string;
+		fromDateKey?: string;
+		toDateKey?: string;
+		status?: DisciplinaryMeasureStatus;
+		outcome?: DisciplinaryOutcome;
+	} = {
+		limit: params?.limit ?? 20,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params?.search) {
+		query.search = params.search;
+	}
+	if (params?.fromDateKey) {
+		query.fromDateKey = params.fromDateKey;
+	}
+	if (params?.toDateKey) {
+		query.toDateKey = params.toDateKey;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.outcome) {
+		query.outcome = params.outcome;
+	}
+
+	const response = await api['disciplinary-measures'].get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch disciplinary measures:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch disciplinary measures');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as DisciplinaryMeasurePayload[] | undefined) ?? [];
+	return {
+		data: rows.map((row) => normalizeDisciplinaryMeasureRecord(row)),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
+ * Fetches disciplinary KPI summary.
+ *
+ * @param params - Optional date range filters
+ * @returns KPI summary or null when not available
+ */
+export async function fetchDisciplinaryKpis(
+	params?: DisciplinaryKpisQueryParams,
+): Promise<DisciplinaryKpisContract | null> {
+	const query: {
+		fromDateKey?: string;
+		toDateKey?: string;
+	} = {};
+
+	if (params?.fromDateKey) {
+		query.fromDateKey = params.fromDateKey;
+	}
+	if (params?.toDateKey) {
+		query.toDateKey = params.toDateKey;
+	}
+
+	const response = await api['disciplinary-measures'].kpis.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch disciplinary KPIs:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		return null;
+	}
+
+	const payload = getApiResponseData(response);
+	const raw = (payload?.data ?? null) as
+		| (Partial<DisciplinaryKpisContract> & {
+				actasInPeriod?: number;
+				suspensionsActive?: number;
+		  })
+		| null;
+	if (!raw) {
+		return null;
+	}
+
+	return {
+		employeesWithMeasures: Number(raw.employeesWithMeasures ?? 0),
+		measuresInPeriod: Number(raw.measuresInPeriod ?? raw.actasInPeriod ?? 0),
+		activeSuspensions: Number(raw.activeSuspensions ?? raw.suspensionsActive ?? 0),
+		terminationEscalations: Number(raw.terminationEscalations ?? 0),
+		openMeasures: Number(raw.openMeasures ?? 0),
+	};
+}
+
+/**
+ * Fetches disciplinary measure detail payload.
+ *
+ * @param id - Measure identifier
+ * @returns Detailed measure payload or null when not found
+ */
+export async function fetchDisciplinaryMeasureById(
+	id: string,
+): Promise<DisciplinaryMeasureDetailRecord | null> {
+	const payload = (await fetchDashboardApiJson(`/disciplinary-measures/${id}`)) as {
+		data?: DisciplinaryMeasureDetailPayload;
+	};
+
+	const row = payload?.data;
+	if (!row) {
+		return null;
+	}
+
+	return {
+		...normalizeDisciplinaryMeasureRecord(row),
+		generatedActaGenerationId: row.generatedActaGenerationId ?? null,
+		generatedRefusalGenerationId: row.generatedRefusalGenerationId ?? null,
+		documents: (row.documents ?? []).map((document) =>
+			normalizeDisciplinaryDocumentRecord(document),
+		),
+		attachments: (row.attachments ?? []).map((attachment) =>
+			normalizeDisciplinaryAttachmentRecord(attachment),
+		),
+		terminationDraft: row.terminationDraft
+			? {
+					...row.terminationDraft,
+					createdAt: new Date(row.terminationDraft.createdAt),
+					updatedAt: new Date(row.terminationDraft.updatedAt),
+					consumedAt: row.terminationDraft.consumedAt
+						? new Date(row.terminationDraft.consumedAt)
+						: null,
+					cancelledAt: row.terminationDraft.cancelledAt
+						? new Date(row.terminationDraft.cancelledAt)
+						: null,
+			  }
+			: null,
+	};
+}
+
+/**
+ * Fetches a temporary URL for a disciplinary document version.
+ *
+ * @param args - Measure and document identifiers
+ * @returns Presigned URL or null when unavailable
+ */
+export async function fetchDisciplinaryDocumentUrl(args: {
+	measureId: string;
+	documentVersionId: string;
+}): Promise<string | null> {
+	const payload = (await fetchDashboardApiJson(
+		`/disciplinary-measures/${args.measureId}/documents/${args.documentVersionId}/url`,
+	)) as { data?: { url?: string } };
+
+	return payload?.data?.url ?? null;
 }
 
 // ============================================================================
@@ -1976,6 +2370,7 @@ export interface PayrollSettings {
 	ptuExemptReason: string | null;
 	employerType: 'PERSONA_MORAL' | 'PERSONA_FISICA';
 	aguinaldoEnabled: boolean;
+	enableDisciplinaryMeasures: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -2330,6 +2725,7 @@ type PayrollSettingsPayload = Omit<
 	| 'ptuExemptReason'
 	| 'employerType'
 	| 'aguinaldoEnabled'
+	| 'enableDisciplinaryMeasures'
 > & {
 	riskWorkRate?: number | string | null;
 	statePayrollTaxRate?: number | string | null;
@@ -2344,6 +2740,7 @@ type PayrollSettingsPayload = Omit<
 	ptuExemptReason?: string | null;
 	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA' | null;
 	aguinaldoEnabled?: boolean | null;
+	enableDisciplinaryMeasures?: boolean | null;
 };
 
 /**
@@ -2391,6 +2788,7 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		ptuExemptReason: payload.ptuExemptReason ?? null,
 		employerType: payload.employerType ?? 'PERSONA_MORAL',
 		aguinaldoEnabled: Boolean(payload.aguinaldoEnabled ?? true),
+		enableDisciplinaryMeasures: Boolean(payload.enableDisciplinaryMeasures ?? false),
 	};
 }
 

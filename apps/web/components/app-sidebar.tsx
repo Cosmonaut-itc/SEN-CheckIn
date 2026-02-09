@@ -30,6 +30,7 @@ import {
 	CalendarDays,
 	FileText,
 	Settings2,
+	ShieldAlert,
 	Smartphone,
 	UserCog,
 	Users,
@@ -60,6 +61,8 @@ interface AppSidebarProps {
 	isSuperUser: boolean;
 	/** Active organization role (if available) */
 	organizationRole: 'admin' | 'owner' | 'member' | null;
+	/** Whether disciplinary measures module is enabled for the active organization */
+	enableDisciplinaryMeasures: boolean;
 }
 
 /**
@@ -162,7 +165,11 @@ const adminNavItems: NavItem[] = [
  * @param props - Component props
  * @returns The app sidebar JSX element
  */
-export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): React.ReactElement {
+export function AppSidebar({
+	isSuperUser,
+	organizationRole,
+	enableDisciplinaryMeasures,
+}: AppSidebarProps): React.ReactElement {
 	const pathname = usePathname();
 	const { data: session, isPending } = useSession();
 	const router = useRouter();
@@ -170,6 +177,17 @@ export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): 
 	const tApp = useTranslations('App');
 	const canAccessAdmin =
 		isSuperUser || organizationRole === 'admin' || organizationRole === 'owner';
+	const resolvedMainNavItems: NavItem[] =
+		canAccessAdmin && enableDisciplinaryMeasures
+			? [
+					...mainNavItems,
+					{
+						titleKey: 'disciplinaryMeasures',
+						href: '/disciplinary-measures',
+						icon: ShieldAlert,
+					},
+				]
+			: mainNavItems;
 
 	/**
 	 * Handles user sign out.
@@ -217,7 +235,7 @@ export function AppSidebar({ isSuperUser, organizationRole }: AppSidebarProps): 
 					<SidebarGroupLabel>{tSidebar('main')}</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<SidebarMenu>
-							{mainNavItems.map((item) => (
+							{resolvedMainNavItems.map((item) => (
 								<SidebarMenuItem key={item.href}>
 									<SidebarMenuButton
 										asChild

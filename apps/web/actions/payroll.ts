@@ -22,6 +22,7 @@ export interface UpdatePayrollSettingsInput {
 	ptuExemptReason?: string | null;
 	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA';
 	aguinaldoEnabled?: boolean;
+	enableDisciplinaryMeasures?: boolean;
 	organizationId?: string;
 }
 
@@ -74,6 +75,7 @@ export async function updatePayrollSettingsAction(
 			ptuExemptReason: input.ptuExemptReason,
 			employerType: input.employerType,
 			aguinaldoEnabled: input.aguinaldoEnabled,
+			enableDisciplinaryMeasures: input.enableDisciplinaryMeasures,
 			organizationId: input.organizationId,
 		});
 

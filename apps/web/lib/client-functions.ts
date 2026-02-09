@@ -32,10 +32,16 @@ import type {
 	IdentificationSubtype,
 	LegalDocumentKind,
 	LegalTemplateStatus,
+	HolidayCalendarEntry,
+	HolidayKind,
+	HolidaySource,
+	HolidayStatus,
 	IncapacityIssuedBy,
 	IncapacitySequence,
 	IncapacityStatus,
 	IncapacityType,
+	PayrollEmployeeHolidayImpact as PayrollEmployeeHolidayImpactContract,
+	PayrollHolidayNotice as PayrollHolidayNoticeContract,
 	SatTipoIncapacidad,
 	TerminationDraft as TerminationDraftContract,
 } from '@sen-checkin/types';
@@ -2375,6 +2381,37 @@ export interface PayrollSettings {
 	updatedAt: Date;
 }
 
+export interface PayrollHolidaySyncRun {
+	id: string;
+	organizationId: string | null;
+	provider: string;
+	requestedYears: number[];
+	status: 'RUNNING' | 'COMPLETED' | 'FAILED';
+	startedAt: Date;
+	finishedAt: Date | null;
+	importedCount: number;
+	pendingCount: number;
+	errorCount: number;
+	errorPayload: Record<string, unknown> | null;
+	stale: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface PayrollHolidaySyncStatus {
+	lastRun: PayrollHolidaySyncRun | null;
+	pendingApprovalCount: number;
+	stale: boolean;
+}
+
+export interface PayrollHolidayListParams {
+	organizationId?: string;
+	year?: number;
+	source?: HolidaySource;
+	status?: HolidayStatus;
+	kind?: HolidayKind;
+}
+
 export interface PayrollWarning {
 	type:
 		| 'OVERTIME_DAILY_EXCEEDED'
@@ -2478,6 +2515,7 @@ export interface PayrollCalculationEmployee {
 	overtimeTripleHours: number;
 	sundayHoursWorked: number;
 	mandatoryRestDaysWorkedCount: number;
+	mandatoryRestDayDateKeys: string[];
 	normalPay: number;
 	overtimeDoublePay: number;
 	overtimeTriplePay: number;
@@ -2496,6 +2534,7 @@ export interface PayrollCalculationEmployee {
 	companyCost: number;
 	incapacitySummary: PayrollIncapacitySummary;
 	warnings: PayrollWarning[];
+	holidayImpact?: PayrollEmployeeHolidayImpactContract;
 }
 
 export interface PayrollCalculationResult {
@@ -2506,6 +2545,7 @@ export interface PayrollCalculationResult {
 	periodEndDateKey: string;
 	timeZone?: string;
 	overtimeEnforcement?: 'WARN' | 'BLOCK';
+	holidayNotices?: PayrollHolidayNoticeContract[];
 }
 
 export interface PayrollRun {
@@ -2518,6 +2558,7 @@ export interface PayrollRun {
 	status: 'DRAFT' | 'PROCESSED';
 	totalAmount: number;
 	employeeCount: number;
+	holidayNotices?: PayrollHolidayNoticeContract[] | null;
 	processedAt: Date | null;
 	createdAt: Date;
 	updatedAt: Date;
@@ -2792,6 +2833,63 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 	};
 }
 
+type PayrollHolidayEntryPayload = Omit<
+	HolidayCalendarEntry,
+	'approvedAt' | 'rejectedAt' | 'createdAt' | 'updatedAt'
+> & {
+	approvedAt?: string | Date | null;
+	rejectedAt?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+type PayrollHolidaySyncRunPayload = Omit<
+	PayrollHolidaySyncRun,
+	'startedAt' | 'finishedAt' | 'createdAt' | 'updatedAt'
+> & {
+	startedAt: string | Date;
+	finishedAt?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+/**
+ * Normalizes holiday entry payload date fields.
+ *
+ * @param payload - Raw holiday payload
+ * @returns Normalized holiday entry
+ */
+function normalizePayrollHolidayEntry(payload: PayrollHolidayEntryPayload): HolidayCalendarEntry {
+	return {
+		...payload,
+		approvedAt: payload.approvedAt ? new Date(payload.approvedAt) : null,
+		rejectedAt: payload.rejectedAt ? new Date(payload.rejectedAt) : null,
+		createdAt: new Date(payload.createdAt),
+		updatedAt: new Date(payload.updatedAt),
+	};
+}
+
+/**
+ * Normalizes holiday sync run payload date and numeric fields.
+ *
+ * @param payload - Raw sync run payload
+ * @returns Normalized sync run
+ */
+function normalizePayrollHolidaySyncRun(
+	payload: PayrollHolidaySyncRunPayload,
+): PayrollHolidaySyncRun {
+	return {
+		...payload,
+		startedAt: new Date(payload.startedAt),
+		finishedAt: payload.finishedAt ? new Date(payload.finishedAt) : null,
+		importedCount: Number(payload.importedCount ?? 0),
+		pendingCount: Number(payload.pendingCount ?? 0),
+		errorCount: Number(payload.errorCount ?? 0),
+		createdAt: new Date(payload.createdAt),
+		updatedAt: new Date(payload.updatedAt),
+	};
+}
+
 export async function fetchPayrollSettings(
 	organizationId?: string,
 ): Promise<PayrollSettings | null> {
@@ -2811,6 +2909,355 @@ export async function fetchPayrollSettings(
 
 	const payload = getApiResponseData(response);
 	return normalizePayrollSettings(payload?.data as PayrollSettingsPayload | undefined);
+}
+
+/**
+ * Fetches payroll holiday entries with optional filters.
+ *
+ * @param params - Optional holiday filters
+ * @returns Holiday entries
+ */
+export async function fetchPayrollHolidays(
+	params?: PayrollHolidayListParams,
+): Promise<HolidayCalendarEntry[]> {
+	const query: PayrollHolidayListParams = {};
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (typeof params?.year === 'number') {
+		query.year = params.year;
+	}
+	if (params?.source) {
+		query.source = params.source;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.kind) {
+		query.kind = params.kind;
+	}
+
+	const response = await api['payroll-settings'].holidays.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('Failed to fetch payroll holidays:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch payroll holidays');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as PayrollHolidayEntryPayload[] | undefined) ?? [];
+	return rows.map(normalizePayrollHolidayEntry);
+}
+
+/**
+ * Creates custom payroll holiday entries.
+ *
+ * @param params - Custom holiday inputs
+ * @returns Created holiday entries
+ */
+export async function createPayrollHolidayCustom(params: {
+	dateKey: string;
+	name: string;
+	kind?: HolidayKind;
+	recurrence?: 'ONE_TIME' | 'ANNUAL';
+	legalReference?: string | null;
+	organizationId?: string;
+}): Promise<HolidayCalendarEntry[]> {
+	const response = await api['payroll-settings'].holidays.custom.post({
+		organizationId: params.organizationId,
+		dateKey: params.dateKey,
+		name: params.name,
+		kind: params.kind,
+		recurrence: params.recurrence,
+		legalReference: params.legalReference ?? null,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to create payroll holiday:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to create payroll holiday');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as PayrollHolidayEntryPayload[] | undefined) ?? [];
+	return rows.map(normalizePayrollHolidayEntry);
+}
+
+/**
+ * Updates or deactivates a holiday entry.
+ *
+ * @param id - Holiday identifier
+ * @param params - Update payload
+ * @returns Updated holiday entry
+ */
+export async function updatePayrollHoliday(
+	id: string,
+	params: {
+		reason: string;
+		name?: string;
+		kind?: HolidayKind;
+		dateKey?: string;
+		active?: boolean;
+		legalReference?: string | null;
+	},
+): Promise<HolidayCalendarEntry> {
+	const response = await api['payroll-settings'].holidays[id].patch({
+		reason: params.reason,
+		name: params.name,
+		kind: params.kind,
+		dateKey: params.dateKey,
+		active: params.active,
+		legalReference: params.legalReference,
+	});
+
+	if (response.error) {
+		console.error('Failed to update payroll holiday:', response.error, 'Status:', response.status);
+		throw new Error('Failed to update payroll holiday');
+	}
+
+	const payload = getApiResponseData(response);
+	const row = payload?.data as PayrollHolidayEntryPayload | undefined;
+	if (!row) {
+		throw new Error('Failed to update payroll holiday: empty response');
+	}
+	return normalizePayrollHolidayEntry(row);
+}
+
+/**
+ * Imports payroll holidays from CSV content.
+ *
+ * @param params - Import payload
+ * @returns Import report
+ */
+export async function importPayrollHolidaysCsv(params: {
+	csvContent: string;
+	organizationId?: string;
+}): Promise<{
+	appliedRows: number;
+	rejectedRows: number;
+	errors: Array<{ line: number; reason: string }>;
+}> {
+	const response = await api['payroll-settings'].holidays.import.csv.post({
+		organizationId: params.organizationId,
+		csvContent: params.csvContent,
+	});
+
+	if (response.error) {
+		console.error('Failed to import payroll holidays CSV:', response.error, 'Status:', response.status);
+		throw new Error('Failed to import payroll holidays CSV');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as
+		| { appliedRows: number; rejectedRows: number; errors: Array<{ line: number; reason: string }> }
+		| undefined;
+	if (!data) {
+		throw new Error('Failed to import payroll holidays CSV: empty response');
+	}
+	return {
+		appliedRows: Number(data.appliedRows ?? 0),
+		rejectedRows: Number(data.rejectedRows ?? 0),
+		errors: data.errors ?? [],
+	};
+}
+
+/**
+ * Exports payroll holidays using current filters.
+ *
+ * @param params - Optional export filters
+ * @returns CSV payload
+ */
+export async function exportPayrollHolidaysCsv(params?: PayrollHolidayListParams): Promise<{
+	fileName: string;
+	csvContent: string;
+	count: number;
+}> {
+	const query: PayrollHolidayListParams = {};
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+	if (typeof params?.year === 'number') {
+		query.year = params.year;
+	}
+	if (params?.source) {
+		query.source = params.source;
+	}
+	if (params?.status) {
+		query.status = params.status;
+	}
+	if (params?.kind) {
+		query.kind = params.kind;
+	}
+
+	const response = await api['payroll-settings'].holidays.export.csv.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('Failed to export payroll holidays CSV:', response.error, 'Status:', response.status);
+		throw new Error('Failed to export payroll holidays CSV');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as
+		| { fileName: string; csvContent: string; count: number | string }
+		| undefined;
+	if (!data) {
+		throw new Error('Failed to export payroll holidays CSV: empty response');
+	}
+	return {
+		fileName: data.fileName,
+		csvContent: data.csvContent,
+		count: Number(data.count ?? 0),
+	};
+}
+
+/**
+ * Triggers manual payroll holiday synchronization.
+ *
+ * @param params - Sync payload
+ * @returns Sync result
+ */
+export async function syncPayrollHolidays(params?: {
+	organizationId?: string;
+	year?: number;
+	years?: number[];
+}): Promise<{
+	run: PayrollHolidaySyncRun;
+	importedCount: number;
+	pendingCount: number;
+	errorCount: number;
+}> {
+	const response = await api['payroll-settings'].holidays.sync.post({
+		organizationId: params?.organizationId,
+		year: params?.year,
+		years: params?.years,
+	});
+
+	if (response.error) {
+		console.error('Failed to sync payroll holidays:', response.error, 'Status:', response.status);
+		throw new Error('Failed to sync payroll holidays');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as
+		| {
+				run: PayrollHolidaySyncRunPayload;
+				importedCount: number | string;
+				pendingCount: number | string;
+				errorCount: number | string;
+		  }
+		| undefined;
+	if (!data?.run) {
+		throw new Error('Failed to sync payroll holidays: empty response');
+	}
+	return {
+		run: normalizePayrollHolidaySyncRun(data.run),
+		importedCount: Number(data.importedCount ?? 0),
+		pendingCount: Number(data.pendingCount ?? 0),
+		errorCount: Number(data.errorCount ?? 0),
+	};
+}
+
+/**
+ * Approves pending entries from a provider sync run.
+ *
+ * @param runId - Sync run identifier
+ * @param reason - Optional decision reason
+ * @returns Approval summary
+ */
+export async function approvePayrollHolidaySyncRun(
+	runId: string,
+	reason?: string,
+): Promise<{ runId: string; approvedCount: number }> {
+	const response = await api['payroll-settings'].holidays.sync[runId].approve.post({
+		reason,
+	});
+
+	if (response.error) {
+		console.error('Failed to approve payroll holiday sync run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to approve payroll holiday sync run');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as { runId: string; approvedCount: number | string } | undefined;
+	if (!data) {
+		throw new Error('Failed to approve payroll holiday sync run: empty response');
+	}
+	return {
+		runId: data.runId,
+		approvedCount: Number(data.approvedCount ?? 0),
+	};
+}
+
+/**
+ * Rejects pending entries from a provider sync run.
+ *
+ * @param runId - Sync run identifier
+ * @param reason - Optional decision reason
+ * @returns Rejection summary
+ */
+export async function rejectPayrollHolidaySyncRun(
+	runId: string,
+	reason?: string,
+): Promise<{ runId: string; rejectedCount: number }> {
+	const response = await api['payroll-settings'].holidays.sync[runId].reject.post({
+		reason,
+	});
+
+	if (response.error) {
+		console.error('Failed to reject payroll holiday sync run:', response.error, 'Status:', response.status);
+		throw new Error('Failed to reject payroll holiday sync run');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as { runId: string; rejectedCount: number | string } | undefined;
+	if (!data) {
+		throw new Error('Failed to reject payroll holiday sync run: empty response');
+	}
+	return {
+		runId: data.runId,
+		rejectedCount: Number(data.rejectedCount ?? 0),
+	};
+}
+
+/**
+ * Fetches holiday sync status for the active organization.
+ *
+ * @param organizationId - Optional organization identifier
+ * @returns Sync status
+ */
+export async function fetchPayrollHolidaySyncStatus(
+	organizationId?: string,
+): Promise<PayrollHolidaySyncStatus> {
+	const response = await api['payroll-settings'].holidays.sync.status.get({
+		$query: organizationId ? { organizationId } : undefined,
+	});
+
+	if (response.error) {
+		console.error('Failed to fetch payroll holiday sync status:', response.error, 'Status:', response.status);
+		throw new Error('Failed to fetch payroll holiday sync status');
+	}
+
+	const payload = getApiResponseData(response);
+	const data = payload?.data as
+		| {
+				lastRun?: PayrollHolidaySyncRunPayload | null;
+				pendingApprovalCount?: number | string;
+				stale?: boolean;
+		  }
+		| undefined;
+	return {
+		lastRun: data?.lastRun ? normalizePayrollHolidaySyncRun(data.lastRun) : null,
+		pendingApprovalCount: Number(data?.pendingApprovalCount ?? 0),
+		stale: Boolean(data?.stale ?? false),
+	};
 }
 
 export async function calculatePayroll(params: {

@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
 import { parseDateKey } from '@/lib/date-key';
+import { PayrollHolidaysSection } from './payroll-holidays-section';
 
 const dayOptions = [
 	{ value: '0', labelKey: 'days.sunday' },
@@ -405,33 +406,6 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
-						<form.AppField
-							name="additionalMandatoryRestDaysText"
-							validators={{
-								onChange: ({ value }) => {
-									try {
-										parseAdditionalMandatoryRestDaysText(value);
-										return undefined;
-									} catch (error) {
-										if (error instanceof InvalidMandatoryRestDayDateError) {
-											return t('validation.invalidDate', {
-												date: error.dateKey,
-											});
-										}
-										return t('validation.invalidDates');
-									}
-								},
-							}}
-						>
-							{(field) => (
-								<field.TextareaField
-									label={t('additionalMandatoryRestDays.label')}
-									placeholder={t('additionalMandatoryRestDays.placeholder')}
-									description={t('additionalMandatoryRestDays.description')}
-									rows={4}
-								/>
-							)}
-						</form.AppField>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
 							<p className="font-medium text-foreground">{t('taxSettings.title')}</p>
 							<p className="mt-1 text-xs">{t('taxSettings.description')}</p>
@@ -639,6 +613,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 					</form>
 				</CardContent>
 			</Card>
+
+			<PayrollHolidaysSection />
 
 			<DocumentWorkflowSettingsSection />
 		</div>

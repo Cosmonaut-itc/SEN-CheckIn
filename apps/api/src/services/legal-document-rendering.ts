@@ -102,6 +102,9 @@ export function flattenTemplateVariables(snapshot: Record<string, unknown>): Rec
 			}
 			return;
 		}
+		if (!prefix) {
+			return;
+		}
 
 		values[`{{${prefix}}}`] =
 			value === null || value === undefined ? '' : escapeHtml(String(value));

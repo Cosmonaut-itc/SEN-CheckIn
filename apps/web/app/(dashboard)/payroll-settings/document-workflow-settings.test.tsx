@@ -125,6 +125,21 @@ describe('Document workflow settings section', () => {
 		expect(screen.getByText('documentWorkflow.requirements.IDENTIFICATION')).toBeInTheDocument();
 		expect(screen.getByText('documentWorkflow.config.badges.base')).toBeInTheDocument();
 		expect(screen.getByText('documentWorkflow.config.badges.legal')).toBeInTheDocument();
+		expect(
+			screen.getByText('documentWorkflow.templates.ACTA_ADMINISTRATIVA.editorTitle'),
+		).toBeInTheDocument();
+		expect(
+			screen.getByText('documentWorkflow.templates.CONSTANCIA_NEGATIVA_FIRMA.editorTitle'),
+		).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(mockFetchLegalTemplates).toHaveBeenCalledWith('CONTRACT');
+			expect(mockFetchLegalTemplates).toHaveBeenCalledWith('NDA');
+			expect(mockFetchLegalTemplates).toHaveBeenCalledWith('ACTA_ADMINISTRATIVA');
+			expect(mockFetchLegalTemplates).toHaveBeenCalledWith(
+				'CONSTANCIA_NEGATIVA_FIRMA',
+			);
+		});
 	});
 
 	it('shows forbidden state for member role', async () => {

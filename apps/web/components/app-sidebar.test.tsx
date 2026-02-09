@@ -161,14 +161,40 @@ describe('AppSidebar', () => {
 	});
 
 	it('shows admin navigation for superusers', () => {
-		renderWithIntl(<AppSidebar isSuperUser={true} organizationRole="member" />);
+		renderWithIntl(
+			<AppSidebar
+				isSuperUser={true}
+				organizationRole="member"
+				enableDisciplinaryMeasures={true}
+			/>,
+		);
 
 		expect(screen.getByTestId('app-sidebar-admin-group')).toBeInTheDocument();
+		expect(screen.getByText('disciplinaryMeasures')).toBeInTheDocument();
 	});
 
 	it('hides admin navigation for standard members', () => {
-		renderWithIntl(<AppSidebar isSuperUser={false} organizationRole="member" />);
+		renderWithIntl(
+			<AppSidebar
+				isSuperUser={false}
+				organizationRole="member"
+				enableDisciplinaryMeasures={true}
+			/>,
+		);
 
 		expect(screen.queryByTestId('app-sidebar-admin-group')).toBeNull();
+		expect(screen.queryByText('disciplinaryMeasures')).toBeNull();
+	});
+
+	it('hides disciplinary nav item when feature flag is disabled', () => {
+		renderWithIntl(
+			<AppSidebar
+				isSuperUser={true}
+				organizationRole="owner"
+				enableDisciplinaryMeasures={false}
+			/>,
+		);
+
+		expect(screen.queryByText('disciplinaryMeasures')).toBeNull();
 	});
 });

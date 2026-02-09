@@ -26,6 +26,7 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.organizationId).toBeDefined();
+		expect(typeof payload.data?.enableDisciplinaryMeasures).toBe('boolean');
 	});
 
 	it('updates payroll settings for the active organization', async () => {
@@ -33,12 +34,26 @@ describe('payroll settings routes (contract)', () => {
 			weekStartDay: 2,
 			overtimeEnforcement: 'WARN',
 			enableSeventhDayPay: true,
+			enableDisciplinaryMeasures: true,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.weekStartDay).toBe(2);
+		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);
+	});
+
+	it('rejects invalid calendar dates for additional mandatory rest days', async () => {
+		const response = await client['payroll-settings'].put({
+			weekStartDay: 1,
+			additionalMandatoryRestDays: ['2026-02-30'],
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'payroll settings validation');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('rejects payroll settings updates for unauthorized organizations', async () => {

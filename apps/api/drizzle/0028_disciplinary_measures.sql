@@ -25,6 +25,7 @@ CREATE TABLE "employee_disciplinary_measure" (
 	"incident_date_key" text NOT NULL,
 	"reason" text NOT NULL,
 	"policy_reference" text,
+	"notes" text,
 	"outcome" "disciplinary_outcome" DEFAULT 'no_action' NOT NULL,
 	"suspension_start_date_key" text,
 	"suspension_end_date_key" text,

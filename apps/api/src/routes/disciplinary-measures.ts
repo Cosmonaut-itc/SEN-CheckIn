@@ -565,6 +565,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					incidentDateKey: employeeDisciplinaryMeasure.incidentDateKey,
 					reason: employeeDisciplinaryMeasure.reason,
 					policyReference: employeeDisciplinaryMeasure.policyReference,
+					notes: employeeDisciplinaryMeasure.notes,
 					outcome: employeeDisciplinaryMeasure.outcome,
 					suspensionStartDateKey: employeeDisciplinaryMeasure.suspensionStartDateKey,
 					suspensionEndDateKey: employeeDisciplinaryMeasure.suspensionEndDateKey,
@@ -837,6 +838,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					incidentDateKey: employeeDisciplinaryMeasure.incidentDateKey,
 					reason: employeeDisciplinaryMeasure.reason,
 					policyReference: employeeDisciplinaryMeasure.policyReference,
+					notes: employeeDisciplinaryMeasure.notes,
 					outcome: employeeDisciplinaryMeasure.outcome,
 					suspensionStartDateKey: employeeDisciplinaryMeasure.suspensionStartDateKey,
 					suspensionEndDateKey: employeeDisciplinaryMeasure.suspensionEndDateKey,
@@ -1295,6 +1297,17 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			if (!generation) {
 				set.status = 400;
 				return buildErrorResponse('Invalid acta generation reference', 400);
+			}
+
+			const expectedObjectKeyPrefix = `${buildDisciplinaryDocumentPrefix({
+				organizationId: access.organizationId,
+				employeeId: measure.employeeId,
+				measureId: measure.id,
+				kind: 'ACTA_ADMINISTRATIVA',
+			})}${body.docVersionId}-`;
+			if (!body.objectKey.startsWith(expectedObjectKeyPrefix)) {
+				set.status = 400;
+				return buildErrorResponse('Invalid signed acta object key', 400);
 			}
 
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
@@ -2062,6 +2075,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				.set({
 					status: 'CLOSED',
 					signatureStatus: body.signatureStatus,
+					notes: body.notes ?? null,
 					closedAt: new Date(),
 					closedByUserId: access.userId,
 					updatedByUserId: access.userId,

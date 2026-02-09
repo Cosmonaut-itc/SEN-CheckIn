@@ -374,6 +374,69 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(confirmError.error.message).toBe('Invalid acta generation reference');
 	});
 
+	it('rejects signed acta confirm when object key does not match measure scope', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-21',
+			reason: 'Validación de object key en confirmación de acta',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route for object key validation',
+		);
+
+		const generateResponse = await measureRoute['generate-acta'].post({
+			templateId: undefined,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(generateResponse.status).toBe(200);
+		const generatePayload = requireResponseData(generateResponse) as {
+			data?: {
+				generation?: { id?: string };
+			};
+		};
+		const generationId = generatePayload.data?.generation?.id;
+		if (!generationId) {
+			throw new Error('Expected generation id for signed acta object key validation.');
+		}
+
+		const presignResponse = await measureRoute['signed-acta'].presign.post({
+			fileName: 'acta-object-key.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(presignResponse.status).toBe(200);
+		const presignPayload = requireResponseData(presignResponse) as {
+			data?: {
+				docVersionId?: string;
+			};
+		};
+		const docVersionId = presignPayload.data?.docVersionId;
+		if (!docVersionId) {
+			throw new Error('Expected docVersionId for signed acta object key validation.');
+		}
+
+		const confirmResponse = await measureRoute['signed-acta'].confirm.post({
+			docVersionId,
+			generationId,
+			objectKey: `org/${adminSession.organizationId}/employees/${seed.employeeId}/disciplinary/another-measure/documents/ACTA_ADMINISTRATIVA/${docVersionId}-tampered.pdf`,
+			fileName: 'tampered.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'tampered-object-key',
+			signedAtDateKey: '2026-01-21',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(400);
+		const confirmError = requireErrorResponse(confirmResponse, 'tampered signed acta object key');
+		expect(confirmError.error.message).toBe('Invalid signed acta object key');
+	});
+
 	it('requires refusal certificate before close when employee refused to sign', async () => {
 		const createResponse = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,
@@ -453,6 +516,10 @@ describe('disciplinary measures routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(closeResponse.status).toBe(200);
+		const closePayload = requireResponseData(closeResponse) as {
+			data?: { notes?: string | null };
+		};
+		expect(closePayload.data?.notes).toBe('Se cerró con constancia de negativa.');
 	});
 
 	it('rejects refusal confirm when generation belongs to a different measure', async () => {
@@ -608,6 +675,10 @@ describe('disciplinary measures routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(closeResponse.status).toBe(200);
+		const closePayload = requireResponseData(closeResponse) as {
+			data?: { notes?: string | null };
+		};
+		expect(closePayload.data?.notes).toBe('Cerrada para validar inmutabilidad.');
 
 		const updateAfterClose = await measureRoute.put({
 			reason: 'Intento de edición posterior al cierre',

@@ -1429,6 +1429,7 @@ export const employeeDisciplinaryMeasure = pgTable(
 		incidentDateKey: text('incident_date_key').notNull(),
 		reason: text('reason').notNull(),
 		policyReference: text('policy_reference'),
+		notes: text('notes'),
 		outcome: disciplinaryOutcome('outcome').default('no_action').notNull(),
 		suspensionStartDateKey: text('suspension_start_date_key'),
 		suspensionEndDateKey: text('suspension_end_date_key'),

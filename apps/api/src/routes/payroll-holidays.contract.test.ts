@@ -4,6 +4,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
@@ -35,11 +36,7 @@ async function withMockedHolidayProvider<T>(
 
 	globalThis.fetch = (async (input, init) => {
 		const url =
-			typeof input === 'string'
-				? input
-				: input instanceof URL
-					? input.toString()
-					: input.url;
+			typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
 
 		if (url.includes('/PublicHolidays/') && url.includes('/MX')) {
 			return new Response(JSON.stringify(rows), {
@@ -246,5 +243,140 @@ describe('payroll holidays routes (contract)', () => {
 		expect(statusResponse.status).toBe(200);
 		const statusPayload = requireResponseData(statusResponse);
 		expect(statusPayload.data?.lastRun).toBeDefined();
+	});
+
+	it('requires non-empty reason when approving or rejecting sync runs', async () => {
+		const providerRows: MockHolidayRow[] = [
+			{
+				date: '2026-08-12',
+				localName: 'Feriado con validación',
+				name: 'Validation Holiday',
+				countryCode: 'MX',
+				fixed: true,
+				global: true,
+				counties: null,
+				launchYear: null,
+				types: ['Public'],
+			},
+		];
+
+		const syncResponse = await withMockedHolidayProvider(providerRows, () =>
+			client['payroll-settings'].holidays.sync.post({
+				organizationId: seed.organizationId,
+				year: 2026,
+				$headers: { cookie: adminSession.cookieHeader },
+			}),
+		);
+		expect(syncResponse.status).toBe(200);
+		const syncPayload = requireResponseData(syncResponse);
+		const runId = syncPayload.data?.run?.id;
+		if (!runId) {
+			throw new Error('Expected sync run id for decision validation.');
+		}
+
+		const syncRunRoute = client['payroll-settings'].holidays.sync[runId];
+		if (!syncRunRoute) {
+			throw new Error('Expected sync run route for decision validation.');
+		}
+
+		const approveRoute = requireRoute(
+			syncRunRoute.approve,
+			'Payroll holiday sync approve route',
+		);
+		const approveResponse = await approveRoute.post({
+			reason: '',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(approveResponse.status).toBe(400);
+		const approveError = requireErrorResponse(
+			approveResponse,
+			'payroll holiday approve reason validation',
+		);
+		expect(approveError.error.code).toBe('VALIDATION_ERROR');
+
+		const rejectRoute = requireRoute(syncRunRoute.reject, 'Payroll holiday sync reject route');
+		const rejectResponse = await rejectRoute.post({
+			reason: '',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(rejectResponse.status).toBe(400);
+		const rejectError = requireErrorResponse(
+			rejectResponse,
+			'payroll holiday reject reason validation',
+		);
+		expect(rejectError.error.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('keeps payroll holiday fallback aligned with last approved calendar while sync is pending', async () => {
+		const providerRows: MockHolidayRow[] = [
+			{
+				date: '2026-07-02',
+				localName: 'Feriado fallback',
+				name: 'Fallback Holiday',
+				countryCode: 'MX',
+				fixed: true,
+				global: true,
+				counties: null,
+				launchYear: null,
+				types: ['Public'],
+			},
+		];
+
+		const initialSyncResponse = await withMockedHolidayProvider(providerRows, () =>
+			client['payroll-settings'].holidays.sync.post({
+				organizationId: seed.organizationId,
+				year: 2026,
+				$headers: { cookie: adminSession.cookieHeader },
+			}),
+		);
+		expect(initialSyncResponse.status).toBe(200);
+		const initialSyncPayload = requireResponseData(initialSyncResponse);
+		const firstRunId = initialSyncPayload.data?.run?.id;
+		if (!firstRunId) {
+			throw new Error('Expected first sync run id.');
+		}
+
+		const firstSyncRunRoute = client['payroll-settings'].holidays.sync[firstRunId];
+		if (!firstSyncRunRoute) {
+			throw new Error('Expected first sync run route.');
+		}
+		const firstApproveRoute = requireRoute(
+			firstSyncRunRoute.approve,
+			'Payroll holiday sync approve route (first run)',
+		);
+		const approveResponse = await firstApproveRoute.post({
+			reason: 'Aprobación inicial para fallback',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(approveResponse.status).toBe(200);
+
+		const pendingSyncResponse = await withMockedHolidayProvider(providerRows, () =>
+			client['payroll-settings'].holidays.sync.post({
+				organizationId: seed.organizationId,
+				year: 2026,
+				$headers: { cookie: adminSession.cookieHeader },
+			}),
+		);
+		expect(pendingSyncResponse.status).toBe(200);
+		const pendingSyncPayload = requireResponseData(pendingSyncResponse);
+		expect(Number(pendingSyncPayload.data?.pendingCount ?? 0)).toBeGreaterThan(0);
+
+		const payrollCalculationResponse = await client.payroll.calculate.post({
+			periodStartDateKey: '2026-07-02',
+			periodEndDateKey: '2026-07-02',
+			paymentFrequency: 'MONTHLY',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(payrollCalculationResponse.status).toBe(200);
+		const payrollCalculationPayload = requireResponseData(payrollCalculationResponse);
+		const holidayNotices = (payrollCalculationPayload.data?.holidayNotices ?? []) as Array<{
+			kind?: string;
+			affectedHolidayDateKeys?: string[];
+		}>;
+		const fallbackNotice = holidayNotices.find(
+			(notice) => notice?.kind === 'HOLIDAY_PAYROLL_IMPACT',
+		);
+		expect(fallbackNotice).toBeDefined();
+		expect(fallbackNotice?.affectedHolidayDateKeys ?? []).toContain('2026-07-02');
 	});
 });

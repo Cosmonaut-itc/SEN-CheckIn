@@ -1636,6 +1636,28 @@
         "title": "{count, plural, one {# feriado pendiente por aprobación} other {# feriados pendientes por aprobación}}",
         "description": "Las importaciones del proveedor requieren decisión explícita de owner/admin para impactar la nómina."
       },
+      "conflicts": {
+        "title": "{count, plural, one {# conflicto detectado en importación} other {# conflictos detectados en importación}}",
+        "description": "Revisa conflicto, origen y decisión de cada corrida antes de aprobar pendientes para nómina.",
+        "entriesCount": "{count, plural, one {# registro en esta corrida} other {# registros en esta corrida}}",
+        "noRun": "Sin corrida",
+        "noReason": "Sin detalle de conflicto reportado.",
+        "decisionValues": {
+          "PENDING_APPROVAL": "Pendiente",
+          "APPROVED": "Aprobado",
+          "REJECTED": "Rechazado",
+          "DEACTIVATED": "Desactivado",
+          "MIXED": "Mixto"
+        },
+        "table": {
+          "headers": {
+            "run": "Corrida",
+            "source": "Origen",
+            "decision": "Decisión",
+            "reason": "Motivo de conflicto"
+          }
+        }
+      },
       "calendar": {
         "title": "Calendario anual",
         "description": "Selecciona una fecha para filtrar la tabla por día específico.",

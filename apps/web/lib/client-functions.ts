@@ -3169,12 +3169,12 @@ export async function syncPayrollHolidays(params?: {
  * Approves pending entries from a provider sync run.
  *
  * @param runId - Sync run identifier
- * @param reason - Optional decision reason
+ * @param reason - Decision reason
  * @returns Approval summary
  */
 export async function approvePayrollHolidaySyncRun(
 	runId: string,
-	reason?: string,
+	reason: string,
 ): Promise<{ runId: string; approvedCount: number }> {
 	const response = await api['payroll-settings'].holidays.sync[runId].approve.post({
 		reason,
@@ -3200,12 +3200,12 @@ export async function approvePayrollHolidaySyncRun(
  * Rejects pending entries from a provider sync run.
  *
  * @param runId - Sync run identifier
- * @param reason - Optional decision reason
+ * @param reason - Decision reason
  * @returns Rejection summary
  */
 export async function rejectPayrollHolidaySyncRun(
 	runId: string,
-	reason?: string,
+	reason: string,
 ): Promise<{ runId: string; rejectedCount: number }> {
 	const response = await api['payroll-settings'].holidays.sync[runId].reject.post({
 		reason,

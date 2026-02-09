@@ -1,14 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import {
-	and,
-	eq,
-	gte,
-	inArray,
-	lte,
-	sql,
-	type InferInsertModel,
-	type SQL,
-} from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, sql, type InferInsertModel, type SQL } from 'drizzle-orm';
 
 import db from '../db/index.js';
 import {
@@ -155,7 +146,14 @@ function buildEntryKey(args: {
 	const recurrence = args.recurrenceKey ?? 'none';
 	const externalId = args.externalId ?? 'none';
 	const subdivision = args.subdivisionCode ?? 'none';
-	return [args.source, args.dateKey, normalizedName || 'holiday', recurrence, externalId, subdivision].join(':');
+	return [
+		args.source,
+		args.dateKey,
+		normalizedName || 'holiday',
+		recurrence,
+		externalId,
+		subdivision,
+	].join(':');
 }
 
 /**
@@ -193,10 +191,7 @@ function normalizeDateKey(dateKey: string): string {
  * @returns Provider holiday rows
  * @throws Error when provider response is invalid
  */
-async function fetchNagerHolidays(
-	year: number,
-	fetchFn: typeof fetch,
-): Promise<NagerHoliday[]> {
+async function fetchNagerHolidays(year: number, fetchFn: typeof fetch): Promise<NagerHoliday[]> {
 	const response = await fetchFn(`${NAGER_API_BASE_URL}/PublicHolidays/${year}/MX`, {
 		headers: { accept: 'application/json' },
 	});
@@ -534,8 +529,6 @@ export async function syncOrganizationHolidayCalendar(args: {
 						legalReference: sql`excluded.legal_reference`,
 						conflictReason: sql`excluded.conflict_reason`,
 						syncRunId: run.id,
-						approvedAt: null,
-						approvedBy: null,
 						rejectedAt: null,
 						rejectedBy: null,
 					},
@@ -654,7 +647,7 @@ export async function approveHolidaySyncRun(args: {
 	runId: string;
 	organizationId: string;
 	actorUserId: string;
-	reason?: string | null;
+	reason: string;
 }): Promise<number> {
 	const rows = await db
 		.update(holidayCalendarEntry)
@@ -691,7 +684,7 @@ export async function approveHolidaySyncRun(args: {
 		action: 'holiday.sync.approved',
 		actorType: 'session',
 		actorUserId: args.actorUserId,
-		reason: args.reason ?? null,
+		reason: args.reason,
 		metadata: { approvedCount: rows.length },
 	});
 
@@ -708,13 +701,15 @@ export async function rejectHolidaySyncRun(args: {
 	runId: string;
 	organizationId: string;
 	actorUserId: string;
-	reason?: string | null;
+	reason: string;
 }): Promise<number> {
 	const rows = await db
 		.update(holidayCalendarEntry)
 		.set({
 			status: 'REJECTED',
 			active: false,
+			approvedAt: null,
+			approvedBy: null,
 			rejectedAt: new Date(),
 			rejectedBy: args.actorUserId,
 		})
@@ -743,7 +738,7 @@ export async function rejectHolidaySyncRun(args: {
 		action: 'holiday.sync.rejected',
 		actorType: 'session',
 		actorUserId: args.actorUserId,
-		reason: args.reason ?? null,
+		reason: args.reason,
 		metadata: { rejectedCount: rows.length },
 	});
 
@@ -763,9 +758,7 @@ export async function isOrganizationAdmin(args: {
 	const membershipRows = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(
-			and(eq(member.userId, args.userId), eq(member.organizationId, args.organizationId)),
-		)
+		.where(and(eq(member.userId, args.userId), eq(member.organizationId, args.organizationId)))
 		.limit(1);
 	const role = membershipRows[0]?.role;
 	return role === 'owner' || role === 'admin';
@@ -911,7 +904,8 @@ export async function updateHolidayEntry(args: {
 			kind: nextKind,
 			active: nextActive,
 			status: nextStatus,
-			legalReference: args.legalReference !== undefined ? args.legalReference : existing.legalReference,
+			legalReference:
+				args.legalReference !== undefined ? args.legalReference : existing.legalReference,
 			entryKey: buildEntryKey({
 				source: existing.source,
 				dateKey: nextDateKey,
@@ -920,8 +914,12 @@ export async function updateHolidayEntry(args: {
 				externalId: existing.providerExternalId,
 				subdivisionCode: existing.subdivisionCode,
 			}),
-			approvedBy: nextActive && existing.status !== 'APPROVED' ? args.actorUserId : existing.approvedBy,
-			approvedAt: nextActive && existing.status !== 'APPROVED' ? new Date() : existing.approvedAt,
+			approvedBy:
+				nextActive && existing.status !== 'APPROVED'
+					? args.actorUserId
+					: existing.approvedBy,
+			approvedAt:
+				nextActive && existing.status !== 'APPROVED' ? new Date() : existing.approvedAt,
 			rejectedBy: !nextActive ? args.actorUserId : null,
 			rejectedAt: !nextActive ? new Date() : null,
 		})
@@ -1002,9 +1000,7 @@ export async function importHolidayCsv(args: {
 	}
 
 	const [headerLine, ...dataLines] = lines;
-	const headers = parseCsvLine(headerLine ?? '').map((header) =>
-		header.trim().toLowerCase(),
-	);
+	const headers = parseCsvLine(headerLine ?? '').map((header) => header.trim().toLowerCase());
 	const headerIndex = new Map(headers.map((value, index) => [value, index]));
 
 	const requiredHeaders = ['datekey', 'name'];
@@ -1042,7 +1038,11 @@ export async function importHolidayCsv(args: {
 		}
 
 		const kind: HolidayKindValue =
-			kindRaw === 'OPTIONAL' ? 'OPTIONAL' : kindRaw === 'MANDATORY' ? 'MANDATORY' : 'MANDATORY';
+			kindRaw === 'OPTIONAL'
+				? 'OPTIONAL'
+				: kindRaw === 'MANDATORY'
+					? 'MANDATORY'
+					: 'MANDATORY';
 		const recurrence = recurrenceRaw === 'ANNUAL' ? 'ANNUAL' : 'ONE_TIME';
 
 		try {
@@ -1090,7 +1090,9 @@ export async function importHolidayCsv(args: {
  * @param entries - Holiday entries to export
  * @returns CSV content
  */
-export function buildHolidayCsvExport(entries: (typeof holidayCalendarEntry.$inferSelect)[]): string {
+export function buildHolidayCsvExport(
+	entries: (typeof holidayCalendarEntry.$inferSelect)[],
+): string {
 	const header = [
 		'dateKey',
 		'name',
@@ -1131,8 +1133,11 @@ export function buildHolidayCsvExport(entries: (typeof holidayCalendarEntry.$inf
 /**
  * Resolves additional mandatory rest days to be consumed by payroll calculation.
  *
- * Uses approved non-internal holiday entries when available; otherwise falls back
- * to legacy `additionalMandatoryRestDays` from payroll settings.
+ * Uses approved non-internal holiday entries when available. While a new sync run
+ * is pending review, it also considers rows that were previously approved
+ * (`approvedAt` present) to keep payroll aligned with the last approved calendar.
+ * Falls back to legacy `additionalMandatoryRestDays` from payroll settings only
+ * when no approved calendar rows are available.
  *
  * @param args - Resolution args
  * @returns Date keys consumed as additional mandatory rest days
@@ -1149,7 +1154,13 @@ export async function resolveAdditionalMandatoryRestDaysForPeriod(
 			and(
 				eq(holidayCalendarEntry.organizationId, args.organizationId),
 				eq(holidayCalendarEntry.active, true),
-				eq(holidayCalendarEntry.status, 'APPROVED'),
+				sql`(
+					${holidayCalendarEntry.status} = 'APPROVED'
+					or (
+						${holidayCalendarEntry.status} = 'PENDING_APPROVAL'
+						and ${holidayCalendarEntry.approvedAt} is not null
+					)
+				)`,
 				eq(holidayCalendarEntry.kind, 'MANDATORY'),
 				inArray(holidayCalendarEntry.source, ['PROVIDER', 'CUSTOM']),
 				gte(holidayCalendarEntry.dateKey, args.periodStartDateKey),
@@ -1166,10 +1177,7 @@ export async function resolveAdditionalMandatoryRestDaysForPeriod(
 	}
 
 	return args.legacyAdditionalMandatoryRestDays
-		.filter(
-			(dateKey) =>
-				dateKey >= args.periodStartDateKey && dateKey <= args.periodEndDateKey,
-		)
+		.filter((dateKey) => dateKey >= args.periodStartDateKey && dateKey <= args.periodEndDateKey)
 		.sort((a, b) => a.localeCompare(b));
 }
 
@@ -1204,8 +1212,7 @@ export async function resolvePayrollHolidayContext(args: {
 	const affectedHolidayDateKeys = Array.from(
 		new Set(
 			[...internalMandatoryDateKeys, ...additionalMandatoryRestDays].filter(
-				(dateKey) =>
-					dateKey >= args.periodStartDateKey && dateKey <= args.periodEndDateKey,
+				(dateKey) => dateKey >= args.periodStartDateKey && dateKey <= args.periodEndDateKey,
 			),
 		),
 	).sort((a, b) => a.localeCompare(b));

@@ -99,7 +99,7 @@ export const holidaySyncSchema = z.object({
  * Schema for approving/rejecting a provider sync run.
  */
 export const holidaySyncDecisionSchema = z.object({
-	reason: z.string().trim().min(1).max(500).optional(),
+	reason: z.string().trim().min(1).max(500),
 });
 
 /**

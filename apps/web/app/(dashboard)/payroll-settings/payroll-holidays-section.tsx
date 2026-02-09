@@ -49,7 +49,12 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import type { HolidayCalendarEntry, HolidayKind, HolidaySource, HolidayStatus } from '@sen-checkin/types';
+import type {
+	HolidayCalendarEntry,
+	HolidayKind,
+	HolidaySource,
+	HolidayStatus,
+} from '@sen-checkin/types';
 import {
 	approvePayrollHolidaySyncRun,
 	createPayrollHolidayCustom,
@@ -66,6 +71,7 @@ import { queryKeys } from '@/lib/query-keys';
 
 type SelectFilterValue = 'ALL' | HolidaySource | HolidayStatus | HolidayKind;
 type SyncDecisionMode = 'approve' | 'reject';
+type ConflictRunDecision = HolidayStatus | 'MIXED';
 
 interface CustomHolidayFormState {
 	dateKey: string;
@@ -89,6 +95,13 @@ interface HolidayImportReport {
 	appliedRows: number;
 	rejectedRows: number;
 	errors: Array<{ line: number; reason: string }>;
+}
+
+interface HolidayConflictRunSummary {
+	runId: string | null;
+	source: HolidaySource;
+	decision: ConflictRunDecision;
+	entries: HolidayCalendarEntry[];
 }
 
 const HOLIDAY_SOURCE_VALUES: HolidaySource[] = ['INTERNAL', 'PROVIDER', 'CUSTOM'];
@@ -161,6 +174,88 @@ function getStatusBadgeVariant(status: HolidayStatus): 'secondary' | 'outline' |
 		return 'outline';
 	}
 	return 'destructive';
+}
+
+/**
+ * Resolves the consolidated decision for a sync run conflict bucket.
+ *
+ * @param entries - Conflict entries grouped by run
+ * @returns Consolidated decision value
+ */
+function resolveConflictRunDecision(entries: HolidayCalendarEntry[]): ConflictRunDecision {
+	const uniqueStatuses = new Set(entries.map((entry) => entry.status));
+	if (uniqueStatuses.size !== 1) {
+		return 'MIXED';
+	}
+	const [singleStatus] = uniqueStatuses;
+	return singleStatus ?? 'MIXED';
+}
+
+/**
+ * Returns a badge variant for conflict run decision values.
+ *
+ * @param decision - Conflict run decision
+ * @returns Badge variant
+ */
+function getConflictDecisionBadgeVariant(
+	decision: ConflictRunDecision,
+): 'secondary' | 'outline' | 'destructive' {
+	if (decision === 'APPROVED') {
+		return 'secondary';
+	}
+	if (decision === 'PENDING_APPROVAL' || decision === 'MIXED') {
+		return 'outline';
+	}
+	return 'destructive';
+}
+
+/**
+ * Builds conflict run summaries from holiday entries with conflict reasons.
+ *
+ * @param entries - Holiday entries with conflicts
+ * @returns Grouped summaries by run/source
+ */
+function buildConflictRunSummaries(entries: HolidayCalendarEntry[]): HolidayConflictRunSummary[] {
+	const groupedRuns = new Map<
+		string,
+		{ runId: string | null; source: HolidaySource; entries: HolidayCalendarEntry[] }
+	>();
+
+	for (const entry of entries) {
+		const runId = entry.syncRunId ?? null;
+		const key = `${runId ?? 'NO_RUN'}:${entry.source}`;
+		const existing = groupedRuns.get(key);
+		if (existing) {
+			existing.entries.push(entry);
+			continue;
+		}
+
+		groupedRuns.set(key, {
+			runId,
+			source: entry.source,
+			entries: [entry],
+		});
+	}
+
+	return Array.from(groupedRuns.values())
+		.map((summary) => ({
+			runId: summary.runId,
+			source: summary.source,
+			decision: resolveConflictRunDecision(summary.entries),
+			entries: summary.entries,
+		}))
+		.sort((left, right) => {
+			if (left.runId === right.runId) {
+				return left.source.localeCompare(right.source);
+			}
+			if (left.runId === null) {
+				return 1;
+			}
+			if (right.runId === null) {
+				return -1;
+			}
+			return right.runId.localeCompare(left.runId);
+		});
 }
 
 /**
@@ -306,8 +401,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 	});
 
 	const approveMutation = useMutation({
-		mutationFn: (runId: string) =>
-			approvePayrollHolidaySyncRun(runId, decisionReason.trim()),
+		mutationFn: (runId: string) => approvePayrollHolidaySyncRun(runId, decisionReason.trim()),
 		onSuccess: (result) => {
 			invalidateHolidayQueries();
 			setDecisionDialogOpen(false);
@@ -324,8 +418,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 	});
 
 	const rejectMutation = useMutation({
-		mutationFn: (runId: string) =>
-			rejectPayrollHolidaySyncRun(runId, decisionReason.trim()),
+		mutationFn: (runId: string) => rejectPayrollHolidaySyncRun(runId, decisionReason.trim()),
 		onSuccess: (result) => {
 			invalidateHolidayQueries();
 			setDecisionDialogOpen(false);
@@ -399,6 +492,15 @@ export function PayrollHolidaysSection(): React.ReactElement {
 			return entry.dateKey === selectedDateKey;
 		});
 	}, [entries, selectedDateKey]);
+
+	const conflictEntries = useMemo(
+		() => entries.filter((entry) => Boolean(entry.conflictReason)),
+		[entries],
+	);
+	const conflictRuns = useMemo(
+		() => buildConflictRunSummaries(conflictEntries),
+		[conflictEntries],
+	);
 
 	const mandatoryDates = useMemo(
 		() =>
@@ -521,9 +623,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 	 * @param event - File input change event
 	 * @returns Nothing
 	 */
-	const onImportCsvFile = async (
-		event: React.ChangeEvent<HTMLInputElement>,
-	): Promise<void> => {
+	const onImportCsvFile = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
 		const file = event.target.files?.[0];
 		if (!file) {
 			return;
@@ -597,7 +697,10 @@ export function PayrollHolidaysSection(): React.ReactElement {
 							className="hidden"
 							onChange={onImportCsvFile}
 						/>
-						<Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+						<Button
+							onClick={() => syncMutation.mutate()}
+							disabled={syncMutation.isPending}
+						>
 							{syncMutation.isPending ? (
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 							) : (
@@ -666,7 +769,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 								</DialogHeader>
 								<div className="grid gap-3">
 									<div className="space-y-1">
-										<Label htmlFor="holiday-date">{t('holidays.fields.date')}</Label>
+										<Label htmlFor="holiday-date">
+											{t('holidays.fields.date')}
+										</Label>
 										<Input
 											id="holiday-date"
 											type="date"
@@ -680,7 +785,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 										/>
 									</div>
 									<div className="space-y-1">
-										<Label htmlFor="holiday-name">{t('holidays.fields.name')}</Label>
+										<Label htmlFor="holiday-name">
+											{t('holidays.fields.name')}
+										</Label>
 										<Input
 											id="holiday-name"
 											value={customForm.name}
@@ -710,7 +817,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 												<SelectContent>
 													{HOLIDAY_KIND_VALUES.map((kind) => (
 														<SelectItem key={kind} value={kind}>
-															{t(`holidays.filters.kindValues.${kind}`)}
+															{t(
+																`holidays.filters.kindValues.${kind}`,
+															)}
 														</SelectItem>
 													))}
 												</SelectContent>
@@ -776,15 +885,15 @@ export function PayrollHolidaysSection(): React.ReactElement {
 							<Label>{t('holidays.filters.source')}</Label>
 							<Select
 								value={sourceFilter}
-								onValueChange={(value) => setSourceFilter(value as SelectFilterValue)}
+								onValueChange={(value) =>
+									setSourceFilter(value as SelectFilterValue)
+								}
 							>
 								<SelectTrigger>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="ALL">
-										{t('holidays.filters.all')}
-									</SelectItem>
+									<SelectItem value="ALL">{t('holidays.filters.all')}</SelectItem>
 									{HOLIDAY_SOURCE_VALUES.map((source) => (
 										<SelectItem key={source} value={source}>
 											{t(`holidays.filters.sourceValues.${source}`)}
@@ -797,15 +906,15 @@ export function PayrollHolidaysSection(): React.ReactElement {
 							<Label>{t('holidays.filters.status')}</Label>
 							<Select
 								value={statusFilter}
-								onValueChange={(value) => setStatusFilter(value as SelectFilterValue)}
+								onValueChange={(value) =>
+									setStatusFilter(value as SelectFilterValue)
+								}
 							>
 								<SelectTrigger>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="ALL">
-										{t('holidays.filters.all')}
-									</SelectItem>
+									<SelectItem value="ALL">{t('holidays.filters.all')}</SelectItem>
 									{HOLIDAY_STATUS_VALUES.map((status) => (
 										<SelectItem key={status} value={status}>
 											{t(`holidays.filters.statusValues.${status}`)}
@@ -824,9 +933,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="ALL">
-										{t('holidays.filters.all')}
-									</SelectItem>
+									<SelectItem value="ALL">{t('holidays.filters.all')}</SelectItem>
 									{HOLIDAY_KIND_VALUES.map((kind) => (
 										<SelectItem key={kind} value={kind}>
 											{t(`holidays.filters.kindValues.${kind}`)}
@@ -870,10 +977,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 									>
 										{t('holidays.actions.rejectPending')}
 									</Button>
-									<Button
-										size="sm"
-										onClick={() => openDecisionDialog('approve')}
-									>
+									<Button size="sm" onClick={() => openDecisionDialog('approve')}>
 										<CheckCircle2 className="mr-2 h-4 w-4" />
 										{t('holidays.actions.approvePending')}
 									</Button>
@@ -883,6 +987,105 @@ export function PayrollHolidaysSection(): React.ReactElement {
 					</CardContent>
 				) : null}
 			</Card>
+
+			{conflictRuns.length > 0 ? (
+				<Card className="border-amber-500/40">
+					<CardHeader>
+						<CardTitle className="text-base">
+							{t('holidays.conflicts.title', { count: conflictEntries.length })}
+						</CardTitle>
+						<CardDescription>{t('holidays.conflicts.description')}</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="rounded-md border">
+							<Table>
+								<TableHeader>
+									<TableRow>
+										<TableHead>
+											{t('holidays.conflicts.table.headers.run')}
+										</TableHead>
+										<TableHead>
+											{t('holidays.conflicts.table.headers.source')}
+										</TableHead>
+										<TableHead>
+											{t('holidays.conflicts.table.headers.decision')}
+										</TableHead>
+										<TableHead>
+											{t('holidays.conflicts.table.headers.reason')}
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{conflictRuns.map((summary) => {
+										const uniqueReasons = Array.from(
+											new Set(
+												summary.entries
+													.map((entry) => entry.conflictReason)
+													.filter(
+														(reason): reason is string =>
+															typeof reason === 'string' &&
+															reason.length > 0,
+													),
+											),
+										);
+										const runIdentifier =
+											summary.runId ?? t('holidays.conflicts.noRun');
+
+										return (
+											<TableRow key={`${runIdentifier}-${summary.source}`}>
+												<TableCell className="font-mono text-xs">
+													{runIdentifier}
+												</TableCell>
+												<TableCell>
+													<Badge variant="outline">
+														{t(
+															`holidays.filters.sourceValues.${summary.source}`,
+														)}
+													</Badge>
+												</TableCell>
+												<TableCell>
+													<Badge
+														variant={getConflictDecisionBadgeVariant(
+															summary.decision,
+														)}
+													>
+														{t(
+															`holidays.conflicts.decisionValues.${summary.decision}`,
+														)}
+													</Badge>
+													<p className="mt-1 text-xs text-muted-foreground">
+														{t('holidays.conflicts.entriesCount', {
+															count: summary.entries.length,
+														})}
+													</p>
+												</TableCell>
+												<TableCell>
+													{uniqueReasons.length > 0 ? (
+														<div className="space-y-1">
+															{uniqueReasons.map((reason) => (
+																<p
+																	key={`${runIdentifier}-${reason}`}
+																	className="text-xs text-muted-foreground"
+																>
+																	{reason}
+																</p>
+															))}
+														</div>
+													) : (
+														<p className="text-xs text-muted-foreground">
+															{t('holidays.conflicts.noReason')}
+														</p>
+													)}
+												</TableCell>
+											</TableRow>
+										);
+									})}
+								</TableBody>
+							</Table>
+						</div>
+					</CardContent>
+				</Card>
+			) : null}
 
 			<div className="grid gap-4 xl:grid-cols-[320px_1fr]">
 				<Card>
@@ -895,7 +1098,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 							mode="single"
 							month={calendarMonth}
 							onMonthChange={setCalendarMonth}
-							selected={selectedDateKey ? dateFromDateKey(selectedDateKey) : undefined}
+							selected={
+								selectedDateKey ? dateFromDateKey(selectedDateKey) : undefined
+							}
 							onSelect={(date) =>
 								setSelectedDateKey(date ? format(date, 'yyyy-MM-dd') : null)
 							}
@@ -973,7 +1178,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 									) : (
 										calendarEntries.map((entry) => (
 											<TableRow key={entry.id}>
-												<TableCell>{formatDateKey(entry.dateKey)}</TableCell>
+												<TableCell>
+													{formatDateKey(entry.dateKey)}
+												</TableCell>
 												<TableCell>
 													<div className="space-y-1">
 														<p className="font-medium">{entry.name}</p>
@@ -986,17 +1193,27 @@ export function PayrollHolidaysSection(): React.ReactElement {
 												</TableCell>
 												<TableCell>
 													<Badge variant="outline">
-														{t(`holidays.filters.kindValues.${entry.kind}`)}
+														{t(
+															`holidays.filters.kindValues.${entry.kind}`,
+														)}
 													</Badge>
 												</TableCell>
 												<TableCell>
 													<Badge variant="outline">
-														{t(`holidays.filters.sourceValues.${entry.source}`)}
+														{t(
+															`holidays.filters.sourceValues.${entry.source}`,
+														)}
 													</Badge>
 												</TableCell>
 												<TableCell>
-													<Badge variant={getStatusBadgeVariant(entry.status)}>
-														{t(`holidays.filters.statusValues.${entry.status}`)}
+													<Badge
+														variant={getStatusBadgeVariant(
+															entry.status,
+														)}
+													>
+														{t(
+															`holidays.filters.statusValues.${entry.status}`,
+														)}
 													</Badge>
 												</TableCell>
 												<TableCell>
@@ -1009,8 +1226,12 @@ export function PayrollHolidaysSection(): React.ReactElement {
 															<Button
 																size="icon"
 																variant="ghost"
-																onClick={() => openEditDialog(entry)}
-																aria-label={t('holidays.table.actions.edit')}
+																onClick={() =>
+																	openEditDialog(entry)
+																}
+																aria-label={t(
+																	'holidays.table.actions.edit',
+																)}
 															>
 																<Pencil className="h-4 w-4" />
 															</Button>
@@ -1043,7 +1264,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>{t('holidays.editDialog.title')}</DialogTitle>
-						<DialogDescription>{t('holidays.editDialog.description')}</DialogDescription>
+						<DialogDescription>
+							{t('holidays.editDialog.description')}
+						</DialogDescription>
 					</DialogHeader>
 					{editForm ? (
 						<div className="grid gap-3">
@@ -1140,7 +1363,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 								</div>
 							</div>
 							<div className="space-y-1">
-								<Label htmlFor="edit-legal">{t('holidays.fields.legalReference')}</Label>
+								<Label htmlFor="edit-legal">
+									{t('holidays.fields.legalReference')}
+								</Label>
 								<Input
 									id="edit-legal"
 									value={editForm.legalReference}

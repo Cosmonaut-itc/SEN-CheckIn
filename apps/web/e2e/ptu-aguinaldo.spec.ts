@@ -318,7 +318,10 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 
 	const [ptuPdfDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('link', { name: 'Descargar' }).first().click(),
+		page
+			.getByRole('link', { name: /^Descargar$/ })
+			.first()
+			.click(),
 	]);
 	expect(ptuPdfDownload.suggestedFilename()).toMatch(/\.pdf$/);
 	const ptuPdfPath = await ptuPdfDownload.path();
@@ -368,7 +371,10 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 
 	const [aguinaldoPdfDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('link', { name: 'Descargar' }).first().click(),
+		page
+			.getByRole('link', { name: /^Descargar$/ })
+			.first()
+			.click(),
 	]);
 	expect(aguinaldoPdfDownload.suggestedFilename()).toMatch(/\.pdf$/);
 	const aguinaldoPdfPath = await aguinaldoPdfDownload.path();

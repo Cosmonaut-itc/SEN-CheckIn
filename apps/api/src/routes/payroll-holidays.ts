@@ -428,7 +428,7 @@ export const payrollHolidaysRoutes = new Elysia({ prefix: '/payroll-settings/hol
 				runId: params.runId,
 				organizationId,
 				actorUserId: session.userId,
-				reason: body.reason ?? null,
+				reason: body.reason,
 			});
 
 			return { data: { runId: params.runId, approvedCount } };
@@ -483,7 +483,7 @@ export const payrollHolidaysRoutes = new Elysia({ prefix: '/payroll-settings/hol
 				runId: params.runId,
 				organizationId,
 				actorUserId: session.userId,
-				reason: body.reason ?? null,
+				reason: body.reason,
 			});
 
 			return { data: { runId: params.runId, rejectedCount } };

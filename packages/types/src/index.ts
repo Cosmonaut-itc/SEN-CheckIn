@@ -480,11 +480,7 @@ export type DisciplinaryMeasureStatus = 'DRAFT' | 'GENERATED' | 'CLOSED';
 /**
  * Final outcome selected for a disciplinary measure.
  */
-export type DisciplinaryOutcome =
-	| 'no_action'
-	| 'warning'
-	| 'suspension'
-	| 'termination_process';
+export type DisciplinaryOutcome = 'no_action' | 'warning' | 'suspension' | 'termination_process';
 
 /**
  * Signature status for disciplinary measures.
@@ -494,9 +490,7 @@ export type DisciplinarySignatureStatus = 'signed_physical' | 'refused_to_sign';
 /**
  * Kind of disciplinary legal document.
  */
-export type DisciplinaryDocumentKind =
-	| 'ACTA_ADMINISTRATIVA'
-	| 'CONSTANCIA_NEGATIVA_FIRMA';
+export type DisciplinaryDocumentKind = 'ACTA_ADMINISTRATIVA' | 'CONSTANCIA_NEGATIVA_FIRMA';
 
 /**
  * Status for employee termination draft records generated from disciplinary workflows.
@@ -785,6 +779,8 @@ export interface HolidayCalendarEntry {
 	legalReference: string | null;
 	/** Optional conflict reason */
 	conflictReason: string | null;
+	/** Sync run identifier that originated the row */
+	syncRunId: string | null;
 	/** Soft activation flag */
 	active: boolean;
 	/** Approval timestamp */

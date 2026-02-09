@@ -44,7 +44,13 @@ mock.module('../services/railway-bucket.js', () => ({
 	headRailwayObject: async ({ key }: { key: string }) => {
 		const metadata = mockedUploadedObjects.get(key);
 		if (!metadata) {
-			return null;
+			const notFoundError = new Error('Object not found') as Error & {
+				name: string;
+				$metadata: { httpStatusCode: number };
+			};
+			notFoundError.name = 'NotFound';
+			notFoundError.$metadata = { httpStatusCode: 404 };
+			throw notFoundError;
 		}
 		return {
 			ContentType: metadata.contentType,
@@ -435,6 +441,73 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(confirmResponse.status).toBe(400);
 		const confirmError = requireErrorResponse(confirmResponse, 'tampered signed acta object key');
 		expect(confirmError.error.message).toBe('Invalid signed acta object key');
+	});
+
+	it('returns 404 when signed acta object is missing in bucket', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-24',
+			reason: 'Objeto faltante en confirmación de acta',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route for missing object validation',
+		);
+
+		const generateResponse = await measureRoute['generate-acta'].post({
+			templateId: undefined,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(generateResponse.status).toBe(200);
+		const generatePayload = requireResponseData(generateResponse) as {
+			data?: {
+				generation?: { id?: string };
+			};
+		};
+		const generationId = generatePayload.data?.generation?.id;
+		if (!generationId) {
+			throw new Error('Expected generation id for missing object validation.');
+		}
+
+		const presignResponse = await measureRoute['signed-acta'].presign.post({
+			fileName: 'acta-faltante.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(presignResponse.status).toBe(200);
+		const presignPayload = requireResponseData(presignResponse) as {
+			data?: {
+				docVersionId?: string;
+				objectKey?: string;
+			};
+		};
+		const docVersionId = presignPayload.data?.docVersionId;
+		const objectKey = presignPayload.data?.objectKey;
+		if (!docVersionId || !objectKey) {
+			throw new Error('Expected signed acta presign payload for missing object validation.');
+		}
+
+		mockedUploadedObjects.delete(objectKey);
+
+		const confirmResponse = await measureRoute['signed-acta'].confirm.post({
+			docVersionId,
+			generationId,
+			objectKey,
+			fileName: 'acta-faltante.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'missing-object-signed-acta',
+			signedAtDateKey: '2026-01-24',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(404);
+		const confirmError = requireErrorResponse(confirmResponse, 'missing signed acta object');
+		expect(confirmError.error.message).toBe('Uploaded object not found');
 	});
 
 	it('rejects refusal confirm when object key does not match measure scope', async () => {

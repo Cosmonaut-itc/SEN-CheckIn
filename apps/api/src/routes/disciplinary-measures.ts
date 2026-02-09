@@ -194,6 +194,26 @@ function isBucketDependencyError(error: unknown): boolean {
 }
 
 /**
+ * Checks whether bucket lookup errors correspond to missing objects.
+ *
+ * @param error - Unknown error value
+ * @returns True when the bucket object was not found
+ */
+function isBucketObjectNotFoundError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+	const candidate = error as {
+		name?: string;
+		code?: string;
+		Code?: string;
+		$metadata?: { httpStatusCode?: number };
+	};
+	const code = candidate.code ?? candidate.Code ?? candidate.name;
+	return code === 'NotFound' || code === 'NoSuchKey' || candidate.$metadata?.httpStatusCode === 404;
+}
+
+/**
  * Resolves signed suspension range text for template variables.
  *
  * @param startDateKey - Suspension start date key
@@ -1320,9 +1340,22 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				}
 				throw error;
 			}
-			const objectHead = await headRailwayObject({
-				key: body.objectKey,
-			});
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
+					key: body.objectKey,
+				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				if (isBucketObjectNotFoundError(error)) {
+					set.status = 404;
+					return buildErrorResponse('Uploaded object not found', 404);
+				}
+				throw error;
+			}
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1695,9 +1728,22 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				}
 				throw error;
 			}
-			const objectHead = await headRailwayObject({
-				key: body.objectKey,
-			});
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
+					key: body.objectKey,
+				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				if (isBucketObjectNotFoundError(error)) {
+					set.status = 404;
+					return buildErrorResponse('Uploaded object not found', 404);
+				}
+				throw error;
+			}
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1916,9 +1962,22 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				}
 				throw error;
 			}
-			const objectHead = await headRailwayObject({
-				key: body.objectKey,
-			});
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
+					key: body.objectKey,
+				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				if (isBucketObjectNotFoundError(error)) {
+					set.status = 404;
+					return buildErrorResponse('Uploaded object not found', 404);
+				}
+				throw error;
+			}
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);

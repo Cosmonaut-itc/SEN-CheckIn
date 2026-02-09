@@ -108,3 +108,14 @@
 - **Do not use training data for documentation references**: Agents must not rely on training data when referencing library or framework documentation.
 - **Use search or web fetch tools**: Always use web search tools to retrieve up-to-date documentation and code examples.
 - **Version-specific information**: This ensures accuracy and access to the latest API changes, best practices, and version-specific information.
+
+## Release 13 Compliance (Actas Administrativas)
+
+- For Release 13 frontend and data-flow tasks, the following skills are **mandatory**:
+  - `next-best-practices`
+  - `nextjs-data-fetching`
+  - `vercel-react-best-practices`
+  - `frontend-design`
+  - `ui-ux-pro-max`
+- When external framework/library references are needed, agents must use **Context7 MCP** (`resolve-library-id` + `query-docs`) before responding.
+- Do not cite framework behavior for Release 13 from memory alone; document lookups must be explicit and reproducible.

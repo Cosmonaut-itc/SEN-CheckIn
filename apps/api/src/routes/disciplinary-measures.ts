@@ -1674,6 +1674,17 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Invalid refusal generation reference', 400);
 			}
 
+			const expectedObjectKeyPrefix = `${buildDisciplinaryDocumentPrefix({
+				organizationId: access.organizationId,
+				employeeId: measure.employeeId,
+				measureId: measure.id,
+				kind: 'CONSTANCIA_NEGATIVA_FIRMA',
+			})}${body.docVersionId}-`;
+			if (!body.objectKey.startsWith(expectedObjectKeyPrefix)) {
+				set.status = 400;
+				return buildErrorResponse('Invalid refusal object key', 400);
+			}
+
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
@@ -1883,6 +1894,16 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			if (attachmentCount >= MAX_ATTACHMENTS_PER_MEASURE) {
 				set.status = 400;
 				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
+			}
+
+			const expectedObjectKeyPrefix = `${buildDisciplinaryAttachmentPrefix({
+				organizationId: access.organizationId,
+				employeeId: measure.employeeId,
+				measureId: measure.id,
+			})}${body.attachmentId}-`;
+			if (!body.objectKey.startsWith(expectedObjectKeyPrefix)) {
+				set.status = 400;
+				return buildErrorResponse('Invalid attachment object key', 400);
 			}
 
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;

@@ -437,6 +437,69 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(confirmError.error.message).toBe('Invalid signed acta object key');
 	});
 
+	it('rejects refusal confirm when object key does not match measure scope', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-22',
+			reason: 'Validación de object key en confirmación de constancia',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary refusal object key validation route',
+		);
+
+		const generateResponse = await measureRoute.refusal.generate.post({
+			refusalReason: 'Generación para validación de object key',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(generateResponse.status).toBe(200);
+		const generatePayload = requireResponseData(generateResponse) as {
+			data?: {
+				generation?: { id?: string };
+			};
+		};
+		const generationId = generatePayload.data?.generation?.id;
+		if (!generationId) {
+			throw new Error('Expected generation id for refusal object key validation.');
+		}
+
+		const presignResponse = await measureRoute.refusal.presign.post({
+			fileName: 'constancia-object-key.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(presignResponse.status).toBe(200);
+		const presignPayload = requireResponseData(presignResponse) as {
+			data?: {
+				docVersionId?: string;
+			};
+		};
+		const docVersionId = presignPayload.data?.docVersionId;
+		if (!docVersionId) {
+			throw new Error('Expected docVersionId for refusal object key validation.');
+		}
+
+		const confirmResponse = await measureRoute.refusal.confirm.post({
+			docVersionId,
+			generationId,
+			objectKey: `org/${adminSession.organizationId}/employees/${seed.employeeId}/disciplinary/another-measure/documents/CONSTANCIA_NEGATIVA_FIRMA/${docVersionId}-tampered.pdf`,
+			fileName: 'tampered.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'tampered-refusal-object-key',
+			signedAtDateKey: '2026-01-22',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(400);
+		const confirmError = requireErrorResponse(confirmResponse, 'tampered refusal object key');
+		expect(confirmError.error.message).toBe('Invalid refusal object key');
+	});
+
 	it('requires refusal certificate before close when employee refused to sign', async () => {
 		const createResponse = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,
@@ -605,6 +668,52 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(confirmResponse.status).toBe(400);
 		const confirmError = requireErrorResponse(confirmResponse, 'mismatched refusal generation');
 		expect(confirmError.error.message).toBe('Invalid refusal generation reference');
+	});
+
+	it('rejects attachment confirm when object key does not match measure scope', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-23',
+			reason: 'Validación de object key en confirmación de evidencia',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary attachment object key validation route',
+		);
+
+		const presignResponse = await measureRoute.attachments.presign.post({
+			fileName: 'evidencia-object-key.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(presignResponse.status).toBe(200);
+		const presignPayload = requireResponseData(presignResponse) as {
+			data?: {
+				attachmentId?: string;
+			};
+		};
+		const attachmentId = presignPayload.data?.attachmentId;
+		if (!attachmentId) {
+			throw new Error('Expected attachmentId for attachment object key validation.');
+		}
+
+		const confirmResponse = await measureRoute.attachments.confirm.post({
+			attachmentId,
+			objectKey: `org/${adminSession.organizationId}/employees/${seed.employeeId}/disciplinary/another-measure/attachments/${attachmentId}-tampered.pdf`,
+			fileName: 'tampered.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'tampered-attachment-object-key',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(400);
+		const confirmError = requireErrorResponse(confirmResponse, 'tampered attachment object key');
+		expect(confirmError.error.message).toBe('Invalid attachment object key');
 	});
 
 	it('enforces immutability for closed measures', async () => {

@@ -233,6 +233,65 @@ describe('employee document workflow routes (contract)', () => {
 		expect(putPayload.data?.config?.baseApprovedThresholdForLegal).toBe(1);
 	});
 
+	it('persists and returns extended ACTA branding fields', async () => {
+		const confirmResponse = await requestJson({
+			method: 'POST',
+			path: '/document-workflow/branding/confirm',
+			cookieHeader: adminSession.cookieHeader,
+			body: {
+				displayName: 'Comercializadora Demo',
+				headerText: 'Encabezado legal de prueba',
+				actaState: 'Estado de México',
+				actaEmployerTreatment: 'Lic.',
+				actaEmployerName: 'Patrón Prueba',
+				actaEmployerPosition: 'Gerente de RRHH',
+				actaEmployeeTreatment: 'C.',
+			},
+		});
+		expect(confirmResponse.status).toBe(200);
+		const confirmPayload = confirmResponse.data as
+			| {
+					data?: {
+						actaState?: string | null;
+						actaEmployerTreatment?: string | null;
+						actaEmployerName?: string | null;
+						actaEmployerPosition?: string | null;
+						actaEmployeeTreatment?: string | null;
+					} | null;
+			  }
+			| null;
+		expect(confirmPayload?.data?.actaState).toBe('Estado de México');
+		expect(confirmPayload?.data?.actaEmployerTreatment).toBe('Lic.');
+		expect(confirmPayload?.data?.actaEmployerName).toBe('Patrón Prueba');
+		expect(confirmPayload?.data?.actaEmployerPosition).toBe('Gerente de RRHH');
+		expect(confirmPayload?.data?.actaEmployeeTreatment).toBe('C.');
+
+		const brandingResponse = await requestJson({
+			method: 'GET',
+			path: '/document-workflow/branding/url',
+			cookieHeader: adminSession.cookieHeader,
+		});
+		expect(brandingResponse.status).toBe(200);
+		const brandingPayload = brandingResponse.data as
+			| {
+					data?: {
+						branding?: {
+							actaState?: string | null;
+							actaEmployerTreatment?: string | null;
+							actaEmployerName?: string | null;
+							actaEmployerPosition?: string | null;
+							actaEmployeeTreatment?: string | null;
+						} | null;
+					};
+			  }
+			| null;
+		expect(brandingPayload?.data?.branding?.actaState).toBe('Estado de México');
+		expect(brandingPayload?.data?.branding?.actaEmployerTreatment).toBe('Lic.');
+		expect(brandingPayload?.data?.branding?.actaEmployerName).toBe('Patrón Prueba');
+		expect(brandingPayload?.data?.branding?.actaEmployerPosition).toBe('Gerente de RRHH');
+		expect(brandingPayload?.data?.branding?.actaEmployeeTreatment).toBe('C.');
+	});
+
 	it('returns summary and history payload for employee documents', async () => {
 		const employeeRoute = requireRoute(
 			client.employees[employeeWithNoDocsId],

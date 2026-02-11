@@ -184,8 +184,56 @@ const LEGAL_TEMPLATE_HTML_BY_KIND: Readonly<Record<LegalDocumentKindValue, strin
 	CONTRACT:
 		'<h1>Contrato Individual de Trabajo</h1><p>Empleado: {{employee.fullName}}</p>',
 	NDA: '<h1>Convenio de Confidencialidad</h1><p>Empleado: {{employee.fullName}}</p>',
-	ACTA_ADMINISTRATIVA:
-		'<h1>Acta Administrativa</h1><p>Folio: {{disciplinary.folio}}</p>',
+	ACTA_ADMINISTRATIVA: `<div class="acta-admin" style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.4;">
+  <h2 style="text-align:center; margin: 0 0 18px 0;">ACTA ADMINISTRATIVA</h2>
+
+  <p>
+    En la Ciudad de {{employee.locationName}}, {{acta.state}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, en las oficinas de la empresa
+    {{acta.companyName}} Sucursal {{employee.locationName}}, por una parte el(la) {{acta.employerTreatment}} {{acta.employerName}} en su carácter de
+    {{acta.employerPosition}} por la parte patronal, además de los testigos Testigo 1: (nombre escrito a mano) y Testigo 2: (nombre escrito a mano) a quienes les constan
+    los hechos siguientes ya que vieron y estuvieron en el lugar de los acontecimientos:
+  </p>
+
+  <p>
+    Se levanta la presente Acta Administrativa con motivo de que usted {{acta.employeeTreatment}} {{employee.fullName}} ha incurrido
+    en las siguientes faltas al Contrato Individual de Trabajo y/o Ley Federal del Trabajo y/o Reglamento Interior de Trabajo,
+    mismas que se narran a continuación:
+  </p>
+
+  <p><strong>Hechos / Faltas:</strong></p>
+  <p style="white-space: pre-line; margin-top: 6px;">{{disciplinary.reason}}</p>
+
+  <p>
+    La presente se redacta para constancia y para que surta sus efectos legales correspondientes como soporte para futuras
+    acciones que se puedan entablar en contra del trabajador. El trabajador firma de conformidad la presente aceptando ser
+    responsable del contenido de esta acta.
+  </p>
+
+  <p style="text-align:center; margin-top: 18px;">
+    {{employee.locationName}}, {{acta.state}}, {{document.generatedDateLong}}
+  </p>
+
+  <p style="margin-top: 22px;"><strong>TRABAJADOR(A).</strong></p>
+  <p>
+    __________________________________<br>
+    {{employee.fullName}}
+  </p>
+
+  <table style="width:100%; margin-top: 26px; border-collapse: collapse;">
+    <tr>
+      <td style="width:50%; vertical-align:top; padding-right: 12px;">
+        <strong>Testigo.</strong><br><br>
+        __________________________________<br>
+        Testigo 1: (nombre escrito a mano)
+      </td>
+      <td style="width:50%; vertical-align:top; padding-left: 12px;">
+        <strong>Testigo.</strong><br><br>
+        __________________________________<br>
+        Testigo 2: (nombre escrito a mano)
+      </td>
+    </tr>
+  </table>
+</div>`,
 	CONSTANCIA_NEGATIVA_FIRMA:
 		'<h1>Constancia de Negativa de Firma</h1><p>Folio: {{disciplinary.folio}}</p>',
 };
@@ -510,6 +558,11 @@ async function insertLegalDocumentBaseline(args: {
 		organizationId: org.id,
 		displayName: org.name,
 		headerText: `Documentación legal de ${org.name}`,
+		actaState: 'Estado de México',
+		actaEmployerTreatment: 'Lic.',
+		actaEmployerName: `Representante de ${org.name}`,
+		actaEmployerPosition: 'Gerente de Recursos Humanos',
+		actaEmployeeTreatment: 'C.',
 		logoBucket: null,
 		logoObjectKey: null,
 		logoFileName: null,
@@ -538,10 +591,15 @@ async function insertLegalDocumentBaseline(args: {
 				status: 'PUBLISHED',
 				htmlContent: LEGAL_TEMPLATE_HTML_BY_KIND[kind],
 				variablesSchemaSnapshot: {},
-				brandingSnapshot: {
-					displayName: org.name,
-					headerText: `Documentación legal de ${org.name}`,
-				},
+					brandingSnapshot: {
+						displayName: org.name,
+						headerText: `Documentación legal de ${org.name}`,
+						actaState: 'Estado de México',
+						actaEmployerTreatment: 'Lic.',
+						actaEmployerName: `Representante de ${org.name}`,
+						actaEmployerPosition: 'Gerente de Recursos Humanos',
+						actaEmployeeTreatment: 'C.',
+					},
 				createdByUserId: null,
 				publishedByUserId: null,
 				publishedAt: new Date(),

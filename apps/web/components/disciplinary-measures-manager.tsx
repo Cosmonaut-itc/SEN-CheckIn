@@ -764,12 +764,16 @@ export function DisciplinaryMeasuresManager({
 			toast.error(t('toast.selectMeasureFirst'));
 			return;
 		}
-		try {
-			const result = await generateActaMutation.mutateAsync({ id: selectedMeasure.id });
-			if (!result.success) {
-				toast.error(result.error ?? t('toast.generateActaError'));
-				return;
-			}
+			try {
+				const result = await generateActaMutation.mutateAsync({ id: selectedMeasure.id });
+				if (!result.success) {
+					if (result.errorCode === 'DISCIPLINARY_ACTA_SETTINGS_INCOMPLETE') {
+						toast.error(t('toast.validation.actaSettingsRequired'));
+						return;
+					}
+					toast.error(result.error ?? t('toast.generateActaError'));
+					return;
+				}
 
 			await invalidateDisciplinaryQueries();
 

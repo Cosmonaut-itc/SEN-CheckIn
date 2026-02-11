@@ -1195,16 +1195,21 @@ export const organizationLegalBranding = pgTable(
 		id: text('id')
 			.primaryKey()
 			.$defaultFn(() => randomUUID()),
-		organizationId: text('organization_id')
-			.notNull()
-			.unique()
-			.references(() => organization.id, { onDelete: 'cascade' }),
-		displayName: text('display_name'),
-		headerText: text('header_text'),
-		logoBucket: text('logo_bucket'),
-		logoObjectKey: text('logo_object_key'),
-		logoFileName: text('logo_file_name'),
-		logoContentType: text('logo_content_type'),
+			organizationId: text('organization_id')
+				.notNull()
+				.unique()
+				.references(() => organization.id, { onDelete: 'cascade' }),
+			displayName: text('display_name'),
+			headerText: text('header_text'),
+			actaState: text('acta_state'),
+			actaEmployerTreatment: text('acta_employer_treatment'),
+			actaEmployerName: text('acta_employer_name'),
+			actaEmployerPosition: text('acta_employer_position'),
+			actaEmployeeTreatment: text('acta_employee_treatment'),
+			logoBucket: text('logo_bucket'),
+			logoObjectKey: text('logo_object_key'),
+			logoFileName: text('logo_file_name'),
+			logoContentType: text('logo_content_type'),
 		logoSizeBytes: integer('logo_size_bytes'),
 		logoSha256: text('logo_sha256'),
 		createdAt: timestamp('created_at').defaultNow().notNull(),

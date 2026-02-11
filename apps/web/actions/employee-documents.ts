@@ -463,6 +463,11 @@ export async function confirmLegalBrandingAction(input: {
 	sha256?: string;
 	displayName?: string;
 	headerText?: string;
+	actaState?: string;
+	actaEmployerTreatment?: string;
+	actaEmployerName?: string;
+	actaEmployerPosition?: string;
+	actaEmployeeTreatment?: string;
 }): Promise<DocumentMutationResult<Record<string, unknown>>> {
 	return await requestDocumentApi<Record<string, unknown>>({
 		method: 'POST',
@@ -475,6 +480,11 @@ export async function confirmLegalBrandingAction(input: {
 			sha256: input.sha256,
 			displayName: input.displayName,
 			headerText: input.headerText,
+			actaState: input.actaState,
+			actaEmployerTreatment: input.actaEmployerTreatment,
+			actaEmployerName: input.actaEmployerName,
+			actaEmployerPosition: input.actaEmployerPosition,
+			actaEmployeeTreatment: input.actaEmployeeTreatment,
 		},
 	});
 }

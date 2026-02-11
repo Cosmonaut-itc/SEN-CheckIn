@@ -41,8 +41,8 @@ mock.module('../services/railway-bucket.js', () => ({
 			},
 		};
 	},
-	headRailwayObject: async ({ key }: { key: string }) => {
-		const metadata = mockedUploadedObjects.get(key);
+		headRailwayObject: async ({ key }: { key: string }) => {
+			const metadata = mockedUploadedObjects.get(key);
 		if (!metadata) {
 			const notFoundError = new Error('Object not found') as Error & {
 				name: string;
@@ -52,14 +52,29 @@ mock.module('../services/railway-bucket.js', () => ({
 			notFoundError.$metadata = { httpStatusCode: 404 };
 			throw notFoundError;
 		}
-		return {
-			ContentType: metadata.contentType,
-			ContentLength: metadata.sizeBytes,
-		};
-	},
-	createRailwayPresignedGetUrl: async ({ key }: { key: string }) =>
-		`https://example-download.local/${encodeURIComponent(key)}`,
-}));
+			return {
+				ContentType: metadata.contentType,
+				ContentLength: metadata.sizeBytes,
+			};
+		},
+		putRailwayObject: async ({
+			key,
+			body,
+			contentType,
+		}: {
+			key: string;
+			body: string | Uint8Array;
+			contentType?: string;
+		}) => {
+			const sizeBytes = typeof body === 'string' ? body.length : body.byteLength;
+			mockedUploadedObjects.set(key, {
+				contentType: contentType ?? 'application/octet-stream',
+				sizeBytes,
+			});
+		},
+		createRailwayPresignedGetUrl: async ({ key }: { key: string }) =>
+			`https://example-download.local/${encodeURIComponent(key)}`,
+	}));
 
 type LegalTemplateKind = 'ACTA_ADMINISTRATIVA' | 'CONSTANCIA_NEGATIVA_FIRMA';
 
@@ -108,10 +123,25 @@ async function ensurePublishedDisciplinaryTemplate(args: {
 		return;
 	}
 
+	const latestVersionRows = await db
+		.select({
+			versionNumber: organizationLegalTemplate.versionNumber,
+		})
+		.from(organizationLegalTemplate)
+		.where(
+			and(
+				eq(organizationLegalTemplate.organizationId, args.organizationId),
+				eq(organizationLegalTemplate.kind, args.kind),
+			),
+		)
+		.orderBy(desc(organizationLegalTemplate.versionNumber))
+		.limit(1);
+	const nextVersionNumber = (latestVersionRows[0]?.versionNumber ?? 0) + 1;
+
 	await db.insert(organizationLegalTemplate).values({
 		organizationId: args.organizationId,
 		kind: args.kind,
-		versionNumber: 1,
+		versionNumber: nextVersionNumber,
 		status: 'PUBLISHED',
 		htmlContent:
 			args.kind === 'ACTA_ADMINISTRATIVA'
@@ -122,6 +152,47 @@ async function ensurePublishedDisciplinaryTemplate(args: {
 		createdByUserId: args.userId,
 		publishedByUserId: args.userId,
 		publishedAt: new Date(),
+	});
+}
+
+/**
+ * Ensures organization ACTA settings required for disciplinary generation are present.
+ *
+ * @param organizationId - Organization identifier
+ * @returns Nothing
+ */
+async function ensureCompleteDisciplinaryActaSettings(organizationId: string): Promise<void> {
+	ensureTestDatabaseUrl();
+	const [{ default: db }, schema] = await Promise.all([
+		import('../db/index.js'),
+		import('../db/schema.js'),
+	]);
+	const { organizationLegalBranding } = schema;
+	const defaultSettings = {
+		actaState: 'Estado de México',
+		actaEmployerTreatment: 'Lic.',
+		actaEmployerName: 'Patrón Demo',
+		actaEmployerPosition: 'Gerente de RRHH',
+		actaEmployeeTreatment: 'C.',
+	};
+
+	const existingRows = await db
+		.select({ id: organizationLegalBranding.id })
+		.from(organizationLegalBranding)
+		.where(eq(organizationLegalBranding.organizationId, organizationId))
+		.limit(1);
+
+	if (existingRows[0]) {
+		await db
+			.update(organizationLegalBranding)
+			.set(defaultSettings)
+			.where(eq(organizationLegalBranding.organizationId, organizationId));
+		return;
+	}
+
+	await db.insert(organizationLegalBranding).values({
+		organizationId,
+		...defaultSettings,
 	});
 }
 
@@ -185,6 +256,7 @@ describe('disciplinary measures routes (contract)', () => {
 			userId: adminSession.userId,
 			kind: 'CONSTANCIA_NEGATIVA_FIRMA',
 		});
+		await ensureCompleteDisciplinaryActaSettings(adminSession.organizationId);
 	});
 
 	it('creates draft measures and increments folio per organization', async () => {
@@ -349,6 +421,131 @@ describe('disciplinary measures routes (contract)', () => {
 			'suspension date range can only be set for suspension outcome',
 		);
 	});
+
+	it('bootstraps a published acta template when none exists', async () => {
+		ensureTestDatabaseUrl();
+		const [{ default: db }, schema] = await Promise.all([
+			import('../db/index.js'),
+			import('../db/schema.js'),
+		]);
+		const { organizationLegalTemplate } = schema;
+		await ensureCompleteDisciplinaryActaSettings(adminSession.organizationId);
+
+		await db
+			.update(organizationLegalTemplate)
+			.set({
+				status: 'DRAFT',
+			})
+			.where(
+				and(
+					eq(organizationLegalTemplate.organizationId, adminSession.organizationId),
+					eq(organizationLegalTemplate.kind, 'ACTA_ADMINISTRATIVA'),
+				),
+			);
+
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-12',
+			reason: 'Validar bootstrap automático de plantilla ACTA',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route',
+		);
+
+		const generateResponse = await measureRoute['generate-acta'].post({
+			templateId: undefined,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(generateResponse.status).toBe(200);
+		const generatePayload = requireResponseData(generateResponse) as {
+			data?: {
+				template?: {
+					id?: string;
+					status?: string;
+					kind?: string;
+				};
+			};
+		};
+		expect(generatePayload.data?.template?.id).toBeTruthy();
+		expect(generatePayload.data?.template?.status).toBe('PUBLISHED');
+		expect(generatePayload.data?.template?.kind).toBe('ACTA_ADMINISTRATIVA');
+	});
+
+	it('returns conflict when required ACTA settings are incomplete', async () => {
+		ensureTestDatabaseUrl();
+		const [{ default: db }, schema] = await Promise.all([
+			import('../db/index.js'),
+			import('../db/schema.js'),
+		]);
+		const { organizationLegalBranding } = schema;
+
+			const brandingRows = await db
+				.select({
+					id: organizationLegalBranding.id,
+					actaState: organizationLegalBranding.actaState,
+					actaEmployerTreatment: organizationLegalBranding.actaEmployerTreatment,
+					actaEmployerName: organizationLegalBranding.actaEmployerName,
+					actaEmployerPosition: organizationLegalBranding.actaEmployerPosition,
+					actaEmployeeTreatment: organizationLegalBranding.actaEmployeeTreatment,
+				})
+				.from(organizationLegalBranding)
+				.where(eq(organizationLegalBranding.organizationId, adminSession.organizationId))
+				.limit(1);
+		const brandingRow = brandingRows[0];
+		if (!brandingRow) {
+			throw new Error('Expected legal branding row for disciplinary ACTA settings validation.');
+		}
+
+		await db
+			.update(organizationLegalBranding)
+			.set({
+				actaState: null,
+			})
+			.where(eq(organizationLegalBranding.id, brandingRow.id));
+
+		try {
+			const createResponse = await client['disciplinary-measures'].post({
+				employeeId: seed.employeeId,
+				incidentDateKey: '2026-01-14',
+				reason: 'Validación de settings incompletos para ACTA',
+				outcome: 'warning',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+			expect(createResponse.status).toBe(201);
+			const measure = requireMeasurePayload(requireResponseData(createResponse));
+			const measureRoute = requireRoute(
+				client['disciplinary-measures'][measure.id],
+				'disciplinary measure route',
+			);
+
+			const generateResponse = await measureRoute['generate-acta'].post({
+				templateId: undefined,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+			expect(generateResponse.status).toBe(409);
+			const errorPayload = requireErrorResponse(
+				generateResponse,
+				'acta generation should fail when acta settings are incomplete',
+			);
+			expect(errorPayload.error.code).toBe('DISCIPLINARY_ACTA_SETTINGS_INCOMPLETE');
+		} finally {
+				await db
+					.update(organizationLegalBranding)
+					.set({
+						actaState: brandingRow.actaState,
+						actaEmployerTreatment: brandingRow.actaEmployerTreatment,
+						actaEmployerName: brandingRow.actaEmployerName,
+						actaEmployerPosition: brandingRow.actaEmployerPosition,
+						actaEmployeeTreatment: brandingRow.actaEmployeeTreatment,
+					})
+					.where(eq(organizationLegalBranding.id, brandingRow.id));
+			}
+		});
 
 	it('generates acta with a published template and confirms physical signed upload', async () => {
 		const createResponse = await client['disciplinary-measures'].post({

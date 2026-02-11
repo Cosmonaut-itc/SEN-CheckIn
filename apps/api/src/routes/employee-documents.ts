@@ -119,50 +119,15 @@ const DEFAULT_TEMPLATE_VARIABLES: Record<string, unknown> = {
 		policyReference: 'string|null',
 		suspensionRange: 'string|null',
 	},
+	acta: {
+		companyName: 'string',
+		state: 'string',
+		employerTreatment: 'string',
+		employerName: 'string',
+		employerPosition: 'string',
+		employeeTreatment: 'string',
+	},
 };
-
-/**
- * Legacy default acta HTML kept for automatic one-time template upgrade.
- *
- * @returns Legacy default template content
- */
-function buildLegacyActaTemplateHtml(): string {
-	return `
-<h1>Acta Administrativa</h1>
-<p>Folio: {{disciplinary.folio}}</p>
-<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Motivo: {{disciplinary.reason}}</p>
-<p>Resultado: {{disciplinary.outcome}}</p>
-<p>Referencia de política: {{disciplinary.policyReference}}</p>
-<p>Suspensión: {{disciplinary.suspensionRange}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-}
-
-/**
- * Normalizes template HTML for deterministic semantic comparisons.
- *
- * @param value - Raw HTML
- * @returns Normalized HTML text
- */
-function normalizeTemplateHtml(value: string): string {
-	return value.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Checks whether an ACTA template uses the previous default layout.
- *
- * @param htmlContent - Persisted HTML content
- * @returns True when it matches legacy default
- */
-function isLegacyActaTemplate(htmlContent: string): boolean {
-	return (
-		normalizeTemplateHtml(htmlContent) ===
-		normalizeTemplateHtml(buildLegacyActaTemplateHtml())
-	);
-}
 
 /**
  * Builds baseline default HTML content for legal templates by kind.
@@ -201,41 +166,55 @@ function buildDefaultLegalTemplateHtml(
 
 	if (kind === 'ACTA_ADMINISTRATIVA') {
 		return `
-<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.55; color: #111111;">
-	<p style="text-align: center; font-weight: 700; margin: 0 0 8px 0;">ACTA ADMINISTRATIVA</p>
-	<p style="text-align: center; margin: 0 0 28px 0;">Folio interno: {{disciplinary.folio}}</p>
+<div class="acta-admin" style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.4;">
+  <h2 style="text-align:center; margin: 0 0 18px 0;">ACTA ADMINISTRATIVA</h2>
 
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		En la Ciudad de {{employee.locationName}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, se levanta la presente acta administrativa por una parte por la representación patronal y por la otra por la persona trabajadora {{employee.fullName}}, para dejar constancia de los acontecimientos reportados.
-	</p>
+  <p>
+    En la Ciudad de {{employee.locationName}}, {{acta.state}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, en las oficinas de la empresa
+    {{acta.companyName}} Sucursal {{employee.locationName}}, por una parte el(la) {{acta.employerTreatment}} {{acta.employerName}} en su carácter de
+    {{acta.employerPosition}} por la parte patronal, además de los testigos Testigo 1: (nombre escrito a mano) y Testigo 2: (nombre escrito a mano) a quienes les constan
+    los hechos siguientes ya que vieron y estuvieron en el lugar de los acontecimientos:
+  </p>
 
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		Se levanta la presente acta administrativa con motivo de que la persona trabajadora identificada con código {{employee.code}} ha sido relacionada con hechos que constituyen faltas al Contrato Individual de Trabajo y/o Reglamento Interior de Trabajo.
-	</p>
+  <p>
+    Se levanta la presente Acta Administrativa con motivo de que usted {{acta.employeeTreatment}} {{employee.fullName}} ha incurrido
+    en las siguientes faltas al Contrato Individual de Trabajo y/o Ley Federal del Trabajo y/o Reglamento Interior de Trabajo,
+    mismas que se narran a continuación:
+  </p>
 
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		- El día {{disciplinary.incidentDate}} se registró la siguiente conducta: {{disciplinary.reason}}.
-	</p>
+  <p><strong>Hechos / Faltas:</strong></p>
+  <p style="white-space: pre-line; margin-top: 6px;">{{disciplinary.reason}}</p>
 
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		Resultado disciplinario: {{disciplinary.outcome}}. Referencia de política: {{disciplinary.policyReference}}. Suspensión aplicable: {{disciplinary.suspensionRange}}.
-	</p>
+  <p>
+    La presente se redacta para constancia y para que surta sus efectos legales correspondientes como soporte para futuras
+    acciones que se puedan entablar en contra del trabajador. El trabajador firma de conformidad la presente aceptando ser
+    responsable del contenido de esta acta.
+  </p>
 
-	<p style="text-align: justify; margin: 0 0 26px 0;">
-		La presente se redacta para constancia y surte sus efectos legales correspondientes como soporte para futuras acciones. La persona trabajadora firma de conformidad la presente, aceptando ser responsable del contenido de esta acta.
-	</p>
+  <p style="text-align:center; margin-top: 18px;">
+    {{employee.locationName}}, {{acta.state}}, {{document.generatedDateLong}}
+  </p>
 
-	<p style="text-align: center; font-weight: 600; margin: 0 0 24px 0;">
-		{{employee.locationName}}, {{document.generatedDateLong}}
-	</p>
+  <p style="margin-top: 22px;"><strong>TRABAJADOR(A).</strong></p>
+  <p>
+    __________________________________<br>
+    {{employee.fullName}}
+  </p>
 
-	<p style="text-align: center; margin: 0 0 10px 0;">TRABAJADOR.</p>
-	<p style="text-align: center; margin: 0 0 8px 0;">________________________________________</p>
-	<p style="text-align: center; margin: 0 0 28px 0;">{{employee.fullName}}</p>
-
-	<p style="text-align: center; margin: 0 0 10px 0;">Testigo.                                      Testigo.</p>
-	<p style="text-align: center; margin: 0 0 8px 0;">______________________________      ______________________________</p>
-	<p style="text-align: center; margin: 0;">Nombre y firma                              Nombre y firma</p>
+  <table style="width:100%; margin-top: 26px; border-collapse: collapse;">
+    <tr>
+      <td style="width:50%; vertical-align:top; padding-right: 12px;">
+        <strong>Testigo.</strong><br><br>
+        __________________________________<br>
+        Testigo 1: (nombre escrito a mano)
+      </td>
+      <td style="width:50%; vertical-align:top; padding-left: 12px;">
+        <strong>Testigo.</strong><br><br>
+        __________________________________<br>
+        Testigo 2: (nombre escrito a mano)
+      </td>
+    </tr>
+  </table>
 </div>
 `.trim();
 	}
@@ -2342,29 +2321,9 @@ export const employeeDocumentRoutes = new Elysia()
 				)
 				.orderBy(desc(organizationLegalTemplate.versionNumber));
 
-			if (params.templateRef === 'ACTA_ADMINISTRATIVA' && templates.length > 0) {
-				const latestTemplate = templates[0];
-				if (latestTemplate && isLegacyActaTemplate(latestTemplate.htmlContent)) {
-					const upgradedRows = await db
-						.update(organizationLegalTemplate)
-						.set({
-							htmlContent: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
-							variablesSchemaSnapshot: DEFAULT_TEMPLATE_VARIABLES,
-							updatedAt: new Date(),
-						})
-						.where(eq(organizationLegalTemplate.id, latestTemplate.id))
-						.returning();
-
-					const upgradedTemplate = upgradedRows[0];
-					if (upgradedTemplate) {
-						templates = [upgradedTemplate, ...templates.slice(1)];
-					}
-				}
-			}
-
-			if (
-				templates.length === 0 &&
-				(params.templateRef === 'ACTA_ADMINISTRATIVA' ||
+				if (
+					templates.length === 0 &&
+					(params.templateRef === 'ACTA_ADMINISTRATIVA' ||
 					params.templateRef === 'CONSTANCIA_NEGATIVA_FIRMA')
 			) {
 				const brandingRows = await db
@@ -2796,29 +2755,42 @@ export const employeeDocumentRoutes = new Elysia()
 				logoSha256 = body.sha256;
 			}
 
-			if (existing[0]) {
-				await db
-					.update(organizationLegalBranding)
-					.set({
-						displayName: body.displayName ?? existing[0].displayName,
-						headerText: body.headerText ?? existing[0].headerText,
-						logoBucket,
-						logoObjectKey,
-						logoFileName,
-						logoContentType,
+				if (existing[0]) {
+					await db
+						.update(organizationLegalBranding)
+						.set({
+							displayName: body.displayName ?? existing[0].displayName,
+							headerText: body.headerText ?? existing[0].headerText,
+							actaState: body.actaState ?? existing[0].actaState,
+							actaEmployerTreatment:
+								body.actaEmployerTreatment ?? existing[0].actaEmployerTreatment,
+							actaEmployerName: body.actaEmployerName ?? existing[0].actaEmployerName,
+							actaEmployerPosition:
+								body.actaEmployerPosition ?? existing[0].actaEmployerPosition,
+							actaEmployeeTreatment:
+								body.actaEmployeeTreatment ?? existing[0].actaEmployeeTreatment,
+							logoBucket,
+							logoObjectKey,
+							logoFileName,
+							logoContentType,
 						logoSizeBytes,
 						logoSha256,
 					})
 					.where(eq(organizationLegalBranding.organizationId, access.organizationId));
-			} else {
-				await db.insert(organizationLegalBranding).values({
-					organizationId: access.organizationId,
-					displayName: body.displayName ?? null,
-					headerText: body.headerText ?? null,
-					logoBucket,
-					logoObjectKey,
-					logoFileName,
-					logoContentType,
+				} else {
+					await db.insert(organizationLegalBranding).values({
+						organizationId: access.organizationId,
+						displayName: body.displayName ?? null,
+						headerText: body.headerText ?? null,
+						actaState: body.actaState ?? null,
+						actaEmployerTreatment: body.actaEmployerTreatment ?? null,
+						actaEmployerName: body.actaEmployerName ?? null,
+						actaEmployerPosition: body.actaEmployerPosition ?? null,
+						actaEmployeeTreatment: body.actaEmployeeTreatment ?? null,
+						logoBucket,
+						logoObjectKey,
+						logoFileName,
+						logoContentType,
 					logoSizeBytes,
 					logoSha256,
 				});

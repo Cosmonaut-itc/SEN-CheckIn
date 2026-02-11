@@ -154,14 +154,32 @@ async function enableDisciplinaryModule(request: APIRequestContext): Promise<voi
 }
 
 /**
- * Ensures a published acta template exists by invoking template list endpoint.
+ * Configures required ACTA settings for disciplinary generation.
  *
  * @param request - Playwright API request context
+ * @param organizationName - Organization display name for ACTA company name fallback
  * @returns Nothing
  */
-async function ensureActaTemplate(request: APIRequestContext): Promise<void> {
-	const response = await request.get('/api/document-workflow/templates/ACTA_ADMINISTRATIVA');
-	expect(response.ok()).toBeTruthy();
+async function configureDisciplinaryActaSettings(
+	request: APIRequestContext,
+	organizationName: string,
+): Promise<void> {
+	const response = await request.post('/api/document-workflow/branding/confirm', {
+		data: {
+			displayName: organizationName,
+			actaState: 'Estado de México',
+			actaEmployerTreatment: 'Lic.',
+			actaEmployerName: 'Representante Patronal',
+			actaEmployerPosition: 'Gerencia de RRHH',
+			actaEmployeeTreatment: 'C.',
+		},
+	});
+	if (!response.ok()) {
+		const responseBody = await response.text();
+		throw new Error(
+			`Failed to configure disciplinary ACTA settings (${response.status()}): ${responseBody}`,
+		);
+	}
 }
 
 /**
@@ -314,7 +332,7 @@ test('admin habilita módulo, completa flujo de acta firmada física y ve histor
 	});
 
 	await enableDisciplinaryModule(request);
-	await ensureActaTemplate(request);
+	await configureDisciplinaryActaSettings(request, registration.organizationName);
 
 	const measure = await createDisciplinaryMeasure(request, employeeId);
 	const generation = await generateActa(request, measure.id);
@@ -406,7 +424,7 @@ test('admin genera acta desde UI y descarga PDF', async ({ page }) => {
 	});
 
 	await enableDisciplinaryModule(request);
-	await ensureActaTemplate(request);
+	await configureDisciplinaryActaSettings(request, registration.organizationName);
 
 	const measure = await createDisciplinaryMeasure(request, employeeId);
 

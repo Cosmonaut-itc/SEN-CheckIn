@@ -27,7 +27,7 @@ export const employerTypeEnum = z.enum(['PERSONA_MORAL', 'PERSONA_FISICA']);
  * Schema for updating/creating payroll settings.
  */
 export const payrollSettingsSchema = z.object({
-	weekStartDay: z.number().int().min(0).max(6).default(1),
+	weekStartDay: z.number().int().min(0).max(6).optional(),
 	timeZone: z
 		.string()
 		.min(1, 'Time zone is required')

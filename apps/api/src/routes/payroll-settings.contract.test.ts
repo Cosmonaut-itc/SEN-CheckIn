@@ -44,6 +44,25 @@ describe('payroll settings routes (contract)', () => {
 		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);
 	});
 
+	it('preserves weekStartDay when omitted in updates', async () => {
+		const initialResponse = await client['payroll-settings'].put({
+			weekStartDay: 4,
+			enableSeventhDayPay: false,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(initialResponse.status).toBe(200);
+
+		const partialUpdateResponse = await client['payroll-settings'].put({
+			enableDisciplinaryMeasures: false,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(partialUpdateResponse.status).toBe(200);
+
+		const partialUpdatePayload = requireResponseData(partialUpdateResponse);
+		expect(partialUpdatePayload.data?.weekStartDay).toBe(4);
+		expect(partialUpdatePayload.data?.enableDisciplinaryMeasures).toBe(false);
+	});
+
 	it('rejects invalid calendar dates for additional mandatory rest days', async () => {
 		const response = await client['payroll-settings'].put({
 			weekStartDay: 1,

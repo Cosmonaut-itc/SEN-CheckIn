@@ -72,6 +72,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				ptuExemptReason: null,
 				employerType: 'PERSONA_MORAL',
 				aguinaldoEnabled: true,
+				enableDisciplinaryMeasures: true,
 			};
 
 			const [insertedSetting] = await db
@@ -121,6 +122,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 
 			const resolvedOvertimeEnforcement =
 				body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
+			const resolvedWeekStartDay = body.weekStartDay ?? existing[0]?.weekStartDay ?? 1;
 			const resolvedAdditionalMandatoryRestDays =
 				body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
 			const resolvedTimeZone =
@@ -145,6 +147,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.employerType ?? existing[0]?.employerType ?? 'PERSONA_MORAL';
 			const resolvedAguinaldoEnabled =
 				body.aguinaldoEnabled ?? existing[0]?.aguinaldoEnabled ?? true;
+			const resolvedEnableDisciplinaryMeasures =
+				body.enableDisciplinaryMeasures ?? existing[0]?.enableDisciplinaryMeasures ?? true;
 			const resolvedRiskWorkRateValue =
 				typeof resolvedRiskWorkRate === 'number'
 					? resolvedRiskWorkRate.toFixed(4)
@@ -159,7 +163,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 					: resolvedVacationPremiumRate;
 
 			const updatePayload = {
-				weekStartDay: body.weekStartDay,
+				weekStartDay: resolvedWeekStartDay,
 				timeZone: resolvedTimeZone,
 				overtimeEnforcement: resolvedOvertimeEnforcement,
 				additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,
@@ -176,6 +180,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				ptuExemptReason: resolvedPtuExemptReason,
 				employerType: resolvedEmployerType,
 				aguinaldoEnabled: resolvedAguinaldoEnabled,
+				enableDisciplinaryMeasures: resolvedEnableDisciplinaryMeasures,
 				organizationId,
 			};
 
@@ -200,6 +205,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						ptuExemptReason: updatePayload.ptuExemptReason,
 						employerType: updatePayload.employerType,
 						aguinaldoEnabled: updatePayload.aguinaldoEnabled,
+						enableDisciplinaryMeasures: updatePayload.enableDisciplinaryMeasures,
 					})
 					.where(eq(payrollSetting.organizationId, organizationId));
 			} else {

@@ -24,12 +24,20 @@ const {
 	attendanceRecord,
 	device,
 	employee,
+	employeeDisciplinaryAttachment,
+	employeeDisciplinaryDocumentVersion,
+	employeeDisciplinaryMeasure,
+	employeeLegalGeneration,
 	employeeSchedule,
+	employeeTerminationDraft,
 	jobPosition,
 	location,
 	organization,
+	organizationDisciplinaryFolioCounter,
 	organizationDocumentRequirement,
 	organizationDocumentWorkflowConfig,
+	organizationLegalBranding,
+	organizationLegalTemplate,
 	ptuHistory,
 	ptuRun,
 	ptuRunEmployee,
@@ -72,11 +80,23 @@ type PtuHistoryRow = typeof ptuHistory.$inferInsert;
 type AguinaldoRunRow = typeof aguinaldoRun.$inferInsert;
 type AguinaldoRunEmployeeRow = typeof aguinaldoRunEmployee.$inferInsert;
 type PayrollSettingRow = typeof payrollSetting.$inferInsert;
+type OrganizationLegalBrandingRow = typeof organizationLegalBranding.$inferInsert;
+type OrganizationLegalTemplateRow = typeof organizationLegalTemplate.$inferInsert;
+type EmployeeLegalGenerationRow = typeof employeeLegalGeneration.$inferInsert;
+type OrganizationDisciplinaryFolioCounterRow = typeof organizationDisciplinaryFolioCounter.$inferInsert;
+type EmployeeDisciplinaryMeasureRow = typeof employeeDisciplinaryMeasure.$inferInsert;
+type EmployeeDisciplinaryDocumentVersionRow = typeof employeeDisciplinaryDocumentVersion.$inferInsert;
+type EmployeeDisciplinaryAttachmentRow = typeof employeeDisciplinaryAttachment.$inferInsert;
+type EmployeeTerminationDraftRow = typeof employeeTerminationDraft.$inferInsert;
 type VacationRequestRow = typeof vacationRequest.$inferInsert;
 type VacationRequestDayRow = typeof vacationRequestDay.$inferInsert;
 type VacationRequestStatus = NonNullable<VacationRequestRow['status']>;
 type PtuRunStatus = NonNullable<PtuRunRow['status']>;
 type AguinaldoRunStatus = NonNullable<AguinaldoRunRow['status']>;
+type LegalDocumentKindValue = NonNullable<OrganizationLegalTemplateRow['kind']>;
+type DisciplinarySignatureStatusValue = NonNullable<
+	EmployeeDisciplinaryMeasureRow['signatureStatus']
+>;
 type EmployeeDocumentRequirementKeyValue = NonNullable<
 	typeof organizationDocumentRequirement.$inferInsert['requirementKey']
 >;
@@ -91,6 +111,20 @@ type VacationSeedTemplate = {
 	requestedNotes: string;
 	decisionNotes: string | null;
 	createScheduleExceptions: boolean;
+};
+
+type LegalTemplateSeedInfo = {
+	organizationId: string;
+	kind: LegalDocumentKindValue;
+	templateId: string;
+	versionNumber: number;
+};
+
+type DisciplinaryDemoSeedTotals = {
+	measures: number;
+	documents: number;
+	attachments: number;
+	terminationDrafts: number;
 };
 
 /**
@@ -145,6 +179,18 @@ const DEFAULT_DOCUMENT_REQUIREMENTS: ReadonlyArray<{
 		activationStage: 'LEGAL_AFTER_GATE',
 	},
 ];
+
+const LEGAL_TEMPLATE_HTML_BY_KIND: Readonly<Record<LegalDocumentKindValue, string>> = {
+	CONTRACT:
+		'<h1>Contrato Individual de Trabajo</h1><p>Empleado: {{employee.fullName}}</p>',
+	NDA: '<h1>Convenio de Confidencialidad</h1><p>Empleado: {{employee.fullName}}</p>',
+	ACTA_ADMINISTRATIVA:
+		'<h1>Acta Administrativa</h1><p>Folio: {{disciplinary.folio}}</p>',
+	CONSTANCIA_NEGATIVA_FIRMA:
+		'<h1>Constancia de Negativa de Firma</h1><p>Folio: {{disciplinary.folio}}</p>',
+};
+
+const SEED_BUCKET_NAME = 'sen-checkin-seed-bucket';
 
 /**
  * Parses CLI arguments for the seed script.
@@ -222,6 +268,16 @@ function deterministicUuid(seedNumber: number, label: string): string {
 		hex.slice(16, 20),
 		hex.slice(20, 32),
 	].join('-');
+}
+
+/**
+ * Computes a SHA-256 hex digest for deterministic seed artifacts.
+ *
+ * @param value - Input text
+ * @returns SHA-256 digest as lowercase hexadecimal text
+ */
+function sha256Hex(value: string): string {
+	return crypto.createHash('sha256').update(value).digest('hex');
 }
 
 /**
@@ -420,7 +476,463 @@ async function insertDocumentWorkflowBaseline(args: {
 				organizationDocumentRequirement.organizationId,
 				organizationDocumentRequirement.requirementKey,
 			],
+			});
+}
+
+/**
+ * Inserts baseline legal branding and published templates for every organization.
+ *
+ * @param args - Seed inputs
+ * @param args.seedNumber - Deterministic seed number
+ * @param args.organizations - Organizations to initialize
+ * @returns Template lookup keyed by organization and kind
+ */
+async function insertLegalDocumentBaseline(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+}): Promise<Map<string, Map<LegalDocumentKindValue, LegalTemplateSeedInfo>>> {
+	const { seedNumber, organizations } = args;
+	const templateKinds: ReadonlyArray<LegalDocumentKindValue> = [
+		'CONTRACT',
+		'NDA',
+		'ACTA_ADMINISTRATIVA',
+		'CONSTANCIA_NEGATIVA_FIRMA',
+	];
+
+	const templateLookup = new Map<string, Map<LegalDocumentKindValue, LegalTemplateSeedInfo>>();
+
+	if (organizations.length === 0) {
+		return templateLookup;
+	}
+
+	const brandingRows: OrganizationLegalBrandingRow[] = organizations.map((org) => ({
+		id: deterministicUuid(seedNumber, `organization-legal-branding:${org.id}`),
+		organizationId: org.id,
+		displayName: org.name,
+		headerText: `Documentación legal de ${org.name}`,
+		logoBucket: null,
+		logoObjectKey: null,
+		logoFileName: null,
+		logoContentType: null,
+		logoSizeBytes: null,
+		logoSha256: null,
+	}));
+
+	await db.insert(organizationLegalBranding).values(brandingRows);
+
+	const templateRows: OrganizationLegalTemplateRow[] = [];
+	for (const org of organizations) {
+		const orgTemplateLookup = new Map<LegalDocumentKindValue, LegalTemplateSeedInfo>();
+
+		for (const kind of templateKinds) {
+			const templateId = deterministicUuid(
+				seedNumber,
+				`organization-legal-template:${org.id}:${kind}:v1`,
+			);
+
+			templateRows.push({
+				id: templateId,
+				organizationId: org.id,
+				kind,
+				versionNumber: 1,
+				status: 'PUBLISHED',
+				htmlContent: LEGAL_TEMPLATE_HTML_BY_KIND[kind],
+				variablesSchemaSnapshot: {},
+				brandingSnapshot: {
+					displayName: org.name,
+					headerText: `Documentación legal de ${org.name}`,
+				},
+				createdByUserId: null,
+				publishedByUserId: null,
+				publishedAt: new Date(),
+			});
+
+			orgTemplateLookup.set(kind, {
+				organizationId: org.id,
+				kind,
+				templateId,
+				versionNumber: 1,
+			});
+		}
+
+		templateLookup.set(org.id, orgTemplateLookup);
+	}
+
+	await db.insert(organizationLegalTemplate).values(templateRows);
+
+	return templateLookup;
+}
+
+/**
+ * Inserts demo disciplinary data aligned with the branch domain changes.
+ *
+ * @param args - Seed inputs
+ * @param args.seedNumber - Deterministic seed number
+ * @param args.organizations - Organizations to seed
+ * @param args.employees - Existing seeded employees
+ * @param args.legalTemplatesByOrganization - Legal template lookup by organization
+ * @returns Totals for seeded disciplinary entities
+ * @throws When disciplinary legal templates are missing
+ */
+async function insertDisciplinaryDemoData(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	legalTemplatesByOrganization: Map<string, Map<LegalDocumentKindValue, LegalTemplateSeedInfo>>;
+}): Promise<DisciplinaryDemoSeedTotals> {
+	const { seedNumber, organizations, employees, legalTemplatesByOrganization } = args;
+
+	const generationRows: EmployeeLegalGenerationRow[] = [];
+	const counterRows: OrganizationDisciplinaryFolioCounterRow[] = [];
+	const measureRows: EmployeeDisciplinaryMeasureRow[] = [];
+	const documentRows: EmployeeDisciplinaryDocumentVersionRow[] = [];
+	const attachmentRows: EmployeeDisciplinaryAttachmentRow[] = [];
+	const terminationDraftRows: EmployeeTerminationDraftRow[] = [];
+	const nowDateKey = new Date().toISOString().slice(0, 10);
+
+	for (const [orgIndex, org] of organizations.entries()) {
+		const templateLookup = legalTemplatesByOrganization.get(org.id);
+		const actaTemplate = templateLookup?.get('ACTA_ADMINISTRATIVA');
+		const refusalTemplate = templateLookup?.get('CONSTANCIA_NEGATIVA_FIRMA');
+
+		if (!actaTemplate || !refusalTemplate) {
+			throw new Error(`Missing disciplinary templates for organization "${org.slug}".`);
+		}
+
+		const orgEmployees = employees.filter((row) => row.organizationId === org.id).slice(0, 3);
+		if (orgEmployees.length < 3) {
+			continue;
+		}
+
+		const draftEmployee = orgEmployees[0];
+		const generatedEmployee = orgEmployees[1];
+		const closedEmployee = orgEmployees[2];
+
+		if (!draftEmployee || !generatedEmployee || !closedEmployee) {
+			continue;
+		}
+
+		const closedSignatureStatus: DisciplinarySignatureStatusValue =
+			orgIndex % 2 === 0 ? 'signed_physical' : 'refused_to_sign';
+		const generatedMeasureId = deterministicUuid(seedNumber, `disciplinary-measure:${org.id}:2`);
+		const closedMeasureId = deterministicUuid(seedNumber, `disciplinary-measure:${org.id}:3`);
+		const generatedActaGenerationId = deterministicUuid(
+			seedNumber,
+			`disciplinary-generation:${org.id}:generated-acta`,
+		);
+		const closedActaGenerationId =
+			closedSignatureStatus === 'signed_physical'
+				? deterministicUuid(seedNumber, `disciplinary-generation:${org.id}:closed-acta`)
+				: null;
+		const closedRefusalGenerationId =
+			closedSignatureStatus === 'refused_to_sign'
+				? deterministicUuid(seedNumber, `disciplinary-generation:${org.id}:closed-refusal`)
+				: null;
+
+		const generatedIncidentDateKey = addDaysToDateKey(nowDateKey, -8 - orgIndex);
+		const suspensionStartDateKey = addDaysToDateKey(nowDateKey, -5 - orgIndex);
+		const suspensionEndDateKey = addDaysToDateKey(nowDateKey, -3 - orgIndex);
+		const closedIncidentDateKey = addDaysToDateKey(nowDateKey, -16 - orgIndex);
+		const closedSignedDateKey = addDaysToDateKey(nowDateKey, -1 - orgIndex);
+
+		generationRows.push({
+			id: generatedActaGenerationId,
+			organizationId: org.id,
+			employeeId: generatedEmployee.id,
+			kind: 'ACTA_ADMINISTRATIVA',
+			templateId: actaTemplate.templateId,
+			templateVersionNumber: actaTemplate.versionNumber,
+			generatedHtmlHash: sha256Hex(`seed:disciplinary:html:${generatedActaGenerationId}`),
+			generatedPdfHash: sha256Hex(`seed:disciplinary:pdf:${generatedActaGenerationId}`),
+			variablesSnapshot: {
+				folio: 2,
+				organizationSlug: org.slug,
+				employeeId: generatedEmployee.id,
+				status: 'GENERATED',
+			},
+			generatedByUserId: null,
+			generatedAt: new Date(),
 		});
+
+		if (closedActaGenerationId) {
+			generationRows.push({
+				id: closedActaGenerationId,
+				organizationId: org.id,
+				employeeId: closedEmployee.id,
+				kind: 'ACTA_ADMINISTRATIVA',
+				templateId: actaTemplate.templateId,
+				templateVersionNumber: actaTemplate.versionNumber,
+				generatedHtmlHash: sha256Hex(`seed:disciplinary:html:${closedActaGenerationId}`),
+				generatedPdfHash: sha256Hex(`seed:disciplinary:pdf:${closedActaGenerationId}`),
+				variablesSnapshot: {
+					folio: 3,
+					organizationSlug: org.slug,
+					employeeId: closedEmployee.id,
+					status: 'CLOSED',
+				},
+				generatedByUserId: null,
+				generatedAt: new Date(),
+			});
+		}
+
+		if (closedRefusalGenerationId) {
+			generationRows.push({
+				id: closedRefusalGenerationId,
+				organizationId: org.id,
+				employeeId: closedEmployee.id,
+				kind: 'CONSTANCIA_NEGATIVA_FIRMA',
+				templateId: refusalTemplate.templateId,
+				templateVersionNumber: refusalTemplate.versionNumber,
+				generatedHtmlHash: sha256Hex(`seed:disciplinary:html:${closedRefusalGenerationId}`),
+				generatedPdfHash: sha256Hex(`seed:disciplinary:pdf:${closedRefusalGenerationId}`),
+				variablesSnapshot: {
+					folio: 3,
+					organizationSlug: org.slug,
+					employeeId: closedEmployee.id,
+					status: 'CLOSED',
+				},
+				generatedByUserId: null,
+				generatedAt: new Date(),
+			});
+		}
+
+		counterRows.push({
+			id: deterministicUuid(seedNumber, `disciplinary-folio-counter:${org.id}`),
+			organizationId: org.id,
+			lastFolio: 3,
+		});
+
+		measureRows.push(
+			{
+				id: deterministicUuid(seedNumber, `disciplinary-measure:${org.id}:1`),
+				organizationId: org.id,
+				employeeId: draftEmployee.id,
+				folio: 1,
+				status: 'DRAFT',
+				incidentDateKey: addDaysToDateKey(nowDateKey, -3 - orgIndex),
+				reason: 'Incumplimiento menor detectado durante revisión interna.',
+				policyReference: 'RIT-5.2',
+				notes: null,
+				outcome: 'warning',
+				suspensionStartDateKey: null,
+				suspensionEndDateKey: null,
+				signatureStatus: null,
+				generatedActaGenerationId: null,
+				generatedRefusalGenerationId: null,
+				closedAt: null,
+				closedByUserId: null,
+				createdByUserId: null,
+				updatedByUserId: null,
+			},
+			{
+				id: generatedMeasureId,
+				organizationId: org.id,
+				employeeId: generatedEmployee.id,
+				folio: 2,
+				status: 'GENERATED',
+				incidentDateKey: generatedIncidentDateKey,
+				reason: 'Ausencia injustificada y reincidencia en incumplimiento de horario.',
+				policyReference: 'RIT-6.1',
+				notes: 'Se generó acta y se mantiene abierta para seguimiento.',
+				outcome: 'suspension',
+				suspensionStartDateKey,
+				suspensionEndDateKey,
+				signatureStatus: null,
+				generatedActaGenerationId: generatedActaGenerationId,
+				generatedRefusalGenerationId: null,
+				closedAt: null,
+				closedByUserId: null,
+				createdByUserId: null,
+				updatedByUserId: null,
+			},
+			{
+				id: closedMeasureId,
+				organizationId: org.id,
+				employeeId: closedEmployee.id,
+				folio: 3,
+				status: 'CLOSED',
+				incidentDateKey: closedIncidentDateKey,
+				reason: 'Conducta reiterada con escalación a proceso de terminación.',
+				policyReference: 'RIT-9.4',
+				notes: 'Caso cerrado con expediente documental completo.',
+				outcome: 'termination_process',
+				suspensionStartDateKey: null,
+				suspensionEndDateKey: null,
+				signatureStatus: closedSignatureStatus,
+				generatedActaGenerationId: closedActaGenerationId,
+				generatedRefusalGenerationId: closedRefusalGenerationId,
+				closedAt: new Date(),
+				closedByUserId: null,
+				createdByUserId: null,
+				updatedByUserId: null,
+			},
+		);
+
+		const generatedDocumentId = deterministicUuid(
+			seedNumber,
+			`disciplinary-document:${generatedMeasureId}:acta:v1`,
+		);
+		const closedDocumentKind =
+			closedSignatureStatus === 'signed_physical'
+				? 'ACTA_ADMINISTRATIVA'
+				: 'CONSTANCIA_NEGATIVA_FIRMA';
+		const closedDocumentGenerationId =
+			closedSignatureStatus === 'signed_physical'
+				? closedActaGenerationId
+				: closedRefusalGenerationId;
+		const closedDocumentId = deterministicUuid(
+			seedNumber,
+			`disciplinary-document:${closedMeasureId}:${closedDocumentKind}:v1`,
+		);
+
+		documentRows.push(
+			{
+				id: generatedDocumentId,
+				organizationId: org.id,
+				employeeId: generatedEmployee.id,
+				measureId: generatedMeasureId,
+				kind: 'ACTA_ADMINISTRATIVA',
+				versionNumber: 1,
+				isCurrent: true,
+				generationId: generatedActaGenerationId,
+				signedAtDateKey: suspensionEndDateKey,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${generatedEmployee.id}/disciplinary/${generatedMeasureId}/documents/ACTA_ADMINISTRATIVA/v1.pdf`,
+				fileName: `acta-administrativa-${org.slug}-folio-2.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 102_400,
+				sha256: sha256Hex(`seed:disciplinary:doc:${generatedDocumentId}`),
+				uploadedByUserId: null,
+				uploadedAt: new Date(),
+				metadata: {
+					source: 'seed',
+					kind: 'ACTA_ADMINISTRATIVA',
+				},
+			},
+			{
+				id: closedDocumentId,
+				organizationId: org.id,
+				employeeId: closedEmployee.id,
+				measureId: closedMeasureId,
+				kind: closedDocumentKind,
+				versionNumber: 1,
+				isCurrent: true,
+				generationId: closedDocumentGenerationId,
+				signedAtDateKey: closedSignedDateKey,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${closedEmployee.id}/disciplinary/${closedMeasureId}/documents/${closedDocumentKind}/v1.pdf`,
+				fileName:
+					closedDocumentKind === 'ACTA_ADMINISTRATIVA'
+						? `acta-administrativa-${org.slug}-folio-3.pdf`
+						: `constancia-negativa-firma-${org.slug}-folio-3.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 114_688,
+				sha256: sha256Hex(`seed:disciplinary:doc:${closedDocumentId}`),
+				uploadedByUserId: null,
+				uploadedAt: new Date(),
+				metadata: {
+					source: 'seed',
+					kind: closedDocumentKind,
+				},
+			},
+		);
+
+		const generatedAttachmentId = deterministicUuid(
+			seedNumber,
+			`disciplinary-attachment:${generatedMeasureId}:1`,
+		);
+		const closedAttachmentId = deterministicUuid(
+			seedNumber,
+			`disciplinary-attachment:${closedMeasureId}:1`,
+		);
+
+		attachmentRows.push(
+			{
+				id: generatedAttachmentId,
+				organizationId: org.id,
+				employeeId: generatedEmployee.id,
+				measureId: generatedMeasureId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${generatedEmployee.id}/disciplinary/${generatedMeasureId}/attachments/evidencia-1.jpg`,
+				fileName: 'evidencia-generada.jpg',
+				contentType: 'image/jpeg',
+				sizeBytes: 61_440,
+				sha256: sha256Hex(`seed:disciplinary:attachment:${generatedAttachmentId}`),
+				uploadedByUserId: null,
+				uploadedAt: new Date(),
+				metadata: {
+					source: 'seed',
+					tag: 'EVIDENCIA_GENERATED',
+				},
+			},
+			{
+				id: closedAttachmentId,
+				organizationId: org.id,
+				employeeId: closedEmployee.id,
+				measureId: closedMeasureId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${closedEmployee.id}/disciplinary/${closedMeasureId}/attachments/evidencia-cierre.pdf`,
+				fileName: 'evidencia-cierre.pdf',
+				contentType: 'application/pdf',
+				sizeBytes: 72_704,
+				sha256: sha256Hex(`seed:disciplinary:attachment:${closedAttachmentId}`),
+				uploadedByUserId: null,
+				uploadedAt: new Date(),
+				metadata: {
+					source: 'seed',
+					tag: 'EVIDENCIA_CLOSED',
+				},
+			},
+		);
+
+		terminationDraftRows.push({
+			id: deterministicUuid(seedNumber, `disciplinary-termination-draft:${closedMeasureId}`),
+			organizationId: org.id,
+			employeeId: closedEmployee.id,
+			measureId: closedMeasureId,
+			status: 'ACTIVE',
+			payload: {
+				source: 'seed',
+				reason: 'Escalación disciplinaria de ejemplo',
+				signatureStatus: closedSignatureStatus,
+			},
+			consumedAt: null,
+			cancelledAt: null,
+			createdByUserId: null,
+			updatedByUserId: null,
+		});
+	}
+
+	if (generationRows.length > 0) {
+		await db.insert(employeeLegalGeneration).values(generationRows);
+	}
+
+	if (counterRows.length > 0) {
+		await db.insert(organizationDisciplinaryFolioCounter).values(counterRows);
+	}
+
+	if (measureRows.length > 0) {
+		await db.insert(employeeDisciplinaryMeasure).values(measureRows);
+	}
+
+	if (documentRows.length > 0) {
+		await db.insert(employeeDisciplinaryDocumentVersion).values(documentRows);
+	}
+
+	if (attachmentRows.length > 0) {
+		await db.insert(employeeDisciplinaryAttachment).values(attachmentRows);
+	}
+
+	if (terminationDraftRows.length > 0) {
+		await db.insert(employeeTerminationDraft).values(terminationDraftRows);
+	}
+
+	return {
+		measures: measureRows.length,
+		documents: documentRows.length,
+		attachments: attachmentRows.length,
+		terminationDrafts: terminationDraftRows.length,
+	};
 }
 
 /**
@@ -635,6 +1147,7 @@ async function insertDomainBaseline(args: {
 			enableSeventhDayPay: true,
 			ptuEnabled: true,
 			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: true,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'payroll-setting:demo'),
@@ -652,6 +1165,7 @@ async function insertDomainBaseline(args: {
 			enableSeventhDayPay: false,
 			ptuEnabled: true,
 			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: true,
 		},
 	];
 	await db.insert(payrollSetting).values(settingsToInsert);
@@ -1835,6 +2349,11 @@ async function main(): Promise<void> {
 		organizations,
 	});
 
+	const legalTemplatesByOrganization = await insertLegalDocumentBaseline({
+		seedNumber: args.seed,
+		organizations,
+	});
+
 	await insertScheduleTemplateDays(args.seed, baseline.templates);
 
 	const employees = await seedEmployees({
@@ -1844,6 +2363,13 @@ async function main(): Promise<void> {
 		jobPositions: baseline.jobPositions,
 		templates: baseline.templates,
 		positionPayDefaults: baseline.positionPayDefaults,
+	});
+
+	const disciplinarySeedTotals = await insertDisciplinaryDemoData({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		legalTemplatesByOrganization,
 	});
 
 	await insertEmployeeSchedules(args.seed, employees);
@@ -1909,6 +2435,10 @@ async function main(): Promise<void> {
 	console.log('Employees:', employees.length);
 	console.log('Vacation requests:', vacationSeeds.requests.length);
 	console.log('Vacation request days:', vacationSeeds.requestDays.length);
+	console.log('Disciplinary measures:', disciplinarySeedTotals.measures);
+	console.log('Disciplinary documents:', disciplinarySeedTotals.documents);
+	console.log('Disciplinary attachments:', disciplinarySeedTotals.attachments);
+	console.log('Termination drafts:', disciplinarySeedTotals.terminationDrafts);
 	console.log('PTU history rows:', ptuHistoryCount);
 	console.log('PTU runs:', ptuSeedTotals.runs, 'line items:', ptuSeedTotals.lineItems);
 	console.log(

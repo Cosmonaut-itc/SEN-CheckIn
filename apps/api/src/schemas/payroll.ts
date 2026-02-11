@@ -27,7 +27,7 @@ export const employerTypeEnum = z.enum(['PERSONA_MORAL', 'PERSONA_FISICA']);
  * Schema for updating/creating payroll settings.
  */
 export const payrollSettingsSchema = z.object({
-	weekStartDay: z.number().int().min(0).max(6).default(1),
+	weekStartDay: z.number().int().min(0).max(6).optional(),
 	timeZone: z
 		.string()
 		.min(1, 'Time zone is required')
@@ -37,7 +37,19 @@ export const payrollSettingsSchema = z.object({
 	organizationId: z.string().optional(),
 	overtimeEnforcement: overtimeEnforcementEnum.default('WARN').optional(),
 	additionalMandatoryRestDays: z
-		.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'))
+		.array(
+			z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD')
+				.refine((value) => {
+					try {
+						parseDateKey(value);
+						return true;
+					} catch {
+						return false;
+					}
+				}, 'Invalid calendar date'),
+		)
 		.optional(),
 	riskWorkRate: z.coerce.number().min(0).max(1).optional(),
 	statePayrollTaxRate: z.coerce.number().min(0).max(1).optional(),
@@ -52,6 +64,7 @@ export const payrollSettingsSchema = z.object({
 	ptuExemptReason: z.string().max(255).nullable().optional(),
 	employerType: employerTypeEnum.optional(),
 	aguinaldoEnabled: z.boolean().optional(),
+	enableDisciplinaryMeasures: z.boolean().optional(),
 });
 
 /**

@@ -21,6 +21,8 @@ import { cache } from 'react';
 import {
 	type AttendanceQueryParams,
 	type CalendarQueryParams,
+	type DisciplinaryKpisQueryParams,
+	type DisciplinaryMeasuresQueryParams,
 	type IncapacityQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
@@ -36,6 +38,8 @@ import {
 	fetchAttendanceRecordsServer,
 	fetchDashboardCountsServer,
 	fetchDevicesListServer,
+	fetchDisciplinaryKpisServer,
+	fetchDisciplinaryMeasuresServer,
 	fetchEmployeesListServer,
 	fetchIncapacitiesListServer,
 	fetchJobPositionsListServer,
@@ -118,6 +122,48 @@ export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQue
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchEmployeesListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches disciplinary measures list for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional filters and pagination
+ * @returns Nothing
+ */
+export function prefetchDisciplinaryMeasures(
+	queryClient: QueryClient,
+	params?: DisciplinaryMeasuresQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.disciplinaryMeasures.list(params),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchDisciplinaryMeasuresServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchDisciplinaryMeasuresServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches disciplinary KPI summary for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional date range filters
+ * @returns Nothing
+ */
+export function prefetchDisciplinaryKpis(
+	queryClient: QueryClient,
+	params?: DisciplinaryKpisQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.disciplinaryMeasures.kpis(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDisciplinaryKpisServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchDisciplinaryKpisServer(cookieHeader, params);
 		},
 	});
 }

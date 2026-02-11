@@ -49,6 +49,21 @@ const TEMPLATE_TOKENS = [
 	'{{employee.locationName}}',
 	'{{employee.hireDate}}',
 	'{{document.generatedDate}}',
+	'{{document.generatedDateLong}}',
+	'{{document.generatedTimeLabel}}',
+	'{{disciplinary.folio}}',
+	'{{disciplinary.incidentDate}}',
+	'{{disciplinary.reason}}',
+	'{{disciplinary.outcome}}',
+	'{{disciplinary.policyReference}}',
+	'{{disciplinary.suspensionRange}}',
+];
+
+const DOCUMENT_TEMPLATE_KINDS: LegalDocumentKind[] = [
+	'CONTRACT',
+	'NDA',
+	'ACTA_ADMINISTRATIVA',
+	'CONSTANCIA_NEGATIVA_FIRMA',
 ];
 
 const ALLOWED_UPLOAD_TYPES = new Set<string>(['application/pdf', 'image/jpeg', 'image/png']);
@@ -116,13 +131,66 @@ function buildDefaultTemplateHtml(kind: LegalDocumentKind): string {
 `.trim();
 	}
 
-	return `
+	if (kind === 'NDA') {
+		return `
 <h1>Convenio de Confidencialidad (NDA)</h1>
 <p>Empleado: {{employee.fullName}}</p>
 <p>Código: {{employee.code}}</p>
 <p>Puesto: {{employee.jobPositionName}}</p>
 <p>RFC: {{employee.rfc}}</p>
 <p>NSS: {{employee.nss}}</p>
+<p>Fecha de generación: {{document.generatedDate}}</p>
+`.trim();
+	}
+
+	if (kind === 'ACTA_ADMINISTRATIVA') {
+		return `
+<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.55; color: #111111;">
+	<p style="text-align: center; font-weight: 700; margin: 0 0 8px 0;">ACTA ADMINISTRATIVA</p>
+	<p style="text-align: center; margin: 0 0 28px 0;">Folio interno: {{disciplinary.folio}}</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		En la Ciudad de {{employee.locationName}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, se levanta la presente acta administrativa por una parte por la representación patronal y por la otra por la persona trabajadora {{employee.fullName}}, para dejar constancia de los acontecimientos reportados.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		Se levanta la presente acta administrativa con motivo de que la persona trabajadora identificada con código {{employee.code}} ha sido relacionada con hechos que constituyen faltas al Contrato Individual de Trabajo y/o Reglamento Interior de Trabajo.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		- El día {{disciplinary.incidentDate}} se registró la siguiente conducta: {{disciplinary.reason}}.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 18px 0;">
+		Resultado disciplinario: {{disciplinary.outcome}}. Referencia de política: {{disciplinary.policyReference}}. Suspensión aplicable: {{disciplinary.suspensionRange}}.
+	</p>
+
+	<p style="text-align: justify; margin: 0 0 26px 0;">
+		La presente se redacta para constancia y surte sus efectos legales correspondientes como soporte para futuras acciones. La persona trabajadora firma de conformidad la presente, aceptando ser responsable del contenido de esta acta.
+	</p>
+
+	<p style="text-align: center; font-weight: 600; margin: 0 0 24px 0;">
+		{{employee.locationName}}, {{document.generatedDateLong}}
+	</p>
+
+	<p style="text-align: center; margin: 0 0 10px 0;">TRABAJADOR.</p>
+	<p style="text-align: center; margin: 0 0 8px 0;">________________________________________</p>
+	<p style="text-align: center; margin: 0 0 28px 0;">{{employee.fullName}}</p>
+
+	<p style="text-align: center; margin: 0 0 10px 0;">Testigo.                                      Testigo.</p>
+	<p style="text-align: center; margin: 0 0 8px 0;">______________________________      ______________________________</p>
+	<p style="text-align: center; margin: 0;">Nombre y firma                              Nombre y firma</p>
+</div>
+`.trim();
+	}
+
+	return `
+<h1>Constancia de negativa de firma</h1>
+<p>Folio de medida: {{disciplinary.folio}}</p>
+<p>Empleado: {{employee.fullName}}</p>
+<p>Motivo del acta: {{disciplinary.reason}}</p>
+<p>Resultado aplicado: {{disciplinary.outcome}}</p>
+<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
 <p>Fecha de generación: {{document.generatedDate}}</p>
 `.trim();
 }
@@ -142,8 +210,14 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 
 	const [threshold, setThreshold] = useState<string>('1');
 	const [requirements, setRequirements] = useState<OrganizationDocumentRequirementConfig[]>([]);
-	const [contractHtml, setContractHtml] = useState<string>(buildDefaultTemplateHtml('CONTRACT'));
-	const [ndaHtml, setNdaHtml] = useState<string>(buildDefaultTemplateHtml('NDA'));
+	const [templateHtmlByKind, setTemplateHtmlByKind] = useState<
+		Record<LegalDocumentKind, string>
+	>({
+		CONTRACT: buildDefaultTemplateHtml('CONTRACT'),
+		NDA: buildDefaultTemplateHtml('NDA'),
+		ACTA_ADMINISTRATIVA: buildDefaultTemplateHtml('ACTA_ADMINISTRATIVA'),
+		CONSTANCIA_NEGATIVA_FIRMA: buildDefaultTemplateHtml('CONSTANCIA_NEGATIVA_FIRMA'),
+	});
 	const [brandingDisplayName, setBrandingDisplayName] = useState<string>('');
 	const [brandingHeaderText, setBrandingHeaderText] = useState<string>('');
 	const [brandingFile, setBrandingFile] = useState<File | null>(null);
@@ -166,6 +240,18 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 		enabled: canManage,
 	});
 
+	const actaTemplatesQuery = useQuery({
+		queryKey: queryKeys.documentWorkflow.templates('ACTA_ADMINISTRATIVA'),
+		queryFn: () => fetchLegalTemplates('ACTA_ADMINISTRATIVA'),
+		enabled: canManage,
+	});
+
+	const refusalTemplatesQuery = useQuery({
+		queryKey: queryKeys.documentWorkflow.templates('CONSTANCIA_NEGATIVA_FIRMA'),
+		queryFn: () => fetchLegalTemplates('CONSTANCIA_NEGATIVA_FIRMA'),
+		enabled: canManage,
+	});
+
 	const brandingQuery = useQuery({
 		queryKey: queryKeys.documentWorkflow.branding,
 		queryFn: fetchLegalBranding,
@@ -184,16 +270,42 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 	useEffect(() => {
 		const latestContract = contractTemplatesQuery.data?.[0];
 		if (latestContract?.htmlContent) {
-			setContractHtml(latestContract.htmlContent);
+			setTemplateHtmlByKind((previous) => ({
+				...previous,
+				CONTRACT: latestContract.htmlContent,
+			}));
 		}
 	}, [contractTemplatesQuery.data]);
 
 	useEffect(() => {
 		const latestNda = ndaTemplatesQuery.data?.[0];
 		if (latestNda?.htmlContent) {
-			setNdaHtml(latestNda.htmlContent);
+			setTemplateHtmlByKind((previous) => ({
+				...previous,
+				NDA: latestNda.htmlContent,
+			}));
 		}
 	}, [ndaTemplatesQuery.data]);
+
+	useEffect(() => {
+		const latestActa = actaTemplatesQuery.data?.[0];
+		if (latestActa?.htmlContent) {
+			setTemplateHtmlByKind((previous) => ({
+				...previous,
+				ACTA_ADMINISTRATIVA: latestActa.htmlContent,
+			}));
+		}
+	}, [actaTemplatesQuery.data]);
+
+	useEffect(() => {
+		const latestRefusal = refusalTemplatesQuery.data?.[0];
+		if (latestRefusal?.htmlContent) {
+			setTemplateHtmlByKind((previous) => ({
+				...previous,
+				CONSTANCIA_NEGATIVA_FIRMA: latestRefusal.htmlContent,
+			}));
+		}
+	}, [refusalTemplatesQuery.data]);
 
 	useEffect(() => {
 		if (!brandingQuery.data?.branding) {
@@ -233,9 +345,16 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 		const result: Record<LegalDocumentKind, LegalTemplateRecord | null> = {
 			CONTRACT: contractTemplatesQuery.data?.[0] ?? null,
 			NDA: ndaTemplatesQuery.data?.[0] ?? null,
+			ACTA_ADMINISTRATIVA: actaTemplatesQuery.data?.[0] ?? null,
+			CONSTANCIA_NEGATIVA_FIRMA: refusalTemplatesQuery.data?.[0] ?? null,
 		};
 		return result;
-	}, [contractTemplatesQuery.data, ndaTemplatesQuery.data]);
+	}, [
+		actaTemplatesQuery.data,
+		contractTemplatesQuery.data,
+		ndaTemplatesQuery.data,
+		refusalTemplatesQuery.data,
+	]);
 
 	/**
 	 * Updates requirement order or required flags.
@@ -300,7 +419,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 	 */
 	const handleCreateDraft = useCallback(
 		async (kind: LegalDocumentKind): Promise<void> => {
-			const htmlContent = kind === 'CONTRACT' ? contractHtml : ndaHtml;
+			const htmlContent = templateHtmlByKind[kind] ?? '';
 			const result = await createDraftMutation.mutateAsync({
 				kind,
 				htmlContent: htmlContent.trim() || buildDefaultTemplateHtml(kind),
@@ -316,7 +435,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 				queryKey: queryKeys.documentWorkflow.templates(kind),
 			});
 		},
-		[contractHtml, createDraftMutation, ndaHtml, queryClient, t],
+		[createDraftMutation, queryClient, t, templateHtmlByKind],
 	);
 
 	/**
@@ -333,7 +452,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 				return;
 			}
 
-			const htmlContent = (kind === 'CONTRACT' ? contractHtml : ndaHtml).trim();
+			const htmlContent = (templateHtmlByKind[kind] ?? '').trim();
 			const result = await updateTemplateMutation.mutateAsync({
 				templateId: latestTemplate.id,
 				htmlContent,
@@ -350,12 +469,11 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 			});
 		},
 		[
-			contractHtml,
 			handleCreateDraft,
 			latestTemplateByKind,
-			ndaHtml,
 			queryClient,
 			t,
+			templateHtmlByKind,
 			updateTemplateMutation,
 		],
 	);
@@ -623,10 +741,9 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 				</div>
 
 				<div className="grid gap-4 lg:grid-cols-2">
-					{(['CONTRACT', 'NDA'] as LegalDocumentKind[]).map((kind) => {
+					{DOCUMENT_TEMPLATE_KINDS.map((kind) => {
 						const latestTemplate = latestTemplateByKind[kind];
-						const htmlValue = kind === 'CONTRACT' ? contractHtml : ndaHtml;
-						const setHtmlValue = kind === 'CONTRACT' ? setContractHtml : setNdaHtml;
+						const htmlValue = templateHtmlByKind[kind] ?? buildDefaultTemplateHtml(kind);
 
 						return (
 							<div key={kind} className="space-y-3 rounded-md border bg-muted/20 p-4">
@@ -668,7 +785,12 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 									title={t(`documentWorkflow.templates.${kind}.editorTitle`)}
 									description={t(`documentWorkflow.templates.${kind}.editorDescription`)}
 									value={htmlValue}
-									onChange={setHtmlValue}
+									onChange={(nextValue) =>
+										setTemplateHtmlByKind((previous) => ({
+											...previous,
+											[kind]: nextValue,
+										}))
+									}
 									tokens={TEMPLATE_TOKENS}
 									disabled={
 										createDraftMutation.isPending ||

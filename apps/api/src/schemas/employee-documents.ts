@@ -49,7 +49,12 @@ export const employmentProfileSubtypeEnum = z.enum(['CURRICULUM', 'JOB_APPLICATI
 /**
  * Enum schema for legal document kind.
  */
-export const legalDocumentKindEnum = z.enum(['CONTRACT', 'NDA']);
+export const legalDocumentKindEnum = z.enum([
+	'CONTRACT',
+	'NDA',
+	'ACTA_ADMINISTRATIVA',
+	'CONSTANCIA_NEGATIVA_FIRMA',
+]);
 
 /**
  * Enum schema for legal template status.

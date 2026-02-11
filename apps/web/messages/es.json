@@ -78,6 +78,7 @@
     "vacations": "Vacaciones",
     "incapacities": "Incapacidades IMSS",
     "payroll": "Nómina",
+    "disciplinaryMeasures": "Medidas disciplinarias",
     "resources": "Recursos",
     "apiKeys": "Claves de API",
     "mobileApp": "App Móvil",
@@ -277,7 +278,8 @@
       "exceptions": "Excepciones",
       "audit": "Auditoria",
       "ptu": "PTU y Aguinaldo",
-      "documents": "Documentos"
+      "documents": "Documentos",
+      "disciplinary": "Medidas"
     },
     "summary": {
       "availableDays": "Dias disponibles",
@@ -626,6 +628,9 @@
       "unknownLocation": "Ubicación desconocida",
       "documents": {
         "missing": "{count, plural, one {# faltante} other {# faltantes}}"
+      },
+      "disciplinary": {
+        "badge": "{open, plural, =0 {{total} medidas} one {# abierta / {total} total} other {# abiertas / {total} total}}"
       }
     },
     "face": {
@@ -643,7 +648,9 @@
       "reEnrollFace": "Volver a registrar rostro",
       "removeFaceEnrollment": "Eliminar registro facial",
       "deleteEmployee": "Eliminar empleado",
-      "viewDocuments": "Abrir documentos"
+      "viewDocuments": "Abrir documentos",
+      "viewDisciplinaryMeasures": "Abrir medidas",
+      "openDisciplinaryModule": "Ir al módulo disciplinario"
     },
     "dialogs": {
       "deleteEmployee": {
@@ -683,6 +690,9 @@
     "badges": {
       "ptuOverride": "PTU: {value}",
       "aguinaldoOverride": "Aguinaldo: {days} días"
+    },
+    "disciplinary": {
+      "empty": "Selecciona un empleado para mostrar sus medidas disciplinarias."
     },
     "labels": {
       "yes": "Sí",
@@ -1581,6 +1591,16 @@
         "mandatoryRestDay": "Día de descanso obligatorio trabajado: +2× salario diario (total 3×)"
       }
     },
+    "disciplinary": {
+      "title": "Módulo disciplinario",
+      "description": "Habilita el flujo de actas administrativas por empleado para RH operativo.",
+      "fields": {
+        "enableDisciplinaryMeasures": "Habilitar medidas disciplinarias"
+      },
+      "helpers": {
+        "enableDisciplinaryMeasures": "Muestra el módulo disciplinario y habilita sus endpoints para owner/admin."
+      }
+    },
     "validation": {
       "invalidDate": "Fecha inválida \"{date}\". Usa YYYY-MM-DD (una por línea).",
       "invalidDates": "Fechas inválidas",
@@ -1624,7 +1644,7 @@
     },
     "documentWorkflow": {
       "title": "Flujo documental",
-      "description": "Configura checklist, branding legal y plantillas de contrato/NDA.",
+      "description": "Configura checklist, branding legal y plantillas de contrato, NDA, acta administrativa y constancia de negativa.",
       "forbidden": "Solo owner/admin puede editar la configuración documental.",
       "config": {
         "title": "Configuración del checklist",
@@ -1686,6 +1706,16 @@
           "editorTitle": "Editor NDA",
           "editorDescription": "Define cláusulas de confidencialidad con variables dinámicas."
         },
+        "ACTA_ADMINISTRATIVA": {
+          "title": "Plantilla de acta administrativa",
+          "editorTitle": "Editor de acta administrativa",
+          "editorDescription": "Configura el formato del acta disciplinaria con variables del incidente."
+        },
+        "CONSTANCIA_NEGATIVA_FIRMA": {
+          "title": "Plantilla de constancia de negativa",
+          "editorTitle": "Editor de constancia de negativa",
+          "editorDescription": "Configura la constancia cuando la persona empleada se niega a firmar."
+        },
         "version": "Versión {version}",
         "status": {
           "DRAFT": "Borrador",
@@ -1701,6 +1731,159 @@
           "publishError": "No se pudo publicar la plantilla.",
           "publishSuccess": "Plantilla publicada correctamente."
         }
+      }
+    }
+  },
+  "DisciplinaryMeasures": {
+    "page": {
+      "title": "Medidas disciplinarias",
+      "subtitle": "Gestiona actas administrativas, constancias por negativa y cierre disciplinario por empleado."
+    },
+    "title": "Seguimiento disciplinario",
+    "subtitle": "Crea medidas, genera documentos legales y carga evidencia firmada.",
+    "forbidden": {
+      "title": "Acceso restringido",
+      "description": "Solo owner/admin puede gestionar medidas disciplinarias."
+    },
+    "kpis": {
+      "employeesWithMeasures": "Empleados con medidas",
+      "measuresInPeriod": "Actas del periodo",
+      "activeSuspensions": "Suspensiones activas",
+      "terminationEscalations": "Escalaciones a terminación",
+      "openMeasures": "Medidas abiertas"
+    },
+    "fields": {
+      "employee": "Empleado",
+      "incidentDate": "Fecha del incidente",
+      "outcome": "Resultado",
+      "reason": "Motivo",
+      "policyReference": "Referencia de política",
+      "suspensionStartDate": "Inicio de suspensión",
+      "suspensionEndDate": "Fin de suspensión"
+    },
+    "placeholders": {
+      "employee": "Selecciona un empleado",
+      "search": "Buscar por folio, empleado o motivo",
+      "closeNotes": "Notas de cierre (opcional)"
+    },
+    "filters": {
+      "search": "Búsqueda",
+      "employee": "Empleado",
+      "status": "Estatus",
+      "outcome": "Resultado",
+      "fromDate": "Desde",
+      "toDate": "Hasta",
+      "allEmployees": "Todos",
+      "allStatuses": "Todos",
+      "allOutcomes": "Todos"
+    },
+    "table": {
+      "headers": {
+        "folio": "Folio",
+        "employee": "Empleado",
+        "incidentDate": "Fecha incidente",
+        "outcome": "Resultado",
+        "status": "Estatus",
+        "reason": "Motivo",
+        "actions": "Acciones"
+      },
+      "empty": "No se encontraron medidas disciplinarias."
+    },
+    "createDialog": {
+      "title": "Nueva medida disciplinaria",
+      "description": "Registra el incidente y define el resultado disciplinario."
+    },
+    "detail": {
+      "title": "Detalle de medida",
+      "subtitle": "Folio #{folio}",
+      "loading": "Cargando detalle...",
+      "empty": "Selecciona una medida para ver su historial y acciones.",
+      "closedMessage": "La medida está cerrada y no admite modificaciones.",
+      "fields": {
+        "employee": "Empleado",
+        "incidentDate": "Fecha del incidente",
+        "status": "Estatus",
+        "outcome": "Resultado",
+        "reason": "Motivo"
+      },
+      "documents": {
+        "title": "Documentos disciplinarios",
+        "description": "Versiones de acta y constancia asociadas a la medida.",
+        "empty": "Sin documentos disciplinarios cargados."
+      },
+      "attachments": {
+        "title": "Evidencia adjunta",
+        "description": "Archivos de soporte y evidencias del incidente.",
+        "empty": "Sin evidencia adjunta."
+      },
+      "actions": {
+        "title": "Acciones disciplinarias"
+      }
+    },
+    "status": {
+      "DRAFT": "Borrador",
+      "GENERATED": "Generada",
+      "CLOSED": "Cerrada"
+    },
+    "outcomes": {
+      "no_action": "Sin acción",
+      "warning": "Amonestación",
+      "suspension": "Suspensión",
+      "termination_process": "Escalación a terminación"
+    },
+    "documentKinds": {
+      "ACTA_ADMINISTRATIVA": "Acta administrativa",
+      "CONSTANCIA_NEGATIVA_FIRMA": "Constancia negativa de firma"
+    },
+    "signatureStatus": {
+      "signed_physical": "Firmada físicamente",
+      "refused_to_sign": "Se negó a firmar"
+    },
+    "actions": {
+      "viewDetail": "Ver detalle",
+      "closeDetail": "Cerrar detalle",
+      "create": "Crear medida",
+      "creating": "Creando...",
+      "viewDocument": "Ver documento",
+      "deleteAttachment": "Eliminar adjunto",
+      "generateActa": "Generar acta",
+      "generatingActa": "Generando acta...",
+      "uploadSignedActa": "Subir firmada",
+      "generateRefusal": "Generar constancia",
+      "generatingRefusal": "Generando constancia...",
+      "uploadRefusal": "Subir constancia",
+      "uploadAttachment": "Subir evidencia",
+      "closeMeasure": "Cerrar medida",
+      "closing": "Cerrando...",
+      "openModule": "Abrir módulo completo"
+    },
+    "toast": {
+      "createSuccess": "Medida disciplinaria creada.",
+      "createError": "No se pudo crear la medida disciplinaria.",
+      "documentUrlError": "No se pudo abrir el documento disciplinario.",
+      "selectMeasureFirst": "Selecciona primero una medida disciplinaria.",
+      "uploadSignedActaError": "No se pudo subir el acta firmada.",
+      "uploadSignedActaSuccess": "Acta firmada cargada correctamente.",
+      "uploadRefusalError": "No se pudo subir la constancia de negativa.",
+      "uploadRefusalSuccess": "Constancia de negativa cargada correctamente.",
+      "uploadAttachmentError": "No se pudo subir la evidencia.",
+      "uploadAttachmentSuccess": "Evidencia cargada correctamente.",
+      "deleteAttachmentError": "No se pudo eliminar la evidencia.",
+      "deleteAttachmentSuccess": "Evidencia eliminada correctamente.",
+      "generateActaError": "No se pudo generar el acta administrativa.",
+      "generateActaSuccess": "Acta administrativa generada.",
+      "generateRefusalError": "No se pudo generar la constancia de negativa.",
+      "generateRefusalSuccess": "Constancia de negativa generada.",
+      "closeError": "No se pudo cerrar la medida disciplinaria.",
+      "closeSuccess": "Medida disciplinaria cerrada.",
+      "validation": {
+        "employeeRequired": "Selecciona un empleado.",
+        "incidentDateRequired": "La fecha del incidente es obligatoria.",
+        "reasonRequired": "El motivo es obligatorio.",
+        "suspensionRangeRequired": "Para suspensión debes capturar inicio y fin.",
+        "invalidFile": "Archivo inválido. Solo PDF/JPG/PNG de hasta 10 MB.",
+        "actaGenerationRequired": "Primero genera el acta administrativa.",
+        "refusalGenerationRequired": "Primero genera la constancia de negativa."
       }
     }
   },

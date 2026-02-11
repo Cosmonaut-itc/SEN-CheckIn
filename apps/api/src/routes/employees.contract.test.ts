@@ -187,6 +187,8 @@ describe('employee routes (contract)', () => {
 			expect(typeof first.documentProgressPercent).toBe('number');
 			expect(typeof first.documentMissingCount).toBe('number');
 			expect(first.documentWorkflowStatus).toBeDefined();
+			expect(typeof first.disciplinaryMeasuresCount).toBe('number');
+			expect(typeof first.disciplinaryOpenMeasuresCount).toBe('number');
 		}
 	});
 

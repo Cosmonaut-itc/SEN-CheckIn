@@ -171,6 +171,10 @@ export interface Employee {
 	locationId: string | null;
 	/** Rekognition user ID for face recognition (optional) */
 	rekognitionUserId: string | null;
+	/** Total number of disciplinary measures for the employee (optional list payload field). */
+	disciplinaryMeasuresCount?: number;
+	/** Total number of open (non-closed) disciplinary measures (optional list payload field). */
+	disciplinaryOpenMeasuresCount?: number;
 	/** Record creation timestamp */
 	createdAt: Date;
 	/** Record last update timestamp */
@@ -452,7 +456,11 @@ export type EmploymentProfileSubtype = 'CURRICULUM' | 'JOB_APPLICATION';
 /**
  * Legal document kind for organization templates and employee generations.
  */
-export type LegalDocumentKind = 'CONTRACT' | 'NDA';
+export type LegalDocumentKind =
+	| 'CONTRACT'
+	| 'NDA'
+	| 'ACTA_ADMINISTRATIVA'
+	| 'CONSTANCIA_NEGATIVA_FIRMA';
 
 /**
  * Status of legal template versions.
@@ -463,6 +471,211 @@ export type LegalTemplateStatus = 'DRAFT' | 'PUBLISHED';
  * Activation stage for organization document requirements.
  */
 export type EmployeeDocumentActivationStage = 'BASE' | 'LEGAL_AFTER_GATE';
+
+/**
+ * Lifecycle status for a disciplinary measure.
+ */
+export type DisciplinaryMeasureStatus = 'DRAFT' | 'GENERATED' | 'CLOSED';
+
+/**
+ * Final outcome selected for a disciplinary measure.
+ */
+export type DisciplinaryOutcome =
+	| 'no_action'
+	| 'warning'
+	| 'suspension'
+	| 'termination_process';
+
+/**
+ * Signature status for disciplinary measures.
+ */
+export type DisciplinarySignatureStatus = 'signed_physical' | 'refused_to_sign';
+
+/**
+ * Kind of disciplinary legal document.
+ */
+export type DisciplinaryDocumentKind =
+	| 'ACTA_ADMINISTRATIVA'
+	| 'CONSTANCIA_NEGATIVA_FIRMA';
+
+/**
+ * Status for employee termination draft records generated from disciplinary workflows.
+ */
+export type TerminationDraftStatus = 'ACTIVE' | 'CANCELLED' | 'CONSUMED';
+
+/**
+ * Versioned disciplinary document artifact (generated or uploaded).
+ */
+export interface DisciplinaryMeasureDocument {
+	/** Document version identifier */
+	id: string;
+	/** Parent disciplinary measure identifier */
+	measureId: string;
+	/** Document kind */
+	kind: DisciplinaryDocumentKind;
+	/** Version number per measure+kind */
+	versionNumber: number;
+	/** Marks the latest version for the same kind */
+	isCurrent: boolean;
+	/** Optional legal generation identifier */
+	generationId: string | null;
+	/** Storage bucket */
+	bucket: string;
+	/** Storage object key */
+	objectKey: string;
+	/** Original file name */
+	fileName: string;
+	/** MIME content type */
+	contentType: string;
+	/** File size in bytes */
+	sizeBytes: number;
+	/** SHA-256 checksum */
+	sha256: string;
+	/** Optional signed date key (YYYY-MM-DD) */
+	signedAtDateKey: string | null;
+	/** Uploader user identifier */
+	uploadedByUserId: string | null;
+	/** Upload timestamp */
+	uploadedAt: Date;
+	/** Optional metadata */
+	metadata: Record<string, unknown> | null;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Evidence attachment for a disciplinary measure.
+ */
+export interface DisciplinaryMeasureAttachment {
+	/** Attachment identifier */
+	id: string;
+	/** Parent disciplinary measure identifier */
+	measureId: string;
+	/** Storage bucket */
+	bucket: string;
+	/** Storage object key */
+	objectKey: string;
+	/** Original file name */
+	fileName: string;
+	/** MIME content type */
+	contentType: string;
+	/** File size in bytes */
+	sizeBytes: number;
+	/** SHA-256 checksum */
+	sha256: string;
+	/** Uploader user identifier */
+	uploadedByUserId: string | null;
+	/** Upload timestamp */
+	uploadedAt: Date;
+	/** Optional metadata */
+	metadata: Record<string, unknown> | null;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Draft termination payload created from a disciplinary escalation.
+ */
+export interface TerminationDraft {
+	/** Draft identifier */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** Source disciplinary measure identifier */
+	measureId: string;
+	/** Draft lifecycle status */
+	status: TerminationDraftStatus;
+	/** Draft payload snapshot */
+	payload: Record<string, unknown>;
+	/** User that created the draft */
+	createdByUserId: string | null;
+	/** User that last updated the draft */
+	updatedByUserId: string | null;
+	/** Timestamp when draft was consumed */
+	consumedAt: Date | null;
+	/** Timestamp when draft was cancelled */
+	cancelledAt: Date | null;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record update timestamp */
+	updatedAt: Date;
+}
+
+/**
+ * Disciplinary measure aggregate entity with latest documents and evidence.
+ */
+export interface DisciplinaryMeasure {
+	/** Measure identifier */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** Organization-level sequential folio */
+	folio: number;
+	/** Incident date key (YYYY-MM-DD) */
+	incidentDateKey: string;
+	/** Narrative of the incident */
+	reason: string;
+	/** Optional policy/article reference */
+	policyReference: string | null;
+	/** Optional internal notes */
+	notes: string | null;
+	/** Current status */
+	status: DisciplinaryMeasureStatus;
+	/** Selected outcome */
+	outcome: DisciplinaryOutcome;
+	/** Suspension start date key (YYYY-MM-DD) */
+	suspensionStartDateKey: string | null;
+	/** Suspension end date key (YYYY-MM-DD) */
+	suspensionEndDateKey: string | null;
+	/** Signature status */
+	signatureStatus: DisciplinarySignatureStatus | null;
+	/** Creator user identifier */
+	createdByUserId: string | null;
+	/** Last updater user identifier */
+	updatedByUserId: string | null;
+	/** Closer user identifier */
+	closedByUserId: string | null;
+	/** Close timestamp */
+	closedAt: Date | null;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record update timestamp */
+	updatedAt: Date;
+	/** Employee display name (joined payload) */
+	employeeName?: string;
+	/** Employee code (joined payload) */
+	employeeCode?: string;
+	/** Document history for the measure */
+	documents: DisciplinaryMeasureDocument[];
+	/** Evidence attachments */
+	attachments: DisciplinaryMeasureAttachment[];
+	/** Optional active or historical termination draft */
+	terminationDraft: TerminationDraft | null;
+}
+
+/**
+ * KPI summary for disciplinary operations dashboard.
+ */
+export interface DisciplinaryKpis {
+	/** Distinct employees that have at least one measure */
+	employeesWithMeasures: number;
+	/** Measures created in the selected period */
+	measuresInPeriod: number;
+	/** Currently active suspensions */
+	activeSuspensions: number;
+	/** Measures escalated to termination process */
+	terminationEscalations: number;
+	/** Open measures (non-closed) */
+	openMeasures: number;
+}
 
 /**
  * Summary of a schedule exception for employee insights.

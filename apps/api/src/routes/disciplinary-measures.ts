@@ -316,7 +316,8 @@ async function resolveDisciplinaryAccessContext(
 		.where(eq(payrollSetting.organizationId, organizationId))
 		.limit(1);
 
-	if (!settingsRows[0]?.enableDisciplinaryMeasures) {
+	const isDisciplinaryMeasuresEnabled = settingsRows[0]?.enableDisciplinaryMeasures ?? true;
+	if (!isDisciplinaryMeasuresEnabled) {
 		set.status = 403;
 		return null;
 	}
@@ -1021,11 +1022,22 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 						: body.suspensionEndDateKey
 					: null;
 
-			if (
-				nextOutcome === 'suspension' &&
-				nextSuspensionStartDateKey &&
-				nextSuspensionEndDateKey
-			) {
+			if (nextOutcome === 'suspension') {
+				if (!nextSuspensionStartDateKey) {
+					set.status = 400;
+					return buildErrorResponse(
+						'suspensionStartDateKey is required for suspension outcome',
+						400,
+					);
+				}
+				if (!nextSuspensionEndDateKey) {
+					set.status = 400;
+					return buildErrorResponse(
+						'suspensionEndDateKey is required for suspension outcome',
+						400,
+					);
+				}
+
 				const validation = validateSuspensionRange({
 					startDateKey: nextSuspensionStartDateKey,
 					endDateKey: nextSuspensionEndDateKey,

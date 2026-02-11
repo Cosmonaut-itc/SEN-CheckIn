@@ -211,6 +211,36 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(secondPayload.folio).toBeGreaterThan(firstPayload.folio);
 	});
 
+	it('allows disciplinary requests when payroll settings row is missing', async () => {
+		ensureTestDatabaseUrl();
+		const [{ default: db }, schema] = await Promise.all([
+			import('../db/index.js'),
+			import('../db/schema.js'),
+		]);
+		const { payrollSetting } = schema;
+
+		await db
+			.delete(payrollSetting)
+			.where(eq(payrollSetting.organizationId, adminSession.organizationId));
+
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-11',
+			reason: 'Validación sin fila de payroll settings',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		requireMeasurePayload(requireResponseData(createResponse));
+
+		const restoreSettingsResponse = await client['payroll-settings'].put({
+			weekStartDay: 1,
+			enableDisciplinaryMeasures: true,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(restoreSettingsResponse.status).toBe(200);
+	});
+
 	it('rejects suspension ranges longer than 8 days', async () => {
 		const response = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,
@@ -226,6 +256,34 @@ describe('disciplinary measures routes (contract)', () => {
 		const errorPayload = requireErrorResponse(response, 'invalid suspension range');
 		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 		expect(errorPayload.error.message).toBe('Validation failed');
+	});
+
+	it('rejects suspension updates with incomplete date range', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-13',
+			reason: 'Suspensión válida para validar edición parcial',
+			outcome: 'suspension',
+			suspensionStartDateKey: '2026-01-13',
+			suspensionEndDateKey: '2026-01-15',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route',
+		);
+
+		const updateResponse = await measureRoute.put({
+			suspensionStartDateKey: null,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(400);
+		const errorPayload = requireErrorResponse(updateResponse, 'incomplete suspension update');
+		expect(errorPayload.error.message).toBe(
+			'suspensionStartDateKey is required for suspension outcome',
+		);
 	});
 
 	it('generates acta with a published template and confirms physical signed upload', async () => {

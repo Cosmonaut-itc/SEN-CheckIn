@@ -1384,33 +1384,33 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
-				} catch (error) {
-					if (isBucketDependencyError(error)) {
-						set.status = 503;
-						return buildErrorResponse('Bucket service dependencies are not installed', 503);
-					}
-					throw error;
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
 				}
-				let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
-				try {
-					objectHead = await headRailwayObject({
-						key: body.objectKey,
-					});
-				} catch (error) {
-					if (isBucketDependencyError(error)) {
-						set.status = 503;
-						return buildErrorResponse('Bucket service dependencies are not installed', 503);
-					}
-					if (isBucketObjectNotFoundError(error)) {
-						set.status = 404;
-						return buildErrorResponse('Uploaded object not found', 404);
-					}
-					throw error;
+				throw error;
+			}
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
+					key: body.objectKey,
+				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
 				}
-				if (!objectHead) {
+				if (isBucketObjectNotFoundError(error)) {
 					set.status = 404;
 					return buildErrorResponse('Uploaded object not found', 404);
 				}
+				throw error;
+			}
+			if (!objectHead) {
+				set.status = 404;
+				return buildErrorResponse('Uploaded object not found', 404);
+			}
 			if (
 				!objectMatchesRequest({
 					expectedContentType: body.contentType,
@@ -1775,33 +1775,33 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
-				} catch (error) {
-					if (isBucketDependencyError(error)) {
-						set.status = 503;
-						return buildErrorResponse('Bucket service dependencies are not installed', 503);
-					}
-					throw error;
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
 				}
-				let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
-				try {
-					objectHead = await headRailwayObject({
-						key: body.objectKey,
-					});
-				} catch (error) {
-					if (isBucketDependencyError(error)) {
-						set.status = 503;
-						return buildErrorResponse('Bucket service dependencies are not installed', 503);
-					}
-					if (isBucketObjectNotFoundError(error)) {
-						set.status = 404;
-						return buildErrorResponse('Uploaded object not found', 404);
-					}
-					throw error;
+				throw error;
+			}
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
+					key: body.objectKey,
+				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
 				}
-				if (!objectHead) {
+				if (isBucketObjectNotFoundError(error)) {
 					set.status = 404;
 					return buildErrorResponse('Uploaded object not found', 404);
 				}
+				throw error;
+			}
+			if (!objectHead) {
+				set.status = 404;
+				return buildErrorResponse('Uploaded object not found', 404);
+			}
 			if (
 				!objectMatchesRequest({
 					expectedContentType: body.contentType,
@@ -2009,33 +2009,33 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
 			try {
 				bucketConfig = getRailwayBucketConfig();
-				} catch (error) {
-					if (isBucketDependencyError(error)) {
-						set.status = 503;
-						return buildErrorResponse('Bucket service dependencies are not installed', 503);
-					}
-					throw error;
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
 				}
-				let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
-				try {
-					objectHead = await headRailwayObject({
-						key: body.objectKey,
-					});
-				} catch (error) {
-					if (isBucketDependencyError(error)) {
-						set.status = 503;
-						return buildErrorResponse('Bucket service dependencies are not installed', 503);
-					}
-					if (isBucketObjectNotFoundError(error)) {
-						set.status = 404;
-						return buildErrorResponse('Uploaded object not found', 404);
-					}
-					throw error;
+				throw error;
+			}
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
+					key: body.objectKey,
+				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
 				}
-				if (!objectHead) {
+				if (isBucketObjectNotFoundError(error)) {
 					set.status = 404;
 					return buildErrorResponse('Uploaded object not found', 404);
 				}
+				throw error;
+			}
+			if (!objectHead) {
+				set.status = 404;
+				return buildErrorResponse('Uploaded object not found', 404);
+			}
 			if (
 				!objectMatchesRequest({
 					expectedContentType: body.contentType,
@@ -2209,7 +2209,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				.set({
 					status: 'CLOSED',
 					signatureStatus: body.signatureStatus,
-					notes: body.notes ?? null,
+					notes: body.notes === undefined ? measure.notes : body.notes,
 					closedAt: new Date(),
 					closedByUserId: access.userId,
 					updatedByUserId: access.userId,

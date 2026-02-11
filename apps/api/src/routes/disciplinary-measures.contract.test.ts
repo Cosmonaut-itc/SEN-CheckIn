@@ -824,6 +824,85 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(detailPayload.data?.notes).toBe('Nota de seguimiento previa al cierre.');
 	});
 
+	it('preserves existing notes when close payload omits notes', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-25',
+			reason: 'Cierre sin sobrescribir notas previas',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route',
+		);
+
+		const updateResponse = await measureRoute.put({
+			notes: 'Nota previa que debe mantenerse al cerrar.',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(200);
+
+		const generateResponse = await measureRoute['generate-acta'].post({
+			templateId: undefined,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(generateResponse.status).toBe(200);
+		const generatePayload = requireResponseData(generateResponse) as {
+			data?: {
+				generation?: { id?: string };
+			};
+		};
+		const generationId = generatePayload.data?.generation?.id;
+		if (!generationId) {
+			throw new Error('Expected acta generation id.');
+		}
+
+		const presignResponse = await measureRoute['signed-acta'].presign.post({
+			fileName: 'acta-preserve-notes.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(presignResponse.status).toBe(200);
+		const presignPayload = requireResponseData(presignResponse) as {
+			data?: {
+				docVersionId?: string;
+				objectKey?: string;
+			};
+		};
+		const docVersionId = presignPayload.data?.docVersionId;
+		const objectKey = presignPayload.data?.objectKey;
+		if (!docVersionId || !objectKey) {
+			throw new Error('Expected signed acta presign fields.');
+		}
+
+		const confirmResponse = await measureRoute['signed-acta'].confirm.post({
+			docVersionId,
+			generationId,
+			objectKey,
+			fileName: 'acta-preserve-notes.pdf',
+			contentType: 'application/pdf',
+			sizeBytes: 1024,
+			sha256: 'preserve-notes-close',
+			signedAtDateKey: '2026-01-25',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(confirmResponse.status).toBe(200);
+
+		const closeResponse = await measureRoute.close.post({
+			signatureStatus: 'signed_physical',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(closeResponse.status).toBe(200);
+		const closePayload = requireResponseData(closeResponse) as {
+			data?: { notes?: string | null };
+		};
+		expect(closePayload.data?.notes).toBe('Nota previa que debe mantenerse al cerrar.');
+	});
+
 	it('enforces immutability for closed measures', async () => {
 		const createResponse = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,

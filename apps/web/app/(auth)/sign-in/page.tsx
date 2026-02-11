@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { signIn } from '@/lib/auth-client';
 import { Mail, Lock, ShieldCheck, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { BackgroundBeams } from '@/components/ui/background-beams';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { useAppForm } from '@/lib/forms';
 
@@ -196,8 +197,17 @@ function SignInContent(): React.ReactElement {
  */
 export default function SignInPage(): React.ReactElement {
 	return (
-		<Suspense fallback={<SignInLoading />}>
-			<SignInContent />
-		</Suspense>
+		<section className="relative isolate">
+			<div
+				aria-hidden="true"
+				className="pointer-events-none fixed inset-0 -z-10"
+			>
+				<div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_top_left,var(--mk-copper-soft,#f2d2b5)_0%,transparent_60%),radial-gradient(900px_circle_at_bottom_right,var(--mk-sea-soft,#d7efe9)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
+				<BackgroundBeams className="opacity-55" />
+			</div>
+			<Suspense fallback={<SignInLoading />}>
+				<SignInContent />
+			</Suspense>
+		</section>
 	);
 }

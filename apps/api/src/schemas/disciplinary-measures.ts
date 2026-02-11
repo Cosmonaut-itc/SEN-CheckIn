@@ -199,8 +199,15 @@ export const disciplinaryMeasureUpdateSchema = z
 		suspensionEndDateKey: dateKeySchema.nullable().optional(),
 	})
 	.superRefine((value, ctx) => {
+		if (value.outcome === undefined) {
+			return;
+		}
+
 		if (value.outcome !== 'suspension') {
-			if (value.suspensionStartDateKey || value.suspensionEndDateKey) {
+			if (
+				value.suspensionStartDateKey !== undefined ||
+				value.suspensionEndDateKey !== undefined
+			) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ['outcome'],

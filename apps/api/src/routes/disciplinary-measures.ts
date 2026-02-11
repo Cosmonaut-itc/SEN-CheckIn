@@ -1009,6 +1009,9 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			}
 
 			const nextOutcome = body.outcome ?? existingMeasure.outcome;
+			const hasSuspensionDateInputs =
+				body.suspensionStartDateKey !== undefined ||
+				body.suspensionEndDateKey !== undefined;
 			const nextSuspensionStartDateKey =
 				nextOutcome === 'suspension'
 					? body.suspensionStartDateKey === undefined
@@ -1021,6 +1024,14 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 						? existingMeasure.suspensionEndDateKey
 						: body.suspensionEndDateKey
 					: null;
+
+			if (nextOutcome !== 'suspension' && hasSuspensionDateInputs) {
+				set.status = 400;
+				return buildErrorResponse(
+					'suspension date range can only be set for suspension outcome',
+					400,
+				);
+			}
 
 			if (nextOutcome === 'suspension') {
 				if (!nextSuspensionStartDateKey) {
@@ -2002,12 +2013,6 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Closed disciplinary measures cannot be modified', 409);
 			}
 
-			const attachmentCount = await countMeasureAttachments(measure.id);
-			if (attachmentCount >= MAX_ATTACHMENTS_PER_MEASURE) {
-				set.status = 400;
-				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
-			}
-
 			const expectedObjectKeyPrefix = `${buildDisciplinaryAttachmentPrefix({
 				organizationId: access.organizationId,
 				employeeId: measure.employeeId,
@@ -2060,25 +2065,46 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Uploaded object metadata does not match request', 400);
 			}
 
-			const insertedRows = await db
-				.insert(employeeDisciplinaryAttachment)
-				.values({
-					id: body.attachmentId,
-					organizationId: access.organizationId,
-					employeeId: measure.employeeId,
-					measureId: measure.id,
-					bucket: bucketConfig.bucket,
-					objectKey: body.objectKey,
-					fileName: body.fileName,
-					contentType: body.contentType,
-					sizeBytes: body.sizeBytes,
-					sha256: body.sha256,
-					uploadedByUserId: access.userId,
-					metadata: body.metadata ?? null,
-				})
-				.returning();
+			const insertedAttachment = await db.transaction(async (tx) => {
+				await tx.execute(
+					sql`select pg_advisory_xact_lock(hashtext(${access.organizationId}), hashtext(${measure.id}))`,
+				);
 
-			return { data: insertedRows[0] ?? null };
+				const rows = await tx
+					.select({ count: countDistinct(employeeDisciplinaryAttachment.id) })
+					.from(employeeDisciplinaryAttachment)
+					.where(eq(employeeDisciplinaryAttachment.measureId, measure.id));
+				const attachmentCount = Number(rows[0]?.count ?? 0);
+				if (attachmentCount >= MAX_ATTACHMENTS_PER_MEASURE) {
+					return null;
+				}
+
+				const insertedRows = await tx
+					.insert(employeeDisciplinaryAttachment)
+					.values({
+						id: body.attachmentId,
+						organizationId: access.organizationId,
+						employeeId: measure.employeeId,
+						measureId: measure.id,
+						bucket: bucketConfig.bucket,
+						objectKey: body.objectKey,
+						fileName: body.fileName,
+						contentType: body.contentType,
+						sizeBytes: body.sizeBytes,
+						sha256: body.sha256,
+						uploadedByUserId: access.userId,
+						metadata: body.metadata ?? null,
+					})
+					.returning();
+
+				return insertedRows[0] ?? null;
+			});
+			if (!insertedAttachment) {
+				set.status = 400;
+				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
+			}
+
+			return { data: insertedAttachment };
 		},
 		{
 			params: disciplinaryMeasureIdParamsSchema,

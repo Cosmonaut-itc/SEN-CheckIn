@@ -286,6 +286,70 @@ describe('disciplinary measures routes (contract)', () => {
 		);
 	});
 
+	it('allows suspension date updates without resending suspension outcome', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-16',
+			reason: 'Suspensión válida para validar edición de fechas',
+			outcome: 'suspension',
+			suspensionStartDateKey: '2026-01-16',
+			suspensionEndDateKey: '2026-01-18',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route',
+		);
+
+		const updateResponse = await measureRoute.put({
+			suspensionStartDateKey: '2026-01-17',
+			suspensionEndDateKey: '2026-01-19',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(200);
+		const updatedPayload = requireResponseData(updateResponse) as {
+			data?: {
+				outcome?: string;
+				suspensionStartDateKey?: string | null;
+				suspensionEndDateKey?: string | null;
+			};
+		};
+		expect(updatedPayload.data?.outcome).toBe('suspension');
+		expect(updatedPayload.data?.suspensionStartDateKey).toBe('2026-01-17');
+		expect(updatedPayload.data?.suspensionEndDateKey).toBe('2026-01-19');
+	});
+
+	it('rejects suspension dates when resulting outcome is non-suspension', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-16',
+			reason: 'Amonestación para validar guard de suspensión',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route',
+		);
+
+		const updateResponse = await measureRoute.put({
+			suspensionStartDateKey: '2026-01-17',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(400);
+		const errorPayload = requireErrorResponse(
+			updateResponse,
+			'non-suspension measure should reject suspension dates',
+		);
+		expect(errorPayload.error.message).toBe(
+			'suspension date range can only be set for suspension outcome',
+		);
+	});
+
 	it('generates acta with a published template and confirms physical signed upload', async () => {
 		const createResponse = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,

@@ -789,6 +789,41 @@ describe('disciplinary measures routes (contract)', () => {
 		expect(confirmError.error.message).toBe('Invalid attachment object key');
 	});
 
+	it('updates notes for mutable measures', async () => {
+		const createResponse = await client['disciplinary-measures'].post({
+			employeeId: seed.employeeId,
+			incidentDateKey: '2026-01-24',
+			reason: 'Actualización de notas en borrador',
+			outcome: 'warning',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const measure = requireMeasurePayload(requireResponseData(createResponse));
+		const measureRoute = requireRoute(
+			client['disciplinary-measures'][measure.id],
+			'disciplinary measure route',
+		);
+
+		const updateResponse = await measureRoute.put({
+			notes: 'Nota de seguimiento previa al cierre.',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(200);
+		const updatePayload = requireResponseData(updateResponse) as {
+			data?: { notes?: string | null };
+		};
+		expect(updatePayload.data?.notes).toBe('Nota de seguimiento previa al cierre.');
+
+		const detailResponse = await measureRoute.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(detailResponse.status).toBe(200);
+		const detailPayload = requireResponseData(detailResponse) as {
+			data?: { notes?: string | null };
+		};
+		expect(detailPayload.data?.notes).toBe('Nota de seguimiento previa al cierre.');
+	});
+
 	it('enforces immutability for closed measures', async () => {
 		const createResponse = await client['disciplinary-measures'].post({
 			employeeId: seed.employeeId,

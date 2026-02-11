@@ -193,6 +193,7 @@ export const disciplinaryMeasureUpdateSchema = z
 		incidentDateKey: dateKeySchema.optional(),
 		reason: z.string().trim().min(1).max(6000).optional(),
 		policyReference: z.string().trim().max(2000).nullable().optional(),
+		notes: z.string().trim().max(4000).nullable().optional(),
 		outcome: disciplinaryOutcomeEnum.optional(),
 		suspensionStartDateKey: dateKeySchema.nullable().optional(),
 		suspensionEndDateKey: dateKeySchema.nullable().optional(),

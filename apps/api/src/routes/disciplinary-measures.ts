@@ -1045,6 +1045,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 						body.policyReference === undefined
 							? existingMeasure.policyReference
 							: body.policyReference,
+					notes: body.notes === undefined ? existingMeasure.notes : body.notes,
 					outcome: nextOutcome,
 					suspensionStartDateKey: nextSuspensionStartDateKey,
 					suspensionEndDateKey: nextSuspensionEndDateKey,

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { BackgroundBeams } from '@/components/ui/background-beams';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { signUp } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
@@ -15,7 +16,17 @@ import { useAppForm } from '@/lib/forms';
  * @returns The sign up page JSX element
  */
 export default function SignUpPage(): React.ReactElement {
-	return <SignUpForm />;
+	return (
+		<section className="relative isolate">
+			<div
+				aria-hidden="true"
+				className="pointer-events-none fixed inset-0 -z-10"
+			>
+				<BackgroundBeams className="opacity-55" />
+			</div>
+			<SignUpForm />
+		</section>
+	);
 }
 
 /**

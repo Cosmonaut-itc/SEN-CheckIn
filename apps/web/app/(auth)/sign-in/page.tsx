@@ -202,7 +202,6 @@ export default function SignInPage(): React.ReactElement {
 				aria-hidden="true"
 				className="pointer-events-none fixed inset-0 -z-10"
 			>
-				<div className="absolute inset-0 bg-[radial-gradient(900px_circle_at_top_left,var(--mk-copper-soft,#f2d2b5)_0%,transparent_60%),radial-gradient(900px_circle_at_bottom_right,var(--mk-sea-soft,#d7efe9)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
 				<BackgroundBeams className="opacity-55" />
 			</div>
 			<Suspense fallback={<SignInLoading />}>

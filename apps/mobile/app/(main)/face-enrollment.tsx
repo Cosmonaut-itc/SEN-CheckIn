@@ -93,6 +93,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const [searchTerm, setSearchTerm] = useState<string>('');
 	const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
 	const [capturedPhoto, setCapturedPhoto] = useState<CapturedFacePhoto | null>(null);
+	const [capturedEmployeeId, setCapturedEmployeeId] = useState<string | null>(null);
 	const [enrollmentSummary, setEnrollmentSummary] = useState<EnrollmentSummary | null>(null);
 	const [submissionError, setSubmissionError] = useState<string | null>(null);
 	const { settings } = useDeviceContext();
@@ -126,6 +127,10 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 		() => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
 		[employees, selectedEmployeeId],
 	);
+	const capturedEmployee = useMemo(
+		() => employees.find((employee) => employee.id === capturedEmployeeId) ?? null,
+		[employees, capturedEmployeeId],
+	);
 
 	const isListTruncated =
 		(employeesQuery.data?.pagination.total ?? 0) > (employeesQuery.data?.data.length ?? 0);
@@ -133,26 +138,29 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const enrollmentMutation = useMutation({
 		mutationKey: queryKeys.faceEnrollment.flow(),
 		mutationFn: async (): Promise<void> => {
-			if (!selectedEmployee || !capturedPhoto) {
+			if (!capturedEmployee || !capturedPhoto) {
 				throw new Error(i18n.t('FaceEnrollment.errors.missingData'));
 			}
 
 			const result = await fullEnrollmentFlow({
-				employeeId: selectedEmployee.id,
+				employeeId: capturedEmployee.id,
 				imageBase64: capturedPhoto.base64,
-				hasRekognitionUser: Boolean(selectedEmployee.rekognitionUserId),
+				hasRekognitionUser: Boolean(capturedEmployee.rekognitionUserId),
 			});
 
-			if (!result.success) {
-				throw new Error(result.message ?? i18n.t('FaceEnrollment.errors.generic'));
+			if (!result.success || !result.associated) {
+				throw new Error(
+					result.message ?? i18n.t('FaceEnrollment.errors.associationFailed'),
+				);
 			}
 
 			setCapturedPhoto(null);
+			setCapturedEmployeeId(null);
 			setEnrollmentSummary({
-				employeeId: selectedEmployee.id,
-				employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
+				employeeId: capturedEmployee.id,
+				employeeName: `${capturedEmployee.firstName} ${capturedEmployee.lastName}`,
 				faceId: result.faceId,
-				wasReEnrollment: Boolean(selectedEmployee.rekognitionUserId),
+				wasReEnrollment: Boolean(capturedEmployee.rekognitionUserId),
 				message: result.message,
 			});
 			await queryClient.invalidateQueries({ queryKey: queryKeys.faceEnrollment.all });
@@ -161,6 +169,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 			setSubmissionError(resolveEnrollmentErrorMessage(error));
 		},
 	});
+	const isEmployeeSelectionLocked = Boolean(capturedPhoto) || enrollmentMutation.isPending;
 
 	/**
 	 * Captures a photo from the current camera feed and opens preview mode.
@@ -169,7 +178,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	 */
 	const handleCapturePhoto = useCallback(async (): Promise<void> => {
 		setSubmissionError(null);
-		if (!cameraRef.current) {
+		if (!cameraRef.current || !selectedEmployee) {
 			setSubmissionError(i18n.t('FaceEnrollment.errors.cameraUnavailable'));
 			return;
 		}
@@ -190,10 +199,11 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 				previewUri: `data:image/jpeg;base64,${photo.base64}`,
 				base64: photo.base64,
 			});
+			setCapturedEmployeeId(selectedEmployee.id);
 		} catch {
 			setSubmissionError(i18n.t('FaceEnrollment.errors.captureFailed'));
 		}
-	}, []);
+	}, [selectedEmployee]);
 
 	/**
 	 * Executes the full enrollment flow against the API.
@@ -213,6 +223,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const handleRegisterAnother = useCallback((): void => {
 		setEnrollmentSummary(null);
 		setCapturedPhoto(null);
+		setCapturedEmployeeId(null);
 		setSearchTerm('');
 		setSelectedEmployeeId(null);
 		setSubmissionError(null);
@@ -390,6 +401,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 											<Button
 												key={employee.id}
 												variant={isSelected ? 'primary' : 'secondary'}
+												isDisabled={isEmployeeSelectionLocked}
 												onPress={() => setSelectedEmployeeId(employee.id)}
 											>
 												<View className="flex-row items-center justify-between gap-2 w-full">
@@ -469,7 +481,10 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 											<Button
 												variant="secondary"
 												className="flex-1"
-												onPress={() => setCapturedPhoto(null)}
+												onPress={() => {
+													setCapturedPhoto(null);
+													setCapturedEmployeeId(null);
+												}}
 												isDisabled={enrollmentMutation.isPending}
 											>
 												<Button.Label>
@@ -481,7 +496,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 												onPress={handleConfirmEnrollment}
 												isDisabled={
 													enrollmentMutation.isPending ||
-													!selectedEmployee
+													!capturedEmployee
 												}
 											>
 												<Button.Label>

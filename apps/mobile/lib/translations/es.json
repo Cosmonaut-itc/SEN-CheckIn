@@ -173,6 +173,7 @@
 		},
 		"errors": {
 			"generic": "No se pudo completar el registro facial. Inténtalo de nuevo.",
+			"associationFailed": "No se pudo asociar el rostro al empleado. Inténtalo de nuevo.",
 			"cameraUnavailable": "La cámara no está disponible en este momento.",
 			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
 			"missingData": "Selecciona un empleado y captura una imagen antes de continuar."

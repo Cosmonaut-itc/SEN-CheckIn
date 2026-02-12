@@ -198,9 +198,17 @@ describe('FaceEnrollmentScreen', () => {
 						status: 'ACTIVE',
 						rekognitionUserId: null,
 					},
+					{
+						id: 'employee-2',
+						code: 'EMP-002',
+						firstName: 'Carlos',
+						lastName: 'Ramos',
+						status: 'ACTIVE',
+						rekognitionUserId: 'employee-2',
+					},
 				],
 				pagination: {
-					total: 1,
+					total: 2,
 					limit: 200,
 					offset: 0,
 				},
@@ -253,6 +261,60 @@ describe('FaceEnrollmentScreen', () => {
 			hasRekognitionUser: false,
 		});
 		expect(mockInvalidateQueries).toHaveBeenCalled();
+	});
+
+	it('keeps capture tied to the originally selected employee', async () => {
+		mockFullEnrollmentFlow.mockResolvedValue({
+			success: true,
+			faceId: 'face-1',
+			employeeId: 'employee-1',
+			associated: true,
+			message: 'Face enrolled and associated successfully',
+		});
+
+		render(<FaceEnrollmentScreen />);
+
+		fireEvent.press(screen.getByText('Ana Ruiz'));
+		fireEvent.press(screen.getByText('Capturar'));
+		await waitFor(() => {
+			expect(screen.getByText('Confirmar registro')).toBeTruthy();
+		});
+		fireEvent.press(screen.getByText('Carlos Ramos'));
+		fireEvent.press(screen.getByText('Confirmar registro'));
+
+		await waitFor(() => {
+			expect(screen.getByText('Registro completado')).toBeTruthy();
+		});
+
+		expect(mockFullEnrollmentFlow).toHaveBeenCalledWith({
+			employeeId: 'employee-1',
+			imageBase64: 'base64-image',
+			hasRekognitionUser: false,
+		});
+	});
+
+	it('shows an error when enrollment is not associated to the Rekognition user', async () => {
+		mockFullEnrollmentFlow.mockResolvedValue({
+			success: true,
+			faceId: 'face-1',
+			employeeId: 'employee-1',
+			associated: false,
+			message: 'No se pudo asociar el rostro al empleado',
+		});
+
+		render(<FaceEnrollmentScreen />);
+
+		fireEvent.press(screen.getByText('Ana Ruiz'));
+		fireEvent.press(screen.getByText('Capturar'));
+		await waitFor(() => {
+			expect(screen.getByText('Confirmar registro')).toBeTruthy();
+		});
+		fireEvent.press(screen.getByText('Confirmar registro'));
+
+		await waitFor(() => {
+			expect(screen.getByText('No se pudo asociar el rostro al empleado')).toBeTruthy();
+		});
+		expect(screen.queryByText('Registro completado')).toBeNull();
 	});
 
 	it('shows API error message when enrollment fails', async () => {

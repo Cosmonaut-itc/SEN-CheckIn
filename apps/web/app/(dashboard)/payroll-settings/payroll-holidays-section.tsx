@@ -161,19 +161,25 @@ function buildYearTabs(baseYear: number): number[] {
 }
 
 /**
- * Returns a style badge variant for a holiday status value.
+ * Returns custom classes for holiday status pills in the holiday list table.
  *
  * @param status - Holiday status value
- * @returns Badge variant
+ * @returns Tailwind class list for the status pill
  */
-function getStatusBadgeVariant(status: HolidayStatus): 'secondary' | 'outline' | 'destructive' {
+function getStatusBadgeClassName(status: HolidayStatus): string {
 	if (status === 'APPROVED') {
-		return 'secondary';
+		return 'border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-200';
 	}
+
 	if (status === 'PENDING_APPROVAL') {
-		return 'outline';
+		return 'border-amber-600/40 bg-amber-500/10 text-amber-700 dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-200';
 	}
-	return 'destructive';
+
+	if (status === 'REJECTED') {
+		return 'border-rose-600/40 bg-rose-500/10 text-rose-700 dark:border-rose-400/50 dark:bg-rose-500/20 dark:text-rose-200';
+	}
+
+	return 'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:border-slate-300/40 dark:bg-slate-500/20 dark:text-slate-200';
 }
 
 /**
@@ -1207,7 +1213,8 @@ export function PayrollHolidaysSection(): React.ReactElement {
 												</TableCell>
 												<TableCell>
 													<Badge
-														variant={getStatusBadgeVariant(
+														variant="outline"
+														className={getStatusBadgeClassName(
 															entry.status,
 														)}
 													>

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
-import FaceEnrollmentScreen from './face-enrollment';
+import FaceEnrollmentScreen from '@/app/(main)/face-enrollment';
 
 const mockUseQuery = jest.fn();
 const mockUseMutation = jest.fn();

@@ -19,6 +19,7 @@ const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockCreateObjectURL = vi.fn(() => 'blob:disciplinary-test');
 const mockRevokeObjectURL = vi.fn();
+const mockAnchorClick = vi.fn();
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { JSDOM } = require('jsdom') as {
 	JSDOM: new (
@@ -178,6 +179,12 @@ describe('DisciplinaryMeasuresManager', () => {
 			writable: true,
 			value: mockRevokeObjectURL,
 		});
+		Object.defineProperty(HTMLAnchorElement.prototype, 'click', {
+			configurable: true,
+			writable: true,
+			value: mockAnchorClick,
+		});
+		mockAnchorClick.mockReset();
 
 		mockFetchDisciplinaryMeasures.mockResolvedValue({
 			data: [

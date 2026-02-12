@@ -25,6 +25,7 @@ import { locationRoutes } from './routes/locations.js';
 import { recognitionRoutes } from './routes/recognition.js';
 import { organizationRoutes } from './routes/organization.js';
 import { payrollRoutes } from './routes/payroll.js';
+import { payrollHolidaysRoutes } from './routes/payroll-holidays.js';
 import { payrollSettingsRoutes } from './routes/payroll-settings.js';
 import { ptuRoutes } from './routes/ptu.js';
 import { aguinaldoRoutes } from './routes/aguinaldo.js';
@@ -32,6 +33,7 @@ import { scheduleTemplateRoutes } from './routes/schedule-templates.js';
 import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
 import { schedulingRoutes } from './routes/scheduling.js';
 import { vacationRoutes } from './routes/vacations.js';
+import { internalHolidayRoutes } from './routes/internal-holidays.js';
 
 const defaultCorsOrigins: string[] = [
 	'http://localhost:3001',
@@ -105,6 +107,7 @@ const createProtectedRoutes = () => {
 			.use(attendanceRoutes)
 			.use(organizationRoutes)
 			.use(payrollSettingsRoutes)
+			.use(payrollHolidaysRoutes)
 			.use(payrollRoutes)
 			.use(ptuRoutes)
 			.use(aguinaldoRoutes)
@@ -138,7 +141,12 @@ export const createApp = () => {
 					origin: (request: Request) => isOriginAllowed(request.headers.get('origin')),
 					methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 					credentials: true,
-					allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+					allowedHeaders: [
+						'Content-Type',
+						'Authorization',
+						'x-api-key',
+						'x-internal-token',
+					],
 				}),
 			)
 			.use(errorHandlerPlugin)
@@ -172,6 +180,7 @@ export const createApp = () => {
 			.use(opentelemetry())
 			// Public authentication routes (sign-in, sign-up, etc.)
 			.all('/api/auth/*', betterAuthView)
+			.use(internalHolidayRoutes)
 			// All protected routes (require authentication)
 			.use(createProtectedRoutes())
 	);

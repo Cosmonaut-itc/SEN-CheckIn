@@ -74,6 +74,7 @@ import type {
 import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
 import { PtuTab } from './ptu-tab';
 import { AguinaldoTab } from './aguinaldo-tab';
+import { PayrollHolidayNoticeCard } from './payroll-holiday-notice';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
@@ -523,6 +524,39 @@ export function PayrollPageClient(): React.ReactElement {
 				cell: ({ row }) => t(`runStatus.${row.original.status}`),
 			},
 			{
+				id: 'holidayNotices',
+				header: t('runHistory.table.holidayNotices'),
+				cell: ({ row }) => {
+					const notices = row.original.holidayNotices ?? [];
+					if (!notices || notices.length === 0) {
+						return (
+							<span className="text-xs text-muted-foreground">
+								{t('runHistory.table.noHolidayNotices')}
+							</span>
+						);
+					}
+
+					return (
+						<Dialog>
+							<DialogTrigger asChild>
+								<Button variant="outline" size="sm">
+									{t('runHistory.table.holidayNoticesCount', {
+										count: notices.length,
+									})}
+								</Button>
+							</DialogTrigger>
+							<DialogContent className="sm:max-w-2xl">
+								<DialogHeader>
+									<DialogTitle>{t('holidayNotice.title')}</DialogTitle>
+								</DialogHeader>
+								<PayrollHolidayNoticeCard notices={notices} compact />
+							</DialogContent>
+						</Dialog>
+					);
+				},
+				enableGlobalFilter: false,
+			},
+			{
 				accessorKey: 'totalAmount',
 				header: t('runHistory.table.total'),
 				cell: ({ row }) => formatCurrency(Number(row.original.totalAmount ?? 0)),
@@ -869,6 +903,7 @@ export function PayrollPageClient(): React.ReactElement {
 									</Button>
 								</div>
 							</div>
+							<PayrollHolidayNoticeCard notices={effectiveCalculation.holidayNotices} />
 							<div className="rounded-md border">
 								<Table>
 									<TableHeader>
@@ -887,6 +922,7 @@ export function PayrollPageClient(): React.ReactElement {
 											<TableHead>
 												{t('preview.table.mandatoryRest')}
 											</TableHead>
+											<TableHead>{t('preview.table.holidayImpact')}</TableHead>
 											<TableHead>{t('preview.table.vacationPay')}</TableHead>
 											<TableHead>
 												{t('preview.table.vacationPremium')}
@@ -924,6 +960,20 @@ export function PayrollPageClient(): React.ReactElement {
 																row.mandatoryRestDayPremiumAmount,
 															)
 														: '-'}
+												</TableCell>
+												<TableCell>
+													{row.holidayImpact &&
+													row.holidayImpact.affectedHolidayDateKeys
+														.length > 0 ? (
+														<Badge variant="outline">
+															{t('holidayNotice.employeeBadge', {
+																count: row.holidayImpact
+																	.affectedHolidayDateKeys.length,
+															})}
+														</Badge>
+													) : (
+														<span className="text-muted-foreground">-</span>
+													)}
 												</TableCell>
 												<TableCell>
 													{row.vacationPayAmount > 0

@@ -40,6 +40,7 @@ describe('payroll routes (contract)', () => {
 			throw new Error('Expected payroll calculation payload.');
 		}
 		expect(calculation.employees).toBeDefined();
+		expect(Array.isArray(calculation.holidayNotices ?? [])).toBe(true);
 	});
 
 	it('processes payroll runs', async () => {
@@ -64,6 +65,10 @@ describe('payroll routes (contract)', () => {
 			throw new Error('Expected payroll run in process response.');
 		}
 		expect(run.organizationId).toBeDefined();
+		expect(
+			Array.isArray((result as { calculation?: { holidayNotices?: unknown[] } }).calculation?.holidayNotices ?? []),
+		).toBe(true);
+		expect(Array.isArray((run as { holidayNotices?: unknown[] }).holidayNotices ?? [])).toBe(true);
 	});
 
 	it('lists payroll runs', async () => {

@@ -5,17 +5,23 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import rawMessages from '@/messages/es.json';
+import { OrgProvider } from '@/lib/org-client-context';
 import { PayrollSettingsClient } from './payroll-settings-client';
 
 const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
 
 const mockFetchPayrollSettings = vi.fn();
+const mockFetchPayrollHolidays = vi.fn();
+const mockFetchPayrollHolidaySyncStatus = vi.fn();
 
 vi.mock('@/lib/client-functions', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@/lib/client-functions')>();
 	return {
 		...actual,
 		fetchPayrollSettings: (...args: unknown[]) => mockFetchPayrollSettings(...args),
+		fetchPayrollHolidays: (...args: unknown[]) => mockFetchPayrollHolidays(...args),
+		fetchPayrollHolidaySyncStatus: (...args: unknown[]) =>
+			mockFetchPayrollHolidaySyncStatus(...args),
 	};
 });
 
@@ -43,9 +49,17 @@ function renderWithProviders(): ReturnType<typeof render> {
 
 	return render(
 		<QueryClientProvider client={queryClient}>
-			<NextIntlClientProvider locale="es" messages={messages}>
-				<PayrollSettingsClient />
-			</NextIntlClientProvider>
+			<OrgProvider
+				value={{
+					organizationId: 'org-1',
+					organizationName: 'Org Test',
+					organizationSlug: 'org-test',
+				}}
+			>
+				<NextIntlClientProvider locale="es" messages={messages}>
+					<PayrollSettingsClient />
+				</NextIntlClientProvider>
+			</OrgProvider>
 		</QueryClientProvider>,
 	);
 }
@@ -53,6 +67,8 @@ function renderWithProviders(): ReturnType<typeof render> {
 describe('PayrollSettingsClient', () => {
 	beforeEach(() => {
 		mockFetchPayrollSettings.mockReset();
+		mockFetchPayrollHolidays.mockReset();
+		mockFetchPayrollHolidaySyncStatus.mockReset();
 		mockFetchPayrollSettings.mockResolvedValue({
 			id: 'payroll-1',
 			organizationId: 'org-1',
@@ -77,6 +93,12 @@ describe('PayrollSettingsClient', () => {
 			createdAt: new Date('2026-01-01T00:00:00.000Z'),
 			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 		});
+		mockFetchPayrollHolidays.mockResolvedValue([]);
+		mockFetchPayrollHolidaySyncStatus.mockResolvedValue({
+			lastRun: null,
+			pendingApprovalCount: 0,
+			stale: false,
+		});
 	});
 
 	it('renders disciplinary module toggle in payroll settings form', async () => {
@@ -87,5 +109,6 @@ describe('PayrollSettingsClient', () => {
 				screen.getByText('disciplinary.fields.enableDisciplinaryMeasures'),
 			).toBeInTheDocument();
 		});
+		expect(screen.getByText('holidays.title')).toBeInTheDocument();
 	});
 });

@@ -10,6 +10,9 @@
 import type {
 	DisciplinaryMeasureStatus,
 	DisciplinaryOutcome,
+	HolidayKind,
+	HolidaySource,
+	HolidayStatus,
 	IncapacityStatus,
 	IncapacityType,
 } from '@sen-checkin/types';
@@ -109,6 +112,17 @@ export interface PayrollCalculateParams {
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	organizationId?: string;
 	[key: string]: unknown;
+}
+
+/**
+ * Query parameters for payroll holiday listing.
+ */
+export interface PayrollHolidayListQueryParams extends Record<string, unknown> {
+	organizationId?: string;
+	year?: number;
+	source?: HolidaySource;
+	status?: HolidayStatus;
+	kind?: HolidayKind;
 }
 
 /**
@@ -539,6 +553,12 @@ export const queryKeys = {
 		all: ['payrollSettings'] as const,
 		current: (organizationId?: string | null) =>
 			queryKeyConstructor(['payrollSettings', 'current'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
+		holidays: (params?: PayrollHolidayListQueryParams) =>
+			queryKeyConstructor(['payrollSettings', 'holidays'] as const, params),
+		holidaySyncStatus: (organizationId?: string | null) =>
+			queryKeyConstructor(['payrollSettings', 'holidaySyncStatus'] as const, {
 				organizationId: organizationId ?? undefined,
 			}),
 	},

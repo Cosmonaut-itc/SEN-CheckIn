@@ -61,6 +61,7 @@ export type PayrollCalculationRow = {
 	overtimeTripleHours: number;
 	sundayHoursWorked: number;
 	mandatoryRestDaysWorkedCount: number;
+	mandatoryRestDayDateKeys: string[];
 	normalPay: number;
 	overtimeDoublePay: number;
 	overtimeTriplePay: number;
@@ -819,6 +820,9 @@ export function calculatePayrollFromData(
 			overtimeTripleHours,
 			sundayHoursWorked,
 			mandatoryRestDaysWorkedCount,
+			mandatoryRestDayDateKeys: Array.from(mandatoryRestDayDateKeys).sort((a, b) =>
+				a.localeCompare(b),
+			),
 			normalPay,
 			overtimeDoublePay,
 			overtimeTriplePay,

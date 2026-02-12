@@ -487,6 +487,35 @@ export const overtimeEnforcement = pgEnum('overtime_enforcement', ['WARN', 'BLOC
 export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
 
 /**
+ * Enum for holiday source.
+ */
+export const holidaySource = pgEnum('holiday_source', ['INTERNAL', 'PROVIDER', 'CUSTOM']);
+
+/**
+ * Enum for holiday review status.
+ */
+export const holidayStatus = pgEnum('holiday_status', [
+	'PENDING_APPROVAL',
+	'APPROVED',
+	'REJECTED',
+	'DEACTIVATED',
+]);
+
+/**
+ * Enum for holiday kind.
+ */
+export const holidayKind = pgEnum('holiday_kind', ['MANDATORY', 'OPTIONAL']);
+
+/**
+ * Enum for holiday sync run status.
+ */
+export const holidaySyncRunStatus = pgEnum('holiday_sync_run_status', [
+	'RUNNING',
+	'COMPLETED',
+	'FAILED',
+]);
+
+/**
  * Enum for PTU run status.
  */
 export const ptuRunStatus = pgEnum('ptu_run_status', ['DRAFT', 'PROCESSED', 'CANCELLED']);
@@ -1735,6 +1764,127 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull(),
 });
 
+/**
+ * Holiday sync run table - tracks provider sync executions by organization/year.
+ */
+export const holidaySyncRun = pgTable(
+	'holiday_sync_run',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id').references(() => organization.id, {
+			onDelete: 'cascade',
+		}),
+		provider: text('provider').notNull().default('NAGER_DATE'),
+		requestedYears: jsonb('requested_years').$type<number[]>().default([]).notNull(),
+		status: holidaySyncRunStatus('status').default('RUNNING').notNull(),
+		startedAt: timestamp('started_at').defaultNow().notNull(),
+		finishedAt: timestamp('finished_at'),
+		importedCount: integer('imported_count').default(0).notNull(),
+		pendingCount: integer('pending_count').default(0).notNull(),
+		errorCount: integer('error_count').default(0).notNull(),
+		errorPayload: jsonb('error_payload').$type<Record<string, unknown> | null>(),
+		stale: boolean('stale').default(false).notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('holiday_sync_run_org_idx').on(table.organizationId),
+		index('holiday_sync_run_status_idx').on(table.status),
+	],
+);
+
+/**
+ * Holiday calendar entries per organization.
+ */
+export const holidayCalendarEntry = pgTable(
+	'holiday_calendar_entry',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		dateKey: text('date_key').notNull(),
+		name: text('name').notNull(),
+		kind: holidayKind('kind').default('MANDATORY').notNull(),
+		source: holidaySource('source').notNull(),
+		status: holidayStatus('status').default('PENDING_APPROVAL').notNull(),
+		isRecurring: boolean('is_recurring').default(false).notNull(),
+		seriesId: text('series_id'),
+		provider: text('provider'),
+		providerExternalId: text('provider_external_id'),
+		subdivisionCode: text('subdivision_code'),
+		legalReference: text('legal_reference'),
+		conflictReason: text('conflict_reason'),
+		active: boolean('active').default(true).notNull(),
+		entryKey: text('entry_key').default('').notNull(),
+		syncRunId: text('sync_run_id').references(() => holidaySyncRun.id, {
+			onDelete: 'set null',
+		}),
+		approvedBy: text('approved_by').references(() => user.id, { onDelete: 'set null' }),
+		approvedAt: timestamp('approved_at'),
+		rejectedBy: text('rejected_by').references(() => user.id, { onDelete: 'set null' }),
+		rejectedAt: timestamp('rejected_at'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('holiday_entry_org_date_idx').on(table.organizationId, table.dateKey),
+		index('holiday_entry_org_status_idx').on(table.organizationId, table.status),
+		index('holiday_entry_org_source_idx').on(table.organizationId, table.source),
+		index('holiday_entry_sync_run_idx').on(table.syncRunId),
+		uniqueIndex('holiday_entry_org_date_source_key_uniq').on(
+			table.organizationId,
+			table.dateKey,
+			table.source,
+			table.entryKey,
+		),
+	],
+);
+
+/**
+ * Holiday audit event table.
+ */
+export const holidayAuditEvent = pgTable(
+	'holiday_audit_event',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		holidayEntryId: text('holiday_entry_id').references(() => holidayCalendarEntry.id, {
+			onDelete: 'set null',
+		}),
+		syncRunId: text('sync_run_id').references(() => holidaySyncRun.id, {
+			onDelete: 'set null',
+		}),
+		actorType: text('actor_type').notNull(),
+		actorUserId: text('actor_user_id').references(() => user.id, { onDelete: 'set null' }),
+		action: text('action').notNull(),
+		reason: text('reason'),
+		before: jsonb('before').$type<Record<string, unknown> | null>(),
+		after: jsonb('after').$type<Record<string, unknown> | null>(),
+		metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+	},
+	(table) => [
+		index('holiday_audit_org_idx').on(table.organizationId),
+		index('holiday_audit_entry_idx').on(table.holidayEntryId),
+		index('holiday_audit_sync_idx').on(table.syncRunId),
+	],
+);
+
 // ============================================================================
 // Relations - Scheduling
 // ============================================================================
@@ -2136,6 +2286,8 @@ export const payrollRun = pgTable('payroll_run', {
 	employeeCount: integer('employee_count').default(0).notNull(),
 	/** Snapshot of fiscal totals for the run */
 	taxSummary: jsonb('tax_summary').$type<Record<string, unknown>>(),
+	/** Snapshot of holiday notices persisted at processing time */
+	holidayNotices: jsonb('holiday_notices').$type<Record<string, unknown>[]>().default([]),
 	processedAt: timestamp('processed_at'),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')

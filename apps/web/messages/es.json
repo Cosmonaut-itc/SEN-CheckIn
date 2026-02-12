@@ -1272,6 +1272,16 @@
     "warnings": {
       "blockingOvertime": "Se excedieron los límites de horas extra. Ajusta horarios o cambia la política a \"Advertir\"."
     },
+    "holidayNotice": {
+      "title": "Aviso de feriado",
+      "employeeBadge": "{count, plural, one {# feriado} other {# feriados}}",
+      "fields": {
+        "affectedEmployees": "Empleados afectados",
+        "estimatedPremium": "Prima estimada",
+        "dateCount": "Feriados en periodo",
+        "period": "Periodo: {start} - {end}"
+      }
+    },
     "preview": {
       "title": "Vista previa de nómina",
       "description": "Calculada a partir de asistencia dentro de las fechas seleccionadas.",
@@ -1294,6 +1304,7 @@
         "overtimeTriple": "Horas extra (x3)",
         "sundayPremium": "Prima dominical",
         "mandatoryRest": "Descanso obligatorio",
+        "holidayImpact": "Impacto feriado",
         "vacationPay": "Pago de vacaciones",
         "vacationPremium": "Prima vacacional",
         "vacationDays": "{count, plural, one {# día} other {# días}}",
@@ -1504,6 +1515,9 @@
         "period": "Periodo",
         "frequency": "Frecuencia",
         "status": "Estatus",
+        "holidayNotices": "Avisos de feriado",
+        "holidayNoticesCount": "{count, plural, one {# aviso} other {# avisos}}",
+        "noHolidayNotices": "Sin avisos",
         "total": "Total",
         "processed": "Procesado",
         "receipts": "Recibos"
@@ -1555,6 +1569,162 @@
       "label": "Días de descanso obligatorio extra",
       "placeholder": "YYYY-MM-DD",
       "description": "Uno por línea. Útil para jornada electoral (LFT Art. 74 fr. IX) y descansos locales."
+    },
+    "holidays": {
+      "title": "Feriados y descansos obligatorios",
+      "description": "Gestiona feriados internos, sugerencias del proveedor y días personalizados por organización.",
+      "actions": {
+        "syncNow": "Sincronizar ahora",
+        "importCsv": "Importar CSV",
+        "exportCsv": "Exportar CSV",
+        "newCustom": "Nuevo feriado custom",
+        "reviewPending": "Revisar pendientes",
+        "approvePending": "Aprobar pendientes",
+        "rejectPending": "Rechazar pendientes",
+        "clearDateFilter": "Limpiar filtro por fecha"
+      },
+      "syncStatus": {
+        "lastRun": "Último intento: {value}",
+        "pendingCount": "Pendientes: {count}",
+        "values": {
+          "never": "Sin sincronizaciones"
+        },
+        "badges": {
+          "stale": "Desactualizado",
+          "updated": "Actualizado"
+        }
+      },
+      "filters": {
+        "all": "Todos",
+        "source": "Origen",
+        "status": "Estado",
+        "kind": "Tipo",
+        "sourceValues": {
+          "INTERNAL": "Interno",
+          "PROVIDER": "Proveedor",
+          "CUSTOM": "Custom"
+        },
+        "statusValues": {
+          "PENDING_APPROVAL": "Pendiente",
+          "APPROVED": "Aprobado",
+          "REJECTED": "Rechazado",
+          "DEACTIVATED": "Desactivado"
+        },
+        "kindValues": {
+          "MANDATORY": "Obligatorio",
+          "OPTIONAL": "Opcional"
+        }
+      },
+      "fields": {
+        "date": "Fecha",
+        "name": "Nombre",
+        "kind": "Tipo",
+        "recurrence": "Recurrencia",
+        "legalReference": "Referencia legal",
+        "active": "Estatus activo",
+        "reason": "Motivo"
+      },
+      "recurrence": {
+        "oneTime": "Solo una vez",
+        "annual": "Anual"
+      },
+      "active": {
+        "active": "Activo",
+        "inactive": "Inactivo"
+      },
+      "pending": {
+        "title": "{count, plural, one {# feriado pendiente por aprobación} other {# feriados pendientes por aprobación}}",
+        "description": "Las importaciones del proveedor requieren decisión explícita de owner/admin para impactar la nómina."
+      },
+      "conflicts": {
+        "title": "{count, plural, one {# conflicto detectado en importación} other {# conflictos detectados en importación}}",
+        "description": "Revisa conflicto, origen y decisión de cada corrida antes de aprobar pendientes para nómina.",
+        "entriesCount": "{count, plural, one {# registro en esta corrida} other {# registros en esta corrida}}",
+        "noRun": "Sin corrida",
+        "noReason": "Sin detalle de conflicto reportado.",
+        "decisionValues": {
+          "PENDING_APPROVAL": "Pendiente",
+          "APPROVED": "Aprobado",
+          "REJECTED": "Rechazado",
+          "DEACTIVATED": "Desactivado",
+          "MIXED": "Mixto"
+        },
+        "table": {
+          "headers": {
+            "run": "Corrida",
+            "source": "Origen",
+            "decision": "Decisión",
+            "reason": "Motivo de conflicto"
+          }
+        }
+      },
+      "calendar": {
+        "title": "Calendario anual",
+        "description": "Selecciona una fecha para filtrar la tabla por día específico.",
+        "legendMandatory": "Marcado sólido: feriado obligatorio.",
+        "legendOptional": "Marcado ámbar: feriado opcional.",
+        "legendPending": "Contorno ámbar: pendiente de aprobación."
+      },
+      "table": {
+        "title": "Listado de feriados",
+        "description": "{count, plural, one {# registro filtrado} other {# registros filtrados}}",
+        "loading": "Cargando feriados...",
+        "empty": "No hay feriados para los filtros seleccionados.",
+        "readOnly": "Solo lectura",
+        "headers": {
+          "date": "Fecha",
+          "name": "Nombre",
+          "kind": "Tipo",
+          "source": "Origen",
+          "status": "Estado",
+          "actions": "Acciones"
+        },
+        "actions": {
+          "edit": "Editar",
+          "deactivate": "Desactivar"
+        }
+      },
+      "createDialog": {
+        "title": "Registrar feriado custom",
+        "description": "Crea un feriado manual para esta organización.",
+        "submit": "Guardar feriado"
+      },
+      "editDialog": {
+        "title": "Editar feriado",
+        "description": "Actualiza datos o desactiva el feriado con motivo auditado.",
+        "submit": "Guardar cambios"
+      },
+      "decision": {
+        "approveTitle": "Aprobar importación de feriados",
+        "rejectTitle": "Rechazar importación de feriados",
+        "description": "Ingresa un motivo para dejar trazabilidad de la decisión administrativa."
+      },
+      "import": {
+        "summaryTitle": "Resultado de importación",
+        "summary": "{applied, plural, one {# fila aplicada} other {# filas aplicadas}} · {rejected, plural, one {# fila rechazada} other {# filas rechazadas}}",
+        "errorRow": "Línea {line}: {reason}"
+      },
+      "validation": {
+        "dateRequired": "La fecha es obligatoria.",
+        "nameRequired": "El nombre es obligatorio.",
+        "reasonRequired": "El motivo es obligatorio."
+      },
+      "toast": {
+        "syncSuccess": "Sincronización completada. Importados: {imported}. Pendientes: {pending}.",
+        "syncError": "No se pudo sincronizar el calendario de feriados.",
+        "createSuccess": "Feriado custom guardado correctamente.",
+        "createError": "No se pudo crear el feriado custom.",
+        "updateSuccess": "Feriado actualizado correctamente.",
+        "updateError": "No se pudo actualizar el feriado.",
+        "approveSuccess": "{count, plural, one {# feriado aprobado} other {# feriados aprobados}}.",
+        "approveError": "No se pudieron aprobar los feriados pendientes.",
+        "rejectSuccess": "{count, plural, one {# feriado rechazado} other {# feriados rechazados}}.",
+        "rejectError": "No se pudieron rechazar los feriados pendientes.",
+        "importSuccess": "Importación completada. Aplicadas: {applied}. Rechazadas: {rejected}.",
+        "importError": "No se pudo importar el archivo CSV.",
+        "exportSuccess": "Exportación generada con {count} registros.",
+        "exportError": "No se pudo exportar el CSV de feriados."
+      }
     },
     "taxSettings": {
       "title": "Configuración fiscal",

@@ -31,6 +31,12 @@ import {
 	type AttendanceRow,
 	type PayrollCalculationRow,
 } from '../services/payroll-calculation.js';
+import {
+	resolveAdditionalMandatoryRestDaysForPeriod,
+	resolvePayrollHolidayContext,
+	type PayrollEmployeeHolidayImpact,
+	type PayrollHolidayNotice,
+} from '../services/holidays.js';
 import type { IncapacityRecordInput } from '../services/incapacities.js';
 import {
 	buildEmployeeAuditSnapshot,
@@ -53,7 +59,9 @@ const calculatePayroll = async (args: {
 	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 }): Promise<{
-	employees: PayrollCalculationRow[];
+	employees: Array<
+		PayrollCalculationRow & { holidayImpact?: PayrollEmployeeHolidayImpact }
+	>;
 	totalAmount: number;
 	taxSummary: {
 		grossTotal: number;
@@ -67,6 +75,7 @@ const calculatePayroll = async (args: {
 	periodStartUtc: Date;
 	periodEndInclusiveUtc: Date;
 	periodEndExclusiveUtc: Date;
+	holidayNotices: PayrollHolidayNotice[];
 	payrollSettingsSnapshot: {
 		riskWorkRate: number;
 		statePayrollTaxRate: number;
@@ -86,7 +95,8 @@ const calculatePayroll = async (args: {
 		.limit(1);
 	const overtimeEnforcement = orgSettings[0]?.overtimeEnforcement ?? 'WARN';
 	const weekStartDay = orgSettings[0]?.weekStartDay ?? 1;
-	const additionalMandatoryRestDays = orgSettings[0]?.additionalMandatoryRestDays ?? [];
+	const legacyAdditionalMandatoryRestDays =
+		orgSettings[0]?.additionalMandatoryRestDays ?? [];
 	const resolvedTimeZone = orgSettings[0]?.timeZone ?? 'America/Mexico_City';
 	const timeZone = isValidIanaTimeZone(resolvedTimeZone)
 		? resolvedTimeZone
@@ -105,6 +115,13 @@ const calculatePayroll = async (args: {
 		periodStartDateKey,
 		periodEndDateKey,
 		timeZone,
+	});
+
+	const additionalMandatoryRestDays = await resolveAdditionalMandatoryRestDaysForPeriod({
+		organizationId,
+		periodStartDateKey,
+		periodEndDateKey,
+		legacyAdditionalMandatoryRestDays,
 	});
 
 	const employees = await db
@@ -253,8 +270,28 @@ const calculatePayroll = async (args: {
 		incapacityRecordsByEmployee,
 	});
 
-	return {
+	const holidayContext = await resolvePayrollHolidayContext({
+		organizationId,
+		periodStartDateKey,
+		periodEndDateKey,
+		legacyAdditionalMandatoryRestDays,
 		employees: results,
+		additionalMandatoryRestDays,
+	});
+
+	const employeesWithHolidayImpact = results.map((employeeResult) => {
+		const holidayImpact = holidayContext.employeeHolidayImpactByEmployeeId[employeeResult.employeeId];
+		if (!holidayImpact) {
+			return employeeResult;
+		}
+		return {
+			...employeeResult,
+			holidayImpact,
+		};
+	});
+
+	return {
+		employees: employeesWithHolidayImpact,
 		totalAmount,
 		taxSummary,
 		overtimeEnforcement,
@@ -262,6 +299,7 @@ const calculatePayroll = async (args: {
 		periodStartUtc: periodBounds.periodStartUtc,
 		periodEndInclusiveUtc: periodBounds.periodEndInclusiveUtc,
 		periodEndExclusiveUtc: periodBounds.periodEndExclusiveUtc,
+		holidayNotices: holidayContext.holidayNotices,
 		payrollSettingsSnapshot,
 	};
 };
@@ -300,13 +338,19 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
-			const { employees, totalAmount, overtimeEnforcement, timeZone, taxSummary } =
-				await calculatePayroll({
-					organizationId,
-					periodStartDateKey: body.periodStartDateKey,
-					periodEndDateKey: body.periodEndDateKey,
-					paymentFrequency: body.paymentFrequency,
-				});
+			const {
+				employees,
+				totalAmount,
+				overtimeEnforcement,
+				timeZone,
+				taxSummary,
+				holidayNotices,
+			} = await calculatePayroll({
+				organizationId,
+				periodStartDateKey: body.periodStartDateKey,
+				periodEndDateKey: body.periodEndDateKey,
+				paymentFrequency: body.paymentFrequency,
+			});
 
 			return {
 				data: {
@@ -317,6 +361,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					periodEndDateKey: body.periodEndDateKey,
 					overtimeEnforcement,
 					timeZone,
+					holidayNotices,
 				},
 			};
 		},
@@ -391,6 +436,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						totals: calculation.taxSummary,
 						settings: calculation.payrollSettingsSnapshot,
 					},
+					holidayNotices:
+						calculation.holidayNotices as unknown as Record<string, unknown>[],
 					processedAt: new Date(),
 				});
 

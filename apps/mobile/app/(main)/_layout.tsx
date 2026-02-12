@@ -19,7 +19,7 @@ export default function MainLayout(): JSX.Element {
 	}
 
 	return (
-		<Stack screenOptions={{ headerTitleAlign: 'center' }}>
+		<Stack screenOptions={{ headerShown: false, headerTitleAlign: 'center' }}>
 			<Stack.Screen name="scanner" options={{ title: i18n.t('Scanner.title') }} />
 			<Stack.Screen name="settings" options={{ title: i18n.t('Settings.title') }} />
 		</Stack>

@@ -4,109 +4,93 @@
 
 @source '../../node_modules/heroui-native/lib';
 
-:root {
-	/* Base primitives */
-	--background: #f7f7f8;
-	--foreground: #11181c;
-	--foreground-500: #687076;
-	--foreground-400: #9ba1a6;
-	--muted: var(--foreground-500);
-	--surface: #ffffff;
-	--surface-foreground: var(--foreground);
-	--overlay: #ffffff;
-	--overlay-foreground: var(--foreground);
-	--default: #f4f4f5;
-	--default-foreground: var(--foreground);
-	--success: #16a34a;
-	--success-foreground: var(--foreground);
-	--warning: #f59e0b;
-	--warning-foreground: var(--foreground);
-	--danger: #dc2626;
-	--danger-foreground: #ffffff;
-	--accent: #2563eb;
-	--accent-foreground: #ffffff;
-	--field-background: var(--default);
-	--field-foreground: var(--foreground);
-	--field-placeholder: var(--foreground-400);
-	--field-border: var(--border);
-	--border: #e4e4e7;
-	--divider: #e4e4e7;
-	--link: var(--foreground);
-	--segment: var(--surface);
-	--segment-foreground: var(--foreground);
-	--focus: var(--accent);
-	--primary: var(--accent);
-	--primary-foreground: var(--accent-foreground);
+@layer theme {
+	@variant light {
+		--background: #f7f7f8;
+		--foreground: #11181c;
+		--foreground-500: #687076;
+		--foreground-400: #9ba1a6;
+		--muted: var(--foreground-500);
+		--surface: #ffffff;
+		--surface-foreground: var(--foreground);
+		--surface-secondary: #f1f5f9;
+		--surface-secondary-foreground: var(--foreground);
+		--surface-tertiary: #e8edf3;
+		--surface-tertiary-foreground: var(--foreground);
+		--surface-quaternary: #dfe5ed;
+		--overlay: #ffffff;
+		--overlay-foreground: var(--foreground);
+		--default: #f4f4f5;
+		--default-foreground: var(--foreground);
+		--success: #16a34a;
+		--success-foreground: var(--foreground);
+		--warning: #f59e0b;
+		--warning-foreground: var(--foreground);
+		--danger: #dc2626;
+		--danger-foreground: #ffffff;
+		--accent: #2563eb;
+		--accent-foreground: #ffffff;
+		--field-background: var(--default);
+		--field-foreground: var(--foreground);
+		--field-placeholder: var(--foreground-400);
+		--field-border: var(--border);
+		--border: #e4e4e7;
+		--separator: #e4e4e7;
+		--divider: var(--separator);
+		--link: var(--foreground);
+		--segment: var(--surface);
+		--segment-foreground: var(--foreground);
+		--focus: var(--accent);
+	}
 
-	/* Derived tokens consumed by HeroUI */
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
-	--color-foreground-500: var(--foreground-500);
-	--color-foreground-400: var(--foreground-400);
-	--color-content1: var(--default);
-	--color-content2: #e4e4e7;
-	--color-default-100: var(--default);
-	--color-default-200: #e4e4e7;
-	--color-accent: var(--accent);
-	--color-success: var(--success);
-	--color-warning: var(--warning);
-	--color-danger: var(--danger);
-	--color-surface: var(--surface);
-	--color-surface-secondary: #f1f5f9;
-	--color-surface-tertiary: #e8edf3;
-	--color-surface-quaternary: #dfe5ed;
-	--color-primary: var(--primary);
+	@variant dark {
+		--background: #0f1115;
+		--foreground: #ecedee;
+		--foreground-500: #9ba1a6;
+		--foreground-400: #71767a;
+		--muted: var(--foreground-500);
+		--surface: #1c1f23;
+		--surface-foreground: var(--foreground);
+		--surface-secondary: #24292e;
+		--surface-secondary-foreground: var(--foreground);
+		--surface-tertiary: #2e343a;
+		--surface-tertiary-foreground: var(--foreground);
+		--surface-quaternary: #383f46;
+		--overlay: #24292e;
+		--overlay-foreground: var(--foreground);
+		--default: #27272a;
+		--default-foreground: var(--foreground);
+		--success: #22c55e;
+		--success-foreground: #11181c;
+		--warning: #fbbf24;
+		--warning-foreground: #11181c;
+		--danger: #f87171;
+		--danger-foreground: #ffffff;
+		--accent: #60a5fa;
+		--accent-foreground: #ffffff;
+		--field-background: var(--default);
+		--field-foreground: var(--foreground);
+		--field-placeholder: var(--foreground-500);
+		--field-border: var(--border);
+		--border: #3f3f46;
+		--separator: #3f3f46;
+		--divider: var(--separator);
+		--link: var(--foreground);
+		--segment: var(--surface);
+		--segment-foreground: var(--foreground);
+		--focus: var(--accent);
+	}
 }
 
-.dark,
-[data-theme='dark'] {
-	--background: #0f1115;
-	--foreground: #ecedee;
-	--foreground-500: #9ba1a6;
-	--foreground-400: #71767a;
-	--muted: var(--foreground-500);
-	--surface: #1c1f23;
-	--surface-foreground: var(--foreground);
-	--overlay: #24292e;
-	--overlay-foreground: var(--foreground);
-	--default: #27272a;
-	--default-foreground: var(--foreground);
-	--success: #22c55e;
-	--success-foreground: #11181c;
-	--warning: #fbbf24;
-	--warning-foreground: #11181c;
-	--danger: #f87171;
-	--danger-foreground: #ffffff;
-	--accent: #60a5fa;
-	--accent-foreground: #ffffff;
-	--field-background: var(--default);
-	--field-foreground: var(--foreground);
-	--field-placeholder: var(--foreground-500);
-	--field-border: var(--border);
-	--border: #3f3f46;
-	--divider: #3f3f46;
-	--link: var(--foreground);
-	--segment: var(--surface);
-	--segment-foreground: var(--foreground);
-	--focus: var(--accent);
-	--primary: var(--accent);
-	--primary-foreground: var(--accent-foreground);
-
-	--color-background: var(--background);
-	--color-foreground: var(--foreground);
+@theme inline static {
+	/* Compatibility aliases for existing app classes */
+	--color-primary: var(--accent);
+	--color-primary-foreground: var(--accent-foreground);
 	--color-foreground-500: var(--foreground-500);
 	--color-foreground-400: var(--foreground-400);
 	--color-content1: var(--default);
-	--color-content2: #3f3f46;
+	--color-content2: var(--border);
 	--color-default-100: var(--default);
-	--color-default-200: #3f3f46;
-	--color-accent: var(--accent);
-	--color-success: var(--success);
-	--color-warning: var(--warning);
-	--color-danger: var(--danger);
-	--color-surface: var(--surface);
-	--color-surface-secondary: #24292e;
-	--color-surface-tertiary: #2e343a;
-	--color-surface-quaternary: #383f46;
-	--color-primary: var(--primary);
+	--color-default-200: var(--border);
+	--color-surface-quaternary: var(--surface-quaternary);
 }

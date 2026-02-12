@@ -1,5 +1,15 @@
 import { createFormHook, createFormHookContexts } from '@tanstack/react-form';
-import { Button, Select, Spinner, TextField, useThemeColor } from 'heroui-native';
+import {
+	Button,
+	Description,
+	FieldError,
+	Input,
+	Label,
+	Select,
+	Spinner,
+	TextField,
+	useThemeColor,
+} from 'heroui-native';
 import type { Context, JSX } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 import type { AnyFieldApi, AnyFormApi } from '@tanstack/form-core';
@@ -63,8 +73,8 @@ export function AppTextField({
 
 	return (
 		<TextField isDisabled={disabled} isInvalid={errors.length > 0} className="gap-1">
-			<TextField.Label>{label}</TextField.Label>
-			<TextField.Input
+			<Label>{label}</Label>
+			<Input
 				value={(field.state.value as string) ?? ''}
 				onBlur={field.handleBlur}
 				onChangeText={(text: string) => {
@@ -76,10 +86,8 @@ export function AppTextField({
 				className="px-4 py-3 rounded-xl text-foreground"
 				style={CONTINUOUS_CURVE}
 			/>
-			{description ? <TextField.Description>{description}</TextField.Description> : null}
-			{errors.length > 0 ? (
-				<TextField.ErrorMessage>{errors.join(', ')}</TextField.ErrorMessage>
-			) : null}
+			{description ? <Description>{description}</Description> : null}
+			<FieldError>{errors.join(', ')}</FieldError>
 		</TextField>
 	);
 }
@@ -125,6 +133,7 @@ export function SelectField<TValue extends string>({
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
 			<Select value={currentOption} onValueChange={handleValueChange} isDisabled={disabled}>
 				<Select.Trigger
+					variant="outline"
 					className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1 active:bg-content2"
 					style={CONTINUOUS_CURVE}
 				>

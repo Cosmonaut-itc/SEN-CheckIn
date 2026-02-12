@@ -63,8 +63,8 @@ export default function ScannerScreen(): JSX.Element {
 		[colorScheme],
 	);
 	const styles = useMemo(
-		() => createScannerStyles(themeColors, isDarkMode, insets.bottom),
-		[insets.bottom, isDarkMode, themeColors],
+		() => createScannerStyles(themeColors, isDarkMode, insets.top, insets.bottom),
+		[insets.bottom, insets.top, isDarkMode, themeColors],
 	);
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
 	const isIOS = process.env.EXPO_OS === 'ios';
@@ -343,7 +343,7 @@ export default function ScannerScreen(): JSX.Element {
 		return (
 			<ScrollView
 				style={styles.scroll}
-				contentInsetAdjustmentBehavior="automatic"
+				contentInsetAdjustmentBehavior="never"
 				contentContainerStyle={styles.scrollContent}
 				scrollEnabled={false}
 			>
@@ -362,7 +362,7 @@ export default function ScannerScreen(): JSX.Element {
 		return (
 			<ScrollView
 				style={styles.scroll}
-				contentInsetAdjustmentBehavior="automatic"
+				contentInsetAdjustmentBehavior="never"
 				contentContainerStyle={styles.scrollContent}
 				scrollEnabled={false}
 			>
@@ -396,7 +396,7 @@ export default function ScannerScreen(): JSX.Element {
 	return (
 		<ScrollView
 			style={styles.scroll}
-			contentInsetAdjustmentBehavior="automatic"
+			contentInsetAdjustmentBehavior="never"
 			contentContainerStyle={styles.scrollContent}
 			scrollEnabled={false}
 		>
@@ -650,6 +650,7 @@ type ScannerStyles = {
 const createScannerStyles = (
 	themeColors: ThemeColors,
 	isDarkMode: boolean,
+	topInset: number,
 	bottomInset: number,
 ): ScannerStyles => ({
 	scroll: {
@@ -713,7 +714,7 @@ const createScannerStyles = (
 		justifyContent: 'flex-start',
 		alignItems: 'center',
 		gap: 12,
-		paddingTop: 16,
+		paddingTop: Math.max(16, topInset + 8),
 		paddingHorizontal: 16,
 		paddingBottom: 12,
 		zIndex: 2,
@@ -842,7 +843,7 @@ const createScannerStyles = (
 		left: 0,
 		right: 0,
 		paddingHorizontal: 16,
-		paddingBottom: Math.max(16, bottomInset + 16),
+		paddingBottom: Math.max(28, bottomInset + 28),
 		zIndex: 2,
 	},
 });

@@ -529,58 +529,91 @@ export interface FaceEnrollmentEmployeesParams extends FaceEnrollmentEmployeeLis
 export async function fetchFaceEnrollmentEmployees(
 	params?: FaceEnrollmentEmployeesParams,
 ): Promise<PaginatedResponse<FaceEnrollmentEmployee>> {
-	const limit = Math.min(params?.limit ?? 200, 200);
+	const requestedLimit = Math.min(params?.limit ?? 200, 200);
+	const apiPageLimit = 100;
 
 	if (params?.organizationId === null) {
 		return {
 			data: [],
 			pagination: {
 				total: 0,
-				limit,
+				limit: requestedLimit,
 				offset: 0,
 			},
 		};
 	}
 
-	const query: {
-		limit: number;
-		offset: number;
-		status: 'ACTIVE';
-		organizationId?: string;
-	} = {
-		limit,
-		offset: 0,
-		status: 'ACTIVE',
-	};
+	const employees: FaceEnrollmentEmployee[] = [];
+	let offset = 0;
+	let total = 0;
+	let hasMore = true;
 
-	if (params?.organizationId) {
-		query.organizationId = params.organizationId;
+	while (employees.length < requestedLimit && hasMore) {
+		const query: {
+			limit: number;
+			offset: number;
+			status: 'ACTIVE';
+			organizationId?: string;
+		} = {
+			limit: Math.min(apiPageLimit, requestedLimit - employees.length),
+			offset,
+			status: 'ACTIVE',
+		};
+
+		if (params?.organizationId) {
+			query.organizationId = params.organizationId;
+		}
+
+		const response = await api.employees.get({ $query: query });
+
+		if (response.error) {
+			const message = (() => {
+				const payload = response.error?.value as { message?: unknown } | undefined;
+				return typeof payload?.message === 'string'
+					? payload.message
+					: 'Failed to load face enrollment employees';
+			})();
+			console.error('[fetchFaceEnrollmentEmployees] Eden Treaty error:', {
+				status: response.status,
+				error: response.error?.value ?? response.error,
+			});
+			throw new Error(message);
+		}
+
+		const payload = response.data as
+			| {
+					data?: unknown[];
+					pagination?: PaginatedResponse<FaceEnrollmentEmployee>['pagination'];
+			  }
+			| undefined;
+
+		const pageRecords = payload?.data ?? [];
+		const normalizedPage = pageRecords
+			.map((record) => normalizeFaceEnrollmentEmployee(record))
+			.filter((record): record is FaceEnrollmentEmployee => record !== null)
+			.filter((record) => record.status === 'ACTIVE');
+		employees.push(...normalizedPage);
+
+		const pagination = payload?.pagination;
+		total = pagination?.total ?? Math.max(total, employees.length);
+		const nextOffset = offset + pageRecords.length;
+		hasMore =
+			pagination?.hasMore ??
+			(Boolean(pagination) ? nextOffset < (pagination?.total ?? nextOffset) : false);
+
+		if (pageRecords.length === 0) {
+			hasMore = false;
+		}
+		offset = nextOffset;
 	}
 
-	const response = await api.employees.get({ $query: query });
-
-	if (response.error) {
-		console.error('[fetchFaceEnrollmentEmployees] Eden Treaty error:', response.error);
-		throw new Error('Failed to load face enrollment employees');
-	}
-
-	const payload = response.data as
-		| {
-				data?: unknown[];
-				pagination?: PaginatedResponse<FaceEnrollmentEmployee>['pagination'];
-		  }
-		| undefined;
-
-	const employees = (payload?.data ?? [])
-		.map((record) => normalizeFaceEnrollmentEmployee(record))
-		.filter((record): record is FaceEnrollmentEmployee => record !== null)
-		.filter((record) => record.status === 'ACTIVE');
+	const limitedEmployees = employees.slice(0, requestedLimit);
 
 	return {
-		data: employees,
-		pagination: payload?.pagination ?? {
-			total: employees.length,
-			limit,
+		data: limitedEmployees,
+		pagination: {
+			total: total > 0 ? total : limitedEmployees.length,
+			limit: requestedLimit,
 			offset: 0,
 		},
 	};

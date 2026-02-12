@@ -50,7 +50,7 @@ jest.mock('./api', () => {
 	};
 });
 
-import { fullEnrollmentFlow } from './client-functions';
+import { fetchFaceEnrollmentEmployees, fullEnrollmentFlow } from './client-functions';
 
 /**
  * Contract tests for mobile face enrollment flow helper.
@@ -171,5 +171,61 @@ describe('fullEnrollmentFlow', () => {
 		expect(mockEnrollFacePost).toHaveBeenCalledTimes(2);
 		expect(result.success).toBe(true);
 		expect(result.faceId).toBe('face-3');
+	});
+});
+
+describe('fetchFaceEnrollmentEmployees', () => {
+	beforeEach(() => {
+		mockEmployeesGet.mockReset();
+	});
+
+	it('paginates in batches of 100 until reaching the requested mobile limit', async () => {
+		const firstPage = Array.from({ length: 100 }, (_, index) => ({
+			id: `employee-${index + 1}`,
+			code: `EMP-${index + 1}`,
+			firstName: 'Empleado',
+			lastName: `${index + 1}`,
+			status: 'ACTIVE',
+			rekognitionUserId: null,
+		}));
+		const secondPage = Array.from({ length: 50 }, (_, index) => ({
+			id: `employee-${index + 101}`,
+			code: `EMP-${index + 101}`,
+			firstName: 'Empleado',
+			lastName: `${index + 101}`,
+			status: 'ACTIVE',
+			rekognitionUserId: null,
+		}));
+
+		mockEmployeesGet
+			.mockResolvedValueOnce({
+				status: 200,
+				error: null,
+				data: {
+					data: firstPage,
+					pagination: { total: 150, limit: 100, offset: 0, hasMore: true },
+				},
+			})
+			.mockResolvedValueOnce({
+				status: 200,
+				error: null,
+				data: {
+					data: secondPage,
+					pagination: { total: 150, limit: 100, offset: 100, hasMore: false },
+				},
+			});
+
+		const response = await fetchFaceEnrollmentEmployees({ limit: 200 });
+
+		expect(mockEmployeesGet).toHaveBeenCalledTimes(2);
+		expect(mockEmployeesGet).toHaveBeenNthCalledWith(1, {
+			$query: { limit: 100, offset: 0, status: 'ACTIVE' },
+		});
+		expect(mockEmployeesGet).toHaveBeenNthCalledWith(2, {
+			$query: { limit: 100, offset: 100, status: 'ACTIVE' },
+		});
+		expect(response.data).toHaveLength(150);
+		expect(response.pagination.total).toBe(150);
+		expect(response.pagination.limit).toBe(200);
 	});
 });

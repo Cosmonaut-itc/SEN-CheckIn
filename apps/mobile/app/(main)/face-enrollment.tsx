@@ -401,7 +401,14 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										})}
 									</Text>
 								) : null}
-								<View className="gap-2 max-h-72">
+								<ScrollView
+									className="max-h-72"
+									contentContainerClassName="gap-2"
+									contentInsetAdjustmentBehavior="never"
+									nestedScrollEnabled
+									keyboardShouldPersistTaps="handled"
+									showsVerticalScrollIndicator={false}
+								>
 									{filteredEmployees.length === 0 && !employeesQuery.isPending ? (
 										<Text className="text-foreground-500 text-sm" selectable>
 											{i18n.t('FaceEnrollment.employees.empty')}
@@ -452,7 +459,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 											</Button>
 										);
 									})}
-								</View>
+								</ScrollView>
 							</Card.Body>
 						</Card>
 

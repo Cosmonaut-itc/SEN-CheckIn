@@ -1,5 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 import { buildTestRegistrationPayload, registerTestAccounts, signIn } from './helpers/auth';
 
@@ -153,14 +154,32 @@ async function enableDisciplinaryModule(request: APIRequestContext): Promise<voi
 }
 
 /**
- * Ensures a published acta template exists by invoking template list endpoint.
+ * Configures required ACTA settings for disciplinary generation.
  *
  * @param request - Playwright API request context
+ * @param organizationName - Organization display name for ACTA company name fallback
  * @returns Nothing
  */
-async function ensureActaTemplate(request: APIRequestContext): Promise<void> {
-	const response = await request.get('/api/document-workflow/templates/ACTA_ADMINISTRATIVA');
-	expect(response.ok()).toBeTruthy();
+async function configureDisciplinaryActaSettings(
+	request: APIRequestContext,
+	organizationName: string,
+): Promise<void> {
+	const response = await request.post('/api/document-workflow/branding/confirm', {
+		data: {
+			displayName: organizationName,
+			actaState: 'Estado de México',
+			actaEmployerTreatment: 'Lic.',
+			actaEmployerName: 'Representante Patronal',
+			actaEmployerPosition: 'Gerencia de RRHH',
+			actaEmployeeTreatment: 'C.',
+		},
+	});
+	if (!response.ok()) {
+		const responseBody = await response.text();
+		throw new Error(
+			`Failed to configure disciplinary ACTA settings (${response.status()}): ${responseBody}`,
+		);
+	}
 }
 
 /**
@@ -313,7 +332,7 @@ test('admin habilita módulo, completa flujo de acta firmada física y ve histor
 	});
 
 	await enableDisciplinaryModule(request);
-	await ensureActaTemplate(request);
+	await configureDisciplinaryActaSettings(request, registration.organizationName);
 
 	const measure = await createDisciplinaryMeasure(request, employeeId);
 	const generation = await generateActa(request, measure.id);
@@ -389,4 +408,44 @@ test('admin habilita módulo, completa flujo de acta firmada física y ve histor
 	await expect(measureRow.getByText('Cerrada')).toBeVisible();
 	await measureRow.getByRole('button', { name: 'Ver detalle' }).click();
 	await expect(page.getByText('La medida está cerrada y no admite modificaciones.')).toBeVisible();
+});
+
+test('admin genera acta desde UI y descarga PDF', async ({ page }) => {
+	const registration = buildTestRegistrationPayload();
+	await registerTestAccounts(page, registration);
+	await signIn(page, registration.admin.email, registration.admin.password);
+
+	const request = page.request;
+	const locationId = await createLocation(request, registration.organizationName);
+	const jobPositionId = await createJobPosition(request);
+	const employeeId = await createEmployee(request, {
+		locationId,
+		jobPositionId,
+	});
+
+	await enableDisciplinaryModule(request);
+	await configureDisciplinaryActaSettings(request, registration.organizationName);
+
+	const measure = await createDisciplinaryMeasure(request, employeeId);
+
+	await page.goto('/disciplinary-measures');
+	const measureRow = page.getByRole('row', {
+		name: new RegExp(`#${measure.folio}\\b`),
+	});
+	await expect(measureRow).toBeVisible();
+	await measureRow.getByRole('button', { name: 'Ver detalle' }).click();
+	await expect(page.getByRole('button', { name: 'Generar acta' })).toBeVisible();
+
+	const [pdfDownload] = await Promise.all([
+		page.waitForEvent('download'),
+		page.getByRole('button', { name: 'Generar acta' }).click(),
+	]);
+
+	expect(pdfDownload.suggestedFilename()).toMatch(/\.pdf$/i);
+	const pdfPath = await pdfDownload.path();
+	if (!pdfPath) {
+		throw new Error('Expected PDF download path for disciplinary acta.');
+	}
+	const pdfBuffer = await readFile(pdfPath);
+	expect(pdfBuffer.subarray(0, 5).toString('utf8')).toBe('%PDF-');
 });

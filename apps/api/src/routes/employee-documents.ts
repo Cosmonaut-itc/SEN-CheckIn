@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { Elysia } from 'elysia';
+import { buildDefaultLegalTemplateHtml } from '@sen-checkin/types/legal-template-defaults';
 import { z } from 'zod';
 
 import db from '../db/index.js';
@@ -108,6 +109,8 @@ const DEFAULT_TEMPLATE_VARIABLES: Record<string, unknown> = {
 	},
 	document: {
 		generatedDate: 'string',
+		generatedDateLong: 'string',
+		generatedTimeLabel: 'string',
 	},
 	disciplinary: {
 		folio: 'string',
@@ -117,69 +120,15 @@ const DEFAULT_TEMPLATE_VARIABLES: Record<string, unknown> = {
 		policyReference: 'string|null',
 		suspensionRange: 'string|null',
 	},
+	acta: {
+		companyName: 'string',
+		state: 'string',
+		employerTreatment: 'string',
+		employerName: 'string',
+		employerPosition: 'string',
+		employeeTreatment: 'string',
+	},
 };
-
-/**
- * Builds baseline default HTML content for legal templates by kind.
- *
- * @param kind - Legal template kind
- * @returns Default HTML template
- */
-function buildDefaultLegalTemplateHtml(
-	kind: (typeof legalDocumentKind.enumValues)[number],
-): string {
-	if (kind === 'CONTRACT') {
-		return `
-<h1>Contrato Laboral</h1>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Puesto: {{employee.jobPositionName}}</p>
-<p>Ubicación: {{employee.locationName}}</p>
-<p>RFC: {{employee.rfc}}</p>
-<p>NSS: {{employee.nss}}</p>
-<p>Fecha de ingreso: {{employee.hireDate}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	if (kind === 'NDA') {
-		return `
-<h1>Convenio de Confidencialidad (NDA)</h1>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Puesto: {{employee.jobPositionName}}</p>
-<p>RFC: {{employee.rfc}}</p>
-<p>NSS: {{employee.nss}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	if (kind === 'ACTA_ADMINISTRATIVA') {
-		return `
-<h1>Acta Administrativa</h1>
-<p>Folio: {{disciplinary.folio}}</p>
-<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Motivo: {{disciplinary.reason}}</p>
-<p>Resultado: {{disciplinary.outcome}}</p>
-<p>Referencia de política: {{disciplinary.policyReference}}</p>
-<p>Suspensión: {{disciplinary.suspensionRange}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	return `
-<h1>Constancia de Negativa de Firma</h1>
-<p>Folio de medida: {{disciplinary.folio}}</p>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Motivo del acta: {{disciplinary.reason}}</p>
-<p>Resultado aplicado: {{disciplinary.outcome}}</p>
-<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-}
 
 /**
  * Sanitizes file names to prevent path traversal and unsafe key values.
@@ -2271,9 +2220,9 @@ export const employeeDocumentRoutes = new Elysia()
 				)
 				.orderBy(desc(organizationLegalTemplate.versionNumber));
 
-			if (
-				templates.length === 0 &&
-				(params.templateRef === 'ACTA_ADMINISTRATIVA' ||
+				if (
+					templates.length === 0 &&
+					(params.templateRef === 'ACTA_ADMINISTRATIVA' ||
 					params.templateRef === 'CONSTANCIA_NEGATIVA_FIRMA')
 			) {
 				const brandingRows = await db
@@ -2705,29 +2654,42 @@ export const employeeDocumentRoutes = new Elysia()
 				logoSha256 = body.sha256;
 			}
 
-			if (existing[0]) {
-				await db
-					.update(organizationLegalBranding)
-					.set({
-						displayName: body.displayName ?? existing[0].displayName,
-						headerText: body.headerText ?? existing[0].headerText,
-						logoBucket,
-						logoObjectKey,
-						logoFileName,
-						logoContentType,
+				if (existing[0]) {
+					await db
+						.update(organizationLegalBranding)
+						.set({
+							displayName: body.displayName ?? existing[0].displayName,
+							headerText: body.headerText ?? existing[0].headerText,
+							actaState: body.actaState ?? existing[0].actaState,
+							actaEmployerTreatment:
+								body.actaEmployerTreatment ?? existing[0].actaEmployerTreatment,
+							actaEmployerName: body.actaEmployerName ?? existing[0].actaEmployerName,
+							actaEmployerPosition:
+								body.actaEmployerPosition ?? existing[0].actaEmployerPosition,
+							actaEmployeeTreatment:
+								body.actaEmployeeTreatment ?? existing[0].actaEmployeeTreatment,
+							logoBucket,
+							logoObjectKey,
+							logoFileName,
+							logoContentType,
 						logoSizeBytes,
 						logoSha256,
 					})
 					.where(eq(organizationLegalBranding.organizationId, access.organizationId));
-			} else {
-				await db.insert(organizationLegalBranding).values({
-					organizationId: access.organizationId,
-					displayName: body.displayName ?? null,
-					headerText: body.headerText ?? null,
-					logoBucket,
-					logoObjectKey,
-					logoFileName,
-					logoContentType,
+				} else {
+					await db.insert(organizationLegalBranding).values({
+						organizationId: access.organizationId,
+						displayName: body.displayName ?? null,
+						headerText: body.headerText ?? null,
+						actaState: body.actaState ?? null,
+						actaEmployerTreatment: body.actaEmployerTreatment ?? null,
+						actaEmployerName: body.actaEmployerName ?? null,
+						actaEmployerPosition: body.actaEmployerPosition ?? null,
+						actaEmployeeTreatment: body.actaEmployeeTreatment ?? null,
+						logoBucket,
+						logoObjectKey,
+						logoFileName,
+						logoContentType,
 					logoSizeBytes,
 					logoSha256,
 				});

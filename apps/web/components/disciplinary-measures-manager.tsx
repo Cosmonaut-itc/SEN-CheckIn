@@ -2,7 +2,12 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
+import type {
+	ColumnDef,
+	ColumnFiltersState,
+	PaginationState,
+	SortingState,
+} from '@tanstack/react-table';
 import {
 	AlertTriangle,
 	CheckCircle2,
@@ -36,17 +41,12 @@ import {
 	presignDisciplinaryAttachmentAction,
 	presignDisciplinaryRefusalAction,
 	presignDisciplinarySignedActaAction,
+	type DisciplinaryMutationResult,
 } from '@/actions/disciplinary-measures';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
 	DialogContent,
@@ -77,6 +77,7 @@ import {
 	type Employee,
 } from '@/lib/client-functions';
 import { formatShortDateUtc } from '@/lib/date-format';
+import { buildGeneratedLegalPdfFromHtml } from '@/lib/legal-documents/build-generated-legal-pdf';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 
@@ -115,6 +116,10 @@ interface CreateMeasureFormState {
 	suspensionEndDateKey: string;
 }
 
+interface DisciplinaryGenerationPayload {
+	renderedHtml?: string;
+}
+
 /**
  * Creates the default create-measure form state.
  *
@@ -131,6 +136,87 @@ function createDefaultCreateFormState(employeeId?: string): CreateMeasureFormSta
 		suspensionStartDateKey: '',
 		suspensionEndDateKey: '',
 	};
+}
+
+/**
+ * Extracts generated HTML payload from disciplinary generation mutations.
+ *
+ * @param result - Mutation result payload
+ * @returns Parsed generation payload or null
+ */
+function extractDisciplinaryGenerationPayload(
+	result: DisciplinaryMutationResult<Record<string, unknown>>,
+): DisciplinaryGenerationPayload | null {
+	if (!result.success || !result.data) {
+		return null;
+	}
+
+	const data = result.data as { renderedHtml?: string };
+	return {
+		renderedHtml: typeof data.renderedHtml === 'string' ? data.renderedHtml : undefined,
+	};
+}
+
+/**
+ * Sanitizes text segments for downloadable file names.
+ *
+ * @param value - Raw file name segment
+ * @returns Sanitized segment
+ */
+function sanitizeDisciplinaryFileNameSegment(value: string): string {
+	const normalized = value.trim().toLowerCase().replace(/\s+/g, '-');
+	const sanitized = normalized.replace(/[^a-z0-9-]/g, '');
+	return sanitized.length > 0 ? sanitized : 'documento';
+}
+
+/**
+ * Builds generated disciplinary document file name.
+ *
+ * @param args - Kind and folio metadata
+ * @returns Download file name
+ */
+function buildDisciplinaryGeneratedFileName(args: {
+	kind: 'acta' | 'refusal';
+	folio: number;
+}): string {
+	const prefix = args.kind === 'acta' ? 'acta-administrativa' : 'constancia-negativa-firma';
+	const todayDateKey = new Date().toISOString().slice(0, 10);
+	const folioSegment = sanitizeDisciplinaryFileNameSegment(args.folio.toString());
+	return `${prefix}-${folioSegment}-${todayDateKey}.pdf`;
+}
+
+/**
+ * Triggers browser download for generated disciplinary PDF.
+ *
+ * @param args - Download payload
+ * @returns Nothing
+ */
+async function downloadDisciplinaryGeneratedPdf(args: {
+	html: string;
+	fileName: string;
+	title: string;
+}): Promise<void> {
+	const pdfBytes = await buildGeneratedLegalPdfFromHtml({
+		title: args.title,
+		html: args.html,
+	});
+	const normalizedPdfBytes = new Uint8Array(pdfBytes.length);
+	normalizedPdfBytes.set(pdfBytes);
+	const blob = new Blob([normalizedPdfBytes], { type: 'application/pdf' });
+	const objectUrl = URL.createObjectURL(blob);
+
+	try {
+		const anchor = document.createElement('a');
+		anchor.href = objectUrl;
+		anchor.download = args.fileName;
+		anchor.rel = 'noopener';
+		anchor.style.display = 'none';
+		document.body.append(anchor);
+		anchor.click();
+		anchor.remove();
+	} finally {
+		URL.revokeObjectURL(objectUrl);
+	}
 }
 
 /**
@@ -269,6 +355,7 @@ export function DisciplinaryMeasuresManager({
 		pageSize: embedded ? 10 : 20,
 	});
 	const [isCreateOpen, setIsCreateOpen] = useState<boolean>(false);
+	const [isDetailOpen, setIsDetailOpen] = useState<boolean>(false);
 	const [selectedMeasureId, setSelectedMeasureId] = useState<string | null>(null);
 	const [createForm, setCreateForm] = useState<CreateMeasureFormState>(
 		createDefaultCreateFormState(employeeId),
@@ -276,9 +363,8 @@ export function DisciplinaryMeasuresManager({
 	const [signedActaFile, setSignedActaFile] = useState<File | null>(null);
 	const [signedRefusalFile, setSignedRefusalFile] = useState<File | null>(null);
 	const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-	const [closeSignatureStatus, setCloseSignatureStatus] = useState<DisciplinarySignatureStatus>(
-		'signed_physical',
-	);
+	const [closeSignatureStatus, setCloseSignatureStatus] =
+		useState<DisciplinarySignatureStatus>('signed_physical');
 	const [closeNotes, setCloseNotes] = useState<string>('');
 
 	const measuresQueryParams = useMemo(
@@ -676,14 +762,39 @@ export function DisciplinaryMeasuresManager({
 			toast.error(t('toast.selectMeasureFirst'));
 			return;
 		}
-		const result = await generateActaMutation.mutateAsync({ id: selectedMeasure.id });
-		if (!result.success) {
-			toast.error(result.error ?? t('toast.generateActaError'));
-			return;
-		}
+		try {
+			const result = await generateActaMutation.mutateAsync({ id: selectedMeasure.id });
+			if (!result.success) {
+				if (result.errorCode === 'DISCIPLINARY_ACTA_SETTINGS_INCOMPLETE') {
+					toast.error(t('toast.validation.actaSettingsRequired'));
+					return;
+				}
+				toast.error(result.error ?? t('toast.generateActaError'));
+				return;
+			}
 
-		toast.success(t('toast.generateActaSuccess'));
-		await invalidateDisciplinaryQueries();
+			await invalidateDisciplinaryQueries();
+
+			const payload = extractDisciplinaryGenerationPayload(result);
+			if (!payload?.renderedHtml) {
+				toast.error(t('toast.generateActaError'));
+				return;
+			}
+
+			await downloadDisciplinaryGeneratedPdf({
+				html: payload.renderedHtml,
+				fileName: buildDisciplinaryGeneratedFileName({
+					kind: 'acta',
+					folio: selectedMeasure.folio,
+				}),
+				title: t('documentKinds.ACTA_ADMINISTRATIVA'),
+			});
+
+			toast.success(t('toast.generateActaSuccess'));
+		} catch (error) {
+			console.error('Failed to generate or download disciplinary acta:', error);
+			toast.error(t('toast.generateActaError'));
+		}
 	}, [generateActaMutation, invalidateDisciplinaryQueries, selectedMeasure, t]);
 
 	/**
@@ -696,14 +807,35 @@ export function DisciplinaryMeasuresManager({
 			toast.error(t('toast.selectMeasureFirst'));
 			return;
 		}
-		const result = await generateRefusalMutation.mutateAsync({ id: selectedMeasure.id });
-		if (!result.success) {
-			toast.error(result.error ?? t('toast.generateRefusalError'));
-			return;
-		}
+		try {
+			const result = await generateRefusalMutation.mutateAsync({ id: selectedMeasure.id });
+			if (!result.success) {
+				toast.error(result.error ?? t('toast.generateRefusalError'));
+				return;
+			}
 
-		toast.success(t('toast.generateRefusalSuccess'));
-		await invalidateDisciplinaryQueries();
+			await invalidateDisciplinaryQueries();
+
+			const payload = extractDisciplinaryGenerationPayload(result);
+			if (!payload?.renderedHtml) {
+				toast.error(t('toast.generateRefusalError'));
+				return;
+			}
+
+			await downloadDisciplinaryGeneratedPdf({
+				html: payload.renderedHtml,
+				fileName: buildDisciplinaryGeneratedFileName({
+					kind: 'refusal',
+					folio: selectedMeasure.folio,
+				}),
+				title: t('documentKinds.CONSTANCIA_NEGATIVA_FIRMA'),
+			});
+
+			toast.success(t('toast.generateRefusalSuccess'));
+		} catch (error) {
+			console.error('Failed to generate or download refusal certificate:', error);
+			toast.error(t('toast.generateRefusalError'));
+		}
 	}, [generateRefusalMutation, invalidateDisciplinaryQueries, selectedMeasure, t]);
 
 	/**
@@ -729,10 +861,47 @@ export function DisciplinaryMeasuresManager({
 		toast.success(t('toast.closeSuccess'));
 		setCloseNotes('');
 		await invalidateDisciplinaryQueries();
-	}, [closeMutation, closeNotes, closeSignatureStatus, invalidateDisciplinaryQueries, selectedMeasure, t]);
+	}, [
+		closeMutation,
+		closeNotes,
+		closeSignatureStatus,
+		invalidateDisciplinaryQueries,
+		selectedMeasure,
+		t,
+	]);
+
+	/**
+	 * Opens the detail dialog for a disciplinary measure row.
+	 *
+	 * @param measureId - Selected measure identifier
+	 * @returns Nothing
+	 */
+	const handleOpenDetail = useCallback((measureId: string): void => {
+		setSelectedMeasureId(measureId);
+		setIsDetailOpen(true);
+	}, []);
+
+	/**
+	 * Handles detail dialog visibility changes and clears transient detail form state.
+	 *
+	 * @param open - Whether the detail dialog should remain open
+	 * @returns Nothing
+	 */
+	const handleDetailDialogOpenChange = useCallback((open: boolean): void => {
+		setIsDetailOpen(open);
+		if (!open) {
+			setSelectedMeasureId(null);
+			setSignedActaFile(null);
+			setSignedRefusalFile(null);
+			setAttachmentFile(null);
+			setCloseSignatureStatus('signed_physical');
+			setCloseNotes('');
+		}
+	}, []);
 
 	const totalRows = measuresResponse?.pagination.total ?? 0;
-	const selectedMeasureDetail = (selectedMeasure ?? null) as DisciplinaryMeasureDetailRecord | null;
+	const selectedMeasureDetail = (selectedMeasure ??
+		null) as DisciplinaryMeasureDetailRecord | null;
 
 	const columns = useMemo<ColumnDef<DisciplinaryMeasureRecord>[]>(
 		() => [
@@ -750,7 +919,9 @@ export function DisciplinaryMeasuresManager({
 							{`${row.original.employeeFirstName ?? ''} ${row.original.employeeLastName ?? ''}`.trim() ||
 								tCommon('notAvailable')}
 						</span>
-						<span className="text-xs text-muted-foreground">{row.original.employeeCode ?? '—'}</span>
+						<span className="text-xs text-muted-foreground">
+							{row.original.employeeCode ?? '—'}
+						</span>
 					</div>
 				),
 			},
@@ -781,7 +952,9 @@ export function DisciplinaryMeasuresManager({
 				id: 'reason',
 				header: t('table.headers.reason'),
 				cell: ({ row }) => (
-					<span className="line-clamp-2 max-w-[360px] text-sm">{row.original.reason}</span>
+					<span className="line-clamp-2 max-w-[360px] text-sm">
+						{row.original.reason}
+					</span>
 				),
 			},
 			{
@@ -791,14 +964,14 @@ export function DisciplinaryMeasuresManager({
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={() => setSelectedMeasureId(row.original.id)}
+						onClick={() => handleOpenDetail(row.original.id)}
 					>
 						{t('actions.viewDetail')}
 					</Button>
 				),
 			},
 		],
-		[t, tCommon],
+		[handleOpenDetail, t, tCommon],
 	);
 
 	if (!canManage) {
@@ -819,8 +992,12 @@ export function DisciplinaryMeasuresManager({
 					<Card className="border-amber-300/40 bg-gradient-to-br from-amber-50 to-white dark:border-amber-900/40 dark:from-amber-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
-								<p className="text-xs text-muted-foreground">{t('kpis.employeesWithMeasures')}</p>
-								<p className="text-2xl font-semibold">{kpis?.employeesWithMeasures ?? 0}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('kpis.employeesWithMeasures')}
+								</p>
+								<p className="text-2xl font-semibold">
+									{kpis?.employeesWithMeasures ?? 0}
+								</p>
 							</div>
 							<User className="h-4 w-4 text-amber-700 dark:text-amber-300" />
 						</CardContent>
@@ -828,8 +1005,12 @@ export function DisciplinaryMeasuresManager({
 					<Card className="border-orange-300/40 bg-gradient-to-br from-orange-50 to-white dark:border-orange-900/40 dark:from-orange-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
-								<p className="text-xs text-muted-foreground">{t('kpis.measuresInPeriod')}</p>
-								<p className="text-2xl font-semibold">{kpis?.measuresInPeriod ?? 0}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('kpis.measuresInPeriod')}
+								</p>
+								<p className="text-2xl font-semibold">
+									{kpis?.measuresInPeriod ?? 0}
+								</p>
 							</div>
 							<FileWarning className="h-4 w-4 text-orange-700 dark:text-orange-300" />
 						</CardContent>
@@ -837,8 +1018,12 @@ export function DisciplinaryMeasuresManager({
 					<Card className="border-rose-300/40 bg-gradient-to-br from-rose-50 to-white dark:border-rose-900/40 dark:from-rose-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
-								<p className="text-xs text-muted-foreground">{t('kpis.activeSuspensions')}</p>
-								<p className="text-2xl font-semibold">{kpis?.activeSuspensions ?? 0}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('kpis.activeSuspensions')}
+								</p>
+								<p className="text-2xl font-semibold">
+									{kpis?.activeSuspensions ?? 0}
+								</p>
 							</div>
 							<Clock3 className="h-4 w-4 text-rose-700 dark:text-rose-300" />
 						</CardContent>
@@ -846,8 +1031,12 @@ export function DisciplinaryMeasuresManager({
 					<Card className="border-red-300/40 bg-gradient-to-br from-red-50 to-white dark:border-red-900/40 dark:from-red-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
-								<p className="text-xs text-muted-foreground">{t('kpis.terminationEscalations')}</p>
-								<p className="text-2xl font-semibold">{kpis?.terminationEscalations ?? 0}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('kpis.terminationEscalations')}
+								</p>
+								<p className="text-2xl font-semibold">
+									{kpis?.terminationEscalations ?? 0}
+								</p>
 							</div>
 							<ShieldAlert className="h-4 w-4 text-red-700 dark:text-red-300" />
 						</CardContent>
@@ -855,7 +1044,9 @@ export function DisciplinaryMeasuresManager({
 					<Card className="border-yellow-300/40 bg-gradient-to-br from-yellow-50 to-white dark:border-yellow-900/40 dark:from-yellow-950/35 dark:to-card">
 						<CardContent className="flex items-center justify-between p-4">
 							<div>
-								<p className="text-xs text-muted-foreground">{t('kpis.openMeasures')}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('kpis.openMeasures')}
+								</p>
 								<p className="text-2xl font-semibold">{kpis?.openMeasures ?? 0}</p>
 							</div>
 							<AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
@@ -878,7 +1069,9 @@ export function DisciplinaryMeasuresManager({
 							<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
 								<DialogHeader>
 									<DialogTitle>{t('createDialog.title')}</DialogTitle>
-									<DialogDescription>{t('createDialog.description')}</DialogDescription>
+									<DialogDescription>
+										{t('createDialog.description')}
+									</DialogDescription>
 								</DialogHeader>
 								<div className="space-y-3">
 									<div className="space-y-1">
@@ -886,16 +1079,24 @@ export function DisciplinaryMeasuresManager({
 										<Select
 											value={createForm.employeeId}
 											onValueChange={(value) =>
-												setCreateForm((previous) => ({ ...previous, employeeId: value }))
+												setCreateForm((previous) => ({
+													...previous,
+													employeeId: value,
+												}))
 											}
 											disabled={Boolean(employeeId)}
 										>
 											<SelectTrigger>
-												<SelectValue placeholder={t('placeholders.employee')} />
+												<SelectValue
+													placeholder={t('placeholders.employee')}
+												/>
 											</SelectTrigger>
 											<SelectContent>
 												{employees.map((employeeOption) => (
-													<SelectItem key={employeeOption.id} value={employeeOption.id}>
+													<SelectItem
+														key={employeeOption.id}
+														value={employeeOption.id}
+													>
 														{`${employeeOption.firstName} ${employeeOption.lastName}`.trim()}
 													</SelectItem>
 												))}
@@ -932,7 +1133,10 @@ export function DisciplinaryMeasuresManager({
 												</SelectTrigger>
 												<SelectContent>
 													{OUTCOME_OPTIONS.map((outcomeValue) => (
-														<SelectItem key={outcomeValue} value={outcomeValue}>
+														<SelectItem
+															key={outcomeValue}
+															value={outcomeValue}
+														>
 															{t(`outcomes.${outcomeValue}`)}
 														</SelectItem>
 													))}
@@ -946,7 +1150,10 @@ export function DisciplinaryMeasuresManager({
 											rows={4}
 											value={createForm.reason}
 											onChange={(event) =>
-												setCreateForm((previous) => ({ ...previous, reason: event.target.value }))
+												setCreateForm((previous) => ({
+													...previous,
+													reason: event.target.value,
+												}))
 											}
 										/>
 									</div>
@@ -972,7 +1179,8 @@ export function DisciplinaryMeasuresManager({
 													onChange={(event) =>
 														setCreateForm((previous) => ({
 															...previous,
-															suspensionStartDateKey: event.target.value,
+															suspensionStartDateKey:
+																event.target.value,
 														}))
 													}
 												/>
@@ -985,7 +1193,8 @@ export function DisciplinaryMeasuresManager({
 													onChange={(event) =>
 														setCreateForm((previous) => ({
 															...previous,
-															suspensionEndDateKey: event.target.value,
+															suspensionEndDateKey:
+																event.target.value,
 														}))
 													}
 												/>
@@ -1003,7 +1212,10 @@ export function DisciplinaryMeasuresManager({
 									>
 										{tCommon('cancel')}
 									</Button>
-									<Button onClick={() => void handleCreateMeasure()} disabled={createMutation.isPending}>
+									<Button
+										onClick={() => void handleCreateMeasure()}
+										disabled={createMutation.isPending}
+									>
 										{createMutation.isPending ? (
 											<>
 												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1038,16 +1250,24 @@ export function DisciplinaryMeasuresManager({
 									value={employeeFilter || 'all'}
 									onValueChange={(value) => {
 										setEmployeeFilter(value === 'all' ? '' : value);
-										setPagination((previous) => ({ ...previous, pageIndex: 0 }));
+										setPagination((previous) => ({
+											...previous,
+											pageIndex: 0,
+										}));
 									}}
 								>
 									<SelectTrigger>
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="all">{t('filters.allEmployees')}</SelectItem>
+										<SelectItem value="all">
+											{t('filters.allEmployees')}
+										</SelectItem>
 										{employees.map((employeeOption) => (
-											<SelectItem key={employeeOption.id} value={employeeOption.id}>
+											<SelectItem
+												key={employeeOption.id}
+												value={employeeOption.id}
+											>
 												{`${employeeOption.firstName} ${employeeOption.lastName}`.trim()}
 											</SelectItem>
 										))}
@@ -1139,29 +1359,26 @@ export function DisciplinaryMeasuresManager({
 						rowCount={totalRows}
 						showToolbar={false}
 						isLoading={isMeasuresLoading}
-						emptyState={<p className="py-10 text-center text-sm text-muted-foreground">{t('table.empty')}</p>}
+						emptyState={
+							<p className="py-10 text-center text-sm text-muted-foreground">
+								{t('table.empty')}
+							</p>
+						}
 					/>
 				</CardContent>
 			</Card>
 
-			{selectedMeasureId ? (
-				<Card className="border-amber-300/30">
-					<CardHeader>
-						<div className="flex flex-wrap items-center justify-between gap-2">
-							<div>
-								<CardTitle>{t('detail.title')}</CardTitle>
-								<CardDescription>
-									{selectedMeasureDetail
-										? t('detail.subtitle', { folio: selectedMeasureDetail.folio })
-										: t('detail.loading')}
-								</CardDescription>
-							</div>
-							<Button variant="outline" onClick={() => setSelectedMeasureId(null)}>
-								{t('actions.closeDetail')}
-							</Button>
-						</div>
-					</CardHeader>
-					<CardContent className="space-y-4">
+			<Dialog open={isDetailOpen} onOpenChange={handleDetailDialogOpenChange}>
+				<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-w-5xl lg:max-w-6xl">
+					<DialogHeader>
+						<DialogTitle>{t('detail.title')}</DialogTitle>
+						<DialogDescription>
+							{selectedMeasureDetail
+								? t('detail.subtitle', { folio: selectedMeasureDetail.folio })
+								: t('detail.loading')}
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4">
 						{isDetailLoading ? (
 							<div className="flex items-center gap-2 text-sm text-muted-foreground">
 								<Loader2 className="h-4 w-4 animate-spin" />
@@ -1170,27 +1387,43 @@ export function DisciplinaryMeasuresManager({
 						) : null}
 						{selectedMeasureDetail ? (
 							<div className="space-y-4">
-								<div className="grid gap-3 rounded-lg border bg-muted/10 p-4 md:grid-cols-2 xl:grid-cols-4">
+								<div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2 xl:grid-cols-4">
 									<div>
-										<p className="text-xs text-muted-foreground">{t('detail.fields.employee')}</p>
+										<p className="text-xs text-muted-foreground">
+											{t('detail.fields.employee')}
+										</p>
 										<p className="text-sm font-medium">
 											{`${selectedMeasureDetail.employeeFirstName ?? ''} ${selectedMeasureDetail.employeeLastName ?? ''}`.trim()}
 										</p>
 									</div>
 									<div>
-										<p className="text-xs text-muted-foreground">{t('detail.fields.incidentDate')}</p>
-										<p className="text-sm font-medium">{selectedMeasureDetail.incidentDateKey}</p>
+										<p className="text-xs text-muted-foreground">
+											{t('detail.fields.incidentDate')}
+										</p>
+										<p className="text-sm font-medium">
+											{selectedMeasureDetail.incidentDateKey}
+										</p>
 									</div>
 									<div>
-										<p className="text-xs text-muted-foreground">{t('detail.fields.status')}</p>
-										<Badge variant={resolveStatusBadgeVariant(selectedMeasureDetail.status)}>
+										<p className="text-xs text-muted-foreground">
+											{t('detail.fields.status')}
+										</p>
+										<Badge
+											variant={resolveStatusBadgeVariant(
+												selectedMeasureDetail.status,
+											)}
+										>
 											{t(`status.${selectedMeasureDetail.status}`)}
 										</Badge>
 									</div>
 									<div>
-										<p className="text-xs text-muted-foreground">{t('detail.fields.outcome')}</p>
+										<p className="text-xs text-muted-foreground">
+											{t('detail.fields.outcome')}
+										</p>
 										<Badge
-											variant={resolveOutcomeBadgeVariant(selectedMeasureDetail.outcome)}
+											variant={resolveOutcomeBadgeVariant(
+												selectedMeasureDetail.outcome,
+											)}
 										>
 											{t(`outcomes.${selectedMeasureDetail.outcome}`)}
 										</Badge>
@@ -1198,8 +1431,10 @@ export function DisciplinaryMeasuresManager({
 								</div>
 
 								<div className="space-y-2">
-									<p className="text-sm font-semibold">{t('detail.fields.reason')}</p>
-									<p className="rounded-md border bg-background p-3 text-sm leading-relaxed">
+									<p className="text-sm font-semibold">
+										{t('detail.fields.reason')}
+									</p>
+									<p className="rounded-md border bg-card p-3 text-sm leading-relaxed">
 										{selectedMeasureDetail.reason}
 									</p>
 								</div>
@@ -1207,12 +1442,18 @@ export function DisciplinaryMeasuresManager({
 								<div className="grid gap-4 xl:grid-cols-2">
 									<Card>
 										<CardHeader className="pb-3">
-											<CardTitle className="text-base">{t('detail.documents.title')}</CardTitle>
-											<CardDescription>{t('detail.documents.description')}</CardDescription>
+											<CardTitle className="text-base">
+												{t('detail.documents.title')}
+											</CardTitle>
+											<CardDescription>
+												{t('detail.documents.description')}
+											</CardDescription>
 										</CardHeader>
 										<CardContent className="space-y-2">
 											{selectedMeasureDetail.documents.length === 0 ? (
-												<p className="text-sm text-muted-foreground">{t('detail.documents.empty')}</p>
+												<p className="text-sm text-muted-foreground">
+													{t('detail.documents.empty')}
+												</p>
 											) : (
 												selectedMeasureDetail.documents.map((document) => (
 													<div
@@ -1221,17 +1462,25 @@ export function DisciplinaryMeasuresManager({
 													>
 														<div>
 															<p className="text-sm font-medium">
-																{t(`documentKinds.${document.kind}`)} v{document.versionNumber}
+																{t(
+																	`documentKinds.${document.kind}`,
+																)}{' '}
+																v{document.versionNumber}
 															</p>
 															<p className="text-xs text-muted-foreground">
-																{formatShortDateUtc(document.uploadedAt)}
+																{formatShortDateUtc(
+																	document.uploadedAt,
+																)}
 															</p>
 														</div>
 														<Button
 															variant="outline"
 															size="sm"
 															onClick={() =>
-																void handleOpenDocument(selectedMeasureDetail.id, document.id)
+																void handleOpenDocument(
+																	selectedMeasureDetail.id,
+																	document.id,
+																)
 															}
 														>
 															{t('actions.viewDocument')}
@@ -1244,45 +1493,68 @@ export function DisciplinaryMeasuresManager({
 
 									<Card>
 										<CardHeader className="pb-3">
-											<CardTitle className="text-base">{t('detail.attachments.title')}</CardTitle>
-											<CardDescription>{t('detail.attachments.description')}</CardDescription>
+											<CardTitle className="text-base">
+												{t('detail.attachments.title')}
+											</CardTitle>
+											<CardDescription>
+												{t('detail.attachments.description')}
+											</CardDescription>
 										</CardHeader>
 										<CardContent className="space-y-2">
 											{selectedMeasureDetail.attachments.length === 0 ? (
-												<p className="text-sm text-muted-foreground">{t('detail.attachments.empty')}</p>
+												<p className="text-sm text-muted-foreground">
+													{t('detail.attachments.empty')}
+												</p>
 											) : (
-												selectedMeasureDetail.attachments.map((attachment) => (
-													<div
-														key={attachment.id}
-														className="flex items-center justify-between rounded-md border p-2"
-													>
-														<div>
-															<p className="text-sm font-medium">{attachment.fileName}</p>
-															<p className="text-xs text-muted-foreground">
-																{formatShortDateUtc(attachment.uploadedAt)}
-															</p>
-														</div>
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() => void handleDeleteAttachment(attachment.id)}
-															disabled={selectedMeasureDetail.status === 'CLOSED'}
+												selectedMeasureDetail.attachments.map(
+													(attachment) => (
+														<div
+															key={attachment.id}
+															className="flex items-center justify-between rounded-md border p-2"
 														>
-															{t('actions.deleteAttachment')}
-														</Button>
-													</div>
-												))
+															<div>
+																<p className="text-sm font-medium">
+																	{attachment.fileName}
+																</p>
+																<p className="text-xs text-muted-foreground">
+																	{formatShortDateUtc(
+																		attachment.uploadedAt,
+																	)}
+																</p>
+															</div>
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() =>
+																	void handleDeleteAttachment(
+																		attachment.id,
+																	)
+																}
+																disabled={
+																	selectedMeasureDetail.status ===
+																	'CLOSED'
+																}
+															>
+																{t('actions.deleteAttachment')}
+															</Button>
+														</div>
+													),
+												)
 											)}
 										</CardContent>
 									</Card>
 								</div>
 
 								{selectedMeasureDetail.status !== 'CLOSED' ? (
-									<div className="space-y-4 rounded-lg border border-amber-300/40 bg-gradient-to-br from-amber-100/55 via-amber-50/15 to-background p-4 dark:border-amber-900/40 dark:from-amber-900/20 dark:via-amber-950/10 dark:to-background">
-										<h3 className="text-sm font-semibold">{t('detail.actions.title')}</h3>
+									<div className="space-y-4 rounded-lg border bg-card p-4">
+										<h3 className="text-sm font-semibold">
+											{t('detail.actions.title')}
+										</h3>
 										<div className="grid gap-3 xl:grid-cols-2">
-											<div className="space-y-2 rounded-md border bg-background p-3">
-												<p className="text-sm font-medium">{t('actions.generateActa')}</p>
+											<div className="space-y-2 rounded-md border bg-card p-3">
+												<p className="text-sm font-medium">
+													{t('actions.generateActa')}
+												</p>
 												<Button
 													onClick={() => void handleGenerateActa()}
 													disabled={generateActaMutation.isPending}
@@ -1298,23 +1570,31 @@ export function DisciplinaryMeasuresManager({
 												</Button>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-background p-3">
-												<p className="text-sm font-medium">{t('actions.uploadSignedActa')}</p>
+											<div className="space-y-2 rounded-md border bg-card p-3">
+												<p className="text-sm font-medium">
+													{t('actions.uploadSignedActa')}
+												</p>
 												<Input
 													type="file"
 													accept=".pdf,image/jpeg,image/png"
 													onChange={(event) =>
-														setSignedActaFile(event.target.files?.[0] ?? null)
+														setSignedActaFile(
+															event.target.files?.[0] ?? null,
+														)
 													}
 												/>
-												<Button onClick={() => void handleUploadSignedActa()}>
+												<Button
+													onClick={() => void handleUploadSignedActa()}
+												>
 													<Upload className="mr-2 h-4 w-4" />
 													{t('actions.uploadSignedActa')}
 												</Button>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-background p-3">
-												<p className="text-sm font-medium">{t('actions.generateRefusal')}</p>
+											<div className="space-y-2 rounded-md border bg-card p-3">
+												<p className="text-sm font-medium">
+													{t('actions.generateRefusal')}
+												</p>
 												<Button
 													variant="secondary"
 													onClick={() => void handleGenerateRefusal()}
@@ -1331,65 +1611,97 @@ export function DisciplinaryMeasuresManager({
 												</Button>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-background p-3">
-												<p className="text-sm font-medium">{t('actions.uploadRefusal')}</p>
+											<div className="space-y-2 rounded-md border bg-card p-3">
+												<p className="text-sm font-medium">
+													{t('actions.uploadRefusal')}
+												</p>
 												<Input
 													type="file"
 													accept=".pdf,image/jpeg,image/png"
 													onChange={(event) =>
-														setSignedRefusalFile(event.target.files?.[0] ?? null)
+														setSignedRefusalFile(
+															event.target.files?.[0] ?? null,
+														)
 													}
 												/>
-												<Button variant="secondary" onClick={() => void handleUploadRefusal()}>
+												<Button
+													variant="secondary"
+													onClick={() => void handleUploadRefusal()}
+												>
 													<Upload className="mr-2 h-4 w-4" />
 													{t('actions.uploadRefusal')}
 												</Button>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-background p-3 xl:col-span-2">
-												<p className="text-sm font-medium">{t('actions.uploadAttachment')}</p>
+											<div className="space-y-2 rounded-md border bg-card p-3 xl:col-span-2">
+												<p className="text-sm font-medium">
+													{t('actions.uploadAttachment')}
+												</p>
 												<div className="flex flex-wrap items-center gap-2">
 													<Input
 														type="file"
 														accept=".pdf,image/jpeg,image/png"
 														onChange={(event) =>
-															setAttachmentFile(event.target.files?.[0] ?? null)
+															setAttachmentFile(
+																event.target.files?.[0] ?? null,
+															)
 														}
 													/>
-													<Button variant="outline" onClick={() => void handleUploadAttachment()}>
+													<Button
+														variant="outline"
+														onClick={() =>
+															void handleUploadAttachment()
+														}
+													>
 														<Paperclip className="mr-2 h-4 w-4" />
 														{t('actions.uploadAttachment')}
 													</Button>
 												</div>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-background p-3 xl:col-span-2">
-												<p className="text-sm font-medium">{t('actions.closeMeasure')}</p>
+											<div className="space-y-2 rounded-md border bg-card p-3 xl:col-span-2">
+												<p className="text-sm font-medium">
+													{t('actions.closeMeasure')}
+												</p>
 												<div className="grid gap-2 md:grid-cols-3">
 													<Select
 														value={closeSignatureStatus}
 														onValueChange={(value) =>
-															setCloseSignatureStatus(value as DisciplinarySignatureStatus)
+															setCloseSignatureStatus(
+																value as DisciplinarySignatureStatus,
+															)
 														}
 													>
 														<SelectTrigger>
 															<SelectValue />
 														</SelectTrigger>
 														<SelectContent>
-															{SIGNATURE_STATUS_OPTIONS.map((signatureStatus) => (
-																<SelectItem key={signatureStatus} value={signatureStatus}>
-																	{t(`signatureStatus.${signatureStatus}`)}
-																</SelectItem>
-															))}
+															{SIGNATURE_STATUS_OPTIONS.map(
+																(signatureStatus) => (
+																	<SelectItem
+																		key={signatureStatus}
+																		value={signatureStatus}
+																	>
+																		{t(
+																			`signatureStatus.${signatureStatus}`,
+																		)}
+																	</SelectItem>
+																),
+															)}
 														</SelectContent>
 													</Select>
 													<Textarea
 														value={closeNotes}
-														onChange={(event) => setCloseNotes(event.target.value)}
+														onChange={(event) =>
+															setCloseNotes(event.target.value)
+														}
 														rows={2}
 														placeholder={t('placeholders.closeNotes')}
 													/>
-													<Button onClick={() => void handleCloseMeasure()} disabled={closeMutation.isPending}>
+													<Button
+														onClick={() => void handleCloseMeasure()}
+														disabled={closeMutation.isPending}
+													>
 														{closeMutation.isPending ? (
 															<>
 																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1413,9 +1725,17 @@ export function DisciplinaryMeasuresManager({
 						) : (
 							<p className="text-sm text-muted-foreground">{t('detail.empty')}</p>
 						)}
-					</CardContent>
-				</Card>
-			) : null}
+					</div>
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => handleDetailDialogOpenChange(false)}
+						>
+							{t('actions.closeDetail')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			{embedded && !employeeId ? (
 				<div className="flex justify-end">

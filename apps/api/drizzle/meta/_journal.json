@@ -211,6 +211,48 @@
       "when": 1770671397609,
       "tag": "0029_plain_blue_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1771092000000,
+      "tag": "0030_acta_settings_v2",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1771092600000,
+      "tag": "0031_acta_admin_pdf_format",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1771093200000,
+      "tag": "0032_acta_admin_pdf_tuning",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1771093800000,
+      "tag": "0033_acta_admin_pdf_final_match",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1771094400000,
+      "tag": "0034_acta_admin_pdf_witness_position",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1771095000000,
+      "tag": "0035_acta_admin_pdf_fit_witnesses",
+      "breakpoints": true
     }
   ]
 }

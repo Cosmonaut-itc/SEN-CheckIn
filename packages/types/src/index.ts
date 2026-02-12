@@ -77,6 +77,11 @@ export interface RekognitionDeleteResult {
 	message: string;
 }
 
+export {
+	buildDefaultLegalTemplateHtml,
+	type DefaultLegalTemplateKind,
+} from './legal-template-defaults';
+
 /**
  * Matched user information from a face search operation.
  */
@@ -585,13 +590,11 @@ export interface TerminationDraft {
 	measureId: string;
 	/** Draft lifecycle status */
 	status: TerminationDraftStatus;
-	/** Optional suggested termination reason */
-	suggestedReason: string | null;
-	/** Optional suggested notes */
-	suggestedNotes: string | null;
-	/** Optional draft payload snapshot */
-	payload: Record<string, unknown> | null;
-	/** User that created or updated the draft */
+	/** Draft payload snapshot */
+	payload: Record<string, unknown>;
+	/** User that created the draft */
+	createdByUserId: string | null;
+	/** User that last updated the draft */
 	updatedByUserId: string | null;
 	/** Timestamp when draft was consumed */
 	consumedAt: Date | null;

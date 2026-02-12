@@ -1853,7 +1853,12 @@
         "fields": {
           "displayName": "Nombre para documentos legales",
           "logo": "Logo (opcional)",
-          "headerText": "Texto de encabezado legal"
+          "headerText": "Texto de encabezado legal",
+          "actaState": "Estado para acta administrativa",
+          "actaEmployerTreatment": "Tratamiento patronal",
+          "actaEmployerName": "Nombre patronal",
+          "actaEmployerPosition": "Cargo patronal",
+          "actaEmployeeTreatment": "Tratamiento del empleado"
         },
         "preview": "Vista previa del logo actual",
         "logoAlt": "Logo legal de la organización",
@@ -2053,7 +2058,8 @@
         "suspensionRangeRequired": "Para suspensión debes capturar inicio y fin.",
         "invalidFile": "Archivo inválido. Solo PDF/JPG/PNG de hasta 10 MB.",
         "actaGenerationRequired": "Primero genera el acta administrativa.",
-        "refusalGenerationRequired": "Primero genera la constancia de negativa."
+        "refusalGenerationRequired": "Primero genera la constancia de negativa.",
+        "actaSettingsRequired": "Completa la configuración del acta en Ajustes de nómina > Flujo documental > Branding legal."
       }
     }
   },

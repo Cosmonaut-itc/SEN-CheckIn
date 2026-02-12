@@ -193,13 +193,21 @@ export const disciplinaryMeasureUpdateSchema = z
 		incidentDateKey: dateKeySchema.optional(),
 		reason: z.string().trim().min(1).max(6000).optional(),
 		policyReference: z.string().trim().max(2000).nullable().optional(),
+		notes: z.string().trim().max(4000).nullable().optional(),
 		outcome: disciplinaryOutcomeEnum.optional(),
 		suspensionStartDateKey: dateKeySchema.nullable().optional(),
 		suspensionEndDateKey: dateKeySchema.nullable().optional(),
 	})
 	.superRefine((value, ctx) => {
+		if (value.outcome === undefined) {
+			return;
+		}
+
 		if (value.outcome !== 'suspension') {
-			if (value.suspensionStartDateKey || value.suspensionEndDateKey) {
+			if (
+				value.suspensionStartDateKey !== undefined ||
+				value.suspensionEndDateKey !== undefined
+			) {
 				ctx.addIssue({
 					code: z.ZodIssueCode.custom,
 					path: ['outcome'],

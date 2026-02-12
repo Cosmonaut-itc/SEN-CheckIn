@@ -122,6 +122,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 
 			const resolvedOvertimeEnforcement =
 				body.overtimeEnforcement ?? existing[0]?.overtimeEnforcement ?? 'WARN';
+			const resolvedWeekStartDay = body.weekStartDay ?? existing[0]?.weekStartDay ?? 1;
 			const resolvedAdditionalMandatoryRestDays =
 				body.additionalMandatoryRestDays ?? existing[0]?.additionalMandatoryRestDays ?? [];
 			const resolvedTimeZone =
@@ -162,7 +163,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 					: resolvedVacationPremiumRate;
 
 			const updatePayload = {
-				weekStartDay: body.weekStartDay,
+				weekStartDay: resolvedWeekStartDay,
 				timeZone: resolvedTimeZone,
 				overtimeEnforcement: resolvedOvertimeEnforcement,
 				additionalMandatoryRestDays: resolvedAdditionalMandatoryRestDays,

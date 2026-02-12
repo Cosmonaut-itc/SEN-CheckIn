@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { and, countDistinct, desc, eq, gte, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
+import { buildDefaultLegalTemplateHtml } from '@sen-checkin/types/legal-template-defaults';
 
 import db from '../db/index.js';
 import {
@@ -13,6 +14,8 @@ import {
 	jobPosition,
 	location,
 	member,
+	organization,
+	organizationLegalBranding,
 	organizationLegalTemplate,
 	payrollSetting,
 } from '../db/schema.js';
@@ -66,6 +69,71 @@ type DisciplinaryAccessContext = {
 	userId: string;
 	role: MemberRole;
 };
+
+const DISCIPLINARY_ACTA_SETTINGS_ERROR_CODE = 'DISCIPLINARY_ACTA_SETTINGS_INCOMPLETE';
+
+const REQUIRED_DISCIPLINARY_ACTA_SETTINGS = [
+	'actaState',
+	'actaEmployerTreatment',
+	'actaEmployerName',
+	'actaEmployerPosition',
+	'actaEmployeeTreatment',
+] as const;
+
+const DEFAULT_DISCIPLINARY_ACTA_TEMPLATE_VARIABLES: Record<string, unknown> = {
+	employee: {
+		fullName: 'string',
+		code: 'string',
+		rfc: 'string|null',
+		nss: 'string|null',
+		jobPositionName: 'string|null',
+		locationName: 'string|null',
+		hireDate: 'string|null',
+	},
+	document: {
+		generatedDate: 'string',
+		generatedDateLong: 'string',
+		generatedTimeLabel: 'string',
+	},
+	disciplinary: {
+		folio: 'string',
+		incidentDate: 'string',
+		reason: 'string',
+		outcome: 'string',
+		policyReference: 'string|null',
+		suspensionRange: 'string|null',
+	},
+	acta: {
+		companyName: 'string',
+		state: 'string',
+		employerTreatment: 'string',
+		employerName: 'string',
+		employerPosition: 'string',
+		employeeTreatment: 'string',
+	},
+};
+
+const ACTA_CLASSIC_LAYOUT_MARKER = 'data-layout="acta-classic-v1"';
+
+/**
+ * Returns true when the provided value is a non-empty string.
+ *
+ * @param value - Arbitrary input value
+ * @returns True when value is a non-empty string after trimming
+ */
+function isNonEmptyString(value: unknown): value is string {
+	return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * Determines if an ACTA template is the canonical classic layout format.
+ *
+ * @param htmlContent - Template HTML content
+ * @returns True when canonical marker is present
+ */
+function isCanonicalActaTemplateHtml(htmlContent: string): boolean {
+	return htmlContent.includes(ACTA_CLASSIC_LAYOUT_MARKER);
+}
 
 /**
  * Sanitizes a file name to avoid path traversal and unsupported characters.
@@ -194,6 +262,26 @@ function isBucketDependencyError(error: unknown): boolean {
 }
 
 /**
+ * Checks whether bucket lookup errors correspond to missing objects.
+ *
+ * @param error - Unknown error value
+ * @returns True when the bucket object was not found
+ */
+function isBucketObjectNotFoundError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+	const candidate = error as {
+		name?: string;
+		code?: string;
+		Code?: string;
+		$metadata?: { httpStatusCode?: number };
+	};
+	const code = candidate.code ?? candidate.Code ?? candidate.name;
+	return code === 'NotFound' || code === 'NoSuchKey' || candidate.$metadata?.httpStatusCode === 404;
+}
+
+/**
  * Resolves signed suspension range text for template variables.
  *
  * @param startDateKey - Suspension start date key
@@ -208,6 +296,28 @@ function buildSuspensionRangeLabel(
 		return null;
 	}
 	return `${startDateKey} al ${endDateKey}`;
+}
+
+/**
+ * Resolves Spanish label for disciplinary outcomes in legal templates.
+ *
+ * @param outcome - Outcome enum value
+ * @returns Human-readable outcome label
+ */
+function buildOutcomeLabel(
+	outcome: typeof employeeDisciplinaryMeasure.$inferSelect.outcome,
+): string {
+	switch (outcome) {
+		case 'warning':
+			return 'Amonestación';
+		case 'suspension':
+			return 'Suspensión';
+		case 'termination_process':
+			return 'Escalación a terminación';
+		case 'no_action':
+		default:
+			return 'Sin acción';
+	}
 }
 
 /**
@@ -257,7 +367,9 @@ async function resolveDisciplinaryAccessContext(
 	const membershipRows = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(and(eq(member.organizationId, organizationId), eq(member.userId, args.session.userId)))
+		.where(
+			and(eq(member.organizationId, organizationId), eq(member.userId, args.session.userId)),
+		)
 		.limit(1);
 
 	const role = membershipRows[0]?.role;
@@ -272,7 +384,8 @@ async function resolveDisciplinaryAccessContext(
 		.where(eq(payrollSetting.organizationId, organizationId))
 		.limit(1);
 
-	if (!settingsRows[0]?.enableDisciplinaryMeasures) {
+	const isDisciplinaryMeasuresEnabled = settingsRows[0]?.enableDisciplinaryMeasures ?? true;
+	if (!isDisciplinaryMeasuresEnabled) {
 		set.status = 403;
 		return null;
 	}
@@ -370,6 +483,33 @@ async function fetchTemplateById(args: {
 		.limit(1);
 
 	return rows[0] ?? null;
+}
+
+/**
+ * Computes the next template version number for a legal kind in an organization.
+ *
+ * @param args - Lookup arguments
+ * @returns Next version number
+ */
+async function getNextTemplateVersionNumber(args: {
+	organizationId: string;
+	kind: 'ACTA_ADMINISTRATIVA' | 'CONSTANCIA_NEGATIVA_FIRMA';
+}): Promise<number> {
+	const rows = await db
+		.select({
+			versionNumber: organizationLegalTemplate.versionNumber,
+		})
+		.from(organizationLegalTemplate)
+		.where(
+			and(
+				eq(organizationLegalTemplate.organizationId, args.organizationId),
+				eq(organizationLegalTemplate.kind, args.kind),
+			),
+		)
+		.orderBy(desc(organizationLegalTemplate.versionNumber))
+		.limit(1);
+
+	return (rows[0]?.versionNumber ?? 0) + 1;
 }
 
 /**
@@ -472,6 +612,14 @@ function buildDisciplinaryVariablesSnapshot(args: {
 		hireDate: Date | null;
 	};
 	measure: typeof employeeDisciplinaryMeasure.$inferSelect;
+	acta: {
+		companyName: string;
+		state: string;
+		employerTreatment: string;
+		employerName: string;
+		employerPosition: string;
+		employeeTreatment: string;
+	};
 }): Record<string, unknown> {
 	const baseSnapshot = buildDefaultLegalVariablesSnapshot(args.employeeRecord);
 	const suspensionRange = buildSuspensionRangeLabel(
@@ -485,10 +633,11 @@ function buildDisciplinaryVariablesSnapshot(args: {
 			folio: args.measure.folio,
 			incidentDate: args.measure.incidentDateKey,
 			reason: args.measure.reason,
-			outcome: args.measure.outcome,
+			outcome: buildOutcomeLabel(args.measure.outcome),
 			policyReference: args.measure.policyReference,
 			suspensionRange,
 		},
+		acta: args.acta,
 	};
 }
 
@@ -537,7 +686,9 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				conditions.push(eq(employeeDisciplinaryMeasure.outcome, query.outcome));
 			}
 			if (query.fromDateKey) {
-				conditions.push(gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey));
+				conditions.push(
+					gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey),
+				);
 			}
 			if (query.toDateKey) {
 				conditions.push(lte(employeeDisciplinaryMeasure.incidentDateKey, query.toDateKey));
@@ -545,7 +696,10 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			if (query.search) {
 				conditions.push(
 					or(
-						ilike(sql<string>`${employeeDisciplinaryMeasure.folio}::text`, `%${query.search}%`),
+						ilike(
+							sql<string>`${employeeDisciplinaryMeasure.folio}::text`,
+							`%${query.search}%`,
+						),
 						ilike(employee.firstName, `%${query.search}%`),
 						ilike(employee.lastName, `%${query.search}%`),
 						ilike(employee.code, `%${query.search}%`),
@@ -565,6 +719,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					incidentDateKey: employeeDisciplinaryMeasure.incidentDateKey,
 					reason: employeeDisciplinaryMeasure.reason,
 					policyReference: employeeDisciplinaryMeasure.policyReference,
+					notes: employeeDisciplinaryMeasure.notes,
 					outcome: employeeDisciplinaryMeasure.outcome,
 					suspensionStartDateKey: employeeDisciplinaryMeasure.suspensionStartDateKey,
 					suspensionEndDateKey: employeeDisciplinaryMeasure.suspensionEndDateKey,
@@ -638,58 +793,67 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				eq(employeeDisciplinaryMeasure.organizationId, access.organizationId),
 			];
 			if (query.fromDateKey) {
-				baseConditions.push(gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey));
+				baseConditions.push(
+					gte(employeeDisciplinaryMeasure.incidentDateKey, query.fromDateKey),
+				);
 			}
 			if (query.toDateKey) {
-				baseConditions.push(lte(employeeDisciplinaryMeasure.incidentDateKey, query.toDateKey));
+				baseConditions.push(
+					lte(employeeDisciplinaryMeasure.incidentDateKey, query.toDateKey),
+				);
 			}
 
 			const whereClause = and(...baseConditions)!;
-			const [employeesWithMeasures, totalMeasures, activeSuspensions, escalations, openMeasures] =
-				await Promise.all([
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.employeeId) })
-						.from(employeeDisciplinaryMeasure)
-						.where(whereClause),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(whereClause),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(
-							and(
-								whereClause,
-								eq(employeeDisciplinaryMeasure.outcome, 'suspension'),
-								or(
-									eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
-									eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
-								),
+			const [
+				employeesWithMeasures,
+				totalMeasures,
+				activeSuspensions,
+				escalations,
+				openMeasures,
+			] = await Promise.all([
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.employeeId) })
+					.from(employeeDisciplinaryMeasure)
+					.where(whereClause),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(whereClause),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							whereClause,
+							eq(employeeDisciplinaryMeasure.outcome, 'suspension'),
+							or(
+								eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
+								eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
 							),
 						),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(
-							and(
-								whereClause,
-								eq(employeeDisciplinaryMeasure.outcome, 'termination_process'),
+					),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							whereClause,
+							eq(employeeDisciplinaryMeasure.outcome, 'termination_process'),
+						),
+					),
+				db
+					.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
+					.from(employeeDisciplinaryMeasure)
+					.where(
+						and(
+							whereClause,
+							or(
+								eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
+								eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
 							),
 						),
-					db
-						.select({ count: countDistinct(employeeDisciplinaryMeasure.id) })
-						.from(employeeDisciplinaryMeasure)
-						.where(
-							and(
-								whereClause,
-								or(
-									eq(employeeDisciplinaryMeasure.status, 'DRAFT'),
-									eq(employeeDisciplinaryMeasure.status, 'GENERATED'),
-								),
-							),
-						),
-				]);
+					),
+			]);
 
 			return {
 				data: {
@@ -734,7 +898,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			const employeeRows = await db
 				.select({ id: employee.id })
 				.from(employee)
-				.where(and(eq(employee.id, body.employeeId), eq(employee.organizationId, access.organizationId)))
+				.where(
+					and(
+						eq(employee.id, body.employeeId),
+						eq(employee.organizationId, access.organizationId),
+					),
+				)
 				.limit(1);
 			if (!employeeRows[0]) {
 				set.status = 404;
@@ -765,7 +934,9 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					policyReference: body.policyReference?.trim() || null,
 					outcome: body.outcome,
 					suspensionStartDateKey:
-						body.outcome === 'suspension' ? (body.suspensionStartDateKey ?? null) : null,
+						body.outcome === 'suspension'
+							? (body.suspensionStartDateKey ?? null)
+							: null,
 					suspensionEndDateKey:
 						body.outcome === 'suspension' ? (body.suspensionEndDateKey ?? null) : null,
 					createdByUserId: access.userId,
@@ -837,11 +1008,13 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					incidentDateKey: employeeDisciplinaryMeasure.incidentDateKey,
 					reason: employeeDisciplinaryMeasure.reason,
 					policyReference: employeeDisciplinaryMeasure.policyReference,
+					notes: employeeDisciplinaryMeasure.notes,
 					outcome: employeeDisciplinaryMeasure.outcome,
 					suspensionStartDateKey: employeeDisciplinaryMeasure.suspensionStartDateKey,
 					suspensionEndDateKey: employeeDisciplinaryMeasure.suspensionEndDateKey,
 					signatureStatus: employeeDisciplinaryMeasure.signatureStatus,
-					generatedActaGenerationId: employeeDisciplinaryMeasure.generatedActaGenerationId,
+					generatedActaGenerationId:
+						employeeDisciplinaryMeasure.generatedActaGenerationId,
 					generatedRefusalGenerationId:
 						employeeDisciplinaryMeasure.generatedRefusalGenerationId,
 					closedAt: employeeDisciplinaryMeasure.closedAt,
@@ -940,6 +1113,9 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			}
 
 			const nextOutcome = body.outcome ?? existingMeasure.outcome;
+			const hasSuspensionDateInputs =
+				body.suspensionStartDateKey !== undefined ||
+				body.suspensionEndDateKey !== undefined;
 			const nextSuspensionStartDateKey =
 				nextOutcome === 'suspension'
 					? body.suspensionStartDateKey === undefined
@@ -953,7 +1129,30 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 						: body.suspensionEndDateKey
 					: null;
 
-			if (nextOutcome === 'suspension' && nextSuspensionStartDateKey && nextSuspensionEndDateKey) {
+			if (nextOutcome !== 'suspension' && hasSuspensionDateInputs) {
+				set.status = 400;
+				return buildErrorResponse(
+					'suspension date range can only be set for suspension outcome',
+					400,
+				);
+			}
+
+			if (nextOutcome === 'suspension') {
+				if (!nextSuspensionStartDateKey) {
+					set.status = 400;
+					return buildErrorResponse(
+						'suspensionStartDateKey is required for suspension outcome',
+						400,
+					);
+				}
+				if (!nextSuspensionEndDateKey) {
+					set.status = 400;
+					return buildErrorResponse(
+						'suspensionEndDateKey is required for suspension outcome',
+						400,
+					);
+				}
+
 				const validation = validateSuspensionRange({
 					startDateKey: nextSuspensionStartDateKey,
 					endDateKey: nextSuspensionEndDateKey,
@@ -973,6 +1172,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 						body.policyReference === undefined
 							? existingMeasure.policyReference
 							: body.policyReference,
+					notes: body.notes === undefined ? existingMeasure.notes : body.notes,
 					outcome: nextOutcome,
 					suspensionStartDateKey: nextSuspensionStartDateKey,
 					suspensionEndDateKey: nextSuspensionEndDateKey,
@@ -1067,15 +1267,65 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				.leftJoin(location, eq(employee.locationId, location.id))
 				.where(eq(employee.id, measure.employeeId))
 				.limit(1);
-			const employeeRecord = employeeRows[0];
-			if (!employeeRecord) {
-				set.status = 404;
-				return buildErrorResponse('Employee not found', 404);
-			}
+				const employeeRecord = employeeRows[0];
+				if (!employeeRecord) {
+					set.status = 404;
+					return buildErrorResponse('Employee not found', 404);
+				}
 
-			let template: typeof organizationLegalTemplate.$inferSelect | null = null;
-			if (body.templateId) {
-				template = await fetchTemplateById({
+				const organizationContextRows = await db
+					.select({
+						organizationName: organization.name,
+						displayName: organizationLegalBranding.displayName,
+						headerText: organizationLegalBranding.headerText,
+						actaState: organizationLegalBranding.actaState,
+						actaEmployerTreatment: organizationLegalBranding.actaEmployerTreatment,
+						actaEmployerName: organizationLegalBranding.actaEmployerName,
+						actaEmployerPosition: organizationLegalBranding.actaEmployerPosition,
+						actaEmployeeTreatment: organizationLegalBranding.actaEmployeeTreatment,
+					})
+					.from(organization)
+					.leftJoin(
+						organizationLegalBranding,
+						eq(organizationLegalBranding.organizationId, organization.id),
+					)
+					.where(eq(organization.id, access.organizationId))
+					.limit(1);
+				const organizationContext = organizationContextRows[0];
+				if (!organizationContext) {
+					set.status = 404;
+					return buildErrorResponse('Organization not found', 404);
+				}
+
+				const missingSettings = REQUIRED_DISCIPLINARY_ACTA_SETTINGS.filter(
+					(field) => !isNonEmptyString(organizationContext[field]),
+				);
+				if (missingSettings.length > 0) {
+					set.status = 409;
+					return buildErrorResponse('Required ACTA settings are missing', 409, {
+						code: DISCIPLINARY_ACTA_SETTINGS_ERROR_CODE,
+						details: {
+							missingSettings,
+						},
+					});
+				}
+
+					const displayName = organizationContext.displayName;
+					const companyName = isNonEmptyString(displayName)
+						? displayName.trim()
+						: organizationContext.organizationName.trim();
+				const actaSettings = {
+					companyName,
+					state: (organizationContext.actaState ?? '').trim(),
+					employerTreatment: (organizationContext.actaEmployerTreatment ?? '').trim(),
+					employerName: (organizationContext.actaEmployerName ?? '').trim(),
+					employerPosition: (organizationContext.actaEmployerPosition ?? '').trim(),
+					employeeTreatment: (organizationContext.actaEmployeeTreatment ?? '').trim(),
+				};
+
+				let template: typeof organizationLegalTemplate.$inferSelect | null = null;
+				if (body.templateId) {
+					template = await fetchTemplateById({
 					organizationId: access.organizationId,
 					templateId: body.templateId,
 					kind: 'ACTA_ADMINISTRATIVA',
@@ -1088,21 +1338,90 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					set.status = 400;
 					return buildErrorResponse('Template must be published before generation', 400);
 				}
-			} else {
-				template = await fetchLatestPublishedTemplate(
-					access.organizationId,
-					'ACTA_ADMINISTRATIVA',
-				);
-				if (!template) {
-					set.status = 404;
-					return buildErrorResponse('No published acta template found', 404);
-				}
-			}
+				} else {
+					template = await fetchLatestPublishedTemplate(
+						access.organizationId,
+						'ACTA_ADMINISTRATIVA',
+					);
+					if (!template) {
+						const nextVersionNumber = await getNextTemplateVersionNumber({
+							organizationId: access.organizationId,
+							kind: 'ACTA_ADMINISTRATIVA',
+						});
+						const insertedTemplateRows = await db
+							.insert(organizationLegalTemplate)
+							.values({
+								organizationId: access.organizationId,
+								kind: 'ACTA_ADMINISTRATIVA',
+								versionNumber: nextVersionNumber,
+								status: 'PUBLISHED',
+								htmlContent: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
+								variablesSchemaSnapshot: DEFAULT_DISCIPLINARY_ACTA_TEMPLATE_VARIABLES,
+								brandingSnapshot: {
+									displayName: organizationContext.displayName ?? null,
+									headerText: organizationContext.headerText ?? null,
+									actaState: organizationContext.actaState ?? null,
+									actaEmployerTreatment:
+										organizationContext.actaEmployerTreatment ?? null,
+									actaEmployerName: organizationContext.actaEmployerName ?? null,
+									actaEmployerPosition: organizationContext.actaEmployerPosition ?? null,
+									actaEmployeeTreatment:
+										organizationContext.actaEmployeeTreatment ?? null,
+								},
+								createdByUserId: access.userId,
+								publishedByUserId: access.userId,
+								publishedAt: new Date(),
+							})
+							.returning();
+						template = insertedTemplateRows[0] ?? null;
+						if (!template) {
+							set.status = 500;
+							return buildErrorResponse('Failed to bootstrap disciplinary acta template', 500);
+						}
+					}
 
-			const variablesSnapshot = buildDisciplinaryVariablesSnapshot({
-				employeeRecord,
-				measure,
-			});
+					if (template && !isCanonicalActaTemplateHtml(template.htmlContent)) {
+						const nextVersionNumber = await getNextTemplateVersionNumber({
+							organizationId: access.organizationId,
+							kind: 'ACTA_ADMINISTRATIVA',
+						});
+						const upgradedTemplateRows = await db
+							.insert(organizationLegalTemplate)
+							.values({
+								organizationId: access.organizationId,
+								kind: 'ACTA_ADMINISTRATIVA',
+								versionNumber: nextVersionNumber,
+								status: 'PUBLISHED',
+								htmlContent: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
+								variablesSchemaSnapshot: DEFAULT_DISCIPLINARY_ACTA_TEMPLATE_VARIABLES,
+								brandingSnapshot: {
+									displayName: organizationContext.displayName ?? null,
+									headerText: organizationContext.headerText ?? null,
+									actaState: organizationContext.actaState ?? null,
+									actaEmployerTreatment:
+										organizationContext.actaEmployerTreatment ?? null,
+									actaEmployerName: organizationContext.actaEmployerName ?? null,
+									actaEmployerPosition: organizationContext.actaEmployerPosition ?? null,
+									actaEmployeeTreatment: organizationContext.actaEmployeeTreatment ?? null,
+								},
+								createdByUserId: access.userId,
+								publishedByUserId: access.userId,
+								publishedAt: new Date(),
+							})
+							.returning();
+						template = upgradedTemplateRows[0] ?? null;
+						if (!template) {
+							set.status = 500;
+							return buildErrorResponse('Failed to upgrade disciplinary acta template', 500);
+						}
+					}
+				}
+
+				const variablesSnapshot = buildDisciplinaryVariablesSnapshot({
+					employeeRecord,
+					measure,
+					acta: actaSettings,
+				});
 			const renderedHtml = renderLegalHtml(template.htmlContent, variablesSnapshot);
 			const generatedHtmlHash = sha256Hex(renderedHtml);
 
@@ -1214,12 +1533,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				fileName: body.fileName,
 			});
 
-				const presigned = await createRailwayPresignedPost({
-					key: objectKey,
-					contentType: body.contentType,
-					expiresInSeconds: 300,
-					maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
-				});
+			const presigned = await createRailwayPresignedPost({
+				key: objectKey,
+				contentType: body.contentType,
+				expiresInSeconds: 300,
+				maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
+			});
 
 			return {
 				data: {
@@ -1277,6 +1596,14 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				set.status = 409;
 				return buildErrorResponse('Closed disciplinary measures cannot be modified', 409);
 			}
+			if (!measure.generatedActaGenerationId) {
+				set.status = 400;
+				return buildErrorResponse('Generate acta before uploading a signed version', 400);
+			}
+			if (body.generationId !== measure.generatedActaGenerationId) {
+				set.status = 400;
+				return buildErrorResponse('Invalid acta generation reference', 400);
+			}
 
 			const generation = await requireLegalGeneration({
 				organizationId: access.organizationId,
@@ -1289,10 +1616,43 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Invalid acta generation reference', 400);
 			}
 
-				const bucketConfig = getRailwayBucketConfig();
-				const objectHead = await headRailwayObject({
+			const expectedObjectKeyPrefix = `${buildDisciplinaryDocumentPrefix({
+				organizationId: access.organizationId,
+				employeeId: measure.employeeId,
+				measureId: measure.id,
+				kind: 'ACTA_ADMINISTRATIVA',
+			})}${body.docVersionId}-`;
+			if (!body.objectKey.startsWith(expectedObjectKeyPrefix)) {
+				set.status = 400;
+				return buildErrorResponse('Invalid signed acta object key', 400);
+			}
+
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
 					key: body.objectKey,
 				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				if (isBucketObjectNotFoundError(error)) {
+					set.status = 404;
+					return buildErrorResponse('Uploaded object not found', 404);
+				}
+				throw error;
+			}
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1439,14 +1799,22 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				}
 			}
 
-			const variablesSnapshot = {
-				...buildDisciplinaryVariablesSnapshot({
-					employeeRecord,
-					measure,
-				}),
-				refusal: {
-					reason: body.refusalReason ?? null,
-				},
+				const variablesSnapshot = {
+					...buildDisciplinaryVariablesSnapshot({
+						employeeRecord,
+						measure,
+						acta: {
+							companyName: '',
+							state: '',
+							employerTreatment: '',
+							employerName: '',
+							employerPosition: '',
+							employeeTreatment: '',
+						},
+					}),
+					refusal: {
+						reason: body.refusalReason ?? null,
+					},
 			};
 			const renderedHtml = renderLegalHtml(template.htmlContent, variablesSnapshot);
 			const generatedHtmlHash = sha256Hex(renderedHtml);
@@ -1534,7 +1902,10 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 			}
 			if (!measure.generatedRefusalGenerationId) {
 				set.status = 400;
-				return buildErrorResponse('Generate refusal certificate before uploading signed file', 400);
+				return buildErrorResponse(
+					'Generate refusal certificate before uploading signed file',
+					400,
+				);
 			}
 
 			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
@@ -1558,12 +1929,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				fileName: body.fileName,
 			});
 
-				const presigned = await createRailwayPresignedPost({
-					key: objectKey,
-					contentType: body.contentType,
-					expiresInSeconds: 300,
-					maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
-				});
+			const presigned = await createRailwayPresignedPost({
+				key: objectKey,
+				contentType: body.contentType,
+				expiresInSeconds: 300,
+				maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
+			});
 
 			return {
 				data: {
@@ -1621,6 +1992,17 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				set.status = 409;
 				return buildErrorResponse('Closed disciplinary measures cannot be modified', 409);
 			}
+			if (!measure.generatedRefusalGenerationId) {
+				set.status = 400;
+				return buildErrorResponse(
+					'Generate refusal certificate before uploading signed file',
+					400,
+				);
+			}
+			if (body.generationId !== measure.generatedRefusalGenerationId) {
+				set.status = 400;
+				return buildErrorResponse('Invalid refusal generation reference', 400);
+			}
 
 			const generation = await requireLegalGeneration({
 				organizationId: access.organizationId,
@@ -1633,10 +2015,43 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Invalid refusal generation reference', 400);
 			}
 
-				const bucketConfig = getRailwayBucketConfig();
-				const objectHead = await headRailwayObject({
+			const expectedObjectKeyPrefix = `${buildDisciplinaryDocumentPrefix({
+				organizationId: access.organizationId,
+				employeeId: measure.employeeId,
+				measureId: measure.id,
+				kind: 'CONSTANCIA_NEGATIVA_FIRMA',
+			})}${body.docVersionId}-`;
+			if (!body.objectKey.startsWith(expectedObjectKeyPrefix)) {
+				set.status = 400;
+				return buildErrorResponse('Invalid refusal object key', 400);
+			}
+
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
 					key: body.objectKey,
 				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				if (isBucketObjectNotFoundError(error)) {
+					set.status = 404;
+					return buildErrorResponse('Uploaded object not found', 404);
+				}
+				throw error;
+			}
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1746,7 +2161,16 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
 			}
 
-			const bucketConfig = getRailwayBucketConfig();
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
 			const attachmentId = crypto.randomUUID();
 			const objectKey = buildDisciplinaryAttachmentObjectKey({
 				organizationId: access.organizationId,
@@ -1756,12 +2180,12 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				fileName: body.fileName,
 			});
 
-				const presigned = await createRailwayPresignedPost({
-					key: objectKey,
-					contentType: body.contentType,
-					expiresInSeconds: 300,
-					maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
-				});
+			const presigned = await createRailwayPresignedPost({
+				key: objectKey,
+				contentType: body.contentType,
+				expiresInSeconds: 300,
+				maxSizeBytes: MAX_DISCIPLINARY_ATTACHMENT_BYTES,
+			});
 
 			return {
 				data: {
@@ -1820,16 +2244,42 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Closed disciplinary measures cannot be modified', 409);
 			}
 
-			const attachmentCount = await countMeasureAttachments(measure.id);
-			if (attachmentCount >= MAX_ATTACHMENTS_PER_MEASURE) {
+			const expectedObjectKeyPrefix = `${buildDisciplinaryAttachmentPrefix({
+				organizationId: access.organizationId,
+				employeeId: measure.employeeId,
+				measureId: measure.id,
+			})}${body.attachmentId}-`;
+			if (!body.objectKey.startsWith(expectedObjectKeyPrefix)) {
 				set.status = 400;
-				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
+				return buildErrorResponse('Invalid attachment object key', 400);
 			}
 
-				const bucketConfig = getRailwayBucketConfig();
-				const objectHead = await headRailwayObject({
+			let bucketConfig: ReturnType<typeof getRailwayBucketConfig>;
+			try {
+				bucketConfig = getRailwayBucketConfig();
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				throw error;
+			}
+			let objectHead: Awaited<ReturnType<typeof headRailwayObject>> | null = null;
+			try {
+				objectHead = await headRailwayObject({
 					key: body.objectKey,
 				});
+			} catch (error) {
+				if (isBucketDependencyError(error)) {
+					set.status = 503;
+					return buildErrorResponse('Bucket service dependencies are not installed', 503);
+				}
+				if (isBucketObjectNotFoundError(error)) {
+					set.status = 404;
+					return buildErrorResponse('Uploaded object not found', 404);
+				}
+				throw error;
+			}
 			if (!objectHead) {
 				set.status = 404;
 				return buildErrorResponse('Uploaded object not found', 404);
@@ -1846,25 +2296,46 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				return buildErrorResponse('Uploaded object metadata does not match request', 400);
 			}
 
-			const insertedRows = await db
-				.insert(employeeDisciplinaryAttachment)
-				.values({
-					id: body.attachmentId,
-					organizationId: access.organizationId,
-					employeeId: measure.employeeId,
-					measureId: measure.id,
-					bucket: bucketConfig.bucket,
-					objectKey: body.objectKey,
-					fileName: body.fileName,
-					contentType: body.contentType,
-					sizeBytes: body.sizeBytes,
-					sha256: body.sha256,
-					uploadedByUserId: access.userId,
-					metadata: body.metadata ?? null,
-				})
-				.returning();
+			const insertedAttachment = await db.transaction(async (tx) => {
+				await tx.execute(
+					sql`select pg_advisory_xact_lock(hashtext(${access.organizationId}), hashtext(${measure.id}))`,
+				);
 
-			return { data: insertedRows[0] ?? null };
+				const rows = await tx
+					.select({ count: countDistinct(employeeDisciplinaryAttachment.id) })
+					.from(employeeDisciplinaryAttachment)
+					.where(eq(employeeDisciplinaryAttachment.measureId, measure.id));
+				const attachmentCount = Number(rows[0]?.count ?? 0);
+				if (attachmentCount >= MAX_ATTACHMENTS_PER_MEASURE) {
+					return null;
+				}
+
+				const insertedRows = await tx
+					.insert(employeeDisciplinaryAttachment)
+					.values({
+						id: body.attachmentId,
+						organizationId: access.organizationId,
+						employeeId: measure.employeeId,
+						measureId: measure.id,
+						bucket: bucketConfig.bucket,
+						objectKey: body.objectKey,
+						fileName: body.fileName,
+						contentType: body.contentType,
+						sizeBytes: body.sizeBytes,
+						sha256: body.sha256,
+						uploadedByUserId: access.userId,
+						metadata: body.metadata ?? null,
+					})
+					.returning();
+
+				return insertedRows[0] ?? null;
+			});
+			if (!insertedAttachment) {
+				set.status = 400;
+				return buildErrorResponse('Maximum attachment limit reached for measure', 400);
+			}
+
+			return { data: insertedAttachment };
 		},
 		{
 			params: disciplinaryMeasureIdParamsSchema,
@@ -2007,6 +2478,7 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				.set({
 					status: 'CLOSED',
 					signatureStatus: body.signatureStatus,
+					notes: body.notes === undefined ? measure.notes : body.notes,
 					closedAt: new Date(),
 					closedByUserId: access.userId,
 					updatedByUserId: access.userId,
@@ -2075,10 +2547,10 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 
 			let url: string;
 			try {
-					url = await createRailwayPresignedGetUrl({
-						key: documentVersion.objectKey,
-						expiresInSeconds: 300,
-					});
+				url = await createRailwayPresignedGetUrl({
+					key: documentVersion.objectKey,
+					expiresInSeconds: 300,
+				});
 			} catch (error) {
 				if (isBucketDependencyError(error)) {
 					set.status = 503;

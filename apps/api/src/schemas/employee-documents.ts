@@ -216,6 +216,11 @@ export const legalBrandingConfirmSchema = z.object({
 	sha256: z.string().min(1).max(128).optional(),
 	displayName: z.string().max(255).optional(),
 	headerText: z.string().max(2000).optional(),
+	actaState: z.string().max(255).optional(),
+	actaEmployerTreatment: z.string().max(255).optional(),
+	actaEmployerName: z.string().max(255).optional(),
+	actaEmployerPosition: z.string().max(255).optional(),
+	actaEmployeeTreatment: z.string().max(255).optional(),
 });
 
 export type EmployeeDocumentRequirementKeyInput = z.infer<

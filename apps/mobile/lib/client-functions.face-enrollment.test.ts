@@ -228,4 +228,27 @@ describe('fetchFaceEnrollmentEmployees', () => {
 		expect(response.pagination.total).toBe(150);
 		expect(response.pagination.limit).toBe(200);
 	});
+
+	it('forwards organizationId when provided for scoped employee fetching', async () => {
+		mockEmployeesGet.mockResolvedValueOnce({
+			status: 200,
+			error: null,
+			data: {
+				data: [],
+				pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
+			},
+		});
+
+		await fetchFaceEnrollmentEmployees({ limit: 50, organizationId: 'org-1' });
+
+		expect(mockEmployeesGet).toHaveBeenCalledTimes(1);
+		expect(mockEmployeesGet).toHaveBeenCalledWith({
+			$query: {
+				limit: 50,
+				offset: 0,
+				status: 'ACTIVE',
+				organizationId: 'org-1',
+			},
+		});
+	});
 });

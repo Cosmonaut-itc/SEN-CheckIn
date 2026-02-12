@@ -99,13 +99,21 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const [enrollmentSummary, setEnrollmentSummary] = useState<EnrollmentSummary | null>(null);
 	const [submissionError, setSubmissionError] = useState<string | null>(null);
 	const { settings } = useDeviceContext();
+	const organizationId = settings?.organizationId ?? null;
 	const isDeviceLinked = Boolean(settings?.deviceId);
 	const hasLocationConfigured = Boolean(settings?.locationId);
 	const hasDeviceConfig = isDeviceLinked && hasLocationConfigured;
+	const employeeQueryParams = useMemo(
+		() => ({
+			limit: EMPLOYEE_FETCH_LIMIT,
+			organizationId,
+		}),
+		[organizationId],
+	);
 
 	const employeesQuery = useQuery({
-		queryKey: queryKeys.faceEnrollment.employees({ limit: EMPLOYEE_FETCH_LIMIT }),
-		queryFn: () => fetchFaceEnrollmentEmployees({ limit: EMPLOYEE_FETCH_LIMIT }),
+		queryKey: queryKeys.faceEnrollment.employees(employeeQueryParams),
+		queryFn: () => fetchFaceEnrollmentEmployees(employeeQueryParams),
 		enabled: hasDeviceConfig,
 	});
 
@@ -214,7 +222,11 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	 */
 	const handleConfirmEnrollment = useCallback(async (): Promise<void> => {
 		setSubmissionError(null);
-		await enrollmentMutation.mutateAsync();
+		try {
+			await enrollmentMutation.mutateAsync();
+		} catch (error: unknown) {
+			setSubmissionError((current) => current ?? resolveEnrollmentErrorMessage(error));
+		}
 	}, [enrollmentMutation]);
 
 	/**

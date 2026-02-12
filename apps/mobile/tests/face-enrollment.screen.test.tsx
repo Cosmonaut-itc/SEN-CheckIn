@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import React from 'react';
 
 import FaceEnrollmentScreen from '@/app/(main)/face-enrollment';
+import { queryKeys } from '@/lib/query-keys';
 
 const mockUseQuery = jest.fn();
 const mockUseMutation = jest.fn();
@@ -11,6 +12,7 @@ const mockReplace = jest.fn();
 const mockGoBack = jest.fn();
 const mockCanGoBack = jest.fn(() => false);
 const mockUseDeviceContext = jest.fn();
+const mockFetchFaceEnrollmentEmployees: jest.Mock = jest.fn();
 const mockFullEnrollmentFlow: jest.Mock = jest.fn();
 const mockIsFaceEnrollmentApiError: jest.Mock = jest.fn();
 const mockTakePictureAsync: jest.Mock = jest.fn();
@@ -155,7 +157,8 @@ jest.mock('@/lib/device-context', () => ({
 }));
 
 jest.mock('@/lib/client-functions', () => ({
-	fetchFaceEnrollmentEmployees: jest.fn(),
+	fetchFaceEnrollmentEmployees: (...args: unknown[]) =>
+		mockFetchFaceEnrollmentEmployees(...args),
 	fullEnrollmentFlow: (...args: unknown[]) => mockFullEnrollmentFlow(...args),
 	isFaceEnrollmentApiError: (error: unknown) => mockIsFaceEnrollmentApiError(error),
 }));
@@ -174,6 +177,7 @@ describe('FaceEnrollmentScreen', () => {
 		mockCanGoBack.mockReset();
 		mockCanGoBack.mockReturnValue(false);
 		mockUseDeviceContext.mockReset();
+		mockFetchFaceEnrollmentEmployees.mockReset();
 		mockFullEnrollmentFlow.mockReset();
 		mockIsFaceEnrollmentApiError.mockReset();
 		mockTakePictureAsync.mockReset();
@@ -183,6 +187,7 @@ describe('FaceEnrollmentScreen', () => {
 			settings: {
 				deviceId: 'device-1',
 				locationId: 'location-1',
+				organizationId: 'org-1',
 			},
 		});
 
@@ -193,6 +198,7 @@ describe('FaceEnrollmentScreen', () => {
 					await options.mutationFn();
 				} catch (error: unknown) {
 					options.onError?.(error);
+					throw error;
 				}
 			},
 		}));
@@ -228,7 +234,40 @@ describe('FaceEnrollmentScreen', () => {
 		});
 
 		mockTakePictureAsync.mockResolvedValue({ base64: 'base64-image' });
+		mockFetchFaceEnrollmentEmployees.mockResolvedValue({
+			data: [],
+			pagination: {
+				total: 0,
+				limit: 200,
+				offset: 0,
+			},
+		});
 		mockIsFaceEnrollmentApiError.mockReturnValue(false);
+	});
+
+	it('requests employees using organization context from device settings', async () => {
+		render(<FaceEnrollmentScreen />);
+
+		const queryOptions = mockUseQuery.mock.calls[0]?.[0] as
+			| {
+					queryKey: readonly unknown[];
+					queryFn: () => Promise<unknown>;
+			  }
+			| undefined;
+
+		expect(queryOptions).toBeDefined();
+		expect(queryOptions?.queryKey).toEqual(
+			queryKeys.faceEnrollment.employees({
+				limit: 200,
+				organizationId: 'org-1',
+			}),
+		);
+
+		await queryOptions?.queryFn();
+		expect(mockFetchFaceEnrollmentEmployees).toHaveBeenCalledWith({
+			limit: 200,
+			organizationId: 'org-1',
+		});
 	});
 
 	it('renders employee selector and allows local selection before capture', async () => {

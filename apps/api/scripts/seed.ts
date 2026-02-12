@@ -4,6 +4,7 @@ import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { reset, seed } from 'drizzle-seed';
 import { Pool } from 'pg';
+import type { PayrollHolidayNotice } from '@sen-checkin/types';
 
 import { addDaysToDateKey } from '../src/utils/date-key.js';
 import '../src/utils/disable-pg-native.js';
@@ -25,6 +26,9 @@ const {
 	device,
 	employee,
 	employeeSchedule,
+	holidayAuditEvent,
+	holidayCalendarEntry,
+	holidaySyncRun,
 	jobPosition,
 	location,
 	organization,
@@ -64,6 +68,9 @@ type ScheduleTemplateDayRow = typeof scheduleTemplateDay.$inferInsert;
 type EmployeeScheduleRow = typeof employeeSchedule.$inferInsert;
 type ScheduleExceptionRow = typeof scheduleException.$inferInsert;
 type AttendanceRecordRow = typeof attendanceRecord.$inferInsert;
+type HolidaySyncRunRow = typeof holidaySyncRun.$inferInsert;
+type HolidayCalendarEntryRow = typeof holidayCalendarEntry.$inferInsert;
+type HolidayAuditEventRow = typeof holidayAuditEvent.$inferInsert;
 type PayrollRunRow = typeof payrollRun.$inferInsert;
 type PayrollRunEmployeeRow = typeof payrollRunEmployee.$inferInsert;
 type PtuRunRow = typeof ptuRun.$inferInsert;
@@ -145,6 +152,8 @@ const DEFAULT_DOCUMENT_REQUIREMENTS: ReadonlyArray<{
 		activationStage: 'LEGAL_AFTER_GATE',
 	},
 ];
+
+const HOLIDAY_PROVIDER = 'NAGER_DATE';
 
 /**
  * Parses CLI arguments for the seed script.
@@ -661,6 +670,244 @@ async function insertDomainBaseline(args: {
 		jobPositions: positionsInserted,
 		templates: templatesInserted,
 		positionPayDefaults,
+	};
+}
+
+/**
+ * Inserts holiday sync, holiday calendar, and audit baseline rows.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for inserted holiday rows
+ */
+async function insertHolidayBaseline(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+}): Promise<{ syncRuns: number; entries: number; auditEvents: number }> {
+	const { seedNumber, organizations } = args;
+
+	if (organizations.length === 0) {
+		return { syncRuns: 0, entries: 0, auditEvents: 0 };
+	}
+
+	const payrollSettingRows = await db
+		.select({
+			organizationId: payrollSetting.organizationId,
+			timeZone: payrollSetting.timeZone,
+		})
+		.from(payrollSetting)
+		.where(
+			inArray(
+				payrollSetting.organizationId,
+				organizations.map((org) => org.id),
+			),
+		);
+
+	const timeZoneByOrganization = new Map(
+		payrollSettingRows.map((row) => [row.organizationId, row.timeZone]),
+	);
+
+	const syncRows: HolidaySyncRunRow[] = [];
+	const entryRows: HolidayCalendarEntryRow[] = [];
+	const auditRows: HolidayAuditEventRow[] = [];
+
+	for (const org of organizations) {
+		const timeZone = timeZoneByOrganization.get(org.id) ?? 'America/Mexico_City';
+		const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+		const currentYear = Number(todayDateKey.slice(0, 4));
+		const internalMandatoryDateKey = `${currentYear}-01-01`;
+		const providerApprovedDateKey = addDaysToDateKey(todayDateKey, -5);
+		const providerPendingDateKey = addDaysToDateKey(todayDateKey, 10);
+		const customApprovedDateKey = addDaysToDateKey(todayDateKey, -2);
+
+		const syncRunId = deterministicUuid(seedNumber, `holiday-sync-run:${org.id}:${currentYear}`);
+		const syncStartedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+		const syncFinishedAt = new Date(Date.now() - 60 * 60 * 1000);
+
+		syncRows.push({
+			id: syncRunId,
+			organizationId: org.id,
+			provider: HOLIDAY_PROVIDER,
+			requestedYears: [currentYear],
+			status: 'COMPLETED',
+			startedAt: syncStartedAt,
+			finishedAt: syncFinishedAt,
+			importedCount: 3,
+			pendingCount: 1,
+			errorCount: 0,
+			errorPayload: null,
+			stale: false,
+		});
+
+		const internalEntryId = deterministicUuid(
+			seedNumber,
+			`holiday-entry:internal:${org.id}:${internalMandatoryDateKey}`,
+		);
+		const providerApprovedEntryId = deterministicUuid(
+			seedNumber,
+			`holiday-entry:provider-approved:${org.id}:${providerApprovedDateKey}`,
+		);
+		const providerPendingEntryId = deterministicUuid(
+			seedNumber,
+			`holiday-entry:provider-pending:${org.id}:${providerPendingDateKey}`,
+		);
+		const customEntryId = deterministicUuid(
+			seedNumber,
+			`holiday-entry:custom:${org.id}:${customApprovedDateKey}`,
+		);
+
+		entryRows.push(
+			{
+				id: internalEntryId,
+				organizationId: org.id,
+				dateKey: internalMandatoryDateKey,
+				name: 'Descanso obligatorio',
+				kind: 'MANDATORY',
+				source: 'INTERNAL',
+				status: 'APPROVED',
+				isRecurring: true,
+				seriesId: `internal:${internalMandatoryDateKey.slice(5)}`,
+				provider: null,
+				providerExternalId: null,
+				subdivisionCode: null,
+				legalReference: 'LFT Art. 74',
+				conflictReason: null,
+				active: true,
+				entryKey: `internal:${internalMandatoryDateKey}`,
+				syncRunId: null,
+				approvedBy: null,
+				approvedAt: syncFinishedAt,
+				rejectedBy: null,
+				rejectedAt: null,
+			},
+			{
+				id: providerApprovedEntryId,
+				organizationId: org.id,
+				dateKey: providerApprovedDateKey,
+				name: `Feriado proveedor ${providerApprovedDateKey}`,
+				kind: 'MANDATORY',
+				source: 'PROVIDER',
+				status: 'APPROVED',
+				isRecurring: false,
+				seriesId: null,
+				provider: HOLIDAY_PROVIDER,
+				providerExternalId: `MX:${providerApprovedDateKey}:approved`,
+				subdivisionCode: null,
+				legalReference: 'LFT Art. 74',
+				conflictReason: null,
+				active: true,
+				entryKey: `provider:${providerApprovedDateKey}:approved`,
+				syncRunId: syncRunId,
+				approvedBy: null,
+				approvedAt: syncFinishedAt,
+				rejectedBy: null,
+				rejectedAt: null,
+			},
+			{
+				id: providerPendingEntryId,
+				organizationId: org.id,
+				dateKey: providerPendingDateKey,
+				name: `Feriado proveedor pendiente ${providerPendingDateKey}`,
+				kind: 'OPTIONAL',
+				source: 'PROVIDER',
+				status: 'PENDING_APPROVAL',
+				isRecurring: false,
+				seriesId: null,
+				provider: HOLIDAY_PROVIDER,
+				providerExternalId: `MX:${providerPendingDateKey}:pending`,
+				subdivisionCode: 'MX-SON',
+				legalReference: null,
+				conflictReason: 'Requiere validación interna.',
+				active: true,
+				entryKey: `provider:${providerPendingDateKey}:pending`,
+				syncRunId: syncRunId,
+				approvedBy: null,
+				approvedAt: null,
+				rejectedBy: null,
+				rejectedAt: null,
+			},
+			{
+				id: customEntryId,
+				organizationId: org.id,
+				dateKey: customApprovedDateKey,
+				name: `Feriado personalizado ${customApprovedDateKey}`,
+				kind: 'MANDATORY',
+				source: 'CUSTOM',
+				status: 'APPROVED',
+				isRecurring: false,
+				seriesId: null,
+				provider: null,
+				providerExternalId: null,
+				subdivisionCode: null,
+				legalReference: 'LFT Art. 74',
+				conflictReason: null,
+				active: true,
+				entryKey: `custom:${customApprovedDateKey}`,
+				syncRunId: null,
+				approvedBy: null,
+				approvedAt: syncFinishedAt,
+				rejectedBy: null,
+				rejectedAt: null,
+			},
+		);
+
+		auditRows.push(
+			{
+				id: deterministicUuid(seedNumber, `holiday-audit:sync:${org.id}:${syncRunId}`),
+				organizationId: org.id,
+				holidayEntryId: null,
+				syncRunId,
+				actorType: 'SYSTEM',
+				actorUserId: null,
+				action: 'holiday.sync.completed',
+				reason: null,
+				before: null,
+				after: null,
+				metadata: {
+					requestedYears: [currentYear],
+					importedCount: 3,
+					pendingCount: 1,
+				},
+				createdAt: syncFinishedAt,
+			},
+			{
+				id: deterministicUuid(seedNumber, `holiday-audit:custom:${org.id}:${customEntryId}`),
+				organizationId: org.id,
+				holidayEntryId: customEntryId,
+				syncRunId: null,
+				actorType: 'SYSTEM',
+				actorUserId: null,
+				action: 'holiday.custom.created',
+				reason: null,
+				before: null,
+				after: {
+					dateKey: customApprovedDateKey,
+					status: 'APPROVED',
+					source: 'CUSTOM',
+				},
+				metadata: {
+					reference: 'seed',
+				},
+				createdAt: new Date(Date.now() - 30 * 60 * 1000),
+			},
+		);
+	}
+
+	if (syncRows.length > 0) {
+		await db.insert(holidaySyncRun).values(syncRows);
+	}
+
+	if (entryRows.length > 0) {
+		await db.insert(holidayCalendarEntry).values(entryRows);
+	}
+
+	if (auditRows.length > 0) {
+		await db.insert(holidayAuditEvent).values(auditRows);
+	}
+
+	return {
+		syncRuns: syncRows.length,
+		entries: entryRows.length,
+		auditEvents: auditRows.length,
 	};
 }
 
@@ -1407,6 +1654,46 @@ async function insertTodayPresenceAttendance(args: {
 }
 
 /**
+ * Builds payroll holiday notices for seeded payroll runs.
+ *
+ * @param args - Notice generation inputs
+ * @returns Payroll holiday notices for the seeded run
+ */
+function buildPayrollHolidayNotices(args: {
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	affectedHolidayDateKeys: string[];
+	estimatedMandatoryPremiumTotal: number;
+	affectedEmployees: number;
+}): PayrollHolidayNotice[] {
+	if (args.affectedHolidayDateKeys.length === 0) {
+		return [];
+	}
+
+	const legalReference =
+		args.estimatedMandatoryPremiumTotal > 0 ? 'LFT Art. 74/75' : 'LFT Art. 74';
+	const message =
+		args.estimatedMandatoryPremiumTotal > 0
+			? `El periodo incluye ${args.affectedHolidayDateKeys.length} feriado(s) aplicable(s). ${args.affectedEmployees} empleado(s) con prima estimada por descanso obligatorio.`
+			: `El periodo incluye ${args.affectedHolidayDateKeys.length} feriado(s) aplicable(s). No se detectó prima estimada por descanso obligatorio.`;
+
+	return [
+		{
+			kind: 'HOLIDAY_PAYROLL_IMPACT',
+			title: 'Aviso de feriado',
+			message,
+			legalReference,
+			periodStartDateKey: args.periodStartDateKey,
+			periodEndDateKey: args.periodEndDateKey,
+			affectedHolidayDateKeys: args.affectedHolidayDateKeys,
+			affectedEmployees: args.affectedEmployees,
+			estimatedMandatoryPremiumTotal: args.estimatedMandatoryPremiumTotal,
+			generatedAt: new Date().toISOString(),
+		},
+	];
+}
+
+/**
  * Inserts payroll runs (1 per organization) and payroll run employee line items for each employee.
  *
  * This seed data is intended for development and smoke-testing endpoints, not for accounting use.
@@ -1424,6 +1711,50 @@ async function insertPayrollRuns(args: {
 	const periodStartKey = addDaysToDateKey(nowUtcKey, -13);
 	const periodStart = new Date(`${periodStartKey}T00:00:00Z`);
 	const periodEnd = new Date(`${nowUtcKey}T23:59:59Z`);
+	const organizationIds = organizations.map((org) => org.id);
+
+	const approvedHolidayRows =
+		organizationIds.length === 0
+			? []
+			: await db
+					.select({
+						organizationId: holidayCalendarEntry.organizationId,
+						dateKey: holidayCalendarEntry.dateKey,
+					})
+					.from(holidayCalendarEntry)
+					.where(
+						and(
+							inArray(holidayCalendarEntry.organizationId, organizationIds),
+							eq(holidayCalendarEntry.active, true),
+							eq(holidayCalendarEntry.status, 'APPROVED'),
+							eq(holidayCalendarEntry.kind, 'MANDATORY'),
+							inArray(holidayCalendarEntry.source, ['PROVIDER', 'CUSTOM']),
+							gte(holidayCalendarEntry.dateKey, periodStartKey),
+							lte(holidayCalendarEntry.dateKey, nowUtcKey),
+						),
+					);
+
+	const approvedHolidayDateKeysByOrganization = new Map<string, Set<string>>();
+	for (const row of approvedHolidayRows) {
+		const current = approvedHolidayDateKeysByOrganization.get(row.organizationId) ?? new Set();
+		current.add(row.dateKey);
+		approvedHolidayDateKeysByOrganization.set(row.organizationId, current);
+	}
+
+	const payrollSettings =
+		organizationIds.length === 0
+			? []
+			: await db
+					.select({
+						organizationId: payrollSetting.organizationId,
+						additionalMandatoryRestDays: payrollSetting.additionalMandatoryRestDays,
+					})
+					.from(payrollSetting)
+					.where(inArray(payrollSetting.organizationId, organizationIds));
+
+	const additionalMandatoryRestDaysByOrganization = new Map(
+		payrollSettings.map((row) => [row.organizationId, row.additionalMandatoryRestDays ?? []]),
+	);
 
 	const attendance = await db
 		.select()
@@ -1499,6 +1830,40 @@ async function insertPayrollRuns(args: {
 			});
 		}
 
+		const approvedHolidayDateKeys = Array.from(
+			approvedHolidayDateKeysByOrganization.get(org.id) ?? new Set<string>(),
+		).sort((a, b) => a.localeCompare(b));
+		const legacyAdditionalMandatoryRestDays =
+			additionalMandatoryRestDaysByOrganization.get(org.id) ?? [];
+		const fallbackMandatoryRestDayKeys = legacyAdditionalMandatoryRestDays
+			.filter((dateKey) => dateKey >= periodStartKey && dateKey <= nowUtcKey)
+			.sort((a, b) => a.localeCompare(b));
+		const affectedHolidayDateKeys = Array.from(
+			new Set(
+				approvedHolidayDateKeys.length > 0
+					? approvedHolidayDateKeys
+					: fallbackMandatoryRestDayKeys,
+			),
+		).sort((a, b) => a.localeCompare(b));
+
+		const estimatedMandatoryPremiumTotal = roundCurrency(
+			lineItems.reduce(
+				(total, lineItem) =>
+					total + Number(lineItem.mandatoryRestDayPremiumAmount ?? 0),
+				0,
+			),
+		);
+		const affectedEmployees = lineItems.filter(
+			(lineItem) => Number(lineItem.mandatoryRestDayPremiumAmount ?? 0) > 0,
+		).length;
+		const holidayNotices = buildPayrollHolidayNotices({
+			periodStartDateKey: periodStartKey,
+			periodEndDateKey: nowUtcKey,
+			affectedHolidayDateKeys,
+			estimatedMandatoryPremiumTotal,
+			affectedEmployees,
+		});
+
 		const runRow: PayrollRunRow = {
 			id: runId,
 			organizationId: org.id,
@@ -1509,6 +1874,7 @@ async function insertPayrollRuns(args: {
 			totalAmount: money(totalAmount),
 			employeeCount: orgEmployees.length,
 			taxSummary: null,
+			holidayNotices: holidayNotices as unknown as Record<string, unknown>[],
 			processedAt: null,
 		};
 
@@ -1830,6 +2196,11 @@ async function main(): Promise<void> {
 		organizations,
 	});
 
+	const holidaySeedTotals = await insertHolidayBaseline({
+		seedNumber: args.seed,
+		organizations,
+	});
+
 	await insertDocumentWorkflowBaseline({
 		seedNumber: args.seed,
 		organizations,
@@ -1909,6 +2280,9 @@ async function main(): Promise<void> {
 	console.log('Employees:', employees.length);
 	console.log('Vacation requests:', vacationSeeds.requests.length);
 	console.log('Vacation request days:', vacationSeeds.requestDays.length);
+	console.log('Holiday sync runs:', holidaySeedTotals.syncRuns);
+	console.log('Holiday entries:', holidaySeedTotals.entries);
+	console.log('Holiday audit events:', holidaySeedTotals.auditEvents);
 	console.log('PTU history rows:', ptuHistoryCount);
 	console.log('PTU runs:', ptuSeedTotals.runs, 'line items:', ptuSeedTotals.lineItems);
 	console.log(

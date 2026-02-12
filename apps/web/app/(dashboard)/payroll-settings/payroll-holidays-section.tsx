@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { format } from 'date-fns';
+import { format, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
 	CalendarDays,
@@ -117,10 +117,10 @@ const HOLIDAY_KIND_VALUES: HolidayKind[] = ['MANDATORY', 'OPTIONAL'];
  * Converts a date key (YYYY-MM-DD) into a Date instance.
  *
  * @param dateKey - Date key in YYYY-MM-DD format
- * @returns Date value at UTC midnight
+ * @returns Date value at local midnight
  */
 function dateFromDateKey(dateKey: string): Date {
-	return new Date(`${dateKey}T00:00:00.000Z`);
+	return parse(dateKey, 'yyyy-MM-dd', new Date());
 }
 
 /**

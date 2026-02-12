@@ -22,6 +22,10 @@ export default function MainLayout(): JSX.Element {
 		<Stack screenOptions={{ headerShown: false, headerTitleAlign: 'center' }}>
 			<Stack.Screen name="scanner" options={{ title: i18n.t('Scanner.title') }} />
 			<Stack.Screen name="settings" options={{ title: i18n.t('Settings.title') }} />
+			<Stack.Screen
+				name="face-enrollment"
+				options={{ title: i18n.t('FaceEnrollment.title'), headerShown: true }}
+			/>
 		</Stack>
 	);
 }

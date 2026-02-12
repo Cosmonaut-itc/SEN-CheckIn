@@ -442,6 +442,20 @@ export default function ScannerScreen(): JSX.Element {
 						isIconOnly
 						size="md"
 						className="w-12 h-12 rounded-full"
+						onPress={() => router.push('/(main)/face-enrollment')}
+						accessibilityLabel={i18n.t('Scanner.actions.openFaceEnrollment')}
+					>
+						<IconSymbol
+							name="person.crop.circle.badge.plus"
+							size={20}
+							color={themeColors.foreground}
+						/>
+					</Button>
+					<Button
+						variant="secondary"
+						isIconOnly
+						size="md"
+						className="w-12 h-12 rounded-full"
 						onPress={() => router.push('/(main)/settings')}
 					>
 						<IconSymbol name="gearshape" size={20} color={themeColors.foreground} />

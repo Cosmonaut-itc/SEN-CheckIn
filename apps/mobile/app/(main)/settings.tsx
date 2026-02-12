@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { type Href, useRouter } from 'expo-router';
+import { type Href, useNavigation, useRouter } from 'expo-router';
 import { Button, Card, Select, Separator, useThemeColor, useToast } from 'heroui-native';
 import type { JSX } from 'react';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { ScrollView, Text, View, type ViewStyle } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -25,6 +25,7 @@ const SCANNER_ROUTE = '/(main)/scanner' as Href;
 export default function SettingsScreen(): JSX.Element {
 	const insets = useSafeAreaInsets();
 	const router = useRouter();
+	const navigation = useNavigation();
 	const iconColor = useThemeColor('foreground');
 	const { toast } = useToast();
 	const { session } = useAuthContext();
@@ -114,6 +115,21 @@ export default function SettingsScreen(): JSX.Element {
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
+
+	/**
+	 * Navigate back to the previous screen when history exists.
+	 * Falls back to scanner replacement for direct-entry scenarios.
+	 *
+	 * @returns {void} No return value
+	 */
+	const handleBackToScanner = useCallback((): void => {
+		if (navigation.canGoBack()) {
+			navigation.goBack();
+			return;
+		}
+
+		router.replace(SCANNER_ROUTE);
+	}, [navigation, router]);
 
 	return (
 		<View className="flex-1 bg-background">
@@ -373,7 +389,7 @@ export default function SettingsScreen(): JSX.Element {
 					size="md"
 					className="w-11 h-11 rounded-full"
 					accessibilityLabel={i18n.t('Settings.navigation.backToScanner')}
-					onPress={() => router.replace(SCANNER_ROUTE)}
+					onPress={handleBackToScanner}
 				>
 					<IconSymbol name="chevron.left" size={22} color={iconColor} />
 				</Button>

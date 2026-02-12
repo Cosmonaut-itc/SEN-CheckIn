@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { DocumentWorkflowSettingsSection } from '@/components/document-workflow-settings-section';
@@ -127,10 +127,42 @@ function parseIntegerInput(
 	return parsed;
 }
 
+/**
+ * Subscription no-op used by useSyncExternalStore for hydration gating.
+ *
+ * @returns Unsubscribe callback
+ */
+function subscribeNoop(): () => void {
+	return () => undefined;
+}
+
+/**
+ * Client snapshot resolver for hydration gating.
+ *
+ * @returns True when running after hydration on the client
+ */
+function getHydratedClientSnapshot(): boolean {
+	return true;
+}
+
+/**
+ * Server snapshot resolver for hydration gating.
+ *
+ * @returns False during SSR and hydration pass
+ */
+function getHydratedServerSnapshot(): boolean {
+	return false;
+}
+
 export function PayrollSettingsClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const t = useTranslations('PayrollSettings');
 	const tCommon = useTranslations('Common');
+	const isHydrated = useSyncExternalStore(
+		subscribeNoop,
+		getHydratedClientSnapshot,
+		getHydratedServerSnapshot,
+	);
 
 	const { data, isLoading } = useQuery({
 		queryKey: queryKeys.payrollSettings.current(undefined),
@@ -155,6 +187,9 @@ export function PayrollSettingsClient(): React.ReactElement {
 			toast.error(t('toast.saveError'));
 		},
 	});
+
+	const isInitialLoading = !isHydrated || isLoading;
+	const isFormDisabled = isInitialLoading || mutation.isPending;
 
 	const form = useAppForm({
 		defaultValues: {
@@ -359,9 +394,11 @@ export function PayrollSettingsClient(): React.ReactElement {
 										label: t(opt.labelKey),
 									}))}
 									placeholder={
-										isLoading ? tCommon('loading') : t('weekStart.selectDay')
+										isInitialLoading
+											? tCommon('loading')
+											: t('weekStart.selectDay')
 									}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -379,7 +416,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 									label={t('timeZone.label')}
 									placeholder={t('timeZone.placeholder')}
 									description={t('timeZone.description')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -398,11 +435,11 @@ export function PayrollSettingsClient(): React.ReactElement {
 										},
 									]}
 									placeholder={
-										isLoading
+										isInitialLoading
 											? tCommon('loading')
 											: t('overtimeEnforcement.selectEnforcement')
 									}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -424,7 +461,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 									label={t('taxSettings.fields.riskWorkRate')}
 									placeholder={t('taxSettings.placeholders.rate')}
 									description={t('taxSettings.helpers.riskWorkRate')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -442,7 +479,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 									label={t('taxSettings.fields.statePayrollTaxRate')}
 									placeholder={t('taxSettings.placeholders.rate')}
 									description={t('taxSettings.helpers.statePayrollTaxRate')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -459,7 +496,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.TextField
 									label={t('taxSettings.fields.aguinaldoDays')}
 									placeholder={t('taxSettings.placeholders.days')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -477,7 +514,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 									label={t('taxSettings.fields.vacationPremiumRate')}
 									placeholder={t('taxSettings.placeholders.rate')}
 									description={t('taxSettings.helpers.vacationPremiumRate')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -486,7 +523,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('taxSettings.fields.absorbImssEmployeeShare')}
 									description={t('taxSettings.helpers.absorbImssEmployeeShare')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -495,7 +532,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('taxSettings.fields.absorbIsr')}
 									description={t('taxSettings.helpers.absorbIsr')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -504,7 +541,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('taxSettings.fields.enableSeventhDayPay')}
 									description={t('taxSettings.helpers.enableSeventhDayPay')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -517,7 +554,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('ptu.fields.enabled')}
 									description={t('ptu.helpers.enabled')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -530,7 +567,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 										label: t(option.labelKey),
 									}))}
 									placeholder={t('ptu.placeholders.mode')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -539,7 +576,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('ptu.fields.isExempt')}
 									description={t('ptu.helpers.isExempt')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -549,7 +586,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 									<field.TextField
 										label={t('ptu.fields.exemptReason')}
 										placeholder={t('ptu.placeholders.exemptReason')}
-										disabled={isLoading || mutation.isPending}
+										disabled={isFormDisabled}
 									/>
 								)}
 							</form.AppField>
@@ -563,7 +600,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 										label: t(option.labelKey),
 									}))}
 									placeholder={t('ptu.placeholders.employerType')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -572,7 +609,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								<field.ToggleField
 									label={t('ptu.fields.aguinaldoEnabled')}
 									description={t('ptu.helpers.aguinaldoEnabled')}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>
@@ -599,7 +636,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 									description={t(
 										'disciplinary.helpers.enableDisciplinaryMeasures',
 									)}
-									disabled={isLoading || mutation.isPending}
+									disabled={isFormDisabled}
 								/>
 							)}
 						</form.AppField>

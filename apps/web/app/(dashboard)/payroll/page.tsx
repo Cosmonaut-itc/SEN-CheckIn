@@ -13,7 +13,7 @@ export default async function PayrollPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
 	const orgContext = await getActiveOrganizationContext();
 
-	prefetchPayrollSettings(queryClient);
+	prefetchPayrollSettings(queryClient, orgContext.organizationId ?? undefined);
 	prefetchPayrollRuns(queryClient, { organizationId: orgContext.organizationId ?? undefined });
 
 	return (

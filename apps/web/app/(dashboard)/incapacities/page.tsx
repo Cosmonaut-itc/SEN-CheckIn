@@ -28,7 +28,7 @@ export default async function IncapacitiesPage(): Promise<React.ReactElement> {
 			organizationId: orgContext.organizationId,
 		});
 		prefetchIncapacities(queryClient, {
-			limit: 50,
+			limit: 10,
 			offset: 0,
 			organizationId: orgContext.organizationId,
 		});

@@ -40,7 +40,7 @@ export default async function UsersPage(): Promise<React.ReactElement> {
 	if (organization.organizationId) {
 		prefetchOrganizationMembers(queryClient, {
 			organizationId: organization.organizationId,
-			limit: 100,
+			limit: 10,
 			offset: 0,
 		});
 	}

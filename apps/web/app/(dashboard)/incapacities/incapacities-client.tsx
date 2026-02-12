@@ -272,16 +272,15 @@ export function IncapacitiesPageClient(): React.ReactElement {
 		() => ({
 			limit: pagination.pageSize,
 			offset: pagination.pageIndex * pagination.pageSize,
-			organizationId: organizationId ?? undefined,
-			search: globalFilter.trim() ? globalFilter.trim() : undefined,
-			employeeId: selectedEmployeeId !== ALL_EMPLOYEES_VALUE ? selectedEmployeeId : undefined,
-			type: selectedType !== ALL_TYPES_VALUE ? (selectedType as IncapacityType) : undefined,
-			status:
-				selectedStatus !== ALL_STATUS_VALUE
-					? (selectedStatus as IncapacityStatus)
-					: undefined,
-			from: fromDate || undefined,
-			to: toDate || undefined,
+			...(organizationId ? { organizationId } : {}),
+			...(globalFilter.trim() ? { search: globalFilter.trim() } : {}),
+			...(selectedEmployeeId !== ALL_EMPLOYEES_VALUE ? { employeeId: selectedEmployeeId } : {}),
+			...(selectedType !== ALL_TYPES_VALUE ? { type: selectedType as IncapacityType } : {}),
+			...(selectedStatus !== ALL_STATUS_VALUE
+				? { status: selectedStatus as IncapacityStatus }
+				: {}),
+			...(fromDate ? { from: fromDate } : {}),
+			...(toDate ? { to: toDate } : {}),
 		}),
 		[
 			fromDate,

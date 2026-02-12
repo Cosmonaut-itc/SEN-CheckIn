@@ -46,7 +46,7 @@ export default async function SchedulesPage(): Promise<React.ReactElement> {
 	if (orgContext.organizationId) {
 		// Prefetch without await for streaming support
 		prefetchScheduleTemplates(queryClient, {
-			limit: 100,
+			limit: 10,
 			offset: 0,
 			organizationId: orgContext.organizationId,
 		});

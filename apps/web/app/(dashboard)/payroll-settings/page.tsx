@@ -29,7 +29,7 @@ export default async function PayrollSettingsPage(): Promise<React.ReactElement>
 		redirect('/acceso-restringido');
 	}
 
-	prefetchPayrollSettings(queryClient);
+	prefetchPayrollSettings(queryClient, organization.organizationId ?? undefined);
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

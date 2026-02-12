@@ -6,13 +6,12 @@ import React from 'react';
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
-import { queryKeys } from '@/lib/query-keys';
+import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import {
-	fetchPayrollSettingsServer,
-	fetchDisciplinaryKpisServer,
-	fetchDisciplinaryMeasuresServer,
-	fetchEmployeesListServer,
-} from '@/lib/server-client-functions';
+	prefetchDisciplinaryKpis,
+	prefetchDisciplinaryMeasures,
+	prefetchEmployeesList,
+} from '@/lib/server-functions';
 
 import { DisciplinaryMeasuresPageClient } from './disciplinary-measures-client';
 
@@ -48,24 +47,14 @@ export default async function DisciplinaryMeasuresPage(): Promise<React.ReactEle
 		offset: 0,
 	};
 	const employeesListParams = {
-		limit: 200,
+		limit: 100,
 		offset: 0,
+		...(organization.organizationId ? { organizationId: organization.organizationId } : {}),
 	};
 
-	await Promise.all([
-		queryClient.prefetchQuery({
-			queryKey: queryKeys.disciplinaryMeasures.list(disciplinaryListParams),
-			queryFn: () => fetchDisciplinaryMeasuresServer(cookieHeader, disciplinaryListParams),
-		}),
-		queryClient.prefetchQuery({
-			queryKey: queryKeys.disciplinaryMeasures.kpis(),
-			queryFn: () => fetchDisciplinaryKpisServer(cookieHeader),
-		}),
-		queryClient.prefetchQuery({
-			queryKey: queryKeys.employees.list(employeesListParams),
-			queryFn: () => fetchEmployeesListServer(cookieHeader, employeesListParams),
-		}),
-	]);
+	prefetchDisciplinaryMeasures(queryClient, disciplinaryListParams);
+	prefetchDisciplinaryKpis(queryClient);
+	prefetchEmployeesList(queryClient, employeesListParams);
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

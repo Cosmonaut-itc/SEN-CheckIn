@@ -334,7 +334,7 @@ export function DisciplinaryMeasuresManager({
 	const t = useTranslations('DisciplinaryMeasures');
 	const tCommon = useTranslations('Common');
 	const queryClient = useQueryClient();
-	const { organizationRole } = useOrgContext();
+	const { organizationId, organizationRole } = useOrgContext();
 	const searchParams = useSearchParams();
 
 	const canManage = organizationRole === 'owner' || organizationRole === 'admin';
@@ -371,12 +371,16 @@ export function DisciplinaryMeasuresManager({
 		() => ({
 			limit: pagination.pageSize,
 			offset: pagination.pageIndex * pagination.pageSize,
-			employeeId: employeeId ?? (employeeFilter || undefined),
-			search: search.trim() || undefined,
-			fromDateKey: fromDateKey || undefined,
-			toDateKey: toDateKey || undefined,
-			status: statusFilter === 'all' ? undefined : statusFilter,
-			outcome: outcomeFilter === 'all' ? undefined : outcomeFilter,
+			...(employeeId
+				? { employeeId }
+				: employeeFilter
+					? { employeeId: employeeFilter }
+					: {}),
+			...(search.trim() ? { search: search.trim() } : {}),
+			...(fromDateKey ? { fromDateKey } : {}),
+			...(toDateKey ? { toDateKey } : {}),
+			...(statusFilter !== 'all' ? { status: statusFilter } : {}),
+			...(outcomeFilter !== 'all' ? { outcome: outcomeFilter } : {}),
 		}),
 		[
 			employeeFilter,
@@ -397,29 +401,32 @@ export function DisciplinaryMeasuresManager({
 		enabled: canManage,
 	});
 
+	const disciplinaryKpisParams = useMemo(() => {
+		const params = {
+			...(fromDateKey ? { fromDateKey } : {}),
+			...(toDateKey ? { toDateKey } : {}),
+		};
+		return Object.keys(params).length > 0 ? params : undefined;
+	}, [fromDateKey, toDateKey]);
+
 	const { data: kpis } = useQuery({
-		queryKey: queryKeys.disciplinaryMeasures.kpis({
-			fromDateKey: fromDateKey || undefined,
-			toDateKey: toDateKey || undefined,
-		}),
-		queryFn: () =>
-			fetchDisciplinaryKpis({
-				fromDateKey: fromDateKey || undefined,
-				toDateKey: toDateKey || undefined,
-			}),
+		queryKey: queryKeys.disciplinaryMeasures.kpis(disciplinaryKpisParams),
+		queryFn: () => fetchDisciplinaryKpis(disciplinaryKpisParams),
 		enabled: canManage && !embedded,
 	});
 
-	const { data: employeesResponse } = useQuery({
-		queryKey: queryKeys.employees.list({
-			limit: 200,
+	const employeeListParams = useMemo(
+		() => ({
+			limit: 100,
 			offset: 0,
+			...(organizationId ? { organizationId } : {}),
 		}),
-		queryFn: () =>
-			fetchEmployeesList({
-				limit: 200,
-				offset: 0,
-			}),
+		[organizationId],
+	);
+
+	const { data: employeesResponse } = useQuery({
+		queryKey: queryKeys.employees.list(employeeListParams),
+		queryFn: () => fetchEmployeesList(employeeListParams),
 		enabled: canManage && !employeeId,
 	});
 

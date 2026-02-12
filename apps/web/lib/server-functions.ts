@@ -485,26 +485,27 @@ export function prefetchAllOrganizations(
 // ============================================================================
 
 /**
- * Prefetches payroll settings for server-side rendering.
+ * Prefetches payroll settings for server-side streaming.
  *
- * Await the returned promise in Server Components that render payroll settings
- * data server-side to keep SSR and client markup aligned and avoid hydration
- * mismatches. Cookies are forwarded from the incoming request to authenticate
- * with the API server.
+ * This function initiates the prefetch but does NOT await it, allowing Next.js to
+ * stream the response as data becomes available. Cookies are forwarded from the
+ * incoming request to authenticate with the API server.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
- * @returns Promise that resolves once the payroll settings prefetch completes
+ * @param organizationId - Optional organization scope for the settings request
+ * @returns Nothing
  */
-export function prefetchPayrollSettings(queryClient: QueryClient): Promise<void> {
-	return queryClient
-		.prefetchQuery({
-			queryKey: queryKeys.payrollSettings.current(undefined),
-			queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {
-				const cookieHeader: string = await getCookieHeader();
-				return fetchPayrollSettingsServer(cookieHeader);
-			},
-		})
-		.then(() => undefined);
+export function prefetchPayrollSettings(
+	queryClient: QueryClient,
+	organizationId?: string,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.payrollSettings.current(organizationId),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchPayrollSettingsServer(cookieHeader, organizationId);
+		},
+	});
 }
 
 export function prefetchPayrollRuns(

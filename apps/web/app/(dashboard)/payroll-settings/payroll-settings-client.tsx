@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
 import { parseDateKey } from '@/lib/date-key';
+import { useOrgContext } from '@/lib/org-client-context';
 import { PayrollHolidaysSection } from './payroll-holidays-section';
 
 const dayOptions = [
@@ -156,6 +157,7 @@ function getHydratedServerSnapshot(): boolean {
 
 export function PayrollSettingsClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const { organizationId } = useOrgContext();
 	const t = useTranslations('PayrollSettings');
 	const tCommon = useTranslations('Common');
 	const isHydrated = useSyncExternalStore(
@@ -165,8 +167,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 	);
 
 	const { data, isLoading } = useQuery({
-		queryKey: queryKeys.payrollSettings.current(undefined),
-		queryFn: () => fetchPayrollSettings(),
+		queryKey: queryKeys.payrollSettings.current(organizationId),
+		queryFn: () => fetchPayrollSettings(organizationId ?? undefined),
 	});
 
 	const mutation = useMutation({
@@ -177,7 +179,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 				toast.success(t('toast.saveSuccess'));
 				queryClient.invalidateQueries({ queryKey: queryKeys.payrollSettings.all });
 				queryClient.invalidateQueries({
-					queryKey: queryKeys.payrollSettings.current(undefined),
+					queryKey: queryKeys.payrollSettings.current(organizationId),
 				});
 			} else {
 				toast.error(result.error ?? t('toast.saveError'));

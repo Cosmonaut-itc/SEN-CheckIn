@@ -26,7 +26,7 @@ export default async function DevicesPage(): Promise<React.ReactElement> {
 
 	// Prefetch without await for streaming support
 	prefetchDevicesList(queryClient, {
-		limit: 100,
+		limit: 10,
 		offset: 0,
 		organizationId: orgContext.organizationId,
 	});

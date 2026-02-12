@@ -28,7 +28,7 @@ export default async function LocationsPage(): Promise<React.ReactElement> {
 	// Prefetch without await for streaming support
 	if (orgContext.organizationId) {
 		prefetchLocationsList(queryClient, {
-			limit: 100,
+			limit: 10,
 			offset: 0,
 			organizationId: orgContext.organizationId,
 		});

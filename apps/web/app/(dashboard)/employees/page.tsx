@@ -27,7 +27,7 @@ export default async function EmployeesPage(): Promise<React.ReactElement> {
 
 	// Prefetch without await for streaming support
 	prefetchEmployeesList(queryClient, {
-		limit: 100,
+		limit: 10,
 		offset: 0,
 		organizationId: organization.organizationId,
 	});

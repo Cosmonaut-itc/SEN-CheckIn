@@ -29,7 +29,7 @@ export default async function AttendancePage(): Promise<React.ReactElement> {
 	const today = new Date();
 	if (orgContext.organizationId) {
 		prefetchAttendanceRecords(queryClient, {
-			limit: 100,
+			limit: 10,
 			offset: 0,
 			fromDate: startOfDay(today),
 			toDate: endOfDay(today),

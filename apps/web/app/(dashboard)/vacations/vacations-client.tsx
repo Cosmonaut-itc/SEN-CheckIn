@@ -337,11 +337,11 @@ export function VacationsPageClient(): React.ReactElement {
 		() => ({
 			limit: pagination.pageSize,
 			offset: pagination.pageIndex * pagination.pageSize,
-			organizationId: organizationId ?? undefined,
-			employeeId: selectedEmployeeIdValue !== 'all' ? selectedEmployeeIdValue : undefined,
-			status: statusFilterValue !== 'all' ? statusFilterValue : undefined,
-			from: fromDate || undefined,
-			to: toDate || undefined,
+			...(organizationId ? { organizationId } : {}),
+			...(selectedEmployeeIdValue !== 'all' ? { employeeId: selectedEmployeeIdValue } : {}),
+			...(statusFilterValue !== 'all' ? { status: statusFilterValue } : {}),
+			...(fromDate ? { from: fromDate } : {}),
+			...(toDate ? { to: toDate } : {}),
 		}),
 		[
 			fromDate,

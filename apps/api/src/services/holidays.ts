@@ -529,6 +529,8 @@ export async function syncOrganizationHolidayCalendar(args: {
 						legalReference: sql`excluded.legal_reference`,
 						conflictReason: sql`excluded.conflict_reason`,
 						syncRunId: run.id,
+						approvedAt: null,
+						approvedBy: null,
 						rejectedAt: null,
 						rejectedBy: null,
 					},

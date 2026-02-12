@@ -5,7 +5,11 @@ import dynamic from 'next/dynamic';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { EmployeeDocumentRequirementKey, LegalDocumentKind } from '@sen-checkin/types';
+import {
+	buildDefaultLegalTemplateHtml,
+	type EmployeeDocumentRequirementKey,
+	type LegalDocumentKind,
+} from '@sen-checkin/types';
 
 import {
 	confirmLegalBrandingAction,
@@ -117,105 +121,6 @@ async function uploadToPresignedPost(args: {
 }
 
 /**
- * Builds default HTML content for legal templates.
- *
- * @param kind - Legal kind
- * @returns Default template content
- */
-function buildDefaultTemplateHtml(kind: LegalDocumentKind): string {
-	if (kind === 'CONTRACT') {
-		return `
-<h1>Contrato Laboral</h1>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Puesto: {{employee.jobPositionName}}</p>
-<p>Ubicación: {{employee.locationName}}</p>
-<p>RFC: {{employee.rfc}}</p>
-<p>NSS: {{employee.nss}}</p>
-<p>Fecha de ingreso: {{employee.hireDate}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	if (kind === 'NDA') {
-		return `
-<h1>Convenio de Confidencialidad (NDA)</h1>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Puesto: {{employee.jobPositionName}}</p>
-<p>RFC: {{employee.rfc}}</p>
-<p>NSS: {{employee.nss}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	if (kind === 'ACTA_ADMINISTRATIVA') {
-		return `
-<div class="acta-admin" style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.4;">
-  <h2 style="text-align:center; margin: 0 0 18px 0;">ACTA ADMINISTRATIVA</h2>
-
-  <p>
-    En la Ciudad de {{employee.locationName}}, {{acta.state}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, en las oficinas de la empresa
-    {{acta.companyName}} Sucursal {{employee.locationName}}, por una parte el(la) {{acta.employerTreatment}} {{acta.employerName}} en su carácter de
-    {{acta.employerPosition}} por la parte patronal, además de los testigos Testigo 1: (nombre escrito a mano) y Testigo 2: (nombre escrito a mano) a quienes les constan
-    los hechos siguientes ya que vieron y estuvieron en el lugar de los acontecimientos:
-  </p>
-
-  <p>
-    Se levanta la presente Acta Administrativa con motivo de que usted {{acta.employeeTreatment}} {{employee.fullName}} ha incurrido
-    en las siguientes faltas al Contrato Individual de Trabajo y/o Ley Federal del Trabajo y/o Reglamento Interior de Trabajo,
-    mismas que se narran a continuación:
-  </p>
-
-  <p><strong>Hechos / Faltas:</strong></p>
-  <p style="white-space: pre-line; margin-top: 6px;">{{disciplinary.reason}}</p>
-
-  <p>
-    La presente se redacta para constancia y para que surta sus efectos legales correspondientes como soporte para futuras
-    acciones que se puedan entablar en contra del trabajador. El trabajador firma de conformidad la presente aceptando ser
-    responsable del contenido de esta acta.
-  </p>
-
-  <p style="text-align:center; margin-top: 18px;">
-    {{employee.locationName}}, {{acta.state}}, {{document.generatedDateLong}}
-  </p>
-
-  <p style="margin-top: 22px;"><strong>TRABAJADOR(A).</strong></p>
-  <p>
-    __________________________________<br>
-    {{employee.fullName}}
-  </p>
-
-  <table style="width:100%; margin-top: 26px; border-collapse: collapse;">
-    <tr>
-      <td style="width:50%; vertical-align:top; padding-right: 12px;">
-        <strong>Testigo.</strong><br><br>
-        __________________________________<br>
-        Testigo 1: (nombre escrito a mano)
-      </td>
-      <td style="width:50%; vertical-align:top; padding-left: 12px;">
-        <strong>Testigo.</strong><br><br>
-        __________________________________<br>
-        Testigo 2: (nombre escrito a mano)
-      </td>
-    </tr>
-  </table>
-</div>
-`.trim();
-	}
-
-	return `
-<h1>Constancia de negativa de firma</h1>
-<p>Folio de medida: {{disciplinary.folio}}</p>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Motivo del acta: {{disciplinary.reason}}</p>
-<p>Resultado aplicado: {{disciplinary.outcome}}</p>
-<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-}
-
-/**
  * Document workflow settings section for payroll settings screen.
  *
  * @returns React element
@@ -233,10 +138,10 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 	const [templateHtmlByKind, setTemplateHtmlByKind] = useState<
 		Record<LegalDocumentKind, string>
 	>({
-		CONTRACT: buildDefaultTemplateHtml('CONTRACT'),
-		NDA: buildDefaultTemplateHtml('NDA'),
-		ACTA_ADMINISTRATIVA: buildDefaultTemplateHtml('ACTA_ADMINISTRATIVA'),
-		CONSTANCIA_NEGATIVA_FIRMA: buildDefaultTemplateHtml('CONSTANCIA_NEGATIVA_FIRMA'),
+		CONTRACT: buildDefaultLegalTemplateHtml('CONTRACT'),
+		NDA: buildDefaultLegalTemplateHtml('NDA'),
+		ACTA_ADMINISTRATIVA: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
+		CONSTANCIA_NEGATIVA_FIRMA: buildDefaultLegalTemplateHtml('CONSTANCIA_NEGATIVA_FIRMA'),
 	});
 	const [brandingDisplayName, setBrandingDisplayName] = useState<string>('');
 	const [brandingHeaderText, setBrandingHeaderText] = useState<string>('');
@@ -452,7 +357,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 			const htmlContent = templateHtmlByKind[kind] ?? '';
 			const result = await createDraftMutation.mutateAsync({
 				kind,
-				htmlContent: htmlContent.trim() || buildDefaultTemplateHtml(kind),
+				htmlContent: htmlContent.trim() || buildDefaultLegalTemplateHtml(kind),
 			});
 
 			if (!result.success) {
@@ -831,7 +736,8 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 				<div className="grid gap-4 lg:grid-cols-2">
 					{DOCUMENT_TEMPLATE_KINDS.map((kind) => {
 						const latestTemplate = latestTemplateByKind[kind];
-						const htmlValue = templateHtmlByKind[kind] ?? buildDefaultTemplateHtml(kind);
+						const htmlValue =
+							templateHtmlByKind[kind] ?? buildDefaultLegalTemplateHtml(kind);
 
 						return (
 							<div key={kind} className="space-y-3 rounded-md border bg-muted/20 p-4">

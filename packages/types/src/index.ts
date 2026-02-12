@@ -77,6 +77,11 @@ export interface RekognitionDeleteResult {
 	message: string;
 }
 
+export {
+	buildDefaultLegalTemplateHtml,
+	type DefaultLegalTemplateKind,
+} from './legal-template-defaults';
+
 /**
  * Matched user information from a face search operation.
  */

@@ -8,6 +8,8 @@ const mockUseMutation = jest.fn();
 const mockInvalidateQueries = jest.fn();
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
+const mockGoBack = jest.fn();
+const mockCanGoBack = jest.fn(() => false);
 const mockUseDeviceContext = jest.fn();
 const mockFullEnrollmentFlow: jest.Mock = jest.fn();
 const mockIsFaceEnrollmentApiError: jest.Mock = jest.fn();
@@ -26,6 +28,10 @@ jest.mock('expo-router', () => ({
 	useRouter: () => ({
 		push: mockPush,
 		replace: mockReplace,
+	}),
+	useNavigation: () => ({
+		canGoBack: mockCanGoBack,
+		goBack: mockGoBack,
 	}),
 	Stack: {
 		Screen: () => null,
@@ -133,6 +139,7 @@ jest.mock('heroui-native', () => {
 		Button,
 		Card,
 		Spinner,
+		useThemeColor: () => '#111827',
 	};
 });
 
@@ -163,6 +170,9 @@ describe('FaceEnrollmentScreen', () => {
 		mockUseQuery.mockReset();
 		mockUseMutation.mockReset();
 		mockInvalidateQueries.mockReset();
+		mockGoBack.mockReset();
+		mockCanGoBack.mockReset();
+		mockCanGoBack.mockReturnValue(false);
 		mockUseDeviceContext.mockReset();
 		mockFullEnrollmentFlow.mockReset();
 		mockIsFaceEnrollmentApiError.mockReset();

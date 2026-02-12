@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
-import { type Href, Stack, useRouter } from 'expo-router';
-import { Button, Card, Spinner } from 'heroui-native';
+import { type Href, useNavigation, useRouter } from 'expo-router';
+import { Button, Card, Spinner, useThemeColor } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
@@ -85,8 +85,10 @@ function resolveEnrollmentErrorMessage(error: unknown): string {
  */
 export default function FaceEnrollmentScreen(): JSX.Element {
 	const router = useRouter();
+	const navigation = useNavigation();
 	const insets = useSafeAreaInsets();
 	const queryClient = useQueryClient();
+	const iconColor = useThemeColor('foreground');
 	const cameraRef = useRef<CameraView | null>(null);
 	const [cameraFacing, setCameraFacing] = useState<CameraType>('front');
 	const [permission, requestPermission] = useCameraPermissions();
@@ -244,8 +246,13 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	 * @returns No return value
 	 */
 	const handleBackToScanner = useCallback((): void => {
+		if (navigation.canGoBack()) {
+			navigation.goBack();
+			return;
+		}
+
 		router.replace(SCANNER_ROUTE);
-	}, [router]);
+	}, [navigation, router]);
 
 	/**
 	 * Opens the settings screen to complete device linkage configuration.
@@ -257,6 +264,10 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}, [router]);
 
 	const contentBottomPadding = Math.max(28, insets.bottom + 20);
+	const floatingBackButtonSize = 44;
+	const floatingBackButtonTop = Math.max(8, insets.top + 8);
+	const floatingBackButtonLeft = 16;
+	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
 
 	if (!permission) {
 		return (
@@ -270,13 +281,15 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}
 
 	return (
-		<>
-			<Stack.Screen options={{ title: i18n.t('FaceEnrollment.title'), headerShown: true }} />
+		<View className="flex-1 bg-background">
 			<ScrollView
 				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="automatic"
+				contentInsetAdjustmentBehavior="never"
 				contentContainerClassName="px-4 gap-4"
-				contentContainerStyle={{ paddingBottom: contentBottomPadding }}
+				contentContainerStyle={{
+					paddingTop: contentTopPadding,
+					paddingBottom: contentBottomPadding,
+				}}
 			>
 				<Text className="text-foreground-500 text-sm" selectable>
 					{i18n.t('FaceEnrollment.subtitle')}
@@ -539,6 +552,27 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					</>
 				) : null}
 			</ScrollView>
-		</>
+
+			<View
+				pointerEvents="box-none"
+				style={{
+					position: 'absolute',
+					top: floatingBackButtonTop,
+					left: floatingBackButtonLeft,
+					zIndex: 30,
+				}}
+			>
+				<Button
+					variant="secondary"
+					isIconOnly
+					size="md"
+					className="w-11 h-11 rounded-full"
+					accessibilityLabel={i18n.t('FaceEnrollment.actions.backToScanner')}
+					onPress={handleBackToScanner}
+				>
+					<IconSymbol name="chevron.left" size={22} color={iconColor} />
+				</Button>
+			</View>
+		</View>
 	);
 }

@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { and, countDistinct, desc, eq, gte, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
 import { Elysia } from 'elysia';
+import { buildDefaultLegalTemplateHtml } from '@sen-checkin/types/legal-template-defaults';
 
 import db from '../db/index.js';
 import {
@@ -13,6 +14,8 @@ import {
 	jobPosition,
 	location,
 	member,
+	organization,
+	organizationLegalBranding,
 	organizationLegalTemplate,
 	payrollSetting,
 } from '../db/schema.js';
@@ -66,6 +69,71 @@ type DisciplinaryAccessContext = {
 	userId: string;
 	role: MemberRole;
 };
+
+const DISCIPLINARY_ACTA_SETTINGS_ERROR_CODE = 'DISCIPLINARY_ACTA_SETTINGS_INCOMPLETE';
+
+const REQUIRED_DISCIPLINARY_ACTA_SETTINGS = [
+	'actaState',
+	'actaEmployerTreatment',
+	'actaEmployerName',
+	'actaEmployerPosition',
+	'actaEmployeeTreatment',
+] as const;
+
+const DEFAULT_DISCIPLINARY_ACTA_TEMPLATE_VARIABLES: Record<string, unknown> = {
+	employee: {
+		fullName: 'string',
+		code: 'string',
+		rfc: 'string|null',
+		nss: 'string|null',
+		jobPositionName: 'string|null',
+		locationName: 'string|null',
+		hireDate: 'string|null',
+	},
+	document: {
+		generatedDate: 'string',
+		generatedDateLong: 'string',
+		generatedTimeLabel: 'string',
+	},
+	disciplinary: {
+		folio: 'string',
+		incidentDate: 'string',
+		reason: 'string',
+		outcome: 'string',
+		policyReference: 'string|null',
+		suspensionRange: 'string|null',
+	},
+	acta: {
+		companyName: 'string',
+		state: 'string',
+		employerTreatment: 'string',
+		employerName: 'string',
+		employerPosition: 'string',
+		employeeTreatment: 'string',
+	},
+};
+
+const ACTA_CLASSIC_LAYOUT_MARKER = 'data-layout="acta-classic-v1"';
+
+/**
+ * Returns true when the provided value is a non-empty string.
+ *
+ * @param value - Arbitrary input value
+ * @returns True when value is a non-empty string after trimming
+ */
+function isNonEmptyString(value: unknown): value is string {
+	return typeof value === 'string' && value.trim().length > 0;
+}
+
+/**
+ * Determines if an ACTA template is the canonical classic layout format.
+ *
+ * @param htmlContent - Template HTML content
+ * @returns True when canonical marker is present
+ */
+function isCanonicalActaTemplateHtml(htmlContent: string): boolean {
+	return htmlContent.includes(ACTA_CLASSIC_LAYOUT_MARKER);
+}
 
 /**
  * Sanitizes a file name to avoid path traversal and unsupported characters.
@@ -418,6 +486,33 @@ async function fetchTemplateById(args: {
 }
 
 /**
+ * Computes the next template version number for a legal kind in an organization.
+ *
+ * @param args - Lookup arguments
+ * @returns Next version number
+ */
+async function getNextTemplateVersionNumber(args: {
+	organizationId: string;
+	kind: 'ACTA_ADMINISTRATIVA' | 'CONSTANCIA_NEGATIVA_FIRMA';
+}): Promise<number> {
+	const rows = await db
+		.select({
+			versionNumber: organizationLegalTemplate.versionNumber,
+		})
+		.from(organizationLegalTemplate)
+		.where(
+			and(
+				eq(organizationLegalTemplate.organizationId, args.organizationId),
+				eq(organizationLegalTemplate.kind, args.kind),
+			),
+		)
+		.orderBy(desc(organizationLegalTemplate.versionNumber))
+		.limit(1);
+
+	return (rows[0]?.versionNumber ?? 0) + 1;
+}
+
+/**
  * Ensures generation belongs to organization/employee and matches expected kind.
  *
  * @param args - Lookup arguments
@@ -517,6 +612,14 @@ function buildDisciplinaryVariablesSnapshot(args: {
 		hireDate: Date | null;
 	};
 	measure: typeof employeeDisciplinaryMeasure.$inferSelect;
+	acta: {
+		companyName: string;
+		state: string;
+		employerTreatment: string;
+		employerName: string;
+		employerPosition: string;
+		employeeTreatment: string;
+	};
 }): Record<string, unknown> {
 	const baseSnapshot = buildDefaultLegalVariablesSnapshot(args.employeeRecord);
 	const suspensionRange = buildSuspensionRangeLabel(
@@ -534,6 +637,7 @@ function buildDisciplinaryVariablesSnapshot(args: {
 			policyReference: args.measure.policyReference,
 			suspensionRange,
 		},
+		acta: args.acta,
 	};
 }
 
@@ -1163,15 +1267,65 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				.leftJoin(location, eq(employee.locationId, location.id))
 				.where(eq(employee.id, measure.employeeId))
 				.limit(1);
-			const employeeRecord = employeeRows[0];
-			if (!employeeRecord) {
-				set.status = 404;
-				return buildErrorResponse('Employee not found', 404);
-			}
+				const employeeRecord = employeeRows[0];
+				if (!employeeRecord) {
+					set.status = 404;
+					return buildErrorResponse('Employee not found', 404);
+				}
 
-			let template: typeof organizationLegalTemplate.$inferSelect | null = null;
-			if (body.templateId) {
-				template = await fetchTemplateById({
+				const organizationContextRows = await db
+					.select({
+						organizationName: organization.name,
+						displayName: organizationLegalBranding.displayName,
+						headerText: organizationLegalBranding.headerText,
+						actaState: organizationLegalBranding.actaState,
+						actaEmployerTreatment: organizationLegalBranding.actaEmployerTreatment,
+						actaEmployerName: organizationLegalBranding.actaEmployerName,
+						actaEmployerPosition: organizationLegalBranding.actaEmployerPosition,
+						actaEmployeeTreatment: organizationLegalBranding.actaEmployeeTreatment,
+					})
+					.from(organization)
+					.leftJoin(
+						organizationLegalBranding,
+						eq(organizationLegalBranding.organizationId, organization.id),
+					)
+					.where(eq(organization.id, access.organizationId))
+					.limit(1);
+				const organizationContext = organizationContextRows[0];
+				if (!organizationContext) {
+					set.status = 404;
+					return buildErrorResponse('Organization not found', 404);
+				}
+
+				const missingSettings = REQUIRED_DISCIPLINARY_ACTA_SETTINGS.filter(
+					(field) => !isNonEmptyString(organizationContext[field]),
+				);
+				if (missingSettings.length > 0) {
+					set.status = 409;
+					return buildErrorResponse('Required ACTA settings are missing', 409, {
+						code: DISCIPLINARY_ACTA_SETTINGS_ERROR_CODE,
+						details: {
+							missingSettings,
+						},
+					});
+				}
+
+					const displayName = organizationContext.displayName;
+					const companyName = isNonEmptyString(displayName)
+						? displayName.trim()
+						: organizationContext.organizationName.trim();
+				const actaSettings = {
+					companyName,
+					state: (organizationContext.actaState ?? '').trim(),
+					employerTreatment: (organizationContext.actaEmployerTreatment ?? '').trim(),
+					employerName: (organizationContext.actaEmployerName ?? '').trim(),
+					employerPosition: (organizationContext.actaEmployerPosition ?? '').trim(),
+					employeeTreatment: (organizationContext.actaEmployeeTreatment ?? '').trim(),
+				};
+
+				let template: typeof organizationLegalTemplate.$inferSelect | null = null;
+				if (body.templateId) {
+					template = await fetchTemplateById({
 					organizationId: access.organizationId,
 					templateId: body.templateId,
 					kind: 'ACTA_ADMINISTRATIVA',
@@ -1184,21 +1338,90 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 					set.status = 400;
 					return buildErrorResponse('Template must be published before generation', 400);
 				}
-			} else {
-				template = await fetchLatestPublishedTemplate(
-					access.organizationId,
-					'ACTA_ADMINISTRATIVA',
-				);
-				if (!template) {
-					set.status = 404;
-					return buildErrorResponse('No published acta template found', 404);
-				}
-			}
+				} else {
+					template = await fetchLatestPublishedTemplate(
+						access.organizationId,
+						'ACTA_ADMINISTRATIVA',
+					);
+					if (!template) {
+						const nextVersionNumber = await getNextTemplateVersionNumber({
+							organizationId: access.organizationId,
+							kind: 'ACTA_ADMINISTRATIVA',
+						});
+						const insertedTemplateRows = await db
+							.insert(organizationLegalTemplate)
+							.values({
+								organizationId: access.organizationId,
+								kind: 'ACTA_ADMINISTRATIVA',
+								versionNumber: nextVersionNumber,
+								status: 'PUBLISHED',
+								htmlContent: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
+								variablesSchemaSnapshot: DEFAULT_DISCIPLINARY_ACTA_TEMPLATE_VARIABLES,
+								brandingSnapshot: {
+									displayName: organizationContext.displayName ?? null,
+									headerText: organizationContext.headerText ?? null,
+									actaState: organizationContext.actaState ?? null,
+									actaEmployerTreatment:
+										organizationContext.actaEmployerTreatment ?? null,
+									actaEmployerName: organizationContext.actaEmployerName ?? null,
+									actaEmployerPosition: organizationContext.actaEmployerPosition ?? null,
+									actaEmployeeTreatment:
+										organizationContext.actaEmployeeTreatment ?? null,
+								},
+								createdByUserId: access.userId,
+								publishedByUserId: access.userId,
+								publishedAt: new Date(),
+							})
+							.returning();
+						template = insertedTemplateRows[0] ?? null;
+						if (!template) {
+							set.status = 500;
+							return buildErrorResponse('Failed to bootstrap disciplinary acta template', 500);
+						}
+					}
 
-			const variablesSnapshot = buildDisciplinaryVariablesSnapshot({
-				employeeRecord,
-				measure,
-			});
+					if (template && !isCanonicalActaTemplateHtml(template.htmlContent)) {
+						const nextVersionNumber = await getNextTemplateVersionNumber({
+							organizationId: access.organizationId,
+							kind: 'ACTA_ADMINISTRATIVA',
+						});
+						const upgradedTemplateRows = await db
+							.insert(organizationLegalTemplate)
+							.values({
+								organizationId: access.organizationId,
+								kind: 'ACTA_ADMINISTRATIVA',
+								versionNumber: nextVersionNumber,
+								status: 'PUBLISHED',
+								htmlContent: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
+								variablesSchemaSnapshot: DEFAULT_DISCIPLINARY_ACTA_TEMPLATE_VARIABLES,
+								brandingSnapshot: {
+									displayName: organizationContext.displayName ?? null,
+									headerText: organizationContext.headerText ?? null,
+									actaState: organizationContext.actaState ?? null,
+									actaEmployerTreatment:
+										organizationContext.actaEmployerTreatment ?? null,
+									actaEmployerName: organizationContext.actaEmployerName ?? null,
+									actaEmployerPosition: organizationContext.actaEmployerPosition ?? null,
+									actaEmployeeTreatment: organizationContext.actaEmployeeTreatment ?? null,
+								},
+								createdByUserId: access.userId,
+								publishedByUserId: access.userId,
+								publishedAt: new Date(),
+							})
+							.returning();
+						template = upgradedTemplateRows[0] ?? null;
+						if (!template) {
+							set.status = 500;
+							return buildErrorResponse('Failed to upgrade disciplinary acta template', 500);
+						}
+					}
+				}
+
+				const variablesSnapshot = buildDisciplinaryVariablesSnapshot({
+					employeeRecord,
+					measure,
+					acta: actaSettings,
+				});
 			const renderedHtml = renderLegalHtml(template.htmlContent, variablesSnapshot);
 			const generatedHtmlHash = sha256Hex(renderedHtml);
 
@@ -1576,14 +1799,22 @@ export const disciplinaryMeasuresRoutes = new Elysia({ prefix: '/disciplinary-me
 				}
 			}
 
-			const variablesSnapshot = {
-				...buildDisciplinaryVariablesSnapshot({
-					employeeRecord,
-					measure,
-				}),
-				refusal: {
-					reason: body.refusalReason ?? null,
-				},
+				const variablesSnapshot = {
+					...buildDisciplinaryVariablesSnapshot({
+						employeeRecord,
+						measure,
+						acta: {
+							companyName: '',
+							state: '',
+							employerTreatment: '',
+							employerName: '',
+							employerPosition: '',
+							employeeTreatment: '',
+						},
+					}),
+					refusal: {
+						reason: body.refusalReason ?? null,
+					},
 			};
 			const renderedHtml = renderLegalHtml(template.htmlContent, variablesSnapshot);
 			const generatedHtmlHash = sha256Hex(renderedHtml);

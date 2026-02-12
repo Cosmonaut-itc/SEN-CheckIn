@@ -40,6 +40,11 @@ export default defineConfig({
 		alias: {
 			'@': resolve(rootDir, '.'),
 			'@sen-checkin/api-contract': resolve(repoRoot, 'packages/api-contract/src/index.ts'),
+			'@sen-checkin/types': resolve(repoRoot, 'packages/types/src/index.ts'),
+			'@sen-checkin/types/legal-template-defaults': resolve(
+				repoRoot,
+				'packages/types/src/legal-template-defaults.ts',
+			),
 			react: resolve(nodeModulesRoot, 'react'),
 			'react-dom': resolve(nodeModulesRoot, 'react-dom'),
 			'react-dom/client': resolve(nodeModulesRoot, 'react-dom/client'),

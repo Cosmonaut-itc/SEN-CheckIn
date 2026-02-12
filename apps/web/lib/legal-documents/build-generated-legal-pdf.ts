@@ -17,6 +17,110 @@ interface PdfParagraphBlock {
 	marginBottom: number;
 }
 
+interface ActaClassicContent {
+	title: string;
+	intro: string;
+	notice: string;
+	reason: string;
+	closing: string;
+	dateLine: string;
+	workerLabel: string;
+	workerName: string;
+	witnessLeftLabel: string;
+	witnessRightLabel: string;
+	witnessLeftName: string;
+	witnessRightName: string;
+}
+
+const ACTA_CLASSIC_LAYOUT_SELECTOR = '[data-layout="acta-classic-v1"]';
+
+/**
+ * Normalizes reason text so it always starts with a dash prefix.
+ *
+ * @param value - Raw reason text
+ * @returns Normalized reason text
+ */
+function normalizeActaReason(value: string): string {
+	const cleaned = sanitizePdfText(value);
+	if (cleaned.length === 0) {
+		return '';
+	}
+	if (cleaned.startsWith('-')) {
+		return cleaned;
+	}
+	return `-${cleaned}`;
+}
+
+/**
+ * Extracts plain text for a semantic acta role from template HTML.
+ *
+ * @param root - Root acta template element
+ * @param role - Semantic role key
+ * @returns Text value or empty string
+ */
+function extractActaRoleText(root: HTMLElement, role: string): string {
+	const element = root.querySelector(`[data-acta-role="${role}"]`);
+	if (!(element instanceof HTMLElement)) {
+		return '';
+	}
+	return extractElementText(element);
+}
+
+/**
+ * Extracts semantic content for the classic acta layout, when present.
+ *
+ * @param html - Rendered legal HTML
+ * @returns Acta content payload or null for non-classic layouts
+ */
+export function extractActaClassicContent(html: string): ActaClassicContent | null {
+	const parser = new DOMParser();
+	const parsed = parser.parseFromString(html, 'text/html');
+	const root = parsed.querySelector(ACTA_CLASSIC_LAYOUT_SELECTOR);
+	if (!(root instanceof HTMLElement)) {
+		return null;
+	}
+
+	const title = extractActaRoleText(root, 'title');
+	const intro = extractActaRoleText(root, 'intro');
+	const notice = extractActaRoleText(root, 'notice');
+	const reason = normalizeActaReason(extractActaRoleText(root, 'reason'));
+	const closing = extractActaRoleText(root, 'closing');
+	const dateLine = extractActaRoleText(root, 'date');
+	const workerLabel = extractActaRoleText(root, 'worker-label') || 'TRABAJADOR.';
+	const workerName = extractActaRoleText(root, 'worker-name');
+	const witnessLeftLabel = extractActaRoleText(root, 'witness-left-label') || 'Testigo.';
+	const witnessRightLabel = extractActaRoleText(root, 'witness-right-label') || 'Testigo.';
+	const witnessLeftName = extractActaRoleText(root, 'witness-left-name');
+	const witnessRightName = extractActaRoleText(root, 'witness-right-name');
+
+	if (
+		title.length === 0 ||
+		intro.length === 0 ||
+		notice.length === 0 ||
+		reason.length === 0 ||
+		closing.length === 0 ||
+		dateLine.length === 0 ||
+		workerName.length === 0
+	) {
+		return null;
+	}
+
+	return {
+		title,
+		intro,
+		notice,
+		reason,
+		closing,
+		dateLine,
+		workerLabel,
+		workerName,
+		witnessLeftLabel,
+		witnessRightLabel,
+		witnessLeftName,
+		witnessRightName,
+	};
+}
+
 /**
  * Replaces HTML tags with text separators to preserve readable blocks.
  *
@@ -452,25 +556,265 @@ export async function buildGeneratedLegalPdfFromHtml(args: {
 	}
 
 	/**
-	 * Resolves horizontal draw position according to paragraph alignment.
+	 * Resolves aligned X coordinate constrained to a custom horizontal segment.
 	 *
-	 * @param args - Alignment arguments
+	 * @param args - Segment alignment arguments
 	 * @returns X position in points
 	 */
-	function resolveAlignedX(args: {
+	function resolveAlignedXInSegment(args: {
 		text: string;
 		font: PDFFont;
 		fontSize: number;
 		alignment: PdfTextAlignment;
+		startX: number;
+		width: number;
 	}): number {
 		const textWidth = args.font.widthOfTextAtSize(args.text, args.fontSize);
 		if (args.alignment === 'center') {
-			return (page.getWidth() - textWidth) / 2;
+			return args.startX + (args.width - textWidth) / 2;
 		}
 		if (args.alignment === 'right') {
-			return page.getWidth() - PDF_PAGE_MARGIN - textWidth;
+			return args.startX + args.width - textWidth;
 		}
-		return PDF_PAGE_MARGIN;
+		return args.startX;
+	}
+
+	/**
+	 * Draws a text block with wrapping and custom segment alignment.
+	 *
+	 * @param args - Drawing arguments
+	 * @returns Nothing
+	 */
+	function drawTextBlock(args: {
+		text: string;
+		font: PDFFont;
+		fontSize: number;
+		lineHeight: number;
+		alignment: PdfTextAlignment;
+		startX?: number;
+		width?: number;
+		marginTop: number;
+		marginBottom: number;
+	}): void {
+		cursorY -= args.marginTop;
+		const startX = args.startX ?? PDF_PAGE_MARGIN;
+		const width = args.width ?? getContentWidth();
+		const textChunks = args.text.split('\n').map((chunk) => chunk.trim()).filter(Boolean);
+
+		textChunks.forEach((chunk) => {
+			const wrappedLines = wrapParagraphLines({
+				text: chunk,
+				font: args.font,
+				fontSize: args.fontSize,
+				maxWidth: width,
+			});
+
+			wrappedLines.forEach((line) => {
+				ensurePageCapacity(args.lineHeight);
+				page.drawText(line, {
+					x: resolveAlignedXInSegment({
+						text: line,
+						font: args.font,
+						fontSize: args.fontSize,
+						alignment: args.alignment,
+						startX,
+						width,
+					}),
+					y: cursorY,
+					size: args.fontSize,
+					font: args.font,
+					color: rgb(PDF_TEXT_COLOR.red, PDF_TEXT_COLOR.green, PDF_TEXT_COLOR.blue),
+				});
+				cursorY -= args.lineHeight;
+			});
+		});
+
+		cursorY -= args.marginBottom;
+	}
+
+	/**
+	 * Draws the classic acta administrative layout with fixed signature/witness structure.
+	 *
+	 * @param content - Semantic acta content
+	 * @returns Nothing
+	 */
+	function drawActaClassicLayout(content: ActaClassicContent): void {
+		const bodyFontSize = 12;
+		const bodyLineHeight = 14.2;
+		const sectionGap = 30;
+		const lineColor = rgb(PDF_TEXT_COLOR.red, PDF_TEXT_COLOR.green, PDF_TEXT_COLOR.blue);
+
+		drawTextBlock({
+			text: content.title,
+			font: boldFont,
+			fontSize: 16,
+			lineHeight: 19,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 50,
+		});
+
+		drawTextBlock({
+			text: content.intro,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 22,
+		});
+
+		drawTextBlock({
+			text: content.notice,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 24,
+		});
+
+		drawTextBlock({
+			text: content.reason,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 26,
+		});
+
+		drawTextBlock({
+			text: content.closing,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 30,
+		});
+
+		drawTextBlock({
+			text: content.dateLine,
+			font: boldFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 24,
+		});
+
+		drawTextBlock({
+			text: content.workerLabel,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: 16,
+		});
+
+		ensurePageCapacity(120);
+
+		const workerLineWidth = 230;
+		const workerLineStartX = (page.getWidth() - workerLineWidth) / 2;
+		page.drawLine({
+			start: { x: workerLineStartX, y: cursorY },
+			end: { x: workerLineStartX + workerLineWidth, y: cursorY },
+			thickness: 1,
+			color: lineColor,
+		});
+		cursorY -= 16;
+
+		drawTextBlock({
+			text: content.workerName,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'center',
+			marginTop: 0,
+			marginBottom: sectionGap,
+		});
+
+		ensurePageCapacity(120);
+
+		const witnessGap = 40;
+		const witnessColumnWidth = (getContentWidth() - witnessGap) / 2;
+		const witnessLeftStartX = PDF_PAGE_MARGIN;
+		const witnessRightStartX = witnessLeftStartX + witnessColumnWidth + witnessGap;
+
+		drawTextBlock({
+			text: content.witnessLeftLabel,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'left',
+			startX: witnessLeftStartX,
+			width: witnessColumnWidth,
+			marginTop: 0,
+			marginBottom: 0,
+		});
+		drawTextBlock({
+			text: content.witnessRightLabel,
+			font: bodyFont,
+			fontSize: bodyFontSize,
+			lineHeight: bodyLineHeight,
+			alignment: 'left',
+			startX: witnessRightStartX,
+			width: witnessColumnWidth,
+			marginTop: -bodyLineHeight,
+			marginBottom: 0,
+		});
+
+		cursorY -= 26;
+
+		page.drawLine({
+			start: { x: witnessLeftStartX, y: cursorY },
+			end: { x: witnessLeftStartX + witnessColumnWidth, y: cursorY },
+			thickness: 1,
+			color: lineColor,
+		});
+		page.drawLine({
+			start: { x: witnessRightStartX, y: cursorY },
+			end: { x: witnessRightStartX + witnessColumnWidth, y: cursorY },
+			thickness: 1,
+			color: lineColor,
+		});
+
+		cursorY -= 18;
+
+		if (content.witnessLeftName.trim().length > 0) {
+			drawTextBlock({
+				text: content.witnessLeftName,
+				font: bodyFont,
+				fontSize: bodyFontSize,
+				lineHeight: bodyLineHeight,
+				alignment: 'left',
+				startX: witnessLeftStartX,
+				width: witnessColumnWidth,
+				marginTop: 0,
+				marginBottom: 0,
+			});
+		}
+		if (content.witnessRightName.trim().length > 0) {
+			drawTextBlock({
+				text: content.witnessRightName,
+				font: bodyFont,
+				fontSize: bodyFontSize,
+				lineHeight: bodyLineHeight,
+				alignment: 'left',
+				startX: witnessRightStartX,
+				width: witnessColumnWidth,
+				marginTop: content.witnessLeftName.trim().length > 0 ? -bodyLineHeight : 0,
+				marginBottom: 0,
+			});
+		}
+	}
+
+	const actaClassicContent = extractActaClassicContent(args.html);
+	if (actaClassicContent) {
+		drawActaClassicLayout(actaClassicContent);
+		return pdfDoc.save({ useObjectStreams: false });
 	}
 
 	const parsedBlocks = extractParagraphBlocksFromHtml(args.html);
@@ -498,38 +842,16 @@ export async function buildGeneratedLegalPdfFromHtml(args: {
 		  ];
 
 	blocks.forEach((block) => {
-		cursorY -= block.marginTop;
-		const font = block.isBold ? boldFont : bodyFont;
-		const textChunks = block.text.split('\n').map((chunk) => chunk.trim()).filter(Boolean);
-
-		textChunks.forEach((chunk) => {
-			const wrappedLines = wrapParagraphLines({
-				text: chunk,
-				font,
-				fontSize: block.fontSize,
-				maxWidth: getContentWidth(),
-			});
-
-			wrappedLines.forEach((line) => {
-				ensurePageCapacity(block.lineHeight);
-				page.drawText(line, {
-					x: resolveAlignedX({
-						text: line,
-						font,
-						fontSize: block.fontSize,
-						alignment: block.alignment,
-					}),
-					y: cursorY,
-					size: block.fontSize,
-					font,
-					color: rgb(PDF_TEXT_COLOR.red, PDF_TEXT_COLOR.green, PDF_TEXT_COLOR.blue),
-				});
-				cursorY -= block.lineHeight;
-			});
+		drawTextBlock({
+			text: block.text,
+			font: block.isBold ? boldFont : bodyFont,
+			fontSize: block.fontSize,
+			lineHeight: block.lineHeight,
+			alignment: block.alignment,
+			marginTop: block.marginTop,
+			marginBottom: block.marginBottom,
 		});
-
-		cursorY -= block.marginBottom;
 	});
 
-	return pdfDoc.save();
+	return pdfDoc.save({ useObjectStreams: false });
 }

@@ -5,7 +5,11 @@ import dynamic from 'next/dynamic';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Loader2, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import type { EmployeeDocumentRequirementKey, LegalDocumentKind } from '@sen-checkin/types';
+import {
+	buildDefaultLegalTemplateHtml,
+	type EmployeeDocumentRequirementKey,
+	type LegalDocumentKind,
+} from '@sen-checkin/types';
 
 import {
 	confirmLegalBrandingAction,
@@ -57,6 +61,12 @@ const TEMPLATE_TOKENS = [
 	'{{disciplinary.outcome}}',
 	'{{disciplinary.policyReference}}',
 	'{{disciplinary.suspensionRange}}',
+	'{{acta.companyName}}',
+	'{{acta.state}}',
+	'{{acta.employerTreatment}}',
+	'{{acta.employerName}}',
+	'{{acta.employerPosition}}',
+	'{{acta.employeeTreatment}}',
 ];
 
 const DOCUMENT_TEMPLATE_KINDS: LegalDocumentKind[] = [
@@ -111,91 +121,6 @@ async function uploadToPresignedPost(args: {
 }
 
 /**
- * Builds default HTML content for legal templates.
- *
- * @param kind - Legal kind
- * @returns Default template content
- */
-function buildDefaultTemplateHtml(kind: LegalDocumentKind): string {
-	if (kind === 'CONTRACT') {
-		return `
-<h1>Contrato Laboral</h1>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Puesto: {{employee.jobPositionName}}</p>
-<p>Ubicación: {{employee.locationName}}</p>
-<p>RFC: {{employee.rfc}}</p>
-<p>NSS: {{employee.nss}}</p>
-<p>Fecha de ingreso: {{employee.hireDate}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	if (kind === 'NDA') {
-		return `
-<h1>Convenio de Confidencialidad (NDA)</h1>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Código: {{employee.code}}</p>
-<p>Puesto: {{employee.jobPositionName}}</p>
-<p>RFC: {{employee.rfc}}</p>
-<p>NSS: {{employee.nss}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-	}
-
-	if (kind === 'ACTA_ADMINISTRATIVA') {
-		return `
-<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.55; color: #111111;">
-	<p style="text-align: center; font-weight: 700; margin: 0 0 8px 0;">ACTA ADMINISTRATIVA</p>
-	<p style="text-align: center; margin: 0 0 28px 0;">Folio interno: {{disciplinary.folio}}</p>
-
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		En la Ciudad de {{employee.locationName}}, siendo las {{document.generatedTimeLabel}} horas del día {{document.generatedDateLong}}, se levanta la presente acta administrativa por una parte por la representación patronal y por la otra por la persona trabajadora {{employee.fullName}}, para dejar constancia de los acontecimientos reportados.
-	</p>
-
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		Se levanta la presente acta administrativa con motivo de que la persona trabajadora identificada con código {{employee.code}} ha sido relacionada con hechos que constituyen faltas al Contrato Individual de Trabajo y/o Reglamento Interior de Trabajo.
-	</p>
-
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		- El día {{disciplinary.incidentDate}} se registró la siguiente conducta: {{disciplinary.reason}}.
-	</p>
-
-	<p style="text-align: justify; margin: 0 0 18px 0;">
-		Resultado disciplinario: {{disciplinary.outcome}}. Referencia de política: {{disciplinary.policyReference}}. Suspensión aplicable: {{disciplinary.suspensionRange}}.
-	</p>
-
-	<p style="text-align: justify; margin: 0 0 26px 0;">
-		La presente se redacta para constancia y surte sus efectos legales correspondientes como soporte para futuras acciones. La persona trabajadora firma de conformidad la presente, aceptando ser responsable del contenido de esta acta.
-	</p>
-
-	<p style="text-align: center; font-weight: 600; margin: 0 0 24px 0;">
-		{{employee.locationName}}, {{document.generatedDateLong}}
-	</p>
-
-	<p style="text-align: center; margin: 0 0 10px 0;">TRABAJADOR.</p>
-	<p style="text-align: center; margin: 0 0 8px 0;">________________________________________</p>
-	<p style="text-align: center; margin: 0 0 28px 0;">{{employee.fullName}}</p>
-
-	<p style="text-align: center; margin: 0 0 10px 0;">Testigo.                                      Testigo.</p>
-	<p style="text-align: center; margin: 0 0 8px 0;">______________________________      ______________________________</p>
-	<p style="text-align: center; margin: 0;">Nombre y firma                              Nombre y firma</p>
-</div>
-`.trim();
-	}
-
-	return `
-<h1>Constancia de negativa de firma</h1>
-<p>Folio de medida: {{disciplinary.folio}}</p>
-<p>Empleado: {{employee.fullName}}</p>
-<p>Motivo del acta: {{disciplinary.reason}}</p>
-<p>Resultado aplicado: {{disciplinary.outcome}}</p>
-<p>Fecha del incidente: {{disciplinary.incidentDate}}</p>
-<p>Fecha de generación: {{document.generatedDate}}</p>
-`.trim();
-}
-
-/**
  * Document workflow settings section for payroll settings screen.
  *
  * @returns React element
@@ -213,13 +138,18 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 	const [templateHtmlByKind, setTemplateHtmlByKind] = useState<
 		Record<LegalDocumentKind, string>
 	>({
-		CONTRACT: buildDefaultTemplateHtml('CONTRACT'),
-		NDA: buildDefaultTemplateHtml('NDA'),
-		ACTA_ADMINISTRATIVA: buildDefaultTemplateHtml('ACTA_ADMINISTRATIVA'),
-		CONSTANCIA_NEGATIVA_FIRMA: buildDefaultTemplateHtml('CONSTANCIA_NEGATIVA_FIRMA'),
+		CONTRACT: buildDefaultLegalTemplateHtml('CONTRACT'),
+		NDA: buildDefaultLegalTemplateHtml('NDA'),
+		ACTA_ADMINISTRATIVA: buildDefaultLegalTemplateHtml('ACTA_ADMINISTRATIVA'),
+		CONSTANCIA_NEGATIVA_FIRMA: buildDefaultLegalTemplateHtml('CONSTANCIA_NEGATIVA_FIRMA'),
 	});
 	const [brandingDisplayName, setBrandingDisplayName] = useState<string>('');
 	const [brandingHeaderText, setBrandingHeaderText] = useState<string>('');
+	const [brandingActaState, setBrandingActaState] = useState<string>('');
+	const [brandingActaEmployerTreatment, setBrandingActaEmployerTreatment] = useState<string>('');
+	const [brandingActaEmployerName, setBrandingActaEmployerName] = useState<string>('');
+	const [brandingActaEmployerPosition, setBrandingActaEmployerPosition] = useState<string>('');
+	const [brandingActaEmployeeTreatment, setBrandingActaEmployeeTreatment] = useState<string>('');
 	const [brandingFile, setBrandingFile] = useState<File | null>(null);
 
 	const configQuery = useQuery({
@@ -313,6 +243,11 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 		}
 		setBrandingDisplayName(brandingQuery.data.branding.displayName ?? '');
 		setBrandingHeaderText(brandingQuery.data.branding.headerText ?? '');
+		setBrandingActaState(brandingQuery.data.branding.actaState ?? '');
+		setBrandingActaEmployerTreatment(brandingQuery.data.branding.actaEmployerTreatment ?? '');
+		setBrandingActaEmployerName(brandingQuery.data.branding.actaEmployerName ?? '');
+		setBrandingActaEmployerPosition(brandingQuery.data.branding.actaEmployerPosition ?? '');
+		setBrandingActaEmployeeTreatment(brandingQuery.data.branding.actaEmployeeTreatment ?? '');
 	}, [brandingQuery.data?.branding]);
 	/* eslint-enable react-hooks/set-state-in-effect */
 
@@ -422,7 +357,7 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 			const htmlContent = templateHtmlByKind[kind] ?? '';
 			const result = await createDraftMutation.mutateAsync({
 				kind,
-				htmlContent: htmlContent.trim() || buildDefaultTemplateHtml(kind),
+				htmlContent: htmlContent.trim() || buildDefaultLegalTemplateHtml(kind),
 			});
 
 			if (!result.success) {
@@ -553,15 +488,20 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 			sha256 = await computeFileSha256(brandingFile);
 		}
 
-		const result = await brandingMutation.mutateAsync({
-			objectKey,
-			fileName,
-			contentType,
-			sizeBytes,
-			sha256,
-			displayName: brandingDisplayName.trim() || undefined,
-			headerText: brandingHeaderText.trim() || undefined,
-		});
+			const result = await brandingMutation.mutateAsync({
+				objectKey,
+				fileName,
+				contentType,
+				sizeBytes,
+				sha256,
+				displayName: brandingDisplayName.trim() || undefined,
+				headerText: brandingHeaderText.trim() || undefined,
+				actaState: brandingActaState.trim() || undefined,
+				actaEmployerTreatment: brandingActaEmployerTreatment.trim() || undefined,
+				actaEmployerName: brandingActaEmployerName.trim() || undefined,
+				actaEmployerPosition: brandingActaEmployerPosition.trim() || undefined,
+				actaEmployeeTreatment: brandingActaEmployeeTreatment.trim() || undefined,
+			});
 
 		if (!result.success) {
 			toast.error(result.error ?? t('documentWorkflow.branding.toast.saveError'));
@@ -571,12 +511,17 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 		setBrandingFile(null);
 		toast.success(t('documentWorkflow.branding.toast.saveSuccess'));
 		await queryClient.invalidateQueries({ queryKey: queryKeys.documentWorkflow.branding });
-	}, [
-		brandingDisplayName,
-		brandingFile,
-		brandingHeaderText,
-		brandingMutation,
-		queryClient,
+		}, [
+			brandingActaEmployeeTreatment,
+			brandingActaEmployerName,
+			brandingActaEmployerPosition,
+			brandingActaEmployerTreatment,
+			brandingActaState,
+			brandingDisplayName,
+			brandingFile,
+			brandingHeaderText,
+			brandingMutation,
+			queryClient,
 		t,
 	]);
 
@@ -703,16 +648,64 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 							/>
 						</div>
 					</div>
-					<div className="space-y-2">
-						<Label>{t('documentWorkflow.branding.fields.headerText')}</Label>
-						<Textarea
-							value={brandingHeaderText}
-							onChange={(event) => setBrandingHeaderText(event.target.value)}
-							rows={4}
-							disabled={brandingMutation.isPending}
-						/>
-					</div>
-					{brandingQuery.data?.url ? (
+						<div className="space-y-2">
+							<Label>{t('documentWorkflow.branding.fields.headerText')}</Label>
+							<Textarea
+								value={brandingHeaderText}
+								onChange={(event) => setBrandingHeaderText(event.target.value)}
+								rows={4}
+								disabled={brandingMutation.isPending}
+							/>
+						</div>
+						<div className="grid gap-3 md:grid-cols-2">
+							<div className="space-y-2">
+								<Label>{t('documentWorkflow.branding.fields.actaState')}</Label>
+								<Input
+									value={brandingActaState}
+									onChange={(event) => setBrandingActaState(event.target.value)}
+									disabled={brandingMutation.isPending}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>{t('documentWorkflow.branding.fields.actaEmployerTreatment')}</Label>
+								<Input
+									value={brandingActaEmployerTreatment}
+									onChange={(event) =>
+										setBrandingActaEmployerTreatment(event.target.value)
+									}
+									disabled={brandingMutation.isPending}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>{t('documentWorkflow.branding.fields.actaEmployerName')}</Label>
+								<Input
+									value={brandingActaEmployerName}
+									onChange={(event) => setBrandingActaEmployerName(event.target.value)}
+									disabled={brandingMutation.isPending}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>{t('documentWorkflow.branding.fields.actaEmployerPosition')}</Label>
+								<Input
+									value={brandingActaEmployerPosition}
+									onChange={(event) =>
+										setBrandingActaEmployerPosition(event.target.value)
+									}
+									disabled={brandingMutation.isPending}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label>{t('documentWorkflow.branding.fields.actaEmployeeTreatment')}</Label>
+								<Input
+									value={brandingActaEmployeeTreatment}
+									onChange={(event) =>
+										setBrandingActaEmployeeTreatment(event.target.value)
+									}
+									disabled={brandingMutation.isPending}
+								/>
+							</div>
+						</div>
+						{brandingQuery.data?.url ? (
 						<div className="rounded-md border border-border/70 bg-card/80 p-3">
 							<p className="mb-2 text-xs text-muted-foreground">
 								{t('documentWorkflow.branding.preview')}
@@ -743,7 +736,8 @@ export function DocumentWorkflowSettingsSection(): React.ReactElement {
 				<div className="grid gap-4 lg:grid-cols-2">
 					{DOCUMENT_TEMPLATE_KINDS.map((kind) => {
 						const latestTemplate = latestTemplateByKind[kind];
-						const htmlValue = templateHtmlByKind[kind] ?? buildDefaultTemplateHtml(kind);
+						const htmlValue =
+							templateHtmlByKind[kind] ?? buildDefaultLegalTemplateHtml(kind);
 
 						return (
 							<div key={kind} className="space-y-3 rounded-md border bg-muted/20 p-4">

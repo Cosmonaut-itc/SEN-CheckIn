@@ -1053,6 +1053,11 @@ export interface LegalBrandingRecord {
 	organizationId: string;
 	displayName: string | null;
 	headerText: string | null;
+	actaState: string | null;
+	actaEmployerTreatment: string | null;
+	actaEmployerName: string | null;
+	actaEmployerPosition: string | null;
+	actaEmployeeTreatment: string | null;
 	logoBucket: string | null;
 	logoObjectKey: string | null;
 	logoFileName: string | null;

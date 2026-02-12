@@ -302,7 +302,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 										onValueChange={handleLocationChange}
 										isDisabled={isLocationsPending}
 									>
-										<Select.Trigger asChild>
+										<Select.Trigger variant="outline" asChild>
 											<Button variant="tertiary" size="sm">
 												{selectedOption ? (
 													<View className="flex-row items-center gap-2">

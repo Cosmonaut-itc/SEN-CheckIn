@@ -5,11 +5,22 @@
  * @module lib/client-functions
  */
 
-import type { AttendanceRecord, AttendanceType, Device, Location } from '@sen-checkin/types';
+import type {
+	AttendanceRecord,
+	AttendanceType,
+	Device,
+	FaceEnrollmentResult,
+	Location,
+	UserCreationResult,
+} from '@sen-checkin/types';
 
 import { API_BASE_URL, api, authedFetchForEden } from './api';
 import { getAccessToken } from './auth-client';
-import type { AttendanceQueryParams, ListQueryParams } from './query-keys';
+import type {
+	AttendanceQueryParams,
+	FaceEnrollmentEmployeeListQueryParams,
+	ListQueryParams,
+} from './query-keys';
 
 // ============================================================================
 // Common Types
@@ -33,6 +44,173 @@ type PaginatedResponse<T> = {
 		hasMore?: boolean;
 	};
 };
+
+/**
+ * Mobile-specific employee payload used in face enrollment selection.
+ */
+export interface FaceEnrollmentEmployee {
+	/** Employee identifier */
+	id: string;
+	/** Employee code shown in selection list */
+	code: string;
+	/** Employee first name */
+	firstName: string;
+	/** Employee last name */
+	lastName: string;
+	/** Current employee status */
+	status: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
+	/** Rekognition user ID when already provisioned */
+	rekognitionUserId: string | null;
+}
+
+/**
+ * Error codes returned by Rekognition enrollment endpoints.
+ */
+export type FaceEnrollmentApiErrorCode =
+	| 'REKOGNITION_USER_EXISTS'
+	| 'REKOGNITION_USER_MISSING'
+	| 'INVALID_IMAGE_BASE64'
+	| 'EMPLOYEE_NOT_FOUND'
+	| 'EMPLOYEE_FORBIDDEN'
+	| 'REKOGNITION_USER_CREATE_FAILED'
+	| 'REKOGNITION_INDEX_FAILED'
+	| 'UNKNOWN';
+
+/**
+ * Structured error for face enrollment API operations.
+ */
+export class FaceEnrollmentApiError extends Error {
+	readonly code: FaceEnrollmentApiErrorCode;
+	readonly status: number;
+
+	/**
+	 * Creates a new face enrollment API error.
+	 *
+	 * @param message - Human-readable error message
+	 * @param status - HTTP status code received from API
+	 * @param code - API error code
+	 */
+	constructor(message: string, status: number, code: FaceEnrollmentApiErrorCode) {
+		super(message);
+		this.name = 'FaceEnrollmentApiError';
+		this.code = code;
+		this.status = status;
+	}
+}
+
+/**
+ * Type guard for face enrollment API errors.
+ *
+ * @param error - Unknown error instance
+ * @returns True when the error is a FaceEnrollmentApiError
+ */
+export function isFaceEnrollmentApiError(error: unknown): error is FaceEnrollmentApiError {
+	return error instanceof FaceEnrollmentApiError;
+}
+
+/**
+ * API payload shape returned by employee list route for face enrollment use cases.
+ */
+type FaceEnrollmentEmployeeApiRecord = {
+	id?: unknown;
+	code?: unknown;
+	firstName?: unknown;
+	lastName?: unknown;
+	status?: unknown;
+	rekognitionUserId?: unknown;
+};
+
+/**
+ * Extracts message and error code from Eden Treaty error payloads.
+ *
+ * @param status - HTTP status code from response
+ * @param value - Unknown error payload returned by Eden Treaty
+ * @returns Parsed message and normalized error code
+ */
+function parseFaceEnrollmentError(
+	status: number,
+	value: unknown,
+): { message: string; code: FaceEnrollmentApiErrorCode } {
+	const payload =
+		value && typeof value === 'object'
+			? (value as { message?: unknown; errorCode?: unknown })
+			: null;
+	const message =
+		typeof payload?.message === 'string' && payload.message.length > 0
+			? payload.message
+			: 'No se pudo completar el enrolamiento facial';
+	const rawCode = payload?.errorCode;
+	const code =
+		rawCode === 'REKOGNITION_USER_EXISTS' ||
+		rawCode === 'REKOGNITION_USER_MISSING' ||
+		rawCode === 'INVALID_IMAGE_BASE64' ||
+		rawCode === 'EMPLOYEE_NOT_FOUND' ||
+		rawCode === 'EMPLOYEE_FORBIDDEN' ||
+		rawCode === 'REKOGNITION_USER_CREATE_FAILED' ||
+		rawCode === 'REKOGNITION_INDEX_FAILED'
+			? rawCode
+			: 'UNKNOWN';
+
+	if (status >= 500 && code === 'UNKNOWN') {
+		return {
+			message,
+			code: 'REKOGNITION_INDEX_FAILED',
+		};
+	}
+
+	return { message, code };
+}
+
+/**
+ * Normalizes employee payload records into typed face enrollment records.
+ *
+ * @param record - Unknown employee payload from API
+ * @returns Typed employee record or null when payload is invalid
+ */
+function normalizeFaceEnrollmentEmployee(record: unknown): FaceEnrollmentEmployee | null {
+	if (!record || typeof record !== 'object') {
+		return null;
+	}
+
+	const value = record as FaceEnrollmentEmployeeApiRecord;
+	if (
+		typeof value.id !== 'string' ||
+		typeof value.code !== 'string' ||
+		typeof value.firstName !== 'string' ||
+		typeof value.lastName !== 'string'
+	) {
+		return null;
+	}
+
+	const status =
+		value.status === 'ACTIVE' || value.status === 'INACTIVE' || value.status === 'ON_LEAVE'
+			? value.status
+			: null;
+
+	if (!status) {
+		return null;
+	}
+
+	return {
+		id: value.id,
+		code: value.code,
+		firstName: value.firstName,
+		lastName: value.lastName,
+		status,
+		rekognitionUserId:
+			typeof value.rekognitionUserId === 'string' ? value.rekognitionUserId : null,
+	};
+}
+
+/**
+ * Removes image data URL prefixes before sending payload to the API.
+ *
+ * @param imageBase64 - Base64 image payload with or without data URL prefix
+ * @returns Clean base64 payload expected by the API
+ */
+function toRawBase64Image(imageBase64: string): string {
+	return imageBase64.replace(/^data:image\/\w+;base64,/, '');
+}
 
 // ============================================================================
 // Device Types
@@ -328,6 +506,201 @@ export async function updateDeviceSettings(
 	return data.data as DeviceDetail;
 }
 
+// ============================================================================
+// Face Enrollment Types
+// ============================================================================
+
+/**
+ * Parameters for the face enrollment employee list endpoint.
+ */
+export interface FaceEnrollmentEmployeesParams extends FaceEnrollmentEmployeeListQueryParams {
+	/** Status filter for employee search. Defaults to ACTIVE */
+	status?: 'ACTIVE';
+}
+
+/**
+ * Fetches ACTIVE employees for face enrollment with a hard limit of 200 records.
+ * Filtering by text must be done locally by the caller.
+ *
+ * @param params - Optional organization filter and custom limit
+ * @returns Employee list and pagination metadata capped to 200 records
+ * @throws Error when the API call fails
+ */
+export async function fetchFaceEnrollmentEmployees(
+	params?: FaceEnrollmentEmployeesParams,
+): Promise<PaginatedResponse<FaceEnrollmentEmployee>> {
+	const limit = Math.min(params?.limit ?? 200, 200);
+
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit,
+				offset: 0,
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		status: 'ACTIVE';
+		organizationId?: string;
+	} = {
+		limit,
+		offset: 0,
+		status: 'ACTIVE',
+	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+
+	const response = await api.employees.get({ $query: query });
+
+	if (response.error) {
+		console.error('[fetchFaceEnrollmentEmployees] Eden Treaty error:', response.error);
+		throw new Error('Failed to load face enrollment employees');
+	}
+
+	const payload = response.data as
+		| {
+				data?: unknown[];
+				pagination?: PaginatedResponse<FaceEnrollmentEmployee>['pagination'];
+		  }
+		| undefined;
+
+	const employees = (payload?.data ?? [])
+		.map((record) => normalizeFaceEnrollmentEmployee(record))
+		.filter((record): record is FaceEnrollmentEmployee => record !== null)
+		.filter((record) => record.status === 'ACTIVE');
+
+	return {
+		data: employees,
+		pagination: payload?.pagination ?? {
+			total: employees.length,
+			limit,
+			offset: 0,
+		},
+	};
+}
+
+/**
+ * Creates the Rekognition user vector for a specific employee.
+ *
+ * @param employeeId - Employee identifier to provision in Rekognition
+ * @returns Successful user creation payload
+ * @throws FaceEnrollmentApiError when the API responds with an error
+ */
+export async function createEmployeeRekognitionUser(
+	employeeId: string,
+): Promise<UserCreationResult> {
+	const employeeRoute = api.employees[employeeId];
+	if (!employeeRoute) {
+		throw new Error('Invalid employee route');
+	}
+
+	const response = await employeeRoute['create-rekognition-user'].post({});
+
+	if (response.error) {
+		const parsed = parseFaceEnrollmentError(response.status, response.error.value);
+		throw new FaceEnrollmentApiError(parsed.message, response.status, parsed.code);
+	}
+
+	const payload = response.data as UserCreationResult | null;
+	if (!payload) {
+		throw new Error('Create Rekognition user response missing data');
+	}
+
+	return payload;
+}
+
+/**
+ * Enrolls a face image for a specific employee.
+ *
+ * @param employeeId - Employee identifier for face enrollment
+ * @param imageBase64 - Base64 image payload from camera capture
+ * @returns Face enrollment result payload
+ * @throws FaceEnrollmentApiError when the API responds with an enrollment error
+ */
+export async function enrollEmployeeFace(
+	employeeId: string,
+	imageBase64: string,
+): Promise<FaceEnrollmentResult> {
+	const employeeRoute = api.employees[employeeId];
+	if (!employeeRoute) {
+		throw new Error('Invalid employee route');
+	}
+
+	const response = await employeeRoute['enroll-face'].post({
+		image: toRawBase64Image(imageBase64),
+	});
+
+	if (response.error) {
+		const parsed = parseFaceEnrollmentError(response.status, response.error.value);
+		throw new FaceEnrollmentApiError(parsed.message, response.status, parsed.code);
+	}
+
+	const payload = response.data as FaceEnrollmentResult | null;
+	if (!payload) {
+		throw new Error('Face enrollment response missing data');
+	}
+
+	return payload;
+}
+
+/**
+ * Runs the idempotent mobile enrollment flow.
+ * Attempts to create a user when missing and always continues on
+ * REKOGNITION_USER_EXISTS (HTTP 409).
+ *
+ * @param input - Enrollment flow arguments
+ * @param input.employeeId - Target employee ID
+ * @param input.imageBase64 - Base64 camera image payload
+ * @param input.hasRekognitionUser - Local flag indicating existing Rekognition user
+ * @returns Face enrollment result payload
+ * @throws FaceEnrollmentApiError when enrollment cannot be completed
+ */
+export async function fullEnrollmentFlow(input: {
+	employeeId: string;
+	imageBase64: string;
+	hasRekognitionUser: boolean;
+}): Promise<FaceEnrollmentResult> {
+	const shouldCreateUser = !input.hasRekognitionUser;
+
+	if (shouldCreateUser) {
+		try {
+			await createEmployeeRekognitionUser(input.employeeId);
+		} catch (error: unknown) {
+			if (!isFaceEnrollmentApiError(error) || error.code !== 'REKOGNITION_USER_EXISTS') {
+				throw error;
+			}
+		}
+	}
+
+	try {
+		return await enrollEmployeeFace(input.employeeId, input.imageBase64);
+	} catch (error: unknown) {
+		if (!isFaceEnrollmentApiError(error) || error.code !== 'REKOGNITION_USER_MISSING') {
+			throw error;
+		}
+
+		try {
+			await createEmployeeRekognitionUser(input.employeeId);
+		} catch (createError: unknown) {
+			if (
+				!isFaceEnrollmentApiError(createError) ||
+				createError.code !== 'REKOGNITION_USER_EXISTS'
+			) {
+				throw createError;
+			}
+		}
+
+		return enrollEmployeeFace(input.employeeId, input.imageBase64);
+	}
+}
+
 /**
  * Error payload for heartbeat failures.
  */
@@ -398,11 +771,9 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 			.catch(() => null)
 			.then(
 				(data) =>
-					data as
-						| {
-								error?: { code?: string; message?: string };
-						  }
-						| null,
+					data as {
+						error?: { code?: string; message?: string };
+					} | null,
 			);
 		const rawCode = payload?.error?.code;
 		const code: HeartbeatErrorCode =

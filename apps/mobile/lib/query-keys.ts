@@ -15,6 +15,12 @@ export interface AttendanceQueryParams extends ListQueryParams {
 	toDate?: Date;
 }
 
+export interface FaceEnrollmentEmployeeListQueryParams {
+	organizationId?: string | null;
+	limit?: number;
+	[key: string]: unknown;
+}
+
 export function queryKeyConstructor<
 	TKey extends string | readonly string[],
 	TParams extends Record<string, unknown> | undefined = undefined,
@@ -51,5 +57,11 @@ export const queryKeys = {
 		all: ['deviceSettings'] as const,
 		current: ['deviceSettings', 'current'] as const,
 		detail: (deviceId: string) => ['deviceSettings', 'detail', deviceId] as const,
+	},
+	faceEnrollment: {
+		all: ['faceEnrollment'] as const,
+		employees: (params?: FaceEnrollmentEmployeeListQueryParams) =>
+			queryKeyConstructor(['faceEnrollment', 'employees'] as const, params),
+		flow: () => ['faceEnrollment', 'flow'] as const,
 	},
 };

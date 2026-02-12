@@ -13,6 +13,7 @@ import {
 	fetchFaceEnrollmentEmployees,
 	fullEnrollmentFlow,
 	isFaceEnrollmentApiError,
+	type FaceEnrollmentApiErrorCode,
 	type FaceEnrollmentEmployee,
 } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
@@ -46,8 +47,17 @@ type EnrollmentSummary = {
 	faceId: string | null;
 	/** Whether employee already had a Rekognition user */
 	wasReEnrollment: boolean;
-	/** API success message when provided */
-	message?: string;
+};
+
+const ENROLLMENT_API_ERROR_TRANSLATION_KEYS: Record<FaceEnrollmentApiErrorCode, string> = {
+	REKOGNITION_USER_EXISTS: 'FaceEnrollment.errors.api.REKOGNITION_USER_EXISTS',
+	REKOGNITION_USER_MISSING: 'FaceEnrollment.errors.api.REKOGNITION_USER_MISSING',
+	INVALID_IMAGE_BASE64: 'FaceEnrollment.errors.api.INVALID_IMAGE_BASE64',
+	EMPLOYEE_NOT_FOUND: 'FaceEnrollment.errors.api.EMPLOYEE_NOT_FOUND',
+	EMPLOYEE_FORBIDDEN: 'FaceEnrollment.errors.api.EMPLOYEE_FORBIDDEN',
+	REKOGNITION_USER_CREATE_FAILED: 'FaceEnrollment.errors.api.REKOGNITION_USER_CREATE_FAILED',
+	REKOGNITION_INDEX_FAILED: 'FaceEnrollment.errors.api.REKOGNITION_INDEX_FAILED',
+	UNKNOWN: 'FaceEnrollment.errors.api.UNKNOWN',
 };
 
 /**
@@ -67,8 +77,8 @@ function buildEmployeeSearchIndex(employee: FaceEnrollmentEmployee): string {
  * @returns Localized error message for UI rendering
  */
 function resolveEnrollmentErrorMessage(error: unknown): string {
-	if (isFaceEnrollmentApiError(error) && error.message) {
-		return error.message;
+	if (isFaceEnrollmentApiError(error)) {
+		return i18n.t(ENROLLMENT_API_ERROR_TRANSLATION_KEYS[error.code]);
 	}
 
 	if (error instanceof Error && error.message) {
@@ -159,9 +169,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 			});
 
 			if (!result.success || !result.associated) {
-				throw new Error(
-					result.message ?? i18n.t('FaceEnrollment.errors.associationFailed'),
-				);
+				throw new Error(i18n.t('FaceEnrollment.errors.associationFailed'));
 			}
 
 			setCapturedPhoto(null);
@@ -171,7 +179,6 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 				employeeName: `${capturedEmployee.firstName} ${capturedEmployee.lastName}`,
 				faceId: result.faceId,
 				wasReEnrollment: Boolean(capturedEmployee.rekognitionUserId),
-				message: result.message,
 			});
 			await queryClient.invalidateQueries({ queryKey: queryKeys.faceEnrollment.all });
 		},
@@ -351,11 +358,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										: i18n.t('FaceEnrollment.success.newEnrollment'),
 								})}
 							</Text>
-							{enrollmentSummary.message ? (
-								<Text className="text-foreground-500 text-sm" selectable>
-									{enrollmentSummary.message}
-								</Text>
-							) : null}
+							<Text className="text-foreground-500 text-sm" selectable>
+								{i18n.t('FaceEnrollment.success.description')}
+							</Text>
 							<View className="flex-row gap-2">
 								<Button
 									variant="secondary"

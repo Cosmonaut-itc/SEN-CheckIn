@@ -168,6 +168,7 @@
 			"title": "Registro completado",
 			"employee": "Empleado: {{name}}",
 			"mode": "Tipo: {{mode}}",
+			"description": "Rostro registrado y asociado correctamente.",
 			"newEnrollment": "Registro nuevo",
 			"reEnrollment": "Re-registro"
 		},
@@ -176,7 +177,17 @@
 			"associationFailed": "No se pudo asociar el rostro al empleado. Inténtalo de nuevo.",
 			"cameraUnavailable": "La cámara no está disponible en este momento.",
 			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
-			"missingData": "Selecciona un empleado y captura una imagen antes de continuar."
+			"missingData": "Selecciona un empleado y captura una imagen antes de continuar.",
+			"api": {
+				"REKOGNITION_USER_EXISTS": "El empleado ya cuenta con usuario de reconocimiento facial.",
+				"REKOGNITION_USER_MISSING": "No se encontró el usuario facial del empleado. Inténtalo de nuevo.",
+				"INVALID_IMAGE_BASE64": "La imagen capturada no es válida. Toma otra foto e inténtalo de nuevo.",
+				"EMPLOYEE_NOT_FOUND": "No encontramos al empleado seleccionado.",
+				"EMPLOYEE_FORBIDDEN": "No tienes permisos para registrar el rostro de este empleado.",
+				"REKOGNITION_USER_CREATE_FAILED": "No se pudo preparar el registro facial del empleado. Inténtalo de nuevo.",
+				"REKOGNITION_INDEX_FAILED": "No se pudo registrar el rostro en este momento. Inténtalo de nuevo.",
+				"UNKNOWN": "No se pudo completar el registro facial. Inténtalo de nuevo."
+			}
 		}
 	},
 	"Settings": {

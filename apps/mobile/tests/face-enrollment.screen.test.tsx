@@ -303,6 +303,8 @@ describe('FaceEnrollmentScreen', () => {
 		await waitFor(() => {
 			expect(screen.getByText('Registro completado')).toBeTruthy();
 		});
+		expect(screen.getByText('Rostro registrado y asociado correctamente.')).toBeTruthy();
+		expect(screen.queryByText('Face enrolled and associated successfully')).toBeNull();
 
 		expect(mockFullEnrollmentFlow).toHaveBeenCalledWith({
 			employeeId: 'employee-1',
@@ -361,15 +363,28 @@ describe('FaceEnrollmentScreen', () => {
 		fireEvent.press(screen.getByText('Confirmar registro'));
 
 		await waitFor(() => {
-			expect(screen.getByText('No se pudo asociar el rostro al empleado')).toBeTruthy();
+			expect(
+				screen.getByText(
+					'No se pudo asociar el rostro al empleado. Inténtalo de nuevo.',
+				),
+			).toBeTruthy();
 		});
 		expect(screen.queryByText('Registro completado')).toBeNull();
 	});
 
 	it('shows API error message when enrollment fails', async () => {
-		mockFullEnrollmentFlow.mockRejectedValue(new Error('Imagen inválida para enrolamiento'));
+		mockFullEnrollmentFlow.mockRejectedValue({
+			code: 'INVALID_IMAGE_BASE64',
+			message: 'Invalid base64 image data',
+		});
 		mockIsFaceEnrollmentApiError.mockImplementation(
-			(error: unknown) => error instanceof Error && error.message.includes('inválida'),
+			(error: unknown) =>
+				Boolean(
+					error &&
+						typeof error === 'object' &&
+						'code' in error &&
+						(error as { code?: unknown }).code === 'INVALID_IMAGE_BASE64',
+				),
 		);
 
 		render(<FaceEnrollmentScreen />);
@@ -382,7 +397,11 @@ describe('FaceEnrollmentScreen', () => {
 		fireEvent.press(screen.getByText('Confirmar registro'));
 
 		await waitFor(() => {
-			expect(screen.getByText('Imagen inválida para enrolamiento')).toBeTruthy();
+			expect(
+				screen.getByText(
+					'La imagen capturada no es válida. Toma otra foto e inténtalo de nuevo.',
+				),
+			).toBeTruthy();
 		});
 	});
 });

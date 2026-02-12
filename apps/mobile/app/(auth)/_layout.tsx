@@ -37,7 +37,7 @@ export default function AuthLayout(): JSX.Element {
 
 	return (
 		<Stack screenOptions={{ headerTitleAlign: 'center' }}>
-			<Stack.Screen name="login" options={{ title: i18n.t('Login.header.title') }} />
+			<Stack.Screen name="login" options={{ headerShown: false }} />
 			<Stack.Screen
 				name="device-setup"
 				options={{ title: i18n.t('DeviceSetup.header.title') }}

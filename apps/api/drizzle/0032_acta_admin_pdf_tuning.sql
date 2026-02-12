@@ -49,7 +49,7 @@ $acta_pdf_tuned$
 $acta_pdf_tuned$,
 	"updated_at" = now()
 WHERE
-	"kind" = 'ACTA_ADMINISTRATIVA'
+	"kind"::text = 'ACTA_ADMINISTRATIVA'
 	AND "html_content" LIKE '%line-height: 1.5; color: #000; max-width: 760px%'
 	AND "html_content" LIKE '%text-indent: 34px%'
 	AND "html_content" LIKE '%margin-top: 56px; border-collapse: collapse;%'

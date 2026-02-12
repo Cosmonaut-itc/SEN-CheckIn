@@ -41,7 +41,7 @@ $acta_pdf$
 $acta_pdf$,
 	"updated_at" = now()
 WHERE
-	"kind" = 'ACTA_ADMINISTRATIVA'
+	"kind"::text = 'ACTA_ADMINISTRATIVA'
 	AND "html_content" LIKE '%Hechos / Faltas:%'
 	AND "html_content" LIKE '%TRABAJADOR(A).%'
 	AND "html_content" LIKE '%Testigo 1: (nombre escrito a mano)%'

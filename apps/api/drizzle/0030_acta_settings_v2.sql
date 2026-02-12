@@ -10,7 +10,7 @@ SET
 	"status" = 'DRAFT',
 	"updated_at" = now()
 WHERE
-	"kind" = 'ACTA_ADMINISTRATIVA'
+	"kind"::text = 'ACTA_ADMINISTRATIVA'
 	AND "status" = 'PUBLISHED';--> statement-breakpoint
 
 INSERT INTO "organization_legal_template" (
@@ -31,7 +31,7 @@ INSERT INTO "organization_legal_template" (
 SELECT
 	gen_random_uuid()::text,
 	version_source.organization_id,
-	'ACTA_ADMINISTRATIVA',
+	version_source.kind,
 	version_source.next_version_number,
 	'PUBLISHED',
 	$acta$
@@ -104,10 +104,11 @@ $acta$,
 FROM (
 	SELECT
 		template.organization_id,
+		template.kind,
 		MAX(template.version_number) + 1 AS next_version_number
 	FROM "organization_legal_template" AS template
-	WHERE template.kind = 'ACTA_ADMINISTRATIVA'
-	GROUP BY template.organization_id
+	WHERE template.kind::text = 'ACTA_ADMINISTRATIVA'
+	GROUP BY template.organization_id, template.kind
 ) AS version_source
 LEFT JOIN "organization_legal_branding" AS branding
 	ON branding.organization_id = version_source.organization_id;--> statement-breakpoint

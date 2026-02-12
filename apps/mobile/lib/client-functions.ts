@@ -532,17 +532,6 @@ export async function fetchFaceEnrollmentEmployees(
 	const requestedLimit = Math.min(params?.limit ?? 200, 200);
 	const apiPageLimit = 100;
 
-	if (params?.organizationId === null) {
-		return {
-			data: [],
-			pagination: {
-				total: 0,
-				limit: requestedLimit,
-				offset: 0,
-			},
-		};
-	}
-
 	const employees: FaceEnrollmentEmployee[] = [];
 	let offset = 0;
 	let total = 0;

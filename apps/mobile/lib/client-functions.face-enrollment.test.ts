@@ -251,4 +251,26 @@ describe('fetchFaceEnrollmentEmployees', () => {
 			},
 		});
 	});
+
+	it('still fetches employees when organizationId is null to allow session org resolution', async () => {
+		mockEmployeesGet.mockResolvedValueOnce({
+			status: 200,
+			error: null,
+			data: {
+				data: [],
+				pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
+			},
+		});
+
+		await fetchFaceEnrollmentEmployees({ limit: 50, organizationId: null });
+
+		expect(mockEmployeesGet).toHaveBeenCalledTimes(1);
+		expect(mockEmployeesGet).toHaveBeenCalledWith({
+			$query: {
+				limit: 50,
+				offset: 0,
+				status: 'ACTIVE',
+			},
+		});
+	});
 });

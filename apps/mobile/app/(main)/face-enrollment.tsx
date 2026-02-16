@@ -4,7 +4,7 @@ import { Image } from 'expo-image';
 import { type Href, useNavigation, useRouter } from 'expo-router';
 import { Button, Card, Spinner, useThemeColor } from 'heroui-native';
 import type { JSX } from 'react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -144,13 +144,28 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}, [employees, searchTerm]);
 
 	const selectedEmployee = useMemo(
-		() => employees.find((employee) => employee.id === selectedEmployeeId) ?? null,
-		[employees, selectedEmployeeId],
+		() =>
+			filteredEmployees.find((employee) => employee.id === selectedEmployeeId) ??
+			null,
+		[filteredEmployees, selectedEmployeeId],
 	);
 	const capturedEmployee = useMemo(
 		() => employees.find((employee) => employee.id === capturedEmployeeId) ?? null,
 		[employees, capturedEmployeeId],
 	);
+
+	useEffect(() => {
+		if (!selectedEmployeeId) {
+			return;
+		}
+
+		const isSelectedEmployeeVisible = filteredEmployees.some(
+			(employee) => employee.id === selectedEmployeeId,
+		);
+		if (!isSelectedEmployeeVisible) {
+			setSelectedEmployeeId(null);
+		}
+	}, [filteredEmployees, selectedEmployeeId]);
 
 	const isListTruncated =
 		(employeesQuery.data?.pagination.total ?? 0) > (employeesQuery.data?.data.length ?? 0);

@@ -937,6 +937,18 @@ describe('employee routes (contract)', () => {
 		expect(duplicatePayload?.errorCode).toBe('REKOGNITION_USER_EXISTS');
 		expect(duplicatePayload?.message).toBe('Employee already has a Rekognition user');
 
+		const invalidImageResponse = await enrollFaceRoute.post({
+			image: '%%%invalid-base64%%%',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(invalidImageResponse.status).toBe(400);
+		const invalidImagePayload = invalidImageResponse.error?.value as
+			| { errorCode?: string; message?: string }
+			| undefined;
+		expect(invalidImagePayload?.errorCode).toBe('INVALID_IMAGE_BASE64');
+		expect(invalidImagePayload?.message).toBe('Invalid base64 image data');
+
 		const enrollResponse = await enrollFaceRoute.post({
 			image: Buffer.from('enroll').toString('base64'),
 			$headers: { cookie: adminSession.cookieHeader },
@@ -945,6 +957,9 @@ describe('employee routes (contract)', () => {
 		expect(enrollResponse.status).toBe(200);
 		const enrollPayload = requireResponseData(enrollResponse);
 		expect(enrollPayload.success).toBe(true);
+		expect(enrollPayload.associated).toBe(true);
+		expect(typeof enrollPayload.faceId).toBe('string');
+		expect(enrollPayload.faceId).not.toBeNull();
 
 		const deleteResponse = await deleteUserRoute.delete({
 			$headers: { cookie: adminSession.cookieHeader },

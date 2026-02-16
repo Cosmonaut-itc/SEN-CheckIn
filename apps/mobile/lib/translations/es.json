@@ -1,236 +1,301 @@
 {
-  "Common": {
-    "cancel": "Cancelar",
-    "close": "Cerrar",
-    "dismiss": "Cerrar",
-    "loading": "Cargando...",
-    "next": "Siguiente",
-    "ok": "Aceptar",
-    "previous": "Anterior",
-    "retry": "Intentar de nuevo",
-    "save": "Guardar",
-    "saving": "Guardando...",
-    "selectOption": "Selecciona una opción",
-    "noOptionsAvailable": "No hay opciones disponibles"
-  },
-  "Errors": {
-    "unexpected": "Ocurrió un error inesperado"
-  },
-  "Login": {
-    "defaults": {
-      "deviceName": "Dispositivo"
-    },
-    "header": {
-      "title": "Vincular dispositivo",
-      "subtitle": "Autoriza este dispositivo desde el panel web usando el enlace o el código."
-    },
-    "code": {
-      "label": "Código"
-    },
-    "qr": {
-      "caption": "Escanea el QR o abre el enlace para autorizar."
-    },
-    "approved": {
-      "title": "Aprobado",
-      "subtitle": "Configurando el dispositivo..."
-    },
-    "envWarning": {
-      "title": "Configuración requerida",
-      "description": "URL de la API actual: {{current}}. Verifica EXPO_PUBLIC_API_URL."
-    },
-    "status": {
-      "requestingCode": "Solicitando código...",
-      "waitingApproval": "Esperando autorización...",
-      "apiUrlNotConfigured": "API no configurada",
-      "deviceCodeExpired": "El código expiró. Solicita uno nuevo.",
-      "accessTokenMissing": "No se recibió un token de acceso.",
-      "approved": "Aprobado",
-      "sessionFailed": "No se pudo iniciar sesión.",
-      "sessionOrRegistrationFailed": "No se pudo iniciar sesión o registrar el dispositivo.",
-      "slowingDown": "Demasiadas solicitudes. Esperando un poco...",
-      "requestDenied": "Solicitud rechazada.",
-      "codeExpired": "El código expiró.",
-      "connecting": "Conectando...",
-      "reconnecting": "Reconectando..."
-    },
-    "errors": {
-      "setExpoPublicApiUrl": "Configura EXPO_PUBLIC_API_URL en el archivo .env de la app.",
-      "unableToRequestCode": "No se pudo solicitar un código.",
-      "deviceApprovedButTokenMissing": "El dispositivo fue aprobado, pero falta el token de acceso.",
-      "couldNotEstablishSession": "No se pudo establecer la sesión."
-    },
-    "errorDetails": {
-      "title": "Detalles del error",
-      "tip": "Tip: configura EXPO_PUBLIC_API_URL en tu archivo .env."
-    },
-    "actions": {
-      "refreshing": "Actualizando...",
-      "newCode": "Nuevo código",
-      "openLink": "Abrir enlace",
-      "tryAgain": "Intentar de nuevo"
-    }
-  },
-  "Locked": {
-    "title": "Se requiere reautenticación",
-    "subtitle": "Este dispositivo necesita volver a autorizarse para continuar.",
-    "body": "Un administrador debe aprobar el dispositivo en el panel web.",
-    "reason": {
-      "deviceDisabled": "Este dispositivo fue deshabilitado en el panel.",
-      "refreshFailed": "No pudimos renovar la sesión."
-    },
-    "actions": {
-      "retry": "Reintentar",
-      "signIn": "Iniciar sesión"
-    }
-  },
-  "Scanner": {
-    "title": "Escáner",
-    "permission": {
-      "initializing": "Inicializando cámara...",
-      "title": "Se requiere acceso a la cámara",
-      "description": "Necesitamos permiso de cámara para escanear rostros y registrar asistencia.",
-      "grant": "Conceder permiso"
-    },
-    "attendanceType": {
-      "checkIn": "Entrada",
-      "checkOutAuthorized": "Salida autorizada",
-      "checkOutAuthorizedReason": "Permiso RH",
-      "checkOut": "Salida"
-    },
-    "status": {
-      "idle": "Coloca tu rostro dentro del círculo",
-      "deviceNotLinked": "Dispositivo no vinculado. Ve a Configuración.",
-      "verifying": "Verificando rostro...",
-      "captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
-      "faceNotRecognized": "Rostro no reconocido. Inténtalo de nuevo.",
-      "verificationFailed": "La verificación falló. Vuelve a intentar."
-    },
-    "success": {
-      "employeeFallback": "Empleado",
-      "checkedIn": "¡Entrada registrada!",
-      "checkedOutAuthorized": "¡Salida autorizada registrada!",
-      "checkedOut": "¡Salida registrada!"
-    },
-    "deviceStatus": {
-      "terminalFallback": "Terminal de asistencia",
-      "deviceNotLinked": "Dispositivo no vinculado",
-      "connected": "Conectado",
-      "setupRequired": "Configuración requerida"
-    },
-    "actions": {
-      "verifying": "Verificando...",
-      "scanCheckIn": "Escanear entrada",
-      "scanCheckOutAuthorized": "Escanear salida autorizada",
-      "scanCheckOut": "Escanear salida",
-      "tapToLink": "Toca para vincular este dispositivo"
-    }
-  },
-  "Settings": {
-    "title": "Configuración",
-    "subtitle": "Administra los datos de este dispositivo.",
-    "navigation": {
-      "backToScanner": "Volver al escáner"
-    },
-    "organization": {
-      "fallbackName": "Organización",
-      "description": "Organización activa",
-      "idLabel": "ID"
-    },
-    "form": {
-      "validation": {
-        "nameRequired": "El nombre es obligatorio"
-      },
-      "fields": {
-        "name": {
-          "label": "Nombre del dispositivo",
-          "placeholder": "Ej. Terminal recepción",
-          "description": "Ayuda a identificar este dispositivo en el panel."
-        },
-        "location": {
-          "label": "Ubicación",
-          "loading": "Cargando ubicaciones...",
-          "placeholder": "Selecciona una ubicación",
-          "empty": "No hay ubicaciones disponibles"
-        }
-      },
-      "actions": {
-        "saveChanges": "Guardar cambios",
-        "linkDeviceFirst": "Primero vincula el dispositivo"
-      }
-    },
-    "deviceId": {
-      "label": "ID del dispositivo",
-      "notSet": "No configurado",
-      "loading": "Cargando configuración del dispositivo..."
-    },
-    "actions": {
-      "signOut": "Cerrar sesión",
-      "clearCache": "Borrar caché"
-    },
-    "toast": {
-      "saveSuccess": {
-        "title": "Guardado",
-        "description": "La configuración se actualizó correctamente."
-      },
-      "saveError": {
-        "title": "No se pudo guardar",
-        "fallbackDescription": "No pudimos guardar la configuración. Inténtalo de nuevo."
-      },
-      "signOutSuccess": {
-        "title": "Sesión cerrada",
-        "description": "Se cerró la sesión y se limpiaron los datos locales."
-      },
-      "signOutError": {
-        "title": "No se pudo cerrar sesión",
-        "fallbackDescription": "No pudimos cerrar la sesión. Inténtalo de nuevo."
-      }
-    }
-  },
-  "DeviceSetup": {
-    "defaults": {
-      "deviceName": "Dispositivo"
-    },
-    "errors": {
-      "deviceNotFound": {
-        "title": "Dispositivo no encontrado",
-        "description": "No pudimos encontrar el dispositivo para configurarlo. Vuelve a iniciar sesión.",
-        "backToLogin": "Volver a iniciar sesión"
-      }
-    },
-    "header": {
-      "kicker": "CONFIGURACIÓN",
-      "title": "Configura tu dispositivo",
-      "subtitle": "Asigna un nombre y selecciona una ubicación para empezar a escanear."
-    },
-    "deviceInfo": {
-      "deviceId": "ID del dispositivo",
-      "organization": "Organización"
-    },
-    "form": {
-      "validation": {
-        "nameRequired": "El nombre es obligatorio",
-        "locationRequired": "Selecciona una ubicación"
-      },
-      "fields": {
-        "name": {
-          "label": "Nombre del dispositivo",
-          "placeholder": "Ej. Terminal entrada",
-          "description": "Este nombre se mostrará en el panel."
-        },
-        "location": {
-          "label": "Ubicación",
-          "loading": "Cargando ubicaciones...",
-          "placeholder": "Selecciona una ubicación",
-          "empty": "No hay ubicaciones disponibles"
-        }
-      },
-      "actions": {
-        "saveAndContinue": "Guardar y continuar"
-      }
-    },
-    "tip": {
-      "title": "Consejo",
-      "body": "Coloca el dispositivo en un lugar fijo y con buena iluminación para mejores lecturas."
-    }
-  }
+	"Common": {
+		"cancel": "Cancelar",
+		"close": "Cerrar",
+		"dismiss": "Cerrar",
+		"loading": "Cargando...",
+		"next": "Siguiente",
+		"ok": "Aceptar",
+		"previous": "Anterior",
+		"retry": "Intentar de nuevo",
+		"save": "Guardar",
+		"saving": "Guardando...",
+		"selectOption": "Selecciona una opción",
+		"noOptionsAvailable": "No hay opciones disponibles"
+	},
+	"Errors": {
+		"unexpected": "Ocurrió un error inesperado"
+	},
+	"Login": {
+		"defaults": {
+			"deviceName": "Dispositivo"
+		},
+		"header": {
+			"title": "Vincular dispositivo",
+			"subtitle": "Autoriza este dispositivo desde el panel web usando el enlace o el código."
+		},
+		"code": {
+			"label": "Código"
+		},
+		"qr": {
+			"caption": "Escanea el QR o abre el enlace para autorizar."
+		},
+		"approved": {
+			"title": "Aprobado",
+			"subtitle": "Configurando el dispositivo..."
+		},
+		"envWarning": {
+			"title": "Configuración requerida",
+			"description": "URL de la API actual: {{current}}. Verifica EXPO_PUBLIC_API_URL."
+		},
+		"status": {
+			"requestingCode": "Solicitando código...",
+			"waitingApproval": "Esperando autorización...",
+			"apiUrlNotConfigured": "API no configurada",
+			"deviceCodeExpired": "El código expiró. Solicita uno nuevo.",
+			"accessTokenMissing": "No se recibió un token de acceso.",
+			"approved": "Aprobado",
+			"sessionFailed": "No se pudo iniciar sesión.",
+			"sessionOrRegistrationFailed": "No se pudo iniciar sesión o registrar el dispositivo.",
+			"slowingDown": "Demasiadas solicitudes. Esperando un poco...",
+			"requestDenied": "Solicitud rechazada.",
+			"codeExpired": "El código expiró.",
+			"connecting": "Conectando...",
+			"reconnecting": "Reconectando..."
+		},
+		"errors": {
+			"setExpoPublicApiUrl": "Configura EXPO_PUBLIC_API_URL en el archivo .env de la app.",
+			"unableToRequestCode": "No se pudo solicitar un código.",
+			"deviceApprovedButTokenMissing": "El dispositivo fue aprobado, pero falta el token de acceso.",
+			"couldNotEstablishSession": "No se pudo establecer la sesión."
+		},
+		"errorDetails": {
+			"title": "Detalles del error",
+			"tip": "Tip: configura EXPO_PUBLIC_API_URL en tu archivo .env."
+		},
+		"actions": {
+			"refreshing": "Actualizando...",
+			"newCode": "Nuevo código",
+			"openLink": "Abrir enlace",
+			"tryAgain": "Intentar de nuevo"
+		}
+	},
+	"Locked": {
+		"title": "Se requiere reautenticación",
+		"subtitle": "Este dispositivo necesita volver a autorizarse para continuar.",
+		"body": "Un administrador debe aprobar el dispositivo en el panel web.",
+		"reason": {
+			"deviceDisabled": "Este dispositivo fue deshabilitado en el panel.",
+			"refreshFailed": "No pudimos renovar la sesión."
+		},
+		"actions": {
+			"retry": "Reintentar",
+			"signIn": "Iniciar sesión"
+		}
+	},
+	"Scanner": {
+		"title": "Escáner",
+		"permission": {
+			"initializing": "Inicializando cámara...",
+			"title": "Se requiere acceso a la cámara",
+			"description": "Necesitamos permiso de cámara para escanear rostros y registrar asistencia.",
+			"grant": "Conceder permiso"
+		},
+		"attendanceType": {
+			"checkIn": "Entrada",
+			"checkOutAuthorized": "Salida autorizada",
+			"checkOutAuthorizedReason": "Permiso RH",
+			"checkOut": "Salida"
+		},
+		"status": {
+			"idle": "Coloca tu rostro dentro del círculo",
+			"deviceNotLinked": "Dispositivo no vinculado. Ve a Configuración.",
+			"verifying": "Verificando rostro...",
+			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
+			"faceNotRecognized": "Rostro no reconocido. Inténtalo de nuevo.",
+			"verificationFailed": "La verificación falló. Vuelve a intentar."
+		},
+		"success": {
+			"employeeFallback": "Empleado",
+			"checkedIn": "¡Entrada registrada!",
+			"checkedOutAuthorized": "¡Salida autorizada registrada!",
+			"checkedOut": "¡Salida registrada!"
+		},
+		"deviceStatus": {
+			"terminalFallback": "Terminal de asistencia",
+			"deviceNotLinked": "Dispositivo no vinculado",
+			"connected": "Conectado",
+			"setupRequired": "Configuración requerida"
+		},
+		"actions": {
+			"verifying": "Verificando...",
+			"scanCheckIn": "Escanear entrada",
+			"scanCheckOutAuthorized": "Escanear salida autorizada",
+			"scanCheckOut": "Escanear salida",
+			"tapToLink": "Toca para vincular este dispositivo",
+			"openFaceEnrollment": "Registrar rostro"
+		}
+	},
+	"FaceEnrollment": {
+		"title": "Registro facial",
+		"subtitle": "Selecciona un empleado activo y registra o re-registra su rostro desde esta terminal.",
+		"permission": {
+			"loading": "Inicializando permisos de cámara...",
+			"description": "Necesitamos acceso a la cámara para capturar el rostro.",
+			"grant": "Conceder permiso"
+		},
+		"device": {
+			"title": "Configuración requerida",
+			"linkRequired": "Este dispositivo debe estar vinculado antes de registrar rostros.",
+			"locationRequired": "Configura una ubicación del dispositivo para registrar rostros.",
+			"openSettings": "Ir a configuración"
+		},
+		"employees": {
+			"title": "Empleados activos",
+			"searchPlaceholder": "Buscar por nombre o código",
+			"loading": "Cargando empleados...",
+			"loadError": "No se pudo cargar la lista de empleados.",
+			"empty": "No hay empleados que coincidan con la búsqueda.",
+			"truncatedWarning": "Se muestran solo {{limit}} empleados activos. Refina la búsqueda para ubicar más rápido al empleado.",
+			"badges": {
+				"registered": "Registrado",
+				"notRegistered": "Sin registro"
+			}
+		},
+		"camera": {
+			"title": "Captura facial",
+			"switchCamera": "Cambiar cámara"
+		},
+		"actions": {
+			"capture": "Capturar",
+			"retake": "Tomar otra",
+			"confirm": "Confirmar registro",
+			"submitting": "Registrando...",
+			"registerAnother": "Registrar otro",
+			"backToScanner": "Volver al escáner"
+		},
+		"success": {
+			"title": "Registro completado",
+			"employee": "Empleado: {{name}}",
+			"mode": "Tipo: {{mode}}",
+			"description": "Rostro registrado y asociado correctamente.",
+			"newEnrollment": "Registro nuevo",
+			"reEnrollment": "Re-registro"
+		},
+		"errors": {
+			"generic": "No se pudo completar el registro facial. Inténtalo de nuevo.",
+			"associationFailed": "No se pudo asociar el rostro al empleado. Inténtalo de nuevo.",
+			"cameraUnavailable": "La cámara no está disponible en este momento.",
+			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
+			"missingData": "Selecciona un empleado y captura una imagen antes de continuar.",
+			"api": {
+				"REKOGNITION_USER_EXISTS": "El empleado ya cuenta con usuario de reconocimiento facial.",
+				"REKOGNITION_USER_MISSING": "No se encontró el usuario facial del empleado. Inténtalo de nuevo.",
+				"INVALID_IMAGE_BASE64": "La imagen capturada no es válida. Toma otra foto e inténtalo de nuevo.",
+				"EMPLOYEE_NOT_FOUND": "No encontramos al empleado seleccionado.",
+				"EMPLOYEE_FORBIDDEN": "No tienes permisos para registrar el rostro de este empleado.",
+				"REKOGNITION_USER_CREATE_FAILED": "No se pudo preparar el registro facial del empleado. Inténtalo de nuevo.",
+				"REKOGNITION_INDEX_FAILED": "No se pudo registrar el rostro en este momento. Inténtalo de nuevo.",
+				"UNKNOWN": "No se pudo completar el registro facial. Inténtalo de nuevo."
+			}
+		}
+	},
+	"Settings": {
+		"title": "Configuración",
+		"subtitle": "Administra los datos de este dispositivo.",
+		"navigation": {
+			"backToScanner": "Volver al escáner"
+		},
+		"organization": {
+			"fallbackName": "Organización",
+			"description": "Organización activa",
+			"idLabel": "ID"
+		},
+		"form": {
+			"validation": {
+				"nameRequired": "El nombre es obligatorio"
+			},
+			"fields": {
+				"name": {
+					"label": "Nombre del dispositivo",
+					"placeholder": "Ej. Terminal recepción",
+					"description": "Ayuda a identificar este dispositivo en el panel."
+				},
+				"location": {
+					"label": "Ubicación",
+					"loading": "Cargando ubicaciones...",
+					"placeholder": "Selecciona una ubicación",
+					"empty": "No hay ubicaciones disponibles"
+				}
+			},
+			"actions": {
+				"saveChanges": "Guardar cambios",
+				"linkDeviceFirst": "Primero vincula el dispositivo"
+			}
+		},
+		"deviceId": {
+			"label": "ID del dispositivo",
+			"notSet": "No configurado",
+			"loading": "Cargando configuración del dispositivo..."
+		},
+		"actions": {
+			"signOut": "Cerrar sesión",
+			"clearCache": "Borrar caché"
+		},
+		"toast": {
+			"saveSuccess": {
+				"title": "Guardado",
+				"description": "La configuración se actualizó correctamente."
+			},
+			"saveError": {
+				"title": "No se pudo guardar",
+				"fallbackDescription": "No pudimos guardar la configuración. Inténtalo de nuevo."
+			},
+			"signOutSuccess": {
+				"title": "Sesión cerrada",
+				"description": "Se cerró la sesión y se limpiaron los datos locales."
+			},
+			"signOutError": {
+				"title": "No se pudo cerrar sesión",
+				"fallbackDescription": "No pudimos cerrar la sesión. Inténtalo de nuevo."
+			}
+		}
+	},
+	"DeviceSetup": {
+		"defaults": {
+			"deviceName": "Dispositivo"
+		},
+		"errors": {
+			"deviceNotFound": {
+				"title": "Dispositivo no encontrado",
+				"description": "No pudimos encontrar el dispositivo para configurarlo. Vuelve a iniciar sesión.",
+				"backToLogin": "Volver a iniciar sesión"
+			}
+		},
+		"header": {
+			"kicker": "CONFIGURACIÓN",
+			"title": "Configura tu dispositivo",
+			"subtitle": "Asigna un nombre y selecciona una ubicación para empezar a escanear."
+		},
+		"deviceInfo": {
+			"deviceId": "ID del dispositivo",
+			"organization": "Organización"
+		},
+		"form": {
+			"validation": {
+				"nameRequired": "El nombre es obligatorio",
+				"locationRequired": "Selecciona una ubicación"
+			},
+			"fields": {
+				"name": {
+					"label": "Nombre del dispositivo",
+					"placeholder": "Ej. Terminal entrada",
+					"description": "Este nombre se mostrará en el panel."
+				},
+				"location": {
+					"label": "Ubicación",
+					"loading": "Cargando ubicaciones...",
+					"placeholder": "Selecciona una ubicación",
+					"empty": "No hay ubicaciones disponibles"
+				}
+			},
+			"actions": {
+				"saveAndContinue": "Guardar y continuar"
+			}
+		},
+		"tip": {
+			"title": "Consejo",
+			"body": "Coloca el dispositivo en un lugar fijo y con buena iluminación para mejores lecturas."
+		}
+	}
 }

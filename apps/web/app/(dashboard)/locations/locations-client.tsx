@@ -306,6 +306,7 @@ export function LocationsPageClient(): React.ReactElement {
 	const latitudeValue = useStore(form.store, (state) => state.values.latitude);
 	const longitudeValue = useStore(form.store, (state) => state.values.longitude);
 	const nameValue = useStore(form.store, (state) => state.values.name);
+	const trimmedLiveAddress = addressValue.trim();
 	const debouncedAddress = useDebouncedValue(addressValue, GEOCODE_DEBOUNCE_MS);
 	const trimmedAddress = debouncedAddress.trim();
 	const canQueryGeocode =
@@ -321,12 +322,15 @@ export function LocationsPageClient(): React.ReactElement {
 		enabled: canQueryGeocode,
 		staleTime: 5 * 60 * 1000,
 	});
+	const isGeocodeInputAhead = trimmedLiveAddress !== trimmedAddress;
+	const visibleGeocodeSuggestions = isGeocodeInputAhead ? [] : geocodeSuggestions;
 	const isGeocodeQueryTooShort =
-		trimmedAddress.length > 0 && trimmedAddress.length < GEOCODE_MIN_CHARS;
+		trimmedLiveAddress.length > 0 && trimmedLiveAddress.length < GEOCODE_MIN_CHARS;
 	const showGeocodeEmpty =
-		trimmedAddress.length >= GEOCODE_MIN_CHARS &&
+		trimmedLiveAddress.length >= GEOCODE_MIN_CHARS &&
+		!isGeocodeInputAhead &&
 		!isGeocodeFetching &&
-		geocodeSuggestions.length === 0 &&
+		visibleGeocodeSuggestions.length === 0 &&
 		!geocodeError;
 	const hasCoordinates = latitudeValue !== null && longitudeValue !== null;
 
@@ -780,13 +784,14 @@ export function LocationsPageClient(): React.ReactElement {
 																		{t('address.empty')}
 																	</CommandEmpty>
 																)}
-																{geocodeSuggestions.length > 0 && (
+																{visibleGeocodeSuggestions.length >
+																	0 && (
 																	<CommandGroup
 																		heading={t(
 																			'address.resultsTitle',
 																		)}
 																	>
-																		{geocodeSuggestions.map(
+																		{visibleGeocodeSuggestions.map(
 																			(suggestion) => {
 																				const isSelected =
 																					suggestion.displayName ===

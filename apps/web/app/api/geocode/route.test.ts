@@ -188,6 +188,34 @@ describe('GET /api/geocode', () => {
 		expect(payload.data?.[1]?.displayName).toBe('Avenida Reforma 120, Ciudad de Mexico, Mexico');
 	});
 
+	it('prioritizes textual relevance over number-only matches', async () => {
+		mockFetch.mockResolvedValue(
+			createJsonResponse([
+				{
+					display_name: 'Calle Morelos 200, Monterrey, Nuevo Leon, Mexico',
+					lat: '25.6800',
+					lon: '-100.3000',
+					importance: 0.9,
+				},
+				{
+					display_name: 'Avenida Reforma, Ciudad de Mexico, Mexico',
+					lat: '19.4326',
+					lon: '-99.1332',
+					importance: 0.1,
+				},
+			]),
+		);
+
+		const response = await GET(createRequest('Avenida Reforma 200'));
+		const payload = await readResponsePayload(response);
+
+		expect(response.status).toBe(200);
+		expect(payload.data?.[0]?.displayName).toBe('Avenida Reforma, Ciudad de Mexico, Mexico');
+		expect(payload.data?.[1]?.displayName).toBe(
+			'Calle Morelos 200, Monterrey, Nuevo Leon, Mexico',
+		);
+	});
+
 	it('returns a stable order for equivalent result sets', async () => {
 		const first = {
 			display_name: 'Calle Fresa 10, Monterrey, Nuevo Leon, Mexico',

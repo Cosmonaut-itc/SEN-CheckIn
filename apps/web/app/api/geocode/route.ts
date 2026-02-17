@@ -232,20 +232,20 @@ function buildRankedResult(
  * @returns Sorting value compatible with Array.sort.
  */
 function compareRankedResults(left: RankedResult, right: RankedResult): number {
-	if (left.fullNumberMatch !== right.fullNumberMatch) {
-		return Number(right.fullNumberMatch) - Number(left.fullNumberMatch);
-	}
-
-	if (left.numberMatchCount !== right.numberMatchCount) {
-		return right.numberMatchCount - left.numberMatchCount;
-	}
-
 	if (left.hasExactPhrase !== right.hasExactPhrase) {
 		return Number(right.hasExactPhrase) - Number(left.hasExactPhrase);
 	}
 
 	if (left.tokenCoverage !== right.tokenCoverage) {
 		return right.tokenCoverage - left.tokenCoverage;
+	}
+
+	if (left.fullNumberMatch !== right.fullNumberMatch) {
+		return Number(right.fullNumberMatch) - Number(left.fullNumberMatch);
+	}
+
+	if (left.numberMatchCount !== right.numberMatchCount) {
+		return right.numberMatchCount - left.numberMatchCount;
 	}
 
 	if (left.importance !== right.importance) {

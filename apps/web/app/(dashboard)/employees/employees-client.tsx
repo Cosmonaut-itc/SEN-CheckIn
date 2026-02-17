@@ -1451,7 +1451,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: shouldFetchInsights,
 		retry: 1,
 		staleTime: 60_000,
-		placeholderData: (previous) => previous,
 	});
 
 	const terminationSettlementEnabled =

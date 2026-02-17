@@ -47,12 +47,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { queryKeys } from '@/lib/query-keys';
 import {
@@ -83,6 +78,7 @@ type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
 const ALL_LOCATIONS_VALUE = '__all__';
 const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
 const EXPORT_PAGE_SIZE = 100;
+const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
@@ -282,14 +278,11 @@ export function AttendancePageClient(): React.ReactElement {
 	const [isOffsiteDialogOpen, setIsOffsiteDialogOpen] = useState<boolean>(false);
 	const [editingOffsiteRecord, setEditingOffsiteRecord] = useState<AttendanceRecord | null>(null);
 	const [offsiteEmployeeId, setOffsiteEmployeeId] = useState<string>('');
-	const [offsiteDateKey, setOffsiteDateKey] = useState<string>(
-		format(new Date(), 'yyyy-MM-dd'),
-	);
+	const [offsiteDateKey, setOffsiteDateKey] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 	const [offsiteDayKind, setOffsiteDayKind] = useState<OffsiteDayKind>('LABORABLE');
 	const [offsiteReason, setOffsiteReason] = useState<string>('');
 
-	const canManageOffsite =
-		organizationRole === 'admin' || organizationRole === 'owner';
+	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
 	/**
 	 * Resets all fields for offsite modal form.
@@ -436,22 +429,38 @@ export function AttendancePageClient(): React.ReactElement {
 	const locations = useMemo(() => (locationsData?.data ?? []) as Location[], [locationsData]);
 
 	const activeEmployeesQuery = useQuery({
-		queryKey: queryKeys.employees.list({
-			limit: 200,
-			offset: 0,
-			status: 'ACTIVE',
-			organizationId,
-		}),
-		queryFn: () =>
-			fetchEmployeesList({
-				limit: 200,
-				offset: 0,
-				status: 'ACTIVE',
-				organizationId,
-			}),
+		queryKey: ['attendance', 'offsite', 'active-employees', organizationId],
+		queryFn: async () => {
+			if (!organizationId) {
+				return [];
+			}
+
+			const employees: Awaited<ReturnType<typeof fetchEmployeesList>>['data'] = [];
+			let offset = 0;
+			let total = 0;
+
+			do {
+				const response = await fetchEmployeesList({
+					limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
+					offset,
+					status: 'ACTIVE',
+					organizationId,
+				});
+				employees.push(...response.data);
+				total = response.pagination.total;
+
+				if (response.data.length === 0) {
+					break;
+				}
+
+				offset += response.pagination.limit;
+			} while (employees.length < total);
+
+			return employees;
+		},
 		enabled: Boolean(organizationId) && canManageOffsite,
 	});
-	const activeEmployees = activeEmployeesQuery.data?.data ?? [];
+	const activeEmployees = activeEmployeesQuery.data ?? [];
 
 	const createOffsiteMutation = useMutation({
 		mutationKey: ['attendance', 'offsite', 'create'],
@@ -583,7 +592,9 @@ export function AttendancePageClient(): React.ReactElement {
 	const openEditOffsiteDialog = useCallback((record: AttendanceRecord): void => {
 		setEditingOffsiteRecord(record);
 		setOffsiteEmployeeId(record.employeeId);
-		setOffsiteDateKey(record.offsiteDateKey ?? format(new Date(record.timestamp), 'yyyy-MM-dd'));
+		setOffsiteDateKey(
+			record.offsiteDateKey ?? format(new Date(record.timestamp), 'yyyy-MM-dd'),
+		);
 		setOffsiteDayKind(record.offsiteDayKind ?? 'LABORABLE');
 		setOffsiteReason(record.offsiteReason ?? '');
 		setIsOffsiteDialogOpen(true);
@@ -753,7 +764,11 @@ export function AttendancePageClient(): React.ReactElement {
 								<TooltipProvider>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<Button variant="ghost" size="icon" className="h-7 w-7 p-0">
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-7 w-7 p-0"
+											>
 												<Info className="h-4 w-4 text-muted-foreground" />
 											</Button>
 										</TooltipTrigger>
@@ -1132,7 +1147,9 @@ export function AttendancePageClient(): React.ReactElement {
 								disabled={Boolean(editingOffsiteRecord)}
 							>
 								<SelectTrigger id="offsite-employee">
-									<SelectValue placeholder={t('offsite.fields.employeePlaceholder')} />
+									<SelectValue
+										placeholder={t('offsite.fields.employeePlaceholder')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{activeEmployees.map((employee) => (
@@ -1156,7 +1173,12 @@ export function AttendancePageClient(): React.ReactElement {
 							</div>
 							<div className="space-y-2">
 								<Label htmlFor="offsite-kind">{t('offsite.fields.dayKind')}</Label>
-								<Select value={offsiteDayKind} onValueChange={(value) => setOffsiteDayKind(value as OffsiteDayKind)}>
+								<Select
+									value={offsiteDayKind}
+									onValueChange={(value) =>
+										setOffsiteDayKind(value as OffsiteDayKind)
+									}
+								>
 									<SelectTrigger id="offsite-kind">
 										<SelectValue placeholder={t('offsite.fields.dayKind')} />
 									</SelectTrigger>
@@ -1199,7 +1221,9 @@ export function AttendancePageClient(): React.ReactElement {
 						<Button
 							type="button"
 							onClick={() => void handleSubmitOffsite()}
-							disabled={createOffsiteMutation.isPending || updateOffsiteMutation.isPending}
+							disabled={
+								createOffsiteMutation.isPending || updateOffsiteMutation.isPending
+							}
 						>
 							{editingOffsiteRecord
 								? t('offsite.actions.save')

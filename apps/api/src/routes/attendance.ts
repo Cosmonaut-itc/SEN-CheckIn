@@ -79,7 +79,12 @@ async function ensureAdminRole(
 	const membershipRows = await db
 		.select({ role: member.role })
 		.from(member)
-		.where(and(eq(member.userId, args.session.userId), eq(member.organizationId, args.organizationId)))
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
 		.limit(1);
 	const role = membershipRows[0]?.role ?? null;
 
@@ -114,7 +119,10 @@ async function resolveOrganizationTimeZone(organizationId: string): Promise<stri
  * @param timeZone - IANA timezone
  * @returns UTC range bounds
  */
-function buildUtcBoundsForDateKey(dateKey: string, timeZone: string): {
+function buildUtcBoundsForDateKey(
+	dateKey: string,
+	timeZone: string,
+): {
 	startUtc: Date;
 	endExclusiveUtc: Date;
 } {
@@ -133,7 +141,7 @@ function buildUtcBoundsForDateKey(dateKey: string, timeZone: string): {
 function isValidCreateWindow(dateKey: string, timeZone: string): boolean {
 	const todayKey = toDateKeyInTimeZone(new Date(), timeZone);
 	const earliestAllowedDateKey = addDaysToDateKey(todayKey, -OFFSITE_MAX_RETRO_DAYS);
-	return dateKey >= earliestAllowedDateKey;
+	return dateKey >= earliestAllowedDateKey && dateKey <= todayKey;
 }
 
 /**
@@ -272,6 +280,34 @@ async function validateOffsiteConflicts(args: {
 }
 
 /**
+ * Checks whether an employee already has a WORK_OFFSITE record for a date key.
+ *
+ * @param args - Employee/date context
+ * @returns True when an offsite record already exists
+ */
+async function hasOffsiteRecordForDate(args: {
+	employeeId: string;
+	dateKey: string;
+	excludeAttendanceId?: string;
+}): Promise<boolean> {
+	const conditions: SQL<unknown>[] = [
+		eq(attendanceRecord.employeeId, args.employeeId),
+		eq(attendanceRecord.type, 'WORK_OFFSITE'),
+		eq(attendanceRecord.offsiteDateKey, args.dateKey),
+	];
+	if (args.excludeAttendanceId) {
+		conditions.push(ne(attendanceRecord.id, args.excludeAttendanceId));
+	}
+
+	const offsiteRows = await db
+		.select({ id: attendanceRecord.id })
+		.from(attendanceRecord)
+		.where(and(...conditions))
+		.limit(1);
+	return Boolean(offsiteRows[0]);
+}
+
+/**
  * Resolves or creates a virtual RH device for offsite manual records.
  *
  * @param organizationId - Organization identifier
@@ -279,28 +315,43 @@ async function validateOffsiteConflicts(args: {
  */
 async function getOrCreateOffsiteVirtualDevice(organizationId: string): Promise<string> {
 	const code = buildOffsiteVirtualDeviceCode(organizationId);
-	const existingRows = await db
+	const existing = await db
 		.select({ id: device.id })
 		.from(device)
 		.where(and(eq(device.organizationId, organizationId), eq(device.code, code)))
-		.limit(1);
-	const existing = existingRows[0];
+		.limit(1)
+		.then((rows) => rows[0]);
 	if (existing) {
 		return existing.id;
 	}
 
-	const id = crypto.randomUUID();
-	await db.insert(device).values({
-		id,
-		code,
-		name: 'Registro RH Fuera de oficina',
-		deviceType: 'VIRTUAL_RH_OFFSITE',
-		status: 'ONLINE',
-		locationId: null,
-		organizationId,
-	});
+	const candidateId = crypto.randomUUID();
+	await db
+		.insert(device)
+		.values({
+			id: candidateId,
+			code,
+			name: 'Registro RH Fuera de oficina',
+			deviceType: 'VIRTUAL_RH_OFFSITE',
+			status: 'ONLINE',
+			locationId: null,
+			organizationId,
+		})
+		.onConflictDoNothing({
+			target: device.code,
+		});
 
-	return id;
+	const resolved = await db
+		.select({ id: device.id })
+		.from(device)
+		.where(and(eq(device.organizationId, organizationId), eq(device.code, code)))
+		.limit(1)
+		.then((rows) => rows[0]);
+	if (!resolved) {
+		throw new Error('Unable to resolve offsite virtual device');
+	}
+
+	return resolved.id;
 }
 
 /**
@@ -768,6 +819,11 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			if (!canManageOffsite) {
 				return buildErrorResponse('Only owner/admin can manage offsite attendance', 403);
 			}
+			const sessionUserId = session?.userId;
+			if (!sessionUserId) {
+				set.status = 403;
+				return buildErrorResponse('Only owner/admin can manage offsite attendance', 403);
+			}
 
 			const existingDateKey = record.offsiteDateKey;
 			if (!existingDateKey) {
@@ -779,6 +835,13 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			if (!isWithinEditableWindow(existingDateKey, timeZone)) {
 				set.status = 409;
 				return buildErrorResponse('Offsite record is outside editable window', 409);
+			}
+
+			try {
+				parseDateKey(body.offsiteDateKey);
+			} catch {
+				set.status = 400;
+				return buildErrorResponse('Invalid offsite date key', 400);
 			}
 
 			if (!isValidCreateWindow(body.offsiteDateKey, timeZone)) {
@@ -852,7 +915,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					offsiteDateKey: body.offsiteDateKey,
 					offsiteDayKind: body.offsiteDayKind,
 					offsiteReason: body.offsiteReason,
-					offsiteUpdatedByUserId: session?.userId ?? record.offsiteUpdatedByUserId,
+					offsiteUpdatedByUserId: sessionUserId,
 					offsiteUpdatedAt: now,
 				})
 				.where(eq(attendanceRecord.id, record.id));
@@ -1115,7 +1178,10 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					set,
 				);
 				if (!canManageOffsite) {
-					return buildErrorResponse('Only owner/admin can manage offsite attendance', 403);
+					return buildErrorResponse(
+						'Only owner/admin can manage offsite attendance',
+						403,
+					);
 				}
 
 				if (!offsiteDateKey || !offsiteDayKind || !offsiteReason) {
@@ -1209,9 +1275,10 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 						...newRecord,
 						createdAt: now,
 						updatedAt: now,
-						employeeName: `${existingEmployee.firstName ?? ''} ${existingEmployee.lastName ?? ''}`
-							.trim()
-							.replace(/\s+/g, ' '),
+						employeeName:
+							`${existingEmployee.firstName ?? ''} ${existingEmployee.lastName ?? ''}`
+								.trim()
+								.replace(/\s+/g, ' '),
 					},
 				};
 			}
@@ -1269,6 +1336,27 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				return buildErrorResponse(
 					'Device does not belong to the resolved organization',
 					403,
+				);
+			}
+
+			const employeeOrganizationId =
+				existingEmployee.organizationId ?? resolvedOrganizationId;
+			if (!employeeOrganizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(employeeOrganizationId);
+			const recordDateKey = toDateKeyInTimeZone(timestamp, timeZone);
+			const hasOffsiteForDate = await hasOffsiteRecordForDate({
+				employeeId,
+				dateKey: recordDateKey,
+			});
+			if (hasOffsiteForDate) {
+				set.status = 409;
+				return buildErrorResponse(
+					'No se puede registrar checadas cuando ya existe fuera de oficina en la fecha.',
+					409,
 				);
 			}
 

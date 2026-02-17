@@ -18,6 +18,7 @@ describe('attendance routes (contract)', () => {
 	let memberSession: Awaited<ReturnType<typeof getUserSession>>;
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 	let apiKey: string;
+	let activeEmployeeId: string;
 
 	beforeAll(async () => {
 		client = createTestClient();
@@ -25,6 +26,16 @@ describe('attendance routes (contract)', () => {
 		memberSession = await getUserSession();
 		seed = await getSeedData();
 		apiKey = await getTestApiKey();
+		const activeEmployeesResponse = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 1, offset: 0, status: 'ACTIVE' },
+		});
+		const activeEmployeesPayload = requireResponseData(activeEmployeesResponse);
+		const activeEmployee = activeEmployeesPayload.data?.[0];
+		if (!activeEmployee?.id) {
+			throw new Error('Expected at least one active employee for offsite tests.');
+		}
+		activeEmployeeId = activeEmployee.id;
 	});
 
 	it('lists attendance records with pagination', async () => {
@@ -100,7 +111,7 @@ describe('attendance routes (contract)', () => {
 		expect(todayDateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
 		const createResponse = await client.attendance.post({
-			employeeId: seed.employeeId,
+			employeeId: activeEmployeeId,
 			timestamp: new Date(),
 			type: 'WORK_OFFSITE',
 			offsiteDateKey: todayDateKey,
@@ -132,15 +143,15 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const tomorrowDate = new Date(`${todayDateKey}T00:00:00.000Z`);
-		tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
-		const tomorrowDateKey = tomorrowDate.toISOString().slice(0, 10);
+		const editableDate = new Date(`${todayDateKey}T00:00:00.000Z`);
+		editableDate.setUTCDate(editableDate.getUTCDate() - 1);
+		const editableDateKey = editableDate.toISOString().slice(0, 10);
 
 		const createResponse = await client.attendance.post({
-			employeeId: seed.employeeId,
+			employeeId: activeEmployeeId,
 			timestamp: new Date(),
 			type: 'WORK_OFFSITE',
-			offsiteDateKey: tomorrowDateKey,
+			offsiteDateKey: editableDateKey,
 			offsiteDayKind: 'NO_LABORABLE',
 			offsiteReason: 'Cobertura en sitio externo de cliente.',
 			$headers: { cookie: adminSession.cookieHeader },
@@ -156,12 +167,9 @@ describe('attendance routes (contract)', () => {
 			client.attendance[recordId],
 			'Attendance record route',
 		);
-		const updateRoute = requireRoute(
-			attendanceByIdRoute.offsite,
-			'Attendance offsite route',
-		);
+		const updateRoute = requireRoute(attendanceByIdRoute.offsite, 'Attendance offsite route');
 		const updateResponse = await updateRoute.put({
-			offsiteDateKey: tomorrowDateKey,
+			offsiteDateKey: editableDateKey,
 			offsiteDayKind: 'LABORABLE',
 			offsiteReason: 'Cobertura en sitio externo ajustada.',
 			$headers: { cookie: adminSession.cookieHeader },
@@ -179,6 +187,79 @@ describe('attendance routes (contract)', () => {
 		expect(deleteResponse.status).toBe(200);
 		const deletedPayload = requireResponseData(deleteResponse);
 		expect(deletedPayload.data.deleted).toBe(true);
+	});
+
+	it('rejects WORK_OFFSITE creation for future dates', async () => {
+		const offsiteTodayResponse = await client.attendance.offsite.today.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
+		});
+		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
+		const todayDateKey = String(offsiteTodayPayload.dateKey);
+		const tomorrowDate = new Date(`${todayDateKey}T00:00:00.000Z`);
+		tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+		const tomorrowDateKey = tomorrowDate.toISOString().slice(0, 10);
+
+		const response = await client.attendance.post({
+			employeeId: activeEmployeeId,
+			timestamp: new Date(),
+			type: 'WORK_OFFSITE',
+			offsiteDateKey: tomorrowDateKey,
+			offsiteDayKind: 'LABORABLE',
+			offsiteReason: 'Intento de registro futuro fuera de ventana.',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'future offsite date');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('rejects WORK_OFFSITE updates with invalid calendar date keys', async () => {
+		const offsiteTodayResponse = await client.attendance.offsite.today.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
+		});
+		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
+		const todayDateKey = String(offsiteTodayPayload.dateKey);
+		const targetDate = new Date(`${todayDateKey}T00:00:00.000Z`);
+		targetDate.setUTCDate(targetDate.getUTCDate() - 2);
+		const targetDateKey = targetDate.toISOString().slice(0, 10);
+
+		const createResponse = await client.attendance.post({
+			employeeId: activeEmployeeId,
+			timestamp: new Date(),
+			type: 'WORK_OFFSITE',
+			offsiteDateKey: targetDateKey,
+			offsiteDayKind: 'LABORABLE',
+			offsiteReason: 'Registro para validar update con fecha invalida.',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		const recordId = createPayload.data?.id;
+		if (!recordId) {
+			throw new Error('Expected WORK_OFFSITE record id.');
+		}
+
+		const attendanceByIdRoute = requireRoute(
+			client.attendance[recordId],
+			'Attendance record route',
+		);
+		const updateRoute = requireRoute(attendanceByIdRoute.offsite, 'Attendance offsite route');
+
+		const updateResponse = await updateRoute.put({
+			offsiteDateKey: '2025-02-31',
+			offsiteDayKind: 'NO_LABORABLE',
+			offsiteReason: 'Intento de actualizacion con fecha inexistente.',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(updateResponse.status).toBe(400);
+		const errorPayload = requireErrorResponse(
+			updateResponse,
+			'invalid offsite update date key',
+		);
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('returns today attendance for an employee', async () => {
@@ -239,7 +320,7 @@ describe('attendance routes (contract)', () => {
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
 
 		const response = await client.attendance.post({
-			employeeId: seed.employeeId,
+			employeeId: activeEmployeeId,
 			timestamp: new Date(),
 			type: 'WORK_OFFSITE',
 			offsiteDateKey: todayDateKey,
@@ -262,7 +343,7 @@ describe('attendance routes (contract)', () => {
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
 
 		const response = await client.attendance.post({
-			employeeId: seed.employeeId,
+			employeeId: activeEmployeeId,
 			timestamp: new Date(),
 			type: 'WORK_OFFSITE',
 			offsiteDateKey: todayDateKey,
@@ -284,12 +365,12 @@ describe('attendance routes (contract)', () => {
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
 		const targetDate = new Date(`${todayDateKey}T00:00:00.000Z`);
-		targetDate.setUTCDate(targetDate.getUTCDate() + 2);
+		targetDate.setUTCDate(targetDate.getUTCDate() - 3);
 		const targetDateKey = targetDate.toISOString().slice(0, 10);
 
 		const checkInTimestamp = new Date(`${targetDateKey}T15:00:00.000Z`);
 		const checkInResponse = await client.attendance.post({
-			employeeId: seed.employeeId,
+			employeeId: activeEmployeeId,
 			deviceId: seed.deviceId,
 			timestamp: checkInTimestamp,
 			type: 'CHECK_IN',
@@ -298,7 +379,7 @@ describe('attendance routes (contract)', () => {
 		expect(checkInResponse.status).toBe(201);
 
 		const offsiteResponse = await client.attendance.post({
-			employeeId: seed.employeeId,
+			employeeId: activeEmployeeId,
 			timestamp: new Date(),
 			type: 'WORK_OFFSITE',
 			offsiteDateKey: targetDateKey,
@@ -309,6 +390,45 @@ describe('attendance routes (contract)', () => {
 
 		expect(offsiteResponse.status).toBe(409);
 		const errorPayload = requireErrorResponse(offsiteResponse, 'offsite conflict check events');
+		expect(errorPayload.error.code).toBe('CONFLICT');
+	});
+
+	it('rejects CHECK_IN when WORK_OFFSITE already exists for the same day', async () => {
+		const offsiteTodayResponse = await client.attendance.offsite.today.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
+		});
+		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
+		const todayDateKey = String(offsiteTodayPayload.dateKey);
+		const targetDate = new Date(`${todayDateKey}T00:00:00.000Z`);
+		targetDate.setUTCDate(targetDate.getUTCDate() - 4);
+		const targetDateKey = targetDate.toISOString().slice(0, 10);
+
+		const createOffsiteResponse = await client.attendance.post({
+			employeeId: activeEmployeeId,
+			timestamp: new Date(),
+			type: 'WORK_OFFSITE',
+			offsiteDateKey: targetDateKey,
+			offsiteDayKind: 'LABORABLE',
+			offsiteReason: 'Registro previo para bloquear checadas en la fecha.',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createOffsiteResponse.status).toBe(201);
+
+		const checkInTimestamp = new Date(`${targetDateKey}T14:00:00.000Z`);
+		const checkInResponse = await client.attendance.post({
+			employeeId: activeEmployeeId,
+			deviceId: seed.deviceId,
+			timestamp: checkInTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(checkInResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(
+			checkInResponse,
+			'check-in conflict with offsite',
+		);
 		expect(errorPayload.error.code).toBe('CONFLICT');
 	});
 

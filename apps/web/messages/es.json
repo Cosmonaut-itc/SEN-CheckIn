@@ -24,7 +24,8 @@
     "saving": "Guardando...",
     "search": "Buscar",
     "selectDate": "Selecciona una fecha",
-    "submit": "Enviar"
+    "submit": "Enviar",
+    "retry": "Reintentar"
   },
   "UpdateToast": {
     "title": "Hay una actualización disponible",
@@ -287,7 +288,9 @@
       "audit": "Auditoria",
       "ptu": "PTU y Aguinaldo",
       "documents": "Documentos",
-      "disciplinary": "Medidas"
+      "disciplinary": "Medidas",
+      "more": "Mas",
+      "moreAriaLabel": "Abrir menu de mas pestanas"
     },
     "summary": {
       "availableDays": "Dias disponibles",
@@ -318,7 +321,24 @@
       "emptyAbsences": "Sin ausencias injustificadas recientes.",
       "leavesTitle": "Ausencias justificadas (sin goce)",
       "emptyLeaves": "Sin ausencias justificadas (sin goce) recientes.",
-      "noReason": "Sin motivo"
+      "noReason": "Sin motivo",
+      "title": "Asistencia del empleado",
+      "subtitle": "Vista ejecutiva y operativa de asistencia reciente",
+      "viewInAttendance": "Ver en Asistencia",
+      "partialError": "No se pudieron cargar los insights de asistencia.",
+      "kpis": {
+        "currentStreak": "Racha de ausencias actual",
+        "unjustified30d": "Ausencias injustificadas (30d)",
+        "attendanceRate30d": "Asistencia puntual (30d)",
+        "justified90d": "Ausencias justificadas (90d)"
+      },
+      "trendTitle": "Tendencia de 30 dias",
+      "trendStatus": {
+        "PRESENT": "Asistencia",
+        "ABSENT": "Ausencia injustificada",
+        "LEAVE": "Ausencia justificada",
+        "DAY_OFF": "Dia no laborable"
+      }
     },
     "vacations": {
       "balanceTitle": "Balance de vacaciones",
@@ -490,7 +510,8 @@
       "fields": {
         "none": "Sin cambios",
         "unknown": "Campo desconocido: {field}"
-      }
+      },
+      "partialError": "No se pudo cargar la auditoria."
     },
     "fields": {
       "code": "Código",
@@ -750,7 +771,8 @@
       "validation": {
         "year": "Ingresa un año fiscal válido.",
         "amount": "Ingresa un monto válido."
-      }
+      },
+      "partialError": "No se pudo cargar el historial de PTU."
     },
     "bulk": {
       "title": "Edición masiva PTU/Aguinaldo",
@@ -1180,7 +1202,8 @@
     "actions": {
       "refresh": "Actualizar",
       "exportCsv": "Descargar CSV",
-      "registerOffsite": "Registrar fuera de oficina"
+      "registerOffsite": "Registrar fuera de oficina",
+      "returnToEmployee": "Volver al empleado"
     },
     "search": {
       "placeholder": "Buscar por ID de empleado..."
@@ -1278,6 +1301,11 @@
     "summary": "Mostrando {count, plural, one {# registro} other {# registros}}",
     "csv": {
       "fileName": "asistencia_{start}_{end}.csv"
+    },
+    "employeeFilter": {
+      "label": "Empleado: {employee}",
+      "remove": "Quitar filtro de empleado",
+      "fallback": "Empleado {id}..."
     }
   },
   "Payroll": {

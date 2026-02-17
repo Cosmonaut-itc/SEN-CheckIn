@@ -314,6 +314,29 @@ describe('employee routes (contract)', () => {
 			throw new Error('Expected insights data for employee.');
 		}
 		expect(insights.employeeId).toBe(baseEmployeeId);
+		expect(Array.isArray(insights.attendance.absentDateKeys)).toBe(true);
+		expect(typeof insights.attendance.totalAbsentDays).toBe('number');
+		expect(typeof insights.attendance.rangeStartDateKey).toBe('string');
+		expect(typeof insights.attendance.rangeEndDateKey).toBe('string');
+		expect(insights.attendance.kpis).toBeDefined();
+		expect(typeof insights.attendance.kpis?.absenceStreakCurrentDays).toBe('number');
+		expect(typeof insights.attendance.kpis?.unjustifiedAbsences30d).toBe('number');
+		expect(typeof insights.attendance.kpis?.unjustifiedAbsences90d).toBe('number');
+		expect(typeof insights.attendance.kpis?.justifiedLeaves30d).toBe('number');
+		expect(typeof insights.attendance.kpis?.justifiedLeaves90d).toBe('number');
+		expect(typeof insights.attendance.kpis?.attendanceRate30d).toBe('number');
+		expect(typeof insights.attendance.kpis?.attendanceRate90d).toBe('number');
+		expect(
+			insights.attendance.kpis?.lateArrivals30d === null ||
+				typeof insights.attendance.kpis?.lateArrivals30d === 'number',
+		).toBe(true);
+		expect(
+			insights.attendance.kpis?.onTimeRate30d === null ||
+				typeof insights.attendance.kpis?.onTimeRate30d === 'number',
+		).toBe(true);
+		expect(Array.isArray(insights.attendance.trend30d)).toBe(true);
+		expect(Array.isArray(insights.attendance.absencesByMonth)).toBe(true);
+		expect(Array.isArray(insights.attendance.leavesByMonth)).toBe(true);
 	});
 
 	it('returns audit events for an employee', async () => {

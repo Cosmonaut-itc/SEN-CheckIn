@@ -723,6 +723,60 @@ export interface EmployeeAbsenceSummary {
 	rangeStartDateKey: string;
 	/** Range end date key */
 	rangeEndDateKey: string;
+	/** Optional attendance KPIs for the summary window */
+	kpis?: EmployeeAttendanceKpis;
+	/** Optional compact 30-day trend series */
+	trend30d?: EmployeeAttendanceTrendPoint[];
+	/** Optional grouped unjustified absences by month */
+	absencesByMonth?: EmployeeAttendanceMonthlyGroup[];
+	/** Optional grouped justified leaves by month */
+	leavesByMonth?: EmployeeAttendanceMonthlyGroup[];
+}
+
+/**
+ * Attendance KPI block for employee insights.
+ */
+export interface EmployeeAttendanceKpis {
+	/** Consecutive unjustified absences up to the cutoff date */
+	absenceStreakCurrentDays: number;
+	/** Unjustified absences in the last 30 days */
+	unjustifiedAbsences30d: number;
+	/** Unjustified absences in the last 90 days */
+	unjustifiedAbsences90d: number;
+	/** Justified leaves in the last 30 days */
+	justifiedLeaves30d: number;
+	/** Justified leaves in the last 90 days */
+	justifiedLeaves90d: number;
+	/** Attendance rate in the last 30 days (0-100) */
+	attendanceRate30d: number;
+	/** Attendance rate in the last 90 days (0-100) */
+	attendanceRate90d: number;
+	/** Optional late-arrivals count in the last 30 days */
+	lateArrivals30d: number | null;
+	/** Optional on-time rate in the last 30 days (0-100) */
+	onTimeRate30d: number | null;
+}
+
+/**
+ * Attendance trend point for compact charting.
+ */
+export interface EmployeeAttendanceTrendPoint {
+	/** Date key represented by the trend point */
+	dateKey: string;
+	/** Daily attendance status */
+	status: 'PRESENT' | 'ABSENT' | 'LEAVE' | 'DAY_OFF';
+}
+
+/**
+ * Monthly grouped attendance dates.
+ */
+export interface EmployeeAttendanceMonthlyGroup {
+	/** Month key in YYYY-MM format */
+	monthKey: string;
+	/** Date keys for the month */
+	dateKeys: string[];
+	/** Total days grouped in the month */
+	totalDays: number;
 }
 
 /**

@@ -303,6 +303,8 @@ type ScheduleExceptionRow = {
 };
 
 const INSIGHTS_PAST_DAYS = 90;
+const INSIGHTS_KPI_30_DAYS = 30;
+const INSIGHTS_KPI_90_DAYS = 90;
 const INSIGHTS_FUTURE_DAYS = 90;
 const INSIGHTS_VACATION_LIMIT = 10;
 const INSIGHTS_PAYROLL_LIMIT = 6;
@@ -1260,8 +1262,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				? timeZoneCandidate
 				: 'America/Mexico_City';
 			const asOfDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const requiredPastDays = Math.max(INSIGHTS_PAST_DAYS, INSIGHTS_KPI_90_DAYS);
 
-			const pastStartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_PAST_DAYS - 1));
+			const pastStartDateKey = addDaysToDateKey(asOfDateKey, -(requiredPastDays - 1));
 			const pastEndDateKey = asOfDateKey;
 			const futureStartDateKey = asOfDateKey;
 			const futureEndDateKey = addDaysToDateKey(asOfDateKey, INSIGHTS_FUTURE_DAYS - 1);
@@ -1298,7 +1301,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			const leaves = buildScheduleExceptionSummaries(leaveRows, timeZone);
 			const exceptions = buildScheduleExceptionSummaries(exceptionRows, timeZone);
-			const last30StartDateKey = addDaysToDateKey(asOfDateKey, -29);
+			const last30StartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_KPI_30_DAYS - 1));
+			const last90StartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_KPI_90_DAYS - 1));
 			const leaveDateKeys = leaves.map((item) => item.dateKey);
 
 			const absentDateKeySet = new Set(attendanceSummary.absentDateKeys);
@@ -1308,11 +1312,20 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const unjustifiedAbsences30d = attendanceSummary.absentDateKeys.filter(
 				(dateKey) => dateKey >= last30StartDateKey,
 			).length;
+			const unjustifiedAbsences90d = attendanceSummary.absentDateKeys.filter(
+				(dateKey) => dateKey >= last90StartDateKey,
+			).length;
 			const justifiedLeaves30d = leaveDateKeys.filter(
 				(dateKey) => dateKey >= last30StartDateKey,
 			).length;
+			const justifiedLeaves90d = leaveDateKeys.filter(
+				(dateKey) => dateKey >= last90StartDateKey,
+			).length;
 			const workingDays30d = attendanceSummary.workingDateKeys.filter(
 				(dateKey) => dateKey >= last30StartDateKey,
+			).length;
+			const workingDays90d = attendanceSummary.workingDateKeys.filter(
+				(dateKey) => dateKey >= last90StartDateKey,
 			).length;
 
 			let absenceStreakCurrentDays = 0;
@@ -1350,7 +1363,12 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				trendCursor = addDaysToDateKey(trendCursor, 1);
 			}
 
-			const { workingDateKeys, ...attendanceSummaryBase } = attendanceSummary;
+			const attendanceSummaryBase = {
+				absentDateKeys: attendanceSummary.absentDateKeys,
+				totalAbsentDays: attendanceSummary.totalAbsentDays,
+				rangeStartDateKey: attendanceSummary.rangeStartDateKey,
+				rangeEndDateKey: attendanceSummary.rangeEndDateKey,
+			};
 
 			const vacationBalance = employeeRecord.hireDate
 				? await buildEmployeeVacationBalance({
@@ -1375,16 +1393,16 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					kpis: {
 						absenceStreakCurrentDays,
 						unjustifiedAbsences30d,
-						unjustifiedAbsences90d: attendanceSummaryBase.totalAbsentDays,
+						unjustifiedAbsences90d,
 						justifiedLeaves30d,
-						justifiedLeaves90d: leaveDateKeys.length,
+						justifiedLeaves90d,
 						attendanceRate30d: calculateAttendanceRate(
 							workingDays30d,
 							unjustifiedAbsences30d,
 						),
 						attendanceRate90d: calculateAttendanceRate(
-							workingDateKeys.length,
-							attendanceSummaryBase.totalAbsentDays,
+							workingDays90d,
+							unjustifiedAbsences90d,
 						),
 						lateArrivals30d: null,
 						onTimeRate30d: null,

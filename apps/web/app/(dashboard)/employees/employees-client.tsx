@@ -1345,7 +1345,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	});
 	const isDisciplinaryEnabled = Boolean(payrollSettings?.enableDisciplinaryMeasures);
 	const canUseDisciplinaryModule = canAccessDisciplinary && isDisciplinaryEnabled;
-	const secondaryDetailTabs = useMemo(
+	const secondaryDetailTabs = useMemo<EmployeeDetailTab[]>(
 		() =>
 			canUseDisciplinaryModule
 				? [...SECONDARY_DETAIL_TABS, 'disciplinary']
@@ -3377,8 +3377,7 @@ export function EmployeesPageClient(): React.ReactElement {
 												{secondaryDetailTabs.map((tab) => (
 													<DropdownMenuItem
 														key={tab}
-														onSelect={(event) => {
-															event.preventDefault();
+														onSelect={() => {
 															handleDetailTabChange(tab);
 														}}
 														className={cn(

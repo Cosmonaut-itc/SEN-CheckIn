@@ -748,7 +748,7 @@ export function LocationsPageClient(): React.ReactElement {
 														</Button>
 													</PopoverTrigger>
 													<PopoverContent className="p-0" align="start">
-														<Command>
+														<Command shouldFilter={false}>
 															<CommandInput
 																id="location-address"
 																name={field.name}

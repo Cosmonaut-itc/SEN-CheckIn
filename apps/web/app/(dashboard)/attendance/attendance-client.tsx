@@ -281,6 +281,7 @@ export function AttendancePageClient(): React.ReactElement {
 	const [offsiteDateKey, setOffsiteDateKey] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 	const [offsiteDayKind, setOffsiteDayKind] = useState<OffsiteDayKind>('LABORABLE');
 	const [offsiteReason, setOffsiteReason] = useState<string>('');
+	const [pendingOffsiteDeleteId, setPendingOffsiteDeleteId] = useState<string | null>(null);
 
 	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
@@ -637,21 +638,30 @@ export function AttendancePageClient(): React.ReactElement {
 	]);
 
 	/**
-	 * Deletes an offsite record after explicit user confirmation.
+	 * Opens the offsite delete confirmation dialog.
 	 *
 	 * @param id - Attendance id to delete
+	 * @returns void
+	 */
+	const handleRequestDeleteOffsite = useCallback((id: string): void => {
+		setPendingOffsiteDeleteId(id);
+	}, []);
+
+	/**
+	 * Confirms deletion of the selected offsite record.
+	 *
 	 * @returns Promise resolved after deletion attempt
 	 */
-	const handleDeleteOffsite = useCallback(
-		async (id: string): Promise<void> => {
-			const shouldDelete = window.confirm(t('offsite.confirm.delete'));
-			if (!shouldDelete) {
-				return;
-			}
-			await deleteOffsiteMutation.mutateAsync(id);
-		},
-		[deleteOffsiteMutation, t],
-	);
+	const handleConfirmDeleteOffsite = useCallback(async (): Promise<void> => {
+		if (!pendingOffsiteDeleteId) {
+			return;
+		}
+		try {
+			await deleteOffsiteMutation.mutateAsync(pendingOffsiteDeleteId);
+		} finally {
+			setPendingOffsiteDeleteId(null);
+		}
+	}, [deleteOffsiteMutation, pendingOffsiteDeleteId]);
 
 	/**
 	 * Updates the start date and resets pagination.
@@ -831,7 +841,7 @@ export function AttendancePageClient(): React.ReactElement {
 								variant="ghost"
 								size="icon"
 								className="h-8 w-8 text-destructive hover:text-destructive"
-								onClick={() => void handleDeleteOffsite(row.original.id)}
+								onClick={() => handleRequestDeleteOffsite(row.original.id)}
 								disabled={deleteOffsiteMutation.isPending}
 							>
 								<Trash2 className="h-4 w-4" />
@@ -845,7 +855,7 @@ export function AttendancePageClient(): React.ReactElement {
 		[
 			canManageOffsite,
 			deleteOffsiteMutation.isPending,
-			handleDeleteOffsite,
+			handleRequestDeleteOffsite,
 			locationFallback,
 			openEditOffsiteDialog,
 			t,
@@ -1228,6 +1238,39 @@ export function AttendancePageClient(): React.ReactElement {
 							{editingOffsiteRecord
 								? t('offsite.actions.save')
 								: t('offsite.actions.create')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={Boolean(pendingOffsiteDeleteId)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setPendingOffsiteDeleteId(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>{t('offsite.confirm.title')}</DialogTitle>
+						<DialogDescription>{t('offsite.confirm.delete')}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setPendingOffsiteDeleteId(null)}
+						>
+							{t('offsite.actions.cancel')}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={() => void handleConfirmDeleteOffsite()}
+							disabled={deleteOffsiteMutation.isPending}
+						>
+							{t('offsite.actions.delete')}
 						</Button>
 					</DialogFooter>
 				</DialogContent>

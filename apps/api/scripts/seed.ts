@@ -2294,7 +2294,7 @@ async function insertWorkOffsiteAttendance(args: {
 			id: virtualDeviceId,
 			code: `${OFFSITE_VIRTUAL_DEVICE_PREFIX}-${organizationRow.id}`,
 			name: `RH Fuera de oficina ${organizationRow.name}`,
-			deviceType: 'VIRTUAL',
+			deviceType: 'VIRTUAL_RH_OFFSITE',
 			status: 'ONLINE',
 			lastHeartbeat: new Date(),
 			locationId: null,
@@ -2302,7 +2302,7 @@ async function insertWorkOffsiteAttendance(args: {
 		});
 
 		for (const [employeeIndex, employeeRow] of orgEmployees.entries()) {
-			const offsiteDateKey = addDaysToDateKey(todayDateKey, employeeIndex + 1);
+			const offsiteDateKey = addDaysToDateKey(todayDateKey, -(employeeIndex + 1));
 			const offsiteDayKind = offsiteDayKinds[employeeIndex % offsiteDayKinds.length];
 			const reason =
 				offsiteDayKind === 'LABORABLE'

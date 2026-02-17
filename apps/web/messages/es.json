@@ -1231,7 +1231,8 @@
       "actions": {
         "cancel": "Cancelar",
         "create": "Registrar",
-        "save": "Guardar cambios"
+        "save": "Guardar cambios",
+        "delete": "Eliminar"
       },
       "validation": {
         "employeeRequired": "Selecciona un empleado.",
@@ -1239,6 +1240,7 @@
         "reasonLength": "El motivo debe tener entre 10 y 500 caracteres."
       },
       "confirm": {
+        "title": "Eliminar registro fuera de oficina",
         "delete": "¿Deseas eliminar este registro de fuera de oficina?"
       },
       "toast": {

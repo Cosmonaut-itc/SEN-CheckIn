@@ -49,6 +49,7 @@ import {
  */
 const OFFSITE_MAX_RETRO_DAYS = 7;
 const OFFSITE_VIRTUAL_DEVICE_PREFIX = 'VIRTUAL-RH-OFFSITE';
+const OFFSITE_EMPLOYEE_DATE_UNIQUE_INDEX = 'attendance_record_offsite_employee_date_uniq';
 
 /**
  * Builds a deterministic virtual device code used for RH offsite records.
@@ -185,6 +186,23 @@ async function hasProcessedPayrollOverlap(args: {
 }
 
 /**
+ * Detects whether a database error is a unique-constraint violation for a target index.
+ *
+ * @param error - Unknown database error
+ * @param constraintName - Constraint/index name
+ * @returns True when the error matches a unique violation for the given constraint
+ */
+function isUniqueConstraintViolation(error: unknown, constraintName: string): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+
+	const code = (error as { code?: unknown }).code;
+	const constraint = (error as { constraint?: unknown }).constraint;
+	return code === '23505' && constraint === constraintName;
+}
+
+/**
  * Validates offsite conflicts against check events, leaves, vacations, and incapacities.
  *
  * @param args - Conflict-check arguments
@@ -219,7 +237,7 @@ async function validateOffsiteConflicts(args: {
 		.limit(1);
 
 	if (checkEvents[0]) {
-		return 'No se puede registrar fuera de oficina cuando ya existen checadas en la fecha.';
+		return 'Cannot register offsite attendance when check events already exist for that date.';
 	}
 
 	const dayOffRows = await db
@@ -236,7 +254,7 @@ async function validateOffsiteConflicts(args: {
 		.limit(1);
 
 	if (dayOffRows[0]) {
-		return 'No se puede registrar fuera de oficina en una fecha marcada como descanso/permiso.';
+		return 'Cannot register offsite attendance on a date marked as day off/permission.';
 	}
 
 	const vacationRows = await db
@@ -255,7 +273,7 @@ async function validateOffsiteConflicts(args: {
 		.limit(1);
 
 	if (vacationRows[0]) {
-		return 'No se puede registrar fuera de oficina en una fecha con vacaciones aprobadas.';
+		return 'Cannot register offsite attendance on a date with approved vacation.';
 	}
 
 	const incapacityRows = await db
@@ -273,7 +291,7 @@ async function validateOffsiteConflicts(args: {
 		.limit(1);
 
 	if (incapacityRows[0]) {
-		return 'No se puede registrar fuera de oficina en una fecha con incapacidad activa.';
+		return 'Cannot register offsite attendance on a date with active incapacity.';
 	}
 
 	return null;
@@ -908,17 +926,28 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const normalizedTimestamp = getUtcDateForZonedMidnight(body.offsiteDateKey, timeZone);
 			const now = new Date();
 
-			await db
-				.update(attendanceRecord)
-				.set({
-					timestamp: normalizedTimestamp,
-					offsiteDateKey: body.offsiteDateKey,
-					offsiteDayKind: body.offsiteDayKind,
-					offsiteReason: body.offsiteReason,
-					offsiteUpdatedByUserId: sessionUserId,
-					offsiteUpdatedAt: now,
-				})
-				.where(eq(attendanceRecord.id, record.id));
+			try {
+				await db
+					.update(attendanceRecord)
+					.set({
+						timestamp: normalizedTimestamp,
+						offsiteDateKey: body.offsiteDateKey,
+						offsiteDayKind: body.offsiteDayKind,
+						offsiteReason: body.offsiteReason,
+						offsiteUpdatedByUserId: sessionUserId,
+						offsiteUpdatedAt: now,
+					})
+					.where(eq(attendanceRecord.id, record.id));
+			} catch (error) {
+				if (isUniqueConstraintViolation(error, OFFSITE_EMPLOYEE_DATE_UNIQUE_INDEX)) {
+					set.status = 409;
+					return buildErrorResponse(
+						'An offsite attendance record already exists for that date',
+						409,
+					);
+				}
+				throw error;
+			}
 
 			const updatedRecord = await getAttendanceRecordById(record.id);
 			if (!updatedRecord) {
@@ -1268,7 +1297,18 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					metadata: metadata ?? null,
 				};
 
-				await db.insert(attendanceRecord).values(newRecord);
+				try {
+					await db.insert(attendanceRecord).values(newRecord);
+				} catch (error) {
+					if (isUniqueConstraintViolation(error, OFFSITE_EMPLOYEE_DATE_UNIQUE_INDEX)) {
+						set.status = 409;
+						return buildErrorResponse(
+							'An offsite attendance record already exists for that date',
+							409,
+						);
+					}
+					throw error;
+				}
 				set.status = 201;
 				return {
 					data: {
@@ -1355,7 +1395,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			if (hasOffsiteForDate) {
 				set.status = 409;
 				return buildErrorResponse(
-					'No se puede registrar checadas cuando ya existe fuera de oficina en la fecha.',
+					'Cannot register check punches when an offsite attendance record already exists for that date.',
 					409,
 				);
 			}

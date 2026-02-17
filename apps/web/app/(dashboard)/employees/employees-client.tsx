@@ -1058,27 +1058,24 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns void
 	 */
 	const emitTabSwitchTelemetry = useCallback((tab: EmployeeDetailTab): void => {
-		tabSwitchStartRef.current = performance.now();
-		if (SHOULD_LOG_TAB_TELEMETRY) {
-			console.info('[SEN_TELEMETRY] tab_switch_start', { tab });
+		if (!SHOULD_LOG_TAB_TELEMETRY) {
+			return;
 		}
+		tabSwitchStartRef.current = performance.now();
+		console.info('[SEN_TELEMETRY] tab_switch_start', { tab });
 
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
 				const paintedAt = performance.now();
-				if (SHOULD_LOG_TAB_TELEMETRY) {
-					console.info('[SEN_TELEMETRY] tab_content_painted', { tab });
-				}
+				console.info('[SEN_TELEMETRY] tab_content_painted', { tab });
 				if (tabSwitchStartRef.current === null) {
 					return;
 				}
 				const duration = paintedAt - tabSwitchStartRef.current;
-				if (SHOULD_LOG_TAB_TELEMETRY) {
-					console.info('[SEN_TELEMETRY] tab_switch_duration', {
-						tab,
-						durationMs: Number(duration.toFixed(2)),
-					});
-				}
+				console.info('[SEN_TELEMETRY] tab_switch_duration', {
+					tab,
+					durationMs: Number(duration.toFixed(2)),
+				});
 			});
 		});
 	}, []);
@@ -1480,7 +1477,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: shouldFetchAudit,
 		retry: 1,
 		staleTime: 60_000,
-		placeholderData: (previous) => previous,
 	});
 
 	const shouldFetchPtuHistory =
@@ -1493,7 +1489,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: shouldFetchPtuHistory,
 		retry: 1,
 		staleTime: 60_000,
-		placeholderData: (previous) => previous,
 	});
 
 	const memberOptions = useMemo(() => {
@@ -1980,18 +1975,24 @@ export function EmployeesPageClient(): React.ReactElement {
 	const upcomingExceptions = insights?.exceptions.items ?? [];
 	const payrollRuns = insights?.payroll.runs ?? [];
 	const auditEvents = auditResponse?.data ?? [];
+	const activeEmployeeId = activeEmployee?.id ?? null;
+	const attendanceRangeStartDateKey = attendanceSummary?.rangeStartDateKey ?? null;
+	const attendanceRangeEndDateKey = attendanceSummary?.rangeEndDateKey ?? null;
 	const attendanceCurrentMonthKey = insights?.asOfDateKey.slice(0, 7) ?? '';
-	let attendanceDrilldownHref: string | null = null;
-	if (activeEmployee?.id && attendanceSummary) {
+	const attendanceDrilldownHref = useMemo<string | null>(() => {
+		if (!activeEmployeeId || !attendanceRangeStartDateKey || !attendanceRangeEndDateKey) {
+			return null;
+		}
+
 		const params = new URLSearchParams();
-		params.set('employeeId', activeEmployee.id);
-		params.set('from', attendanceSummary.rangeStartDateKey);
-		params.set('to', attendanceSummary.rangeEndDateKey);
+		params.set('employeeId', activeEmployeeId);
+		params.set('from', attendanceRangeStartDateKey);
+		params.set('to', attendanceRangeEndDateKey);
 		params.set('source', 'employee-dialog');
-		params.set('returnEmployeeId', activeEmployee.id);
+		params.set('returnEmployeeId', activeEmployeeId);
 		params.set('returnTab', 'attendance');
-		attendanceDrilldownHref = `/attendance?${params.toString()}`;
-	}
+		return `/attendance?${params.toString()}`;
+	}, [activeEmployeeId, attendanceRangeEndDateKey, attendanceRangeStartDateKey]);
 	const ptuHistory = useMemo<PtuHistoryRecord[]>(
 		() =>
 			(ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),

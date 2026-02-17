@@ -565,9 +565,12 @@ export function AttendancePageClient(): React.ReactElement {
 	const handleTypeFilterChange = useCallback(
 		(value: AttendanceType | 'both'): void => {
 			setTypeFilter(value);
+			if (value !== 'WORK_OFFSITE' && offsiteDayKindFilter !== ALL_OFFSITE_DAY_KIND_VALUE) {
+				setOffsiteDayKindFilter(ALL_OFFSITE_DAY_KIND_VALUE);
+			}
 			resetPagination();
 		},
-		[resetPagination],
+		[offsiteDayKindFilter, resetPagination],
 	);
 
 	/**
@@ -579,9 +582,12 @@ export function AttendancePageClient(): React.ReactElement {
 	const handleOffsiteDayKindFilterChange = useCallback(
 		(value: OffsiteDayKind | typeof ALL_OFFSITE_DAY_KIND_VALUE): void => {
 			setOffsiteDayKindFilter(value);
+			if (value !== ALL_OFFSITE_DAY_KIND_VALUE && typeFilter !== 'WORK_OFFSITE') {
+				setTypeFilter('WORK_OFFSITE');
+			}
 			resetPagination();
 		},
-		[resetPagination],
+		[typeFilter, resetPagination],
 	);
 
 	/**

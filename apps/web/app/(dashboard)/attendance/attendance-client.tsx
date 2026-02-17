@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { EmployeeDetailTab } from '@sen-checkin/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -76,17 +77,6 @@ import type {
  * Date filter preset options.
  */
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
-type EmployeeReturnTab =
-	| 'summary'
-	| 'attendance'
-	| 'vacations'
-	| 'documents'
-	| 'payroll'
-	| 'ptu'
-	| 'finiquito'
-	| 'exceptions'
-	| 'audit'
-	| 'disciplinary';
 
 const ALL_LOCATIONS_VALUE = '__all__';
 const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
@@ -113,7 +103,7 @@ export interface AttendancePageInitialFilters {
 	/** Optional employee id used for return navigation */
 	returnEmployeeId?: string;
 	/** Optional tab used for return navigation */
-	returnTab?: EmployeeReturnTab;
+	returnTab?: EmployeeDetailTab;
 }
 
 interface AttendancePageClientProps {

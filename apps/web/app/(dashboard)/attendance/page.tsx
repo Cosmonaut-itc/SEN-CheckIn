@@ -11,6 +11,19 @@ import { getActiveOrganizationContext } from '@/lib/organization-context';
  * This is required for pages that need authentication cookies.
  */
 export const dynamic = 'force-dynamic';
+const VALID_RETURN_TABS: ReadonlySet<NonNullable<AttendancePageInitialFilters['returnTab']>> =
+	new Set<NonNullable<AttendancePageInitialFilters['returnTab']>>([
+		'summary',
+		'attendance',
+		'vacations',
+		'documents',
+		'payroll',
+		'ptu',
+		'finiquito',
+		'exceptions',
+		'audit',
+		'disciplinary',
+	]);
 
 interface AttendancePageProps {
 	searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -49,6 +62,23 @@ function resolveDateKey(value: string | undefined): string | undefined {
 }
 
 /**
+ * Validates employee return-tab values from URL params.
+ *
+ * @param value - Candidate return-tab value
+ * @returns Valid return tab or undefined
+ */
+function resolveReturnTab(
+	value: string | undefined,
+): AttendancePageInitialFilters['returnTab'] | undefined {
+	if (!value) {
+		return undefined;
+	}
+
+	const candidate = value as NonNullable<AttendancePageInitialFilters['returnTab']>;
+	return VALID_RETURN_TABS.has(candidate) ? candidate : undefined;
+}
+
+/**
  * Attendance page server component.
  *
  * This server component prefetches attendance data without awaiting,
@@ -66,22 +96,16 @@ export default async function AttendancePage({
 	const employeeId = resolveSearchParamValue(params.employeeId)?.trim() || undefined;
 	const fromDateKey = resolveDateKey(resolveSearchParamValue(params.from));
 	const toDateKey = resolveDateKey(resolveSearchParamValue(params.to));
+	const source = resolveSearchParamValue(params.source);
+	const returnEmployeeId = resolveSearchParamValue(params.returnEmployeeId);
+	const returnTab = resolveReturnTab(resolveSearchParamValue(params.returnTab));
 	const initialFilters: AttendancePageInitialFilters = {
 		...(employeeId ? { employeeId } : {}),
 		...(fromDateKey ? { from: fromDateKey } : {}),
 		...(toDateKey ? { to: toDateKey } : {}),
-		...(resolveSearchParamValue(params.source)
-			? { source: resolveSearchParamValue(params.source) }
-			: {}),
-		...(resolveSearchParamValue(params.returnEmployeeId)
-			? { returnEmployeeId: resolveSearchParamValue(params.returnEmployeeId) }
-			: {}),
-		...(resolveSearchParamValue(params.returnTab)
-			? {
-					returnTab:
-						resolveSearchParamValue(params.returnTab) as AttendancePageInitialFilters['returnTab'],
-				}
-			: {}),
+		...(source ? { source } : {}),
+		...(returnEmployeeId ? { returnEmployeeId } : {}),
+		...(returnTab ? { returnTab } : {}),
 	};
 
 	// Prefetch today's attendance records without await for streaming support

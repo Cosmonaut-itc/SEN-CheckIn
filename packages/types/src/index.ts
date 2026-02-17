@@ -186,6 +186,21 @@ export interface Employee {
 	updatedAt: Date;
 }
 
+/**
+ * Employee detail tabs used across web navigation flows.
+ */
+export type EmployeeDetailTab =
+	| 'documents'
+	| 'disciplinary'
+	| 'summary'
+	| 'attendance'
+	| 'vacations'
+	| 'payroll'
+	| 'ptu'
+	| 'finiquito'
+	| 'exceptions'
+	| 'audit';
+
 // ============================================================================
 // Attendance Types
 // ============================================================================

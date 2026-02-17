@@ -90,6 +90,7 @@ import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import type {
+	EmployeeDetailTab,
 	EmployeeTerminationSettlement,
 	EmploymentContractType,
 	TerminationReason,
@@ -765,21 +766,11 @@ const contractTypeOptions: { value: EmploymentContractType; labelKey: string }[]
 ];
 
 const ALL_FILTER_VALUE = '__all__';
+const SHOULD_LOG_TAB_TELEMETRY = process.env.NODE_ENV === 'development';
 
 type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
-type EmployeeDetailTab =
-	| 'documents'
-	| 'disciplinary'
-	| 'summary'
-	| 'attendance'
-	| 'vacations'
-	| 'payroll'
-	| 'ptu'
-	| 'finiquito'
-	| 'exceptions'
-	| 'audit';
 
 const PRIMARY_DETAIL_TABS: EmployeeDetailTab[] = [
 	'summary',
@@ -1068,20 +1059,26 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const emitTabSwitchTelemetry = useCallback((tab: EmployeeDetailTab): void => {
 		tabSwitchStartRef.current = performance.now();
-		console.info('[SEN_TELEMETRY] tab_switch_start', { tab });
+		if (SHOULD_LOG_TAB_TELEMETRY) {
+			console.info('[SEN_TELEMETRY] tab_switch_start', { tab });
+		}
 
 		requestAnimationFrame(() => {
 			requestAnimationFrame(() => {
 				const paintedAt = performance.now();
-				console.info('[SEN_TELEMETRY] tab_content_painted', { tab });
+				if (SHOULD_LOG_TAB_TELEMETRY) {
+					console.info('[SEN_TELEMETRY] tab_content_painted', { tab });
+				}
 				if (tabSwitchStartRef.current === null) {
 					return;
 				}
 				const duration = paintedAt - tabSwitchStartRef.current;
-				console.info('[SEN_TELEMETRY] tab_switch_duration', {
-					tab,
-					durationMs: Number(duration.toFixed(2)),
-				});
+				if (SHOULD_LOG_TAB_TELEMETRY) {
+					console.info('[SEN_TELEMETRY] tab_switch_duration', {
+						tab,
+						durationMs: Number(duration.toFixed(2)),
+					});
+				}
 			});
 		});
 	}, []);
@@ -1106,6 +1103,120 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		[detailTab, emitTabSwitchTelemetry, markTabAsVisited],
 	);
+	const tabScrollContainerCallbacks = useMemo<
+		Record<EmployeeDetailTab, (node: HTMLDivElement | null) => void>
+	>(
+		() => ({
+			documents: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.documents = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.documents ?? 0;
+			},
+			disciplinary: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.disciplinary = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.disciplinary ?? 0;
+			},
+			summary: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.summary = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.summary ?? 0;
+			},
+			attendance: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.attendance = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.attendance ?? 0;
+			},
+			vacations: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.vacations = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.vacations ?? 0;
+			},
+			payroll: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.payroll = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.payroll ?? 0;
+			},
+			ptu: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.ptu = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.ptu ?? 0;
+			},
+			finiquito: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.finiquito = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.finiquito ?? 0;
+			},
+			exceptions: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.exceptions = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.exceptions ?? 0;
+			},
+			audit: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.audit = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.audit ?? 0;
+			},
+		}),
+		[],
+	);
+	const tabScrollCallbacks = useMemo<
+		Record<EmployeeDetailTab, (event: React.UIEvent<HTMLDivElement>) => void>
+	>(
+		() => ({
+			documents: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.documents = event.currentTarget.scrollTop;
+			},
+			disciplinary: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.disciplinary = event.currentTarget.scrollTop;
+			},
+			summary: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.summary = event.currentTarget.scrollTop;
+			},
+			attendance: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.attendance = event.currentTarget.scrollTop;
+			},
+			vacations: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.vacations = event.currentTarget.scrollTop;
+			},
+			payroll: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.payroll = event.currentTarget.scrollTop;
+			},
+			ptu: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.ptu = event.currentTarget.scrollTop;
+			},
+			finiquito: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.finiquito = event.currentTarget.scrollTop;
+			},
+			exceptions: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.exceptions = event.currentTarget.scrollTop;
+			},
+			audit: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.audit = event.currentTarget.scrollTop;
+			},
+		}),
+		[],
+	);
 
 	/**
 	 * Registers a tab scroll container for scroll-position persistence.
@@ -1114,15 +1225,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns Ref callback
 	 */
 	const registerTabScrollContainer = useCallback(
-		(tab: EmployeeDetailTab) =>
-			(node: HTMLDivElement | null): void => {
-				tabContainerByIdRef.current[tab] = node;
-				if (!node) {
-					return;
-				}
-				node.scrollTop = tabScrollByIdRef.current[tab] ?? 0;
-			},
-		[],
+		(tab: EmployeeDetailTab): ((node: HTMLDivElement | null) => void) =>
+			tabScrollContainerCallbacks[tab],
+		[tabScrollContainerCallbacks],
 	);
 
 	/**
@@ -1132,11 +1237,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns Scroll handler
 	 */
 	const handleTabScroll = useCallback(
-		(tab: EmployeeDetailTab) =>
-			(event: React.UIEvent<HTMLDivElement>): void => {
-				tabScrollByIdRef.current[tab] = event.currentTarget.scrollTop;
-			},
-		[],
+		(tab: EmployeeDetailTab): ((event: React.UIEvent<HTMLDivElement>) => void) =>
+			tabScrollCallbacks[tab],
+		[tabScrollCallbacks],
 	);
 
 	/**
@@ -1382,7 +1485,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	});
 
 	const shouldFetchPtuHistory =
-		Boolean(activeEmployee?.id) && isDialogOpen && isViewMode && Boolean(visitedDetailTabs.ptu);
+		Boolean(activeEmployee?.id) &&
+		isDialogOpen &&
+		(isEditMode || (isViewMode && Boolean(visitedDetailTabs.ptu)));
 	const { data: ptuHistoryData, isLoading: isLoadingPtuHistory, error: ptuHistoryError, refetch: refetchPtuHistory } = useQuery({
 		queryKey: queryKeys.ptu.history(activeEmployee?.id ?? ''),
 		queryFn: () => fetchEmployeePtuHistory(activeEmployee?.id ?? ''),
@@ -2506,7 +2611,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		}
 
 		hasProcessedReturnContextRef.current = true;
-		const openTimer = window.setTimeout(() => {
+		window.setTimeout(() => {
 			void openEmployeeDetailById(returnEmployeeId, returnTab);
 		}, 0);
 
@@ -2516,7 +2621,6 @@ export function EmployeesPageClient(): React.ReactElement {
 		nextParams.delete('returnTab');
 		const nextQuery = nextParams.toString();
 		router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
-		return () => window.clearTimeout(openTimer);
 	}, [isOrgSelected, openEmployeeDetailById, pathname, router, searchParams]);
 
 	useEffect(() => {

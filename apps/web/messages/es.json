@@ -3164,7 +3164,7 @@
     },
     "hero": {
       "kicker": "Control de asistencia inteligente",
-      "title": "Asistencia confiable con verificación facial en segundos",
+      "title": "Asistencia confiable con <gradient>verificación facial</gradient> en segundos",
       "subtitle": "Centraliza empleados, dispositivos y ubicaciones desde un solo portal, mientras la app móvil registra entradas y salidas en tiempo real.",
       "primaryCta": "Entrar al portal",
       "secondaryCta": "Ver política de privacidad",
@@ -3204,7 +3204,23 @@
         "description": "Captura facial + registro en segundos sin filas."
       }
     },
+    "marquee": {
+      "items": {
+        "facial": "Reconocimiento facial",
+        "attendance": "Control de asistencia",
+        "dashboard": "Dashboard en tiempo real",
+        "biometric": "Enrolamiento biométrico",
+        "multisite": "Multi-ubicación",
+        "roles": "Roles y permisos",
+        "mobile": "App móvil"
+      }
+    },
     "sections": {
+      "bento": {
+        "kicker": "Funcionalidades",
+        "title": "Todo lo que necesitas en un solo lugar",
+        "subtitle": "Portal web y app móvil integrados para controlar asistencia, ubicaciones y equipos."
+      },
       "web": {
         "kicker": "Portal web",
         "title": "Administración centralizada",
@@ -3253,15 +3269,15 @@
         "subtitle": "Un flujo simple para equipos de RR.HH., operaciones y personal en sitio.",
         "steps": {
           "enroll": {
-            "title": "1. Enrolamiento guiado",
+            "title": "Enrolamiento guiado",
             "description": "Registra el rostro desde web o móvil con instrucciones claras."
           },
           "verify": {
-            "title": "2. Verificación en cámara",
+            "title": "Verificación en cámara",
             "description": "La app captura una foto y confirma identidad en segundos."
           },
           "record": {
-            "title": "3. Registro automático",
+            "title": "Registro automático",
             "description": "El portal guarda el evento y actualiza reportes."
           }
         }

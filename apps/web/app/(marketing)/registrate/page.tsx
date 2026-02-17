@@ -38,7 +38,7 @@ export default async function RegistrationPage(): Promise<React.ReactElement> {
 					{t('badge')}
 				</Badge>
 				<div className="space-y-3">
-					<h1 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7] sm:text-4xl">
+					<h1 className="font-[var(--font-display)] text-3xl font-bold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7] sm:text-4xl">
 						{t('title')}
 					</h1>
 					<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf] sm:text-base">

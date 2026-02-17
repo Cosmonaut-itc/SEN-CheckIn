@@ -22,7 +22,7 @@ ALTER TABLE "attendance_record"
 	DROP CONSTRAINT IF EXISTS "attendance_record_offsite_required_chk";--> statement-breakpoint
 ALTER TABLE "attendance_record"
 	ADD CONSTRAINT "attendance_record_offsite_required_chk" CHECK (
-		"type" <> 'WORK_OFFSITE'
+		"type"::text <> 'WORK_OFFSITE'
 		OR (
 			"offsite_date_key" IS NOT NULL
 			AND "offsite_day_kind" IS NOT NULL
@@ -37,7 +37,7 @@ ALTER TABLE "attendance_record"
 	DROP CONSTRAINT IF EXISTS "attendance_record_offsite_only_work_offsite_chk";--> statement-breakpoint
 ALTER TABLE "attendance_record"
 	ADD CONSTRAINT "attendance_record_offsite_only_work_offsite_chk" CHECK (
-		"type" = 'WORK_OFFSITE'
+		"type"::text = 'WORK_OFFSITE'
 		OR (
 			"offsite_date_key" IS NULL
 			AND "offsite_day_kind" IS NULL
@@ -49,7 +49,7 @@ ALTER TABLE "attendance_record"
 	);--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "attendance_record_offsite_employee_date_uniq"
 	ON "attendance_record" ("employee_id", "offsite_date_key")
-	WHERE "type" = 'WORK_OFFSITE';--> statement-breakpoint
+	WHERE "offsite_date_key" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "attendance_record_offsite_date_idx"
 	ON "attendance_record" ("offsite_date_key")
-	WHERE "type" = 'WORK_OFFSITE';
+	WHERE "offsite_date_key" IS NOT NULL;

@@ -43,6 +43,12 @@ interface StepItem {
 /*  Render helpers                                                     */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Render a gradient span for rich text translations.
+ *
+ * @param chunks - Text content to wrap with gradient styling
+ * @returns Span element with gradient text effect
+ */
 function renderGradient(chunks: ReactNode): React.ReactElement {
 	return (
 		<span className="bg-[linear-gradient(90deg,var(--mk-copper),var(--mk-sea))] bg-clip-text text-transparent">
@@ -51,6 +57,12 @@ function renderGradient(chunks: ReactNode): React.ReactElement {
 	);
 }
 
+/**
+ * Render the privacy policy link for rich text translations.
+ *
+ * @param chunks - Translated text segments to wrap
+ * @returns The linked text element
+ */
 function renderPrivacyLink(chunks: ReactNode): React.ReactElement {
 	return (
 		<Link
@@ -62,6 +74,13 @@ function renderPrivacyLink(chunks: ReactNode): React.ReactElement {
 	);
 }
 
+/**
+ * Render a hero metric pill with value and label.
+ *
+ * @param stat - Metric data to render
+ * @param index - Index used for the React key
+ * @returns The metric pill JSX element
+ */
 function renderHeroStat(stat: HeroStat, index: number): React.ReactElement {
 	return (
 		<div
@@ -78,6 +97,13 @@ function renderHeroStat(stat: HeroStat, index: number): React.ReactElement {
 	);
 }
 
+/**
+ * Render a feature card for the bento grid.
+ *
+ * @param card - Feature card data to render
+ * @param index - Index used for animation staggering
+ * @returns The bento card JSX element
+ */
 function renderBentoCard(card: BentoCard, index: number): React.ReactElement {
 	const Icon = card.icon;
 
@@ -106,6 +132,13 @@ function renderBentoCard(card: BentoCard, index: number): React.ReactElement {
 	);
 }
 
+/**
+ * Render a list item for the security highlights list.
+ *
+ * @param item - Highlight text to render
+ * @param index - Index used for the React key
+ * @returns The list item JSX element
+ */
 function renderSecurityItem(item: string, index: number): React.ReactElement {
 	return (
 		<li
@@ -122,6 +155,11 @@ function renderSecurityItem(item: string, index: number): React.ReactElement {
 /*  Page                                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Landing page component for the public marketing site.
+ *
+ * @returns The landing page JSX element
+ */
 export default async function MarketingLandingPage(): Promise<React.ReactElement> {
 	const t = await getTranslations('Landing');
 

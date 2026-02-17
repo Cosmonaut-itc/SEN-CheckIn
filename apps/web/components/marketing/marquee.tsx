@@ -12,6 +12,12 @@ export interface MarqueeProps {
 	pauseOnHover?: boolean;
 }
 
+/**
+ * Infinite-scroll marquee component for displaying repeating content.
+ *
+ * @param props - Component props with animation controls
+ * @returns The marquee component
+ */
 export function Marquee({
 	children,
 	className,

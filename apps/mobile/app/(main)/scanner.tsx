@@ -97,16 +97,19 @@ export default function ScannerScreen(): JSX.Element {
 		CHECK_IN: i18n.t('Scanner.attendanceType.checkIn'),
 		CHECK_OUT_AUTHORIZED: i18n.t('Scanner.attendanceType.checkOutAuthorized'),
 		CHECK_OUT: i18n.t('Scanner.attendanceType.checkOut'),
+		WORK_OFFSITE: i18n.t('Scanner.attendanceType.workOffsite'),
 	};
 	const attendanceActionLabels: Record<AttendanceType, string> = {
 		CHECK_IN: i18n.t('Scanner.actions.scanCheckIn'),
 		CHECK_OUT_AUTHORIZED: i18n.t('Scanner.actions.scanCheckOutAuthorized'),
 		CHECK_OUT: i18n.t('Scanner.actions.scanCheckOut'),
+		WORK_OFFSITE: i18n.t('Scanner.actions.scanWorkOffsite'),
 	};
 	const attendanceSuccessMessages: Record<AttendanceType, string> = {
 		CHECK_IN: i18n.t('Scanner.success.checkedIn'),
 		CHECK_OUT_AUTHORIZED: i18n.t('Scanner.success.checkedOutAuthorized'),
 		CHECK_OUT: i18n.t('Scanner.success.checkedOut'),
+		WORK_OFFSITE: i18n.t('Scanner.success.workOffsiteNotSupported'),
 	};
 	const attendanceAccent =
 		attendanceType === 'CHECK_IN'

@@ -30,12 +30,16 @@ import {
 export type AttendanceRow = {
 	employeeId: string;
 	timestamp: Date;
-	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	offsiteDateKey?: string | null;
+	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE' | null;
 };
 
 export type EmployeeAttendanceRow = {
 	timestamp: Date;
-	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	offsiteDateKey?: string | null;
+	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE' | null;
 };
 
 export type ScheduleRow = {
@@ -434,7 +438,12 @@ export function calculatePayrollFromData(
 	const attendanceByEmployeeId = new Map<string, EmployeeAttendanceRow[]>();
 	for (const row of attendanceRows) {
 		const current = attendanceByEmployeeId.get(row.employeeId) ?? [];
-		current.push({ timestamp: row.timestamp, type: row.type });
+		current.push({
+			timestamp: row.timestamp,
+			type: row.type,
+			offsiteDateKey: row.offsiteDateKey ?? null,
+			offsiteDayKind: row.offsiteDayKind ?? null,
+		});
 		attendanceByEmployeeId.set(row.employeeId, current);
 	}
 
@@ -490,13 +499,15 @@ export function calculatePayrollFromData(
 				overtimeMinutes: number;
 			}
 		>();
-		let workedMinutesTotal = 0;
 
 		const sortedAttendance = [...attendance].sort(
 			(a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
 		);
 		let openCheckIn: Date | null = null;
 		let paidExitStart: Date | null = null;
+		const offsiteDateKeys = new Set<string>();
+		const forcedMandatoryRestDayDateKeys = new Set<string>();
+		const standardShiftMinutes = Math.round(shiftLimits.dailyHours * 60);
 
 		/**
 		 * Applies a paid segment to the totals, clipping to the payroll period.
@@ -517,20 +528,47 @@ export function calculatePayrollFromData(
 				return;
 			}
 
+			const segmentDayMinutes = new Map<string, number>();
 			addWorkedMinutesByDateKey(
-				calendarDayMinutes,
+				segmentDayMinutes,
 				clippedStart,
 				clippedEnd,
 				employeeTimeZone,
 			);
 
-			const segmentMinutes = differenceInMinutes(clippedEnd, clippedStart);
-			if (segmentMinutes > 0) {
-				workedMinutesTotal += segmentMinutes;
+			for (const [dateKey, minutes] of segmentDayMinutes.entries()) {
+				if (offsiteDateKeys.has(dateKey) || minutes <= 0) {
+					continue;
+				}
+				const current = calendarDayMinutes.get(dateKey) ?? 0;
+				calendarDayMinutes.set(dateKey, current + minutes);
 			}
 		};
 
 		for (const record of sortedAttendance) {
+			if (record.type === 'WORK_OFFSITE') {
+				if (paidExitStart) {
+					applyPaidSegment(paidExitStart, record.timestamp);
+					paidExitStart = null;
+				}
+				openCheckIn = null;
+
+				const offsiteDateKey =
+					record.offsiteDateKey ??
+					toDateKeyInTimeZone(record.timestamp, employeeTimeZone);
+				if (offsiteDateKey < periodStartDateKey || offsiteDateKey > periodEndDateKey) {
+					continue;
+				}
+
+				calendarDayMinutes.set(offsiteDateKey, standardShiftMinutes);
+				offsiteDateKeys.add(offsiteDateKey);
+
+				if (record.offsiteDayKind === 'NO_LABORABLE') {
+					forcedMandatoryRestDayDateKeys.add(offsiteDateKey);
+				}
+				continue;
+			}
+
 			if (record.type === 'CHECK_IN') {
 				if (paidExitStart) {
 					applyPaidSegment(paidExitStart, record.timestamp);
@@ -573,6 +611,10 @@ export function calculatePayrollFromData(
 			applyPaidSegment(checkIn, checkOut);
 		}
 
+		const workedMinutesTotal = Array.from(calendarDayMinutes.values()).reduce(
+			(total, minutes) => total + Math.max(0, minutes),
+			0,
+		);
 		const hoursWorked = workedMinutesTotal / 60;
 
 		type WeeklyOvertimeBucket = {
@@ -601,6 +643,7 @@ export function calculatePayrollFromData(
 
 			const year = dayDate.getUTCFullYear();
 			const isMandatoryRestDay =
+				forcedMandatoryRestDayDateKeys.has(dateKey) ||
 				additionalMandatoryRestDaySet.has(dateKey) ||
 				getMandatoryRestDayKeysForYearCached(year).has(dateKey);
 			if (isMandatoryRestDay) {

@@ -1,15 +1,34 @@
 'use client';
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useTranslations } from 'next-intl';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
-import { Calendar as CalendarIcon, Download, RefreshCw, Search } from 'lucide-react';
+import {
+	Calendar as CalendarIcon,
+	Download,
+	Info,
+	Pencil,
+	Plus,
+	RefreshCw,
+	Search,
+	Trash2,
+} from 'lucide-react';
 import {
 	format,
 	startOfDay,
@@ -28,13 +47,20 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { toast } from 'sonner';
 import { queryKeys } from '@/lib/query-keys';
 import {
+	createWorkOffsiteAttendance,
+	deleteWorkOffsiteAttendance,
+	fetchEmployeesList,
 	fetchAttendanceRecords,
 	fetchLocationsList,
 	type AttendanceRecord,
 	type AttendanceType,
 	type Location,
+	type OffsiteDayKind,
+	updateWorkOffsiteAttendance,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 import type {
@@ -50,7 +76,9 @@ import type {
 type DatePreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'custom';
 
 const ALL_LOCATIONS_VALUE = '__all__';
+const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
 const EXPORT_PAGE_SIZE = 100;
+const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
@@ -66,6 +94,8 @@ type AttendanceCsvRow = {
 	deviceId: string;
 	deviceLocation: string;
 	type: string;
+	offsiteDayKind: string;
+	offsiteReason: string;
 	time: string;
 	date: string;
 };
@@ -85,6 +115,7 @@ const typeVariants: Record<AttendanceType, 'default' | 'secondary' | 'outline'> 
 	CHECK_IN: 'default',
 	CHECK_OUT: 'secondary',
 	CHECK_OUT_AUTHORIZED: 'outline',
+	WORK_OFFSITE: 'secondary',
 };
 
 /**
@@ -101,9 +132,32 @@ function getAttendanceTypeLabel(t: (key: string) => string, type: AttendanceType
 		case 'CHECK_OUT':
 			return t('typeFilter.checkOut');
 		case 'CHECK_OUT_AUTHORIZED':
-		default:
 			return t('typeFilter.checkOutAuthorized');
+		case 'WORK_OFFSITE':
+			return t('typeFilter.workOffsite');
+		default:
+			return t('typeFilter.checkOut');
 	}
+}
+
+/**
+ * Resolves the translated label for offsite day-kind classification.
+ *
+ * @param t - Translation helper for Attendance namespace
+ * @param kind - Optional offsite day kind
+ * @returns Localized day-kind label
+ */
+function getOffsiteDayKindLabel(
+	t: (key: string) => string,
+	kind: OffsiteDayKind | null | undefined,
+): string {
+	if (kind === 'LABORABLE') {
+		return t('offsite.dayKind.laborable');
+	}
+	if (kind === 'NO_LABORABLE') {
+		return t('offsite.dayKind.noLaborable');
+	}
+	return t('offsite.dayKind.none');
 }
 
 /**
@@ -204,7 +258,8 @@ async function fetchAllAttendanceRecords(
  * @returns The attendance page JSX element
  */
 export function AttendancePageClient(): React.ReactElement {
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationRole } = useOrgContext();
+	const queryClient = useQueryClient();
 	const t = useTranslations('Attendance');
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
@@ -216,7 +271,32 @@ export function AttendancePageClient(): React.ReactElement {
 	);
 	const [endDate, setEndDate] = useState<string>(format(endOfDay(new Date()), 'yyyy-MM-dd'));
 	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'both'>('both');
+	const [offsiteDayKindFilter, setOffsiteDayKindFilter] = useState<
+		OffsiteDayKind | typeof ALL_OFFSITE_DAY_KIND_VALUE
+	>(ALL_OFFSITE_DAY_KIND_VALUE);
 	const [isExporting, setIsExporting] = useState<boolean>(false);
+	const [isOffsiteDialogOpen, setIsOffsiteDialogOpen] = useState<boolean>(false);
+	const [editingOffsiteRecord, setEditingOffsiteRecord] = useState<AttendanceRecord | null>(null);
+	const [offsiteEmployeeId, setOffsiteEmployeeId] = useState<string>('');
+	const [offsiteDateKey, setOffsiteDateKey] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+	const [offsiteDayKind, setOffsiteDayKind] = useState<OffsiteDayKind>('LABORABLE');
+	const [offsiteReason, setOffsiteReason] = useState<string>('');
+	const [pendingOffsiteDeleteId, setPendingOffsiteDeleteId] = useState<string | null>(null);
+
+	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
+
+	/**
+	 * Resets all fields for offsite modal form.
+	 *
+	 * @returns void
+	 */
+	const resetOffsiteForm = useCallback((): void => {
+		setEditingOffsiteRecord(null);
+		setOffsiteEmployeeId('');
+		setOffsiteDateKey(format(new Date(), 'yyyy-MM-dd'));
+		setOffsiteDayKind('LABORABLE');
+		setOffsiteReason('');
+	}, []);
 
 	/**
 	 * Resets pagination to the first page.
@@ -311,6 +391,8 @@ export function AttendancePageClient(): React.ReactElement {
 	const normalizedSearch = globalFilter.trim();
 	const deviceLocationId =
 		locationFilterValue === ALL_LOCATIONS_VALUE ? undefined : locationFilterValue;
+	const normalizedOffsiteDayKind =
+		offsiteDayKindFilter === ALL_OFFSITE_DAY_KIND_VALUE ? undefined : offsiteDayKindFilter;
 
 	// Build query params - only include type when filtering to a single event type
 	const baseParams = {
@@ -323,6 +405,7 @@ export function AttendancePageClient(): React.ReactElement {
 	const queryParams = {
 		...baseParams,
 		...(typeFilter !== 'both' ? { type: typeFilter } : {}),
+		...(normalizedOffsiteDayKind ? { offsiteDayKind: normalizedOffsiteDayKind } : {}),
 		...(normalizedSearch ? { search: normalizedSearch } : {}),
 		...(deviceLocationId ? { deviceLocationId } : {}),
 	};
@@ -345,6 +428,107 @@ export function AttendancePageClient(): React.ReactElement {
 	});
 
 	const locations = useMemo(() => (locationsData?.data ?? []) as Location[], [locationsData]);
+
+	const activeEmployeesQuery = useQuery({
+		queryKey: queryKeys.employees.list({
+			organizationId,
+			status: 'ACTIVE',
+			limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
+			offset: 0,
+		}),
+		queryFn: async () => {
+			if (!organizationId) {
+				return [];
+			}
+
+			const employees: Awaited<ReturnType<typeof fetchEmployeesList>>['data'] = [];
+			let offset = 0;
+			let total = 0;
+
+			do {
+				const response = await fetchEmployeesList({
+					limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
+					offset,
+					status: 'ACTIVE',
+					organizationId,
+				});
+				employees.push(...response.data);
+				total = response.pagination.total;
+
+				if (response.data.length === 0) {
+					break;
+				}
+
+				offset += response.pagination.limit;
+			} while (employees.length < total);
+
+			return employees;
+		},
+		enabled: Boolean(organizationId) && canManageOffsite,
+	});
+	const activeEmployees = activeEmployeesQuery.data ?? [];
+
+	const createOffsiteMutation = useMutation({
+		mutationKey: ['attendance', 'offsite', 'create'],
+		mutationFn: () =>
+			createWorkOffsiteAttendance({
+				employeeId: offsiteEmployeeId,
+				offsiteDateKey,
+				offsiteDayKind,
+				offsiteReason: offsiteReason.trim(),
+			}),
+		onSuccess: async () => {
+			const createdOffsiteDateKey = offsiteDateKey;
+			toast.success(t('offsite.toast.createSuccess'));
+			setDatePreset('custom');
+			setStartDate(createdOffsiteDateKey);
+			setEndDate(createdOffsiteDateKey);
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+			setIsOffsiteDialogOpen(false);
+			resetOffsiteForm();
+			await queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
+		},
+		onError: () => {
+			toast.error(t('offsite.toast.createError'));
+		},
+	});
+
+	const updateOffsiteMutation = useMutation({
+		mutationKey: ['attendance', 'offsite', 'update'],
+		mutationFn: async () => {
+			if (!editingOffsiteRecord?.id) {
+				throw new Error('Missing offsite attendance id');
+			}
+			return updateWorkOffsiteAttendance({
+				id: editingOffsiteRecord.id,
+				offsiteDateKey,
+				offsiteDayKind,
+				offsiteReason: offsiteReason.trim(),
+			});
+		},
+		onSuccess: async () => {
+			toast.success(t('offsite.toast.updateSuccess'));
+			setIsOffsiteDialogOpen(false);
+			resetOffsiteForm();
+			await queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
+		},
+		onError: () => {
+			toast.error(t('offsite.toast.updateError'));
+		},
+	});
+
+	const deleteOffsiteMutation = useMutation({
+		mutationKey: ['attendance', 'offsite', 'delete'],
+		mutationFn: (id: string) => deleteWorkOffsiteAttendance({ id }),
+		onSuccess: async () => {
+			toast.success(t('offsite.toast.deleteSuccess'));
+			await queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
+		},
+		onError: () => {
+			toast.error(t('offsite.toast.deleteError'));
+		},
+	});
+
 	const locationOptions = useMemo(
 		() => [
 			{ value: ALL_LOCATIONS_VALUE, label: t('locationFilter.all') },
@@ -381,10 +565,119 @@ export function AttendancePageClient(): React.ReactElement {
 	const handleTypeFilterChange = useCallback(
 		(value: AttendanceType | 'both'): void => {
 			setTypeFilter(value);
+			if (value !== 'WORK_OFFSITE' && offsiteDayKindFilter !== ALL_OFFSITE_DAY_KIND_VALUE) {
+				setOffsiteDayKindFilter(ALL_OFFSITE_DAY_KIND_VALUE);
+			}
 			resetPagination();
 		},
-		[resetPagination],
+		[offsiteDayKindFilter, resetPagination],
 	);
+
+	/**
+	 * Updates offsite day-kind filter and resets pagination.
+	 *
+	 * @param value - Selected offsite day kind filter
+	 * @returns void
+	 */
+	const handleOffsiteDayKindFilterChange = useCallback(
+		(value: OffsiteDayKind | typeof ALL_OFFSITE_DAY_KIND_VALUE): void => {
+			setOffsiteDayKindFilter(value);
+			if (value !== ALL_OFFSITE_DAY_KIND_VALUE && typeFilter !== 'WORK_OFFSITE') {
+				setTypeFilter('WORK_OFFSITE');
+			}
+			resetPagination();
+		},
+		[typeFilter, resetPagination],
+	);
+
+	/**
+	 * Opens the offsite dialog prefilled for a new record.
+	 *
+	 * @returns void
+	 */
+	const openCreateOffsiteDialog = useCallback((): void => {
+		resetOffsiteForm();
+		setIsOffsiteDialogOpen(true);
+	}, [resetOffsiteForm]);
+
+	/**
+	 * Opens the offsite dialog in edit mode with existing record values.
+	 *
+	 * @param record - Offsite attendance record
+	 * @returns void
+	 */
+	const openEditOffsiteDialog = useCallback((record: AttendanceRecord): void => {
+		setEditingOffsiteRecord(record);
+		setOffsiteEmployeeId(record.employeeId);
+		setOffsiteDateKey(
+			record.offsiteDateKey ?? format(new Date(record.timestamp), 'yyyy-MM-dd'),
+		);
+		setOffsiteDayKind(record.offsiteDayKind ?? 'LABORABLE');
+		setOffsiteReason(record.offsiteReason ?? '');
+		setIsOffsiteDialogOpen(true);
+	}, []);
+
+	/**
+	 * Submits create/update action for offsite attendance.
+	 *
+	 * @returns Promise resolved when mutation completes
+	 */
+	const handleSubmitOffsite = useCallback(async (): Promise<void> => {
+		if (!offsiteEmployeeId) {
+			toast.error(t('offsite.validation.employeeRequired'));
+			return;
+		}
+		if (!offsiteDateKey) {
+			toast.error(t('offsite.validation.dateRequired'));
+			return;
+		}
+		const normalizedReason = offsiteReason.trim();
+		if (normalizedReason.length < 10 || normalizedReason.length > 500) {
+			toast.error(t('offsite.validation.reasonLength'));
+			return;
+		}
+
+		if (editingOffsiteRecord) {
+			await updateOffsiteMutation.mutateAsync();
+			return;
+		}
+
+		await createOffsiteMutation.mutateAsync();
+	}, [
+		createOffsiteMutation,
+		editingOffsiteRecord,
+		offsiteDateKey,
+		offsiteEmployeeId,
+		offsiteReason,
+		t,
+		updateOffsiteMutation,
+	]);
+
+	/**
+	 * Opens the offsite delete confirmation dialog.
+	 *
+	 * @param id - Attendance id to delete
+	 * @returns void
+	 */
+	const handleRequestDeleteOffsite = useCallback((id: string): void => {
+		setPendingOffsiteDeleteId(id);
+	}, []);
+
+	/**
+	 * Confirms deletion of the selected offsite record.
+	 *
+	 * @returns Promise resolved after deletion attempt
+	 */
+	const handleConfirmDeleteOffsite = useCallback(async (): Promise<void> => {
+		if (!pendingOffsiteDeleteId) {
+			return;
+		}
+		try {
+			await deleteOffsiteMutation.mutateAsync(pendingOffsiteDeleteId);
+		} finally {
+			setPendingOffsiteDeleteId(null);
+		}
+	}, [deleteOffsiteMutation, pendingOffsiteDeleteId]);
 
 	/**
 	 * Updates the start date and resets pagination.
@@ -486,10 +779,44 @@ export function AttendancePageClient(): React.ReactElement {
 			{
 				accessorKey: 'type',
 				header: t('table.headers.type'),
+				cell: ({ row }) => {
+					const isOffsite = row.original.type === 'WORK_OFFSITE';
+					return (
+						<div className="flex items-center gap-2">
+							<Badge variant={typeVariants[row.original.type]}>
+								{getAttendanceTypeLabel(t, row.original.type)}
+							</Badge>
+							{isOffsite && row.original.offsiteReason && (
+								<TooltipProvider>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												variant="ghost"
+												size="icon"
+												className="h-7 w-7 p-0"
+											>
+												<Info className="h-4 w-4 text-muted-foreground" />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent className="max-w-xs text-sm">
+											{row.original.offsiteReason}
+										</TooltipContent>
+									</Tooltip>
+								</TooltipProvider>
+							)}
+						</div>
+					);
+				},
+				enableGlobalFilter: false,
+			},
+			{
+				id: 'offsiteDayKind',
+				accessorFn: (row) => row.offsiteDayKind ?? '',
+				header: t('table.headers.offsiteDayKind'),
 				cell: ({ row }) => (
-					<Badge variant={typeVariants[row.original.type]}>
-						{getAttendanceTypeLabel(t, row.original.type)}
-					</Badge>
+					<span className="text-sm">
+						{getOffsiteDayKindLabel(t, row.original.offsiteDayKind ?? null)}
+					</span>
 				),
 				enableGlobalFilter: false,
 			},
@@ -507,8 +834,48 @@ export function AttendancePageClient(): React.ReactElement {
 				cell: ({ row }) => format(new Date(row.original.timestamp), t('dateFormat')),
 				enableGlobalFilter: false,
 			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				cell: ({ row }) => {
+					if (!canManageOffsite || row.original.type !== 'WORK_OFFSITE') {
+						return null;
+					}
+					return (
+						<div className="flex items-center gap-1">
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8"
+								onClick={() => openEditOffsiteDialog(row.original)}
+							>
+								<Pencil className="h-4 w-4" />
+							</Button>
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon"
+								className="h-8 w-8 text-destructive hover:text-destructive"
+								onClick={() => handleRequestDeleteOffsite(row.original.id)}
+								disabled={deleteOffsiteMutation.isPending}
+							>
+								<Trash2 className="h-4 w-4" />
+							</Button>
+						</div>
+					);
+				},
+				enableGlobalFilter: false,
+			},
 		],
-		[locationFallback, t],
+		[
+			canManageOffsite,
+			deleteOffsiteMutation.isPending,
+			handleRequestDeleteOffsite,
+			locationFallback,
+			openEditOffsiteDialog,
+			t,
+		],
 	);
 
 	/**
@@ -524,6 +891,7 @@ export function AttendancePageClient(): React.ReactElement {
 				toDate: end,
 				organizationId,
 				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
+				...(normalizedOffsiteDayKind ? { offsiteDayKind: normalizedOffsiteDayKind } : {}),
 				...(normalizedSearch ? { search: normalizedSearch } : {}),
 				...(deviceLocationId ? { deviceLocationId } : {}),
 			});
@@ -538,6 +906,8 @@ export function AttendancePageClient(): React.ReactElement {
 				{ key: 'deviceId', label: t('table.headers.deviceId') },
 				{ key: 'deviceLocation', label: t('table.headers.deviceLocation') },
 				{ key: 'type', label: t('table.headers.type') },
+				{ key: 'offsiteDayKind', label: t('table.headers.offsiteDayKind') },
+				{ key: 'offsiteReason', label: t('table.headers.offsiteReason') },
 				{ key: 'time', label: t('table.headers.time') },
 				{ key: 'date', label: t('table.headers.date') },
 			];
@@ -548,6 +918,8 @@ export function AttendancePageClient(): React.ReactElement {
 				deviceId: record.deviceId,
 				deviceLocation: record.deviceLocationName ?? locationFallback,
 				type: getAttendanceTypeLabel(t, record.type),
+				offsiteDayKind: getOffsiteDayKindLabel(t, record.offsiteDayKind ?? null),
+				offsiteReason: record.offsiteReason ?? '',
 				time: format(new Date(record.timestamp), 'HH:mm:ss'),
 				date: format(new Date(record.timestamp), t('dateFormat')),
 			}));
@@ -568,6 +940,7 @@ export function AttendancePageClient(): React.ReactElement {
 		deviceLocationId,
 		end,
 		locationFallback,
+		normalizedOffsiteDayKind,
 		normalizedSearch,
 		organizationId,
 		start,
@@ -592,6 +965,12 @@ export function AttendancePageClient(): React.ReactElement {
 					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<div className="flex items-center gap-2">
+					{canManageOffsite && (
+						<Button onClick={openCreateOffsiteDialog}>
+							<Plus className="mr-2 h-4 w-4" />
+							{t('actions.registerOffsite')}
+						</Button>
+					)}
 					<Button onClick={() => refetch()} variant="outline">
 						<RefreshCw className="mr-2 h-4 w-4" />
 						{t('actions.refresh')}
@@ -705,6 +1084,25 @@ export function AttendancePageClient(): React.ReactElement {
 						<SelectItem value="CHECK_OUT_AUTHORIZED">
 							{t('typeFilter.checkOutAuthorized')}
 						</SelectItem>
+						<SelectItem value="WORK_OFFSITE">{t('typeFilter.workOffsite')}</SelectItem>
+					</SelectContent>
+				</Select>
+
+				<Select
+					value={offsiteDayKindFilter}
+					onValueChange={handleOffsiteDayKindFilterChange}
+				>
+					<SelectTrigger className="w-[210px]">
+						<SelectValue placeholder={t('offsite.filter.placeholder')} />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value={ALL_OFFSITE_DAY_KIND_VALUE}>
+							{t('offsite.filter.all')}
+						</SelectItem>
+						<SelectItem value="LABORABLE">{t('offsite.dayKind.laborable')}</SelectItem>
+						<SelectItem value="NO_LABORABLE">
+							{t('offsite.dayKind.noLaborable')}
+						</SelectItem>
 					</SelectContent>
 				</Select>
 
@@ -746,6 +1144,153 @@ export function AttendancePageClient(): React.ReactElement {
 					{t('summary', { count: records.length })}
 				</p>
 			)}
+
+			<Dialog
+				open={isOffsiteDialogOpen}
+				onOpenChange={(open) => {
+					setIsOffsiteDialogOpen(open);
+					if (!open) {
+						resetOffsiteForm();
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-xl">
+					<DialogHeader>
+						<DialogTitle>
+							{editingOffsiteRecord
+								? t('offsite.dialog.editTitle')
+								: t('offsite.dialog.createTitle')}
+						</DialogTitle>
+						<DialogDescription>{t('offsite.dialog.description')}</DialogDescription>
+					</DialogHeader>
+
+					<div className="space-y-4">
+						<div className="space-y-2">
+							<Label htmlFor="offsite-employee">{t('offsite.fields.employee')}</Label>
+							<Select
+								value={offsiteEmployeeId}
+								onValueChange={setOffsiteEmployeeId}
+								disabled={Boolean(editingOffsiteRecord)}
+							>
+								<SelectTrigger id="offsite-employee">
+									<SelectValue
+										placeholder={t('offsite.fields.employeePlaceholder')}
+									/>
+								</SelectTrigger>
+								<SelectContent>
+									{activeEmployees.map((employee) => (
+										<SelectItem key={employee.id} value={employee.id}>
+											{`${employee.firstName} ${employee.lastName}`.trim()}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="grid gap-4 sm:grid-cols-2">
+							<div className="space-y-2">
+								<Label htmlFor="offsite-date">{t('offsite.fields.date')}</Label>
+								<Input
+									id="offsite-date"
+									type="date"
+									value={offsiteDateKey}
+									onChange={(event) => setOffsiteDateKey(event.target.value)}
+								/>
+							</div>
+							<div className="space-y-2">
+								<Label htmlFor="offsite-kind">{t('offsite.fields.dayKind')}</Label>
+								<Select
+									value={offsiteDayKind}
+									onValueChange={(value) =>
+										setOffsiteDayKind(value as OffsiteDayKind)
+									}
+								>
+									<SelectTrigger id="offsite-kind">
+										<SelectValue placeholder={t('offsite.fields.dayKind')} />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="LABORABLE">
+											{t('offsite.dayKind.laborable')}
+										</SelectItem>
+										<SelectItem value="NO_LABORABLE">
+											{t('offsite.dayKind.noLaborable')}
+										</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="offsite-reason">{t('offsite.fields.reason')}</Label>
+							<Textarea
+								id="offsite-reason"
+								value={offsiteReason}
+								minLength={10}
+								maxLength={500}
+								onChange={(event) => setOffsiteReason(event.target.value)}
+								placeholder={t('offsite.fields.reasonPlaceholder')}
+							/>
+						</div>
+					</div>
+
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => {
+								setIsOffsiteDialogOpen(false);
+								resetOffsiteForm();
+							}}
+						>
+							{t('offsite.actions.cancel')}
+						</Button>
+						<Button
+							type="button"
+							onClick={() => void handleSubmitOffsite()}
+							disabled={
+								createOffsiteMutation.isPending || updateOffsiteMutation.isPending
+							}
+						>
+							{editingOffsiteRecord
+								? t('offsite.actions.save')
+								: t('offsite.actions.create')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={Boolean(pendingOffsiteDeleteId)}
+				onOpenChange={(open) => {
+					if (!open) {
+						setPendingOffsiteDeleteId(null);
+					}
+				}}
+			>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>{t('offsite.confirm.title')}</DialogTitle>
+						<DialogDescription>{t('offsite.confirm.delete')}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => setPendingOffsiteDeleteId(null)}
+						>
+							{t('offsite.actions.cancel')}
+						</Button>
+						<Button
+							type="button"
+							variant="destructive"
+							onClick={() => void handleConfirmDeleteOffsite()}
+							disabled={deleteOffsiteMutation.isPending}
+						>
+							{t('offsite.actions.delete')}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

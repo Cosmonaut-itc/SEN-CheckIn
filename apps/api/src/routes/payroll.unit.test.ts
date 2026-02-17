@@ -1028,6 +1028,130 @@ describe('payroll routes', () => {
 		);
 	});
 
+	it('processes payroll including WORK_OFFSITE and preserves CHECK_OUT_AUTHORIZED paid span behavior', async () => {
+		dbState.organizationId = 'org-offsite';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+			},
+		];
+
+		const offsiteEmployeeId = 'emp-offsite';
+		const authorizedEmployeeId = 'emp-authorized';
+		dbState.employees = [
+			{
+				id: offsiteEmployeeId,
+				firstName: 'Ofelia',
+				lastName: 'Campos',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+			{
+				id: authorizedEmployeeId,
+				firstName: 'Carlos',
+				lastName: 'Ruiz',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		const payrollDateKey = '2025-01-08';
+		dbState.attendanceRecords = [
+			{
+				employeeId: offsiteEmployeeId,
+				timestamp: getUtcDateForZonedMidnight(payrollDateKey, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: payrollDateKey,
+				offsiteDayKind: 'NO_LABORABLE',
+			},
+			{
+				employeeId: authorizedEmployeeId,
+				timestamp: getUtcDateForZonedTime(payrollDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId: authorizedEmployeeId,
+				timestamp: getUtcDateForZonedTime(payrollDateKey, 11, 0, timeZone),
+				type: 'CHECK_OUT_AUTHORIZED',
+			},
+			{
+				employeeId: authorizedEmployeeId,
+				timestamp: getUtcDateForZonedTime(payrollDateKey, 13, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId: authorizedEmployeeId,
+				timestamp: getUtcDateForZonedTime(payrollDateKey, 18, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: payrollDateKey,
+				periodEndDateKey: payrollDateKey,
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(dbState.payrollRuns).toHaveLength(1);
+		expect(dbState.payrollRunEmployees).toHaveLength(2);
+
+		const json = (await response.json()) as {
+			data: {
+				calculation: {
+					employees: Array<{
+						employeeId: string;
+						hoursWorked: number;
+						normalHours: number;
+						mandatoryRestDayPremiumAmount: number;
+					}>;
+				};
+			};
+		};
+
+		const offsiteRow = json.data.calculation.employees.find(
+			(row) => row.employeeId === offsiteEmployeeId,
+		);
+		if (!offsiteRow) {
+			throw new Error('Expected offsite payroll row.');
+		}
+		expect(offsiteRow.hoursWorked).toBe(8);
+		expect(offsiteRow.normalHours).toBe(8);
+		expect(offsiteRow.mandatoryRestDayPremiumAmount).toBe(1600);
+
+		const authorizedRow = json.data.calculation.employees.find(
+			(row) => row.employeeId === authorizedEmployeeId,
+		);
+		if (!authorizedRow) {
+			throw new Error('Expected CHECK_OUT_AUTHORIZED payroll row.');
+		}
+		expect(authorizedRow.hoursWorked).toBe(9);
+
+		const persistedOffsiteRow = dbState.payrollRunEmployees.find(
+			(row) => row.employeeId === offsiteEmployeeId,
+		);
+		expect(persistedOffsiteRow?.normalHours).toBe('8.00');
+		expect(persistedOffsiteRow?.mandatoryRestDayPremiumAmount).toBe('1600.00');
+	});
+
 	it('adds vacation pay and premium for approved vacation days in /payroll/calculate', async () => {
 		dbState.organizationId = 'org-vac';
 		dbState.payrollSettings = [

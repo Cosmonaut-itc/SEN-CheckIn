@@ -959,6 +959,179 @@ describe('payroll-calculation', () => {
 		expect(row?.totalPay).toBe(1000);
 	});
 
+	it('counts WORK_OFFSITE LABORABLE as a standard paid shift', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 0, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: periodStartDateKey,
+				offsiteDayKind: 'LABORABLE',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.mandatoryRestDaysWorkedCount).toBe(0);
+		expect(row?.normalPay).toBe(800);
+		expect(row?.mandatoryRestDayPremiumAmount).toBe(0);
+		expect(row?.totalPay).toBe(800);
+	});
+
+	it('counts WORK_OFFSITE NO_LABORABLE using rest-day premium rules', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 0, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: periodStartDateKey,
+				offsiteDayKind: 'NO_LABORABLE',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.mandatoryRestDaysWorkedCount).toBe(1);
+		expect(row?.normalPay).toBe(800);
+		expect(row?.mandatoryRestDayPremiumAmount).toBe(1600);
+		expect(row?.totalPay).toBe(2400);
+	});
+
+	it('prioritizes WORK_OFFSITE over check segments on the same date', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 21, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 23, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: periodStartDateKey,
+				offsiteDayKind: 'LABORABLE',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.overtimeDoubleHours).toBe(0);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.totalPay).toBe(800);
+	});
+
+	it('closes paid authorized exit span when a WORK_OFFSITE day starts', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-04';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const offsiteDateKey = '2025-01-03';
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 22, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 23, 0, timeZone),
+				type: 'CHECK_OUT_AUTHORIZED',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(offsiteDateKey, 0, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey,
+				offsiteDayKind: 'LABORABLE',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodEndDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodEndDateKey, 10, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(11);
+		expect(row?.normalHours).toBe(11);
+		expect(row?.overtimeDoubleHours).toBe(0);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.totalPay).toBe(1100);
+	});
+
 	it('returns zeroed hours and pay when there is no attendance', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';

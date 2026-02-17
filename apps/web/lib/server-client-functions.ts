@@ -617,6 +617,7 @@ export async function fetchAttendanceRecordsServer(
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
+		offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE';
 		search?: string;
 		deviceLocationId?: string;
 		organizationId?: string;
@@ -629,6 +630,10 @@ export async function fetchAttendanceRecordsServer(
 
 	if (params?.type) {
 		query.type = params.type;
+	}
+
+	if (params?.offsiteDayKind) {
+		query.offsiteDayKind = params.offsiteDayKind;
 	}
 
 	if (params?.search?.trim()) {

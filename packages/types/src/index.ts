@@ -193,7 +193,12 @@ export interface Employee {
 /**
  * Type of attendance record.
  */
-export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+
+/**
+ * RH day classification for offsite manual attendance.
+ */
+export type OffsiteDayKind = 'LABORABLE' | 'NO_LABORABLE';
 
 /**
  * Attendance record entity.
@@ -215,6 +220,18 @@ export interface AttendanceRecord {
 	timestamp: Date;
 	/** Type of attendance (check-in, check-out, or authorized exit) */
 	type: AttendanceType;
+	/** Offsite date key (YYYY-MM-DD) when type is WORK_OFFSITE */
+	offsiteDateKey?: string | null;
+	/** Offsite RH day kind when type is WORK_OFFSITE */
+	offsiteDayKind?: OffsiteDayKind | null;
+	/** Offsite reason when type is WORK_OFFSITE */
+	offsiteReason?: string | null;
+	/** Offsite record creator user id when type is WORK_OFFSITE */
+	offsiteCreatedByUserId?: string | null;
+	/** Offsite record last updater user id when type is WORK_OFFSITE */
+	offsiteUpdatedByUserId?: string | null;
+	/** Offsite record last updater timestamp when type is WORK_OFFSITE */
+	offsiteUpdatedAt?: Date | null;
 	/** Additional metadata (e.g., recognition match score, raw payload) */
 	metadata: Record<string, unknown> | null;
 	/** Record creation timestamp */

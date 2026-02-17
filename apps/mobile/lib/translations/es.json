@@ -95,7 +95,8 @@
 			"checkIn": "Entrada",
 			"checkOutAuthorized": "Salida autorizada",
 			"checkOutAuthorizedReason": "Permiso RH",
-			"checkOut": "Salida"
+			"checkOut": "Salida",
+			"workOffsite": "Fuera de oficina"
 		},
 		"status": {
 			"idle": "Coloca tu rostro dentro del círculo",
@@ -109,7 +110,8 @@
 			"employeeFallback": "Empleado",
 			"checkedIn": "¡Entrada registrada!",
 			"checkedOutAuthorized": "¡Salida autorizada registrada!",
-			"checkedOut": "¡Salida registrada!"
+			"checkedOut": "¡Salida registrada!",
+			"workOffsiteNotSupported": "Registro fuera de oficina disponible solo en web RH."
 		},
 		"deviceStatus": {
 			"terminalFallback": "Terminal de asistencia",
@@ -122,6 +124,7 @@
 			"scanCheckIn": "Escanear entrada",
 			"scanCheckOutAuthorized": "Escanear salida autorizada",
 			"scanCheckOut": "Escanear salida",
+			"scanWorkOffsite": "Fuera de oficina (web RH)",
 			"tapToLink": "Toca para vincular este dispositivo",
 			"openFaceEnrollment": "Registrar rostro"
 		}

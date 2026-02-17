@@ -8,7 +8,11 @@ import type { PayrollHolidayNotice } from '@sen-checkin/types';
 
 import { addDaysToDateKey } from '../src/utils/date-key.js';
 import '../src/utils/disable-pg-native.js';
-import { getUtcDateForZonedMidnight, toDateKeyInTimeZone } from '../src/utils/time-zone.js';
+import {
+	getUtcDateForZonedMidnight,
+	isValidIanaTimeZone,
+	toDateKeyInTimeZone,
+} from '../src/utils/time-zone.js';
 import { SHIFT_LIMITS } from '../src/utils/mexico-labor-constants.js';
 import {
 	buildMandatoryRestDayKeys,
@@ -188,6 +192,8 @@ const DEFAULT_DOCUMENT_REQUIREMENTS: ReadonlyArray<{
 ];
 
 const HOLIDAY_PROVIDER = 'NAGER_DATE';
+const OFFSITE_VIRTUAL_DEVICE_PREFIX = 'VIRTUAL-RH-OFFSITE';
+const DEFAULT_ORGANIZATION_TIME_ZONE = 'America/Mexico_City';
 
 const LEGAL_TEMPLATE_HTML_BY_KIND: Readonly<Record<LegalDocumentKindValue, string>> = {
 	CONTRACT:
@@ -2220,6 +2226,127 @@ async function insertTodayPresenceAttendance(args: {
 }
 
 /**
+ * Inserts deterministic WORK_OFFSITE attendance records and virtual RH devices.
+ *
+ * The seed creates up to two offsite records per organization (one LABORABLE and one
+ * NO_LABORABLE) for active employees on future local dates, avoiding overlap with
+ * same-day check-in demo records.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for inserted virtual devices and offsite attendance records
+ */
+async function insertWorkOffsiteAttendance(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+}): Promise<{ virtualDevices: number; attendanceRecords: number }> {
+	const { seedNumber, organizations, employees } = args;
+	if (organizations.length === 0) {
+		return { virtualDevices: 0, attendanceRecords: 0 };
+	}
+
+	const organizationIds = organizations.map((organizationRow) => organizationRow.id);
+	const payrollSettings = await db
+		.select({
+			organizationId: payrollSetting.organizationId,
+			timeZone: payrollSetting.timeZone,
+		})
+		.from(payrollSetting)
+		.where(inArray(payrollSetting.organizationId, organizationIds));
+
+	const organizationTimeZones = new Map<string, string>(
+		payrollSettings.map((settingsRow) => {
+			const candidateTimeZone = settingsRow.timeZone ?? DEFAULT_ORGANIZATION_TIME_ZONE;
+			const timeZone = isValidIanaTimeZone(candidateTimeZone)
+				? candidateTimeZone
+				: DEFAULT_ORGANIZATION_TIME_ZONE;
+			return [settingsRow.organizationId, timeZone];
+		}),
+	);
+
+	const virtualDevicesToInsert: Array<typeof device.$inferInsert> = [];
+	const offsiteRowsToInsert: AttendanceRecordRow[] = [];
+	const offsiteDayKinds = ['LABORABLE', 'NO_LABORABLE'] as const;
+
+	for (const organizationRow of organizations) {
+		const orgEmployees = employees
+			.filter(
+				(employeeRow) =>
+					employeeRow.organizationId === organizationRow.id && employeeRow.status === 'ACTIVE',
+			)
+			.sort((a, b) => a.code.localeCompare(b.code))
+			.slice(0, 2);
+
+		if (orgEmployees.length === 0) {
+			continue;
+		}
+
+		const organizationTimeZone =
+			organizationTimeZones.get(organizationRow.id) ?? DEFAULT_ORGANIZATION_TIME_ZONE;
+		const todayDateKey = toDateKeyInTimeZone(new Date(), organizationTimeZone);
+		const virtualDeviceId = deterministicUuid(
+			seedNumber,
+			`device:offsite:${organizationRow.slug}`,
+		);
+		const actorUserId = `seed-rh-${organizationRow.slug}`;
+
+		virtualDevicesToInsert.push({
+			id: virtualDeviceId,
+			code: `${OFFSITE_VIRTUAL_DEVICE_PREFIX}-${organizationRow.id}`,
+			name: 'Registro RH Fuera de oficina',
+			deviceType: 'VIRTUAL_RH_OFFSITE',
+			status: 'ONLINE',
+			lastHeartbeat: new Date(),
+			locationId: null,
+			organizationId: organizationRow.id,
+		});
+
+		for (const [employeeIndex, employeeRow] of orgEmployees.entries()) {
+			const offsiteDateKey = addDaysToDateKey(todayDateKey, -(employeeIndex + 1));
+			const offsiteDayKind = offsiteDayKinds[employeeIndex % offsiteDayKinds.length];
+			const reason =
+				offsiteDayKind === 'LABORABLE'
+					? 'Cobertura operativa fuera de la oficina por asignacion de campo.'
+					: 'Trabajo fuera en dia no laborable por atencion de incidencia critica.';
+
+			offsiteRowsToInsert.push({
+				id: deterministicUuid(
+					seedNumber,
+					`attendance:offsite:${organizationRow.slug}:${employeeRow.id}:${offsiteDateKey}`,
+				),
+				employeeId: employeeRow.id,
+				deviceId: virtualDeviceId,
+				timestamp: getUtcDateForZonedMidnight(offsiteDateKey, organizationTimeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey,
+				offsiteDayKind,
+				offsiteReason: reason,
+				offsiteCreatedByUserId: actorUserId,
+				offsiteUpdatedByUserId: actorUserId,
+				offsiteUpdatedAt: new Date(),
+				metadata: {
+					source: 'seed',
+					entryKind: 'WORK_OFFSITE',
+				},
+			});
+		}
+	}
+
+	if (virtualDevicesToInsert.length > 0) {
+		await db.insert(device).values(virtualDevicesToInsert);
+	}
+
+	if (offsiteRowsToInsert.length > 0) {
+		await db.insert(attendanceRecord).values(offsiteRowsToInsert);
+	}
+
+	return {
+		virtualDevices: virtualDevicesToInsert.length,
+		attendanceRecords: offsiteRowsToInsert.length,
+	};
+}
+
+/**
  * Builds payroll holiday notices for seeded payroll runs.
  *
  * @param args - Notice generation inputs
@@ -2825,6 +2952,12 @@ async function main(): Promise<void> {
 		devices,
 	});
 
+	const offsiteSeedTotals = await insertWorkOffsiteAttendance({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+	});
+
 	await insertPayrollRuns({
 		seedNumber: args.seed,
 		organizations,
@@ -2861,6 +2994,8 @@ async function main(): Promise<void> {
 	console.log('Holiday sync runs:', holidaySeedTotals.syncRuns);
 	console.log('Holiday entries:', holidaySeedTotals.entries);
 	console.log('Holiday audit events:', holidaySeedTotals.auditEvents);
+	console.log('Offsite virtual devices:', offsiteSeedTotals.virtualDevices);
+	console.log('Offsite attendance records:', offsiteSeedTotals.attendanceRecords);
 	console.log('Disciplinary measures:', disciplinarySeedTotals.measures);
 	console.log('Disciplinary documents:', disciplinarySeedTotals.documents);
 	console.log('Disciplinary attachments:', disciplinarySeedTotals.attachments);

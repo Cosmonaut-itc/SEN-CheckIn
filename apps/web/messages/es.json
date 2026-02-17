@@ -195,12 +195,20 @@
       "sections": {
         "withCoords": "Con coordenadas",
         "withoutCoords": "Sin coordenadas",
-        "unassigned": "Sin ubicación asignada"
+        "unassigned": "Sin ubicación asignada",
+        "offsiteToday": "Fuera de oficina hoy"
       },
       "empty": {
         "withCoords": "No hay ubicaciones con coordenadas.",
         "withoutCoords": "No hay ubicaciones sin coordenadas.",
-        "present": "Sin personal presente."
+        "present": "Sin personal presente.",
+        "offsite": "Sin registros de fuera de oficina para hoy."
+      },
+      "offsite": {
+        "dayKind": {
+          "laborable": "Laborable",
+          "noLaborable": "No laborable"
+        }
       },
       "actions": {
         "refresh": "Actualizar presencia",
@@ -1171,7 +1179,8 @@
     "noOrganization": "Selecciona una organización activa para ver registros de asistencia.",
     "actions": {
       "refresh": "Actualizar",
-      "exportCsv": "Descargar CSV"
+      "exportCsv": "Descargar CSV",
+      "registerOffsite": "Registrar fuera de oficina"
     },
     "search": {
       "placeholder": "Buscar por ID de empleado..."
@@ -1193,7 +1202,55 @@
       "both": "Entradas/Salidas",
       "checkIn": "Entrada",
       "checkOut": "Salida",
-      "checkOutAuthorized": "Salida autorizada (RH)"
+      "checkOutAuthorized": "Salida autorizada (RH)",
+      "workOffsite": "Fuera de oficina"
+    },
+    "offsite": {
+      "filter": {
+        "placeholder": "Clasificación RH",
+        "all": "Todas las clasificaciones"
+      },
+      "dayKind": {
+        "laborable": "Laborable",
+        "noLaborable": "No laborable",
+        "none": "No aplica"
+      },
+      "dialog": {
+        "createTitle": "Registrar fuera de oficina",
+        "editTitle": "Editar fuera de oficina",
+        "description": "Registra una jornada fuera de oficina para evitar ausencia injustificada."
+      },
+      "fields": {
+        "employee": "Empleado",
+        "employeePlaceholder": "Selecciona un empleado",
+        "date": "Fecha",
+        "dayKind": "Clasificación RH",
+        "reason": "Motivo",
+        "reasonPlaceholder": "Describe el motivo (10 a 500 caracteres)"
+      },
+      "actions": {
+        "cancel": "Cancelar",
+        "create": "Registrar",
+        "save": "Guardar cambios",
+        "delete": "Eliminar"
+      },
+      "validation": {
+        "employeeRequired": "Selecciona un empleado.",
+        "dateRequired": "Selecciona una fecha.",
+        "reasonLength": "El motivo debe tener entre 10 y 500 caracteres."
+      },
+      "confirm": {
+        "title": "Eliminar registro fuera de oficina",
+        "delete": "¿Deseas eliminar este registro de fuera de oficina?"
+      },
+      "toast": {
+        "createSuccess": "Registro fuera de oficina creado.",
+        "createError": "No se pudo crear el registro fuera de oficina.",
+        "updateSuccess": "Registro fuera de oficina actualizado.",
+        "updateError": "No se pudo actualizar el registro fuera de oficina.",
+        "deleteSuccess": "Registro fuera de oficina eliminado.",
+        "deleteError": "No se pudo eliminar el registro fuera de oficina."
+      }
     },
     "locationFilter": {
       "placeholder": "Ubicacion",
@@ -1206,8 +1263,11 @@
         "deviceId": "ID de dispositivo",
         "deviceLocation": "Ubicacion del dispositivo",
         "type": "Tipo",
+        "offsiteDayKind": "Clasificación RH",
+        "offsiteReason": "Motivo",
         "time": "Hora",
-        "date": "Fecha"
+        "date": "Fecha",
+        "actions": "Acciones"
       },
       "placeholders": {
         "noLocation": "Sin ubicacion"

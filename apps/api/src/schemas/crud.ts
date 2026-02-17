@@ -384,7 +384,7 @@ export const createAttendanceSchema = z
 	.object({
 		employeeId: z.string().uuid('Invalid employee ID'),
 		deviceId: z.string().uuid('Invalid device ID').optional(),
-		timestamp: z.coerce.date().default(() => new Date()),
+		timestamp: z.coerce.date().optional(),
 		type: attendanceTypeEnum,
 		metadata: z.record(z.unknown()).optional(),
 		offsiteDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key').optional(),

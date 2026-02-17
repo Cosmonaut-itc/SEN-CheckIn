@@ -155,7 +155,7 @@ function isValidCreateWindow(dateKey: string, timeZone: string): boolean {
 function isWithinEditableWindow(dateKey: string, timeZone: string): boolean {
 	const todayKey = toDateKeyInTimeZone(new Date(), timeZone);
 	const earliestEditableDateKey = addDaysToDateKey(todayKey, -OFFSITE_MAX_RETRO_DAYS);
-	return dateKey >= earliestEditableDateKey;
+	return dateKey >= earliestEditableDateKey && dateKey <= todayKey;
 }
 
 /**
@@ -1150,6 +1150,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				offsiteDayKind,
 				offsiteReason,
 			} = body;
+			const eventTimestamp = timestamp ?? new Date();
 
 			// Verify employee exists
 			const employeeExists = await db
@@ -1387,7 +1388,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			}
 
 			const timeZone = await resolveOrganizationTimeZone(employeeOrganizationId);
-			const recordDateKey = toDateKeyInTimeZone(timestamp, timeZone);
+			const recordDateKey = toDateKeyInTimeZone(eventTimestamp, timeZone);
 			const hasOffsiteForDate = await hasOffsiteRecordForDate({
 				employeeId,
 				dateKey: recordDateKey,
@@ -1406,7 +1407,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				id,
 				employeeId,
 				deviceId: deviceId,
-				timestamp,
+				timestamp: eventTimestamp,
 				type,
 				metadata: metadata ?? null,
 			};

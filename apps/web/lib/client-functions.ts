@@ -2075,7 +2075,6 @@ export async function createWorkOffsiteAttendance(input: {
 }): Promise<AttendanceRecord> {
 	const response = await api.attendance.post({
 		employeeId: input.employeeId,
-		timestamp: new Date(),
 		type: 'WORK_OFFSITE',
 		offsiteDateKey: input.offsiteDateKey,
 		offsiteDayKind: input.offsiteDayKind,

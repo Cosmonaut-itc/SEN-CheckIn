@@ -430,7 +430,12 @@ export function AttendancePageClient(): React.ReactElement {
 	const locations = useMemo(() => (locationsData?.data ?? []) as Location[], [locationsData]);
 
 	const activeEmployeesQuery = useQuery({
-		queryKey: ['attendance', 'offsite', 'active-employees', organizationId],
+		queryKey: queryKeys.employees.list({
+			organizationId,
+			status: 'ACTIVE',
+			limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
+			offset: 0,
+		}),
 		queryFn: async () => {
 			if (!organizationId) {
 				return [];

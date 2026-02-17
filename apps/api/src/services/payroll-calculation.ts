@@ -499,7 +499,6 @@ export function calculatePayrollFromData(
 				overtimeMinutes: number;
 			}
 		>();
-		let workedMinutesTotal = 0;
 
 		const sortedAttendance = [...attendance].sort(
 			(a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
@@ -543,7 +542,6 @@ export function calculatePayrollFromData(
 				}
 				const current = calendarDayMinutes.get(dateKey) ?? 0;
 				calendarDayMinutes.set(dateKey, current + minutes);
-				workedMinutesTotal += minutes;
 			}
 		};
 
@@ -556,9 +554,7 @@ export function calculatePayrollFromData(
 					continue;
 				}
 
-				const currentMinutes = calendarDayMinutes.get(offsiteDateKey) ?? 0;
 				calendarDayMinutes.set(offsiteDateKey, standardShiftMinutes);
-				workedMinutesTotal += standardShiftMinutes - currentMinutes;
 				offsiteDateKeys.add(offsiteDateKey);
 
 				if (record.offsiteDayKind === 'NO_LABORABLE') {
@@ -609,6 +605,10 @@ export function calculatePayrollFromData(
 			applyPaidSegment(checkIn, checkOut);
 		}
 
+		const workedMinutesTotal = Array.from(calendarDayMinutes.values()).reduce(
+			(total, minutes) => total + Math.max(0, minutes),
+			0,
+		);
 		const hoursWorked = workedMinutesTotal / 60;
 
 		type WeeklyOvertimeBucket = {

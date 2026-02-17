@@ -306,6 +306,7 @@ export function LocationsPageClient(): React.ReactElement {
 	const latitudeValue = useStore(form.store, (state) => state.values.latitude);
 	const longitudeValue = useStore(form.store, (state) => state.values.longitude);
 	const nameValue = useStore(form.store, (state) => state.values.name);
+	const trimmedLiveAddress = addressValue.trim();
 	const debouncedAddress = useDebouncedValue(addressValue, GEOCODE_DEBOUNCE_MS);
 	const trimmedAddress = debouncedAddress.trim();
 	const canQueryGeocode =
@@ -321,12 +322,15 @@ export function LocationsPageClient(): React.ReactElement {
 		enabled: canQueryGeocode,
 		staleTime: 5 * 60 * 1000,
 	});
+	const isGeocodeInputAhead = trimmedLiveAddress !== trimmedAddress;
+	const visibleGeocodeSuggestions = isGeocodeInputAhead ? [] : geocodeSuggestions;
 	const isGeocodeQueryTooShort =
-		trimmedAddress.length > 0 && trimmedAddress.length < GEOCODE_MIN_CHARS;
+		trimmedLiveAddress.length > 0 && trimmedLiveAddress.length < GEOCODE_MIN_CHARS;
 	const showGeocodeEmpty =
-		trimmedAddress.length >= GEOCODE_MIN_CHARS &&
+		trimmedLiveAddress.length >= GEOCODE_MIN_CHARS &&
+		!isGeocodeInputAhead &&
 		!isGeocodeFetching &&
-		geocodeSuggestions.length === 0 &&
+		visibleGeocodeSuggestions.length === 0 &&
 		!geocodeError;
 	const hasCoordinates = latitudeValue !== null && longitudeValue !== null;
 
@@ -739,16 +743,18 @@ export function LocationsPageClient(): React.ReactElement {
 															variant="outline"
 															role="combobox"
 															aria-expanded={isAddressOpen}
-															className="w-full justify-between text-left"
+															className="w-full justify-between overflow-hidden text-left"
 														>
-															{addressValue
-																? addressValue
-																: t('address.placeholder')}
+															<span className="min-w-0 flex-1 truncate">
+																{addressValue
+																	? addressValue
+																	: t('address.placeholder')}
+															</span>
 															<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 														</Button>
 													</PopoverTrigger>
 													<PopoverContent className="p-0" align="start">
-														<Command>
+														<Command shouldFilter={false}>
 															<CommandInput
 																id="location-address"
 																name={field.name}
@@ -778,13 +784,14 @@ export function LocationsPageClient(): React.ReactElement {
 																		{t('address.empty')}
 																	</CommandEmpty>
 																)}
-																{geocodeSuggestions.length > 0 && (
+																{visibleGeocodeSuggestions.length >
+																	0 && (
 																	<CommandGroup
 																		heading={t(
 																			'address.resultsTitle',
 																		)}
 																	>
-																		{geocodeSuggestions.map(
+																		{visibleGeocodeSuggestions.map(
 																			(suggestion) => {
 																				const isSelected =
 																					suggestion.displayName ===
@@ -795,6 +802,7 @@ export function LocationsPageClient(): React.ReactElement {
 																						value={
 																							suggestion.displayName
 																						}
+																						className="gap-2"
 																						onSelect={() =>
 																							handleGeocodeSelect(
 																								suggestion,
@@ -804,7 +812,7 @@ export function LocationsPageClient(): React.ReactElement {
 																						<Check
 																							className={`h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
 																						/>
-																						<span className="text-sm">
+																						<span className="min-w-0 flex-1 truncate text-sm">
 																							{
 																								suggestion.displayName
 																							}

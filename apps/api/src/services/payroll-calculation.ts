@@ -506,6 +506,7 @@ export function calculatePayrollFromData(
 		);
 		let openCheckIn: Date | null = null;
 		let paidExitStart: Date | null = null;
+		const offsiteDateKeys = new Set<string>();
 		const forcedMandatoryRestDayDateKeys = new Set<string>();
 		const standardShiftMinutes = Math.round(shiftLimits.dailyHours * 60);
 
@@ -528,30 +529,37 @@ export function calculatePayrollFromData(
 				return;
 			}
 
+			const segmentDayMinutes = new Map<string, number>();
 			addWorkedMinutesByDateKey(
-				calendarDayMinutes,
+				segmentDayMinutes,
 				clippedStart,
 				clippedEnd,
 				employeeTimeZone,
 			);
 
-			const segmentMinutes = differenceInMinutes(clippedEnd, clippedStart);
-			if (segmentMinutes > 0) {
-				workedMinutesTotal += segmentMinutes;
+			for (const [dateKey, minutes] of segmentDayMinutes.entries()) {
+				if (offsiteDateKeys.has(dateKey) || minutes <= 0) {
+					continue;
+				}
+				const current = calendarDayMinutes.get(dateKey) ?? 0;
+				calendarDayMinutes.set(dateKey, current + minutes);
+				workedMinutesTotal += minutes;
 			}
 		};
 
 		for (const record of sortedAttendance) {
 			if (record.type === 'WORK_OFFSITE') {
 				const offsiteDateKey =
-					record.offsiteDateKey ?? toDateKeyInTimeZone(record.timestamp, employeeTimeZone);
+					record.offsiteDateKey ??
+					toDateKeyInTimeZone(record.timestamp, employeeTimeZone);
 				if (offsiteDateKey < periodStartDateKey || offsiteDateKey > periodEndDateKey) {
 					continue;
 				}
 
 				const currentMinutes = calendarDayMinutes.get(offsiteDateKey) ?? 0;
-				calendarDayMinutes.set(offsiteDateKey, currentMinutes + standardShiftMinutes);
-				workedMinutesTotal += standardShiftMinutes;
+				calendarDayMinutes.set(offsiteDateKey, standardShiftMinutes);
+				workedMinutesTotal += standardShiftMinutes - currentMinutes;
+				offsiteDateKeys.add(offsiteDateKey);
 
 				if (record.offsiteDayKind === 'NO_LABORABLE') {
 					forcedMandatoryRestDayDateKeys.add(offsiteDateKey);

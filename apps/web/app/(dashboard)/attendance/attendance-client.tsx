@@ -473,7 +473,12 @@ export function AttendancePageClient(): React.ReactElement {
 				offsiteReason: offsiteReason.trim(),
 			}),
 		onSuccess: async () => {
+			const createdOffsiteDateKey = offsiteDateKey;
 			toast.success(t('offsite.toast.createSuccess'));
+			setDatePreset('custom');
+			setStartDate(createdOffsiteDateKey);
+			setEndDate(createdOffsiteDateKey);
+			setPagination((prev) => ({ ...prev, pageIndex: 0 }));
 			setIsOffsiteDialogOpen(false);
 			resetOffsiteForm();
 			await queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });

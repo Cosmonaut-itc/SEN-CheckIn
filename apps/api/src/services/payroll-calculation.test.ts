@@ -1031,6 +1031,51 @@ describe('payroll-calculation', () => {
 		expect(row?.totalPay).toBe(2400);
 	});
 
+	it('prioritizes WORK_OFFSITE over check segments on the same date', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 21, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 23, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: periodStartDateKey,
+				offsiteDayKind: 'LABORABLE',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.overtimeDoubleHours).toBe(0);
+		expect(row?.overtimeTripleHours).toBe(0);
+		expect(row?.totalPay).toBe(800);
+	});
+
 	it('returns zeroed hours and pay when there is no attendance', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';

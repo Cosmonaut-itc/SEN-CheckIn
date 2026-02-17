@@ -3707,12 +3707,12 @@ export function EmployeesPageClient(): React.ReactElement {
 
 														<div className="grid gap-4 lg:grid-cols-2">
 															<Card>
-																<CardHeader>
+																<CardHeader className="min-h-16 pb-3">
 																	<CardTitle className="text-sm font-medium">
 																		{t('attendance.absencesTitle')}
 																	</CardTitle>
 																</CardHeader>
-																<CardContent>
+																<CardContent className="min-h-[18rem]">
 																	{isLoadingInsights ? (
 																		<Skeleton className="h-24 w-full" />
 																	) : absenceMonthGroups.length > 0 ? (
@@ -3727,11 +3727,11 @@ export function EmployeesPageClient(): React.ReactElement {
 																					key={group.monthKey}
 																					value={group.monthKey}
 																				>
-																					<AccordionTrigger className="text-sm">
-																						<span className="capitalize">
+																					<AccordionTrigger className="items-center gap-3 text-sm">
+																						<span className="flex-1 text-left capitalize">
 																							{formatMonthLabel(group.monthKey)}
 																						</span>
-																						<span className="ml-2 text-xs text-muted-foreground">
+																						<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
 																							{group.totalDays}
 																						</span>
 																					</AccordionTrigger>
@@ -3758,20 +3758,22 @@ export function EmployeesPageClient(): React.ReactElement {
 																			))}
 																		</Accordion>
 																	) : (
-																		<p className="text-sm text-muted-foreground">
-																			{t('attendance.emptyAbsences')}
-																		</p>
+																		<div className="flex min-h-[8.5rem] items-start">
+																			<p className="text-sm text-muted-foreground">
+																				{t('attendance.emptyAbsences')}
+																			</p>
+																		</div>
 																	)}
 																</CardContent>
 															</Card>
 
 															<Card>
-																<CardHeader>
+																<CardHeader className="min-h-16 pb-3">
 																	<CardTitle className="text-sm font-medium">
 																		{t('attendance.leavesTitle')}
 																	</CardTitle>
 																</CardHeader>
-																<CardContent>
+																<CardContent className="min-h-[18rem]">
 																	{isLoadingInsights ? (
 																		<Skeleton className="h-24 w-full" />
 																	) : leavesMonthGroups.length > 0 ? (
@@ -3786,11 +3788,11 @@ export function EmployeesPageClient(): React.ReactElement {
 																					key={group.monthKey}
 																					value={group.monthKey}
 																				>
-																					<AccordionTrigger className="text-sm">
-																						<span className="capitalize">
+																					<AccordionTrigger className="items-center gap-3 text-sm">
+																						<span className="flex-1 text-left capitalize">
 																							{formatMonthLabel(group.monthKey)}
 																						</span>
-																						<span className="ml-2 text-xs text-muted-foreground">
+																						<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
 																							{group.totalDays}
 																						</span>
 																					</AccordionTrigger>
@@ -3817,9 +3819,11 @@ export function EmployeesPageClient(): React.ReactElement {
 																			))}
 																		</Accordion>
 																	) : (
-																		<p className="text-sm text-muted-foreground">
-																			{t('attendance.emptyLeaves')}
-																		</p>
+																		<div className="flex min-h-[8.5rem] items-start">
+																			<p className="text-sm text-muted-foreground">
+																				{t('attendance.emptyLeaves')}
+																			</p>
+																		</div>
 																	)}
 																</CardContent>
 															</Card>

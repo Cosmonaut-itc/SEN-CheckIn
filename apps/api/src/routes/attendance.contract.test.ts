@@ -50,6 +50,20 @@ describe('attendance routes (contract)', () => {
 		expect(payload.pagination).toBeDefined();
 	});
 
+	it('filters attendance records by employee id', async () => {
+		const response = await client.attendance.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 50, offset: 0, employeeId: seed.employeeId },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+		for (const row of payload.data as Array<{ employeeId?: string }>) {
+			expect(row.employeeId).toBe(seed.employeeId);
+		}
+	});
+
 	it('returns present attendance entries for a date range', async () => {
 		const response = await client.attendance.present.get({
 			$headers: { cookie: adminSession.cookieHeader },

@@ -2082,6 +2082,12 @@ export async function createWorkOffsiteAttendance(input: {
 	});
 
 	if (response.error) {
+		console.error(
+			'Failed to create offsite attendance record:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to create offsite attendance record');
 	}
 
@@ -2112,6 +2118,12 @@ export async function updateWorkOffsiteAttendance(input: {
 	});
 
 	if (response.error) {
+		console.error(
+			'Failed to update offsite attendance record:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to update offsite attendance record');
 	}
 
@@ -2135,6 +2147,12 @@ export async function deleteWorkOffsiteAttendance(input: {
 	const response = await api.attendance[input.id].offsite.delete();
 
 	if (response.error) {
+		console.error(
+			'Failed to delete offsite attendance record:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to delete offsite attendance record');
 	}
 

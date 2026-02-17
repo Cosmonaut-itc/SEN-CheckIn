@@ -2293,7 +2293,7 @@ async function insertWorkOffsiteAttendance(args: {
 		virtualDevicesToInsert.push({
 			id: virtualDeviceId,
 			code: `${OFFSITE_VIRTUAL_DEVICE_PREFIX}-${organizationRow.id}`,
-			name: `RH Fuera de oficina ${organizationRow.name}`,
+			name: 'Registro RH Fuera de oficina',
 			deviceType: 'VIRTUAL_RH_OFFSITE',
 			status: 'ONLINE',
 			lastHeartbeat: new Date(),

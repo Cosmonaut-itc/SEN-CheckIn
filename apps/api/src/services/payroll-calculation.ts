@@ -547,6 +547,12 @@ export function calculatePayrollFromData(
 
 		for (const record of sortedAttendance) {
 			if (record.type === 'WORK_OFFSITE') {
+				if (paidExitStart) {
+					applyPaidSegment(paidExitStart, record.timestamp);
+					paidExitStart = null;
+				}
+				openCheckIn = null;
+
 				const offsiteDateKey =
 					record.offsiteDateKey ??
 					toDateKeyInTimeZone(record.timestamp, employeeTimeZone);

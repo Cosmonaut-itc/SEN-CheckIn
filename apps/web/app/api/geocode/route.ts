@@ -114,19 +114,67 @@ function buildSearchableText(result: NominatimResult): string {
 }
 
 /**
- * Calculates token coverage score for a result.
+ * Splits normalized text into tokens.
+ *
+ * @param value - Normalized text value.
+ * @returns Non-empty token list.
+ */
+function tokenizeNormalizedText(value: string): string[] {
+	return value.split(' ').filter((token) => token.length > 0);
+}
+
+/**
+ * Checks whether query tokens appear as a contiguous token phrase.
+ *
+ * @param queryTokens - Query tokens.
+ * @param searchableTokens - Searchable text tokens.
+ * @returns True when query tokens match exactly with token boundaries.
+ */
+function hasExactTokenPhrase(
+	queryTokens: readonly string[],
+	searchableTokens: readonly string[],
+): boolean {
+	if (queryTokens.length === 0 || queryTokens.length > searchableTokens.length) {
+		return false;
+	}
+
+	const lastStartIndex = searchableTokens.length - queryTokens.length;
+	for (let startIndex = 0; startIndex <= lastStartIndex; startIndex += 1) {
+		let isMatch = true;
+
+		for (let queryIndex = 0; queryIndex < queryTokens.length; queryIndex += 1) {
+			if (searchableTokens[startIndex + queryIndex] !== queryTokens[queryIndex]) {
+				isMatch = false;
+				break;
+			}
+		}
+
+		if (isMatch) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+/**
+ * Calculates token coverage score for a result with token-level matching.
  *
  * @param queryTokens - Normalized query tokens.
- * @param searchableText - Normalized searchable text.
+ * @param searchableTokens - Normalized searchable tokens.
  * @returns Ratio of matched query tokens.
  */
-function calculateTokenCoverage(queryTokens: readonly string[], searchableText: string): number {
+function calculateTokenCoverage(
+	queryTokens: readonly string[],
+	searchableTokens: readonly string[],
+): number {
 	if (queryTokens.length === 0) {
 		return 0;
 	}
 
+	const searchableTokenSet = new Set(searchableTokens);
 	const matchedTokens = queryTokens.reduce((matchedCount, token) => {
-		return searchableText.includes(token) ? matchedCount + 1 : matchedCount;
+		return searchableTokenSet.has(token) ? matchedCount + 1 : matchedCount;
 	}, 0);
 
 	return matchedTokens / queryTokens.length;
@@ -156,6 +204,7 @@ function buildRankedResult(
 
 	const normalizedDisplayName = normalizeText(result.display_name);
 	const searchableText = buildSearchableText(result);
+	const searchableTokens = tokenizeNormalizedText(searchableText);
 	const resultNumbers = new Set(extractNumberTokens(searchableText));
 	const numberMatchCount = queryNumbers.reduce((count, numberToken) => {
 		return resultNumbers.has(numberToken) ? count + 1 : count;
@@ -169,8 +218,8 @@ function buildRankedResult(
 		normalizedDisplayName,
 		fullNumberMatch,
 		numberMatchCount,
-		hasExactPhrase: normalizedQuery.length > 0 && searchableText.includes(normalizedQuery),
-		tokenCoverage: calculateTokenCoverage(queryTokens, searchableText),
+		hasExactPhrase: hasExactTokenPhrase(queryTokens, searchableTokens),
+		tokenCoverage: calculateTokenCoverage(queryTokens, searchableTokens),
 		importance: parseImportance(result.importance),
 	};
 }

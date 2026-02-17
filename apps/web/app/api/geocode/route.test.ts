@@ -162,6 +162,32 @@ describe('GET /api/geocode', () => {
 		);
 	});
 
+	it('does not treat numeric prefixes as exact phrase matches', async () => {
+		mockFetch.mockResolvedValue(
+			createJsonResponse([
+				{
+					display_name: 'Avenida Reforma 120, Ciudad de Mexico, Mexico',
+					lat: '19.4300',
+					lon: '-99.1600',
+					importance: 0.1,
+				},
+				{
+					display_name: 'Avenida Reforma, Ciudad de Mexico, Mexico',
+					lat: '19.4326',
+					lon: '-99.1332',
+					importance: 0.9,
+				},
+			]),
+		);
+
+		const response = await GET(createRequest('Avenida Reforma 12'));
+		const payload = await readResponsePayload(response);
+
+		expect(response.status).toBe(200);
+		expect(payload.data?.[0]?.displayName).toBe('Avenida Reforma, Ciudad de Mexico, Mexico');
+		expect(payload.data?.[1]?.displayName).toBe('Avenida Reforma 120, Ciudad de Mexico, Mexico');
+	});
+
 	it('returns a stable order for equivalent result sets', async () => {
 		const first = {
 			display_name: 'Calle Fresa 10, Monterrey, Nuevo Leon, Mexico',

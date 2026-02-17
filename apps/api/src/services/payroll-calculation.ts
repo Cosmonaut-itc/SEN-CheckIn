@@ -30,12 +30,16 @@ import {
 export type AttendanceRow = {
 	employeeId: string;
 	timestamp: Date;
-	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	offsiteDateKey?: string | null;
+	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE' | null;
 };
 
 export type EmployeeAttendanceRow = {
 	timestamp: Date;
-	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	offsiteDateKey?: string | null;
+	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE' | null;
 };
 
 export type ScheduleRow = {
@@ -434,7 +438,12 @@ export function calculatePayrollFromData(
 	const attendanceByEmployeeId = new Map<string, EmployeeAttendanceRow[]>();
 	for (const row of attendanceRows) {
 		const current = attendanceByEmployeeId.get(row.employeeId) ?? [];
-		current.push({ timestamp: row.timestamp, type: row.type });
+		current.push({
+			timestamp: row.timestamp,
+			type: row.type,
+			offsiteDateKey: row.offsiteDateKey ?? null,
+			offsiteDayKind: row.offsiteDayKind ?? null,
+		});
 		attendanceByEmployeeId.set(row.employeeId, current);
 	}
 
@@ -497,6 +506,8 @@ export function calculatePayrollFromData(
 		);
 		let openCheckIn: Date | null = null;
 		let paidExitStart: Date | null = null;
+		const forcedMandatoryRestDayDateKeys = new Set<string>();
+		const standardShiftMinutes = Math.round(shiftLimits.dailyHours * 60);
 
 		/**
 		 * Applies a paid segment to the totals, clipping to the payroll period.
@@ -531,6 +542,23 @@ export function calculatePayrollFromData(
 		};
 
 		for (const record of sortedAttendance) {
+			if (record.type === 'WORK_OFFSITE') {
+				const offsiteDateKey =
+					record.offsiteDateKey ?? toDateKeyInTimeZone(record.timestamp, employeeTimeZone);
+				if (offsiteDateKey < periodStartDateKey || offsiteDateKey > periodEndDateKey) {
+					continue;
+				}
+
+				const currentMinutes = calendarDayMinutes.get(offsiteDateKey) ?? 0;
+				calendarDayMinutes.set(offsiteDateKey, currentMinutes + standardShiftMinutes);
+				workedMinutesTotal += standardShiftMinutes;
+
+				if (record.offsiteDayKind === 'NO_LABORABLE') {
+					forcedMandatoryRestDayDateKeys.add(offsiteDateKey);
+				}
+				continue;
+			}
+
 			if (record.type === 'CHECK_IN') {
 				if (paidExitStart) {
 					applyPaidSegment(paidExitStart, record.timestamp);
@@ -601,6 +629,7 @@ export function calculatePayrollFromData(
 
 			const year = dayDate.getUTCFullYear();
 			const isMandatoryRestDay =
+				forcedMandatoryRestDayDateKeys.has(dateKey) ||
 				additionalMandatoryRestDaySet.has(dateKey) ||
 				getMandatoryRestDayKeysForYearCached(year).has(dateKey);
 			if (isMandatoryRestDay) {

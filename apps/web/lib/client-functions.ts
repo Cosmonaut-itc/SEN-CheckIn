@@ -77,7 +77,16 @@ export type DeviceStatus = 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
 /**
  * Attendance type enum values.
  */
-export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+export type AttendanceType =
+	| 'CHECK_IN'
+	| 'CHECK_OUT'
+	| 'CHECK_OUT_AUTHORIZED'
+	| 'WORK_OFFSITE';
+
+/**
+ * RH day classification for offsite records.
+ */
+export type OffsiteDayKind = 'LABORABLE' | 'NO_LABORABLE';
 
 /**
  * Employee record interface.
@@ -188,9 +197,24 @@ export interface AttendanceRecord {
 	deviceLocationName?: string | null;
 	timestamp: Date;
 	type: AttendanceType;
+	offsiteDateKey?: string | null;
+	offsiteDayKind?: OffsiteDayKind | null;
+	offsiteReason?: string | null;
+	offsiteCreatedByUserId?: string | null;
+	offsiteUpdatedByUserId?: string | null;
+	offsiteUpdatedAt?: Date | null;
 	metadata: Record<string, unknown> | null;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+/**
+ * Today offsite attendance list payload.
+ */
+export interface AttendanceOffsiteTodayResponse {
+	dateKey: string;
+	count: number;
+	data: AttendanceRecord[];
 }
 
 /**
@@ -1991,6 +2015,7 @@ export async function fetchAttendanceRecords(
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
+		offsiteDayKind?: OffsiteDayKind;
 		search?: string;
 		deviceLocationId?: string;
 		organizationId?: string;
@@ -2004,6 +2029,10 @@ export async function fetchAttendanceRecords(
 	// Only add type if it's a valid enum value (not undefined)
 	if (params?.type) {
 		query.type = params.type;
+	}
+
+	if (params?.offsiteDayKind) {
+		query.offsiteDayKind = params.offsiteDayKind;
 	}
 
 	if (params?.search?.trim()) {
@@ -2029,6 +2058,88 @@ export async function fetchAttendanceRecords(
 		data: (payload?.data ?? []) as AttendanceRecord[],
 		pagination: payload?.pagination ?? { total: 0, limit: 100, offset: 0 },
 	};
+}
+
+/**
+ * Creates a manual WORK_OFFSITE attendance record.
+ *
+ * @param input - Offsite record input payload
+ * @returns Created attendance record
+ * @throws Error when API call fails
+ */
+export async function createWorkOffsiteAttendance(input: {
+	employeeId: string;
+	offsiteDateKey: string;
+	offsiteDayKind: OffsiteDayKind;
+	offsiteReason: string;
+}): Promise<AttendanceRecord> {
+	const response = await api.attendance.post({
+		employeeId: input.employeeId,
+		timestamp: new Date(),
+		type: 'WORK_OFFSITE',
+		offsiteDateKey: input.offsiteDateKey,
+		offsiteDayKind: input.offsiteDayKind,
+		offsiteReason: input.offsiteReason,
+	});
+
+	if (response.error) {
+		throw new Error('Failed to create offsite attendance record');
+	}
+
+	const payload = getApiResponseData(response);
+	if (!payload?.data) {
+		throw new Error('Missing attendance payload');
+	}
+	return payload.data as AttendanceRecord;
+}
+
+/**
+ * Updates a WORK_OFFSITE attendance record.
+ *
+ * @param input - Target record id and updated values
+ * @returns Updated attendance record
+ * @throws Error when API call fails
+ */
+export async function updateWorkOffsiteAttendance(input: {
+	id: string;
+	offsiteDateKey: string;
+	offsiteDayKind: OffsiteDayKind;
+	offsiteReason: string;
+}): Promise<AttendanceRecord> {
+	const response = await api.attendance[input.id].offsite.put({
+		offsiteDateKey: input.offsiteDateKey,
+		offsiteDayKind: input.offsiteDayKind,
+		offsiteReason: input.offsiteReason,
+	});
+
+	if (response.error) {
+		throw new Error('Failed to update offsite attendance record');
+	}
+
+	const payload = getApiResponseData(response);
+	if (!payload?.data) {
+		throw new Error('Missing attendance payload');
+	}
+	return payload.data as AttendanceRecord;
+}
+
+/**
+ * Deletes a WORK_OFFSITE attendance record.
+ *
+ * @param input - Target record id and optional organization context
+ * @returns True when deleted
+ * @throws Error when API call fails
+ */
+export async function deleteWorkOffsiteAttendance(input: {
+	id: string;
+}): Promise<boolean> {
+	const response = await api.attendance[input.id].offsite.delete();
+
+	if (response.error) {
+		throw new Error('Failed to delete offsite attendance record');
+	}
+
+	return true;
 }
 
 /**
@@ -2059,6 +2170,42 @@ export async function fetchAttendancePresent(
 
 	const payload = getApiResponseData(response);
 	return (payload?.data ?? []) as AttendancePresentRecord[];
+}
+
+/**
+ * Fetches today's WORK_OFFSITE records for dashboard visibility.
+ *
+ * @param params - Optional organization context
+ * @returns Offsite today list and count
+ * @throws Error when API call fails
+ */
+export async function fetchAttendanceOffsiteToday(params?: {
+	organizationId?: string | null;
+}): Promise<AttendanceOffsiteTodayResponse> {
+	if (params?.organizationId === null) {
+		return {
+			dateKey: '',
+			count: 0,
+			data: [],
+		};
+	}
+
+	const response = await api.attendance.offsite.today.get({
+		$query: {
+			organizationId: params?.organizationId ?? undefined,
+		},
+	});
+
+	if (response.error) {
+		throw new Error('Failed to fetch offsite attendance records');
+	}
+
+	const payload = getApiResponseData(response);
+	return {
+		dateKey: String(payload?.dateKey ?? ''),
+		count: Number(payload?.count ?? 0),
+		data: (payload?.data ?? []) as AttendanceRecord[],
+	};
 }
 
 // ============================================================================

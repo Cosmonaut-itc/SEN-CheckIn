@@ -4,7 +4,15 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { endOfDay, formatDistanceToNowStrict, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Building2, MapPin, RefreshCw, Search, Smartphone, Users } from 'lucide-react';
+import {
+	Building2,
+	Briefcase,
+	MapPin,
+	RefreshCw,
+	Search,
+	Smartphone,
+	Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
@@ -24,8 +32,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import type { DashboardMapProps } from './dashboard-map';
 import {
 	fetchAttendancePresent,
+	fetchAttendanceOffsiteToday,
 	fetchDashboardCounts,
 	fetchLocationsAll,
+	type AttendanceRecord,
 	type AttendancePresentRecord,
 } from '@/lib/client-functions';
 import { queryKeys } from '@/lib/query-keys';
@@ -128,11 +138,23 @@ export function DashboardPageClient(): React.ReactElement {
 			}),
 		enabled: Boolean(organizationId),
 	});
+	const {
+		data: offsiteTodayData,
+		isFetching: isOffsiteFetching,
+		refetch: refetchOffsiteToday,
+	} = useQuery({
+		queryKey: queryKeys.attendance.offsiteToday({
+			organizationId: organizationId ?? undefined,
+		}),
+		queryFn: () => fetchAttendanceOffsiteToday({ organizationId: organizationId ?? null }),
+		enabled: Boolean(organizationId),
+	});
 	const { data: locations = [], isFetching: isLocationsFetching } = useQuery({
 		queryKey: queryKeys.locations.allList(organizationId),
 		queryFn: () => fetchLocationsAll({ organizationId }),
 		enabled: Boolean(organizationId),
 	});
+	const offsiteTodayRecords = (offsiteTodayData?.data ?? []) as AttendanceRecord[];
 
 	const presentByLocationId = useMemo(() => {
 		const groups = new Map<string, AttendancePresentRecord[]>();
@@ -259,7 +281,8 @@ export function DashboardPageClient(): React.ReactElement {
 	 */
 	const handlePresenceRefresh = useCallback((): void => {
 		void refetchPresent();
-	}, [refetchPresent]);
+		void refetchOffsiteToday();
+	}, [refetchOffsiteToday, refetchPresent]);
 
 	/**
 	 * Focuses the map on a selected location from the sidebar.
@@ -655,6 +678,66 @@ export function DashboardPageClient(): React.ReactElement {
 										</div>
 									</div>
 								)}
+
+								<div className="space-y-3">
+									<div className="flex items-center justify-between">
+										<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+											{t('map.sections.offsiteToday')}
+										</p>
+										<Badge variant="secondary">
+											{offsiteTodayRecords.length}
+										</Badge>
+									</div>
+									{isOffsiteFetching ? (
+										<div className="space-y-2">
+											<Skeleton className="h-10 w-full" />
+											<Skeleton className="h-10 w-full" />
+										</div>
+									) : offsiteTodayRecords.length === 0 ? (
+										<p className="text-sm text-muted-foreground">
+											{t('map.empty.offsite')}
+										</p>
+									) : (
+										<div className="space-y-2 rounded-lg border p-3">
+											{offsiteTodayRecords.map((record) => {
+												const displayName =
+													record.employeeName || record.employeeId;
+												const initials = getEmployeeInitials(displayName);
+												const dayKindLabel =
+													record.offsiteDayKind === 'NO_LABORABLE'
+														? t('map.offsite.dayKind.noLaborable')
+														: t('map.offsite.dayKind.laborable');
+												return (
+													<div
+														key={record.id}
+														className="flex items-center justify-between gap-3"
+													>
+														<div className="flex items-center gap-3">
+															<Avatar className="h-7 w-7">
+																<AvatarFallback>
+																	{initials ||
+																		t('map.popup.fallbackInitials')}
+																</AvatarFallback>
+															</Avatar>
+															<div>
+																<p className="text-sm font-medium">
+																	{displayName}
+																</p>
+																<p className="text-xs text-muted-foreground">
+																	{record.employeeId}
+																</p>
+															</div>
+														</div>
+														<Badge variant="outline" className="gap-1">
+															<Briefcase className="h-3.5 w-3.5" />
+															{dayKindLabel}
+														</Badge>
+													</div>
+												);
+											})}
+										</div>
+									)}
+								</div>
 							</div>
 						</ScrollArea>
 					</div>

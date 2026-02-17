@@ -959,6 +959,78 @@ describe('payroll-calculation', () => {
 		expect(row?.totalPay).toBe(1000);
 	});
 
+	it('counts WORK_OFFSITE LABORABLE as a standard paid shift', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 0, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: periodStartDateKey,
+				offsiteDayKind: 'LABORABLE',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.mandatoryRestDaysWorkedCount).toBe(0);
+		expect(row?.normalPay).toBe(800);
+		expect(row?.mandatoryRestDayPremiumAmount).toBe(0);
+		expect(row?.totalPay).toBe(800);
+	});
+
+	it('counts WORK_OFFSITE NO_LABORABLE using rest-day premium rules', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 0, 0, timeZone),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: periodStartDateKey,
+				offsiteDayKind: 'NO_LABORABLE',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+		});
+
+		const row = employees[0];
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.normalHours).toBe(8);
+		expect(row?.mandatoryRestDaysWorkedCount).toBe(1);
+		expect(row?.normalPay).toBe(800);
+		expect(row?.mandatoryRestDayPremiumAmount).toBe(1600);
+		expect(row?.totalPay).toBe(2400);
+	});
+
 	it('returns zeroed hours and pay when there is no attendance', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';

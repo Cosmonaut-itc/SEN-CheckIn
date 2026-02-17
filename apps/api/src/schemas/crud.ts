@@ -365,17 +365,74 @@ export const organizationAllQuerySchema = paginationSchema.extend({
 /**
  * Valid attendance type values.
  */
-export const attendanceTypeEnum = z.enum(['CHECK_IN', 'CHECK_OUT', 'CHECK_OUT_AUTHORIZED']);
+export const attendanceTypeEnum = z.enum([
+	'CHECK_IN',
+	'CHECK_OUT',
+	'CHECK_OUT_AUTHORIZED',
+	'WORK_OFFSITE',
+]);
+
+/**
+ * RH day kind values for manual offsite attendance.
+ */
+export const offsiteDayKindEnum = z.enum(['LABORABLE', 'NO_LABORABLE']);
 
 /**
  * Schema for creating an attendance record.
  */
-export const createAttendanceSchema = z.object({
-	employeeId: z.string().uuid('Invalid employee ID'),
-	deviceId: z.string().uuid('Invalid device ID'),
-	timestamp: z.coerce.date().default(() => new Date()),
-	type: attendanceTypeEnum,
-	metadata: z.record(z.unknown()).optional(),
+export const createAttendanceSchema = z
+	.object({
+		employeeId: z.string().uuid('Invalid employee ID'),
+		deviceId: z.string().uuid('Invalid device ID').optional(),
+		timestamp: z.coerce.date().default(() => new Date()),
+		type: attendanceTypeEnum,
+		metadata: z.record(z.unknown()).optional(),
+		offsiteDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key').optional(),
+		offsiteDayKind: offsiteDayKindEnum.optional(),
+		offsiteReason: z.string().min(10).max(500).optional(),
+	})
+	.superRefine((value, ctx) => {
+		if (value.type === 'WORK_OFFSITE') {
+			if (!value.offsiteDateKey) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['offsiteDateKey'],
+					message: 'offsiteDateKey is required for WORK_OFFSITE',
+				});
+			}
+			if (!value.offsiteDayKind) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['offsiteDayKind'],
+					message: 'offsiteDayKind is required for WORK_OFFSITE',
+				});
+			}
+			if (!value.offsiteReason) {
+				ctx.addIssue({
+					code: z.ZodIssueCode.custom,
+					path: ['offsiteReason'],
+					message: 'offsiteReason is required for WORK_OFFSITE',
+				});
+			}
+			return;
+		}
+
+		if (!value.deviceId) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['deviceId'],
+				message: 'deviceId is required for check-in/check-out records',
+			});
+		}
+	});
+
+/**
+ * Schema for updating an existing WORK_OFFSITE attendance record.
+ */
+export const updateOffsiteAttendanceSchema = z.object({
+	offsiteDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key'),
+	offsiteDayKind: offsiteDayKindEnum,
+	offsiteReason: z.string().min(10).max(500),
 });
 
 /**
@@ -385,6 +442,7 @@ export const attendanceQuerySchema = paginationSchema.extend({
 	employeeId: z.string().uuid().optional(),
 	deviceId: z.string().uuid().optional(),
 	type: attendanceTypeEnum.optional(),
+	offsiteDayKind: offsiteDayKindEnum.optional(),
 	fromDate: z.coerce.date().optional(),
 	toDate: z.coerce.date().optional(),
 	search: z.string().optional(),
@@ -400,6 +458,13 @@ export const attendancePresentQuerySchema = z.object({
 	fromDate: z.coerce.date(),
 	toDate: z.coerce.date(),
 	// BetterAuth organization IDs are text (not UUID)
+	organizationId: z.string().optional(),
+});
+
+/**
+ * Schema for today offsite attendance queries.
+ */
+export const attendanceOffsiteTodayQuerySchema = z.object({
 	organizationId: z.string().optional(),
 });
 
@@ -451,7 +516,10 @@ export type OrganizationAllQuery = z.infer<typeof organizationAllQuerySchema>;
 
 // Attendance
 export type AttendanceType = z.infer<typeof attendanceTypeEnum>;
+export type OffsiteDayKind = z.infer<typeof offsiteDayKindEnum>;
 export type CreateAttendanceInput = z.infer<typeof createAttendanceSchema>;
+export type UpdateOffsiteAttendanceInput = z.infer<typeof updateOffsiteAttendanceSchema>;
 export type AttendanceQuery = z.infer<typeof attendanceQuerySchema>;
 export type AttendancePresentQuery = z.infer<typeof attendancePresentQuerySchema>;
+export type AttendanceOffsiteTodayQuery = z.infer<typeof attendanceOffsiteTodayQuerySchema>;
 export type EmployeeIdParam = z.infer<typeof employeeIdParamSchema>;

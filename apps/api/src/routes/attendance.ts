@@ -1,18 +1,39 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { eq, and, gte, ilike, lte, sql, type SQL } from 'drizzle-orm';
+import { eq, and, gte, ilike, lte, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 
 import db from '../db/index.js';
-import { attendanceRecord, employee, device, location } from '../db/schema.js';
+import {
+	attendanceRecord,
+	device,
+	employee,
+	employeeIncapacity,
+	location,
+	member,
+	payrollRun,
+	payrollSetting,
+	scheduleException,
+	vacationRequest,
+	vacationRequestDay,
+} from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
+import type { AuthSession } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organization.js';
+import { addDaysToDateKey, parseDateKey } from '../utils/date-key.js';
+import {
+	getUtcDateForZonedMidnight,
+	isValidIanaTimeZone,
+	toDateKeyInTimeZone,
+} from '../utils/time-zone.js';
 import {
 	idParamSchema,
 	attendanceQuerySchema,
 	attendancePresentQuerySchema,
+	attendanceOffsiteTodayQuerySchema,
 	createAttendanceSchema,
+	updateOffsiteAttendanceSchema,
 	employeeIdParamSchema,
 } from '../schemas/crud.js';
 
@@ -26,6 +47,321 @@ import {
 /**
  * Attendance routes plugin for Elysia.
  */
+const OFFSITE_MAX_RETRO_DAYS = 7;
+const OFFSITE_VIRTUAL_DEVICE_PREFIX = 'VIRTUAL-RH-OFFSITE';
+
+/**
+ * Builds a deterministic virtual device code used for RH offsite records.
+ *
+ * @param organizationId - Organization identifier
+ * @returns Stable device code for the organization
+ */
+function buildOffsiteVirtualDeviceCode(organizationId: string): string {
+	return `${OFFSITE_VIRTUAL_DEVICE_PREFIX}-${organizationId}`;
+}
+
+/**
+ * Ensures the caller has organization admin permissions.
+ *
+ * @param args - Auth and organization context
+ * @param set - Elysia response setter
+ * @returns True when caller is authorized
+ */
+async function ensureAdminRole(
+	args: { authType: 'session' | 'apiKey'; session: AuthSession | null; organizationId: string },
+	set: { status?: number | string } & Record<string, unknown>,
+): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		set.status = 403;
+		return false;
+	}
+
+	const membershipRows = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(and(eq(member.userId, args.session.userId), eq(member.organizationId, args.organizationId)))
+		.limit(1);
+	const role = membershipRows[0]?.role ?? null;
+
+	if (role !== 'admin' && role !== 'owner') {
+		set.status = 403;
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * Resolves the organization payroll timezone, with Mexico City fallback.
+ *
+ * @param organizationId - Organization identifier
+ * @returns IANA timezone string
+ */
+async function resolveOrganizationTimeZone(organizationId: string): Promise<string> {
+	const settingsRows = await db
+		.select({ timeZone: payrollSetting.timeZone })
+		.from(payrollSetting)
+		.where(eq(payrollSetting.organizationId, organizationId))
+		.limit(1);
+	const candidate = settingsRows[0]?.timeZone ?? 'America/Mexico_City';
+	return isValidIanaTimeZone(candidate) ? candidate : 'America/Mexico_City';
+}
+
+/**
+ * Builds an inclusive UTC day window for a local date key in the provided timezone.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @param timeZone - IANA timezone
+ * @returns UTC range bounds
+ */
+function buildUtcBoundsForDateKey(dateKey: string, timeZone: string): {
+	startUtc: Date;
+	endExclusiveUtc: Date;
+} {
+	const startUtc = getUtcDateForZonedMidnight(dateKey, timeZone);
+	const endExclusiveUtc = getUtcDateForZonedMidnight(addDaysToDateKey(dateKey, 1), timeZone);
+	return { startUtc, endExclusiveUtc };
+}
+
+/**
+ * Checks whether a date key is valid for new offsite registrations.
+ *
+ * @param dateKey - Date key to validate
+ * @param timeZone - Organization timezone
+ * @returns True when date key is within allowed creation window
+ */
+function isValidCreateWindow(dateKey: string, timeZone: string): boolean {
+	const todayKey = toDateKeyInTimeZone(new Date(), timeZone);
+	const earliestAllowedDateKey = addDaysToDateKey(todayKey, -OFFSITE_MAX_RETRO_DAYS);
+	return dateKey >= earliestAllowedDateKey;
+}
+
+/**
+ * Checks whether an existing offsite record can be edited/deleted.
+ *
+ * @param dateKey - Existing offsite date key
+ * @param timeZone - Organization timezone
+ * @returns True when date key is still mutable
+ */
+function isWithinEditableWindow(dateKey: string, timeZone: string): boolean {
+	const todayKey = toDateKeyInTimeZone(new Date(), timeZone);
+	const earliestEditableDateKey = addDaysToDateKey(todayKey, -OFFSITE_MAX_RETRO_DAYS);
+	return dateKey >= earliestEditableDateKey;
+}
+
+/**
+ * Detects whether the target date belongs to a processed payroll run.
+ *
+ * @param args - Organization/date context
+ * @returns True when the date overlaps with a processed payroll period
+ */
+async function hasProcessedPayrollOverlap(args: {
+	organizationId: string;
+	dateKey: string;
+	timeZone: string;
+}): Promise<boolean> {
+	const { startUtc, endExclusiveUtc } = buildUtcBoundsForDateKey(args.dateKey, args.timeZone);
+	const overlaps = await db
+		.select({ id: payrollRun.id })
+		.from(payrollRun)
+		.where(
+			and(
+				eq(payrollRun.organizationId, args.organizationId),
+				eq(payrollRun.status, 'PROCESSED'),
+				lte(payrollRun.periodStart, new Date(endExclusiveUtc.getTime() - 1)),
+				gte(payrollRun.periodEnd, startUtc),
+			),
+		)
+		.limit(1);
+	return Boolean(overlaps[0]);
+}
+
+/**
+ * Validates offsite conflicts against check events, leaves, vacations, and incapacities.
+ *
+ * @param args - Conflict-check arguments
+ * @returns Null when valid, otherwise user-facing error message
+ */
+async function validateOffsiteConflicts(args: {
+	employeeId: string;
+	organizationId: string;
+	dateKey: string;
+	timeZone: string;
+	excludeAttendanceId?: string;
+}): Promise<string | null> {
+	const { startUtc, endExclusiveUtc } = buildUtcBoundsForDateKey(args.dateKey, args.timeZone);
+	const excludingCurrent = args.excludeAttendanceId
+		? ne(attendanceRecord.id, args.excludeAttendanceId)
+		: undefined;
+
+	const checkEventConditions: SQL<unknown>[] = [
+		eq(attendanceRecord.employeeId, args.employeeId),
+		gte(attendanceRecord.timestamp, startUtc),
+		lt(attendanceRecord.timestamp, endExclusiveUtc),
+		sql`${attendanceRecord.type} IN ('CHECK_IN', 'CHECK_OUT', 'CHECK_OUT_AUTHORIZED')`,
+	];
+	if (excludingCurrent) {
+		checkEventConditions.push(excludingCurrent);
+	}
+
+	const checkEvents = await db
+		.select({ id: attendanceRecord.id })
+		.from(attendanceRecord)
+		.where(and(...checkEventConditions))
+		.limit(1);
+
+	if (checkEvents[0]) {
+		return 'No se puede registrar fuera de oficina cuando ya existen checadas en la fecha.';
+	}
+
+	const dayOffRows = await db
+		.select({ id: scheduleException.id })
+		.from(scheduleException)
+		.where(
+			and(
+				eq(scheduleException.employeeId, args.employeeId),
+				eq(scheduleException.exceptionType, 'DAY_OFF'),
+				gte(scheduleException.exceptionDate, startUtc),
+				lt(scheduleException.exceptionDate, endExclusiveUtc),
+			),
+		)
+		.limit(1);
+
+	if (dayOffRows[0]) {
+		return 'No se puede registrar fuera de oficina en una fecha marcada como descanso/permiso.';
+	}
+
+	const vacationRows = await db
+		.select({ id: vacationRequestDay.id })
+		.from(vacationRequestDay)
+		.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
+		.where(
+			and(
+				eq(vacationRequestDay.employeeId, args.employeeId),
+				eq(vacationRequestDay.dateKey, args.dateKey),
+				eq(vacationRequestDay.countsAsVacationDay, true),
+				eq(vacationRequest.organizationId, args.organizationId),
+				eq(vacationRequest.status, 'APPROVED'),
+			),
+		)
+		.limit(1);
+
+	if (vacationRows[0]) {
+		return 'No se puede registrar fuera de oficina en una fecha con vacaciones aprobadas.';
+	}
+
+	const incapacityRows = await db
+		.select({ id: employeeIncapacity.id })
+		.from(employeeIncapacity)
+		.where(
+			and(
+				eq(employeeIncapacity.organizationId, args.organizationId),
+				eq(employeeIncapacity.employeeId, args.employeeId),
+				eq(employeeIncapacity.status, 'ACTIVE'),
+				lte(employeeIncapacity.startDateKey, args.dateKey),
+				gte(employeeIncapacity.endDateKey, args.dateKey),
+			),
+		)
+		.limit(1);
+
+	if (incapacityRows[0]) {
+		return 'No se puede registrar fuera de oficina en una fecha con incapacidad activa.';
+	}
+
+	return null;
+}
+
+/**
+ * Resolves or creates a virtual RH device for offsite manual records.
+ *
+ * @param organizationId - Organization identifier
+ * @returns Device id
+ */
+async function getOrCreateOffsiteVirtualDevice(organizationId: string): Promise<string> {
+	const code = buildOffsiteVirtualDeviceCode(organizationId);
+	const existingRows = await db
+		.select({ id: device.id })
+		.from(device)
+		.where(and(eq(device.organizationId, organizationId), eq(device.code, code)))
+		.limit(1);
+	const existing = existingRows[0];
+	if (existing) {
+		return existing.id;
+	}
+
+	const id = crypto.randomUUID();
+	await db.insert(device).values({
+		id,
+		code,
+		name: 'Registro RH Fuera de oficina',
+		deviceType: 'VIRTUAL_RH_OFFSITE',
+		status: 'ONLINE',
+		locationId: null,
+		organizationId,
+	});
+
+	return id;
+}
+
+/**
+ * Loads an attendance record joined with employee organization context.
+ *
+ * @param id - Attendance id
+ * @returns Joined record or null
+ */
+async function getAttendanceRecordById(id: string): Promise<{
+	id: string;
+	employeeId: string;
+	employeeFirstName: string | null;
+	employeeLastName: string | null;
+	deviceId: string;
+	deviceLocationId: string | null;
+	deviceLocationName: string | null;
+	timestamp: Date;
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	offsiteDateKey: string | null;
+	offsiteDayKind: 'LABORABLE' | 'NO_LABORABLE' | null;
+	offsiteReason: string | null;
+	offsiteCreatedByUserId: string | null;
+	offsiteUpdatedByUserId: string | null;
+	offsiteUpdatedAt: Date | null;
+	metadata: Record<string, unknown> | null;
+	createdAt: Date;
+	updatedAt: Date;
+	employeeOrgId: string | null;
+} | null> {
+	const rows = await db
+		.select({
+			id: attendanceRecord.id,
+			employeeId: attendanceRecord.employeeId,
+			employeeFirstName: employee.firstName,
+			employeeLastName: employee.lastName,
+			deviceId: attendanceRecord.deviceId,
+			deviceLocationId: device.locationId,
+			deviceLocationName: location.name,
+			timestamp: attendanceRecord.timestamp,
+			type: attendanceRecord.type,
+			offsiteDateKey: attendanceRecord.offsiteDateKey,
+			offsiteDayKind: attendanceRecord.offsiteDayKind,
+			offsiteReason: attendanceRecord.offsiteReason,
+			offsiteCreatedByUserId: attendanceRecord.offsiteCreatedByUserId,
+			offsiteUpdatedByUserId: attendanceRecord.offsiteUpdatedByUserId,
+			offsiteUpdatedAt: attendanceRecord.offsiteUpdatedAt,
+			metadata: attendanceRecord.metadata,
+			createdAt: attendanceRecord.createdAt,
+			updatedAt: attendanceRecord.updatedAt,
+			employeeOrgId: employee.organizationId,
+		})
+		.from(attendanceRecord)
+		.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+		.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
+		.leftJoin(location, eq(device.locationId, location.id))
+		.where(eq(attendanceRecord.id, id))
+		.limit(1);
+
+	return rows[0] ?? null;
+}
+
 export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	.use(combinedAuthPlugin)
 	/**
@@ -60,6 +396,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				employeeId,
 				deviceId,
 				type,
+				offsiteDayKind,
 				fromDate,
 				toDate,
 				search,
@@ -93,6 +430,9 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			if (type) {
 				conditions.push(eq(attendanceRecord.type, type));
 			}
+			if (offsiteDayKind) {
+				conditions.push(eq(attendanceRecord.offsiteDayKind, offsiteDayKind));
+			}
 			if (fromDate) {
 				conditions.push(gte(attendanceRecord.timestamp, fromDate));
 			}
@@ -118,6 +458,12 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					deviceLocationName: location.name,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
+					offsiteDateKey: attendanceRecord.offsiteDateKey,
+					offsiteDayKind: attendanceRecord.offsiteDayKind,
+					offsiteReason: attendanceRecord.offsiteReason,
+					offsiteCreatedByUserId: attendanceRecord.offsiteCreatedByUserId,
+					offsiteUpdatedByUserId: attendanceRecord.offsiteUpdatedByUserId,
+					offsiteUpdatedAt: attendanceRecord.offsiteUpdatedAt,
 					metadata: attendanceRecord.metadata,
 					createdAt: attendanceRecord.createdAt,
 					updatedAt: attendanceRecord.updatedAt,
@@ -171,6 +517,97 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 		},
 		{
 			query: attendanceQuerySchema,
+		},
+	)
+
+	/**
+	 * Get today's WORK_OFFSITE records for dashboard monitoring.
+	 *
+	 * @route GET /attendance/offsite/today
+	 * @param query.organizationId - Optional organization id
+	 * @returns Date key, count and record list for today's offsite events
+	 */
+	.get(
+		'/offsite/today',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { organizationId: organizationIdQuery } = query;
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: organizationIdQuery ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(organizationId);
+			const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+
+			const results = await db
+				.select({
+					id: attendanceRecord.id,
+					employeeId: attendanceRecord.employeeId,
+					employeeFirstName: employee.firstName,
+					employeeLastName: employee.lastName,
+					deviceId: attendanceRecord.deviceId,
+					deviceLocationId: device.locationId,
+					deviceLocationName: location.name,
+					timestamp: attendanceRecord.timestamp,
+					type: attendanceRecord.type,
+					offsiteDateKey: attendanceRecord.offsiteDateKey,
+					offsiteDayKind: attendanceRecord.offsiteDayKind,
+					offsiteReason: attendanceRecord.offsiteReason,
+					offsiteCreatedByUserId: attendanceRecord.offsiteCreatedByUserId,
+					offsiteUpdatedByUserId: attendanceRecord.offsiteUpdatedByUserId,
+					offsiteUpdatedAt: attendanceRecord.offsiteUpdatedAt,
+					metadata: attendanceRecord.metadata,
+					createdAt: attendanceRecord.createdAt,
+					updatedAt: attendanceRecord.updatedAt,
+				})
+				.from(attendanceRecord)
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
+				.leftJoin(location, eq(device.locationId, location.id))
+				.where(
+					and(
+						eq(employee.organizationId, organizationId),
+						eq(attendanceRecord.type, 'WORK_OFFSITE'),
+						eq(attendanceRecord.offsiteDateKey, todayDateKey),
+					),
+				)
+				.orderBy(employee.firstName, employee.lastName);
+
+			const formattedResults = results.map(
+				({ employeeFirstName, employeeLastName, ...rest }) => ({
+					...rest,
+					employeeName: `${employeeFirstName ?? ''} ${employeeLastName ?? ''}`
+						.trim()
+						.replace(/\s+/g, ' '),
+				}),
+			);
+
+			return {
+				dateKey: todayDateKey,
+				count: formattedResults.length,
+				data: formattedResults,
+			};
+		},
+		{
+			query: attendanceOffsiteTodayQuerySchema,
 		},
 	)
 
@@ -277,6 +714,260 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	)
 
 	/**
+	 * Updates an existing WORK_OFFSITE attendance record.
+	 *
+	 * @route PUT /attendance/:id/offsite
+	 * @param id - Attendance record UUID
+	 * @returns Updated attendance record
+	 */
+	.put(
+		'/:id/offsite',
+		async ({
+			params,
+			body,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+			const record = await getAttendanceRecordById(id);
+			if (!record) {
+				set.status = 404;
+				return buildErrorResponse('Attendance record not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.employeeOrgId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this attendance record', 403);
+			}
+
+			if (record.type !== 'WORK_OFFSITE') {
+				set.status = 400;
+				return buildErrorResponse('Only WORK_OFFSITE records can be updated here', 400);
+			}
+
+			if (!record.employeeOrgId) {
+				set.status = 400;
+				return buildErrorResponse('Attendance organization context is required', 400);
+			}
+
+			const canManageOffsite = await ensureAdminRole(
+				{ authType, session, organizationId: record.employeeOrgId },
+				set,
+			);
+			if (!canManageOffsite) {
+				return buildErrorResponse('Only owner/admin can manage offsite attendance', 403);
+			}
+
+			const existingDateKey = record.offsiteDateKey;
+			if (!existingDateKey) {
+				set.status = 400;
+				return buildErrorResponse('Offsite record is missing date key', 400);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(record.employeeOrgId);
+			if (!isWithinEditableWindow(existingDateKey, timeZone)) {
+				set.status = 409;
+				return buildErrorResponse('Offsite record is outside editable window', 409);
+			}
+
+			if (!isValidCreateWindow(body.offsiteDateKey, timeZone)) {
+				set.status = 400;
+				return buildErrorResponse(
+					'Offsite date is outside the allowed retroactive window',
+					400,
+				);
+			}
+
+			const [currentDateHasProcessed, nextDateHasProcessed] = await Promise.all([
+				hasProcessedPayrollOverlap({
+					organizationId: record.employeeOrgId,
+					dateKey: existingDateKey,
+					timeZone,
+				}),
+				hasProcessedPayrollOverlap({
+					organizationId: record.employeeOrgId,
+					dateKey: body.offsiteDateKey,
+					timeZone,
+				}),
+			]);
+
+			if (currentDateHasProcessed || nextDateHasProcessed) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Cannot edit offsite attendance in a processed payroll period',
+					409,
+				);
+			}
+
+			const duplicateRows = await db
+				.select({ id: attendanceRecord.id })
+				.from(attendanceRecord)
+				.where(
+					and(
+						eq(attendanceRecord.employeeId, record.employeeId),
+						eq(attendanceRecord.type, 'WORK_OFFSITE'),
+						eq(attendanceRecord.offsiteDateKey, body.offsiteDateKey),
+						ne(attendanceRecord.id, record.id),
+					),
+				)
+				.limit(1);
+			if (duplicateRows[0]) {
+				set.status = 409;
+				return buildErrorResponse(
+					'An offsite attendance record already exists for that date',
+					409,
+				);
+			}
+
+			const conflictMessage = await validateOffsiteConflicts({
+				employeeId: record.employeeId,
+				organizationId: record.employeeOrgId,
+				dateKey: body.offsiteDateKey,
+				timeZone,
+				excludeAttendanceId: record.id,
+			});
+			if (conflictMessage) {
+				set.status = 409;
+				return buildErrorResponse(conflictMessage, 409);
+			}
+
+			const normalizedTimestamp = getUtcDateForZonedMidnight(body.offsiteDateKey, timeZone);
+			const now = new Date();
+
+			await db
+				.update(attendanceRecord)
+				.set({
+					timestamp: normalizedTimestamp,
+					offsiteDateKey: body.offsiteDateKey,
+					offsiteDayKind: body.offsiteDayKind,
+					offsiteReason: body.offsiteReason,
+					offsiteUpdatedByUserId: session?.userId ?? record.offsiteUpdatedByUserId,
+					offsiteUpdatedAt: now,
+				})
+				.where(eq(attendanceRecord.id, record.id));
+
+			const updatedRecord = await getAttendanceRecordById(record.id);
+			if (!updatedRecord) {
+				set.status = 404;
+				return buildErrorResponse('Attendance record not found', 404);
+			}
+
+			const { employeeOrgId, employeeFirstName, employeeLastName, ...rest } = updatedRecord;
+			void employeeOrgId;
+			return {
+				data: {
+					...rest,
+					employeeName: `${employeeFirstName ?? ''} ${employeeLastName ?? ''}`
+						.trim()
+						.replace(/\s+/g, ' '),
+				},
+			};
+		},
+		{
+			params: idParamSchema,
+			body: updateOffsiteAttendanceSchema,
+		},
+	)
+
+	/**
+	 * Deletes an existing WORK_OFFSITE attendance record.
+	 *
+	 * @route DELETE /attendance/:id/offsite
+	 * @param id - Attendance record UUID
+	 * @returns Deletion confirmation payload
+	 */
+	.delete(
+		'/:id/offsite',
+		async ({
+			params,
+			set,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationIds,
+		}) => {
+			const { id } = params;
+			const record = await getAttendanceRecordById(id);
+			if (!record) {
+				set.status = 404;
+				return buildErrorResponse('Attendance record not found', 404);
+			}
+
+			if (
+				!hasOrganizationAccess(
+					authType,
+					session,
+					sessionOrganizationIds,
+					apiKeyOrganizationIds,
+					record.employeeOrgId,
+				)
+			) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this attendance record', 403);
+			}
+
+			if (record.type !== 'WORK_OFFSITE') {
+				set.status = 400;
+				return buildErrorResponse('Only WORK_OFFSITE records can be deleted here', 400);
+			}
+
+			if (!record.employeeOrgId || !record.offsiteDateKey) {
+				set.status = 400;
+				return buildErrorResponse('Offsite record context is invalid', 400);
+			}
+
+			const canManageOffsite = await ensureAdminRole(
+				{ authType, session, organizationId: record.employeeOrgId },
+				set,
+			);
+			if (!canManageOffsite) {
+				return buildErrorResponse('Only owner/admin can manage offsite attendance', 403);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(record.employeeOrgId);
+			if (!isWithinEditableWindow(record.offsiteDateKey, timeZone)) {
+				set.status = 409;
+				return buildErrorResponse('Offsite record is outside editable window', 409);
+			}
+
+			const hasProcessedPayroll = await hasProcessedPayrollOverlap({
+				organizationId: record.employeeOrgId,
+				dateKey: record.offsiteDateKey,
+				timeZone,
+			});
+			if (hasProcessedPayroll) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Cannot delete offsite attendance in a processed payroll period',
+					409,
+				);
+			}
+
+			await db.delete(attendanceRecord).where(eq(attendanceRecord.id, record.id));
+			return {
+				data: {
+					id: record.id,
+					deleted: true,
+				},
+			};
+		},
+		{
+			params: idParamSchema,
+		},
+	)
+
+	/**
 	 * Get a single attendance record by ID.
 	 *
 	 * @route GET /attendance/:id
@@ -294,31 +985,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			apiKeyOrganizationIds,
 		}) => {
 			const { id } = params;
-
-			const results = await db
-				.select({
-					id: attendanceRecord.id,
-					employeeId: attendanceRecord.employeeId,
-					employeeFirstName: employee.firstName,
-					employeeLastName: employee.lastName,
-					deviceId: attendanceRecord.deviceId,
-					deviceLocationId: device.locationId,
-					deviceLocationName: location.name,
-					timestamp: attendanceRecord.timestamp,
-					type: attendanceRecord.type,
-					metadata: attendanceRecord.metadata,
-					createdAt: attendanceRecord.createdAt,
-					updatedAt: attendanceRecord.updatedAt,
-					employeeOrgId: employee.organizationId,
-				})
-				.from(attendanceRecord)
-				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-				.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
-				.leftJoin(location, eq(device.locationId, location.id))
-				.where(eq(attendanceRecord.id, id))
-				.limit(1);
-
-			const record = results[0];
+			const record = await getAttendanceRecordById(id);
 			if (!record) {
 				set.status = 404;
 				return buildErrorResponse('Attendance record not found', 404);
@@ -381,7 +1048,16 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { employeeId, deviceId, timestamp, type, metadata } = body;
+			const {
+				employeeId,
+				deviceId,
+				timestamp,
+				type,
+				metadata,
+				offsiteDateKey,
+				offsiteDayKind,
+				offsiteReason,
+			} = body;
 
 			// Verify employee exists
 			const employeeExists = await db
@@ -393,18 +1069,6 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			if (!existingEmployee) {
 				set.status = 400;
 				return buildErrorResponse('Employee not found', 400);
-			}
-
-			// Verify device exists
-			const deviceExists = await db
-				.select()
-				.from(device)
-				.where(eq(device.id, deviceId))
-				.limit(1);
-			const existingDevice = deviceExists[0];
-			if (!existingDevice) {
-				set.status = 400;
-				return buildErrorResponse('Device not found', 400);
 			}
 
 			if (
@@ -421,6 +1085,152 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					'Employee does not belong to an allowed organization',
 					403,
 				);
+			}
+
+			if (type === 'WORK_OFFSITE') {
+				if (authType !== 'session' || !session) {
+					set.status = 403;
+					return buildErrorResponse(
+						'Offsite attendance can only be managed by authenticated sessions',
+						403,
+					);
+				}
+
+				if (existingEmployee.status !== 'ACTIVE') {
+					set.status = 400;
+					return buildErrorResponse(
+						'Offsite attendance is only allowed for active employees',
+						400,
+					);
+				}
+
+				const organizationId = existingEmployee.organizationId;
+				if (!organizationId) {
+					set.status = 400;
+					return buildErrorResponse('Employee organization is required', 400);
+				}
+
+				const canManageOffsite = await ensureAdminRole(
+					{ authType, session, organizationId },
+					set,
+				);
+				if (!canManageOffsite) {
+					return buildErrorResponse('Only owner/admin can manage offsite attendance', 403);
+				}
+
+				if (!offsiteDateKey || !offsiteDayKind || !offsiteReason) {
+					set.status = 400;
+					return buildErrorResponse('Missing required offsite payload fields', 400);
+				}
+
+				try {
+					parseDateKey(offsiteDateKey);
+				} catch {
+					set.status = 400;
+					return buildErrorResponse('Invalid offsite date key', 400);
+				}
+
+				const timeZone = await resolveOrganizationTimeZone(organizationId);
+				if (!isValidCreateWindow(offsiteDateKey, timeZone)) {
+					set.status = 400;
+					return buildErrorResponse(
+						'Offsite date is outside the allowed retroactive window',
+						400,
+					);
+				}
+
+				const hasProcessedPayroll = await hasProcessedPayrollOverlap({
+					organizationId,
+					dateKey: offsiteDateKey,
+					timeZone,
+				});
+				if (hasProcessedPayroll) {
+					set.status = 409;
+					return buildErrorResponse(
+						'Cannot register offsite attendance for a processed payroll period',
+						409,
+					);
+				}
+
+				const duplicateRows = await db
+					.select({ id: attendanceRecord.id })
+					.from(attendanceRecord)
+					.where(
+						and(
+							eq(attendanceRecord.employeeId, employeeId),
+							eq(attendanceRecord.type, 'WORK_OFFSITE'),
+							eq(attendanceRecord.offsiteDateKey, offsiteDateKey),
+						),
+					)
+					.limit(1);
+				if (duplicateRows[0]) {
+					set.status = 409;
+					return buildErrorResponse(
+						'An offsite attendance record already exists for that date',
+						409,
+					);
+				}
+
+				const conflictMessage = await validateOffsiteConflicts({
+					employeeId,
+					organizationId,
+					dateKey: offsiteDateKey,
+					timeZone,
+				});
+				if (conflictMessage) {
+					set.status = 409;
+					return buildErrorResponse(conflictMessage, 409);
+				}
+
+				const offsiteDeviceId = await getOrCreateOffsiteVirtualDevice(organizationId);
+				const normalizedTimestamp = getUtcDateForZonedMidnight(offsiteDateKey, timeZone);
+				const id = crypto.randomUUID();
+				const now = new Date();
+
+				const newRecord = {
+					id,
+					employeeId,
+					deviceId: offsiteDeviceId,
+					timestamp: normalizedTimestamp,
+					type,
+					offsiteDateKey,
+					offsiteDayKind,
+					offsiteReason,
+					offsiteCreatedByUserId: session.userId,
+					offsiteUpdatedByUserId: session.userId,
+					offsiteUpdatedAt: now,
+					metadata: metadata ?? null,
+				};
+
+				await db.insert(attendanceRecord).values(newRecord);
+				set.status = 201;
+				return {
+					data: {
+						...newRecord,
+						createdAt: now,
+						updatedAt: now,
+						employeeName: `${existingEmployee.firstName ?? ''} ${existingEmployee.lastName ?? ''}`
+							.trim()
+							.replace(/\s+/g, ' '),
+					},
+				};
+			}
+
+			if (!deviceId) {
+				set.status = 400;
+				return buildErrorResponse('Device ID is required for attendance event', 400);
+			}
+
+			// Verify device exists
+			const deviceExists = await db
+				.select()
+				.from(device)
+				.where(eq(device.id, deviceId))
+				.limit(1);
+			const existingDevice = deviceExists[0];
+			if (!existingDevice) {
+				set.status = 400;
+				return buildErrorResponse('Device not found', 400);
 			}
 
 			if (
@@ -467,7 +1277,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const newRecord = {
 				id,
 				employeeId,
-				deviceId,
+				deviceId: deviceId,
 				timestamp,
 				type,
 				metadata: metadata ?? null,

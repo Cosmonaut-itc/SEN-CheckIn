@@ -461,7 +461,11 @@ async function calculateEmployeeAbsences(args: {
 			endUtc,
 		}),
 		db
-			.select({ timestamp: attendanceRecord.timestamp })
+			.select({
+				timestamp: attendanceRecord.timestamp,
+				type: attendanceRecord.type,
+				offsiteDateKey: attendanceRecord.offsiteDateKey,
+			})
 			.from(attendanceRecord)
 			.where(
 				and(
@@ -484,7 +488,11 @@ async function calculateEmployeeAbsences(args: {
 	}
 
 	const attendanceDateKeys = new Set(
-		attendanceRows.map((row) => toDateKeyInTimeZone(row.timestamp, args.timeZone)),
+		attendanceRows.map((row) =>
+			row.type === 'WORK_OFFSITE' && row.offsiteDateKey
+				? row.offsiteDateKey
+				: toDateKeyInTimeZone(row.timestamp, args.timeZone),
+		),
 	);
 
 	const hireDateKey = args.employee.hireDate

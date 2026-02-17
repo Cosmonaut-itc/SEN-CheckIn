@@ -253,6 +253,13 @@
       "when": 1771095000000,
       "tag": "0035_acta_admin_pdf_fit_witnesses",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1771329600000,
+      "tag": "0036_work_offsite_attendance",
+      "breakpoints": true
     }
   ]
 }

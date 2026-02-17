@@ -174,6 +174,8 @@ const calculatePayroll = async (args: {
 						employeeId: attendanceRecord.employeeId,
 						timestamp: attendanceRecord.timestamp,
 						type: attendanceRecord.type,
+						offsiteDateKey: attendanceRecord.offsiteDateKey,
+						offsiteDayKind: attendanceRecord.offsiteDayKind,
 					})
 					.from(attendanceRecord)
 					.where(

@@ -343,7 +343,13 @@ export const attendanceType = pgEnum('attendance_type', [
 	'CHECK_IN',
 	'CHECK_OUT',
 	'CHECK_OUT_AUTHORIZED',
+	'WORK_OFFSITE',
 ]);
+
+/**
+ * Enum for RH offsite-day classification.
+ */
+export const offsiteDayKind = pgEnum('offsite_day_kind', ['LABORABLE', 'NO_LABORABLE']);
 
 /**
  * Enum for employee status
@@ -972,10 +978,34 @@ export const attendanceRecord = pgTable('attendance_record', {
 	timestamp: timestamp('timestamp').notNull(),
 	type: attendanceType('type').notNull(),
 	/**
+	 * Business date key for offsite manual records in org timezone (YYYY-MM-DD).
+	 */
+	offsiteDateKey: text('offsite_date_key'),
+	/**
+	 * RH classification used for payroll treatment of offsite records.
+	 */
+	offsiteDayKind: offsiteDayKind('offsite_day_kind'),
+	/**
+	 * RH justification for offsite records.
+	 */
+	offsiteReason: text('offsite_reason'),
+	/**
+	 * User that created the offsite record.
+	 */
+	offsiteCreatedByUserId: text('offsite_created_by_user_id'),
+	/**
+	 * Last user that updated the offsite record.
+	 */
+	offsiteUpdatedByUserId: text('offsite_updated_by_user_id'),
+	/**
+	 * Last update timestamp for offsite record.
+	 */
+	offsiteUpdatedAt: timestamp('offsite_updated_at'),
+	/**
 	 * Additional metadata for Rekognition integration
 	 * Stores match score, raw payload, face recognition data, etc.
 	 */
-	metadata: jsonb('metadata'),
+	metadata: jsonb('metadata').$type<Record<string, unknown> | null>(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()

@@ -50,7 +50,9 @@ export interface AttendanceQueryParams extends ListQueryParams {
 	/** End date for filtering records */
 	toDate?: Date;
 	/** Filter by attendance type */
-	type?: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED';
+	type?: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	/** Filter by RH offsite day classification */
+	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE';
 	/** Filter by device location ID */
 	deviceLocationId?: string;
 }
@@ -63,6 +65,14 @@ export interface AttendancePresentQueryParams extends Record<string, unknown> {
 	fromDate: Date;
 	/** End date for filtering records */
 	toDate: Date;
+	/** Optional organization filter */
+	organizationId?: string | null;
+}
+
+/**
+ * Query parameters for today offsite attendance endpoint.
+ */
+export interface AttendanceOffsiteTodayQueryParams extends Record<string, unknown> {
 	/** Optional organization filter */
 	organizationId?: string | null;
 }
@@ -447,6 +457,12 @@ export const queryKeys = {
 		 */
 		present: (params: AttendancePresentQueryParams) =>
 			queryKeyConstructor(['attendance', 'present'] as const, params),
+		/**
+		 * Generates a query key for today's offsite records.
+		 * @param params - Today offsite query parameters
+		 */
+		offsiteToday: (params: AttendanceOffsiteTodayQueryParams) =>
+			queryKeyConstructor(['attendance', 'offsiteToday'] as const, params),
 	},
 
 	/**

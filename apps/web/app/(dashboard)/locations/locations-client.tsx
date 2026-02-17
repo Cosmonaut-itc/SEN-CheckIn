@@ -739,11 +739,13 @@ export function LocationsPageClient(): React.ReactElement {
 															variant="outline"
 															role="combobox"
 															aria-expanded={isAddressOpen}
-															className="w-full justify-between text-left"
+															className="w-full justify-between overflow-hidden text-left"
 														>
-															{addressValue
-																? addressValue
-																: t('address.placeholder')}
+															<span className="min-w-0 flex-1 truncate">
+																{addressValue
+																	? addressValue
+																	: t('address.placeholder')}
+															</span>
 															<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 														</Button>
 													</PopoverTrigger>
@@ -795,6 +797,7 @@ export function LocationsPageClient(): React.ReactElement {
 																						value={
 																							suggestion.displayName
 																						}
+																						className="gap-2"
 																						onSelect={() =>
 																							handleGeocodeSelect(
 																								suggestion,
@@ -804,7 +807,7 @@ export function LocationsPageClient(): React.ReactElement {
 																						<Check
 																							className={`h-4 w-4 ${isSelected ? 'opacity-100' : 'opacity-0'}`}
 																						/>
-																						<span className="text-sm">
+																						<span className="min-w-0 flex-1 truncate text-sm">
 																							{
 																								suggestion.displayName
 																							}

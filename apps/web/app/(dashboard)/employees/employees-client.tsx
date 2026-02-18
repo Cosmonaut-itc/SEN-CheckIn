@@ -2606,7 +2606,11 @@ export function EmployeesPageClient(): React.ReactElement {
 	useEffect(() => {
 		const source = searchParams.get('source');
 		const returnEmployeeId = searchParams.get('returnEmployeeId');
-		const returnTab = parseEmployeeDetailTab(searchParams.get('returnTab')) ?? 'attendance';
+		const requestedReturnTab = parseEmployeeDetailTab(searchParams.get('returnTab'));
+		const returnTab =
+			requestedReturnTab === 'disciplinary' && !canUseDisciplinaryModule
+				? 'attendance'
+				: (requestedReturnTab ?? 'attendance');
 
 		if (
 			source !== 'attendance' ||
@@ -2628,7 +2632,14 @@ export function EmployeesPageClient(): React.ReactElement {
 		nextParams.delete('returnTab');
 		const nextQuery = nextParams.toString();
 		router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
-	}, [isOrgSelected, openEmployeeDetailById, pathname, router, searchParams]);
+	}, [
+		canUseDisciplinaryModule,
+		isOrgSelected,
+		openEmployeeDetailById,
+		pathname,
+		router,
+		searchParams,
+	]);
 
 	useEffect(() => {
 		if (searchParams.get('source') !== 'attendance') {

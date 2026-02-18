@@ -119,8 +119,10 @@ export default async function AttendancePage({
 
 	// Prefetch today's attendance records without await for streaming support
 	const now = new Date();
-	const resolvedFromDate = fromDateKey ? startOfDay(new Date(`${fromDateKey}T00:00:00`)) : startOfDay(now);
-	const resolvedToDate = toDateKey ? endOfDay(new Date(`${toDateKey}T00:00:00`)) : endOfDay(now);
+	const resolvedFromDate = fromDateKey
+		? new Date(`${fromDateKey}T00:00:00.000Z`)
+		: startOfDay(now);
+	const resolvedToDate = toDateKey ? new Date(`${toDateKey}T23:59:59.999Z`) : endOfDay(now);
 	if (orgContext.organizationId) {
 		prefetchAttendanceRecords(queryClient, {
 			limit: 10,

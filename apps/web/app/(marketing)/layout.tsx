@@ -75,8 +75,8 @@ export default async function MarketingLayout({
 			<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1000px_circle_at_top_left,var(--mk-copper-soft)_0%,transparent_60%),radial-gradient(900px_circle_at_bottom_right,var(--mk-sea-soft)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
 			<div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(90deg,rgba(12,24,28,0.18)_1px,transparent_1px),linear-gradient(180deg,rgba(12,24,28,0.18)_1px,transparent_1px)] [background-size:140px_140px] dark:opacity-[0.12]" />
 
-			<header className="relative z-20 border-b border-black/10 bg-[color:var(--mk-cream)]/85 backdrop-blur dark:border-white/10 dark:bg-[#0a1213]/85">
-				<div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4">
+			<header className="relative z-20 border-b border-black/10 bg-[color:var(--mk-cream)]/80 backdrop-blur-lg dark:border-white/10 dark:bg-[#0a1213]/80">
+				<div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
 					<Link href="/" className="flex items-center gap-4">
 						<span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--mk-ink)] text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--mk-cream)] shadow-[0_12px_30px_-18px_rgba(12,24,28,0.8)] dark:bg-[#f4efe7] dark:text-[#0a1213]">
 							{tApp('shortName')}

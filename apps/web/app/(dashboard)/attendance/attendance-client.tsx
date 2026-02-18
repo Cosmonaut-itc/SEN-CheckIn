@@ -2,6 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { EmployeeDetailTab } from '@sen-checkin/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -28,6 +29,7 @@ import {
 	RefreshCw,
 	Search,
 	Trash2,
+	X,
 } from 'lucide-react';
 import {
 	format,
@@ -49,6 +51,7 @@ import {
 } from '@/components/ui/select';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { queryKeys } from '@/lib/query-keys';
 import {
 	createWorkOffsiteAttendance,
@@ -63,6 +66,7 @@ import {
 	updateWorkOffsiteAttendance,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
+import { getUtcDayRangeFromDateKey, isValidIanaTimeZone, toDateKeyInTimeZone } from '@/lib/time-zone';
 import type {
 	ColumnDef,
 	ColumnFiltersState,
@@ -84,6 +88,30 @@ type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
 	'limit' | 'offset'
 >;
+
+/**
+ * Initial URL filters resolved on the server page.
+ */
+export interface AttendancePageInitialFilters {
+	/** Optional employee filter id */
+	employeeId?: string;
+	/** Optional start date key (YYYY-MM-DD) */
+	from?: string;
+	/** Optional end date key (YYYY-MM-DD) */
+	to?: string;
+	/** Optional source marker */
+	source?: string;
+	/** Optional employee id used for return navigation */
+	returnEmployeeId?: string;
+	/** Optional tab used for return navigation */
+	returnTab?: EmployeeDetailTab;
+	/** Optional timezone contract for deep-link date keys */
+	timeZone?: string;
+}
+
+interface AttendancePageClientProps {
+	initialFilters?: AttendancePageInitialFilters;
+}
 
 /**
  * CSV row shape for attendance exports.
@@ -172,6 +200,32 @@ function parseDateKey(dateKey: string): Date | undefined {
 }
 
 /**
+ * Validates and normalizes an optional date-key value.
+ *
+ * @param value - Candidate date key
+ * @returns Normalized date key or null when invalid
+ */
+function normalizeDateKey(value: string | undefined): string | null {
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+		return null;
+	}
+	return parseDateKey(value) ? value : null;
+}
+
+/**
+ * Resolves an optional attendance timezone from initial filters.
+ *
+ * @param value - Candidate timezone
+ * @returns Valid IANA timezone or undefined
+ */
+function resolveAttendanceTimeZone(value: string | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	return isValidIanaTimeZone(value) ? value : undefined;
+}
+
+/**
  * Escapes a value for CSV output.
  *
  * @param value - CSV cell value
@@ -257,19 +311,30 @@ async function fetchAllAttendanceRecords(
  *
  * @returns The attendance page JSX element
  */
-export function AttendancePageClient(): React.ReactElement {
+export function AttendancePageClient({
+	initialFilters,
+}: AttendancePageClientProps): React.ReactElement {
 	const { organizationId, organizationRole } = useOrgContext();
 	const queryClient = useQueryClient();
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const t = useTranslations('Attendance');
+	const initialStartDateKey =
+		normalizeDateKey(initialFilters?.from) ?? format(startOfDay(new Date()), 'yyyy-MM-dd');
+	const initialEndDateKey =
+		normalizeDateKey(initialFilters?.to) ?? format(endOfDay(new Date()), 'yyyy-MM-dd');
+	const initialDatePreset: DatePreset =
+		initialFilters?.from || initialFilters?.to ? 'custom' : 'today';
+	const initialEmployeeFilter = initialFilters?.employeeId?.trim() ?? '';
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
-	const [datePreset, setDatePreset] = useState<DatePreset>('today');
-	const [startDate, setStartDate] = useState<string>(
-		format(startOfDay(new Date()), 'yyyy-MM-dd'),
-	);
-	const [endDate, setEndDate] = useState<string>(format(endOfDay(new Date()), 'yyyy-MM-dd'));
+	const [datePreset, setDatePreset] = useState<DatePreset>(initialDatePreset);
+	const [startDate, setStartDate] = useState<string>(initialStartDateKey);
+	const [endDate, setEndDate] = useState<string>(initialEndDateKey);
+	const [employeeFilterId, setEmployeeFilterId] = useState<string>(initialEmployeeFilter);
 	const [typeFilter, setTypeFilter] = useState<AttendanceType | 'both'>('both');
 	const [offsiteDayKindFilter, setOffsiteDayKindFilter] = useState<
 		OffsiteDayKind | typeof ALL_OFFSITE_DAY_KIND_VALUE
@@ -282,6 +347,10 @@ export function AttendancePageClient(): React.ReactElement {
 	const [offsiteDayKind, setOffsiteDayKind] = useState<OffsiteDayKind>('LABORABLE');
 	const [offsiteReason, setOffsiteReason] = useState<string>('');
 	const [pendingOffsiteDeleteId, setPendingOffsiteDeleteId] = useState<string | null>(null);
+	const navigationSource = initialFilters?.source ?? null;
+	const returnEmployeeId = initialFilters?.returnEmployeeId ?? null;
+	const returnTab = initialFilters?.returnTab ?? 'attendance';
+	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
 
 	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
@@ -369,6 +438,15 @@ export function AttendancePageClient(): React.ReactElement {
 					break;
 				case 'custom':
 				default:
+					if (deepLinkTimeZone) {
+						const fallbackDateKey = toDateKeyInTimeZone(now, deepLinkTimeZone);
+						const startKey = normalizeDateKey(startDate) ?? fallbackDateKey;
+						const endKey = normalizeDateKey(endDate) ?? fallbackDateKey;
+						start = getUtcDayRangeFromDateKey(startKey, deepLinkTimeZone).startUtc;
+						end = getUtcDayRangeFromDateKey(endKey, deepLinkTimeZone).endUtc;
+						break;
+					}
+
 					// Ensure we always have valid dates even if inputs are empty.
 					const startValue = startDate ? new Date(startDate) : now;
 					const endValue = endDate ? new Date(endDate) : now;
@@ -379,7 +457,7 @@ export function AttendancePageClient(): React.ReactElement {
 
 			return { start, end };
 		},
-		[startDate, endDate],
+		[startDate, endDate, deepLinkTimeZone],
 	);
 
 	// Get the current date range for the query
@@ -404,6 +482,7 @@ export function AttendancePageClient(): React.ReactElement {
 	};
 	const queryParams = {
 		...baseParams,
+		...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
 		...(typeFilter !== 'both' ? { type: typeFilter } : {}),
 		...(normalizedOffsiteDayKind ? { offsiteDayKind: normalizedOffsiteDayKind } : {}),
 		...(normalizedSearch ? { search: normalizedSearch } : {}),
@@ -466,7 +545,24 @@ export function AttendancePageClient(): React.ReactElement {
 		},
 		enabled: Boolean(organizationId) && canManageOffsite,
 	});
-	const activeEmployees = activeEmployeesQuery.data ?? [];
+	const activeEmployees = useMemo(
+		() => activeEmployeesQuery.data ?? [],
+		[activeEmployeesQuery.data],
+	);
+	const employeeFilterLabel = useMemo(() => {
+		if (!employeeFilterId) {
+			return null;
+		}
+
+		const employeeMatch = activeEmployees.find((employee) => employee.id === employeeFilterId);
+		if (employeeMatch) {
+			return `${employeeMatch.firstName} ${employeeMatch.lastName}`.trim();
+		}
+
+		return t('employeeFilter.fallback', {
+			id: employeeFilterId.slice(0, 8),
+		});
+	}, [activeEmployees, employeeFilterId, t]);
 
 	const createOffsiteMutation = useMutation({
 		mutationKey: ['attendance', 'offsite', 'create'],
@@ -732,6 +828,38 @@ export function AttendancePageClient(): React.ReactElement {
 		[handleColumnFiltersChange],
 	);
 
+	/**
+	 * Removes the fixed employee filter applied from URL context.
+	 *
+	 * @returns void
+	 */
+	const handleRemoveEmployeeFilter = useCallback((): void => {
+		setEmployeeFilterId('');
+		resetPagination();
+
+		const nextParams = new URLSearchParams(searchParams.toString());
+		nextParams.delete('employeeId');
+		const nextQuery = nextParams.toString();
+		router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+	}, [pathname, resetPagination, router, searchParams]);
+
+	/**
+	 * Navigates back to the employee detail context when available.
+	 *
+	 * @returns void
+	 */
+	const handleReturnToEmployees = useCallback((): void => {
+		if (!returnEmployeeId) {
+			return;
+		}
+
+		const params = new URLSearchParams();
+		params.set('source', 'attendance');
+		params.set('returnEmployeeId', returnEmployeeId);
+		params.set('returnTab', returnTab);
+		router.push(`/employees?${params.toString()}`);
+	}, [returnEmployeeId, returnTab, router]);
+
 	const locationFallback = t('table.placeholders.noLocation');
 
 	const columns = useMemo<ColumnDef<AttendanceRecord>[]>(
@@ -890,6 +1018,7 @@ export function AttendancePageClient(): React.ReactElement {
 				fromDate: start,
 				toDate: end,
 				organizationId,
+				...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
 				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
 				...(normalizedOffsiteDayKind ? { offsiteDayKind: normalizedOffsiteDayKind } : {}),
 				...(normalizedSearch ? { search: normalizedSearch } : {}),
@@ -938,6 +1067,7 @@ export function AttendancePageClient(): React.ReactElement {
 		}
 	}, [
 		deviceLocationId,
+		employeeFilterId,
 		end,
 		locationFallback,
 		normalizedOffsiteDayKind,
@@ -965,6 +1095,11 @@ export function AttendancePageClient(): React.ReactElement {
 					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 				<div className="flex items-center gap-2">
+					{navigationSource === 'employee-dialog' && returnEmployeeId ? (
+						<Button variant="outline" onClick={handleReturnToEmployees}>
+							{t('actions.returnToEmployee')}
+						</Button>
+					) : null}
 					{canManageOffsite && (
 						<Button onClick={openCreateOffsiteDialog}>
 							<Plus className="mr-2 h-4 w-4" />
@@ -987,6 +1122,23 @@ export function AttendancePageClient(): React.ReactElement {
 			</div>
 
 			<div className="flex flex-wrap items-center gap-4">
+				{employeeFilterId && employeeFilterLabel ? (
+					<Badge
+						variant="secondary"
+						className="flex items-center gap-2 rounded-full px-3 py-1"
+					>
+						<span>{t('employeeFilter.label', { employee: employeeFilterLabel })}</span>
+						<button
+							type="button"
+							onClick={handleRemoveEmployeeFilter}
+							className="rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							aria-label={t('employeeFilter.remove')}
+						>
+							<X className="h-3.5 w-3.5" />
+						</button>
+					</Badge>
+				) : null}
+
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input

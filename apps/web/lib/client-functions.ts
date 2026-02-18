@@ -2012,6 +2012,7 @@ export async function fetchAttendanceRecords(
 	const query: {
 		limit: number;
 		offset: number;
+		employeeId?: string;
 		fromDate?: Date;
 		toDate?: Date;
 		type?: AttendanceType;
@@ -2029,6 +2030,10 @@ export async function fetchAttendanceRecords(
 	// Only add type if it's a valid enum value (not undefined)
 	if (params?.type) {
 		query.type = params.type;
+	}
+
+	if (params?.employeeId) {
+		query.employeeId = params.employeeId;
 	}
 
 	if (params?.offsiteDayKind) {

@@ -88,7 +88,9 @@ import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm, useStore } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
+import { cn } from '@/lib/utils';
 import type {
+	EmployeeDetailTab,
 	EmployeeTerminationSettlement,
 	EmploymentContractType,
 	TerminationReason,
@@ -119,9 +121,10 @@ import {
 	UserX,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 /**
@@ -763,21 +766,74 @@ const contractTypeOptions: { value: EmploymentContractType; labelKey: string }[]
 ];
 
 const ALL_FILTER_VALUE = '__all__';
+const SHOULD_LOG_TAB_TELEMETRY = process.env.NODE_ENV === 'development';
 
 type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
-type EmployeeDetailTab =
-	| 'documents'
-	| 'disciplinary'
-	| 'summary'
-	| 'attendance'
-	| 'vacations'
-	| 'payroll'
-	| 'ptu'
-	| 'finiquito'
-	| 'exceptions'
-	| 'audit';
+
+const PRIMARY_DETAIL_TABS: EmployeeDetailTab[] = [
+	'summary',
+	'attendance',
+	'vacations',
+	'documents',
+];
+const SECONDARY_DETAIL_TABS: EmployeeDetailTab[] = [
+	'payroll',
+	'ptu',
+	'finiquito',
+	'exceptions',
+	'audit',
+];
+const INSIGHTS_DETAIL_TABS = new Set<EmployeeDetailTab>([
+	'summary',
+	'attendance',
+	'vacations',
+	'payroll',
+	'exceptions',
+]);
+const VALID_DETAIL_TABS = new Set<EmployeeDetailTab>([
+	'documents',
+	'disciplinary',
+	'summary',
+	'attendance',
+	'vacations',
+	'payroll',
+	'ptu',
+	'finiquito',
+	'exceptions',
+	'audit',
+]);
+
+/**
+ * Parses a tab candidate from URL/query input.
+ *
+ * @param value - Candidate tab string
+ * @returns Valid detail tab or null
+ */
+function parseEmployeeDetailTab(value: string | null | undefined): EmployeeDetailTab | null {
+	if (!value) {
+		return null;
+	}
+	return VALID_DETAIL_TABS.has(value as EmployeeDetailTab)
+		? (value as EmployeeDetailTab)
+		: null;
+}
+
+/**
+ * Formats a YYYY-MM month key with localized label.
+ *
+ * @param monthKey - Month key in YYYY-MM format
+ * @returns Human-readable month label
+ */
+function formatMonthLabel(monthKey: string): string {
+	const monthDate = new Date(`${monthKey}-01T00:00:00Z`);
+	return monthDate.toLocaleDateString('es-MX', {
+		month: 'long',
+		year: 'numeric',
+		timeZone: 'UTC',
+	});
+}
 
 /**
  * Generates a default Monday-Friday schedule 09:00-17:00.
@@ -926,6 +982,9 @@ const EMPTY_EMPLOYEES: Employee[] = [];
  */
 export function EmployeesPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
+	const router = useRouter();
+	const pathname = usePathname();
+	const searchParams = useSearchParams();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
@@ -941,6 +1000,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [dialogMode, setDialogMode] = useState<EmployeeDialogMode>('create');
 	const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
 	const [detailTab, setDetailTab] = useState<EmployeeDetailTab>('summary');
+	const [visitedDetailTabs, setVisitedDetailTabs] = useState<
+		Partial<Record<EmployeeDetailTab, boolean>>
+	>({ summary: true });
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
 	const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState<boolean>(false);
@@ -963,10 +1025,230 @@ export function EmployeesPageClient(): React.ReactElement {
 	);
 	const [ptuHistoryYearInput, setPtuHistoryYearInput] = useState<string>('');
 	const [ptuHistoryAmountInput, setPtuHistoryAmountInput] = useState<string>('');
+	const tabScrollByIdRef = useRef<Partial<Record<EmployeeDetailTab, number>>>({});
+	const tabContainerByIdRef = useRef<Partial<Record<EmployeeDetailTab, HTMLDivElement | null>>>(
+		{},
+	);
+	const tabSwitchStartRef = useRef<number | null>(null);
+	const hasProcessedReturnContextRef = useRef<boolean>(false);
 
 	const isCreateMode = dialogMode === 'create';
 	const isEditMode = dialogMode === 'edit';
 	const isViewMode = dialogMode === 'view';
+
+	/**
+	 * Marks a tab as visited for lazy-mount keep-alive behavior.
+	 *
+	 * @param tab - Detail tab to mark as visited
+	 * @returns void
+	 */
+	const markTabAsVisited = useCallback((tab: EmployeeDetailTab): void => {
+		setVisitedDetailTabs((prev) => {
+			if (prev[tab]) {
+				return prev;
+			}
+			return { ...prev, [tab]: true };
+		});
+	}, []);
+
+	/**
+	 * Emits technical telemetry for tab switch timings.
+	 *
+	 * @param tab - Target tab
+	 * @returns void
+	 */
+	const emitTabSwitchTelemetry = useCallback((tab: EmployeeDetailTab): void => {
+		if (!SHOULD_LOG_TAB_TELEMETRY) {
+			return;
+		}
+		tabSwitchStartRef.current = performance.now();
+		console.info('[SEN_TELEMETRY] tab_switch_start', { tab });
+
+		requestAnimationFrame(() => {
+			requestAnimationFrame(() => {
+				const paintedAt = performance.now();
+				console.info('[SEN_TELEMETRY] tab_content_painted', { tab });
+				if (tabSwitchStartRef.current === null) {
+					return;
+				}
+				const duration = paintedAt - tabSwitchStartRef.current;
+				console.info('[SEN_TELEMETRY] tab_switch_duration', {
+					tab,
+					durationMs: Number(duration.toFixed(2)),
+				});
+			});
+		});
+	}, []);
+
+	/**
+	 * Handles detail-tab changes with keep-alive and telemetry.
+	 *
+	 * @param nextValue - Next tab value from the tabs control
+	 * @returns void
+	 */
+	const handleDetailTabChange = useCallback(
+		(nextValue: string): void => {
+			const nextTab = nextValue as EmployeeDetailTab;
+			const currentContainer = tabContainerByIdRef.current[detailTab];
+			if (currentContainer) {
+				tabScrollByIdRef.current[detailTab] = currentContainer.scrollTop;
+			}
+
+			setDetailTab(nextTab);
+			markTabAsVisited(nextTab);
+			emitTabSwitchTelemetry(nextTab);
+		},
+		[detailTab, emitTabSwitchTelemetry, markTabAsVisited],
+	);
+	const tabScrollContainerCallbacks = useMemo<
+		Record<EmployeeDetailTab, (node: HTMLDivElement | null) => void>
+	>(
+		() => ({
+			documents: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.documents = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.documents ?? 0;
+			},
+			disciplinary: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.disciplinary = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.disciplinary ?? 0;
+			},
+			summary: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.summary = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.summary ?? 0;
+			},
+			attendance: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.attendance = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.attendance ?? 0;
+			},
+			vacations: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.vacations = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.vacations ?? 0;
+			},
+			payroll: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.payroll = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.payroll ?? 0;
+			},
+			ptu: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.ptu = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.ptu ?? 0;
+			},
+			finiquito: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.finiquito = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.finiquito ?? 0;
+			},
+			exceptions: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.exceptions = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.exceptions ?? 0;
+			},
+			audit: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.audit = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.audit ?? 0;
+			},
+		}),
+		[],
+	);
+	const tabScrollCallbacks = useMemo<
+		Record<EmployeeDetailTab, (event: React.UIEvent<HTMLDivElement>) => void>
+	>(
+		() => ({
+			documents: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.documents = event.currentTarget.scrollTop;
+			},
+			disciplinary: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.disciplinary = event.currentTarget.scrollTop;
+			},
+			summary: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.summary = event.currentTarget.scrollTop;
+			},
+			attendance: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.attendance = event.currentTarget.scrollTop;
+			},
+			vacations: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.vacations = event.currentTarget.scrollTop;
+			},
+			payroll: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.payroll = event.currentTarget.scrollTop;
+			},
+			ptu: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.ptu = event.currentTarget.scrollTop;
+			},
+			finiquito: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.finiquito = event.currentTarget.scrollTop;
+			},
+			exceptions: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.exceptions = event.currentTarget.scrollTop;
+			},
+			audit: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.audit = event.currentTarget.scrollTop;
+			},
+		}),
+		[],
+	);
+
+	/**
+	 * Registers a tab scroll container for scroll-position persistence.
+	 *
+	 * @param tab - Tab identifier
+	 * @returns Ref callback
+	 */
+	const registerTabScrollContainer = useCallback(
+		(tab: EmployeeDetailTab): ((node: HTMLDivElement | null) => void) =>
+			tabScrollContainerCallbacks[tab],
+		[tabScrollContainerCallbacks],
+	);
+
+	/**
+	 * Stores scroll position for a tab panel.
+	 *
+	 * @param tab - Tab identifier
+	 * @returns Scroll handler
+	 */
+	const handleTabScroll = useCallback(
+		(tab: EmployeeDetailTab): ((event: React.UIEvent<HTMLDivElement>) => void) =>
+			tabScrollCallbacks[tab],
+		[tabScrollCallbacks],
+	);
+
+	/**
+	 * Determines whether a tab panel should be rendered and kept alive.
+	 *
+	 * @param tab - Tab identifier
+	 * @returns True when tab was visited
+	 */
+	const isTabVisited = useCallback(
+		(tab: EmployeeDetailTab): boolean => Boolean(visitedDetailTabs[tab]),
+		[visitedDetailTabs],
+	);
 	const ptuAguinaldoOptionHelp = useMemo<
 		{ key: string; label: string; description: string }[]
 	>(
@@ -1060,6 +1342,13 @@ export function EmployeesPageClient(): React.ReactElement {
 	});
 	const isDisciplinaryEnabled = Boolean(payrollSettings?.enableDisciplinaryMeasures);
 	const canUseDisciplinaryModule = canAccessDisciplinary && isDisciplinaryEnabled;
+	const secondaryDetailTabs = useMemo<EmployeeDetailTab[]>(
+		() =>
+			canUseDisciplinaryModule
+				? ([...SECONDARY_DETAIL_TABS, 'disciplinary'] as EmployeeDetailTab[])
+				: [...SECONDARY_DETAIL_TABS],
+		[canUseDisciplinaryModule],
+	);
 
 	// Query for employees list
 	const { data, isFetching } = useQuery({
@@ -1146,12 +1435,25 @@ export function EmployeesPageClient(): React.ReactElement {
 	);
 	const locations: Location[] = locationsData?.data ?? EMPTY_LOCATIONS;
 	const members: OrganizationMember[] = membersData?.members ?? EMPTY_MEMBERS;
-
-	const insightsEnabled = Boolean(activeEmployee?.id) && isDialogOpen && !isCreateMode;
-	const { data: insights, isLoading: isLoadingInsights } = useQuery({
+	const shouldFetchInsights =
+		Boolean(activeEmployee?.id) &&
+		isDialogOpen &&
+		isViewMode &&
+		Object.entries(visitedDetailTabs).some(
+			([tab, visited]) => visited && INSIGHTS_DETAIL_TABS.has(tab as EmployeeDetailTab),
+		);
+	const { data: insights, isLoading: isLoadingInsights, error: insightsError, refetch: refetchInsights } = useQuery({
 		queryKey: queryKeys.employees.insights(activeEmployee?.id ?? ''),
-		queryFn: () => fetchEmployeeInsights(activeEmployee?.id ?? ''),
-		enabled: insightsEnabled,
+		queryFn: async () => {
+			const response = await fetchEmployeeInsights(activeEmployee?.id ?? '');
+			if (!response) {
+				throw new Error('Failed to fetch employee insights');
+			}
+			return response;
+		},
+		enabled: shouldFetchInsights,
+		retry: 1,
+		staleTime: 60_000,
 	});
 
 	const terminationSettlementEnabled =
@@ -1173,17 +1475,26 @@ export function EmployeesPageClient(): React.ReactElement {
 		}),
 		[activeEmployee?.id],
 	);
-	const { data: auditResponse, isLoading: isLoadingAudit } = useQuery({
+	const shouldFetchAudit =
+		Boolean(activeEmployee?.id) && isDialogOpen && isViewMode && Boolean(visitedDetailTabs.audit);
+	const { data: auditResponse, isLoading: isLoadingAudit, error: auditError, refetch: refetchAudit } = useQuery({
 		queryKey: queryKeys.employees.audit(auditParams),
 		queryFn: () => fetchEmployeeAudit(auditParams),
-		enabled: Boolean(activeEmployee?.id) && isDialogOpen && isViewMode,
+		enabled: shouldFetchAudit,
+		retry: 1,
+		staleTime: 60_000,
 	});
 
-	const ptuHistoryEnabled = Boolean(activeEmployee?.id) && isDialogOpen;
-	const { data: ptuHistoryData, isLoading: isLoadingPtuHistory } = useQuery({
+	const shouldFetchPtuHistory =
+		Boolean(activeEmployee?.id) &&
+		isDialogOpen &&
+		(isEditMode || (isViewMode && Boolean(visitedDetailTabs.ptu)));
+	const { data: ptuHistoryData, isLoading: isLoadingPtuHistory, error: ptuHistoryError, refetch: refetchPtuHistory } = useQuery({
 		queryKey: queryKeys.ptu.history(activeEmployee?.id ?? ''),
 		queryFn: () => fetchEmployeePtuHistory(activeEmployee?.id ?? ''),
-		enabled: ptuHistoryEnabled,
+		enabled: shouldFetchPtuHistory,
+		retry: 1,
+		staleTime: 60_000,
 	});
 
 	const memberOptions = useMemo(() => {
@@ -1662,10 +1973,44 @@ export function EmployeesPageClient(): React.ReactElement {
 	const vacationBalance = insights?.vacation.balance ?? null;
 	const vacationRequests = insights?.vacation.requests ?? [];
 	const attendanceSummary = insights?.attendance ?? null;
+	const attendanceKpis = attendanceSummary?.kpis ?? null;
+	const attendanceTrend30d = attendanceSummary?.trend30d ?? [];
+	const absenceMonthGroups = attendanceSummary?.absencesByMonth ?? [];
+	const leavesMonthGroups = attendanceSummary?.leavesByMonth ?? [];
 	const leaveItems = insights?.leaves.items ?? [];
 	const upcomingExceptions = insights?.exceptions.items ?? [];
 	const payrollRuns = insights?.payroll.runs ?? [];
 	const auditEvents = auditResponse?.data ?? [];
+	const activeEmployeeId = activeEmployee?.id ?? null;
+	const attendanceRangeStartDateKey = attendanceSummary?.rangeStartDateKey ?? null;
+	const attendanceRangeEndDateKey = attendanceSummary?.rangeEndDateKey ?? null;
+	const attendanceTimeZone = insights?.timeZone ?? null;
+	const attendanceCurrentMonthKey = insights?.asOfDateKey.slice(0, 7) ?? '';
+	const attendanceDrilldownHref = useMemo<string | null>(() => {
+		if (
+			!activeEmployeeId ||
+			!attendanceRangeStartDateKey ||
+			!attendanceRangeEndDateKey ||
+			!attendanceTimeZone
+		) {
+			return null;
+		}
+
+		const params = new URLSearchParams();
+		params.set('employeeId', activeEmployeeId);
+		params.set('from', attendanceRangeStartDateKey);
+		params.set('to', attendanceRangeEndDateKey);
+		params.set('source', 'employee-dialog');
+		params.set('returnEmployeeId', activeEmployeeId);
+		params.set('returnTab', 'attendance');
+		params.set('timeZone', attendanceTimeZone);
+		return `/attendance?${params.toString()}`;
+	}, [
+		activeEmployeeId,
+		attendanceRangeEndDateKey,
+		attendanceRangeStartDateKey,
+		attendanceTimeZone,
+	]);
 	const ptuHistory = useMemo<PtuHistoryRecord[]>(
 		() =>
 			(ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),
@@ -2048,6 +2393,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				setDialogMode('create');
 				setActiveEmployee(null);
 				setDetailTab('summary');
+				setVisitedDetailTabs({ summary: true });
 				form.reset();
 				return;
 			} else if (isCreateMode) {
@@ -2096,6 +2442,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						setActiveEmployee(createdEmployee);
 						setDialogMode('view');
 						setDetailTab('documents');
+						setVisitedDetailTabs({ documents: true });
 						setPtuHistoryYearInput('');
 						setPtuHistoryAmountInput('');
 						setHasCustomCode(false);
@@ -2110,6 +2457,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				setDialogMode('create');
 				setActiveEmployee(null);
 				setDetailTab('summary');
+				setVisitedDetailTabs({ summary: true });
 				form.reset();
 				return;
 			}
@@ -2217,6 +2565,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		setDialogMode('create');
 		setActiveEmployee(null);
 		setDetailTab('summary');
+		setVisitedDetailTabs({ summary: true });
 		form.reset();
 		setHasCustomCode(false);
 		setSchedule(createDefaultSchedule());
@@ -2237,6 +2586,8 @@ export function EmployeesPageClient(): React.ReactElement {
 			setActiveEmployee(employee);
 			setDialogMode('view');
 			setDetailTab(tab);
+			// Reset keep-alive state per dialog session; mount only the entry tab first.
+			setVisitedDetailTabs({ [tab]: true });
 			setPtuHistoryYearInput('');
 			setPtuHistoryAmountInput('');
 			setIsDialogOpen(true);
@@ -2263,6 +2614,50 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		[openEmployeeDetailTab, t],
 	);
+
+	useEffect(() => {
+		const source = searchParams.get('source');
+		const returnEmployeeId = searchParams.get('returnEmployeeId');
+		const requestedReturnTab = parseEmployeeDetailTab(searchParams.get('returnTab'));
+		const returnTab =
+			requestedReturnTab === 'disciplinary' && !canUseDisciplinaryModule
+				? 'attendance'
+				: (requestedReturnTab ?? 'attendance');
+
+		if (
+			source !== 'attendance' ||
+			!returnEmployeeId ||
+			hasProcessedReturnContextRef.current ||
+			!isOrgSelected
+		) {
+			return;
+		}
+
+		hasProcessedReturnContextRef.current = true;
+		window.setTimeout(() => {
+			void openEmployeeDetailById(returnEmployeeId, returnTab);
+		}, 0);
+
+		const nextParams = new URLSearchParams(searchParams.toString());
+		nextParams.delete('source');
+		nextParams.delete('returnEmployeeId');
+		nextParams.delete('returnTab');
+		const nextQuery = nextParams.toString();
+		router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, { scroll: false });
+	}, [
+		canUseDisciplinaryModule,
+		isOrgSelected,
+		openEmployeeDetailById,
+		pathname,
+		router,
+		searchParams,
+	]);
+
+	useEffect(() => {
+		if (searchParams.get('source') !== 'attendance') {
+			hasProcessedReturnContextRef.current = false;
+		}
+	}, [searchParams]);
 
 	/**
 	 * Opens the dialog for viewing employee details.
@@ -2359,6 +2754,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			}
 			setIsScheduleLoading(false);
 			setDetailTab('summary');
+			setVisitedDetailTabs({ summary: true });
 			setIsDialogOpen(true);
 		},
 		[
@@ -2391,6 +2787,9 @@ export function EmployeesPageClient(): React.ReactElement {
 				setDialogMode('create');
 				setActiveEmployee(null);
 				setDetailTab('summary');
+				setVisitedDetailTabs({ summary: true });
+				tabScrollByIdRef.current = {};
+				tabContainerByIdRef.current = {};
 				form.reset();
 				setHasCustomCode(false);
 				setSchedule(createDefaultSchedule());
@@ -2399,6 +2798,17 @@ export function EmployeesPageClient(): React.ReactElement {
 		},
 		[form, resetTerminationState],
 	);
+
+	useEffect(() => {
+		if (!isDialogOpen || !isViewMode) {
+			return;
+		}
+
+		const activeContainer = tabContainerByIdRef.current[detailTab];
+		if (activeContainer) {
+			activeContainer.scrollTop = tabScrollByIdRef.current[detailTab] ?? 0;
+		}
+	}, [detailTab, isDialogOpen, isViewMode]);
 
 	/**
 	 * Handles employee deletion.
@@ -2820,8 +3230,8 @@ export function EmployeesPageClient(): React.ReactElement {
 							{t('actions.addEmployee')}
 						</Button>
 					</DialogTrigger>
-					<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl lg:max-w-6xl">
-						<DialogHeader>
+					<DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl sm:rounded-lg sm:border sm:p-0 lg:max-w-6xl">
+						<DialogHeader className="shrink-0 border-b px-6 py-4">
 							<DialogTitle>
 								{isCreateMode
 									? t('dialog.title.add')
@@ -2837,8 +3247,9 @@ export function EmployeesPageClient(): React.ReactElement {
 										: t('dialog.description.view')}
 							</DialogDescription>
 						</DialogHeader>
-						{isViewMode ? (
-							<div className="space-y-6 py-4">
+						<div className="min-h-0 flex-1 overflow-hidden px-4 pb-4 sm:px-6 sm:pb-6">
+							{isViewMode ? (
+							<div className="flex h-full min-h-0 flex-col space-y-4 pt-4">
 								<div className="rounded-md border p-4">
 									<div className="flex flex-wrap items-start justify-between gap-4">
 										<div className="space-y-1">
@@ -2967,71 +3378,113 @@ export function EmployeesPageClient(): React.ReactElement {
 
 								<Tabs
 									value={detailTab}
-									onValueChange={(value) =>
-										setDetailTab(value as EmployeeDetailTab)
-									}
-									className="w-full"
+									onValueChange={handleDetailTabChange}
+									className="flex min-h-0 flex-1 flex-col"
 								>
-									<TabsList className="flex flex-wrap">
-										<TabsTrigger value="documents">
-											{t('tabs.documents')}
-										</TabsTrigger>
-										{canUseDisciplinaryModule ? (
-											<TabsTrigger value="disciplinary">
-												{t('tabs.disciplinary')}
+									<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+										{PRIMARY_DETAIL_TABS.map((tab) => (
+											<TabsTrigger
+												key={tab}
+												value={tab}
+												onFocus={() => markTabAsVisited(tab)}
+											>
+												{t(`tabs.${tab}`)}
 											</TabsTrigger>
-										) : null}
-										<TabsTrigger value="summary">
-											{t('tabs.summary')}
-										</TabsTrigger>
-										<TabsTrigger value="attendance">
-											{t('tabs.attendance')}
-										</TabsTrigger>
-										<TabsTrigger value="vacations">
-											{t('tabs.vacations')}
-										</TabsTrigger>
-										<TabsTrigger value="payroll">
-											{t('tabs.payroll')}
-										</TabsTrigger>
-										<TabsTrigger value="ptu">{t('tabs.ptu')}</TabsTrigger>
-										<TabsTrigger value="finiquito">
-											{t('tabs.finiquito')}
-										</TabsTrigger>
-										<TabsTrigger value="exceptions">
-											{t('tabs.exceptions')}
-										</TabsTrigger>
-										<TabsTrigger value="audit">{t('tabs.audit')}</TabsTrigger>
+										))}
+										<DropdownMenu>
+											<DropdownMenuTrigger asChild>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="h-8 px-2"
+													aria-label={t('tabs.moreAriaLabel')}
+												>
+													{t('tabs.more')}
+												</Button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent align="end">
+												{secondaryDetailTabs.map((tab) => (
+													<DropdownMenuItem
+														key={tab}
+														onSelect={() => {
+															handleDetailTabChange(tab);
+														}}
+														className={cn(
+															detailTab === tab &&
+																'bg-muted font-medium',
+														)}
+													>
+														{t(`tabs.${tab}`)}
+													</DropdownMenuItem>
+												))}
+											</DropdownMenuContent>
+										</DropdownMenu>
 									</TabsList>
 
-									<TabsContent value="documents">
-										{activeEmployee?.id ? (
-											<EmployeeDocumentsTab employeeId={activeEmployee.id} />
-										) : (
-											<Card>
-												<CardContent className="py-8 text-sm text-muted-foreground">
-													{t('documents.empty')}
-												</CardContent>
-											</Card>
-										)}
+									<TabsContent
+										value="documents"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'documents' && 'hidden')}
+									>
+										{isTabVisited('documents') ? (
+											<div
+												ref={registerTabScrollContainer('documents')}
+												onScroll={handleTabScroll('documents')}
+												className="h-full overflow-y-auto pt-4"
+											>
+												{activeEmployee?.id ? (
+													<EmployeeDocumentsTab employeeId={activeEmployee.id} />
+												) : (
+													<Card>
+														<CardContent className="py-8 text-sm text-muted-foreground">
+															{t('documents.empty')}
+														</CardContent>
+													</Card>
+												)}
+											</div>
+										) : null}
 									</TabsContent>
 
 									{canUseDisciplinaryModule ? (
-										<TabsContent value="disciplinary">
-											{activeEmployee?.id ? (
-												<EmployeeDisciplinaryMeasuresTab
-													employeeId={activeEmployee.id}
-												/>
-											) : (
-												<Card>
-													<CardContent className="py-8 text-sm text-muted-foreground">
-														{t('disciplinary.empty')}
-													</CardContent>
-												</Card>
-											)}
+										<TabsContent
+											value="disciplinary"
+											forceMount
+											className={cn('mt-0 min-h-0 flex-1', detailTab !== 'disciplinary' && 'hidden')}
+										>
+											{isTabVisited('disciplinary') ? (
+												<div
+													ref={registerTabScrollContainer('disciplinary')}
+													onScroll={handleTabScroll('disciplinary')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													{activeEmployee?.id ? (
+														<EmployeeDisciplinaryMeasuresTab
+															employeeId={activeEmployee.id}
+														/>
+													) : (
+														<Card>
+															<CardContent className="py-8 text-sm text-muted-foreground">
+																{t('disciplinary.empty')}
+															</CardContent>
+														</Card>
+													)}
+												</div>
+											) : null}
 										</TabsContent>
 									) : null}
 
-									<TabsContent value="summary">
+									<TabsContent
+										value="summary"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'summary' && 'hidden')}
+									>
+										{isTabVisited('summary') ? (
+											<div
+												ref={registerTabScrollContainer('summary')}
+												onScroll={handleTabScroll('summary')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 											<Card>
 												<CardHeader className="flex-row items-center justify-between space-y-0">
@@ -3238,97 +3691,293 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="attendance">
-										<div className="grid gap-4 lg:grid-cols-2">
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('attendance.absencesTitle')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<div className="space-y-2">
-															<Skeleton className="h-4 w-32" />
-															<Skeleton className="h-4 w-24" />
-															<Skeleton className="h-4 w-28" />
-														</div>
-													) : attendanceSummary &&
-													  attendanceSummary.absentDateKeys.length >
-															0 ? (
-														<ul className="space-y-2 text-sm">
-															{attendanceSummary.absentDateKeys.map(
-																(dateKey) => (
-																	<li
-																		key={dateKey}
-																		className="flex items-center justify-between"
-																	>
-																		<span className="font-medium">
-																			{formatShortDateUtc(
-																				toUtcDate(dateKey),
-																			)}
-																		</span>
-																		<span className="text-xs text-muted-foreground">
-																			{dateKey}
-																		</span>
-																	</li>
-																),
-															)}
-														</ul>
-													) : (
-														<p className="text-sm text-muted-foreground">
-															{t('attendance.emptyAbsences')}
+									<TabsContent
+										value="attendance"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'attendance' && 'hidden')}
+									>
+										{isTabVisited('attendance') ? (
+											<div
+												ref={registerTabScrollContainer('attendance')}
+												onScroll={handleTabScroll('attendance')}
+												className="h-full overflow-y-auto pt-4"
+											>
+												<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+													<div>
+														<p className="text-sm font-medium">
+															{t('attendance.title')}
 														</p>
-													)}
-												</CardContent>
-											</Card>
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('attendance.leavesTitle')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<div className="space-y-2">
-															<Skeleton className="h-4 w-32" />
-															<Skeleton className="h-4 w-24" />
-															<Skeleton className="h-4 w-28" />
-														</div>
-													) : leaveItems.length > 0 ? (
-														<ul className="space-y-2 text-sm">
-															{leaveItems.map((item) => (
-																<li
-																	key={item.id}
-																	className="flex flex-col gap-1"
-																>
-																	<span className="font-medium">
-																		{formatShortDateUtc(
-																			toUtcDate(item.dateKey),
-																		)}
-																	</span>
-																	<span className="text-xs text-muted-foreground">
-																		{item.reason ??
-																			t(
-																				'attendance.noReason',
-																			)}
-																	</span>
-																</li>
-															))}
-														</ul>
-													) : (
-														<p className="text-sm text-muted-foreground">
-															{t('attendance.emptyLeaves')}
+														<p className="text-xs text-muted-foreground">
+															{t('attendance.subtitle')}
 														</p>
-													)}
-												</CardContent>
-											</Card>
-										</div>
+													</div>
+													{attendanceDrilldownHref ? (
+														<Button variant="outline" asChild>
+															<Link href={attendanceDrilldownHref}>
+																{t('attendance.viewInAttendance')}
+															</Link>
+														</Button>
+													) : null}
+												</div>
+
+												{insightsError ? (
+													<Card>
+														<CardContent className="flex items-center justify-between gap-3 py-6">
+															<p className="text-sm text-muted-foreground">
+																{t('attendance.partialError')}
+															</p>
+															<Button variant="outline" onClick={() => void refetchInsights()}>
+																{tCommon('retry')}
+															</Button>
+														</CardContent>
+													</Card>
+												) : (
+													<div className="space-y-4">
+														<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+															<Card>
+																<CardHeader className="pb-2">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.kpis.currentStreak')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-7 w-20" />
+																	) : (
+																		<p className="text-2xl font-semibold">
+																			{attendanceKpis?.absenceStreakCurrentDays ?? 0}
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+															<Card>
+																<CardHeader className="pb-2">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.kpis.unjustified30d')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-7 w-20" />
+																	) : (
+																		<p className="text-2xl font-semibold">
+																			{attendanceKpis?.unjustifiedAbsences30d ?? 0}
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+															<Card>
+																<CardHeader className="pb-2">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.kpis.attendanceRate30d')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-7 w-20" />
+																	) : (
+																		<p className="text-2xl font-semibold">
+																			{(attendanceKpis?.attendanceRate30d ?? 0).toFixed(1)}%
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+															<Card>
+																<CardHeader className="pb-2">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.kpis.justified90d')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-7 w-20" />
+																	) : (
+																		<p className="text-2xl font-semibold">
+																			{attendanceKpis?.justifiedLeaves90d ?? 0}
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+														</div>
+
+														<Card>
+															<CardHeader className="pb-2">
+																<CardTitle className="text-sm font-medium">
+																	{t('attendance.trendTitle')}
+																</CardTitle>
+															</CardHeader>
+															<CardContent>
+																{isLoadingInsights ? (
+																	<Skeleton className="h-12 w-full" />
+																) : attendanceTrend30d.length > 0 ? (
+																	<div className="flex items-end gap-1">
+																		{attendanceTrend30d.map((point) => (
+																			<span
+																				key={point.dateKey}
+																				title={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
+																				aria-label={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
+																				className={cn(
+																					'h-8 w-2 rounded-sm',
+																					point.status === 'PRESENT' && 'bg-emerald-500',
+																					point.status === 'ABSENT' && 'bg-destructive',
+																					point.status === 'LEAVE' && 'bg-amber-500',
+																					point.status === 'DAY_OFF' && 'bg-muted-foreground/40',
+																				)}
+																			/>
+																		))}
+																	</div>
+																) : (
+																	<p className="text-sm text-muted-foreground">
+																		{tCommon('notAvailable')}
+																	</p>
+																)}
+															</CardContent>
+														</Card>
+
+														<div className="grid gap-4 lg:grid-cols-2">
+															<Card>
+																<CardHeader className="min-h-16 pb-3">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.absencesTitle')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent className="min-h-[18rem]">
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-24 w-full" />
+																	) : absenceMonthGroups.length > 0 ? (
+																		<Accordion
+																			type="single"
+																			collapsible
+																			defaultValue={attendanceCurrentMonthKey}
+																			className="w-full"
+																		>
+																			{absenceMonthGroups.map((group) => (
+																				<AccordionItem
+																					key={group.monthKey}
+																					value={group.monthKey}
+																				>
+																					<AccordionTrigger className="items-center gap-3 text-sm">
+																						<span className="flex-1 text-left capitalize">
+																							{formatMonthLabel(group.monthKey)}
+																						</span>
+																						<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
+																							{group.totalDays}
+																						</span>
+																					</AccordionTrigger>
+																					<AccordionContent>
+																						<ul className="space-y-1 text-sm">
+																							{group.dateKeys.map((dateKey) => (
+																								<li
+																									key={dateKey}
+																									className="flex items-center justify-between"
+																								>
+																									<span className="font-medium">
+																										{formatShortDateUtc(
+																											toUtcDate(dateKey),
+																										)}
+																									</span>
+																									<span className="text-xs text-muted-foreground">
+																										{dateKey}
+																									</span>
+																								</li>
+																							))}
+																						</ul>
+																					</AccordionContent>
+																				</AccordionItem>
+																			))}
+																		</Accordion>
+																	) : (
+																		<div className="flex min-h-[8.5rem] items-start">
+																			<p className="text-sm text-muted-foreground">
+																				{t('attendance.emptyAbsences')}
+																			</p>
+																		</div>
+																	)}
+																</CardContent>
+															</Card>
+
+															<Card>
+																<CardHeader className="min-h-16 pb-3">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.leavesTitle')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent className="min-h-[18rem]">
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-24 w-full" />
+																	) : leavesMonthGroups.length > 0 ? (
+																		<Accordion
+																			type="single"
+																			collapsible
+																			defaultValue={attendanceCurrentMonthKey}
+																			className="w-full"
+																		>
+																			{leavesMonthGroups.map((group) => (
+																				<AccordionItem
+																					key={group.monthKey}
+																					value={group.monthKey}
+																				>
+																					<AccordionTrigger className="items-center gap-3 text-sm">
+																						<span className="flex-1 text-left capitalize">
+																							{formatMonthLabel(group.monthKey)}
+																						</span>
+																						<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
+																							{group.totalDays}
+																						</span>
+																					</AccordionTrigger>
+																					<AccordionContent>
+																						<ul className="space-y-1 text-sm">
+																							{group.dateKeys.map((dateKey) => (
+																								<li
+																									key={dateKey}
+																									className="flex items-center justify-between"
+																								>
+																									<span className="font-medium">
+																										{formatShortDateUtc(
+																											toUtcDate(dateKey),
+																										)}
+																									</span>
+																									<span className="text-xs text-muted-foreground">
+																										{dateKey}
+																									</span>
+																								</li>
+																							))}
+																						</ul>
+																					</AccordionContent>
+																				</AccordionItem>
+																			))}
+																		</Accordion>
+																	) : (
+																		<div className="flex min-h-[8.5rem] items-start">
+																			<p className="text-sm text-muted-foreground">
+																				{t('attendance.emptyLeaves')}
+																			</p>
+																		</div>
+																	)}
+																</CardContent>
+															</Card>
+														</div>
+													</div>
+												)}
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="vacations">
+									<TabsContent
+										value="vacations"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'vacations' && 'hidden')}
+									>
+										{isTabVisited('vacations') ? (
+											<div
+												ref={registerTabScrollContainer('vacations')}
+												onScroll={handleTabScroll('vacations')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="space-y-4">
 											<Card>
 												<CardHeader>
@@ -3481,9 +4130,21 @@ export function EmployeesPageClient(): React.ReactElement {
 												</Table>
 											</div>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="payroll">
+									<TabsContent
+										value="payroll"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'payroll' && 'hidden')}
+									>
+										{isTabVisited('payroll') ? (
+											<div
+												ref={registerTabScrollContainer('payroll')}
+												onScroll={handleTabScroll('payroll')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="rounded-md border">
 											<Table>
 												<TableHeader>
@@ -3550,9 +4211,21 @@ export function EmployeesPageClient(): React.ReactElement {
 												</TableBody>
 											</Table>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="ptu">
+									<TabsContent
+										value="ptu"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'ptu' && 'hidden')}
+									>
+										{isTabVisited('ptu') ? (
+											<div
+												ref={registerTabScrollContainer('ptu')}
+												onScroll={handleTabScroll('ptu')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="grid gap-4 md:grid-cols-2">
 											<Card>
 												<CardHeader>
@@ -3671,7 +4344,24 @@ export function EmployeesPageClient(): React.ReactElement {
 																</TableRow>
 															</TableHeader>
 															<TableBody>
-																{isLoadingPtuHistory ? (
+																{ptuHistoryError ? (
+																	<TableRow>
+																		<TableCell colSpan={2}>
+																			<div className="flex items-center justify-between gap-3 py-2">
+																				<p className="text-sm text-muted-foreground">
+																					{t('ptuHistory.partialError')}
+																				</p>
+																				<Button
+																					variant="outline"
+																					size="sm"
+																					onClick={() => void refetchPtuHistory()}
+																				>
+																					{tCommon('retry')}
+																				</Button>
+																			</div>
+																		</TableCell>
+																	</TableRow>
+																) : isLoadingPtuHistory ? (
 																	<TableRow>
 																		<TableCell colSpan={2}>
 																			<Skeleton className="h-4 w-full" />
@@ -3704,9 +4394,21 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="finiquito">
+									<TabsContent
+										value="finiquito"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'finiquito' && 'hidden')}
+									>
+										{isTabVisited('finiquito') ? (
+											<div
+												ref={registerTabScrollContainer('finiquito')}
+												onScroll={handleTabScroll('finiquito')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
 											<Card>
 												<CardHeader>
@@ -4243,9 +4945,21 @@ export function EmployeesPageClient(): React.ReactElement {
 												</Accordion>
 											</div>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="exceptions">
+									<TabsContent
+										value="exceptions"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'exceptions' && 'hidden')}
+									>
+										{isTabVisited('exceptions') ? (
+											<div
+												ref={registerTabScrollContainer('exceptions')}
+												onScroll={handleTabScroll('exceptions')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="rounded-md border">
 											<Table>
 												<TableHeader>
@@ -4310,9 +5024,21 @@ export function EmployeesPageClient(): React.ReactElement {
 												</TableBody>
 											</Table>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 
-									<TabsContent value="audit">
+									<TabsContent
+										value="audit"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'audit' && 'hidden')}
+									>
+										{isTabVisited('audit') ? (
+											<div
+												ref={registerTabScrollContainer('audit')}
+												onScroll={handleTabScroll('audit')}
+												className="h-full overflow-y-auto pt-4"
+											>
 										<div className="rounded-md border">
 											<Table>
 												<TableHeader>
@@ -4332,7 +5058,24 @@ export function EmployeesPageClient(): React.ReactElement {
 													</TableRow>
 												</TableHeader>
 												<TableBody>
-													{isLoadingAudit ? (
+													{auditError ? (
+														<TableRow>
+															<TableCell colSpan={4}>
+																<div className="flex items-center justify-between gap-3 py-2">
+																	<p className="text-sm text-muted-foreground">
+																		{t('audit.partialError')}
+																	</p>
+																	<Button
+																		variant="outline"
+																		size="sm"
+																		onClick={() => void refetchAudit()}
+																	>
+																		{tCommon('retry')}
+																	</Button>
+																</div>
+															</TableCell>
+														</TableRow>
+													) : isLoadingAudit ? (
 														Array.from({ length: 3 }).map(
 															(_, index) => (
 																<TableRow key={index}>
@@ -4418,18 +5161,22 @@ export function EmployeesPageClient(): React.ReactElement {
 												</TableBody>
 											</Table>
 										</div>
+											</div>
+										) : null}
 									</TabsContent>
 								</Tabs>
 							</div>
 						) : (
 							<form
+								className="flex h-full min-h-0 flex-col"
 								onSubmit={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
 									form.handleSubmit();
 								}}
 							>
-								<div className="grid gap-4 py-4 sm:grid-cols-2">
+								<div className="min-h-0 flex-1 overflow-y-auto">
+									<div className="grid gap-4 py-4 sm:grid-cols-2">
 									<div className="col-span-2 sm:col-span-1">
 										<form.AppField
 											name="code"
@@ -4993,7 +5740,24 @@ export function EmployeesPageClient(): React.ReactElement {
 														</TableRow>
 													</TableHeader>
 													<TableBody>
-														{isLoadingPtuHistory ? (
+														{ptuHistoryError ? (
+															<TableRow>
+																<TableCell colSpan={2}>
+																	<div className="flex items-center justify-between gap-3 py-2">
+																		<p className="text-sm text-muted-foreground">
+																			{t('ptuHistory.partialError')}
+																		</p>
+																		<Button
+																			variant="outline"
+																			size="sm"
+																			onClick={() => void refetchPtuHistory()}
+																		>
+																			{tCommon('retry')}
+																		</Button>
+																	</div>
+																</TableCell>
+															</TableRow>
+														) : isLoadingPtuHistory ? (
 															<TableRow>
 																<TableCell colSpan={2}>
 																	<Skeleton className="h-4 w-full" />
@@ -5104,6 +5868,7 @@ export function EmployeesPageClient(): React.ReactElement {
 											})}
 										</div>
 									</div>
+									</div>
 								</div>
 								<DialogFooter>
 									<form.AppForm>
@@ -5115,6 +5880,7 @@ export function EmployeesPageClient(): React.ReactElement {
 								</DialogFooter>
 							</form>
 						)}
+						</div>
 					</DialogContent>
 				</Dialog>
 			</div>

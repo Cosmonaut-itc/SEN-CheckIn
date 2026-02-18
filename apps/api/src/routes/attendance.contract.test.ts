@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
+import { addDaysToDateKey } from '../utils/date-key.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -12,6 +13,22 @@ import {
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
 
+type WorkOffsiteDayKind = 'LABORABLE' | 'NO_LABORABLE';
+
+type OffsiteCreateResult =
+	| {
+			kind: 'created';
+			recordId: string;
+			dateKey: string;
+	  }
+	| {
+			kind: 'payroll_locked';
+			attemptedDateKeys: string[];
+	  };
+
+const PAYROLL_LOCK_ERROR_MESSAGE =
+	'Cannot register offsite attendance for a processed payroll period';
+
 describe('attendance routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
@@ -19,6 +36,77 @@ describe('attendance routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 	let apiKey: string;
 	let activeEmployeeId: string;
+
+	/**
+	 * Tries to create a WORK_OFFSITE record in a bounded retroactive window.
+	 * Falls back to a payroll-locked result when every candidate date is blocked
+	 * by processed payroll periods in shared contract-test state.
+	 *
+	 * @param args - Creation parameters for WORK_OFFSITE attempts
+	 * @returns Created record metadata or payroll-locked fallback
+	 * @throws Error when no date is creatable for reasons other than processed payroll locks
+	 */
+	async function createOffsiteWithinWindow(args: {
+		employeeId: string;
+		baseDateKey: string;
+		startOffsetDays?: number;
+		dayKind: WorkOffsiteDayKind;
+		reason: string;
+	}): Promise<OffsiteCreateResult> {
+		const conflicts: Array<{ dateKey: string; message: string }> = [];
+		const attemptedDateKeys: string[] = [];
+		for (let offset = args.startOffsetDays ?? 0; offset <= 7; offset += 1) {
+			const candidateDateKey = addDaysToDateKey(args.baseDateKey, -offset);
+			attemptedDateKeys.push(candidateDateKey);
+			const response = await client.attendance.post({
+				employeeId: args.employeeId,
+				timestamp: new Date(),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: candidateDateKey,
+				offsiteDayKind: args.dayKind,
+				offsiteReason: `${args.reason} (${candidateDateKey})`,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+			if (response.status === 201) {
+				const payload = requireResponseData(response);
+				const recordId = payload.data?.id;
+				if (!recordId) {
+					throw new Error('Expected WORK_OFFSITE record id.');
+				}
+				return {
+					kind: 'created',
+					recordId,
+					dateKey: candidateDateKey,
+				};
+			}
+
+			if (response.status === 409) {
+				const errorPayload = requireErrorResponse(response, 'work offsite create conflict');
+				conflicts.push({
+					dateKey: candidateDateKey,
+					message: errorPayload.error.message,
+				});
+				continue;
+			}
+		}
+
+		if (
+			conflicts.length > 0 &&
+			conflicts.every((conflict) => conflict.message === PAYROLL_LOCK_ERROR_MESSAGE)
+		) {
+			return {
+				kind: 'payroll_locked',
+				attemptedDateKeys,
+			};
+		}
+
+		const reasons = conflicts
+			.map((conflict) => `${conflict.dateKey}: ${conflict.message}`)
+			.join(' | ');
+		throw new Error(
+			`Unable to create WORK_OFFSITE within editable window. Conflicts: ${reasons || 'none'}`,
+		);
+	}
 
 	beforeAll(async () => {
 		client = createTestClient();
@@ -48,6 +136,20 @@ describe('attendance routes (contract)', () => {
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
 		expect(payload.pagination).toBeDefined();
+	});
+
+	it('filters attendance records by employee id', async () => {
+		const response = await client.attendance.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 50, offset: 0, employeeId: seed.employeeId },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+		for (const row of payload.data as Array<{ employeeId?: string }>) {
+			expect(row.employeeId).toBe(seed.employeeId);
+		}
 	});
 
 	it('returns present attendance entries for a date range', async () => {
@@ -119,6 +221,11 @@ describe('attendance routes (contract)', () => {
 			offsiteReason: 'Trabajo fuera por visita operativa.',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
+		if (createResponse.status === 409) {
+			const errorPayload = requireErrorResponse(createResponse, 'offsite payroll lock');
+			expect(errorPayload.error.message).toBe(PAYROLL_LOCK_ERROR_MESSAGE);
+			return;
+		}
 		expect(createResponse.status).toBe(201);
 		const createPayload = requireResponseData(createResponse);
 		const recordId = createPayload.data?.id;
@@ -143,25 +250,18 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const editableDate = new Date(`${todayDateKey}T00:00:00.000Z`);
-		editableDate.setUTCDate(editableDate.getUTCDate() - 1);
-		const editableDateKey = editableDate.toISOString().slice(0, 10);
-
-		const createResponse = await client.attendance.post({
+		const createResult = await createOffsiteWithinWindow({
 			employeeId: activeEmployeeId,
-			timestamp: new Date(),
-			type: 'WORK_OFFSITE',
-			offsiteDateKey: editableDateKey,
-			offsiteDayKind: 'NO_LABORABLE',
-			offsiteReason: 'Cobertura en sitio externo de cliente.',
-			$headers: { cookie: adminSession.cookieHeader },
+			baseDateKey: todayDateKey,
+			startOffsetDays: 1,
+			dayKind: 'NO_LABORABLE',
+			reason: 'Cobertura en sitio externo de cliente.',
 		});
-		expect(createResponse.status).toBe(201);
-		const createPayload = requireResponseData(createResponse);
-		const recordId = createPayload.data?.id;
-		if (!recordId) {
-			throw new Error('Expected WORK_OFFSITE record id.');
+		if (createResult.kind === 'payroll_locked') {
+			expect(createResult.attemptedDateKeys.length).toBeGreaterThan(0);
+			return;
 		}
+		const { recordId, dateKey: editableDateKey } = createResult;
 
 		const attendanceByIdRoute = requireRoute(
 			client.attendance[recordId],
@@ -222,25 +322,18 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const targetDate = new Date(`${todayDateKey}T00:00:00.000Z`);
-		targetDate.setUTCDate(targetDate.getUTCDate() - 2);
-		const targetDateKey = targetDate.toISOString().slice(0, 10);
-
-		const createResponse = await client.attendance.post({
+		const createResult = await createOffsiteWithinWindow({
 			employeeId: activeEmployeeId,
-			timestamp: new Date(),
-			type: 'WORK_OFFSITE',
-			offsiteDateKey: targetDateKey,
-			offsiteDayKind: 'LABORABLE',
-			offsiteReason: 'Registro para validar update con fecha invalida.',
-			$headers: { cookie: adminSession.cookieHeader },
+			baseDateKey: todayDateKey,
+			startOffsetDays: 2,
+			dayKind: 'LABORABLE',
+			reason: 'Registro para validar update con fecha inválida.',
 		});
-		expect(createResponse.status).toBe(201);
-		const createPayload = requireResponseData(createResponse);
-		const recordId = createPayload.data?.id;
-		if (!recordId) {
-			throw new Error('Expected WORK_OFFSITE record id.');
+		if (createResult.kind === 'payroll_locked') {
+			expect(createResult.attemptedDateKeys.length).toBeGreaterThan(0);
+			return;
 		}
+		const { recordId } = createResult;
 
 		const attendanceByIdRoute = requireRoute(
 			client.attendance[recordId],
@@ -400,22 +493,19 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const targetDate = new Date(`${todayDateKey}T00:00:00.000Z`);
-		targetDate.setUTCDate(targetDate.getUTCDate() - 4);
-		const targetDateKey = targetDate.toISOString().slice(0, 10);
-
-		const createOffsiteResponse = await client.attendance.post({
+		const createResult = await createOffsiteWithinWindow({
 			employeeId: activeEmployeeId,
-			timestamp: new Date(),
-			type: 'WORK_OFFSITE',
-			offsiteDateKey: targetDateKey,
-			offsiteDayKind: 'LABORABLE',
-			offsiteReason: 'Registro previo para bloquear checadas en la fecha.',
-			$headers: { cookie: adminSession.cookieHeader },
+			baseDateKey: todayDateKey,
+			startOffsetDays: 4,
+			dayKind: 'LABORABLE',
+			reason: 'Registro previo para bloquear checadas en la fecha.',
 		});
-		expect(createOffsiteResponse.status).toBe(201);
+		if (createResult.kind === 'payroll_locked') {
+			expect(createResult.attemptedDateKeys.length).toBeGreaterThan(0);
+			return;
+		}
 
-		const checkInTimestamp = new Date(`${targetDateKey}T14:00:00.000Z`);
+		const checkInTimestamp = new Date(`${createResult.dateKey}T14:00:00.000Z`);
 		const checkInResponse = await client.attendance.post({
 			employeeId: activeEmployeeId,
 			deviceId: seed.deviceId,

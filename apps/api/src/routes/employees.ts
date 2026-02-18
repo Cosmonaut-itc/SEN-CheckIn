@@ -303,9 +303,12 @@ type ScheduleExceptionRow = {
 };
 
 const INSIGHTS_PAST_DAYS = 90;
+const INSIGHTS_KPI_30_DAYS = 30;
+const INSIGHTS_KPI_90_DAYS = 90;
 const INSIGHTS_FUTURE_DAYS = 90;
 const INSIGHTS_VACATION_LIMIT = 10;
 const INSIGHTS_PAYROLL_LIMIT = 6;
+const INSIGHTS_STREAK_LOOKBACK_CHUNK_DAYS = 90;
 
 /**
  * Builds a UTC range for a local date-key range (inclusive).
@@ -428,22 +431,27 @@ function buildScheduleExceptionSummaries(
 	}));
 }
 
+type AttendanceEvaluation = {
+	absentDateKeys: string[];
+	workingDateKeys: string[];
+};
+
 /**
- * Calculates employee absences for a date-key range.
+ * Evaluates working and absent days for an employee in a date range.
  *
- * @param args - Absence calculation inputs
+ * @param args - Evaluation inputs
  * @param args.employee - Employee record
  * @param args.timeZone - IANA timezone identifier
  * @param args.startDateKey - Range start date key
  * @param args.endDateKey - Range end date key
- * @returns Absence summary
+ * @returns Evaluated attendance date-key sets
  */
-async function calculateEmployeeAbsences(args: {
+async function evaluateEmployeeAttendance(args: {
 	employee: EmployeeInsightsRecord;
 	timeZone: string;
 	startDateKey: string;
 	endDateKey: string;
-}): Promise<EmployeeInsights['attendance']> {
+}): Promise<AttendanceEvaluation> {
 	const { startUtc, endUtc } = buildUtcRangeFromDateKeys(
 		args.startDateKey,
 		args.endDateKey,
@@ -500,6 +508,8 @@ async function calculateEmployeeAbsences(args: {
 		: null;
 
 	const absentDateKeys: string[] = [];
+	const workingDateKeys: string[] = [];
+
 	let cursor = args.startDateKey;
 	while (true) {
 		if (!hireDateKey || cursor >= hireDateKey) {
@@ -513,8 +523,11 @@ async function calculateEmployeeAbsences(args: {
 				isWorkingDay = scheduleMap.get(dayOfWeek) ?? false;
 			}
 
-			if (isWorkingDay && !attendanceDateKeys.has(cursor)) {
-				absentDateKeys.push(cursor);
+			if (isWorkingDay) {
+				workingDateKeys.push(cursor);
+				if (!attendanceDateKeys.has(cursor)) {
+					absentDateKeys.push(cursor);
+				}
 			}
 		}
 
@@ -524,11 +537,118 @@ async function calculateEmployeeAbsences(args: {
 		cursor = addDaysToDateKey(cursor, 1);
 	}
 
+	return { absentDateKeys, workingDateKeys };
+}
+
+/**
+ * Groups date keys by month in reverse chronological order.
+ *
+ * @param dateKeys - Date keys in YYYY-MM-DD format
+ * @returns Monthly grouped date-key summary
+ */
+function groupDateKeysByMonth(
+	dateKeys: string[],
+): NonNullable<EmployeeInsights['attendance']['absencesByMonth']> {
+	const grouped = new Map<string, string[]>();
+
+	for (const dateKey of [...dateKeys].sort((a, b) => b.localeCompare(a))) {
+		const monthKey = dateKey.slice(0, 7);
+		const monthDates = grouped.get(monthKey) ?? [];
+		monthDates.push(dateKey);
+		grouped.set(monthKey, monthDates);
+	}
+
+	return [...grouped.entries()]
+		.sort(([monthA], [monthB]) => monthB.localeCompare(monthA))
+		.map(([monthKey, monthDateKeys]) => ({
+			monthKey,
+			dateKeys: monthDateKeys,
+			totalDays: monthDateKeys.length,
+		}));
+}
+
+/**
+ * Calculates attendance percentage for a working-day window.
+ *
+ * @param workingDays - Total working days in the window
+ * @param absentDays - Total absent working days in the window
+ * @returns Attendance percentage rounded to two decimals
+ */
+function calculateAttendanceRate(workingDays: number, absentDays: number): number {
+	if (workingDays <= 0) {
+		return 100;
+	}
+
+	const presentDays = Math.max(0, workingDays - absentDays);
+	return Number(((presentDays / workingDays) * 100).toFixed(2));
+}
+
+/**
+ * Calculates the current unjustified-absence streak inside a date range.
+ *
+ * The streak walks backwards from `endDateKey` and only counts working days.
+ * Non-working days are skipped, and the streak stops at the first present
+ * working day.
+ *
+ * @param args - Streak range and evaluated date-key sets
+ * @param args.startDateKey - Inclusive range start date key
+ * @param args.endDateKey - Inclusive range end date key
+ * @param args.workingDateKeySet - Working-day date keys in the range
+ * @param args.unjustifiedAbsentDateKeySet - Unjustified absent date keys in the range
+ * @returns Current streak and whether it reached the range start without breaking
+ */
+function calculateCurrentAbsenceStreakInRange(args: {
+	startDateKey: string;
+	endDateKey: string;
+	workingDateKeySet: Set<string>;
+	unjustifiedAbsentDateKeySet: Set<string>;
+}): { streakDays: number; reachedStartBoundary: boolean } {
+	let streakDays = 0;
+	let cursor = args.endDateKey;
+
+	while (cursor >= args.startDateKey) {
+		if (args.workingDateKeySet.has(cursor)) {
+			if (args.unjustifiedAbsentDateKeySet.has(cursor)) {
+				streakDays += 1;
+			} else {
+				return { streakDays, reachedStartBoundary: false };
+			}
+		}
+
+		if (cursor === args.startDateKey) {
+			return { streakDays, reachedStartBoundary: true };
+		}
+
+		cursor = addDaysToDateKey(cursor, -1);
+	}
+
+	return { streakDays, reachedStartBoundary: true };
+}
+
+/**
+ * Calculates employee absences for a date-key range.
+ *
+ * @param args - Absence calculation inputs
+ * @param args.employee - Employee record
+ * @param args.timeZone - IANA timezone identifier
+ * @param args.startDateKey - Range start date key
+ * @param args.endDateKey - Range end date key
+ * @returns Absence summary with evaluated date-key sets
+ */
+async function calculateEmployeeAbsences(args: {
+	employee: EmployeeInsightsRecord;
+	timeZone: string;
+	startDateKey: string;
+	endDateKey: string;
+}): Promise<EmployeeInsights['attendance'] & AttendanceEvaluation> {
+	const { absentDateKeys, workingDateKeys } = await evaluateEmployeeAttendance(args);
+
 	return {
 		absentDateKeys,
 		totalAbsentDays: absentDateKeys.length,
 		rangeStartDateKey: args.startDateKey,
 		rangeEndDateKey: args.endDateKey,
+		workingDateKeys,
 	};
 }
 
@@ -1185,8 +1305,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				? timeZoneCandidate
 				: 'America/Mexico_City';
 			const asOfDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const requiredPastDays = Math.max(INSIGHTS_PAST_DAYS, INSIGHTS_KPI_90_DAYS);
 
-			const pastStartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_PAST_DAYS - 1));
+			const pastStartDateKey = addDaysToDateKey(asOfDateKey, -(requiredPastDays - 1));
 			const pastEndDateKey = asOfDateKey;
 			const futureStartDateKey = asOfDateKey;
 			const futureEndDateKey = addDaysToDateKey(asOfDateKey, INSIGHTS_FUTURE_DAYS - 1);
@@ -1223,6 +1344,152 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			const leaves = buildScheduleExceptionSummaries(leaveRows, timeZone);
 			const exceptions = buildScheduleExceptionSummaries(exceptionRows, timeZone);
+			const last30StartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_KPI_30_DAYS - 1));
+			const last90StartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_KPI_90_DAYS - 1));
+			const leaveDateKeys = leaves.map((item) => item.dateKey);
+			const leaveDateKeySet = new Set(leaveDateKeys);
+			const unjustifiedAbsentDateKeys = attendanceSummary.absentDateKeys.filter(
+				(dateKey) => !leaveDateKeySet.has(dateKey),
+			);
+
+			const unjustifiedAbsentDateKeySet = new Set(unjustifiedAbsentDateKeys);
+			const workingDateKeySet = new Set(attendanceSummary.workingDateKeys);
+
+			let unjustifiedAbsences30d = 0;
+			let unjustifiedAbsences90d = 0;
+			for (const dateKey of unjustifiedAbsentDateKeys) {
+				if (dateKey >= last90StartDateKey) {
+					unjustifiedAbsences90d += 1;
+					if (dateKey >= last30StartDateKey) {
+						unjustifiedAbsences30d += 1;
+					}
+				}
+			}
+
+			let justifiedLeaves30d = 0;
+			let justifiedLeaves90d = 0;
+			for (const dateKey of leaveDateKeys) {
+				if (dateKey >= last90StartDateKey) {
+					justifiedLeaves90d += 1;
+					if (dateKey >= last30StartDateKey) {
+						justifiedLeaves30d += 1;
+					}
+				}
+			}
+
+			let workingDays30d = 0;
+			let workingDays90d = 0;
+			for (const dateKey of attendanceSummary.workingDateKeys) {
+				if (dateKey >= last90StartDateKey) {
+					workingDays90d += 1;
+					if (dateKey >= last30StartDateKey) {
+						workingDays30d += 1;
+					}
+				}
+			}
+
+			const initialStreak = calculateCurrentAbsenceStreakInRange({
+				startDateKey: pastStartDateKey,
+				endDateKey: asOfDateKey,
+				workingDateKeySet,
+				unjustifiedAbsentDateKeySet,
+			});
+			let absenceStreakCurrentDays = initialStreak.streakDays;
+			const hireDateKey = employeeRecord.hireDate
+				? toDateKeyInTimeZone(employeeRecord.hireDate, timeZone)
+				: null;
+
+			// Only fetch additional history when the streak reaches the 90-day window boundary.
+			if (
+				initialStreak.reachedStartBoundary &&
+				absenceStreakCurrentDays > 0 &&
+				hireDateKey &&
+				pastStartDateKey > hireDateKey
+			) {
+				const resolvedHireDateKey: string = hireDateKey;
+				let chunkEndDateKey = addDaysToDateKey(pastStartDateKey, -1);
+				let shouldContinueLookback = true;
+
+				while (shouldContinueLookback && chunkEndDateKey >= resolvedHireDateKey) {
+					const chunkStartCandidate = addDaysToDateKey(
+						chunkEndDateKey,
+						-(INSIGHTS_STREAK_LOOKBACK_CHUNK_DAYS - 1),
+					);
+					const chunkStartDateKey: string =
+						chunkStartCandidate < resolvedHireDateKey
+							? resolvedHireDateKey
+							: chunkStartCandidate;
+					const chunkRange = buildUtcRangeFromDateKeys(
+						chunkStartDateKey,
+						chunkEndDateKey,
+						timeZone,
+					);
+					const [chunkAttendanceSummary, chunkLeaveRows] = await Promise.all([
+						calculateEmployeeAbsences({
+							employee: employeeRecord,
+							timeZone,
+							startDateKey: chunkStartDateKey,
+							endDateKey: chunkEndDateKey,
+						}),
+						loadScheduleExceptionsForRange({
+							employeeId: id,
+							startUtc: chunkRange.startUtc,
+							endUtc: chunkRange.endUtc,
+							exceptionType: 'DAY_OFF',
+						}),
+					]);
+					const chunkLeaveDateKeySet = new Set(
+						chunkLeaveRows.map((item) => toDateKeyInTimeZone(item.exceptionDate, timeZone)),
+					);
+					const chunkUnjustifiedAbsentDateKeySet = new Set(
+						chunkAttendanceSummary.absentDateKeys.filter(
+							(dateKey) => !chunkLeaveDateKeySet.has(dateKey),
+						),
+					);
+					const chunkStreak = calculateCurrentAbsenceStreakInRange({
+						startDateKey: chunkStartDateKey,
+						endDateKey: chunkEndDateKey,
+						workingDateKeySet: new Set(chunkAttendanceSummary.workingDateKeys),
+						unjustifiedAbsentDateKeySet: chunkUnjustifiedAbsentDateKeySet,
+					});
+
+					absenceStreakCurrentDays += chunkStreak.streakDays;
+					if (
+						!chunkStreak.reachedStartBoundary ||
+						chunkStartDateKey === resolvedHireDateKey
+					) {
+						shouldContinueLookback = false;
+					} else {
+						chunkEndDateKey = addDaysToDateKey(chunkStartDateKey, -1);
+					}
+				}
+			}
+
+			const trend30d = [] as NonNullable<EmployeeInsights['attendance']['trend30d']>;
+			let trendCursor = last30StartDateKey;
+			while (trendCursor <= asOfDateKey) {
+				if (leaveDateKeySet.has(trendCursor)) {
+					trend30d.push({ dateKey: trendCursor, status: 'LEAVE' });
+				} else if (workingDateKeySet.has(trendCursor)) {
+					trend30d.push({
+						dateKey: trendCursor,
+						status: unjustifiedAbsentDateKeySet.has(trendCursor) ? 'ABSENT' : 'PRESENT',
+					});
+				} else {
+					trend30d.push({ dateKey: trendCursor, status: 'DAY_OFF' });
+				}
+				if (trendCursor === asOfDateKey) {
+					break;
+				}
+				trendCursor = addDaysToDateKey(trendCursor, 1);
+			}
+
+			const attendanceSummaryBase = {
+				absentDateKeys: unjustifiedAbsentDateKeys,
+				totalAbsentDays: unjustifiedAbsentDateKeys.length,
+				rangeStartDateKey: attendanceSummary.rangeStartDateKey,
+				rangeEndDateKey: attendanceSummary.rangeEndDateKey,
+			};
 
 			const vacationBalance = employeeRecord.hireDate
 				? await buildEmployeeVacationBalance({
@@ -1242,7 +1509,29 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					balance: vacationBalance,
 					requests: vacationRequests,
 				},
-				attendance: attendanceSummary,
+				attendance: {
+					...attendanceSummaryBase,
+					kpis: {
+						absenceStreakCurrentDays,
+						unjustifiedAbsences30d,
+						unjustifiedAbsences90d,
+						justifiedLeaves30d,
+						justifiedLeaves90d,
+						attendanceRate30d: calculateAttendanceRate(
+							workingDays30d,
+							unjustifiedAbsences30d,
+						),
+						attendanceRate90d: calculateAttendanceRate(
+							workingDays90d,
+							unjustifiedAbsences90d,
+						),
+						lateArrivals30d: null,
+						onTimeRate30d: null,
+					},
+					trend30d,
+					absencesByMonth: groupDateKeysByMonth(attendanceSummaryBase.absentDateKeys),
+					leavesByMonth: groupDateKeysByMonth(leaveDateKeys),
+				},
 				leaves: {
 					items: leaves,
 					total: leaves.length,

@@ -45,6 +45,8 @@ export interface OrganizationAllQueryParams extends ListQueryParams {
  * Query parameters for attendance records.
  */
 export interface AttendanceQueryParams extends ListQueryParams {
+	/** Filter by employee ID */
+	employeeId?: string;
 	/** Start date for filtering records */
 	fromDate?: Date;
 	/** End date for filtering records */

@@ -5156,13 +5156,15 @@ export function EmployeesPageClient(): React.ReactElement {
 							</div>
 						) : (
 							<form
+								className="flex h-full min-h-0 flex-col"
 								onSubmit={(e) => {
 									e.preventDefault();
 									e.stopPropagation();
 									form.handleSubmit();
 								}}
 							>
-								<div className="grid gap-4 py-4 sm:grid-cols-2">
+								<div className="min-h-0 flex-1 overflow-y-auto">
+									<div className="grid gap-4 py-4 sm:grid-cols-2">
 									<div className="col-span-2 sm:col-span-1">
 										<form.AppField
 											name="code"
@@ -5853,6 +5855,7 @@ export function EmployeesPageClient(): React.ReactElement {
 												);
 											})}
 										</div>
+									</div>
 									</div>
 								</div>
 								<DialogFooter>

@@ -329,15 +329,15 @@
       "kpis": {
         "currentStreak": "Racha de ausencias actual",
         "unjustified30d": "Ausencias injustificadas (30d)",
-        "attendanceRate30d": "Asistencia puntual (30d)",
+        "attendanceRate30d": "Tasa de asistencia (30d)",
         "justified90d": "Ausencias justificadas (90d)"
       },
-      "trendTitle": "Tendencia de 30 dias",
+      "trendTitle": "Tendencia de 30 días",
       "trendStatus": {
         "PRESENT": "Asistencia",
         "ABSENT": "Ausencia injustificada",
         "LEAVE": "Ausencia justificada",
-        "DAY_OFF": "Dia no laborable"
+        "DAY_OFF": "Día no laborable"
       }
     },
     "vacations": {

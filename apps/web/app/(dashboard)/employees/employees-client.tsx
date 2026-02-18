@@ -1345,7 +1345,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const secondaryDetailTabs = useMemo<EmployeeDetailTab[]>(
 		() =>
 			canUseDisciplinaryModule
-				? [...SECONDARY_DETAIL_TABS, 'disciplinary']
+				? ([...SECONDARY_DETAIL_TABS, 'disciplinary'] as EmployeeDetailTab[])
 				: [...SECONDARY_DETAIL_TABS],
 		[canUseDisciplinaryModule],
 	);
@@ -2568,6 +2568,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			setActiveEmployee(employee);
 			setDialogMode('view');
 			setDetailTab(tab);
+			// Reset keep-alive state per dialog session; mount only the entry tab first.
 			setVisitedDetailTabs({ [tab]: true });
 			setPtuHistoryYearInput('');
 			setPtuHistoryAmountInput('');

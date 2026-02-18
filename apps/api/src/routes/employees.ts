@@ -1309,24 +1309,38 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const workingDateKeySet = new Set(attendanceSummary.workingDateKeys);
 			const leaveDateKeySet = new Set(leaveDateKeys);
 
-			const unjustifiedAbsences30d = attendanceSummary.absentDateKeys.filter(
-				(dateKey) => dateKey >= last30StartDateKey,
-			).length;
-			const unjustifiedAbsences90d = attendanceSummary.absentDateKeys.filter(
-				(dateKey) => dateKey >= last90StartDateKey,
-			).length;
-			const justifiedLeaves30d = leaveDateKeys.filter(
-				(dateKey) => dateKey >= last30StartDateKey,
-			).length;
-			const justifiedLeaves90d = leaveDateKeys.filter(
-				(dateKey) => dateKey >= last90StartDateKey,
-			).length;
-			const workingDays30d = attendanceSummary.workingDateKeys.filter(
-				(dateKey) => dateKey >= last30StartDateKey,
-			).length;
-			const workingDays90d = attendanceSummary.workingDateKeys.filter(
-				(dateKey) => dateKey >= last90StartDateKey,
-			).length;
+			let unjustifiedAbsences30d = 0;
+			let unjustifiedAbsences90d = 0;
+			for (const dateKey of attendanceSummary.absentDateKeys) {
+				if (dateKey >= last90StartDateKey) {
+					unjustifiedAbsences90d += 1;
+					if (dateKey >= last30StartDateKey) {
+						unjustifiedAbsences30d += 1;
+					}
+				}
+			}
+
+			let justifiedLeaves30d = 0;
+			let justifiedLeaves90d = 0;
+			for (const dateKey of leaveDateKeys) {
+				if (dateKey >= last90StartDateKey) {
+					justifiedLeaves90d += 1;
+					if (dateKey >= last30StartDateKey) {
+						justifiedLeaves30d += 1;
+					}
+				}
+			}
+
+			let workingDays30d = 0;
+			let workingDays90d = 0;
+			for (const dateKey of attendanceSummary.workingDateKeys) {
+				if (dateKey >= last90StartDateKey) {
+					workingDays90d += 1;
+					if (dateKey >= last30StartDateKey) {
+						workingDays30d += 1;
+					}
+				}
+			}
 
 			let absenceStreakCurrentDays = 0;
 			let streakCursor = asOfDateKey;

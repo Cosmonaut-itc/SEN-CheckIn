@@ -53,8 +53,17 @@ function resolveDateKey(value: string | undefined): string | undefined {
 		return undefined;
 	}
 
-	const parsed = new Date(`${value}T00:00:00`);
-	if (Number.isNaN(parsed.getTime())) {
+	const [yearToken, monthToken, dayToken] = value.split('-');
+	const year = Number(yearToken);
+	const month = Number(monthToken);
+	const day = Number(dayToken);
+	const parsed = new Date(`${value}T00:00:00Z`);
+	if (
+		Number.isNaN(parsed.getTime()) ||
+		parsed.getUTCFullYear() !== year ||
+		parsed.getUTCMonth() + 1 !== month ||
+		parsed.getUTCDate() !== day
+	) {
 		return undefined;
 	}
 

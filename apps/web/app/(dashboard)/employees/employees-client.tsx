@@ -1444,7 +1444,13 @@ export function EmployeesPageClient(): React.ReactElement {
 		);
 	const { data: insights, isLoading: isLoadingInsights, error: insightsError, refetch: refetchInsights } = useQuery({
 		queryKey: queryKeys.employees.insights(activeEmployee?.id ?? ''),
-		queryFn: () => fetchEmployeeInsights(activeEmployee?.id ?? ''),
+		queryFn: async () => {
+			const response = await fetchEmployeeInsights(activeEmployee?.id ?? '');
+			if (!response) {
+				throw new Error('Failed to fetch employee insights');
+			}
+			return response;
+		},
 		enabled: shouldFetchInsights,
 		retry: 1,
 		staleTime: 60_000,

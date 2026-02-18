@@ -1,0 +1,1294 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEN Design System — Web · Paleta Michoacán v4.0</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:ital,wght@0,400;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     SEN DESIGN TOKENS
+     ============================================================ */
+  :root {
+    /* ============================================================
+       PALETA MICHOACÁN v4.0 — TEMA CLARO
+       Inspirada en el cobre de Santa Clara, las lacas de 
+       Pátzcuaro, el verde aguacate y la cantera morada
+       de Morelia.
+       ============================================================ */
+    --bg-primary: #FAF7F3;
+    --bg-secondary: #FFFFFF;
+    --bg-tertiary: #F3EDE6;
+    --bg-elevated: #FFFFFF;
+    --bg-inverse: #1A1210;
+
+    --text-primary: #2B1810;
+    --text-secondary: #3D2B20;
+    --text-tertiary: #7A6558;
+    --text-muted: #A8978B;
+    --text-inverse: #FAF7F3;
+    --text-on-accent: #FFFFFF;
+
+    --border-default: #E6DCD3;
+    --border-subtle: #F0E8E1;
+    --border-strong: #D1C2B6;
+
+    /* — Acento primario: Cobre Michoacano — */
+    --accent-primary: #B8602A;
+    --accent-primary-hover: #9E4E1E;
+    --accent-primary-bg: rgba(184, 96, 42, 0.08);
+    --accent-primary-bg-hover: rgba(184, 96, 42, 0.14);
+    --accent-primary-light: #D4956A;
+
+    /* — Acento secundario: Verde Aguacate — */
+    --accent-secondary: #4A7C3F;
+    --accent-secondary-hover: #3A6430;
+    --accent-secondary-bg: rgba(74, 124, 63, 0.08);
+    --accent-secondary-bg-hover: rgba(74, 124, 63, 0.14);
+    --accent-secondary-light: #7FB573;
+
+    /* — Acento terciario: Guinda Pátzcuaro — */
+    --accent-tertiary: #8B2252;
+    --accent-tertiary-bg: rgba(139, 34, 82, 0.08);
+
+    --status-success: #2D8659;
+    --status-success-bg: rgba(45, 134, 89, 0.10);
+    --status-warning: #CC8A17;
+    --status-warning-bg: rgba(204, 138, 23, 0.10);
+    --status-error: #C4302B;
+    --status-error-bg: rgba(196, 48, 43, 0.10);
+    --status-info: #4A7C3F;
+    --status-info-bg: rgba(74, 124, 63, 0.10);
+
+    --shadow-sm: 0 1px 3px rgba(43, 24, 16, 0.05);
+    --shadow-md: 0 4px 16px rgba(43, 24, 16, 0.08);
+    --shadow-lg: 0 12px 40px rgba(43, 24, 16, 0.12);
+    --shadow-xl: 0 20px 60px rgba(43, 24, 16, 0.14);
+
+    --overlay: rgba(26, 18, 16, 0.55);
+
+    /* Shared tokens */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 14px;
+    --radius-xl: 20px;
+    --radius-full: 100px;
+
+    --space-0: 0;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --space-12: 48px;
+    --space-16: 64px;
+    --space-20: 80px;
+    --space-24: 96px;
+
+    --transition-fast: 150ms cubic-bezier(0.23, 1, 0.32, 1);
+    --transition-base: 250ms cubic-bezier(0.23, 1, 0.32, 1);
+    --transition-slow: 400ms cubic-bezier(0.23, 1, 0.32, 1);
+
+    --font-display: 'Playfair Display', Georgia, serif;
+    --font-body: 'DM Sans', -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    --nav-bg: rgba(250, 247, 243, 0.88);
+    --code-bg: #F3EDE6;
+  }
+
+  /* ============================================================
+     PALETA MICHOACÁN v4.0 — TEMA OSCURO (Noche Moreliana)
+     ============================================================ */
+  [data-theme="dark"] {
+    --bg-primary: #110D0A;
+    --bg-secondary: #1C1613;
+    --bg-tertiary: #28201B;
+    --bg-elevated: #342A24;
+    --bg-inverse: #FAF7F3;
+
+    --text-primary: #F0EAE4;
+    --text-secondary: #D6CCC3;
+    --text-tertiary: #9A8B80;
+    --text-muted: #665A50;
+    --text-inverse: #2B1810;
+    --text-on-accent: #FFFFFF;
+
+    --border-default: #3D3028;
+    --border-subtle: #2D231C;
+    --border-strong: #4D3F36;
+
+    --accent-primary: #D4835E;
+    --accent-primary-hover: #E09A78;
+    --accent-primary-bg: rgba(212, 131, 94, 0.14);
+    --accent-primary-bg-hover: rgba(212, 131, 94, 0.22);
+    --accent-primary-light: #E0A882;
+
+    --accent-secondary: #7FB573;
+    --accent-secondary-hover: #96C88C;
+    --accent-secondary-bg: rgba(127, 181, 115, 0.14);
+    --accent-secondary-bg-hover: rgba(127, 181, 115, 0.22);
+    --accent-secondary-light: #A0D096;
+
+    --accent-tertiary: #C85A8A;
+    --accent-tertiary-bg: rgba(200, 90, 138, 0.14);
+
+    --status-success: #5CC98A;
+    --status-success-bg: rgba(92, 201, 138, 0.16);
+    --status-warning: #E8B44A;
+    --status-warning-bg: rgba(232, 180, 74, 0.16);
+    --status-error: #E8605A;
+    --status-error-bg: rgba(232, 96, 90, 0.16);
+    --status-info: #7FB573;
+    --status-info-bg: rgba(127, 181, 115, 0.16);
+
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+    --shadow-xl: 0 20px 60px rgba(0,0,0,0.45);
+
+    --overlay: rgba(0, 0, 0, 0.7);
+    --nav-bg: rgba(17, 13, 10, 0.88);
+    --code-bg: #28201B;
+  }
+
+  /* ============================================================
+     BASE & LAYOUT
+     ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    -webkit-font-smoothing: antialiased;
+    transition: background var(--transition-base), color var(--transition-base);
+    line-height: 1.6;
+  }
+
+  /* SIDEBAR NAV */
+  .layout { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 260px; position: fixed; top: 0; left: 0; bottom: 0;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border-default);
+    padding: 28px 0;
+    overflow-y: auto;
+    z-index: 50;
+    transition: background var(--transition-base), border var(--transition-base);
+  }
+
+  .sidebar-logo {
+    font-family: var(--font-display);
+    font-size: 20px; font-weight: 800;
+    letter-spacing: 5px; color: var(--text-primary);
+    padding: 0 28px; margin-bottom: 4px;
+  }
+
+  .sidebar-subtitle {
+    font-size: 11px; color: var(--text-muted);
+    padding: 0 28px; margin-bottom: 32px;
+    letter-spacing: 0.5px; font-weight: 500;
+  }
+
+  .sidebar-section {
+    font-size: 10px; font-weight: 700; color: var(--text-muted);
+    letter-spacing: 2px; text-transform: uppercase;
+    padding: 20px 28px 8px;
+  }
+
+  .sidebar-link {
+    display: block; padding: 9px 28px;
+    font-size: 14px; color: var(--text-tertiary);
+    text-decoration: none; transition: all var(--transition-fast);
+    font-weight: 450; border-left: 3px solid transparent;
+  }
+  .sidebar-link:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+  .sidebar-link.active {
+    color: var(--accent-primary);
+    background: var(--accent-primary-bg);
+    border-left-color: var(--accent-primary);
+    font-weight: 600;
+  }
+
+  /* MAIN CONTENT */
+  .main { margin-left: 260px; flex: 1; }
+
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    padding: 16px 48px;
+    background: var(--nav-bg);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border-default);
+    display: flex; justify-content: space-between; align-items: center;
+    transition: background var(--transition-base);
+  }
+
+  .topbar-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+
+  .theme-toggle {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-full);
+    padding: 4px; cursor: pointer;
+    transition: all var(--transition-base);
+  }
+  .theme-btn {
+    padding: 6px 16px; border-radius: var(--radius-full);
+    font-size: 12px; font-weight: 600; font-family: var(--font-body);
+    border: none; cursor: pointer; transition: all var(--transition-fast);
+    color: var(--text-tertiary); background: transparent;
+  }
+  .theme-btn.active {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .content { padding: 48px; max-width: 960px; }
+
+  /* SECTION STYLES */
+  .section { margin-bottom: 80px; scroll-margin-top: 80px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; color: var(--accent-primary);
+    letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px;
+  }
+
+  .section h2 {
+    font-family: var(--font-display);
+    font-size: 36px; font-weight: 700;
+    color: var(--text-primary); margin-bottom: 12px;
+    line-height: 1.15;
+  }
+
+  .section-desc {
+    font-size: 17px; color: var(--text-tertiary);
+    max-width: 600px; margin-bottom: 40px; line-height: 1.65;
+  }
+
+  .subsection { margin-bottom: 48px; }
+
+  .subsection h3 {
+    font-family: var(--font-display);
+    font-size: 22px; font-weight: 700;
+    color: var(--text-primary); margin-bottom: 8px;
+  }
+
+  .subsection-desc {
+    font-size: 15px; color: var(--text-tertiary);
+    margin-bottom: 24px; line-height: 1.6;
+  }
+
+  /* COLOR SWATCHES */
+  .color-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+  }
+
+  .color-card {
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    transition: all var(--transition-base);
+  }
+  .color-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+  .color-swatch { height: 80px; position: relative; }
+  .color-swatch .contrast-badge {
+    position: absolute; bottom: 6px; right: 6px;
+    font-size: 9px; font-weight: 700;
+    padding: 2px 6px; border-radius: 4px;
+    background: rgba(0,0,0,0.3); color: #fff;
+    letter-spacing: 0.5px;
+  }
+
+  .color-info { padding: 12px 14px; }
+  .color-name { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+  .color-value { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
+  .color-token { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+
+  /* TYPE SCALE */
+  .type-sample { margin-bottom: 32px; padding-bottom: 32px; border-bottom: 1px solid var(--border-subtle); }
+  .type-meta { display: flex; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
+  .type-tag {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-muted); background: var(--code-bg);
+    padding: 3px 8px; border-radius: 4px;
+  }
+
+  /* SPACING SCALE */
+  .space-row { display: flex; align-items: center; gap: 20px; margin-bottom: 12px; }
+  .space-label {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--text-tertiary); width: 80px; text-align: right; flex-shrink: 0;
+  }
+  .space-bar {
+    height: 20px; border-radius: 4px;
+    background: var(--accent-primary-bg);
+    border: 1px solid var(--accent-primary);
+    opacity: 0.6;
+    transition: all var(--transition-fast);
+  }
+  .space-bar:hover { opacity: 1; }
+  .space-px { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); width: 40px; flex-shrink: 0; }
+
+  /* COMPONENT DEMOS */
+  .demo-box {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 32px; margin-bottom: 24px;
+    transition: all var(--transition-base);
+  }
+
+  .demo-label {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--text-muted); margin-bottom: 16px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Buttons */
+  .btn-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+
+  .btn {
+    font-family: var(--font-body);
+    font-weight: 600; border: none; cursor: pointer;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-base);
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+
+  .btn-lg { font-size: 16px; padding: 14px 32px; }
+  .btn-md { font-size: 14px; padding: 10px 24px; }
+  .btn-sm { font-size: 13px; padding: 8px 18px; }
+
+  .btn-primary { background: var(--accent-primary); color: var(--text-on-accent); }
+  .btn-primary:hover { background: var(--accent-primary-hover); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(184,96,42,0.25); }
+
+  .btn-secondary { background: transparent; color: var(--text-primary); border: 1.5px solid var(--border-strong); }
+  .btn-secondary:hover { border-color: var(--text-primary); transform: translateY(-1px); }
+
+  .btn-ghost { background: transparent; color: var(--accent-primary); }
+  .btn-ghost:hover { background: var(--accent-primary-bg); }
+
+  .btn-danger { background: var(--status-error); color: #fff; }
+  .btn-danger:hover { opacity: 0.9; transform: translateY(-1px); }
+
+  .btn-success { background: var(--accent-secondary); color: #fff; }
+  .btn-success:hover { background: var(--accent-secondary-hover); transform: translateY(-1px); }
+
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+  /* Inputs */
+  .input-demo { display: flex; flex-direction: column; gap: 16px; max-width: 380px; }
+
+  .input-group { display: flex; flex-direction: column; gap: 6px; }
+  .input-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+  .input-hint { font-size: 12px; color: var(--text-muted); }
+
+  .input {
+    font-family: var(--font-body);
+    font-size: 15px; padding: 11px 14px;
+    background: var(--bg-primary);
+    border: 1.5px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    transition: all var(--transition-fast);
+    outline: none;
+  }
+  .input::placeholder { color: var(--text-muted); }
+  .input:focus { border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-primary-bg); }
+  .input:hover:not(:focus) { border-color: var(--border-strong); }
+  .input.input-error { border-color: var(--status-error); }
+  .input.input-error:focus { box-shadow: 0 0 0 3px var(--status-error-bg); }
+
+  .input-error-msg { font-size: 12px; color: var(--status-error); font-weight: 500; }
+
+  /* Cards */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+
+  .card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    transition: all var(--transition-base);
+    cursor: pointer;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--border-strong); }
+
+  .card-icon {
+    width: 44px; height: 44px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-md); font-size: 20px; margin-bottom: 16px;
+  }
+
+  .card h4 { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+  .card p { font-size: 14px; color: var(--text-tertiary); line-height: 1.55; }
+
+  /* Badges */
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 4px 12px; border-radius: var(--radius-full);
+    font-size: 12px; font-weight: 600;
+  }
+  .badge-success { background: var(--status-success-bg); color: var(--status-success); }
+  .badge-warning { background: var(--status-warning-bg); color: var(--status-warning); }
+  .badge-error { background: var(--status-error-bg); color: var(--status-error); }
+  .badge-info { background: var(--status-info-bg); color: var(--status-info); }
+  .badge-neutral { background: var(--bg-tertiary); color: var(--text-tertiary); }
+  .badge-accent { background: var(--accent-primary-bg); color: var(--accent-primary); }
+
+  /* Alerts */
+  .alert {
+    padding: 14px 18px; border-radius: var(--radius-md);
+    font-size: 14px; font-weight: 500;
+    display: flex; align-items: flex-start; gap: 10px;
+    margin-bottom: 12px;
+    border-left: 3px solid transparent;
+  }
+  .alert-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .alert-success { background: var(--status-success-bg); color: var(--status-success); border-left-color: var(--status-success); }
+  .alert-warning { background: var(--status-warning-bg); color: var(--status-warning); border-left-color: var(--status-warning); }
+  .alert-error { background: var(--status-error-bg); color: var(--status-error); border-left-color: var(--status-error); }
+  .alert-info { background: var(--status-info-bg); color: var(--status-info); border-left-color: var(--status-info); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border-default); }
+  .sen-table { width: 100%; border-collapse: collapse; background: var(--bg-secondary); }
+  .sen-table th {
+    text-align: left; font-size: 11px; font-weight: 600;
+    color: var(--text-muted); text-transform: uppercase;
+    letter-spacing: 0.8px; padding: 12px 18px;
+    border-bottom: 1px solid var(--border-default);
+    background: var(--bg-tertiary);
+  }
+  .sen-table td {
+    padding: 14px 18px; font-size: 14px; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .sen-table tr:last-child td { border-bottom: none; }
+  .sen-table tr:hover td { background: var(--accent-primary-bg); }
+
+  /* Toggle */
+  .toggle-track {
+    width: 44px; height: 24px; border-radius: 12px;
+    background: var(--border-strong);
+    position: relative; cursor: pointer;
+    transition: background var(--transition-fast);
+    display: inline-block;
+  }
+  .toggle-track.on { background: var(--accent-primary); }
+  .toggle-knob {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; position: absolute; top: 3px; left: 3px;
+    transition: transform var(--transition-fast);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+  }
+  .toggle-track.on .toggle-knob { transform: translateX(20px); }
+
+  /* Modal */
+  .modal-demo {
+    background: var(--bg-elevated);
+    border-radius: var(--radius-xl);
+    padding: 32px;
+    max-width: 420px; width: 100%;
+    box-shadow: var(--shadow-xl);
+    border: 1px solid var(--border-default);
+  }
+  .modal-demo h4 {
+    font-family: var(--font-display); font-size: 22px;
+    font-weight: 700; color: var(--text-primary); margin-bottom: 8px;
+  }
+  .modal-demo p { font-size: 15px; color: var(--text-tertiary); margin-bottom: 24px; line-height: 1.55; }
+  .modal-demo .btn-row { justify-content: flex-end; }
+
+  /* Tooltips */
+  .tooltip-example {
+    position: relative; display: inline-block;
+    border-bottom: 1px dashed var(--text-muted);
+    color: var(--text-primary); cursor: help;
+    font-weight: 500; font-size: 14px;
+  }
+  .tooltip-example::after {
+    content: attr(data-tip);
+    position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%);
+    background: var(--bg-inverse); color: var(--text-inverse);
+    padding: 6px 12px; border-radius: var(--radius-sm);
+    font-size: 12px; font-weight: 500;
+    white-space: nowrap; pointer-events: none;
+    opacity: 0; transition: opacity var(--transition-fast);
+  }
+  .tooltip-example:hover::after { opacity: 1; }
+
+  /* Token code */
+  code {
+    font-family: var(--font-mono); font-size: 12px;
+    background: var(--code-bg); padding: 2px 7px;
+    border-radius: 4px; color: var(--accent-primary);
+  }
+
+  /* Guideline box */
+  .guideline {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    margin-bottom: 24px;
+  }
+  .guideline-do, .guideline-dont {
+    padding: 20px; border-radius: var(--radius-lg);
+  }
+  .guideline-do { background: var(--status-success-bg); border: 1px solid var(--status-success); }
+  .guideline-dont { background: var(--status-error-bg); border: 1px solid var(--status-error); }
+  .guideline-label { font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; }
+  .guideline-do .guideline-label { color: var(--status-success); }
+  .guideline-dont .guideline-label { color: var(--status-error); }
+  .guideline-text { font-size: 14px; line-height: 1.6; }
+  .guideline-do .guideline-text { color: var(--status-success); }
+  .guideline-dont .guideline-text { color: var(--status-error); }
+
+  /* RESPONSIVE */
+  @media (max-width: 860px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; }
+    .content { padding: 32px 20px; }
+    .guideline { grid-template-columns: 1fr; }
+    .color-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">SEN</div>
+    <div class="sidebar-subtitle">Design System · Web · Paleta Michoacán v4.0</div>
+
+    <div class="sidebar-section">Fundamentos</div>
+    <a href="#intro" class="sidebar-link active">Introducción</a>
+    <a href="#colors" class="sidebar-link">Colores</a>
+    <a href="#typography" class="sidebar-link">Tipografía</a>
+    <a href="#spacing" class="sidebar-link">Espaciado</a>
+    <a href="#shadows" class="sidebar-link">Sombras y Elevación</a>
+
+    <div class="sidebar-section">Componentes</div>
+    <a href="#buttons" class="sidebar-link">Botones</a>
+    <a href="#inputs" class="sidebar-link">Inputs</a>
+    <a href="#cards" class="sidebar-link">Cards</a>
+    <a href="#badges" class="sidebar-link">Badges y Status</a>
+    <a href="#alerts" class="sidebar-link">Alertas</a>
+    <a href="#tables" class="sidebar-link">Tablas</a>
+    <a href="#toggles" class="sidebar-link">Toggles</a>
+    <a href="#modals" class="sidebar-link">Modales</a>
+    <a href="#tooltips" class="sidebar-link">Tooltips</a>
+
+    <div class="sidebar-section">Guías</div>
+    <a href="#guidelines" class="sidebar-link">Lineamientos</a>
+    <a href="#accessibility" class="sidebar-link">Accesibilidad</a>
+    <a href="#motion" class="sidebar-link">Movimiento</a>
+
+    <div class="sidebar-section">Para agentes</div>
+    <a href="#agent-tokens" class="sidebar-link">Tokens CSS (copiar)</a>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">SEN Design System · Web · Paleta Michoacán</div>
+      <div class="theme-toggle">
+        <button class="theme-btn active" onclick="setTheme('light')">☀ Claro</button>
+        <button class="theme-btn" onclick="setTheme('dark')">● Oscuro</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- INTRO -->
+      <div class="section" id="intro">
+        <div class="section-label">Fundamentos</div>
+        <h2>Guía de Diseño</h2>
+        <p class="section-desc">Este documento define los tokens, componentes y lineamientos visuales para la plataforma <strong>web</strong> de SEN con la <strong>Paleta Michoacán</strong>. Para iOS y Android, consulta el Design System Mobile. Cada decisión de diseño tiene una razón. Usa esta guía como referencia para construir interfaces web que se sientan SEN.</p>
+
+        <div class="guideline">
+          <div class="guideline-do">
+            <div class="guideline-label">✓ Principio</div>
+            <div class="guideline-text">Todos los productos de SEN comparten la misma estructura de tokens. Jale, Bodega, Caja y Ruta se sienten familia — pero cada uno tiene su propia paleta regional.</div>
+          </div>
+          <div class="guideline-dont">
+            <div class="guideline-label">✗ Evita</div>
+            <div class="guideline-text">Nunca inventes colores, tamaños o radios de borde fuera de este sistema. Si necesitas algo nuevo, proponlo al equipo de diseño.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COLORS -->
+      <div class="section" id="colors">
+        <div class="section-label">Fundamentos</div>
+        <h2>Colores</h2>
+        <p class="section-desc">La paleta Michoacán se inspira en el cobre martillado de Santa Clara, el verde profundo de los aguacatales, la guinda de las lacas de Pátzcuaro y los tonos cálidos de la cantera moreliana. Terrenal, cálida y artesanal.</p>
+
+        <div class="subsection">
+          <h3>Acentos</h3>
+          <p class="subsection-desc">Cobre Michoacano como primario, Verde Aguacate como secundario, Guinda Pátzcuaro como terciario.</p>
+          <div class="color-grid">
+            <div class="color-card"><div class="color-swatch" style="background: var(--accent-primary);"><span class="contrast-badge">AA ✓</span></div><div class="color-info"><div class="color-name">Cobre Michoacano</div><div class="color-value">#B8602A</div><div class="color-token"><code>--accent-primary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--accent-primary-hover);"><span class="contrast-badge">AA ✓</span></div><div class="color-info"><div class="color-name">Cobre Hover</div><div class="color-value">#9E4E1E</div><div class="color-token"><code>--accent-primary-hover</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--accent-secondary);"><span class="contrast-badge">AA ✓</span></div><div class="color-info"><div class="color-name">Verde Aguacate</div><div class="color-value">#4A7C3F</div><div class="color-token"><code>--accent-secondary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--accent-tertiary);"><span class="contrast-badge">AA ✓</span></div><div class="color-info"><div class="color-name">Guinda Pátzcuaro</div><div class="color-value">#8B2252</div><div class="color-token"><code>--accent-tertiary</code></div></div></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Fondos</h3>
+          <p class="subsection-desc">Crema cálido con undertone de cantera. En dark mode, tonos tierra profundos — nunca grises azulados.</p>
+          <div class="color-grid">
+            <div class="color-card"><div class="color-swatch" style="background: var(--bg-primary); border-bottom: 1px solid var(--border-default);"></div><div class="color-info"><div class="color-name">Primary</div><div class="color-token"><code>--bg-primary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--bg-secondary); border-bottom: 1px solid var(--border-default);"></div><div class="color-info"><div class="color-name">Secondary</div><div class="color-token"><code>--bg-secondary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--bg-tertiary); border-bottom: 1px solid var(--border-default);"></div><div class="color-info"><div class="color-name">Tertiary</div><div class="color-token"><code>--bg-tertiary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--bg-inverse);"></div><div class="color-info"><div class="color-name">Inverse</div><div class="color-token"><code>--bg-inverse</code></div></div></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Texto</h3>
+          <p class="subsection-desc">Base en caoba oscuro, no negro puro. Cuatro niveles de jerarquía.</p>
+          <div class="color-grid">
+            <div class="color-card"><div class="color-swatch" style="background: var(--text-primary);"></div><div class="color-info"><div class="color-name">Primary</div><div class="color-value">#2B1810</div><div class="color-token"><code>--text-primary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--text-secondary);"></div><div class="color-info"><div class="color-name">Secondary</div><div class="color-value">#3D2B20</div><div class="color-token"><code>--text-secondary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--text-tertiary);"></div><div class="color-info"><div class="color-name">Tertiary</div><div class="color-value">#7A6558</div><div class="color-token"><code>--text-tertiary</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--text-muted);"></div><div class="color-info"><div class="color-name">Muted</div><div class="color-value">#A8978B</div><div class="color-token"><code>--text-muted</code></div></div></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Semánticos</h3>
+          <p class="subsection-desc">Estados del sistema. Verdes para éxito, ámbar para advertencia, rojo para error, verde aguacate para información.</p>
+          <div class="color-grid">
+            <div class="color-card"><div class="color-swatch" style="background: var(--status-success);"></div><div class="color-info"><div class="color-name">Éxito</div><div class="color-token"><code>--status-success</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--status-warning);"></div><div class="color-info"><div class="color-name">Advertencia</div><div class="color-token"><code>--status-warning</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--status-error);"></div><div class="color-info"><div class="color-name">Error</div><div class="color-token"><code>--status-error</code></div></div></div>
+            <div class="color-card"><div class="color-swatch" style="background: var(--status-info);"></div><div class="color-info"><div class="color-name">Info</div><div class="color-token"><code>--status-info</code></div></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TYPOGRAPHY -->
+      <div class="section" id="typography">
+        <div class="section-label">Fundamentos</div>
+        <h2>Tipografía</h2>
+        <p class="section-desc">Dos familias. Playfair Display para títulos y momentos de marca. DM Sans para todo lo demás. JetBrains Mono para código y datos técnicos.</p>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">Display / Hero</span><span class="type-tag">Playfair Display 800</span><span class="type-tag">48–60px</span></div>
+          <div style="font-family: var(--font-display); font-size: 52px; font-weight: 800; color: var(--text-primary); line-height: 1.1;">Tu equipo, bien cuidado.</div>
+        </div>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">H1</span><span class="type-tag">Playfair Display 700</span><span class="type-tag">36–40px</span></div>
+          <div style="font-family: var(--font-display); font-size: 38px; font-weight: 700; color: var(--text-primary); line-height: 1.15;">Control de asistencia</div>
+        </div>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">H2</span><span class="type-tag">Playfair Display 700</span><span class="type-tag">28–32px</span></div>
+          <div style="font-family: var(--font-display); font-size: 30px; font-weight: 700; color: var(--text-primary); line-height: 1.2;">Nómina de la quincena</div>
+        </div>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">H3</span><span class="type-tag">DM Sans 600</span><span class="type-tag">22–24px</span></div>
+          <div style="font-family: var(--font-body); font-size: 23px; font-weight: 600; color: var(--text-primary); line-height: 1.3;">Resumen del turno</div>
+        </div>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">Body</span><span class="type-tag">DM Sans 400</span><span class="type-tag">16px</span></div>
+          <div style="font-family: var(--font-body); font-size: 16px; font-weight: 400; color: var(--text-secondary); line-height: 1.6;">Las PyMEs mexicanas merecen herramientas que no les hagan perder tiempo. Jale te da control completo de tu personal, checadas, turnos y nómina en una interfaz simple.</div>
+        </div>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">Caption</span><span class="type-tag">DM Sans 400</span><span class="type-tag">14px</span></div>
+          <div style="font-family: var(--font-body); font-size: 14px; font-weight: 400; color: var(--text-tertiary); line-height: 1.5;">Última checada hace 12 minutos</div>
+        </div>
+
+        <div class="type-sample">
+          <div class="type-meta"><span class="type-tag">Label / UI</span><span class="type-tag">DM Sans 500–600</span><span class="type-tag">12–13px</span></div>
+          <div style="font-family: var(--font-body); font-size: 12px; font-weight: 600; color: var(--text-muted); letter-spacing: 0.8px; text-transform: uppercase;">Personal · Turnos · Nómina</div>
+        </div>
+
+        <div class="type-sample" style="border-bottom: none;">
+          <div class="type-meta"><span class="type-tag">Mono / Code</span><span class="type-tag">JetBrains Mono 400</span><span class="type-tag">12–14px</span></div>
+          <div style="font-family: var(--font-mono); font-size: 13px; color: var(--text-tertiary);">EMP-042 · $8,450.00 MXN · 15 días trabajados</div>
+        </div>
+      </div>
+
+      <!-- SPACING -->
+      <div class="section" id="spacing">
+        <div class="section-label">Fundamentos</div>
+        <h2>Espaciado</h2>
+        <p class="section-desc">Escala de 4px. Usa los tokens, no valores arbitrarios. El espacio generoso es una feature de SEN — no lo comprimas.</p>
+
+        <div class="demo-box">
+          <div class="space-row"><div class="space-label">space-1</div><div class="space-bar" style="width: 4px;"></div><div class="space-px">4px</div></div>
+          <div class="space-row"><div class="space-label">space-2</div><div class="space-bar" style="width: 8px;"></div><div class="space-px">8px</div></div>
+          <div class="space-row"><div class="space-label">space-3</div><div class="space-bar" style="width: 12px;"></div><div class="space-px">12px</div></div>
+          <div class="space-row"><div class="space-label">space-4</div><div class="space-bar" style="width: 16px;"></div><div class="space-px">16px</div></div>
+          <div class="space-row"><div class="space-label">space-5</div><div class="space-bar" style="width: 20px;"></div><div class="space-px">20px</div></div>
+          <div class="space-row"><div class="space-label">space-6</div><div class="space-bar" style="width: 24px;"></div><div class="space-px">24px</div></div>
+          <div class="space-row"><div class="space-label">space-8</div><div class="space-bar" style="width: 32px;"></div><div class="space-px">32px</div></div>
+          <div class="space-row"><div class="space-label">space-10</div><div class="space-bar" style="width: 40px;"></div><div class="space-px">40px</div></div>
+          <div class="space-row"><div class="space-label">space-12</div><div class="space-bar" style="width: 48px;"></div><div class="space-px">48px</div></div>
+          <div class="space-row"><div class="space-label">space-16</div><div class="space-bar" style="width: 64px;"></div><div class="space-px">64px</div></div>
+          <div class="space-row"><div class="space-label">space-20</div><div class="space-bar" style="width: 80px;"></div><div class="space-px">80px</div></div>
+          <div class="space-row"><div class="space-label">space-24</div><div class="space-bar" style="width: 96px;"></div><div class="space-px">96px</div></div>
+        </div>
+      </div>
+
+      <!-- SHADOWS -->
+      <div class="section" id="shadows">
+        <div class="section-label">Fundamentos</div>
+        <h2>Sombras y Elevación</h2>
+        <p class="section-desc">Sombras sutiles para crear jerarquía. Nunca dramáticas. En dark mode las sombras son más pronunciadas para mantener la profundidad.</p>
+
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px;">
+          <div style="background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 24px; text-align: center; box-shadow: var(--shadow-sm); border: 1px solid var(--border-subtle);">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">SM</div>
+            <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">--shadow-sm</div>
+          </div>
+          <div style="background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 24px; text-align: center; box-shadow: var(--shadow-md);">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">MD</div>
+            <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">--shadow-md</div>
+          </div>
+          <div style="background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 24px; text-align: center; box-shadow: var(--shadow-lg);">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">LG</div>
+            <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">--shadow-lg</div>
+          </div>
+          <div style="background: var(--bg-secondary); border-radius: var(--radius-lg); padding: 24px; text-align: center; box-shadow: var(--shadow-xl);">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">XL</div>
+            <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">--shadow-xl</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 32px;">
+          <h3 style="font-family: var(--font-display); font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">Border Radius</h3>
+          <p class="subsection-desc">Bordes siempre redondeados. Nunca esquinas duras.</p>
+          <div style="display: flex; gap: 20px; align-items: end; flex-wrap: wrap;">
+            <div style="text-align: center;">
+              <div style="width: 60px; height: 40px; background: var(--accent-primary-bg); border: 2px solid var(--accent-primary); border-radius: var(--radius-sm);"></div>
+              <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 8px;">sm · 6px</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="width: 60px; height: 40px; background: var(--accent-primary-bg); border: 2px solid var(--accent-primary); border-radius: var(--radius-md);"></div>
+              <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 8px;">md · 10px</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="width: 60px; height: 40px; background: var(--accent-primary-bg); border: 2px solid var(--accent-primary); border-radius: var(--radius-lg);"></div>
+              <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 8px;">lg · 14px</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="width: 60px; height: 40px; background: var(--accent-primary-bg); border: 2px solid var(--accent-primary); border-radius: var(--radius-xl);"></div>
+              <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 8px;">xl · 20px</div>
+            </div>
+            <div style="text-align: center;">
+              <div style="width: 60px; height: 40px; background: var(--accent-primary-bg); border: 2px solid var(--accent-primary); border-radius: var(--radius-full);"></div>
+              <div style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); margin-top: 8px;">full · 100px</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BUTTONS -->
+      <div class="section" id="buttons">
+        <div class="section-label">Componentes</div>
+        <h2>Botones</h2>
+        <p class="section-desc">Un CTA por pantalla en cobre michoacano. Acciones secundarias con borde. Acciones destructivas en rojo, siempre con confirmación.</p>
+
+        <div class="demo-box">
+          <div class="demo-label">VARIANTES</div>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-md">Primario</button>
+            <button class="btn btn-secondary btn-md">Secundario</button>
+            <button class="btn btn-ghost btn-md">Ghost</button>
+            <button class="btn btn-danger btn-md">Eliminar</button>
+            <button class="btn btn-success btn-md">Confirmar</button>
+          </div>
+        </div>
+
+        <div class="demo-box">
+          <div class="demo-label">TAMAÑOS</div>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-sm">Pequeño</button>
+            <button class="btn btn-primary btn-md">Mediano</button>
+            <button class="btn btn-primary btn-lg">Grande</button>
+          </div>
+        </div>
+
+        <div class="demo-box">
+          <div class="demo-label">ESTADOS</div>
+          <div class="btn-row">
+            <button class="btn btn-primary btn-md">Normal</button>
+            <button class="btn btn-primary btn-md" style="background: var(--accent-primary-hover);">Hover</button>
+            <button class="btn btn-primary btn-md" disabled>Disabled</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- INPUTS -->
+      <div class="section" id="inputs">
+        <div class="section-label">Componentes</div>
+        <h2>Inputs</h2>
+        <p class="section-desc">Inputs limpios con labels claros. El borde cobre en focus comunica que el campo está activo. Los errores se muestran inmediatamente debajo.</p>
+
+        <div class="demo-box">
+          <div class="input-demo">
+            <div class="input-group">
+              <label class="input-label">Nombre del empleado</label>
+              <input class="input" type="text" placeholder="Ej: María García López">
+            </div>
+            <div class="input-group">
+              <label class="input-label">Número de empleado</label>
+              <input class="input" type="text" value="EMP-042" style="border-color: var(--accent-primary); box-shadow: 0 0 0 3px var(--accent-primary-bg);">
+              <div class="input-hint">Identificador único del empleado</div>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Horas extra</label>
+              <input class="input input-error" type="text" value="-3">
+              <div class="input-error-msg">Las horas extra no pueden ser negativas</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARDS -->
+      <div class="section" id="cards">
+        <div class="section-label">Componentes</div>
+        <h2>Cards</h2>
+        <p class="section-desc">Contenedores para agrupar información relacionada. Elevación sutil en hover. Nunca sobrecargues una card — si tiene más de 3 datos, replantea la estructura.</p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-icon" style="background: var(--accent-primary-bg);">👥</div>
+            <h4>Personal</h4>
+            <p>48 empleados activos en 3 sucursales. 2 nuevas altas este mes.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="background: var(--accent-secondary-bg);">⏱</div>
+            <h4>Asistencia</h4>
+            <p>96% de puntualidad esta quincena. 3 retardos pendientes.</p>
+          </div>
+          <div class="card">
+            <div class="card-icon" style="background: var(--status-warning-bg);">⚠</div>
+            <h4>Nómina</h4>
+            <p>Faltan 4 recibos por timbrar antes del viernes.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BADGES -->
+      <div class="section" id="badges">
+        <div class="section-label">Componentes</div>
+        <h2>Badges y Status</h2>
+        <p class="section-desc">Indicadores visuales compactos para estados. Siempre con color de fondo + texto, nunca solo color de texto.</p>
+
+        <div class="demo-box">
+          <div class="demo-label">STATUS BADGES</div>
+          <div class="btn-row">
+            <span class="badge badge-success">Activo</span>
+            <span class="badge badge-warning">Retardo</span>
+            <span class="badge badge-error">Falta</span>
+            <span class="badge badge-info">Vacaciones</span>
+            <span class="badge badge-neutral">Baja</span>
+            <span class="badge badge-accent">Nuevo ingreso</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ALERTS -->
+      <div class="section" id="alerts">
+        <div class="section-label">Componentes</div>
+        <h2>Alertas</h2>
+        <p class="section-desc">Mensajes del sistema. Borde izquierdo de color para reforzar el tipo. Texto directo, en español mexicano natural.</p>
+
+        <div class="alert alert-success"><span class="alert-icon">✓</span> La nómina de la quincena se procesó. Ya puedes ver los recibos.</div>
+        <div class="alert alert-warning"><span class="alert-icon">⚠</span> Tienes 3 empleados con retardos acumulados. Checa el reporte.</div>
+        <div class="alert alert-error"><span class="alert-icon">✕</span> No se pudo timbrar el recibo de María García. Revisa los datos fiscales.</div>
+        <div class="alert alert-info"><span class="alert-icon">ℹ</span> El periodo de vacaciones de Semana Santa ya está configurado.</div>
+      </div>
+
+      <!-- TABLES -->
+      <div class="section" id="tables">
+        <div class="section-label">Componentes</div>
+        <h2>Tablas</h2>
+        <p class="section-desc">Para datos tabulares. Headers en gris muted, filas con hover sutil en cobre. Siempre con padding generoso.</p>
+
+        <div class="table-wrap">
+          <table class="sen-table">
+            <thead>
+              <tr>
+                <th>Empleado</th>
+                <th>No. Emp</th>
+                <th>Turno</th>
+                <th>Sueldo quincenal</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight: 600; color: var(--text-primary);">María García López</td>
+                <td><code>EMP-042</code></td>
+                <td>Matutino</td>
+                <td>$8,450.00</td>
+                <td><span class="badge badge-success">Activo</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: var(--text-primary);">Carlos Hernández Ruiz</td>
+                <td><code>EMP-018</code></td>
+                <td>Vespertino</td>
+                <td>$7,200.00</td>
+                <td><span class="badge badge-warning">Retardo</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: var(--text-primary);">Ana Torres Mendoza</td>
+                <td><code>EMP-067</code></td>
+                <td>Matutino</td>
+                <td>$9,100.00</td>
+                <td><span class="badge badge-info">Vacaciones</span></td>
+              </tr>
+              <tr>
+                <td style="font-weight: 600; color: var(--text-primary);">Roberto Sánchez Vega</td>
+                <td><code>EMP-003</code></td>
+                <td>Nocturno</td>
+                <td>$10,500.00</td>
+                <td><span class="badge badge-success">Activo</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TOGGLES -->
+      <div class="section" id="toggles">
+        <div class="section-label">Componentes</div>
+        <h2>Toggles</h2>
+        <p class="section-desc">Para opciones binarias. El estado activo siempre va en cobre michoacano.</p>
+
+        <div class="demo-box">
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <div class="toggle-track on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Notificaciones de retardo</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Modo oscuro automático</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 14px;">
+              <div class="toggle-track on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+              <span style="font-size: 14px; font-weight: 500; color: var(--text-primary);">Checada por geolocalización</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MODALS -->
+      <div class="section" id="modals">
+        <div class="section-label">Componentes</div>
+        <h2>Modales</h2>
+        <p class="section-desc">Para confirmaciones y acciones críticas. Siempre con overlay oscuro. Botón primario a la derecha. Texto claro y directo.</p>
+
+        <div class="demo-box" style="display: flex; justify-content: center; padding: 48px; background: var(--overlay); border: none;">
+          <div class="modal-demo">
+            <h4>¿Dar de baja a este empleado?</h4>
+            <p>Esta acción moverá a Carlos Hernández (EMP-018) a la lista de bajas. Se generará su finiquito automáticamente.</p>
+            <div class="btn-row">
+              <button class="btn btn-secondary btn-md">Cancelar</button>
+              <button class="btn btn-danger btn-md">Sí, dar de baja</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOOLTIPS -->
+      <div class="section" id="tooltips">
+        <div class="section-label">Componentes</div>
+        <h2>Tooltips</h2>
+        <p class="section-desc">Información adicional al pasar el cursor. Cortos, útiles, en español natural.</p>
+
+        <div class="demo-box">
+          <div style="display: flex; gap: 40px; flex-wrap: wrap;">
+            <span class="tooltip-example" data-tip="Registro de entrada y salida">Checada</span>
+            <span class="tooltip-example" data-tip="Pago quincenal o semanal">Nómina</span>
+            <span class="tooltip-example" data-tip="Horario asignado al empleado">Turno</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- GUIDELINES -->
+      <div class="section" id="guidelines">
+        <div class="section-label">Guías</div>
+        <h2>Lineamientos</h2>
+        <p class="section-desc">Reglas para mantener la consistencia entre todos los productos de SEN.</p>
+
+        <div class="subsection">
+          <h3>Botones</h3>
+          <div class="guideline">
+            <div class="guideline-do"><div class="guideline-label">✓ Así sí</div><div class="guideline-text">Un solo botón primario (cobre michoacano) por pantalla. Es la acción principal que quieres que el usuario tome.</div></div>
+            <div class="guideline-dont"><div class="guideline-label">✗ Así no</div><div class="guideline-text">Múltiples botones cobre compitiendo por atención. Si todo es importante, nada es importante.</div></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Colores</h3>
+          <div class="guideline">
+            <div class="guideline-do"><div class="guideline-label">✓ Así sí</div><div class="guideline-text">Usa los tokens CSS. <code>var(--accent-primary)</code> se adapta automáticamente entre light y dark.</div></div>
+            <div class="guideline-dont"><div class="guideline-label">✗ Así no</div><div class="guideline-text">Colores hex directos como <code>#B8602A</code>. Si cambiamos un color, todo lo hardcodeado se rompe.</div></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Espaciado</h3>
+          <div class="guideline">
+            <div class="guideline-do"><div class="guideline-label">✓ Así sí</div><div class="guideline-text">Espacio generoso entre secciones (space-16 o más). El contenido respira. Las PyMEs usan esto en pantallas chicas — necesitan espacio.</div></div>
+            <div class="guideline-dont"><div class="guideline-label">✗ Así no</div><div class="guideline-text">Todo apretado para "aprovechar la pantalla". Eso genera fatiga visual y errores de clic en móvil.</div></div>
+          </div>
+        </div>
+
+        <div class="subsection">
+          <h3>Texto</h3>
+          <div class="guideline">
+            <div class="guideline-do"><div class="guideline-label">✓ Así sí</div><div class="guideline-text">"Tu nómina se procesó." Directo, en segunda persona, sin jerga.</div></div>
+            <div class="guideline-dont"><div class="guideline-label">✗ Así no</div><div class="guideline-text">"El proceso de cálculo de remuneraciones ha sido ejecutado satisfactoriamente en el sistema."</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACCESSIBILITY -->
+      <div class="section" id="accessibility">
+        <div class="section-label">Guías</div>
+        <h2>Accesibilidad</h2>
+        <p class="section-desc">Nuestros usuarios no son developers. Muchos trabajan desde celulares viejos con pantallas chicas. La accesibilidad es una obligación, no un extra.</p>
+
+        <div class="demo-box">
+          <div style="display: flex; flex-direction: column; gap: 14px; font-size: 15px;">
+            <div style="color: var(--text-primary);"><strong>Contraste mínimo:</strong> 4.5:1 para texto body, 3:1 para texto grande (WCAG AA)</div>
+            <div style="color: var(--text-primary);"><strong>Touch targets:</strong> Mínimo 44x44px en móvil. El personal de piso checa desde su celular con las manos ocupadas.</div>
+            <div style="color: var(--text-primary);"><strong>Tamaño mínimo:</strong> 16px para cuerpo de texto en pantalla. Nunca menos de 12px para nada.</div>
+            <div style="color: var(--text-primary);"><strong>Color no es el único indicador:</strong> Siempre combina color con texto o ícono. "Retardo" no solo en naranja, también con la etiqueta.</div>
+            <div style="color: var(--text-primary);"><strong>Focus visible:</strong> Todos los elementos interactivos tienen un estado de focus claro con el ring cobre.</div>
+            <div style="color: var(--text-primary);"><strong>Etiquetas:</strong> Todos los inputs tienen label visible. Nada de solo placeholder como etiqueta.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MOTION -->
+      <div class="section" id="motion">
+        <div class="section-label">Guías</div>
+        <h2>Movimiento</h2>
+        <p class="section-desc">Las animaciones en SEN son sutiles y funcionales. Comunican que algo pasó, no son decoración.</p>
+
+        <div class="demo-box">
+          <div class="demo-label">CURVAS DE ANIMACIÓN</div>
+          <div style="display: flex; flex-direction: column; gap: 16px; font-size: 14px;">
+            <div style="color: var(--text-primary);"><code>--transition-fast</code> <span style="color: var(--text-muted);">· 150ms · Hovers, toggles, micro-interacciones</span></div>
+            <div style="color: var(--text-primary);"><code>--transition-base</code> <span style="color: var(--text-muted);">· 250ms · Transiciones de página, modales, paneles</span></div>
+            <div style="color: var(--text-primary);"><code>--transition-slow</code> <span style="color: var(--text-muted);">· 400ms · Animaciones de entrada, page transitions</span></div>
+          </div>
+        </div>
+
+        <div class="guideline" style="margin-top: 24px;">
+          <div class="guideline-do"><div class="guideline-label">✓ Así sí</div><div class="guideline-text">Transiciones suaves que confirman acciones: un toast aparece suavemente, una fila se desvanece al eliminarla, un modal entra con fade + scale sutil.</div></div>
+          <div class="guideline-dont"><div class="guideline-label">✗ Así no</div><div class="guideline-text">Bouncing, rebotes exagerados, animaciones lentas que bloquean la interacción, efectos de parallax que marean. Esto es software de trabajo, no un portfolio.</div></div>
+        </div>
+      </div>
+
+      <!-- AGENT TOKENS -->
+      <div class="section" id="agent-tokens">
+        <div class="section-label">Para agentes</div>
+        <h2>Tokens CSS — Copiar y pegar</h2>
+        <p class="section-desc">Bloque completo de tokens listo para que un agente de IA o un desarrollador lo copie directamente a su proyecto. Incluye ambos temas.</p>
+
+        <div class="demo-box" style="padding: 24px;">
+          <div class="demo-label">CSS TOKENS — TEMA CLARO + OSCURO (copiar completo)</div>
+          <pre style="font-family: var(--font-mono); font-size: 12px; line-height: 1.7; color: var(--text-secondary); white-space: pre; overflow-x: auto; background: var(--code-bg); padding: 20px; border-radius: var(--radius-md); border: 1px solid var(--border-default);">
+/* ===========================================
+   SEN DESIGN SYSTEM — PALETA MICHOACÁN v4.0
+   Plataforma: Web
+   Producto: Jale (Personal, Nómina, Asistencia)
+   Última actualización: 2026
+   =========================================== */
+
+:root {
+  /* — Fondos (undertone cantera moreliana) — */
+  --bg-primary: #FAF7F3;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F3EDE6;
+  --bg-elevated: #FFFFFF;
+  --bg-inverse: #1A1210;
+
+  /* — Texto (base caoba, no negro puro) — */
+  --text-primary: #2B1810;
+  --text-secondary: #3D2B20;
+  --text-tertiary: #7A6558;
+  --text-muted: #A8978B;
+  --text-inverse: #FAF7F3;
+  --text-on-accent: #FFFFFF;
+
+  /* — Bordes — */
+  --border-default: #E6DCD3;
+  --border-subtle: #F0E8E1;
+  --border-strong: #D1C2B6;
+
+  /* — Acento primario: Cobre Michoacano — */
+  --accent-primary: #B8602A;
+  --accent-primary-hover: #9E4E1E;
+  --accent-primary-bg: rgba(184, 96, 42, 0.08);
+  --accent-primary-bg-hover: rgba(184, 96, 42, 0.14);
+  --accent-primary-light: #D4956A;
+
+  /* — Acento secundario: Verde Aguacate — */
+  --accent-secondary: #4A7C3F;
+  --accent-secondary-hover: #3A6430;
+  --accent-secondary-bg: rgba(74, 124, 63, 0.08);
+  --accent-secondary-bg-hover: rgba(74, 124, 63, 0.14);
+  --accent-secondary-light: #7FB573;
+
+  /* — Acento terciario: Guinda Pátzcuaro — */
+  --accent-tertiary: #8B2252;
+  --accent-tertiary-bg: rgba(139, 34, 82, 0.08);
+
+  /* — Semánticos — */
+  --status-success: #2D8659;
+  --status-success-bg: rgba(45, 134, 89, 0.10);
+  --status-warning: #CC8A17;
+  --status-warning-bg: rgba(204, 138, 23, 0.10);
+  --status-error: #C4302B;
+  --status-error-bg: rgba(196, 48, 43, 0.10);
+  --status-info: #4A7C3F;
+  --status-info-bg: rgba(74, 124, 63, 0.10);
+
+  /* — Sombras — */
+  --shadow-sm: 0 1px 3px rgba(43, 24, 16, 0.05);
+  --shadow-md: 0 4px 16px rgba(43, 24, 16, 0.08);
+  --shadow-lg: 0 12px 40px rgba(43, 24, 16, 0.12);
+  --shadow-xl: 0 20px 60px rgba(43, 24, 16, 0.14);
+
+  /* — Radios — */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 100px;
+
+  /* — Espaciado (escala de 4) — */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* — Tipografía — */
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* — Transiciones — */
+  --transition-fast: 150ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-base: 250ms cubic-bezier(0.23, 1, 0.32, 1);
+  --transition-slow: 400ms cubic-bezier(0.23, 1, 0.32, 1);
+
+  /* — Overlay y utilidades — */
+  --overlay: rgba(26, 18, 16, 0.55);
+  --nav-bg: rgba(250, 247, 243, 0.88);
+  --code-bg: #F3EDE6;
+}
+
+/* — TEMA OSCURO (Noche Moreliana) — */
+[data-theme="dark"] {
+  --bg-primary: #110D0A;
+  --bg-secondary: #1C1613;
+  --bg-tertiary: #28201B;
+  --bg-elevated: #342A24;
+  --bg-inverse: #FAF7F3;
+
+  --text-primary: #F0EAE4;
+  --text-secondary: #D6CCC3;
+  --text-tertiary: #9A8B80;
+  --text-muted: #665A50;
+  --text-inverse: #2B1810;
+
+  --border-default: #3D3028;
+  --border-subtle: #2D231C;
+  --border-strong: #4D3F36;
+
+  --accent-primary: #D4835E;
+  --accent-primary-hover: #E09A78;
+  --accent-primary-bg: rgba(212, 131, 94, 0.14);
+  --accent-primary-bg-hover: rgba(212, 131, 94, 0.22);
+
+  --accent-secondary: #7FB573;
+  --accent-secondary-hover: #96C88C;
+  --accent-secondary-bg: rgba(127, 181, 115, 0.14);
+  --accent-secondary-bg-hover: rgba(127, 181, 115, 0.22);
+
+  --accent-tertiary: #C85A8A;
+  --accent-tertiary-bg: rgba(200, 90, 138, 0.14);
+
+  --status-success: #5CC98A;
+  --status-success-bg: rgba(92, 201, 138, 0.16);
+  --status-warning: #E8B44A;
+  --status-warning-bg: rgba(232, 180, 74, 0.16);
+  --status-error: #E8605A;
+  --status-error-bg: rgba(232, 96, 90, 0.16);
+  --status-info: #7FB573;
+  --status-info-bg: rgba(127, 181, 115, 0.16);
+
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.35);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.4);
+  --shadow-xl: 0 20px 60px rgba(0,0,0,0.45);
+
+  --overlay: rgba(0, 0, 0, 0.7);
+  --nav-bg: rgba(17, 13, 10, 0.88);
+  --code-bg: #28201B;
+}</pre>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('.theme-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+  }
+
+  // Sidebar active state
+  const links = document.querySelectorAll('.sidebar-link');
+  const sections = document.querySelectorAll('.section');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar-link[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-100px 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

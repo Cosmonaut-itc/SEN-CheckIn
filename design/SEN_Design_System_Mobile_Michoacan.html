@@ -1,0 +1,1276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SEN Design System — Mobile (iOS + Android) · Paleta Michoacán v4.0</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Playfair+Display:ital,wght@0,400;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* === PALETA MICHOACÁN — v4.0 === */
+  /* Fondos: crema cálido con toque de cantera rosa */
+  --bg-primary:#FAF7F3;--bg-secondary:#FFFFFF;--bg-tertiary:#F3EDE6;--bg-elevated:#FFFFFF;--bg-inverse:#1A1210;
+  /* Texto: caoba profundo como base */
+  --text-primary:#2B1810;--text-secondary:#3D2B20;--text-tertiary:#7A6558;--text-muted:#A8978B;--text-inverse:#FAF7F3;--text-on-accent:#FFFFFF;
+  /* Bordes con tono rosado sutil */
+  --border-default:#E6DCD3;--border-subtle:#F0E8E1;--border-strong:#D1C2B6;
+  /* Primario: Cobre Michoacano vibrante */
+  --accent-primary:#B8602A;--accent-primary-hover:#9E4E1E;--accent-primary-bg:rgba(184,96,42,0.08);
+  /* Secundario: Verde Aguacate */
+  --accent-secondary:#4A7C3F;--accent-secondary-bg:rgba(74,124,63,0.08);
+  /* Terciario: Guinda Pátzcuaro */
+  --accent-tertiary:#8B2252;--accent-tertiary-bg:rgba(139,34,82,0.08);
+  /* Status: colores vivos con raíz mexicana */
+  --status-success:#2D8659;--status-success-bg:rgba(45,134,89,0.10);
+  --status-warning:#CC8A17;--status-warning-bg:rgba(204,138,23,0.10);
+  --status-error:#C4302B;--status-error-bg:rgba(196,48,43,0.10);
+  --status-info:#4A7C3F;--status-info-bg:rgba(74,124,63,0.10);
+  --shadow-sm:0 1px 3px rgba(43,24,16,0.05);--shadow-md:0 4px 16px rgba(43,24,16,0.08);
+  --shadow-lg:0 12px 40px rgba(43,24,16,0.12);
+  --nav-bg:rgba(250,247,243,0.88);--code-bg:#F5EDE5;--overlay:rgba(26,18,16,0.55);
+  --radius-sm:6px;--radius-md:10px;--radius-lg:14px;--radius-xl:20px;--radius-full:100px;
+  --font-display:'Playfair Display',Georgia,serif;--font-body:'DM Sans',-apple-system,sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --transition-fast:150ms cubic-bezier(0.23,1,0.32,1);--transition-base:250ms cubic-bezier(0.23,1,0.32,1);
+}
+[data-theme="dark"] {
+  /* === PALETA MICHOACÁN OSCURA === */
+  --bg-primary:#110D0A;--bg-secondary:#1C1613;--bg-tertiary:#28201B;--bg-elevated:#342A24;--bg-inverse:#FBF7F2;
+  --text-primary:#F0EAE4;--text-secondary:#D6CCC3;--text-tertiary:#9A8B80;--text-muted:#665A50;--text-inverse:#2B1810;
+  --border-default:#3D3028;--border-subtle:#2D231C;--border-strong:#4D3F36;
+  /* Cobre luminoso en dark */
+  --accent-primary:#D4835E;--accent-primary-hover:#E09A78;--accent-primary-bg:rgba(212,131,94,0.14);
+  /* Verde iluminado */
+  --accent-secondary:#7FB573;--accent-secondary-bg:rgba(127,181,115,0.14);
+  /* Guinda cálida */
+  --accent-tertiary:#C85A8A;--accent-tertiary-bg:rgba(200,90,138,0.14);
+  --status-success:#5CC98A;--status-success-bg:rgba(92,201,138,0.16);
+  --status-warning:#C85A8A;--status-warning-bg:rgba(200,90,138,0.16);
+  --status-error:#E8605A;--status-error-bg:rgba(232,96,90,0.16);
+  --status-info:#7FB573;--status-info-bg:rgba(127,181,115,0.16);
+  --shadow-sm:0 1px 3px rgba(0,0,0,0.3);--shadow-md:0 4px 16px rgba(0,0,0,0.35);
+  --shadow-lg:0 12px 40px rgba(0,0,0,0.4);
+  --nav-bg:rgba(17,13,10,0.88);--code-bg:#28201B;--overlay:rgba(0,0,0,0.7);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-secondary);
+  -webkit-font-smoothing:antialiased;transition:background var(--transition-base),color var(--transition-base);line-height:1.6}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:270px;position:fixed;top:0;left:0;bottom:0;background:var(--bg-secondary);
+  border-right:1px solid var(--border-default);padding:24px 0;overflow-y:auto;z-index:50;
+  transition:background var(--transition-base)}
+.sidebar-logo{font-family:var(--font-display);font-size:20px;font-weight:800;
+  letter-spacing:5px;color:var(--text-primary);padding:0 24px;margin-bottom:2px}
+.sidebar-subtitle{font-size:10px;color:var(--text-muted);padding:0 24px;margin-bottom:28px;font-weight:500}
+.sidebar-section{font-size:10px;font-weight:700;color:var(--text-muted);
+  letter-spacing:2px;text-transform:uppercase;padding:16px 24px 6px}
+.sidebar-link{display:block;padding:7px 24px;font-size:13px;color:var(--text-tertiary);
+  text-decoration:none;transition:all var(--transition-fast);font-weight:450;border-left:3px solid transparent}
+.sidebar-link:hover{color:var(--text-primary);background:var(--bg-tertiary)}
+.sidebar-link.active{color:var(--accent-primary);background:var(--accent-primary-bg);
+  border-left-color:var(--accent-primary);font-weight:600}
+.main{margin-left:270px;flex:1}
+.topbar{position:sticky;top:0;z-index:40;padding:14px 44px;background:var(--nav-bg);
+  backdrop-filter:blur(20px);border-bottom:1px solid var(--border-default);
+  display:flex;justify-content:space-between;align-items:center}
+.topbar-title{font-size:14px;font-weight:600;color:var(--text-primary)}
+.theme-toggle{display:flex;background:var(--bg-tertiary);border:1px solid var(--border-default);
+  border-radius:var(--radius-full);padding:3px}
+.theme-btn{padding:5px 14px;border-radius:var(--radius-full);font-size:12px;font-weight:600;
+  font-family:var(--font-body);border:none;cursor:pointer;transition:all var(--transition-fast);
+  color:var(--text-tertiary);background:transparent}
+.theme-btn.active{background:var(--bg-elevated);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+.content{padding:44px;max-width:960px}
+.section{margin-bottom:68px;scroll-margin-top:72px}
+.section-label{font-size:11px;font-weight:700;color:var(--accent-primary);
+  letter-spacing:3px;text-transform:uppercase;margin-bottom:10px}
+.section h2{font-family:var(--font-display);font-size:32px;font-weight:700;
+  color:var(--text-primary);margin-bottom:10px;line-height:1.15}
+.section-desc{font-size:15px;color:var(--text-tertiary);max-width:620px;margin-bottom:32px;line-height:1.65}
+.subsection{margin-bottom:36px}
+.subsection h3{font-family:var(--font-display);font-size:20px;font-weight:700;
+  color:var(--text-primary);margin-bottom:6px}
+.subsection-desc{font-size:14px;color:var(--text-tertiary);margin-bottom:18px;line-height:1.6}
+
+/* Platform badges */
+.pb{display:inline-flex;padding:3px 9px;border-radius:var(--radius-full);font-size:10px;font-weight:700;
+  margin-right:5px;margin-bottom:4px;letter-spacing:0.5px}
+.pb-ios{background:#007AFF15;color:#007AFF}
+.pb-android{background:#34A85315;color:#34A853}
+.pb-web{background:var(--status-info-bg);color:var(--status-info)}
+.pb-sen{background:var(--accent-primary-bg);color:var(--accent-primary)}
+
+/* Tables */
+.spec-table{width:100%;border-collapse:collapse;background:var(--bg-secondary);
+  border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default);margin-bottom:20px}
+.spec-table th{text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);
+  text-transform:uppercase;letter-spacing:0.6px;padding:10px 14px;
+  border-bottom:1px solid var(--border-default);background:var(--bg-tertiary)}
+.spec-table td{padding:10px 14px;font-size:13px;color:var(--text-secondary);
+  border-bottom:1px solid var(--border-subtle);vertical-align:top}
+.spec-table tr:last-child td{border-bottom:none}
+.spec-table .row-label{font-weight:600;color:var(--text-primary);white-space:nowrap}
+
+/* Code */
+code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
+  padding:2px 5px;border-radius:3px;color:var(--accent-primary)}
+.code-block{background:var(--code-bg);border:1px solid var(--border-default);
+  border-radius:var(--radius-md);padding:18px;overflow-x:auto;margin-bottom:18px;
+  font-family:var(--font-mono);font-size:11.5px;line-height:1.7;color:var(--text-secondary)}
+.cm{color:var(--text-muted)} .ck{color:var(--accent-primary)} .cs{color:var(--accent-secondary)} .cn{color:var(--status-info)}
+
+/* Demo */
+.demo-box{background:var(--bg-secondary);border:1px solid var(--border-default);
+  border-radius:var(--radius-lg);padding:24px;margin-bottom:18px}
+.demo-label{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:12px;
+  letter-spacing:0.5px}
+
+/* Guidelines */
+.guideline{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.gl-do,.gl-dont{padding:16px;border-radius:var(--radius-lg)}
+.gl-do{background:var(--status-success-bg);border:1px solid var(--status-success)}
+.gl-dont{background:var(--status-error-bg);border:1px solid var(--status-error)}
+.gl-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
+.gl-do .gl-label{color:var(--status-success)} .gl-dont .gl-label{color:var(--status-error)}
+.gl-text{font-size:13px;line-height:1.6}
+.gl-do .gl-text{color:var(--status-success)} .gl-dont .gl-text{color:var(--status-error)}
+
+/* Comparison 3-col */
+.compare-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+.compare-card{background:var(--bg-secondary);border:1px solid var(--border-default);
+  border-radius:var(--radius-lg);padding:18px;transition:all var(--transition-base)}
+.compare-card:hover{box-shadow:var(--shadow-md)}
+.compare-card-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
+  margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.compare-card p{font-size:13px;color:var(--text-tertiary);line-height:1.55}
+.compare-card strong{color:var(--text-primary)}
+
+/* Info callout */
+.callout{padding:16px 18px;border-radius:var(--radius-md);font-size:13px;line-height:1.6;
+  margin-bottom:18px;display:flex;gap:10px;align-items:flex-start}
+.callout-sen{background:var(--accent-primary-bg);color:var(--accent-primary);border-left:3px solid var(--accent-primary)}
+.callout-info{background:var(--status-info-bg);color:var(--status-info);border-left:3px solid var(--status-info)}
+
+/* Phone mockups */
+.phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
+.phone-frame{width:220px;height:440px;border-radius:30px;border:3px solid var(--border-strong);
+  background:var(--bg-primary);overflow:hidden;position:relative;flex-shrink:0;box-shadow:var(--shadow-lg)}
+.phone-label{text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);
+  margin-top:8px;letter-spacing:0.5px}
+.phone-notch{width:100px;height:24px;background:var(--text-primary);border-radius:0 0 14px 14px;
+  position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2}
+.phone-pill{width:70px;height:6px;background:var(--text-primary);border-radius:3px;
+  position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:2}
+.phone-screen{padding:36px 12px 12px;height:100%;overflow:hidden}
+.phone-nav{display:flex;justify-content:space-around;padding:8px 0;
+  border-top:1px solid var(--border-default);position:absolute;bottom:0;left:0;right:0;
+  background:var(--bg-secondary)}
+.phone-nav-item{text-align:center;font-size:9px;color:var(--text-muted);font-weight:500}
+.phone-nav-item.active{color:var(--accent-primary)}
+.phone-nav-icon{font-size:16px;margin-bottom:1px}
+/* Android 3-button nav */
+.android-nav{display:flex;justify-content:center;gap:32px;padding:6px 0;
+  position:absolute;bottom:0;left:0;right:0;background:var(--bg-secondary);
+  border-top:1px solid var(--border-default)}
+.android-nav-btn{width:14px;height:14px;display:flex;align-items:center;justify-content:center}
+
+@media(max-width:900px){
+  .sidebar{display:none}.main{margin-left:0}.content{padding:24px 16px}
+  .guideline,.compare-3{grid-template-columns:1fr}.topbar{padding:12px 16px}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="sidebar">
+  <div class="sidebar-logo">SEN</div>
+  <div class="sidebar-subtitle">Design System · Mobile (iOS + Android) · Paleta Michoacán v4.0</div>
+  <div class="sidebar-section">Filosofía</div>
+  <a href="#color-palette" class="sidebar-link active">Paleta Michoacán</a>
+  <a href="#philosophy" class="sidebar-link">Enfoque multiplataforma</a>
+  <a href="#platform-map" class="sidebar-link">Mapa de plataformas</a>
+  <div class="sidebar-section">Por plataforma</div>
+  <a href="#navigation" class="sidebar-link">Navegación</a>
+  <a href="#typography-platform" class="sidebar-link">Tipografía</a>
+  <a href="#buttons-platform" class="sidebar-link">Botones</a>
+  <a href="#inputs-platform" class="sidebar-link">Inputs</a>
+  <a href="#lists-platform" class="sidebar-link">Listas y Tablas</a>
+  <a href="#feedback" class="sidebar-link">Feedback y Alertas</a>
+  <a href="#modals-sheets" class="sidebar-link">Modales y Sheets</a>
+  <a href="#search-platform" class="sidebar-link">Búsqueda</a>
+  <div class="sidebar-section">Comportamiento</div>
+  <a href="#gestures" class="sidebar-link">Gestos</a>
+  <a href="#motion-platform" class="sidebar-link">Movimiento</a>
+  <a href="#haptics" class="sidebar-link">Hápticos</a>
+  <a href="#safe-areas" class="sidebar-link">Safe Areas</a>
+  <a href="#keyboard" class="sidebar-link">Teclado</a>
+  <a href="#dark-mode" class="sidebar-link">Dark Mode</a>
+  <div class="sidebar-section">Producción</div>
+  <a href="#tokens-expo" class="sidebar-link">Tokens Expo</a>
+  <a href="#accessibility-platform" class="sidebar-link">Accesibilidad</a>
+  <a href="#offline" class="sidebar-link">Offline First</a>
+  <a href="#checklist" class="sidebar-link">Checklist</a>
+
+  <div class="sidebar-section">Para agentes</div>
+  <a href="#agent-tokens" class="sidebar-link">Tokens CSS (copiar)</a>
+</aside>
+
+<div class="main">
+<div class="topbar">
+  <div class="topbar-title">SEN Design System · Mobile (iOS + Android) · Paleta Michoacán</div>
+  <div class="theme-toggle">
+    <button class="theme-btn active" onclick="setTheme('light')">☀ Claro</button>
+    <button class="theme-btn" onclick="setTheme('dark')">● Oscuro</button>
+  </div>
+</div>
+<div class="content">
+
+<!-- PALETA MICHOACÁN -->
+<div class="section" id="color-palette">
+  <div class="section-label">Nueva identidad cromática</div>
+  <h2>Paleta Michoacán</h2>
+  <p class="section-desc">Un rediseño radical. Adiós a los tonos tierra conservadores. La nueva paleta de SEN nace de Michoacán: el cobre martillado de Santa Clara, el verde profundo de los aguacatales, la guinda de las lacas de Pátzcuaro, y el verde sereno de los bosques de oyamel.</p>
+
+  <div class="callout callout-sen">
+    <strong>Filosofía:</strong> Software empresarial no tiene por qué ser gris y aburrido. Si México tiene los colores más vibrantes del mundo, ¿por qué nuestras herramientas deberían verse como si fueran de Estocolmo? SEN se ve como se siente: mexicano, orgulloso, moderno.
+  </div>
+
+  <div class="subsection">
+    <h3>Colores primarios</h3>
+    <p class="subsection-desc">Tres colores protagonistas que definen toda la identidad visual de SEN.</p>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
+      <!-- Cobre Michoacano -->
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:100px;background:#B8602A;position:relative">
+          <div style="position:absolute;bottom:8px;left:12px;color:white;font-family:var(--font-mono);font-size:11px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.3)">#B8602A</div>
+        </div>
+        <div style="padding:14px;background:var(--bg-secondary)">
+          <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px">Cobre Michoacano</div>
+          <div style="font-size:12px;color:var(--text-tertiary);line-height:1.4"><code>accent.primary</code><br>CTAs, links, elementos activos, focus states</div>
+        </div>
+      </div>
+      <!-- Verde Aguacate -->
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:100px;background:#4A7C3F;position:relative">
+          <div style="position:absolute;bottom:8px;left:12px;color:white;font-family:var(--font-mono);font-size:11px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.3)">#4A7C3F</div>
+        </div>
+        <div style="padding:14px;background:var(--bg-secondary)">
+          <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px">Verde Aguacate</div>
+          <div style="font-size:12px;color:var(--text-tertiary);line-height:1.4"><code>accent.secondary</code><br>Badges, info, acciones secundarias, texto base</div>
+        </div>
+      </div>
+      <!-- Guinda Pátzcuaro -->
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:100px;background:linear-gradient(135deg,#8B2252,#E8B830);position:relative">
+          <div style="position:absolute;bottom:8px;left:12px;color:white;font-family:var(--font-mono);font-size:11px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.3)">#8B2252</div>
+        </div>
+        <div style="padding:14px;background:var(--bg-secondary)">
+          <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px">Guinda Pátzcuaro</div>
+          <div style="font-size:12px;color:var(--text-tertiary);line-height:1.4"><code>accent.tertiary</code><br>Highlights, warnings, badges premium, acentos</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Inspiración de Michoacán</h3>
+    <p class="subsection-desc">Cada color tiene raíces reales en la cultura, geografía y tradiciones de Michoacán y Morelia.</p>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="width:28px;height:28px;border-radius:6px;background:#B8602A;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:#D4835E;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:rgba(184,96,42,0.15);flex-shrink:0;border:1px solid rgba(184,96,42,0.3)"></div>
+        </div>
+        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌺 Cobre Michoacano</div>
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">Del cobre martillado artesanal de Santa Clara del Cobre, pueblo mágico de Michoacán. No es un naranja tímido — es el bronce cálido que evoca la tradición purépecha.</div>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="width:28px;height:28px;border-radius:6px;background:#4A7C3F;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:#7FB573;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:rgba(74,124,63,0.15);flex-shrink:0;border:1px solid rgba(74,124,63,0.3)"></div>
+        </div>
+        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌌 Verde Aguacate</div>
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">De los aguacatales infinitos que cubren los cerros michoacanos. Un verde profundo y vivo que evoca abundancia, tierra fértil y el motor económico del estado.</div>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="width:28px;height:28px;border-radius:6px;background:#8B2252;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:#C85A8A;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:rgba(139,34,82,0.15);flex-shrink:0;border:1px solid rgba(139,34,82,0.3)"></div>
+        </div>
+        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌵 Guinda Pátzcuaro</div>
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">De las lacas de Pátzcuaro y las artesanías purépechas de Uruapan. Una guinda profunda que conecta con la tradición textil y decorativa de los artesanos michoacanos.</div>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="width:28px;height:28px;border-radius:6px;background:#00875A;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:#5CC98A;flex-shrink:0"></div>
+          <div style="width:28px;height:28px;border-radius:6px;background:rgba(45,134,89,0.15);flex-shrink:0;border:1px solid rgba(45,134,89,0.3)"></div>
+        </div>
+        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌿 Verde Bosque</div>
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">De los bosques de oyamel de las montañas michoacanas donde llegan las mariposas monarca. Un verde sereno y profundo para estados de éxito y confirmaciones.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Fondos y neutros</h3>
+    <p class="subsection-desc">Los neutros tienen un undertone cálido con un toque cálido inspirado en la cantera moreliana de los edificios coloniales de Morelia.</p>
+    
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:56px;background:#FBF7F2"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--text-primary)">bg.primary</div>
+          <code style="font-size:9px">#FBF7F2</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:56px;background:#FFFFFF"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--text-primary)">bg.secondary</div>
+          <code style="font-size:9px">#FFFFFF</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:56px;background:#F5EDE5"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--text-primary)">bg.tertiary</div>
+          <code style="font-size:9px">#F5EDE5</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:56px;background:#1B0F3B"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--text-primary)">text.primary</div>
+          <code style="font-size:9px">#1B0F3B</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:56px;background:#6B5E8A"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--text-primary)">text.tertiary</div>
+          <code style="font-size:9px">#6B5E8A</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Colores semánticos</h3>
+    <p class="subsection-desc">Para estados de la interfaz. Cada uno mantiene la vibración de la paleta principal.</p>
+    
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:48px;background:#00875A"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--status-success)">Success</div>
+          <code style="font-size:9px">#00875A</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:48px;background:#E8A317"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--status-warning)">Warning</div>
+          <code style="font-size:9px">#E8A317</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:48px;background:#D42054"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--status-error)">Error</div>
+          <code style="font-size:9px">#D42054</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+        <div style="height:48px;background:#4A7C3F"></div>
+        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--status-info)">Info</div>
+          <code style="font-size:9px">#4A7C3F</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Tema oscuro</h3>
+    <p class="subsection-desc">El dark mode usa un fondo tierra profundo (no gris neutro) que hace que los colores de acento brillen. Los fondos oscuros tienen el mismo undertone cálido tierra que el texto claro.</p>
+    
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:14px">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid #3D3560">
+        <div style="height:56px;background:#0E0A1A"></div>
+        <div style="padding:8px;background:#171228;font-size:10px;text-align:center">
+          <div style="font-weight:600;color:#F2EDE7">bg.primary</div>
+          <code style="font-size:9px;color:#8F83A8;background:#201A36">#0E0A1A</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid #3D3560">
+        <div style="height:56px;background:#171228"></div>
+        <div style="padding:8px;background:#171228;font-size:10px;text-align:center">
+          <div style="font-weight:600;color:#F2EDE7">bg.secondary</div>
+          <code style="font-size:9px;color:#8F83A8;background:#201A36">#171228</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid #3D3560">
+        <div style="height:56px;background:#201A36"></div>
+        <div style="padding:8px;background:#171228;font-size:10px;text-align:center">
+          <div style="font-weight:600;color:#F2EDE7">bg.tertiary</div>
+          <code style="font-size:9px;color:#8F83A8;background:#201A36">#201A36</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid #3D3560">
+        <div style="height:56px;background:#D4835E"></div>
+        <div style="padding:8px;background:#171228;font-size:10px;text-align:center">
+          <div style="font-weight:600;color:#D4835E">accent</div>
+          <code style="font-size:9px;color:#8F83A8;background:#201A36">#D4835E</code>
+        </div>
+      </div>
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid #3D3560">
+        <div style="height:56px;background:#7FB573"></div>
+        <div style="padding:8px;background:#171228;font-size:10px;text-align:center">
+          <div style="font-weight:600;color:#7FB573">secondary</div>
+          <code style="font-size:9px;color:#8F83A8;background:#201A36">#7FB573</code>
+        </div>
+      </div>
+    </div>
+    
+    <div class="callout callout-info">
+      <strong>Principio clave dark mode:</strong> Los fondos oscuros NO son grises neutros — son tierra muy profundo (#0E0A1A). Esto crea una sensación de noche moreliana y hace que los acentos rosa y dorado vibren con personalidad.
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Comparación: antes → después</h3>
+    <p class="subsection-desc">El cambio es radical. De una paleta tierra conservadora a una identidad vibrante y orgullosamente mexicana.</p>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+      <!-- ANTES -->
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--status-error);margin-bottom:12px">✗ v3 — Antes</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:8px;background:#C4704B" title="Terracota"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#7A8B6F" title="Sage"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#D4A04A" title="Warning"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#F5F3EE" title="Bg" style="border:1px solid #E8E5E0"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#1A1A1A" title="Text"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.5">Tonos tierra apagados. Terracota + sage. Neutros grises. Conservador, seguro, anónimo. Podría ser cualquier app "orgánica".</div>
+      </div>
+      <!-- DESPUÉS -->
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--status-success);margin-bottom:12px">✓ v4 — Ahora</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:8px;background:#B8602A" title="Cobre Michoacano"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#4A7C3F" title="Verde Aguacate"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#8B2252" title="Agave"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#FBF7F2;border:1px solid #E8DDD4" title="Bg"></div>
+          <div style="width:36px;height:36px;border-radius:8px;background:#1B0F3B" title="Text"></div>
+        </div>
+        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.5">Cobre michoacano cálido. Verde aguacate profundo. Guinda pátzcuaro. Neutros con toque cantera. <strong style="color:var(--text-primary)">Inconfundiblemente mexicano.</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Tokens CSS actualizados</h3>
+    <div class="code-block"><span class="cm">/* === PALETA MICHOACÁN v4.0 — Tema Claro === */</span>
+<span class="ck">:root</span> {
+  <span class="cm">/* Acentos */</span>
+  --accent-primary: <span class="cs">#B8602A</span>;      <span class="cm">/* Cobre Michoacano */</span>
+  --accent-primary-hover: <span class="cs">#9E4E1E</span>;
+  --accent-secondary: <span class="cs">#4A7C3F</span>;     <span class="cm">/* Verde Aguacate */</span>
+  --accent-tertiary: <span class="cs">#8B2252</span>;      <span class="cm">/* Guinda Pátzcuaro */</span>
+
+  <span class="cm">/* Fondos — undertone cantera moreliana */</span>
+  --bg-primary: <span class="cs">#FBF7F2</span>;
+  --bg-secondary: <span class="cs">#FFFFFF</span>;
+  --bg-tertiary: <span class="cs">#F5EDE5</span>;
+
+  <span class="cm">/* Texto — base caoba, no negro puro */</span>
+  --text-primary: <span class="cs">#1B0F3B</span>;
+  --text-secondary: <span class="cs">#2A1F4E</span>;
+  --text-tertiary: <span class="cs">#6B5E8A</span>;
+
+  <span class="cm">/* Semánticos */</span>
+  --status-success: <span class="cs">#00875A</span>;     <span class="cm">/* Verde Bosque */</span>
+  --status-warning: <span class="cs">#E8A317</span>;     <span class="cm">/* Agave intenso */</span>
+  --status-error: <span class="cs">#D42054</span>;       <span class="cm">/* Rosa profundo */</span>
+  --status-info: <span class="cs">#4A7C3F</span>;        <span class="cm">/* Verde Aguacate */</span>
+}
+
+<span class="cm">/* === Tema Oscuro — Noche Moreliana === */</span>
+<span class="ck">[data-theme="dark"]</span> {
+  --accent-primary: <span class="cs">#D4835E</span>;      <span class="cm">/* Rosa luminoso */</span>
+  --accent-secondary: <span class="cs">#7FB573</span>;     <span class="cm">/* Verde iluminado */</span>
+  --accent-tertiary: <span class="cs">#C85A8A</span>;      <span class="cm">/* Agave brillante */</span>
+
+  <span class="cm">/* Fondos — tierra profunda, NO gris */</span>
+  --bg-primary: <span class="cs">#0E0A1A</span>;
+  --bg-secondary: <span class="cs">#171228</span>;
+  --bg-tertiary: <span class="cs">#201A36</span>;
+}</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Reglas de uso</h3>
+    <div class="guideline">
+      <div class="gl-do"><div class="gl-label">✓ Así sí</div><div class="gl-text">Cobre Michoacano como color primario de acción (CTAs, links, toggles activos). Verde Aguacate para texto y elementos informativos. Guinda Pátzcuaro para highlights y badges especiales. El texto primario es caoba oscuro (#2B1810), nunca negro puro.</div></div>
+      <div class="gl-dont"><div class="gl-label">✗ Así no</div><div class="gl-text">Nunca uses rosa y error rojo uno al lado del otro — son similares y confunden. Nunca uses los tres acentos juntos sin jerarquía. El guinda pátzcuaro NO es para texto — es solo para pequeños acentos y badges.</div></div>
+    </div>
+    <div class="guideline">
+      <div class="gl-do"><div class="gl-label">✓ Dark mode</div><div class="gl-text">Los fondos oscuros tienen undertone tierra (#110D0A), no gris neutro. Los acentos se iluminan (cobre→#D4835E, verde→#7FB573, guinda→#C85A8A) para mantener WCAG AA.</div></div>
+      <div class="gl-dont"><div class="gl-label">✗ Dark mode</div><div class="gl-text">Nunca uses fondos grises puros (#141414, #1C1C1C). Pierden toda la personalidad de la paleta. El undertone cálido es lo que hace que el dark mode se sienta SEN y no genérico.</div></div>
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Mockup: componentes con la nueva paleta</h3>
+    <p class="subsection-desc">Así se ven los elementos de interfaz con la paleta Michoacán aplicada.</p>
+    
+    <div class="demo-box">
+      <div class="demo-label">BOTONES</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="background:var(--accent-primary);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Crear traspaso</div>
+        <div style="background:transparent;color:var(--accent-primary);padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;border:1.5px solid var(--accent-primary);cursor:pointer">Exportar</div>
+        <div style="background:var(--accent-secondary);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Ver detalles</div>
+        <div style="background:var(--status-error);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Eliminar</div>
+      </div>
+    </div>
+    
+    <div class="demo-box">
+      <div class="demo-label">BADGES Y ESTADOS</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span style="background:var(--status-success-bg);color:var(--status-success);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">✓ En stock</span>
+        <span style="background:var(--status-warning-bg);color:var(--status-warning);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">⚠ Retardos</span>
+        <span style="background:var(--status-error-bg);color:var(--status-error);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">✗ Agotado</span>
+        <span style="background:var(--accent-primary-bg);color:var(--accent-primary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">Nuevo</span>
+        <span style="background:var(--accent-secondary-bg);color:var(--accent-secondary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">Info</span>
+        <span style="background:var(--accent-tertiary-bg);color:var(--accent-tertiary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">★ Premium</span>
+      </div>
+    </div>
+    
+    <div class="demo-box">
+      <div class="demo-label">INPUT FOCUS</div>
+      <div style="max-width:340px">
+        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Nombre del producto</div>
+        <div style="border:2px solid var(--accent-primary);border-radius:var(--radius-md);padding:12px 14px;font-size:14px;color:var(--text-primary);background:var(--bg-secondary);box-shadow:0 0 0 3px rgba(184,96,42,0.12)">Turno Matutino</div>
+      </div>
+    </div>
+
+    <div class="demo-box">
+      <div class="demo-label">TARJETA CON ACENTO</div>
+      <div style="max-width:360px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);overflow:hidden">
+        <div style="height:4px;background:linear-gradient(90deg,var(--accent-primary),var(--accent-secondary),var(--accent-tertiary))"></div>
+        <div style="padding:18px">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
+            <div>
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-primary)">Jale Centro</div>
+              <div style="font-size:12px;color:var(--text-tertiary)">Morelia, Michoacán</div>
+            </div>
+            <span style="background:var(--status-success-bg);color:var(--status-success);padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600">Activa</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Empleados</div>
+              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent-secondary)">48</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Valor</div>
+              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text-primary)">$482K</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Alertas</div>
+              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent-primary)">6</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PHILOSOPHY -->
+<div class="section" id="philosophy">
+  <div class="section-label">Filosofía</div>
+  <h2>Una identidad, respetuosa de cada plataforma móvil</h2>
+  <p class="section-desc">SEN mantiene su personalidad (colores vibrantes de Michoacán, tipografía, voz) en iOS y Android, pero respeta las convenciones nativas de cada sistema: HIG para iOS, Material Design 3 para Android. Los usuarios esperan comportamiento consistente con su OS — nosotros nos adaptamos.</p>
+
+  <div class="callout callout-sen">
+    <strong>Regla de oro:</strong> Usa los tokens SEN para color, tipo y espaciado. Usa el comportamiento nativo de cada plataforma para navegación, gestos e interacciones.
+  </div>
+
+  <div class="compare-3">
+    <div class="compare-card">
+      <div class="compare-card-label"><span class="pb pb-sen">SEN</span> Lo que compartimos</div>
+      <p><strong>Colores</strong> (cobre michoacano, verde aguacate, guinda pátzcuaro, paleta completa). <strong>Tipografía</strong> (Playfair + DM Sans). <strong>Voz y tono</strong> (tuteo, directo, mexicano). <strong>Espaciado</strong> (escala de 4). <strong>Iconografía</strong> semántica.</p>
+    </div>
+    <div class="compare-card">
+      <div class="compare-card-label"><span class="pb pb-ios">iOS</span> Lo que adaptamos</div>
+      <p><strong>Tab bar</strong> abajo con labels. <strong>Navigation</strong> con large titles. <strong>Sheets</strong> con detents. <strong>Swipe back</strong> nativo. <strong>Haptics</strong> con UIFeedback. <strong>Dynamic Type</strong>.</p>
+    </div>
+    <div class="compare-card">
+      <div class="compare-card-label"><span class="pb pb-android">ANDROID</span> Lo que adaptamos</div>
+      <p><strong>Navigation bar</strong> M3 abajo. <strong>Top app bar</strong> con scroll behavior. <strong>Bottom sheets</strong> M3. <strong>Back predictivo</strong>. <strong>Haptics</strong> con VibrationEffect. <strong>Material motion</strong>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- PLATFORM MAP -->
+<div class="section" id="platform-map">
+  <div class="section-label">Filosofía</div>
+  <h2>Mapa: SEN → iOS → Android</h2>
+  <p class="section-desc">Referencia rápida de cómo cada token o patrón SEN se mapea a las convenciones de cada plataforma.</p>
+
+  <table class="spec-table">
+    <thead><tr><th style="width:22%">Concepto SEN</th><th style="width:39%"><span class="pb pb-ios">iOS</span> HIG / UIKit</th><th style="width:39%"><span class="pb pb-android">Android</span> Material 3</th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Navegación principal</td><td>UITabBarController (abajo, máx 5 tabs, labels siempre)</td><td>NavigationBar M3 (abajo, máx 5 destinos, labels siempre)</td></tr>
+      <tr><td class="row-label">Navegación secundaria</td><td>UINavigationController (push/pop, large titles)</td><td>TopAppBar M3 (scroll behavior: enterAlways o pin)</td></tr>
+      <tr><td class="row-label">Acción primaria (CTA)</td><td>UIButton .filled con tintColor cobre michoacano, min 44pt alto</td><td>FilledButton M3 con containerColor cobre michoacano, min 48dp alto</td></tr>
+      <tr><td class="row-label">Acción secundaria</td><td>UIButton .bordered, tintColor text.primary</td><td>OutlinedButton M3, contentColor text.primary</td></tr>
+      <tr><td class="row-label">Acción flotante</td><td>No nativo en HIG — evitar FAB. Usar botón en toolbar</td><td>FAB M3 con containerColor cobre michoacano, shape = radius.lg</td></tr>
+      <tr><td class="row-label">Listas</td><td>UITableView con InsetGrouped style, celdas con disclosure</td><td>LazyColumn con ListItem M3, trailing icons</td></tr>
+      <tr><td class="row-label">Bottom sheet</td><td>UISheetPresentationController con detents (.medium, .large)</td><td>ModalBottomSheet M3 con SheetState</td></tr>
+      <tr><td class="row-label">Modal de confirmación</td><td>UIAlertController .alert (sistema nativo)</td><td>AlertDialog M3 (Material themed)</td></tr>
+      <tr><td class="row-label">Toast / Snackbar</td><td>No nativo en HIG. Usar banner sutil en top o inline alert</td><td>Snackbar M3 (abajo, con optional action)</td></tr>
+      <tr><td class="row-label">Pull to refresh</td><td>UIRefreshControl, tintColor = accent.primary</td><td>PullToRefreshBox M3 con indicator color</td></tr>
+      <tr><td class="row-label">Búsqueda</td><td>UISearchController integrado en navigation bar</td><td>SearchBar M3 o SearchView en TopAppBar</td></tr>
+      <tr><td class="row-label">Date picker</td><td>UIDatePicker wheels (estilo iOS nativo)</td><td>DatePicker M3 calendario (estilo Material)</td></tr>
+      <tr><td class="row-label">Toggle</td><td>UISwitch con onTintColor = accent.primary</td><td>Switch M3 con checkedTrackColor = accent.primary</td></tr>
+      <tr><td class="row-label">Segmented control</td><td>UISegmentedControl nativo</td><td>SegmentedButton M3</td></tr>
+      <tr><td class="row-label">Loading</td><td>UIActivityIndicatorView (spinner nativo)</td><td>CircularProgressIndicator M3 o LinearProgressIndicator</td></tr>
+      <tr><td class="row-label">Empty state</td><td>ContentUnavailableView (iOS 17+) con imagen + CTA</td><td>Custom layout con ilustración + botón M3</td></tr>
+      <tr><td class="row-label">Swipe actions en listas</td><td>UISwipeActionsConfiguration (leading/trailing)</td><td>SwipeToDismiss M3 o ListItemRevealLayout</td></tr>
+      <tr><td class="row-label">Gesto back</td><td>Edge swipe izquierdo nativo (nunca deshabilitar)</td><td>Predictive back (Android 14+, animación preview)</td></tr>
+      <tr><td class="row-label">Dark mode</td><td>Automatic via UITraitCollection + overrides</td><td>Automatic via isSystemInDarkTheme() + overrides</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- NAVIGATION -->
+<div class="section" id="navigation">
+  <div class="section-label">Por plataforma</div>
+  <h2>Navegación</h2>
+  <p class="section-desc">La navegación es donde iOS y Android más difieren. Respeta la plataforma y usa los tokens SEN solo para color.</p>
+
+  <div class="phone-row">
+    <div>
+      <div class="phone-frame">
+        <div class="phone-pill"></div>
+        <div class="phone-screen" style="padding:28px 12px 48px">
+          <!-- iOS nav style -->
+          <div style="font-size:10px;color:var(--text-muted);font-weight:500;margin-bottom:2px">← Personal</div>
+          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--text-primary);margin-bottom:14px">Jale</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;border:1px solid var(--border-default);">
+              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Empleados</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text-primary)">48</div></div>
+            <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;border:1px solid var(--border-default);">
+              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Retardos</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--accent-primary)">6</div></div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border-default);overflow:hidden">
+            <div style="padding:9px 12px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">María García</div><div style="font-size:9px;color:var(--text-muted)">Matutino</div></div>
+              <span style="font-size:12px;color:var(--text-muted)">›</span></div>
+            <div style="padding:9px 12px;display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">Carlos Hdz</div><div style="font-size:9px;color:var(--text-muted)">Vespertino</div></div>
+              <span style="font-size:12px;color:var(--text-muted)">›</span></div>
+          </div>
+        </div>
+        <div class="phone-nav">
+          <div class="phone-nav-item active"><div class="phone-nav-icon">🏠</div>Inicio</div>
+          <div class="phone-nav-item"><div class="phone-nav-icon">👥</div>Personal</div>
+          <div class="phone-nav-item"><div class="phone-nav-icon">⏱</div>Nómina</div>
+          <div class="phone-nav-item"><div class="phone-nav-icon">⚙</div>Ajustes</div>
+        </div>
+      </div>
+      <div class="phone-label"><span class="pb pb-ios">iOS</span> Large titles + Tab bar</div>
+    </div>
+    <div>
+      <div class="phone-frame">
+        <div style="width:60px;height:20px;background:var(--text-primary);border-radius:0 0 10px 10px;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2"></div>
+        <div class="phone-screen" style="padding:28px 12px 48px">
+          <!-- Android nav style -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Jale</div>
+            <div style="font-size:14px">🔍</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+            <div style="background:var(--bg-secondary);border-radius:12px;padding:12px;border:1px solid var(--border-default);">
+              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Empleados</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text-primary)">48</div></div>
+            <div style="background:var(--bg-secondary);border-radius:12px;padding:12px;border:1px solid var(--border-default);">
+              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Retardos</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--accent-primary)">6</div></div>
+          </div>
+          <div style="background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border-default);overflow:hidden">
+            <div style="padding:10px 12px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">María García</div><div style="font-size:9px;color:var(--text-muted)">Matutino</div></div>
+              <div style="background:var(--status-success-bg);padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600;color:var(--status-success)">En stock</div></div>
+            <div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">Carlos Hdz</div><div style="font-size:9px;color:var(--text-muted)">Vespertino</div></div>
+              <div style="background:var(--status-warning-bg);padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600;color:var(--status-warning)">Retardos</div></div>
+          </div>
+          <!-- FAB -->
+          <div style="position:absolute;bottom:56px;right:20px;width:44px;height:44px;background:var(--accent-primary);border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:var(--shadow-md)">+</div>
+        </div>
+        <div class="phone-nav" style="padding-bottom:4px">
+          <div class="phone-nav-item active"><div class="phone-nav-icon">🏠</div>Inicio</div>
+          <div class="phone-nav-item"><div class="phone-nav-icon">👥</div>Personal</div>
+          <div class="phone-nav-item"><div class="phone-nav-icon">⏱</div>Nómina</div>
+          <div class="phone-nav-item"><div class="phone-nav-icon">⚙</div>Ajustes</div>
+        </div>
+      </div>
+      <div class="phone-label"><span class="pb pb-android">Android</span> TopAppBar + NavBar + FAB</div>
+    </div>
+  </div>
+
+  <table class="spec-table">
+    <thead><tr><th>Detalle</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Tab bar position</td><td>Fijo abajo, siempre visible</td><td>Fijo abajo, se oculta al scrollear (optional)</td></tr>
+      <tr><td class="row-label">Tab labels</td><td>Siempre visibles. SF Symbols para íconos</td><td>Siempre visibles. Material Symbols para íconos</td></tr>
+      <tr><td class="row-label">Tab activo</td><td><code>accent.primary</code> para ícono y label</td><td><code>accent.primary</code> con indicator pill M3</td></tr>
+      <tr><td class="row-label">Tab inactivo</td><td><code>text.muted</code></td><td><code>text.muted</code></td></tr>
+      <tr><td class="row-label">Header / título</td><td>Large title (34pt bold, left-aligned, collapsa al scroll)</td><td>TopAppBar title (22sp, left-aligned, scroll behavior)</td></tr>
+      <tr><td class="row-label">Back button</td><td>Chevron < con label de pantalla anterior</td><td>Arrow ← sin label</td></tr>
+      <tr><td class="row-label">FAB</td><td><strong>No usar.</strong> HIG no tiene FAB. Acción en toolbar o inline</td><td>FAB cobre michoacano, border-radius 14dp, shadow md</td></tr>
+      <tr><td class="row-label">Max tabs</td><td>5 (si más, tab "Más" con lista)</td><td>5 (si más, usar Navigation Drawer)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-sen">
+    <strong>Expo tip:</strong> Usa <code>@react-navigation/bottom-tabs</code> con <code>Platform.select()</code> para cambiar estilos entre iOS y Android. El tab bar se renderiza nativo en ambos.
+  </div>
+</div>
+
+<!-- TYPOGRAPHY PLATFORM -->
+<div class="section" id="typography-platform">
+  <div class="section-label">Por plataforma</div>
+  <h2>Tipografía por plataforma</h2>
+  <p class="section-desc">iOS usa pt, Android usa sp. Ambos escalan con las preferencias del usuario. SEN usa las mismas familias pero ajusta tamaños a las convenciones de cada OS.</p>
+
+  <table class="spec-table">
+    <thead><tr><th>Rol SEN</th><th>Familia</th><th><span class="pb pb-ios">iOS</span> pt</th><th><span class="pb pb-android">Android</span> sp</th><th>Equivalente nativo</th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Display</td><td>Playfair 800</td><td>34</td><td>36</td><td>iOS: Large Title / M3: displaySmall</td></tr>
+      <tr><td class="row-label">H1</td><td>Playfair 700</td><td>28</td><td>28</td><td>iOS: Title 1 / M3: headlineLarge</td></tr>
+      <tr><td class="row-label">H2</td><td>Playfair 700</td><td>22</td><td>24</td><td>iOS: Title 2 / M3: headlineMedium</td></tr>
+      <tr><td class="row-label">H3</td><td>DM Sans 600</td><td>20</td><td>20</td><td>iOS: Title 3 / M3: titleLarge</td></tr>
+      <tr><td class="row-label">Body</td><td>DM Sans 400</td><td>17</td><td>16</td><td>iOS: Body (17pt) / M3: bodyLarge (16sp)</td></tr>
+      <tr><td class="row-label">Caption</td><td>DM Sans 400</td><td>15</td><td>14</td><td>iOS: Subhead / M3: bodyMedium</td></tr>
+      <tr><td class="row-label">Footnote</td><td>DM Sans 400</td><td>13</td><td>12</td><td>iOS: Footnote / M3: bodySmall</td></tr>
+      <tr><td class="row-label">Label</td><td>DM Sans 500</td><td>12</td><td>12</td><td>iOS: Caption 2 / M3: labelMedium</td></tr>
+      <tr><td class="row-label">Mono</td><td>JetBrains 400</td><td>13</td><td>13</td><td>Datos, SKUs, precios</td></tr>
+    </tbody>
+  </table>
+
+  <div class="guideline">
+    <div class="gl-do"><div class="gl-label">✓ Regla</div><div class="gl-text">iOS body = 17pt (estándar HIG). Android body = 16sp (estándar M3). No uses 16 en iOS ni 17 en Android — respeta cada sistema.</div></div>
+    <div class="gl-dont"><div class="gl-label">✗ Evita</div><div class="gl-text">Un solo valor para ambas plataformas. 16 en iOS causa texto que se ve apretado vs apps nativas. 17 en Android se siente sobredimensionado.</div></div>
+  </div>
+
+  <div class="callout callout-info">
+    <strong>Dynamic Type / Font Scaling:</strong> Nunca uses <code>allowFontScaling: false</code> en React Native. iOS escala desde 17pt hasta ~53pt en los tamaños más grandes. Android escala hasta 200%. Tu layout debe aguantarlo.
+  </div>
+</div>
+
+<!-- BUTTONS -->
+<div class="section" id="buttons-platform">
+  <div class="section-label">Por plataforma</div>
+  <h2>Botones</h2>
+  <p class="section-desc">El botón primario siempre es cobre michoacano. La forma y el comportamiento de tap cambian por plataforma.</p>
+
+  <table class="spec-table">
+    <thead><tr><th>Propiedad</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Altura mínima</td><td>44pt (HIG standard)</td><td>48dp (M3 standard)</td></tr>
+      <tr><td class="row-label">Border radius</td><td>10pt (más sutil, alineado con UIKit)</td><td>12dp (más redondeado, alineado con M3 shapes)</td></tr>
+      <tr><td class="row-label">Padding horizontal</td><td>20pt</td><td>24dp</td></tr>
+      <tr><td class="row-label">Feedback al tap</td><td>Opacity fade (0.7) — no ripple</td><td>Ripple effect M3 con color overlay</td></tr>
+      <tr><td class="row-label">Font</td><td>DM Sans 600, 17pt</td><td>DM Sans 600, 16sp</td></tr>
+      <tr><td class="row-label">Full-width CTAs</td><td>Padding horizontal 16pt desde edges</td><td>Padding horizontal 16dp, respeta insets</td></tr>
+      <tr><td class="row-label">Destructive button</td><td>Text rojo (HIG convention) sin fondo</td><td>Filled tonal con status.error (M3 convention)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-sen">
+    <strong>Expo tip:</strong> Usa <code>Pressable</code> con <code>Platform.select({ios: opacity style, android: android_ripple})</code> para el feedback correcto por plataforma.
+  </div>
+</div>
+
+<!-- INPUTS -->
+<div class="section" id="inputs-platform">
+  <div class="section-label">Por plataforma</div>
+  <h2>Inputs</h2>
+  <table class="spec-table">
+    <thead><tr><th>Propiedad</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Estilo</td><td>Rounded rect con borde (SEN style), o inset grouped cell</td><td>OutlinedTextField M3 o FilledTextField con colores SEN</td></tr>
+      <tr><td class="row-label">Label</td><td>Arriba del input, siempre visible</td><td>Floating label M3 (anima al focus) o arriba fijo</td></tr>
+      <tr><td class="row-label">Focus ring</td><td>Border cobre michoacano + shadow glow sutil</td><td>Border cobre michoacano (M3 ya anima el label)</td></tr>
+      <tr><td class="row-label">Altura</td><td>44pt mínimo</td><td>56dp (M3 standard) o 48dp compact</td></tr>
+      <tr><td class="row-label">Error</td><td>Border rojo + mensaje abajo en rojo</td><td>Border rojo + supporting text M3 en rojo</td></tr>
+      <tr><td class="row-label">Keyboard type</td><td><code>keyboardType="decimal-pad"</code> para cantidades</td><td><code>keyboardType="numeric"</code> para cantidades</td></tr>
+      <tr><td class="row-label">Autocomplete</td><td><code>textContentType</code> para iOS autofill</td><td><code>autoComplete</code> prop para Google autofill</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- LISTS -->
+<div class="section" id="lists-platform">
+  <div class="section-label">Por plataforma</div>
+  <h2>Listas y Tablas</h2>
+  <table class="spec-table">
+    <thead><tr><th>Propiedad</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Estilo lista</td><td>InsetGrouped (celdas redondeadas con fondo secondary)</td><td>ListItem M3 sobre fondo surface</td></tr>
+      <tr><td class="row-label">Separadores</td><td>Línea sutil indentada desde leading content</td><td>Divider M3 full-width o sin dividers (espacio)</td></tr>
+      <tr><td class="row-label">Disclosure</td><td>Chevron > gris (convención HIG)</td><td>Sin chevron. La fila entera es tappable</td></tr>
+      <tr><td class="row-label">Swipe actions</td><td>Trailing: delete (rojo). Leading: custom (cobre michoacano)</td><td>SwipeToDismiss M3, o evitar — usar long press menu</td></tr>
+      <tr><td class="row-label">Section headers</td><td>Sticky header gris con font caption uppercase</td><td>Label sutil sobre la lista, no sticky</td></tr>
+      <tr><td class="row-label">Row height</td><td>44pt mínimo (HIG), ~60pt con subtitle</td><td>56dp one-line, 72dp two-line (M3)</td></tr>
+      <tr><td class="row-label">Empty state</td><td>ContentUnavailableView: icono + título + descripción + CTA</td><td>Custom: ilustración + texto + botón M3</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- FEEDBACK -->
+<div class="section" id="feedback">
+  <div class="section-label">Por plataforma</div>
+  <h2>Feedback y Alertas</h2>
+  <table class="spec-table">
+    <thead><tr><th>Tipo</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Confirmación</td><td>Banner sutil en top (custom) o HUD. No hay toast nativo</td><td>Snackbar M3 abajo con action opcional</td></tr>
+      <tr><td class="row-label">Error</td><td>Inline alert bajo el input, o UIAlertController</td><td>Inline error en TextField, o Snackbar con error style</td></tr>
+      <tr><td class="row-label">Alerta destructiva</td><td>UIAlertController con destructive button rojo</td><td>AlertDialog M3 con botón error</td></tr>
+      <tr><td class="row-label">Loading</td><td>UIActivityIndicatorView nativo (spinner gris)</td><td>CircularProgressIndicator M3 color cobre michoacano</td></tr>
+      <tr><td class="row-label">Skeleton</td><td>Shimmer con bg.tertiary → bg.secondary</td><td>Shimmer con bg.tertiary → bg.secondary</td></tr>
+      <tr><td class="row-label">Pull refresh</td><td>UIRefreshControl con tintColor cobre michoacano</td><td>PullToRefreshBox indicator color cobre michoacano</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- MODALS -->
+<div class="section" id="modals-sheets">
+  <div class="section-label">Por plataforma</div>
+  <h2>Modales y Bottom Sheets</h2>
+  <table class="spec-table">
+    <thead><tr><th>Patrón</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Bottom sheet</td><td>Sheet con detents: .medium (50%), .large (90%). Handle grabber visible. Background bg.elevated</td><td>ModalBottomSheet M3 con drag handle. Shape = radius.xl top corners. Background bg.elevated</td></tr>
+      <tr><td class="row-label">Modal full</td><td>Presentación fullScreenCover con botón X arriba izquierda</td><td>Full-screen dialog M3 con close icon arriba izquierda</td></tr>
+      <tr><td class="row-label">Alert / Confirm</td><td>UIAlertController nativo (siempre). Nunca custom alert</td><td>AlertDialog M3 custom con colores SEN. Puede ser custom</td></tr>
+      <tr><td class="row-label">Action sheet</td><td>UIAlertController .actionSheet (nativo, desde abajo)</td><td>Bottom sheet con lista de acciones M3</td></tr>
+      <tr><td class="row-label">Dismiss</td><td>Swipe down para cerrar sheets. Tap fuera para cerrar</td><td>Swipe down + tap en scrim para cerrar</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-sen">
+    <strong>Expo tip:</strong> Usa <code>@gorhom/bottom-sheet</code> para bottom sheets cross-platform. Para alerts, usa <code>Alert.alert()</code> nativo que respeta la plataforma automáticamente.
+  </div>
+</div>
+
+<!-- SEARCH -->
+<div class="section" id="search-platform">
+  <div class="section-label">Por plataforma</div>
+  <h2>Búsqueda</h2>
+  <table class="spec-table">
+    <thead><tr><th>Detalle</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Posición</td><td>Integrada en navigation bar, aparece al pull down</td><td>SearchBar M3 en top, expandible o siempre visible</td></tr>
+      <tr><td class="row-label">Placeholder</td><td>"Buscar empleados, SKUs..."</td><td>"Buscar empleados, SKUs..."</td></tr>
+      <tr><td class="row-label">Comportamiento</td><td>Cancel button a la derecha. Resultados inline debajo</td><td>Back arrow a la izquierda. Resultados reemplazan contenido</td></tr>
+      <tr><td class="row-label">Debounce</td><td>300ms</td><td>300ms</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- GESTURES -->
+<div class="section" id="gestures">
+  <div class="section-label">Comportamiento</div>
+  <h2>Gestos</h2>
+  <table class="spec-table">
+    <thead><tr><th>Gesto</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Back</td><td>Edge swipe izquierdo. <strong>Nunca deshabilitar.</strong></td><td>Back button + predictive back gesture (Android 14+)</td></tr>
+      <tr><td class="row-label">Swipe en lista</td><td>Leading + trailing swipe actions nativas</td><td>Usar con precaución. Long press menu es más M3</td></tr>
+      <tr><td class="row-label">Pull to refresh</td><td>Pull down en ScrollView</td><td>Pull down con PullToRefreshBox</td></tr>
+      <tr><td class="row-label">Long press</td><td>Context menu con preview (peek)</td><td>Context menu dropdown (sin preview)</td></tr>
+      <tr><td class="row-label">Pinch to zoom</td><td>Solo para imágenes/documentos</td><td>Solo para imágenes/documentos</td></tr>
+    </tbody>
+  </table>
+
+  <div class="guideline">
+    <div class="gl-do"><div class="gl-label">✓ Regla</div><div class="gl-text">En iOS, el swipe back (edge gesture) es sagrado. Nunca lo deshabilites ni lo sobreescribas con otra acción. Los usuarios dependen de él para navegar.</div></div>
+    <div class="gl-dont"><div class="gl-label">✗ Evita</div><div class="gl-text">Un drawer lateral que se abre con swipe izquierdo en iOS. Conflicta directamente con el gesto de back nativo y frustra al usuario.</div></div>
+  </div>
+</div>
+
+<!-- MOTION -->
+<div class="section" id="motion-platform">
+  <div class="section-label">Comportamiento</div>
+  <h2>Movimiento</h2>
+  <table class="spec-table">
+    <thead><tr><th>Animación</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Filosofía</td><td>Spring-based. Fluido, con inercia. Sigue el dedo</td><td>Spring-based (M3 Expressive). Énfasis en easing curves</td></tr>
+      <tr><td class="row-label">Page transitions</td><td>Push/pop con slide horizontal. Modales con slide up</td><td>Container transform M3 o shared axis</td></tr>
+      <tr><td class="row-label">Duración estándar</td><td>250-350ms (spring, no linear)</td><td>300ms (M3 medium duration)</td></tr>
+      <tr><td class="row-label">Micro-interactions</td><td>Opacity + scale sutil en tap (scale 0.97)</td><td>Ripple + slight elevation change</td></tr>
+      <tr><td class="row-label">Reanimated config</td><td><code>withSpring({ damping: 20, stiffness: 300 })</code></td><td><code>withSpring({ damping: 18, stiffness: 250 })</code> (slightly softer)</td></tr>
+      <tr><td class="row-label">Reduce motion</td><td>Respetar <code>UIAccessibility.isReduceMotionEnabled</code></td><td>Respetar <code>Settings.Global.ANIMATOR_DURATION_SCALE</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- HAPTICS -->
+<div class="section" id="haptics">
+  <div class="section-label">Comportamiento</div>
+  <h2>Hápticos</h2>
+  <table class="spec-table">
+    <thead><tr><th>Acción SEN</th><th><span class="pb pb-ios">iOS</span> (expo-haptics)</th><th><span class="pb pb-android">Android</span> (expo-haptics)</th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Toggle switch</td><td><code>impactAsync(Light)</code></td><td><code>impactAsync(Light)</code></td></tr>
+      <tr><td class="row-label">Traspaso completado</td><td><code>notificationAsync(Success)</code></td><td><code>notificationAsync(Success)</code></td></tr>
+      <tr><td class="row-label">Error</td><td><code>notificationAsync(Error)</code></td><td><code>notificationAsync(Error)</code></td></tr>
+      <tr><td class="row-label">Eliminar (destructive)</td><td><code>notificationAsync(Warning)</code></td><td><code>notificationAsync(Warning)</code></td></tr>
+      <tr><td class="row-label">Pull to refresh</td><td><code>impactAsync(Medium)</code> al activar</td><td><code>impactAsync(Medium)</code> al activar</td></tr>
+      <tr><td class="row-label">Tab change</td><td><code>selectionAsync()</code></td><td><code>selectionAsync()</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SAFE AREAS -->
+<div class="section" id="safe-areas">
+  <div class="section-label">Comportamiento</div>
+  <h2>Safe Areas</h2>
+  <table class="spec-table">
+    <thead><tr><th>Zona</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Top</td><td>Dynamic Island / Notch (47-59pt). Usa <code>useSafeAreaInsets()</code></td><td>Status bar (24dp estándar). Usa <code>useSafeAreaInsets()</code></td></tr>
+      <tr><td class="row-label">Bottom</td><td>Home indicator (34pt). CTA buttons encima del safe area</td><td>Navigation bar (48dp) o gesture bar. Usa insets</td></tr>
+      <tr><td class="row-label">Landscape</td><td>Insets laterales por notch. Respeta leading/trailing</td><td>Insets laterales por cutouts. Usa WindowInsets</td></tr>
+    </tbody>
+  </table>
+  <div class="callout callout-sen">
+    <strong>Expo tip:</strong> Siempre usa <code>react-native-safe-area-context</code>. Envuelve tu app en <code>SafeAreaProvider</code>. Para botones fijos abajo, agrega <code>paddingBottom: insets.bottom + spacing.md</code>.
+  </div>
+</div>
+
+<!-- KEYBOARD -->
+<div class="section" id="keyboard">
+  <div class="section-label">Comportamiento</div>
+  <h2>Teclado</h2>
+  <table class="spec-table">
+    <thead><tr><th>Aspecto</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Avoidance</td><td><code>KeyboardAvoidingView behavior="padding"</code></td><td><code>KeyboardAvoidingView behavior="height"</code> (o <code>android:windowSoftInputMode="adjustResize"</code> en AndroidManifest)</td></tr>
+      <tr><td class="row-label">Dismiss</td><td>Tap fuera del input + scroll dismiss nativo</td><td>Tap fuera del input + back button</td></tr>
+      <tr><td class="row-label">Return key</td><td><code>returnKeyType="done"</code> o <code>"next"</code></td><td><code>returnKeyType="done"</code> o <code>"next"</code></td></tr>
+      <tr><td class="row-label">Keyboard types</td><td><code>decimal-pad</code> para cantidades (teclado con punto)</td><td><code>numeric</code> para cantidades</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- DARK MODE -->
+<div class="section" id="dark-mode">
+  <div class="section-label">Comportamiento</div>
+  <h2>Dark Mode</h2>
+  <table class="spec-table">
+    <thead><tr><th>Aspecto</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Detección</td><td><code>useColorScheme()</code> → 'light' | 'dark'</td><td><code>useColorScheme()</code> → 'light' | 'dark'</td></tr>
+      <tr><td class="row-label">Override manual</td><td>Ofrecer toggle en Ajustes de la app. Override con <code>Appearance.setColorScheme()</code></td><td>Misma implementación. Toggle en Ajustes</td></tr>
+      <tr><td class="row-label">System bars</td><td>Status bar light/dark automático con <code>barStyle</code></td><td>Status bar + navigation bar con <code>SystemBars</code> o expo-navigation-bar</td></tr>
+      <tr><td class="row-label">Splash screen</td><td>Splash en ambos temas. Usa <code>expo-splash-screen</code> con <code>backgroundColor</code> adaptivo</td><td>Mismo approach. Android 12+ tiene splash nativo que respeta el tema</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- TOKENS EXPO -->
+<div class="section" id="tokens-expo">
+  <div class="section-label">Producción</div>
+  <h2>Tokens Expo actualizados</h2>
+  <p class="section-desc">Tokens con valores Platform-specific donde aplica.</p>
+
+  <div class="code-block"><span class="cm">// theme/tokens.ts — v4 Paleta Michoacán con platform awareness</span>
+<span class="ck">import</span> { Platform } <span class="ck">from</span> <span class="cs">'react-native'</span>;
+
+<span class="ck">export const</span> typography = {
+  display: {
+    fontFamily: <span class="cs">'PlayfairDisplay_800ExtraBold'</span>,
+    fontSize: Platform.select({ ios: <span class="cn">34</span>, android: <span class="cn">36</span> }),
+    lineHeight: Platform.select({ ios: <span class="cn">40</span>, android: <span class="cn">44</span> }),
+  },
+  h1: {
+    fontFamily: <span class="cs">'PlayfairDisplay_700Bold'</span>,
+    fontSize: <span class="cn">28</span>,
+    lineHeight: Platform.select({ ios: <span class="cn">34</span>, android: <span class="cn">36</span> }),
+  },
+  h2: {
+    fontFamily: <span class="cs">'PlayfairDisplay_700Bold'</span>,
+    fontSize: Platform.select({ ios: <span class="cn">22</span>, android: <span class="cn">24</span> }),
+    lineHeight: Platform.select({ ios: <span class="cn">28</span>, android: <span class="cn">32</span> }),
+  },
+  h3: {
+    fontFamily: <span class="cs">'DMSans_600SemiBold'</span>,
+    fontSize: <span class="cn">20</span>,
+    lineHeight: <span class="cn">26</span>,
+  },
+  body: {
+    fontFamily: <span class="cs">'DMSans_400Regular'</span>,
+    fontSize: Platform.select({ ios: <span class="cn">17</span>, android: <span class="cn">16</span> }), <span class="cm">// HIG=17pt, M3=16sp</span>
+    lineHeight: Platform.select({ ios: <span class="cn">24</span>, android: <span class="cn">24</span> }),
+  },
+  caption: {
+    fontFamily: <span class="cs">'DMSans_400Regular'</span>,
+    fontSize: Platform.select({ ios: <span class="cn">15</span>, android: <span class="cn">14</span> }),
+    lineHeight: Platform.select({ ios: <span class="cn">20</span>, android: <span class="cn">20</span> }),
+  },
+  footnote: {
+    fontFamily: <span class="cs">'DMSans_400Regular'</span>,
+    fontSize: Platform.select({ ios: <span class="cn">13</span>, android: <span class="cn">12</span> }),
+    lineHeight: Platform.select({ ios: <span class="cn">18</span>, android: <span class="cn">16</span> }),
+  },
+  label: {
+    fontFamily: <span class="cs">'DMSans_500Medium'</span>,
+    fontSize: <span class="cn">12</span>,
+    lineHeight: <span class="cn">16</span>,
+    letterSpacing: <span class="cn">0.5</span>,
+  },
+};
+
+<span class="ck">export const</span> components = {
+  button: {
+    minHeight: Platform.select({ ios: <span class="cn">44</span>, android: <span class="cn">48</span> }),
+    borderRadius: Platform.select({ ios: <span class="cn">10</span>, android: <span class="cn">12</span> }),
+    paddingHorizontal: Platform.select({ ios: <span class="cn">20</span>, android: <span class="cn">24</span> }),
+  },
+  input: {
+    minHeight: Platform.select({ ios: <span class="cn">44</span>, android: <span class="cn">48</span> }),
+    borderRadius: Platform.select({ ios: <span class="cn">10</span>, android: <span class="cn">12</span> }),
+  },
+  card: {
+    borderRadius: Platform.select({ ios: <span class="cn">14</span>, android: <span class="cn">16</span> }),
+    padding: <span class="cn">16</span>,
+  },
+  listRow: {
+    minHeight: Platform.select({ ios: <span class="cn">44</span>, android: <span class="cn">56</span> }),
+  },
+};
+
+<span class="ck">export const</span> animation = {
+  spring: Platform.select({
+    ios:     { damping: <span class="cn">20</span>, stiffness: <span class="cn">300</span> },
+    android: { damping: <span class="cn">18</span>, stiffness: <span class="cn">250</span> },
+  }),
+};</div>
+</div>
+
+<!-- ACCESSIBILITY -->
+<div class="section" id="accessibility-platform">
+  <div class="section-label">Producción</div>
+  <h2>Accesibilidad</h2>
+  <table class="spec-table">
+    <thead><tr><th>Requisito</th><th><span class="pb pb-ios">iOS</span></th><th><span class="pb pb-android">Android</span></th></tr></thead>
+    <tbody>
+      <tr><td class="row-label">Contraste mínimo</td><td>4.5:1 body, 3:1 large text (WCAG AA)</td><td>4.5:1 body, 3:1 large text (WCAG AA)</td></tr>
+      <tr><td class="row-label">Touch targets</td><td>44×44pt mínimo (HIG)</td><td>48×48dp mínimo (M3)</td></tr>
+      <tr><td class="row-label">Screen reader</td><td>VoiceOver. Usa <code>accessibilityLabel</code></td><td>TalkBack. Usa <code>accessibilityLabel</code></td></tr>
+      <tr><td class="row-label">Font scaling</td><td>Dynamic Type. Nunca deshabilitar</td><td>Font scale system. Nunca deshabilitar</td></tr>
+      <tr><td class="row-label">Reduce motion</td><td>Respetar <code>AccessibilityInfo.isReduceMotionEnabled()</code></td><td>Respetar <code>AccessibilityInfo.isReduceMotionEnabled()</code></td></tr>
+      <tr><td class="row-label">Roles</td><td><code>accessibilityRole="button"</code>, <code>"header"</code>, etc.</td><td>Mismos roles (React Native los mapea)</td></tr>
+      <tr><td class="row-label">Color no es indicador único</td><td>Siempre combinar color + texto + ícono</td><td>Siempre combinar color + texto + ícono</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- OFFLINE -->
+<div class="section" id="offline">
+  <div class="section-label">Producción</div>
+  <h2>Offline First</h2>
+  <p class="section-desc">Las oficinas y sucursales no siempre tienen buena señal. El producto debe funcionar offline para las operaciones básicas.</p>
+  <div class="guideline">
+    <div class="gl-do"><div class="gl-label">✓ Funciona offline</div><div class="gl-text">Ver personal actual, crear nómina (queue local), escanear empleados, buscar en catálogo local. Indicador sutil "sin conexión" en top.</div></div>
+    <div class="gl-dont"><div class="gl-label">✗ Requiere conexión</div><div class="gl-text">Sincronización con otras sucursales, generar reportes, exportar PDFs. Mostrar mensaje claro: "Necesitas conexión para sincronizar."</div></div>
+  </div>
+</div>
+
+<!-- CHECKLIST -->
+<div class="section" id="checklist">
+  <div class="section-label">Producción</div>
+  <h2>Checklist pre-release</h2>
+  <p class="section-desc">Antes de publicar cualquier pantalla en Jale, verifica estos puntos.</p>
+  <div class="demo-box">
+    <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
+      <div style="color:var(--text-primary)">☐ <strong>Tokens:</strong> Todos los colores vienen de <code>useTheme()</code>, no hex directo</div>
+      <div style="color:var(--text-primary)">☐ <strong>Dark mode:</strong> Probado en ambos temas. Toggle funciona</div>
+      <div style="color:var(--text-primary)">☐ <strong>iOS body = 17pt, Android body = 16sp</strong></div>
+      <div style="color:var(--text-primary)">☐ <strong>Touch targets:</strong> iOS ≥ 44pt, Android ≥ 48dp</div>
+      <div style="color:var(--text-primary)">☐ <strong>Safe areas:</strong> Contenido no tapa notch, home indicator ni nav bar</div>
+      <div style="color:var(--text-primary)">☐ <strong>Keyboard:</strong> Inputs visibles con teclado abierto</div>
+      <div style="color:var(--text-primary)">☐ <strong>Font scaling:</strong> Layout no se rompe al 200% font size</div>
+      <div style="color:var(--text-primary)">☐ <strong>Accessibility labels:</strong> Todos los botones e inputs tienen label</div>
+      <div style="color:var(--text-primary)">☐ <strong>Reduce motion:</strong> Animaciones se simplifican cuando está activo</div>
+      <div style="color:var(--text-primary)">☐ <strong>Gestos:</strong> iOS swipe back funciona. Android back button funciona</div>
+      <div style="color:var(--text-primary)">☐ <strong>Feedback:</strong> iOS = opacity fade. Android = ripple</div>
+      <div style="color:var(--text-primary)">☐ <strong>Haptics:</strong> Acciones clave tienen feedback háptico</div>
+      <div style="color:var(--text-primary)">☐ <strong>Offline:</strong> Vista de personal funciona sin conexión</div>
+      <div style="color:var(--text-primary)">☐ <strong>Empty states:</strong> Todas las listas tienen estado vacío con CTA</div>
+      <div style="color:var(--text-primary)">☐ <strong>Voz SEN:</strong> Textos en tuteo, español mexicano, sin jerga corporativa</div>
+    </div>
+  </div>
+</div>
+
+<!-- AGENT TOKENS -->
+<div class="section" id="agent-tokens">
+  <div class="section-label">Para agentes</div>
+  <h2>Tokens CSS — Copiar y pegar</h2>
+  <p class="section-desc">Bloque completo de tokens listo para que un agente de IA o un desarrollador lo copie directamente. Incluye ambos temas y valores para iOS y Android.</p>
+
+  <div class="demo-box" style="padding:20px">
+    <div class="demo-label">CSS TOKENS — TEMA CLARO + OSCURO (copiar completo)</div>
+    <div class="code-block" style="max-height:none"><span class="cm">/* ===========================================
+   SEN DESIGN SYSTEM — PALETA MICHOACÁN v4.0
+   Plataforma: Mobile (iOS + Android)
+   Última actualización: 2026
+   =========================================== */</span>
+
+<span class="ck">:root</span> {
+  <span class="cm">/* — Fondos (undertone cantera moreliana) — */</span>
+  --bg-primary: <span class="cs">#FBF7F2</span>;
+  --bg-secondary: <span class="cs">#FFFFFF</span>;
+  --bg-tertiary: <span class="cs">#F5EDE5</span>;
+  --bg-elevated: <span class="cs">#FFFFFF</span>;
+  --bg-inverse: <span class="cs">#1B0F1E</span>;
+
+  <span class="cm">/* — Texto (base caoba, no negro puro) — */</span>
+  --text-primary: <span class="cs">#1B0F3B</span>;
+  --text-secondary: <span class="cs">#2A1F4E</span>;
+  --text-tertiary: <span class="cs">#6B5E8A</span>;
+  --text-muted: <span class="cs">#9E93B5</span>;
+  --text-inverse: <span class="cs">#FBF7F2</span>;
+  --text-on-accent: <span class="cs">#FFFFFF</span>;
+
+  <span class="cm">/* — Bordes — */</span>
+  --border-default: <span class="cs">#E8DDD4</span>;
+  --border-subtle: <span class="cs">#F2EAE3</span>;
+  --border-strong: <span class="cs">#D4C4B8</span>;
+
+  <span class="cm">/* — Acento primario: Cobre Michoacano — */</span>
+  --accent-primary: <span class="cs">#B8602A</span>;
+  --accent-primary-hover: <span class="cs">#9E4E1E</span>;
+  --accent-primary-bg: <span class="cs">rgba(184, 96, 42, 0.08)</span>;
+
+  <span class="cm">/* — Acento secundario: Verde Aguacate — */</span>
+  --accent-secondary: <span class="cs">#4A7C3F</span>;
+  --accent-secondary-bg: <span class="cs">rgba(74, 124, 63, 0.08)</span>;
+
+  <span class="cm">/* — Acento terciario: Guinda Pátzcuaro — */</span>
+  --accent-tertiary: <span class="cs">#8B2252</span>;
+  --accent-tertiary-bg: <span class="cs">rgba(139, 34, 82, 0.08)</span>;
+
+  <span class="cm">/* — Semánticos — */</span>
+  --status-success: <span class="cs">#00875A</span>;
+  --status-success-bg: <span class="cs">rgba(0, 135, 90, 0.10)</span>;
+  --status-warning: <span class="cs">#E8A317</span>;
+  --status-warning-bg: <span class="cs">rgba(232, 163, 23, 0.10)</span>;
+  --status-error: <span class="cs">#D42054</span>;
+  --status-error-bg: <span class="cs">rgba(212, 32, 84, 0.10)</span>;
+  --status-info: <span class="cs">#4A7C3F</span>;
+  --status-info-bg: <span class="cs">rgba(74, 124, 63, 0.10)</span>;
+
+  <span class="cm">/* — Radios — */</span>
+  --radius-sm: <span class="cn">6</span>px;
+  --radius-md: <span class="cn">10</span>px;
+  --radius-lg: <span class="cn">14</span>px;
+  --radius-xl: <span class="cn">20</span>px;
+  --radius-full: <span class="cn">100</span>px;
+
+  <span class="cm">/* — Tipografía — */</span>
+  --font-display: <span class="cs">'Playfair Display'</span>, Georgia, serif;
+  --font-body: <span class="cs">'DM Sans'</span>, -apple-system, sans-serif;
+  --font-mono: <span class="cs">'JetBrains Mono'</span>, monospace;
+}
+
+<span class="cm">/* — TEMA OSCURO (Noche Moreliana) — */</span>
+<span class="ck">[data-theme="dark"]</span> {
+  --bg-primary: <span class="cs">#0E0A1A</span>;
+  --bg-secondary: <span class="cs">#171228</span>;
+  --bg-tertiary: <span class="cs">#201A36</span>;
+  --bg-elevated: <span class="cs">#2A2344</span>;
+  --bg-inverse: <span class="cs">#FBF7F2</span>;
+
+  --text-primary: <span class="cs">#F2EDE7</span>;
+  --text-secondary: <span class="cs">#D4CBDF</span>;
+  --text-tertiary: <span class="cs">#8F83A8</span>;
+  --text-muted: <span class="cs">#5C5270</span>;
+  --text-inverse: <span class="cs">#1B0F3B</span>;
+
+  --border-default: <span class="cs">#2E2650</span>;
+  --border-subtle: <span class="cs">#221C3A</span>;
+  --border-strong: <span class="cs">#3D3560</span>;
+
+  --accent-primary: <span class="cs">#D4835E</span>;
+  --accent-primary-hover: <span class="cs">#E09A78</span>;
+  --accent-primary-bg: <span class="cs">rgba(255, 77, 166, 0.14)</span>;
+
+  --accent-secondary: <span class="cs">#7FB573</span>;
+  --accent-secondary-bg: <span class="cs">rgba(123, 127, 224, 0.14)</span>;
+
+  --accent-tertiary: <span class="cs">#C85A8A</span>;
+  --accent-tertiary-bg: <span class="cs">rgba(240, 192, 64, 0.14)</span>;
+
+  --status-success: <span class="cs">#5CC98A</span>;
+  --status-success-bg: <span class="cs">rgba(61, 204, 142, 0.16)</span>;
+  --status-warning: <span class="cs">#C85A8A</span>;
+  --status-warning-bg: <span class="cs">rgba(240, 192, 64, 0.16)</span>;
+  --status-error: <span class="cs">#E8605A</span>;
+  --status-error-bg: <span class="cs">rgba(255, 90, 125, 0.16)</span>;
+  --status-info: <span class="cs">#7FB573</span>;
+  --status-info-bg: <span class="cs">rgba(123, 127, 224, 0.16)</span>;
+}
+
+<span class="cm">/* ===========================================
+   REACT NATIVE / EXPO — Colores como objeto JS
+   =========================================== */</span>
+
+<span class="ck">export const</span> colors = {
+  light: {
+    bg:      { primary: <span class="cs">'#FBF7F2'</span>, secondary: <span class="cs">'#FFFFFF'</span>, tertiary: <span class="cs">'#F5EDE5'</span>, elevated: <span class="cs">'#FFFFFF'</span> },
+    text:    { primary: <span class="cs">'#1B0F3B'</span>, secondary: <span class="cs">'#2A1F4E'</span>, tertiary: <span class="cs">'#6B5E8A'</span>, muted: <span class="cs">'#9E93B5'</span> },
+    border:  { default: <span class="cs">'#E8DDD4'</span>, subtle: <span class="cs">'#F2EAE3'</span>, strong: <span class="cs">'#D4C4B8'</span> },
+    accent:  { primary: <span class="cs">'#B8602A'</span>, secondary: <span class="cs">'#4A7C3F'</span>, tertiary: <span class="cs">'#8B2252'</span> },
+    status:  { success: <span class="cs">'#00875A'</span>, warning: <span class="cs">'#E8A317'</span>, error: <span class="cs">'#D42054'</span>, info: <span class="cs">'#4A7C3F'</span> },
+  },
+  dark: {
+    bg:      { primary: <span class="cs">'#0E0A1A'</span>, secondary: <span class="cs">'#171228'</span>, tertiary: <span class="cs">'#201A36'</span>, elevated: <span class="cs">'#2A2344'</span> },
+    text:    { primary: <span class="cs">'#F2EDE7'</span>, secondary: <span class="cs">'#D4CBDF'</span>, tertiary: <span class="cs">'#8F83A8'</span>, muted: <span class="cs">'#5C5270'</span> },
+    border:  { default: <span class="cs">'#2E2650'</span>, subtle: <span class="cs">'#221C3A'</span>, strong: <span class="cs">'#3D3560'</span> },
+    accent:  { primary: <span class="cs">'#D4835E'</span>, secondary: <span class="cs">'#7FB573'</span>, tertiary: <span class="cs">'#C85A8A'</span> },
+    status:  { success: <span class="cs">'#5CC98A'</span>, warning: <span class="cs">'#C85A8A'</span>, error: <span class="cs">'#E8605A'</span>, info: <span class="cs">'#7FB573'</span> },
+  },
+};</div>
+  </div>
+</div>
+
+</div></div></div>
+
+<script>
+function setTheme(t){document.documentElement.setAttribute('data-theme',t);
+  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));event.target.classList.add('active')}
+const ls=document.querySelectorAll('.sidebar-link'),ss=document.querySelectorAll('.section');
+const o=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){
+  ls.forEach(l=>l.classList.remove('active'));
+  const a=document.querySelector(`.sidebar-link[href="#${e.target.id}"]`);if(a)a.classList.add('active')}})},
+  {rootMargin:'-80px 0px -60% 0px'});ss.forEach(s=>o.observe(s));
+</script>
+</body>
+</html>

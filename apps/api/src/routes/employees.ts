@@ -1304,17 +1304,17 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const last30StartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_KPI_30_DAYS - 1));
 			const last90StartDateKey = addDaysToDateKey(asOfDateKey, -(INSIGHTS_KPI_90_DAYS - 1));
 			const leaveDateKeys = leaves.map((item) => item.dateKey);
-
-			const absentDateKeySet = new Set(attendanceSummary.absentDateKeys);
-			const workingDateKeySet = new Set(attendanceSummary.workingDateKeys);
 			const leaveDateKeySet = new Set(leaveDateKeys);
+			const unjustifiedAbsentDateKeys = attendanceSummary.absentDateKeys.filter(
+				(dateKey) => !leaveDateKeySet.has(dateKey),
+			);
+
+			const unjustifiedAbsentDateKeySet = new Set(unjustifiedAbsentDateKeys);
+			const workingDateKeySet = new Set(attendanceSummary.workingDateKeys);
 
 			let unjustifiedAbsences30d = 0;
 			let unjustifiedAbsences90d = 0;
-			for (const dateKey of attendanceSummary.absentDateKeys) {
-				if (leaveDateKeySet.has(dateKey)) {
-					continue;
-				}
+			for (const dateKey of unjustifiedAbsentDateKeys) {
 				if (dateKey >= last90StartDateKey) {
 					unjustifiedAbsences90d += 1;
 					if (dateKey >= last30StartDateKey) {
@@ -1349,7 +1349,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			let streakCursor = asOfDateKey;
 			while (streakCursor >= pastStartDateKey) {
 				if (workingDateKeySet.has(streakCursor)) {
-					if (absentDateKeySet.has(streakCursor)) {
+					if (unjustifiedAbsentDateKeySet.has(streakCursor)) {
 						absenceStreakCurrentDays += 1;
 					} else {
 						break;
@@ -1369,7 +1369,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				} else if (workingDateKeySet.has(trendCursor)) {
 					trend30d.push({
 						dateKey: trendCursor,
-						status: absentDateKeySet.has(trendCursor) ? 'ABSENT' : 'PRESENT',
+						status: unjustifiedAbsentDateKeySet.has(trendCursor) ? 'ABSENT' : 'PRESENT',
 					});
 				} else {
 					trend30d.push({ dateKey: trendCursor, status: 'DAY_OFF' });
@@ -1381,8 +1381,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			const attendanceSummaryBase = {
-				absentDateKeys: attendanceSummary.absentDateKeys,
-				totalAbsentDays: attendanceSummary.totalAbsentDays,
+				absentDateKeys: unjustifiedAbsentDateKeys,
+				totalAbsentDays: unjustifiedAbsentDateKeys.length,
 				rangeStartDateKey: attendanceSummary.rangeStartDateKey,
 				rangeEndDateKey: attendanceSummary.rangeEndDateKey,
 			};

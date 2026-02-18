@@ -1312,6 +1312,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			let unjustifiedAbsences30d = 0;
 			let unjustifiedAbsences90d = 0;
 			for (const dateKey of attendanceSummary.absentDateKeys) {
+				if (leaveDateKeySet.has(dateKey)) {
+					continue;
+				}
 				if (dateKey >= last90StartDateKey) {
 					unjustifiedAbsences90d += 1;
 					if (dateKey >= last30StartDateKey) {

@@ -66,6 +66,7 @@ import {
 	updateWorkOffsiteAttendance,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
+import { getUtcDayRangeFromDateKey, isValidIanaTimeZone, toDateKeyInTimeZone } from '@/lib/time-zone';
 import type {
 	ColumnDef,
 	ColumnFiltersState,
@@ -104,6 +105,8 @@ export interface AttendancePageInitialFilters {
 	returnEmployeeId?: string;
 	/** Optional tab used for return navigation */
 	returnTab?: EmployeeDetailTab;
+	/** Optional timezone contract for deep-link date keys */
+	timeZone?: string;
 }
 
 interface AttendancePageClientProps {
@@ -207,6 +210,19 @@ function normalizeDateKey(value: string | undefined): string | null {
 		return null;
 	}
 	return parseDateKey(value) ? value : null;
+}
+
+/**
+ * Resolves an optional attendance timezone from initial filters.
+ *
+ * @param value - Candidate timezone
+ * @returns Valid IANA timezone or undefined
+ */
+function resolveAttendanceTimeZone(value: string | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	return isValidIanaTimeZone(value) ? value : undefined;
 }
 
 /**
@@ -334,6 +350,7 @@ export function AttendancePageClient({
 	const navigationSource = initialFilters?.source ?? null;
 	const returnEmployeeId = initialFilters?.returnEmployeeId ?? null;
 	const returnTab = initialFilters?.returnTab ?? 'attendance';
+	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
 
 	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
@@ -421,6 +438,15 @@ export function AttendancePageClient({
 					break;
 				case 'custom':
 				default:
+					if (deepLinkTimeZone) {
+						const fallbackDateKey = toDateKeyInTimeZone(now, deepLinkTimeZone);
+						const startKey = normalizeDateKey(startDate) ?? fallbackDateKey;
+						const endKey = normalizeDateKey(endDate) ?? fallbackDateKey;
+						start = getUtcDayRangeFromDateKey(startKey, deepLinkTimeZone).startUtc;
+						end = getUtcDayRangeFromDateKey(endKey, deepLinkTimeZone).endUtc;
+						break;
+					}
+
 					// Ensure we always have valid dates even if inputs are empty.
 					const startValue = startDate ? new Date(startDate) : now;
 					const endValue = endDate ? new Date(endDate) : now;
@@ -431,7 +457,7 @@ export function AttendancePageClient({
 
 			return { start, end };
 		},
-		[startDate, endDate],
+		[startDate, endDate, deepLinkTimeZone],
 	);
 
 	// Get the current date range for the query

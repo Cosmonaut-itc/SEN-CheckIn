@@ -2,7 +2,7 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchAttendanceRecords } from '@/lib/server-functions';
 import { AttendancePageClient, type AttendancePageInitialFilters } from './attendance-client';
-import { startOfDay, endOfDay } from 'date-fns';
+import { isValidIanaTimeZone, getUtcDayRangeFromDateKey, toDateKeyInTimeZone } from '@/lib/time-zone';
 import React from 'react';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
 
@@ -24,6 +24,7 @@ const VALID_RETURN_TABS: ReadonlySet<NonNullable<AttendancePageInitialFilters['r
 		'audit',
 		'disciplinary',
 	]);
+const DEFAULT_ATTENDANCE_TIME_ZONE = 'America/Mexico_City';
 
 interface AttendancePageProps {
 	searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -88,6 +89,19 @@ function resolveReturnTab(
 }
 
 /**
+ * Validates an optional IANA timezone search param.
+ *
+ * @param value - Candidate timezone from search params
+ * @returns Valid timezone or undefined when invalid/missing
+ */
+function resolveTimeZone(value: string | undefined): string | undefined {
+	if (!value) {
+		return undefined;
+	}
+	return isValidIanaTimeZone(value) ? value : undefined;
+}
+
+/**
  * Attendance page server component.
  *
  * This server component prefetches attendance data without awaiting,
@@ -108,6 +122,7 @@ export default async function AttendancePage({
 	const source = resolveSearchParamValue(params.source);
 	const returnEmployeeId = resolveSearchParamValue(params.returnEmployeeId);
 	const returnTab = resolveReturnTab(resolveSearchParamValue(params.returnTab));
+	const timeZone = resolveTimeZone(resolveSearchParamValue(params.timeZone));
 	const initialFilters: AttendancePageInitialFilters = {
 		...(employeeId ? { employeeId } : {}),
 		...(fromDateKey ? { from: fromDateKey } : {}),
@@ -115,16 +130,21 @@ export default async function AttendancePage({
 		...(source ? { source } : {}),
 		...(returnEmployeeId ? { returnEmployeeId } : {}),
 		...(returnTab ? { returnTab } : {}),
+		...(timeZone ? { timeZone } : {}),
 	};
 
 	// Prefetch today's attendance records without await for streaming support
 	const now = new Date();
-	const resolvedFromDate = fromDateKey
-		? startOfDay(new Date(`${fromDateKey}T00:00:00`))
-		: startOfDay(now);
-	const resolvedToDate = toDateKey
-		? endOfDay(new Date(`${toDateKey}T00:00:00`))
-		: endOfDay(now);
+	const resolvedTimeZone = timeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
+	const fallbackDateKey = toDateKeyInTimeZone(now, resolvedTimeZone);
+	const resolvedFromDate = getUtcDayRangeFromDateKey(
+		fromDateKey ?? fallbackDateKey,
+		resolvedTimeZone,
+	).startUtc;
+	const resolvedToDate = getUtcDayRangeFromDateKey(
+		toDateKey ?? fallbackDateKey,
+		resolvedTimeZone,
+	).endUtc;
 	if (orgContext.organizationId) {
 		prefetchAttendanceRecords(queryClient, {
 			limit: 10,

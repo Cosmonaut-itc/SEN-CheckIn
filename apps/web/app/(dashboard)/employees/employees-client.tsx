@@ -1984,9 +1984,15 @@ export function EmployeesPageClient(): React.ReactElement {
 	const activeEmployeeId = activeEmployee?.id ?? null;
 	const attendanceRangeStartDateKey = attendanceSummary?.rangeStartDateKey ?? null;
 	const attendanceRangeEndDateKey = attendanceSummary?.rangeEndDateKey ?? null;
+	const attendanceTimeZone = insights?.timeZone ?? null;
 	const attendanceCurrentMonthKey = insights?.asOfDateKey.slice(0, 7) ?? '';
 	const attendanceDrilldownHref = useMemo<string | null>(() => {
-		if (!activeEmployeeId || !attendanceRangeStartDateKey || !attendanceRangeEndDateKey) {
+		if (
+			!activeEmployeeId ||
+			!attendanceRangeStartDateKey ||
+			!attendanceRangeEndDateKey ||
+			!attendanceTimeZone
+		) {
 			return null;
 		}
 
@@ -1997,8 +2003,14 @@ export function EmployeesPageClient(): React.ReactElement {
 		params.set('source', 'employee-dialog');
 		params.set('returnEmployeeId', activeEmployeeId);
 		params.set('returnTab', 'attendance');
+		params.set('timeZone', attendanceTimeZone);
 		return `/attendance?${params.toString()}`;
-	}, [activeEmployeeId, attendanceRangeEndDateKey, attendanceRangeStartDateKey]);
+	}, [
+		activeEmployeeId,
+		attendanceRangeEndDateKey,
+		attendanceRangeStartDateKey,
+		attendanceTimeZone,
+	]);
 	const ptuHistory = useMemo<PtuHistoryRecord[]>(
 		() =>
 			(ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),

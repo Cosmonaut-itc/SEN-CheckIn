@@ -308,6 +308,7 @@ const INSIGHTS_KPI_90_DAYS = 90;
 const INSIGHTS_FUTURE_DAYS = 90;
 const INSIGHTS_VACATION_LIMIT = 10;
 const INSIGHTS_PAYROLL_LIMIT = 6;
+const INSIGHTS_STREAK_LOOKBACK_CHUNK_DAYS = 90;
 
 /**
  * Builds a UTC range for a local date-key range (inclusive).
@@ -580,6 +581,48 @@ function calculateAttendanceRate(workingDays: number, absentDays: number): numbe
 
 	const presentDays = Math.max(0, workingDays - absentDays);
 	return Number(((presentDays / workingDays) * 100).toFixed(2));
+}
+
+/**
+ * Calculates the current unjustified-absence streak inside a date range.
+ *
+ * The streak walks backwards from `endDateKey` and only counts working days.
+ * Non-working days are skipped, and the streak stops at the first present
+ * working day.
+ *
+ * @param args - Streak range and evaluated date-key sets
+ * @param args.startDateKey - Inclusive range start date key
+ * @param args.endDateKey - Inclusive range end date key
+ * @param args.workingDateKeySet - Working-day date keys in the range
+ * @param args.unjustifiedAbsentDateKeySet - Unjustified absent date keys in the range
+ * @returns Current streak and whether it reached the range start without breaking
+ */
+function calculateCurrentAbsenceStreakInRange(args: {
+	startDateKey: string;
+	endDateKey: string;
+	workingDateKeySet: Set<string>;
+	unjustifiedAbsentDateKeySet: Set<string>;
+}): { streakDays: number; reachedStartBoundary: boolean } {
+	let streakDays = 0;
+	let cursor = args.endDateKey;
+
+	while (cursor >= args.startDateKey) {
+		if (args.workingDateKeySet.has(cursor)) {
+			if (args.unjustifiedAbsentDateKeySet.has(cursor)) {
+				streakDays += 1;
+			} else {
+				return { streakDays, reachedStartBoundary: false };
+			}
+		}
+
+		if (cursor === args.startDateKey) {
+			return { streakDays, reachedStartBoundary: true };
+		}
+
+		cursor = addDaysToDateKey(cursor, -1);
+	}
+
+	return { streakDays, reachedStartBoundary: true };
 }
 
 /**
@@ -1345,20 +1388,81 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				}
 			}
 
-			let absenceStreakCurrentDays = 0;
-			let streakCursor = asOfDateKey;
-			while (streakCursor >= pastStartDateKey) {
-				if (workingDateKeySet.has(streakCursor)) {
-					if (unjustifiedAbsentDateKeySet.has(streakCursor)) {
-						absenceStreakCurrentDays += 1;
+			const initialStreak = calculateCurrentAbsenceStreakInRange({
+				startDateKey: pastStartDateKey,
+				endDateKey: asOfDateKey,
+				workingDateKeySet,
+				unjustifiedAbsentDateKeySet,
+			});
+			let absenceStreakCurrentDays = initialStreak.streakDays;
+			const hireDateKey = employeeRecord.hireDate
+				? toDateKeyInTimeZone(employeeRecord.hireDate, timeZone)
+				: null;
+
+			// Only fetch additional history when the streak reaches the 90-day window boundary.
+			if (
+				initialStreak.reachedStartBoundary &&
+				absenceStreakCurrentDays > 0 &&
+				hireDateKey &&
+				pastStartDateKey > hireDateKey
+			) {
+				const resolvedHireDateKey: string = hireDateKey;
+				let chunkEndDateKey = addDaysToDateKey(pastStartDateKey, -1);
+				let shouldContinueLookback = true;
+
+				while (shouldContinueLookback && chunkEndDateKey >= resolvedHireDateKey) {
+					const chunkStartCandidate = addDaysToDateKey(
+						chunkEndDateKey,
+						-(INSIGHTS_STREAK_LOOKBACK_CHUNK_DAYS - 1),
+					);
+					const chunkStartDateKey: string =
+						chunkStartCandidate < resolvedHireDateKey
+							? resolvedHireDateKey
+							: chunkStartCandidate;
+					const chunkRange = buildUtcRangeFromDateKeys(
+						chunkStartDateKey,
+						chunkEndDateKey,
+						timeZone,
+					);
+					const [chunkAttendanceSummary, chunkLeaveRows] = await Promise.all([
+						calculateEmployeeAbsences({
+							employee: employeeRecord,
+							timeZone,
+							startDateKey: chunkStartDateKey,
+							endDateKey: chunkEndDateKey,
+						}),
+						loadScheduleExceptionsForRange({
+							employeeId: id,
+							startUtc: chunkRange.startUtc,
+							endUtc: chunkRange.endUtc,
+							exceptionType: 'DAY_OFF',
+						}),
+					]);
+					const chunkLeaveDateKeySet = new Set(
+						chunkLeaveRows.map((item) => toDateKeyInTimeZone(item.exceptionDate, timeZone)),
+					);
+					const chunkUnjustifiedAbsentDateKeySet = new Set(
+						chunkAttendanceSummary.absentDateKeys.filter(
+							(dateKey) => !chunkLeaveDateKeySet.has(dateKey),
+						),
+					);
+					const chunkStreak = calculateCurrentAbsenceStreakInRange({
+						startDateKey: chunkStartDateKey,
+						endDateKey: chunkEndDateKey,
+						workingDateKeySet: new Set(chunkAttendanceSummary.workingDateKeys),
+						unjustifiedAbsentDateKeySet: chunkUnjustifiedAbsentDateKeySet,
+					});
+
+					absenceStreakCurrentDays += chunkStreak.streakDays;
+					if (
+						!chunkStreak.reachedStartBoundary ||
+						chunkStartDateKey === resolvedHireDateKey
+					) {
+						shouldContinueLookback = false;
 					} else {
-						break;
+						chunkEndDateKey = addDaysToDateKey(chunkStartDateKey, -1);
 					}
 				}
-				if (streakCursor === pastStartDateKey) {
-					break;
-				}
-				streakCursor = addDaysToDateKey(streakCursor, -1);
 			}
 
 			const trend30d = [] as NonNullable<EmployeeInsights['attendance']['trend30d']>;

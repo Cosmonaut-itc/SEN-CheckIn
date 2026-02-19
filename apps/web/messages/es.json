@@ -1,8 +1,8 @@
 {
   "App": {
-    "name": "SEN CheckIn",
+    "name": "jale. by SEN",
     "adminPortal": "Portal de Administración",
-    "shortName": "SC"
+    "shortName": "JL"
   },
   "Common": {
     "add": "Agregar",
@@ -120,7 +120,7 @@
   },
   "Dashboard": {
     "title": "Panel de Control",
-    "subtitle": "Bienvenido al portal de administración de SEN CheckIn",
+    "subtitle": "Bienvenido al portal de administración de jale. by SEN",
     "cards": {
       "employees": {
         "title": "Empleados",
@@ -3179,7 +3179,7 @@
   },
   "Landing": {
     "metadata": {
-      "title": "SEN CheckIn | Control de asistencia inteligente",
+      "title": "jale. by SEN | Control de asistencia inteligente",
       "description": "Plataforma de asistencia con reconocimiento facial para equipos y organizaciones."
     },
     "header": {
@@ -3564,11 +3564,11 @@
   },
   "Registration": {
     "metadata": {
-      "title": "Regístrate | SEN CheckIn",
+      "title": "Regístrate | jale. by SEN",
       "description": "El registro público estará disponible dentro de poco."
     },
     "badge": "Registro en preparación",
-    "title": "Regístrate en SEN CheckIn",
+    "title": "Regístrate en jale. by SEN",
     "subtitle": "Estamos habilitando el registro público para nuevas organizaciones.",
     "notice": "Por ahora el registro está cerrado. Estará disponible dentro de poco.",
     "actions": {

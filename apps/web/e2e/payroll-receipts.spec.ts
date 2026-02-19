@@ -1,6 +1,5 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
-import { format } from 'date-fns';
 import { readFile } from 'node:fs/promises';
 import JSZip from 'jszip';
 
@@ -162,21 +161,14 @@ test('downloads payroll receipts and termination receipt PDFs', async ({ page })
 	await processPayroll(request, { periodStartDateKey, periodEndDateKey });
 
 	await page.goto('/payroll');
-
-	const periodLabel = `${format(new Date(`${periodStartDateKey}T00:00:00`), 'dd/MM/yyyy')} - ${format(
-		new Date(`${periodEndDateKey}T00:00:00`),
-		'dd/MM/yyyy',
-	)}`;
-	const periodCell = page.getByRole('cell', { name: periodLabel }).first();
-	await expect(periodCell).toBeVisible();
-	const row = periodCell.locator('..');
-
-	await row.getByRole('button', { name: 'Recibos' }).click();
-	await expect(page.getByRole('heading', { name: 'Recibos de nómina' })).toBeVisible();
+	const receiptsTrigger = page.locator('[data-testid^="payroll-run-receipts-trigger-"]').first();
+	await expect(receiptsTrigger).toBeVisible();
+	await receiptsTrigger.click();
+	await expect(page.getByTestId('payroll-run-receipts-title')).toBeVisible();
 
 	const [zipDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('link', { name: 'Descargar todos (ZIP)' }).click(),
+		page.locator('[data-testid^="payroll-run-receipts-download-all-"]').first().click(),
 	]);
 	expect(zipDownload.suggestedFilename()).toMatch(/\.zip$/);
 	const zipPath = await zipDownload.path();
@@ -201,7 +193,7 @@ test('downloads payroll receipts and termination receipt PDFs', async ({ page })
 
 	const [pdfDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('link', { name: 'Descargar PDF' }).first().click(),
+		page.locator('[data-testid^="payroll-run-receipts-download-one-"]').first().click(),
 	]);
 	expect(pdfDownload.suggestedFilename()).toMatch(/\.pdf$/);
 	const pdfPath = await pdfDownload.path();

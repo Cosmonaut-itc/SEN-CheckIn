@@ -22,14 +22,14 @@ type LocationSummary = Pick<Location, 'id' | 'name'>;
 type CheckedState = boolean | 'indeterminate';
 
 const EMPLOYEE_MARKER_CLASSES = [
-	'bg-sky-500',
-	'bg-indigo-500',
-	'bg-violet-500',
-	'bg-fuchsia-500',
-	'bg-rose-500',
-	'bg-amber-500',
-	'bg-emerald-500',
-	'bg-teal-500',
+	'bg-[var(--accent-primary)]',
+	'bg-[var(--accent-secondary)]',
+	'bg-[var(--accent-tertiary)]',
+	'bg-[var(--accent-primary-light)]',
+	'bg-[var(--status-error)]',
+	'bg-[var(--status-warning)]',
+	'bg-[var(--status-success)]',
+	'bg-[var(--status-info)]',
 ] as const;
 
 type EmployeeMarkerClass = (typeof EMPLOYEE_MARKER_CLASSES)[number];
@@ -461,8 +461,8 @@ export function LocationScheduleCard({
 											)}
 										</div>
 										{justified.length > 0 && (
-											<div className="space-y-1 border-t border-amber-100 pt-2">
-												<div className="text-[11px] font-semibold text-amber-700">
+											<div className="space-y-1 border-t border-[color:var(--status-warning)]/20 pt-2">
+												<div className="text-[11px] font-semibold text-[color:var(--status-warning)]">
 													{t('calendar.locationCard.justifiedLabel')}
 												</div>
 												<div className="space-y-1">
@@ -470,7 +470,7 @@ export function LocationScheduleCard({
 														const absenceBadge = (
 															<Badge
 																variant="outline"
-																className="border-amber-200 bg-amber-50 text-[10px] uppercase text-amber-700"
+																className="border-[color:var(--status-warning)]/30 bg-[var(--status-warning-bg)] text-[10px] uppercase text-[color:var(--status-warning)]"
 															>
 																{t(
 																	EXCEPTION_TYPE_LABEL_KEYS.DAY_OFF,
@@ -481,7 +481,7 @@ export function LocationScheduleCard({
 														return (
 															<div
 																key={`${dayKey}-leave-${entry.employeeId}`}
-																className="flex items-center justify-between gap-2 rounded-md border border-amber-100 bg-amber-50/40 px-2 py-1"
+																className="flex items-center justify-between gap-2 rounded-md border border-[color:var(--status-warning)]/20 bg-[var(--status-warning-bg)]/40 px-2 py-1"
 															>
 																<span className="min-w-0 truncate text-xs font-medium">
 																	{entry.employeeName}
@@ -582,7 +582,7 @@ export function LocationScheduleCard({
 												</div>
 											)}
 											{justified.length > 0 && (
-												<div className="text-[11px] font-medium text-amber-700">
+												<div className="text-[11px] font-medium text-[color:var(--status-warning)]">
 													{t('calendar.locationCard.justifiedCount', {
 														count: justified.length,
 													})}
@@ -661,7 +661,7 @@ export function LocationScheduleCard({
 												))}
 												{justified.length > 0 && (
 													<div className="space-y-1 pt-1">
-														<div className="text-[11px] font-semibold text-amber-700">
+														<div className="text-[11px] font-semibold text-[color:var(--status-warning)]">
 															{t(
 																'calendar.locationCard.justifiedLabel',
 															)}

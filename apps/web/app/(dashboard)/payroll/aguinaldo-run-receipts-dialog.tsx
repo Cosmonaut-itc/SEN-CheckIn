@@ -101,7 +101,11 @@ export function AguinaldoRunReceiptsDialog({
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button
+					variant="outline"
+					size="sm"
+					data-testid={`aguinaldo-run-receipts-trigger-${run.id}`}
+				>
 					{t('receipts.trigger')}
 				</Button>
 			</DialogTrigger>
@@ -143,7 +147,10 @@ export function AguinaldoRunReceiptsDialog({
 								</div>
 								{canDownloadAll ? (
 									<Button asChild size="sm">
-										<a href={downloadAllUrl}>
+										<a
+											href={downloadAllUrl}
+											data-testid={`aguinaldo-run-receipts-download-all-${run.id}`}
+										>
 											{t('receipts.actions.downloadAll')}
 										</a>
 									</Button>
@@ -214,7 +221,10 @@ export function AguinaldoRunReceiptsDialog({
 													</TableCell>
 													<TableCell className="text-right">
 														<Button asChild variant="outline" size="sm">
-															<a href={downloadUrl}>
+															<a
+																href={downloadUrl}
+																data-testid={`aguinaldo-run-receipts-download-one-${run.id}-${employee.employeeId}`}
+															>
 																{t('receipts.actions.download')}
 															</a>
 														</Button>

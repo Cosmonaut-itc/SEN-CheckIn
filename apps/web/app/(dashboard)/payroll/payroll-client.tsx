@@ -539,7 +539,11 @@ export function PayrollPageClient(): React.ReactElement {
 					return (
 						<Dialog>
 							<DialogTrigger asChild>
-								<Button variant="outline" size="sm">
+								<Button
+									variant="outline"
+									size="sm"
+									data-testid={`payroll-run-holiday-notice-trigger-${row.original.id}`}
+								>
 									{t('runHistory.table.holidayNoticesCount', {
 										count: notices.length,
 									})}
@@ -547,7 +551,9 @@ export function PayrollPageClient(): React.ReactElement {
 							</DialogTrigger>
 							<DialogContent className="sm:max-w-2xl">
 								<DialogHeader>
-									<DialogTitle>{t('holidayNotice.title')}</DialogTitle>
+									<DialogTitle data-testid="payroll-holiday-notice-dialog-title">
+										{t('holidayNotice.title')}
+									</DialogTitle>
 								</DialogHeader>
 								<PayrollHolidayNoticeCard notices={notices} compact />
 							</DialogContent>
@@ -623,944 +629,1021 @@ export function PayrollPageClient(): React.ReactElement {
 
 			<Tabs defaultValue="payroll" className="space-y-4">
 				<TabsList>
-					<TabsTrigger value="payroll">{t('tabs.payroll')}</TabsTrigger>
-					<TabsTrigger value="ptu" disabled={!settings?.ptuEnabled}>
+					<TabsTrigger value="payroll" data-testid="payroll-tab-payroll">
+						{t('tabs.payroll')}
+					</TabsTrigger>
+					<TabsTrigger
+						value="ptu"
+						disabled={!settings?.ptuEnabled}
+						data-testid="payroll-tab-ptu"
+					>
 						{t('tabs.ptu')}
 					</TabsTrigger>
-					<TabsTrigger value="aguinaldo" disabled={!settings?.aguinaldoEnabled}>
+					<TabsTrigger
+						value="aguinaldo"
+						disabled={!settings?.aguinaldoEnabled}
+						data-testid="payroll-tab-aguinaldo"
+					>
 						{t('tabs.aguinaldo')}
 					</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="payroll" className="space-y-6">
 					<Card>
-				<CardHeader>
-					<CardTitle>{t('legalRules.title')}</CardTitle>
-					<CardDescription>{t('legalRules.description')}</CardDescription>
-				</CardHeader>
-			</Card>
+						<CardHeader>
+							<CardTitle>{t('legalRules.title')}</CardTitle>
+							<CardDescription>{t('legalRules.description')}</CardDescription>
+						</CardHeader>
+					</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>{t('insights.title')}</CardTitle>
-					<CardDescription>{t('insights.description')}</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-						<div className="space-y-2">
-							<p className="text-sm font-medium">
-								{t('insights.sections.minimumWage')}
-							</p>
-							<ul className="space-y-1 text-sm text-muted-foreground">
-								<li>
-									{t('insights.items.minimumWageGeneral', {
-										value: formatCurrency(315.04),
-									})}
-								</li>
-								<li>
-									{t('insights.items.minimumWageZlfn', {
-										value: formatCurrency(440.87),
-									})}
-								</li>
-							</ul>
-						</div>
-						<div className="space-y-2">
-							<p className="text-sm font-medium">{t('insights.sections.uma')}</p>
-							<ul className="space-y-1 text-sm text-muted-foreground">
-								<li>
-									{t('insights.items.umaJan', {
-										value: formatCurrency(113.14),
-									})}
-								</li>
-								<li>
-									{t('insights.items.umaFeb', {
-										value: formatCurrency(117.31),
-									})}
-								</li>
-							</ul>
-						</div>
-						<div className="space-y-2">
-							<p className="text-sm font-medium">{t('insights.sections.subsidy')}</p>
-							<ul className="space-y-1 text-sm text-muted-foreground">
-								<li>
-									{t('insights.items.subsidyLimit', {
-										value: formatCurrency(11492.66),
-									})}
-								</li>
-								<li>
-									{t('insights.items.subsidyJan', {
-										value: formatCurrency(536.21),
-									})}
-								</li>
-								<li>
-									{t('insights.items.subsidyFeb', {
-										value: formatCurrency(535.65),
-									})}
-								</li>
-							</ul>
-						</div>
-						<div className="space-y-2">
-							<p className="text-sm font-medium">{t('insights.sections.isr')}</p>
-							<p className="text-sm text-muted-foreground">
-								{t('insights.items.isrTables')}
-							</p>
-						</div>
-						<div className="space-y-2">
-							<p className="text-sm font-medium">{t('insights.sections.cv')}</p>
-							<p className="text-sm text-muted-foreground">
-								{t('insights.items.cvRange')}
-							</p>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardHeader>
-					<CardTitle>{t('payPeriod.title')}</CardTitle>
-					<CardDescription>{t('payPeriod.description')}</CardDescription>
-				</CardHeader>
-				<CardContent className="grid gap-4 md:grid-cols-4">
-					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium">
-							{t('payPeriod.paymentFrequency')}
-						</label>
-						<Select
-							value={paymentFrequency}
-							onValueChange={(value: string) => {
-								const typedValue =
-									value as PayrollCalculateParams['paymentFrequency'];
-								setPaymentFrequency(typedValue);
-								const next = computePeriod(
-									settings?.weekStartDay ?? 1,
-									typedValue,
-									payrollTimeZone,
-								);
-								setPeriodStartDateKey(next.periodStartDateKey);
-								setPeriodEndDateKey(next.periodEndDateKey);
-							}}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder={t('payPeriod.selectFrequency')} />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="WEEKLY">
-									{t('paymentFrequency.WEEKLY')}
-								</SelectItem>
-								<SelectItem value="BIWEEKLY">
-									{t('paymentFrequency.BIWEEKLY')}
-								</SelectItem>
-								<SelectItem value="MONTHLY">
-									{t('paymentFrequency.MONTHLY')}
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium">{t('payPeriod.periodStart')}</label>
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button
-									variant="outline"
-									data-empty={!periodStartDate}
-									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
-								>
-									<CalendarIcon className="mr-2 h-4 w-4" />
-									{periodStartDate ? (
-										format(periodStartDate, 'PPP', { locale: es })
-									) : (
-										<span>{t('payPeriod.selectDate')}</span>
-									)}
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent className="w-auto p-0" align="start">
-								<Calendar
-									mode="single"
-									selected={periodStartDate}
-									onSelect={(date) => {
-										if (!date) return;
-										setPeriodStartDateKey(
-											toDateKeyInTimeZone(date, payrollTimeZone),
-										);
-									}}
-									initialFocus
-								/>
-							</PopoverContent>
-						</Popover>
-					</div>
-					<div className="flex flex-col gap-2">
-						<label className="text-sm font-medium">{t('payPeriod.periodEnd')}</label>
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button
-									variant="outline"
-									data-empty={!periodEndDate}
-									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
-								>
-									<CalendarIcon className="mr-2 h-4 w-4" />
-									{periodEndDate ? (
-										format(periodEndDate, 'PPP', { locale: es })
-									) : (
-										<span>{t('payPeriod.selectDate')}</span>
-									)}
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent className="w-auto p-0" align="start">
-								<Calendar
-									mode="single"
-									selected={periodEndDate}
-									onSelect={(date) => {
-										if (!date) return;
-										setPeriodEndDateKey(
-											toDateKeyInTimeZone(date, payrollTimeZone),
-										);
-									}}
-									initialFocus
-								/>
-							</PopoverContent>
-						</Popover>
-					</div>
-					<div className="flex items-end">
-						<Button
-							className="w-full"
-							onClick={onProcess}
-							disabled={
-								isCalculating ||
-								processMutation.isPending ||
-								!effectiveCalculation ||
-								hasBlockingWarnings ||
-								isInvalidPeriodRange
-							}
-						>
-							{processMutation.isPending ? (
-								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									{t('actions.processing')}
-								</>
-							) : (
-								t('actions.process')
-							)}
-						</Button>
-						{hasBlockingWarnings && (
-							<p className="mt-2 text-sm text-destructive">
-								{t('warnings.blockingOvertime')}
-							</p>
-						)}
-					</div>
-				</CardContent>
-			</Card>
-
-			{isInvalidPeriodRange && (
-				<p className="text-sm text-destructive">{t('payPeriod.invalidRange')}</p>
-			)}
-
-			<Card>
-				<CardHeader>
-					<CardTitle>{t('preview.title')}</CardTitle>
-					<CardDescription>{t('preview.description')}</CardDescription>
-				</CardHeader>
-				<CardContent>
-					{isCalculating ? (
-						<div className="flex items-center gap-2 text-sm text-muted-foreground">
-							<Loader2 className="h-4 w-4 animate-spin" />
-							{t('preview.calculating')}
-						</div>
-					) : !effectiveCalculation || effectiveCalculation.employees.length === 0 ? (
-						<Empty className="border">
-							<EmptyHeader>
-								<EmptyMedia variant="icon">
-									<CalendarIcon className="h-5 w-5" />
-								</EmptyMedia>
-								<EmptyTitle>{t('preview.noCalculation')}</EmptyTitle>
-								<EmptyDescription>
-									{isInvalidPeriodRange
-										? t('payPeriod.invalidRange')
-										: t('preview.description')}
-								</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
-					) : (
-						<>
-							<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-								<div className="text-sm text-muted-foreground">
-									{t('preview.totalEmployees', {
-										count: effectiveCalculation.employees.length,
-									})}
+					<Card>
+						<CardHeader>
+							<CardTitle>{t('insights.title')}</CardTitle>
+							<CardDescription>{t('insights.description')}</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+								<div className="space-y-2">
+									<p className="text-sm font-medium">
+										{t('insights.sections.minimumWage')}
+									</p>
+									<ul className="space-y-1 text-sm text-muted-foreground">
+										<li>
+											{t('insights.items.minimumWageGeneral', {
+												value: formatCurrency(315.04),
+											})}
+										</li>
+										<li>
+											{t('insights.items.minimumWageZlfn', {
+												value: formatCurrency(440.87),
+											})}
+										</li>
+									</ul>
 								</div>
-								<div className="flex items-center gap-3">
-									<div className="text-lg font-semibold">
-										{t('preview.totalAmount', {
-											total: formatCurrency(effectiveCalculation.totalAmount),
-										})}
-									</div>
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={onExportCsv}
-										disabled={effectiveCalculation.employees.length === 0}
-									>
-										{t('preview.actions.exportCsv')}
-									</Button>
+								<div className="space-y-2">
+									<p className="text-sm font-medium">
+										{t('insights.sections.uma')}
+									</p>
+									<ul className="space-y-1 text-sm text-muted-foreground">
+										<li>
+											{t('insights.items.umaJan', {
+												value: formatCurrency(113.14),
+											})}
+										</li>
+										<li>
+											{t('insights.items.umaFeb', {
+												value: formatCurrency(117.31),
+											})}
+										</li>
+									</ul>
+								</div>
+								<div className="space-y-2">
+									<p className="text-sm font-medium">
+										{t('insights.sections.subsidy')}
+									</p>
+									<ul className="space-y-1 text-sm text-muted-foreground">
+										<li>
+											{t('insights.items.subsidyLimit', {
+												value: formatCurrency(11492.66),
+											})}
+										</li>
+										<li>
+											{t('insights.items.subsidyJan', {
+												value: formatCurrency(536.21),
+											})}
+										</li>
+										<li>
+											{t('insights.items.subsidyFeb', {
+												value: formatCurrency(535.65),
+											})}
+										</li>
+									</ul>
+								</div>
+								<div className="space-y-2">
+									<p className="text-sm font-medium">
+										{t('insights.sections.isr')}
+									</p>
+									<p className="text-sm text-muted-foreground">
+										{t('insights.items.isrTables')}
+									</p>
+								</div>
+								<div className="space-y-2">
+									<p className="text-sm font-medium">
+										{t('insights.sections.cv')}
+									</p>
+									<p className="text-sm text-muted-foreground">
+										{t('insights.items.cvRange')}
+									</p>
 								</div>
 							</div>
-							<PayrollHolidayNoticeCard notices={effectiveCalculation.holidayNotices} />
-							<div className="rounded-md border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											<TableHead>{t('preview.table.employee')}</TableHead>
-											<TableHead>{t('preview.table.normalHours')}</TableHead>
-											<TableHead>
-												{t('preview.table.overtimeDouble')}
-											</TableHead>
-											<TableHead>
-												{t('preview.table.overtimeTriple')}
-											</TableHead>
-											<TableHead>
-												{t('preview.table.sundayPremium')}
-											</TableHead>
-											<TableHead>
-												{t('preview.table.mandatoryRest')}
-											</TableHead>
-											<TableHead>{t('preview.table.holidayImpact')}</TableHead>
-											<TableHead>{t('preview.table.vacationPay')}</TableHead>
-											<TableHead>
-												{t('preview.table.vacationPremium')}
-											</TableHead>
-											<TableHead>
-												{t('preview.table.incapacityDays')}
-											</TableHead>
-											<TableHead>
-												{t('preview.table.incapacitySubsidy')}
-											</TableHead>
-											<TableHead>{t('preview.table.total')}</TableHead>
-											<TableHead>{t('preview.table.warnings')}</TableHead>
-											<TableHead>{t('preview.table.detail')}</TableHead>
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{effectiveCalculation.employees.map((row) => (
-											<TableRow key={row.employeeId}>
-												<TableCell>{row.name}</TableCell>
-												<TableCell>{row.normalHours.toFixed(2)}</TableCell>
-												<TableCell>
-													{row.overtimeDoubleHours.toFixed(2)}
-												</TableCell>
-												<TableCell>
-													{row.overtimeTripleHours.toFixed(2)}
-												</TableCell>
-												<TableCell>
-													{row.sundayPremiumAmount > 0
-														? formatCurrency(row.sundayPremiumAmount)
-														: '-'}
-												</TableCell>
-												<TableCell>
-													{row.mandatoryRestDayPremiumAmount > 0
-														? formatCurrency(
-																row.mandatoryRestDayPremiumAmount,
-															)
-														: '-'}
-												</TableCell>
-												<TableCell>
-													{row.holidayImpact &&
-													row.holidayImpact.affectedHolidayDateKeys
-														.length > 0 ? (
-														<Badge variant="outline">
-															{t('holidayNotice.employeeBadge', {
-																count: row.holidayImpact
-																	.affectedHolidayDateKeys.length,
-															})}
-														</Badge>
-													) : (
-														<span className="text-muted-foreground">-</span>
-													)}
-												</TableCell>
-												<TableCell>
-													{row.vacationPayAmount > 0
-														? formatCurrency(row.vacationPayAmount)
-														: '-'}
-													{row.vacationDaysPaid > 0 && (
-														<span className="mt-1 block text-xs text-muted-foreground">
-															{t('preview.table.vacationDays', {
-																count: row.vacationDaysPaid,
-															})}
-														</span>
-													)}
-												</TableCell>
-												<TableCell>
-													{row.vacationPremiumAmount > 0
-														? formatCurrency(row.vacationPremiumAmount)
-														: '-'}
-												</TableCell>
-												<TableCell>
-													{row.incapacitySummary?.daysIncapacityTotal
-														? row.incapacitySummary.daysIncapacityTotal
-														: '-'}
-												</TableCell>
-												<TableCell>
-													{row.incapacitySummary
-														?.expectedImssSubsidyAmount
-														? formatCurrency(
-																row.incapacitySummary
-																	.expectedImssSubsidyAmount,
-															)
-														: '-'}
-												</TableCell>
-												<TableCell>
-													{formatCurrency(row.totalPay)}
-												</TableCell>
-												<TableCell>
-													{row.warnings.length === 0 ? (
-														<span className="text-xs text-muted-foreground">
-															0
-														</span>
-													) : (
-														<span
-															className={`text-xs ${
-																row.warnings.some(
-																	(w) => w.severity === 'error',
-																)
-																	? 'text-destructive'
-																	: 'text-amber-600'
-															}`}
-														>
-															{t('preview.warningsCount', {
-																count: row.warnings.length,
-															})}
-														</span>
-													)}
-												</TableCell>
-												<TableCell>
-													<Dialog>
-														<DialogTrigger asChild>
-															<Button variant="outline" size="sm">
-																{t('preview.table.detail')}
-															</Button>
-														</DialogTrigger>
-														<DialogContent className="sm:max-w-2xl">
-															<DialogHeader>
-																<DialogTitle>
-																	{t('taxDetail.title', {
-																		name: row.name,
-																	})}
-																</DialogTitle>
-															</DialogHeader>
-															<div className="space-y-4 text-sm">
-																<div>
-																	<p className="font-medium">
-																		{t(
-																			'taxDetail.sections.summary',
-																		)}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.grossPay',
-																				)}
-																			</span>
-																			<span className="font-medium">
-																				{formatCurrency(
-																					row.grossPay,
-																				)}
-																			</span>
-																		</div>
-																		{row.vacationDaysPaid >
-																			0 && (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.vacationDays',
-																					)}
-																				</span>
-																				<span>
-																					{
-																						row.vacationDaysPaid
-																					}
-																				</span>
-																			</div>
-																		)}
-																		{row.vacationPayAmount >
-																			0 && (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.vacationPay',
-																					)}
-																				</span>
-																				<span>
-																					{formatCurrency(
-																						row.vacationPayAmount,
-																					)}
-																				</span>
-																			</div>
-																		)}
-																		{row.vacationPremiumAmount >
-																			0 && (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.vacationPremium',
-																					)}
-																				</span>
-																				<span>
-																					{formatCurrency(
-																						row.vacationPremiumAmount,
-																					)}
-																				</span>
-																			</div>
-																		)}
-																		{row.incapacitySummary
-																			?.daysIncapacityTotal ? (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.incapacityDays',
-																					)}
-																				</span>
-																				<span>
-																					{
-																						row
-																							.incapacitySummary
-																							.daysIncapacityTotal
-																					}
-																				</span>
-																			</div>
-																		) : null}
-																		{row.incapacitySummary
-																			?.expectedImssSubsidyAmount ? (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.incapacitySubsidy',
-																					)}
-																				</span>
-																				<span>
-																					{formatCurrency(
-																						row
-																							.incapacitySummary
-																							.expectedImssSubsidyAmount,
-																					)}
-																				</span>
-																			</div>
-																		) : null}
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.employeeWithholdings',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employeeWithholdings
-																						.total,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.netPay',
-																				)}
-																			</span>
-																			<span className="font-medium">
-																				{formatCurrency(
-																					row.netPay,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.employerCosts',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employerCosts
-																						.total,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.companyCost',
-																				)}
-																			</span>
-																			<span className="font-medium">
-																				{formatCurrency(
-																					row.companyCost,
-																				)}
-																			</span>
-																		</div>
-																	</div>
-																</div>
-																<div>
-																	<p className="font-medium">
-																		{t(
-																			'taxDetail.sections.bases',
-																		)}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.sbcDaily',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row.bases
-																						.sbcDaily,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.sbcPeriod',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row.bases
-																						.sbcPeriod,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.isrBase',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row.bases
-																						.isrBase,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.daysInPeriod',
-																				)}
-																			</span>
-																			<span>
-																				{
-																					row.bases
-																						.daysInPeriod
-																				}
-																			</span>
-																		</div>
-																	</div>
-																</div>
-																<div>
-																	<p className="font-medium">
-																		{t(
-																			'taxDetail.sections.employeeWithholdings',
-																		)}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.isrWithheld',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employeeWithholdings
-																						.isrWithheld,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.imssEmployee',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employeeWithholdings
-																						.imssEmployee
-																						.total,
-																				)}
-																			</span>
-																		</div>
-																	</div>
-																</div>
-																<div>
-																	<p className="font-medium">
-																		{t(
-																			'taxDetail.sections.employerCosts',
-																		)}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.imssEmployer',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employerCosts
-																						.imssEmployer
-																						.total,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.sarRetiro',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employerCosts
-																						.sarRetiro,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.infonavit',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employerCosts
-																						.infonavit,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.riskWork',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employerCosts
-																						.riskWork,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.isn',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.employerCosts
-																						.isn,
-																				)}
-																			</span>
-																		</div>
-																		{row.employerCosts
-																			.absorbedImssEmployeeShare >
-																		0 ? (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.absorbedImssEmployeeShare',
-																					)}
-																				</span>
-																				<span>
-																					{formatCurrency(
-																						row
-																							.employerCosts
-																							.absorbedImssEmployeeShare,
-																					)}
-																				</span>
-																			</div>
-																		) : null}
-																		{row.employerCosts
-																			.absorbedIsr > 0 ? (
-																			<div className="flex items-center justify-between">
-																				<span className="text-muted-foreground">
-																					{t(
-																						'taxDetail.labels.absorbedIsr',
-																					)}
-																				</span>
-																				<span>
-																					{formatCurrency(
-																						row
-																							.employerCosts
-																							.absorbedIsr,
-																					)}
-																				</span>
-																			</div>
-																		) : null}
-																	</div>
-																</div>
-																<div>
-																	<p className="font-medium">
-																		{t(
-																			'taxDetail.sections.informational',
-																		)}
-																	</p>
-																	<div className="mt-2 grid gap-2">
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.isrBeforeSubsidy',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.informationalLines
-																						.isrBeforeSubsidy,
-																				)}
-																			</span>
-																		</div>
-																		<div className="flex items-center justify-between">
-																			<span className="text-muted-foreground">
-																				{t(
-																					'taxDetail.labels.subsidyApplied',
-																				)}
-																			</span>
-																			<span>
-																				{formatCurrency(
-																					row
-																						.informationalLines
-																						.subsidyApplied,
-																				)}
-																			</span>
-																		</div>
-																	</div>
-																</div>
-															</div>
-														</DialogContent>
-													</Dialog>
-												</TableCell>
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle>{t('payPeriod.title')}</CardTitle>
+							<CardDescription>{t('payPeriod.description')}</CardDescription>
+						</CardHeader>
+						<CardContent className="grid gap-4 md:grid-cols-4">
+							<div className="flex flex-col gap-2">
+								<label className="text-sm font-medium">
+									{t('payPeriod.paymentFrequency')}
+								</label>
+								<Select
+									value={paymentFrequency}
+									onValueChange={(value: string) => {
+										const typedValue =
+											value as PayrollCalculateParams['paymentFrequency'];
+										setPaymentFrequency(typedValue);
+										const next = computePeriod(
+											settings?.weekStartDay ?? 1,
+											typedValue,
+											payrollTimeZone,
+										);
+										setPeriodStartDateKey(next.periodStartDateKey);
+										setPeriodEndDateKey(next.periodEndDateKey);
+									}}
+								>
+									<SelectTrigger>
+										<SelectValue placeholder={t('payPeriod.selectFrequency')} />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="WEEKLY">
+											{t('paymentFrequency.WEEKLY')}
+										</SelectItem>
+										<SelectItem value="BIWEEKLY">
+											{t('paymentFrequency.BIWEEKLY')}
+										</SelectItem>
+										<SelectItem value="MONTHLY">
+											{t('paymentFrequency.MONTHLY')}
+										</SelectItem>
+									</SelectContent>
+								</Select>
 							</div>
-							{effectiveCalculation.employees.some(
-								(emp) => emp.warnings.length > 0,
-							) && (
-								<div className="mt-4 rounded-md border bg-muted/50 p-3">
-									<p className="text-sm font-medium">{t('compliance.title')}</p>
-									<div className="mt-2 space-y-2 text-sm">
-										{effectiveCalculation.employees.map((emp) =>
-											emp.warnings.map((w, idx) => (
-												<div
-													key={`${emp.employeeId}-${idx}`}
-													className={
-														w.severity === 'error'
-															? 'text-destructive'
-															: ''
-													}
-												>
-													<strong>{emp.name}:</strong> {w.message}
-												</div>
-											)),
-										)}
-									</div>
-								</div>
-							)}
-						</>
+							<div className="flex flex-col gap-2">
+								<label className="text-sm font-medium">
+									{t('payPeriod.periodStart')}
+								</label>
+								<Popover>
+									<PopoverTrigger asChild>
+										<Button
+											variant="outline"
+											data-empty={!periodStartDate}
+											className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+										>
+											<CalendarIcon className="mr-2 h-4 w-4" />
+											{periodStartDate ? (
+												format(periodStartDate, 'PPP', { locale: es })
+											) : (
+												<span>{t('payPeriod.selectDate')}</span>
+											)}
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent className="w-auto p-0" align="start">
+										<Calendar
+											mode="single"
+											selected={periodStartDate}
+											onSelect={(date) => {
+												if (!date) return;
+												setPeriodStartDateKey(
+													toDateKeyInTimeZone(date, payrollTimeZone),
+												);
+											}}
+											initialFocus
+										/>
+									</PopoverContent>
+								</Popover>
+							</div>
+							<div className="flex flex-col gap-2">
+								<label className="text-sm font-medium">
+									{t('payPeriod.periodEnd')}
+								</label>
+								<Popover>
+									<PopoverTrigger asChild>
+										<Button
+											variant="outline"
+											data-empty={!periodEndDate}
+											className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+										>
+											<CalendarIcon className="mr-2 h-4 w-4" />
+											{periodEndDate ? (
+												format(periodEndDate, 'PPP', { locale: es })
+											) : (
+												<span>{t('payPeriod.selectDate')}</span>
+											)}
+										</Button>
+									</PopoverTrigger>
+									<PopoverContent className="w-auto p-0" align="start">
+										<Calendar
+											mode="single"
+											selected={periodEndDate}
+											onSelect={(date) => {
+												if (!date) return;
+												setPeriodEndDateKey(
+													toDateKeyInTimeZone(date, payrollTimeZone),
+												);
+											}}
+											initialFocus
+										/>
+									</PopoverContent>
+								</Popover>
+							</div>
+							<div className="flex items-end">
+								<Button
+									className="w-full"
+									onClick={onProcess}
+									disabled={
+										isCalculating ||
+										processMutation.isPending ||
+										!effectiveCalculation ||
+										hasBlockingWarnings ||
+										isInvalidPeriodRange
+									}
+								>
+									{processMutation.isPending ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											{t('actions.processing')}
+										</>
+									) : (
+										t('actions.process')
+									)}
+								</Button>
+								{hasBlockingWarnings && (
+									<p className="mt-2 text-sm text-destructive">
+										{t('warnings.blockingOvertime')}
+									</p>
+								)}
+							</div>
+						</CardContent>
+					</Card>
+
+					{isInvalidPeriodRange && (
+						<p className="text-sm text-destructive">{t('payPeriod.invalidRange')}</p>
 					)}
-				</CardContent>
-			</Card>
 
-			{effectiveCalculation && taxSummary ? (
-				<Card>
-					<CardHeader>
-						<CardTitle>{t('summary.title')}</CardTitle>
-						<CardDescription>{t('summary.description')}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-							<div className="rounded-md border p-3">
-								<p className="text-xs text-muted-foreground">
-									{t('summary.items.gross')}
-								</p>
-								<p className="mt-1 text-base font-semibold">
-									{formatCurrency(taxSummary.grossTotal)}
-								</p>
-							</div>
-							<div className="rounded-md border p-3">
-								<p className="text-xs text-muted-foreground">
-									{t('summary.items.employeeWithholdings')}
-								</p>
-								<p className="mt-1 text-base font-semibold">
-									{formatCurrency(taxSummary.employeeWithholdingsTotal)}
-								</p>
-							</div>
-							<div className="rounded-md border p-3">
-								<p className="text-xs text-muted-foreground">
-									{t('summary.items.netPay')}
-								</p>
-								<p className="mt-1 text-base font-semibold">
-									{formatCurrency(taxSummary.netPayTotal)}
-								</p>
-							</div>
-							<div className="rounded-md border p-3">
-								<p className="text-xs text-muted-foreground">
-									{t('summary.items.employerCosts')}
-								</p>
-								<p className="mt-1 text-base font-semibold">
-									{formatCurrency(taxSummary.employerCostsTotal)}
-								</p>
-							</div>
-							<div className="rounded-md border p-3">
-								<p className="text-xs text-muted-foreground">
-									{t('summary.items.companyCost')}
-								</p>
-								<p className="mt-1 text-base font-semibold">
-									{formatCurrency(taxSummary.companyCostTotal)}
-								</p>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-			) : null}
+					<Card>
+						<CardHeader>
+							<CardTitle>{t('preview.title')}</CardTitle>
+							<CardDescription>{t('preview.description')}</CardDescription>
+						</CardHeader>
+						<CardContent>
+							{isCalculating ? (
+								<div className="flex items-center gap-2 text-sm text-muted-foreground">
+									<Loader2 className="h-4 w-4 animate-spin" />
+									{t('preview.calculating')}
+								</div>
+							) : !effectiveCalculation ||
+							  effectiveCalculation.employees.length === 0 ? (
+								<Empty className="border">
+									<EmptyHeader>
+										<EmptyMedia variant="icon">
+											<CalendarIcon className="h-5 w-5" />
+										</EmptyMedia>
+										<EmptyTitle>{t('preview.noCalculation')}</EmptyTitle>
+										<EmptyDescription>
+											{isInvalidPeriodRange
+												? t('payPeriod.invalidRange')
+												: t('preview.description')}
+										</EmptyDescription>
+									</EmptyHeader>
+								</Empty>
+							) : (
+								<>
+									<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+										<div className="text-sm text-muted-foreground">
+											{t('preview.totalEmployees', {
+												count: effectiveCalculation.employees.length,
+											})}
+										</div>
+										<div className="flex items-center gap-3">
+											<div className="text-lg font-semibold">
+												{t('preview.totalAmount', {
+													total: formatCurrency(
+														effectiveCalculation.totalAmount,
+													),
+												})}
+											</div>
+											<Button
+												variant="outline"
+												size="sm"
+												onClick={onExportCsv}
+												disabled={
+													effectiveCalculation.employees.length === 0
+												}
+											>
+												{t('preview.actions.exportCsv')}
+											</Button>
+										</div>
+									</div>
+									<PayrollHolidayNoticeCard
+										notices={effectiveCalculation.holidayNotices}
+									/>
+									<div className="rounded-md border">
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>
+														{t('preview.table.employee')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.normalHours')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.overtimeDouble')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.overtimeTriple')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.sundayPremium')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.mandatoryRest')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.holidayImpact')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.vacationPay')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.vacationPremium')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.incapacityDays')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.incapacitySubsidy')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.total')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.warnings')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.detail')}
+													</TableHead>
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{effectiveCalculation.employees.map((row) => (
+													<TableRow key={row.employeeId}>
+														<TableCell>{row.name}</TableCell>
+														<TableCell>
+															{row.normalHours.toFixed(2)}
+														</TableCell>
+														<TableCell>
+															{row.overtimeDoubleHours.toFixed(2)}
+														</TableCell>
+														<TableCell>
+															{row.overtimeTripleHours.toFixed(2)}
+														</TableCell>
+														<TableCell>
+															{row.sundayPremiumAmount > 0
+																? formatCurrency(
+																		row.sundayPremiumAmount,
+																	)
+																: '-'}
+														</TableCell>
+														<TableCell>
+															{row.mandatoryRestDayPremiumAmount > 0
+																? formatCurrency(
+																		row.mandatoryRestDayPremiumAmount,
+																	)
+																: '-'}
+														</TableCell>
+														<TableCell>
+															{row.holidayImpact &&
+															row.holidayImpact
+																.affectedHolidayDateKeys.length >
+																0 ? (
+																<Badge variant="outline">
+																	{t(
+																		'holidayNotice.employeeBadge',
+																		{
+																			count: row.holidayImpact
+																				.affectedHolidayDateKeys
+																				.length,
+																		},
+																	)}
+																</Badge>
+															) : (
+																<span className="text-muted-foreground">
+																	-
+																</span>
+															)}
+														</TableCell>
+														<TableCell>
+															{row.vacationPayAmount > 0
+																? formatCurrency(
+																		row.vacationPayAmount,
+																	)
+																: '-'}
+															{row.vacationDaysPaid > 0 && (
+																<span className="mt-1 block text-xs text-muted-foreground">
+																	{t(
+																		'preview.table.vacationDays',
+																		{
+																			count: row.vacationDaysPaid,
+																		},
+																	)}
+																</span>
+															)}
+														</TableCell>
+														<TableCell>
+															{row.vacationPremiumAmount > 0
+																? formatCurrency(
+																		row.vacationPremiumAmount,
+																	)
+																: '-'}
+														</TableCell>
+														<TableCell>
+															{row.incapacitySummary
+																?.daysIncapacityTotal
+																? row.incapacitySummary
+																		.daysIncapacityTotal
+																: '-'}
+														</TableCell>
+														<TableCell>
+															{row.incapacitySummary
+																?.expectedImssSubsidyAmount
+																? formatCurrency(
+																		row.incapacitySummary
+																			.expectedImssSubsidyAmount,
+																	)
+																: '-'}
+														</TableCell>
+														<TableCell>
+															{formatCurrency(row.totalPay)}
+														</TableCell>
+														<TableCell>
+															{row.warnings.length === 0 ? (
+																<span className="text-xs text-muted-foreground">
+																	0
+																</span>
+															) : (
+																<span
+																	className={`text-xs ${
+																		row.warnings.some(
+																			(w) =>
+																				w.severity ===
+																				'error',
+																		)
+																			? 'text-destructive'
+																			: 'text-[color:var(--status-warning)]'
+																	}`}
+																>
+																	{t('preview.warningsCount', {
+																		count: row.warnings.length,
+																	})}
+																</span>
+															)}
+														</TableCell>
+														<TableCell>
+															<Dialog>
+																<DialogTrigger asChild>
+																	<Button
+																		variant="outline"
+																		size="sm"
+																	>
+																		{t('preview.table.detail')}
+																	</Button>
+																</DialogTrigger>
+																<DialogContent className="sm:max-w-2xl">
+																	<DialogHeader>
+																		<DialogTitle>
+																			{t('taxDetail.title', {
+																				name: row.name,
+																			})}
+																		</DialogTitle>
+																	</DialogHeader>
+																	<div className="space-y-4 text-sm">
+																		<div>
+																			<p className="font-medium">
+																				{t(
+																					'taxDetail.sections.summary',
+																				)}
+																			</p>
+																			<div className="mt-2 grid gap-2">
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.grossPay',
+																						)}
+																					</span>
+																					<span className="font-medium">
+																						{formatCurrency(
+																							row.grossPay,
+																						)}
+																					</span>
+																				</div>
+																				{row.vacationDaysPaid >
+																					0 && (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationDays',
+																							)}
+																						</span>
+																						<span>
+																							{
+																								row.vacationDaysPaid
+																							}
+																						</span>
+																					</div>
+																				)}
+																				{row.vacationPayAmount >
+																					0 && (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationPay',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.vacationPayAmount,
+																							)}
+																						</span>
+																					</div>
+																				)}
+																				{row.vacationPremiumAmount >
+																					0 && (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationPremium',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.vacationPremiumAmount,
+																							)}
+																						</span>
+																					</div>
+																				)}
+																				{row
+																					.incapacitySummary
+																					?.daysIncapacityTotal ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.incapacityDays',
+																							)}
+																						</span>
+																						<span>
+																							{
+																								row
+																									.incapacitySummary
+																									.daysIncapacityTotal
+																							}
+																						</span>
+																					</div>
+																				) : null}
+																				{row
+																					.incapacitySummary
+																					?.expectedImssSubsidyAmount ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.incapacitySubsidy',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row
+																									.incapacitySummary
+																									.expectedImssSubsidyAmount,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.employeeWithholdings',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employeeWithholdings
+																								.total,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.netPay',
+																						)}
+																					</span>
+																					<span className="font-medium">
+																						{formatCurrency(
+																							row.netPay,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.employerCosts',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employerCosts
+																								.total,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.companyCost',
+																						)}
+																					</span>
+																					<span className="font-medium">
+																						{formatCurrency(
+																							row.companyCost,
+																						)}
+																					</span>
+																				</div>
+																			</div>
+																		</div>
+																		<div>
+																			<p className="font-medium">
+																				{t(
+																					'taxDetail.sections.bases',
+																				)}
+																			</p>
+																			<div className="mt-2 grid gap-2">
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.sbcDaily',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.bases
+																								.sbcDaily,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.sbcPeriod',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.bases
+																								.sbcPeriod,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.isrBase',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.bases
+																								.isrBase,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.daysInPeriod',
+																						)}
+																					</span>
+																					<span>
+																						{
+																							row
+																								.bases
+																								.daysInPeriod
+																						}
+																					</span>
+																				</div>
+																			</div>
+																		</div>
+																		<div>
+																			<p className="font-medium">
+																				{t(
+																					'taxDetail.sections.employeeWithholdings',
+																				)}
+																			</p>
+																			<div className="mt-2 grid gap-2">
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.isrWithheld',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employeeWithholdings
+																								.isrWithheld,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.imssEmployee',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employeeWithholdings
+																								.imssEmployee
+																								.total,
+																						)}
+																					</span>
+																				</div>
+																			</div>
+																		</div>
+																		<div>
+																			<p className="font-medium">
+																				{t(
+																					'taxDetail.sections.employerCosts',
+																				)}
+																			</p>
+																			<div className="mt-2 grid gap-2">
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.imssEmployer',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employerCosts
+																								.imssEmployer
+																								.total,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.sarRetiro',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employerCosts
+																								.sarRetiro,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.infonavit',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employerCosts
+																								.infonavit,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.riskWork',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employerCosts
+																								.riskWork,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.isn',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.employerCosts
+																								.isn,
+																						)}
+																					</span>
+																				</div>
+																				{row.employerCosts
+																					.absorbedImssEmployeeShare >
+																				0 ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.absorbedImssEmployeeShare',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row
+																									.employerCosts
+																									.absorbedImssEmployeeShare,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
+																				{row.employerCosts
+																					.absorbedIsr >
+																				0 ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.absorbedIsr',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row
+																									.employerCosts
+																									.absorbedIsr,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
+																			</div>
+																		</div>
+																		<div>
+																			<p className="font-medium">
+																				{t(
+																					'taxDetail.sections.informational',
+																				)}
+																			</p>
+																			<div className="mt-2 grid gap-2">
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.isrBeforeSubsidy',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.informationalLines
+																								.isrBeforeSubsidy,
+																						)}
+																					</span>
+																				</div>
+																				<div className="flex items-center justify-between">
+																					<span className="text-muted-foreground">
+																						{t(
+																							'taxDetail.labels.subsidyApplied',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							row
+																								.informationalLines
+																								.subsidyApplied,
+																						)}
+																					</span>
+																				</div>
+																			</div>
+																		</div>
+																	</div>
+																</DialogContent>
+															</Dialog>
+														</TableCell>
+													</TableRow>
+												))}
+											</TableBody>
+										</Table>
+									</div>
+									{effectiveCalculation.employees.some(
+										(emp) => emp.warnings.length > 0,
+									) && (
+										<div className="mt-4 rounded-md border bg-muted/50 p-3">
+											<p className="text-sm font-medium">
+												{t('compliance.title')}
+											</p>
+											<div className="mt-2 space-y-2 text-sm">
+												{effectiveCalculation.employees.map((emp) =>
+													emp.warnings.map((w, idx) => (
+														<div
+															key={`${emp.employeeId}-${idx}`}
+															className={
+																w.severity === 'error'
+																	? 'text-destructive'
+																	: ''
+															}
+														>
+															<strong>{emp.name}:</strong> {w.message}
+														</div>
+													)),
+												)}
+											</div>
+										</div>
+									)}
+								</>
+							)}
+						</CardContent>
+					</Card>
 
-			<Card>
-				<CardHeader>
-					<CardTitle>{t('runHistory.title')}</CardTitle>
-					<CardDescription>{t('runHistory.description')}</CardDescription>
-				</CardHeader>
-				<CardContent>
-					<DataTable
-						columns={runColumns}
-						data={payrollRuns}
-						sorting={runsSorting}
-						onSortingChange={setRunsSorting}
-						pagination={runsPagination}
-						onPaginationChange={setRunsPagination}
-						columnFilters={runsColumnFilters}
-						onColumnFiltersChange={setRunsColumnFilters}
-						globalFilter={runsGlobalFilter}
-						onGlobalFilterChange={handleRunsGlobalFilterChange}
-						emptyState={t('runHistory.empty')}
-						isLoading={runsQuery.isLoading}
-					/>
-				</CardContent>
-			</Card>
+					{effectiveCalculation && taxSummary ? (
+						<Card>
+							<CardHeader>
+								<CardTitle>{t('summary.title')}</CardTitle>
+								<CardDescription>{t('summary.description')}</CardDescription>
+							</CardHeader>
+							<CardContent>
+								<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+									<div className="rounded-md border p-3">
+										<p className="text-xs text-muted-foreground">
+											{t('summary.items.gross')}
+										</p>
+										<p className="mt-1 text-base font-semibold">
+											{formatCurrency(taxSummary.grossTotal)}
+										</p>
+									</div>
+									<div className="rounded-md border p-3">
+										<p className="text-xs text-muted-foreground">
+											{t('summary.items.employeeWithholdings')}
+										</p>
+										<p className="mt-1 text-base font-semibold">
+											{formatCurrency(taxSummary.employeeWithholdingsTotal)}
+										</p>
+									</div>
+									<div className="rounded-md border p-3">
+										<p className="text-xs text-muted-foreground">
+											{t('summary.items.netPay')}
+										</p>
+										<p className="mt-1 text-base font-semibold">
+											{formatCurrency(taxSummary.netPayTotal)}
+										</p>
+									</div>
+									<div className="rounded-md border p-3">
+										<p className="text-xs text-muted-foreground">
+											{t('summary.items.employerCosts')}
+										</p>
+										<p className="mt-1 text-base font-semibold">
+											{formatCurrency(taxSummary.employerCostsTotal)}
+										</p>
+									</div>
+									<div className="rounded-md border p-3">
+										<p className="text-xs text-muted-foreground">
+											{t('summary.items.companyCost')}
+										</p>
+										<p className="mt-1 text-base font-semibold">
+											{formatCurrency(taxSummary.companyCostTotal)}
+										</p>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					) : null}
+
+					<Card>
+						<CardHeader>
+							<CardTitle>{t('runHistory.title')}</CardTitle>
+							<CardDescription>{t('runHistory.description')}</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<DataTable
+								columns={runColumns}
+								data={payrollRuns}
+								sorting={runsSorting}
+								onSortingChange={setRunsSorting}
+								pagination={runsPagination}
+								onPaginationChange={setRunsPagination}
+								columnFilters={runsColumnFilters}
+								onColumnFiltersChange={setRunsColumnFilters}
+								globalFilter={runsGlobalFilter}
+								onGlobalFilterChange={handleRunsGlobalFilterChange}
+								emptyState={t('runHistory.empty')}
+								isLoading={runsQuery.isLoading}
+							/>
+						</CardContent>
+					</Card>
 				</TabsContent>
 
 				<TabsContent value="ptu">

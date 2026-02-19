@@ -57,7 +57,8 @@ async function resolveOrganizationId(
 	const payload = (await response.json()) as unknown;
 	const organizations = Array.isArray(payload)
 		? (payload as AuthOrganization[])
-		: ((payload as { organizations?: AuthOrganization[]; data?: AuthOrganization[] }).organizations ??
+		: ((payload as { organizations?: AuthOrganization[]; data?: AuthOrganization[] })
+				.organizations ??
 			(payload as { data?: AuthOrganization[] }).data ??
 			[]);
 	const organization = organizations.find((item) => item.slug === organizationSlug);
@@ -316,8 +317,10 @@ test('payroll notice is rendered and persisted in run history', async ({ page })
 	await assertLatestRunHasHolidayNotice(page.request);
 
 	await page.goto('/payroll');
-	const noticeButton = page.getByRole('button', { name: /aviso/i }).first();
+	const noticeButton = page
+		.locator('[data-testid^="payroll-run-holiday-notice-trigger-"]')
+		.first();
 	await expect(noticeButton).toBeVisible();
 	await noticeButton.click();
-	await expect(page.getByRole('heading', { name: 'Aviso de feriado' }).first()).toBeVisible();
+	await expect(page.getByTestId('payroll-holiday-notice-dialog-title')).toBeVisible();
 });

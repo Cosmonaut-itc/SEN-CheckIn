@@ -102,13 +102,22 @@ export function PayrollRunReceiptsDialog({
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button
+					variant="outline"
+					size="sm"
+					data-testid={`payroll-run-receipts-trigger-${run.id}`}
+				>
 					{t('receipts.trigger')}
 				</Button>
 			</DialogTrigger>
-			<DialogContent className="sm:max-w-4xl overscroll-contain">
+			<DialogContent
+				className="sm:max-w-4xl overscroll-contain"
+				data-testid={`payroll-run-receipts-dialog-${run.id}`}
+			>
 				<DialogHeader>
-					<DialogTitle>{t('receipts.title')}</DialogTitle>
+					<DialogTitle data-testid="payroll-run-receipts-title">
+						{t('receipts.title')}
+					</DialogTitle>
 					<DialogDescription>{t('receipts.description')}</DialogDescription>
 				</DialogHeader>
 
@@ -144,7 +153,10 @@ export function PayrollRunReceiptsDialog({
 								</div>
 								{canDownloadAll ? (
 									<Button asChild size="sm">
-										<a href={downloadAllUrl}>
+										<a
+											href={downloadAllUrl}
+											data-testid={`payroll-run-receipts-download-all-${run.id}`}
+										>
 											{t('receipts.actions.downloadAll')}
 										</a>
 									</Button>
@@ -219,7 +231,10 @@ export function PayrollRunReceiptsDialog({
 													</TableCell>
 													<TableCell className="text-right">
 														<Button variant="outline" size="sm" asChild>
-															<a href={pdfUrl}>
+															<a
+																href={pdfUrl}
+																data-testid={`payroll-run-receipts-download-one-${run.id}-${employee.employeeId}`}
+															>
 																{t('receipts.actions.downloadOne')}
 															</a>
 														</Button>

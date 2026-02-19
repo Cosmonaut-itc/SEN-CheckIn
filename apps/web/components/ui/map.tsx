@@ -12,6 +12,7 @@ import type {
 	StyleSpecification,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { michoacanTokens } from '@sen-checkin/design-tokens';
 import { useTheme } from 'next-themes';
 import { useTranslations } from 'next-intl';
 import {
@@ -74,6 +75,30 @@ const defaultStyles = {
 	dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 	light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
 };
+const tokenFallbacks = {
+	accentPrimary: michoacanTokens.light.colors.accent.primary,
+	accentSecondary: michoacanTokens.light.colors.accent.secondary,
+	accentTertiary: michoacanTokens.light.colors.accent.tertiary,
+	textOnAccent: michoacanTokens.light.colors.text.onAccent,
+};
+
+/**
+ * Resolves a CSS variable into a concrete color string for MapLibre paint properties.
+ *
+ * @param variableName - CSS custom property name (example: `--accent-primary`)
+ * @param fallback - Color fallback when the CSS variable is unavailable
+ * @returns Resolved color string ready for MapLibre
+ */
+function resolveCssColor(variableName: string, fallback: string): string {
+	if (typeof window === 'undefined') {
+		return fallback;
+	}
+
+	const resolved = getComputedStyle(document.documentElement)
+		.getPropertyValue(variableName)
+		.trim();
+	return resolved || fallback;
+}
 
 type MapStyleOption = string | StyleSpecification;
 
@@ -1011,7 +1036,7 @@ type MapRouteProps = {
 	id?: string;
 	/** Array of [longitude, latitude] coordinate pairs defining the route */
 	coordinates: [number, number][];
-	/** Line color as CSS color value (default: "#4285F4") */
+	/** Line color as CSS color value (defaults to accent-primary token) */
 	color?: string;
 	/** Line width in pixels (default: 3) */
 	width?: number;
@@ -1038,7 +1063,7 @@ type MapRouteProps = {
 function MapRoute({
 	id,
 	coordinates,
-	color = '#4285F4',
+	color,
 	width = 3,
 	opacity = 0.8,
 	dashArray,
@@ -1048,9 +1073,14 @@ function MapRoute({
 	interactive = true,
 }: MapRouteProps) {
 	const { map, isLoaded } = useMap();
+	const { resolvedTheme } = useTheme();
 	const autoId = useId();
 	const sourceId = id ?? `route-source-${autoId}`;
 	const layerId = id ?? `route-layer-${autoId}`;
+	const routeColor = useMemo(() => {
+		void resolvedTheme;
+		return color ?? resolveCssColor('--accent-primary', tokenFallbacks.accentPrimary);
+	}, [color, resolvedTheme]);
 
 	// Add source and layer on mount
 	useEffect(() => {
@@ -1071,7 +1101,7 @@ function MapRoute({
 			source: sourceId,
 			layout: { 'line-join': 'round', 'line-cap': 'round' },
 			paint: {
-				'line-color': color,
+				'line-color': routeColor,
 				'line-width': width,
 				'line-opacity': opacity,
 				...(dashArray && { 'line-dasharray': dashArray }),
@@ -1106,13 +1136,13 @@ function MapRoute({
 	useEffect(() => {
 		if (!isLoaded || !map || !map.getLayer(layerId)) return;
 
-		map.setPaintProperty(layerId, 'line-color', color);
+		map.setPaintProperty(layerId, 'line-color', routeColor);
 		map.setPaintProperty(layerId, 'line-width', width);
 		map.setPaintProperty(layerId, 'line-opacity', opacity);
 		if (dashArray) {
 			map.setPaintProperty(layerId, 'line-dasharray', dashArray);
 		}
-	}, [isLoaded, map, layerId, color, width, opacity, dashArray]);
+	}, [isLoaded, map, layerId, routeColor, width, opacity, dashArray]);
 
 	// Handle click and hover events
 	useEffect(() => {
@@ -1151,11 +1181,11 @@ type MapClusterLayerProps<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonP
 	clusterMaxZoom?: number;
 	/** Radius of each cluster when clustering points in pixels (default: 50) */
 	clusterRadius?: number;
-	/** Colors for cluster circles: [small, medium, large] based on point count (default: ["#51bbd6", "#f1f075", "#f28cb1"]) */
+	/** Colors for cluster circles: [small, medium, large]. Defaults use theme tokens. */
 	clusterColors?: [string, string, string];
 	/** Point count thresholds for color/size steps: [medium, large] (default: [100, 750]) */
 	clusterThresholds?: [number, number];
-	/** Color for unclustered individual points (default: "#3b82f6") */
+	/** Color for unclustered individual points. Defaults to accent-primary token. */
 	pointColor?: string;
 	/** Callback when an unclustered point is clicked */
 	onPointClick?: (
@@ -1177,23 +1207,42 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 	data,
 	clusterMaxZoom = 14,
 	clusterRadius = 50,
-	clusterColors = ['#51bbd6', '#f1f075', '#f28cb1'],
+	clusterColors,
 	clusterThresholds = [100, 750],
-	pointColor = '#3b82f6',
+	pointColor,
 	onPointClick,
 	onClusterClick,
 }: MapClusterLayerProps<P>) {
 	const { map, isLoaded } = useMap();
+	const { resolvedTheme } = useTheme();
 	const id = useId();
 	const sourceId = `cluster-source-${id}`;
 	const clusterLayerId = `clusters-${id}`;
 	const clusterCountLayerId = `cluster-count-${id}`;
 	const unclusteredLayerId = `unclustered-point-${id}`;
+	const effectiveClusterColors = useMemo<[string, string, string]>(() => {
+		void resolvedTheme;
+		return (
+			clusterColors ?? [
+				resolveCssColor('--accent-secondary', tokenFallbacks.accentSecondary),
+				resolveCssColor('--accent-primary', tokenFallbacks.accentPrimary),
+				resolveCssColor('--accent-tertiary', tokenFallbacks.accentTertiary),
+			]
+		);
+	}, [clusterColors, resolvedTheme]);
+	const effectivePointColor = useMemo(() => {
+		void resolvedTheme;
+		return pointColor ?? resolveCssColor('--accent-primary', tokenFallbacks.accentPrimary);
+	}, [pointColor, resolvedTheme]);
+	const clusterTextColor = useMemo(() => {
+		void resolvedTheme;
+		return resolveCssColor('--text-on-accent', tokenFallbacks.textOnAccent);
+	}, [resolvedTheme]);
 
 	const stylePropsRef = useRef({
-		clusterColors,
+		clusterColors: effectiveClusterColors,
 		clusterThresholds,
-		pointColor,
+		pointColor: effectivePointColor,
 	});
 
 	// Add source and layers on mount
@@ -1219,11 +1268,11 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 				'circle-color': [
 					'step',
 					['get', 'point_count'],
-					clusterColors[0],
+					effectiveClusterColors[0],
 					clusterThresholds[0],
-					clusterColors[1],
+					effectiveClusterColors[1],
 					clusterThresholds[1],
-					clusterColors[2],
+					effectiveClusterColors[2],
 				],
 				'circle-radius': [
 					'step',
@@ -1248,7 +1297,7 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 				'text-size': 12,
 			},
 			paint: {
-				'text-color': '#fff',
+				'text-color': clusterTextColor,
 			},
 		});
 
@@ -1259,7 +1308,7 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 			source: sourceId,
 			filter: ['!', ['has', 'point_count']],
 			paint: {
-				'circle-color': pointColor,
+				'circle-color': effectivePointColor,
 				'circle-radius': 6,
 			},
 		});
@@ -1293,18 +1342,19 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 
 		const prev = stylePropsRef.current;
 		const colorsChanged =
-			prev.clusterColors !== clusterColors || prev.clusterThresholds !== clusterThresholds;
+			prev.clusterColors !== effectiveClusterColors ||
+			prev.clusterThresholds !== clusterThresholds;
 
 		// Update cluster layer colors and sizes
 		if (map.getLayer(clusterLayerId) && colorsChanged) {
 			map.setPaintProperty(clusterLayerId, 'circle-color', [
 				'step',
 				['get', 'point_count'],
-				clusterColors[0],
+				effectiveClusterColors[0],
 				clusterThresholds[0],
-				clusterColors[1],
+				effectiveClusterColors[1],
 				clusterThresholds[1],
-				clusterColors[2],
+				effectiveClusterColors[2],
 			]);
 			map.setPaintProperty(clusterLayerId, 'circle-radius', [
 				'step',
@@ -1318,19 +1368,28 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 		}
 
 		// Update unclustered point layer color
-		if (map.getLayer(unclusteredLayerId) && prev.pointColor !== pointColor) {
-			map.setPaintProperty(unclusteredLayerId, 'circle-color', pointColor);
+		if (map.getLayer(unclusteredLayerId) && prev.pointColor !== effectivePointColor) {
+			map.setPaintProperty(unclusteredLayerId, 'circle-color', effectivePointColor);
+		}
+		if (map.getLayer(clusterCountLayerId)) {
+			map.setPaintProperty(clusterCountLayerId, 'text-color', clusterTextColor);
 		}
 
-		stylePropsRef.current = { clusterColors, clusterThresholds, pointColor };
+		stylePropsRef.current = {
+			clusterColors: effectiveClusterColors,
+			clusterThresholds,
+			pointColor: effectivePointColor,
+		};
 	}, [
 		isLoaded,
 		map,
 		clusterLayerId,
+		clusterCountLayerId,
 		unclusteredLayerId,
-		clusterColors,
+		effectiveClusterColors,
 		clusterThresholds,
-		pointColor,
+		effectivePointColor,
+		clusterTextColor,
 	]);
 
 	// Handle click events

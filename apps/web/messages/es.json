@@ -1,8 +1,8 @@
 {
   "App": {
-    "name": "SEN CheckIn",
+    "name": "jale. by SEN",
     "adminPortal": "Portal de Administración",
-    "shortName": "SC"
+    "shortName": "JL"
   },
   "Common": {
     "add": "Agregar",
@@ -120,7 +120,7 @@
   },
   "Dashboard": {
     "title": "Panel de Control",
-    "subtitle": "Bienvenido al portal de administración de SEN CheckIn",
+    "subtitle": "Bienvenido al portal de administración de jale. by SEN",
     "cards": {
       "employees": {
         "title": "Empleados",
@@ -3009,7 +3009,7 @@
         "memberConfirmPassword": "Confirmar contraseña del miembro"
       },
       "placeholders": {
-        "organizationName": "SEN CheckIn QA",
+        "organizationName": "jale. by SEN QA",
         "organizationSlug": "sen-checkin-qa",
         "adminName": "Administrador de pruebas",
         "adminEmail": "admin.qa@sen-checkin.test",
@@ -3179,7 +3179,7 @@
   },
   "Landing": {
     "metadata": {
-      "title": "SEN CheckIn | Control de asistencia inteligente",
+      "title": "jale. by SEN | Control de asistencia inteligente",
       "description": "Plataforma de asistencia con reconocimiento facial para equipos y organizaciones."
     },
     "header": {
@@ -3344,7 +3344,7 @@
       }
     },
     "cta": {
-      "kicker": "SEN CheckIn",
+      "kicker": "jale. by SEN",
       "title": "Automatiza el control de asistencia sin fricción",
       "subtitle": "Activa la captura facial con políticas claras y reportes listos para tu operación.",
       "primary": "Iniciar sesión",
@@ -3356,19 +3356,19 @@
         "privacy": "Política de privacidad",
         "login": "Iniciar sesión"
       },
-      "copyright": "© {year} SEN CheckIn. Todos los derechos reservados."
+      "copyright": "© {year} jale. by SEN. Todos los derechos reservados."
     }
   },
   "PrivacyPolicy": {
     "badge": "Aviso de privacidad integral",
-    "title": "AVISO DE PRIVACIDAD INTEGRAL — SEN CheckIn",
+    "title": "AVISO DE PRIVACIDAD INTEGRAL — jale. by SEN",
     "intro": "Este Aviso de Privacidad se emite en cumplimiento de la Ley Federal de Protección de Datos Personales en Posesión de los Particulares y demás normativa aplicable en México.",
     "lastUpdatedLabel": "Última actualización:",
     "lastUpdatedDate": "2026-01-07",
     "sections": {
       "responsible": {
         "title": "1. Identidad y domicilio del responsable",
-        "description": "El responsable del tratamiento de los datos personales descritos en este Aviso es la entidad que opera el servicio SEN CheckIn (en adelante, “SEN CheckIn”, “nosotros” o “el Servicio”).",
+        "description": "El responsable del tratamiento de los datos personales descritos en este Aviso es la entidad que opera el servicio jale. by SEN (en adelante, “jale. by SEN”, “nosotros” o “el Servicio”).",
         "fields": {
           "name": "Nombre/Razón social: LA MEJICANA MOLIENDAS Y FRUTOS SECOS",
           "address": "Domicilio: Calle Hacienda Santiago 2434, Col. Oblatos, 44700 Guadalajara, Jal.",
@@ -3377,14 +3377,14 @@
           "privacyDepartment": "Departamento de datos personales / Contacto de privacidad:",
           "privacyEmail": "Correo: me@felixddhs.dev"
         },
-        "note": "Importante (rol de tu organización/empleador): Si utilizas SEN CheckIn a través de tu empleador o una organización (“Organización”), es posible que tu Organización sea el responsable respecto de ciertos datos (por ejemplo, registros de asistencia y enrolamiento biométrico), y que SEN CheckIn actúe como encargado tratándolos por cuenta y bajo instrucciones de la Organización. En esos casos, también aplican los avisos internos de tu Organización y, para ejercer derechos, normalmente deberás dirigirte a ella (sin perjuicio de que podamos canalizar tu solicitud cuando corresponda)."
+        "note": "Importante (rol de tu organización/empleador): Si utilizas jale. by SEN a través de tu empleador o una organización (“Organización”), es posible que tu Organización sea el responsable respecto de ciertos datos (por ejemplo, registros de asistencia y enrolamiento biométrico), y que jale. by SEN actúe como encargado tratándolos por cuenta y bajo instrucciones de la Organización. En esos casos, también aplican los avisos internos de tu Organización y, para ejercer derechos, normalmente deberás dirigirte a ella (sin perjuicio de que podamos canalizar tu solicitud cuando corresponda)."
       },
       "scope": {
         "title": "2. Alcance",
         "description": "Este Aviso aplica al tratamiento de datos derivado del uso de:",
         "items": {
-          "mobile": "Aplicación móvil SEN CheckIn (p. ej., verificación con cámara para registro de asistencia).",
-          "web": "Portal web SEN CheckIn (p. ej., administración de empleados, dispositivos, ubicaciones, horarios, y enrolamiento facial con webcam o carga de imagen)."
+          "mobile": "Aplicación móvil jale. by SEN (p. ej., verificación con cámara para registro de asistencia).",
+          "web": "Portal web jale. by SEN (p. ej., administración de empleados, dispositivos, ubicaciones, horarios, y enrolamiento facial con webcam o carga de imagen)."
         }
       },
       "data": {
@@ -3520,7 +3520,7 @@
       "security": {
         "title": "9. Medidas de seguridad y confidencialidad",
         "description": "Implementamos medidas razonables de seguridad administrativas, técnicas y físicas para proteger los datos contra daño, pérdida, alteración, destrucción, uso indebido o acceso no autorizado. Estas medidas incluyen, entre otras, controles de acceso, segregación por organización (tenant), y registros de auditoría.",
-        "confidentiality": "Todas las personas que intervengan en cualquier fase del tratamiento están obligadas a guardar confidencialidad aun después de terminada su relación con SEN CheckIn.",
+        "confidentiality": "Todas las personas que intervengan en cualquier fase del tratamiento están obligadas a guardar confidencialidad aun después de terminada su relación con jale. by SEN.",
         "breachNotice": "Vulneraciones de seguridad: Si ocurre una vulneración de seguridad que afecte de forma significativa tus derechos patrimoniales o morales, te lo informaremos de forma inmediata para que puedas tomar medidas de defensa."
       },
       "arco": {
@@ -3528,7 +3528,7 @@
         "description": "Tú (o tu representante legal) puedes ejercer tus derechos ARCO respecto de tus datos personales.",
         "contact": {
           "channel": "Canal: Envía tu solicitud a: me@felixddhs.dev",
-          "subject": "Asunto sugerido: “Solicitud ARCO — SEN CheckIn”"
+          "subject": "Asunto sugerido: “Solicitud ARCO — jale. by SEN”"
         },
         "requirements": {
           "title": "Para dar trámite, tu solicitud debe incluir:",
@@ -3564,11 +3564,11 @@
   },
   "Registration": {
     "metadata": {
-      "title": "Regístrate | SEN CheckIn",
+      "title": "Regístrate | jale. by SEN",
       "description": "El registro público estará disponible dentro de poco."
     },
     "badge": "Registro en preparación",
-    "title": "Regístrate en SEN CheckIn",
+    "title": "Regístrate en jale. by SEN",
     "subtitle": "Estamos habilitando el registro público para nuevas organizaciones.",
     "notice": "Por ahora el registro está cerrado. Estará disponible dentro de poco.",
     "actions": {

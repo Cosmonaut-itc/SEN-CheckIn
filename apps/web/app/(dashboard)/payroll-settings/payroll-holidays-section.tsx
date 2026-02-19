@@ -168,18 +168,18 @@ function buildYearTabs(baseYear: number): number[] {
  */
 function getStatusBadgeClassName(status: HolidayStatus): string {
 	if (status === 'APPROVED') {
-		return 'border-emerald-600/40 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400/50 dark:bg-emerald-500/20 dark:text-emerald-200';
+		return 'border-[color:var(--status-success)]/40 bg-[var(--status-success-bg)] text-[color:var(--status-success)] dark:border-[color:var(--status-success)]/50 dark:bg-[var(--status-success-bg)]/90 dark:text-[color:var(--status-success)]';
 	}
 
 	if (status === 'PENDING_APPROVAL') {
-		return 'border-amber-600/40 bg-amber-500/10 text-amber-700 dark:border-amber-400/50 dark:bg-amber-500/20 dark:text-amber-200';
+		return 'border-[color:var(--status-warning)]/40 bg-[var(--status-warning-bg)] text-[color:var(--status-warning)] dark:border-[color:var(--status-warning)]/50 dark:bg-[var(--status-warning-bg)]/90 dark:text-[color:var(--status-warning)]';
 	}
 
 	if (status === 'REJECTED') {
-		return 'border-rose-600/40 bg-rose-500/10 text-rose-700 dark:border-rose-400/50 dark:bg-rose-500/20 dark:text-rose-200';
+		return 'border-[color:var(--status-error)]/40 bg-[var(--status-error-bg)] text-[color:var(--status-error)] dark:border-[color:var(--status-error)]/50 dark:bg-[var(--status-error-bg)]/90 dark:text-[color:var(--status-error)]';
 	}
 
-	return 'border-slate-500/40 bg-slate-500/10 text-slate-700 dark:border-slate-300/40 dark:bg-slate-500/20 dark:text-slate-200';
+	return 'border-[color:var(--border-default)]/50 bg-muted/60 text-muted-foreground dark:border-[color:var(--border-default)]/40 dark:bg-muted/80 dark:text-muted-foreground';
 }
 
 /**
@@ -646,7 +646,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 					<div className="space-y-2">
 						<CardTitle className="flex items-center gap-2 text-base">
 							<CalendarDays className="h-4 w-4" />
-							{t('holidays.title')}
+							<span data-testid="payroll-holidays-section-title">
+								{t('holidays.title')}
+							</span>
 						</CardTitle>
 						<CardDescription>{t('holidays.description')}</CardDescription>
 						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -952,10 +954,10 @@ export function PayrollHolidaysSection(): React.ReactElement {
 				</CardHeader>
 				{hasPendingApproval ? (
 					<CardContent className="pt-0">
-						<div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+						<div className="rounded-md border border-[color:var(--status-warning)]/40 bg-[var(--status-warning)]/10 p-3">
 							<div className="flex flex-wrap items-center justify-between gap-3">
 								<div className="flex items-start gap-2">
-									<ShieldAlert className="mt-0.5 h-4 w-4 text-amber-600" />
+									<ShieldAlert className="mt-0.5 h-4 w-4 text-[color:var(--status-warning)]" />
 									<div className="space-y-1">
 										<p className="text-sm font-medium">
 											{t('holidays.pending.title', { count: pendingCount })}
@@ -995,7 +997,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 			</Card>
 
 			{conflictRuns.length > 0 ? (
-				<Card className="border-amber-500/40">
+				<Card className="border-[color:var(--status-warning)]/40">
 					<CardHeader>
 						<CardTitle className="text-base">
 							{t('holidays.conflicts.title', { count: conflictEntries.length })}
@@ -1119,9 +1121,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 								mandatory:
 									'border border-primary/50 bg-primary/20 text-foreground dark:bg-primary/30',
 								optional:
-									'border border-amber-500/50 bg-amber-500/20 text-foreground dark:bg-amber-500/30',
+									'border border-[color:var(--status-warning)]/50 bg-[var(--status-warning)]/20 text-foreground dark:bg-[var(--status-warning)]/30',
 								pending:
-									'ring-2 ring-amber-500 ring-offset-1 ring-offset-background',
+									'ring-2 ring-[color:var(--status-warning)] ring-offset-1 ring-offset-background',
 							}}
 						/>
 						<div className="space-y-1 text-xs text-muted-foreground">
@@ -1183,7 +1185,10 @@ export function PayrollHolidaysSection(): React.ReactElement {
 										</TableRow>
 									) : (
 										calendarEntries.map((entry) => (
-											<TableRow key={entry.id}>
+											<TableRow
+												key={entry.id}
+												data-testid={`payroll-holiday-row-${entry.id}`}
+											>
 												<TableCell>
 													{formatDateKey(entry.dateKey)}
 												</TableCell>
@@ -1217,6 +1222,8 @@ export function PayrollHolidaysSection(): React.ReactElement {
 														className={getStatusBadgeClassName(
 															entry.status,
 														)}
+														data-testid={`payroll-holiday-status-${entry.id}`}
+														data-status={entry.status}
 													>
 														{t(
 															`holidays.filters.statusValues.${entry.status}`,
@@ -1239,6 +1246,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 																aria-label={t(
 																	'holidays.table.actions.edit',
 																)}
+																data-testid={`payroll-holiday-edit-${entry.id}`}
 															>
 																<Pencil className="h-4 w-4" />
 															</Button>
@@ -1268,7 +1276,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 			</div>
 
 			<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-				<DialogContent>
+				<DialogContent data-testid="payroll-holiday-edit-dialog">
 					<DialogHeader>
 						<DialogTitle>{t('holidays.editDialog.title')}</DialogTitle>
 						<DialogDescription>
@@ -1355,14 +1363,20 @@ export function PayrollHolidaysSection(): React.ReactElement {
 											)
 										}
 									>
-										<SelectTrigger>
+										<SelectTrigger data-testid="payroll-holiday-edit-active-trigger">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="true">
+											<SelectItem
+												value="true"
+												data-testid="payroll-holiday-edit-active-option-true"
+											>
 												{t('holidays.active.active')}
 											</SelectItem>
-											<SelectItem value="false">
+											<SelectItem
+												value="false"
+												data-testid="payroll-holiday-edit-active-option-false"
+											>
 												{t('holidays.active.inactive')}
 											</SelectItem>
 										</SelectContent>
@@ -1409,7 +1423,11 @@ export function PayrollHolidaysSection(): React.ReactElement {
 						</div>
 					) : null}
 					<DialogFooter>
-						<Button onClick={submitEditHoliday} disabled={editMutation.isPending}>
+						<Button
+							onClick={submitEditHoliday}
+							disabled={editMutation.isPending}
+							data-testid="payroll-holiday-edit-submit"
+						>
 							{editMutation.isPending ? (
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 							) : null}

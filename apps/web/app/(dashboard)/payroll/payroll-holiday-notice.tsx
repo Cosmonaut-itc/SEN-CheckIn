@@ -42,7 +42,7 @@ export function PayrollHolidayNoticeCard({
 	return (
 		<div className={compact ? 'space-y-2' : 'space-y-3'}>
 			{rows.map((notice) => (
-				<Card key={`${notice.kind}-${notice.generatedAt}`} className="border-amber-500/40">
+				<Card key={`${notice.kind}-${notice.generatedAt}`} className="border-[color:var(--status-warning)]/40">
 					<CardHeader className={compact ? 'pb-2' : undefined}>
 						<div className="flex flex-wrap items-center justify-between gap-2">
 							<CardTitle className={compact ? 'text-sm' : 'text-base'}>

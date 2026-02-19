@@ -2,6 +2,7 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { michoacanTokens } from '@sen-checkin/design-tokens';
 
 import {
 	Dialog,
@@ -57,6 +58,23 @@ export function SignatureCanvasDialog({
 	const canvasRef = useRef<HTMLCanvasElement | null>(null);
 	const [isDrawing, setIsDrawing] = useState<boolean>(false);
 	const [hasSignature, setHasSignature] = useState<boolean>(false);
+	const defaultSignatureStroke = michoacanTokens.light.colors.text.primary;
+
+	/**
+	 * Resolves signature stroke color from the active design token theme.
+	 *
+	 * @returns Canvas stroke color
+	 */
+	const getSignatureStrokeColor = useCallback((): string => {
+		if (typeof window === 'undefined') {
+			return defaultSignatureStroke;
+		}
+
+		const computed = getComputedStyle(document.documentElement)
+			.getPropertyValue('--text-primary')
+			.trim();
+		return computed || defaultSignatureStroke;
+	}, [defaultSignatureStroke]);
 
 	/**
 	 * Resolves canvas and rendering context.
@@ -114,10 +132,10 @@ export function SignatureCanvasDialog({
 			context.moveTo(x, y);
 			context.lineWidth = 2;
 			context.lineCap = 'round';
-			context.strokeStyle = '#0f172a';
+			context.strokeStyle = getSignatureStrokeColor();
 			setIsDrawing(true);
 		},
-		[getCanvasContext, getPointerPosition],
+		[getCanvasContext, getPointerPosition, getSignatureStrokeColor],
 	);
 
 	/**
@@ -206,14 +224,28 @@ export function SignatureCanvasDialog({
 				</div>
 				<DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
 					<div className="flex gap-2">
-						<Button type="button" variant="outline" onClick={handleClear} disabled={isPending}>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={handleClear}
+							disabled={isPending}
+						>
 							{clearLabel}
 						</Button>
-						<Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={isPending}>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => onOpenChange(false)}
+							disabled={isPending}
+						>
 							{cancelLabel}
 						</Button>
 					</div>
-					<Button type="button" onClick={() => void handleConfirm()} disabled={!hasSignature || isPending}>
+					<Button
+						type="button"
+						onClick={() => void handleConfirm()}
+						disabled={!hasSignature || isPending}
+					>
 						{isPending ? (
 							<>
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />

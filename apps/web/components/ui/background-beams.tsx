@@ -175,10 +175,10 @@ function BackgroundBeamsComponent({ className }: BackgroundBeamsProps): React.Re
 								delay: config.delay,
 							}}
 						>
-							<stop stopColor="#18CCFC" stopOpacity="0" />
-							<stop stopColor="#18CCFC" />
-							<stop offset="32.5%" stopColor="#6344F5" />
-							<stop offset="100%" stopColor="#AE48FF" stopOpacity="0" />
+							<stop stopColor="var(--accent-secondary-light)" stopOpacity="0" />
+							<stop stopColor="var(--accent-secondary)" />
+							<stop offset="32.5%" stopColor="var(--accent-primary)" />
+							<stop offset="100%" stopColor="var(--accent-tertiary)" stopOpacity="0" />
 						</motion.linearGradient>
 					))}
 
@@ -190,9 +190,9 @@ function BackgroundBeamsComponent({ className }: BackgroundBeamsProps): React.Re
 						gradientUnits="userSpaceOnUse"
 						gradientTransform="translate(352 34) rotate(90) scale(555 1560.62)"
 					>
-						<stop offset="0.0666667" stopColor="#d4d4d4" />
-						<stop offset="0.243243" stopColor="#d4d4d4" />
-						<stop offset="0.43594" stopColor="white" stopOpacity="0" />
+						<stop offset="0.0666667" stopColor="var(--border-default)" />
+						<stop offset="0.243243" stopColor="var(--border-subtle)" />
+						<stop offset="0.43594" stopColor="var(--bg-secondary)" stopOpacity="0" />
 					</radialGradient>
 				</defs>
 			</svg>

@@ -371,11 +371,7 @@ export function DisciplinaryMeasuresManager({
 		() => ({
 			limit: pagination.pageSize,
 			offset: pagination.pageIndex * pagination.pageSize,
-			...(employeeId
-				? { employeeId }
-				: employeeFilter
-					? { employeeId: employeeFilter }
-					: {}),
+			...(employeeId ? { employeeId } : employeeFilter ? { employeeId: employeeFilter } : {}),
 			...(search.trim() ? { search: search.trim() } : {}),
 			...(fromDateKey ? { fromDateKey } : {}),
 			...(toDateKey ? { toDateKey } : {}),
@@ -950,7 +946,11 @@ export function DisciplinaryMeasuresManager({
 				accessorKey: 'status',
 				header: t('table.headers.status'),
 				cell: ({ row }) => (
-					<Badge variant={resolveStatusBadgeVariant(row.original.status)}>
+					<Badge
+						variant={resolveStatusBadgeVariant(row.original.status)}
+						data-testid={`disciplinary-measure-status-${row.original.id}`}
+						data-status={row.original.status}
+					>
 						{t(`status.${row.original.status}`)}
 					</Badge>
 				),
@@ -972,6 +972,7 @@ export function DisciplinaryMeasuresManager({
 						variant="outline"
 						size="sm"
 						onClick={() => handleOpenDetail(row.original.id)}
+						data-testid={`disciplinary-measure-view-detail-${row.original.id}`}
 					>
 						{t('actions.viewDetail')}
 					</Button>
@@ -1565,6 +1566,7 @@ export function DisciplinaryMeasuresManager({
 												<Button
 													onClick={() => void handleGenerateActa()}
 													disabled={generateActaMutation.isPending}
+													data-testid="disciplinary-measure-generate-acta"
 												>
 													{generateActaMutation.isPending ? (
 														<>
@@ -1723,7 +1725,10 @@ export function DisciplinaryMeasuresManager({
 										</div>
 									</div>
 								) : (
-									<div className="rounded-md border border-emerald-300/40 bg-emerald-50/60 p-3 text-sm text-emerald-800">
+									<div
+										className="rounded-md border border-emerald-300/40 bg-emerald-50/60 p-3 text-sm text-emerald-800"
+										data-testid="disciplinary-measure-closed-message"
+									>
 										<CheckCircle2 className="mr-2 inline h-4 w-4" />
 										{t('detail.closedMessage')}
 									</div>

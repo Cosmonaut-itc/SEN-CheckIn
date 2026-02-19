@@ -1,0 +1,179 @@
+:root {
+	color-scheme: light;
+
+	/* Brand tokens (Michoacan v4.0) */
+	--bg-primary: #faf7f3;
+	--bg-secondary: #ffffff;
+	--bg-tertiary: #f3ede6;
+	--bg-elevated: #ffffff;
+	--bg-inverse: #1a1210;
+	--text-primary: #2b1810;
+	--text-secondary: #3d2b20;
+	--text-tertiary: #7a6558;
+	--text-muted: #a8978b;
+	--text-inverse: #faf7f3;
+	--text-on-accent: #ffffff;
+	--border-default: #e6dcd3;
+	--border-subtle: #f0e8e1;
+	--border-strong: #d1c2b6;
+	--accent-primary: #b8602a;
+	--accent-primary-hover: #9e4e1e;
+	--accent-primary-bg: rgba(184, 96, 42, 0.08);
+	--accent-primary-bg-hover: rgba(184, 96, 42, 0.14);
+	--accent-primary-light: #d4956a;
+	--accent-secondary: #4a7c3f;
+	--accent-secondary-hover: #3a6430;
+	--accent-secondary-bg: rgba(74, 124, 63, 0.08);
+	--accent-secondary-bg-hover: rgba(74, 124, 63, 0.14);
+	--accent-secondary-light: #7fb573;
+	--accent-tertiary: #8b2252;
+	--accent-tertiary-bg: rgba(139, 34, 82, 0.08);
+	--status-success: #2d8659;
+	--status-success-bg: rgba(45, 134, 89, 0.1);
+	--status-warning: #cc8a17;
+	--status-warning-bg: rgba(204, 138, 23, 0.1);
+	--status-error: #c4302b;
+	--status-error-bg: rgba(196, 48, 43, 0.1);
+	--status-info: #4a7c3f;
+	--status-info-bg: rgba(74, 124, 63, 0.1);
+	--overlay: rgba(26, 18, 16, 0.55);
+	--nav-bg: rgba(250, 247, 243, 0.88);
+	--code-bg: #f3ede6;
+
+	--shadow-sm: 0 1px 3px rgba(43, 24, 16, 0.05);
+	--shadow-md: 0 4px 16px rgba(43, 24, 16, 0.08);
+	--shadow-lg: 0 12px 40px rgba(43, 24, 16, 0.12);
+	--shadow-xl: 0 20px 60px rgba(43, 24, 16, 0.14);
+
+	--radius-sm-brand: 6px;
+	--radius-md-brand: 10px;
+	--radius-lg-brand: 14px;
+	--radius-xl-brand: 20px;
+	--radius-full-brand: 100px;
+
+	--transition-fast: 150ms cubic-bezier(0.23, 1, 0.32, 1);
+	--transition-base: 250ms cubic-bezier(0.23, 1, 0.32, 1);
+	--transition-slow: 400ms cubic-bezier(0.23, 1, 0.32, 1);
+
+	/* Typography aliases consumed by Tailwind and app classes */
+	--font-body: var(--font-dm-sans);
+	--font-display: var(--font-playfair-display);
+	--font-code: var(--font-jetbrains-mono);
+
+	/* shadcn token mapping */
+	--radius: 0.625rem;
+	--background: var(--bg-primary);
+	--foreground: var(--text-primary);
+	--card: var(--bg-secondary);
+	--card-foreground: var(--text-primary);
+	--popover: var(--bg-secondary);
+	--popover-foreground: var(--text-primary);
+	--primary: var(--accent-primary);
+	--primary-foreground: var(--text-on-accent);
+	--secondary: var(--bg-tertiary);
+	--secondary-foreground: var(--text-primary);
+	--muted: var(--bg-tertiary);
+	--muted-foreground: var(--text-tertiary);
+	--accent: var(--accent-primary-bg);
+	--accent-foreground: var(--accent-primary);
+	--destructive: var(--status-error);
+	--destructive-foreground: #ffffff;
+	--border: var(--border-default);
+	--input: var(--border-default);
+	--ring: var(--accent-primary);
+	--chart-1: var(--accent-primary);
+	--chart-2: var(--accent-secondary);
+	--chart-3: var(--accent-tertiary);
+	--chart-4: var(--status-warning);
+	--chart-5: var(--status-info);
+	--sidebar: var(--bg-secondary);
+	--sidebar-foreground: var(--text-primary);
+	--sidebar-primary: var(--accent-primary);
+	--sidebar-primary-foreground: var(--text-on-accent);
+	--sidebar-accent: var(--accent-primary-bg);
+	--sidebar-accent-foreground: var(--accent-primary);
+	--sidebar-border: var(--border-default);
+	--sidebar-ring: var(--accent-primary);
+}
+
+.dark {
+	color-scheme: dark;
+
+	/* Brand tokens (Michoacan v4.0 dark) */
+	--bg-primary: #110d0a;
+	--bg-secondary: #1c1613;
+	--bg-tertiary: #28201b;
+	--bg-elevated: #342a24;
+	--bg-inverse: #faf7f3;
+	--text-primary: #f0eae4;
+	--text-secondary: #d6ccc3;
+	--text-tertiary: #9a8b80;
+	--text-muted: #665a50;
+	--text-inverse: #2b1810;
+	--text-on-accent: #ffffff;
+	--border-default: #3d3028;
+	--border-subtle: #2d231c;
+	--border-strong: #4d3f36;
+	--accent-primary: #d4835e;
+	--accent-primary-hover: #e09a78;
+	--accent-primary-bg: rgba(212, 131, 94, 0.14);
+	--accent-primary-bg-hover: rgba(212, 131, 94, 0.22);
+	--accent-primary-light: #e0a882;
+	--accent-secondary: #7fb573;
+	--accent-secondary-hover: #96c88c;
+	--accent-secondary-bg: rgba(127, 181, 115, 0.14);
+	--accent-secondary-bg-hover: rgba(127, 181, 115, 0.22);
+	--accent-secondary-light: #a0d096;
+	--accent-tertiary: #c85a8a;
+	--accent-tertiary-bg: rgba(200, 90, 138, 0.14);
+	--status-success: #5cc98a;
+	--status-success-bg: rgba(92, 201, 138, 0.16);
+	--status-warning: #e8b44a;
+	--status-warning-bg: rgba(232, 180, 74, 0.16);
+	--status-error: #e8605a;
+	--status-error-bg: rgba(232, 96, 90, 0.16);
+	--status-info: #7fb573;
+	--status-info-bg: rgba(127, 181, 115, 0.16);
+	--overlay: rgba(0, 0, 0, 0.7);
+	--nav-bg: rgba(17, 13, 10, 0.88);
+	--code-bg: #28201b;
+
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+	--shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+	--shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.4);
+	--shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.45);
+
+	/* shadcn token mapping */
+	--background: var(--bg-primary);
+	--foreground: var(--text-primary);
+	--card: var(--bg-secondary);
+	--card-foreground: var(--text-primary);
+	--popover: var(--bg-secondary);
+	--popover-foreground: var(--text-primary);
+	--primary: var(--accent-primary);
+	--primary-foreground: var(--text-on-accent);
+	--secondary: var(--bg-tertiary);
+	--secondary-foreground: var(--text-primary);
+	--muted: var(--bg-tertiary);
+	--muted-foreground: var(--text-tertiary);
+	--accent: var(--accent-primary-bg);
+	--accent-foreground: var(--accent-primary);
+	--destructive: var(--status-error);
+	--destructive-foreground: #ffffff;
+	--border: var(--border-default);
+	--input: var(--border-default);
+	--ring: var(--accent-primary);
+	--chart-1: var(--accent-primary);
+	--chart-2: var(--accent-secondary);
+	--chart-3: var(--accent-tertiary);
+	--chart-4: var(--status-warning);
+	--chart-5: var(--status-info);
+	--sidebar: var(--bg-secondary);
+	--sidebar-foreground: var(--text-primary);
+	--sidebar-primary: var(--accent-primary);
+	--sidebar-primary-foreground: var(--text-on-accent);
+	--sidebar-accent: var(--accent-primary-bg);
+	--sidebar-accent-foreground: var(--accent-primary);
+	--sidebar-border: var(--border-default);
+	--sidebar-ring: var(--accent-primary);
+}

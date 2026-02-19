@@ -191,9 +191,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 
 	const timeZone = settings?.timeZone ?? 'America/Mexico_City';
 	const defaultFiscalYear = new Date().getFullYear() - 1;
-	const [fiscalYearInput, setFiscalYearInput] = useState<string>(
-		String(defaultFiscalYear),
-	);
+	const [fiscalYearInput, setFiscalYearInput] = useState<string>(String(defaultFiscalYear));
 	const [paymentDateKey, setPaymentDateKey] = useState<string>(() =>
 		toDateKeyInTimeZone(new Date(), timeZone),
 	);
@@ -243,8 +241,13 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 
 	const updateMutation = useMutation({
 		mutationKey: mutationKeys.ptu.update,
-		mutationFn: ({ runId, payload }: { runId: string; payload: Parameters<typeof updatePtuRun>[1] }) =>
-			updatePtuRun(runId, payload),
+		mutationFn: ({
+			runId,
+			payload,
+		}: {
+			runId: string;
+			payload: Parameters<typeof updatePtuRun>[1];
+		}) => updatePtuRun(runId, payload),
 		onSuccess: (result) => {
 			setCalculation(result);
 			toast.success(t('toast.draftUpdated'));
@@ -339,9 +342,11 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 		if (!effectiveCalculation) {
 			return null;
 		}
-		return effectiveCalculation.run.taxSummary as
-			| { netTotal?: number; grossTotal?: number; withheldTotal?: number }
-			| null;
+		return effectiveCalculation.run.taxSummary as {
+			netTotal?: number;
+			grossTotal?: number;
+			withheldTotal?: number;
+		} | null;
 	}, [effectiveCalculation]);
 
 	const warningSummary: ExtraPaymentWarning[] = effectiveCalculation?.warnings ?? [];
@@ -358,10 +363,11 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 		}
 		const fiscalYear = parseIntegerInput(fiscalYearInput, { min: 2000 }) ?? defaultFiscalYear;
 		const taxableIncome = parseNumberInput(taxableIncomeInput, { min: 0 }) ?? 0;
-		const ptuPercentage = parseNumberInput(ptuPercentageInput, {
-			min: 0,
-			max: 1,
-		}) ?? 0.1;
+		const ptuPercentage =
+			parseNumberInput(ptuPercentageInput, {
+				min: 0,
+				max: 1,
+			}) ?? 0.1;
 		const smgDailyOverride = smgDailyOverrideInput
 			? parseNumberInput(smgDailyOverrideInput, { min: 0 })
 			: undefined;
@@ -405,10 +411,11 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 		}
 		const fiscalYear = parseIntegerInput(fiscalYearInput, { min: 2000 }) ?? defaultFiscalYear;
 		const taxableIncome = parseNumberInput(taxableIncomeInput, { min: 0 }) ?? 0;
-		const ptuPercentage = parseNumberInput(ptuPercentageInput, {
-			min: 0,
-			max: 1,
-		}) ?? 0.1;
+		const ptuPercentage =
+			parseNumberInput(ptuPercentageInput, {
+				min: 0,
+				max: 1,
+			}) ?? 0.1;
 		const smgDailyOverride = smgDailyOverrideInput
 			? parseNumberInput(smgDailyOverrideInput, { min: 0 })
 			: undefined;
@@ -450,10 +457,11 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 		}
 		const fiscalYear = parseIntegerInput(fiscalYearInput, { min: 2000 }) ?? defaultFiscalYear;
 		const taxableIncome = parseNumberInput(taxableIncomeInput, { min: 0 }) ?? 0;
-		const ptuPercentage = parseNumberInput(ptuPercentageInput, {
-			min: 0,
-			max: 1,
-		}) ?? 0.1;
+		const ptuPercentage =
+			parseNumberInput(ptuPercentageInput, {
+				min: 0,
+				max: 1,
+			}) ?? 0.1;
 		const smgDailyOverride = smgDailyOverrideInput
 			? parseNumberInput(smgDailyOverrideInput, { min: 0 })
 			: undefined;
@@ -668,7 +676,9 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 								className="h-4 w-4 accent-primary"
 							/>
 							<span className="text-sm text-muted-foreground">
-								{includeInactive ? t('config.labels.include') : t('config.labels.exclude')}
+								{includeInactive
+									? t('config.labels.include')
+									: t('config.labels.exclude')}
 							</span>
 						</div>
 					</div>
@@ -690,7 +700,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 				</CardContent>
 				{settings?.ptuIsExempt ? (
 					<CardContent className="pt-0">
-						<div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+						<div className="flex items-start gap-3 rounded-md border border-[color:var(--status-warning)]/30 bg-[var(--status-warning-bg)] p-3 text-sm text-[color:var(--status-warning)]">
 							<ShieldAlert className="mt-0.5 h-4 w-4" />
 							<div>
 								<p className="font-medium">{t('exempt.title')}</p>
@@ -779,10 +789,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 							/>
 						</div>
 						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setCancelDialogOpen(false)}
-							>
+							<Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
 								{tCommon('cancel')}
 							</Button>
 							<Button
@@ -864,7 +871,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 					{warningSummary.length > 0 ? (
 						<div className="mt-4 space-y-2">
 							<p className="text-sm font-medium">{t('summary.warningsTitle')}</p>
-							<ul className="space-y-1 text-sm text-amber-700">
+							<ul className="space-y-1 text-sm text-[color:var(--status-warning)]">
 								{warningSummary.map((warning) => (
 									<li key={`${warning.type}-${warning.message}`}>
 										{warning.message}
@@ -901,138 +908,151 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 								className="max-w-sm"
 							/>
 							<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>{t('table.headers.employee')}</TableHead>
-										<TableHead>{t('table.headers.eligibility')}</TableHead>
-										<TableHead>{t('table.headers.days')}</TableHead>
-										<TableHead>{t('table.headers.dailyQuota')}</TableHead>
-										<TableHead>{t('table.headers.annualBase')}</TableHead>
-										<TableHead>{t('table.headers.ptuFinal')}</TableHead>
-										<TableHead>{t('table.headers.net')}</TableHead>
-										<TableHead>{t('table.headers.warnings')}</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredEmployeeRows.map((employee) => {
-										const override = overrideDrafts[employee.employeeId];
-										const warningCount = employee.warnings?.length ?? 0;
-										return (
-											<TableRow key={employee.id ?? employee.employeeId}>
-												<TableCell className="font-medium">
-													{resolveEmployeeName(employee)}
-												</TableCell>
-												<TableCell>
-													<Select
-														value={
-															override?.eligibilityOverride ??
-															'DEFAULT'
-														}
-														onValueChange={(value) =>
-															handleEligibilityOverrideChange(
-																employee.employeeId,
-																value as 'DEFAULT' | 'INCLUDE' | 'EXCLUDE',
-															)
-														}
-													>
-														<SelectTrigger className="h-8 w-32">
-															<SelectValue />
-														</SelectTrigger>
-														<SelectContent>
-															<SelectItem value="DEFAULT">
-																{t('table.eligibility.default')}
-															</SelectItem>
-															<SelectItem value="INCLUDE">
-																{t('table.eligibility.include')}
-															</SelectItem>
-															<SelectItem value="EXCLUDE">
-																{t('table.eligibility.exclude')}
-															</SelectItem>
-														</SelectContent>
-													</Select>
-												</TableCell>
-												<TableCell>
-													<Input
-														type="number"
-														min={0}
-														className="h-8 w-24"
-														value={override?.daysCounted ?? employee.daysCounted}
-														onChange={(event) =>
-															handleOverrideChange(
-																employee.employeeId,
-																'daysCounted',
-																event.target.value,
-																employee.daysCounted,
-															)
-														}
-													/>
-												</TableCell>
-												<TableCell>
-													<Input
-														type="number"
-														min={0}
-														step="0.01"
-														className="h-8 w-28"
-														value={override?.dailyQuota ?? employee.dailyQuota}
-														onChange={(event) =>
-															handleOverrideChange(
-																employee.employeeId,
-																'dailyQuota',
-																event.target.value,
-																employee.dailyQuota,
-															)
-														}
-													/>
-												</TableCell>
-												<TableCell>
-													<Input
-														type="number"
-														min={0}
-														step="0.01"
-														className="h-8 w-32"
-														value={
-															override?.annualSalaryBase ??
-															employee.annualSalaryBase
-														}
-														onChange={(event) =>
-															handleOverrideChange(
-																employee.employeeId,
-																'annualSalaryBase',
-																event.target.value,
-																employee.annualSalaryBase,
-															)
-														}
-													/>
-												</TableCell>
-												<TableCell className="tabular-nums">
-													{formatCurrency(Number(employee.ptuFinal ?? 0))}
-												</TableCell>
-												<TableCell className="tabular-nums">
-													{formatCurrency(Number(employee.netAmount ?? 0))}
-												</TableCell>
-												<TableCell>
-													{warningCount === 0 ? (
-														<span className="text-xs text-muted-foreground">
-															0
-														</span>
-													) : (
-														<Badge
-															variant="outline"
-															className="text-xs text-amber-700"
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>{t('table.headers.employee')}</TableHead>
+											<TableHead>{t('table.headers.eligibility')}</TableHead>
+											<TableHead>{t('table.headers.days')}</TableHead>
+											<TableHead>{t('table.headers.dailyQuota')}</TableHead>
+											<TableHead>{t('table.headers.annualBase')}</TableHead>
+											<TableHead>{t('table.headers.ptuFinal')}</TableHead>
+											<TableHead>{t('table.headers.net')}</TableHead>
+											<TableHead>{t('table.headers.warnings')}</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{filteredEmployeeRows.map((employee) => {
+											const override = overrideDrafts[employee.employeeId];
+											const warningCount = employee.warnings?.length ?? 0;
+											return (
+												<TableRow key={employee.id ?? employee.employeeId}>
+													<TableCell className="font-medium">
+														{resolveEmployeeName(employee)}
+													</TableCell>
+													<TableCell>
+														<Select
+															value={
+																override?.eligibilityOverride ??
+																'DEFAULT'
+															}
+															onValueChange={(value) =>
+																handleEligibilityOverrideChange(
+																	employee.employeeId,
+																	value as
+																		| 'DEFAULT'
+																		| 'INCLUDE'
+																		| 'EXCLUDE',
+																)
+															}
 														>
-															{t('table.warningsCount', {
-																count: warningCount,
-															})}
-														</Badge>
-													)}
-												</TableCell>
-											</TableRow>
-										);
-									})}
-								</TableBody>
-							</Table>
-						</div>
+															<SelectTrigger className="h-8 w-32">
+																<SelectValue />
+															</SelectTrigger>
+															<SelectContent>
+																<SelectItem value="DEFAULT">
+																	{t('table.eligibility.default')}
+																</SelectItem>
+																<SelectItem value="INCLUDE">
+																	{t('table.eligibility.include')}
+																</SelectItem>
+																<SelectItem value="EXCLUDE">
+																	{t('table.eligibility.exclude')}
+																</SelectItem>
+															</SelectContent>
+														</Select>
+													</TableCell>
+													<TableCell>
+														<Input
+															type="number"
+															min={0}
+															className="h-8 w-24"
+															value={
+																override?.daysCounted ??
+																employee.daysCounted
+															}
+															onChange={(event) =>
+																handleOverrideChange(
+																	employee.employeeId,
+																	'daysCounted',
+																	event.target.value,
+																	employee.daysCounted,
+																)
+															}
+														/>
+													</TableCell>
+													<TableCell>
+														<Input
+															type="number"
+															min={0}
+															step="0.01"
+															className="h-8 w-28"
+															value={
+																override?.dailyQuota ??
+																employee.dailyQuota
+															}
+															onChange={(event) =>
+																handleOverrideChange(
+																	employee.employeeId,
+																	'dailyQuota',
+																	event.target.value,
+																	employee.dailyQuota,
+																)
+															}
+														/>
+													</TableCell>
+													<TableCell>
+														<Input
+															type="number"
+															min={0}
+															step="0.01"
+															className="h-8 w-32"
+															value={
+																override?.annualSalaryBase ??
+																employee.annualSalaryBase
+															}
+															onChange={(event) =>
+																handleOverrideChange(
+																	employee.employeeId,
+																	'annualSalaryBase',
+																	event.target.value,
+																	employee.annualSalaryBase,
+																)
+															}
+														/>
+													</TableCell>
+													<TableCell className="tabular-nums">
+														{formatCurrency(
+															Number(employee.ptuFinal ?? 0),
+														)}
+													</TableCell>
+													<TableCell className="tabular-nums">
+														{formatCurrency(
+															Number(employee.netAmount ?? 0),
+														)}
+													</TableCell>
+													<TableCell>
+														{warningCount === 0 ? (
+															<span className="text-xs text-muted-foreground">
+																0
+															</span>
+														) : (
+															<Badge
+																variant="outline"
+																className="text-xs text-[color:var(--status-warning)]"
+															>
+																{t('table.warningsCount', {
+																	count: warningCount,
+																})}
+															</Badge>
+														)}
+													</TableCell>
+												</TableRow>
+											);
+										})}
+									</TableBody>
+								</Table>
+							</div>
 						</div>
 					)}
 				</CardContent>
@@ -1068,7 +1088,10 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 										);
 										const csvUrl = `/api/ptu/runs/${run.id}/csv`;
 										return (
-											<TableRow key={run.id}>
+											<TableRow
+												key={run.id}
+												data-testid={`ptu-run-row-${run.id}`}
+											>
 												<TableCell>{run.fiscalYear}</TableCell>
 												<TableCell>
 													<Badge variant="outline">
@@ -1082,7 +1105,10 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 												<TableCell className="text-right">
 													<div className="flex items-center justify-end gap-2">
 														<Button asChild variant="outline" size="sm">
-															<a href={csvUrl}>
+															<a
+																href={csvUrl}
+																data-testid={`ptu-run-csv-${run.id}`}
+															>
 																{t('history.actions.csv')}
 															</a>
 														</Button>
@@ -1093,14 +1119,18 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 																variant="outline"
 																className="text-xs text-muted-foreground"
 															>
-																{t('history.actions.receiptsUnavailable')}
+																{t(
+																	'history.actions.receiptsUnavailable',
+																)}
 															</Badge>
 														)}
 														{run.status === 'DRAFT' ? (
 															<Button
 																variant="ghost"
 																size="sm"
-																onClick={() => void handleLoadDraft(run.id)}
+																onClick={() =>
+																	void handleLoadDraft(run.id)
+																}
 															>
 																{t('history.actions.edit')}
 															</Button>

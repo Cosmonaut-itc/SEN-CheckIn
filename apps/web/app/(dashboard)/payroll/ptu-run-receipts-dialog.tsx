@@ -66,9 +66,7 @@ function resolveEmployeeNetPay(employee: PtuRunEmployee): number {
  * @param props - Dialog props
  * @returns Dialog element with receipt downloads
  */
-export function PtuRunReceiptsDialog({
-	run,
-}: PtuRunReceiptsDialogProps): React.ReactElement {
+export function PtuRunReceiptsDialog({ run }: PtuRunReceiptsDialogProps): React.ReactElement {
 	const t = useTranslations('Ptu');
 	const tCommon = useTranslations('Common');
 	const [open, setOpen] = useState(false);
@@ -97,7 +95,11 @@ export function PtuRunReceiptsDialog({
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm">
+				<Button
+					variant="outline"
+					size="sm"
+					data-testid={`ptu-run-receipts-trigger-${run.id}`}
+				>
 					{t('receipts.trigger')}
 				</Button>
 			</DialogTrigger>
@@ -139,7 +141,10 @@ export function PtuRunReceiptsDialog({
 								</div>
 								{canDownloadAll ? (
 									<Button asChild size="sm">
-										<a href={downloadAllUrl}>
+										<a
+											href={downloadAllUrl}
+											data-testid={`ptu-run-receipts-download-all-${run.id}`}
+										>
 											{t('receipts.actions.downloadAll')}
 										</a>
 									</Button>
@@ -210,7 +215,10 @@ export function PtuRunReceiptsDialog({
 													</TableCell>
 													<TableCell className="text-right">
 														<Button asChild variant="outline" size="sm">
-															<a href={downloadUrl}>
+															<a
+																href={downloadUrl}
+																data-testid={`ptu-run-receipts-download-one-${run.id}-${employee.employeeId}`}
+															>
 																{t('receipts.actions.download')}
 															</a>
 														</Button>

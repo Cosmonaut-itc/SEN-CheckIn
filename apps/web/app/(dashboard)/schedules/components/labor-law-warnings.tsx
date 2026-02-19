@@ -400,7 +400,7 @@ export function LaborLawWarnings({
 	};
 
 	return (
-		<div className="space-y-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-950">
+		<div className="space-y-2 rounded-md border border-[color:var(--status-warning)]/30 bg-[var(--status-warning-bg)] p-3 text-[color:var(--status-warning)]">
 			<p className="text-sm font-medium">{t('laborLawWarnings.title')}</p>
 			<div className="flex flex-wrap gap-2">
 				{warnings.map((warning, index) => (

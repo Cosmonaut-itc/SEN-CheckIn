@@ -99,4 +99,16 @@
 	.maplibregl-popup-tip {
 		@apply hidden!;
 	}
+	.maplibregl-ctrl-group {
+		background: var(--bg-secondary) !important;
+		border: 1px solid var(--border-default) !important;
+		box-shadow: var(--shadow-sm) !important;
+	}
+	.maplibregl-ctrl-group button {
+		color: var(--text-secondary) !important;
+	}
+	.maplibregl-ctrl-group button:hover {
+		background: var(--accent-primary-bg) !important;
+		color: var(--accent-primary) !important;
+	}
 }

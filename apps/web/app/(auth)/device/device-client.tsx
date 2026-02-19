@@ -191,7 +191,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				return (
 					<Badge
 						variant="outline"
-						className="gap-1 text-green-700 border-green-200 bg-green-50"
+						className="gap-1 text-[color:var(--status-success)] border-[color:var(--status-success)]/30 bg-[var(--status-success-bg)]"
 					>
 						<CheckCircle2 className="h-4 w-4" /> {t('device.status.approved')}
 					</Badge>
@@ -200,7 +200,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				return (
 					<Badge
 						variant="outline"
-						className="gap-1 text-red-700 border-red-200 bg-red-50"
+						className="gap-1 text-[color:var(--status-error)] border-[color:var(--status-error)]/30 bg-[var(--status-error-bg)]"
 					>
 						<XCircle className="h-4 w-4" /> {t('device.status.denied')}
 					</Badge>
@@ -209,7 +209,7 @@ export function DeviceClient({ initialCode }: DeviceClientProps): React.ReactEle
 				return (
 					<Badge
 						variant="outline"
-						className="gap-1 text-amber-700 border-amber-200 bg-amber-50"
+						className="gap-1 text-[color:var(--status-warning)] border-[color:var(--status-warning)]/30 bg-[var(--status-warning-bg)]"
 					>
 						<Clock3 className="h-4 w-4" /> {t('device.status.pending')}
 					</Badge>

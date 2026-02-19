@@ -286,8 +286,8 @@ export function TemplateFormDialog({
 							weeklyTotals.diff > 0
 								? 'border-destructive/40 bg-destructive/10 text-destructive-foreground'
 								: weeklyTotals.diff < 0
-									? 'border-amber-300 bg-amber-50 text-amber-900'
-									: 'border-emerald-200 bg-emerald-50 text-emerald-900'
+									? 'border-[color:var(--status-warning)]/40 bg-[var(--status-warning-bg)] text-[color:var(--status-warning)]'
+									: 'border-[color:var(--status-success)]/30 bg-[var(--status-success-bg)] text-[color:var(--status-success)]'
 						}`}
 					>
 						<p className="font-medium">

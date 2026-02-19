@@ -326,7 +326,7 @@ export function TestRegistrationForm(): React.ReactElement {
 						{t('testRegistration.success.description')}
 					</p>
 				</div>
-				<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+				<Card className="border-[color:var(--border-default)] shadow-[var(--shadow-lg)]">
 					<CardContent className="space-y-3 pt-6 text-sm">
 						<div>
 							<p className="text-muted-foreground">
@@ -375,7 +375,7 @@ export function TestRegistrationForm(): React.ReactElement {
 					{t('testRegistration.subtitle')}
 				</p>
 			</div>
-			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+			<Card className="border-[color:var(--border-default)] shadow-[var(--shadow-lg)]">
 				<form
 					onSubmit={(event) => {
 						event.preventDefault();

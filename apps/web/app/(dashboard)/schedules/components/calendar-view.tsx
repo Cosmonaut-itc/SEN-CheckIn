@@ -294,7 +294,7 @@ export function CalendarView({
 			</div>
 
 			{unassignedCount > 0 && (
-				<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+				<div className="rounded-md border border-[color:var(--status-warning)]/30 bg-[var(--status-warning-bg)] p-3 text-sm text-[color:var(--status-warning)]">
 					{t('calendar.unassignedEmployees', { count: unassignedCount })}
 				</div>
 			)}

@@ -744,7 +744,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 					{warningSummary.length > 0 ? (
 						<div className="mt-4 space-y-2">
 							<p className="text-sm font-medium">{t('summary.warningsTitle')}</p>
-							<ul className="space-y-1 text-sm text-amber-700">
+							<ul className="space-y-1 text-sm text-[color:var(--status-warning)]">
 								{warningSummary.map((warning) => (
 									<li key={`${warning.type}-${warning.message}`}>
 										{warning.message}
@@ -872,7 +872,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 													) : (
 														<Badge
 															variant="outline"
-															className="text-xs text-amber-700"
+															className="text-xs text-[color:var(--status-warning)]"
 														>
 															{t('table.warningsCount', {
 																count: warningCount,

@@ -1021,7 +1021,7 @@ export function PayrollPageClient(): React.ReactElement {
 																	(w) => w.severity === 'error',
 																)
 																	? 'text-destructive'
-																	: 'text-amber-600'
+																	: 'text-[color:var(--status-warning)]'
 															}`}
 														>
 															{t('preview.warningsCount', {

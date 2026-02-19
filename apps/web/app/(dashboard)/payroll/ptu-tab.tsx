@@ -690,7 +690,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 				</CardContent>
 				{settings?.ptuIsExempt ? (
 					<CardContent className="pt-0">
-						<div className="flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+						<div className="flex items-start gap-3 rounded-md border border-[color:var(--status-warning)]/30 bg-[var(--status-warning-bg)] p-3 text-sm text-[color:var(--status-warning)]">
 							<ShieldAlert className="mt-0.5 h-4 w-4" />
 							<div>
 								<p className="font-medium">{t('exempt.title')}</p>
@@ -864,7 +864,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 					{warningSummary.length > 0 ? (
 						<div className="mt-4 space-y-2">
 							<p className="text-sm font-medium">{t('summary.warningsTitle')}</p>
-							<ul className="space-y-1 text-sm text-amber-700">
+							<ul className="space-y-1 text-sm text-[color:var(--status-warning)]">
 								{warningSummary.map((warning) => (
 									<li key={`${warning.type}-${warning.message}`}>
 										{warning.message}
@@ -1019,7 +1019,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 													) : (
 														<Badge
 															variant="outline"
-															className="text-xs text-amber-700"
+															className="text-xs text-[color:var(--status-warning)]"
 														>
 															{t('table.warningsCount', {
 																count: warningCount,

@@ -26,7 +26,7 @@ function SignInLoading(): React.ReactElement {
 				<h1 className="text-2xl font-bold tracking-tight">{t('signIn.title')}</h1>
 				<p className="text-balance text-sm text-muted-foreground">{t('signIn.subtitle')}</p>
 			</div>
-			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+			<Card className="border-[color:var(--border-default)] shadow-[var(--shadow-lg)]">
 				<CardContent className="flex items-center justify-center py-12">
 					<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 				</CardContent>
@@ -98,7 +98,7 @@ function SignInContent(): React.ReactElement {
 				<h1 className="text-2xl font-bold tracking-tight">{t('signIn.title')}</h1>
 				<p className="text-balance text-sm text-muted-foreground">{t('signIn.subtitle')}</p>
 			</div>
-			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+			<Card className="border-[color:var(--border-default)] shadow-[var(--shadow-lg)]">
 				{/* <CardHeader> removed as we have header outside */}
 				<form onSubmit={handleSubmit} data-testid="sign-in-form">
 					<CardContent className="space-y-4 pt-6">

@@ -117,7 +117,7 @@ function SignUpForm(): React.ReactElement {
 				<h1 className="text-2xl font-bold tracking-tight">{t('signUp.title')}</h1>
 				<p className="text-balance text-sm text-muted-foreground">{t('signUp.subtitle')}</p>
 			</div>
-			<Card className="border-zinc-200 shadow-lg dark:border-zinc-800">
+			<Card className="border-[color:var(--border-default)] shadow-[var(--shadow-lg)]">
 				<form onSubmit={handleSubmit}>
 					<CardContent className="space-y-4 pt-6">
 						{error && (

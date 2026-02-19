@@ -2975,7 +2975,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							</div>
 							<div className="h-1.5 overflow-hidden rounded-full bg-muted">
 								<div
-									className="h-full rounded-full bg-emerald-500 transition-all duration-300 dark:bg-emerald-400"
+									className="h-full rounded-full bg-[var(--status-success)] transition-all duration-300 dark:bg-[var(--status-success)]"
 									style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
 								/>
 							</div>
@@ -3083,7 +3083,7 @@ export function EmployeesPageClient(): React.ReactElement {
 										onClick={() =>
 											setDeleteRekognitionConfirmId(row.original.id)
 										}
-										className="text-orange-600 focus:text-orange-600"
+										className="text-[color:var(--status-warning)] focus:text-[color:var(--status-warning)]"
 									>
 										<UserX className="mr-2 h-4 w-4" />
 										{t('menu.removeFaceEnrollment')}
@@ -3114,7 +3114,7 @@ export function EmployeesPageClient(): React.ReactElement {
 											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
 										})}
 										{row.original.rekognitionUserId && (
-											<span className="block mt-2 text-orange-600">
+											<span className="block mt-2 text-[color:var(--status-warning)]">
 												{t('dialogs.deleteEmployee.faceNote')}
 											</span>
 										)}
@@ -3822,9 +3822,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																				aria-label={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
 																				className={cn(
 																					'h-8 w-2 rounded-sm',
-																					point.status === 'PRESENT' && 'bg-emerald-500',
+																					point.status === 'PRESENT' && 'bg-[var(--status-success)]',
 																					point.status === 'ABSENT' && 'bg-destructive',
-																					point.status === 'LEAVE' && 'bg-amber-500',
+																					point.status === 'LEAVE' && 'bg-[var(--status-warning)]',
 																					point.status === 'DAY_OFF' && 'bg-muted-foreground/40',
 																				)}
 																			/>

@@ -1,22 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import React, { type CSSProperties, type ReactNode } from 'react';
-import { Bricolage_Grotesque, Spline_Sans } from 'next/font/google';
 import { getTranslations } from 'next-intl/server';
 import { ThemeModeToggle } from '@/components/theme-mode-toggle';
 import { Button } from '@/components/ui/button';
-
-const displayFont = Bricolage_Grotesque({
-	subsets: ['latin'],
-	weight: ['500', '600', '700', '800'],
-	variable: '--font-display',
-});
-
-const bodyFont = Spline_Sans({
-	subsets: ['latin'],
-	weight: ['400', '500', '600'],
-	variable: '--font-body',
-});
 
 const marketingTheme = {
 	'--mk-ink': '#0e2226',
@@ -70,7 +57,7 @@ export default async function MarketingLayout({
 	return (
 		<div
 			style={marketingTheme}
-			className={`${bodyFont.variable} ${displayFont.variable} relative flex min-h-screen flex-col overflow-hidden bg-[color:var(--mk-cream)] font-[var(--font-body)] text-[color:var(--mk-ink)] dark:bg-[#0a1213] dark:text-[#f4efe7]`}
+			className="relative flex min-h-screen flex-col overflow-hidden bg-[color:var(--mk-cream)] font-sans text-[color:var(--mk-ink)] dark:bg-[#0a1213] dark:text-[#f4efe7]"
 		>
 			<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1000px_circle_at_top_left,var(--mk-copper-soft)_0%,transparent_60%),radial-gradient(900px_circle_at_bottom_right,var(--mk-sea-soft)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
 			<div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(90deg,rgba(12,24,28,0.18)_1px,transparent_1px),linear-gradient(180deg,rgba(12,24,28,0.18)_1px,transparent_1px)] [background-size:140px_140px] dark:opacity-[0.12]" />

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Script from 'next/script';
 import React, { type ReactNode } from 'react';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { DM_Sans, JetBrains_Mono, Playfair_Display } from 'next/font/google';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { DeploymentUpdateToast } from '@/components/deployment-update-toast';
@@ -10,27 +10,39 @@ import { Providers } from './providers';
 import './globals.css';
 
 /**
- * Geist Sans font configuration for body text.
+ * DM Sans font configuration for body text.
  */
-const geistSans = Geist({
-	variable: '--font-geist-sans',
+const dmSans = DM_Sans({
+	variable: '--font-dm-sans',
 	subsets: ['latin'],
+	weight: ['400', '500', '600', '700'],
 });
 
 /**
- * Geist Mono font configuration for code/monospace text.
+ * Playfair Display font configuration for display typography.
  */
-const geistMono = Geist_Mono({
-	variable: '--font-geist-mono',
+const playfairDisplay = Playfair_Display({
+	variable: '--font-playfair-display',
 	subsets: ['latin'],
+	weight: ['400', '700', '800'],
+});
+
+/**
+ * JetBrains Mono font configuration for code/monospace text.
+ */
+const jetBrainsMono = JetBrains_Mono({
+	variable: '--font-jetbrains-mono',
+	subsets: ['latin'],
+	weight: ['400', '500'],
 });
 
 /**
  * Application metadata for SEO and browser tab display.
  */
 export const metadata: Metadata = {
-	title: 'SEN CheckIn - Portal de Administración',
-	description: 'Portal de administración para el sistema de asistencia SEN CheckIn',
+	title: 'jale. by SEN - Portal de Administración',
+	description: 'Portal de administración para el sistema de asistencia jale. by SEN',
+	applicationName: 'jale. by SEN',
 };
 
 /**
@@ -55,7 +67,9 @@ export default async function RootLayout({
 
 	return (
 		<html lang="es" suppressHydrationWarning>
-			<body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+			<body
+				className={`${dmSans.variable} ${playfairDisplay.variable} ${jetBrainsMono.variable} font-sans antialiased`}
+			>
 				{process.env.NODE_ENV === 'development' && (
 					<Script id="strip-cursor-element-ids" strategy="beforeInteractive">
 						{`

@@ -350,10 +350,7 @@ test('admin habilita módulo, completa flujo de acta firmada física y ve histor
 	);
 
 	if (!presignResponse.ok()) {
-		test.skip(
-			true,
-			`Bucket no disponible para e2e (status ${presignResponse.status()}).`,
-		);
+		test.skip(true, `Bucket no disponible para e2e (status ${presignResponse.status()}).`);
 		return;
 	}
 
@@ -401,13 +398,11 @@ test('admin habilita módulo, completa flujo de acta firmada física y ve histor
 	await closeMeasure(request, measure.id);
 
 	await page.goto('/disciplinary-measures');
-	const measureRow = page.getByRole('row', {
-		name: new RegExp(`#${measure.folio}\\b`),
-	});
-	await expect(measureRow).toBeVisible();
-	await expect(measureRow.getByText('Cerrada')).toBeVisible();
-	await measureRow.getByRole('button', { name: 'Ver detalle' }).click();
-	await expect(page.getByText('La medida está cerrada y no admite modificaciones.')).toBeVisible();
+	const closedStatusBadge = page.getByTestId(`disciplinary-measure-status-${measure.id}`);
+	await expect(closedStatusBadge).toBeVisible();
+	await expect(closedStatusBadge).toHaveAttribute('data-status', 'CLOSED');
+	await page.getByTestId(`disciplinary-measure-view-detail-${measure.id}`).click();
+	await expect(page.getByTestId('disciplinary-measure-closed-message')).toBeVisible();
 });
 
 test('admin genera acta desde UI y descarga PDF', async ({ page }) => {
@@ -429,16 +424,13 @@ test('admin genera acta desde UI y descarga PDF', async ({ page }) => {
 	const measure = await createDisciplinaryMeasure(request, employeeId);
 
 	await page.goto('/disciplinary-measures');
-	const measureRow = page.getByRole('row', {
-		name: new RegExp(`#${measure.folio}\\b`),
-	});
-	await expect(measureRow).toBeVisible();
-	await measureRow.getByRole('button', { name: 'Ver detalle' }).click();
-	await expect(page.getByRole('button', { name: 'Generar acta' })).toBeVisible();
+	await expect(page.getByTestId(`disciplinary-measure-view-detail-${measure.id}`)).toBeVisible();
+	await page.getByTestId(`disciplinary-measure-view-detail-${measure.id}`).click();
+	await expect(page.getByTestId('disciplinary-measure-generate-acta')).toBeVisible();
 
 	const [pdfDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('button', { name: 'Generar acta' }).click(),
+		page.getByTestId('disciplinary-measure-generate-acta').click(),
 	]);
 
 	expect(pdfDownload.suggestedFilename()).toMatch(/\.pdf$/i);

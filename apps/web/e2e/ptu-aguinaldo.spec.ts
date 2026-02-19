@@ -280,13 +280,13 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 
 	await page.goto('/payroll');
 
-	await page.getByRole('tab', { name: 'PTU' }).click();
-	const ptuRow = page.getByRole('row', { name: /2026/ }).first();
+	await page.getByTestId('payroll-tab-ptu').click();
+	const ptuRow = page.locator('[data-testid^="ptu-run-row-"]').first();
 	await expect(ptuRow).toBeVisible();
 
 	const [ptuCsvDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		ptuRow.getByRole('link', { name: 'CSV' }).click(),
+		ptuRow.locator('[data-testid^="ptu-run-csv-"]').click(),
 	]);
 	expect(ptuCsvDownload.suggestedFilename()).toMatch(/\.csv$/);
 	const ptuCsvPath = await ptuCsvDownload.path();
@@ -296,12 +296,11 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 	const ptuCsvContent = await readFile(ptuCsvPath, 'utf8');
 	expect(ptuCsvContent.split('\n')[0]).toContain('employeeId');
 
-	await ptuRow.getByRole('button', { name: 'Recibos' }).click();
-	await expect(page.getByRole('heading', { name: 'Recibos de PTU' })).toBeVisible();
+	await ptuRow.locator('[data-testid^="ptu-run-receipts-trigger-"]').click();
 
 	const [ptuZipDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('link', { name: 'Descargar ZIP' }).click(),
+		page.locator('[data-testid^="ptu-run-receipts-download-all-"]').first().click(),
 	]);
 	expect(ptuZipDownload.suggestedFilename()).toMatch(/\.zip$/);
 	const ptuZipPath = await ptuZipDownload.path();
@@ -318,10 +317,7 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 
 	const [ptuPdfDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page
-			.getByRole('link', { name: /^Descargar$/ })
-			.first()
-			.click(),
+		page.locator('[data-testid^="ptu-run-receipts-download-one-"]').first().click(),
 	]);
 	expect(ptuPdfDownload.suggestedFilename()).toMatch(/\.pdf$/);
 	const ptuPdfPath = await ptuPdfDownload.path();
@@ -333,13 +329,13 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 
 	await page.keyboard.press('Escape');
 
-	await page.getByRole('tab', { name: 'Aguinaldo' }).click();
-	const aguinaldoRow = page.getByRole('row', { name: /2026/ }).first();
+	await page.getByTestId('payroll-tab-aguinaldo').click();
+	const aguinaldoRow = page.locator('[data-testid^="aguinaldo-run-row-"]').first();
 	await expect(aguinaldoRow).toBeVisible();
 
 	const [aguinaldoCsvDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		aguinaldoRow.getByRole('link', { name: 'CSV' }).click(),
+		aguinaldoRow.locator('[data-testid^="aguinaldo-run-csv-"]').click(),
 	]);
 	expect(aguinaldoCsvDownload.suggestedFilename()).toMatch(/\.csv$/);
 	const aguinaldoCsvPath = await aguinaldoCsvDownload.path();
@@ -349,12 +345,11 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 	const aguinaldoCsvContent = await readFile(aguinaldoCsvPath, 'utf8');
 	expect(aguinaldoCsvContent.split('\n')[0]).toContain('employeeId');
 
-	await aguinaldoRow.getByRole('button', { name: 'Recibos' }).click();
-	await expect(page.getByRole('heading', { name: 'Recibos de Aguinaldo' })).toBeVisible();
+	await aguinaldoRow.locator('[data-testid^="aguinaldo-run-receipts-trigger-"]').click();
 
 	const [aguinaldoZipDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page.getByRole('link', { name: 'Descargar ZIP' }).click(),
+		page.locator('[data-testid^="aguinaldo-run-receipts-download-all-"]').first().click(),
 	]);
 	expect(aguinaldoZipDownload.suggestedFilename()).toMatch(/\.zip$/);
 	const aguinaldoZipPath = await aguinaldoZipDownload.path();
@@ -371,10 +366,7 @@ test('downloads PTU and Aguinaldo receipts + CSV exports', async ({ page }) => {
 
 	const [aguinaldoPdfDownload] = await Promise.all([
 		page.waitForEvent('download'),
-		page
-			.getByRole('link', { name: /^Descargar$/ })
-			.first()
-			.click(),
+		page.locator('[data-testid^="aguinaldo-run-receipts-download-one-"]').first().click(),
 	]);
 	expect(aguinaldoPdfDownload.suggestedFilename()).toMatch(/\.pdf$/);
 	const aguinaldoPdfPath = await aguinaldoPdfDownload.path();

@@ -646,7 +646,9 @@ export function PayrollHolidaysSection(): React.ReactElement {
 					<div className="space-y-2">
 						<CardTitle className="flex items-center gap-2 text-base">
 							<CalendarDays className="h-4 w-4" />
-							{t('holidays.title')}
+							<span data-testid="payroll-holidays-section-title">
+								{t('holidays.title')}
+							</span>
 						</CardTitle>
 						<CardDescription>{t('holidays.description')}</CardDescription>
 						<div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -1183,7 +1185,10 @@ export function PayrollHolidaysSection(): React.ReactElement {
 										</TableRow>
 									) : (
 										calendarEntries.map((entry) => (
-											<TableRow key={entry.id}>
+											<TableRow
+												key={entry.id}
+												data-testid={`payroll-holiday-row-${entry.id}`}
+											>
 												<TableCell>
 													{formatDateKey(entry.dateKey)}
 												</TableCell>
@@ -1217,6 +1222,8 @@ export function PayrollHolidaysSection(): React.ReactElement {
 														className={getStatusBadgeClassName(
 															entry.status,
 														)}
+														data-testid={`payroll-holiday-status-${entry.id}`}
+														data-status={entry.status}
 													>
 														{t(
 															`holidays.filters.statusValues.${entry.status}`,
@@ -1239,6 +1246,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 																aria-label={t(
 																	'holidays.table.actions.edit',
 																)}
+																data-testid={`payroll-holiday-edit-${entry.id}`}
 															>
 																<Pencil className="h-4 w-4" />
 															</Button>
@@ -1268,7 +1276,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 			</div>
 
 			<Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-				<DialogContent>
+				<DialogContent data-testid="payroll-holiday-edit-dialog">
 					<DialogHeader>
 						<DialogTitle>{t('holidays.editDialog.title')}</DialogTitle>
 						<DialogDescription>
@@ -1355,14 +1363,20 @@ export function PayrollHolidaysSection(): React.ReactElement {
 											)
 										}
 									>
-										<SelectTrigger>
+										<SelectTrigger data-testid="payroll-holiday-edit-active-trigger">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											<SelectItem value="true">
+											<SelectItem
+												value="true"
+												data-testid="payroll-holiday-edit-active-option-true"
+											>
 												{t('holidays.active.active')}
 											</SelectItem>
-											<SelectItem value="false">
+											<SelectItem
+												value="false"
+												data-testid="payroll-holiday-edit-active-option-false"
+											>
 												{t('holidays.active.inactive')}
 											</SelectItem>
 										</SelectContent>
@@ -1409,7 +1423,11 @@ export function PayrollHolidaysSection(): React.ReactElement {
 						</div>
 					) : null}
 					<DialogFooter>
-						<Button onClick={submitEditHoliday} disabled={editMutation.isPending}>
+						<Button
+							onClick={submitEditHoliday}
+							disabled={editMutation.isPending}
+							data-testid="payroll-holiday-edit-submit"
+						>
 							{editMutation.isPending ? (
 								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 							) : null}

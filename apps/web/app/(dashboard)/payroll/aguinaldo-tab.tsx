@@ -179,9 +179,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 
 	const timeZone = settings?.timeZone ?? 'America/Mexico_City';
 	const defaultCalendarYear = new Date().getFullYear();
-	const [calendarYearInput, setCalendarYearInput] = useState<string>(
-		String(defaultCalendarYear),
-	);
+	const [calendarYearInput, setCalendarYearInput] = useState<string>(String(defaultCalendarYear));
 	const [paymentDateKey, setPaymentDateKey] = useState<string>(() =>
 		toDateKeyInTimeZone(new Date(), timeZone),
 	);
@@ -317,9 +315,11 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 		if (!effectiveCalculation) {
 			return null;
 		}
-		return effectiveCalculation.run.taxSummary as
-			| { netTotal?: number; grossTotal?: number; withheldTotal?: number }
-			| null;
+		return effectiveCalculation.run.taxSummary as {
+			netTotal?: number;
+			grossTotal?: number;
+			withheldTotal?: number;
+		} | null;
 	}, [effectiveCalculation]);
 
 	const warningSummary: ExtraPaymentWarning[] = effectiveCalculation?.warnings ?? [];
@@ -559,7 +559,9 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 								className="h-4 w-4 accent-primary"
 							/>
 							<span className="text-sm text-muted-foreground">
-								{includeInactive ? t('config.labels.include') : t('config.labels.exclude')}
+								{includeInactive
+									? t('config.labels.include')
+									: t('config.labels.exclude')}
 							</span>
 						</div>
 					</div>
@@ -659,10 +661,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 							/>
 						</div>
 						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setCancelDialogOpen(false)}
-							>
+							<Button variant="outline" onClick={() => setCancelDialogOpen(false)}>
 								{tCommon('cancel')}
 							</Button>
 							<Button
@@ -781,111 +780,118 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 								className="max-w-sm"
 							/>
 							<div className="rounded-md border">
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>{t('table.headers.employee')}</TableHead>
-										<TableHead>{t('table.headers.days')}</TableHead>
-										<TableHead>{t('table.headers.dailySalary')}</TableHead>
-										<TableHead>{t('table.headers.policyDays')}</TableHead>
-										<TableHead>{t('table.headers.gross')}</TableHead>
-										<TableHead>{t('table.headers.net')}</TableHead>
-										<TableHead>{t('table.headers.warnings')}</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{filteredEmployeeRows.map((employee) => {
-										const override = overrideDrafts[employee.employeeId];
-										const warningCount = employee.warnings?.length ?? 0;
-										return (
-											<TableRow key={employee.id ?? employee.employeeId}>
-												<TableCell className="font-medium">
-													{resolveEmployeeName(employee)}
-												</TableCell>
-												<TableCell>
-													<Input
-														type="number"
-														min={0}
-														className="h-8 w-24"
-														value={override?.daysCounted ?? employee.daysCounted}
-														onChange={(event) =>
-															handleOverrideChange(
-																employee.employeeId,
-																'daysCounted',
-																event.target.value,
-																employee.daysCounted,
-															)
-														}
-													/>
-												</TableCell>
-												<TableCell>
-													<Input
-														type="number"
-														min={0}
-														step="0.01"
-														className="h-8 w-28"
-														value={
-															override?.dailySalaryBase ??
-															employee.dailySalaryBase
-														}
-														onChange={(event) =>
-															handleOverrideChange(
-																employee.employeeId,
-																'dailySalaryBase',
-																event.target.value,
-																employee.dailySalaryBase,
-															)
-														}
-													/>
-												</TableCell>
-												<TableCell>
-													<Input
-														type="number"
-														min={0}
-														step="1"
-														className="h-8 w-20"
-														value={
-															override?.aguinaldoDaysPolicy ??
-															employee.aguinaldoDaysPolicy
-														}
-														onChange={(event) =>
-															handleOverrideChange(
-																employee.employeeId,
-																'aguinaldoDaysPolicy',
-																event.target.value,
-																employee.aguinaldoDaysPolicy,
-															)
-														}
-													/>
-												</TableCell>
-												<TableCell className="tabular-nums">
-													{formatCurrency(Number(employee.grossAmount ?? 0))}
-												</TableCell>
-												<TableCell className="tabular-nums">
-													{formatCurrency(Number(employee.netAmount ?? 0))}
-												</TableCell>
-												<TableCell>
-													{warningCount === 0 ? (
-														<span className="text-xs text-muted-foreground">
-															0
-														</span>
-													) : (
-														<Badge
-															variant="outline"
-															className="text-xs text-[color:var(--status-warning)]"
-														>
-															{t('table.warningsCount', {
-																count: warningCount,
-															})}
-														</Badge>
-													)}
-												</TableCell>
-											</TableRow>
-										);
-									})}
-								</TableBody>
-							</Table>
-						</div>
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>{t('table.headers.employee')}</TableHead>
+											<TableHead>{t('table.headers.days')}</TableHead>
+											<TableHead>{t('table.headers.dailySalary')}</TableHead>
+											<TableHead>{t('table.headers.policyDays')}</TableHead>
+											<TableHead>{t('table.headers.gross')}</TableHead>
+											<TableHead>{t('table.headers.net')}</TableHead>
+											<TableHead>{t('table.headers.warnings')}</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{filteredEmployeeRows.map((employee) => {
+											const override = overrideDrafts[employee.employeeId];
+											const warningCount = employee.warnings?.length ?? 0;
+											return (
+												<TableRow key={employee.id ?? employee.employeeId}>
+													<TableCell className="font-medium">
+														{resolveEmployeeName(employee)}
+													</TableCell>
+													<TableCell>
+														<Input
+															type="number"
+															min={0}
+															className="h-8 w-24"
+															value={
+																override?.daysCounted ??
+																employee.daysCounted
+															}
+															onChange={(event) =>
+																handleOverrideChange(
+																	employee.employeeId,
+																	'daysCounted',
+																	event.target.value,
+																	employee.daysCounted,
+																)
+															}
+														/>
+													</TableCell>
+													<TableCell>
+														<Input
+															type="number"
+															min={0}
+															step="0.01"
+															className="h-8 w-28"
+															value={
+																override?.dailySalaryBase ??
+																employee.dailySalaryBase
+															}
+															onChange={(event) =>
+																handleOverrideChange(
+																	employee.employeeId,
+																	'dailySalaryBase',
+																	event.target.value,
+																	employee.dailySalaryBase,
+																)
+															}
+														/>
+													</TableCell>
+													<TableCell>
+														<Input
+															type="number"
+															min={0}
+															step="1"
+															className="h-8 w-20"
+															value={
+																override?.aguinaldoDaysPolicy ??
+																employee.aguinaldoDaysPolicy
+															}
+															onChange={(event) =>
+																handleOverrideChange(
+																	employee.employeeId,
+																	'aguinaldoDaysPolicy',
+																	event.target.value,
+																	employee.aguinaldoDaysPolicy,
+																)
+															}
+														/>
+													</TableCell>
+													<TableCell className="tabular-nums">
+														{formatCurrency(
+															Number(employee.grossAmount ?? 0),
+														)}
+													</TableCell>
+													<TableCell className="tabular-nums">
+														{formatCurrency(
+															Number(employee.netAmount ?? 0),
+														)}
+													</TableCell>
+													<TableCell>
+														{warningCount === 0 ? (
+															<span className="text-xs text-muted-foreground">
+																0
+															</span>
+														) : (
+															<Badge
+																variant="outline"
+																className="text-xs text-[color:var(--status-warning)]"
+															>
+																{t('table.warningsCount', {
+																	count: warningCount,
+																})}
+															</Badge>
+														)}
+													</TableCell>
+												</TableRow>
+											);
+										})}
+									</TableBody>
+								</Table>
+							</div>
 						</div>
 					)}
 				</CardContent>
@@ -921,7 +927,10 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 										);
 										const csvUrl = `/api/aguinaldo/runs/${run.id}/csv`;
 										return (
-											<TableRow key={run.id}>
+											<TableRow
+												key={run.id}
+												data-testid={`aguinaldo-run-row-${run.id}`}
+											>
 												<TableCell>{run.calendarYear}</TableCell>
 												<TableCell>
 													<Badge variant="outline">
@@ -935,7 +944,10 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 												<TableCell className="text-right">
 													<div className="flex items-center justify-end gap-2">
 														<Button asChild variant="outline" size="sm">
-															<a href={csvUrl}>
+															<a
+																href={csvUrl}
+																data-testid={`aguinaldo-run-csv-${run.id}`}
+															>
 																{t('history.actions.csv')}
 															</a>
 														</Button>
@@ -946,14 +958,18 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 																variant="outline"
 																className="text-xs text-muted-foreground"
 															>
-																{t('history.actions.receiptsUnavailable')}
+																{t(
+																	'history.actions.receiptsUnavailable',
+																)}
 															</Badge>
 														)}
 														{run.status === 'DRAFT' ? (
 															<Button
 																variant="ghost"
 																size="sm"
-																onClick={() => void handleLoadDraft(run.id)}
+																onClick={() =>
+																	void handleLoadDraft(run.id)
+																}
 															>
 																{t('history.actions.edit')}
 															</Button>

@@ -24,7 +24,8 @@ async function resolveOrganizationId(
 	const payload = (await response.json()) as unknown;
 	const organizations = Array.isArray(payload)
 		? (payload as AuthOrganization[])
-		: ((payload as { organizations?: AuthOrganization[]; data?: AuthOrganization[] }).organizations ??
+		: ((payload as { organizations?: AuthOrganization[]; data?: AuthOrganization[] })
+				.organizations ??
 			(payload as { data?: AuthOrganization[] }).data ??
 			[]);
 	const organization = organizations.find((item) => item.slug === organizationSlug);
@@ -95,19 +96,25 @@ test('admin can view and deactivate a custom holiday from payroll settings', asy
 	});
 
 	await page.goto('/payroll-settings');
-	await expect(page.getByText('Feriados y descansos obligatorios')).toBeVisible();
-	await expect(page.getByText(customHolidayName)).toBeVisible();
+	await expect(page.getByTestId('payroll-holidays-section-title')).toBeVisible();
+	const holidayRow = page
+		.locator('[data-testid^="payroll-holiday-row-"]')
+		.filter({ hasText: customHolidayName })
+		.first();
+	await expect(holidayRow).toBeVisible();
+	await holidayRow.locator('[data-testid^="payroll-holiday-edit-"]').click();
 
-	await page.getByRole('button', { name: 'Editar' }).first().click();
-	const editDialog = page.getByRole('dialog');
-	await editDialog
-		.getByText('Estatus activo')
-		.locator('..')
-		.getByRole('combobox')
-		.click();
-	await page.getByRole('option', { name: 'Inactivo' }).click();
+	const editDialog = page.getByTestId('payroll-holiday-edit-dialog');
+	await editDialog.getByTestId('payroll-holiday-edit-active-trigger').click();
+	await page.getByTestId('payroll-holiday-edit-active-option-false').click();
 	await editDialog.getByLabel('Motivo').fill('Desactivación por validación e2e');
-	await editDialog.getByRole('button', { name: 'Guardar cambios' }).click();
+	await editDialog.getByTestId('payroll-holiday-edit-submit').click();
 
-	await expect(page.getByText('Desactivado')).toBeVisible();
+	const updatedHolidayRow = page
+		.locator('[data-testid^="payroll-holiday-row-"]')
+		.filter({ hasText: customHolidayName })
+		.first();
+	await expect(
+		updatedHolidayRow.locator('[data-testid^="payroll-holiday-status-"]'),
+	).toHaveAttribute('data-status', 'DEACTIVATED');
 });

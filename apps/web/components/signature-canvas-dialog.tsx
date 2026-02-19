@@ -59,6 +59,22 @@ export function SignatureCanvasDialog({
 	const [hasSignature, setHasSignature] = useState<boolean>(false);
 
 	/**
+	 * Resolves signature stroke color from the active design token theme.
+	 *
+	 * @returns Canvas stroke color
+	 */
+	const getSignatureStrokeColor = useCallback((): string => {
+		if (typeof window === 'undefined') {
+			return '#2B1810';
+		}
+
+		const computed = getComputedStyle(document.documentElement)
+			.getPropertyValue('--text-primary')
+			.trim();
+		return computed || '#2B1810';
+	}, []);
+
+	/**
 	 * Resolves canvas and rendering context.
 	 *
 	 * @returns Canvas rendering context or null
@@ -114,10 +130,10 @@ export function SignatureCanvasDialog({
 			context.moveTo(x, y);
 			context.lineWidth = 2;
 			context.lineCap = 'round';
-			context.strokeStyle = '#0f172a';
+			context.strokeStyle = getSignatureStrokeColor();
 			setIsDrawing(true);
 		},
-		[getCanvasContext, getPointerPosition],
+		[getCanvasContext, getPointerPosition, getSignatureStrokeColor],
 	);
 
 	/**

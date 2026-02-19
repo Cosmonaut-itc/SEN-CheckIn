@@ -43,6 +43,12 @@
       ],
       "@sen-checkin/types/*": [
         "../../packages/types/src/*"
+      ],
+      "@sen-checkin/design-tokens": [
+        "../../packages/design-tokens/src/index.ts"
+      ],
+      "@sen-checkin/design-tokens/*": [
+        "../../packages/design-tokens/src/*"
       ]
     }
   },

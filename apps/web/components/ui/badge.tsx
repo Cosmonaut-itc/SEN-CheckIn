@@ -11,6 +11,17 @@ const badgeVariants = cva(
 			variant: {
 				default:
 					'border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90',
+				accent:
+					'border-transparent bg-[var(--accent-primary-bg)] text-[var(--accent-primary)] [a&]:hover:bg-[var(--accent-primary-bg-hover)]',
+				neutral:
+					'border-[color:var(--border-default)] bg-muted text-muted-foreground [a&]:hover:bg-[var(--bg-tertiary)]',
+				success:
+					'border-transparent bg-[var(--status-success-bg)] text-[var(--status-success)] [a&]:hover:opacity-90',
+				warning:
+					'border-transparent bg-[var(--status-warning-bg)] text-[var(--status-warning)] [a&]:hover:opacity-90',
+				error:
+					'border-transparent bg-[var(--status-error-bg)] text-[var(--status-error)] [a&]:hover:opacity-90',
+				info: 'border-transparent bg-[var(--status-info-bg)] text-[var(--status-info)] [a&]:hover:opacity-90',
 				secondary:
 					'border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90',
 				destructive:

@@ -23,7 +23,7 @@ function renderPolicySubItem(item: string, index: number): React.ReactElement {
 	return (
 		<li
 			key={`${item}-${index}`}
-			className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]"
+			className="text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]"
 		>
 			{item}
 		</li>
@@ -40,7 +40,7 @@ function renderPolicySubItem(item: string, index: number): React.ReactElement {
 function renderPolicyItem(item: PolicyListItem, index: number): React.ReactElement {
 	return (
 		<li key={`${item.text}-${index}`} className="space-y-2">
-			<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+			<p className="text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 				{item.text}
 			</p>
 			{item.subItems && item.subItems.length > 0 ? (
@@ -165,24 +165,24 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 	];
 
 	const sectionClassName =
-		'relative overflow-hidden rounded-[28px] border border-black/10 bg-[color:var(--mk-paper)]/80 p-6 shadow-[0_18px_45px_-32px_rgba(12,24,28,0.45)] backdrop-blur before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] before:bg-[color:var(--mk-copper)]/35 dark:border-white/10 dark:bg-white/5 dark:before:bg-[#f0b78a]/30';
+		'relative overflow-hidden rounded-[28px] border border-black/10 bg-[color:var(--bg-secondary)]/80 p-6 shadow-[0_18px_45px_-32px_rgba(12,24,28,0.45)] backdrop-blur before:absolute before:left-0 before:top-0 before:h-full before:w-[3px] before:bg-[color:var(--accent-primary)]/35 dark:border-[color:var(--border-default)]/40 dark:bg-[color:var(--bg-elevated)]/60 dark:before:bg-[color:var(--accent-primary-light)]/30';
 
 	return (
 		<div className="relative mx-auto w-full max-w-6xl px-4 py-16">
-			<div className="pointer-events-none absolute right-10 top-10 h-40 w-40 rounded-full bg-[radial-gradient(circle_at_center,var(--mk-copper-soft)_0%,transparent_70%)] opacity-60 blur-3xl" />
+			<div className="pointer-events-none absolute right-10 top-10 h-40 w-40 rounded-full bg-[radial-gradient(circle_at_center,var(--accent-primary-light)_0%,transparent_70%)] opacity-60 blur-3xl" />
 			<div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
 				<header className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-					<Badge className="w-fit rounded-full border border-black/10 bg-[color:var(--mk-copper-soft)]/70 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--mk-ink)] dark:border-white/10 dark:bg-[#2a1b12] dark:text-[#f0b78a]">
+					<Badge className="w-fit rounded-full border border-black/10 bg-[color:var(--accent-primary-light)]/70 px-3 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--text-primary)] dark:border-[color:var(--border-default)]/40 dark:bg-[var(--accent-primary-bg)] dark:text-[color:var(--accent-primary-light)]">
 						{t('badge')}
 					</Badge>
 					<div className="space-y-3">
-						<h1 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h1 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('title')}
 						</h1>
-						<p className="text-xs uppercase tracking-[0.3em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="text-xs uppercase tracking-[0.3em] text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('lastUpdatedLabel')} {t('lastUpdatedDate')}
 						</p>
-						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('intro')}
 						</p>
 					</div>
@@ -190,39 +190,39 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 
 				<div className="space-y-6">
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.responsible.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.responsible.description')}
 						</p>
 						<ul className="mt-4 space-y-2">{responsibleItems.map(renderPolicyItem)}</ul>
-						<p className="mt-4 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-4 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.responsible.note')}
 						</p>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.scope.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.scope.description')}
 						</p>
 						<ul className="mt-4 space-y-2">{scopeItems.map(renderPolicyItem)}</ul>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.data.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.data.description')}
 						</p>
 
 						<div className="mt-5 space-y-4">
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.data.account.title')}
 								</h3>
 								<ul className="mt-3 space-y-2">
@@ -231,7 +231,7 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.data.operational.title')}
 								</h3>
 								<ul className="mt-3 space-y-2">
@@ -240,22 +240,22 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.data.biometric.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.data.biometric.description')}
 								</p>
 								<ul className="mt-3 space-y-2">
 									{biometricItems.map(renderPolicyItem)}
 								</ul>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.data.biometric.note')}
 								</p>
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.data.technical.title')}
 								</h3>
 								<ul className="mt-3 space-y-2">
@@ -266,13 +266,13 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.purposes.title')}
 						</h2>
 
 						<div className="mt-4 space-y-4">
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.purposes.primary.title')}
 								</h3>
 								<ul className="mt-3 space-y-2">
@@ -281,16 +281,16 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.purposes.consent.title')}
 								</h3>
 								<ul className="mt-3 space-y-2">
 									{consentPurposeItems.map(renderPolicyItem)}
 								</ul>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.purposes.consent.notice')}
 								</p>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.purposes.consent.noMarketing')}
 								</p>
 							</div>
@@ -298,16 +298,16 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.consent.title')}
 						</h2>
 
 						<div className="mt-4 space-y-4">
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.consent.express.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.consent.express.description')}
 								</p>
 								<ul className="mt-3 space-y-2">
@@ -316,22 +316,22 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.consent.revocation.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.consent.revocation.description')}
 								</p>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.consent.revocation.note')}
 								</p>
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.consent.opposition.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.consent.opposition.description')}
 								</p>
 							</div>
@@ -339,30 +339,30 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.camera.title')}
 						</h2>
 						<div className="mt-4 space-y-4">
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.camera.mobile.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.camera.mobile.description')}
 								</p>
 								<ul className="mt-3 space-y-2">
 									{cameraMobileItems.map(renderPolicyItem)}
 								</ul>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.camera.mobile.note')}
 								</p>
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.camera.web.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.camera.web.description')}
 								</p>
 							</div>
@@ -370,47 +370,47 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.retention.title')}
 						</h2>
 						<ul className="mt-4 space-y-2">{retentionItems.map(renderPolicyItem)}</ul>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.transfers.title')}
 						</h2>
 
 						<div className="mt-4 space-y-4">
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.transfers.processors.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.transfers.processors.description')}
 								</p>
 								<ul className="mt-3 space-y-2">
 									{processorItems.map(renderPolicyItem)}
 								</ul>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.transfers.processors.note')}
 								</p>
 							</div>
 
 							<div>
-								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+								<h3 className="font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 									{t('sections.transfers.thirdParties.title')}
 								</h3>
-								<p className="mt-2 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-2 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.transfers.thirdParties.description')}
 								</p>
 								<ul className="mt-3 space-y-2">
 									{thirdPartyItems.map(renderPolicyItem)}
 								</ul>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.transfers.thirdParties.consentNotice')}
 								</p>
-								<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+								<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 									{t('sections.transfers.thirdParties.noSelling')}
 								</p>
 							</div>
@@ -418,66 +418,66 @@ export default async function PrivacyPolicyPage(): Promise<React.ReactElement> {
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.security.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.security.description')}
 						</p>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.security.confidentiality')}
 						</p>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.security.breachNotice')}
 						</p>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.arco.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.arco.description')}
 						</p>
 						<ul className="mt-4 space-y-2">{arcoContactItems.map(renderPolicyItem)}</ul>
-						<h3 className="mt-5 font-[var(--font-display)] text-base font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h3 className="mt-5 font-[var(--font-display)] text-base font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.arco.requirements.title')}
 						</h3>
 						<ul className="mt-3 space-y-2">
 							{arcoRequirementItems.map(renderPolicyItem)}
 						</ul>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.arco.timeline')}
 						</p>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.arco.biometricsNote')}
 						</p>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.limitation.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.limitation.description')}
 						</p>
 						<ul className="mt-4 space-y-2">{limitationItems.map(renderPolicyItem)}</ul>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.changes.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.changes.description')}
 						</p>
 					</section>
 
 					<section className={sectionClassName}>
-						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<h2 className="font-[var(--font-display)] text-lg font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{t('sections.minors.title')}
 						</h2>
-						<p className="mt-3 text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="mt-3 text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{t('sections.minors.description')}
 						</p>
 					</section>

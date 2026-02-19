@@ -1,22 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import React, { type CSSProperties, type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import { getTranslations } from 'next-intl/server';
 import { ThemeModeToggle } from '@/components/theme-mode-toggle';
 import { Button } from '@/components/ui/button';
-
-const marketingTheme = {
-	'--mk-ink': '#0e2226',
-	'--mk-ink-soft': '#29373b',
-	'--mk-cream': '#f8f1e7',
-	'--mk-paper': '#fdf7ee',
-	'--mk-copper': '#c8743d',
-	'--mk-copper-soft': '#f2d2b5',
-	'--mk-sea': '#1f6f6b',
-	'--mk-sea-soft': '#d7efe9',
-	'--mk-line': 'rgba(15, 25, 28, 0.12)',
-	'--mk-shadow': 'rgba(12, 24, 28, 0.2)',
-} as CSSProperties;
 
 /**
  * Props for the MarketingLayout component.
@@ -55,24 +42,21 @@ export default async function MarketingLayout({
 	const currentYear = new Date().getFullYear();
 
 	return (
-		<div
-			style={marketingTheme}
-			className="relative flex min-h-screen flex-col overflow-hidden bg-[color:var(--mk-cream)] font-sans text-[color:var(--mk-ink)] dark:bg-[#0a1213] dark:text-[#f4efe7]"
-		>
-			<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1000px_circle_at_top_left,var(--mk-copper-soft)_0%,transparent_60%),radial-gradient(900px_circle_at_bottom_right,var(--mk-sea-soft)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
+		<div className="relative flex min-h-screen flex-col overflow-hidden bg-[color:var(--bg-primary)] font-sans text-[color:var(--text-primary)]">
+			<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(1000px_circle_at_top_left,var(--accent-primary-light)_0%,transparent_60%),radial-gradient(900px_circle_at_bottom_right,var(--accent-secondary-light)_0%,transparent_55%)] opacity-70 dark:opacity-40" />
 			<div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(90deg,rgba(12,24,28,0.18)_1px,transparent_1px),linear-gradient(180deg,rgba(12,24,28,0.18)_1px,transparent_1px)] [background-size:140px_140px] dark:opacity-[0.12]" />
 
-			<header className="relative z-20 border-b border-black/10 bg-[color:var(--mk-cream)]/80 backdrop-blur-lg dark:border-white/10 dark:bg-[#0a1213]/80">
+			<header className="relative z-20 border-b border-black/10 bg-[color:var(--bg-primary)]/80 backdrop-blur-lg dark:border-[color:var(--border-default)]/40 dark:bg-[color:var(--bg-primary)]/80">
 				<div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
 					<Link href="/" className="flex items-center gap-4">
-						<span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--mk-ink)] text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--mk-cream)] shadow-[0_12px_30px_-18px_rgba(12,24,28,0.8)] dark:bg-[#f4efe7] dark:text-[#0a1213]">
+						<span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--text-primary)] text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--bg-primary)] shadow-[0_12px_30px_-18px_rgba(12,24,28,0.8)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)]">
 							{tApp('shortName')}
 						</span>
 						<div className="leading-tight">
-							<p className="text-sm font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+							<p className="text-sm font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 								{tApp('name')}
 							</p>
-							<p className="text-xs uppercase tracking-[0.28em] text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+							<p className="text-xs uppercase tracking-[0.28em] text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 								{tLanding('header.tagline')}
 							</p>
 						</div>
@@ -80,7 +64,7 @@ export default async function MarketingLayout({
 					<div className="flex items-center gap-2 sm:gap-3">
 						<Link
 							href="/privacidad"
-							className="hidden text-xs uppercase tracking-[0.3em] text-[color:var(--mk-ink-soft)] transition hover:text-[color:var(--mk-ink)] sm:inline-flex dark:text-[#cdd6cf] dark:hover:text-white"
+							className="hidden text-xs uppercase tracking-[0.3em] text-[color:var(--text-tertiary)] transition hover:text-[color:var(--text-primary)] sm:inline-flex dark:text-[color:var(--text-tertiary)] dark:hover:text-white"
 						>
 							{tLanding('nav.privacy')}
 						</Link>
@@ -88,13 +72,13 @@ export default async function MarketingLayout({
 						<Button
 							asChild
 							variant="outline"
-							className="rounded-full border-black/20 bg-transparent text-[color:var(--mk-ink)] hover:bg-black/5 dark:border-white/20 dark:text-[#f4efe7] dark:hover:bg-white/10"
+							className="rounded-full border-black/20 bg-transparent text-[color:var(--text-primary)] hover:bg-black/5 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
 						>
 							<Link href="/registrate">{tLanding('nav.signUp')}</Link>
 						</Button>
 						<Button
 							asChild
-							className="rounded-full bg-[color:var(--mk-ink)] text-[color:var(--mk-cream)] shadow-[0_16px_35px_-20px_rgba(12,24,28,0.8)] hover:bg-[#0b1b1d] dark:bg-[#f4efe7] dark:text-[#0a1213] dark:hover:bg-white"
+							className="rounded-full bg-[color:var(--text-primary)] text-[color:var(--bg-primary)] shadow-[0_16px_35px_-20px_rgba(12,24,28,0.8)] hover:bg-[color:var(--bg-inverse)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
 						>
 							<Link href="/login">{tLanding('nav.login')}</Link>
 						</Button>
@@ -104,29 +88,29 @@ export default async function MarketingLayout({
 
 			<main className="relative z-10 flex-1">{children}</main>
 
-			<footer className="relative z-10 border-t border-black/10 bg-[color:var(--mk-cream)]/70 py-10 dark:border-white/10 dark:bg-[#0a1213]/70">
+			<footer className="relative z-10 border-t border-black/10 bg-[color:var(--bg-primary)]/70 py-10 dark:border-[color:var(--border-default)]/40 dark:bg-[color:var(--bg-primary)]/70">
 				<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 sm:flex-row sm:items-center sm:justify-between">
 					<div className="space-y-2">
-						<p className="text-sm font-semibold text-[color:var(--mk-ink)] dark:text-[#f4efe7]">
+						<p className="text-sm font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 							{tApp('name')}
 						</p>
-						<p className="text-sm text-[color:var(--mk-ink-soft)] dark:text-[#cdd6cf]">
+						<p className="text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 							{tLanding('footer.tagline')}
 						</p>
-						<p className="text-xs text-[color:var(--mk-ink-soft)] dark:text-[#aeb8b2]">
+						<p className="text-xs text-[color:var(--text-tertiary)] dark:text-[color:var(--text-muted)]">
 							{tLanding('footer.copyright', { year: currentYear })}
 						</p>
 					</div>
 					<div className="flex flex-wrap items-center gap-4 text-xs uppercase tracking-[0.3em]">
 						<Link
 							href="/privacidad"
-							className="text-[color:var(--mk-ink-soft)] transition hover:text-[color:var(--mk-ink)] dark:text-[#cdd6cf] dark:hover:text-white"
+							className="text-[color:var(--text-tertiary)] transition hover:text-[color:var(--text-primary)] dark:text-[color:var(--text-tertiary)] dark:hover:text-white"
 						>
 							{tLanding('footer.links.privacy')}
 						</Link>
 						<Link
 							href="/login"
-							className="text-[color:var(--mk-ink-soft)] transition hover:text-[color:var(--mk-ink)] dark:text-[#cdd6cf] dark:hover:text-white"
+							className="text-[color:var(--text-tertiary)] transition hover:text-[color:var(--text-primary)] dark:text-[color:var(--text-tertiary)] dark:hover:text-white"
 						>
 							{tLanding('footer.links.login')}
 						</Link>

@@ -12,6 +12,7 @@ import type {
 	StyleSpecification,
 } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { michoacanTokens } from '@sen-checkin/design-tokens';
 import { useTheme } from 'next-themes';
 import { useTranslations } from 'next-intl';
 import {
@@ -74,6 +75,12 @@ const defaultStyles = {
 	dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
 	light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
 };
+const tokenFallbacks = {
+	accentPrimary: michoacanTokens.light.colors.accent.primary,
+	accentSecondary: michoacanTokens.light.colors.accent.secondary,
+	accentTertiary: michoacanTokens.light.colors.accent.tertiary,
+	textOnAccent: michoacanTokens.light.colors.text.onAccent,
+};
 
 /**
  * Resolves a CSS variable into a concrete color string for MapLibre paint properties.
@@ -87,7 +94,9 @@ function resolveCssColor(variableName: string, fallback: string): string {
 		return fallback;
 	}
 
-	const resolved = getComputedStyle(document.documentElement).getPropertyValue(variableName).trim();
+	const resolved = getComputedStyle(document.documentElement)
+		.getPropertyValue(variableName)
+		.trim();
 	return resolved || fallback;
 }
 
@@ -1068,13 +1077,10 @@ function MapRoute({
 	const autoId = useId();
 	const sourceId = id ?? `route-source-${autoId}`;
 	const layerId = id ?? `route-layer-${autoId}`;
-	const routeColor = useMemo(
-		() => {
-			void resolvedTheme;
-			return color ?? resolveCssColor('--accent-primary', '#B8602A');
-		},
-		[color, resolvedTheme],
-	);
+	const routeColor = useMemo(() => {
+		void resolvedTheme;
+		return color ?? resolveCssColor('--accent-primary', tokenFallbacks.accentPrimary);
+	}, [color, resolvedTheme]);
 
 	// Add source and layer on mount
 	useEffect(() => {
@@ -1214,33 +1220,24 @@ function MapClusterLayer<P extends GeoJSON.GeoJsonProperties = GeoJSON.GeoJsonPr
 	const clusterLayerId = `clusters-${id}`;
 	const clusterCountLayerId = `cluster-count-${id}`;
 	const unclusteredLayerId = `unclustered-point-${id}`;
-	const effectiveClusterColors = useMemo<[string, string, string]>(
-		() => {
-			void resolvedTheme;
-			return (
-				clusterColors ?? [
-					resolveCssColor('--accent-secondary', '#4A7C3F'),
-					resolveCssColor('--accent-primary', '#B8602A'),
-					resolveCssColor('--accent-tertiary', '#8B2252'),
-				]
-			);
-		},
-		[clusterColors, resolvedTheme],
-	);
-	const effectivePointColor = useMemo(
-		() => {
-			void resolvedTheme;
-			return pointColor ?? resolveCssColor('--accent-primary', '#B8602A');
-		},
-		[pointColor, resolvedTheme],
-	);
-	const clusterTextColor = useMemo(
-		() => {
-			void resolvedTheme;
-			return resolveCssColor('--text-on-accent', '#FFFFFF');
-		},
-		[resolvedTheme],
-	);
+	const effectiveClusterColors = useMemo<[string, string, string]>(() => {
+		void resolvedTheme;
+		return (
+			clusterColors ?? [
+				resolveCssColor('--accent-secondary', tokenFallbacks.accentSecondary),
+				resolveCssColor('--accent-primary', tokenFallbacks.accentPrimary),
+				resolveCssColor('--accent-tertiary', tokenFallbacks.accentTertiary),
+			]
+		);
+	}, [clusterColors, resolvedTheme]);
+	const effectivePointColor = useMemo(() => {
+		void resolvedTheme;
+		return pointColor ?? resolveCssColor('--accent-primary', tokenFallbacks.accentPrimary);
+	}, [pointColor, resolvedTheme]);
+	const clusterTextColor = useMemo(() => {
+		void resolvedTheme;
+		return resolveCssColor('--text-on-accent', tokenFallbacks.textOnAccent);
+	}, [resolvedTheme]);
 
 	const stylePropsRef = useRef({
 		clusterColors: effectiveClusterColors,

@@ -8,6 +8,7 @@ import {
 	getAccessTokenExpiresAt,
 	primeAuthStorage,
 	refreshSession,
+	updateAccessTokenExpiry,
 	useSession,
 } from '@/lib/auth-client';
 
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 	const [localSession, setLocalSession] = useState<SessionData>(null);
 	const [authState, setAuthState] = useState<AuthState>('ok');
 	const [lockReason, setLockReason] = useState<LockReason | null>(null);
+	const [recoveryPending, setRecoveryPending] = useState(false);
 	const graceStartedAtRef = useRef<number | null>(null);
 	const keepaliveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 	const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 	const hasSessionRef = useRef<boolean>(false);
 	const storageReadyRef = useRef<boolean>(false);
 	const sessionPendingRef = useRef<boolean>(true);
+	const storageRecoveryAttemptedRef = useRef<boolean>(false);
 
 	useEffect(() => {
 		primeAuthStorage().finally(() => setStorageReady(true));
@@ -179,6 +182,26 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 						return false;
 					}
 
+					const sessionExpiresAt = (result.data?.session as { expiresAt?: unknown })
+						?.expiresAt;
+					if (sessionExpiresAt != null) {
+						let nextExpiresAt: number | null = null;
+						if (typeof sessionExpiresAt === 'number') {
+							nextExpiresAt = sessionExpiresAt;
+						} else if (sessionExpiresAt instanceof Date) {
+							nextExpiresAt = sessionExpiresAt.getTime();
+						} else if (typeof sessionExpiresAt === 'string') {
+							const parsedExpiresAt = Date.parse(sessionExpiresAt);
+							nextExpiresAt = Number.isFinite(parsedExpiresAt)
+								? parsedExpiresAt
+								: null;
+						}
+
+						if (typeof nextExpiresAt === 'number' && Number.isFinite(nextExpiresAt)) {
+							updateAccessTokenExpiry(nextExpiresAt);
+						}
+					}
+
 					if (authStateRef.current === 'locked' && source === 'keepalive') {
 						console.warn('[AuthProvider] Refresh succeeded but session is locked', {
 							source,
@@ -211,6 +234,28 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 		},
 		[handleRefreshFailure, session.data],
 	);
+
+	useEffect(() => {
+		if (!storageReady || storageRecoveryAttemptedRef.current) {
+			return;
+		}
+
+		storageRecoveryAttemptedRef.current = true;
+		const resolvedSession = localSession ?? session.data;
+		const hasActiveSession = Boolean(
+			(resolvedSession as { session?: unknown } | null | undefined)?.session ??
+				resolvedSession,
+		);
+		const hasStoredToken = Boolean(getAccessToken());
+
+		if (hasStoredToken && !hasActiveSession) {
+			console.log('[AuthProvider] Attempting session recovery after storage priming');
+			setRecoveryPending(true);
+			void attemptRefresh('manual').finally(() => {
+				setRecoveryPending(false);
+			});
+		}
+	}, [attemptRefresh, localSession, session.data, storageReady]);
 
 	/**
 	 * Force a refetch of the session state.
@@ -277,7 +322,10 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 		const shouldKeepalive = () => {
 			const state = authStateRef.current;
 			const canRefresh =
-				hasSessionRef.current || state === 'grace' || state === 'refreshing';
+				hasSessionRef.current ||
+				state === 'grace' ||
+				state === 'refreshing' ||
+				(storageReadyRef.current && Boolean(getAccessToken()));
 			return (
 				storageReadyRef.current &&
 				!sessionPendingRef.current &&
@@ -329,7 +377,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 	const value = useMemo<AuthContextValue>(
 		() => ({
 			session: effectiveSession,
-			isLoading: !storageReady || session.isPending,
+			isLoading: !storageReady || session.isPending || recoveryPending,
 			authState,
 			lockReason,
 			refetch,
@@ -343,6 +391,7 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 			requestReauth,
 			session.isPending,
 			storageReady,
+			recoveryPending,
 			refetch,
 			setSession,
 		],

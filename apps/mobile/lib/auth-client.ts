@@ -164,6 +164,30 @@ export async function saveAccessToken(
 }
 
 /**
+ * Update the stored access token expiry timestamp.
+ * Keeps the in-memory cache and SecureStore value in sync.
+ *
+ * @param expiresAt - Expiration timestamp in ms (or seconds) since epoch
+ * @returns Nothing
+ */
+export function updateAccessTokenExpiry(expiresAt: number): void {
+	const normalizedExpiresAt =
+		expiresAt < 1_000_000_000_000 ? expiresAt * 1000 : expiresAt;
+
+	if (!Number.isFinite(normalizedExpiresAt) || normalizedExpiresAt <= 0) {
+		return;
+	}
+
+	cachedAccessTokenExpiresAt = normalizedExpiresAt;
+	void SecureStore.setItemAsync(
+		ACCESS_TOKEN_EXPIRES_AT_KEY,
+		String(normalizedExpiresAt),
+	).catch((error) => {
+		console.warn('[auth-client] Failed to persist access token expiry:', error);
+	});
+}
+
+/**
  * Retrieve the cached access token for API requests.
  * Returns the in-memory cached value for performance.
  *

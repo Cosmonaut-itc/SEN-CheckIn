@@ -203,13 +203,27 @@ function parseDateKey(dateKey: string): Date | undefined {
  * Validates and normalizes an optional date-key value.
  *
  * @param value - Candidate date key
- * @returns Normalized date key or null when invalid
+ * @returns Parsed date or null when invalid
  */
-function normalizeDateKey(value: string | undefined): string | null {
+function normalizeDateKey(value: string | undefined): Date | null {
 	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
 		return null;
 	}
-	return parseDateKey(value) ? value : null;
+	return parseDateKey(value) ?? null;
+}
+
+/**
+ * Validates and normalizes an optional date-key value as string.
+ *
+ * @param value - Candidate date key
+ * @returns Normalized date key string or null when invalid
+ */
+function normalizeDateKeyString(value: string | undefined): string | null {
+	const parsed = normalizeDateKey(value);
+	if (!parsed) {
+		return null;
+	}
+	return format(parsed, 'yyyy-MM-dd');
 }
 
 /**
@@ -321,9 +335,9 @@ export function AttendancePageClient({
 	const searchParams = useSearchParams();
 	const t = useTranslations('Attendance');
 	const initialStartDateKey =
-		normalizeDateKey(initialFilters?.from) ?? format(startOfDay(new Date()), 'yyyy-MM-dd');
+		normalizeDateKeyString(initialFilters?.from) ?? format(startOfDay(new Date()), 'yyyy-MM-dd');
 	const initialEndDateKey =
-		normalizeDateKey(initialFilters?.to) ?? format(endOfDay(new Date()), 'yyyy-MM-dd');
+		normalizeDateKeyString(initialFilters?.to) ?? format(endOfDay(new Date()), 'yyyy-MM-dd');
 	const initialDatePreset: DatePreset =
 		initialFilters?.from || initialFilters?.to ? 'custom' : 'today';
 	const initialEmployeeFilter = initialFilters?.employeeId?.trim() ?? '';
@@ -404,8 +418,8 @@ export function AttendancePageClient({
 		[resetPagination],
 	);
 
-	const startDateValue = useMemo(() => parseDateKey(startDate), [startDate]);
-	const endDateValue = useMemo(() => parseDateKey(endDate), [endDate]);
+	const startDateValue = useMemo(() => normalizeDateKey(startDate) ?? undefined, [startDate]);
+	const endDateValue = useMemo(() => normalizeDateKey(endDate) ?? undefined, [endDate]);
 
 	/**
 	 * Computes date range based on preset selection.
@@ -440,18 +454,19 @@ export function AttendancePageClient({
 				default:
 					if (deepLinkTimeZone) {
 						const fallbackDateKey = toDateKeyInTimeZone(now, deepLinkTimeZone);
-						const startKey = normalizeDateKey(startDate) ?? fallbackDateKey;
-						const endKey = normalizeDateKey(endDate) ?? fallbackDateKey;
+						const startKey = normalizeDateKeyString(startDate) ?? fallbackDateKey;
+						const endKey = normalizeDateKeyString(endDate) ?? fallbackDateKey;
 						start = getUtcDayRangeFromDateKey(startKey, deepLinkTimeZone).startUtc;
 						end = getUtcDayRangeFromDateKey(endKey, deepLinkTimeZone).endUtc;
 						break;
 					}
 
 					// Ensure we always have valid dates even if inputs are empty.
-					const startValue = startDate ? new Date(startDate) : now;
-					const endValue = endDate ? new Date(endDate) : now;
-					start = startOfDay(startValue);
-					end = endOfDay(endValue);
+					const parsedStartDate = normalizeDateKey(startDate) ?? undefined;
+					const parsedEndDate = normalizeDateKey(endDate) ?? undefined;
+
+					start = startOfDay(parsedStartDate ?? now);
+					end = endOfDay(parsedEndDate ?? now);
 					break;
 			}
 

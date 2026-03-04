@@ -448,10 +448,15 @@ export function AttendancePageClient({
 					}
 
 					// Ensure we always have valid dates even if inputs are empty.
-					const startValue = startDate ? new Date(startDate) : now;
-					const endValue = endDate ? new Date(endDate) : now;
-					start = startOfDay(startValue);
-					end = endOfDay(endValue);
+					const parsedStartDate = normalizeDateKey(startDate)
+						? parseDateKey(startDate)
+						: undefined;
+					const parsedEndDate = normalizeDateKey(endDate)
+						? parseDateKey(endDate)
+						: undefined;
+
+					start = startOfDay(parsedStartDate ?? now);
+					end = endOfDay(parsedEndDate ?? now);
 					break;
 			}
 

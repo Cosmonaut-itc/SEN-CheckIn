@@ -3,7 +3,7 @@ import { headers } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { NextResponse } from 'next/server';
 
-import { getAdminAccessContext } from '@/lib/organization-context';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
 import { buildPtuReceiptPdf } from '@/lib/payroll-receipts/build-ptu-receipt-pdf';
 import {
 	buildPtuReceiptFileName,
@@ -132,16 +132,12 @@ export async function GET(
 	_request: Request,
 	context: { params: RouteParams | Promise<RouteParams> },
 ): Promise<NextResponse> {
-	const [adminContext, cookieHeader, resolvedParams, t] = await Promise.all([
-		getAdminAccessContext(),
+	const [organizationContext, cookieHeader, resolvedParams, t] = await Promise.all([
+		getActiveOrganizationContext(),
 		resolveCookieHeader(),
 		context.params,
 		getTranslations('Ptu.receiptPdf'),
 	]);
-
-	if (!adminContext.canAccessAdminRoutes) {
-		return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
-	}
 
 	const { runId } = resolvedParams;
 	const detail = await fetchPtuRunDetailServer(cookieHeader, runId);
@@ -161,7 +157,7 @@ export async function GET(
 	const zipBytes = await buildPtuReceiptsZip({
 		run: detail.run,
 		employees: detail.employees,
-		organizationName: adminContext.organization?.organizationName ?? undefined,
+		organizationName: organizationContext.organizationName ?? undefined,
 		t,
 	});
 

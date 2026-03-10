@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { NextResponse } from 'next/server';
 
-import { getAdminAccessContext } from '@/lib/organization-context';
+import { getActiveOrganizationContext } from '@/lib/organization-context';
 import { buildAguinaldoReceiptPdf } from '@/lib/payroll-receipts/build-aguinaldo-receipt-pdf';
 import { buildAguinaldoReceiptFileName } from '@/lib/payroll-receipts/receipt-file-names';
 import { fetchAguinaldoRunDetailServer } from '@/lib/server-client-functions';
@@ -55,16 +55,12 @@ export async function GET(
 	_request: Request,
 	context: { params: RouteParams | Promise<RouteParams> },
 ): Promise<NextResponse> {
-	const [adminContext, cookieHeader, resolvedParams, t] = await Promise.all([
-		getAdminAccessContext(),
+	const [organizationContext, cookieHeader, resolvedParams, t] = await Promise.all([
+		getActiveOrganizationContext(),
 		resolveCookieHeader(),
 		context.params,
 		getTranslations('Aguinaldo.receiptPdf'),
 	]);
-
-	if (!adminContext.canAccessAdminRoutes) {
-		return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
-	}
 
 	const { runId, employeeId } = resolvedParams;
 	const detail = await fetchAguinaldoRunDetailServer(cookieHeader, runId);
@@ -85,7 +81,7 @@ export async function GET(
 	const pdfBytes = await buildAguinaldoReceiptPdf({
 		run: detail.run,
 		employee,
-		organizationName: adminContext.organization?.organizationName ?? undefined,
+		organizationName: organizationContext.organizationName ?? undefined,
 		t,
 	});
 

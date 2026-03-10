@@ -2,7 +2,6 @@ import { headers } from 'next/headers';
 import { getTranslations } from 'next-intl/server';
 import { NextResponse } from 'next/server';
 
-import { getAdminAccessContext } from '@/lib/organization-context';
 import { buildPayrollReceiptPdf } from '@/lib/payroll-receipts/build-payroll-receipt-pdf';
 import { buildPayrollReceiptFileName } from '@/lib/payroll-receipts/receipt-file-names';
 import { fetchPayrollRunDetailServer } from '@/lib/server-client-functions';
@@ -55,16 +54,11 @@ export async function GET(
 	_request: Request,
 	context: { params: RouteParams | Promise<RouteParams> },
 ): Promise<NextResponse> {
-	const [adminContext, cookieHeader, resolvedParams, t] = await Promise.all([
-		getAdminAccessContext(),
+	const [cookieHeader, resolvedParams, t] = await Promise.all([
 		resolveCookieHeader(),
 		context.params,
 		getTranslations('Payroll.receiptPdf'),
 	]);
-
-	if (!adminContext.canAccessAdminRoutes) {
-		return NextResponse.json({ error: 'FORBIDDEN' }, { status: 403 });
-	}
 
 	const { runId, employeeId } = resolvedParams;
 	const detail = await fetchPayrollRunDetailServer(cookieHeader, runId);

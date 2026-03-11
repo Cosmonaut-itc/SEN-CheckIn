@@ -10,6 +10,7 @@ import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
+	type OvertimeAuthorizationRow,
 	type PayrollEmployeeRow,
 	type ScheduleRow,
 } from './payroll-calculation.js';
@@ -523,6 +524,75 @@ describe('payroll-calculation', () => {
 			authorizationWarnings.find((warning) => warning.type === 'OVERTIME_NOT_AUTHORIZED')
 				?.message,
 		).toContain('2025-01-07, 2025-01-08');
+	});
+
+	it('indexes overtime authorizations once before iterating employees', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-06';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		let employeeIdReads = 0;
+		const overtimeAuthorizations: OvertimeAuthorizationRow[] = [
+			{
+				get employeeId(): string {
+					employeeIdReads += 1;
+					return employeeId;
+				},
+				dateKey: periodStartDateKey,
+				authorizedHours: 1,
+				status: 'ACTIVE',
+			},
+			{
+				get employeeId(): string {
+					employeeIdReads += 1;
+					return 'emp-test-2';
+				},
+				dateKey: periodStartDateKey,
+				authorizedHours: 1,
+				status: 'ACTIVE',
+			},
+			{
+				get employeeId(): string {
+					employeeIdReads += 1;
+					return 'emp-test-3';
+				},
+				dateKey: periodStartDateKey,
+				authorizedHours: 1,
+				status: 'ACTIVE',
+			},
+		];
+
+		const employees: PayrollEmployeeRow[] = [
+			defaultEmployee,
+			{
+				...defaultEmployee,
+				id: 'emp-test-2',
+				firstName: 'Grace',
+				lastName: 'Hopper',
+			},
+			{
+				...defaultEmployee,
+				id: 'emp-test-3',
+				firstName: 'Linus',
+				lastName: 'Torvalds',
+			},
+		];
+
+		calculatePayrollFromData({
+			...baseArgs,
+			employees,
+			attendanceRows: [],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations,
+		});
+
+		expect(employeeIdReads).toBe(overtimeAuthorizations.length);
 	});
 
 	it('allocates authorized overtime into weekly double and triple buckets chronologically', () => {

@@ -459,6 +459,26 @@ export function calculatePayrollFromData(
 		attendanceByEmployeeId.set(row.employeeId, current);
 	}
 
+	const overtimeAuthorizationMinutesByEmployeeId = new Map<string, Map<string, number>>();
+	for (const authorization of args.overtimeAuthorizations ?? []) {
+		if (
+			authorization.status !== 'ACTIVE' ||
+			authorization.dateKey < periodStartDateKey ||
+			authorization.dateKey > periodEndDateKey
+		) {
+			continue;
+		}
+
+		const employeeId = authorization.employeeId;
+		const current =
+			overtimeAuthorizationMinutesByEmployeeId.get(employeeId) ?? new Map<string, number>();
+		current.set(
+			authorization.dateKey,
+			Math.max(0, Number(authorization.authorizedHours ?? 0) * 60),
+		);
+		overtimeAuthorizationMinutesByEmployeeId.set(employeeId, current);
+	}
+
 	const additionalMandatoryRestDaySet = new Set<string>(additionalMandatoryRestDays);
 	const mandatoryRestDayCache = new Map<number, Set<string>>();
 
@@ -628,20 +648,8 @@ export function calculatePayrollFromData(
 			0,
 		);
 		const hoursWorked = workedMinutesTotal / 60;
-		const overtimeAuthorizationMinutesByDate = new Map<string, number>(
-			(args.overtimeAuthorizations ?? [])
-				.filter(
-					(authorization) =>
-						authorization.employeeId === emp.id &&
-						authorization.status === 'ACTIVE' &&
-						authorization.dateKey >= periodStartDateKey &&
-						authorization.dateKey <= periodEndDateKey,
-				)
-				.map((authorization) => [
-					authorization.dateKey,
-					Math.max(0, Number(authorization.authorizedHours ?? 0) * 60),
-				]),
-		);
+		const overtimeAuthorizationMinutesByDate =
+			overtimeAuthorizationMinutesByEmployeeId.get(emp.id) ?? new Map<string, number>();
 
 		type WeeklyOvertimeBucket = {
 			normalMinutes: number;

@@ -251,6 +251,8 @@ const calculatePayroll = async (args: {
 		});
 	}
 
+	// Intentionally unbounded: this fetch is already constrained by organization,
+	// the employeeIds participating in the run, ACTIVE status, and the payroll period.
 	const overtimeAuthorizationRows: OvertimeAuthorizationRow[] =
 		employeeIds.length === 0
 			? []

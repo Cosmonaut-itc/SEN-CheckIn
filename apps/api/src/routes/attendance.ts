@@ -388,6 +388,7 @@ async function getAttendanceRecordById(id: string): Promise<{
 	deviceLocationName: string | null;
 	timestamp: Date;
 	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	checkOutReason: 'REGULAR' | 'LUNCH_BREAK' | 'PERSONAL' | null;
 	offsiteDateKey: string | null;
 	offsiteDayKind: 'LABORABLE' | 'NO_LABORABLE' | null;
 	offsiteReason: string | null;
@@ -410,6 +411,7 @@ async function getAttendanceRecordById(id: string): Promise<{
 			deviceLocationName: location.name,
 			timestamp: attendanceRecord.timestamp,
 			type: attendanceRecord.type,
+			checkOutReason: attendanceRecord.checkOutReason,
 			offsiteDateKey: attendanceRecord.offsiteDateKey,
 			offsiteDayKind: attendanceRecord.offsiteDayKind,
 			offsiteReason: attendanceRecord.offsiteReason,
@@ -527,6 +529,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					deviceLocationName: location.name,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
+					checkOutReason: attendanceRecord.checkOutReason,
 					offsiteDateKey: attendanceRecord.offsiteDateKey,
 					offsiteDayKind: attendanceRecord.offsiteDayKind,
 					offsiteReason: attendanceRecord.offsiteReason,
@@ -637,6 +640,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					deviceLocationName: location.name,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
+					checkOutReason: attendanceRecord.checkOutReason,
 					offsiteDateKey: attendanceRecord.offsiteDateKey,
 					offsiteDayKind: attendanceRecord.offsiteDayKind,
 					offsiteReason: attendanceRecord.offsiteReason,
@@ -1145,6 +1149,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				deviceId,
 				timestamp,
 				type,
+				checkOutReason,
 				metadata,
 				offsiteDateKey,
 				offsiteDayKind,
@@ -1409,6 +1414,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				deviceId: deviceId,
 				timestamp: eventTimestamp,
 				type,
+				checkOutReason: checkOutReason ?? null,
 				metadata: metadata ?? null,
 			};
 

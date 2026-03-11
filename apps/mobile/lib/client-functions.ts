@@ -7,6 +7,7 @@
 
 import type {
 	AttendanceRecord,
+	CheckOutReason,
 	AttendanceType,
 	Device,
 	FaceEnrollmentResult,
@@ -923,6 +924,8 @@ export interface CreateAttendanceInput {
 	type: AttendanceType;
 	/** Additional metadata (optional) */
 	metadata?: Record<string, unknown>;
+	/** Check-out reason for check-out style attendance events */
+	checkOutReason?: CheckOutReason;
 	/** Timestamp of the attendance event (defaults to now) */
 	timestamp?: Date;
 }
@@ -943,6 +946,7 @@ export async function createAttendanceRecord(
 		employeeId: input.employeeId,
 		deviceId: input.deviceId,
 		type: input.type,
+		checkOutReason: input.checkOutReason,
 		metadata: input.metadata,
 		timestamp,
 	});

@@ -1,4 +1,4 @@
-import type { RecognitionResult } from '@sen-checkin/types';
+import type { CheckOutReason, RecognitionResult } from '@sen-checkin/types';
 
 import { createAttendanceRecord } from './client-functions';
 import type { AttendanceType } from './query-keys';
@@ -27,11 +27,13 @@ export async function recordAttendance(
 	deviceId: string,
 	type: AttendanceType,
 	metadata?: Record<string, unknown>,
+	checkOutReason?: CheckOutReason,
 ) {
 	return createAttendanceRecord({
 		employeeId,
 		deviceId,
 		type,
 		metadata,
+		checkOutReason,
 	});
 }

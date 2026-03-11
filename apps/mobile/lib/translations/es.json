@@ -106,6 +106,24 @@
 			"faceNotRecognized": "Rostro no reconocido. Inténtalo de nuevo.",
 			"verificationFailed": "La verificación falló. Vuelve a intentar."
 		},
+		"checkOutReason": {
+			"title": "Motivo de salida",
+			"description": "Selecciona por qué vas a salir para registrar correctamente tu asistencia.",
+			"options": {
+				"lunchBreak": {
+					"label": "Comida",
+					"description": "Vas a salir a comer y luego regresarás."
+				},
+				"personal": {
+					"label": "Personal",
+					"description": "La salida es por un asunto personal o permiso breve."
+				},
+				"regular": {
+					"label": "Fin de jornada",
+					"description": "Terminaste tu turno y ya no regresarás hoy."
+				}
+			}
+		},
 		"success": {
 			"employeeFallback": "Empleado",
 			"checkedIn": "¡Entrada registrada!",

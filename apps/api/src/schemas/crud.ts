@@ -373,6 +373,11 @@ export const attendanceTypeEnum = z.enum([
 ]);
 
 /**
+ * Valid check-out reason values.
+ */
+export const checkOutReasonEnum = z.enum(['REGULAR', 'LUNCH_BREAK', 'PERSONAL']);
+
+/**
  * RH day kind values for manual offsite attendance.
  */
 export const offsiteDayKindEnum = z.enum(['LABORABLE', 'NO_LABORABLE']);
@@ -386,6 +391,7 @@ export const createAttendanceSchema = z
 		deviceId: z.string().uuid('Invalid device ID').optional(),
 		timestamp: z.coerce.date().optional(),
 		type: attendanceTypeEnum,
+		checkOutReason: checkOutReasonEnum.optional(),
 		metadata: z.record(z.unknown()).optional(),
 		offsiteDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key').optional(),
 		offsiteDayKind: offsiteDayKindEnum.optional(),
@@ -422,6 +428,18 @@ export const createAttendanceSchema = z
 				code: z.ZodIssueCode.custom,
 				path: ['deviceId'],
 				message: 'deviceId is required for check-in/check-out records',
+			});
+		}
+
+		if (
+			value.checkOutReason &&
+			value.type !== 'CHECK_OUT' &&
+			value.type !== 'CHECK_OUT_AUTHORIZED'
+		) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['checkOutReason'],
+				message: 'checkOutReason is only allowed for check-out records',
 			});
 		}
 	});

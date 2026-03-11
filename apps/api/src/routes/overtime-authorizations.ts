@@ -299,6 +299,7 @@ export const overtimeAuthorizationRoutes = new Elysia({
 						employeeName: null,
 						authorizedByName: null,
 					},
+					...(body.authorizedHours > 3 ? { warning: OVERTIME_LEGAL_WARNING } : {}),
 				};
 			}
 
@@ -519,11 +520,16 @@ export const overtimeAuthorizationRoutes = new Elysia({
 				.set(updatePayload)
 				.where(eq(overtimeAuthorization.id, existing.id))
 				.returning();
+			const updated = updatedRows[0];
+			if (!updated) {
+				set.status = 500;
+				return buildErrorResponse('Failed to update overtime authorization', 500);
+			}
 
 			return {
 				data: {
-					...updatedRows[0],
-					authorizedHours: Number(updatedRows[0]?.authorizedHours ?? 0),
+					...updated,
+					authorizedHours: Number(updated.authorizedHours ?? 0),
 				},
 			};
 		},
@@ -604,11 +610,16 @@ export const overtimeAuthorizationRoutes = new Elysia({
 				})
 				.where(eq(overtimeAuthorization.id, existing.id))
 				.returning();
+			const updated = updatedRows[0];
+			if (!updated) {
+				set.status = 500;
+				return buildErrorResponse('Failed to cancel overtime authorization', 500);
+			}
 
 			return {
 				data: {
-					...updatedRows[0],
-					authorizedHours: Number(updatedRows[0]?.authorizedHours ?? 0),
+					...updated,
+					authorizedHours: Number(updated.authorizedHours ?? 0),
 				},
 			};
 		},

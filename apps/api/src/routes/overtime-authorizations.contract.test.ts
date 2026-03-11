@@ -218,7 +218,7 @@ describe('overtime authorizations routes (contract)', () => {
 			1200 + (Math.floor(Date.now() / 1000) % 365),
 		);
 		const organizationRoute = requireRoute(
-			client.organizations[seed.organizationId]['overtime-authorizations'],
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
 			'Overtime authorization route',
 		);
 

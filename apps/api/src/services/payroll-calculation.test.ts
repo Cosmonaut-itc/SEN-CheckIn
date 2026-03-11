@@ -462,6 +462,86 @@ describe('payroll-calculation', () => {
 		expect(row?.warnings.some((w) => w.type === 'OVERTIME_EXCEEDED_AUTHORIZATION')).toBe(true);
 	});
 
+	it('allocates authorized overtime into weekly double and triple buckets chronologically', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-10';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-06', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-06', 18, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-07', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-07', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-08', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-08', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-09', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-09', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-10', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-10', 17, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: '2025-01-07',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-08',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-09',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-10',
+					authorizedHours: 1,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		expect(row?.overtimeDoubleHours).toBe(9);
+		expect(row?.overtimeTripleHours).toBe(3);
+		expect(row?.authorizedOvertimeHours).toBe(10);
+		expect(row?.unauthorizedOvertimeHours).toBe(2);
+		expect(row?.overtimeDoublePay).toBe(1400);
+		expect(row?.overtimeTriplePay).toBe(900);
+	});
+
 	it('does not emit a daily overtime warning at exactly 3 hours', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';

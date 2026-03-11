@@ -730,7 +730,9 @@ export function calculatePayrollFromData(
 			let remainingWeeklyNormalAllowance = shiftLimits.weeklyHours * 60;
 			let weekAdjustedNormalMinutes = 0;
 			let weekTotalOvertimeMinutes = 0;
-			let weekAuthorizedPaidMinutes = 0;
+			let weekProcessedOvertimeMinutes = 0;
+			let weekPayableDoubleMinutes = 0;
+			let weekPayableTripleMinutes = 0;
 
 			for (const dayKey of [...bucket.dayKeys].sort((a, b) => a.localeCompare(b))) {
 				const dayBucket = workdayMinutes.get(dayKey);
@@ -759,10 +761,23 @@ export function calculatePayrollFromData(
 					0,
 					dayTotalOvertimeMinutes - dayAuthorizedPaidMinutes,
 				);
+				const dayWeeklyDoubleRemaining = Math.max(
+					0,
+					OVERTIME_LIMITS.MAX_WEEKLY_HOURS * 60 - weekProcessedOvertimeMinutes,
+				);
+				const dayDoubleMinutes = Math.min(dayTotalOvertimeMinutes, dayWeeklyDoubleRemaining);
+				const dayTripleMinutes = Math.max(0, dayTotalOvertimeMinutes - dayDoubleMinutes);
+				const dayPayableDoubleMinutes = Math.min(dayDoubleMinutes, dayAuthorizedPaidMinutes);
+				const dayPayableTripleMinutes = Math.min(
+					dayTripleMinutes,
+					Math.max(0, dayAuthorizedPaidMinutes - dayDoubleMinutes),
+				);
 
 				weekAdjustedNormalMinutes += dayNormalMinutesWithinWeeklyLimit;
 				weekTotalOvertimeMinutes += dayTotalOvertimeMinutes;
-				weekAuthorizedPaidMinutes += dayAuthorizedPaidMinutes;
+				weekProcessedOvertimeMinutes += dayTotalOvertimeMinutes;
+				weekPayableDoubleMinutes += dayPayableDoubleMinutes;
+				weekPayableTripleMinutes += dayPayableTripleMinutes;
 				authorizedOvertimeMinutesTotal += dayAuthorizedPaidMinutes;
 				unauthorizedOvertimeMinutesTotal += dayUnauthorizedMinutes;
 
@@ -794,16 +809,11 @@ export function calculatePayrollFromData(
 				0,
 				weekTotalOvertimeMinutes - OVERTIME_LIMITS.MAX_WEEKLY_HOURS * 60,
 			);
-			const payableDoubleMinutes = Math.min(doubleMinutes, weekAuthorizedPaidMinutes);
-			const payableTripleMinutes = Math.min(
-				tripleMinutes,
-				Math.max(0, weekAuthorizedPaidMinutes - doubleMinutes),
-			);
 
 			overtimeDoubleHours += doubleMinutes / 60;
 			overtimeTripleHours += tripleMinutes / 60;
-			payableOvertimeDoubleHours += payableDoubleMinutes / 60;
-			payableOvertimeTripleHours += payableTripleMinutes / 60;
+			payableOvertimeDoubleHours += weekPayableDoubleMinutes / 60;
+			payableOvertimeTripleHours += weekPayableTripleMinutes / 60;
 
 			const overtimeDays = bucket.overtimeDayKeys.size;
 			if (overtimeDays > 3) {

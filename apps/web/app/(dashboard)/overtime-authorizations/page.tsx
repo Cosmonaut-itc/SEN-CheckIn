@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { redirect } from 'next/navigation';
 import React from 'react';
@@ -6,6 +7,7 @@ import { OvertimeAuthorizationsManager } from '@/components/overtime/overtime-au
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
+import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import { prefetchEmployeesList, prefetchOvertimeAuthorizationsList } from '@/lib/server-functions';
 
 export const dynamic = 'force-dynamic';
@@ -19,10 +21,16 @@ export default async function OvertimeAuthorizationsPage(): Promise<React.ReactE
 	const queryClient = getQueryClient();
 	const { organization, organizationRole, userRole, canAccessAdminRoutes } =
 		await getAdminAccessContext();
+	const requestHeaders = await headers();
+	const cookieHeader = requestHeaders.get('cookie') ?? '';
 
 	if (!canAccessAdminRoutes) {
 		redirect('/acceso-restringido');
 	}
+
+	const payrollSettings = organization.organizationId
+		? await fetchPayrollSettingsServer(cookieHeader, organization.organizationId)
+		: null;
 
 	if (organization.organizationId) {
 		prefetchEmployeesList(queryClient, {
@@ -42,6 +50,7 @@ export default async function OvertimeAuthorizationsPage(): Promise<React.ReactE
 			<OrgProvider
 				value={{
 					...organization,
+					organizationTimeZone: payrollSettings?.timeZone ?? 'America/Mexico_City',
 					organizationRole,
 					userRole,
 				}}

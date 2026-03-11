@@ -121,6 +121,7 @@ function renderWithProviders(): ReturnType<typeof render> {
 					organizationId: 'org-1',
 					organizationName: 'Org Test',
 					organizationSlug: 'org-test',
+					organizationTimeZone: 'America/Mexico_City',
 					organizationRole: 'admin',
 					userRole: 'admin',
 				}}
@@ -154,6 +155,7 @@ function selectFirstAvailableDate(): string {
 
 describe('OvertimeAuthorizationsManager', () => {
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -311,7 +313,9 @@ describe('OvertimeAuthorizationsManager', () => {
 		});
 	});
 
-	it('uses the local calendar date for the minimum selectable authorization date', async () => {
+	it('uses the organization timezone for the minimum selectable authorization date', async () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date('2026-03-12T01:30:00.000Z'));
 		renderWithProviders();
 
 		await waitFor(() => {
@@ -322,11 +326,11 @@ describe('OvertimeAuthorizationsManager', () => {
 		fireEvent.click(screen.getByTestId('overtime-date-trigger'));
 
 		const calendar = screen.getByTestId('overtime-date-calendar');
-		const disabledDayButtons = within(calendar)
+		const firstAvailableDay = within(calendar)
 			.getAllByRole('button')
-			.filter((button) => button.hasAttribute('disabled'));
+			.find((button) => !button.hasAttribute('disabled') && /^\d+$/.test(button.textContent ?? ''));
 
-		expect(disabledDayButtons.length).toBeGreaterThan(0);
+		expect(firstAvailableDay?.textContent).toBe('11');
 	});
 
 	it('cancels an active authorization from the table action', async () => {

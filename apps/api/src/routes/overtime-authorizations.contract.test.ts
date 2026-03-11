@@ -143,6 +143,57 @@ describe('overtime authorizations routes (contract)', () => {
 		);
 	});
 
+	it('reactivates a cancelled authorization when recreating the same employee and date', async () => {
+		const dateKey = addDaysToDateKey(
+			toDateKeyUtc(new Date()),
+			1200 + (Math.floor(Date.now() / 1000) % 365),
+		);
+		const organizationRoute = requireRoute(
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
+			'Overtime authorization route',
+		);
+
+		const createResponse = await organizationRoute.post({
+			employeeId: seed.employeeId,
+			dateKey,
+			authorizedHours: 2,
+			notes: 'Autorizacion original',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		if (!createPayload.data) {
+			throw new Error('Expected created overtime authorization payload.');
+		}
+
+		const detailRoute = requireRoute(
+			organizationRoute[createPayload.data.id],
+			'Single overtime authorization route',
+		);
+
+		const cancelResponse = await detailRoute.delete({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(cancelResponse.status).toBe(200);
+
+		const recreateResponse = await organizationRoute.post({
+			employeeId: seed.employeeId,
+			dateKey,
+			authorizedHours: 3,
+			notes: 'Reactivada tras cancelacion',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(recreateResponse.status).toBe(200);
+		const recreatePayload = requireResponseData(recreateResponse);
+		expect(recreatePayload.data?.id).toBe(createPayload.data.id);
+		expect(recreatePayload.data?.status).toBe('ACTIVE');
+		expect(recreatePayload.data?.authorizedHours).toBe(3);
+		expect(recreatePayload.data?.notes).toBe('Reactivada tras cancelacion');
+	});
+
 	it('rejects authorizations for past dates', async () => {
 		const organizationRoute = requireRoute(
 			client.organizations[seed.organizationId]?.['overtime-authorizations'],

@@ -261,6 +261,47 @@ export const overtimeAuthorizationRoutes = new Elysia({
 				return buildErrorResponse('Employee not found for this organization', 404);
 			}
 
+			const existingRows = await db
+				.select()
+				.from(overtimeAuthorization)
+				.where(
+					and(
+						eq(overtimeAuthorization.organizationId, organizationId),
+						eq(overtimeAuthorization.employeeId, body.employeeId),
+						eq(overtimeAuthorization.dateKey, body.dateKey),
+					),
+				)
+				.limit(1);
+			const existing = existingRows[0];
+			if (existing?.status === 'CANCELLED') {
+				const reactivatedRows = await db
+					.update(overtimeAuthorization)
+					.set({
+						authorizedHours: body.authorizedHours.toFixed(2),
+						authorizedByUserId: session?.userId ?? null,
+						status: 'ACTIVE',
+						notes: body.notes?.trim() ? body.notes.trim() : null,
+						updatedAt: new Date(),
+					})
+					.where(eq(overtimeAuthorization.id, existing.id))
+					.returning();
+				const reactivated = reactivatedRows[0];
+				if (!reactivated) {
+					set.status = 500;
+					return buildErrorResponse('Failed to create overtime authorization', 500);
+				}
+
+				set.status = 200;
+				return {
+					data: {
+						...reactivated,
+						authorizedHours: Number(reactivated.authorizedHours ?? 0),
+						employeeName: null,
+						authorizedByName: null,
+					},
+				};
+			}
+
 			try {
 				const insertedRows = await db
 					.insert(overtimeAuthorization)

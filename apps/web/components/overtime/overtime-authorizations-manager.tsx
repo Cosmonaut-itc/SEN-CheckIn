@@ -42,6 +42,7 @@ import {
 import { useOrgContext } from '@/lib/org-client-context';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { mutationKeys, queryKeys, type OvertimeAuthorizationQueryParams } from '@/lib/query-keys';
+import { toDateKeyInTimeZone } from '@/lib/time-zone';
 
 const DEFAULT_PAGE_SIZE = 20;
 const EMPLOYEE_QUERY_LIMIT = 100;
@@ -72,7 +73,7 @@ function parseDateKey(value: string): Date | undefined {
  */
 export function OvertimeAuthorizationsManager(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationTimeZone } = useOrgContext();
 	const t = useTranslations('OvertimeAuthorizations');
 	const tCommon = useTranslations('Common');
 
@@ -211,6 +212,10 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 	 * @returns Nothing
 	 */
 	const handleCreateAuthorization = (): void => {
+		if (createMutation.isPending) {
+			return;
+		}
+
 		if (!organizationId) {
 			toast.error(t('toast.createError'));
 			return;
@@ -256,7 +261,12 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 		Number.isFinite(Number(authorizedHoursInput)) &&
 		Number(authorizedHoursInput) > 0;
 	const selectedAuthorizationDate = parseDateKey(dateKey);
-	const today = startOfDay(new Date());
+	const minimumAuthorizationDate = organizationTimeZone
+		? toDateKeyInTimeZone(new Date(), organizationTimeZone)
+		: format(startOfDay(new Date()), 'yyyy-MM-dd');
+	const minimumAuthorizationDateValue = startOfDay(
+		parseDateKey(minimumAuthorizationDate) ?? new Date(),
+	);
 
 	return (
 		<div className="space-y-6">
@@ -350,7 +360,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 												onSelect={(date) =>
 													setDateKey(date ? format(date, 'yyyy-MM-dd') : '')
 												}
-												disabled={{ before: today }}
+												disabled={{ before: minimumAuthorizationDateValue }}
 												initialFocus
 											/>
 										</PopoverContent>

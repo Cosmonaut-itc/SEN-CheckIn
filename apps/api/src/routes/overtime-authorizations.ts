@@ -18,6 +18,8 @@ import { toDateKeyInTimeZone } from '../utils/time-zone.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 
 const OVERTIME_AUTHORIZATION_UNIQUE_INDEX = 'overtime_authorization_employee_date_uniq';
+const OVERTIME_LEGAL_WARNING =
+	'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.';
 
 export interface OvertimeAuthorizationRecord {
 	id: string;
@@ -287,6 +289,7 @@ export const overtimeAuthorizationRoutes = new Elysia({
 						employeeName: null,
 						authorizedByName: null,
 					},
+					...(body.authorizedHours > 3 ? { warning: OVERTIME_LEGAL_WARNING } : {}),
 				};
 			} catch (error) {
 				if (isDuplicateAuthorizationError(error)) {

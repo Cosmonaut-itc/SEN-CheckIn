@@ -34,7 +34,7 @@ describe('PayrollOvertimeAlert', () => {
 			<PayrollOvertimeAlert unauthorizedHours={0} affectedEmployeesCount={0} />,
 		);
 
-		expect(screen.getByText('overtimeAuthorization.clear')).toBeInTheDocument();
+		expect(screen.getByTestId('payroll-overtime-alert-clear')).toBeInTheDocument();
 	});
 
 	it('renders a warning badge when unauthorized overtime exists', () => {
@@ -42,6 +42,6 @@ describe('PayrollOvertimeAlert', () => {
 			<PayrollOvertimeAlert unauthorizedHours={4.5} affectedEmployeesCount={2} />,
 		);
 
-		expect(screen.getByText('overtimeAuthorization.warning')).toBeInTheDocument();
+		expect(screen.getByTestId('payroll-overtime-alert-warning')).toBeInTheDocument();
 	});
 });

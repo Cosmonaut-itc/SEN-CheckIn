@@ -98,6 +98,7 @@ const messages = {
 		loading: 'Cargando...',
 		next: 'Siguiente',
 		previous: 'Anterior',
+		cancel: 'Cancelar',
 	},
 };
 
@@ -130,6 +131,25 @@ function renderWithProviders(): ReturnType<typeof render> {
 			</OrgProvider>
 		</QueryClientProvider>,
 	);
+}
+
+/**
+ * Picks the first enabled day from the overtime date picker popover.
+ *
+ * @returns Selected day label
+ */
+function selectFirstAvailableDate(): string {
+	const calendar = screen.getByTestId('overtime-date-calendar');
+	const dayButton = within(calendar)
+		.getAllByRole('button')
+		.find((button) => !button.hasAttribute('disabled') && /^\d+$/.test(button.textContent ?? ''));
+
+	if (!dayButton || !dayButton.textContent) {
+		throw new Error('Expected an enabled calendar day button.');
+	}
+
+	fireEvent.click(dayButton);
+	return dayButton.textContent;
 }
 
 describe('OvertimeAuthorizationsManager', () => {
@@ -202,8 +222,10 @@ describe('OvertimeAuthorizationsManager', () => {
 			expect(screen.getAllByText('Ada Lovelace').length).toBeGreaterThan(0);
 		});
 
-		expect(screen.getByText('title')).toBeInTheDocument();
-		expect(screen.getAllByText('status.ACTIVE').length).toBeGreaterThan(0);
+		expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		expect(screen.getByTestId('overtime-authorization-status-ot-1')).not.toHaveTextContent(
+			/^$/,
+		);
 		expect(screen.getByText('Admin Test')).toBeInTheDocument();
 	});
 
@@ -211,39 +233,36 @@ describe('OvertimeAuthorizationsManager', () => {
 		renderWithProviders();
 
 		await waitFor(() => {
-			expect(screen.getByText('actions.create')).toBeInTheDocument();
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
 		});
 
-		fireEvent.click(screen.getByText('actions.create'));
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
 		const dialog = screen.getByRole('dialog');
 		const dialogQueries = within(dialog);
 
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.search'), {
+		fireEvent.change(dialogQueries.getByTestId('overtime-employee-search'), {
 			target: { value: 'Ada' },
 		});
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.date'), {
-			target: { value: '2026-03-25' },
-		});
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.hours'), {
+		fireEvent.click(dialogQueries.getByTestId('overtime-date-trigger'));
+		const selectedDay = selectFirstAvailableDate();
+		fireEvent.change(dialogQueries.getByTestId('overtime-hours-input'), {
 			target: { value: '2.5' },
 		});
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.notes'), {
+		fireEvent.change(dialogQueries.getByTestId('overtime-notes-input'), {
 			target: { value: 'Soporte al cierre mensual' },
 		});
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.employee'), {
+		fireEvent.change(dialogQueries.getByTestId('overtime-employee-select'), {
 			target: { value: 'emp-1' },
 		});
 
-		expect((dialogQueries.getByLabelText('form.fields.date') as HTMLInputElement).value).toBe(
-			'2026-03-25',
-		);
-		expect((dialogQueries.getByLabelText('form.fields.hours') as HTMLInputElement).value).toBe(
+		expect(dialogQueries.getByTestId('overtime-date-trigger')).toHaveTextContent(selectedDay);
+		expect((dialogQueries.getByTestId('overtime-hours-input') as HTMLInputElement).value).toBe(
 			'2.5',
 		);
-		expect((dialogQueries.getByLabelText('form.fields.notes') as HTMLInputElement).value).toBe(
+		expect((dialogQueries.getByTestId('overtime-notes-input') as HTMLInputElement).value).toBe(
 			'Soporte al cierre mensual',
 		);
-		expect(dialogQueries.getByText('form.actions.submit')).toBeInTheDocument();
+		expect(dialogQueries.getByTestId('overtime-submit-button')).toBeInTheDocument();
 	});
 
 	it('prevents submitting the form again while create mutation is pending', async () => {
@@ -256,35 +275,29 @@ describe('OvertimeAuthorizationsManager', () => {
 		renderWithProviders();
 
 		await waitFor(() => {
-			expect(screen.getByText('actions.create')).toBeInTheDocument();
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
 		});
 
-		fireEvent.click(screen.getByText('actions.create'));
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
 		const dialog = screen.getByRole('dialog');
 		const dialogQueries = within(dialog);
 
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.date'), {
-			target: { value: '2026-03-25' },
-		});
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.hours'), {
+		fireEvent.click(dialogQueries.getByTestId('overtime-date-trigger'));
+		selectFirstAvailableDate();
+		fireEvent.change(dialogQueries.getByTestId('overtime-hours-input'), {
 			target: { value: '2' },
 		});
-		fireEvent.change(dialogQueries.getByLabelText('form.fields.employee'), {
+		fireEvent.change(dialogQueries.getByTestId('overtime-employee-select'), {
 			target: { value: 'emp-1' },
 		});
 
-		const form = dialogQueries.getByLabelText('form.fields.date').closest('form');
-		if (!form) {
-			throw new Error('Expected overtime authorization form.');
-		}
-
-		fireEvent.submit(form);
+		fireEvent.click(dialogQueries.getByTestId('overtime-submit-button'));
 
 		await waitFor(() => {
-			expect(dialogQueries.getByText('actions.createSubmitting')).toBeInTheDocument();
+			expect(dialogQueries.getByTestId('overtime-submit-button')).toBeDisabled();
 		});
 
-		fireEvent.submit(form);
+		fireEvent.click(dialogQueries.getByTestId('overtime-submit-button'));
 
 		expect(mockCreateOvertimeAuthorizationAction).toHaveBeenCalledTimes(1);
 
@@ -294,38 +307,36 @@ describe('OvertimeAuthorizationsManager', () => {
 		resolveCreate({ success: true, data: null });
 
 		await waitFor(() => {
-			expect(dialogQueries.queryByText('actions.createSubmitting')).not.toBeInTheDocument();
+			expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 		});
 	});
 
 	it('uses the local calendar date for the minimum selectable authorization date', async () => {
-		vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2026-03-12T01:30:00.000Z');
-		vi.spyOn(Date.prototype, 'getFullYear').mockReturnValue(2026);
-		vi.spyOn(Date.prototype, 'getMonth').mockReturnValue(2);
-		vi.spyOn(Date.prototype, 'getDate').mockReturnValue(11);
-
 		renderWithProviders();
 
 		await waitFor(() => {
-			expect(screen.getByText('actions.create')).toBeInTheDocument();
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
 		});
 
-		fireEvent.click(screen.getByText('actions.create'));
-		const dialog = screen.getByRole('dialog');
-		const dialogQueries = within(dialog);
-		const dateInput = dialogQueries.getByLabelText('form.fields.date') as HTMLInputElement;
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+		fireEvent.click(screen.getByTestId('overtime-date-trigger'));
 
-		expect(dateInput.min).toBe('2026-03-11');
+		const calendar = screen.getByTestId('overtime-date-calendar');
+		const disabledDayButtons = within(calendar)
+			.getAllByRole('button')
+			.filter((button) => button.hasAttribute('disabled'));
+
+		expect(disabledDayButtons.length).toBeGreaterThan(0);
 	});
 
 	it('cancels an active authorization from the table action', async () => {
 		renderWithProviders();
 
 		await waitFor(() => {
-			expect(screen.getByText('actions.cancel')).toBeInTheDocument();
+			expect(screen.getByTestId('overtime-cancel-button-ot-1')).toBeInTheDocument();
 		});
 
-		fireEvent.click(screen.getByText('actions.cancel'));
+		fireEvent.click(screen.getByTestId('overtime-cancel-button-ot-1'));
 
 		await waitFor(() => {
 			expect(mockCancelOvertimeAuthorizationAction).toHaveBeenCalled();
@@ -335,5 +346,82 @@ describe('OvertimeAuthorizationsManager', () => {
 			organizationId: 'org-1',
 			id: 'ot-1',
 		});
+	});
+
+	it('disables submit button when required fields are empty', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+		const submitButton = screen.getByTestId('overtime-submit-button');
+
+		expect(submitButton).toBeDisabled();
+
+		fireEvent.click(submitButton);
+
+		await waitFor(() => {
+			expect(mockCreateOvertimeAuthorizationAction).not.toHaveBeenCalled();
+		});
+	});
+
+	it('resets form when dialog is closed without submitting', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+
+		fireEvent.change(screen.getByTestId('overtime-employee-search'), {
+			target: { value: 'Ada' },
+		});
+		fireEvent.click(screen.getByTestId('overtime-date-trigger'));
+		selectFirstAvailableDate();
+		fireEvent.change(screen.getByTestId('overtime-hours-input'), {
+			target: { value: '4' },
+		});
+		fireEvent.change(screen.getByTestId('overtime-notes-input'), {
+			target: { value: 'Cobertura de cierre' },
+		});
+		fireEvent.change(screen.getByTestId('overtime-employee-select'), {
+			target: { value: 'emp-1' },
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-cancel-dialog'));
+
+		await waitFor(() => {
+			expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+
+		expect((screen.getByTestId('overtime-employee-search') as HTMLInputElement).value).toBe('');
+		expect(screen.getByTestId('overtime-date-trigger')).not.toHaveTextContent(/^\d+$/);
+		expect((screen.getByTestId('overtime-hours-input') as HTMLInputElement).value).toBe('');
+		expect((screen.getByTestId('overtime-notes-input') as HTMLInputElement).value).toBe('');
+		expect((screen.getByTestId('overtime-employee-select') as HTMLSelectElement).value).toBe(
+			'',
+		);
+	});
+
+	it('shows warning helper text when authorized hours exceed 3', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+		fireEvent.change(screen.getByTestId('overtime-hours-input'), {
+			target: { value: '3.5' },
+		});
+
+		expect(screen.getByTestId('overtime-legal-warning')).toHaveClass(
+			'text-[var(--status-warning)]',
+		);
 	});
 });

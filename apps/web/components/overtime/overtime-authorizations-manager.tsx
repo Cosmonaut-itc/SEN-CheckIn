@@ -1,6 +1,9 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, isValid, parse, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { CalendarIcon } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
@@ -12,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogHeader,
@@ -29,12 +33,14 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
 import {
 	fetchEmployeesList,
 	fetchOvertimeAuthorizationsList,
 	type Employee,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { mutationKeys, queryKeys, type OvertimeAuthorizationQueryParams } from '@/lib/query-keys';
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -45,17 +51,18 @@ const SELECT_CLASS_NAME =
 	'border-input h-9 w-full rounded-md border bg-background/80 px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
- * Formats today's date using the browser's local calendar fields.
+ * Parses a date key into a local Date for calendar selection.
  *
- * @returns Date key in YYYY-MM-DD format
+ * @param value - Date key in yyyy-MM-dd format
+ * @returns Parsed date or undefined when invalid
  */
-function getLocalTodayDateKey(): string {
-	const today = new Date();
-	const year = today.getFullYear();
-	const month = String(today.getMonth() + 1).padStart(2, '0');
-	const day = String(today.getDate()).padStart(2, '0');
+function parseDateKey(value: string): Date | undefined {
+	if (!value) {
+		return undefined;
+	}
 
-	return `${year}-${month}-${day}`;
+	const parsedDate = parse(value, 'yyyy-MM-dd', new Date());
+	return isValid(parsedDate) ? parsedDate : undefined;
 }
 
 /**
@@ -81,6 +88,32 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 	const [dateKey, setDateKey] = useState<string>('');
 	const [authorizedHoursInput, setAuthorizedHoursInput] = useState<string>('');
 	const [notes, setNotes] = useState<string>('');
+
+	/**
+	 * Restores the create dialog inputs to their empty defaults.
+	 *
+	 * @returns Nothing
+	 */
+	const resetCreateForm = (): void => {
+		setEmployeeSearch('');
+		setSelectedEmployeeId('');
+		setDateKey('');
+		setAuthorizedHoursInput('');
+		setNotes('');
+	};
+
+	/**
+	 * Syncs dialog visibility and clears stale form state when closing it.
+	 *
+	 * @param open - Next open state emitted by the dialog root
+	 * @returns Nothing
+	 */
+	const handleDialogOpenChange = (open: boolean): void => {
+		setIsDialogOpen(open);
+		if (!open) {
+			resetCreateForm();
+		}
+	};
 
 	const employeeQueryParams = useMemo(
 		() =>
@@ -147,10 +180,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 
 			toast.success(t('toast.createSuccess'));
 			setIsDialogOpen(false);
-			setSelectedEmployeeId('');
-			setDateKey('');
-			setAuthorizedHoursInput('');
-			setNotes('');
+			resetCreateForm();
 			queryClient.invalidateQueries({ queryKey: queryKeys.overtimeAuthorizations.all });
 		},
 		onError: () => {
@@ -220,7 +250,13 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 	const canGoPrevious = pagination.offset > 0;
 	const canGoNext = pagination.offset + pagination.limit < pagination.total;
 	const helperShouldWarn = Number(authorizedHoursInput || 0) > LEGAL_DAILY_OVERTIME_LIMIT;
-	const minimumAuthorizationDate = getLocalTodayDateKey();
+	const isCreateFormValid =
+		Boolean(selectedEmployeeId) &&
+		Boolean(dateKey) &&
+		Number.isFinite(Number(authorizedHoursInput)) &&
+		Number(authorizedHoursInput) > 0;
+	const selectedAuthorizationDate = parseDateKey(dateKey);
+	const today = startOfDay(new Date());
 
 	return (
 		<div className="space-y-6">
@@ -230,9 +266,9 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 					<p className="text-muted-foreground">{t('subtitle')}</p>
 				</div>
 
-				<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 					<DialogTrigger asChild>
-						<Button>{t('actions.create')}</Button>
+						<Button data-testid="overtime-create-trigger">{t('actions.create')}</Button>
 					</DialogTrigger>
 					<DialogContent>
 						<DialogHeader>
@@ -253,6 +289,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 								</Label>
 								<Input
 									id="overtime-employee-search"
+									data-testid="overtime-employee-search"
 									value={employeeSearch}
 									onChange={(event) => setEmployeeSearch(event.target.value)}
 									placeholder={t('form.placeholders.search')}
@@ -265,6 +302,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 								</Label>
 								<select
 									id="overtime-employee"
+									data-testid="overtime-employee-select"
 									className={SELECT_CLASS_NAME}
 									value={selectedEmployeeId}
 									onChange={(event) => setSelectedEmployeeId(event.target.value)}
@@ -281,20 +319,49 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 							<div className="grid gap-4 md:grid-cols-2">
 								<div className="space-y-2">
 									<Label htmlFor="overtime-date">{t('form.fields.date')}</Label>
-									<Input
-										id="overtime-date"
-										type="date"
-										value={dateKey}
-										onChange={(event) => setDateKey(event.target.value)}
-										placeholder={t('form.placeholders.date')}
-										min={minimumAuthorizationDate}
-									/>
+									<Popover>
+										<PopoverTrigger asChild>
+											<Button
+												id="overtime-date"
+												type="button"
+												variant="outline"
+												data-testid="overtime-date-trigger"
+												data-empty={!selectedAuthorizationDate}
+												className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+											>
+												<CalendarIcon className="mr-2 h-4 w-4" />
+												{selectedAuthorizationDate ? (
+													format(selectedAuthorizationDate, 'PPP', {
+														locale: es,
+													})
+												) : (
+													<span>{t('form.placeholders.date')}</span>
+												)}
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent
+											className="w-auto p-0"
+											align="start"
+											data-testid="overtime-date-calendar"
+										>
+											<Calendar
+												mode="single"
+												selected={selectedAuthorizationDate}
+												onSelect={(date) =>
+													setDateKey(date ? format(date, 'yyyy-MM-dd') : '')
+												}
+												disabled={{ before: today }}
+												initialFocus
+											/>
+										</PopoverContent>
+									</Popover>
 								</div>
 
 								<div className="space-y-2">
 									<Label htmlFor="overtime-hours">{t('form.fields.hours')}</Label>
 									<Input
 										id="overtime-hours"
+										data-testid="overtime-hours-input"
 										type="number"
 										step="0.25"
 										min="0.25"
@@ -308,6 +375,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 							</div>
 
 							<p
+								data-testid="overtime-legal-warning"
 								className={`text-xs ${
 									helperShouldWarn
 										? 'text-[var(--status-warning)]'
@@ -321,16 +389,27 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 								<Label htmlFor="overtime-notes">{t('form.fields.notes')}</Label>
 								<Input
 									id="overtime-notes"
+									data-testid="overtime-notes-input"
 									value={notes}
 									onChange={(event) => setNotes(event.target.value)}
 									placeholder={t('form.placeholders.notes')}
 								/>
 							</div>
 
-							<div className="flex justify-end">
+							<div className="flex justify-end gap-2">
+								<DialogClose asChild>
+									<Button
+										type="button"
+										variant="outline"
+										data-testid="overtime-cancel-dialog"
+									>
+										{tCommon('cancel')}
+									</Button>
+								</DialogClose>
 								<Button
 									type="button"
-									disabled={createMutation.isPending}
+									data-testid="overtime-submit-button"
+									disabled={createMutation.isPending || !isCreateFormValid}
 									onClick={handleCreateAuthorization}
 								>
 									{createMutation.isPending
@@ -452,6 +531,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 									</TableCell>
 									<TableCell>
 										<Badge
+											data-testid={`overtime-authorization-status-${authorization.id}`}
 											variant={
 												authorization.status === 'CANCELLED'
 													? 'neutral'
@@ -469,6 +549,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 											<Button
 												variant="outline"
 												size="sm"
+												data-testid={`overtime-cancel-button-${authorization.id}`}
 												disabled={cancelMutation.isPending}
 												onClick={() =>
 													cancelMutation.mutate({

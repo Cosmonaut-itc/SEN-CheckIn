@@ -23,11 +23,15 @@ export function PayrollOvertimeAlert({
 	const t = useTranslations('Payroll');
 
 	if (unauthorizedHours <= 0 || affectedEmployeesCount <= 0) {
-		return <Badge variant="success">{t('overtimeAuthorization.clear')}</Badge>;
+		return (
+			<Badge data-testid="payroll-overtime-alert-clear" variant="success">
+				{t('overtimeAuthorization.clear')}
+			</Badge>
+		);
 	}
 
 	return (
-		<Badge variant="warning">
+		<Badge data-testid="payroll-overtime-alert-warning" variant="warning">
 			{t('overtimeAuthorization.warning', {
 				employees: affectedEmployeesCount,
 				hours: unauthorizedHours.toFixed(2),

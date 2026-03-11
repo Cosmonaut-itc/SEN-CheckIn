@@ -160,4 +160,30 @@ describe('overtime authorizations routes (contract)', () => {
 		const errorPayload = requireErrorResponse(response, 'past date authorization');
 		expect(errorPayload.error.message).toBe('dateKey must be today or a future date');
 	});
+
+	it('includes a legal warning when authorized hours exceed three in creation', async () => {
+		const dateKey = addDaysToDateKey(
+			toDateKeyUtc(new Date()),
+			1200 + (Math.floor(Date.now() / 1000) % 365),
+		);
+		const organizationRoute = requireRoute(
+			client.organizations[seed.organizationId]['overtime-authorizations'],
+			'Overtime authorization route',
+		);
+
+		const response = await organizationRoute.post({
+			employeeId: seed.employeeId,
+			dateKey,
+			authorizedHours: 4,
+			notes: 'Cobertura extraordinaria',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(201);
+		const payload = requireResponseData(response);
+		expect(payload.data?.authorizedHours).toBe(4);
+		expect(payload.warning).toBe(
+			'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.',
+		);
+	});
 });

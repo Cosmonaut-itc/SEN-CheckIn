@@ -347,6 +347,15 @@ export const attendanceType = pgEnum('attendance_type', [
 ]);
 
 /**
+ * Enum for check-out reasons on attendance records.
+ */
+export const checkOutReason = pgEnum('check_out_reason', [
+	'REGULAR',
+	'LUNCH_BREAK',
+	'PERSONAL',
+]);
+
+/**
  * Enum for RH offsite-day classification.
  */
 export const offsiteDayKind = pgEnum('offsite_day_kind', ['LABORABLE', 'NO_LABORABLE']);
@@ -977,6 +986,7 @@ export const attendanceRecord = pgTable('attendance_record', {
 		.references(() => device.id, { onDelete: 'cascade' }),
 	timestamp: timestamp('timestamp').notNull(),
 	type: attendanceType('type').notNull(),
+	checkOutReason: checkOutReason('check_out_reason'),
 	/**
 	 * Business date key for offsite manual records in org timezone (YYYY-MM-DD).
 	 */

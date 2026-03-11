@@ -165,6 +165,35 @@ function aggregateTaxSummary(employees: PayrollCalculationEmployee[]): PayrollTa
 }
 
 /**
+ * Renders lunch break auto-deduction details for a payroll row.
+ *
+ * @param row - Payroll calculation row
+ * @param t - Translation function for payroll copy
+ * @returns Badge and deduction summary, or a dash when nothing was deducted
+ */
+function renderLunchBreakDeductionCell(
+	row: PayrollCalculationEmployee,
+	t: ReturnType<typeof useTranslations>,
+): React.ReactElement {
+	const deductedDays = row.lunchBreakAutoDeductedDays ?? 0;
+	const deductedMinutes = row.lunchBreakAutoDeductedMinutes ?? 0;
+
+	if (deductedDays === 0 || deductedMinutes === 0) {
+		return <span className="text-muted-foreground">-</span>;
+	}
+
+	return (
+		<div className="space-y-1">
+			<Badge variant="warning">{t('preview.lunchBreak.badge')}</Badge>
+			<div className="text-xs text-[color:var(--status-warning)]">
+				<p>{t('preview.lunchBreak.days', { count: deductedDays })}</p>
+				<p>{t('preview.lunchBreak.minutes', { count: deductedMinutes })}</p>
+			</div>
+		</div>
+	);
+}
+
+/**
  * Computes period boundaries based on week start and frequency.
  *
  * @param weekStartDay - Day index the week starts on
@@ -364,6 +393,14 @@ export function PayrollPageClient(): React.ReactElement {
 				key: 'informationalSubsidyApplied',
 				label: t('csv.headers.informationalSubsidyApplied'),
 			},
+			{
+				key: 'lunchBreakAutoDeductedDays',
+				label: t('csv.headers.lunchBreakAutoDeductedDays'),
+			},
+			{
+				key: 'lunchBreakAutoDeductedMinutes',
+				label: t('csv.headers.lunchBreakAutoDeductedMinutes'),
+			},
 			{ key: 'warningsCount', label: t('csv.headers.warningsCount') },
 			{ key: 'warnings', label: t('csv.headers.warnings') },
 		];
@@ -415,6 +452,8 @@ export function PayrollPageClient(): React.ReactElement {
 				baseDaysInPeriod: row.bases?.daysInPeriod ?? 0,
 				informationalIsrBeforeSubsidy: row.informationalLines?.isrBeforeSubsidy ?? 0,
 				informationalSubsidyApplied: row.informationalLines?.subsidyApplied ?? 0,
+				lunchBreakAutoDeductedDays: row.lunchBreakAutoDeductedDays ?? 0,
+				lunchBreakAutoDeductedMinutes: row.lunchBreakAutoDeductedMinutes ?? 0,
 				warningsCount: row.warnings.length,
 				warnings,
 			};
@@ -977,6 +1016,9 @@ export function PayrollPageClient(): React.ReactElement {
 														{t('preview.table.incapacitySubsidy')}
 													</TableHead>
 													<TableHead>
+														{t('preview.table.lunchBreakDeduction')}
+													</TableHead>
+													<TableHead>
 														{t('preview.table.total')}
 													</TableHead>
 													<TableHead>
@@ -1074,6 +1116,9 @@ export function PayrollPageClient(): React.ReactElement {
 																			.expectedImssSubsidyAmount,
 																	)
 																: '-'}
+														</TableCell>
+														<TableCell>
+															{renderLunchBreakDeductionCell(row, t)}
 														</TableCell>
 														<TableCell>
 															{formatCurrency(row.totalPay)}

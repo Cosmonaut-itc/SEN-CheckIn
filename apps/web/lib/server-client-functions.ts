@@ -941,6 +941,9 @@ type PayrollSettingsPayload = Omit<
 	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA' | null;
 	aguinaldoEnabled?: boolean | null;
 	enableDisciplinaryMeasures?: boolean | null;
+	autoDeductLunchBreak?: boolean | null;
+	lunchBreakMinutes?: number | string | null;
+	lunchBreakThresholdHours?: number | string | null;
 };
 
 /**
@@ -989,6 +992,9 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		employerType: payload.employerType ?? 'PERSONA_MORAL',
 		aguinaldoEnabled: Boolean(payload.aguinaldoEnabled ?? true),
 		enableDisciplinaryMeasures: Boolean(payload.enableDisciplinaryMeasures ?? true),
+		autoDeductLunchBreak: Boolean(payload.autoDeductLunchBreak ?? false),
+		lunchBreakMinutes: normalizeNumber(payload.lunchBreakMinutes, 60),
+		lunchBreakThresholdHours: normalizeNumber(payload.lunchBreakThresholdHours, 6),
 	};
 }
 
@@ -1088,6 +1094,8 @@ export async function fetchPayrollRunDetailServer(
 						vacationDaysPaid?: number | string;
 						vacationPayAmount?: number | string;
 						vacationPremiumAmount?: number | string;
+						lunchBreakAutoDeductedDays?: number | string;
+						lunchBreakAutoDeductedMinutes?: number | string;
 						periodStart: string | Date;
 						periodEnd: string | Date;
 						createdAt: string | Date;
@@ -1124,6 +1132,8 @@ export async function fetchPayrollRunDetailServer(
 		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
 		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
+		lunchBreakAutoDeductedDays: Number(employee.lunchBreakAutoDeductedDays ?? 0),
+		lunchBreakAutoDeductedMinutes: Number(employee.lunchBreakAutoDeductedMinutes ?? 0),
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),

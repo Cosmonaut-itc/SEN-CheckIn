@@ -1385,6 +1385,11 @@
       "totalEmployees": "Total de empleados: {count}",
       "totalAmount": "Total: {total}",
       "warningsCount": "{count, plural, one {# alerta} other {# alertas}}",
+      "lunchBreak": {
+        "badge": "Descuento automático",
+        "days": "{count, plural, one {# día} other {# días}}",
+        "minutes": "{count} min"
+      },
       "table": {
         "employee": "Empleado",
         "normalHours": "Horas normales",
@@ -1398,6 +1403,7 @@
         "vacationDays": "{count, plural, one {# día} other {# días}}",
         "incapacityDays": "Días de incapacidad",
         "incapacitySubsidy": "Subsidio IMSS esperado",
+        "lunchBreakDeduction": "Descuento comida",
         "total": "Total",
         "warnings": "Alertas",
         "detail": "Detalle fiscal"
@@ -1430,6 +1436,8 @@
         "vacationPayAmount": "pago_vacaciones",
         "vacationPremiumAmount": "prima_vacacional",
         "seventhDayPay": "septimo_dia",
+        "lunchBreakAutoDeductedDays": "comida_descuento_dias",
+        "lunchBreakAutoDeductedMinutes": "comida_descuento_minutos",
         "totalPay": "total_pagos",
         "grossPay": "percepciones_gravadas",
         "employeeWithholdingsTotal": "retenciones_trabajador_total",
@@ -1837,6 +1845,24 @@
         "absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
         "absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
         "enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos."
+      }
+    },
+    "lunchBreak": {
+      "title": "Descuento de comida",
+      "description": "Define si el sistema debe descontar automáticamente el tiempo de comida cuando no exista una salida registrada para ese concepto.",
+      "fields": {
+        "autoDeductLunchBreak": "Descontar tiempo de comida automáticamente",
+        "lunchBreakMinutes": "Minutos de comida",
+        "lunchBreakThresholdHours": "Umbral de horas para descuento"
+      },
+      "helpers": {
+        "autoDeductLunchBreak": "Si está activo, la nómina descontará este tiempo cuando la jornada rebase el umbral y no exista salida de comida.",
+        "lunchBreakMinutes": "Captura entre 15 y 120 minutos por jornada.",
+        "lunchBreakThresholdHours": "Captura entre 4 y 10 horas para activar el descuento."
+      },
+      "placeholders": {
+        "minutes": "p. ej., 60",
+        "thresholdHours": "p. ej., 6"
       }
     },
     "legalRules": {

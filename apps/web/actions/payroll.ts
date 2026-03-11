@@ -23,6 +23,9 @@ export interface UpdatePayrollSettingsInput {
 	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA';
 	aguinaldoEnabled?: boolean;
 	enableDisciplinaryMeasures?: boolean;
+	autoDeductLunchBreak?: boolean;
+	lunchBreakMinutes?: number;
+	lunchBreakThresholdHours?: number;
 	organizationId?: string;
 }
 
@@ -76,6 +79,9 @@ export async function updatePayrollSettingsAction(
 			employerType: input.employerType,
 			aguinaldoEnabled: input.aguinaldoEnabled,
 			enableDisciplinaryMeasures: input.enableDisciplinaryMeasures,
+			autoDeductLunchBreak: input.autoDeductLunchBreak,
+			lunchBreakMinutes: input.lunchBreakMinutes,
+			lunchBreakThresholdHours: input.lunchBreakThresholdHours,
 			organizationId: input.organizationId,
 		});
 

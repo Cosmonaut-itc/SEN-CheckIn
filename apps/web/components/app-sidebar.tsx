@@ -28,6 +28,7 @@ import {
 	MapPin,
 	CalendarCheck,
 	CalendarDays,
+	Clock3,
 	FileText,
 	Settings2,
 	ShieldAlert,
@@ -145,6 +146,11 @@ const adminNavItems: NavItem[] = [
 		titleKey: 'payrollSettings',
 		href: '/payroll-settings',
 		icon: Settings2,
+	},
+	{
+		titleKey: 'overtimeAuthorizations',
+		href: '/overtime-authorizations',
+		icon: Clock3,
 	},
 	{
 		titleKey: 'users',

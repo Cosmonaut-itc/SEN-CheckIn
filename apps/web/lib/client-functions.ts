@@ -53,6 +53,7 @@ import type {
 	DisciplinaryMeasuresQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
+	OvertimeAuthorizationQueryParams,
 	OrganizationAllQueryParams,
 	ScheduleExceptionQueryParams,
 	ScheduleTemplateQueryParams,
@@ -77,11 +78,7 @@ export type DeviceStatus = 'ONLINE' | 'OFFLINE' | 'MAINTENANCE';
 /**
  * Attendance type enum values.
  */
-export type AttendanceType =
-	| 'CHECK_IN'
-	| 'CHECK_OUT'
-	| 'CHECK_OUT_AUTHORIZED'
-	| 'WORK_OFFSITE';
+export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
 
 /**
  * RH day classification for offsite records.
@@ -868,12 +865,14 @@ export async function fetchEmployeeTerminationDraft(
 	id: string,
 ): Promise<EmployeeTerminationDraftRecord | null> {
 	const payload = (await fetchDashboardApiJson(`/employees/${id}/termination/draft`)) as {
-		data?: (TerminationDraftContract & {
-			createdAt: string | Date;
-			updatedAt: string | Date;
-			consumedAt?: string | Date | null;
-			cancelledAt?: string | Date | null;
-		}) | null;
+		data?:
+			| (TerminationDraftContract & {
+					createdAt: string | Date;
+					updatedAt: string | Date;
+					consumedAt?: string | Date | null;
+					cancelledAt?: string | Date | null;
+			  })
+			| null;
 	};
 
 	const record = payload?.data;
@@ -1307,9 +1306,9 @@ export async function fetchDocumentWorkflowConfig(): Promise<DocumentWorkflowCon
  * @throws Error when the request fails
  */
 export async function fetchLegalTemplates(kind: LegalDocumentKind): Promise<LegalTemplateRecord[]> {
-	const payload = (await fetchDashboardApiJson(
-		`/document-workflow/templates/${kind}`,
-	)) as { data?: LegalTemplateRecord[] };
+	const payload = (await fetchDashboardApiJson(`/document-workflow/templates/${kind}`)) as {
+		data?: LegalTemplateRecord[];
+	};
 	return (payload?.data ?? []).map((template) => ({
 		...template,
 		publishedAt: template.publishedAt ? new Date(template.publishedAt) : null,
@@ -1377,8 +1376,7 @@ export interface DisciplinaryMeasureDocumentRecord extends DisciplinaryMeasureDo
 	uploadedAt: Date;
 }
 
-export interface DisciplinaryMeasureAttachmentRecord
-	extends DisciplinaryMeasureAttachmentContract {
+export interface DisciplinaryMeasureAttachmentRecord extends DisciplinaryMeasureAttachmentContract {
 	createdAt: Date;
 	updatedAt: Date;
 	uploadedAt: Date;
@@ -1660,7 +1658,7 @@ export async function fetchDisciplinaryMeasureById(
 					cancelledAt: row.terminationDraft.cancelledAt
 						? new Date(row.terminationDraft.cancelledAt)
 						: null,
-			  }
+				}
 			: null,
 	};
 }
@@ -2146,9 +2144,7 @@ export async function updateWorkOffsiteAttendance(input: {
  * @returns True when deleted
  * @throws Error when API call fails
  */
-export async function deleteWorkOffsiteAttendance(input: {
-	id: string;
-}): Promise<boolean> {
+export async function deleteWorkOffsiteAttendance(input: { id: string }): Promise<boolean> {
 	const response = await api.attendance[input.id].offsite.delete();
 
 	if (response.error) {
@@ -2687,6 +2683,8 @@ export interface PayrollCalculationEmployee {
 	normalHours: number;
 	overtimeDoubleHours: number;
 	overtimeTripleHours: number;
+	authorizedOvertimeHours: number;
+	unauthorizedOvertimeHours: number;
 	sundayHoursWorked: number;
 	mandatoryRestDaysWorkedCount: number;
 	mandatoryRestDayDateKeys: string[];
@@ -2755,6 +2753,8 @@ export interface PayrollRunEmployee {
 	overtimeDoublePay: number;
 	overtimeTripleHours: number;
 	overtimeTriplePay: number;
+	authorizedOvertimeHours: number;
+	unauthorizedOvertimeHours: number;
 	sundayPremiumAmount: number;
 	mandatoryRestDayPremiumAmount: number;
 	vacationDaysPaid: number;
@@ -2774,6 +2774,47 @@ export interface PayrollRunEmployee {
 	periodEnd: Date;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+export interface OvertimeAuthorization {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	employeeName?: string;
+	dateKey: string;
+	authorizedHours: number;
+	authorizedByUserId: string | null;
+	authorizedByName?: string | null;
+	status: 'PENDING' | 'ACTIVE' | 'CANCELLED';
+	notes: string | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+type OvertimeAuthorizationPayload = Omit<
+	OvertimeAuthorization,
+	'authorizedHours' | 'createdAt' | 'updatedAt'
+> & {
+	authorizedHours?: number | string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+/**
+ * Normalizes overtime authorization payload values.
+ *
+ * @param record - Raw overtime authorization payload from the API
+ * @returns Normalized overtime authorization record
+ */
+function normalizeOvertimeAuthorization(
+	record: OvertimeAuthorizationPayload,
+): OvertimeAuthorization {
+	return {
+		...record,
+		authorizedHours: Number(record.authorizedHours ?? 0),
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
 }
 
 // ============================================================================
@@ -3116,7 +3157,12 @@ export async function fetchPayrollHolidays(
 	});
 
 	if (response.error) {
-		console.error('Failed to fetch payroll holidays:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to fetch payroll holidays:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to fetch payroll holidays');
 	}
 
@@ -3191,7 +3237,12 @@ export async function updatePayrollHoliday(
 	});
 
 	if (response.error) {
-		console.error('Failed to update payroll holiday:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to update payroll holiday:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to update payroll holiday');
 	}
 
@@ -3223,13 +3274,22 @@ export async function importPayrollHolidaysCsv(params: {
 	});
 
 	if (response.error) {
-		console.error('Failed to import payroll holidays CSV:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to import payroll holidays CSV:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to import payroll holidays CSV');
 	}
 
 	const payload = getApiResponseData(response);
 	const data = payload?.data as
-		| { appliedRows: number; rejectedRows: number; errors: Array<{ line: number; reason: string }> }
+		| {
+				appliedRows: number;
+				rejectedRows: number;
+				errors: Array<{ line: number; reason: string }>;
+		  }
 		| undefined;
 	if (!data) {
 		throw new Error('Failed to import payroll holidays CSV: empty response');
@@ -3274,7 +3334,12 @@ export async function exportPayrollHolidaysCsv(params?: PayrollHolidayListParams
 	});
 
 	if (response.error) {
-		console.error('Failed to export payroll holidays CSV:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to export payroll holidays CSV:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to export payroll holidays CSV');
 	}
 
@@ -3315,7 +3380,12 @@ export async function syncPayrollHolidays(params?: {
 	});
 
 	if (response.error) {
-		console.error('Failed to sync payroll holidays:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to sync payroll holidays:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to sync payroll holidays');
 	}
 
@@ -3355,7 +3425,12 @@ export async function approvePayrollHolidaySyncRun(
 	});
 
 	if (response.error) {
-		console.error('Failed to approve payroll holiday sync run:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to approve payroll holiday sync run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to approve payroll holiday sync run');
 	}
 
@@ -3386,7 +3461,12 @@ export async function rejectPayrollHolidaySyncRun(
 	});
 
 	if (response.error) {
-		console.error('Failed to reject payroll holiday sync run:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to reject payroll holiday sync run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to reject payroll holiday sync run');
 	}
 
@@ -3415,7 +3495,12 @@ export async function fetchPayrollHolidaySyncStatus(
 	});
 
 	if (response.error) {
-		console.error('Failed to fetch payroll holiday sync status:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to fetch payroll holiday sync status:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to fetch payroll holiday sync status');
 	}
 
@@ -3495,6 +3580,79 @@ export async function processPayroll(params: {
 }
 
 /**
+ * Fetches overtime authorizations with optional filters and pagination.
+ *
+ * @param params - Organization, filter, and pagination params
+ * @returns Paginated overtime authorization response
+ * @throws Error when the API request fails
+ */
+export async function fetchOvertimeAuthorizationsList(
+	params?: OvertimeAuthorizationQueryParams,
+): Promise<PaginatedResponse<OvertimeAuthorization>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: clampPaginationLimit(params?.limit, 20),
+				offset: clampPaginationOffset(params?.offset),
+			},
+		};
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		startDate?: string;
+		endDate?: string;
+		status?: OvertimeAuthorizationQueryParams['status'];
+	} = {
+		limit: clampPaginationLimit(params.limit, 20),
+		offset: clampPaginationOffset(params.offset),
+	};
+
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params.startDate) {
+		query.startDate = params.startDate;
+	}
+	if (params.endDate) {
+		query.endDate = params.endDate;
+	}
+	if (params.status) {
+		query.status = params.status;
+	}
+
+	const response = await api.organizations[params.organizationId]['overtime-authorizations'].get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch overtime authorizations:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch overtime authorizations');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as OvertimeAuthorizationPayload[] | undefined) ?? [];
+
+	return {
+		data: rows.map(normalizeOvertimeAuthorization),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
  * Retrieves payroll runs list.
  *
  * @param params - Filters for organization and pagination
@@ -3563,6 +3721,8 @@ export async function fetchPayrollRunDetail(
 						overtimeDoublePay?: number | string;
 						overtimeTripleHours?: number | string;
 						overtimeTriplePay?: number | string;
+						authorizedOvertimeHours?: number | string;
+						unauthorizedOvertimeHours?: number | string;
 						sundayPremiumAmount?: number | string;
 						mandatoryRestDayPremiumAmount?: number | string;
 						vacationDaysPaid?: number | string;
@@ -3601,6 +3761,8 @@ export async function fetchPayrollRunDetail(
 		overtimeDoublePay: Number(employee.overtimeDoublePay ?? 0),
 		overtimeTripleHours: Number(employee.overtimeTripleHours ?? 0),
 		overtimeTriplePay: Number(employee.overtimeTriplePay ?? 0),
+		authorizedOvertimeHours: Number(employee.authorizedOvertimeHours ?? 0),
+		unauthorizedOvertimeHours: Number(employee.unauthorizedOvertimeHours ?? 0),
 		sundayPremiumAmount: Number(employee.sundayPremiumAmount ?? 0),
 		mandatoryRestDayPremiumAmount: Number(employee.mandatoryRestDayPremiumAmount ?? 0),
 		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
@@ -3801,9 +3963,7 @@ function normalizeAguinaldoRun(record: AguinaldoRunPayload): AguinaldoRun {
  * @param record - Raw Aguinaldo run employee payload
  * @returns Normalized Aguinaldo run employee
  */
-function normalizeAguinaldoRunEmployee(
-	record: AguinaldoRunEmployeePayload,
-): AguinaldoRunEmployee {
+function normalizeAguinaldoRunEmployee(record: AguinaldoRunEmployeePayload): AguinaldoRunEmployee {
 	return {
 		...record,
 		daysCounted: Number(record.daysCounted ?? 0),
@@ -3983,9 +4143,7 @@ export async function fetchPtuRuns(params?: {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,
 		...(params?.organizationId ? { organizationId: params.organizationId } : {}),
-		...(typeof params?.fiscalYear === 'number'
-			? { fiscalYear: params.fiscalYear }
-			: {}),
+		...(typeof params?.fiscalYear === 'number' ? { fiscalYear: params.fiscalYear } : {}),
 	};
 
 	const response = await api.ptu.runs.get({
@@ -3997,8 +4155,7 @@ export async function fetchPtuRuns(params?: {
 		throw new Error('Failed to fetch PTU runs');
 	}
 
-	const runs =
-		(getApiResponseData(response)?.data as PtuRunPayload[] | undefined) ?? [];
+	const runs = (getApiResponseData(response)?.data as PtuRunPayload[] | undefined) ?? [];
 	return runs.map(normalizePtuRun);
 }
 
@@ -4008,7 +4165,12 @@ export async function fetchPtuRunDetail(
 	const response = await api.ptu.runs[runId].get();
 
 	if (response.error) {
-		console.error('Failed to fetch PTU run detail:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to fetch PTU run detail:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		return null;
 	}
 
@@ -4083,7 +4245,12 @@ export async function createAguinaldoRun(params: {
 	});
 
 	if (response.error) {
-		console.error('Failed to create Aguinaldo run:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to create Aguinaldo run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to create Aguinaldo run');
 	}
 
@@ -4126,7 +4293,12 @@ export async function updateAguinaldoRun(
 	});
 
 	if (response.error) {
-		console.error('Failed to update Aguinaldo run:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to update Aguinaldo run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to update Aguinaldo run');
 	}
 
@@ -4151,7 +4323,12 @@ export async function updateAguinaldoRun(
 export async function processAguinaldoRun(runId: string): Promise<boolean> {
 	const response = await api.aguinaldo.runs[runId].process.post();
 	if (response.error) {
-		console.error('Failed to process Aguinaldo run:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to process Aguinaldo run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to process Aguinaldo run');
 	}
 	return true;
@@ -4160,7 +4337,12 @@ export async function processAguinaldoRun(runId: string): Promise<boolean> {
 export async function cancelAguinaldoRun(runId: string, reason: string): Promise<boolean> {
 	const response = await api.aguinaldo.runs[runId].cancel.post({ reason });
 	if (response.error) {
-		console.error('Failed to cancel Aguinaldo run:', response.error, 'Status:', response.status);
+		console.error(
+			'Failed to cancel Aguinaldo run:',
+			response.error,
+			'Status:',
+			response.status,
+		);
 		throw new Error('Failed to cancel Aguinaldo run');
 	}
 	return true;
@@ -4176,9 +4358,7 @@ export async function fetchAguinaldoRuns(params?: {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,
 		...(params?.organizationId ? { organizationId: params.organizationId } : {}),
-		...(typeof params?.calendarYear === 'number'
-			? { calendarYear: params.calendarYear }
-			: {}),
+		...(typeof params?.calendarYear === 'number' ? { calendarYear: params.calendarYear } : {}),
 	};
 
 	const response = await api.aguinaldo.runs.get({
@@ -4195,8 +4375,7 @@ export async function fetchAguinaldoRuns(params?: {
 		throw new Error('Failed to fetch Aguinaldo runs');
 	}
 
-	const runs =
-		(getApiResponseData(response)?.data as AguinaldoRunPayload[] | undefined) ?? [];
+	const runs = (getApiResponseData(response)?.data as AguinaldoRunPayload[] | undefined) ?? [];
 	return runs.map(normalizeAguinaldoRun);
 }
 
@@ -4228,24 +4407,23 @@ export async function fetchAguinaldoRunDetail(
 	};
 }
 
-export async function fetchEmployeePtuHistory(
-	employeeId: string,
-): Promise<PtuHistoryRecord[]> {
+export async function fetchEmployeePtuHistory(employeeId: string): Promise<PtuHistoryRecord[]> {
 	const response = await api.employees[employeeId]['ptu-history'].get();
 
 	if (response.error) {
-		console.error(
-			'Failed to fetch PTU history:',
-			response.error,
-			'Status:',
-			response.status,
-		);
+		console.error('Failed to fetch PTU history:', response.error, 'Status:', response.status);
 		throw new Error('Failed to fetch PTU history');
 	}
 
 	const payload =
 		(getApiResponseData(response)?.data as
-			| Array<PtuHistoryRecord & { amount?: number | string; createdAt: string | Date; updatedAt: string | Date }>
+			| Array<
+					PtuHistoryRecord & {
+						amount?: number | string;
+						createdAt: string | Date;
+						updatedAt: string | Date;
+					}
+			  >
 			| undefined) ?? [];
 	return payload.map((record) => ({
 		...record,
@@ -4265,12 +4443,7 @@ export async function upsertEmployeePtuHistory(
 	});
 
 	if (response.error) {
-		console.error(
-			'Failed to upsert PTU history:',
-			response.error,
-			'Status:',
-			response.status,
-		);
+		console.error('Failed to upsert PTU history:', response.error, 'Status:', response.status);
 		throw new Error('Failed to upsert PTU history');
 	}
 

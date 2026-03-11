@@ -26,6 +26,7 @@ import {
 	type IncapacityQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
+	type OvertimeAuthorizationQueryParams,
 	type OrganizationAllQueryParams,
 	type ScheduleExceptionQueryParams,
 	type ScheduleTemplateQueryParams,
@@ -45,6 +46,7 @@ import {
 	fetchJobPositionsListServer,
 	fetchLocationsListServer,
 	fetchAllOrganizationsServer,
+	fetchOvertimeAuthorizationsListServer,
 	fetchOrganizationMembersServer,
 	fetchOrganizationsServer,
 	fetchPayrollRunsServer,
@@ -127,6 +129,28 @@ export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQue
 }
 
 /**
+ * Prefetches overtime authorizations for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional filters and pagination
+ * @returns Nothing
+ */
+export function prefetchOvertimeAuthorizationsList(
+	queryClient: QueryClient,
+	params?: OvertimeAuthorizationQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.overtimeAuthorizations.list(params),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchOvertimeAuthorizationsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchOvertimeAuthorizationsListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
  * Prefetches disciplinary measures list for server-side streaming.
  *
  * @param queryClient - The QueryClient instance from getQueryClient()
@@ -139,9 +163,7 @@ export function prefetchDisciplinaryMeasures(
 ): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.disciplinaryMeasures.list(params),
-		queryFn: async (): Promise<
-			Awaited<ReturnType<typeof fetchDisciplinaryMeasuresServer>>
-		> => {
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDisciplinaryMeasuresServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchDisciplinaryMeasuresServer(cookieHeader, params);
 		},
@@ -495,10 +517,7 @@ export function prefetchAllOrganizations(
  * @param organizationId - Optional organization scope for the settings request
  * @returns Nothing
  */
-export function prefetchPayrollSettings(
-	queryClient: QueryClient,
-	organizationId?: string,
-): void {
+export function prefetchPayrollSettings(queryClient: QueryClient, organizationId?: string): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.payrollSettings.current(organizationId),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchPayrollSettingsServer>>> => {

@@ -63,6 +63,8 @@ export type PayrollCalculationRow = {
 	normalHours: number;
 	overtimeDoubleHours: number;
 	overtimeTripleHours: number;
+	authorizedOvertimeHours: number;
+	unauthorizedOvertimeHours: number;
 	sundayHoursWorked: number;
 	mandatoryRestDaysWorkedCount: number;
 	mandatoryRestDayDateKeys: string[];
@@ -88,11 +90,20 @@ export type PayrollCalculationRow = {
 			| 'OVERTIME_DAILY_EXCEEDED'
 			| 'OVERTIME_WEEKLY_EXCEEDED'
 			| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
+			| 'OVERTIME_NOT_AUTHORIZED'
+			| 'OVERTIME_EXCEEDED_AUTHORIZATION'
 			| 'BELOW_MINIMUM_WAGE';
 		message: string;
 		severity: 'warning' | 'error';
 	}[];
 };
+
+export interface OvertimeAuthorizationRow {
+	employeeId: string;
+	dateKey: string;
+	authorizedHours: number | string;
+	status: 'PENDING' | 'ACTIVE' | 'CANCELLED';
+}
 
 export interface PayrollPeriodBounds {
 	periodStartUtc: Date;
@@ -118,6 +129,7 @@ export interface CalculatePayrollFromDataArgs {
 	employees: PayrollEmployeeRow[];
 	schedules: ScheduleRow[];
 	attendanceRows: AttendanceRow[];
+	overtimeAuthorizations?: OvertimeAuthorizationRow[];
 	periodStartDateKey: string;
 	periodEndDateKey: string;
 	periodBounds: PayrollPeriodBounds;
@@ -616,11 +628,26 @@ export function calculatePayrollFromData(
 			0,
 		);
 		const hoursWorked = workedMinutesTotal / 60;
+		const overtimeAuthorizationMinutesByDate = new Map<string, number>(
+			(args.overtimeAuthorizations ?? [])
+				.filter(
+					(authorization) =>
+						authorization.employeeId === emp.id &&
+						authorization.status === 'ACTIVE' &&
+						authorization.dateKey >= periodStartDateKey &&
+						authorization.dateKey <= periodEndDateKey,
+				)
+				.map((authorization) => [
+					authorization.dateKey,
+					Math.max(0, Number(authorization.authorizedHours ?? 0) * 60),
+				]),
+		);
 
 		type WeeklyOvertimeBucket = {
 			normalMinutes: number;
 			overtimeFromDailyMinutes: number;
 			overtimeDayKeys: Set<string>;
+			dayKeys: string[];
 		};
 
 		const weeklyBuckets = new Map<string, WeeklyOvertimeBucket>();
@@ -628,6 +655,10 @@ export function calculatePayrollFromData(
 		const sundayDateKeys = new Set<string>();
 		const mandatoryRestDayDateKeys = new Set<string>();
 		const warnings: PayrollCalculationRow['warnings'] = [];
+		let authorizedOvertimeMinutesTotal = 0;
+		let unauthorizedOvertimeMinutesTotal = 0;
+		let payableOvertimeDoubleHours = 0;
+		let payableOvertimeTripleHours = 0;
 
 		for (const [dateKey, minutes] of calendarDayMinutes.entries()) {
 			if (minutes <= 0) {
@@ -652,7 +683,10 @@ export function calculatePayrollFromData(
 
 			const normalMinutes = Math.min(minutes, dailyLimitMinutes);
 			const overtimeMinutes = Math.max(0, minutes - normalMinutes);
-			workdayMinutes.set(dateKey, { normalMinutes, overtimeMinutes });
+			workdayMinutes.set(dateKey, {
+				normalMinutes,
+				overtimeMinutes,
+			});
 		}
 
 		for (const [workdayKey, bucket] of workdayMinutes.entries()) {
@@ -670,12 +704,14 @@ export function calculatePayrollFromData(
 				normalMinutes: 0,
 				overtimeFromDailyMinutes: 0,
 				overtimeDayKeys: new Set<string>(),
+				dayKeys: [],
 			};
 			current.normalMinutes += bucket.normalMinutes;
 			current.overtimeFromDailyMinutes += bucket.overtimeMinutes;
 			if (bucket.overtimeMinutes > 0) {
 				current.overtimeDayKeys.add(workdayKey);
 			}
+			current.dayKeys.push(workdayKey);
 			weeklyBuckets.set(weekKey, current);
 		}
 
@@ -691,13 +727,63 @@ export function calculatePayrollFromData(
 		);
 
 		for (const [weekKey, bucket] of sortedWeeks) {
-			const weeklyNormalExcessMinutes = Math.max(
-				0,
-				bucket.normalMinutes - shiftLimits.weeklyHours * 60,
-			);
-			const weekAdjustedNormalMinutes = bucket.normalMinutes - weeklyNormalExcessMinutes;
-			const weekTotalOvertimeMinutes =
-				bucket.overtimeFromDailyMinutes + weeklyNormalExcessMinutes;
+			let remainingWeeklyNormalAllowance = shiftLimits.weeklyHours * 60;
+			let weekAdjustedNormalMinutes = 0;
+			let weekTotalOvertimeMinutes = 0;
+			let weekAuthorizedPaidMinutes = 0;
+
+			for (const dayKey of [...bucket.dayKeys].sort((a, b) => a.localeCompare(b))) {
+				const dayBucket = workdayMinutes.get(dayKey);
+				if (!dayBucket) {
+					continue;
+				}
+
+				const dayNormalMinutesWithinWeeklyLimit = Math.min(
+					dayBucket.normalMinutes,
+					Math.max(0, remainingWeeklyNormalAllowance),
+				);
+				const dayWeeklyExcessMinutes =
+					dayBucket.normalMinutes - dayNormalMinutesWithinWeeklyLimit;
+				remainingWeeklyNormalAllowance = Math.max(
+					0,
+					remainingWeeklyNormalAllowance - dayBucket.normalMinutes,
+				);
+
+				const dayTotalOvertimeMinutes = dayBucket.overtimeMinutes + dayWeeklyExcessMinutes;
+				const dayAuthorizedMinutes = overtimeAuthorizationMinutesByDate.get(dayKey) ?? 0;
+				const dayAuthorizedPaidMinutes = Math.min(
+					dayTotalOvertimeMinutes,
+					Math.max(0, dayAuthorizedMinutes),
+				);
+				const dayUnauthorizedMinutes = Math.max(
+					0,
+					dayTotalOvertimeMinutes - dayAuthorizedPaidMinutes,
+				);
+
+				weekAdjustedNormalMinutes += dayNormalMinutesWithinWeeklyLimit;
+				weekTotalOvertimeMinutes += dayTotalOvertimeMinutes;
+				weekAuthorizedPaidMinutes += dayAuthorizedPaidMinutes;
+				authorizedOvertimeMinutesTotal += dayAuthorizedPaidMinutes;
+				unauthorizedOvertimeMinutesTotal += dayUnauthorizedMinutes;
+
+				if (dayTotalOvertimeMinutes > 0) {
+					bucket.overtimeDayKeys.add(dayKey);
+				}
+
+				if (dayTotalOvertimeMinutes > 0 && dayAuthorizedPaidMinutes === 0) {
+					warnings.push({
+						type: 'OVERTIME_NOT_AUTHORIZED',
+						message: `Las horas extra no están autorizadas para ${dayKey}. Se registran pero no se pagan.`,
+						severity: 'warning',
+					});
+				} else if (dayUnauthorizedMinutes > 0) {
+					warnings.push({
+						type: 'OVERTIME_EXCEEDED_AUTHORIZATION',
+						message: `Las horas extra de ${dayKey} exceden la autorización aprobada y el excedente no se paga.`,
+						severity: 'warning',
+					});
+				}
+			}
 
 			adjustedNormalHours += weekAdjustedNormalMinutes / 60;
 			const doubleMinutes = Math.min(
@@ -708,8 +794,16 @@ export function calculatePayrollFromData(
 				0,
 				weekTotalOvertimeMinutes - OVERTIME_LIMITS.MAX_WEEKLY_HOURS * 60,
 			);
+			const payableDoubleMinutes = Math.min(doubleMinutes, weekAuthorizedPaidMinutes);
+			const payableTripleMinutes = Math.min(
+				tripleMinutes,
+				Math.max(0, weekAuthorizedPaidMinutes - doubleMinutes),
+			);
+
 			overtimeDoubleHours += doubleMinutes / 60;
 			overtimeTripleHours += tripleMinutes / 60;
+			payableOvertimeDoubleHours += payableDoubleMinutes / 60;
+			payableOvertimeTripleHours += payableTripleMinutes / 60;
 
 			const overtimeDays = bucket.overtimeDayKeys.size;
 			if (overtimeDays > 3) {
@@ -736,10 +830,10 @@ export function calculatePayrollFromData(
 
 		const normalPay = roundCurrency(adjustedNormalHours * hourlyRate);
 		const overtimeDoublePay = roundCurrency(
-			overtimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
+			payableOvertimeDoubleHours * hourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
 		);
 		const overtimeTriplePay = roundCurrency(
-			overtimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
+			payableOvertimeTripleHours * hourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
 		);
 		const sundayPremiumAmount =
 			sundaysWorkedCount > 0
@@ -861,6 +955,8 @@ export function calculatePayrollFromData(
 			normalHours: adjustedNormalHours,
 			overtimeDoubleHours,
 			overtimeTripleHours,
+			authorizedOvertimeHours: authorizedOvertimeMinutesTotal / 60,
+			unauthorizedOvertimeHours: unauthorizedOvertimeMinutesTotal / 60,
 			sundayHoursWorked,
 			mandatoryRestDaysWorkedCount,
 			mandatoryRestDayDateKeys: Array.from(mandatoryRestDayDateKeys).sort((a, b) =>

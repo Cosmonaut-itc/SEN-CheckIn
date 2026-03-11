@@ -1,0 +1,53 @@
+import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
+import { redirect } from 'next/navigation';
+import React from 'react';
+
+import { OvertimeAuthorizationsManager } from '@/components/overtime/overtime-authorizations-manager';
+import { getQueryClient } from '@/lib/get-query-client';
+import { getAdminAccessContext } from '@/lib/organization-context';
+import { OrgProvider } from '@/lib/org-client-context';
+import { prefetchEmployeesList, prefetchOvertimeAuthorizationsList } from '@/lib/server-functions';
+
+export const dynamic = 'force-dynamic';
+
+/**
+ * Overtime authorizations page server component.
+ *
+ * @returns The overtime authorization admin screen
+ */
+export default async function OvertimeAuthorizationsPage(): Promise<React.ReactElement> {
+	const queryClient = getQueryClient();
+	const { organization, organizationRole, userRole, canAccessAdminRoutes } =
+		await getAdminAccessContext();
+
+	if (!canAccessAdminRoutes) {
+		redirect('/acceso-restringido');
+	}
+
+	if (organization.organizationId) {
+		prefetchEmployeesList(queryClient, {
+			organizationId: organization.organizationId,
+			limit: 100,
+			offset: 0,
+		});
+		prefetchOvertimeAuthorizationsList(queryClient, {
+			organizationId: organization.organizationId,
+			limit: 20,
+			offset: 0,
+		});
+	}
+
+	return (
+		<HydrationBoundary state={dehydrate(queryClient)}>
+			<OrgProvider
+				value={{
+					...organization,
+					organizationRole,
+					userRole,
+				}}
+			>
+				<OvertimeAuthorizationsManager />
+			</OrgProvider>
+		</HydrationBoundary>
+	);
+}

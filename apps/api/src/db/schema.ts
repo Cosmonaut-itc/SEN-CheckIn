@@ -246,6 +246,9 @@ export const userRelations = relations(user, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
 	deviceCodes: many(deviceCode),
+	overtimeAuthorizationsApproved: many(overtimeAuthorization, {
+		relationName: 'overtimeAuthorizationApprovedBy',
+	}),
 	disciplinaryMeasuresClosed: many(employeeDisciplinaryMeasure, {
 		relationName: 'disciplinaryMeasureClosedBy',
 	}),
@@ -289,6 +292,7 @@ export const apikeyRelations = relations(apikey, ({ one }) => ({
 export const organizationRelations = relations(organization, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
+	overtimeAuthorizations: many(overtimeAuthorization),
 	terminationSettlements: many(employeeTerminationSettlement),
 	documentWorkflowConfigs: many(organizationDocumentWorkflowConfig),
 	documentRequirements: many(organizationDocumentRequirement),
@@ -488,6 +492,15 @@ export const geographicZone = pgEnum('geographic_zone', ['GENERAL', 'ZLFN']);
 export const overtimeEnforcement = pgEnum('overtime_enforcement', ['WARN', 'BLOCK']);
 
 /**
+ * Enum for overtime authorization status.
+ */
+export const overtimeAuthorizationStatus = pgEnum('overtime_authorization_status', [
+	'PENDING',
+	'ACTIVE',
+	'CANCELLED',
+]);
+
+/**
  * Enum for payroll run status
  */
 export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
@@ -569,11 +582,7 @@ export const employeeDocumentSource = pgEnum('employee_document_source', [
 /**
  * Enum for identification document subtype values.
  */
-export const identificationSubtype = pgEnum('identification_subtype', [
-	'INE',
-	'PASSPORT',
-	'OTHER',
-]);
+export const identificationSubtype = pgEnum('identification_subtype', ['INE', 'PASSPORT', 'OTHER']);
 
 /**
  * Enum for employment profile subtype values.
@@ -1204,9 +1213,7 @@ export const organizationDocumentWorkflowConfig = pgTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [
-		index('organization_document_workflow_config_org_idx').on(table.organizationId),
-	],
+	(table) => [index('organization_document_workflow_config_org_idx').on(table.organizationId)],
 );
 
 /**
@@ -1368,7 +1375,10 @@ export const employeeLegalGeneration = pgTable(
 			.notNull(),
 	},
 	(table) => [
-		index('employee_legal_generation_org_employee_idx').on(table.organizationId, table.employeeId),
+		index('employee_legal_generation_org_employee_idx').on(
+			table.organizationId,
+			table.employeeId,
+		),
 		index('employee_legal_generation_employee_kind_idx').on(table.employeeId, table.kind),
 		index('employee_legal_generation_template_idx').on(table.templateId),
 	],
@@ -1392,7 +1402,9 @@ export const employeeDocumentVersion = pgTable(
 		requirementKey: employeeDocumentRequirementKey('requirement_key').notNull(),
 		versionNumber: integer('version_number').notNull(),
 		isCurrent: boolean('is_current').default(true).notNull(),
-		reviewStatus: employeeDocumentReviewStatus('review_status').default('PENDING_REVIEW').notNull(),
+		reviewStatus: employeeDocumentReviewStatus('review_status')
+			.default('PENDING_REVIEW')
+			.notNull(),
 		reviewComment: text('review_comment'),
 		reviewedByUserId: text('reviewed_by_user_id').references(() => user.id, {
 			onDelete: 'set null',
@@ -1431,7 +1443,10 @@ export const employeeDocumentVersion = pgTable(
 		),
 		uniqueIndex('employee_document_version_object_key_uniq').on(table.objectKey),
 		uniqueIndex('employee_document_version_generation_uniq').on(table.generationId),
-		index('employee_document_version_org_employee_idx').on(table.organizationId, table.employeeId),
+		index('employee_document_version_org_employee_idx').on(
+			table.organizationId,
+			table.employeeId,
+		),
 		index('employee_document_version_org_employee_current_idx').on(
 			table.organizationId,
 			table.employeeId,
@@ -1784,9 +1799,7 @@ export const payrollSetting = pgTable('payroll_setting', {
 	/** Whether aguinaldo calculations are enabled */
 	aguinaldoEnabled: boolean('aguinaldo_enabled').default(true).notNull(),
 	/** Enables disciplinary measures module for this organization. */
-	enableDisciplinaryMeasures: boolean('enable_disciplinary_measures')
-		.default(true)
-		.notNull(),
+	enableDisciplinaryMeasures: boolean('enable_disciplinary_measures').default(true).notNull(),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at')
 		.defaultNow()
@@ -1969,6 +1982,7 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	disciplinaryDocumentVersions: many(employeeDisciplinaryDocumentVersion),
 	disciplinaryAttachments: many(employeeDisciplinaryAttachment),
 	terminationDrafts: many(employeeTerminationDraft),
+	overtimeAuthorizations: many(overtimeAuthorization),
 }));
 
 export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({
@@ -2117,35 +2131,32 @@ export const employeeLegalGenerationRelations = relations(
 	}),
 );
 
-export const employeeDocumentVersionRelations = relations(
-	employeeDocumentVersion,
-	({ one }) => ({
-		organization: one(organization, {
-			fields: [employeeDocumentVersion.organizationId],
-			references: [organization.id],
-		}),
-		employee: one(employee, {
-			fields: [employeeDocumentVersion.employeeId],
-			references: [employee.id],
-		}),
-		reviewedBy: one(user, {
-			fields: [employeeDocumentVersion.reviewedByUserId],
-			references: [user.id],
-		}),
-		verifiedBy: one(user, {
-			fields: [employeeDocumentVersion.verifiedByUserId],
-			references: [user.id],
-		}),
-		uploadedBy: one(user, {
-			fields: [employeeDocumentVersion.uploadedByUserId],
-			references: [user.id],
-		}),
-		generation: one(employeeLegalGeneration, {
-			fields: [employeeDocumentVersion.generationId],
-			references: [employeeLegalGeneration.id],
-		}),
+export const employeeDocumentVersionRelations = relations(employeeDocumentVersion, ({ one }) => ({
+	organization: one(organization, {
+		fields: [employeeDocumentVersion.organizationId],
+		references: [organization.id],
 	}),
-);
+	employee: one(employee, {
+		fields: [employeeDocumentVersion.employeeId],
+		references: [employee.id],
+	}),
+	reviewedBy: one(user, {
+		fields: [employeeDocumentVersion.reviewedByUserId],
+		references: [user.id],
+	}),
+	verifiedBy: one(user, {
+		fields: [employeeDocumentVersion.verifiedByUserId],
+		references: [user.id],
+	}),
+	uploadedBy: one(user, {
+		fields: [employeeDocumentVersion.uploadedByUserId],
+		references: [user.id],
+	}),
+	generation: one(employeeLegalGeneration, {
+		fields: [employeeDocumentVersion.generationId],
+		references: [employeeLegalGeneration.id],
+	}),
+}));
 
 export const organizationDisciplinaryFolioCounterRelations = relations(
 	organizationDisciplinaryFolioCounter,
@@ -2247,33 +2258,30 @@ export const employeeDisciplinaryAttachmentRelations = relations(
 	}),
 );
 
-export const employeeTerminationDraftRelations = relations(
-	employeeTerminationDraft,
-	({ one }) => ({
-		organization: one(organization, {
-			fields: [employeeTerminationDraft.organizationId],
-			references: [organization.id],
-		}),
-		employee: one(employee, {
-			fields: [employeeTerminationDraft.employeeId],
-			references: [employee.id],
-		}),
-		measure: one(employeeDisciplinaryMeasure, {
-			fields: [employeeTerminationDraft.measureId],
-			references: [employeeDisciplinaryMeasure.id],
-		}),
-		createdBy: one(user, {
-			relationName: 'terminationDraftCreatedBy',
-			fields: [employeeTerminationDraft.createdByUserId],
-			references: [user.id],
-		}),
-		updatedBy: one(user, {
-			relationName: 'terminationDraftUpdatedBy',
-			fields: [employeeTerminationDraft.updatedByUserId],
-			references: [user.id],
-		}),
+export const employeeTerminationDraftRelations = relations(employeeTerminationDraft, ({ one }) => ({
+	organization: one(organization, {
+		fields: [employeeTerminationDraft.organizationId],
+		references: [organization.id],
 	}),
-);
+	employee: one(employee, {
+		fields: [employeeTerminationDraft.employeeId],
+		references: [employee.id],
+	}),
+	measure: one(employeeDisciplinaryMeasure, {
+		fields: [employeeTerminationDraft.measureId],
+		references: [employeeDisciplinaryMeasure.id],
+	}),
+	createdBy: one(user, {
+		relationName: 'terminationDraftCreatedBy',
+		fields: [employeeTerminationDraft.createdByUserId],
+		references: [user.id],
+	}),
+	updatedBy: one(user, {
+		relationName: 'terminationDraftUpdatedBy',
+		fields: [employeeTerminationDraft.updatedByUserId],
+		references: [user.id],
+	}),
+}));
 
 export const vacationRequestRelations = relations(vacationRequest, ({ one, many }) => ({
 	organization: one(organization, {
@@ -2295,6 +2303,63 @@ export const vacationRequestDayRelations = relations(vacationRequestDay, ({ one 
 	employee: one(employee, {
 		fields: [vacationRequestDay.employeeId],
 		references: [employee.id],
+	}),
+}));
+
+/**
+ * Overtime authorizations approved before the worked date.
+ */
+export const overtimeAuthorization = pgTable(
+	'overtime_authorization',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		dateKey: text('date_key').notNull(),
+		authorizedHours: numeric('authorized_hours', { precision: 5, scale: 2 }).notNull(),
+		authorizedByUserId: text('authorized_by_user_id').references(() => user.id, {
+			onDelete: 'set null',
+		}),
+		status: overtimeAuthorizationStatus('status').default('ACTIVE').notNull(),
+		notes: text('notes'),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex('overtime_authorization_employee_date_uniq').on(
+			table.employeeId,
+			table.dateKey,
+		),
+		index('overtime_authorization_org_date_idx').on(table.organizationId, table.dateKey),
+		index('overtime_authorization_employee_status_idx').on(table.employeeId, table.status),
+	],
+);
+
+/**
+ * Overtime authorization relations.
+ */
+export const overtimeAuthorizationRelations = relations(overtimeAuthorization, ({ one }) => ({
+	organization: one(organization, {
+		fields: [overtimeAuthorization.organizationId],
+		references: [organization.id],
+	}),
+	employee: one(employee, {
+		fields: [overtimeAuthorization.employeeId],
+		references: [employee.id],
+	}),
+	authorizedByUser: one(user, {
+		fields: [overtimeAuthorization.authorizedByUserId],
+		references: [user.id],
+		relationName: 'overtimeAuthorizationApprovedBy',
 	}),
 }));
 
@@ -2354,6 +2419,15 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 		.default('0')
 		.notNull(),
 	overtimeTriplePay: numeric('overtime_triple_pay', { precision: 12, scale: 2 })
+		.default('0')
+		.notNull(),
+	authorizedOvertimeHours: numeric('authorized_overtime_hours', { precision: 10, scale: 2 })
+		.default('0')
+		.notNull(),
+	unauthorizedOvertimeHours: numeric('unauthorized_overtime_hours', {
+		precision: 10,
+		scale: 2,
+	})
 		.default('0')
 		.notNull(),
 	sundayPremiumAmount: numeric('sunday_premium_amount', { precision: 12, scale: 2 })
@@ -2447,9 +2521,7 @@ export const ptuRunEmployee = pgTable(
 			.default('0')
 			.notNull(),
 		ptuByDays: numeric('ptu_by_days', { precision: 14, scale: 2 }).default('0').notNull(),
-		ptuBySalary: numeric('ptu_by_salary', { precision: 14, scale: 2 })
-			.default('0')
-			.notNull(),
+		ptuBySalary: numeric('ptu_by_salary', { precision: 14, scale: 2 }).default('0').notNull(),
 		ptuPreCap: numeric('ptu_pre_cap', { precision: 14, scale: 2 }).default('0').notNull(),
 		capThreeMonths: numeric('cap_three_months', { precision: 14, scale: 2 })
 			.default('0')
@@ -2459,15 +2531,11 @@ export const ptuRunEmployee = pgTable(
 			.notNull(),
 		capFinal: numeric('cap_final', { precision: 14, scale: 2 }).default('0').notNull(),
 		ptuFinal: numeric('ptu_final', { precision: 14, scale: 2 }).default('0').notNull(),
-		exemptAmount: numeric('exempt_amount', { precision: 14, scale: 2 })
-			.default('0')
-			.notNull(),
+		exemptAmount: numeric('exempt_amount', { precision: 14, scale: 2 }).default('0').notNull(),
 		taxableAmount: numeric('taxable_amount', { precision: 14, scale: 2 })
 			.default('0')
 			.notNull(),
-		withheldIsr: numeric('withheld_isr', { precision: 14, scale: 2 })
-			.default('0')
-			.notNull(),
+		withheldIsr: numeric('withheld_isr', { precision: 14, scale: 2 }).default('0').notNull(),
 		netAmount: numeric('net_amount', { precision: 14, scale: 2 }).default('0').notNull(),
 		warnings: jsonb('warnings').$type<Record<string, unknown>[]>().default([]).notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -2571,15 +2639,11 @@ export const aguinaldoRunEmployee = pgTable(
 		aguinaldoDaysPolicy: integer('aguinaldo_days_policy').default(15).notNull(),
 		yearDays: integer('year_days').default(365).notNull(),
 		grossAmount: numeric('gross_amount', { precision: 14, scale: 2 }).default('0').notNull(),
-		exemptAmount: numeric('exempt_amount', { precision: 14, scale: 2 })
-			.default('0')
-			.notNull(),
+		exemptAmount: numeric('exempt_amount', { precision: 14, scale: 2 }).default('0').notNull(),
 		taxableAmount: numeric('taxable_amount', { precision: 14, scale: 2 })
 			.default('0')
 			.notNull(),
-		withheldIsr: numeric('withheld_isr', { precision: 14, scale: 2 })
-			.default('0')
-			.notNull(),
+		withheldIsr: numeric('withheld_isr', { precision: 14, scale: 2 }).default('0').notNull(),
 		netAmount: numeric('net_amount', { precision: 14, scale: 2 }).default('0').notNull(),
 		warnings: jsonb('warnings').$type<Record<string, unknown>[]>().default([]).notNull(),
 		createdAt: timestamp('created_at').defaultNow().notNull(),

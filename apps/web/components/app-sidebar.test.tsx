@@ -171,6 +171,7 @@ describe('AppSidebar', () => {
 
 		expect(screen.getByTestId('app-sidebar-admin-group')).toBeInTheDocument();
 		expect(screen.getByText('disciplinaryMeasures')).toBeInTheDocument();
+		expect(screen.getByText('overtimeAuthorizations')).toBeInTheDocument();
 	});
 
 	it('hides admin navigation for standard members', () => {

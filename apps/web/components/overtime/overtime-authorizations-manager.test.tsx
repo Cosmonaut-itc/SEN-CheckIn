@@ -277,10 +277,9 @@ describe('OvertimeAuthorizationsManager', () => {
 		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
 		const dateTrigger = screen.getByTestId('overtime-date-trigger');
 
-		expect(dateTrigger).toHaveClass('border-border');
-		expect(dateTrigger).toHaveClass('bg-background');
-		expect(dateTrigger).toHaveClass('hover:bg-muted/40');
-		expect(dateTrigger).toHaveClass('hover:text-foreground');
+		expect(dateTrigger).toHaveClass('border-input');
+		expect(dateTrigger).toHaveClass('bg-background/80');
+		expect(dateTrigger).toHaveClass('transition-[border-color,box-shadow,background-color]');
 		expect(dateTrigger).toHaveClass('justify-between');
 		expect(dateTrigger).toHaveClass('shadow-xs');
 	});

@@ -50,6 +50,8 @@ const LEGAL_DAILY_OVERTIME_LIMIT = 3;
 
 const SELECT_CLASS_NAME =
 	'border-input h-9 w-full rounded-md border bg-background/80 px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50';
+const DATE_TRIGGER_CLASS_NAME =
+	'border-input text-foreground h-9 w-full rounded-md border bg-background/80 px-3 py-1 text-sm shadow-xs transition-[border-color,box-shadow,background-color] outline-none focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] focus-visible:ring-[3px] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
  * Parses a date key into a local Date for calendar selection.
@@ -331,13 +333,12 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 									<Label htmlFor="overtime-date">{t('form.fields.date')}</Label>
 									<Popover>
 										<PopoverTrigger asChild>
-											<Button
+											<button
 												id="overtime-date"
 												type="button"
-												variant="outline"
 												data-testid="overtime-date-trigger"
 												data-empty={!selectedAuthorizationDate}
-												className="border-border bg-background text-foreground hover:bg-muted/40 hover:text-foreground focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] data-[empty=true]:text-muted-foreground h-9 w-full justify-between px-3 text-left font-normal shadow-xs"
+												className={`${DATE_TRIGGER_CLASS_NAME} data-[empty=true]:text-muted-foreground inline-flex items-center justify-between gap-2 text-left font-normal`}
 											>
 												<span className="truncate">
 													{selectedAuthorizationDate ? (
@@ -349,7 +350,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 													)}
 												</span>
 												<CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-											</Button>
+											</button>
 										</PopoverTrigger>
 										<PopoverContent
 											className="w-auto p-0"

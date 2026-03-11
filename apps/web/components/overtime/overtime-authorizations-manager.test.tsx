@@ -267,6 +267,24 @@ describe('OvertimeAuthorizationsManager', () => {
 		expect(dialogQueries.getByTestId('overtime-submit-button')).toBeInTheDocument();
 	});
 
+	it('renders the date trigger with the same surface treatment as the other inputs', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+		const dateTrigger = screen.getByTestId('overtime-date-trigger');
+
+		expect(dateTrigger).toHaveClass('border-border');
+		expect(dateTrigger).toHaveClass('bg-background');
+		expect(dateTrigger).toHaveClass('hover:bg-muted/40');
+		expect(dateTrigger).toHaveClass('hover:text-foreground');
+		expect(dateTrigger).toHaveClass('justify-between');
+		expect(dateTrigger).toHaveClass('shadow-xs');
+	});
+
 	it('prevents submitting the form again while create mutation is pending', async () => {
 		let resolveCreate: ((value: { success: boolean; data: null }) => void) | undefined;
 		const createPromise = new Promise<{ success: boolean; data: null }>((resolve) => {

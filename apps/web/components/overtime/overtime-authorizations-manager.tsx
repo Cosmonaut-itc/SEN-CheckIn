@@ -337,16 +337,18 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 												variant="outline"
 												data-testid="overtime-date-trigger"
 												data-empty={!selectedAuthorizationDate}
-												className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+												className="border-border bg-background text-foreground hover:bg-muted/40 hover:text-foreground focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] data-[empty=true]:text-muted-foreground h-9 w-full justify-between px-3 text-left font-normal shadow-xs"
 											>
-												<CalendarIcon className="mr-2 h-4 w-4" />
-												{selectedAuthorizationDate ? (
-													format(selectedAuthorizationDate, 'PPP', {
-														locale: es,
-													})
-												) : (
-													<span>{t('form.placeholders.date')}</span>
-												)}
+												<span className="truncate">
+													{selectedAuthorizationDate ? (
+														format(selectedAuthorizationDate, 'PPP', {
+															locale: es,
+														})
+													) : (
+														<span>{t('form.placeholders.date')}</span>
+													)}
+												</span>
+												<CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-70" />
 											</Button>
 										</PopoverTrigger>
 										<PopoverContent

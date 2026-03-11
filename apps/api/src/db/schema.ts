@@ -2390,6 +2390,10 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 	vacationPremiumAmount: numeric('vacation_premium_amount', { precision: 12, scale: 2 })
 		.default('0')
 		.notNull(),
+	lunchBreakAutoDeductedDays: integer('lunch_break_auto_deducted_days').default(0).notNull(),
+	lunchBreakAutoDeductedMinutes: integer('lunch_break_auto_deducted_minutes')
+		.default(0)
+		.notNull(),
 	/** Snapshot of fiscal breakdown for the employee line */
 	taxBreakdown: jsonb('tax_breakdown').$type<Record<string, unknown>>(),
 	periodStart: timestamp('period_start').notNull(),

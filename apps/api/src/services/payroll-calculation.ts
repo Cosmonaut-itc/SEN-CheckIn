@@ -31,6 +31,7 @@ export type AttendanceRow = {
 	employeeId: string;
 	timestamp: Date;
 	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	checkOutReason?: 'REGULAR' | 'LUNCH_BREAK' | 'PERSONAL' | null;
 	offsiteDateKey?: string | null;
 	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE' | null;
 };
@@ -38,6 +39,7 @@ export type AttendanceRow = {
 export type EmployeeAttendanceRow = {
 	timestamp: Date;
 	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	checkOutReason?: 'REGULAR' | 'LUNCH_BREAK' | 'PERSONAL' | null;
 	offsiteDateKey?: string | null;
 	offsiteDayKind?: 'LABORABLE' | 'NO_LABORABLE' | null;
 };
@@ -74,6 +76,8 @@ export type PayrollCalculationRow = {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
+	lunchBreakAutoDeductedDays: number;
+	lunchBreakAutoDeductedMinutes: number;
 	totalPay: number;
 	grossPay: number;
 	bases: MexicoPayrollTaxResult['bases'];
@@ -88,6 +92,7 @@ export type PayrollCalculationRow = {
 			| 'OVERTIME_DAILY_EXCEEDED'
 			| 'OVERTIME_WEEKLY_EXCEEDED'
 			| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
+			| 'LUNCH_BREAK_AUTO_DEDUCTED'
 			| 'BELOW_MINIMUM_WAGE';
 		message: string;
 		severity: 'warning' | 'error';
@@ -125,7 +130,12 @@ export interface CalculatePayrollFromDataArgs {
 	weekStartDay: number;
 	additionalMandatoryRestDays: string[];
 	defaultTimeZone: string;
-	payrollSettings?: Partial<MexicoPayrollTaxSettings> & { enableSeventhDayPay?: boolean };
+	payrollSettings?: Partial<MexicoPayrollTaxSettings> & {
+		enableSeventhDayPay?: boolean;
+		autoDeductLunchBreak?: boolean;
+		lunchBreakMinutes?: number;
+		lunchBreakThresholdHours?: number;
+	};
 	vacationDayCounts?: Record<string, number>;
 	incapacityRecordsByEmployee?: Record<string, IncapacityRecordInput[]>;
 }
@@ -150,7 +160,12 @@ export interface PayrollIncapacitySummary {
 	byType: IncapacitySummary['byType'];
 }
 
-const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: boolean } = {
+const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & {
+	enableSeventhDayPay: boolean;
+	autoDeductLunchBreak: boolean;
+	lunchBreakMinutes: number;
+	lunchBreakThresholdHours: number;
+} = {
 	riskWorkRate: 0,
 	statePayrollTaxRate: 0,
 	absorbImssEmployeeShare: false,
@@ -158,6 +173,9 @@ const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: bo
 	aguinaldoDays: 15,
 	vacationPremiumRate: 0.25,
 	enableSeventhDayPay: false,
+	autoDeductLunchBreak: false,
+	lunchBreakMinutes: 60,
+	lunchBreakThresholdHours: 6,
 };
 
 /**
@@ -441,6 +459,7 @@ export function calculatePayrollFromData(
 		current.push({
 			timestamp: row.timestamp,
 			type: row.type,
+			checkOutReason: row.checkOutReason ?? null,
 			offsiteDateKey: row.offsiteDateKey ?? null,
 			offsiteDayKind: row.offsiteDayKind ?? null,
 		});
@@ -503,11 +522,12 @@ export function calculatePayrollFromData(
 		const sortedAttendance = [...attendance].sort(
 			(a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
 		);
-		let openCheckIn: Date | null = null;
-		let paidExitStart: Date | null = null;
-		const offsiteDateKeys = new Set<string>();
-		const forcedMandatoryRestDayDateKeys = new Set<string>();
-		const standardShiftMinutes = Math.round(shiftLimits.dailyHours * 60);
+			let openCheckIn: Date | null = null;
+			let paidExitStart: Date | null = null;
+			const offsiteDateKeys = new Set<string>();
+			const lunchBreakCheckoutDateKeys = new Set<string>();
+			const forcedMandatoryRestDayDateKeys = new Set<string>();
+			const standardShiftMinutes = Math.round(shiftLimits.dailyHours * 60);
 
 		/**
 		 * Applies a paid segment to the totals, clipping to the payroll period.
@@ -545,8 +565,8 @@ export function calculatePayrollFromData(
 			}
 		};
 
-		for (const record of sortedAttendance) {
-			if (record.type === 'WORK_OFFSITE') {
+			for (const record of sortedAttendance) {
+				if (record.type === 'WORK_OFFSITE') {
 				if (paidExitStart) {
 					applyPaidSegment(paidExitStart, record.timestamp);
 					paidExitStart = null;
@@ -566,10 +586,19 @@ export function calculatePayrollFromData(
 				if (record.offsiteDayKind === 'NO_LABORABLE') {
 					forcedMandatoryRestDayDateKeys.add(offsiteDateKey);
 				}
-				continue;
-			}
+					continue;
+				}
 
-			if (record.type === 'CHECK_IN') {
+				if (
+					record.checkOutReason === 'LUNCH_BREAK' &&
+					(record.type === 'CHECK_OUT' || record.type === 'CHECK_OUT_AUTHORIZED')
+				) {
+					lunchBreakCheckoutDateKeys.add(
+						toDateKeyInTimeZone(record.timestamp, employeeTimeZone),
+					);
+				}
+
+				if (record.type === 'CHECK_IN') {
 				if (paidExitStart) {
 					applyPaidSegment(paidExitStart, record.timestamp);
 					paidExitStart = null;
@@ -611,25 +640,61 @@ export function calculatePayrollFromData(
 			applyPaidSegment(checkIn, checkOut);
 		}
 
-		const workedMinutesTotal = Array.from(calendarDayMinutes.values()).reduce(
-			(total, minutes) => total + Math.max(0, minutes),
-			0,
-		);
-		const hoursWorked = workedMinutesTotal / 60;
+			type WeeklyOvertimeBucket = {
+				normalMinutes: number;
+				overtimeFromDailyMinutes: number;
+				overtimeDayKeys: Set<string>;
+			};
 
-		type WeeklyOvertimeBucket = {
-			normalMinutes: number;
-			overtimeFromDailyMinutes: number;
-			overtimeDayKeys: Set<string>;
-		};
+			const weeklyBuckets = new Map<string, WeeklyOvertimeBucket>();
+			let sundayHoursWorked = 0;
+			const sundayDateKeys = new Set<string>();
+			const mandatoryRestDayDateKeys = new Set<string>();
+			const warnings: PayrollCalculationRow['warnings'] = [];
+			let lunchBreakAutoDeductedDays = 0;
+			let lunchBreakAutoDeductedMinutes = 0;
 
-		const weeklyBuckets = new Map<string, WeeklyOvertimeBucket>();
-		let sundayHoursWorked = 0;
-		const sundayDateKeys = new Set<string>();
-		const mandatoryRestDayDateKeys = new Set<string>();
-		const warnings: PayrollCalculationRow['warnings'] = [];
+			if (
+				resolvedTaxSettings.autoDeductLunchBreak &&
+				resolvedTaxSettings.lunchBreakMinutes > 0
+			) {
+				const lunchBreakThresholdMinutes = resolvedTaxSettings.lunchBreakThresholdHours * 60;
 
-		for (const [dateKey, minutes] of calendarDayMinutes.entries()) {
+				for (const [dateKey, minutes] of calendarDayMinutes.entries()) {
+					if (
+						minutes <= lunchBreakThresholdMinutes ||
+						offsiteDateKeys.has(dateKey) ||
+						lunchBreakCheckoutDateKeys.has(dateKey)
+					) {
+						continue;
+					}
+
+					const deductedMinutes = Math.min(
+						minutes,
+						Math.max(0, resolvedTaxSettings.lunchBreakMinutes),
+					);
+					if (deductedMinutes <= 0) {
+						continue;
+					}
+
+					calendarDayMinutes.set(dateKey, Math.max(0, minutes - deductedMinutes));
+					lunchBreakAutoDeductedDays += 1;
+					lunchBreakAutoDeductedMinutes += deductedMinutes;
+					warnings.push({
+						type: 'LUNCH_BREAK_AUTO_DEDUCTED',
+						message: `Se descontaron ${deductedMinutes} minutos de comida automáticamente en ${dateKey}.`,
+						severity: 'warning',
+					});
+				}
+			}
+
+			const workedMinutesTotal = Array.from(calendarDayMinutes.values()).reduce(
+				(total, minutes) => total + Math.max(0, minutes),
+				0,
+			);
+			const hoursWorked = workedMinutesTotal / 60;
+
+			for (const [dateKey, minutes] of calendarDayMinutes.entries()) {
 			if (minutes <= 0) {
 				continue;
 			}
@@ -870,11 +935,13 @@ export function calculatePayrollFromData(
 			overtimeDoublePay,
 			overtimeTriplePay,
 			sundayPremiumAmount,
-			mandatoryRestDayPremiumAmount,
-			vacationDaysPaid,
-			vacationPayAmount,
-			vacationPremiumAmount,
-			totalPay,
+				mandatoryRestDayPremiumAmount,
+				vacationDaysPaid,
+				vacationPayAmount,
+				vacationPremiumAmount,
+				lunchBreakAutoDeductedDays,
+				lunchBreakAutoDeductedMinutes,
+				totalPay,
 			grossPay,
 			bases: taxBreakdown.bases,
 			employeeWithholdings: taxBreakdown.employeeWithholdings,

@@ -1,0 +1,2 @@
+ALTER TABLE "payroll_run_employee" ADD COLUMN "lunch_break_auto_deducted_days" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
+ALTER TABLE "payroll_run_employee" ADD COLUMN "lunch_break_auto_deducted_minutes" integer DEFAULT 0 NOT NULL;

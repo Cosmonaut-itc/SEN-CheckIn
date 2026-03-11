@@ -113,6 +113,24 @@ function buildWeeklyAttendance(
 	return rows;
 }
 
+/**
+ * Builds payroll settings overrides for lunch break deduction scenarios.
+ *
+ * @param overrides - Lunch break-specific overrides
+ * @returns Payroll settings override payload compatible with current calculator args
+ */
+function buildLunchBreakSettings(overrides: {
+	autoDeductLunchBreak: boolean;
+	lunchBreakMinutes?: number;
+	lunchBreakThresholdHours?: number;
+}): CalculatePayrollFromDataArgs['payrollSettings'] {
+	return {
+		autoDeductLunchBreak: overrides.autoDeductLunchBreak,
+		lunchBreakMinutes: overrides.lunchBreakMinutes ?? 60,
+		lunchBreakThresholdHours: overrides.lunchBreakThresholdHours ?? 6,
+	} as CalculatePayrollFromDataArgs['payrollSettings'];
+}
+
 describe('payroll-calculation', () => {
 	const employeeId = 'emp-test-1';
 	const timeZone = 'America/Mexico_City';
@@ -957,6 +975,249 @@ describe('payroll-calculation', () => {
 		expect(row?.overtimeDoubleHours).toBe(1);
 		expect(row?.overtimeTripleHours).toBe(0);
 		expect(row?.totalPay).toBe(1000);
+	});
+
+	it('does not deduct lunch break automatically when the setting is disabled', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				getUtcDateForZonedTime(periodEndDateKey, 17, 0, timeZone),
+			),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({ autoDeductLunchBreak: false }),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+		expect(row?.hoursWorked).toBe(8);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(0);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(0);
+		expect(
+			(row?.warnings ?? []).some(
+				(warning) =>
+					(warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toBe(false);
+	});
+
+	it('deducts the configured lunch break when no lunch checkout exists and the threshold is exceeded', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				getUtcDateForZonedTime(periodEndDateKey, 17, 0, timeZone),
+			),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({
+				autoDeductLunchBreak: true,
+				lunchBreakMinutes: 60,
+				lunchBreakThresholdHours: 6,
+			}),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+		expect(row?.hoursWorked).toBe(7);
+		expect(row?.normalHours).toBe(7);
+		expect(row?.totalPay).toBe(700);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(1);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(60);
+		expect(
+			(row?.warnings ?? []).some(
+				(warning) =>
+					(warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toBe(true);
+	});
+
+	it('does not apply an extra lunch deduction when a lunch checkout already exists', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 13, 0, timeZone),
+				type: 'CHECK_OUT',
+				checkOutReason: 'LUNCH_BREAK',
+			} as AttendanceRow,
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 14, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodEndDateKey, 18, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({ autoDeductLunchBreak: true }),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+		expect(row?.hoursWorked).toBe(8);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(0);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(0);
+		expect(
+			(row?.warnings ?? []).some(
+				(warning) =>
+					(warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toBe(false);
+	});
+
+	it('does not deduct lunch break when worked hours stay below the configured threshold', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				getUtcDateForZonedTime(periodEndDateKey, 14, 0, timeZone),
+			),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({
+				autoDeductLunchBreak: true,
+				lunchBreakThresholdHours: 6,
+			}),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+		expect(row?.hoursWorked).toBe(5);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(0);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(0);
+	});
+
+	it('tracks mixed lunch deduction scenarios across multiple days', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-08';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-06', 9, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-06', 17, 0, timeZone),
+			),
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-07', 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-07', 13, 0, timeZone),
+				type: 'CHECK_OUT',
+				checkOutReason: 'LUNCH_BREAK',
+			} as AttendanceRow,
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-07', 14, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-07', 18, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-08', 9, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-08', 13, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({ autoDeductLunchBreak: true }),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+		expect(row?.hoursWorked).toBe(19);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(1);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(60);
+		expect(
+			(row?.warnings ?? []).filter(
+				(warning) =>
+					(warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toHaveLength(1);
 	});
 
 	it('counts WORK_OFFSITE LABORABLE as a standard paid shift', () => {

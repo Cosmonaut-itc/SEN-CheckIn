@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
 
@@ -133,6 +133,10 @@ function renderWithProviders(): ReturnType<typeof render> {
 }
 
 describe('OvertimeAuthorizationsManager', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	beforeEach(() => {
 		mockFetchEmployeesList.mockReset();
 		mockFetchOvertimeAuthorizationsList.mockReset();
@@ -240,6 +244,78 @@ describe('OvertimeAuthorizationsManager', () => {
 			'Soporte al cierre mensual',
 		);
 		expect(dialogQueries.getByText('form.actions.submit')).toBeInTheDocument();
+	});
+
+	it('prevents submitting the form again while create mutation is pending', async () => {
+		let resolveCreate: ((value: { success: boolean; data: null }) => void) | undefined;
+		const createPromise = new Promise<{ success: boolean; data: null }>((resolve) => {
+			resolveCreate = resolve;
+		});
+		mockCreateOvertimeAuthorizationAction.mockReturnValue(createPromise);
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('actions.create')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByText('actions.create'));
+		const dialog = screen.getByRole('dialog');
+		const dialogQueries = within(dialog);
+
+		fireEvent.change(dialogQueries.getByLabelText('form.fields.date'), {
+			target: { value: '2026-03-25' },
+		});
+		fireEvent.change(dialogQueries.getByLabelText('form.fields.hours'), {
+			target: { value: '2' },
+		});
+		fireEvent.change(dialogQueries.getByLabelText('form.fields.employee'), {
+			target: { value: 'emp-1' },
+		});
+
+		const form = dialogQueries.getByLabelText('form.fields.date').closest('form');
+		if (!form) {
+			throw new Error('Expected overtime authorization form.');
+		}
+
+		fireEvent.submit(form);
+
+		await waitFor(() => {
+			expect(dialogQueries.getByText('actions.createSubmitting')).toBeInTheDocument();
+		});
+
+		fireEvent.submit(form);
+
+		expect(mockCreateOvertimeAuthorizationAction).toHaveBeenCalledTimes(1);
+
+		if (!resolveCreate) {
+			throw new Error('Expected create mutation resolver.');
+		}
+		resolveCreate({ success: true, data: null });
+
+		await waitFor(() => {
+			expect(dialogQueries.queryByText('actions.createSubmitting')).not.toBeInTheDocument();
+		});
+	});
+
+	it('uses the local calendar date for the minimum selectable authorization date', async () => {
+		vi.spyOn(Date.prototype, 'toISOString').mockReturnValue('2026-03-12T01:30:00.000Z');
+		vi.spyOn(Date.prototype, 'getFullYear').mockReturnValue(2026);
+		vi.spyOn(Date.prototype, 'getMonth').mockReturnValue(2);
+		vi.spyOn(Date.prototype, 'getDate').mockReturnValue(11);
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('actions.create')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByText('actions.create'));
+		const dialog = screen.getByRole('dialog');
+		const dialogQueries = within(dialog);
+		const dateInput = dialogQueries.getByLabelText('form.fields.date') as HTMLInputElement;
+
+		expect(dateInput.min).toBe('2026-03-11');
 	});
 
 	it('cancels an active authorization from the table action', async () => {

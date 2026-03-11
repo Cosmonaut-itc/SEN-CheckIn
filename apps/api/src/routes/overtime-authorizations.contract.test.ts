@@ -30,7 +30,7 @@ describe('overtime authorizations routes (contract)', () => {
 			30 + (Math.floor(Date.now() / 1000) % 365),
 		);
 		const organizationRoute = requireRoute(
-			client.organizations[seed.organizationId]['overtime-authorizations'],
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
 			'Overtime authorization route',
 		);
 
@@ -92,7 +92,7 @@ describe('overtime authorizations routes (contract)', () => {
 			400 + (Math.floor(Date.now() / 1000) % 365),
 		);
 		const organizationRoute = requireRoute(
-			client.organizations[seed.organizationId]['overtime-authorizations'],
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
 			'Overtime authorization route',
 		);
 
@@ -116,7 +116,7 @@ describe('overtime authorizations routes (contract)', () => {
 			800 + (Math.floor(Date.now() / 1000) % 365),
 		);
 		const organizationRoute = requireRoute(
-			client.organizations[seed.organizationId]['overtime-authorizations'],
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
 			'Overtime authorization route',
 		);
 
@@ -145,7 +145,7 @@ describe('overtime authorizations routes (contract)', () => {
 
 	it('rejects authorizations for past dates', async () => {
 		const organizationRoute = requireRoute(
-			client.organizations[seed.organizationId]['overtime-authorizations'],
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
 			'Overtime authorization route',
 		);
 

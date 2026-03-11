@@ -45,6 +45,20 @@ const SELECT_CLASS_NAME =
 	'border-input h-9 w-full rounded-md border bg-background/80 px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
+ * Formats today's date using the browser's local calendar fields.
+ *
+ * @returns Date key in YYYY-MM-DD format
+ */
+function getLocalTodayDateKey(): string {
+	const today = new Date();
+	const year = today.getFullYear();
+	const month = String(today.getMonth() + 1).padStart(2, '0');
+	const day = String(today.getDate()).padStart(2, '0');
+
+	return `${year}-${month}-${day}`;
+}
+
+/**
  * Overtime authorizations management screen for admin users.
  *
  * @returns Overtime authorization manager content
@@ -206,6 +220,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 	const canGoPrevious = pagination.offset > 0;
 	const canGoNext = pagination.offset + pagination.limit < pagination.total;
 	const helperShouldWarn = Number(authorizedHoursInput || 0) > LEGAL_DAILY_OVERTIME_LIMIT;
+	const minimumAuthorizationDate = getLocalTodayDateKey();
 
 	return (
 		<div className="space-y-6">
@@ -272,7 +287,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 										value={dateKey}
 										onChange={(event) => setDateKey(event.target.value)}
 										placeholder={t('form.placeholders.date')}
-										min={new Date().toISOString().slice(0, 10)}
+										min={minimumAuthorizationDate}
 									/>
 								</div>
 

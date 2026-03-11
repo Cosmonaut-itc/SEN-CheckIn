@@ -7,9 +7,10 @@ describe('overtime authorization schema', () => {
 		expect(schema).toHaveProperty('overtimeAuthorizationStatus');
 		expect(schema).toHaveProperty('overtimeAuthorization');
 
-		const overtimeAuthorization = (
-			schema as Record<string, Record<string, unknown> | undefined>
-		).overtimeAuthorization;
+		const schemaRecord = schema as unknown as Record<string, unknown>;
+		const overtimeAuthorization = schemaRecord.overtimeAuthorization as
+			| Record<string, unknown>
+			| undefined;
 		expect(overtimeAuthorization).toBeDefined();
 		expect(overtimeAuthorization).toHaveProperty('organizationId');
 		expect(overtimeAuthorization).toHaveProperty('employeeId');

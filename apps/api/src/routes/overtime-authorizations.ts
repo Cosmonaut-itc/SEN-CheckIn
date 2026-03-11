@@ -19,7 +19,7 @@ import { resolveOrganizationId } from '../utils/organization.js';
 
 const OVERTIME_AUTHORIZATION_UNIQUE_INDEX = 'overtime_authorization_employee_date_uniq';
 
-interface OvertimeAuthorizationRecord {
+export interface OvertimeAuthorizationRecord {
 	id: string;
 	organizationId: string;
 	employeeId: string;

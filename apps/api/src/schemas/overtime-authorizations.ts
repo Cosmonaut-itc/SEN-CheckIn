@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 import { parseDateKey } from '../utils/date-key.js';
 
+const MAX_AUTHORIZED_HOURS = 999.99;
+
 /**
  * Validates a date key in YYYY-MM-DD format.
  */
@@ -21,6 +23,14 @@ const dateKeySchema = z
  * Enum for overtime authorization status filters and mutations.
  */
 export const overtimeAuthorizationStatusSchema = z.enum(['PENDING', 'ACTIVE', 'CANCELLED']);
+
+/**
+ * Validates overtime hours against the database numeric(5,2) range.
+ */
+const authorizedHoursSchema = z.coerce
+	.number()
+	.positive('authorizedHours must be greater than 0')
+	.max(MAX_AUTHORIZED_HOURS, 'authorizedHours must be less than or equal to 999.99');
 
 /**
  * Path params for organization-scoped overtime authorization routes.
@@ -43,7 +53,7 @@ export const overtimeAuthorizationParamsSchema =
 export const overtimeAuthorizationCreateSchema = z.object({
 	employeeId: z.string().min(1, 'employeeId is required'),
 	dateKey: dateKeySchema,
-	authorizedHours: z.coerce.number().positive('authorizedHours must be greater than 0'),
+	authorizedHours: authorizedHoursSchema,
 	notes: z.string().trim().max(500).optional(),
 });
 
@@ -51,10 +61,7 @@ export const overtimeAuthorizationCreateSchema = z.object({
  * Update payload for overtime authorizations.
  */
 export const overtimeAuthorizationUpdateSchema = z.object({
-	authorizedHours: z.coerce
-		.number()
-		.positive('authorizedHours must be greater than 0')
-		.optional(),
+	authorizedHours: authorizedHoursSchema.optional(),
 	status: overtimeAuthorizationStatusSchema.optional(),
 	notes: z.string().trim().max(500).optional(),
 });

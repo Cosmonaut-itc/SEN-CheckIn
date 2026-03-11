@@ -1781,6 +1781,14 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull(),
 	/** Enables the seventh day pay calculation */
 	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
+	/** Whether lunch break time is automatically deducted when no lunch checkout exists. */
+	autoDeductLunchBreak: boolean('auto_deduct_lunch_break').default(false).notNull(),
+	/** Minutes deducted for lunch break when auto deduction applies. */
+	lunchBreakMinutes: integer('lunch_break_minutes').default(60).notNull(),
+	/** Minimum continuous worked hours before auto lunch deduction applies. */
+	lunchBreakThresholdHours: numeric('lunch_break_threshold_hours', { precision: 4, scale: 2 })
+		.default('6')
+		.notNull(),
 	/** Whether PTU calculations are enabled */
 	ptuEnabled: boolean('ptu_enabled').default(false).notNull(),
 	/** PTU mode behavior (DEFAULT_RULES or MANUAL) */

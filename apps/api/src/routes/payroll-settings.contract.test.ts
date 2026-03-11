@@ -27,6 +27,9 @@ describe('payroll settings routes (contract)', () => {
 		const payload = requireResponseData(response);
 		expect(payload.data?.organizationId).toBeDefined();
 		expect(typeof payload.data?.enableDisciplinaryMeasures).toBe('boolean');
+		expect(payload.data?.autoDeductLunchBreak).toBe(false);
+		expect(Number(payload.data?.lunchBreakMinutes)).toBe(60);
+		expect(Number(payload.data?.lunchBreakThresholdHours)).toBe(6);
 	});
 
 	it('updates payroll settings for the active organization', async () => {
@@ -35,6 +38,9 @@ describe('payroll settings routes (contract)', () => {
 			overtimeEnforcement: 'WARN',
 			enableSeventhDayPay: true,
 			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 45,
+			lunchBreakThresholdHours: 5.5,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -42,6 +48,9 @@ describe('payroll settings routes (contract)', () => {
 		const payload = requireResponseData(response);
 		expect(payload.data?.weekStartDay).toBe(2);
 		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);
+		expect(payload.data?.autoDeductLunchBreak).toBe(true);
+		expect(Number(payload.data?.lunchBreakMinutes)).toBe(45);
+		expect(Number(payload.data?.lunchBreakThresholdHours)).toBe(5.5);
 	});
 
 	it('preserves weekStartDay when omitted in updates', async () => {
@@ -61,6 +70,28 @@ describe('payroll settings routes (contract)', () => {
 		const partialUpdatePayload = requireResponseData(partialUpdateResponse);
 		expect(partialUpdatePayload.data?.weekStartDay).toBe(4);
 		expect(partialUpdatePayload.data?.enableDisciplinaryMeasures).toBe(false);
+	});
+
+	it('rejects lunch break minutes outside the supported range', async () => {
+		const response = await client['payroll-settings'].put({
+			lunchBreakMinutes: 10,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'lunch break minutes validation');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('rejects lunch break threshold hours outside the supported range', async () => {
+		const response = await client['payroll-settings'].put({
+			lunchBreakThresholdHours: 3.5,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'lunch break threshold validation');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
 	});
 
 	it('rejects invalid calendar dates for additional mandatory rest days', async () => {

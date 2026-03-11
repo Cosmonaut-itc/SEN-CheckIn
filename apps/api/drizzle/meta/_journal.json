@@ -267,6 +267,13 @@
       "when": 1773270968024,
       "tag": "0037_absurd_senator_kelly",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1773271059618,
+      "tag": "0038_striped_ink",
+      "breakpoints": true
     }
   ]
 }

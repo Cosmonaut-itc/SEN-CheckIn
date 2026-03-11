@@ -237,4 +237,47 @@ describe('overtime authorizations routes (contract)', () => {
 			'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.',
 		);
 	});
+
+	it('includes a legal warning when updating authorized hours above three', async () => {
+		const dateKey = addDaysToDateKey(
+			toDateKeyUtc(new Date()),
+			1600 + (Math.floor(Date.now() / 1000) % 365),
+		);
+		const organizationRoute = requireRoute(
+			client.organizations[seed.organizationId]?.['overtime-authorizations'],
+			'Overtime authorization route',
+		);
+
+		const createResponse = await organizationRoute.post({
+			employeeId: seed.employeeId,
+			dateKey,
+			authorizedHours: 2,
+			notes: 'Autorizacion inicial',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		if (!createPayload.data) {
+			throw new Error('Expected created overtime authorization payload.');
+		}
+
+		const detailRoute = requireRoute(
+			organizationRoute[createPayload.data.id],
+			'Single overtime authorization route',
+		);
+
+		const updateResponse = await detailRoute.put({
+			authorizedHours: 4,
+			notes: 'Extension extraordinaria',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(updateResponse.status).toBe(200);
+		const updatePayload = requireResponseData(updateResponse);
+		expect(updatePayload.data?.authorizedHours).toBe(4);
+		expect(updatePayload.warning).toBe(
+			'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.',
+		);
+	});
 });

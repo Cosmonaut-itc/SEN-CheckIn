@@ -462,6 +462,69 @@ describe('payroll-calculation', () => {
 		expect(row?.warnings.some((w) => w.type === 'OVERTIME_EXCEEDED_AUTHORIZATION')).toBe(true);
 	});
 
+	it('aggregates repeated authorization warnings across multiple days', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-08';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-06', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-06', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-07', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-07', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-08', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-08', 19, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: '2025-01-06',
+					authorizedHours: 2,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		const authorizationWarnings =
+			row?.warnings.filter(
+				(warning) =>
+					warning.type === 'OVERTIME_NOT_AUTHORIZED' ||
+					warning.type === 'OVERTIME_EXCEEDED_AUTHORIZATION',
+			) ?? [];
+
+		expect(authorizationWarnings).toHaveLength(2);
+		expect(
+			authorizationWarnings.find(
+				(warning) => warning.type === 'OVERTIME_EXCEEDED_AUTHORIZATION',
+			)?.message,
+		).toContain('2025-01-06');
+		expect(
+			authorizationWarnings.find((warning) => warning.type === 'OVERTIME_NOT_AUTHORIZED')
+				?.message,
+		).toContain('2025-01-07, 2025-01-08');
+	});
+
 	it('allocates authorized overtime into weekly double and triple buckets chronologically', () => {
 		const periodStartDateKey = '2025-01-06';
 		const periodEndDateKey = '2025-01-10';

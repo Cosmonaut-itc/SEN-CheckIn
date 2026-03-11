@@ -655,6 +655,8 @@ export function calculatePayrollFromData(
 		const sundayDateKeys = new Set<string>();
 		const mandatoryRestDayDateKeys = new Set<string>();
 		const warnings: PayrollCalculationRow['warnings'] = [];
+		const unauthorizedOvertimeDayKeys = new Set<string>();
+		const exceededAuthorizationDayKeys = new Set<string>();
 		let authorizedOvertimeMinutesTotal = 0;
 		let unauthorizedOvertimeMinutesTotal = 0;
 		let payableOvertimeDoubleHours = 0;
@@ -786,17 +788,9 @@ export function calculatePayrollFromData(
 				}
 
 				if (dayTotalOvertimeMinutes > 0 && dayAuthorizedPaidMinutes === 0) {
-					warnings.push({
-						type: 'OVERTIME_NOT_AUTHORIZED',
-						message: `Las horas extra no están autorizadas para ${dayKey}. Se registran pero no se pagan.`,
-						severity: 'warning',
-					});
+					unauthorizedOvertimeDayKeys.add(dayKey);
 				} else if (dayUnauthorizedMinutes > 0) {
-					warnings.push({
-						type: 'OVERTIME_EXCEEDED_AUTHORIZATION',
-						message: `Las horas extra de ${dayKey} exceden la autorización aprobada y el excedente no se paga.`,
-						severity: 'warning',
-					});
+					exceededAuthorizationDayKeys.add(dayKey);
 				}
 			}
 
@@ -832,6 +826,28 @@ export function calculatePayrollFromData(
 					severity: overtimeEnforcement === 'BLOCK' ? 'error' : 'warning',
 				});
 			}
+		}
+
+		const sortedUnauthorizedDayKeys = [...unauthorizedOvertimeDayKeys].sort((a, b) =>
+			a.localeCompare(b),
+		);
+		if (sortedUnauthorizedDayKeys.length > 0) {
+			warnings.push({
+				type: 'OVERTIME_NOT_AUTHORIZED',
+				message: `Las horas extra no están autorizadas para ${sortedUnauthorizedDayKeys.join(', ')}. Se registran pero no se pagan.`,
+				severity: 'warning',
+			});
+		}
+
+		const sortedExceededAuthorizationDayKeys = [...exceededAuthorizationDayKeys].sort((a, b) =>
+			a.localeCompare(b),
+		);
+		if (sortedExceededAuthorizationDayKeys.length > 0) {
+			warnings.push({
+				type: 'OVERTIME_EXCEEDED_AUTHORIZATION',
+				message: `Las horas extra de ${sortedExceededAuthorizationDayKeys.join(', ')} exceden la autorización aprobada y el excedente no se paga.`,
+				severity: 'warning',
+			});
 		}
 
 		const divisor = shiftLimits.divisor || 8;

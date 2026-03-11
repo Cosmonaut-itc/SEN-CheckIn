@@ -298,6 +298,49 @@ describe('overtime authorization routes', () => {
 		expect(payload.error.code).toBe('INTERNAL_ERROR');
 	});
 
+	it('returns the legal warning when updating authorized hours above three', async () => {
+		const existingAuthorization = dbState.existingAuthorization;
+		if (!existingAuthorization) {
+			throw new Error('Expected existing overtime authorization.');
+		}
+
+		dbState.updateReturningRows = [
+			{
+				...existingAuthorization,
+				authorizedHours: '4.00',
+				notes: 'Extension extraordinaria',
+				updatedAt: new Date('2099-01-02T00:00:00.000Z'),
+			},
+		];
+
+		const { overtimeAuthorizationRoutes } = await import('./overtime-authorizations.js');
+
+		const response = await overtimeAuthorizationRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				`/organizations/${dbState.organizationId}/overtime-authorizations/${existingAuthorization.id}`,
+				{
+					authorizedHours: 4,
+					notes: 'Extension extraordinaria',
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			data: {
+				id: string;
+				authorizedHours: number;
+			};
+			warning?: string;
+		};
+		expect(payload.data.id).toBe(existingAuthorization.id);
+		expect(payload.data.authorizedHours).toBe(4);
+		expect(payload.warning).toBe(
+			'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.',
+		);
+	});
+
 	it('returns the legal warning when reactivating a cancelled authorization above three hours', async () => {
 		dbState.existingAuthorization = {
 			...(dbState.existingAuthorization as FakeAuthorizationRow),

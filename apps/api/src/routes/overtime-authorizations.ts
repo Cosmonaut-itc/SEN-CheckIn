@@ -76,6 +76,8 @@ async function ensureOrganizationAdmin(
 	set: { status?: number | string } & Record<string, unknown>,
 ): Promise<boolean> {
 	if (args.authType !== 'session' || !args.session) {
+		// Overtime authorizations remain limited to interactive owner/admin sessions
+		// until API keys gain an explicit admin/scoped permission model for this feature.
 		set.status = 403;
 		return false;
 	}
@@ -531,6 +533,9 @@ export const overtimeAuthorizationRoutes = new Elysia({
 					...updated,
 					authorizedHours: Number(updated.authorizedHours ?? 0),
 				},
+				...(Number(updated.authorizedHours ?? 0) > 3
+					? { warning: OVERTIME_LEGAL_WARNING }
+					: {}),
 			};
 		},
 		{

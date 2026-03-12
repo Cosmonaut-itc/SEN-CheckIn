@@ -1703,6 +1703,64 @@ describe('payroll-calculation', () => {
 		).toBe(false);
 	});
 
+	it('does auto deduct lunch on the next day when a lunch checkout crosses midnight for too long', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-03';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 20, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 23, 55, timeZone),
+				type: 'CHECK_OUT',
+				checkOutReason: 'LUNCH_BREAK',
+			} as AttendanceRow,
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodEndDateKey, 8, 5, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodEndDateKey, 16, 5, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({ autoDeductLunchBreak: true }),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+
+		expect(row?.hoursWorked).toBeCloseTo(655 / 60, 5);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(1);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(60);
+		expect(
+			(row?.warnings ?? []).filter(
+				(warning) => (warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toHaveLength(1);
+	});
+
 	it('does not auto deduct lunch twice for legacy overnight breaks without a checkout reason', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-03';

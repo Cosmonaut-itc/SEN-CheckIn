@@ -666,14 +666,16 @@ export function calculatePayrollFromData(
 			if (record.type === 'CHECK_IN') {
 				if (pendingUnpaidBreak) {
 					const checkInDateKey = toDateKeyInTimeZone(record.timestamp, employeeTimeZone);
-					const legacyCrossDateBypassApplies =
-						pendingUnpaidBreak.isLegacyWithoutReason &&
+					const crossDateBypassApplies =
+						pendingUnpaidBreak.qualifiesForLunchDeductionBypass &&
 						pendingUnpaidBreak.checkOutDateKey !== checkInDateKey &&
 						differenceInMinutes(record.timestamp, pendingUnpaidBreak.start) <=
-							resolvedTaxSettings.lunchBreakMinutes;
+							resolvedTaxSettings.lunchBreakMinutes &&
+						(pendingUnpaidBreak.spansTouchedDateKeys ||
+							pendingUnpaidBreak.isLegacyWithoutReason);
 					if (
 						pendingUnpaidBreak.qualifiesForLunchDeductionBypass &&
-						(pendingUnpaidBreak.spansTouchedDateKeys || legacyCrossDateBypassApplies)
+						crossDateBypassApplies
 					) {
 						markExplicitBreakDateKeys(pendingUnpaidBreak.start, record.timestamp);
 					} else if (

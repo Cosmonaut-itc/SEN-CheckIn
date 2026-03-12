@@ -276,6 +276,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 				return;
 			}
 
+			const hasValidLunchBreakValues =
+				lunchBreakMinutes !== null && lunchBreakThresholdHours !== null;
 			const payload = {
 				weekStartDay: Number(value.weekStartDay),
 				timeZone: trimmedTimeZone,
@@ -296,11 +298,10 @@ export function PayrollSettingsClient(): React.ReactElement {
 				aguinaldoEnabled: value.aguinaldoEnabled,
 				enableDisciplinaryMeasures: value.enableDisciplinaryMeasures,
 				autoDeductLunchBreak: value.autoDeductLunchBreak,
-				...(value.autoDeductLunchBreak
+				...(hasValidLunchBreakValues
 					? {
-							lunchBreakMinutes: lunchBreakMinutes ?? data?.lunchBreakMinutes ?? 60,
-							lunchBreakThresholdHours:
-								lunchBreakThresholdHours ?? data?.lunchBreakThresholdHours ?? 6,
+							lunchBreakMinutes,
+							lunchBreakThresholdHours,
 						}
 					: {}),
 			};

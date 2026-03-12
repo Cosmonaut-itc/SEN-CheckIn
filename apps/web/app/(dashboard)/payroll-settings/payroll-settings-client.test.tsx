@@ -184,7 +184,7 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
-	it('omits hidden lunch break fields when automatic deduction is disabled', async () => {
+	it('persists valid lunch break fields when automatic deduction is disabled before saving', async () => {
 		mockFetchPayrollSettings.mockResolvedValueOnce({
 			id: 'payroll-1',
 			organizationId: 'org-1',
@@ -233,11 +233,64 @@ describe('PayrollSettingsClient', () => {
 		const [payload, options] = mockUpdatePayrollSettingsAction.mock.calls[0] ?? [];
 		expect(payload).toMatchObject({
 			autoDeductLunchBreak: false,
+			lunchBreakMinutes: 45,
+			lunchBreakThresholdHours: 7,
 		});
-		expect(payload).not.toHaveProperty('lunchBreakMinutes');
-		expect(payload).not.toHaveProperty('lunchBreakThresholdHours');
 		expect(options).toMatchObject({
 			mutationKey: ['payrollSettings', 'update'],
 		});
+	});
+
+	it('omits hidden lunch break fields when their values become invalid', async () => {
+		mockFetchPayrollSettings.mockResolvedValueOnce({
+			id: 'payroll-1',
+			organizationId: 'org-1',
+			weekStartDay: 1,
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDays: [],
+			riskWorkRate: 0.1,
+			statePayrollTaxRate: 0,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: 0.25,
+			enableSeventhDayPay: false,
+			ptuEnabled: false,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: null,
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 10,
+			lunchBreakThresholdHours: 7,
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+
+		renderWithProviders();
+
+		const autoDeductInput = await screen.findByLabelText(
+			'lunchBreak.fields.autoDeductLunchBreak',
+		);
+		await waitFor(() => {
+			expect(autoDeductInput).toBeChecked();
+		});
+
+		fireEvent.click(autoDeductInput);
+		fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+		await waitFor(() => {
+			expect(mockUpdatePayrollSettingsAction).toHaveBeenCalled();
+		});
+
+		const [payload] = mockUpdatePayrollSettingsAction.mock.calls[0] ?? [];
+		expect(payload).toMatchObject({
+			autoDeductLunchBreak: false,
+		});
+		expect(payload).not.toHaveProperty('lunchBreakMinutes');
+		expect(payload).not.toHaveProperty('lunchBreakThresholdHours');
 	});
 });

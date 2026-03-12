@@ -164,7 +164,13 @@ export async function cancelOvertimeAuthorizationAction(
 			].delete();
 
 		if (response.error) {
-			return { success: false, error: 'Failed to cancel overtime authorization' };
+			return {
+				success: false,
+				error: getApiErrorMessage(
+					response.error,
+					'Failed to cancel overtime authorization',
+				),
+			};
 		}
 
 		return { success: true, data: response.data };

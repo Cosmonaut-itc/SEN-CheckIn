@@ -329,6 +329,10 @@ function calculateSeventhDayPay(args: {
 		targetDayOfWeek: 6,
 	});
 	const saturdayIsScheduled = scheduledKeys.includes(saturdayDate ?? '');
+	const requiredWorkedDayKeys = [...scheduledKeys];
+	if (saturdayDate && !saturdayIsScheduled) {
+		requiredWorkedDayKeys.push(saturdayDate);
+	}
 	if (
 		countSaturdayAsWorkedForSeventhDay &&
 		saturdayDate &&
@@ -336,7 +340,9 @@ function calculateSeventhDayPay(args: {
 	) {
 		resolvedWorkedDayKeys.add(saturdayDate);
 	}
-	const completedAllScheduledDays = scheduledKeys.every((key) => resolvedWorkedDayKeys.has(key));
+	const completedAllScheduledDays = requiredWorkedDayKeys.every((key) =>
+		resolvedWorkedDayKeys.has(key),
+	);
 	return completedAllScheduledDays ? roundCurrency(dailyPay) : 0;
 }
 

@@ -64,7 +64,15 @@ export const overtimeAuthorizationUpdateSchema = z.object({
 	authorizedHours: authorizedHoursSchema.optional(),
 	status: overtimeAuthorizationStatusSchema.optional(),
 	notes: z.string().trim().max(500).optional(),
-});
+}).refine(
+	(value) =>
+		value.authorizedHours !== undefined ||
+		value.status !== undefined ||
+		value.notes !== undefined,
+	{
+		message: 'At least one field must be provided for update',
+	},
+);
 
 /**
  * Query filters for listing overtime authorizations.

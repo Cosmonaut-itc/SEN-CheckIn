@@ -341,6 +341,37 @@ describe('overtime authorization routes', () => {
 		);
 	});
 
+	it('rejects updates for cancelled authorizations', async () => {
+		dbState.existingAuthorization = {
+			...(dbState.existingAuthorization as FakeAuthorizationRow),
+			status: 'CANCELLED',
+		};
+
+		const { overtimeAuthorizationRoutes } = await import('./overtime-authorizations.js');
+
+		const response = await overtimeAuthorizationRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				`/organizations/${dbState.organizationId}/overtime-authorizations/${dbState.existingAuthorization.id}`,
+				{
+					authorizedHours: 3,
+				},
+			),
+		);
+
+		expect(response.status).toBe(400);
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+				code: string;
+			};
+		};
+		expect(payload.error.message).toBe(
+			'Cannot modify a cancelled overtime authorization. Create a new one instead.',
+		);
+		expect(payload.error.code).toBe('VALIDATION_ERROR');
+	});
+
 	it('returns the legal warning when reactivating a cancelled authorization above three hours', async () => {
 		dbState.existingAuthorization = {
 			...(dbState.existingAuthorization as FakeAuthorizationRow),

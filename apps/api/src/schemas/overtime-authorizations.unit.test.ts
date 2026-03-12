@@ -35,4 +35,16 @@ describe('overtime authorization schemas', () => {
 			'authorizedHours must be less than or equal to 999.99',
 		);
 	});
+
+	it('rejects empty update payloads', () => {
+		const result = overtimeAuthorizationUpdateSchema.safeParse({});
+
+		expect(result.success).toBe(false);
+		if (result.success) {
+			throw new Error('Expected update schema validation to fail.');
+		}
+		expect(result.error.issues[0]?.message).toBe(
+			'At least one field must be provided for update',
+		);
+	});
 });

@@ -506,6 +506,13 @@ export const overtimeAuthorizationRoutes = new Elysia({
 				set.status = 404;
 				return buildErrorResponse('Overtime authorization not found', 404);
 			}
+			if (existing.status === 'CANCELLED') {
+				set.status = 400;
+				return buildErrorResponse(
+					'Cannot modify a cancelled overtime authorization. Create a new one instead.',
+					400,
+				);
+			}
 
 			const isEditable = await isEditableAuthorizationDate(existing.dateKey, organizationId);
 			if (!isEditable) {

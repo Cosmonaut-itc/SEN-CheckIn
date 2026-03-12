@@ -26,6 +26,7 @@ import type {
 	Organization,
 	OrganizationsAllResponse,
 	OrganizationMember,
+	OvertimeAuthorization,
 	PaginatedResponse,
 	PayrollCalculationResult,
 	PayrollRun,
@@ -50,6 +51,7 @@ import type {
 	JobPositionQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
+	OvertimeAuthorizationQueryParams,
 	OrganizationAllQueryParams,
 	PayrollCalculateParams,
 	ScheduleExceptionQueryParams,
@@ -1057,6 +1059,98 @@ export async function fetchPayrollRunsServer(
 	}));
 }
 
+/**
+ * Fetches overtime authorizations for server-side prefetching.
+ *
+ * @param cookieHeader - Forwarded cookie header
+ * @param params - Organization, filters, and pagination params
+ * @returns Paginated overtime authorization response
+ * @throws Error when the API request fails
+ */
+export async function fetchOvertimeAuthorizationsListServer(
+	cookieHeader: string,
+	params?: OvertimeAuthorizationQueryParams,
+): Promise<PaginatedResponse<OvertimeAuthorization>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: clampPaginationLimit(params?.limit, 20),
+				offset: clampPaginationOffset(params?.offset),
+			},
+		};
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		limit: number;
+		offset: number;
+		employeeId?: string;
+		startDate?: string;
+		endDate?: string;
+		status?: OvertimeAuthorizationQueryParams['status'];
+	} = {
+		limit: clampPaginationLimit(params.limit, 20),
+		offset: clampPaginationOffset(params.offset),
+	};
+
+	if (params.employeeId) {
+		query.employeeId = params.employeeId;
+	}
+	if (params.startDate) {
+		query.startDate = params.startDate;
+	}
+	if (params.endDate) {
+		query.endDate = params.endDate;
+	}
+	if (params.status) {
+		query.status = params.status;
+	}
+
+	const response = await api.organizations[params.organizationId]['overtime-authorizations'].get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch overtime authorizations:', response.error);
+		throw new Error('Failed to fetch overtime authorizations');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows =
+		(payload?.data as
+			| Array<{
+					id: string;
+					organizationId: string;
+					employeeId: string;
+					employeeName?: string;
+					dateKey: string;
+					authorizedHours?: number | string;
+					authorizedByUserId: string | null;
+					authorizedByName?: string | null;
+					status: 'PENDING' | 'ACTIVE' | 'CANCELLED';
+					notes: string | null;
+					createdAt: string | Date;
+					updatedAt: string | Date;
+			  }>
+			| undefined) ?? [];
+
+	return {
+		data: rows.map((row) => ({
+			...row,
+			authorizedHours: Number(row.authorizedHours ?? 0),
+			createdAt: new Date(row.createdAt),
+			updatedAt: new Date(row.updatedAt),
+		})),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
 export async function fetchPayrollRunDetailServer(
 	cookieHeader: string,
 	id: string,
@@ -1083,6 +1177,8 @@ export async function fetchPayrollRunDetailServer(
 						overtimeDoublePay?: number | string;
 						overtimeTripleHours?: number | string;
 						overtimeTriplePay?: number | string;
+						authorizedOvertimeHours?: number | string;
+						unauthorizedOvertimeHours?: number | string;
 						sundayPremiumAmount?: number | string;
 						mandatoryRestDayPremiumAmount?: number | string;
 						vacationDaysPaid?: number | string;
@@ -1119,6 +1215,8 @@ export async function fetchPayrollRunDetailServer(
 		overtimeDoublePay: Number(employee.overtimeDoublePay ?? 0),
 		overtimeTripleHours: Number(employee.overtimeTripleHours ?? 0),
 		overtimeTriplePay: Number(employee.overtimeTriplePay ?? 0),
+		authorizedOvertimeHours: Number(employee.authorizedOvertimeHours ?? 0),
+		unauthorizedOvertimeHours: Number(employee.unauthorizedOvertimeHours ?? 0),
 		sundayPremiumAmount: Number(employee.sundayPremiumAmount ?? 0),
 		mandatoryRestDayPremiumAmount: Number(employee.mandatoryRestDayPremiumAmount ?? 0),
 		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),

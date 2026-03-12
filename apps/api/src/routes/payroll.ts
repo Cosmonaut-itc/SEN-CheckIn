@@ -11,6 +11,7 @@ import {
 	employeeSchedule,
 	location,
 	organization,
+	overtimeAuthorization,
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
@@ -29,6 +30,7 @@ import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
+	type OvertimeAuthorizationRow,
 	type PayrollCalculationRow,
 } from '../services/payroll-calculation.js';
 import {
@@ -59,9 +61,7 @@ const calculatePayroll = async (args: {
 	periodEndDateKey: string;
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 }): Promise<{
-	employees: Array<
-		PayrollCalculationRow & { holidayImpact?: PayrollEmployeeHolidayImpact }
-	>;
+	employees: Array<PayrollCalculationRow & { holidayImpact?: PayrollEmployeeHolidayImpact }>;
 	totalAmount: number;
 	taxSummary: {
 		grossTotal: number;
@@ -95,8 +95,7 @@ const calculatePayroll = async (args: {
 		.limit(1);
 	const overtimeEnforcement = orgSettings[0]?.overtimeEnforcement ?? 'WARN';
 	const weekStartDay = orgSettings[0]?.weekStartDay ?? 1;
-	const legacyAdditionalMandatoryRestDays =
-		orgSettings[0]?.additionalMandatoryRestDays ?? [];
+	const legacyAdditionalMandatoryRestDays = orgSettings[0]?.additionalMandatoryRestDays ?? [];
 	const resolvedTimeZone = orgSettings[0]?.timeZone ?? 'America/Mexico_City';
 	const timeZone = isValidIanaTimeZone(resolvedTimeZone)
 		? resolvedTimeZone
@@ -252,6 +251,29 @@ const calculatePayroll = async (args: {
 		});
 	}
 
+	// Intentionally unbounded: this fetch is already constrained by organization,
+	// the employeeIds participating in the run, ACTIVE status, and the payroll period.
+	const overtimeAuthorizationRows: OvertimeAuthorizationRow[] =
+		employeeIds.length === 0
+			? []
+			: await db
+					.select({
+						employeeId: overtimeAuthorization.employeeId,
+						dateKey: overtimeAuthorization.dateKey,
+						authorizedHours: overtimeAuthorization.authorizedHours,
+						status: overtimeAuthorization.status,
+					})
+					.from(overtimeAuthorization)
+					.where(
+						and(
+							eq(overtimeAuthorization.organizationId, organizationId),
+							inArray(overtimeAuthorization.employeeId, employeeIds),
+							eq(overtimeAuthorization.status, 'ACTIVE'),
+							gte(overtimeAuthorization.dateKey, periodStartDateKey),
+							lte(overtimeAuthorization.dateKey, periodEndDateKey),
+						),
+					);
+
 	const {
 		employees: results,
 		totalAmount,
@@ -260,6 +282,7 @@ const calculatePayroll = async (args: {
 		employees: filteredEmployees,
 		schedules,
 		attendanceRows,
+		overtimeAuthorizations: overtimeAuthorizationRows,
 		periodStartDateKey,
 		periodEndDateKey,
 		periodBounds,
@@ -282,7 +305,8 @@ const calculatePayroll = async (args: {
 	});
 
 	const employeesWithHolidayImpact = results.map((employeeResult) => {
-		const holidayImpact = holidayContext.employeeHolidayImpactByEmployeeId[employeeResult.employeeId];
+		const holidayImpact =
+			holidayContext.employeeHolidayImpactByEmployeeId[employeeResult.employeeId];
 		if (!holidayImpact) {
 			return employeeResult;
 		}
@@ -438,8 +462,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						totals: calculation.taxSummary,
 						settings: calculation.payrollSettingsSnapshot,
 					},
-					holidayNotices:
-						calculation.holidayNotices as unknown as Record<string, unknown>[],
+					holidayNotices: calculation.holidayNotices as unknown as Record<
+						string,
+						unknown
+					>[],
 					processedAt: new Date(),
 				});
 
@@ -457,6 +483,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						overtimeDoublePay: row.overtimeDoublePay.toFixed(2),
 						overtimeTripleHours: row.overtimeTripleHours.toFixed(2),
 						overtimeTriplePay: row.overtimeTriplePay.toFixed(2),
+						authorizedOvertimeHours: row.authorizedOvertimeHours.toFixed(2),
+						unauthorizedOvertimeHours: row.unauthorizedOvertimeHours.toFixed(2),
 						sundayPremiumAmount: row.sundayPremiumAmount.toFixed(2),
 						mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount.toFixed(2),
 						vacationDaysPaid: row.vacationDaysPaid,
@@ -635,6 +663,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					overtimeDoublePay: payrollRunEmployee.overtimeDoublePay,
 					overtimeTripleHours: payrollRunEmployee.overtimeTripleHours,
 					overtimeTriplePay: payrollRunEmployee.overtimeTriplePay,
+					authorizedOvertimeHours: payrollRunEmployee.authorizedOvertimeHours,
+					unauthorizedOvertimeHours: payrollRunEmployee.unauthorizedOvertimeHours,
 					sundayPremiumAmount: payrollRunEmployee.sundayPremiumAmount,
 					mandatoryRestDayPremiumAmount: payrollRunEmployee.mandatoryRestDayPremiumAmount,
 					vacationDaysPaid: payrollRunEmployee.vacationDaysPaid,
@@ -668,6 +698,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				overtimeDoublePay: line.overtimeDoublePay,
 				overtimeTripleHours: line.overtimeTripleHours,
 				overtimeTriplePay: line.overtimeTriplePay,
+				authorizedOvertimeHours: line.authorizedOvertimeHours,
+				unauthorizedOvertimeHours: line.unauthorizedOvertimeHours,
 				sundayPremiumAmount: line.sundayPremiumAmount,
 				mandatoryRestDayPremiumAmount: line.mandatoryRestDayPremiumAmount,
 				vacationDaysPaid: line.vacationDaysPaid,

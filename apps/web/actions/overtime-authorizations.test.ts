@@ -1,0 +1,126 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import {
+	cancelOvertimeAuthorizationAction,
+	createOvertimeAuthorizationAction,
+	updateOvertimeAuthorizationAction,
+	type UpdateOvertimeAuthorizationInput,
+} from '@/actions/overtime-authorizations';
+
+type UpdateOvertimeAuthorizationStatus = NonNullable<UpdateOvertimeAuthorizationInput['status']>;
+
+// @ts-expect-error PENDING is not a valid update target for the current API contract.
+const invalidUpdateStatus: UpdateOvertimeAuthorizationStatus = 'PENDING';
+void invalidUpdateStatus;
+
+const createPostMock = vi.fn();
+const updatePutMock = vi.fn();
+const cancelDeleteMock = vi.fn();
+
+vi.mock('next/headers', () => ({
+	headers: vi.fn(async () => ({
+		get: (key: string) => (key === 'cookie' ? 'session=mock' : null),
+	})),
+}));
+
+vi.mock('@/lib/server-api', () => ({
+	createServerApiClient: vi.fn(() => ({
+		organizations: new Proxy(
+			{},
+			{
+				get: () => ({
+					'overtime-authorizations': {
+						post: createPostMock,
+						authId: {
+							put: updatePutMock,
+							delete: cancelDeleteMock,
+						},
+					},
+				}),
+			},
+		),
+	})),
+}));
+
+describe('overtime authorization actions', () => {
+	beforeEach(() => {
+		createPostMock.mockReset();
+		updatePutMock.mockReset();
+		cancelDeleteMock.mockReset();
+	});
+
+	it('threads the API error message through create failures', async () => {
+		createPostMock.mockResolvedValue({
+			error: {
+				value: {
+					error: {
+						message:
+							'An overtime authorization already exists for this employee and date',
+					},
+				},
+			},
+			status: 409,
+		});
+
+		const result = await createOvertimeAuthorizationAction({
+			organizationId: 'org-1',
+			employeeId: 'emp-1',
+			dateKey: '2026-03-20',
+			authorizedHours: 2,
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe(
+			'An overtime authorization already exists for this employee and date',
+		);
+	});
+
+	it('threads the API error message through update failures', async () => {
+		updatePutMock.mockResolvedValue({
+			error: {
+				value: {
+					error: {
+						message:
+							'Overtime authorizations can only be modified before the authorized date passes',
+					},
+				},
+			},
+			status: 400,
+		});
+
+		const result = await updateOvertimeAuthorizationAction({
+			organizationId: 'org-1',
+			id: 'authId',
+			authorizedHours: 4,
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe(
+			'Overtime authorizations can only be modified before the authorized date passes',
+		);
+	});
+
+	it('threads the API error message through cancel failures', async () => {
+		cancelDeleteMock.mockResolvedValue({
+			error: {
+				value: {
+					error: {
+						message:
+							'Overtime authorizations can only be modified before the authorized date passes',
+					},
+				},
+			},
+			status: 400,
+		});
+
+		const result = await cancelOvertimeAuthorizationAction({
+			organizationId: 'org-1',
+			id: 'authId',
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe(
+			'Overtime authorizations can only be modified before the authorized date passes',
+		);
+	});
+});

@@ -6,6 +6,7 @@ export interface OrgContextValue {
 	organizationId: string | null;
 	organizationSlug: string | null;
 	organizationName: string | null;
+	organizationTimeZone?: string | null;
 	organizationRole?: 'admin' | 'owner' | 'member' | null;
 	userRole?: string;
 }

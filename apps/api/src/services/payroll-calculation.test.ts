@@ -10,6 +10,7 @@ import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
+	type OvertimeAuthorizationRow,
 	type PayrollEmployeeRow,
 	type ScheduleRow,
 } from './payroll-calculation.js';
@@ -304,6 +305,380 @@ describe('payroll-calculation', () => {
 		expect(row?.warnings.some((w) => w.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(true);
 	});
 
+	it('does not pay overtime without an active authorization', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 8, 0, timeZone);
+		const checkOut = getUtcDateForZonedTime(periodEndDateKey, 19, 0, timeZone);
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(employeeId, checkIn, checkOut),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [],
+		});
+
+		const row = employees[0];
+		expect(row?.overtimeDoubleHours).toBe(3);
+		expect(row?.authorizedOvertimeHours).toBe(0);
+		expect(row?.unauthorizedOvertimeHours).toBe(3);
+		expect(row?.overtimeDoublePay).toBe(0);
+		expect(row?.warnings.some((w) => w.type === 'OVERTIME_NOT_AUTHORIZED')).toBe(true);
+	});
+
+	it('limits paid overtime to the authorized hours when authorization is partial', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 8, 0, timeZone);
+		const checkOut = getUtcDateForZonedTime(periodEndDateKey, 19, 0, timeZone);
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(employeeId, checkIn, checkOut),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: periodStartDateKey,
+					authorizedHours: 2,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		expect(row?.overtimeDoubleHours).toBe(3);
+		expect(row?.authorizedOvertimeHours).toBe(2);
+		expect(row?.unauthorizedOvertimeHours).toBe(1);
+		expect(row?.payableOvertimeDoubleHours).toBe(2);
+		expect(row?.payableOvertimeTripleHours).toBe(0);
+		expect(row?.overtimeDoublePay).toBe(400);
+		expect(row?.warnings.some((w) => w.type === 'OVERTIME_EXCEEDED_AUTHORIZATION')).toBe(true);
+	});
+
+	it('pays all overtime when authorization covers all extra hours', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const checkIn = getUtcDateForZonedTime(periodStartDateKey, 8, 0, timeZone);
+		const checkOut = getUtcDateForZonedTime(periodEndDateKey, 19, 0, timeZone);
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: createAttendancePair(employeeId, checkIn, checkOut),
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: periodStartDateKey,
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		expect(row?.authorizedOvertimeHours).toBe(3);
+		expect(row?.unauthorizedOvertimeHours).toBe(0);
+		expect(row?.overtimeDoublePay).toBe(600);
+		expect(
+			row?.warnings.some(
+				(w) =>
+					w.type === 'OVERTIME_NOT_AUTHORIZED' ||
+					w.type === 'OVERTIME_EXCEEDED_AUTHORIZATION',
+			),
+		).toBe(false);
+	});
+
+	it('accumulates authorized and unauthorized overtime across mixed days', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-08';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-06', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-06', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-07', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-07', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-08', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-08', 17, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: '2025-01-06',
+					authorizedHours: 2,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		expect(row?.overtimeDoubleHours).toBe(7);
+		expect(row?.authorizedOvertimeHours).toBe(2);
+		expect(row?.unauthorizedOvertimeHours).toBe(5);
+		expect(row?.overtimeDoublePay).toBe(400);
+		expect(row?.warnings.some((w) => w.type === 'OVERTIME_NOT_AUTHORIZED')).toBe(true);
+		expect(row?.warnings.some((w) => w.type === 'OVERTIME_EXCEEDED_AUTHORIZATION')).toBe(true);
+	});
+
+	it('aggregates repeated authorization warnings across multiple days', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-08';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-06', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-06', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-07', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-07', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-08', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-08', 19, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: '2025-01-06',
+					authorizedHours: 2,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		const authorizationWarnings =
+			row?.warnings.filter(
+				(warning) =>
+					warning.type === 'OVERTIME_NOT_AUTHORIZED' ||
+					warning.type === 'OVERTIME_EXCEEDED_AUTHORIZATION',
+			) ?? [];
+
+		expect(authorizationWarnings).toHaveLength(2);
+		expect(
+			authorizationWarnings.find(
+				(warning) => warning.type === 'OVERTIME_EXCEEDED_AUTHORIZATION',
+			)?.message,
+		).toContain('2025-01-06');
+		expect(
+			authorizationWarnings.find((warning) => warning.type === 'OVERTIME_NOT_AUTHORIZED')
+				?.message,
+		).toContain('2025-01-07, 2025-01-08');
+	});
+
+	it('indexes overtime authorizations once before iterating employees', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-06';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		let employeeIdReads = 0;
+		const overtimeAuthorizations: OvertimeAuthorizationRow[] = [
+			{
+				get employeeId(): string {
+					employeeIdReads += 1;
+					return employeeId;
+				},
+				dateKey: periodStartDateKey,
+				authorizedHours: 1,
+				status: 'ACTIVE',
+			},
+			{
+				get employeeId(): string {
+					employeeIdReads += 1;
+					return 'emp-test-2';
+				},
+				dateKey: periodStartDateKey,
+				authorizedHours: 1,
+				status: 'ACTIVE',
+			},
+			{
+				get employeeId(): string {
+					employeeIdReads += 1;
+					return 'emp-test-3';
+				},
+				dateKey: periodStartDateKey,
+				authorizedHours: 1,
+				status: 'ACTIVE',
+			},
+		];
+
+		const employees: PayrollEmployeeRow[] = [
+			defaultEmployee,
+			{
+				...defaultEmployee,
+				id: 'emp-test-2',
+				firstName: 'Grace',
+				lastName: 'Hopper',
+			},
+			{
+				...defaultEmployee,
+				id: 'emp-test-3',
+				firstName: 'Linus',
+				lastName: 'Torvalds',
+			},
+		];
+
+		calculatePayrollFromData({
+			...baseArgs,
+			employees,
+			attendanceRows: [],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations,
+		});
+
+		expect(employeeIdReads).toBe(overtimeAuthorizations.length);
+	});
+
+	it('allocates authorized overtime into weekly double and triple buckets chronologically', () => {
+		const periodStartDateKey = '2025-01-06';
+		const periodEndDateKey = '2025-01-10';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows = [
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-06', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-06', 18, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-07', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-07', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-08', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-08', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-09', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-09', 19, 0, timeZone),
+			),
+			...createAttendancePair(
+				employeeId,
+				getUtcDateForZonedTime('2025-01-10', 8, 0, timeZone),
+				getUtcDateForZonedTime('2025-01-10', 17, 0, timeZone),
+			),
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: '2025-01-07',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-08',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-09',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-10',
+					authorizedHours: 1,
+					status: 'ACTIVE',
+				},
+			],
+		});
+
+		const row = employees[0];
+		expect(row?.overtimeDoubleHours).toBe(9);
+		expect(row?.overtimeTripleHours).toBe(3);
+		expect(row?.authorizedOvertimeHours).toBe(10);
+		expect(row?.unauthorizedOvertimeHours).toBe(2);
+		expect(row?.payableOvertimeDoubleHours).toBe(7);
+		expect(row?.payableOvertimeTripleHours).toBe(3);
+		expect(row?.overtimeDoublePay).toBe(1400);
+		expect(row?.overtimeTriplePay).toBe(900);
+	});
+
 	it('does not emit a daily overtime warning at exactly 3 hours', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';
@@ -359,6 +734,14 @@ describe('payroll-calculation', () => {
 			periodStartDateKey,
 			periodEndDateKey,
 			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: periodStartDateKey,
+					authorizedHours: 1,
+					status: 'ACTIVE',
+				},
+			],
 		});
 
 		const row = employees[0];
@@ -417,6 +800,26 @@ describe('payroll-calculation', () => {
 			periodStartDateKey,
 			periodEndDateKey,
 			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: '2025-01-06',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-07',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId,
+					dateKey: '2025-01-08',
+					authorizedHours: 3,
+					status: 'ACTIVE',
+				},
+			],
 		});
 
 		const row = employees[0];
@@ -813,6 +1216,20 @@ describe('payroll-calculation', () => {
 			periodStartDateKey,
 			periodEndDateKey,
 			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId: nocturnaEmployee.id,
+					dateKey: periodStartDateKey,
+					authorizedHours: 1,
+					status: 'ACTIVE',
+				},
+				{
+					employeeId: mixtaEmployee.id,
+					dateKey: periodStartDateKey,
+					authorizedHours: 0.5,
+					status: 'ACTIVE',
+				},
+			],
 		});
 
 		const nocturna = employees.find((e) => e.employeeId === nocturnaEmployee.id);
@@ -900,6 +1317,14 @@ describe('payroll-calculation', () => {
 			periodStartDateKey,
 			periodEndDateKey,
 			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: periodStartDateKey,
+					authorizedHours: 1,
+					status: 'ACTIVE',
+				},
+			],
 		});
 
 		const row = employees[0];
@@ -949,6 +1374,14 @@ describe('payroll-calculation', () => {
 			periodStartDateKey,
 			periodEndDateKey,
 			periodBounds,
+			overtimeAuthorizations: [
+				{
+					employeeId,
+					dateKey: periodStartDateKey,
+					authorizedHours: 1,
+					status: 'ACTIVE',
+				},
+			],
 		});
 
 		const row = employees[0];

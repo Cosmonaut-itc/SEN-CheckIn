@@ -1,4 +1,5 @@
-import { Button, BottomSheet } from 'heroui-native';
+import { Button } from 'heroui-native';
+import { BottomSheet } from 'heroui-native/bottom-sheet';
 import type { JSX } from 'react';
 import { Text, View } from 'react-native';
 import type { CheckOutReason } from '@sen-checkin/types';
@@ -43,7 +44,10 @@ export interface CheckOutReasonSheetProps {
  */
 export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Element {
 	return (
-		<BottomSheet isOpen={props.isOpen} onOpenChange={(isOpen) => (!isOpen ? props.onClose() : null)}>
+		<BottomSheet
+			isOpen={props.isOpen}
+			onOpenChange={(isOpen: boolean) => (!isOpen ? props.onClose() : null)}
+		>
 			<BottomSheet.Portal>
 				<BottomSheet.Overlay className="bg-foreground/35" />
 				<BottomSheet.Content
@@ -81,7 +85,11 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 							))}
 						</View>
 
-						<Button variant="ghost" onPress={props.onClose} className="border border-transparent">
+						<Button
+							variant="ghost"
+							onPress={props.onClose}
+							className="border border-transparent"
+						>
 							<Button.Label className="text-foreground-500 font-medium">
 								{i18n.t('Common.cancel')}
 							</Button.Label>

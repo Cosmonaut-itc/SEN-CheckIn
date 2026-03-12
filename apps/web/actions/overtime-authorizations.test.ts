@@ -1,6 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createOvertimeAuthorizationAction } from '@/actions/overtime-authorizations';
+import {
+	createOvertimeAuthorizationAction,
+	type UpdateOvertimeAuthorizationInput,
+} from '@/actions/overtime-authorizations';
+
+type UpdateOvertimeAuthorizationStatus = NonNullable<UpdateOvertimeAuthorizationInput['status']>;
+
+// @ts-expect-error PENDING is not a valid update target for the current API contract.
+const invalidUpdateStatus: UpdateOvertimeAuthorizationStatus = 'PENDING';
+void invalidUpdateStatus;
 
 const createPostMock = vi.fn();
 

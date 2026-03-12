@@ -16,7 +16,7 @@ export interface UpdateOvertimeAuthorizationInput {
 	organizationId: string;
 	id: string;
 	authorizedHours?: number;
-	status?: 'PENDING' | 'ACTIVE' | 'CANCELLED';
+	status?: 'ACTIVE' | 'CANCELLED';
 	notes?: string;
 }
 

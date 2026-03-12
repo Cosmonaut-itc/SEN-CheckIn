@@ -25,6 +25,11 @@ const dateKeySchema = z
 export const overtimeAuthorizationStatusSchema = z.enum(['PENDING', 'ACTIVE', 'CANCELLED']);
 
 /**
+ * Enum for update transitions that are currently supported by the product flow.
+ */
+const overtimeAuthorizationUpdateStatusSchema = z.enum(['ACTIVE', 'CANCELLED']);
+
+/**
  * Validates overtime hours against the database numeric(5,2) range.
  */
 const authorizedHoursSchema = z.coerce
@@ -62,7 +67,7 @@ export const overtimeAuthorizationCreateSchema = z.object({
  */
 export const overtimeAuthorizationUpdateSchema = z.object({
 	authorizedHours: authorizedHoursSchema.optional(),
-	status: overtimeAuthorizationStatusSchema.optional(),
+	status: overtimeAuthorizationUpdateStatusSchema.optional(),
 	notes: z.string().trim().max(500).optional(),
 }).refine(
 	(value) =>

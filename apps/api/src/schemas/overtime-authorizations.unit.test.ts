@@ -47,4 +47,18 @@ describe('overtime authorization schemas', () => {
 			'At least one field must be provided for update',
 		);
 	});
+
+	it('rejects pending as an update status target', () => {
+		const result = overtimeAuthorizationUpdateSchema.safeParse({
+			status: 'PENDING',
+		});
+
+		expect(result.success).toBe(false);
+		if (result.success) {
+			throw new Error('Expected update schema validation to fail.');
+		}
+		expect(result.error.issues[0]?.message).toBe(
+			"Invalid enum value. Expected 'ACTIVE' | 'CANCELLED', received 'PENDING'",
+		);
+	});
 });

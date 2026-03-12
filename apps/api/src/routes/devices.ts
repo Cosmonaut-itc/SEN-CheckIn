@@ -589,7 +589,9 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 
 			if (!existing[0]) {
 				set.status = 404;
-				return buildErrorResponse('Device not found', 404);
+				return buildErrorResponse('Device not found', 404, {
+					code: 'DEVICE_NOT_FOUND',
+				});
 			}
 
 			if (

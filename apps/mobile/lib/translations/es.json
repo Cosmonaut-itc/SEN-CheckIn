@@ -76,6 +76,7 @@
 		"body": "Un administrador debe aprobar el dispositivo en el panel web.",
 		"reason": {
 			"deviceDisabled": "Este dispositivo fue deshabilitado en el panel.",
+			"deviceMissing": "Este dispositivo ya no existe en el sistema. Debes volver a vincularlo.",
 			"refreshFailed": "No pudimos renovar la sesión."
 		},
 		"actions": {

@@ -151,4 +151,16 @@ describe('device routes (contract)', () => {
 		expect(errorPayload.error.message).toBe('Device not found');
 		expect(errorPayload.error.code).toBe('NOT_FOUND');
 	});
+
+	it('returns DEVICE_NOT_FOUND when heartbeat targets an unknown device', async () => {
+		const unknownDevice = requireRoute(client.devices[randomUUID()], 'Device route');
+		const response = await unknownDevice.heartbeat.post({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(404);
+		const errorPayload = requireErrorResponse(response, 'unknown device heartbeat');
+		expect(errorPayload.error.message).toBe('Device not found');
+		expect(errorPayload.error.code).toBe('DEVICE_NOT_FOUND');
+	});
 });

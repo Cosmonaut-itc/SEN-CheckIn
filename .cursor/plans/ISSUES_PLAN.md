@@ -8,7 +8,7 @@
 ## Progreso General
 
 - [x] **EPIC 1: Autorizacion de Horas Extra** (4/4 issues)
-- [ ] **EPIC 2: Descuento Automatico por Falta de Salida de Comida** (0/5 issues)
+- [x] **EPIC 2: Descuento Automatico por Falta de Salida de Comida** (5/5 issues)
 - [ ] **EPIC 3: Sabado como Dia Trabajado para 7mo Dia** (0/3 issues)
 - [ ] **EPIC 4: Nomina Fiscal vs Real** (0/4 issues)
 - [ ] **EPIC 5: Sistema Generico de Descuentos** (0/4 issues)
@@ -240,18 +240,18 @@ Actualmente los empleados marcan CHECK_OUT y CHECK_IN y el sistema calcula horas
 
 ### Epic 2 - Progreso
 
-- [ ] Issue 2.1: Nuevo enum y campo - Tipo de salida autorizada
-- [ ] Issue 2.2: Configuracion de tiempo de comida por organizacion
-- [ ] Issue 2.3: Actualizar app movil - Selector de motivo de salida
-- [ ] Issue 2.4: Logica de descuento automatico en calculo de nomina
-- [ ] Issue 2.5: UI Web - Configuracion y visibilidad del descuento de comida
+- [x] Issue 2.1: Nuevo enum y campo - Tipo de salida autorizada
+- [x] Issue 2.2: Configuracion de tiempo de comida por organizacion
+- [x] Issue 2.3: Actualizar app movil - Selector de motivo de salida
+- [x] Issue 2.4: Logica de descuento automatico en calculo de nomina
+- [x] Issue 2.5: UI Web - Configuracion y visibilidad del descuento de comida
 
 ---
 
 ### Issue 2.1: Nuevo enum y campo - Tipo de salida autorizada
 
 **Tipo:** Backend (Schema + Migration)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Agregar un campo al `attendance_record` para diferenciar el tipo de CHECK_OUT.
@@ -270,18 +270,18 @@ Agregar un campo al `attendance_record` para diferenciar el tipo de CHECK_OUT.
 
 **Pasos de implementacion:**
 
-- [ ] Crear enum `checkOutReason` en schema.ts (REGULAR, LUNCH_BREAK, PERSONAL)
-- [ ] Agregar campo `checkOutReason` a tabla `attendance_record` como nullable
-- [ ] Generar migracion con `drizzle-kit generate`
-- [ ] Aplicar migracion y verificar que registros existentes quedan con null
-- [ ] Verificar que no se rompe ningun query existente de attendance
+- [x] Crear enum `checkOutReason` en schema.ts (REGULAR, LUNCH_BREAK, PERSONAL)
+- [x] Agregar campo `checkOutReason` a tabla `attendance_record` como nullable
+- [x] Generar migracion con `drizzle-kit generate`
+- [x] Aplicar migracion y verificar que registros existentes quedan con null
+- [x] Verificar que no se rompe ningun query existente de attendance
 
 ---
 
 ### Issue 2.2: Configuracion de tiempo de comida por organizacion
 
 **Tipo:** Backend (Schema + API)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Agregar campo de configuracion de tiempo de comida a `payroll_setting`.
@@ -303,20 +303,20 @@ Agregar campo de configuracion de tiempo de comida a `payroll_setting`.
 
 **Pasos de implementacion:**
 
-- [ ] Agregar campos `lunchBreakMinutes`, `autoDeductLunchBreak`, `lunchBreakThresholdHours` a payroll_setting
-- [ ] Generar y aplicar migracion
-- [ ] Actualizar endpoint GET de payroll-settings para retornar nuevos campos
-- [ ] Actualizar endpoint PUT de payroll-settings para aceptar nuevos campos
-- [ ] Agregar validacion: lunchBreakMinutes entre 15 y 120
-- [ ] Agregar validacion: lunchBreakThresholdHours entre 4 y 10
-- [ ] Verificar que defaults se aplican correctamente para orgs existentes
+- [x] Agregar campos `lunchBreakMinutes`, `autoDeductLunchBreak`, `lunchBreakThresholdHours` a payroll_setting
+- [x] Generar y aplicar migracion
+- [x] Actualizar endpoint GET de payroll-settings para retornar nuevos campos
+- [x] Actualizar endpoint PUT de payroll-settings para aceptar nuevos campos
+- [x] Agregar validacion: lunchBreakMinutes entre 15 y 120
+- [x] Agregar validacion: lunchBreakThresholdHours entre 4 y 10
+- [x] Verificar que defaults se aplican correctamente para orgs existentes
 
 ---
 
 ### Issue 2.3: Actualizar app movil - Selector de motivo de salida
 
 **Tipo:** Frontend (Mobile - Expo)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Cuando un empleado hace CHECK_OUT desde la app movil o el kiosko, mostrar un selector preguntando el motivo de salida.
@@ -337,25 +337,25 @@ Cuando un empleado hace CHECK_OUT desde la app movil o el kiosko, mostrar un sel
 
 **Pasos de implementacion:**
 
-- [ ] Modificar endpoint POST de attendance para aceptar campo `checkOutReason`
-    - [ ] Validar que solo se envie cuando type = CHECK_OUT o CHECK_OUT_AUTHORIZED
-    - [ ] Guardar en attendance_record
-- [ ] Crear componente modal/bottom-sheet de seleccion de motivo en app movil
-    - [ ] Opcion: Comida (LUNCH_BREAK)
-    - [ ] Opcion: Personal (PERSONAL)
-    - [ ] Opcion: Fin de jornada (REGULAR)
-- [ ] Integrar modal en flujo de check-out existente
-    - [ ] Mostrar modal ANTES de enviar el request
-    - [ ] Si cancela el modal, no se registra el check-out
-- [ ] Verificar que check-in NO muestra el selector
-- [ ] Probar flujo completo: seleccionar motivo -> check-out -> verificar en BD
+- [x] Modificar endpoint POST de attendance para aceptar campo `checkOutReason`
+    - [x] Validar que solo se envie cuando type = CHECK_OUT o CHECK_OUT_AUTHORIZED
+    - [x] Guardar en attendance_record
+- [x] Crear componente modal/bottom-sheet de seleccion de motivo en app movil
+    - [x] Opcion: Comida (LUNCH_BREAK)
+    - [x] Opcion: Personal (PERSONAL)
+    - [x] Opcion: Fin de jornada (REGULAR)
+- [x] Integrar modal en flujo de check-out existente
+    - [x] Mostrar modal ANTES de enviar el request
+    - [x] Si cancela el modal, no se registra el check-out
+- [x] Verificar que check-in NO muestra el selector
+- [x] Probar flujo completo: seleccionar motivo -> check-out -> verificar en BD
 
 ---
 
 ### Issue 2.4: Logica de descuento automatico en calculo de nomina
 
 **Tipo:** Backend (Logica de negocio)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Modificar el calculo de horas trabajadas para descontar automaticamente el tiempo de comida si el empleado no registro una salida de tipo LUNCH_BREAK.
@@ -384,30 +384,30 @@ Modificar el calculo de horas trabajadas para descontar automaticamente el tiemp
 
 **Pasos de implementacion:**
 
-- [ ] Agregar campos `lunchBreakAutoDeductedDays` y `lunchBreakAutoDeductedMinutes` a payroll_run_employee
-- [ ] Generar y aplicar migracion
-- [ ] Agregar warning `LUNCH_BREAK_AUTO_DEDUCTED` a constantes de warnings
-- [ ] Modificar logica de calculo de horas trabajadas en payroll-calculation.ts:
-    - [ ] Para cada dia: consultar attendance_records del dia buscando checkOutReason = LUNCH_BREAK
-    - [ ] Si no existe y autoDeductLunchBreak = true:
-        - [ ] Verificar que horas trabajadas > lunchBreakThresholdHours
-        - [ ] Restar lunchBreakMinutes de los minutos trabajados del dia
-        - [ ] Incrementar contadores (days, minutes)
-        - [ ] Agregar warning
-    - [ ] Si existe LUNCH_BREAK: no descontar (gap ya se maneja)
-- [ ] Escribir tests unitarios:
-    - [ ] Test: autoDeductLunchBreak = false -> sin descuento
-    - [ ] Test: sin LUNCH_BREAK checkout, jornada > threshold -> descuento aplicado
-    - [ ] Test: con LUNCH_BREAK checkout -> sin descuento extra
-    - [ ] Test: jornada < threshold -> sin descuento aunque no haya LUNCH_BREAK
-    - [ ] Test: multiples dias con mezcla de escenarios
+- [x] Agregar campos `lunchBreakAutoDeductedDays` y `lunchBreakAutoDeductedMinutes` a payroll_run_employee
+- [x] Generar y aplicar migracion
+- [x] Agregar warning `LUNCH_BREAK_AUTO_DEDUCTED` a constantes de warnings
+- [x] Modificar logica de calculo de horas trabajadas en payroll-calculation.ts:
+    - [x] Para cada dia: consultar attendance_records del dia buscando checkOutReason = LUNCH_BREAK
+    - [x] Si no existe y autoDeductLunchBreak = true:
+        - [x] Verificar que horas trabajadas > lunchBreakThresholdHours
+        - [x] Restar lunchBreakMinutes de los minutos trabajados del dia
+        - [x] Incrementar contadores (days, minutes)
+        - [x] Agregar warning
+    - [x] Si existe LUNCH_BREAK: no descontar (gap ya se maneja)
+- [x] Escribir tests unitarios:
+    - [x] Test: autoDeductLunchBreak = false -> sin descuento
+    - [x] Test: sin LUNCH_BREAK checkout, jornada > threshold -> descuento aplicado
+    - [x] Test: con LUNCH_BREAK checkout -> sin descuento extra
+    - [x] Test: jornada < threshold -> sin descuento aunque no haya LUNCH_BREAK
+    - [x] Test: multiples dias con mezcla de escenarios
 
 ---
 
 ### Issue 2.5: UI Web - Configuracion y visibilidad del descuento de comida
 
 **Tipo:** Frontend (Web)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 
@@ -423,15 +423,15 @@ Modificar el calculo de horas trabajadas para descontar automaticamente el tiemp
 
 **Pasos de implementacion:**
 
-- [ ] Agregar seccion "Descuento de comida" en pantalla de payroll settings
-    - [ ] Toggle: autoDeductLunchBreak
-    - [ ] Input numerico: lunchBreakMinutes (visible solo si toggle = on)
-    - [ ] Input numerico: lunchBreakThresholdHours (visible solo si toggle = on)
-- [ ] Conectar con API PUT de payroll settings
-- [ ] Modificar vista de payroll run:
-    - [ ] Agregar columna/tooltip: "Dias con descuento comida" / "Minutos descontados"
-    - [ ] Mostrar warning badge si hay dias con descuento automatico
-- [ ] Verificar que la configuracion se refleja en el siguiente calculo de nomina
+- [x] Agregar seccion "Descuento de comida" en pantalla de payroll settings
+    - [x] Toggle: autoDeductLunchBreak
+    - [x] Input numerico: lunchBreakMinutes (visible solo si toggle = on)
+    - [x] Input numerico: lunchBreakThresholdHours (visible solo si toggle = on)
+- [x] Conectar con API PUT de payroll settings
+- [x] Modificar vista de payroll run:
+    - [x] Agregar columna/tooltip: "Dias con descuento comida" / "Minutos descontados"
+    - [x] Mostrar warning badge si hay dias con descuento automatico
+- [x] Verificar que la configuracion se refleja en el siguiente calculo de nomina
 
 ---
 

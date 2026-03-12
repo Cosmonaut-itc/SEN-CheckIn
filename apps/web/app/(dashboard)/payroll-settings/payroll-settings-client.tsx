@@ -582,8 +582,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
-						<div className="rounded-md border border-[color:var(--accent-primary)]/15 bg-[var(--accent-primary-bg)] p-4 text-sm text-[var(--text-secondary)]">
-							<p className="font-medium text-[var(--text-primary)]">
+						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+							<p className="font-medium text-foreground">
 								{t('lunchBreak.title')}
 							</p>
 							<p className="mt-1 text-xs text-muted-foreground">

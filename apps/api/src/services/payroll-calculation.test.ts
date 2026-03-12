@@ -1171,7 +1171,7 @@ describe('payroll-calculation', () => {
 		).toBe(false);
 	});
 
-	it('does not deduct lunch break when worked hours stay below the configured threshold', () => {
+	it('does not deduct lunch break when worked hours are below threshold', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';
 		const periodBounds = getPayrollPeriodBounds({
@@ -1204,6 +1204,12 @@ describe('payroll-calculation', () => {
 		expect(row?.hoursWorked).toBe(5);
 		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(0);
 		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(0);
+		expect(
+			(row?.warnings ?? []).some(
+				(warning) =>
+					(warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toBe(false);
 	});
 
 	it('tracks mixed lunch deduction scenarios across multiple days', () => {

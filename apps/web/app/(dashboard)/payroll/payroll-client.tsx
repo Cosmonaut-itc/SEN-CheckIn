@@ -185,7 +185,7 @@ function renderLunchBreakDeductionCell(
 	return (
 		<div className="space-y-1">
 			<Badge variant="warning">{t('preview.lunchBreak.badge')}</Badge>
-			<div className="text-xs text-[color:var(--status-warning)]">
+			<div className="text-xs text-muted-foreground">
 				<p>{t('preview.lunchBreak.days', { count: deductedDays })}</p>
 				<p>{t('preview.lunchBreak.minutes', { count: deductedMinutes })}</p>
 			</div>

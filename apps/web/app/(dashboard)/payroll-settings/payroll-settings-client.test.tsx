@@ -184,7 +184,7 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
-	it('preserves custom lunch break values when automatic deduction is disabled', async () => {
+	it('omits hidden lunch break fields when automatic deduction is disabled', async () => {
 		mockFetchPayrollSettings.mockResolvedValueOnce({
 			id: 'payroll-1',
 			organizationId: 'org-1',
@@ -222,20 +222,22 @@ describe('PayrollSettingsClient', () => {
 			expect(autoDeductInput).toBeChecked();
 			expect(autoDeductInput).not.toBeDisabled();
 		});
+
 		fireEvent.click(autoDeductInput);
 		fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
 		await waitFor(() => {
-			expect(mockUpdatePayrollSettingsAction).toHaveBeenCalledWith(
-				expect.objectContaining({
-					autoDeductLunchBreak: false,
-					lunchBreakMinutes: 45,
-					lunchBreakThresholdHours: 7,
-				}),
-				expect.objectContaining({
-					mutationKey: ['payrollSettings', 'update'],
-				}),
-			);
+			expect(mockUpdatePayrollSettingsAction).toHaveBeenCalled();
+		});
+
+		const [payload, options] = mockUpdatePayrollSettingsAction.mock.calls[0] ?? [];
+		expect(payload).toMatchObject({
+			autoDeductLunchBreak: false,
+		});
+		expect(payload).not.toHaveProperty('lunchBreakMinutes');
+		expect(payload).not.toHaveProperty('lunchBreakThresholdHours');
+		expect(options).toMatchObject({
+			mutationKey: ['payrollSettings', 'update'],
 		});
 	});
 });

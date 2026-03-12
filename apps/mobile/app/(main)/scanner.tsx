@@ -19,6 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { CheckOutReasonSheet } from '@/components/attendance/check-out-reason-sheet';
 import { Colors, type ThemeColors } from '@/constants/theme';
+import {
+	releaseAttendanceCaptureLock,
+	tryAcquireAttendanceCaptureLock,
+} from '@/lib/attendance-capture-lock';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
@@ -92,6 +96,7 @@ export default function ScannerScreen(): JSX.Element {
 	const [attendanceType, setAttendanceType] = useState<AttendanceType>('CHECK_IN');
 	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const captureLockRef = useRef(false);
 	const [scanStatus, setScanStatus] = useState<ScanStatus>({
 		state: 'idle',
 		message: i18n.t('Scanner.status.idle'),
@@ -237,11 +242,16 @@ export default function ScannerScreen(): JSX.Element {
 	 * @returns {Promise<void>} Resolves after attempting verification and recording attendance
 	 */
 	const processAttendanceCapture = async (checkOutReason?: CheckOutReason) => {
+		if (!tryAcquireAttendanceCaptureLock(captureLockRef, isProcessing)) {
+			return;
+		}
+
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
 			if (isIOS) {
 				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			}
+			releaseAttendanceCaptureLock(captureLockRef);
 			return;
 		}
 
@@ -335,6 +345,7 @@ export default function ScannerScreen(): JSX.Element {
 				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			}
 		} finally {
+			releaseAttendanceCaptureLock(captureLockRef);
 			setIsProcessing(false);
 		}
 	};
@@ -360,6 +371,10 @@ export default function ScannerScreen(): JSX.Element {
 	 * @returns Promise that resolves after the capture flow finishes
 	 */
 	const handleCheckOutReasonSelect = async (checkOutReason: CheckOutReason): Promise<void> => {
+		if (captureLockRef.current || isProcessing) {
+			return;
+		}
+
 		setIsCheckOutReasonSheetOpen(false);
 		await processAttendanceCapture(checkOutReason);
 	};

@@ -257,10 +257,6 @@ export function PayrollSettingsClient(): React.ReactElement {
 				min: 4,
 				max: 10,
 			});
-			const resolvedLunchBreakMinutes =
-				lunchBreakMinutes ?? data?.lunchBreakMinutes ?? 60;
-			const resolvedLunchBreakThresholdHours =
-				lunchBreakThresholdHours ?? data?.lunchBreakThresholdHours ?? 6;
 
 			const trimmedPtuExemptReason = value.ptuExemptReason.trim();
 			if (value.ptuIsExempt && trimmedPtuExemptReason === '') {
@@ -280,7 +276,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 				return;
 			}
 
-			await mutation.mutateAsync({
+			const payload = {
 				weekStartDay: Number(value.weekStartDay),
 				timeZone: trimmedTimeZone,
 				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
@@ -300,9 +296,16 @@ export function PayrollSettingsClient(): React.ReactElement {
 				aguinaldoEnabled: value.aguinaldoEnabled,
 				enableDisciplinaryMeasures: value.enableDisciplinaryMeasures,
 				autoDeductLunchBreak: value.autoDeductLunchBreak,
-				lunchBreakMinutes: resolvedLunchBreakMinutes,
-				lunchBreakThresholdHours: resolvedLunchBreakThresholdHours,
-			});
+				...(value.autoDeductLunchBreak
+					? {
+							lunchBreakMinutes: lunchBreakMinutes ?? data?.lunchBreakMinutes ?? 60,
+							lunchBreakThresholdHours:
+								lunchBreakThresholdHours ?? data?.lunchBreakThresholdHours ?? 6,
+						}
+					: {}),
+			};
+
+			await mutation.mutateAsync(payload);
 		},
 	});
 
@@ -356,10 +359,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			form.setFieldValue('aguinaldoEnabled', data.aguinaldoEnabled);
 		}
 		if (data?.enableDisciplinaryMeasures !== undefined) {
-			form.setFieldValue(
-				'enableDisciplinaryMeasures',
-				data.enableDisciplinaryMeasures,
-			);
+			form.setFieldValue('enableDisciplinaryMeasures', data.enableDisciplinaryMeasures);
 		}
 		if (data?.autoDeductLunchBreak !== undefined) {
 			form.setFieldValue('autoDeductLunchBreak', data.autoDeductLunchBreak);
@@ -368,10 +368,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			form.setFieldValue('lunchBreakMinutes', String(data.lunchBreakMinutes));
 		}
 		if (data?.lunchBreakThresholdHours !== undefined) {
-			form.setFieldValue(
-				'lunchBreakThresholdHours',
-				String(data.lunchBreakThresholdHours),
-			);
+			form.setFieldValue('lunchBreakThresholdHours', String(data.lunchBreakThresholdHours));
 		}
 		form.setFieldValue(
 			'additionalMandatoryRestDaysText',
@@ -583,9 +580,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 							)}
 						</form.AppField>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
-							<p className="font-medium text-foreground">
-								{t('lunchBreak.title')}
-							</p>
+							<p className="font-medium text-foreground">{t('lunchBreak.title')}</p>
 							<p className="mt-1 text-xs text-muted-foreground">
 								{t('lunchBreak.description')}
 							</p>
@@ -631,7 +626,9 @@ export function PayrollSettingsClient(): React.ReactElement {
 									{(field) => (
 										<field.TextField
 											label={t('lunchBreak.fields.lunchBreakThresholdHours')}
-											placeholder={t('lunchBreak.placeholders.thresholdHours')}
+											placeholder={t(
+												'lunchBreak.placeholders.thresholdHours',
+											)}
 											description={t(
 												'lunchBreak.helpers.lunchBreakThresholdHours',
 											)}
@@ -720,9 +717,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 							</ul>
 						</div>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
-							<p className="font-medium text-foreground">
-								{t('disciplinary.title')}
-							</p>
+							<p className="font-medium text-foreground">{t('disciplinary.title')}</p>
 							<p className="mt-1 text-xs">{t('disciplinary.description')}</p>
 						</div>
 						<form.AppField name="enableDisciplinaryMeasures">

@@ -62,6 +62,9 @@ function buildSettings(overrides: Partial<PayrollSettings> = {}): PayrollSetting
 		employerType: 'PERSONA_MORAL',
 		aguinaldoEnabled: true,
 		enableDisciplinaryMeasures: false,
+		autoDeductLunchBreak: false,
+		lunchBreakMinutes: 60,
+		lunchBreakThresholdHours: 6,
 		createdAt: new Date('2026-01-01T00:00:00.000Z'),
 		updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 		...overrides,
@@ -101,13 +104,18 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('PTU and Aguinaldo tabs', () => {
 	it('shows disabled state when PTU is off', () => {
-		renderWithProviders(<PtuTab settings={buildSettings({ ptuEnabled: false })} isLoading={false} />);
+		renderWithProviders(
+			<PtuTab settings={buildSettings({ ptuEnabled: false })} isLoading={false} />,
+		);
 		expect(screen.getByText('disabled.title')).toBeInTheDocument();
 	});
 
 	it('shows disabled state when Aguinaldo is off', () => {
 		renderWithProviders(
-			<AguinaldoTab settings={buildSettings({ aguinaldoEnabled: false })} isLoading={false} />,
+			<AguinaldoTab
+				settings={buildSettings({ aguinaldoEnabled: false })}
+				isLoading={false}
+			/>,
 		);
 		expect(screen.getByText('disabled.title')).toBeInTheDocument();
 	});

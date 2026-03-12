@@ -941,9 +941,9 @@ type PayrollSettingsPayload = Omit<
 	employerType?: 'PERSONA_MORAL' | 'PERSONA_FISICA' | null;
 	aguinaldoEnabled?: boolean | null;
 	enableDisciplinaryMeasures?: boolean | null;
-	autoDeductLunchBreak?: boolean | null;
-	lunchBreakMinutes?: number | string | null;
-	lunchBreakThresholdHours?: number | string | null;
+	autoDeductLunchBreak: boolean | null;
+	lunchBreakMinutes: number | string | null;
+	lunchBreakThresholdHours: number | string | null;
 };
 
 /**

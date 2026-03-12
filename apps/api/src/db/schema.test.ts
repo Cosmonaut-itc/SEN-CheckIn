@@ -20,12 +20,14 @@ describe('attendance schema lunch break checkout reason', () => {
 	});
 
 	it('adds a nullable checkOutReason column to attendance_record', () => {
-		const columns = getTableColumns(attendanceRecord) as Record<
-			string,
-			{ notNull: boolean }
-		>;
+		const columns = getTableColumns(attendanceRecord) as Record<string, { notNull: boolean }>;
 
 		expect(columns).toHaveProperty('checkOutReason');
-		expect(columns.checkOutReason.notNull).toBe(false);
+		const checkOutReasonColumn = columns.checkOutReason;
+		if (!checkOutReasonColumn) {
+			throw new Error('Expected checkOutReason column.');
+		}
+
+		expect(checkOutReasonColumn.notNull).toBe(false);
 	});
 });

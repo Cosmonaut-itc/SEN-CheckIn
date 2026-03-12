@@ -2551,9 +2551,9 @@ export interface PayrollSettings {
 	employerType: 'PERSONA_MORAL' | 'PERSONA_FISICA';
 	aguinaldoEnabled: boolean;
 	enableDisciplinaryMeasures: boolean;
-	autoDeductLunchBreak?: boolean;
-	lunchBreakMinutes?: number;
-	lunchBreakThresholdHours?: number;
+	autoDeductLunchBreak: boolean;
+	lunchBreakMinutes: number;
+	lunchBreakThresholdHours: number;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -2713,8 +2713,8 @@ export interface PayrollCalculationEmployee {
 	incapacitySummary: PayrollIncapacitySummary;
 	warnings: PayrollWarning[];
 	holidayImpact?: PayrollEmployeeHolidayImpactContract;
-	lunchBreakAutoDeductedDays?: number;
-	lunchBreakAutoDeductedMinutes?: number;
+	lunchBreakAutoDeductedDays: number;
+	lunchBreakAutoDeductedMinutes: number;
 }
 
 export interface PayrollCalculationResult {
@@ -2766,8 +2766,8 @@ export interface PayrollRunEmployee {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
-	lunchBreakAutoDeductedDays?: number;
-	lunchBreakAutoDeductedMinutes?: number;
+	lunchBreakAutoDeductedDays: number;
+	lunchBreakAutoDeductedMinutes: number;
 	taxBreakdown?: {
 		grossPay: number;
 		seventhDayPay: number;

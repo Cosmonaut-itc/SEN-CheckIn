@@ -7,7 +7,7 @@ import { DocumentWorkflowSettingsSection } from '@/components/document-workflow-
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchPayrollSettings } from '@/lib/client-functions';
 import { updatePayrollSettingsAction } from '@/actions/payroll';
-import { useAppForm } from '@/lib/forms';
+import { useAppForm, useStore } from '@/lib/forms';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
@@ -206,6 +206,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			absorbImssEmployeeShare: false,
 			absorbIsr: false,
 			enableSeventhDayPay: false,
+			countSaturdayAsWorkedForSeventhDay: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
 			ptuIsExempt: false,
@@ -275,6 +276,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 				aguinaldoDays,
 				vacationPremiumRate,
 				enableSeventhDayPay: value.enableSeventhDayPay,
+				countSaturdayAsWorkedForSeventhDay:
+					value.countSaturdayAsWorkedForSeventhDay,
 				ptuEnabled: value.ptuEnabled,
 				ptuMode: value.ptuMode as 'DEFAULT_RULES' | 'MANUAL',
 				ptuIsExempt: value.ptuIsExempt,
@@ -285,6 +288,11 @@ export function PayrollSettingsClient(): React.ReactElement {
 			});
 		},
 	});
+	const enableSeventhDayPayValue = useStore(
+		form.store,
+		(state) => state.values.enableSeventhDayPay,
+	);
+	const ptuIsExemptValue = useStore(form.store, (state) => state.values.ptuIsExempt);
 
 	useEffect(() => {
 		if (data?.weekStartDay !== undefined) {
@@ -316,6 +324,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 		}
 		if (data?.enableSeventhDayPay !== undefined) {
 			form.setFieldValue('enableSeventhDayPay', data.enableSeventhDayPay);
+		}
+		if (data?.countSaturdayAsWorkedForSeventhDay !== undefined) {
+			form.setFieldValue(
+				'countSaturdayAsWorkedForSeventhDay',
+				data.countSaturdayAsWorkedForSeventhDay,
+			);
 		}
 		if (data?.ptuEnabled !== undefined) {
 			form.setFieldValue('ptuEnabled', data.ptuEnabled);
@@ -356,6 +370,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.absorbImssEmployeeShare,
 		data?.absorbIsr,
 		data?.enableSeventhDayPay,
+		data?.countSaturdayAsWorkedForSeventhDay,
 		data?.ptuEnabled,
 		data?.ptuMode,
 		data?.ptuIsExempt,
@@ -547,6 +562,21 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
+						{enableSeventhDayPayValue ? (
+							<form.AppField name="countSaturdayAsWorkedForSeventhDay">
+								{(field) => (
+									<field.ToggleField
+										label={t(
+											'taxSettings.fields.countSaturdayAsWorkedForSeventhDay',
+										)}
+										description={t(
+											'taxSettings.helpers.countSaturdayAsWorkedForSeventhDay',
+										)}
+										disabled={isFormDisabled}
+									/>
+								)}
+							</form.AppField>
+						) : null}
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
 							<p className="font-medium text-foreground">{t('ptu.title')}</p>
 							<p className="mt-1 text-xs">{t('ptu.description')}</p>
@@ -582,7 +612,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
-						{form.state.values.ptuIsExempt ? (
+						{ptuIsExemptValue ? (
 							<form.AppField name="ptuExemptReason">
 								{(field) => (
 									<field.TextField

@@ -9,7 +9,7 @@
 
 - [x] **EPIC 1: Autorizacion de Horas Extra** (4/4 issues)
 - [x] **EPIC 2: Descuento Automatico por Falta de Salida de Comida** (5/5 issues)
-- [ ] **EPIC 3: Sabado como Dia Trabajado para 7mo Dia** (0/3 issues)
+- [x] **EPIC 3: Sabado como Dia Trabajado para 7mo Dia** (3/3 issues)
 - [ ] **EPIC 4: Nomina Fiscal vs Real** (0/4 issues)
 - [ ] **EPIC 5: Sistema Generico de Descuentos** (0/4 issues)
 
@@ -443,16 +443,16 @@ El 7mo dia (septimo dia) paga al empleado un dia adicional si trabajo los 6 dias
 
 ### Epic 3 - Progreso
 
-- [ ] Issue 3.1: Configuracion - Contar sabado como dia trabajado
-- [ ] Issue 3.2: Modificar logica del 7mo dia
-- [ ] Issue 3.3: UI Web - Toggle en configuracion
+- [x] Issue 3.1: Configuracion - Contar sabado como dia trabajado
+- [x] Issue 3.2: Modificar logica del 7mo dia
+- [x] Issue 3.3: UI Web - Toggle en configuracion
 
 ---
 
 ### Issue 3.1: Configuracion - Contar sabado como dia trabajado
 
 **Tipo:** Backend (Schema + API)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Agregar campo a `payroll_setting` para permitir que el sabado cuente como dia trabajado aunque el empleado descanse.
@@ -472,18 +472,18 @@ Agregar campo a `payroll_setting` para permitir que el sabado cuente como dia tr
 
 **Pasos de implementacion:**
 
-- [ ] Agregar campo `countSaturdayAsWorkedForSeventhDay` (boolean, default false) a payroll_setting
-- [ ] Generar y aplicar migracion
-- [ ] Actualizar endpoint GET para retornar el nuevo campo
-- [ ] Actualizar endpoint PUT para aceptar el nuevo campo
-- [ ] Verificar que el default false no afecta orgs existentes
+- [x] Agregar campo `countSaturdayAsWorkedForSeventhDay` (boolean, default false) a payroll_setting
+- [x] Generar y aplicar migracion
+- [x] Actualizar endpoint GET para retornar el nuevo campo
+- [x] Actualizar endpoint PUT para aceptar el nuevo campo
+- [x] Verificar que el default false no afecta orgs existentes
 
 ---
 
 ### Issue 3.2: Modificar logica del 7mo dia
 
 **Tipo:** Backend (Logica de negocio)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Modificar el calculo del septimo dia en `payroll-calculation.ts` para considerar la nueva configuracion.
@@ -511,37 +511,37 @@ Modificar el calculo del septimo dia en `payroll-calculation.ts` para considerar
 
 **Pasos de implementacion:**
 
-- [ ] Localizar logica de calculo del 7mo dia en payroll-calculation.ts
-- [ ] Agregar lectura de `countSaturdayAsWorkedForSeventhDay` del payroll setting
-- [ ] Modificar evaluacion de dias trabajados en la semana:
-    - [ ] Si config = true y sabado NO esta en schedule del empleado: contar sabado como trabajado
-    - [ ] Si config = true y sabado SI esta en schedule: no modificar (falta real)
-    - [ ] Si config = false: comportamiento identico al actual
-- [ ] Escribir tests unitarios:
-    - [ ] Test: config = false -> sin cambios en comportamiento
-    - [ ] Test: config = true, empleado L-V, trabajo 5 dias -> recibe 7mo dia
-    - [ ] Test: config = true, empleado L-V, falto 1 dia -> NO recibe 7mo dia
-    - [ ] Test: config = true, empleado M-S (sabado en schedule), falto sabado -> NO recibe 7mo dia
-    - [ ] Test: config = true, empleado L-V, trabajo 5 dias + sabado extra -> recibe 7mo dia (sabado no duplica)
+- [x] Localizar logica de calculo del 7mo dia en payroll-calculation.ts
+- [x] Agregar lectura de `countSaturdayAsWorkedForSeventhDay` del payroll setting
+- [x] Modificar evaluacion de dias trabajados en la semana:
+    - [x] Si config = true y sabado NO esta en schedule del empleado: contar sabado como trabajado
+    - [x] Si config = true y sabado SI esta en schedule: no modificar (falta real)
+    - [x] Si config = false: comportamiento identico al actual
+- [x] Escribir tests unitarios:
+    - [x] Test: config = false -> sin cambios en comportamiento
+    - [x] Test: config = true, empleado L-V, trabajo 5 dias -> recibe 7mo dia
+    - [x] Test: config = true, empleado L-V, falto 1 dia -> NO recibe 7mo dia
+    - [x] Test: config = true, empleado M-S (sabado en schedule), falto sabado -> NO recibe 7mo dia
+    - [x] Test: config = true, empleado L-V, trabajo 5 dias + sabado extra -> recibe 7mo dia (sabado no duplica)
 
 ---
 
 ### Issue 3.3: UI Web - Toggle en configuracion
 
 **Tipo:** Frontend (Web)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Agregar toggle en la pantalla de configuracion de nomina.
 
 **Pasos de implementacion:**
 
-- [ ] Agregar toggle en seccion de 7mo dia de payroll settings
-    - [ ] Label: "Contar sabado como dia trabajado para calculo de 7mo dia"
-    - [ ] Descripcion: "Empleados con jornada L-V tendran el sabado contado como trabajado"
-    - [ ] Visible solo si `enableSeventhDayPay = true`
-- [ ] Conectar con API PUT de payroll settings
-- [ ] Verificar que toggle deshabilitado cuando enableSeventhDayPay = false
+- [x] Agregar toggle en seccion de 7mo dia de payroll settings
+    - [x] Label: "Contar sabado como dia trabajado para calculo de 7mo dia"
+    - [x] Descripcion: "Empleados con jornada L-V tendran el sabado contado como trabajado"
+    - [x] Visible solo si `enableSeventhDayPay = true`
+- [x] Conectar con API PUT de payroll settings
+- [x] Verificar que toggle deshabilitado cuando enableSeventhDayPay = false
 
 ---
 

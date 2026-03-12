@@ -16,6 +16,7 @@ export interface UpdatePayrollSettingsInput {
 	aguinaldoDays?: number;
 	vacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
+	countSaturdayAsWorkedForSeventhDay?: boolean;
 	ptuEnabled?: boolean;
 	ptuMode?: 'DEFAULT_RULES' | 'MANUAL';
 	ptuIsExempt?: boolean;
@@ -69,6 +70,8 @@ export async function updatePayrollSettingsAction(
 			aguinaldoDays: input.aguinaldoDays,
 			vacationPremiumRate: input.vacationPremiumRate,
 			enableSeventhDayPay: input.enableSeventhDayPay,
+			countSaturdayAsWorkedForSeventhDay:
+				input.countSaturdayAsWorkedForSeventhDay,
 			ptuEnabled: input.ptuEnabled,
 			ptuMode: input.ptuMode,
 			ptuIsExempt: input.ptuIsExempt,

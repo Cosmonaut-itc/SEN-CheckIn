@@ -1896,7 +1896,8 @@
 				"vacationPremiumRate": "Prima vacacional",
 				"absorbImssEmployeeShare": "Absorber IMSS obrero",
 				"absorbIsr": "Absorber ISR",
-				"enableSeventhDayPay": "Pagar séptimo día"
+				"enableSeventhDayPay": "Pagar séptimo día",
+				"countSaturdayAsWorkedForSeventhDay": "Contar sábado como día trabajado para cálculo de 7mo día"
 			},
 			"placeholders": {
 				"rate": "p. ej., 0.02",
@@ -1908,7 +1909,8 @@
 				"vacationPremiumRate": "Ingresa la prima como decimal (ej. 0.25 = 25%).",
 				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
 				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
-				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos."
+				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos.",
+				"countSaturdayAsWorkedForSeventhDay": "Empleados con jornada L-V tendrán el sábado contado como trabajado."
 			}
 		},
 		"legalRules": {

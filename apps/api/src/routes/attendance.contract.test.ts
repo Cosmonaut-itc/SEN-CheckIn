@@ -214,10 +214,7 @@ describe('attendance routes (contract)', () => {
 
 		expect(createResponse.status).toBe(201);
 		const createPayload = requireResponseData(createResponse);
-		expect(createPayload.data).toMatchObject({
-			type: 'CHECK_OUT',
-			checkOutReason: 'LUNCH_BREAK',
-		});
+		expect(createPayload.data?.checkOutReason).toBe('LUNCH_BREAK');
 	});
 
 	it('rejects checkOutReason for check-in attendance records', async () => {

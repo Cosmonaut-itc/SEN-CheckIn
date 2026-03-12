@@ -7,7 +7,7 @@ const mockOnClose = jest.fn();
 const mockOnSelectReason = jest.fn();
 
 jest.mock('heroui-native', () => {
-	const mockReactNative = jest.requireActual<typeof import('react-native')>('react-native');
+	const mockReactNative = require('react-native') as typeof import('react-native');
 	const { Pressable, Text, View } = mockReactNative;
 
 	const Button = function MockButton({
@@ -33,15 +33,6 @@ jest.mock('heroui-native', () => {
 	Button.Label = function MockButtonLabel({ children }: { children: React.ReactNode }) {
 		return <Text>{children}</Text>;
 	};
-
-	return {
-		Button,
-	};
-});
-
-jest.mock('heroui-native/bottom-sheet', () => {
-	const mockReactNative = jest.requireActual<typeof import('react-native')>('react-native');
-	const { Text, View } = mockReactNative;
 
 	const BottomSheet = function MockBottomSheet({
 		children,
@@ -73,7 +64,11 @@ jest.mock('heroui-native/bottom-sheet', () => {
 		return <View>{children}</View>;
 	};
 
-	BottomSheet.Title = function MockBottomSheetTitle({ children }: { children: React.ReactNode }) {
+	BottomSheet.Title = function MockBottomSheetTitle({
+		children,
+	}: {
+		children: React.ReactNode;
+	}) {
 		return <Text>{children}</Text>;
 	};
 
@@ -86,6 +81,7 @@ jest.mock('heroui-native/bottom-sheet', () => {
 	};
 
 	return {
+		Button,
 		BottomSheet,
 	};
 });

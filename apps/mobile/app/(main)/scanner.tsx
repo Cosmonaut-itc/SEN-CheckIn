@@ -23,7 +23,6 @@ import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
 import type { AttendanceType } from '@/lib/query-keys';
-import { getCaptureAction } from '@/lib/scanner-capture';
 import { useTheme } from '@/providers/theme-provider';
 
 /** Represents the current status of the face scanning operation */
@@ -346,16 +345,7 @@ export default function ScannerScreen(): JSX.Element {
 	 * @returns Promise that resolves once the interaction is handled
 	 */
 	const handleCapture = async (): Promise<void> => {
-		const nextAction = getCaptureAction({
-			attendanceType,
-			isProcessing,
-		});
-
-		if (nextAction === 'ignore') {
-			return;
-		}
-
-		if (nextAction === 'open-check-out-reason') {
+		if (attendanceType === 'CHECK_OUT') {
 			setIsCheckOutReasonSheetOpen(true);
 			return;
 		}

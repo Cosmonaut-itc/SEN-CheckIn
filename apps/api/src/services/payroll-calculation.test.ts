@@ -1115,6 +1115,63 @@ describe('payroll-calculation', () => {
 		).toBe(false);
 	});
 
+	it('still auto deducts lunch when the only explicit break is personal', () => {
+		const periodStartDateKey = '2025-01-02';
+		const periodEndDateKey = '2025-01-02';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const attendanceRows: AttendanceRow[] = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 12, 0, timeZone),
+				type: 'CHECK_OUT',
+				checkOutReason: 'PERSONAL',
+			} as AttendanceRow,
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodStartDateKey, 12, 5, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime(periodEndDateKey, 17, 5, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows,
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: buildLunchBreakSettings({ autoDeductLunchBreak: true }),
+		});
+
+		const row = employees[0];
+		const lunchMetrics = row as unknown as {
+			lunchBreakAutoDeductedDays: number;
+			lunchBreakAutoDeductedMinutes: number;
+		};
+		expect(row?.hoursWorked).toBeCloseTo(7, 5);
+		expect(lunchMetrics.lunchBreakAutoDeductedDays).toBe(1);
+		expect(lunchMetrics.lunchBreakAutoDeductedMinutes).toBe(60);
+		expect(
+			(row?.warnings ?? []).some(
+				(warning) => (warning as { type?: string }).type === 'LUNCH_BREAK_AUTO_DEDUCTED',
+			),
+		).toBe(true);
+	});
+
 	it('does not deduct lunch break when worked hours are below threshold', () => {
 		const periodStartDateKey = '2025-01-02';
 		const periodEndDateKey = '2025-01-02';

@@ -527,6 +527,7 @@ export function calculatePayrollFromData(
 		let pendingUnpaidBreak: {
 			start: Date;
 			checkOutDateKey: string;
+			qualifiesForLunchDeductionBypass: boolean;
 			spansTouchedDateKeys: boolean;
 		} | null = null;
 		const offsiteDateKeys = new Set<string>();
@@ -630,9 +631,15 @@ export function calculatePayrollFromData(
 			if (record.type === 'CHECK_IN') {
 				if (pendingUnpaidBreak) {
 					const checkInDateKey = toDateKeyInTimeZone(record.timestamp, employeeTimeZone);
-					if (pendingUnpaidBreak.spansTouchedDateKeys) {
+					if (
+						pendingUnpaidBreak.qualifiesForLunchDeductionBypass &&
+						pendingUnpaidBreak.spansTouchedDateKeys
+					) {
 						markExplicitBreakDateKeys(pendingUnpaidBreak.start, record.timestamp);
-					} else if (pendingUnpaidBreak.checkOutDateKey === checkInDateKey) {
+					} else if (
+						pendingUnpaidBreak.qualifiesForLunchDeductionBypass &&
+						pendingUnpaidBreak.checkOutDateKey === checkInDateKey
+					) {
 						explicitUnpaidBreakDateKeys.add(checkInDateKey);
 					}
 				}
@@ -682,6 +689,10 @@ export function calculatePayrollFromData(
 			pendingUnpaidBreak = {
 				start: checkOut,
 				checkOutDateKey: toDateKeyInTimeZone(checkOut, employeeTimeZone),
+				// Legacy records can still omit the reason, so only null and LUNCH_BREAK
+				// are treated as evidence that the unpaid break already covered comida.
+				qualifiesForLunchDeductionBypass:
+					record.checkOutReason == null || record.checkOutReason === 'LUNCH_BREAK',
 				spansTouchedDateKeys: record.checkOutReason === 'LUNCH_BREAK',
 			};
 		}

@@ -26,6 +26,7 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.organizationId).toBeDefined();
+		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(false);
 		expect(typeof payload.data?.enableDisciplinaryMeasures).toBe('boolean');
 	});
 
@@ -34,6 +35,7 @@ describe('payroll settings routes (contract)', () => {
 			weekStartDay: 2,
 			overtimeEnforcement: 'WARN',
 			enableSeventhDayPay: true,
+			countSaturdayAsWorkedForSeventhDay: true,
 			enableDisciplinaryMeasures: true,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
@@ -41,6 +43,7 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.weekStartDay).toBe(2);
+		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(true);
 		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);
 	});
 
@@ -48,6 +51,7 @@ describe('payroll settings routes (contract)', () => {
 		const initialResponse = await client['payroll-settings'].put({
 			weekStartDay: 4,
 			enableSeventhDayPay: false,
+			countSaturdayAsWorkedForSeventhDay: true,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 		expect(initialResponse.status).toBe(200);
@@ -60,6 +64,7 @@ describe('payroll settings routes (contract)', () => {
 
 		const partialUpdatePayload = requireResponseData(partialUpdateResponse);
 		expect(partialUpdatePayload.data?.weekStartDay).toBe(4);
+		expect(partialUpdatePayload.data?.countSaturdayAsWorkedForSeventhDay).toBe(true);
 		expect(partialUpdatePayload.data?.enableDisciplinaryMeasures).toBe(false);
 	});
 

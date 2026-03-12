@@ -1786,6 +1786,12 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull(),
 	/** Enables the seventh day pay calculation */
 	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
+	/** Counts Saturday as worked for seventh day pay when it is not scheduled. */
+	countSaturdayAsWorkedForSeventhDay: boolean(
+		'count_saturday_as_worked_for_seventh_day',
+	)
+		.default(false)
+		.notNull(),
 	/** Whether PTU calculations are enabled */
 	ptuEnabled: boolean('ptu_enabled').default(false).notNull(),
 	/** PTU mode behavior (DEFAULT_RULES or MANUAL) */

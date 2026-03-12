@@ -66,6 +66,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: 15,
 				vacationPremiumRate: '0.25',
 				enableSeventhDayPay: false,
+				countSaturdayAsWorkedForSeventhDay: false,
 				ptuEnabled: false,
 				ptuMode: 'DEFAULT_RULES',
 				ptuIsExempt: false,
@@ -138,6 +139,10 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.vacationPremiumRate ?? existing[0]?.vacationPremiumRate ?? 0.25;
 			const resolvedEnableSeventhDayPay =
 				body.enableSeventhDayPay ?? existing[0]?.enableSeventhDayPay ?? false;
+			const resolvedCountSaturdayAsWorkedForSeventhDay =
+				body.countSaturdayAsWorkedForSeventhDay ??
+				existing[0]?.countSaturdayAsWorkedForSeventhDay ??
+				false;
 			const resolvedPtuEnabled = body.ptuEnabled ?? existing[0]?.ptuEnabled ?? false;
 			const resolvedPtuMode = body.ptuMode ?? existing[0]?.ptuMode ?? 'DEFAULT_RULES';
 			const resolvedPtuIsExempt = body.ptuIsExempt ?? existing[0]?.ptuIsExempt ?? false;
@@ -174,6 +179,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: resolvedAguinaldoDays,
 				vacationPremiumRate: resolvedVacationPremiumRateValue,
 				enableSeventhDayPay: resolvedEnableSeventhDayPay,
+				countSaturdayAsWorkedForSeventhDay:
+					resolvedCountSaturdayAsWorkedForSeventhDay,
 				ptuEnabled: resolvedPtuEnabled,
 				ptuMode: resolvedPtuMode,
 				ptuIsExempt: resolvedPtuIsExempt,
@@ -199,6 +206,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						aguinaldoDays: updatePayload.aguinaldoDays,
 						vacationPremiumRate: updatePayload.vacationPremiumRate,
 						enableSeventhDayPay: updatePayload.enableSeventhDayPay,
+						countSaturdayAsWorkedForSeventhDay:
+							updatePayload.countSaturdayAsWorkedForSeventhDay,
 						ptuEnabled: updatePayload.ptuEnabled,
 						ptuMode: updatePayload.ptuMode,
 						ptuIsExempt: updatePayload.ptuIsExempt,

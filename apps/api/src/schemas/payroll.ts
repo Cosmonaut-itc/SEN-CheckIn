@@ -58,6 +58,7 @@ export const payrollSettingsSchema = z.object({
 	aguinaldoDays: z.coerce.number().int().min(0).optional(),
 	vacationPremiumRate: z.coerce.number().min(0.25).max(1).optional(),
 	enableSeventhDayPay: z.boolean().optional(),
+	countSaturdayAsWorkedForSeventhDay: z.boolean().optional(),
 	ptuEnabled: z.boolean().optional(),
 	ptuMode: ptuModeEnum.optional(),
 	ptuIsExempt: z.boolean().optional(),

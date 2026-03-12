@@ -257,6 +257,10 @@ export function PayrollSettingsClient(): React.ReactElement {
 				min: 4,
 				max: 10,
 			});
+			const resolvedLunchBreakMinutes =
+				lunchBreakMinutes ?? data?.lunchBreakMinutes ?? 60;
+			const resolvedLunchBreakThresholdHours =
+				lunchBreakThresholdHours ?? data?.lunchBreakThresholdHours ?? 6;
 
 			const trimmedPtuExemptReason = value.ptuExemptReason.trim();
 			if (value.ptuIsExempt && trimmedPtuExemptReason === '') {
@@ -296,9 +300,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 				aguinaldoEnabled: value.aguinaldoEnabled,
 				enableDisciplinaryMeasures: value.enableDisciplinaryMeasures,
 				autoDeductLunchBreak: value.autoDeductLunchBreak,
-				lunchBreakMinutes: value.autoDeductLunchBreak ? (lunchBreakMinutes ?? 60) : 60,
-				lunchBreakThresholdHours:
-					value.autoDeductLunchBreak ? (lunchBreakThresholdHours ?? 6) : 6,
+				lunchBreakMinutes: resolvedLunchBreakMinutes,
+				lunchBreakThresholdHours: resolvedLunchBreakThresholdHours,
 			});
 		},
 	});

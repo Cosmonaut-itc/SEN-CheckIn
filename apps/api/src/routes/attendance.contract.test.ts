@@ -202,6 +202,39 @@ describe('attendance routes (contract)', () => {
 		expect(record.id).toBe(recordId);
 	});
 
+	it('creates a check-out attendance record with a checkOutReason', async () => {
+		const createResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: new Date(),
+			type: 'CHECK_OUT',
+			checkOutReason: 'LUNCH_BREAK',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		expect(createPayload.data).toMatchObject({
+			type: 'CHECK_OUT',
+			checkOutReason: 'LUNCH_BREAK',
+		});
+	});
+
+	it('rejects checkOutReason for check-in attendance records', async () => {
+		const createResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: new Date(),
+			type: 'CHECK_IN',
+			checkOutReason: 'PERSONAL',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(400);
+		const errorPayload = requireErrorResponse(createResponse, 'check-in checkOutReason');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
 	it('creates a WORK_OFFSITE record and returns it in offsite today endpoint', async () => {
 		const offsiteTodayResponse = await client.attendance.offsite.today.get({
 			$headers: { cookie: adminSession.cookieHeader },

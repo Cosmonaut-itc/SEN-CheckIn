@@ -2,6 +2,7 @@ import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { Link, useFocusEffect, useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
+import type { CheckOutReason } from '@sen-checkin/types';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -16,7 +17,12 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { CheckOutReasonSheet } from '@/components/attendance/check-out-reason-sheet';
 import { Colors, type ThemeColors } from '@/constants/theme';
+import {
+	releaseAttendanceCaptureLock,
+	tryAcquireAttendanceCaptureLock,
+} from '@/lib/attendance-capture-lock';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
@@ -88,7 +94,9 @@ export default function ScannerScreen(): JSX.Element {
 	const borderColorAnim = useRef(new Animated.Value(0)).current;
 
 	const [attendanceType, setAttendanceType] = useState<AttendanceType>('CHECK_IN');
+	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const captureLockRef = useRef(false);
 	const [scanStatus, setScanStatus] = useState<ScanStatus>({
 		state: 'idle',
 		message: i18n.t('Scanner.status.idle'),
@@ -233,12 +241,17 @@ export default function ScannerScreen(): JSX.Element {
 	 * Records attendance on successful verification
 	 * @returns {Promise<void>} Resolves after attempting verification and recording attendance
 	 */
-	const handleCapture = async () => {
+	const processAttendanceCapture = async (checkOutReason?: CheckOutReason) => {
+		if (!tryAcquireAttendanceCaptureLock(captureLockRef, isProcessing)) {
+			return;
+		}
+
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
 			if (isIOS) {
 				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			}
+			releaseAttendanceCaptureLock(captureLockRef);
 			return;
 		}
 
@@ -280,6 +293,7 @@ export default function ScannerScreen(): JSX.Element {
 					settings.deviceId,
 					attendanceType,
 					metadata,
+					checkOutReason,
 				);
 
 				const displayName = [match.employee.firstName, match.employee.lastName]
@@ -331,8 +345,38 @@ export default function ScannerScreen(): JSX.Element {
 				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			}
 		} finally {
+			releaseAttendanceCaptureLock(captureLockRef);
 			setIsProcessing(false);
 		}
+	};
+
+	/**
+	 * Opens the reason selector for regular check-outs and otherwise starts capture immediately.
+	 *
+	 * @returns Promise that resolves once the interaction is handled
+	 */
+	const handleCapture = async (): Promise<void> => {
+		if (attendanceType === 'CHECK_OUT') {
+			setIsCheckOutReasonSheetOpen(true);
+			return;
+		}
+
+		await processAttendanceCapture();
+	};
+
+	/**
+	 * Continues the check-out flow after the user selects the reason.
+	 *
+	 * @param checkOutReason - Selected check-out reason
+	 * @returns Promise that resolves after the capture flow finishes
+	 */
+	const handleCheckOutReasonSelect = async (checkOutReason: CheckOutReason): Promise<void> => {
+		if (captureLockRef.current || isProcessing) {
+			return;
+		}
+
+		setIsCheckOutReasonSheetOpen(false);
+		await processAttendanceCapture(checkOutReason);
 	};
 
 	// Interpolate border color based on animation value
@@ -397,12 +441,13 @@ export default function ScannerScreen(): JSX.Element {
 	}
 
 	return (
-		<ScrollView
-			style={styles.scroll}
-			contentInsetAdjustmentBehavior="never"
-			contentContainerStyle={styles.scrollContent}
-			scrollEnabled={false}
-		>
+		<>
+			<ScrollView
+				style={styles.scroll}
+				contentInsetAdjustmentBehavior="never"
+				contentContainerStyle={styles.scrollContent}
+				scrollEnabled={false}
+			>
 			<View style={styles.container}>
 				{/* Camera View */}
 				{/* Key prop forces re-mount when camera facing changes to fix initialization issues */}
@@ -620,7 +665,13 @@ export default function ScannerScreen(): JSX.Element {
 					</Card>
 				</View>
 			</View>
-		</ScrollView>
+			</ScrollView>
+			<CheckOutReasonSheet
+				isOpen={isCheckOutReasonSheetOpen}
+				onClose={() => setIsCheckOutReasonSheetOpen(false)}
+				onSelectReason={handleCheckOutReasonSelect}
+			/>
+		</>
 	);
 }
 

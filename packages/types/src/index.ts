@@ -216,6 +216,11 @@ export type AttendanceType = 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' |
 export type OffsiteDayKind = 'LABORABLE' | 'NO_LABORABLE';
 
 /**
+ * Reason associated with a check-out attendance record.
+ */
+export type CheckOutReason = 'REGULAR' | 'LUNCH_BREAK' | 'PERSONAL';
+
+/**
  * Attendance record entity.
  */
 export interface AttendanceRecord {
@@ -235,6 +240,8 @@ export interface AttendanceRecord {
 	timestamp: Date;
 	/** Type of attendance (check-in, check-out, or authorized exit) */
 	type: AttendanceType;
+	/** Check-out reason when type is CHECK_OUT or CHECK_OUT_AUTHORIZED */
+	checkOutReason?: CheckOutReason | null;
 	/** Offsite date key (YYYY-MM-DD) when type is WORK_OFFSITE */
 	offsiteDateKey?: string | null;
 	/** Offsite RH day kind when type is WORK_OFFSITE */

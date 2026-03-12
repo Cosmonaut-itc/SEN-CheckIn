@@ -84,6 +84,9 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: number;
 		vacationPremiumRate: number;
 		enableSeventhDayPay: boolean;
+		autoDeductLunchBreak: boolean;
+		lunchBreakMinutes: number;
+		lunchBreakThresholdHours: number;
 	};
 }> => {
 	const { organizationId, periodStartDateKey, periodEndDateKey, paymentFrequency } = args;
@@ -108,6 +111,9 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
+		autoDeductLunchBreak: Boolean(orgSettings[0]?.autoDeductLunchBreak ?? false),
+		lunchBreakMinutes: Number(orgSettings[0]?.lunchBreakMinutes ?? 60),
+		lunchBreakThresholdHours: Number(orgSettings[0]?.lunchBreakThresholdHours ?? 6),
 	};
 
 	const periodBounds = getPayrollPeriodBounds({
@@ -173,6 +179,7 @@ const calculatePayroll = async (args: {
 						employeeId: attendanceRecord.employeeId,
 						timestamp: attendanceRecord.timestamp,
 						type: attendanceRecord.type,
+						checkOutReason: attendanceRecord.checkOutReason,
 						offsiteDateKey: attendanceRecord.offsiteDateKey,
 						offsiteDayKind: attendanceRecord.offsiteDayKind,
 					})
@@ -490,6 +497,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						vacationDaysPaid: row.vacationDaysPaid,
 						vacationPayAmount: row.vacationPayAmount.toFixed(2),
 						vacationPremiumAmount: row.vacationPremiumAmount.toFixed(2),
+						lunchBreakAutoDeductedDays: row.lunchBreakAutoDeductedDays,
+						lunchBreakAutoDeductedMinutes: row.lunchBreakAutoDeductedMinutes,
 						taxBreakdown: {
 							grossPay: row.grossPay,
 							seventhDayPay: row.seventhDayPay,
@@ -670,6 +679,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					vacationDaysPaid: payrollRunEmployee.vacationDaysPaid,
 					vacationPayAmount: payrollRunEmployee.vacationPayAmount,
 					vacationPremiumAmount: payrollRunEmployee.vacationPremiumAmount,
+					lunchBreakAutoDeductedDays: payrollRunEmployee.lunchBreakAutoDeductedDays,
+					lunchBreakAutoDeductedMinutes: payrollRunEmployee.lunchBreakAutoDeductedMinutes,
 					taxBreakdown: payrollRunEmployee.taxBreakdown,
 					periodStart: payrollRunEmployee.periodStart,
 					periodEnd: payrollRunEmployee.periodEnd,
@@ -705,6 +716,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				vacationDaysPaid: line.vacationDaysPaid,
 				vacationPayAmount: line.vacationPayAmount,
 				vacationPremiumAmount: line.vacationPremiumAmount,
+				lunchBreakAutoDeductedDays: line.lunchBreakAutoDeductedDays,
+				lunchBreakAutoDeductedMinutes: line.lunchBreakAutoDeductedMinutes,
 				taxBreakdown: line.taxBreakdown,
 				periodStart: line.periodStart,
 				periodEnd: line.periodEnd,

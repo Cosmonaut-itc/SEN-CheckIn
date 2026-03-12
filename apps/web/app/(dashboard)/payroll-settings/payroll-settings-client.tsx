@@ -213,6 +213,9 @@ export function PayrollSettingsClient(): React.ReactElement {
 			employerType: 'PERSONA_MORAL',
 			aguinaldoEnabled: true,
 			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: false,
+			lunchBreakMinutes: '60',
+			lunchBreakThresholdHours: '6',
 		},
 		onSubmit: async ({ value }) => {
 			const trimmedTimeZone = value.timeZone.trim();
@@ -246,6 +249,14 @@ export function PayrollSettingsClient(): React.ReactElement {
 				min: 0.25,
 				max: 1,
 			});
+			const lunchBreakMinutes = parseIntegerInput(value.lunchBreakMinutes, {
+				min: 15,
+				max: 120,
+			});
+			const lunchBreakThresholdHours = parseNumberInput(value.lunchBreakThresholdHours, {
+				min: 4,
+				max: 10,
+			});
 
 			const trimmedPtuExemptReason = value.ptuExemptReason.trim();
 			if (value.ptuIsExempt && trimmedPtuExemptReason === '') {
@@ -257,13 +268,17 @@ export function PayrollSettingsClient(): React.ReactElement {
 				riskWorkRate === null ||
 				statePayrollTaxRate === null ||
 				aguinaldoDays === null ||
-				vacationPremiumRate === null
+				vacationPremiumRate === null ||
+				(value.autoDeductLunchBreak &&
+					(lunchBreakMinutes === null || lunchBreakThresholdHours === null))
 			) {
 				toast.error(t('validation.invalidNumber'));
 				return;
 			}
 
-			await mutation.mutateAsync({
+			const hasValidLunchBreakValues =
+				lunchBreakMinutes !== null && lunchBreakThresholdHours !== null;
+			const payload = {
 				weekStartDay: Number(value.weekStartDay),
 				timeZone: trimmedTimeZone,
 				overtimeEnforcement: value.overtimeEnforcement as 'WARN' | 'BLOCK',
@@ -282,7 +297,16 @@ export function PayrollSettingsClient(): React.ReactElement {
 				employerType: value.employerType as 'PERSONA_MORAL' | 'PERSONA_FISICA',
 				aguinaldoEnabled: value.aguinaldoEnabled,
 				enableDisciplinaryMeasures: value.enableDisciplinaryMeasures,
-			});
+				autoDeductLunchBreak: value.autoDeductLunchBreak,
+				...(hasValidLunchBreakValues
+					? {
+							lunchBreakMinutes,
+							lunchBreakThresholdHours,
+						}
+					: {}),
+			};
+
+			await mutation.mutateAsync(payload);
 		},
 	});
 
@@ -336,10 +360,16 @@ export function PayrollSettingsClient(): React.ReactElement {
 			form.setFieldValue('aguinaldoEnabled', data.aguinaldoEnabled);
 		}
 		if (data?.enableDisciplinaryMeasures !== undefined) {
-			form.setFieldValue(
-				'enableDisciplinaryMeasures',
-				data.enableDisciplinaryMeasures,
-			);
+			form.setFieldValue('enableDisciplinaryMeasures', data.enableDisciplinaryMeasures);
+		}
+		if (data?.autoDeductLunchBreak !== undefined) {
+			form.setFieldValue('autoDeductLunchBreak', data.autoDeductLunchBreak);
+		}
+		if (data?.lunchBreakMinutes !== undefined) {
+			form.setFieldValue('lunchBreakMinutes', String(data.lunchBreakMinutes));
+		}
+		if (data?.lunchBreakThresholdHours !== undefined) {
+			form.setFieldValue('lunchBreakThresholdHours', String(data.lunchBreakThresholdHours));
 		}
 		form.setFieldValue(
 			'additionalMandatoryRestDaysText',
@@ -363,6 +393,9 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.employerType,
 		data?.aguinaldoEnabled,
 		data?.enableDisciplinaryMeasures,
+		data?.autoDeductLunchBreak,
+		data?.lunchBreakMinutes,
+		data?.lunchBreakThresholdHours,
 		data?.additionalMandatoryRestDays,
 		form,
 	]);
@@ -548,6 +581,65 @@ export function PayrollSettingsClient(): React.ReactElement {
 							)}
 						</form.AppField>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
+							<p className="font-medium text-foreground">{t('lunchBreak.title')}</p>
+							<p className="mt-1 text-xs text-muted-foreground">
+								{t('lunchBreak.description')}
+							</p>
+						</div>
+						<form.AppField name="autoDeductLunchBreak">
+							{(field) => (
+								<field.ToggleField
+									label={t('lunchBreak.fields.autoDeductLunchBreak')}
+									description={t('lunchBreak.helpers.autoDeductLunchBreak')}
+									disabled={isFormDisabled}
+								/>
+							)}
+						</form.AppField>
+						{form.state.values.autoDeductLunchBreak ? (
+							<>
+								<form.AppField
+									name="lunchBreakMinutes"
+									validators={{
+										onChange: ({ value }) =>
+											parseIntegerInput(value, { min: 15, max: 120 }) === null
+												? t('validation.invalidNumber')
+												: undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label={t('lunchBreak.fields.lunchBreakMinutes')}
+											placeholder={t('lunchBreak.placeholders.minutes')}
+											description={t('lunchBreak.helpers.lunchBreakMinutes')}
+											disabled={isFormDisabled}
+										/>
+									)}
+								</form.AppField>
+								<form.AppField
+									name="lunchBreakThresholdHours"
+									validators={{
+										onChange: ({ value }) =>
+											parseNumberInput(value, { min: 4, max: 10 }) === null
+												? t('validation.invalidNumber')
+												: undefined,
+									}}
+								>
+									{(field) => (
+										<field.TextField
+											label={t('lunchBreak.fields.lunchBreakThresholdHours')}
+											placeholder={t(
+												'lunchBreak.placeholders.thresholdHours',
+											)}
+											description={t(
+												'lunchBreak.helpers.lunchBreakThresholdHours',
+											)}
+											disabled={isFormDisabled}
+										/>
+									)}
+								</form.AppField>
+							</>
+						) : null}
+						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
 							<p className="font-medium text-foreground">{t('ptu.title')}</p>
 							<p className="mt-1 text-xs">{t('ptu.description')}</p>
 						</div>
@@ -626,9 +718,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 							</ul>
 						</div>
 						<div className="rounded-md border bg-muted/50 p-3 text-sm text-muted-foreground">
-							<p className="font-medium text-foreground">
-								{t('disciplinary.title')}
-							</p>
+							<p className="font-medium text-foreground">{t('disciplinary.title')}</p>
 							<p className="mt-1 text-xs">{t('disciplinary.description')}</p>
 						</div>
 						<form.AppField name="enableDisciplinaryMeasures">

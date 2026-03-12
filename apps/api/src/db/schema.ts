@@ -351,6 +351,15 @@ export const attendanceType = pgEnum('attendance_type', [
 ]);
 
 /**
+ * Enum for check-out reasons on attendance records.
+ */
+export const checkOutReason = pgEnum('check_out_reason', [
+	'REGULAR',
+	'LUNCH_BREAK',
+	'PERSONAL',
+]);
+
+/**
  * Enum for RH offsite-day classification.
  */
 export const offsiteDayKind = pgEnum('offsite_day_kind', ['LABORABLE', 'NO_LABORABLE']);
@@ -986,6 +995,7 @@ export const attendanceRecord = pgTable('attendance_record', {
 		.references(() => device.id, { onDelete: 'cascade' }),
 	timestamp: timestamp('timestamp').notNull(),
 	type: attendanceType('type').notNull(),
+	checkOutReason: checkOutReason('check_out_reason'),
 	/**
 	 * Business date key for offsite manual records in org timezone (YYYY-MM-DD).
 	 */
@@ -1786,6 +1796,14 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull(),
 	/** Enables the seventh day pay calculation */
 	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
+	/** Whether lunch break time is automatically deducted when no lunch checkout exists. */
+	autoDeductLunchBreak: boolean('auto_deduct_lunch_break').default(false).notNull(),
+	/** Minutes deducted for lunch break when auto deduction applies. */
+	lunchBreakMinutes: integer('lunch_break_minutes').default(60).notNull(),
+	/** Minimum continuous worked hours before auto lunch deduction applies. */
+	lunchBreakThresholdHours: numeric('lunch_break_threshold_hours', { precision: 4, scale: 2 })
+		.default('6')
+		.notNull(),
 	/** Whether PTU calculations are enabled */
 	ptuEnabled: boolean('ptu_enabled').default(false).notNull(),
 	/** PTU mode behavior (DEFAULT_RULES or MANUAL) */
@@ -2445,6 +2463,10 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 		.notNull(),
 	vacationPremiumAmount: numeric('vacation_premium_amount', { precision: 12, scale: 2 })
 		.default('0')
+		.notNull(),
+	lunchBreakAutoDeductedDays: integer('lunch_break_auto_deducted_days').default(0).notNull(),
+	lunchBreakAutoDeductedMinutes: integer('lunch_break_auto_deducted_minutes')
+		.default(0)
 		.notNull(),
 	/** Snapshot of fiscal breakdown for the employee line */
 	taxBreakdown: jsonb('tax_breakdown').$type<Record<string, unknown>>(),

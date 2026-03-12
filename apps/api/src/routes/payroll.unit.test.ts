@@ -42,6 +42,7 @@ interface FakePayrollSettingRow {
 	aguinaldoDays?: number;
 	vacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
+	countSaturdayAsWorkedForSeventhDay?: boolean;
 }
 
 type FakeEmployeeRow = PayrollEmployeeRow & {

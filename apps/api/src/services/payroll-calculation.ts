@@ -139,7 +139,10 @@ export interface CalculatePayrollFromDataArgs {
 	weekStartDay: number;
 	additionalMandatoryRestDays: string[];
 	defaultTimeZone: string;
-	payrollSettings?: Partial<MexicoPayrollTaxSettings> & { enableSeventhDayPay?: boolean };
+	payrollSettings?: Partial<MexicoPayrollTaxSettings> & {
+		enableSeventhDayPay?: boolean;
+		countSaturdayAsWorkedForSeventhDay?: boolean;
+	};
 	vacationDayCounts?: Record<string, number>;
 	incapacityRecordsByEmployee?: Record<string, IncapacityRecordInput[]>;
 }
@@ -164,7 +167,10 @@ export interface PayrollIncapacitySummary {
 	byType: IncapacitySummary['byType'];
 }
 
-const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: boolean } = {
+const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & {
+	enableSeventhDayPay: boolean;
+	countSaturdayAsWorkedForSeventhDay: boolean;
+} = {
 	riskWorkRate: 0,
 	statePayrollTaxRate: 0,
 	absorbImssEmployeeShare: false,
@@ -172,6 +178,7 @@ const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & { enableSeventhDayPay: bo
 	aguinaldoDays: 15,
 	vacationPremiumRate: 0.25,
 	enableSeventhDayPay: false,
+	countSaturdayAsWorkedForSeventhDay: false,
 };
 
 /**
@@ -282,6 +289,7 @@ function getScheduledWorkingDateKeys(
  */
 function calculateSeventhDayPay(args: {
 	enabled: boolean;
+	countSaturdayAsWorkedForSeventhDay: boolean;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	periodStartDateKey: string;
 	periodEndDateKey: string;
@@ -291,6 +299,7 @@ function calculateSeventhDayPay(args: {
 }): number {
 	const {
 		enabled,
+		countSaturdayAsWorkedForSeventhDay,
 		paymentFrequency,
 		periodStartDateKey,
 		periodEndDateKey,
@@ -313,8 +322,48 @@ function calculateSeventhDayPay(args: {
 	if (scheduledKeys.length === 0) {
 		return 0;
 	}
-	const completedAllScheduledDays = scheduledKeys.every((key) => workedDayKeys.has(key));
+	const resolvedWorkedDayKeys = new Set(workedDayKeys);
+	const saturdayDate = getDateKeyForDayOfWeekInPeriod({
+		periodStartDateKey,
+		periodEndDateKey,
+		targetDayOfWeek: 6,
+	});
+	const saturdayIsScheduled = scheduledKeys.includes(saturdayDate ?? '');
+	if (
+		countSaturdayAsWorkedForSeventhDay &&
+		saturdayDate &&
+		!saturdayIsScheduled
+	) {
+		resolvedWorkedDayKeys.add(saturdayDate);
+	}
+	const completedAllScheduledDays = scheduledKeys.every((key) => resolvedWorkedDayKeys.has(key));
 	return completedAllScheduledDays ? roundCurrency(dailyPay) : 0;
+}
+
+/**
+ * Finds the date key for a target weekday inside the payroll period.
+ *
+ * @param args - Period bounds and weekday to locate
+ * @returns Matching date key or null when absent from the period
+ */
+function getDateKeyForDayOfWeekInPeriod(args: {
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	targetDayOfWeek: number;
+}): string | null {
+	const { periodStartDateKey, periodEndDateKey, targetDayOfWeek } = args;
+	let currentKey = periodStartDateKey;
+	for (let i = 0; i < 400 && currentKey <= periodEndDateKey; i += 1) {
+		const dayOfWeek = new Date(`${currentKey}T00:00:00Z`).getUTCDay();
+		if (dayOfWeek === targetDayOfWeek) {
+			return currentKey;
+		}
+		if (currentKey === periodEndDateKey) {
+			break;
+		}
+		currentKey = addDaysToDateKey(currentKey, 1);
+	}
+	return null;
 }
 
 /**
@@ -894,6 +943,9 @@ export function calculatePayrollFromData(
 		);
 		const seventhDayPay = calculateSeventhDayPay({
 			enabled: Boolean(resolvedTaxSettings.enableSeventhDayPay),
+			countSaturdayAsWorkedForSeventhDay: Boolean(
+				resolvedTaxSettings.countSaturdayAsWorkedForSeventhDay,
+			),
 			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
 			periodStartDateKey,
 			periodEndDateKey,

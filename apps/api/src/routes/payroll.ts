@@ -84,6 +84,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: number;
 		vacationPremiumRate: number;
 		enableSeventhDayPay: boolean;
+		countSaturdayAsWorkedForSeventhDay: boolean;
 	};
 }> => {
 	const { organizationId, periodStartDateKey, periodEndDateKey, paymentFrequency } = args;
@@ -108,6 +109,9 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
+		countSaturdayAsWorkedForSeventhDay: Boolean(
+			orgSettings[0]?.countSaturdayAsWorkedForSeventhDay ?? false,
+		),
 	};
 
 	const periodBounds = getPayrollPeriodBounds({

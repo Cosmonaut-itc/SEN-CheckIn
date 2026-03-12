@@ -82,6 +82,16 @@ export {
 // Export user actions and types (except MutationResult)
 export { banUser, setUserRole, unbanUser, type SetUserRoleInput, type UserRole } from './users';
 
+// Export overtime authorization actions and types (except MutationResult)
+export {
+	cancelOvertimeAuthorizationAction,
+	createOvertimeAuthorizationAction,
+	updateOvertimeAuthorizationAction,
+	type CancelOvertimeAuthorizationInput,
+	type CreateOvertimeAuthorizationInput,
+	type UpdateOvertimeAuthorizationInput,
+} from './overtime-authorizations';
+
 // Export employee Rekognition actions and types (except MutationResult)
 export {
 	createRekognitionUser,

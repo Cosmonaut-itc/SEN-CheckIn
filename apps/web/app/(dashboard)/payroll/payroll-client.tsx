@@ -75,6 +75,7 @@ import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
 import { PtuTab } from './ptu-tab';
 import { AguinaldoTab } from './aguinaldo-tab';
 import { PayrollHolidayNoticeCard } from './payroll-holiday-notice';
+import { PayrollOvertimeAlert } from '@/components/overtime/payroll-overtime-alert';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
 
@@ -313,6 +314,29 @@ export function PayrollPageClient(): React.ReactElement {
 		);
 	}, [effectiveCalculation]);
 
+	const overtimeAuthorizationSummary = useMemo(() => {
+		if (!effectiveCalculation) {
+			return {
+				unauthorizedHours: 0,
+				affectedEmployeesCount: 0,
+			};
+		}
+
+		return effectiveCalculation.employees.reduce(
+			(acc, employee) => ({
+				unauthorizedHours:
+					acc.unauthorizedHours + (employee.unauthorizedOvertimeHours ?? 0),
+				affectedEmployeesCount:
+					acc.affectedEmployeesCount +
+					((employee.unauthorizedOvertimeHours ?? 0) > 0 ? 1 : 0),
+			}),
+			{
+				unauthorizedHours: 0,
+				affectedEmployeesCount: 0,
+			},
+		);
+	}, [effectiveCalculation]);
+
 	const onExportCsv = (): void => {
 		if (!effectiveCalculation || effectiveCalculation.employees.length === 0) {
 			toast.error(t('preview.toast.noCalculation'));
@@ -333,6 +357,14 @@ export function PayrollPageClient(): React.ReactElement {
 			{ key: 'normalHours', label: t('csv.headers.normalHours') },
 			{ key: 'overtimeDoubleHours', label: t('csv.headers.overtimeDoubleHours') },
 			{ key: 'overtimeTripleHours', label: t('csv.headers.overtimeTripleHours') },
+			{
+				key: 'authorizedOvertimeHours',
+				label: t('csv.headers.authorizedOvertimeHours'),
+			},
+			{
+				key: 'unauthorizedOvertimeHours',
+				label: t('csv.headers.unauthorizedOvertimeHours'),
+			},
 			{ key: 'sundayPremiumAmount', label: t('csv.headers.sundayPremiumAmount') },
 			{
 				key: 'mandatoryRestDayPremiumAmount',
@@ -421,6 +453,8 @@ export function PayrollPageClient(): React.ReactElement {
 				normalHours: row.normalHours,
 				overtimeDoubleHours: row.overtimeDoubleHours,
 				overtimeTripleHours: row.overtimeTripleHours,
+				authorizedOvertimeHours: row.authorizedOvertimeHours,
+				unauthorizedOvertimeHours: row.unauthorizedOvertimeHours,
 				sundayPremiumAmount: row.sundayPremiumAmount,
 				mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount,
 				vacationDaysPaid: row.vacationDaysPaid ?? 0,
@@ -978,6 +1012,14 @@ export function PayrollPageClient(): React.ReactElement {
 									<PayrollHolidayNoticeCard
 										notices={effectiveCalculation.holidayNotices}
 									/>
+									<PayrollOvertimeAlert
+										unauthorizedHours={
+											overtimeAuthorizationSummary.unauthorizedHours
+										}
+										affectedEmployeesCount={
+											overtimeAuthorizationSummary.affectedEmployeesCount
+										}
+									/>
 									<div className="rounded-md border">
 										<Table>
 											<TableHeader>
@@ -993,6 +1035,12 @@ export function PayrollPageClient(): React.ReactElement {
 													</TableHead>
 													<TableHead>
 														{t('preview.table.overtimeTriple')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.authorizedOvertime')}
+													</TableHead>
+													<TableHead>
+														{t('preview.table.unauthorizedOvertime')}
 													</TableHead>
 													<TableHead>
 														{t('preview.table.sundayPremium')}
@@ -1031,7 +1079,14 @@ export function PayrollPageClient(): React.ReactElement {
 											</TableHeader>
 											<TableBody>
 												{effectiveCalculation.employees.map((row) => (
-													<TableRow key={row.employeeId}>
+													<TableRow
+														key={row.employeeId}
+														className={
+															row.unauthorizedOvertimeHours > 0
+																? 'bg-[var(--status-warning-bg)]/40 hover:bg-[var(--status-warning-bg)]/55'
+																: undefined
+														}
+													>
 														<TableCell>{row.name}</TableCell>
 														<TableCell>
 															{row.normalHours.toFixed(2)}
@@ -1041,6 +1096,26 @@ export function PayrollPageClient(): React.ReactElement {
 														</TableCell>
 														<TableCell>
 															{row.overtimeTripleHours.toFixed(2)}
+														</TableCell>
+														<TableCell>
+															{row.authorizedOvertimeHours > 0
+																? row.authorizedOvertimeHours.toFixed(
+																		2,
+																	)
+																: '-'}
+														</TableCell>
+														<TableCell>
+															{row.unauthorizedOvertimeHours > 0 ? (
+																<Badge variant="warning">
+																	{row.unauthorizedOvertimeHours.toFixed(
+																		2,
+																	)}
+																</Badge>
+															) : (
+																<span className="text-muted-foreground">
+																	-
+																</span>
+															)}
 														</TableCell>
 														<TableCell>
 															{row.sundayPremiumAmount > 0

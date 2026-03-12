@@ -27,6 +27,7 @@ import { organizationRoutes } from './routes/organization.js';
 import { payrollRoutes } from './routes/payroll.js';
 import { payrollHolidaysRoutes } from './routes/payroll-holidays.js';
 import { payrollSettingsRoutes } from './routes/payroll-settings.js';
+import { overtimeAuthorizationRoutes } from './routes/overtime-authorizations.js';
 import { ptuRoutes } from './routes/ptu.js';
 import { aguinaldoRoutes } from './routes/aguinaldo.js';
 import { scheduleTemplateRoutes } from './routes/schedule-templates.js';
@@ -108,6 +109,7 @@ const createProtectedRoutes = () => {
 			.use(organizationRoutes)
 			.use(payrollSettingsRoutes)
 			.use(payrollHolidaysRoutes)
+			.use(overtimeAuthorizationRoutes)
 			.use(payrollRoutes)
 			.use(ptuRoutes)
 			.use(aguinaldoRoutes)

@@ -91,7 +91,8 @@
     "userAvatarAltFallback": "Foto de perfil del usuario",
     "userFallback": "Usuario",
     "superUserBadge": "Superusuario",
-    "toggleSidebar": "Alternar Barra Lateral"
+    "toggleSidebar": "Alternar Barra Lateral",
+    "overtimeAuthorizations": "Autorización de horas extra"
   },
   "AccessRestricted": {
     "title": "Acceso restringido",
@@ -1406,7 +1407,9 @@
         "lunchBreakDeduction": "Descuento comida",
         "total": "Total",
         "warnings": "Alertas",
-        "detail": "Detalle fiscal"
+        "detail": "Detalle fiscal",
+        "authorizedOvertime": "HE autorizadas",
+        "unauthorizedOvertime": "HE no autorizadas"
       }
     },
     "csv": {
@@ -1463,7 +1466,9 @@
         "incapacityDays": "incapacidad_dias",
         "incapacitySubsidy": "incapacidad_subsidio_imss",
         "warningsCount": "avisos_cantidad",
-        "warnings": "avisos"
+        "warnings": "avisos",
+        "authorizedOvertimeHours": "horas_extra_autorizadas",
+        "unauthorizedOvertimeHours": "horas_extra_no_autorizadas"
       }
     },
     "summary": {
@@ -1628,6 +1633,10 @@
       "payroll": "Nómina",
       "ptu": "PTU",
       "aguinaldo": "Aguinaldo"
+    },
+    "overtimeAuthorization": {
+      "clear": "Sin horas extra pendientes de autorización.",
+      "warning": "{employees} empleados con {hours} h no autorizadas"
     }
   },
   "PayrollSettings": {
@@ -3983,6 +3992,69 @@
       "organizationFallback": "La empresa",
       "receiptMessage": "Recibí de {organization} la cantidad correspondiente al aguinaldo {period}.",
       "signature": "Firma del empleado"
+    }
+  },
+  "OvertimeAuthorizations": {
+    "title": "Horas extra autorizadas",
+    "subtitle": "Gestiona preaprobaciones por colaborador y fecha.",
+    "noOrganization": "Selecciona una organización activa.",
+    "actions": {
+      "create": "Autorizar horas extra",
+      "createSubmitting": "Guardando...",
+      "cancel": "Cancelar autorización"
+    },
+    "filters": {
+      "employee": "Empleado",
+      "status": "Estatus",
+      "startDate": "Desde",
+      "endDate": "Hasta",
+      "allEmployees": "Todos",
+      "allStatuses": "Todos"
+    },
+    "status": {
+      "PENDING": "Pendiente",
+      "ACTIVE": "Activa",
+      "CANCELLED": "Cancelada"
+    },
+    "table": {
+      "headers": {
+        "employee": "Empleado",
+        "date": "Fecha",
+        "hours": "Horas autorizadas",
+        "status": "Estatus",
+        "createdBy": "Autorizó",
+        "actions": "Acciones"
+      },
+      "empty": "No se encontraron autorizaciones."
+    },
+    "form": {
+      "title": "Nueva autorización",
+      "fields": {
+        "employee": "Empleado",
+        "date": "Fecha",
+        "hours": "Horas",
+        "notes": "Notas",
+        "search": "Buscar empleado"
+      },
+      "placeholders": {
+        "employee": "Selecciona un empleado",
+        "date": "AAAA-MM-DD",
+        "hours": "0",
+        "notes": "Opcional",
+        "search": "Busca por nombre"
+      },
+      "helper": {
+        "legalLimit": "La LFT sugiere un máximo de 3 horas diarias."
+      },
+      "actions": {
+        "submit": "Guardar autorización"
+      }
+    },
+    "toast": {
+      "createSuccess": "Autorización creada",
+      "createError": "No se pudo crear la autorización",
+      "cancelSuccess": "Autorización cancelada",
+      "cancelError": "No se pudo cancelar la autorización"
     }
   }
 }

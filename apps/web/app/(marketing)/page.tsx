@@ -143,7 +143,7 @@ function renderSecurityItem(item: string, index: number): React.ReactElement {
 	return (
 		<li
 			key={`${item}-${index}`}
-			className="flex items-start gap-3 text-sm text-[color:var(--text-tertiary)]"
+			className="flex items-start gap-3 text-sm text-[color:var(--text-muted)] dark:text-[color:var(--text-tertiary)]"
 		>
 			<span className="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-[color:var(--accent-primary)] shadow-[0_0_0_4px_rgba(200,116,61,0.18)]" />
 			<span>{item}</span>
@@ -419,14 +419,14 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 						<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--accent-secondary-light)]">
 							{t('sections.security.kicker')}
 						</p>
-						<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--text-primary)] sm:text-4xl">
+						<h2 className="font-[var(--font-display)] text-3xl font-semibold tracking-tight text-[color:var(--text-inverse)] dark:text-[color:var(--text-primary)] sm:text-4xl">
 							{t('sections.security.title')}
 						</h2>
-						<p className="text-sm text-[color:var(--text-tertiary)] sm:text-base">
+						<p className="text-sm text-[color:var(--text-muted)] dark:text-[color:var(--text-tertiary)] sm:text-base">
 							{t('sections.security.subtitle')}
 						</p>
 						<ul className="space-y-3 pt-2">{securityItems.map(renderSecurityItem)}</ul>
-						<p className="text-sm text-[color:var(--text-tertiary)]">{privacyNote}</p>
+						<p className="text-sm text-[color:var(--text-muted)] dark:text-[color:var(--text-tertiary)]">{privacyNote}</p>
 					</Reveal>
 
 					<Reveal className="mt-12 lg:mt-0" delay={0.1}>

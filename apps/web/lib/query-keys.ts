@@ -138,6 +138,22 @@ export interface PayrollHolidayListQueryParams extends Record<string, unknown> {
 }
 
 /**
+ * Overtime authorization status values.
+ */
+export type OvertimeAuthorizationStatus = 'PENDING' | 'ACTIVE' | 'CANCELLED';
+
+/**
+ * Query parameters for overtime authorizations list.
+ */
+export interface OvertimeAuthorizationQueryParams extends ListQueryParams {
+	organizationId?: string;
+	employeeId?: string;
+	startDate?: string;
+	endDate?: string;
+	status?: OvertimeAuthorizationStatus;
+}
+
+/**
  * Query parameters for PTU calculations.
  */
 export interface PtuCalculateParams {
@@ -588,12 +604,16 @@ export const queryKeys = {
 			queryKeyConstructor(['payroll', 'runs'] as const, params),
 		runDetail: (id: string) => ['payroll', 'runs', id] as const,
 	},
+	overtimeAuthorizations: {
+		all: ['overtimeAuthorizations'] as const,
+		list: (params?: OvertimeAuthorizationQueryParams) =>
+			queryKeyConstructor(['overtimeAuthorizations', 'list'] as const, params),
+	},
 	ptu: {
 		all: ['ptu'] as const,
 		calculate: (params: PtuCalculateParams) =>
 			queryKeyConstructor(['ptu', 'calculate'] as const, params),
-		runs: (params?: PtuRunQueryParams) =>
-			queryKeyConstructor(['ptu', 'runs'] as const, params),
+		runs: (params?: PtuRunQueryParams) => queryKeyConstructor(['ptu', 'runs'] as const, params),
 		runDetail: (id: string) => ['ptu', 'runs', id] as const,
 		history: (employeeId: string) => ['ptu', 'history', employeeId] as const,
 	},
@@ -666,13 +686,8 @@ export const queryKeys = {
 		all: ['documentWorkflow'] as const,
 		config: ['documentWorkflow', 'config'] as const,
 		templates: (
-			kind:
-				| 'CONTRACT'
-				| 'NDA'
-				| 'ACTA_ADMINISTRATIVA'
-				| 'CONSTANCIA_NEGATIVA_FIRMA',
-		) =>
-			['documentWorkflow', 'templates', kind] as const,
+			kind: 'CONTRACT' | 'NDA' | 'ACTA_ADMINISTRATIVA' | 'CONSTANCIA_NEGATIVA_FIRMA',
+		) => ['documentWorkflow', 'templates', kind] as const,
 		branding: ['documentWorkflow', 'branding'] as const,
 	},
 
@@ -852,6 +867,11 @@ export const mutationKeys = {
 	},
 	payrollSettings: {
 		update: ['payrollSettings', 'update'] as const,
+	},
+	overtimeAuthorizations: {
+		create: ['overtimeAuthorizations', 'create'] as const,
+		update: ['overtimeAuthorizations', 'update'] as const,
+		cancel: ['overtimeAuthorizations', 'cancel'] as const,
 	},
 	ptu: {
 		calculate: ['ptu', 'calculate'] as const,

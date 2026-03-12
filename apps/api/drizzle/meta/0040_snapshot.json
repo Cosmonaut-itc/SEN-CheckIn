@@ -1,6 +1,6 @@
 {
-  "id": "1fc11392-c340-4fa5-96ac-a3800b8bcbd6",
-  "prevId": "3fd079a6-08b4-4865-b3f4-775be1a38886",
+  "id": "4f426fe9-ad55-4c58-b50c-8cc52e3c4d10",
+  "prevId": "d73bf375-579e-46bc-aad4-99f257e8a867",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5746,6 +5746,20 @@
           "notNull": true,
           "default": "'0'"
         },
+        "lunch_break_auto_deducted_days": {
+          "name": "lunch_break_auto_deducted_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "lunch_break_auto_deducted_minutes": {
+          "name": "lunch_break_auto_deducted_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "tax_breakdown": {
           "name": "tax_breakdown",
           "type": "jsonb",
@@ -5907,6 +5921,27 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "auto_deduct_lunch_break": {
+          "name": "auto_deduct_lunch_break",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "lunch_break_minutes": {
+          "name": "lunch_break_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 60
+        },
+        "lunch_break_threshold_hours": {
+          "name": "lunch_break_threshold_hours",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'6'"
         },
         "ptu_enabled": {
           "name": "ptu_enabled",

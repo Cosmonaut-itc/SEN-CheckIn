@@ -143,6 +143,7 @@ export const payrollWarningSchema = z.object({
 		'OVERTIME_DAILY_EXCEEDED',
 		'OVERTIME_WEEKLY_EXCEEDED',
 		'OVERTIME_WEEKLY_DAYS_EXCEEDED',
+		'LUNCH_BREAK_AUTO_DEDUCTED',
 		'BELOW_MINIMUM_WAGE',
 	]),
 	message: z.string(),
@@ -212,6 +213,8 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	vacationDaysPaid: z.number(),
 	vacationPayAmount: z.number(),
 	vacationPremiumAmount: z.number(),
+	lunchBreakAutoDeductedDays: z.number(),
+	lunchBreakAutoDeductedMinutes: z.number(),
 	totalPay: z.number(),
 	grossPay: z.number(),
 	bases: z.object({

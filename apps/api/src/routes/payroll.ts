@@ -84,6 +84,9 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: number;
 		vacationPremiumRate: number;
 		enableSeventhDayPay: boolean;
+		autoDeductLunchBreak: boolean;
+		lunchBreakMinutes: number;
+		lunchBreakThresholdHours: number;
 	};
 }> => {
 	const { organizationId, periodStartDateKey, periodEndDateKey, paymentFrequency } = args;
@@ -109,6 +112,9 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
+		autoDeductLunchBreak: Boolean(orgSettings[0]?.autoDeductLunchBreak ?? false),
+		lunchBreakMinutes: Number(orgSettings[0]?.lunchBreakMinutes ?? 60),
+		lunchBreakThresholdHours: Number(orgSettings[0]?.lunchBreakThresholdHours ?? 6),
 	};
 
 	const periodBounds = getPayrollPeriodBounds({
@@ -174,6 +180,7 @@ const calculatePayroll = async (args: {
 						employeeId: attendanceRecord.employeeId,
 						timestamp: attendanceRecord.timestamp,
 						type: attendanceRecord.type,
+						checkOutReason: attendanceRecord.checkOutReason,
 						offsiteDateKey: attendanceRecord.offsiteDateKey,
 						offsiteDayKind: attendanceRecord.offsiteDayKind,
 					})

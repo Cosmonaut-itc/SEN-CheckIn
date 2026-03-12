@@ -42,6 +42,9 @@ interface FakePayrollSettingRow {
 	aguinaldoDays?: number;
 	vacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
+	autoDeductLunchBreak?: boolean;
+	lunchBreakMinutes?: number;
+	lunchBreakThresholdHours?: number;
 }
 
 type FakeEmployeeRow = PayrollEmployeeRow & {
@@ -427,12 +430,23 @@ function createFakeDb(state: FakeDbState): {
 						(value): value is string => typeof value === 'string',
 					) ?? [];
 				const { start, end } = extractDateRange(this.whereCondition);
-				return state.attendanceRecords
+				const rows = state.attendanceRecords
 					.filter((row) =>
 						employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
 					)
 					.filter((row) => (start ? row.timestamp >= start : true))
 					.filter((row) => (end ? row.timestamp <= end : true));
+				if (!this.selection || typeof this.selection !== 'object') {
+					return rows;
+				}
+				const selectionKeys = Object.keys(this.selection as Record<string, unknown>);
+				return rows.map((row) => {
+					const projectedRow: Record<string, unknown> = {};
+					for (const key of selectionKeys) {
+						projectedRow[key] = (row as Record<string, unknown>)[key];
+					}
+					return projectedRow;
+				});
 			}
 
 			if (tableName === 'vacation_request_day') {
@@ -921,6 +935,164 @@ describe('payroll routes', () => {
 		expect(row?.warnings.some((warning) => warning.type === 'OVERTIME_DAILY_EXCEEDED')).toBe(
 			true,
 		);
+	});
+
+	it('applies configured lunch-break auto deduction in /payroll/calculate', async () => {
+		dbState.organizationId = 'org-lunch-settings';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				autoDeductLunchBreak: true,
+				lunchBreakMinutes: 60,
+				lunchBreakThresholdHours: 6,
+			},
+		];
+
+		const employeeId = 'emp-lunch-settings';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		dbState.attendanceRecords = createAttendancePair(
+			employeeId,
+			getUtcDateForZonedTime('2025-01-02', 9, 0, timeZone),
+			getUtcDateForZonedTime('2025-01-02', 17, 0, timeZone),
+		);
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-02',
+				periodEndDateKey: '2025-01-02',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: Array<{
+					employeeId: string;
+					hoursWorked: number;
+					lunchBreakAutoDeductedDays: number;
+					lunchBreakAutoDeductedMinutes: number;
+					warnings: Array<{ type: string }>;
+				}>;
+			};
+		};
+
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.hoursWorked).toBe(7);
+		expect(row?.lunchBreakAutoDeductedDays).toBe(1);
+		expect(row?.lunchBreakAutoDeductedMinutes).toBe(60);
+		expect(
+			row?.warnings.some((warning) => warning.type === 'LUNCH_BREAK_AUTO_DEDUCTED'),
+		).toBe(true);
+	});
+
+	it('skips lunch-break auto deduction when a lunch checkout already exists in /payroll/calculate', async () => {
+		dbState.organizationId = 'org-lunch-checkout';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				autoDeductLunchBreak: true,
+				lunchBreakMinutes: 60,
+				lunchBreakThresholdHours: 6,
+			},
+		];
+
+		const employeeId = 'emp-lunch-checkout';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		dbState.attendanceRecords = [
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-02', 9, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-02', 13, 0, timeZone),
+				type: 'CHECK_OUT',
+				checkOutReason: 'LUNCH_BREAK',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-02', 14, 0, timeZone),
+				type: 'CHECK_IN',
+			},
+			{
+				employeeId,
+				timestamp: getUtcDateForZonedTime('2025-01-02', 18, 0, timeZone),
+				type: 'CHECK_OUT',
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-02',
+				periodEndDateKey: '2025-01-02',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: Array<{
+					employeeId: string;
+					hoursWorked: number;
+					lunchBreakAutoDeductedDays: number;
+					lunchBreakAutoDeductedMinutes: number;
+					warnings: Array<{ type: string }>;
+				}>;
+			};
+		};
+
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.hoursWorked).toBe(8);
+		expect(row?.lunchBreakAutoDeductedDays).toBe(0);
+		expect(row?.lunchBreakAutoDeductedMinutes).toBe(0);
+		expect(
+			row?.warnings.some((warning) => warning.type === 'LUNCH_BREAK_AUTO_DEDUCTED'),
+		).toBe(false);
 	});
 
 	it('blocks /payroll/process when overtimeEnforcement is BLOCK and there are error warnings', async () => {

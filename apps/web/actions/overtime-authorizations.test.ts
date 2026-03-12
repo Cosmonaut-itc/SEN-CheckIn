@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	createOvertimeAuthorizationAction,
+	updateOvertimeAuthorizationAction,
 	type UpdateOvertimeAuthorizationInput,
 } from '@/actions/overtime-authorizations';
 
@@ -12,6 +13,7 @@ const invalidUpdateStatus: UpdateOvertimeAuthorizationStatus = 'PENDING';
 void invalidUpdateStatus;
 
 const createPostMock = vi.fn();
+const updatePutMock = vi.fn();
 
 vi.mock('next/headers', () => ({
 	headers: vi.fn(async () => ({
@@ -27,6 +29,9 @@ vi.mock('@/lib/server-api', () => ({
 				get: () => ({
 					'overtime-authorizations': {
 						post: createPostMock,
+						authId: {
+							put: updatePutMock,
+						},
 					},
 				}),
 			},
@@ -37,6 +42,7 @@ vi.mock('@/lib/server-api', () => ({
 describe('overtime authorization actions', () => {
 	beforeEach(() => {
 		createPostMock.mockReset();
+		updatePutMock.mockReset();
 	});
 
 	it('threads the API error message through create failures', async () => {
@@ -62,6 +68,31 @@ describe('overtime authorization actions', () => {
 		expect(result.success).toBe(false);
 		expect(result.error).toBe(
 			'An overtime authorization already exists for this employee and date',
+		);
+	});
+
+	it('threads the API error message through update failures', async () => {
+		updatePutMock.mockResolvedValue({
+			error: {
+				value: {
+					error: {
+						message:
+							'Overtime authorizations can only be modified before the authorized date passes',
+					},
+				},
+			},
+			status: 400,
+		});
+
+		const result = await updateOvertimeAuthorizationAction({
+			organizationId: 'org-1',
+			id: 'authId',
+			authorizedHours: 4,
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe(
+			'Overtime authorizations can only be modified before the authorized date passes',
 		);
 	});
 });

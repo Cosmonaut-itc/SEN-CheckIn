@@ -131,7 +131,13 @@ export async function updateOvertimeAuthorizationAction(
 		});
 
 		if (response.error) {
-			return { success: false, error: 'Failed to update overtime authorization' };
+			return {
+				success: false,
+				error: getApiErrorMessage(
+					response.error,
+					'Failed to update overtime authorization',
+				),
+			};
 		}
 
 		return { success: true, data: response.data };

@@ -47,21 +47,21 @@ export default async function MarketingLayout({
 			<div className="pointer-events-none absolute inset-0 opacity-[0.08] [background-image:linear-gradient(90deg,rgba(12,24,28,0.18)_1px,transparent_1px),linear-gradient(180deg,rgba(12,24,28,0.18)_1px,transparent_1px)] [background-size:140px_140px] dark:opacity-[0.12]" />
 
 			<header className="relative z-20 border-b border-black/10 bg-[color:var(--bg-primary)]/80 backdrop-blur-lg dark:border-[color:var(--border-default)]/40 dark:bg-[color:var(--bg-primary)]/80">
-				<div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-					<Link href="/" className="flex items-center gap-4">
-						<span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--text-primary)] text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--bg-primary)] shadow-[0_12px_30px_-18px_rgba(12,24,28,0.8)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)]">
+				<div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-2 px-4 sm:h-14 sm:gap-0">
+					<Link href="/" className="flex min-w-0 items-center gap-3 sm:flex-none sm:gap-4">
+						<span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[color:var(--text-primary)] text-[0.7rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--bg-primary)] shadow-[0_12px_30px_-18px_rgba(12,24,28,0.8)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)]">
 							{tApp('shortName')}
 						</span>
-						<div className="leading-tight">
-							<p className="text-sm font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
+						<div className="hidden min-w-0 leading-tight sm:block">
+							<p className="truncate text-sm font-semibold text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 								{tApp('name')}
 							</p>
-							<p className="text-xs uppercase tracking-[0.28em] text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
+							<p className="text-xs uppercase tracking-[0.24em] text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
 								{tLanding('header.tagline')}
 							</p>
 						</div>
 					</Link>
-					<div className="flex items-center gap-2 sm:gap-3">
+					<div className="ml-auto flex items-center justify-end gap-2 sm:flex-none sm:gap-3">
 						<Link
 							href="/privacidad"
 							className="hidden text-xs uppercase tracking-[0.3em] text-[color:var(--text-tertiary)] transition hover:text-[color:var(--text-primary)] sm:inline-flex dark:text-[color:var(--text-tertiary)] dark:hover:text-white"
@@ -72,13 +72,13 @@ export default async function MarketingLayout({
 						<Button
 							asChild
 							variant="outline"
-							className="rounded-full border-black/20 bg-transparent text-[color:var(--text-primary)] hover:bg-black/5 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
+							className="h-9 rounded-full border-black/20 bg-transparent px-3 text-[color:var(--text-primary)] hover:bg-black/5 sm:px-4 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
 						>
 							<Link href="/registrate">{tLanding('nav.signUp')}</Link>
 						</Button>
 						<Button
 							asChild
-							className="rounded-full bg-[color:var(--text-primary)] text-[color:var(--bg-primary)] shadow-[0_16px_35px_-20px_rgba(12,24,28,0.8)] hover:bg-[color:var(--bg-inverse)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
+							className="h-9 rounded-full bg-[color:var(--text-primary)] px-3 text-[color:var(--bg-primary)] shadow-[0_16px_35px_-20px_rgba(12,24,28,0.8)] hover:bg-[color:var(--bg-inverse)] sm:px-4 dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
 						>
 							<Link href="/login">{tLanding('nav.login')}</Link>
 						</Button>

@@ -85,12 +85,12 @@ function renderHeroStat(stat: HeroStat, index: number): React.ReactElement {
 	return (
 		<div
 			key={`${stat.label}-${index}`}
-			className="rounded-full border border-black/10 bg-[color:var(--bg-secondary)]/80 px-5 py-2.5 shadow-[0_12px_30px_-20px_rgba(12,24,28,0.4)] backdrop-blur dark:border-[color:var(--border-default)]/40 dark:bg-[color:var(--bg-elevated)]/60"
+			className="flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-black/10 bg-[color:var(--bg-secondary)]/80 px-4 py-2.5 text-center shadow-[0_12px_30px_-20px_rgba(12,24,28,0.4)] backdrop-blur sm:px-5 dark:border-[color:var(--border-default)]/40 dark:bg-[color:var(--bg-elevated)]/60"
 		>
 			<span className="font-[var(--font-display)] text-lg font-semibold tracking-tight text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
 				{stat.value}
 			</span>
-			<span className="ml-2 text-xs font-semibold uppercase tracking-[0.25em] text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)]">
+			<span className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-[color:var(--text-tertiary)] sm:text-xs sm:tracking-[0.25em] dark:text-[color:var(--text-tertiary)]">
 				{stat.label}
 			</span>
 		</div>
@@ -161,6 +161,7 @@ function renderSecurityItem(item: string, index: number): React.ReactElement {
  * @returns The landing page JSX element
  */
 export default async function MarketingLandingPage(): Promise<React.ReactElement> {
+	const tApp = await getTranslations('App');
 	const t = await getTranslations('Landing');
 
 	/* ---- Data ---- */
@@ -285,14 +286,20 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 
 			{/* ─── HERO ─── */}
 			<section className="relative mx-auto w-full max-w-6xl px-4 pb-20 pt-24 text-center">
+				<Reveal delay={0.02}>
+					<p className="mb-4 text-sm font-semibold tracking-[0.08em] text-[color:var(--text-primary)] sm:hidden dark:text-[color:var(--text-primary)]">
+						{tApp('name')}
+					</p>
+				</Reveal>
+
 				<Reveal delay={0.05}>
-					<p className="mx-auto mb-6 w-fit rounded-full border border-black/10 bg-[color:var(--accent-primary-light)]/70 px-4 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.35em] text-[color:var(--text-primary)] dark:border-[color:var(--border-default)]/40 dark:bg-[var(--accent-primary-bg)] dark:text-[color:var(--accent-primary-light)]">
+					<p className="mx-auto mb-6 w-fit max-w-full rounded-full border border-black/10 bg-[color:var(--accent-primary-light)]/70 px-4 py-1.5 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-[color:var(--text-primary)] sm:tracking-[0.35em] dark:border-[color:var(--border-default)]/40 dark:bg-[var(--accent-primary-bg)] dark:text-[color:var(--accent-primary-light)]">
 						{t('hero.kicker')}
 					</p>
 				</Reveal>
 
 				<Reveal delay={0.1}>
-					<h1 className="mx-auto max-w-4xl font-[var(--font-display)] text-[clamp(3rem,7vw,5.5rem)] font-bold leading-[1.02] tracking-[-0.03em] text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)]">
+					<h1 className="mx-auto max-w-4xl font-[var(--font-display)] text-[clamp(2.75rem,12vw,5.5rem)] font-bold leading-[1.02] tracking-[-0.04em] text-[color:var(--text-primary)] dark:text-[color:var(--text-primary)] sm:tracking-[-0.03em]">
 						{heroTitle}
 					</h1>
 				</Reveal>

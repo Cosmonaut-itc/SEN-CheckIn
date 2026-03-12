@@ -2056,7 +2056,7 @@ describe('payroll-calculation mexico taxes', () => {
 			countSaturdayAsWorkedForSeventhDay: true,
 		};
 
-		it('does not pay seventh day for a monday-to-friday schedule when saturday counting is disabled', () => {
+		it('preserves current behavior when saturday counting is disabled', () => {
 			const { employees: results } = calculatePayrollFromData({
 				...calculationBaseArgs,
 				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5]),
@@ -2068,7 +2068,7 @@ describe('payroll-calculation mexico taxes', () => {
 				payrollSettings: defaultSeventhDaySettings,
 			});
 
-			expect(results[0]?.seventhDayPay).toBe(0);
+			expect(results[0]?.seventhDayPay).toBe(350);
 		});
 
 		it('pays seventh day when saturday counting is enabled for a monday-to-friday schedule', () => {

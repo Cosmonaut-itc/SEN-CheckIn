@@ -3,11 +3,12 @@
 import React, { useEffect, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
 import { DocumentWorkflowSettingsSection } from '@/components/document-workflow-settings-section';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchPayrollSettings } from '@/lib/client-functions';
 import { updatePayrollSettingsAction } from '@/actions/payroll';
-import { useAppForm } from '@/lib/forms';
+import { useAppForm, useStore } from '@/lib/forms';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
@@ -36,6 +37,18 @@ const employerTypeOptions = [
 ];
 
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+const EMPTY_FIELD_META = {
+	isValidating: false,
+	isTouched: false,
+	isBlurred: false,
+	isDirty: false,
+	isPristine: true,
+	isValid: true,
+	isDefaultValue: true,
+	errors: [],
+	errorMap: {},
+	errorSourceMap: {},
+};
 
 /**
  * Error thrown when a mandatory rest day date key is invalid.
@@ -309,6 +322,21 @@ export function PayrollSettingsClient(): React.ReactElement {
 			await mutation.mutateAsync(payload);
 		},
 	});
+	const autoDeductLunchBreakEnabled = useStore(
+		form.store,
+		(state) => state.values.autoDeductLunchBreak,
+	);
+	const ptuIsExempt = useStore(form.store, (state) => state.values.ptuIsExempt);
+	const lunchBreakMinutesValue = useStore(form.store, (state) => state.values.lunchBreakMinutes);
+	const lunchBreakThresholdHoursValue = useStore(
+		form.store,
+		(state) => state.values.lunchBreakThresholdHours,
+	);
+
+	const clearHiddenLunchBreakField = (fieldName: 'lunchBreakMinutes' | 'lunchBreakThresholdHours') => {
+		form.setFieldValue(fieldName, '', { dontValidate: true });
+		form.setFieldMeta(fieldName, () => EMPTY_FIELD_META);
+	};
 
 	useEffect(() => {
 		if (data?.weekStartDay !== undefined) {
@@ -398,6 +426,25 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.lunchBreakThresholdHours,
 		data?.additionalMandatoryRestDays,
 		form,
+	]);
+
+	useEffect(() => {
+		if (autoDeductLunchBreakEnabled) {
+			return;
+		}
+
+		if (parseIntegerInput(lunchBreakMinutesValue, { min: 15, max: 120 }) === null) {
+			form.setFieldValue('lunchBreakMinutes', '');
+		}
+
+		if (parseNumberInput(lunchBreakThresholdHoursValue, { min: 4, max: 10 }) === null) {
+			form.setFieldValue('lunchBreakThresholdHours', '');
+		}
+	}, [
+		autoDeductLunchBreakEnabled,
+		form,
+		lunchBreakMinutesValue,
+		lunchBreakThresholdHoursValue,
 	]);
 
 	return (
@@ -588,14 +635,54 @@ export function PayrollSettingsClient(): React.ReactElement {
 						</div>
 						<form.AppField name="autoDeductLunchBreak">
 							{(field) => (
-								<field.ToggleField
-									label={t('lunchBreak.fields.autoDeductLunchBreak')}
-									description={t('lunchBreak.helpers.autoDeductLunchBreak')}
-									disabled={isFormDisabled}
-								/>
+								<div className="grid grid-cols-4 items-center gap-4">
+									<Label htmlFor={field.name} className="text-right">
+										{t('lunchBreak.fields.autoDeductLunchBreak')}
+									</Label>
+									<div className="col-span-3 flex items-center gap-2">
+										<input
+											type="checkbox"
+											id={field.name}
+											checked={Boolean(field.state.value)}
+											onChange={(event) => {
+												const nextChecked = event.target.checked;
+												field.handleChange(nextChecked);
+												if (nextChecked) {
+													return;
+												}
+
+												if (
+													parseIntegerInput(lunchBreakMinutesValue, {
+														min: 15,
+														max: 120,
+													}) === null
+												) {
+													clearHiddenLunchBreakField('lunchBreakMinutes');
+												}
+
+												if (
+													parseNumberInput(lunchBreakThresholdHoursValue, {
+														min: 4,
+														max: 10,
+													}) === null
+												) {
+													clearHiddenLunchBreakField(
+														'lunchBreakThresholdHours',
+													);
+												}
+											}}
+											onBlur={field.handleBlur}
+											disabled={isFormDisabled}
+											className="h-4 w-4 accent-primary"
+										/>
+										<p className="text-xs text-muted-foreground">
+											{t('lunchBreak.helpers.autoDeductLunchBreak')}
+										</p>
+									</div>
+								</div>
 							)}
 						</form.AppField>
-						{form.state.values.autoDeductLunchBreak ? (
+						{autoDeductLunchBreakEnabled ? (
 							<>
 								<form.AppField
 									name="lunchBreakMinutes"
@@ -674,7 +761,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
-						{form.state.values.ptuIsExempt ? (
+						{ptuIsExempt ? (
 							<form.AppField name="ptuExemptReason">
 								{(field) => (
 									<field.TextField

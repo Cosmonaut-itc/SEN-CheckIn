@@ -4,7 +4,10 @@ import { and, eq, gte, inArray, lte } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { reset, seed } from 'drizzle-seed';
 import { Pool } from 'pg';
-import type { PayrollHolidayNotice } from '@sen-checkin/types';
+import type {
+	EmployeeTerminationSettlement as EmployeeTerminationSettlementCalculation,
+	PayrollHolidayNotice,
+} from '@sen-checkin/types';
 
 import { addDaysToDateKey } from '../src/utils/date-key.js';
 import '../src/utils/disable-pg-native.js';
@@ -27,12 +30,17 @@ const {
 	aguinaldoRun,
 	aguinaldoRunEmployee,
 	attendanceRecord,
+	client,
 	device,
 	employee,
+	employeeAuditEvent,
 	employeeDisciplinaryAttachment,
 	employeeDisciplinaryDocumentVersion,
 	employeeDisciplinaryMeasure,
+	employeeIncapacity,
+	employeeIncapacityDocument,
 	employeeLegalGeneration,
+	employeeTerminationSettlement,
 	employeeSchedule,
 	employeeTerminationDraft,
 	holidayAuditEvent,
@@ -46,6 +54,7 @@ const {
 	organizationDocumentWorkflowConfig,
 	organizationLegalBranding,
 	organizationLegalTemplate,
+	overtimeAuthorization,
 	ptuHistory,
 	ptuRun,
 	ptuRunEmployee,
@@ -70,6 +79,7 @@ type SeedOrganization = {
 	slug: string;
 };
 
+type SeedClient = typeof client.$inferSelect;
 type SeedLocation = typeof location.$inferSelect;
 type SeedJobPosition = typeof jobPosition.$inferSelect;
 type SeedScheduleTemplate = typeof scheduleTemplate.$inferSelect;
@@ -80,9 +90,15 @@ type ScheduleTemplateDayRow = typeof scheduleTemplateDay.$inferInsert;
 type EmployeeScheduleRow = typeof employeeSchedule.$inferInsert;
 type ScheduleExceptionRow = typeof scheduleException.$inferInsert;
 type AttendanceRecordRow = typeof attendanceRecord.$inferInsert;
+type ClientRow = typeof client.$inferInsert;
+type EmployeeAuditEventRow = typeof employeeAuditEvent.$inferInsert;
+type EmployeeTerminationSettlementRow = typeof employeeTerminationSettlement.$inferInsert;
+type EmployeeIncapacityRow = typeof employeeIncapacity.$inferInsert;
+type EmployeeIncapacityDocumentRow = typeof employeeIncapacityDocument.$inferInsert;
 type HolidaySyncRunRow = typeof holidaySyncRun.$inferInsert;
 type HolidayCalendarEntryRow = typeof holidayCalendarEntry.$inferInsert;
 type HolidayAuditEventRow = typeof holidayAuditEvent.$inferInsert;
+type OvertimeAuthorizationRow = typeof overtimeAuthorization.$inferInsert;
 type PayrollRunRow = typeof payrollRun.$inferInsert;
 type PayrollRunEmployeeRow = typeof payrollRunEmployee.$inferInsert;
 type PtuRunRow = typeof ptuRun.$inferInsert;
@@ -136,6 +152,17 @@ type DisciplinaryDemoSeedTotals = {
 	documents: number;
 	attachments: number;
 	terminationDrafts: number;
+};
+
+type EmployeeLifecycleSeedTotals = {
+	auditEvents: number;
+	terminationSettlements: number;
+	incapacities: number;
+	incapacityDocuments: number;
+};
+
+type OvertimeAuthorizationSeedTotals = {
+	authorizations: number;
 };
 
 /**
@@ -1012,6 +1039,7 @@ async function insertDomainBaseline(args: {
 	seedNumber: number;
 	organizations: SeedOrganization[];
 }): Promise<{
+	clients: SeedClient[];
 	locations: SeedLocation[];
 	jobPositions: SeedJobPosition[];
 	templates: SeedScheduleTemplate[];
@@ -1029,6 +1057,37 @@ async function insertDomainBaseline(args: {
 		throw new Error('Missing required seed organizations.');
 	}
 
+	const clientsToInsert: ClientRow[] = [
+		{
+			id: deterministicUuid(seedNumber, 'client:sen'),
+			name: 'Cliente Legacy SEN',
+			apiKeyId: null,
+			organizationId: primaryOrg.id,
+		},
+		{
+			id: deterministicUuid(seedNumber, 'client:demo'),
+			name: 'Cliente Legacy Demo',
+			apiKeyId: null,
+			organizationId: secondaryOrg.id,
+		},
+	];
+
+	await db.insert(client).values(clientsToInsert);
+	const clientsInserted = await db
+		.select()
+		.from(client)
+		.where(
+			inArray(
+				client.organizationId,
+				organizations.map((organizationRow) => organizationRow.id),
+			),
+		);
+	const clientIdByOrganizationId = new Map(
+		clientsInserted
+			.filter((clientRow) => clientRow.organizationId)
+			.map((clientRow) => [clientRow.organizationId as string, clientRow.id]),
+	);
+
 	const locationsToInsert: Array<typeof location.$inferInsert> = [
 		{
 			id: deterministicUuid(seedNumber, 'location:sen:centro'),
@@ -1038,7 +1097,7 @@ async function insertDomainBaseline(args: {
 			organizationId: primaryOrg.id,
 			geographicZone: 'GENERAL',
 			timeZone: 'America/Mexico_City',
-			clientId: null,
+			clientId: clientIdByOrganizationId.get(primaryOrg.id) ?? null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'location:sen:zf-norte'),
@@ -1048,7 +1107,7 @@ async function insertDomainBaseline(args: {
 			organizationId: primaryOrg.id,
 			geographicZone: 'ZLFN',
 			timeZone: 'America/Tijuana',
-			clientId: null,
+			clientId: clientIdByOrganizationId.get(primaryOrg.id) ?? null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'location:demo:centro'),
@@ -1058,7 +1117,7 @@ async function insertDomainBaseline(args: {
 			organizationId: secondaryOrg.id,
 			geographicZone: 'GENERAL',
 			timeZone: 'America/Mexico_City',
-			clientId: null,
+			clientId: clientIdByOrganizationId.get(secondaryOrg.id) ?? null,
 		},
 		{
 			id: deterministicUuid(seedNumber, 'location:demo:zf-norte'),
@@ -1068,7 +1127,7 @@ async function insertDomainBaseline(args: {
 			organizationId: secondaryOrg.id,
 			geographicZone: 'ZLFN',
 			timeZone: 'America/Tijuana',
-			clientId: null,
+			clientId: clientIdByOrganizationId.get(secondaryOrg.id) ?? null,
 		},
 	];
 
@@ -1132,7 +1191,7 @@ async function insertDomainBaseline(args: {
 			name: position.name,
 			description: position.description,
 			organizationId: position.organizationId,
-			clientId: null,
+			clientId: clientIdByOrganizationId.get(position.organizationId) ?? null,
 		}),
 	);
 
@@ -1212,6 +1271,9 @@ async function insertDomainBaseline(args: {
 			aguinaldoDays: 15,
 			vacationPremiumRate: '0.25',
 			enableSeventhDayPay: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 45,
+			lunchBreakThresholdHours: '6.00',
 			ptuEnabled: true,
 			aguinaldoEnabled: true,
 			enableDisciplinaryMeasures: true,
@@ -1230,6 +1292,9 @@ async function insertDomainBaseline(args: {
 			aguinaldoDays: 15,
 			vacationPremiumRate: '0.25',
 			enableSeventhDayPay: false,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 60,
+			lunchBreakThresholdHours: '5.50',
 			ptuEnabled: true,
 			aguinaldoEnabled: true,
 			enableDisciplinaryMeasures: true,
@@ -1238,6 +1303,7 @@ async function insertDomainBaseline(args: {
 	await db.insert(payrollSetting).values(settingsToInsert);
 
 	return {
+		clients: clientsInserted,
 		locations: locationsInserted,
 		jobPositions: positionsInserted,
 		templates: templatesInserted,
@@ -2062,7 +2128,7 @@ async function insertAttendance(args: {
 
 	const attendanceRows: AttendanceRecordRow[] = [];
 
-	for (const emp of employees) {
+	for (const [employeeIndex, emp] of employees.entries()) {
 		if (!emp.locationId) {
 			continue;
 		}
@@ -2103,9 +2169,148 @@ async function insertAttendance(args: {
 
 			const endMinutesAdjusted =
 				endMinutes >= startMinutes ? endMinutes : endMinutes + 24 * 60;
-			const checkOut = new Date(baseMidnightUtc.getTime() + endMinutesAdjusted * 60_000);
-
 			const deviceId = pickOne(rng, locationDeviceIds);
+			const seededOvertimeMinutes =
+				pairIndex === 0
+					? employeeIndex % 5 === 0
+						? 120
+						: employeeIndex % 5 === 1
+							? 60
+							: employeeIndex % 5 === 2
+								? 90
+								: 0
+					: 0;
+			const finalCheckOut = new Date(
+				baseMidnightUtc.getTime() + (endMinutesAdjusted + seededOvertimeMinutes) * 60_000,
+			);
+
+			if (pairIndex === 0 && employeeIndex % 6 === 0) {
+				const lunchBreakStartMinutes = startMinutes + 4 * 60;
+				const lunchBreakEndMinutes = lunchBreakStartMinutes + 45;
+				const lunchBreakStart = new Date(
+					baseMidnightUtc.getTime() + lunchBreakStartMinutes * 60_000,
+				);
+				const lunchBreakEnd = new Date(
+					baseMidnightUtc.getTime() + lunchBreakEndMinutes * 60_000,
+				);
+
+				attendanceRows.push(
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:in:morning`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: checkIn,
+						type: 'CHECK_IN',
+						metadata: null,
+					},
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:out:lunch`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: lunchBreakStart,
+						type: 'CHECK_OUT',
+						checkOutReason: 'LUNCH_BREAK',
+						metadata: {
+							source: 'seed',
+							entryKind: 'LUNCH_BREAK',
+						},
+					},
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:in:afternoon`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: lunchBreakEnd,
+						type: 'CHECK_IN',
+						metadata: null,
+					},
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:out:regular`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: finalCheckOut,
+						type: 'CHECK_OUT',
+						checkOutReason: 'REGULAR',
+						metadata: null,
+					},
+				);
+				continue;
+			}
+
+			if (pairIndex === 0 && employeeIndex % 6 === 1) {
+				const personalBreakStartMinutes = startMinutes + 3 * 60;
+				const personalBreakEndMinutes = personalBreakStartMinutes + 30;
+				const personalBreakStart = new Date(
+					baseMidnightUtc.getTime() + personalBreakStartMinutes * 60_000,
+				);
+				const personalBreakEnd = new Date(
+					baseMidnightUtc.getTime() + personalBreakEndMinutes * 60_000,
+				);
+
+				attendanceRows.push(
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:in:morning`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: checkIn,
+						type: 'CHECK_IN',
+						metadata: null,
+					},
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:out:personal`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: personalBreakStart,
+						type: 'CHECK_OUT',
+						checkOutReason: 'PERSONAL',
+						metadata: {
+							source: 'seed',
+							entryKind: 'PERSONAL_BREAK',
+						},
+					},
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:in:return`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: personalBreakEnd,
+						type: 'CHECK_IN',
+						metadata: null,
+					},
+					{
+						id: deterministicUuid(
+							seedNumber,
+							`attendance:${emp.id}:${dateKey}:${pairIndex}:out:regular`,
+						),
+						employeeId: emp.id,
+						deviceId,
+						timestamp: finalCheckOut,
+						type: 'CHECK_OUT',
+						checkOutReason: 'REGULAR',
+						metadata: null,
+					},
+				);
+				continue;
+			}
 
 			attendanceRows.push(
 				{
@@ -2126,8 +2331,9 @@ async function insertAttendance(args: {
 					),
 					employeeId: emp.id,
 					deviceId,
-					timestamp: checkOut,
+					timestamp: finalCheckOut,
 					type: 'CHECK_OUT',
+					checkOutReason: 'REGULAR',
 					metadata: null,
 				},
 			);
@@ -2347,6 +2553,256 @@ async function insertWorkOffsiteAttendance(args: {
 }
 
 /**
+ * Inserts employee audit, incapacity, incapacity document, and termination settlement demo rows.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for inserted lifecycle/demo rows
+ */
+async function insertEmployeeLifecycleDemoData(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	locations: SeedLocation[];
+}): Promise<EmployeeLifecycleSeedTotals> {
+	const { seedNumber, organizations, employees, locations } = args;
+	const locationById = new Map(locations.map((locationRow) => [locationRow.id, locationRow]));
+	const auditRows: EmployeeAuditEventRow[] = [];
+	const terminationSettlementRows: EmployeeTerminationSettlementRow[] = [];
+	const incapacityRows: EmployeeIncapacityRow[] = [];
+	const incapacityDocumentRows: EmployeeIncapacityDocumentRow[] = [];
+
+	for (const [orgIndex, org] of organizations.entries()) {
+		const orgEmployees = employees
+			.filter((employeeRow) => employeeRow.organizationId === org.id)
+			.sort((a, b) => a.code.localeCompare(b.code));
+
+		const auditedEmployee = orgEmployees[0];
+		const incapacitatedEmployee = orgEmployees[1];
+		const settlementEmployee = orgEmployees[2];
+
+		if (auditedEmployee) {
+			auditRows.push({
+				id: deterministicUuid(seedNumber, `employee-audit:${org.id}:${auditedEmployee.id}:1`),
+				employeeId: auditedEmployee.id,
+				organizationId: org.id,
+				action: 'seed.employee.created',
+				actorType: 'system',
+				actorUserId: null,
+				before: null,
+				after: {
+					status: auditedEmployee.status,
+					jobPositionId: auditedEmployee.jobPositionId,
+					locationId: auditedEmployee.locationId,
+				},
+				changedFields: ['status', 'jobPositionId', 'locationId'],
+				createdAt: new Date(Date.now() - (orgIndex + 2) * 60 * 60 * 1000),
+			});
+		}
+
+		if (incapacitatedEmployee) {
+			const incapacityId = deterministicUuid(
+				seedNumber,
+				`employee-incapacity:${org.id}:${incapacitatedEmployee.id}`,
+			);
+			const timeZone =
+				(incapacitatedEmployee.locationId
+					? locationById.get(incapacitatedEmployee.locationId)?.timeZone
+					: null) ?? DEFAULT_ORGANIZATION_TIME_ZONE;
+			const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const startDateKey = addDaysToDateKey(todayDateKey, -(orgIndex + 6));
+			const endDateKey = addDaysToDateKey(startDateKey, 2);
+
+			incapacityRows.push({
+				id: incapacityId,
+				organizationId: org.id,
+				employeeId: incapacitatedEmployee.id,
+				caseId: `INC-${org.slug.toUpperCase()}-${String(orgIndex + 1).padStart(3, '0')}`,
+				type: orgIndex % 2 === 0 ? 'EG' : 'RT',
+				satTipoIncapacidad: orgIndex % 2 === 0 ? '01' : '02',
+				startDateKey,
+				endDateKey,
+				daysAuthorized: 3,
+				certificateFolio: `CERT-${org.slug.toUpperCase()}-${orgIndex + 1}`,
+				issuedBy: 'IMSS',
+				sequence: 'inicial',
+				percentOverride: orgIndex % 2 === 0 ? null : '1.0000',
+				status: 'ACTIVE',
+			});
+
+			incapacityDocumentRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`employee-incapacity-document:${incapacityId}`,
+				),
+				incapacityId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${incapacitatedEmployee.id}/incapacities/${incapacityId}/documento-imss.pdf`,
+				fileName: `incapacidad-${org.slug}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 98_304,
+				sha256: sha256Hex(`seed:incapacity-document:${incapacityId}`),
+				uploadedAt: new Date(),
+			});
+		}
+
+		if (settlementEmployee) {
+			const terminationDateKey = addDaysToDateKey(new Date().toISOString().slice(0, 10), -10);
+			const lastDayWorkedDateKey = addDaysToDateKey(terminationDateKey, -1);
+			const dailySalaryBase = Number(settlementEmployee.dailyPay ?? 0);
+			const finiquitoTotalGross = roundCurrency(dailySalaryBase * 18.5);
+			const liquidacionTotalGross = roundCurrency(dailySalaryBase * 65);
+			const calculation: EmployeeTerminationSettlementCalculation = {
+				employeeId: settlementEmployee.id,
+				termination: {
+					terminationDateKey,
+					lastDayWorkedDateKey,
+					terminationReason: 'mutual_agreement',
+					contractType: 'indefinite',
+				},
+				inputsUsed: {
+					dailySalaryBase,
+					dailySalaryIndemnizacion: dailySalaryBase,
+					minimumWageDaily: 278.8,
+					aguinaldoDaysPolicy: 15,
+					vacationPremiumRatePolicy: 0.25,
+					vacationBalanceDays: 6,
+					unpaidDays: 1,
+					otherDue: 1500,
+					aguinaldoDaysWorkedInYear: 220,
+					aguinaldoYearDays: 365,
+					serviceDays: 860,
+					serviceYears: 2.35,
+					serviceYearsForAntiguedad: 2,
+					serviceYearsForIndemnizacion: 2,
+				},
+				breakdown: {
+					finiquito: {
+						salaryDue: roundCurrency(dailySalaryBase * 2),
+						aguinaldoProp: roundCurrency(dailySalaryBase * 7.5),
+						vacationPay: roundCurrency(dailySalaryBase * 6),
+						vacationPremium: roundCurrency(dailySalaryBase * 6 * 0.25),
+						otherDue: 1500,
+						totalGross: finiquitoTotalGross,
+					},
+					liquidacion: {
+						indemnizacion3Meses: roundCurrency(dailySalaryBase * 90),
+						indemnizacion20Dias: roundCurrency(dailySalaryBase * 40),
+						primaAntiguedad: roundCurrency(dailySalaryBase * 10),
+						totalGross: liquidacionTotalGross,
+					},
+				},
+				totals: {
+					finiquitoTotalGross,
+					liquidacionTotalGross,
+					grossTotal: roundCurrency(finiquitoTotalGross + liquidacionTotalGross),
+				},
+			};
+
+			terminationSettlementRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`employee-termination-settlement:${org.id}:${settlementEmployee.id}`,
+				),
+				employeeId: settlementEmployee.id,
+				organizationId: org.id,
+				calculation,
+				totalsGross: money(calculation.totals.grossTotal),
+				finiquitoTotalGross: money(calculation.totals.finiquitoTotalGross),
+				liquidacionTotalGross: money(calculation.totals.liquidacionTotalGross),
+				createdAt: new Date(Date.now() - (orgIndex + 1) * 24 * 60 * 60 * 1000),
+			});
+		}
+	}
+
+	if (auditRows.length > 0) {
+		await db.insert(employeeAuditEvent).values(auditRows);
+	}
+
+	if (incapacityRows.length > 0) {
+		await db.insert(employeeIncapacity).values(incapacityRows);
+	}
+
+	if (incapacityDocumentRows.length > 0) {
+		await db.insert(employeeIncapacityDocument).values(incapacityDocumentRows);
+	}
+
+	if (terminationSettlementRows.length > 0) {
+		await db.insert(employeeTerminationSettlement).values(terminationSettlementRows);
+	}
+
+	return {
+		auditEvents: auditRows.length,
+		terminationSettlements: terminationSettlementRows.length,
+		incapacities: incapacityRows.length,
+		incapacityDocuments: incapacityDocumentRows.length,
+	};
+}
+
+/**
+ * Inserts overtime authorizations for recent worked dates to exercise Epic 1 flows.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for inserted overtime authorizations
+ */
+async function insertOvertimeAuthorizations(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	locations: SeedLocation[];
+}): Promise<OvertimeAuthorizationSeedTotals> {
+	const { seedNumber, organizations, employees, locations } = args;
+	const locationById = new Map(locations.map((locationRow) => [locationRow.id, locationRow]));
+	const authorizationRows: OvertimeAuthorizationRow[] = [];
+
+	for (const [orgIndex, org] of organizations.entries()) {
+		const orgEmployees = employees
+			.filter(
+				(employeeRow) =>
+					employeeRow.organizationId === org.id && employeeRow.status !== 'INACTIVE',
+			)
+			.sort((a, b) => a.code.localeCompare(b.code))
+			.slice(0, 3);
+
+		for (const [employeeIndex, employeeRow] of orgEmployees.entries()) {
+			const timeZone =
+				(employeeRow.locationId
+					? locationById.get(employeeRow.locationId)?.timeZone
+					: null) ?? DEFAULT_ORGANIZATION_TIME_ZONE;
+			const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+			const dateKey = addDaysToDateKey(todayDateKey, -(employeeIndex + orgIndex + 3));
+			const status = employeeIndex === 2 ? 'CANCELLED' : 'ACTIVE';
+			const authorizedHours =
+				employeeIndex === 0 ? '2.00' : employeeIndex === 1 ? '1.00' : '1.50';
+
+			authorizationRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`overtime-authorization:${org.id}:${employeeRow.id}:${dateKey}`,
+				),
+				organizationId: org.id,
+				employeeId: employeeRow.id,
+				dateKey,
+				authorizedHours,
+				authorizedByUserId: null,
+				status,
+				notes:
+					status === 'ACTIVE'
+						? 'Autorizacion de horas extra generada por seed.'
+						: 'Autorizacion cancelada generada por seed.',
+			});
+		}
+	}
+
+	if (authorizationRows.length > 0) {
+		await db.insert(overtimeAuthorization).values(authorizationRows);
+	}
+
+	return {
+		authorizations: authorizationRows.length,
+	};
+}
+
+/**
  * Builds payroll holiday notices for seeded payroll runs.
  *
  * @param args - Notice generation inputs
@@ -2473,7 +2929,7 @@ async function insertPayrollRuns(args: {
 		const lineItems: PayrollRunEmployeeRow[] = [];
 		let totalAmount = 0;
 
-		for (const emp of orgEmployees) {
+		for (const [employeeIndex, emp] of orgEmployees.entries()) {
 			const dailyPay = Number(emp.dailyPay ?? 0);
 			const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
 			const divisor = SHIFT_LIMITS[shiftKey]?.divisor ?? 8;
@@ -2498,8 +2954,25 @@ async function insertPayrollRuns(args: {
 				}
 			}
 
-			const hoursWorked = minutesWorked / 60;
-			const totalPay = hoursWorked * hourlyPay;
+			const rawHoursWorked = minutesWorked / 60;
+			const authorizedOvertimeHours =
+				employeeIndex % 5 === 0 ? 2 : employeeIndex % 5 === 1 ? 1 : 0;
+			const unauthorizedOvertimeHours =
+				employeeIndex % 5 === 1 ? 0.5 : employeeIndex % 5 === 2 ? 1.5 : 0;
+			const overtimeDoubleHours = authorizedOvertimeHours + unauthorizedOvertimeHours;
+			const lunchBreakAutoDeductedMinutes =
+				employeeIndex % 4 === 0 ? 45 : employeeIndex % 4 === 1 ? 60 : 0;
+			const lunchBreakAutoDeductedDays = lunchBreakAutoDeductedMinutes > 0 ? 1 : 0;
+			const paidNormalHours = Math.max(
+				rawHoursWorked -
+					overtimeDoubleHours -
+					lunchBreakAutoDeductedMinutes / 60,
+				0,
+			);
+			const normalPay = paidNormalHours * hourlyPay;
+			const overtimeDoublePay = authorizedOvertimeHours * hourlyPay * 2;
+			const totalPay = normalPay + overtimeDoublePay;
+			const hoursWorked = paidNormalHours + overtimeDoubleHours;
 			totalAmount += totalPay;
 
 			lineItems.push({
@@ -2509,14 +2982,21 @@ async function insertPayrollRuns(args: {
 				hoursWorked: money(hoursWorked),
 				hourlyPay: money(hourlyPay),
 				totalPay: money(totalPay),
-				normalHours: money(hoursWorked),
-				normalPay: money(totalPay),
-				overtimeDoubleHours: money(0),
-				overtimeDoublePay: money(0),
+				normalHours: money(paidNormalHours),
+				normalPay: money(normalPay),
+				overtimeDoubleHours: money(overtimeDoubleHours),
+				overtimeDoublePay: money(overtimeDoublePay),
 				overtimeTripleHours: money(0),
 				overtimeTriplePay: money(0),
+				authorizedOvertimeHours: money(authorizedOvertimeHours),
+				unauthorizedOvertimeHours: money(unauthorizedOvertimeHours),
 				sundayPremiumAmount: money(0),
 				mandatoryRestDayPremiumAmount: money(0),
+				vacationDaysPaid: 0,
+				vacationPayAmount: money(0),
+				vacationPremiumAmount: money(0),
+				lunchBreakAutoDeductedDays,
+				lunchBreakAutoDeductedMinutes,
 				taxBreakdown: null,
 				periodStart,
 				periodEnd,
@@ -2921,6 +3401,12 @@ async function main(): Promise<void> {
 		employees,
 		legalTemplatesByOrganization,
 	});
+	const employeeLifecycleSeedTotals = await insertEmployeeLifecycleDemoData({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		locations: baseline.locations,
+	});
 
 	await insertEmployeeSchedules(args.seed, employees);
 	await insertScheduleExceptions({
@@ -2957,6 +3443,12 @@ async function main(): Promise<void> {
 		organizations,
 		employees,
 	});
+	const overtimeAuthorizationSeedTotals = await insertOvertimeAuthorizations({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		locations: baseline.locations,
+	});
 
 	await insertPayrollRuns({
 		seedNumber: args.seed,
@@ -2988,6 +3480,7 @@ async function main(): Promise<void> {
 
 	console.log('✅ Seed completed.');
 	console.log('Organizations:', organizations.map((o) => o.slug).join(', '));
+	console.log('Legacy clients:', baseline.clients.length);
 	console.log('Employees:', employees.length);
 	console.log('Vacation requests:', vacationSeeds.requests.length);
 	console.log('Vacation request days:', vacationSeeds.requestDays.length);
@@ -3000,6 +3493,20 @@ async function main(): Promise<void> {
 	console.log('Disciplinary documents:', disciplinarySeedTotals.documents);
 	console.log('Disciplinary attachments:', disciplinarySeedTotals.attachments);
 	console.log('Termination drafts:', disciplinarySeedTotals.terminationDrafts);
+	console.log('Employee audit events:', employeeLifecycleSeedTotals.auditEvents);
+	console.log(
+		'Employee termination settlements:',
+		employeeLifecycleSeedTotals.terminationSettlements,
+	);
+	console.log('Employee incapacities:', employeeLifecycleSeedTotals.incapacities);
+	console.log(
+		'Employee incapacity documents:',
+		employeeLifecycleSeedTotals.incapacityDocuments,
+	);
+	console.log(
+		'Overtime authorizations:',
+		overtimeAuthorizationSeedTotals.authorizations,
+	);
 	console.log('PTU history rows:', ptuHistoryCount);
 	console.log('PTU runs:', ptuSeedTotals.runs, 'line items:', ptuSeedTotals.lineItems);
 	console.log(

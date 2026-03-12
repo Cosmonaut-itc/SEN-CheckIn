@@ -117,7 +117,7 @@
 				},
 				"personal": {
 					"label": "Personal",
-					"description": "La salida es por un asunto personal o permiso breve."
+					"description": "La salida es por un asunto personal."
 				},
 				"regular": {
 					"label": "Fin de jornada",

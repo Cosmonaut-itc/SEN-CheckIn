@@ -5,6 +5,11 @@ import { CheckOutReasonSheet } from './check-out-reason-sheet';
 
 const mockOnClose = jest.fn();
 const mockOnSelectReason = jest.fn();
+const mockBottomSheetContent = jest.fn();
+
+jest.mock('react-native-safe-area-context', () => ({
+	useSafeAreaInsets: () => ({ top: 0, bottom: 24, left: 0, right: 0 }),
+}));
 
 jest.mock('heroui-native', () => {
 	const mockReactNative = jest.requireActual<typeof import('react-native')>('react-native');
@@ -67,9 +72,12 @@ jest.mock('heroui-native/bottom-sheet', () => {
 
 	BottomSheet.Content = function MockBottomSheetContent({
 		children,
+		...props
 	}: {
 		children: React.ReactNode;
+		[key: string]: unknown;
 	}) {
+		mockBottomSheetContent(props);
 		return <View>{children}</View>;
 	};
 
@@ -94,6 +102,7 @@ describe('CheckOutReasonSheet', () => {
 	beforeEach(() => {
 		mockOnClose.mockReset();
 		mockOnSelectReason.mockReset();
+		mockBottomSheetContent.mockReset();
 	});
 
 	it('renders all check-out reason options when open', () => {
@@ -108,7 +117,7 @@ describe('CheckOutReasonSheet', () => {
 		expect(screen.getByText('Motivo de salida')).toBeOnTheScreen();
 		expect(screen.getByText('Comida')).toBeOnTheScreen();
 		expect(screen.getByText('Personal')).toBeOnTheScreen();
-		expect(screen.getByText('Fin de jornada')).toBeOnTheScreen();
+		expect(screen.queryByText('Fin de jornada')).not.toBeOnTheScreen();
 	});
 
 	it('sends the selected reason when the user chooses an option', () => {
@@ -138,5 +147,29 @@ describe('CheckOutReasonSheet', () => {
 
 		expect(mockOnClose).toHaveBeenCalledTimes(1);
 		expect(mockOnSelectReason).not.toHaveBeenCalled();
+	});
+
+	it('configures the Hero UI Native sheet background and spacing to avoid clipping', () => {
+		render(
+			<CheckOutReasonSheet
+				isOpen
+				onClose={mockOnClose}
+				onSelectReason={mockOnSelectReason}
+			/>,
+		);
+
+		expect(mockBottomSheetContent).toHaveBeenCalled();
+
+		const [contentProps] = mockBottomSheetContent.mock.calls.at(-1) as [Record<string, unknown>];
+
+		expect(contentProps.backgroundClassName).toEqual(expect.stringContaining('bg-background'));
+		expect(contentProps.backgroundClassName).toEqual(expect.stringContaining('shadow-none'));
+		expect(contentProps.contentContainerClassName).toEqual(expect.stringContaining('px-5'));
+		expect(contentProps.snapPoints).toBeUndefined();
+		expect(contentProps.contentContainerProps).toMatchObject({
+			style: {
+				paddingBottom: 36,
+			},
+		});
 	});
 });

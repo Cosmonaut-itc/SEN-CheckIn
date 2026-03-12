@@ -2,6 +2,7 @@ import { Button } from 'heroui-native';
 import { BottomSheet } from 'heroui-native/bottom-sheet';
 import type { JSX } from 'react';
 import { Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CheckOutReason } from '@sen-checkin/types';
 
 import { i18n } from '@/lib/i18n';
@@ -23,11 +24,6 @@ const CHECK_OUT_REASON_OPTIONS: CheckOutReasonOption[] = [
 		label: i18n.t('Scanner.checkOutReason.options.personal.label'),
 		description: i18n.t('Scanner.checkOutReason.options.personal.description'),
 	},
-	{
-		value: 'REGULAR',
-		label: i18n.t('Scanner.checkOutReason.options.regular.label'),
-		description: i18n.t('Scanner.checkOutReason.options.regular.description'),
-	},
 ];
 
 export interface CheckOutReasonSheetProps {
@@ -43,6 +39,9 @@ export interface CheckOutReasonSheetProps {
  * @returns Rendered bottom sheet selector
  */
 export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Element {
+	const insets = useSafeAreaInsets();
+	const bottomPadding = Math.max(insets.bottom + 12, 24);
+
 	return (
 		<BottomSheet
 			isOpen={props.isOpen}
@@ -51,9 +50,14 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 			<BottomSheet.Portal>
 				<BottomSheet.Overlay className="bg-foreground/35" />
 				<BottomSheet.Content
-					snapPoints={['52%']}
 					enablePanDownToClose
-					className="bg-background border-default-200 px-5 pt-5 pb-6"
+					backgroundClassName="bg-background border border-default-200 rounded-t-[32px] shadow-none"
+					contentContainerClassName="px-5 pt-5"
+					contentContainerProps={{
+						style: {
+							paddingBottom: bottomPadding,
+						},
+					}}
 				>
 					<View className="gap-5">
 						<View className="gap-2">
@@ -85,15 +89,17 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 							))}
 						</View>
 
-						<Button
-							variant="ghost"
-							onPress={props.onClose}
-							className="border border-transparent"
-						>
-							<Button.Label className="text-foreground-500 font-medium">
-								{i18n.t('Common.cancel')}
-							</Button.Label>
-						</Button>
+						<View className="pt-1">
+							<Button
+								variant="ghost"
+								onPress={props.onClose}
+								className="border border-transparent"
+							>
+								<Button.Label className="text-foreground-500 font-medium">
+									{i18n.t('Common.cancel')}
+								</Button.Label>
+							</Button>
+						</View>
 					</View>
 				</BottomSheet.Content>
 			</BottomSheet.Portal>

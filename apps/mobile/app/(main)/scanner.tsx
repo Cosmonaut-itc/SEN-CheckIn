@@ -1,6 +1,6 @@
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { Link, useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { CheckOutReason } from '@sen-checkin/types';
 import type { JSX } from 'react';
@@ -14,6 +14,7 @@ import {
 	type TextStyle,
 	type ViewStyle,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -23,6 +24,7 @@ import {
 	releaseAttendanceCaptureLock,
 	tryAcquireAttendanceCaptureLock,
 } from '@/lib/attendance-capture-lock';
+import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
@@ -39,6 +41,48 @@ type ScanStatus =
 /** Maximum size for face guide circle on larger devices (tablets) */
 const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
+
+/**
+ * Cross-platform link icon for the device-link CTA.
+ *
+ * Uses SVG instead of SF Symbols so it renders consistently on Android and iOS.
+ *
+ * @param props - Size and stroke color for the icon
+ * @returns {JSX.Element} Link icon
+ */
+function DeviceLinkIcon({
+	size,
+	color,
+}: {
+	size: number;
+	color: string;
+}): JSX.Element {
+	return (
+		<Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+			<Path
+				d="M10.5 13.5L13.5 10.5"
+				stroke={color}
+				strokeWidth={1.9}
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
+			<Path
+				d="M8.2 15.8H6.75C4.68 15.8 3 14.12 3 12.05C3 9.98 4.68 8.3 6.75 8.3H9.2"
+				stroke={color}
+				strokeWidth={1.9}
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
+			<Path
+				d="M15.8 8.2H17.25C19.32 8.2 21 9.88 21 11.95C21 14.02 19.32 15.7 17.25 15.7H14.8"
+				stroke={color}
+				strokeWidth={1.9}
+				strokeLinecap="round"
+				strokeLinejoin="round"
+			/>
+		</Svg>
+	);
+}
 
 /**
  * Calculates the responsive face guide size based on screen dimensions
@@ -61,7 +105,7 @@ export default function ScannerScreen(): JSX.Element {
 	const cameraRef = useRef<CameraView | null>(null);
 	const [permission, requestPermission] = useCameraPermissions();
 	const router = useRouter();
-	const { settings } = useDeviceContext();
+	const { clearSettings, settings } = useDeviceContext();
 	const { colorScheme, isDarkMode } = useTheme();
 	const insets = useSafeAreaInsets();
 	const themeColors = useMemo<ThemeColors>(
@@ -128,6 +172,28 @@ export default function ScannerScreen(): JSX.Element {
 	const neutralGuideColor = 'rgba(255, 255, 255, 0.8)';
 	const ctaBackground = attendanceAccent;
 	const ctaContentColor = '#ffffff';
+	const linkButtonBackground = isDarkMode ? 'rgba(251, 191, 36, 0.18)' : 'rgba(245, 158, 11, 0.12)';
+	const linkButtonBorder = isDarkMode ? 'rgba(251, 191, 36, 0.42)' : 'rgba(180, 83, 9, 0.22)';
+	const linkButtonContentColor = isDarkMode ? '#FCD34D' : '#92400E';
+
+	/**
+	 * Reset the current auth state and return to device authorization.
+	 *
+	 * Used when the kiosk has no linked device and must start the binding flow again.
+	 *
+	 * @returns {Promise<void>} Resolves after local auth/device state is cleared and navigation occurs
+	 */
+	const handleStartDeviceLinking = useCallback(async (): Promise<void> => {
+		try {
+			await signOut();
+		} catch (error) {
+			console.warn('[scanner] Failed to sign out before relinking device', error);
+		} finally {
+			await clearAuthStorage();
+			await clearSettings();
+			router.replace('/(auth)/login');
+		}
+	}, [clearSettings, router]);
 
 	/**
 	 * Cycles between CHECK_IN, CHECK_OUT_AUTHORIZED, and CHECK_OUT attendance types
@@ -351,12 +417,12 @@ export default function ScannerScreen(): JSX.Element {
 	};
 
 	/**
-	 * Opens the reason selector for regular check-outs and otherwise starts capture immediately.
+	 * Opens the reason selector for authorized check-outs and otherwise starts capture immediately.
 	 *
 	 * @returns Promise that resolves once the interaction is handled
 	 */
 	const handleCapture = async (): Promise<void> => {
-		if (attendanceType === 'CHECK_OUT') {
+		if (attendanceType === 'CHECK_OUT_AUTHORIZED') {
 			setIsCheckOutReasonSheetOpen(true);
 			return;
 		}
@@ -572,19 +638,26 @@ export default function ScannerScreen(): JSX.Element {
 					>
 						<Card.Body className="p-4 gap-4">
 							{/* Device status row */}
-							<View className="flex-row items-center justify-between">
-								<View className="flex-row items-center gap-2">
-									<View
-										className={`w-2.5 h-2.5 rounded-full ${settings?.deviceId ? 'bg-success-500' : 'bg-warning-500'}`}
-									/>
-									<Text className="text-foreground text-sm font-medium">
-										{settings?.deviceId
-											? settings.name ||
-												i18n.t('Scanner.deviceStatus.terminalFallback')
-											: i18n.t('Scanner.deviceStatus.deviceNotLinked')}
-									</Text>
+							<View className="flex-row items-start justify-between gap-3">
+								<View className="flex-1 gap-1.5">
+									<View className="flex-row items-center gap-2">
+										<View
+											className={`w-2.5 h-2.5 rounded-full ${settings?.deviceId ? 'bg-success-500' : 'bg-warning-500'}`}
+										/>
+										<Text className="text-foreground text-sm font-medium">
+											{settings?.deviceId
+												? settings.name ||
+													i18n.t('Scanner.deviceStatus.terminalFallback')
+												: i18n.t('Scanner.deviceStatus.deviceNotLinked')}
+										</Text>
+									</View>
+									{!settings?.deviceId ? (
+										<Text className="text-foreground-400 text-xs leading-5 pl-[18px]">
+											{i18n.t('Scanner.deviceStatus.setupRequired')}
+										</Text>
+									) : null}
 								</View>
-								<View className="flex-row items-center gap-1">
+								<View className="flex-row items-center gap-1 pt-0.5">
 									<IconSymbol
 										name={
 											settings?.deviceId
@@ -598,11 +671,11 @@ export default function ScannerScreen(): JSX.Element {
 												: themeColors.warning
 										}
 									/>
-									<Text className="text-foreground-400 text-xs">
-										{settings?.deviceId
-											? i18n.t('Scanner.deviceStatus.connected')
-											: i18n.t('Scanner.deviceStatus.setupRequired')}
-									</Text>
+									{settings?.deviceId ? (
+										<Text className="text-foreground-400 text-xs">
+											{i18n.t('Scanner.deviceStatus.connected')}
+										</Text>
+									) : null}
 								</View>
 							</View>
 
@@ -643,23 +716,32 @@ export default function ScannerScreen(): JSX.Element {
 
 							{/* Link device prompt */}
 							{!settings?.deviceId && (
-								<Link href="/(main)/settings">
-									<Link.Trigger>
-										<Button variant="tertiary" size="sm">
-											<View className="flex-row items-center gap-2">
-												<IconSymbol
-													name="link"
-													size={16}
-													color={themeColors.warning}
-												/>
-												<Button.Label className="text-warning-500 font-semibold">
-													{i18n.t('Scanner.actions.tapToLink')}
-												</Button.Label>
-											</View>
-										</Button>
-									</Link.Trigger>
-									<Link.Preview />
-								</Link>
+								<View className="items-center">
+									<Button
+										variant="secondary"
+										size="md"
+										className="min-h-12 self-center px-5"
+										style={{
+											alignSelf: 'center',
+											backgroundColor: linkButtonBackground,
+											borderColor: linkButtonBorder,
+											borderWidth: 1.5,
+										}}
+										onPress={() => {
+											void handleStartDeviceLinking();
+										}}
+									>
+										<View className="flex-row items-center justify-center gap-2">
+											<DeviceLinkIcon size={18} color={linkButtonContentColor} />
+											<Button.Label
+												className="font-semibold text-center"
+												style={{ color: linkButtonContentColor }}
+											>
+												{i18n.t('Scanner.actions.tapToLink')}
+											</Button.Label>
+										</View>
+									</Button>
+								</View>
 							)}
 						</Card.Body>
 					</Card>

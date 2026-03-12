@@ -32,6 +32,39 @@ export interface MutationResult<T = unknown> {
 }
 
 /**
+ * Extracts a human-readable API error message from an Eden error payload.
+ *
+ * @param error - Unknown response error object
+ * @param fallbackMessage - Default message when the payload has no detail
+ * @returns API message when available, otherwise the fallback
+ */
+function getApiErrorMessage(error: unknown, fallbackMessage: string): string {
+	if (!error || typeof error !== 'object') {
+		return fallbackMessage;
+	}
+
+	const directMessage = (error as { message?: unknown }).message;
+	if (typeof directMessage === 'string' && directMessage.trim()) {
+		return directMessage;
+	}
+
+	const nestedMessage = (
+		error as {
+			value?: {
+				error?: {
+					message?: unknown;
+				};
+			};
+		}
+	).value?.error?.message;
+	if (typeof nestedMessage === 'string' && nestedMessage.trim()) {
+		return nestedMessage;
+	}
+
+	return fallbackMessage;
+}
+
+/**
  * Resolves the forwarded cookie header for server actions.
  *
  * @returns Cookie header string
@@ -62,7 +95,13 @@ export async function createOvertimeAuthorizationAction(
 		});
 
 		if (response.error) {
-			return { success: false, error: 'Failed to create overtime authorization' };
+			return {
+				success: false,
+				error: getApiErrorMessage(
+					response.error,
+					'Failed to create overtime authorization',
+				),
+			};
 		}
 
 		return { success: true, data: response.data };

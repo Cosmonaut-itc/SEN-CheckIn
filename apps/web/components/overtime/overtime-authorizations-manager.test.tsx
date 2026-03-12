@@ -12,22 +12,29 @@ const mockFetchEmployeesList = vi.fn();
 const mockFetchOvertimeAuthorizationsList = vi.fn();
 const mockCreateOvertimeAuthorizationAction = vi.fn();
 const mockCancelOvertimeAuthorizationAction = vi.fn();
+const mockToastSuccess = vi.fn();
+const mockToastError = vi.fn();
+const mockToastWarning = vi.fn();
 
-vi.mock('@/lib/client-functions', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('@/lib/client-functions')>();
-	return {
-		...actual,
-		fetchEmployeesList: (...args: unknown[]) => mockFetchEmployeesList(...args),
-		fetchOvertimeAuthorizationsList: (...args: unknown[]) =>
-			mockFetchOvertimeAuthorizationsList(...args),
-	};
-});
+vi.mock('@/lib/client-functions', () => ({
+	fetchEmployeesList: (...args: unknown[]) => mockFetchEmployeesList(...args),
+	fetchOvertimeAuthorizationsList: (...args: unknown[]) =>
+		mockFetchOvertimeAuthorizationsList(...args),
+}));
 
 vi.mock('@/actions/overtime-authorizations', () => ({
 	createOvertimeAuthorizationAction: (...args: unknown[]) =>
 		mockCreateOvertimeAuthorizationAction(...args),
 	cancelOvertimeAuthorizationAction: (...args: unknown[]) =>
 		mockCancelOvertimeAuthorizationAction(...args),
+}));
+
+vi.mock('sonner', () => ({
+	toast: {
+		success: (...args: unknown[]) => mockToastSuccess(...args),
+		error: (...args: unknown[]) => mockToastError(...args),
+		warning: (...args: unknown[]) => mockToastWarning(...args),
+	},
 }));
 
 const messages = {
@@ -164,6 +171,9 @@ describe('OvertimeAuthorizationsManager', () => {
 		mockFetchOvertimeAuthorizationsList.mockReset();
 		mockCreateOvertimeAuthorizationAction.mockReset();
 		mockCancelOvertimeAuthorizationAction.mockReset();
+		mockToastSuccess.mockReset();
+		mockToastError.mockReset();
+		mockToastWarning.mockReset();
 
 		mockFetchEmployeesList.mockResolvedValue({
 			data: [
@@ -444,5 +454,69 @@ describe('OvertimeAuthorizationsManager', () => {
 		expect(screen.getByTestId('overtime-legal-warning')).toHaveClass(
 			'text-[var(--status-warning)]',
 		);
+	});
+
+	it('shows the specific API error message when creation fails with a duplicate conflict', async () => {
+		mockCreateOvertimeAuthorizationAction.mockResolvedValue({
+			success: false,
+			error: 'An overtime authorization already exists for this employee and date',
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+		fireEvent.click(screen.getByTestId('overtime-date-trigger'));
+		selectFirstAvailableDate();
+		fireEvent.change(screen.getByTestId('overtime-hours-input'), {
+			target: { value: '2' },
+		});
+		fireEvent.change(screen.getByTestId('overtime-employee-select'), {
+			target: { value: 'emp-1' },
+		});
+		fireEvent.click(screen.getByTestId('overtime-submit-button'));
+
+		await waitFor(() => {
+			expect(mockToastError).toHaveBeenCalledWith(
+				'An overtime authorization already exists for this employee and date',
+			);
+		});
+	});
+
+	it('keeps the legal warning visible after a successful creation', async () => {
+		mockCreateOvertimeAuthorizationAction.mockResolvedValue({
+			success: true,
+			data: {
+				warning:
+					'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.',
+			},
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('overtime-create-trigger')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByTestId('overtime-create-trigger'));
+		fireEvent.click(screen.getByTestId('overtime-date-trigger'));
+		selectFirstAvailableDate();
+		fireEvent.change(screen.getByTestId('overtime-hours-input'), {
+			target: { value: '4' },
+		});
+		fireEvent.change(screen.getByTestId('overtime-employee-select'), {
+			target: { value: 'emp-1' },
+		});
+		fireEvent.click(screen.getByTestId('overtime-submit-button'));
+
+		await waitFor(() => {
+			expect(mockToastWarning).toHaveBeenCalledWith(
+				'Las horas autorizadas exceden el limite diario de 3 horas establecido por la LFT. Horas superiores a 3 se pagan a tasa triple.',
+				{ duration: 8000 },
+			);
+		});
 	});
 });

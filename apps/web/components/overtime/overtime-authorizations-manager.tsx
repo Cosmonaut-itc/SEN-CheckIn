@@ -69,6 +69,21 @@ function parseDateKey(value: string): Date | undefined {
 }
 
 /**
+ * Extracts a warning message from a mutation payload when present.
+ *
+ * @param payload - Mutation payload returned by the server action
+ * @returns Warning message or null when absent
+ */
+function getMutationWarning(payload: unknown): string | null {
+	if (!payload || typeof payload !== 'object') {
+		return null;
+	}
+
+	const warning = (payload as { warning?: unknown }).warning;
+	return typeof warning === 'string' && warning.trim() ? warning : null;
+}
+
+/**
  * Overtime authorizations management screen for admin users.
  *
  * @returns Overtime authorization manager content
@@ -177,10 +192,14 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 		mutationFn: createOvertimeAuthorizationAction,
 		onSuccess: (result) => {
 			if (!result.success) {
-				toast.error(t('toast.createError'));
+				toast.error(result.error ?? t('toast.createError'));
 				return;
 			}
 
+			const warning = getMutationWarning(result.data);
+			if (warning) {
+				toast.warning(warning, { duration: 8000 });
+			}
 			toast.success(t('toast.createSuccess'));
 			setIsDialogOpen(false);
 			resetCreateForm();

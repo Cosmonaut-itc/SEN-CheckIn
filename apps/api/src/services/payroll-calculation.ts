@@ -63,6 +63,8 @@ export type PayrollCalculationRow = {
 	normalHours: number;
 	overtimeDoubleHours: number;
 	overtimeTripleHours: number;
+	payableOvertimeDoubleHours: number;
+	payableOvertimeTripleHours: number;
 	authorizedOvertimeHours: number;
 	unauthorizedOvertimeHours: number;
 	sundayHoursWorked: number;
@@ -989,6 +991,8 @@ export function calculatePayrollFromData(
 			normalHours: adjustedNormalHours,
 			overtimeDoubleHours,
 			overtimeTripleHours,
+			payableOvertimeDoubleHours,
+			payableOvertimeTripleHours,
 			authorizedOvertimeHours: authorizedOvertimeMinutesTotal / 60,
 			unauthorizedOvertimeHours: unauthorizedOvertimeMinutesTotal / 60,
 			sundayHoursWorked,

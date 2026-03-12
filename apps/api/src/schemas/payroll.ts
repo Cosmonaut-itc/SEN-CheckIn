@@ -198,6 +198,8 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	normalHours: z.number(),
 	overtimeDoubleHours: z.number(),
 	overtimeTripleHours: z.number(),
+	payableOvertimeDoubleHours: z.number(),
+	payableOvertimeTripleHours: z.number(),
 	authorizedOvertimeHours: z.number(),
 	unauthorizedOvertimeHours: z.number(),
 	sundayHoursWorked: z.number(),

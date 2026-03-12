@@ -366,6 +366,8 @@ describe('payroll-calculation', () => {
 		expect(row?.overtimeDoubleHours).toBe(3);
 		expect(row?.authorizedOvertimeHours).toBe(2);
 		expect(row?.unauthorizedOvertimeHours).toBe(1);
+		expect(row?.payableOvertimeDoubleHours).toBe(2);
+		expect(row?.payableOvertimeTripleHours).toBe(0);
 		expect(row?.overtimeDoublePay).toBe(400);
 		expect(row?.warnings.some((w) => w.type === 'OVERTIME_EXCEEDED_AUTHORIZATION')).toBe(true);
 	});
@@ -671,6 +673,8 @@ describe('payroll-calculation', () => {
 		expect(row?.overtimeTripleHours).toBe(3);
 		expect(row?.authorizedOvertimeHours).toBe(10);
 		expect(row?.unauthorizedOvertimeHours).toBe(2);
+		expect(row?.payableOvertimeDoubleHours).toBe(7);
+		expect(row?.payableOvertimeTripleHours).toBe(3);
 		expect(row?.overtimeDoublePay).toBe(1400);
 		expect(row?.overtimeTriplePay).toBe(900);
 	});

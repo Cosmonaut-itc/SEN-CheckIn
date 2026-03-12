@@ -2683,6 +2683,8 @@ export interface PayrollCalculationEmployee {
 	normalHours: number;
 	overtimeDoubleHours: number;
 	overtimeTripleHours: number;
+	payableOvertimeDoubleHours: number;
+	payableOvertimeTripleHours: number;
 	authorizedOvertimeHours: number;
 	unauthorizedOvertimeHours: number;
 	sundayHoursWorked: number;

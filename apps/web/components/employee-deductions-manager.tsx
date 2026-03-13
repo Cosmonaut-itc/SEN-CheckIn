@@ -845,7 +845,13 @@ export function EmployeeDeductionsManager({
 				<div className="grid gap-3 rounded-3xl border bg-card p-4 sm:grid-cols-2 xl:grid-cols-3">
 					<div className="space-y-2">
 						<Label>{t('filters.type')}</Label>
-						<Select value={typeFilter} onValueChange={setTypeFilter}>
+						<Select
+							value={typeFilter}
+							onValueChange={(value) => {
+								setTypeFilter(value);
+								setPageIndex(0);
+							}}
+						>
 							<SelectTrigger>
 								<SelectValue placeholder={t('filters.type')} />
 							</SelectTrigger>
@@ -865,7 +871,13 @@ export function EmployeeDeductionsManager({
 					</div>
 					<div className="space-y-2">
 						<Label>{t('filters.status')}</Label>
-						<Select value={statusFilter} onValueChange={setStatusFilter}>
+						<Select
+							value={statusFilter}
+							onValueChange={(value) => {
+								setStatusFilter(value);
+								setPageIndex(0);
+							}}
+						>
 							<SelectTrigger>
 								<SelectValue placeholder={t('filters.status')} />
 							</SelectTrigger>

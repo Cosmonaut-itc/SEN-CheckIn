@@ -295,6 +295,8 @@ function buildDeductionMutationValues(
 ): Record<string, unknown> {
 	const hasTotalAmount = 'totalAmount' in payload;
 	const hasRemainingAmount = 'remainingAmount' in payload;
+	const shouldClearTotalInstallments =
+		payload.frequency !== undefined && payload.frequency !== 'INSTALLMENTS';
 	const totalAmount = hasTotalAmount ? (payload.totalAmount ?? null) : undefined;
 	const remainingAmount = hasRemainingAmount
 		? (payload.remainingAmount ?? null)
@@ -304,12 +306,11 @@ function buildDeductionMutationValues(
 		...(payload.label !== undefined ? { label: payload.label } : {}),
 		...(payload.value !== undefined ? { value: payload.value.toFixed(4) } : {}),
 		...(payload.frequency !== undefined ? { frequency: payload.frequency } : {}),
-		...(payload.totalInstallments !== undefined
+		...(payload.totalInstallments !== undefined || shouldClearTotalInstallments
 			? {
-					totalInstallments:
-						payload.frequency && payload.frequency !== 'INSTALLMENTS'
-							? null
-							: payload.totalInstallments,
+					totalInstallments: shouldClearTotalInstallments
+						? null
+						: payload.totalInstallments,
 				}
 			: {}),
 		...(totalAmount !== undefined
@@ -466,29 +467,25 @@ export const employeeDeductionRoutes = new Elysia({ prefix: '/organizations/:org
 				return buildErrorResponse('Employee not found', 404);
 			}
 
+			const conditions = [
+				eq(employeeDeduction.organizationId, organizationId),
+				eq(employeeDeduction.employeeId, params.employeeId),
+			];
+			if (query.status) {
+				conditions.push(eq(employeeDeduction.status, query.status));
+			}
+			if (query.type) {
+				conditions.push(eq(employeeDeduction.type, query.type));
+			}
+
 			const rows = await db
 				.select()
 				.from(employeeDeduction)
-				.where(
-					and(
-						eq(employeeDeduction.organizationId, organizationId),
-						eq(employeeDeduction.employeeId, params.employeeId),
-					),
-				)
+				.where(and(...conditions))
 				.orderBy(desc(employeeDeduction.createdAt));
 
-			const filtered = rows.filter((row) => {
-				if (query.status && row.status !== query.status) {
-					return false;
-				}
-				if (query.type && row.type !== query.type) {
-					return false;
-				}
-				return true;
-			});
-
 			return {
-				data: filtered.map((row) =>
+				data: rows.map((row) =>
 					normalizeDeductionRow(
 						row,
 						`${employeeRecord.firstName} ${employeeRecord.lastName}`.trim(),

@@ -2857,6 +2857,38 @@ describe('payroll-calculation mexico taxes', () => {
 			});
 		});
 
+		it('prorates PERCENTAGE_GROSS deductions for partial periods', () => {
+			const args = buildWeeklyPayrollArgsWithDeductions({
+				employeeDeductions: [
+					createEmployeeDeduction({
+						type: 'OTHER',
+						label: 'Fondo social parcial',
+						calculationMethod: 'PERCENTAGE_GROSS',
+						value: 5,
+						startDateKey: '2025-03-07',
+						endDateKey: '2025-03-09',
+					}),
+				],
+			});
+
+			const { employees } = calculatePayrollFromData(args);
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const expectedAmount = Number(((row.grossPay * (3 / 7)) * 0.05).toFixed(2));
+
+			expect(row.totalDeductions).toBe(expectedAmount);
+			expect(row.deductionsBreakdown[0]).toMatchObject({
+				type: 'OTHER',
+				label: 'Fondo social parcial',
+				calculationMethod: 'PERCENTAGE_GROSS',
+				applicableDays: 3,
+				appliedAmount: expectedAmount,
+			});
+		});
+
 		it('prorates FIXED_AMOUNT deductions for partial periods', () => {
 			const { employees } = calculatePayrollFromData(
 				buildWeeklyPayrollArgsWithDeductions({

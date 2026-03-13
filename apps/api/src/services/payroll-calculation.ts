@@ -394,7 +394,7 @@ export function calculateDeductionAmount(args: {
 			calculatedAmount = (configuredValue / 100) * baseAmount;
 			break;
 		case 'PERCENTAGE_GROSS':
-			baseAmount = args.grossPay;
+			baseAmount = args.grossPay * (applicableDays / periodDays);
 			calculatedAmount = (configuredValue / 100) * baseAmount;
 			break;
 		case 'FIXED_AMOUNT':

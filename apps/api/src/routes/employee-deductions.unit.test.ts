@@ -899,6 +899,15 @@ describe('employee deduction routes', () => {
 				},
 			],
 		});
+		const deductionSelectCall = dbInspection.selects.find(
+			(call) => call.tableName === 'employee_deduction' && call.selection === 'all',
+		);
+		expect(flattenEqualityConditions(deductionSelectCall?.condition ?? null)).toMatchObject({
+			organization_id: 'org-test',
+			employee_id: 'employee-1',
+			status: 'PAUSED',
+			type: 'OTHER',
+		});
 	});
 
 	it('filters employee deductions by status only', async () => {
@@ -1038,6 +1047,33 @@ describe('employee deduction routes', () => {
 		expect(dbState.deductions.find((entry) => entry.id === 'deduction-cancelled')).toMatchObject({
 			totalAmount: '3000.00',
 			remainingAmount: '1500.00',
+		});
+	});
+
+	it('clears totalInstallments when frequency changes away from INSTALLMENTS', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				'/organizations/org-test/employees/employee-1/deductions/deduction-cancelled',
+				{
+					frequency: 'ONE_TIME',
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: {
+				id: 'deduction-cancelled',
+				frequency: 'ONE_TIME',
+				totalInstallments: null,
+			},
+		});
+		expect(dbState.deductions.find((entry) => entry.id === 'deduction-cancelled')).toMatchObject({
+			frequency: 'ONE_TIME',
+			totalInstallments: null,
 		});
 	});
 

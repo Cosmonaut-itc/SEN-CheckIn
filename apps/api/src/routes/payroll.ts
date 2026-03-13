@@ -1,12 +1,13 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import { addDays, isBefore } from 'date-fns';
 
 import db from '../db/index.js';
 import {
 	attendanceRecord,
 	employee,
+	employeeDeduction,
 	employeeIncapacity,
 	employeeSchedule,
 	location,
@@ -28,6 +29,7 @@ import {
 import { isValidIanaTimeZone } from '../utils/time-zone.js';
 import {
 	calculatePayrollFromData,
+	type EmployeeDeductionRow,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
 	type OvertimeAuthorizationRow,
@@ -285,6 +287,44 @@ const calculatePayroll = async (args: {
 						),
 					);
 
+	const employeeDeductionRows: EmployeeDeductionRow[] =
+		employeeIds.length === 0
+			? []
+			: await db
+					.select({
+						id: employeeDeduction.id,
+						employeeId: employeeDeduction.employeeId,
+						type: employeeDeduction.type,
+						label: employeeDeduction.label,
+						calculationMethod: employeeDeduction.calculationMethod,
+						value: employeeDeduction.value,
+						frequency: employeeDeduction.frequency,
+						totalInstallments: employeeDeduction.totalInstallments,
+						completedInstallments: employeeDeduction.completedInstallments,
+						totalAmount: employeeDeduction.totalAmount,
+						remainingAmount: employeeDeduction.remainingAmount,
+						status: employeeDeduction.status,
+						startDateKey: employeeDeduction.startDateKey,
+						endDateKey: employeeDeduction.endDateKey,
+						referenceNumber: employeeDeduction.referenceNumber,
+						satDeductionCode: employeeDeduction.satDeductionCode,
+						notes: employeeDeduction.notes,
+						createdAt: employeeDeduction.createdAt,
+					})
+					.from(employeeDeduction)
+					.where(
+						and(
+							eq(employeeDeduction.organizationId, organizationId),
+							inArray(employeeDeduction.employeeId, employeeIds),
+							eq(employeeDeduction.status, 'ACTIVE'),
+							lte(employeeDeduction.startDateKey, periodEndDateKey),
+							or(
+								isNull(employeeDeduction.endDateKey),
+								gte(employeeDeduction.endDateKey, periodStartDateKey),
+							),
+						),
+					);
+
 	const {
 		employees: results,
 		totalAmount,
@@ -294,6 +334,7 @@ const calculatePayroll = async (args: {
 		schedules,
 		attendanceRows,
 		overtimeAuthorizations: overtimeAuthorizationRows,
+		employeeDeductions: employeeDeductionRows,
 		periodStartDateKey,
 		periodEndDateKey,
 		periodBounds,
@@ -503,6 +544,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						vacationPremiumAmount: row.vacationPremiumAmount.toFixed(2),
 						lunchBreakAutoDeductedDays: row.lunchBreakAutoDeductedDays,
 						lunchBreakAutoDeductedMinutes: row.lunchBreakAutoDeductedMinutes,
+						deductionsBreakdown: row.deductionsBreakdown as unknown as Record<
+							string,
+							unknown
+						>[],
+						totalDeductions: row.totalDeductions.toFixed(2),
 						taxBreakdown: {
 							grossPay: row.grossPay,
 							seventhDayPay: row.seventhDayPay,
@@ -517,6 +563,36 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						periodEnd: calculation.periodEndInclusiveUtc,
 					}));
 					await tx.insert(payrollRunEmployee).values(rows);
+
+					const deductionUpdates = calculation.employees.flatMap((row) =>
+						row.deductionsBreakdown
+							.filter(
+								(item) =>
+									item.appliedAmount > 0 &&
+									(item.statusAfter !== item.statusBefore ||
+										item.completedInstallmentsAfter !== item.completedInstallmentsBefore ||
+										item.remainingAmountAfter !== item.remainingAmountBefore),
+							)
+							.map((item) => ({
+								deductionId: item.deductionId,
+								status: item.statusAfter,
+								completedInstallments: item.completedInstallmentsAfter,
+								remainingAmount:
+									item.remainingAmountAfter === null
+										? null
+										: item.remainingAmountAfter.toFixed(2),
+							})),
+					);
+					for (const deductionUpdate of deductionUpdates) {
+						await tx
+							.update(employeeDeduction)
+							.set({
+								status: deductionUpdate.status,
+								completedInstallments: deductionUpdate.completedInstallments,
+								remainingAmount: deductionUpdate.remainingAmount,
+							})
+							.where(eq(employeeDeduction.id, deductionUpdate.deductionId));
+					}
 
 					const beforeRows = await tx
 						.select()
@@ -685,6 +761,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					vacationPremiumAmount: payrollRunEmployee.vacationPremiumAmount,
 					lunchBreakAutoDeductedDays: payrollRunEmployee.lunchBreakAutoDeductedDays,
 					lunchBreakAutoDeductedMinutes: payrollRunEmployee.lunchBreakAutoDeductedMinutes,
+					deductionsBreakdown: payrollRunEmployee.deductionsBreakdown,
+					totalDeductions: payrollRunEmployee.totalDeductions,
 					taxBreakdown: payrollRunEmployee.taxBreakdown,
 					periodStart: payrollRunEmployee.periodStart,
 					periodEnd: payrollRunEmployee.periodEnd,
@@ -722,6 +800,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				vacationPremiumAmount: line.vacationPremiumAmount,
 				lunchBreakAutoDeductedDays: line.lunchBreakAutoDeductedDays,
 				lunchBreakAutoDeductedMinutes: line.lunchBreakAutoDeductedMinutes,
+				deductionsBreakdown: line.deductionsBreakdown,
+				totalDeductions: line.totalDeductions,
 				taxBreakdown: line.taxBreakdown,
 				periodStart: line.periodStart,
 				periodEnd: line.periodEnd,

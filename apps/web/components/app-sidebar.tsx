@@ -29,6 +29,7 @@ import {
 	CalendarCheck,
 	CalendarDays,
 	Clock3,
+	HandCoins,
 	FileText,
 	Settings2,
 	ShieldAlert,
@@ -151,6 +152,11 @@ const adminNavItems: NavItem[] = [
 		titleKey: 'overtimeAuthorizations',
 		href: '/overtime-authorizations',
 		icon: Clock3,
+	},
+	{
+		titleKey: 'deductions',
+		href: '/deductions',
+		icon: HandCoins,
 	},
 	{
 		titleKey: 'users',

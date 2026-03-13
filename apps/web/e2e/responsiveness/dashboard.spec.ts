@@ -36,10 +36,12 @@ test.describe('dashboard responsiveness', () => {
 		const mapHero = page.getByTestId('dashboard-map-hero');
 		const statsStrip = page.getByTestId('dashboard-stats-strip');
 		const actions = page.getByTestId('dashboard-actions');
+		const locationsPanel = page.getByTestId('dashboard-locations-panel');
 
 		const mapBox = await mapHero.boundingBox();
 		const statsBox = await statsStrip.boundingBox();
 		const actionsBox = await actions.boundingBox();
+		const locationsBox = await locationsPanel.boundingBox();
 		const refreshButton = page.getByTestId('dashboard-refresh-button');
 		const locationsButton = page.getByTestId('dashboard-locations-button');
 		const refreshButtonBox = await refreshButton.boundingBox();
@@ -48,12 +50,16 @@ test.describe('dashboard responsiveness', () => {
 		expect(mapBox).not.toBeNull();
 		expect(statsBox).not.toBeNull();
 		expect(actionsBox).not.toBeNull();
+		expect(locationsBox).not.toBeNull();
 		expect(refreshButtonBox).not.toBeNull();
 		expect(locationsButtonBox).not.toBeNull();
 
 		expect(mapBox?.height ?? 0).toBeGreaterThanOrEqual(viewportHeight * 0.5);
 		expect((statsBox?.y ?? 0) >= (mapBox?.y ?? 0) + (mapBox?.height ?? 0)).toBe(true);
 		expect((actionsBox?.y ?? 0) >= (statsBox?.y ?? 0) + (statsBox?.height ?? 0)).toBe(true);
+		expect((locationsBox?.y ?? 0) >= (actionsBox?.y ?? 0) + (actionsBox?.height ?? 0)).toBe(
+			true,
+		);
 
 		expect((refreshButtonBox?.width ?? 0) + 8).toBeGreaterThanOrEqual(
 			actionsBox?.width ?? 0,
@@ -73,5 +79,6 @@ test.describe('dashboard responsiveness', () => {
 		await expectNoHorizontalOverflow(page);
 		await expect(page.getByTestId('dashboard-map-hero')).toBeVisible();
 		await expect(page.getByTestId('dashboard-stats-strip')).toBeVisible();
+		await expect(page.getByTestId('dashboard-locations-panel')).toBeVisible();
 	});
 });

@@ -440,29 +440,32 @@ export function DashboardPageClient(): React.ReactElement {
 
 	const locationsPanelHeader = (
 		<div className="border-b p-4">
-			<div className="flex items-start justify-between gap-4">
-				<div>
-					<p className="text-sm font-semibold">{t('map.panel.title')}</p>
-					<p className="text-xs text-muted-foreground">
-						{t('map.panel.subtitle', {
-							locations: locations.length,
-							present: totalPresent,
-						})}
-					</p>
+			<div className="flex flex-col gap-3">
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div>
+						<p className="text-sm font-semibold">{t('map.panel.title')}</p>
+						<p className="text-xs text-muted-foreground">
+							{t('map.panel.subtitle', {
+								locations: locations.length,
+								present: totalPresent,
+							})}
+						</p>
+					</div>
+					<Badge variant="secondary">
+						{t('map.panel.activeLocations', { count: activeLocations })}
+					</Badge>
 				</div>
-				<Badge variant="secondary">
-					{t('map.panel.activeLocations', { count: activeLocations })}
-				</Badge>
-			</div>
-			<div className="relative mt-3">
-				<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-				<Input
-					value={locationSearch}
-					onChange={handleLocationSearchChange}
-					placeholder={t('map.search.placeholder')}
-					aria-label={t('map.search.placeholder')}
-					className="pl-9"
-				/>
+				<div className="relative">
+					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+					<Input
+						data-testid="dashboard-locations-search"
+						value={locationSearch}
+						onChange={handleLocationSearchChange}
+						placeholder={t('map.search.placeholder')}
+						aria-label={t('map.search.placeholder')}
+						className="min-h-11 w-full pl-9"
+					/>
+				</div>
 			</div>
 		</div>
 	);
@@ -493,7 +496,7 @@ export function DashboardPageClient(): React.ReactElement {
 								<AccordionItem
 									key={location.id}
 									value={location.id}
-									className="rounded-lg border"
+									className="rounded-xl border bg-background/80 px-1"
 								>
 									<AccordionTrigger
 										onClick={() => handleLocationFocus(location.id)}
@@ -598,7 +601,7 @@ export function DashboardPageClient(): React.ReactElement {
 								<AccordionItem
 									key={location.id}
 									value={location.id}
-									className="rounded-lg border"
+									className="rounded-xl border bg-background/80 px-1"
 								>
 									<AccordionTrigger className="px-4 text-left">
 										<div className="flex w-full items-start pr-6">
@@ -661,7 +664,7 @@ export function DashboardPageClient(): React.ReactElement {
 													})}
 												</div>
 											)}
-											<Button asChild variant="outline" size="sm">
+											<Button asChild variant="outline" size="sm" className="min-h-11">
 												<Link href={`/locations?edit=${location.id}`}>
 													{t('map.actions.editLocation')}
 												</Link>
@@ -683,7 +686,7 @@ export function DashboardPageClient(): React.ReactElement {
 						</p>
 						<Badge variant="secondary">{unassignedPresent.length}</Badge>
 					</div>
-					<div className="space-y-2 rounded-lg border p-3">
+					<div className="space-y-2 rounded-xl border bg-background/80 p-3">
 						{unassignedPresent.map((record) => {
 							const displayName = record.employeeName || record.employeeCode;
 							const initials = getEmployeeInitials(displayName);
@@ -725,7 +728,7 @@ export function DashboardPageClient(): React.ReactElement {
 				) : offsiteTodayRecords.length === 0 ? (
 					<p className="text-sm text-muted-foreground">{t('map.empty.offsite')}</p>
 				) : (
-					<div className="space-y-2 rounded-lg border p-3">
+					<div className="space-y-2 rounded-xl border bg-background/80 p-3">
 						{offsiteTodayRecords.map((record) => {
 							const displayName = record.employeeName || record.employeeId;
 							const initials = getEmployeeInitials(displayName);
@@ -784,7 +787,10 @@ export function DashboardPageClient(): React.ReactElement {
 					{summaryCard}
 					{actions}
 
-					<section className="rounded-xl border bg-background/95 shadow-[var(--shadow-md)]">
+					<section
+						data-testid="dashboard-locations-panel"
+						className="overflow-hidden rounded-2xl border bg-background/95 shadow-[var(--shadow-md)]"
+					>
 						{locationsPanelHeader}
 						{locationsPanelContent}
 					</section>
@@ -845,7 +851,10 @@ export function DashboardPageClient(): React.ReactElement {
 					</div>
 				</div>
 
-				<div className="pointer-events-auto absolute bottom-4 right-4 top-24 w-full max-w-sm">
+				<div
+					data-testid="dashboard-locations-panel"
+					className="pointer-events-auto absolute bottom-4 right-4 top-24 w-full max-w-sm"
+				>
 					<div className="flex h-full flex-col rounded-xl border bg-background/90 shadow-sm backdrop-blur">
 						{locationsPanelHeader}
 						<ScrollArea className="flex-1">{locationsPanelContent}</ScrollArea>

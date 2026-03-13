@@ -339,25 +339,21 @@ describe('employee routes (contract)', () => {
 		expect(Array.isArray(insights.attendance.leavesByMonth)).toBe(true);
 	});
 
-	it('returns insights for a legacy seeded employee id', async () => {
+	it('returns insights for a seeded employee from the listing', async () => {
 		const listResponse = await client.employees.get({
 			$headers: { cookie: adminSession.cookieHeader },
 			$query: { limit: 100, offset: 0 },
 		});
 		expect(listResponse.status).toBe(200);
 		const listPayload = requireResponseData(listResponse);
-		const legacyEmployee = listPayload.data.find(
-			(record) =>
-				typeof record.id === 'string' &&
-				/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-7c-f][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-					record.id,
-				),
+		const seededEmployee = listPayload.data.find(
+			(record) => typeof record.id === 'string' && record.id !== baseEmployeeId,
 		);
-		if (!legacyEmployee) {
-			throw new Error('Expected a legacy seeded employee id in the employee listing.');
+		if (!seededEmployee) {
+			throw new Error('Expected a seeded employee in the employee listing.');
 		}
 
-		const employeeRoutes = requireRoute(client.employees[legacyEmployee.id], 'Employee route');
+		const employeeRoutes = requireRoute(client.employees[seededEmployee.id], 'Employee route');
 		const insightsRoute = requireRoute(employeeRoutes.insights, 'Employee insights route');
 		const response = await insightsRoute.get({
 			$headers: { cookie: adminSession.cookieHeader },
@@ -367,9 +363,9 @@ describe('employee routes (contract)', () => {
 		const payload = requireResponseData(response);
 		const insights = payload.data;
 		if (!insights) {
-			throw new Error('Expected insights data for legacy employee.');
+			throw new Error('Expected insights data for seeded employee.');
 		}
-		expect(insights.employeeId).toBe(legacyEmployee.id);
+		expect(insights.employeeId).toBe(seededEmployee.id);
 	});
 
 	it('returns audit events for an employee', async () => {

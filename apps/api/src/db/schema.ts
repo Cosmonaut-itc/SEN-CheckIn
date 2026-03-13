@@ -2435,6 +2435,10 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 	hoursWorked: numeric('hours_worked', { precision: 10, scale: 2 }).default('0').notNull(),
 	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	totalPay: numeric('total_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	fiscalDailyPay: numeric('fiscal_daily_pay', { precision: 10, scale: 4 }),
+	fiscalGrossPay: numeric('fiscal_gross_pay', { precision: 12, scale: 4 }),
+	complementPay: numeric('complement_pay', { precision: 12, scale: 4 }),
+	totalRealPay: numeric('total_real_pay', { precision: 12, scale: 4 }),
 	normalHours: numeric('normal_hours', { precision: 10, scale: 2 }).default('0').notNull(),
 	normalPay: numeric('normal_pay', { precision: 12, scale: 2 }).default('0').notNull(),
 	overtimeDoubleHours: numeric('overtime_double_hours', { precision: 10, scale: 2 })

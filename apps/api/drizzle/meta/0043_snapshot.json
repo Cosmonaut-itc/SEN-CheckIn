@@ -1,6 +1,6 @@
 {
-  "id": "0e0d8116-8568-49a2-ac21-e433463ae28f",
-  "prevId": "4f426fe9-ad55-4c58-b50c-8cc52e3c4d10",
+  "id": "da369082-52f2-44c5-ac76-7954155de906",
+  "prevId": "0e0d8116-8568-49a2-ac21-e433463ae28f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5855,6 +5855,30 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'0'"
+        },
+        "fiscal_daily_pay": {
+          "name": "fiscal_daily_pay",
+          "type": "numeric(10, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fiscal_gross_pay": {
+          "name": "fiscal_gross_pay",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "complement_pay": {
+          "name": "complement_pay",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "total_real_pay": {
+          "name": "total_real_pay",
+          "type": "numeric(12, 4)",
+          "primaryKey": false,
+          "notNull": false
         },
         "normal_hours": {
           "name": "normal_hours",

@@ -118,10 +118,6 @@
 				"personal": {
 					"label": "Personal",
 					"description": "La salida es por un asunto personal."
-				},
-				"regular": {
-					"label": "Fin de jornada",
-					"description": "Terminaste tu turno y ya no regresarás hoy."
 				}
 			}
 		},

@@ -180,8 +180,32 @@ describe('EmployeeDeductionsManager', () => {
 					frequency: 'RECURRING',
 					totalInstallments: null,
 					completedInstallments: 0,
+					totalAmount: 150,
+					remainingAmount: 150,
+					status: 'ACTIVE',
+					startDateKey: '2026-03-01',
+					endDateKey: null,
+					referenceNumber: null,
+					satDeductionCode: null,
+					notes: null,
+					createdByUserId: 'user-1',
+					createdAt: new Date('2026-03-01T00:00:00.000Z'),
+					updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+				},
+				{
+					id: 'ded-2',
+					organizationId: 'org-1',
+					employeeId: 'emp-1',
+					employeeName: 'Ada Lovelace',
+					type: 'INFONAVIT',
+					label: 'Infonavit',
+					calculationMethod: 'PERCENTAGE_GROSS',
+					value: 10,
+					frequency: 'RECURRING',
+					totalInstallments: null,
+					completedInstallments: 0,
 					totalAmount: null,
-					remainingAmount: null,
+					remainingAmount: 5000,
 					status: 'ACTIVE',
 					startDateKey: '2026-03-01',
 					endDateKey: null,
@@ -245,5 +269,25 @@ describe('EmployeeDeductionsManager', () => {
 				}),
 			);
 		});
+	});
+
+	it('labels organization summaries as visible-only and excludes non-fixed values from the currency total', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(
+				screen
+					.getByText('summary.activeFixedAmount')
+					.closest('div')
+					?.parentElement?.textContent,
+			).toContain('150');
+		});
+
+		expect(screen.getAllByText('summary.visibleScope')).toHaveLength(2);
+		const configuredCardText =
+			screen.getByText('summary.activeFixedAmount').closest('div')?.parentElement
+				?.textContent ?? '';
+		expect(configuredCardText).toContain('150');
+		expect(configuredCardText).not.toContain('160');
 	});
 });

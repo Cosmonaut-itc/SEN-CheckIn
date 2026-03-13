@@ -501,6 +501,7 @@ export function EmployeeDeductionsManager({
 		limit: DEFAULT_PAGE_SIZE,
 		offset: pageIndex * DEFAULT_PAGE_SIZE,
 	};
+	const isVisibleSubset = !isEmployeeMode && pagination.total > deductionRows.length;
 	const isLoading = isEmployeeMode
 		? employeeDeductionsQuery.isLoading
 		: organizationDeductionsQuery.isLoading;
@@ -510,7 +511,9 @@ export function EmployeeDeductionsManager({
 
 	const summaryCards = useMemo<DeductionSummaryCard[]>(() => {
 		const activeRows = deductionRows.filter((row) => row.status === 'ACTIVE');
-		const activeTotal = activeRows.reduce((total, row) => total + row.value, 0);
+		const activeFixedAmountTotal = activeRows
+			.filter((row) => row.calculationMethod === 'FIXED_AMOUNT')
+			.reduce((total, row) => total + row.value, 0);
 		const pendingPrincipal = deductionRows.reduce(
 			(total, row) => total + (row.remainingAmount ?? 0),
 			0,
@@ -532,8 +535,8 @@ export function EmployeeDeductionsManager({
 			},
 			{
 				key: 'configured',
-				label: t('summary.configuredTotal'),
-				value: formatCurrency(activeTotal),
+				label: t('summary.activeFixedAmount'),
+				value: formatCurrency(activeFixedAmountTotal),
 				tone: 'success',
 				icon: CircleDollarSign,
 			},
@@ -806,6 +809,11 @@ export function EmployeeDeductionsManager({
 								</div>
 							))}
 						</div>
+						{isVisibleSubset ? (
+							<p className="text-xs text-muted-foreground">
+								{t('summary.visibleScope')}
+							</p>
+						) : null}
 					</div>
 
 					<div className="grid gap-3 sm:grid-cols-2">
@@ -1256,29 +1264,38 @@ export function EmployeeDeductionsManager({
 			) : null}
 
 			{!isEmployeeMode && totalsByType.length > 0 ? (
-				<section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-					{totalsByType.map(([type, summary]) => (
-						<div key={type} className="rounded-2xl border bg-card px-4 py-4 shadow-xs">
-							<div className="flex items-center justify-between gap-3">
-								<div>
-									<p className="text-sm font-medium text-foreground">
-										{t(`types.${type}`)}
-									</p>
-									<p className="text-xs text-muted-foreground">
-										{t('totals.cards.count', { count: summary.count })}
-									</p>
+				<section className="space-y-3">
+					{isVisibleSubset ? (
+						<p className="text-xs text-muted-foreground">
+							{t('summary.visibleScope')}
+						</p>
+					) : null}
+					<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+						{totalsByType.map(([type, summary]) => (
+							<div key={type} className="rounded-2xl border bg-card px-4 py-4 shadow-xs">
+								<div className="flex items-center justify-between gap-3">
+									<div>
+										<p className="text-sm font-medium text-foreground">
+											{t(`types.${type}`)}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{t('totals.cards.count', { count: summary.count })}
+										</p>
+									</div>
+									<Badge variant="neutral">
+										{t('totals.cards.active', {
+											count: summary.activeCount,
+										})}
+									</Badge>
 								</div>
-								<Badge variant="neutral">
-									{t('totals.cards.active', { count: summary.activeCount })}
-								</Badge>
+								<p className="mt-3 text-base font-semibold text-foreground">
+									{summary.remainingAmount > 0
+										? formatCurrency(summary.remainingAmount)
+										: t('totals.cards.noRemaining')}
+								</p>
 							</div>
-							<p className="mt-3 text-base font-semibold text-foreground">
-								{summary.remainingAmount > 0
-									? formatCurrency(summary.remainingAmount)
-									: t('totals.cards.noRemaining')}
-							</p>
-						</div>
-					))}
+						))}
+					</div>
 				</section>
 			) : null}
 

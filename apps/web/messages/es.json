@@ -989,8 +989,10 @@
 		"summary": {
 			"activeDiscounts": "Descuentos activos",
 			"configuredTotal": "Monto configurado activo",
+			"activeFixedAmount": "Monto fijo activo",
 			"pendingPrincipal": "Saldo pendiente visible",
 			"installmentsInProgress": "Cuotas en progreso",
+			"visibleScope": "Calculado con los registros visibles en esta página.",
 			"countValue": "{count, plural, one {# registro} other {# registros}}",
 			"noPendingPrincipal": "Sin saldo pendiente"
 		},

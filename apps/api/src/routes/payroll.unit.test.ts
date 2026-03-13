@@ -121,6 +121,14 @@ interface FakeDbState {
 	payrollRunEmployees: Record<string, unknown>[];
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
+	pendingDeductionMutationBeforeTransaction:
+		| {
+				id: string;
+				status?: FakeEmployeeDeductionRow['status'];
+				completedInstallments?: number;
+				remainingAmount?: string | null;
+		  }
+		| null;
 }
 
 /**
@@ -402,15 +410,25 @@ function flattenEqualityConditions(
 		return {};
 	}
 
-	const column = condition.column as { name?: unknown; config?: { name?: unknown } };
-	const columnName =
-		typeof column.name === 'string'
-			? column.name
-			: typeof column.config?.name === 'string'
-				? column.config.name
-				: null;
+	const columnName = getConditionColumnName(condition.column);
 
 	return columnName ? { [columnName]: condition.value } : {};
+}
+
+/**
+ * Extracts the drizzle column name from a condition operand.
+ *
+ * @param column - Drizzle column reference
+ * @returns Column name when available
+ */
+function getConditionColumnName(column: unknown): string | null {
+	const resolvedColumn = column as { name?: unknown; config?: { name?: unknown } };
+	if (typeof resolvedColumn.name === 'string') {
+		return resolvedColumn.name;
+	}
+	return typeof resolvedColumn.config?.name === 'string'
+		? resolvedColumn.config.name
+		: null;
 }
 
 /**
@@ -434,6 +452,41 @@ function extractInArrayValues(condition: DrizzleCondition | null): unknown[] | n
 
 	for (const child of condition.conditions) {
 		const values = extractInArrayValues(child);
+		if (values) {
+			return values;
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Extracts an inArray value list for a specific column name.
+ *
+ * @param condition - Drizzle-like condition tree
+ * @param columnName - Column name to match
+ * @returns Matching value list or null
+ */
+function extractInArrayValuesForColumn(
+	condition: DrizzleCondition | null,
+	columnName: string,
+): unknown[] | null {
+	if (!condition) {
+		return null;
+	}
+
+	if (condition.kind === 'inArray') {
+		return getConditionColumnName(condition.column) === columnName
+			? condition.values
+			: null;
+	}
+
+	if (condition.kind !== 'and') {
+		return null;
+	}
+
+	for (const child of condition.conditions) {
+		const values = extractInArrayValuesForColumn(child, columnName);
 		if (values) {
 			return values;
 		}
@@ -645,13 +698,20 @@ function createFakeDb(state: FakeDbState): {
 			}
 
 			if (tableName === 'employee_deduction') {
-				const employeeIds =
-					extractInArrayValues(this.whereCondition)?.filter(
+				const deductionIds =
+					extractInArrayValuesForColumn(this.whereCondition, 'id')?.filter(
 						(value): value is string => typeof value === 'string',
 					) ?? [];
-				return state.employeeDeductions.filter((row) =>
-					employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
-				);
+				const employeeIds =
+					extractInArrayValuesForColumn(this.whereCondition, 'employee_id')?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
+				return state.employeeDeductions.filter((row) => {
+					if (deductionIds.length > 0 && !deductionIds.includes(row.id)) {
+						return false;
+					}
+					return employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId);
+				});
 			}
 
 			if (tableName === 'payroll_run') {
@@ -860,7 +920,49 @@ function createFakeDb(state: FakeDbState): {
 	 */
 	const transaction = async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
 		state.transactionCalled = true;
-		return fn(createTransaction());
+		if (state.pendingDeductionMutationBeforeTransaction) {
+			for (const deduction of state.employeeDeductions) {
+				if (deduction.id !== state.pendingDeductionMutationBeforeTransaction.id) {
+					continue;
+				}
+				if (state.pendingDeductionMutationBeforeTransaction.status) {
+					deduction.status = state.pendingDeductionMutationBeforeTransaction.status;
+				}
+				if (
+					typeof state.pendingDeductionMutationBeforeTransaction.completedInstallments ===
+					'number'
+				) {
+					deduction.completedInstallments =
+						state.pendingDeductionMutationBeforeTransaction.completedInstallments;
+				}
+				if (
+					state.pendingDeductionMutationBeforeTransaction.remainingAmount !== undefined
+				) {
+					deduction.remainingAmount =
+						state.pendingDeductionMutationBeforeTransaction.remainingAmount;
+				}
+			}
+			state.pendingDeductionMutationBeforeTransaction = null;
+		}
+
+		const snapshot = structuredClone({
+			employees: state.employees,
+			employeeDeductions: state.employeeDeductions,
+			payrollRuns: state.payrollRuns,
+			payrollRunEmployees: state.payrollRunEmployees,
+			deductionUpdateConditions: state.deductionUpdateConditions,
+		});
+
+		try {
+			return await fn(createTransaction());
+		} catch (error) {
+			state.employees = snapshot.employees;
+			state.employeeDeductions = snapshot.employeeDeductions;
+			state.payrollRuns = snapshot.payrollRuns;
+			state.payrollRunEmployees = snapshot.payrollRunEmployees;
+			state.deductionUpdateConditions = snapshot.deductionUpdateConditions;
+			throw error;
+		}
 	};
 
 	return {
@@ -882,6 +984,7 @@ const dbState: FakeDbState = {
 	payrollRunEmployees: [],
 	transactionCalled: false,
 	deductionUpdateConditions: [],
+	pendingDeductionMutationBeforeTransaction: null,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -951,6 +1054,7 @@ describe('payroll routes', () => {
 		dbState.payrollRunEmployees = [];
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
+		dbState.pendingDeductionMutationBeforeTransaction = null;
 	});
 
 	it('includes edge attendance events so clipped sessions are counted in /payroll/calculate', async () => {
@@ -1757,5 +1861,59 @@ describe('payroll routes', () => {
 		).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
+	});
+
+	it('returns conflict when deduction state changes before payroll updates are persisted', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-deduction-conflict',
+			employeeId: 'emp-conflict-1',
+			firstName: 'Dorothy',
+			lastName: 'Vaughan',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-conflict',
+				organizationId: 'org-deduction-conflict',
+				employeeId: 'emp-conflict-1',
+				type: 'LOAN',
+				label: 'Prestamo en carrera',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'INSTALLMENTS',
+				totalInstallments: 10,
+				completedInstallments: 3,
+				totalAmount: '5000.00',
+				remainingAmount: '3500.00',
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+		dbState.pendingDeductionMutationBeforeTransaction = {
+			id: 'deduction-conflict',
+			completedInstallments: 4,
+			remainingAmount: '3000.00',
+		};
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-deduction-conflict',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(409);
+		expect(dbState.payrollRuns).toHaveLength(0);
+		expect(dbState.payrollRunEmployees).toHaveLength(0);
+		expect(dbState.employeeDeductions[0]?.completedInstallments).toBe(4);
+		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('3000.00');
 	});
 });

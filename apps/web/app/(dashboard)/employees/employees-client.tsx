@@ -506,6 +506,8 @@ interface EmployeesTableSectionProps {
 	onRowSelectionChange?: React.Dispatch<React.SetStateAction<RowSelectionState>>;
 	/** Optional row id resolver for selection. */
 	getRowId?: (row: Employee, index: number) => string;
+	/** Optional row click handler for opening employee details. */
+	onRowClick?: (employee: Employee) => void;
 }
 
 /**
@@ -548,6 +550,7 @@ function EmployeesTableSection({
 	rowSelection,
 	onRowSelectionChange,
 	getRowId,
+	onRowClick,
 }: EmployeesTableSectionProps): React.ReactElement {
 	return (
 		<div className="min-w-0 space-y-4">
@@ -634,6 +637,7 @@ function EmployeesTableSection({
 				onRowSelectionChange={onRowSelectionChange}
 				enableRowSelection={Boolean(onRowSelectionChange)}
 				getRowId={getRowId}
+				onRowClick={onRowClick}
 			/>
 		</div>
 	);
@@ -5989,6 +5993,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				rowSelection={rowSelection}
 				onRowSelectionChange={setRowSelection}
 				getRowId={(row) => row.id}
+				onRowClick={handleViewDetails}
 			/>
 
 			<Dialog open={isBulkEditOpen} onOpenChange={setIsBulkEditOpen}>

@@ -1,30 +1,34 @@
 import type React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type {
+	ColumnDef,
 	ColumnFiltersState,
 	PaginationState,
 	SortingState,
 } from '@tanstack/react-table';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { ResponsiveDataView } from './responsive-data-view';
-
-const mockUseIsMobile = vi.fn();
-
-vi.mock('@/hooks/use-mobile', () => ({
-	useIsMobile: () => mockUseIsMobile(),
-}));
+import { DataTable } from './data-table';
 
 type DemoRow = {
 	id: string;
 	name: string;
 };
 
-const columns = [
+const columns: ColumnDef<DemoRow>[] = [
 	{
 		accessorKey: 'name',
 		header: 'Nombre',
-		cell: ({ row }: { row: { original: DemoRow } }) => row.original.name,
+		cell: ({ row }) => row.original.name,
+	},
+	{
+		id: 'actions',
+		header: 'Acciones',
+		cell: () => (
+			<button type="button">
+				Abrir menu
+			</button>
+		),
 	},
 ];
 
@@ -37,68 +41,36 @@ function createStateSetterMock<T>(): React.Dispatch<React.SetStateAction<T>> {
 	return vi.fn() as unknown as React.Dispatch<React.SetStateAction<T>>;
 }
 
-describe('ResponsiveDataView', () => {
+/**
+ * Resolves the rendered body row for the provided employee name.
+ *
+ * @param name - Employee name rendered inside the row
+ * @returns Matching table row element
+ * @throws {Error} When the row cannot be found
+ */
+function getRowByEmployeeName(name: string): HTMLTableRowElement {
+	const row = screen.getByText(name).closest('tr');
+	if (!(row instanceof HTMLTableRowElement)) {
+		throw new Error(`Expected a table row for employee "${name}".`);
+	}
+	return row;
+}
+
+describe('DataTable', () => {
 	const sorting = [] as SortingState;
 	const pagination: PaginationState = { pageIndex: 0, pageSize: 10 };
 	const columnFilters = [] as ColumnFiltersState;
+	const defaultSelection = window.getSelection;
 
-	beforeEach(() => {
-		mockUseIsMobile.mockReset();
+	afterEach(() => {
+		window.getSelection = defaultSelection;
 	});
 
-	it('renders the desktop table when the viewport is not mobile', () => {
-		mockUseIsMobile.mockReturnValue(false);
-
-		render(
-			<ResponsiveDataView
-				columns={columns}
-				data={[{ id: '1', name: 'Ada' }]}
-				sorting={sorting}
-				onSortingChange={createStateSetterMock<SortingState>()}
-				pagination={pagination}
-				onPaginationChange={createStateSetterMock<PaginationState>()}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
-				globalFilter=""
-				onGlobalFilterChange={createStateSetterMock<string>()}
-				cardRenderer={(row) => <span>{row.name}</span>}
-			/>,
-		);
-
-		expect(screen.getByRole('table')).toBeInTheDocument();
-		expect(screen.queryByTestId('responsive-data-view-mobile')).toBeNull();
-	});
-
-	it('renders stacked cards when the viewport is mobile', () => {
-		mockUseIsMobile.mockReturnValue(true);
-
-		render(
-			<ResponsiveDataView
-				columns={columns}
-				data={[{ id: '1', name: 'Ada' }]}
-				sorting={sorting}
-				onSortingChange={createStateSetterMock<SortingState>()}
-				pagination={pagination}
-				onPaginationChange={createStateSetterMock<PaginationState>()}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
-				globalFilter=""
-				onGlobalFilterChange={createStateSetterMock<string>()}
-				cardRenderer={(row) => <span>{row.name}</span>}
-			/>,
-		);
-
-		expect(screen.getByTestId('responsive-data-view-mobile')).toBeInTheDocument();
-		expect(screen.getByTestId('responsive-data-card')).toBeInTheDocument();
-		expect(screen.queryByRole('table')).toBeNull();
-	});
-
-	it('opens row details when tapping a mobile card', () => {
-		mockUseIsMobile.mockReturnValue(true);
+	it('opens row details when clicking a non-interactive cell', () => {
 		const handleRowClick = vi.fn();
 
 		render(
-			<ResponsiveDataView
+			<DataTable
 				columns={columns}
 				data={[{ id: '1', name: 'Ada' }]}
 				sorting={sorting}
@@ -109,14 +81,67 @@ describe('ResponsiveDataView', () => {
 				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
 				globalFilter=""
 				onGlobalFilterChange={createStateSetterMock<string>()}
-				cardRenderer={(row) => <span>{row.name}</span>}
 				onRowClick={handleRowClick}
 			/>,
 		);
 
-		fireEvent.click(screen.getByTestId('responsive-data-card'));
+		fireEvent.click(getRowByEmployeeName('Ada'));
 
 		expect(handleRowClick).toHaveBeenCalledTimes(1);
 		expect(handleRowClick).toHaveBeenCalledWith({ id: '1', name: 'Ada' });
+	});
+
+	it('does not open row details when clicking an interactive element inside the row', () => {
+		const handleRowClick = vi.fn();
+
+		render(
+			<DataTable
+				columns={columns}
+				data={[{ id: '1', name: 'Ada' }]}
+				sorting={sorting}
+				onSortingChange={createStateSetterMock<SortingState>()}
+				pagination={pagination}
+				onPaginationChange={createStateSetterMock<PaginationState>()}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
+				globalFilter=""
+				onGlobalFilterChange={createStateSetterMock<string>()}
+				onRowClick={handleRowClick}
+			/>,
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Abrir menu' }));
+
+		expect(handleRowClick).not.toHaveBeenCalled();
+	});
+
+	it('does not open row details while text is selected', () => {
+		const handleRowClick = vi.fn();
+		window.getSelection = vi.fn(
+			() =>
+				({
+					toString: () => 'Ada',
+				}) as unknown as Selection,
+		) as unknown as typeof window.getSelection;
+
+		render(
+			<DataTable
+				columns={columns}
+				data={[{ id: '1', name: 'Ada' }]}
+				sorting={sorting}
+				onSortingChange={createStateSetterMock<SortingState>()}
+				pagination={pagination}
+				onPaginationChange={createStateSetterMock<PaginationState>()}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
+				globalFilter=""
+				onGlobalFilterChange={createStateSetterMock<string>()}
+				onRowClick={handleRowClick}
+			/>
+		);
+
+		fireEvent.click(getRowByEmployeeName('Ada'));
+
+		expect(handleRowClick).not.toHaveBeenCalled();
 	});
 });

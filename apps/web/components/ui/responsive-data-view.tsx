@@ -36,6 +36,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { hasSelectedText, isInteractiveRowClickTarget } from '@/components/data-table/row-click-guards';
 
 const DEFAULT_PAGE_SIZES = [10, 20, 50];
 
@@ -195,6 +196,7 @@ export function ResponsiveDataView<TData, TValue>({
 	onRowSelectionChange,
 	enableRowSelection = false,
 	getRowId,
+	onRowClick,
 }: ResponsiveDataViewProps<TData, TValue>): React.ReactElement {
 	const isMobile = useIsMobile();
 	const t = useTranslations('DataTable');
@@ -233,6 +235,22 @@ export function ResponsiveDataView<TData, TValue>({
 	const currentPage = pagination.pageIndex + 1;
 	const mobileRows = table.getRowModel().rows;
 
+	/**
+	 * Executes the mobile card click action unless the user clicked an embedded
+	 * control or is selecting text.
+	 *
+	 * @param event - Card click event
+	 * @param row - Original row data
+	 * @returns Nothing
+	 */
+	const handleCardClick = (event: React.MouseEvent<HTMLDivElement>, row: TData): void => {
+		if (!onRowClick || isInteractiveRowClickTarget(event.target) || hasSelectedText()) {
+			return;
+		}
+
+		onRowClick(row);
+	};
+
 	if (!isMobile) {
 		return (
 			<DataTable
@@ -261,6 +279,7 @@ export function ResponsiveDataView<TData, TValue>({
 				onRowSelectionChange={onRowSelectionChange}
 				enableRowSelection={enableRowSelection}
 				getRowId={getRowId}
+				onRowClick={onRowClick}
 			/>
 		);
 	}
@@ -306,8 +325,11 @@ export function ResponsiveDataView<TData, TValue>({
 								<Card
 									key={getCardKey?.(row.original, index) ?? row.id}
 									data-testid="responsive-data-card"
+									onClick={(event) => handleCardClick(event, row.original)}
 									className={cn(
 										'overflow-hidden border-border/80 bg-card shadow-[var(--shadow-lg)]',
+										onRowClick &&
+											'cursor-pointer transition-colors hover:bg-muted/50',
 										cardClassName,
 									)}
 								>

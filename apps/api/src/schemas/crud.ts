@@ -242,6 +242,7 @@ export const updateEmployeeSchema = z.object({
 	status: employeeStatusEnum.optional(),
 	hireDate: z.coerce.date().nullable().optional(),
 	dailyPay: z.coerce.number().positive().optional(),
+	fiscalDailyPay: z.coerce.number().positive().nullable().optional(),
 	paymentFrequency: paymentFrequencyEnum.optional(),
 	employmentType: employmentTypeEnum.optional(),
 	isTrustEmployee: z.boolean().optional(),

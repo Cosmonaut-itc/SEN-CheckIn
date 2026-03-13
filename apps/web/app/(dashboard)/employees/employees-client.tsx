@@ -127,6 +127,8 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import { getFiscalDailyPaySubmissionError } from './employees-client.helpers';
+
 /**
  * Lazily loads the face enrollment dialog to reduce the initial bundle size.
  *
@@ -2399,16 +2401,14 @@ export function EmployeesPageClient(): React.ReactElement {
 			}
 			const paymentFrequency = value.paymentFrequency ?? 'MONTHLY';
 			const dailyPay = calculateDailyPayFromPeriodPay(parsedPeriodPay, paymentFrequency);
-			if (parsedFiscalDailyPay === undefined) {
-				toast.error(t('validation.fiscalDailyPay'));
-				return;
-			}
-			if (
-				parsedFiscalDailyPay !== null &&
-				canManageDualPayrollCompensation &&
-				parsedFiscalDailyPay >= dailyPay
-			) {
-				toast.error(t('validation.fiscalDailyPayLessThanDailyPay'));
+			const fiscalDailyPaySubmissionError = getFiscalDailyPaySubmissionError({
+				canManageDualPayrollCompensation,
+				dailyPay,
+				isEditMode,
+				parsedFiscalDailyPay,
+			});
+			if (fiscalDailyPaySubmissionError) {
+				toast.error(t(fiscalDailyPaySubmissionError));
 				return;
 			}
 			const resolvedUserIdForCreate =
@@ -5620,18 +5620,16 @@ export function EmployeesPageClient(): React.ReactElement {
 															onChange: ({ value }) => {
 																const parsed =
 																	parseOptionalPositiveCurrencyInput(value);
-																if (parsed === null) {
-																	return undefined;
-																}
-																if (parsed === undefined) {
-																	return t('validation.fiscalDailyPay');
-																}
-																if (parsed >= computedDailyPay) {
-																	return t(
-																		'validation.fiscalDailyPayLessThanDailyPay',
-																	);
-																}
-																return undefined;
+																const validationError =
+																	getFiscalDailyPaySubmissionError({
+																		canManageDualPayrollCompensation,
+																		dailyPay: computedDailyPay,
+																		isEditMode,
+																		parsedFiscalDailyPay: parsed,
+																	});
+																return validationError
+																	? t(validationError)
+																	: undefined;
 															},
 														}}
 													>

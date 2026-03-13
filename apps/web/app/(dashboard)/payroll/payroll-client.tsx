@@ -177,7 +177,9 @@ function aggregateDualPayrollSummary(
 ): { fiscalGrossTotal: number; complementTotal: number; totalRealTotal: number } {
 	return employees.reduce(
 		(acc, employee) => ({
-			fiscalGrossTotal: acc.fiscalGrossTotal + (employee.fiscalGrossPay ?? 0),
+			fiscalGrossTotal:
+				acc.fiscalGrossTotal +
+				(employee.fiscalGrossPay ?? employee.grossPay ?? employee.totalPay ?? 0),
 			complementTotal: acc.complementTotal + (employee.complementPay ?? 0),
 			totalRealTotal:
 				acc.totalRealTotal + (employee.totalRealPay ?? employee.totalPay ?? 0),

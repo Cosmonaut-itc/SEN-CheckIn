@@ -6,6 +6,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	getUserSession,
 	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
@@ -14,11 +15,13 @@ import {
 describe('payroll routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
+	let memberSession: Awaited<ReturnType<typeof getUserSession>>;
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 
 	beforeAll(async () => {
 		client = createTestClient();
 		adminSession = await getAdminSession();
+		memberSession = await getUserSession();
 		seed = await getSeedData();
 	});
 
@@ -117,7 +120,46 @@ describe('payroll routes (contract)', () => {
 				expect(employee.employeeName?.length).toBeGreaterThan(0);
 				expect(typeof employee.employeeCode).toBe('string');
 				expect(employee.employeeCode?.length).toBeGreaterThan(0);
+				expect('fiscalDailyPay' in employee).toBe(true);
+				expect('fiscalGrossPay' in employee).toBe(true);
+				expect('complementPay' in employee).toBe(true);
+				expect('totalRealPay' in employee).toBe(true);
 			}
+		}
+	});
+
+	it('redacts dual payroll fields from payroll run details for members', async () => {
+		const runId = seed.payrollRunId;
+		expect(runId).toBeDefined();
+		if (!runId) {
+			return;
+		}
+
+		const payrollRunRoutes = requireRoute(client.payroll.runs[runId], 'Payroll run route');
+		const response = await payrollRunRoutes.get({
+			$headers: { cookie: memberSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const detail = payload.data;
+		if (!detail || typeof detail !== 'object') {
+			throw new Error('Expected payroll run detail payload.');
+		}
+		const employees = (detail as { employees?: unknown[] }).employees;
+		if (!employees || !Array.isArray(employees)) {
+			throw new Error('Expected payroll run employees in detail response.');
+		}
+
+		for (const employee of employees) {
+			if (!employee || typeof employee !== 'object') {
+				throw new Error('Expected payroll run employee to be an object.');
+			}
+
+			expect('fiscalDailyPay' in employee).toBe(false);
+			expect('fiscalGrossPay' in employee).toBe(false);
+			expect('complementPay' in employee).toBe(false);
+			expect('totalRealPay' in employee).toBe(false);
 		}
 	});
 

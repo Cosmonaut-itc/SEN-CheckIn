@@ -11,6 +11,7 @@ import {
 	employeeIncapacity,
 	employeeSchedule,
 	location,
+	member,
 	organization,
 	overtimeAuthorization,
 	payrollRun,
@@ -49,6 +50,39 @@ import {
 	setEmployeeAuditSkip,
 } from '../services/employee-audit.js';
 import { buildErrorResponse } from '../utils/error-response.js';
+
+/**
+ * Checks whether the current caller can view dual payroll compensation data.
+ *
+ * @param args - Authorization context for the request
+ * @param args.authType - Authentication mechanism used by the request
+ * @param args.organizationId - Organization whose payroll is being accessed
+ * @param args.session - Active Better Auth session when using cookie auth
+ * @returns True when the caller is an organization owner/admin
+ */
+async function canViewDualPayrollCompensation(args: {
+	authType: 'session' | 'apiKey' | null;
+	organizationId: string;
+	session: { userId: string } | null;
+}): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+
+	const role = membership[0]?.role ?? null;
+	return role === 'owner' || role === 'admin';
+}
 
 /**
  * Calculates payroll for employees within the organization and period.
@@ -666,6 +700,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				set.status = 403;
 				return buildErrorResponse('You do not have access to this payroll run', 403);
 			}
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: record.organizationId,
+				session: session ?? null,
+			});
 
 			const organizationRows = await db
 				.select({ name: organization.name })
@@ -723,10 +762,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				hoursWorked: line.hoursWorked,
 				hourlyPay: line.hourlyPay,
 				totalPay: line.totalPay,
-				fiscalDailyPay: line.fiscalDailyPay,
-				fiscalGrossPay: line.fiscalGrossPay,
-				complementPay: line.complementPay,
-				totalRealPay: line.totalRealPay,
+				...(includeDualPayrollCompensation
+					? {
+							fiscalDailyPay: line.fiscalDailyPay,
+							fiscalGrossPay: line.fiscalGrossPay,
+							complementPay: line.complementPay,
+							totalRealPay: line.totalRealPay,
+						}
+					: {}),
 				normalHours: line.normalHours,
 				normalPay: line.normalPay,
 				overtimeDoubleHours: line.overtimeDoubleHours,

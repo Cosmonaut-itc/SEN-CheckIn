@@ -336,12 +336,6 @@ function calculateSeventhDayPay(args: {
 		!saturdayIsScheduled
 	) {
 		requiredWorkedDayKeys.push(saturdayDate);
-	}
-	if (
-		countSaturdayAsWorkedForSeventhDay &&
-		saturdayDate &&
-		!saturdayIsScheduled
-	) {
 		resolvedWorkedDayKeys.add(saturdayDate);
 	}
 	const completedAllScheduledDays = requiredWorkedDayKeys.every((key) =>

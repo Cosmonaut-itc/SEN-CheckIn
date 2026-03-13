@@ -92,6 +92,14 @@ export {
 	type UpdateOvertimeAuthorizationInput,
 } from './overtime-authorizations';
 
+// Export employee deduction actions and types (except MutationResult)
+export {
+	createEmployeeDeductionAction,
+	updateEmployeeDeductionAction,
+	type CreateEmployeeDeductionInput,
+	type UpdateEmployeeDeductionInput,
+} from './employee-deductions';
+
 // Export employee Rekognition actions and types (except MutationResult)
 export {
 	createRekognitionUser,

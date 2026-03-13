@@ -142,6 +142,30 @@ export interface PayrollHolidayListQueryParams extends Record<string, unknown> {
  */
 export type OvertimeAuthorizationStatus = 'PENDING' | 'ACTIVE' | 'CANCELLED';
 
+export type EmployeeDeductionStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+export type EmployeeDeductionType =
+	| 'INFONAVIT'
+	| 'ALIMONY'
+	| 'FONACOT'
+	| 'LOAN'
+	| 'UNION_FEE'
+	| 'ADVANCE'
+	| 'OTHER';
+
+export interface EmployeeDeductionListQueryParams extends Record<string, unknown> {
+	organizationId?: string;
+	employeeId: string;
+	status?: EmployeeDeductionStatus;
+	type?: EmployeeDeductionType;
+}
+
+export interface OrganizationDeductionListQueryParams extends ListQueryParams {
+	organizationId?: string;
+	employeeId?: string;
+	status?: EmployeeDeductionStatus;
+	type?: EmployeeDeductionType;
+}
+
 /**
  * Query parameters for overtime authorizations list.
  */
@@ -604,6 +628,13 @@ export const queryKeys = {
 			queryKeyConstructor(['payroll', 'runs'] as const, params),
 		runDetail: (id: string) => ['payroll', 'runs', id] as const,
 	},
+	employeeDeductions: {
+		all: ['employeeDeductions'] as const,
+		employee: (params: EmployeeDeductionListQueryParams) =>
+			queryKeyConstructor(['employeeDeductions', 'employee'] as const, params),
+		organization: (params?: OrganizationDeductionListQueryParams) =>
+			queryKeyConstructor(['employeeDeductions', 'organization'] as const, params),
+	},
 	overtimeAuthorizations: {
 		all: ['overtimeAuthorizations'] as const,
 		list: (params?: OvertimeAuthorizationQueryParams) =>
@@ -864,6 +895,11 @@ export const mutationKeys = {
 	payroll: {
 		calculate: ['payroll', 'calculate'] as const,
 		process: ['payroll', 'process'] as const,
+	},
+	employeeDeductions: {
+		create: ['employeeDeductions', 'create'] as const,
+		update: ['employeeDeductions', 'update'] as const,
+		cancel: ['employeeDeductions', 'cancel'] as const,
 	},
 	payrollSettings: {
 		update: ['payrollSettings', 'update'] as const,

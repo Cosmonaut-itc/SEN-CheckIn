@@ -50,9 +50,13 @@ import type {
 	AttendanceQueryParams,
 	CalendarQueryParams,
 	DisciplinaryKpisQueryParams,
+	EmployeeDeductionListQueryParams,
+	EmployeeDeductionStatus,
+	EmployeeDeductionType,
 	DisciplinaryMeasuresQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
+	OrganizationDeductionListQueryParams,
 	OvertimeAuthorizationQueryParams,
 	OrganizationAllQueryParams,
 	ScheduleExceptionQueryParams,
@@ -2592,7 +2596,8 @@ export interface PayrollWarning {
 		| 'OVERTIME_WEEKLY_EXCEEDED'
 		| 'OVERTIME_WEEKLY_DAYS_EXCEEDED'
 		| 'BELOW_MINIMUM_WAGE'
-		| 'LUNCH_BREAK_AUTO_DEDUCTED';
+		| 'LUNCH_BREAK_AUTO_DEDUCTED'
+		| 'DEDUCTIONS_EXCEED_NET_PAY';
 	message: string;
 	severity: 'warning' | 'error';
 }
@@ -2675,6 +2680,34 @@ export interface PayrollIncapacitySummary {
 	};
 }
 
+export interface PayrollDeductionBreakdownItem {
+	deductionId: string;
+	type: EmployeeDeductionType;
+	label: string;
+	calculationMethod:
+		| 'PERCENTAGE_SBC'
+		| 'PERCENTAGE_NET'
+		| 'PERCENTAGE_GROSS'
+		| 'FIXED_AMOUNT'
+		| 'VSM_FACTOR';
+	frequency: 'RECURRING' | 'ONE_TIME' | 'INSTALLMENTS';
+	configuredValue: number;
+	baseAmount: number;
+	calculatedAmount: number;
+	appliedAmount: number;
+	applicableDays: number;
+	totalInstallments: number | null;
+	completedInstallmentsBefore: number;
+	completedInstallmentsAfter: number;
+	remainingAmountBefore: number | null;
+	remainingAmountAfter: number | null;
+	statusBefore: EmployeeDeductionStatus;
+	statusAfter: EmployeeDeductionStatus;
+	cappedByNetPay: boolean;
+	referenceNumber: string | null;
+	satDeductionCode: string | null;
+}
+
 export interface PayrollCalculationEmployee {
 	employeeId: string;
 	name: string;
@@ -2703,6 +2736,8 @@ export interface PayrollCalculationEmployee {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
+	deductionsBreakdown: PayrollDeductionBreakdownItem[];
+	totalDeductions: number;
 	totalPay: number;
 	grossPay: number;
 	bases: PayrollTaxBases;
@@ -2771,6 +2806,8 @@ export interface PayrollRunEmployee {
 	vacationPremiumAmount: number;
 	lunchBreakAutoDeductedDays: number;
 	lunchBreakAutoDeductedMinutes: number;
+	deductionsBreakdown: PayrollDeductionBreakdownItem[];
+	totalDeductions: number;
 	taxBreakdown?: {
 		grossPay: number;
 		seventhDayPay: number;
@@ -2785,6 +2822,221 @@ export interface PayrollRunEmployee {
 	periodEnd: Date;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+export interface EmployeeDeduction {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	employeeName?: string;
+	type: EmployeeDeductionType;
+	label: string;
+	calculationMethod:
+		| 'PERCENTAGE_SBC'
+		| 'PERCENTAGE_NET'
+		| 'PERCENTAGE_GROSS'
+		| 'FIXED_AMOUNT'
+		| 'VSM_FACTOR';
+	value: number;
+	frequency: 'RECURRING' | 'ONE_TIME' | 'INSTALLMENTS';
+	totalInstallments: number | null;
+	completedInstallments: number;
+	totalAmount: number | null;
+	remainingAmount: number | null;
+	status: EmployeeDeductionStatus;
+	startDateKey: string;
+	endDateKey: string | null;
+	referenceNumber: string | null;
+	satDeductionCode: string | null;
+	notes: string | null;
+	createdByUserId: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+type PayrollDeductionBreakdownItemPayload = Omit<
+	PayrollDeductionBreakdownItem,
+	| 'configuredValue'
+	| 'baseAmount'
+	| 'calculatedAmount'
+	| 'appliedAmount'
+	| 'remainingAmountBefore'
+	| 'remainingAmountAfter'
+> & {
+	configuredValue?: number | string;
+	baseAmount?: number | string;
+	calculatedAmount?: number | string;
+	appliedAmount?: number | string;
+	remainingAmountBefore?: number | string | null;
+	remainingAmountAfter?: number | string | null;
+};
+
+export type EmployeeDeductionPayload = Omit<
+	EmployeeDeduction,
+	'value' | 'totalAmount' | 'remainingAmount' | 'createdAt' | 'updatedAt'
+> & {
+	value?: number | string;
+	totalAmount?: number | string | null;
+	remainingAmount?: number | string | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+/**
+ * Normalizes deduction breakdown numeric fields.
+ *
+ * @param record - Raw deduction breakdown payload
+ * @returns Normalized deduction breakdown
+ */
+function normalizePayrollDeductionBreakdownItem(
+	record: PayrollDeductionBreakdownItemPayload,
+): PayrollDeductionBreakdownItem {
+	return {
+		...record,
+		configuredValue: Number(record.configuredValue ?? 0),
+		baseAmount: Number(record.baseAmount ?? 0),
+		calculatedAmount: Number(record.calculatedAmount ?? 0),
+		appliedAmount: Number(record.appliedAmount ?? 0),
+		remainingAmountBefore:
+			record.remainingAmountBefore === null || record.remainingAmountBefore === undefined
+				? null
+				: Number(record.remainingAmountBefore),
+		remainingAmountAfter:
+			record.remainingAmountAfter === null || record.remainingAmountAfter === undefined
+				? null
+				: Number(record.remainingAmountAfter),
+	};
+}
+
+/**
+ * Normalizes employee deduction payload values.
+ *
+ * @param record - Raw employee deduction payload
+ * @returns Normalized employee deduction record
+ */
+export function normalizeEmployeeDeduction(record: EmployeeDeductionPayload): EmployeeDeduction {
+	return {
+		...record,
+		value: Number(record.value ?? 0),
+		totalAmount:
+			record.totalAmount === null || record.totalAmount === undefined
+				? null
+				: Number(record.totalAmount),
+		remainingAmount:
+			record.remainingAmount === null || record.remainingAmount === undefined
+				? null
+				: Number(record.remainingAmount),
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
+}
+
+type PayrollCalculationEmployeePayload = Omit<
+	PayrollCalculationEmployee,
+	| 'dailyPay'
+	| 'hourlyPay'
+	| 'seventhDayPay'
+	| 'hoursWorked'
+	| 'expectedHours'
+	| 'normalHours'
+	| 'overtimeDoubleHours'
+	| 'overtimeTripleHours'
+	| 'payableOvertimeDoubleHours'
+	| 'payableOvertimeTripleHours'
+	| 'authorizedOvertimeHours'
+	| 'unauthorizedOvertimeHours'
+	| 'sundayHoursWorked'
+	| 'normalPay'
+	| 'overtimeDoublePay'
+	| 'overtimeTriplePay'
+	| 'sundayPremiumAmount'
+	| 'mandatoryRestDayPremiumAmount'
+	| 'vacationDaysPaid'
+	| 'vacationPayAmount'
+	| 'vacationPremiumAmount'
+	| 'lunchBreakAutoDeductedDays'
+	| 'lunchBreakAutoDeductedMinutes'
+	| 'totalDeductions'
+	| 'totalPay'
+	| 'grossPay'
+	| 'netPay'
+	| 'companyCost'
+	| 'deductionsBreakdown'
+> & {
+	dailyPay?: number | string;
+	hourlyPay?: number | string;
+	seventhDayPay?: number | string;
+	hoursWorked?: number | string;
+	expectedHours?: number | string;
+	normalHours?: number | string;
+	overtimeDoubleHours?: number | string;
+	overtimeTripleHours?: number | string;
+	payableOvertimeDoubleHours?: number | string;
+	payableOvertimeTripleHours?: number | string;
+	authorizedOvertimeHours?: number | string;
+	unauthorizedOvertimeHours?: number | string;
+	sundayHoursWorked?: number | string;
+	normalPay?: number | string;
+	overtimeDoublePay?: number | string;
+	overtimeTriplePay?: number | string;
+	sundayPremiumAmount?: number | string;
+	mandatoryRestDayPremiumAmount?: number | string;
+	vacationDaysPaid?: number | string;
+	vacationPayAmount?: number | string;
+	vacationPremiumAmount?: number | string;
+	lunchBreakAutoDeductedDays?: number | string;
+	lunchBreakAutoDeductedMinutes?: number | string;
+	totalDeductions?: number | string;
+	totalPay?: number | string;
+	grossPay?: number | string;
+	netPay?: number | string;
+	companyCost?: number | string;
+	deductionsBreakdown?: PayrollDeductionBreakdownItemPayload[];
+};
+
+/**
+ * Normalizes a payroll calculation employee payload.
+ *
+ * @param record - Raw payroll calculation employee payload
+ * @returns Normalized payroll calculation employee
+ */
+function normalizePayrollCalculationEmployee(
+	record: PayrollCalculationEmployeePayload,
+): PayrollCalculationEmployee {
+	return {
+		...record,
+		dailyPay: Number(record.dailyPay ?? 0),
+		hourlyPay: Number(record.hourlyPay ?? 0),
+		seventhDayPay: Number(record.seventhDayPay ?? 0),
+		hoursWorked: Number(record.hoursWorked ?? 0),
+		expectedHours: Number(record.expectedHours ?? 0),
+		normalHours: Number(record.normalHours ?? 0),
+		overtimeDoubleHours: Number(record.overtimeDoubleHours ?? 0),
+		overtimeTripleHours: Number(record.overtimeTripleHours ?? 0),
+		payableOvertimeDoubleHours: Number(record.payableOvertimeDoubleHours ?? 0),
+		payableOvertimeTripleHours: Number(record.payableOvertimeTripleHours ?? 0),
+		authorizedOvertimeHours: Number(record.authorizedOvertimeHours ?? 0),
+		unauthorizedOvertimeHours: Number(record.unauthorizedOvertimeHours ?? 0),
+		sundayHoursWorked: Number(record.sundayHoursWorked ?? 0),
+		normalPay: Number(record.normalPay ?? 0),
+		overtimeDoublePay: Number(record.overtimeDoublePay ?? 0),
+		overtimeTriplePay: Number(record.overtimeTriplePay ?? 0),
+		sundayPremiumAmount: Number(record.sundayPremiumAmount ?? 0),
+		mandatoryRestDayPremiumAmount: Number(record.mandatoryRestDayPremiumAmount ?? 0),
+		vacationDaysPaid: Number(record.vacationDaysPaid ?? 0),
+		vacationPayAmount: Number(record.vacationPayAmount ?? 0),
+		vacationPremiumAmount: Number(record.vacationPremiumAmount ?? 0),
+		lunchBreakAutoDeductedDays: Number(record.lunchBreakAutoDeductedDays ?? 0),
+		lunchBreakAutoDeductedMinutes: Number(record.lunchBreakAutoDeductedMinutes ?? 0),
+		totalDeductions: Number(record.totalDeductions ?? 0),
+		totalPay: Number(record.totalPay ?? 0),
+		grossPay: Number(record.grossPay ?? 0),
+		netPay: Number(record.netPay ?? 0),
+		companyCost: Number(record.companyCost ?? 0),
+		deductionsBreakdown: (record.deductionsBreakdown ?? []).map(
+			normalizePayrollDeductionBreakdownItem,
+		),
+	};
 }
 
 export interface OvertimeAuthorization {
@@ -3563,7 +3815,13 @@ export async function calculatePayroll(params: {
 	if (!payload?.data) {
 		throw new Error('Failed to calculate payroll');
 	}
-	return payload.data as PayrollCalculationResult;
+	const data = payload.data as PayrollCalculationResult & {
+		employees?: PayrollCalculationEmployeePayload[];
+	};
+	return {
+		...data,
+		employees: (data.employees ?? []).map(normalizePayrollCalculationEmployee),
+	};
 }
 
 export async function processPayroll(params: {
@@ -3597,7 +3855,12 @@ export async function processPayroll(params: {
 			: payload.run.totalAmount;
 	return {
 		run: { ...payload.run, totalAmount: runTotalAmount ?? 0 },
-		calculation: payload.calculation,
+		calculation: {
+			...payload.calculation,
+			employees: (payload.calculation.employees as PayrollCalculationEmployeePayload[]).map(
+				normalizePayrollCalculationEmployee,
+			),
+		},
 	};
 }
 
@@ -3666,6 +3929,96 @@ export async function fetchOvertimeAuthorizationsList(
 
 	return {
 		data: rows.map(normalizeOvertimeAuthorization),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
+ * Fetches deductions for a single employee.
+ *
+ * @param params - Organization, employee, and optional filter params
+ * @returns Employee deductions list
+ */
+export async function fetchEmployeeDeductionsList(
+	params?: EmployeeDeductionListQueryParams,
+): Promise<EmployeeDeduction[]> {
+	if (!params?.organizationId || !params.employeeId) {
+		return [];
+	}
+
+	const response = await api.organizations[params.organizationId].employees[
+		params.employeeId
+	].deductions.get({
+		$query: {
+			status: params.status,
+			type: params.type,
+		},
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch employee deductions:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch employee deductions');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeDeductionPayload[] | undefined) ?? [];
+	return rows.map(normalizeEmployeeDeduction);
+}
+
+/**
+ * Fetches organization-wide deductions with optional filters.
+ *
+ * @param params - Organization and filter params
+ * @returns Paginated deductions response
+ */
+export async function fetchOrganizationDeductionsList(
+	params?: OrganizationDeductionListQueryParams,
+): Promise<PaginatedResponse<EmployeeDeduction>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: clampPaginationLimit(params?.limit, 20),
+				offset: clampPaginationOffset(params?.offset),
+			},
+		};
+	}
+
+	const query = {
+		limit: clampPaginationLimit(params.limit, 20),
+		offset: clampPaginationOffset(params.offset),
+		employeeId: params.employeeId,
+		status: params.status,
+		type: params.type,
+	};
+	const response = await api.organizations[params.organizationId].deductions.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch organization deductions:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch organization deductions');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeDeductionPayload[] | undefined) ?? [];
+	return {
+		data: rows.map(normalizeEmployeeDeduction),
 		pagination: payload?.pagination ?? {
 			total: 0,
 			limit: query.limit,
@@ -3752,6 +4105,8 @@ export async function fetchPayrollRunDetail(
 						vacationPremiumAmount?: number | string;
 						lunchBreakAutoDeductedDays?: number | string;
 						lunchBreakAutoDeductedMinutes?: number | string;
+						totalDeductions?: number | string;
+						deductionsBreakdown?: PayrollDeductionBreakdownItemPayload[];
 						periodStart: string | Date;
 						periodEnd: string | Date;
 						createdAt: string | Date;
@@ -3794,6 +4149,10 @@ export async function fetchPayrollRunDetail(
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
 		lunchBreakAutoDeductedDays: Number(employee.lunchBreakAutoDeductedDays ?? 0),
 		lunchBreakAutoDeductedMinutes: Number(employee.lunchBreakAutoDeductedMinutes ?? 0),
+		totalDeductions: Number(employee.totalDeductions ?? 0),
+		deductionsBreakdown: (employee.deductionsBreakdown ?? []).map(
+			normalizePayrollDeductionBreakdownItem,
+		),
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),

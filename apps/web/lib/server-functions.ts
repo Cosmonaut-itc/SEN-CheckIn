@@ -23,10 +23,12 @@ import {
 	type CalendarQueryParams,
 	type DisciplinaryKpisQueryParams,
 	type DisciplinaryMeasuresQueryParams,
+	type EmployeeDeductionListQueryParams,
 	type IncapacityQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
 	type OvertimeAuthorizationQueryParams,
+	type OrganizationDeductionListQueryParams,
 	type OrganizationAllQueryParams,
 	type ScheduleExceptionQueryParams,
 	type ScheduleTemplateQueryParams,
@@ -41,12 +43,14 @@ import {
 	fetchDevicesListServer,
 	fetchDisciplinaryKpisServer,
 	fetchDisciplinaryMeasuresServer,
+	fetchEmployeeDeductionsListServer,
 	fetchEmployeesListServer,
 	fetchIncapacitiesListServer,
 	fetchJobPositionsListServer,
 	fetchLocationsListServer,
 	fetchAllOrganizationsServer,
 	fetchOvertimeAuthorizationsListServer,
+	fetchOrganizationDeductionsListServer,
 	fetchOrganizationMembersServer,
 	fetchOrganizationsServer,
 	fetchPayrollRunsServer,
@@ -146,6 +150,52 @@ export function prefetchOvertimeAuthorizationsList(
 		> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchOvertimeAuthorizationsListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches employee deductions for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Employee-scoped filters
+ * @returns Nothing
+ */
+export function prefetchEmployeeDeductionsList(
+	queryClient: QueryClient,
+	params?: EmployeeDeductionListQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: params
+			? queryKeys.employeeDeductions.employee(params)
+			: queryKeys.employeeDeductions.all,
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchEmployeeDeductionsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchEmployeeDeductionsListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches organization-wide deductions for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Organization filters and pagination params
+ * @returns Nothing
+ */
+export function prefetchOrganizationDeductionsList(
+	queryClient: QueryClient,
+	params?: OrganizationDeductionListQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.employeeDeductions.organization(params),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchOrganizationDeductionsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchOrganizationDeductionsListServer(cookieHeader, params);
 		},
 	});
 }

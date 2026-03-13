@@ -58,6 +58,7 @@ export const payrollSettingsSchema = z.object({
 	aguinaldoDays: z.coerce.number().int().min(0).optional(),
 	vacationPremiumRate: z.coerce.number().min(0.25).max(1).optional(),
 	enableSeventhDayPay: z.boolean().optional(),
+	enableDualPayroll: z.boolean().optional(),
 	autoDeductLunchBreak: z.boolean().optional(),
 	lunchBreakMinutes: z.coerce.number().int().min(15).max(120).optional(),
 	lunchBreakThresholdHours: z.coerce.number().min(4).max(10).optional(),

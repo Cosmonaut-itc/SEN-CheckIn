@@ -66,6 +66,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: 15,
 				vacationPremiumRate: '0.25',
 				enableSeventhDayPay: false,
+				enableDualPayroll: false,
 				autoDeductLunchBreak: false,
 				lunchBreakMinutes: 60,
 				lunchBreakThresholdHours: '6',
@@ -142,6 +143,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.vacationPremiumRate ?? existing[0]?.vacationPremiumRate ?? 0.25;
 			const resolvedEnableSeventhDayPay =
 				body.enableSeventhDayPay ?? existing[0]?.enableSeventhDayPay ?? false;
+			const resolvedEnableDualPayroll =
+				body.enableDualPayroll ?? existing[0]?.enableDualPayroll ?? false;
 			const resolvedAutoDeductLunchBreak =
 				body.autoDeductLunchBreak ?? existing[0]?.autoDeductLunchBreak ?? false;
 			const resolvedLunchBreakMinutes =
@@ -192,6 +195,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: resolvedAguinaldoDays,
 				vacationPremiumRate: resolvedVacationPremiumRateValue,
 				enableSeventhDayPay: resolvedEnableSeventhDayPay,
+				enableDualPayroll: resolvedEnableDualPayroll,
 				autoDeductLunchBreak: resolvedAutoDeductLunchBreak,
 				lunchBreakMinutes: resolvedLunchBreakMinutes,
 				lunchBreakThresholdHours: resolvedLunchBreakThresholdHoursValue,
@@ -222,6 +226,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						aguinaldoDays: updatePayload.aguinaldoDays,
 						vacationPremiumRate: updatePayload.vacationPremiumRate,
 						enableSeventhDayPay: updatePayload.enableSeventhDayPay,
+						enableDualPayroll: updatePayload.enableDualPayroll,
 						autoDeductLunchBreak: updatePayload.autoDeductLunchBreak,
 						lunchBreakMinutes: updatePayload.lunchBreakMinutes,
 						lunchBreakThresholdHours: updatePayload.lunchBreakThresholdHours,

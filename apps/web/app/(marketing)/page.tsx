@@ -421,8 +421,11 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 				<div className="pointer-events-none absolute -left-20 top-0 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,rgba(31,111,107,0.25)_0%,transparent_70%)] blur-3xl" />
 				<div className="pointer-events-none absolute -right-20 bottom-0 h-60 w-60 rounded-full bg-[radial-gradient(circle_at_center,rgba(200,116,61,0.2)_0%,transparent_70%)] blur-3xl" />
 
-				<div className="relative mx-auto w-full max-w-6xl gap-12 px-4 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-					<Reveal className="space-y-5">
+				<div
+					data-testid="landing-trust-section"
+					className="relative mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 min-[1025px]:grid min-[1025px]:grid-cols-[1.1fr_0.9fr] min-[1025px]:items-center"
+				>
+					<Reveal dataTestId="landing-trust-copy" className="space-y-5">
 						<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--accent-secondary-light)]">
 							{t('sections.security.kicker')}
 						</p>
@@ -436,8 +439,12 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 						<p className="text-sm text-[color:var(--text-muted)] dark:text-[color:var(--text-tertiary)]">{privacyNote}</p>
 					</Reveal>
 
-					<Reveal className="mt-12 lg:mt-0" delay={0.1}>
-						<CardStack items={testimonials} className="mx-auto lg:mx-0" />
+					<Reveal
+						dataTestId="landing-trust-testimonials"
+						className="mt-12 min-[1025px]:mt-0"
+						delay={0.1}
+					>
+						<CardStack items={testimonials} className="mx-auto w-full max-w-full min-[1025px]:mx-0 min-[1025px]:max-w-md" />
 					</Reveal>
 				</div>
 			</section>

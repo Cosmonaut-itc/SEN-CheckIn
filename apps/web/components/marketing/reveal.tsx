@@ -16,6 +16,8 @@ export interface RevealProps {
 	delay?: number;
 	/** Vertical offset in pixels for the initial state */
 	yOffset?: number;
+	/** Optional test id applied to the wrapper. */
+	dataTestId?: string;
 }
 
 /**
@@ -29,6 +31,7 @@ export function Reveal({
 	className,
 	delay = 0,
 	yOffset = 18,
+	dataTestId,
 }: RevealProps): React.ReactElement {
 	const prefersReducedMotion = useReducedMotion();
 	const initialState = prefersReducedMotion ? { opacity: 1, y: 0 } : { opacity: 0, y: yOffset };
@@ -41,6 +44,7 @@ export function Reveal({
 			whileInView={{ opacity: 1, y: 0 }}
 			transition={transition}
 			viewport={{ once: true, amount: 0.3 }}
+			data-testid={dataTestId}
 		>
 			{children}
 		</motion.div>

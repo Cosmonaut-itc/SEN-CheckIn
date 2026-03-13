@@ -54,6 +54,8 @@ export interface ResponsiveDataViewProps<TData, TValue> extends DataTableProps<T
 	cardClassName?: string;
 }
 
+type ResponsiveMobileDataViewProps<TData, TValue> = ResponsiveDataViewProps<TData, TValue>;
+
 type ResponsiveToolbarProps = {
 	globalFilter: string;
 	onGlobalFilterChange: React.Dispatch<React.SetStateAction<string>>;
@@ -199,6 +201,114 @@ export function ResponsiveDataView<TData, TValue>({
 	onRowClick,
 }: ResponsiveDataViewProps<TData, TValue>): React.ReactElement {
 	const isMobile = useIsMobile();
+
+	if (!isMobile) {
+		return (
+			<DataTable
+				columns={columns}
+				data={data}
+				sorting={sorting}
+				onSortingChange={onSortingChange}
+				pagination={pagination}
+				onPaginationChange={onPaginationChange}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={onColumnFiltersChange}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={onGlobalFilterChange}
+				manualPagination={manualPagination}
+				manualFiltering={manualFiltering}
+				rowCount={rowCount}
+				showToolbar={showToolbar}
+				showGlobalFilter={showGlobalFilter}
+				globalFilterPlaceholder={globalFilterPlaceholder}
+				facetedFilters={facetedFilters}
+				emptyState={emptyState}
+				isLoading={isLoading}
+				pageSizeOptions={pageSizeOptions}
+				className={className}
+				rowSelection={rowSelection}
+				onRowSelectionChange={onRowSelectionChange}
+				enableRowSelection={enableRowSelection}
+				getRowId={getRowId}
+				onRowClick={onRowClick}
+			/>
+		);
+	}
+
+	return (
+		<ResponsiveMobileDataView
+			cardRenderer={cardRenderer}
+			getCardKey={getCardKey}
+			cardListClassName={cardListClassName}
+			cardClassName={cardClassName}
+			columns={columns}
+			data={data}
+			sorting={sorting}
+			onSortingChange={onSortingChange}
+			pagination={pagination}
+			onPaginationChange={onPaginationChange}
+			columnFilters={columnFilters}
+			onColumnFiltersChange={onColumnFiltersChange}
+			globalFilter={globalFilter}
+			onGlobalFilterChange={onGlobalFilterChange}
+			manualPagination={manualPagination}
+			manualFiltering={manualFiltering}
+			rowCount={rowCount}
+			showToolbar={showToolbar}
+			showGlobalFilter={showGlobalFilter}
+			globalFilterPlaceholder={globalFilterPlaceholder}
+			facetedFilters={facetedFilters}
+			emptyState={emptyState}
+			isLoading={isLoading}
+			pageSizeOptions={pageSizeOptions}
+			className={className}
+			rowSelection={rowSelection}
+			onRowSelectionChange={onRowSelectionChange}
+			enableRowSelection={enableRowSelection}
+			getRowId={getRowId}
+			onRowClick={onRowClick}
+		/>
+	);
+}
+
+/**
+ * Renders the mobile card variant backed by a single TanStack table instance.
+ *
+ * @param props - Component props
+ * @returns Mobile data view element
+ */
+function ResponsiveMobileDataView<TData, TValue>({
+	cardRenderer,
+	getCardKey,
+	cardListClassName,
+	cardClassName,
+	columns,
+	data,
+	sorting,
+	onSortingChange,
+	pagination,
+	onPaginationChange,
+	columnFilters,
+	onColumnFiltersChange,
+	globalFilter,
+	onGlobalFilterChange,
+	manualPagination = false,
+	manualFiltering = false,
+	rowCount,
+	showToolbar,
+	showGlobalFilter = true,
+	globalFilterPlaceholder,
+	facetedFilters,
+	emptyState,
+	isLoading = false,
+	pageSizeOptions,
+	className,
+	rowSelection,
+	onRowSelectionChange,
+	enableRowSelection = false,
+	getRowId,
+	onRowClick,
+}: ResponsiveMobileDataViewProps<TData, TValue>): React.ReactElement {
 	const t = useTranslations('DataTable');
 	const shouldShowToolbar =
 		showToolbar ?? Boolean(showGlobalFilter || (facetedFilters && facetedFilters.length > 0));
@@ -234,6 +344,7 @@ export function ResponsiveDataView<TData, TValue>({
 	const pageCount = Math.max(table.getPageCount(), 1);
 	const currentPage = pagination.pageIndex + 1;
 	const mobileRows = table.getRowModel().rows;
+	const canSelectRows = enableRowSelection && Boolean(onRowSelectionChange);
 
 	/**
 	 * Executes the mobile card click action unless the user clicked an embedded
@@ -250,39 +361,6 @@ export function ResponsiveDataView<TData, TValue>({
 
 		onRowClick(row);
 	};
-
-	if (!isMobile) {
-		return (
-			<DataTable
-				columns={columns}
-				data={data}
-				sorting={sorting}
-				onSortingChange={onSortingChange}
-				pagination={pagination}
-				onPaginationChange={onPaginationChange}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={onColumnFiltersChange}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={onGlobalFilterChange}
-				manualPagination={manualPagination}
-				manualFiltering={manualFiltering}
-				rowCount={rowCount}
-				showToolbar={showToolbar}
-				showGlobalFilter={showGlobalFilter}
-				globalFilterPlaceholder={globalFilterPlaceholder}
-				facetedFilters={facetedFilters}
-				emptyState={emptyState}
-				isLoading={isLoading}
-				pageSizeOptions={pageSizeOptions}
-				className={className}
-				rowSelection={rowSelection}
-				onRowSelectionChange={onRowSelectionChange}
-				enableRowSelection={enableRowSelection}
-				getRowId={getRowId}
-				onRowClick={onRowClick}
-			/>
-		);
-	}
 
 	return (
 		<div
@@ -328,12 +406,26 @@ export function ResponsiveDataView<TData, TValue>({
 									onClick={(event) => handleCardClick(event, row.original)}
 									className={cn(
 										'overflow-hidden border-border/80 bg-card shadow-[var(--shadow-lg)]',
+										row.getIsSelected() &&
+											'border-[var(--accent-primary)] bg-[var(--accent-primary-bg)]',
 										onRowClick &&
 											'cursor-pointer transition-colors hover:bg-muted/50',
 										cardClassName,
 									)}
 								>
 									<CardContent className="p-4">
+										{canSelectRows ? (
+											<div className="mb-3 flex justify-end">
+												<input
+													type="checkbox"
+													className="h-4 w-4 accent-primary"
+													checked={row.getIsSelected()}
+													onChange={row.getToggleSelectedHandler()}
+													onClick={(event) => event.stopPropagation()}
+													aria-label={t('selection.selectRow')}
+												/>
+											</div>
+										) : null}
 										{cardRenderer(row.original)}
 									</CardContent>
 								</Card>

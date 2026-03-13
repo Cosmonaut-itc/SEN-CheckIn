@@ -119,6 +119,7 @@ export function CalendarView({
 	const isMobile = useIsMobile();
 	const [hasHydrated, setHasHydrated] = useState<boolean>(false);
 	const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
+	const activeViewMode = isMobile ? 'week' : viewMode;
 	const [selectedLocationId, setSelectedLocationId] = useState<string>('');
 	const [referenceDate, setReferenceDate] = useState<Date>(() => {
 		const start = new Date(initialStartDate);
@@ -160,10 +161,10 @@ export function CalendarView({
 	}, [employees, effectiveLocationId]);
 
 	const range = useMemo(() => {
-		return viewMode === 'week'
+		return activeViewMode === 'week'
 			? computeWeekRange(referenceDate, weekStartDay ?? 1)
 			: computeMonthRange(referenceDate);
-	}, [referenceDate, viewMode, weekStartDay]);
+	}, [activeViewMode, referenceDate, weekStartDay]);
 	const mobileWeekRange = useMemo(
 		() => computeWeekRange(referenceDate, weekStartDay ?? 1),
 		[referenceDate, weekStartDay],
@@ -221,7 +222,7 @@ export function CalendarView({
 		setReferenceDate((current) => {
 			const currentCalendar = toUtcCalendarDateLocal(current);
 			const nextCalendar =
-				viewMode === 'week'
+				activeViewMode === 'week'
 					? addWeeks(currentCalendar, -1)
 					: addMonths(currentCalendar, -1);
 			return toUtcMidnight(nextCalendar);
@@ -235,7 +236,9 @@ export function CalendarView({
 		setReferenceDate((current) => {
 			const currentCalendar = toUtcCalendarDateLocal(current);
 			const nextCalendar =
-				viewMode === 'week' ? addWeeks(currentCalendar, 1) : addMonths(currentCalendar, 1);
+				activeViewMode === 'week'
+					? addWeeks(currentCalendar, 1)
+					: addMonths(currentCalendar, 1);
 			return toUtcMidnight(nextCalendar);
 		});
 	};
@@ -259,24 +262,26 @@ export function CalendarView({
 	return (
 		<div className="space-y-4">
 			<div className="grid gap-3 min-[1025px]:grid-cols-[auto_auto] min-[1025px]:items-center min-[1025px]:justify-between">
-				<div className="grid grid-cols-2 gap-2 min-[1025px]:inline-flex">
-					<Button
-						variant={viewMode === 'week' ? 'default' : 'outline'}
-						size="sm"
-						className="min-h-11"
-						onClick={() => setViewMode('week')}
-					>
-						{t('calendar.view.week')}
-					</Button>
-					<Button
-						variant={viewMode === 'month' ? 'default' : 'outline'}
-						size="sm"
-						className="min-h-11"
-						onClick={() => setViewMode('month')}
-					>
-						{t('calendar.view.month')}
-					</Button>
-				</div>
+				{isMobile ? null : (
+					<div className="grid grid-cols-2 gap-2 min-[1025px]:inline-flex">
+						<Button
+							variant={viewMode === 'week' ? 'default' : 'outline'}
+							size="sm"
+							className="min-h-11"
+							onClick={() => setViewMode('week')}
+						>
+							{t('calendar.view.week')}
+						</Button>
+						<Button
+							variant={viewMode === 'month' ? 'default' : 'outline'}
+							size="sm"
+							className="min-h-11"
+							onClick={() => setViewMode('month')}
+						>
+							{t('calendar.view.month')}
+						</Button>
+					</div>
+				)}
 				<div className="grid grid-cols-3 gap-2 min-[1025px]:inline-flex">
 					<Button
 						variant="outline"
@@ -365,13 +370,13 @@ export function CalendarView({
 					) : (
 						<LocationScheduleCard
 							key={effectiveLocationId}
-							location={selectedLocation}
-							employeesInLocation={employeesInLocation}
-							calendarEmployeesInLocation={entries}
-							viewMode={viewMode}
-							rangeStart={range.start}
-							rangeEnd={range.end}
-							weekStartDay={weekStartDay}
+						location={selectedLocation}
+						employeesInLocation={employeesInLocation}
+						calendarEmployeesInLocation={entries}
+						viewMode={activeViewMode}
+						rangeStart={range.start}
+						rangeEnd={range.end}
+						weekStartDay={weekStartDay}
 						/>
 					)
 				) : (

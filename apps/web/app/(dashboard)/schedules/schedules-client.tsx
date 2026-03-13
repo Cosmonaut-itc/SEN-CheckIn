@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import { useTranslations } from 'next-intl';
 import { queryKeys } from '@/lib/query-keys';
 import {
@@ -84,19 +85,23 @@ export function SchedulesPageClient({
 
 	return (
 		<div className="space-y-6">
-			<div className="space-y-1">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('subtitle')}</p>
-			</div>
+			<ResponsivePageHeader title={t('title')} description={t('subtitle')} />
 
 			<Tabs
 				value={activeTab}
 				onValueChange={(value) => setActiveTab(value as typeof activeTab)}
+				className="space-y-4"
 			>
-				<TabsList>
-					<TabsTrigger value="calendar">{t('tabs.calendar')}</TabsTrigger>
-					<TabsTrigger value="templates">{t('tabs.templates')}</TabsTrigger>
-					<TabsTrigger value="exceptions">{t('tabs.exceptions')}</TabsTrigger>
+				<TabsList className="grid w-full grid-cols-3 min-[1025px]:inline-flex min-[1025px]:w-auto">
+					<TabsTrigger value="calendar" className="min-h-11">
+						{t('tabs.calendar')}
+					</TabsTrigger>
+					<TabsTrigger value="templates" className="min-h-11">
+						{t('tabs.templates')}
+					</TabsTrigger>
+					<TabsTrigger value="exceptions" className="min-h-11">
+						{t('tabs.exceptions')}
+					</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="calendar" className="space-y-4">

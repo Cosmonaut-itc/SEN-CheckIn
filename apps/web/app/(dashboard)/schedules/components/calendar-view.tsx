@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { MobileDayCalendar } from '@/components/ui/mobile-day-calendar';
 import { useTranslations } from 'next-intl';
 import {
 	Select,
@@ -17,6 +18,7 @@ import {
 	type Employee,
 	type Location,
 } from '@/lib/client-functions';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { addMonths, addWeeks, endOfMonth, endOfWeek, startOfMonth, startOfWeek } from 'date-fns';
 import { LocationScheduleCard } from './location-schedule-card';
 
@@ -114,6 +116,7 @@ export function CalendarView({
 }: CalendarViewProps): React.ReactElement {
 	const t = useTranslations('Schedules');
 	const tCommon = useTranslations('Common');
+	const isMobile = useIsMobile();
 	const [hasHydrated, setHasHydrated] = useState<boolean>(false);
 	const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
 	const [selectedLocationId, setSelectedLocationId] = useState<string>('');
@@ -122,6 +125,9 @@ export function CalendarView({
 		const end = new Date(initialEndDate);
 		return new Date((start.getTime() + end.getTime()) / 2);
 	});
+	const [selectedMobileDate, setSelectedMobileDate] = useState<Date>(() =>
+		computeWeekRange(new Date(initialStartDate), weekStartDay).start,
+	);
 
 	const sortedLocations = useMemo(() => {
 		return [...locations].sort((a, b) => a.name.localeCompare(b.name));
@@ -158,6 +164,10 @@ export function CalendarView({
 			? computeWeekRange(referenceDate, weekStartDay ?? 1)
 			: computeMonthRange(referenceDate);
 	}, [referenceDate, viewMode, weekStartDay]);
+	const mobileWeekRange = useMemo(
+		() => computeWeekRange(referenceDate, weekStartDay ?? 1),
+		[referenceDate, weekStartDay],
+	);
 
 	const calendarQueryParams = useMemo(
 		() => ({
@@ -189,6 +199,16 @@ export function CalendarView({
 	const isEmpty = entries.length === 0;
 	const showSkeleton = !hasHydrated || (isFetching && isEmpty);
 	const showEmptyState = hasHydrated && !isFetching && isEmpty;
+	const resolvedMobileDate = useMemo(() => {
+		const currentTime = selectedMobileDate.getTime();
+		if (
+			currentTime < mobileWeekRange.start.getTime() ||
+			currentTime > mobileWeekRange.end.getTime()
+		) {
+			return mobileWeekRange.start;
+		}
+		return selectedMobileDate;
+	}, [mobileWeekRange.end, mobileWeekRange.start, selectedMobileDate]);
 
 	const unassignedCount = useMemo(() => {
 		return employees.filter((employee) => !employee.locationId).length;
@@ -238,48 +258,67 @@ export function CalendarView({
 
 	return (
 		<div className="space-y-4">
-			<div className="flex flex-wrap items-center gap-2">
-				<Button
-					variant={viewMode === 'week' ? 'default' : 'outline'}
-					size="sm"
-					onClick={() => setViewMode('week')}
-				>
-					{t('calendar.view.week')}
-				</Button>
-				<Button
-					variant={viewMode === 'month' ? 'default' : 'outline'}
-					size="sm"
-					onClick={() => setViewMode('month')}
-				>
-					{t('calendar.view.month')}
-				</Button>
-				<div className="ml-auto flex items-center gap-2">
-					<Button variant="outline" size="sm" onClick={handlePrev}>
+			<div className="grid gap-3 min-[1025px]:grid-cols-[auto_auto] min-[1025px]:items-center min-[1025px]:justify-between">
+				<div className="grid grid-cols-2 gap-2 min-[1025px]:inline-flex">
+					<Button
+						variant={viewMode === 'week' ? 'default' : 'outline'}
+						size="sm"
+						className="min-h-11"
+						onClick={() => setViewMode('week')}
+					>
+						{t('calendar.view.week')}
+					</Button>
+					<Button
+						variant={viewMode === 'month' ? 'default' : 'outline'}
+						size="sm"
+						className="min-h-11"
+						onClick={() => setViewMode('month')}
+					>
+						{t('calendar.view.month')}
+					</Button>
+				</div>
+				<div className="grid grid-cols-3 gap-2 min-[1025px]:inline-flex">
+					<Button
+						variant="outline"
+						size="sm"
+						className="min-h-11"
+						onClick={handlePrev}
+					>
 						{tCommon('previous')}
 					</Button>
-					<Button variant="outline" size="sm" onClick={handleToday}>
+					<Button
+						variant="outline"
+						size="sm"
+						className="min-h-11"
+						onClick={handleToday}
+					>
 						{t('calendar.today')}
 					</Button>
-					<Button variant="outline" size="sm" onClick={handleNext}>
+					<Button
+						variant="outline"
+						size="sm"
+						className="min-h-11"
+						onClick={handleNext}
+					>
 						{tCommon('next')}
 					</Button>
 				</div>
 			</div>
 
-			<div className="flex flex-wrap items-center gap-3">
+			<div className="grid gap-3 min-[1025px]:grid-cols-[minmax(0,1fr)_minmax(260px,320px)] min-[1025px]:items-center">
 				<div className="text-sm text-muted-foreground">
 					{t('calendar.range', {
 						range: formatDateRangeUtc(range.start, range.end),
 					})}
 				</div>
-				<div className="flex items-center gap-2">
+				<div className="grid gap-2 min-[1025px]:justify-self-end">
 					<span className="text-sm text-muted-foreground">{t('calendar.location')}</span>
 					<Select
 						value={effectiveLocationId}
 						onValueChange={(value) => setSelectedLocationId(value)}
 						disabled={sortedLocations.length === 0}
 					>
-						<SelectTrigger className="w-[260px]">
+						<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[260px]">
 							<SelectValue placeholder={t('calendar.selectLocation')} />
 						</SelectTrigger>
 						<SelectContent>
@@ -311,16 +350,30 @@ export function CalendarView({
 						</div>
 					</div>
 				) : selectedLocation && effectiveLocationId ? (
-					<LocationScheduleCard
-						key={effectiveLocationId}
-						location={selectedLocation}
-						employeesInLocation={employeesInLocation}
-						calendarEmployeesInLocation={entries}
-						viewMode={viewMode}
-						rangeStart={range.start}
-						rangeEnd={range.end}
-						weekStartDay={weekStartDay}
-					/>
+					isMobile ? (
+						<MobileDayCalendar
+							date={resolvedMobileDate}
+							employees={entries.map((employee) => ({
+								employeeId: employee.employeeId,
+								employeeName: employee.employeeName,
+								shiftType: t(`shiftTypes.short.${employee.shiftType}`),
+								days: employee.days,
+							}))}
+							onDateChange={setSelectedMobileDate}
+							weekRange={mobileWeekRange}
+						/>
+					) : (
+						<LocationScheduleCard
+							key={effectiveLocationId}
+							location={selectedLocation}
+							employeesInLocation={employeesInLocation}
+							calendarEmployeesInLocation={entries}
+							viewMode={viewMode}
+							rangeStart={range.start}
+							rangeEnd={range.end}
+							weekStartDay={weekStartDay}
+						/>
+					)
 				) : (
 					<div className="rounded-md border p-4 text-sm text-muted-foreground">
 						{t('calendar.selectLocationToView')}

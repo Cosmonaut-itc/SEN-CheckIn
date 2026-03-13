@@ -3,11 +3,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm, useStore } from '@/lib/forms';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -27,6 +27,8 @@ import {
 	CommandItem,
 	CommandList,
 } from '@/components/ui/command';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import { toast } from 'sonner';
 import { Check, ChevronsUpDown, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -45,6 +47,7 @@ import type {
 	PaginationState,
 	SortingState,
 } from '@tanstack/react-table';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { LocationMapPickerProps } from './location-map-picker';
 
 /**
@@ -178,6 +181,7 @@ export function LocationsPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Locations');
 	const tCommon = useTranslations('Common');
+	const isMobile = useIsMobile();
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -578,6 +582,7 @@ export function LocationsPageClient(): React.ReactElement {
 						<Button
 							variant="ghost"
 							size="icon"
+							className="min-h-11 min-w-11"
 							onClick={() => handleEdit(row.original)}
 							aria-label={t('dialog.title.edit')}
 						>
@@ -593,12 +598,13 @@ export function LocationsPageClient(): React.ReactElement {
 								<Button
 									variant="ghost"
 									size="icon"
+									className="min-h-11 min-w-11"
 									aria-label={t('dialogs.delete.title')}
 								>
 									<Trash2 className="h-4 w-4 text-destructive" />
 								</Button>
 							</DialogTrigger>
-							<DialogContent>
+							<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
 								<DialogHeader>
 									<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
 									<DialogDescription>
@@ -607,7 +613,7 @@ export function LocationsPageClient(): React.ReactElement {
 										})}
 									</DialogDescription>
 								</DialogHeader>
-								<DialogFooter>
+								<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 									<Button
 										variant="outline"
 										onClick={() => setDeleteConfirmId(null)}
@@ -630,30 +636,119 @@ export function LocationsPageClient(): React.ReactElement {
 		[deleteConfirmId, handleDelete, handleEdit, t, tCommon],
 	);
 
+	/**
+	 * Renders the mobile card layout for a location row.
+	 *
+	 * @param location - Location data row
+	 * @returns Mobile card element
+	 */
+	const renderLocationCard = useCallback(
+		(location: Location): React.ReactElement => (
+			<div className="space-y-4">
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div className="space-y-1">
+						<Badge variant="outline">{location.code}</Badge>
+						<p className="text-base font-semibold">{location.name}</p>
+					</div>
+					<Badge variant="secondary">
+						{t(`zones.${location.geographicZone ?? 'GENERAL'}`)}
+					</Badge>
+				</div>
+
+				<div className="grid gap-3">
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.address')}</p>
+						<p className="text-sm font-medium">{location.address ?? '-'}</p>
+					</div>
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.zone')}</p>
+						<p className="text-sm font-medium">
+							{t(`zones.${location.geographicZone ?? 'GENERAL'}`)}
+						</p>
+					</div>
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.timeZone')}</p>
+						<p className="text-sm font-medium">{location.timeZone}</p>
+					</div>
+				</div>
+
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11"
+						onClick={() => handleEdit(location)}
+					>
+						<Pencil className="mr-2 h-4 w-4" />
+						{tCommon('edit')}
+					</Button>
+					<Dialog
+						open={deleteConfirmId === location.id}
+						onOpenChange={(open) => setDeleteConfirmId(open ? location.id : null)}
+					>
+						<DialogTrigger asChild>
+							<Button type="button" variant="destructive" className="min-h-11">
+								<Trash2 className="mr-2 h-4 w-4" />
+								{tCommon('delete')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+							<DialogHeader>
+								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+								<DialogDescription>
+									{t('dialogs.delete.description', {
+										name: location.name,
+									})}
+								</DialogDescription>
+							</DialogHeader>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
+								<Button
+									variant="outline"
+									onClick={() => setDeleteConfirmId(null)}
+								>
+									{tCommon('cancel')}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => handleDelete(location.id)}
+								>
+									{tCommon('delete')}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+		),
+		[deleteConfirmId, handleDelete, handleEdit, t, tCommon],
+	);
+
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('noOrganization')}</p>
+				<ResponsivePageHeader title={t('title')} description={t('noOrganization')} />
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-				</div>
-				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.add')}
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-[760px]">
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+						<DialogTrigger asChild>
+							<Button
+								onClick={handleCreateNew}
+								data-testid="locations-add-button"
+								className="min-h-11"
+							>
+								<Plus className="mr-2 h-4 w-4" />
+								{t('actions.add')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-[760px]">
 						<form onSubmit={handleSubmit}>
 							<DialogHeader>
 								<DialogTitle>
@@ -677,7 +772,12 @@ export function LocationsPageClient(): React.ReactElement {
 												: undefined,
 									}}
 								>
-									{(field) => <field.TextField label={t('fields.name')} />}
+									{(field) => (
+										<field.TextField
+											label={t('fields.name')}
+											orientation={isMobile ? 'vertical' : 'horizontal'}
+										/>
+									)}
 								</form.AppField>
 								<form.AppField
 									name="code"
@@ -688,7 +788,12 @@ export function LocationsPageClient(): React.ReactElement {
 												: undefined,
 									}}
 								>
-									{(field) => <field.TextField label={t('fields.code')} />}
+									{(field) => (
+										<field.TextField
+											label={t('fields.code')}
+											orientation={isMobile ? 'vertical' : 'horizontal'}
+										/>
+									)}
 								</form.AppField>
 								<form.AppField name="geographicZone">
 									{(field) => (
@@ -705,6 +810,7 @@ export function LocationsPageClient(): React.ReactElement {
 												},
 											]}
 											placeholder={t('placeholders.selectZone')}
+											orientation={isMobile ? 'vertical' : 'horizontal'}
 										/>
 									)}
 								</form.AppField>
@@ -721,19 +827,20 @@ export function LocationsPageClient(): React.ReactElement {
 										<field.TextField
 											label={t('fields.timeZone')}
 											placeholder={t('placeholders.timeZoneExample')}
+											orientation={isMobile ? 'vertical' : 'horizontal'}
 										/>
 									)}
 								</form.AppField>
 								<form.AppField name="address">
 									{(field) => (
-										<div className="grid grid-cols-4 items-start gap-4">
+										<div className="grid gap-2 min-[640px]:grid-cols-4 min-[640px]:items-start min-[640px]:gap-4">
 											<Label
 												htmlFor="location-address"
-												className="pt-2 text-right"
+												className="min-[640px]:pt-2 min-[640px]:text-right"
 											>
 												{t('fields.address')}
 											</Label>
-											<div className="col-span-3 space-y-2">
+											<div className="space-y-2 min-[640px]:col-span-3">
 												<Popover
 													open={isAddressOpen}
 													onOpenChange={setIsAddressOpen}
@@ -743,7 +850,7 @@ export function LocationsPageClient(): React.ReactElement {
 															variant="outline"
 															role="combobox"
 															aria-expanded={isAddressOpen}
-															className="w-full justify-between overflow-hidden text-left"
+															className="min-h-11 w-full justify-between overflow-hidden text-left"
 														>
 															<span className="min-w-0 flex-1 truncate">
 																{addressValue
@@ -753,7 +860,10 @@ export function LocationsPageClient(): React.ReactElement {
 															<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
 														</Button>
 													</PopoverTrigger>
-													<PopoverContent className="p-0" align="start">
+													<PopoverContent
+														className="w-[calc(100vw-2rem)] max-w-full p-0 min-[640px]:w-[var(--radix-popover-trigger-width)]"
+														align="start"
+													>
 														<Command shouldFilter={false}>
 															<CommandInput
 																id="location-address"
@@ -841,11 +951,11 @@ export function LocationsPageClient(): React.ReactElement {
 										</div>
 									)}
 								</form.AppField>
-								<div className="grid grid-cols-4 items-start gap-4">
-									<Label className="pt-2 text-right">
+								<div className="grid gap-2 min-[640px]:grid-cols-4 min-[640px]:items-start min-[640px]:gap-4">
+									<Label className="min-[640px]:pt-2 min-[640px]:text-right">
 										{t('mapPicker.title')}
 									</Label>
-									<div className="col-span-3 space-y-2">
+									<div className="space-y-2 min-[640px]:col-span-3">
 										<LocationMapPicker
 											latitude={latitudeValue}
 											longitude={longitudeValue}
@@ -866,22 +976,26 @@ export function LocationsPageClient(): React.ReactElement {
 									</div>
 								</div>
 							</div>
-							<DialogFooter>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 								<form.AppForm>
 									<form.SubmitButton
 										label={tCommon('save')}
 										loadingLabel={tCommon('saving')}
+										className="min-h-11 w-full min-[640px]:w-auto"
 									/>
 								</form.AppForm>
 							</DialogFooter>
 						</form>
 					</DialogContent>
-				</Dialog>
-			</div>
+					</Dialog>
+				}
+			/>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={locations}
+				cardRenderer={renderLocationCard}
+				getCardKey={(location) => location.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

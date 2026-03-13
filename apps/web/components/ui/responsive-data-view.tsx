@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import {
 	type OnChangeFn,
 	type RowSelectionState,
@@ -231,7 +231,7 @@ export function ResponsiveDataView<TData, TValue>({
 
 	const pageCount = Math.max(table.getPageCount(), 1);
 	const currentPage = pagination.pageIndex + 1;
-	const mobileRows = useMemo(() => table.getRowModel().rows, [table]);
+	const mobileRows = table.getRowModel().rows;
 
 	if (!isMobile) {
 		return (

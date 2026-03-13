@@ -8,7 +8,6 @@ import {
 	updateEmployee,
 } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
-import { DataTable } from '@/components/data-table/data-table';
 import {
 	Accordion,
 	AccordionContent,
@@ -34,6 +33,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -497,6 +498,8 @@ interface EmployeesTableSectionProps {
 	statusPlaceholder: string;
 	/** Optional bulk actions node. */
 	bulkActions?: React.ReactNode;
+	/** Mobile card renderer for each employee row. */
+	cardRenderer: (employee: Employee) => React.ReactNode;
 	/** Row selection state for bulk actions. */
 	rowSelection?: RowSelectionState;
 	/** Row selection change handler. */
@@ -541,21 +544,22 @@ function EmployeesTableSection({
 	jobPositionPlaceholder,
 	statusPlaceholder,
 	bulkActions,
+	cardRenderer,
 	rowSelection,
 	onRowSelectionChange,
 	getRowId,
 }: EmployeesTableSectionProps): React.ReactElement {
 	return (
-		<div className="space-y-4">
+		<div className="min-w-0 space-y-4">
 			{bulkActions ? <div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div> : null}
-			<div className="flex flex-wrap items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
+			<div className="grid gap-3 min-[1025px]:grid-cols-[minmax(0,1fr)_200px_200px_170px]">
+				<div className="relative min-w-0">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						placeholder={searchPlaceholder}
 						value={search}
 						onChange={(event) => onSearchChange(event.target.value)}
-						className="pl-9"
+						className="min-h-11 pl-9"
 					/>
 				</div>
 				<Select
@@ -563,7 +567,7 @@ function EmployeesTableSection({
 					onValueChange={onLocationFilterChange}
 					disabled={isLoadingLocations}
 				>
-					<SelectTrigger className="w-[200px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={locationPlaceholder} />
 					</SelectTrigger>
 					<SelectContent>
@@ -579,7 +583,7 @@ function EmployeesTableSection({
 					onValueChange={onJobPositionFilterChange}
 					disabled={isLoadingJobPositions}
 				>
-					<SelectTrigger className="w-[200px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={jobPositionPlaceholder} />
 					</SelectTrigger>
 					<SelectContent>
@@ -594,7 +598,7 @@ function EmployeesTableSection({
 					value={statusFilter}
 					onValueChange={(value) => onStatusFilterChange(value as StatusFilterValue)}
 				>
-					<SelectTrigger className="w-[170px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={statusPlaceholder} />
 					</SelectTrigger>
 					<SelectContent>
@@ -607,9 +611,11 @@ function EmployeesTableSection({
 				</Select>
 			</div>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={employees}
+				cardRenderer={cardRenderer}
+				getCardKey={(employee) => employee.id}
 				sorting={sorting}
 				onSortingChange={onSortingChange}
 				pagination={pagination}
@@ -2847,6 +2853,239 @@ export function EmployeesPageClient(): React.ReactElement {
 		[deleteRekognitionMutation],
 	);
 
+	/**
+	 * Renders the actions menu and confirmation dialogs for an employee.
+	 *
+	 * @param employee - Employee record receiving the actions
+	 * @returns Action controls for table rows and mobile cards
+	 */
+	const renderEmployeeActions = useCallback(
+		(employee: Employee): React.ReactElement => (
+			<>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-11 w-11">
+							<MoreHorizontal className="h-4 w-4" />
+							<span className="sr-only">{t('menu.open')}</span>
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onClick={() => handleViewDetails(employee)}>
+							<Eye className="mr-2 h-4 w-4" />
+							{t('menu.viewDetails')}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => void openEmployeeDetailById(employee.id, 'documents')}
+						>
+							<FileText className="mr-2 h-4 w-4" />
+							{t('menu.viewDocuments')}
+						</DropdownMenuItem>
+						{canUseDisciplinaryModule ? (
+							<DropdownMenuItem
+								onClick={() =>
+									void openEmployeeDetailById(employee.id, 'disciplinary')
+								}
+							>
+								<ShieldAlert className="mr-2 h-4 w-4" />
+								{t('menu.viewDisciplinaryMeasures')}
+							</DropdownMenuItem>
+						) : null}
+						{canUseDisciplinaryModule ? (
+							<DropdownMenuItem asChild>
+								<Link href={`/disciplinary-measures?employeeId=${employee.id}`}>
+									<ShieldAlert className="mr-2 h-4 w-4" />
+									{t('menu.openDisciplinaryModule')}
+								</Link>
+							</DropdownMenuItem>
+						) : null}
+						<DropdownMenuItem onClick={() => handleOpenEnrollDialog(employee)}>
+							<ScanFace className="mr-2 h-4 w-4" />
+							{employee.rekognitionUserId
+								? t('menu.reEnrollFace')
+								: t('menu.enrollFace')}
+						</DropdownMenuItem>
+						{employee.rekognitionUserId ? (
+							<DropdownMenuItem
+								onClick={() => setDeleteRekognitionConfirmId(employee.id)}
+								className="text-[color:var(--status-warning)] focus:text-[color:var(--status-warning)]"
+							>
+								<UserX className="mr-2 h-4 w-4" />
+								{t('menu.removeFaceEnrollment')}
+							</DropdownMenuItem>
+						) : null}
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onClick={() => setDeleteConfirmId(employee.id)}
+							className="text-destructive focus:text-destructive"
+						>
+							<Trash2 className="mr-2 h-4 w-4" />
+							{t('menu.deleteEmployee')}
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+
+				<Dialog
+					open={deleteConfirmId === employee.id}
+					onOpenChange={(open) => setDeleteConfirmId(open ? employee.id : null)}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>{t('dialogs.deleteEmployee.title')}</DialogTitle>
+							<DialogDescription>
+								{t('dialogs.deleteEmployee.description', {
+									name: `${employee.firstName} ${employee.lastName}`.trim(),
+								})}
+								{employee.rekognitionUserId ? (
+									<span className="mt-2 block text-[color:var(--status-warning)]">
+										{t('dialogs.deleteEmployee.faceNote')}
+									</span>
+								) : null}
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+								{tCommon('cancel')}
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => handleDelete(employee.id)}
+								disabled={deleteMutation.isPending}
+							>
+								{deleteMutation.isPending ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										{tCommon('deleting')}
+									</>
+								) : (
+									tCommon('delete')
+								)}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+
+				<Dialog
+					open={deleteRekognitionConfirmId === employee.id}
+					onOpenChange={(open) =>
+						setDeleteRekognitionConfirmId(open ? employee.id : null)
+					}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>{t('dialogs.removeFaceEnrollment.title')}</DialogTitle>
+							<DialogDescription>
+								{t('dialogs.removeFaceEnrollment.description', {
+									name: `${employee.firstName} ${employee.lastName}`.trim(),
+								})}
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setDeleteRekognitionConfirmId(null)}
+							>
+								{tCommon('cancel')}
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => handleDeleteRekognition(employee.id)}
+								disabled={deleteRekognitionMutation.isPending}
+							>
+								{deleteRekognitionMutation.isPending ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										{tCommon('removing')}
+									</>
+								) : (
+									t('dialogs.removeFaceEnrollment.confirm')
+								)}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</>
+		),
+		[
+			canUseDisciplinaryModule,
+			deleteConfirmId,
+			deleteMutation.isPending,
+			deleteRekognitionConfirmId,
+			deleteRekognitionMutation.isPending,
+			handleDelete,
+			handleDeleteRekognition,
+			handleOpenEnrollDialog,
+			handleViewDetails,
+			openEmployeeDetailById,
+			t,
+			tCommon,
+		],
+	);
+
+	/**
+	 * Renders the mobile employee card used by the responsive data view.
+	 *
+	 * @param employee - Employee record to display
+	 * @returns Responsive employee card content
+	 */
+	const renderEmployeeCard = useCallback(
+		(employee: Employee): React.ReactElement => {
+			const locationName = employee.locationId
+				? (locationLookup.get(employee.locationId) ?? t('table.unknownLocation'))
+				: '-';
+			const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+			return (
+				<div className="space-y-4">
+					<div className="flex items-start justify-between gap-3">
+						<div className="min-w-0 space-y-2">
+							<Badge variant="outline" className="w-fit text-xs">
+								{employee.code}
+							</Badge>
+							<div className="space-y-1">
+								<p className="text-base font-semibold leading-tight">{fullName}</p>
+								<p className="text-sm text-muted-foreground">
+									{employee.jobPositionName ?? '-'}
+								</p>
+							</div>
+						</div>
+						<div className="shrink-0">{renderEmployeeActions(employee)}</div>
+					</div>
+
+					<div className="grid gap-3 text-sm">
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-muted-foreground">
+								{t('table.headers.location')}
+							</span>
+							<span className="max-w-[60%] text-right font-medium">
+								{locationName}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-muted-foreground">{t('table.headers.status')}</span>
+							<Badge variant={statusVariants[employee.status]}>
+								{t(`status.${employee.status}`)}
+							</Badge>
+						</div>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-muted-foreground">{t('table.headers.face')}</span>
+							{employee.rekognitionUserId ? (
+								<Badge variant="default" className="gap-1">
+									<UserCheck className="h-3 w-3" />
+									{t('face.enrolled')}
+								</Badge>
+							) : (
+								<Badge variant="outline" className="gap-1 text-muted-foreground">
+									<UserX className="h-3 w-3" />
+									{t('face.notEnrolled')}
+								</Badge>
+							)}
+						</div>
+					</div>
+				</div>
+			);
+		},
+		[locationLookup, renderEmployeeActions, t],
+	);
+
 	const columns = useMemo<ColumnDef<Employee>[]>(
 		() => [
 			{
@@ -3027,210 +3266,42 @@ export function EmployeesPageClient(): React.ReactElement {
 				header: t('table.headers.actions'),
 				enableSorting: false,
 				enableGlobalFilter: false,
-				cell: ({ row }) => (
-					<>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon">
-									<MoreHorizontal className="h-4 w-4" />
-									<span className="sr-only">{t('menu.open')}</span>
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
-									<Eye className="mr-2 h-4 w-4" />
-									{t('menu.viewDetails')}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() =>
-										void openEmployeeDetailById(row.original.id, 'documents')
-									}
-								>
-									<FileText className="mr-2 h-4 w-4" />
-									{t('menu.viewDocuments')}
-								</DropdownMenuItem>
-								{canUseDisciplinaryModule ? (
-									<DropdownMenuItem
-										onClick={() =>
-											void openEmployeeDetailById(
-												row.original.id,
-												'disciplinary',
-											)
-										}
-									>
-										<ShieldAlert className="mr-2 h-4 w-4" />
-										{t('menu.viewDisciplinaryMeasures')}
-									</DropdownMenuItem>
-								) : null}
-								{canUseDisciplinaryModule ? (
-									<DropdownMenuItem asChild>
-										<Link href={`/disciplinary-measures?employeeId=${row.original.id}`}>
-											<ShieldAlert className="mr-2 h-4 w-4" />
-											{t('menu.openDisciplinaryModule')}
-										</Link>
-									</DropdownMenuItem>
-								) : null}
-								<DropdownMenuItem
-									onClick={() => handleOpenEnrollDialog(row.original)}
-								>
-									<ScanFace className="mr-2 h-4 w-4" />
-									{row.original.rekognitionUserId
-										? t('menu.reEnrollFace')
-										: t('menu.enrollFace')}
-								</DropdownMenuItem>
-								{row.original.rekognitionUserId && (
-									<DropdownMenuItem
-										onClick={() =>
-											setDeleteRekognitionConfirmId(row.original.id)
-										}
-										className="text-[color:var(--status-warning)] focus:text-[color:var(--status-warning)]"
-									>
-										<UserX className="mr-2 h-4 w-4" />
-										{t('menu.removeFaceEnrollment')}
-									</DropdownMenuItem>
-								)}
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									onClick={() => setDeleteConfirmId(row.original.id)}
-									className="text-destructive focus:text-destructive"
-								>
-									<Trash2 className="mr-2 h-4 w-4" />
-									{t('menu.deleteEmployee')}
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-
-						<Dialog
-							open={deleteConfirmId === row.original.id}
-							onOpenChange={(open) =>
-								setDeleteConfirmId(open ? row.original.id : null)
-							}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>{t('dialogs.deleteEmployee.title')}</DialogTitle>
-									<DialogDescription>
-										{t('dialogs.deleteEmployee.description', {
-											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
-										})}
-										{row.original.rekognitionUserId && (
-											<span className="block mt-2 text-[color:var(--status-warning)]">
-												{t('dialogs.deleteEmployee.faceNote')}
-											</span>
-										)}
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter>
-									<Button
-										variant="outline"
-										onClick={() => setDeleteConfirmId(null)}
-									>
-										{tCommon('cancel')}
-									</Button>
-									<Button
-										variant="destructive"
-										onClick={() => handleDelete(row.original.id)}
-										disabled={deleteMutation.isPending}
-									>
-										{deleteMutation.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												{tCommon('deleting')}
-											</>
-										) : (
-											tCommon('delete')
-										)}
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-
-						<Dialog
-							open={deleteRekognitionConfirmId === row.original.id}
-							onOpenChange={(open) =>
-								setDeleteRekognitionConfirmId(open ? row.original.id : null)
-							}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>
-										{t('dialogs.removeFaceEnrollment.title')}
-									</DialogTitle>
-									<DialogDescription>
-										{t('dialogs.removeFaceEnrollment.description', {
-											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
-										})}
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter>
-									<Button
-										variant="outline"
-										onClick={() => setDeleteRekognitionConfirmId(null)}
-									>
-										{tCommon('cancel')}
-									</Button>
-									<Button
-										variant="destructive"
-										onClick={() => handleDeleteRekognition(row.original.id)}
-										disabled={deleteRekognitionMutation.isPending}
-									>
-										{deleteRekognitionMutation.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												{tCommon('removing')}
-											</>
-										) : (
-											t('dialogs.removeFaceEnrollment.confirm')
-										)}
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-					</>
-				),
+				cell: ({ row }) => renderEmployeeActions(row.original),
 			},
 		],
 		[
-			handleOpenEnrollDialog,
-			handleViewDetails,
-			openEmployeeDetailById,
+			canUseDisciplinaryModule,
 			locationLookup,
+			renderEmployeeActions,
 			t,
-			tCommon,
-			deleteConfirmId,
-			deleteRekognitionConfirmId,
-			deleteMutation.isPending,
-			deleteRekognitionMutation.isPending,
-				handleDelete,
-				handleDeleteRekognition,
-				canUseDisciplinaryModule,
-			],
-		);
+		],
+	);
 
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<ResponsivePageHeader title={t('title')} />
 				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-				</div>
-				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.addEmployee')}
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl sm:rounded-lg sm:border sm:p-0 lg:max-w-6xl">
+		<div className="min-w-0 space-y-6">
+			<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+				<ResponsivePageHeader
+					title={t('title')}
+					description={t('subtitle')}
+					actions={
+						<DialogTrigger asChild>
+							<Button data-testid="employees-add-button" onClick={handleCreateNew}>
+								<Plus className="mr-2 h-4 w-4" />
+								{t('actions.addEmployee')}
+							</Button>
+						</DialogTrigger>
+					}
+				/>
+				<DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl sm:rounded-lg sm:border sm:p-0 lg:max-w-6xl">
 						<DialogHeader className="shrink-0 border-b px-6 py-4">
 							<DialogTitle>
 								{isCreateMode
@@ -5881,9 +5952,8 @@ export function EmployeesPageClient(): React.ReactElement {
 							</form>
 						)}
 						</div>
-					</DialogContent>
-				</Dialog>
-			</div>
+				</DialogContent>
+			</Dialog>
 
 			<MemoizedEmployeesTableSection
 				search={search}
@@ -5915,6 +5985,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				jobPositionPlaceholder={t('filters.jobPosition.placeholder')}
 				statusPlaceholder={t('filters.status.placeholder')}
 				bulkActions={bulkActions}
+				cardRenderer={renderEmployeeCard}
 				rowSelection={rowSelection}
 				onRowSelectionChange={setRowSelection}
 				getRowId={(row) => row.id}

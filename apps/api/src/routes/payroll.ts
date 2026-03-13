@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { addDays, isBefore } from 'date-fns';
 
 import db from '../db/index.js';

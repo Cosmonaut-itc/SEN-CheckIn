@@ -215,7 +215,7 @@ describe('overtime authorizations routes (contract)', () => {
 	it('includes a legal warning when authorized hours exceed three in creation', async () => {
 		const dateKey = addDaysToDateKey(
 			toDateKeyUtc(new Date()),
-			1200 + (Math.floor(Date.now() / 1000) % 365),
+			1400 + (Math.floor(Date.now() / 1000) % 365),
 		);
 		const organizationRoute = requireRoute(
 			client.organizations[seed.organizationId]?.['overtime-authorizations'],

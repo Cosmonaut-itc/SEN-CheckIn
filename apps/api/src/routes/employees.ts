@@ -1,4 +1,5 @@
-import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
 

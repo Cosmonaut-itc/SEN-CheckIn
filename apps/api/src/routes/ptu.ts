@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, desc, eq, gte, inArray, lte, ne } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, ne } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { z } from 'zod';
 
 import db from '../db/index.js';

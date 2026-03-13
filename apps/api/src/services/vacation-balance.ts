@@ -1,4 +1,5 @@
-import { and, eq, inArray, lte, ne, type SQL } from 'drizzle-orm';
+import { and, eq, lte, ne, type SQL } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 
 import db from '../db/index.js';
 import { vacationRequest, vacationRequestDay } from '../db/schema.js';

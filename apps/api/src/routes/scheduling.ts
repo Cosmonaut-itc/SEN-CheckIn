@@ -1,5 +1,6 @@
 import { Elysia } from 'elysia';
-import { and, eq, gte, inArray, lte, type SQL } from 'drizzle-orm';
+import { and, eq, gte, lte, type SQL } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { eachDayOfInterval, endOfDay, format, isAfter, startOfDay } from 'date-fns';
 import { z } from 'zod';
 

@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react-nativ
 import React from 'react';
 
 import ScannerScreen from '@/app/(main)/scanner';
+import esTranslations from '@/lib/translations/es.json';
 
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
@@ -169,6 +170,9 @@ describe('ScannerScreen device linking state', () => {
 
 		render(<ScannerScreen />);
 
+		expect(esTranslations.Scanner.status.deviceNotLinked).toBe(
+			'Dispositivo no vinculado. Toca para volver a vincularlo.',
+		);
 		expect(screen.getByText('Dispositivo no vinculado')).toBeOnTheScreen();
 		expect(screen.getByText('Configuración requerida')).toBeOnTheScreen();
 

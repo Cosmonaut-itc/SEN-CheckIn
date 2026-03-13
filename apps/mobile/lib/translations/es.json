@@ -101,7 +101,7 @@
 		},
 		"status": {
 			"idle": "Coloca tu rostro dentro del círculo",
-			"deviceNotLinked": "Dispositivo no vinculado. Ve a Configuración.",
+			"deviceNotLinked": "Dispositivo no vinculado. Toca para volver a vincularlo.",
 			"verifying": "Verificando rostro...",
 			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
 			"faceNotRecognized": "Rostro no reconocido. Inténtalo de nuevo.",

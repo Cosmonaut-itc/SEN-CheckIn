@@ -340,7 +340,7 @@ export function DataTable<TData, TValue>({
 				</div>
 			) : null}
 
-			<div className="max-w-full overflow-x-auto rounded-md border [content-visibility:auto] [contain-intrinsic-size:0_480px]">
+			<div className="max-w-full rounded-md border [content-visibility:auto] [contain-intrinsic-size:0_480px]">
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (

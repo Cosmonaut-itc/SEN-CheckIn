@@ -1667,11 +1667,13 @@ async function seedEmployees(args: {
 			throw new Error(`Missing employee codes for organization "${org.slug}".`);
 		}
 
+		const employeeIds = Array.from({ length: codes.length }, () => crypto.randomUUID());
+
 		await seed(db, { employee }, { seed: seedNumber + orgIndex }).refine((funcs) => ({
 			employee: {
 				count: codes.length,
 				columns: {
-					id: funcs.uuid(),
+					id: funcs.valuesFromArray({ values: employeeIds, isUnique: true }),
 					code: funcs.valuesFromArray({ values: codes, isUnique: true }),
 					firstName: funcs.firstName(),
 					lastName: funcs.lastName(),

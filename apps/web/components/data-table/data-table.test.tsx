@@ -144,4 +144,27 @@ describe('DataTable', () => {
 
 		expect(handleRowClick).not.toHaveBeenCalled();
 	});
+
+	it('renders a single horizontal overflow container for the table region', () => {
+		render(
+			<DataTable
+				columns={columns}
+				data={[{ id: '1', name: 'Ada' }]}
+				sorting={sorting}
+				onSortingChange={createStateSetterMock<SortingState>()}
+				pagination={pagination}
+				onPaginationChange={createStateSetterMock<PaginationState>()}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
+				globalFilter=""
+				onGlobalFilterChange={createStateSetterMock<string>()}
+			/>,
+		);
+
+		const overflowContainers = Array.from(document.querySelectorAll('div')).filter((element) =>
+			element.className.includes('overflow-x-auto'),
+		);
+
+		expect(overflowContainers).toHaveLength(1);
+	});
 });

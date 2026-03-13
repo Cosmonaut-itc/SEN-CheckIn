@@ -151,6 +151,28 @@ async function waitForDatabase(
 }
 
 /**
+ * Resets the public schema in the isolated test database to guarantee clean migrations.
+ *
+ * @param connectionString - Postgres connection string
+ * @returns Promise that resolves when the schema reset finishes
+ * @throws Error when the reset query fails
+ */
+async function resetPublicSchema(connectionString: string): Promise<void> {
+	const client = new Client({ connectionString });
+
+	try {
+		await client.connect();
+		await client.query(`
+			DROP SCHEMA IF EXISTS public CASCADE;
+			DROP SCHEMA IF EXISTS drizzle CASCADE;
+			CREATE SCHEMA public;
+		`);
+	} finally {
+		await client.end();
+	}
+}
+
+/**
  * Resolves the seed organization ID for the primary test organization.
  *
  * @param context - Seed context with db and schema
@@ -331,6 +353,9 @@ async function main(): Promise<void> {
 
 	console.log('[bootstrap] Waiting for database readiness...');
 	await waitForDatabase(testDatabaseUrl, 30_000, 1_000);
+
+	console.log('[bootstrap] Resetting public schema...');
+	await resetPublicSchema(testDatabaseUrl);
 
 	console.log('[bootstrap] Running migrations...');
 	await runCommand('bun', ['run', 'db:mig'], { cwd: apiRoot, env: process.env });

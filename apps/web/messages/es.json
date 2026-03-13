@@ -295,6 +295,7 @@
       "schedule": "Horario"
     },
     "tabs": {
+      "info": "Info",
       "summary": "Resumen",
       "attendance": "Asistencia",
       "vacations": "Vacaciones",
@@ -307,6 +308,25 @@
       "disciplinary": "Medidas",
       "more": "Más",
       "moreAriaLabel": "Abrir menú de más pestañas"
+    },
+    "wizard": {
+      "navigation": "Progreso del formulario",
+      "progress": "Paso {current} de {total}: {step}",
+      "steps": {
+        "personal": "Personal",
+        "laboral": "Laboral",
+        "salario": "Salario",
+        "ptu": "PTU y Aguinaldo",
+        "horario": "Horario"
+      },
+      "discard": {
+        "title": "¿Descartar cambios?",
+        "description": "Los cambios sin guardar se perderán.",
+        "confirm": "Descartar"
+      },
+      "toast": {
+        "errors": "Hay errores en los pasos {steps}."
+      }
     },
     "summary": {
       "availableDays": "Dias disponibles",

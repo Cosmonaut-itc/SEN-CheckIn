@@ -8,6 +8,7 @@ import {
 	updateEmployee,
 } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
+import { EmployeeMobileFormWizard } from './employee-mobile-form-wizard';
 import {
 	Accordion,
 	AccordionContent,
@@ -90,6 +91,7 @@ import { useAppForm, useStore } from '@/lib/forms';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type {
 	EmployeeDetailTab,
 	EmployeeTerminationSettlement,
@@ -120,6 +122,7 @@ import {
 	Trash2,
 	UserCheck,
 	UserX,
+	X,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -781,6 +784,7 @@ const SHOULD_LOG_TAB_TELEMETRY = process.env.NODE_ENV === 'development';
 type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
+type EmployeeDialogTab = EmployeeDetailTab | 'info';
 
 const PRIMARY_DETAIL_TABS: EmployeeDetailTab[] = [
 	'summary',
@@ -814,6 +818,22 @@ const VALID_DETAIL_TABS = new Set<EmployeeDetailTab>([
 	'exceptions',
 	'audit',
 ]);
+const MOBILE_FORM_STEP_FIELD_NAMES = [
+	['code', 'firstName', 'lastName', 'nss', 'rfc', 'email', 'phone', 'department'],
+	['locationId', 'jobPositionId', 'status', 'shiftType', 'hireDate', 'userId'],
+	['paymentFrequency', 'periodPay', 'sbcDailyOverride'],
+	[
+		'employmentType',
+		'ptuEligibilityOverride',
+		'aguinaldoDaysOverride',
+		'platformHoursYear',
+		'isTrustEmployee',
+		'isDirectorAdminGeneralManager',
+		'isDomesticWorker',
+		'isPlatformWorker',
+	],
+	[],
+] as const;
 
 /**
  * Parses a tab candidate from URL/query input.
@@ -891,6 +911,73 @@ function isValidDateKey(value: string): boolean {
  */
 function formatCurrency(value: number): string {
 	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+}
+
+/**
+ * Serializes the current employee draft to compare unsaved mobile changes.
+ *
+ * @param values - Current form values
+ * @param scheduleEntries - Current schedule entries
+ * @returns Stable serialized draft representation
+ */
+function serializeEmployeeDraft(
+	values: EmployeeFormValues,
+	scheduleEntries: EmployeeScheduleEntry[],
+): string {
+	return JSON.stringify({
+		values,
+		scheduleEntries: scheduleEntries
+			.map((entry) => ({
+				dayOfWeek: entry.dayOfWeek,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				isWorkingDay: entry.isWorkingDay,
+			}))
+			.sort((leftEntry, rightEntry) => leftEntry.dayOfWeek - rightEntry.dayOfWeek),
+	});
+}
+
+/**
+ * Resolves the initial detail tab when the dialog opens on a mobile viewport.
+ *
+ * @param requestedTab - Requested detail tab
+ * @param isMobile - Whether the mobile layout is active
+ * @returns The initial tab to display
+ */
+function resolveInitialDetailTab(
+	requestedTab: EmployeeDetailTab,
+	isMobile: boolean,
+): EmployeeDialogTab {
+	if (!isMobile) {
+		return requestedTab;
+	}
+
+	return requestedTab === 'summary' ? 'info' : requestedTab;
+}
+
+/**
+ * Extracts the mobile wizard step indexes that currently have validation errors.
+ *
+ * @param getFieldMeta - Callback that resolves field metadata by field name
+ * @returns Zero-based step indexes with validation errors
+ */
+function getMobileWizardErrorStepIndexes(
+	getFieldMeta: <TField extends keyof EmployeeFormValues>(fieldName: TField) => {
+		errors?: unknown[];
+	} | null | undefined,
+): number[] {
+	return MOBILE_FORM_STEP_FIELD_NAMES.reduce<number[]>((indexes, fieldNames, stepIndex) => {
+		const hasStepErrors = fieldNames.some((fieldName) => {
+			const fieldMeta = getFieldMeta(fieldName);
+			return Array.isArray(fieldMeta?.errors) && fieldMeta.errors.length > 0;
+		});
+
+		if (hasStepErrors) {
+			indexes.push(stepIndex);
+		}
+
+		return indexes;
+	}, []);
 }
 
 /**
@@ -996,6 +1083,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
+	const isMobile = useIsMobile();
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
 	const tVacations = useTranslations('Vacations');
@@ -1009,9 +1097,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [dialogMode, setDialogMode] = useState<EmployeeDialogMode>('create');
 	const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
-	const [detailTab, setDetailTab] = useState<EmployeeDetailTab>('summary');
+	const [detailTab, setDetailTab] = useState<EmployeeDialogTab>('summary');
 	const [visitedDetailTabs, setVisitedDetailTabs] = useState<
-		Partial<Record<EmployeeDetailTab, boolean>>
+		Partial<Record<EmployeeDialogTab, boolean>>
 	>({ summary: true });
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
@@ -1035,8 +1123,12 @@ export function EmployeesPageClient(): React.ReactElement {
 	);
 	const [ptuHistoryYearInput, setPtuHistoryYearInput] = useState<string>('');
 	const [ptuHistoryAmountInput, setPtuHistoryAmountInput] = useState<string>('');
-	const tabScrollByIdRef = useRef<Partial<Record<EmployeeDetailTab, number>>>({});
-	const tabContainerByIdRef = useRef<Partial<Record<EmployeeDetailTab, HTMLDivElement | null>>>(
+	const [mobileWizardErrorSteps, setMobileWizardErrorSteps] = useState<number[]>([]);
+	const [mobileWizardStepIndex, setMobileWizardStepIndex] = useState<number>(0);
+	const [mobileWizardBaseline, setMobileWizardBaseline] = useState<string | null>(null);
+	const [generatedCodeSeed, setGeneratedCodeSeed] = useState<string>('0000');
+	const tabScrollByIdRef = useRef<Partial<Record<EmployeeDialogTab, number>>>({});
+	const tabContainerByIdRef = useRef<Partial<Record<EmployeeDialogTab, HTMLDivElement | null>>>(
 		{},
 	);
 	const tabSwitchStartRef = useRef<number | null>(null);
@@ -1052,7 +1144,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @param tab - Detail tab to mark as visited
 	 * @returns void
 	 */
-	const markTabAsVisited = useCallback((tab: EmployeeDetailTab): void => {
+	const markTabAsVisited = useCallback((tab: EmployeeDialogTab): void => {
 		setVisitedDetailTabs((prev) => {
 			if (prev[tab]) {
 				return prev;
@@ -1098,7 +1190,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const handleDetailTabChange = useCallback(
 		(nextValue: string): void => {
-			const nextTab = nextValue as EmployeeDetailTab;
+			const nextTab = nextValue as EmployeeDialogTab;
 			const currentContainer = tabContainerByIdRef.current[detailTab];
 			if (currentContainer) {
 				tabScrollByIdRef.current[detailTab] = currentContainer.scrollTop;
@@ -1106,14 +1198,23 @@ export function EmployeesPageClient(): React.ReactElement {
 
 			setDetailTab(nextTab);
 			markTabAsVisited(nextTab);
-			emitTabSwitchTelemetry(nextTab);
+			if (nextTab !== 'info') {
+				emitTabSwitchTelemetry(nextTab);
+			}
 		},
 		[detailTab, emitTabSwitchTelemetry, markTabAsVisited],
 	);
 	const tabScrollContainerCallbacks = useMemo<
-		Record<EmployeeDetailTab, (node: HTMLDivElement | null) => void>
+		Record<EmployeeDialogTab, (node: HTMLDivElement | null) => void>
 	>(
 		() => ({
+			info: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.info = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.info ?? 0;
+			},
 			documents: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.documents = node;
 				if (!node) {
@@ -1188,9 +1289,12 @@ export function EmployeesPageClient(): React.ReactElement {
 		[],
 	);
 	const tabScrollCallbacks = useMemo<
-		Record<EmployeeDetailTab, (event: React.UIEvent<HTMLDivElement>) => void>
+		Record<EmployeeDialogTab, (event: React.UIEvent<HTMLDivElement>) => void>
 	>(
 		() => ({
+			info: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.info = event.currentTarget.scrollTop;
+			},
 			documents: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.documents = event.currentTarget.scrollTop;
 			},
@@ -1232,7 +1336,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns Ref callback
 	 */
 	const registerTabScrollContainer = useCallback(
-		(tab: EmployeeDetailTab): ((node: HTMLDivElement | null) => void) =>
+		(tab: EmployeeDialogTab): ((node: HTMLDivElement | null) => void) =>
 			tabScrollContainerCallbacks[tab],
 		[tabScrollContainerCallbacks],
 	);
@@ -1244,7 +1348,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns Scroll handler
 	 */
 	const handleTabScroll = useCallback(
-		(tab: EmployeeDetailTab): ((event: React.UIEvent<HTMLDivElement>) => void) =>
+		(tab: EmployeeDialogTab): ((event: React.UIEvent<HTMLDivElement>) => void) =>
 			tabScrollCallbacks[tab],
 		[tabScrollCallbacks],
 	);
@@ -1256,7 +1360,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns True when tab was visited
 	 */
 	const isTabVisited = useCallback(
-		(tab: EmployeeDetailTab): boolean => Boolean(visitedDetailTabs[tab]),
+		(tab: EmployeeDialogTab): boolean => Boolean(visitedDetailTabs[tab]),
 		[visitedDetailTabs],
 	);
 	const ptuAguinaldoOptionHelp = useMemo<
@@ -2402,8 +2506,8 @@ export function EmployeesPageClient(): React.ReactElement {
 				setIsDialogOpen(false);
 				setDialogMode('create');
 				setActiveEmployee(null);
-				setDetailTab('summary');
-				setVisitedDetailTabs({ summary: true });
+				setDetailTab(resolveInitialDetailTab('summary', isMobile));
+				setVisitedDetailTabs({ [resolveInitialDetailTab('summary', isMobile)]: true });
 				form.reset();
 				return;
 			} else if (isCreateMode) {
@@ -2466,8 +2570,8 @@ export function EmployeesPageClient(): React.ReactElement {
 				setIsDialogOpen(false);
 				setDialogMode('create');
 				setActiveEmployee(null);
-				setDetailTab('summary');
-				setVisitedDetailTabs({ summary: true });
+				setDetailTab(resolveInitialDetailTab('summary', isMobile));
+				setVisitedDetailTabs({ [resolveInitialDetailTab('summary', isMobile)]: true });
 				form.reset();
 				return;
 			}
@@ -2478,6 +2582,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const lastName = useStore(form.store, (state) => state.values.lastName);
 	const codeValue = useStore(form.store, (state) => state.values.code);
 	const periodPayValue = useStore(form.store, (state) => state.values.periodPay);
+	const formValues = useStore(form.store, (state) => state.values);
 	const paymentFrequencyValue =
 		useStore(form.store, (state) => state.values.paymentFrequency) ?? 'MONTHLY';
 	const computedDailyPay = calculateDailyPayFromPeriodPay(
@@ -2487,25 +2592,35 @@ export function EmployeesPageClient(): React.ReactElement {
 	const periodPayLabel = t('fields.periodPay', {
 		period: t(`paymentFrequency.${paymentFrequencyValue}`),
 	});
+	const currentMobileWizardSnapshot = useMemo(
+		() => serializeEmployeeDraft(formValues, schedule),
+		[formValues, schedule],
+	);
+	const isMobileWizardDirty =
+		isDialogOpen &&
+		isMobile &&
+		!isViewMode &&
+		mobileWizardBaseline !== null &&
+		currentMobileWizardSnapshot !== mobileWizardBaseline;
 
-	const generateEmployeeCode = (first: string, last: string): string => {
-		const random = Math.floor(1000 + Math.random() * 9000).toString();
+	const generateEmployeeCode = (first: string, last: string, seed: string): string => {
 		const base = [first, last]
 			.filter(Boolean)
 			.join('.')
 			.replace(/[^a-zA-Z0-9.]/g, '')
 			.toUpperCase();
-		return (base || 'EMP') + `-${random}`;
+		return `${base || 'EMP'}-${seed}`;
 	};
 
 	useEffect(() => {
 		if (!isCreateMode) return;
 		if (hasCustomCode) return;
-		// Only auto-generate when the code field is empty to avoid update loops
-		if (codeValue.trim() !== '') return;
-		const generated = generateEmployeeCode(firstName, lastName);
+		const generated = generateEmployeeCode(firstName, lastName, generatedCodeSeed);
+		if (codeValue === generated) {
+			return;
+		}
 		form.setFieldValue('code', generated);
-	}, [isCreateMode, hasCustomCode, firstName, lastName, codeValue, form]);
+	}, [isCreateMode, hasCustomCode, firstName, lastName, codeValue, form, generatedCodeSeed]);
 
 	/**
 	 * Upserts a schedule entry for a specific day.
@@ -2572,17 +2687,34 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const handleCreateNew = useCallback((): void => {
 		resetTerminationState();
+		const nextGeneratedCodeSeed = Math.floor(1000 + Math.random() * 9000).toString();
+		const nextSchedule = createDefaultSchedule();
+		const nextFormValues: EmployeeFormValues = {
+			...initialFormValues,
+			code: generateEmployeeCode('', '', nextGeneratedCodeSeed),
+		};
+		setMobileWizardBaseline(serializeEmployeeDraft(nextFormValues, nextSchedule));
+		setGeneratedCodeSeed(nextGeneratedCodeSeed);
 		setDialogMode('create');
 		setActiveEmployee(null);
-		setDetailTab('summary');
-		setVisitedDetailTabs({ summary: true });
+		setDetailTab(resolveInitialDetailTab('summary', isMobile));
+		setVisitedDetailTabs({ [resolveInitialDetailTab('summary', isMobile)]: true });
 		form.reset();
+		form.setFieldValue('code', nextFormValues.code);
 		setHasCustomCode(false);
-		setSchedule(createDefaultSchedule());
+		setSchedule(nextSchedule);
 		setPtuHistoryYearInput('');
 		setPtuHistoryAmountInput('');
+		setMobileWizardErrorSteps([]);
+		setMobileWizardStepIndex(0);
 		setIsDialogOpen(true);
-	}, [form, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput]);
+	}, [
+		form,
+		isMobile,
+		resetTerminationState,
+		setPtuHistoryAmountInput,
+		setPtuHistoryYearInput,
+	]);
 
 	/**
 	 * Opens employee detail view in the requested tab.
@@ -2595,14 +2727,15 @@ export function EmployeesPageClient(): React.ReactElement {
 			resetTerminationState();
 			setActiveEmployee(employee);
 			setDialogMode('view');
-			setDetailTab(tab);
+			const initialTab = resolveInitialDetailTab(tab, isMobile);
+			setDetailTab(initialTab);
 			// Reset keep-alive state per dialog session; mount only the entry tab first.
-			setVisitedDetailTabs({ [tab]: true });
+			setVisitedDetailTabs({ [initialTab]: true });
 			setPtuHistoryYearInput('');
 			setPtuHistoryAmountInput('');
 			setIsDialogOpen(true);
 		},
-		[resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
+		[isMobile, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
 	);
 
 	/**
@@ -2692,83 +2825,105 @@ export function EmployeesPageClient(): React.ReactElement {
 			setIsScheduleLoading(true);
 			setActiveEmployee(employee);
 			setDialogMode('edit');
-			form.setFieldValue('code', employee.code);
-			form.setFieldValue('firstName', employee.firstName);
-			form.setFieldValue('lastName', employee.lastName);
-			form.setFieldValue('nss', employee.nss ?? '');
-			form.setFieldValue('rfc', employee.rfc ?? '');
-			form.setFieldValue('email', employee.email ?? '');
-			form.setFieldValue('userId', employee.userId ?? 'none');
-			form.setFieldValue('phone', employee.phone ?? '');
-			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
-			form.setFieldValue('locationId', employee.locationId ?? '');
-			form.setFieldValue('department', employee.department ?? '');
-			form.setFieldValue('status', employee.status);
-			form.setFieldValue('shiftType', employee.shiftType ?? 'DIURNA');
-			form.setFieldValue(
-				'hireDate',
-				employee.hireDate ? format(new Date(employee.hireDate), 'yyyy-MM-dd') : '',
-			);
-			form.setFieldValue('paymentFrequency', employee.paymentFrequency ?? 'MONTHLY');
-			form.setFieldValue(
-				'periodPay',
-				String(
+			const nextFormValues: EmployeeFormValues = {
+				code: employee.code,
+				firstName: employee.firstName,
+				lastName: employee.lastName,
+				nss: employee.nss ?? '',
+				rfc: employee.rfc ?? '',
+				email: employee.email ?? '',
+				userId: employee.userId ?? 'none',
+				phone: employee.phone ?? '',
+				jobPositionId: employee.jobPositionId ?? '',
+				locationId: employee.locationId ?? '',
+				department: employee.department ?? '',
+				status: employee.status,
+				hireDate: employee.hireDate
+					? format(new Date(employee.hireDate), 'yyyy-MM-dd')
+					: '',
+				paymentFrequency: employee.paymentFrequency ?? 'MONTHLY',
+				periodPay: String(
 					calculatePeriodPayFromDailyPay(
 						employee.dailyPay ?? 0,
 						employee.paymentFrequency ?? 'MONTHLY',
 					),
 				),
-			);
-			form.setFieldValue(
-				'sbcDailyOverride',
-				employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
-			);
-			form.setFieldValue('employmentType', employee.employmentType ?? 'PERMANENT');
-			form.setFieldValue('isTrustEmployee', Boolean(employee.isTrustEmployee));
-			form.setFieldValue(
-				'isDirectorAdminGeneralManager',
-				Boolean(employee.isDirectorAdminGeneralManager),
-			);
-			form.setFieldValue('isDomesticWorker', Boolean(employee.isDomesticWorker));
-			form.setFieldValue('isPlatformWorker', Boolean(employee.isPlatformWorker));
-			form.setFieldValue(
-				'platformHoursYear',
-				employee.platformHoursYear ? String(employee.platformHoursYear) : '',
-			);
-			form.setFieldValue(
-				'ptuEligibilityOverride',
-				employee.ptuEligibilityOverride ?? 'DEFAULT',
-			);
-			form.setFieldValue(
-				'aguinaldoDaysOverride',
-				employee.aguinaldoDaysOverride
+				sbcDailyOverride: employee.sbcDailyOverride
+					? String(employee.sbcDailyOverride)
+					: '',
+				employmentType: employee.employmentType ?? 'PERMANENT',
+				isTrustEmployee: Boolean(employee.isTrustEmployee),
+				isDirectorAdminGeneralManager: Boolean(employee.isDirectorAdminGeneralManager),
+				isDomesticWorker: Boolean(employee.isDomesticWorker),
+				isPlatformWorker: Boolean(employee.isPlatformWorker),
+				platformHoursYear: employee.platformHoursYear
+					? String(employee.platformHoursYear)
+					: '',
+				ptuEligibilityOverride: employee.ptuEligibilityOverride ?? 'DEFAULT',
+				aguinaldoDaysOverride: employee.aguinaldoDaysOverride
 					? String(employee.aguinaldoDaysOverride)
 					: '',
+				shiftType: employee.shiftType ?? 'DIURNA',
+			};
+			form.setFieldValue('code', nextFormValues.code);
+			form.setFieldValue('firstName', nextFormValues.firstName);
+			form.setFieldValue('lastName', nextFormValues.lastName);
+			form.setFieldValue('nss', nextFormValues.nss);
+			form.setFieldValue('rfc', nextFormValues.rfc);
+			form.setFieldValue('email', nextFormValues.email);
+			form.setFieldValue('userId', nextFormValues.userId);
+			form.setFieldValue('phone', nextFormValues.phone);
+			form.setFieldValue('jobPositionId', nextFormValues.jobPositionId);
+			form.setFieldValue('locationId', nextFormValues.locationId);
+			form.setFieldValue('department', nextFormValues.department);
+			form.setFieldValue('status', nextFormValues.status);
+			form.setFieldValue('shiftType', nextFormValues.shiftType);
+			form.setFieldValue('hireDate', nextFormValues.hireDate);
+			form.setFieldValue('paymentFrequency', nextFormValues.paymentFrequency);
+			form.setFieldValue('periodPay', nextFormValues.periodPay);
+			form.setFieldValue('sbcDailyOverride', nextFormValues.sbcDailyOverride);
+			form.setFieldValue('employmentType', nextFormValues.employmentType);
+			form.setFieldValue('isTrustEmployee', nextFormValues.isTrustEmployee);
+			form.setFieldValue(
+				'isDirectorAdminGeneralManager',
+				nextFormValues.isDirectorAdminGeneralManager,
 			);
+			form.setFieldValue('isDomesticWorker', nextFormValues.isDomesticWorker);
+			form.setFieldValue('isPlatformWorker', nextFormValues.isPlatformWorker);
+			form.setFieldValue('platformHoursYear', nextFormValues.platformHoursYear);
+			form.setFieldValue('ptuEligibilityOverride', nextFormValues.ptuEligibilityOverride);
+			form.setFieldValue('aguinaldoDaysOverride', nextFormValues.aguinaldoDaysOverride);
 			setHasCustomCode(true);
 			setPtuHistoryYearInput('');
 			setPtuHistoryAmountInput('');
 
 			const detail = await fetchEmployeeById(employee.id);
+			const nextSchedule =
+				detail?.schedule && detail.schedule.length > 0
+					? detail.schedule.map((entry) => ({
+							dayOfWeek: entry.dayOfWeek,
+							startTime: entry.startTime,
+							endTime: entry.endTime,
+							isWorkingDay: entry.isWorkingDay,
+						}))
+					: createDefaultSchedule();
 			if (detail?.schedule && detail.schedule.length > 0) {
-				setSchedule(
-					detail.schedule.map((entry) => ({
-						dayOfWeek: entry.dayOfWeek,
-						startTime: entry.startTime,
-						endTime: entry.endTime,
-						isWorkingDay: entry.isWorkingDay,
-					})),
-				);
+				setSchedule(nextSchedule);
 			} else {
-				setSchedule(createDefaultSchedule());
+				setSchedule(nextSchedule);
 			}
+			setMobileWizardBaseline(serializeEmployeeDraft(nextFormValues, nextSchedule));
 			setIsScheduleLoading(false);
-			setDetailTab('summary');
-			setVisitedDetailTabs({ summary: true });
+			const initialTab = resolveInitialDetailTab('summary', isMobile);
+			setDetailTab(initialTab);
+			setVisitedDetailTabs({ [initialTab]: true });
+			setMobileWizardErrorSteps([]);
+			setMobileWizardStepIndex(0);
 			setIsDialogOpen(true);
 		},
 		[
 			form,
+			isMobile,
 			resetTerminationState,
 			setPtuHistoryAmountInput,
 			setPtuHistoryYearInput,
@@ -2786,6 +2941,31 @@ export function EmployeesPageClient(): React.ReactElement {
 	}, [activeEmployee, handleEdit]);
 
 	/**
+	 * Validates the mobile wizard and submits the shared form when no step errors remain.
+	 *
+	 * @returns Promise resolving once the submit attempt completes
+	 */
+	const handleMobileWizardSubmit = useCallback(async (): Promise<void> => {
+		await form.validateAllFields('submit');
+		const nextErrorSteps = getMobileWizardErrorStepIndexes((fieldName) =>
+			form.getFieldMeta(fieldName),
+		);
+		if (nextErrorSteps.length > 0) {
+			setMobileWizardErrorSteps(nextErrorSteps);
+			setMobileWizardStepIndex(nextErrorSteps[0] ?? 0);
+			toast.error(
+				t('wizard.toast.errors', {
+					steps: nextErrorSteps.map((stepIndex) => stepIndex + 1).join(', '),
+				}),
+			);
+			return;
+		}
+
+		setMobileWizardErrorSteps([]);
+		await form.handleSubmit();
+	}, [form, t]);
+
+	/**
 	 * Handles dialog close and resets form state.
 	 *
 	 * @param open - Whether the dialog should be open
@@ -2794,19 +2974,23 @@ export function EmployeesPageClient(): React.ReactElement {
 		(open: boolean): void => {
 			setIsDialogOpen(open);
 			if (!open) {
+				setMobileWizardBaseline(null);
 				setDialogMode('create');
 				setActiveEmployee(null);
-				setDetailTab('summary');
-				setVisitedDetailTabs({ summary: true });
+				const initialTab = resolveInitialDetailTab('summary', isMobile);
+				setDetailTab(initialTab);
+				setVisitedDetailTabs({ [initialTab]: true });
 				tabScrollByIdRef.current = {};
 				tabContainerByIdRef.current = {};
 				form.reset();
 				setHasCustomCode(false);
 				setSchedule(createDefaultSchedule());
+				setMobileWizardErrorSteps([]);
+				setMobileWizardStepIndex(0);
 				resetTerminationState();
 			}
 		},
-		[form, resetTerminationState],
+		[form, isMobile, resetTerminationState],
 	);
 
 	useEffect(() => {
@@ -2819,6 +3003,28 @@ export function EmployeesPageClient(): React.ReactElement {
 			activeContainer.scrollTop = tabScrollByIdRef.current[detailTab] ?? 0;
 		}
 	}, [detailTab, isDialogOpen, isViewMode]);
+
+	useEffect(() => {
+		if (!isDialogOpen || !isViewMode || !isMobile) {
+			return;
+		}
+
+		const mobileTabsContainer = document.querySelector<HTMLElement>(
+			'[data-testid="employee-mobile-detail-tabs"]',
+		);
+		const activeTabTrigger = mobileTabsContainer?.querySelector<HTMLElement>(
+			'[data-state="active"]',
+		);
+		if (typeof activeTabTrigger?.scrollIntoView !== 'function') {
+			return;
+		}
+
+		activeTabTrigger.scrollIntoView({
+			behavior: 'smooth',
+			inline: 'center',
+			block: 'nearest',
+		});
+	}, [detailTab, isDialogOpen, isMobile, isViewMode]);
 
 	/**
 	 * Handles employee deletion.
@@ -3281,6 +3487,619 @@ export function EmployeesPageClient(): React.ReactElement {
 		],
 	);
 
+	const mobileWizardSteps = useMemo(
+		() => [
+			{
+				id: 'personal',
+				title: t('wizard.steps.personal'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField
+							name="firstName"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? t('validation.firstNameRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.firstName')}
+									orientation="vertical"
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="lastName"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? t('validation.lastNameRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.lastName')}
+									orientation="vertical"
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="code"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? t('validation.codeRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.code')}
+									orientation="vertical"
+									disabled
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="nss">
+							{(field) => (
+								<field.TextField
+									label={t('fields.nss')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="rfc">
+							{(field) => (
+								<field.TextField
+									label={t('fields.rfc')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="email">
+							{(field) => (
+								<field.TextField
+									label={t('fields.email')}
+									type="email"
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="phone">
+							{(field) => (
+								<field.TextField
+									label={t('fields.phone')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="department">
+							{(field) => (
+								<field.TextField
+									label={t('fields.department')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+					</div>
+				),
+			},
+			{
+				id: 'laboral',
+				title: t('wizard.steps.laboral'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField
+							name="locationId"
+							validators={{
+								onChange: ({ value }) =>
+									!value ? t('validation.locationRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label={t('fields.location')}
+									options={locations.map((location) => ({
+										value: location.id,
+										label: location.name,
+									}))}
+									orientation="vertical"
+									placeholder={
+										isLoadingLocations
+											? tCommon('loading')
+											: t('placeholders.selectLocation')
+									}
+									disabled={isLoadingLocations}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="jobPositionId"
+							validators={{
+								onChange: ({ value }) =>
+									isCreateMode && !value
+										? t('validation.jobPositionRequired')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label={t('fields.jobPosition')}
+									options={jobPositions.map((position) => ({
+										value: position.id,
+										label: position.name,
+									}))}
+									orientation="vertical"
+									placeholder={
+										isLoadingJobPositions
+											? tCommon('loading')
+											: t('placeholders.selectJobPosition')
+									}
+									disabled={isLoadingJobPositions}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="status">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.status')}
+									orientation="vertical"
+									options={[
+										{ value: 'ACTIVE', label: t('status.ACTIVE') },
+										{ value: 'INACTIVE', label: t('status.INACTIVE') },
+										{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
+									]}
+									placeholder={t('placeholders.selectStatus')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="shiftType">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.shiftType')}
+									orientation="vertical"
+									options={shiftTypeOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('placeholders.selectShiftType')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="hireDate"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmedValue = value.trim();
+									if (!trimmedValue) {
+										return undefined;
+									}
+									const parsedValue = parse(trimmedValue, 'yyyy-MM-dd', new Date());
+									if (
+										!isValid(parsedValue) ||
+										format(parsedValue, 'yyyy-MM-dd') !== trimmedValue
+									) {
+										return t('validation.hireDateInvalid');
+									}
+									const today = startOfDay(new Date());
+									if (isAfter(startOfDay(parsedValue), today)) {
+										return t('validation.hireDateFutureNotAllowed');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.DateField
+									label={t('fields.hireDate')}
+									orientation="vertical"
+									placeholder={t('placeholders.hireDate')}
+									variant="input"
+									minYear={1950}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="userId">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.user')}
+									orientation="vertical"
+									options={memberOptions}
+									placeholder={
+										isLoadingMembers
+											? tCommon('loading')
+											: t('placeholders.selectUser')
+									}
+									disabled={isLoadingMembers}
+								/>
+							)}
+						</form.AppField>
+					</div>
+				),
+			},
+			{
+				id: 'salario',
+				title: t('wizard.steps.salario'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField
+							name="paymentFrequency"
+							validators={{
+								onChange: ({ value }) =>
+									!value ? t('validation.paymentFrequencyRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label={t('fields.paymentFrequency')}
+									orientation="vertical"
+									options={[
+										{
+											value: 'WEEKLY',
+											label: t('paymentFrequency.WEEKLY'),
+										},
+										{
+											value: 'BIWEEKLY',
+											label: t('paymentFrequency.BIWEEKLY'),
+										},
+										{
+											value: 'MONTHLY',
+											label: t('paymentFrequency.MONTHLY'),
+										},
+									]}
+									placeholder={t('placeholders.selectPaymentFrequency')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="periodPay"
+							validators={{
+								onChange: ({ value }) =>
+									Number(value) <= 0
+										? t('validation.periodPayGreaterThanZero')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={periodPayLabel}
+									orientation="vertical"
+									type="number"
+									placeholder={t('placeholders.periodPayExample')}
+								/>
+							)}
+						</form.AppField>
+						<div className="grid gap-2">
+							<Label htmlFor="mobile-daily-pay">{t('fields.dailyPayCalculated')}</Label>
+							<Input
+								id="mobile-daily-pay"
+								value={computedDailyPay.toFixed(2)}
+								readOnly
+								disabled
+							/>
+						</div>
+						<form.AppField
+							name="sbcDailyOverride"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmed = value.trim();
+									if (!trimmed) {
+										return undefined;
+									}
+									const parsed = Number(trimmed);
+									if (!Number.isFinite(parsed) || parsed <= 0) {
+										return t('validation.sbcDailyOverride');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.sbcDailyOverride')}
+									orientation="vertical"
+									placeholder={t('placeholders.sbcDailyOverride')}
+									description={t('helpers.sbcDailyOverride')}
+								/>
+							)}
+						</form.AppField>
+					</div>
+				),
+			},
+			{
+				id: 'ptu',
+				title: t('wizard.steps.ptu'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField name="employmentType">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.employmentType')}
+									orientation="vertical"
+									options={employmentTypeOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('placeholders.selectEmploymentType')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="ptuEligibilityOverride">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.ptuEligibilityOverride')}
+									orientation="vertical"
+									options={ptuEligibilityOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('placeholders.selectPtuEligibility')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="aguinaldoDaysOverride"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmed = value.trim();
+									if (!trimmed) {
+										return undefined;
+									}
+									const parsed = Number(trimmed);
+									if (!Number.isFinite(parsed) || parsed < 0) {
+										return t('validation.aguinaldoDaysOverride');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.aguinaldoDaysOverride')}
+									orientation="vertical"
+									placeholder={t('placeholders.aguinaldoDaysOverride')}
+									type="number"
+									description={t('helpers.aguinaldoDaysOverride')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="platformHoursYear"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmed = value.trim();
+									if (!trimmed) {
+										return undefined;
+									}
+									const parsed = Number(trimmed);
+									if (!Number.isFinite(parsed) || parsed < 0) {
+										return t('validation.platformHoursYear');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.platformHoursYear')}
+									orientation="vertical"
+									placeholder={t('placeholders.platformHoursYear')}
+									type="number"
+									description={t('helpers.platformHoursYear')}
+								/>
+							)}
+						</form.AppField>
+						<div className="grid gap-3">
+							<form.AppField name="isTrustEmployee">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isTrustEmployee')}
+										description={t('helpers.isTrustEmployee')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+							<form.AppField name="isDirectorAdminGeneralManager">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isDirectorAdminGeneralManager')}
+										description={t('helpers.isDirectorAdminGeneralManager')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+							<form.AppField name="isDomesticWorker">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isDomesticWorker')}
+										description={t('helpers.isDomesticWorker')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+							<form.AppField name="isPlatformWorker">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isPlatformWorker')}
+										description={t('helpers.isPlatformWorker')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+						</div>
+						<div className="rounded-2xl border p-4">
+							<div className="flex items-center justify-between gap-3">
+								<div>
+									<p className="text-sm font-medium">{t('ptuHistory.title')}</p>
+									<p className="text-xs text-muted-foreground">
+										{t('ptuHistory.subtitle')}
+									</p>
+								</div>
+								<Button
+									type="button"
+									size="sm"
+									onClick={() => void handlePtuHistorySave()}
+									disabled={ptuHistoryMutation.isPending || !activeEmployee}
+								>
+									{ptuHistoryMutation.isPending
+										? tCommon('saving')
+										: t('ptuHistory.actions.save')}
+								</Button>
+							</div>
+							<div className="mt-4 grid gap-3">
+								<div className="grid gap-2">
+									<Label htmlFor="mobile-ptu-history-year">
+										{t('ptuHistory.fields.year')}
+									</Label>
+									<Input
+										id="mobile-ptu-history-year"
+										type="number"
+										min={2000}
+										value={ptuHistoryYearInput}
+										onChange={(event) => setPtuHistoryYearInput(event.target.value)}
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="mobile-ptu-history-amount">
+										{t('ptuHistory.fields.amount')}
+									</Label>
+									<Input
+										id="mobile-ptu-history-amount"
+										type="number"
+										min={0}
+										step="0.01"
+										value={ptuHistoryAmountInput}
+										onChange={(event) =>
+											setPtuHistoryAmountInput(event.target.value)
+										}
+									/>
+								</div>
+							</div>
+							<div className="mt-4 grid gap-3">
+								{ptuHistory.length === 0 ? (
+									<div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+										{t('ptuHistory.table.empty')}
+									</div>
+								) : (
+									ptuHistory.map((entry) => (
+										<div key={entry.id} className="rounded-xl border p-4">
+											<p className="text-xs text-muted-foreground">
+												{t('ptuHistory.table.year')}
+											</p>
+											<p className="text-base font-semibold">
+												{entry.fiscalYear}
+											</p>
+											<p className="mt-2 text-xs text-muted-foreground">
+												{t('ptuHistory.table.amount')}
+											</p>
+											<p className="text-base font-semibold">
+												{formatCurrency(entry.amount)}
+											</p>
+										</div>
+									))
+								)}
+							</div>
+						</div>
+					</div>
+				),
+			},
+			{
+				id: 'horario',
+				title: t('wizard.steps.horario'),
+				content: (
+					<div className="grid gap-3">
+						{isScheduleLoading ? (
+							<div className="flex items-center gap-2 rounded-xl border p-4 text-sm text-muted-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								{t('schedule.loading')}
+							</div>
+						) : null}
+						{daysOfWeek.map((day) => {
+							const entry = schedule.find((item) => item.dayOfWeek === day.value) ?? {
+								dayOfWeek: day.value,
+								startTime: '09:00',
+								endTime: '17:00',
+								isWorkingDay: day.value >= 1 && day.value <= 5,
+							};
+							return (
+								<div key={day.value} className="rounded-2xl border p-4">
+									<label className="flex items-center gap-3 text-sm font-medium">
+										<input
+											type="checkbox"
+											className="h-4 w-4 accent-primary"
+											checked={entry.isWorkingDay}
+											onChange={(event) =>
+												upsertScheduleEntry(day.value, {
+													isWorkingDay: event.target.checked,
+												})
+											}
+										/>
+										{t(day.labelKey)}
+									</label>
+									<div className="mt-4 grid gap-3">
+										<div className="grid gap-2">
+											<Label>{t('schedule.start')}</Label>
+											<Input
+												type="time"
+												value={entry.startTime}
+												disabled={!entry.isWorkingDay}
+												onChange={(event) =>
+													upsertScheduleEntry(day.value, {
+														startTime: event.target.value,
+													})
+												}
+											/>
+										</div>
+										<div className="grid gap-2">
+											<Label>{t('schedule.end')}</Label>
+											<Input
+												type="time"
+												value={entry.endTime}
+												disabled={!entry.isWorkingDay}
+												onChange={(event) =>
+													upsertScheduleEntry(day.value, {
+														endTime: event.target.value,
+													})
+												}
+											/>
+										</div>
+									</div>
+								</div>
+							);
+						})}
+					</div>
+				),
+			},
+		],
+		[
+			activeEmployee,
+			computedDailyPay,
+			form,
+			handlePtuHistorySave,
+			isCreateMode,
+			isLoadingJobPositions,
+			isLoadingLocations,
+			isLoadingMembers,
+			isScheduleLoading,
+			jobPositions,
+			locations,
+			memberOptions,
+			periodPayLabel,
+			ptuHistory,
+			ptuHistoryAmountInput,
+			ptuHistoryMutation.isPending,
+			ptuHistoryYearInput,
+			schedule,
+			setPtuHistoryAmountInput,
+			setPtuHistoryYearInput,
+			t,
+			tCommon,
+			upsertScheduleEntry,
+		],
+	);
+
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
@@ -3305,8 +4124,11 @@ export function EmployeesPageClient(): React.ReactElement {
 						</DialogTrigger>
 					}
 				/>
-				<DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl sm:rounded-lg sm:border sm:p-0 lg:max-w-6xl">
-						<DialogHeader className="shrink-0 border-b px-6 py-4">
+				<DialogContent
+					showCloseButton={!isMobile}
+					className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 min-[1025px]:h-[calc(100vh-4rem)] min-[1025px]:max-h-[calc(100vh-6rem)] min-[1025px]:max-w-5xl min-[1025px]:rounded-lg min-[1025px]:border min-[1025px]:p-0 lg:max-w-6xl"
+				>
+						<DialogHeader className="hidden shrink-0 border-b px-6 py-4 min-[1025px]:flex">
 							<DialogTitle>
 								{isCreateMode
 									? t('dialog.title.add')
@@ -3322,10 +4144,51 @@ export function EmployeesPageClient(): React.ReactElement {
 										: t('dialog.description.view')}
 							</DialogDescription>
 						</DialogHeader>
-						<div className="min-h-0 flex-1 overflow-hidden px-4 pb-4 sm:px-6 sm:pb-6">
+						<div className="min-h-0 flex-1 overflow-hidden px-4 pb-4 min-[1025px]:px-6 min-[1025px]:pb-6">
 							{isViewMode ? (
 							<div className="flex h-full min-h-0 flex-col space-y-4 pt-4">
-								<div className="rounded-md border p-4">
+								{isMobile ? (
+									<div className="sticky top-0 z-10 -mx-4 shrink-0 border-b bg-background/95 px-4 py-3 backdrop-blur-sm">
+										<div className="flex items-start gap-3">
+											<div className="min-w-0 flex-1 space-y-1">
+												<p className="truncate text-base font-semibold">
+													{activeEmployeeName || tCommon('notAvailable')}
+												</p>
+												<div className="flex items-center gap-2">
+													<p className="truncate text-sm text-muted-foreground">
+														{activeEmployee?.code ?? tCommon('notAvailable')}
+													</p>
+													{activeEmployee?.status ? (
+														<Badge variant={statusVariants[activeEmployee.status]}>
+															{t(`status.${activeEmployee.status}`)}
+														</Badge>
+													) : null}
+												</div>
+											</div>
+											<Button
+												type="button"
+												variant="outline"
+												size="icon"
+												className="h-11 w-11 shrink-0"
+												onClick={handleEditFromDetails}
+												aria-label={tCommon('edit')}
+											>
+												<Pencil className="h-4 w-4" />
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												className="h-11 w-11 shrink-0"
+												onClick={() => handleDialogOpenChange(false)}
+												aria-label={tCommon('close')}
+											>
+												<X className="h-4 w-4" />
+											</Button>
+										</div>
+									</div>
+								) : null}
+								<div className={cn('rounded-md border p-4', isMobile && 'hidden min-[1025px]:block')}>
 									<div className="flex flex-wrap items-start justify-between gap-4">
 										<div className="space-y-1">
 											<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -3456,46 +4319,171 @@ export function EmployeesPageClient(): React.ReactElement {
 									onValueChange={handleDetailTabChange}
 									className="flex min-h-0 flex-1 flex-col"
 								>
-									<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
-										{PRIMARY_DETAIL_TABS.map((tab) => (
-											<TabsTrigger
-												key={tab}
-												value={tab}
-												onFocus={() => markTabAsVisited(tab)}
-											>
-												{t(`tabs.${tab}`)}
-											</TabsTrigger>
-										))}
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													type="button"
-													variant="ghost"
-													size="sm"
-													className="h-8 px-2"
-													aria-label={t('tabs.moreAriaLabel')}
+									{isMobile ? (
+										<div
+											data-testid="employee-mobile-detail-tabs"
+											className="-mx-4 shrink-0 overflow-x-auto border-b"
+										>
+											<TabsList className="h-auto w-max min-w-full justify-start gap-2 rounded-none border-0 bg-transparent px-4 py-2">
+												<TabsTrigger
+													value="info"
+													className="min-h-11 flex-none px-4"
+													onFocus={() => markTabAsVisited('info')}
 												>
-													{t('tabs.more')}
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												{secondaryDetailTabs.map((tab) => (
-													<DropdownMenuItem
+													{t('tabs.info')}
+												</TabsTrigger>
+												{PRIMARY_DETAIL_TABS.map((tab) => (
+													<TabsTrigger
 														key={tab}
-														onSelect={() => {
-															handleDetailTabChange(tab);
-														}}
-														className={cn(
-															detailTab === tab &&
-																'bg-muted font-medium',
-														)}
+														value={tab}
+														className="min-h-11 flex-none px-4"
+														onFocus={() => markTabAsVisited(tab)}
 													>
 														{t(`tabs.${tab}`)}
-													</DropdownMenuItem>
+													</TabsTrigger>
 												))}
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</TabsList>
+												{secondaryDetailTabs.map((tab) => (
+													<TabsTrigger
+														key={tab}
+														value={tab}
+														className="min-h-11 flex-none px-4"
+														onFocus={() => markTabAsVisited(tab)}
+													>
+														{t(`tabs.${tab}`)}
+													</TabsTrigger>
+												))}
+											</TabsList>
+										</div>
+									) : (
+										<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+											{PRIMARY_DETAIL_TABS.map((tab) => (
+												<TabsTrigger
+													key={tab}
+													value={tab}
+													onFocus={() => markTabAsVisited(tab)}
+												>
+													{t(`tabs.${tab}`)}
+												</TabsTrigger>
+											))}
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														className="h-8 px-2"
+														aria-label={t('tabs.moreAriaLabel')}
+													>
+														{t('tabs.more')}
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													{secondaryDetailTabs.map((tab) => (
+														<DropdownMenuItem
+															key={tab}
+															onSelect={() => {
+																handleDetailTabChange(tab);
+															}}
+															className={cn(
+																detailTab === tab &&
+																	'bg-muted font-medium',
+															)}
+														>
+															{t(`tabs.${tab}`)}
+														</DropdownMenuItem>
+													))}
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</TabsList>
+									)}
+
+									<TabsContent
+										value="info"
+										forceMount
+										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'info' && 'hidden')}
+									>
+										{isTabVisited('info') ? (
+											<div
+												ref={registerTabScrollContainer('info')}
+												onScroll={handleTabScroll('info')}
+												data-testid="employee-mobile-detail-panel"
+												className="h-full overflow-y-auto pt-4"
+											>
+												<div className="grid gap-3">
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.location')}</p>
+														<p className="mt-1 font-medium">{activeEmployeeLocation}</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.jobPosition')}</p>
+														<p className="mt-1 font-medium">
+															{activeEmployee?.jobPositionName ?? tCommon('notAvailable')}
+														</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.hireDate')}</p>
+														<p className="mt-1 font-medium">
+															{activeEmployee?.hireDate
+																? format(new Date(activeEmployee.hireDate), t('dateFormat'))
+																: tCommon('notAvailable')}
+														</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.shiftType')}</p>
+														<p className="mt-1 font-medium">
+															{activeEmployee?.shiftType
+																? t(`shiftTypeLabels.${activeEmployee.shiftType}`)
+																: tCommon('notAvailable')}
+														</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.email')}</p>
+														{activeEmployee?.email ? (
+															<Link
+																href={`mailto:${activeEmployee.email}`}
+																className="mt-1 inline-flex min-h-11 items-center font-medium text-[var(--accent-primary)]"
+															>
+																{activeEmployee.email}
+															</Link>
+														) : (
+															<p className="mt-1 font-medium">{tCommon('notAvailable')}</p>
+														)}
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.phone')}</p>
+														{activeEmployee?.phone ? (
+															<Link
+																href={`tel:${activeEmployee.phone}`}
+																className="mt-1 inline-flex min-h-11 items-center font-medium text-[var(--accent-primary)]"
+															>
+																{activeEmployee.phone}
+															</Link>
+														) : (
+															<p className="mt-1 font-medium">{tCommon('notAvailable')}</p>
+														)}
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.nss')}</p>
+														<p className="mt-1 font-medium">{activeEmployee?.nss ?? tCommon('notAvailable')}</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.rfc')}</p>
+														<p className="mt-1 font-medium">{activeEmployee?.rfc ?? tCommon('notAvailable')}</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.department')}</p>
+														<p className="mt-1 font-medium">
+															{activeEmployee?.department ?? tCommon('notAvailable')}
+														</p>
+													</div>
+													<div className="rounded-2xl border p-4">
+														<p className="text-xs text-muted-foreground">{t('fields.user')}</p>
+														<p className="mt-1 font-medium">{activeEmployee?.userId ?? t('placeholders.noUser')}</p>
+													</div>
+												</div>
+											</div>
+										) : null}
+									</TabsContent>
 
 									<TabsContent
 										value="documents"
@@ -5241,6 +6229,28 @@ export function EmployeesPageClient(): React.ReactElement {
 									</TabsContent>
 								</Tabs>
 							</div>
+						) : isMobile ? (
+							<EmployeeMobileFormWizard
+								title={isCreateMode ? t('dialog.title.add') : t('dialog.title.edit')}
+								closeLabel={tCommon('close')}
+								previousLabel={tCommon('previous')}
+								nextLabel={tCommon('next')}
+								saveLabel={tCommon('save')}
+								cancelDiscardLabel={tCommon('cancel')}
+								confirmDiscardLabel={t('wizard.discard.confirm')}
+								discardTitle={t('wizard.discard.title')}
+								discardDescription={t('wizard.discard.description')}
+								progressLabel={t.raw('wizard.progress') as string}
+								progressNavigationLabel={t('wizard.navigation')}
+								dirty={isMobileWizardDirty}
+								errorStepIndexes={mobileWizardErrorSteps}
+								activeStepIndex={mobileWizardStepIndex}
+								onActiveStepIndexChange={setMobileWizardStepIndex}
+								isSubmitting={createMutation.isPending || updateMutation.isPending}
+								steps={mobileWizardSteps}
+								onClose={() => handleDialogOpenChange(false)}
+								onSubmit={() => void handleMobileWizardSubmit()}
+							/>
 						) : (
 							<form
 								className="flex h-full min-h-0 flex-col"

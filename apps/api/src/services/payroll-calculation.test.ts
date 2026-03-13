@@ -176,6 +176,38 @@ function buildLunchBreakSettings(overrides: {
 	} as CalculatePayrollFromDataArgs['payrollSettings'];
 }
 
+type DualPayrollEmployee = PayrollEmployeeRow & {
+	fiscalDailyPay?: number | null;
+};
+
+type DualPayrollSettings = NonNullable<CalculatePayrollFromDataArgs['payrollSettings']> & {
+	enableDualPayroll?: boolean;
+};
+
+type DualPayrollCalculationRow = ReturnType<typeof calculatePayrollFromData>['employees'][number] & {
+	fiscalDailyPay?: number | null;
+	fiscalGrossPay?: number | null;
+	complementPay?: number | null;
+	totalRealPay?: number | null;
+};
+
+/**
+ * Returns the first calculation row as a dual-payroll-aware test shape.
+ *
+ * @param rows - Calculation rows
+ * @returns First row cast to the extended dual payroll shape
+ * @throws Error when no row is available
+ */
+function requireDualPayrollRow(
+	rows: ReturnType<typeof calculatePayrollFromData>['employees'],
+): DualPayrollCalculationRow {
+	const row = rows[0];
+	if (!row) {
+		throw new Error('Expected at least one payroll calculation row.');
+	}
+	return row as DualPayrollCalculationRow;
+}
+
 describe('payroll-calculation', () => {
 	const employeeId = 'emp-test-1';
 	const timeZone = 'America/Mexico_City';
@@ -2651,6 +2683,177 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(Number(row.netPay.toFixed(2))).toBe(row.netPay);
 			expect(Number(row.companyCost.toFixed(2))).toBe(row.companyCost);
 		}
+	});
+
+	describe('dual payroll', () => {
+		const dualEmployeeId = 'emp-dual-1';
+		const dualPeriodStartDateKey = '2025-12-15';
+		const dualPeriodEndDateKey = '2025-12-19';
+		const dualPeriodBounds = getPayrollPeriodBounds({
+			periodStartDateKey: dualPeriodStartDateKey,
+			periodEndDateKey: dualPeriodEndDateKey,
+			timeZone,
+		});
+		const dualSchedule = buildScheduleForWorkingDays(dualEmployeeId, [1, 2, 3, 4, 5]);
+		const dualAttendance = buildAttendanceForDateKeys(
+			dualEmployeeId,
+			[
+				'2025-12-15',
+				'2025-12-16',
+				'2025-12-17',
+				'2025-12-18',
+				'2025-12-19',
+			],
+			timeZone,
+		);
+		const dualBaseArgs = {
+			employees: [] as DualPayrollEmployee[],
+			schedules: dualSchedule,
+			attendanceRows: dualAttendance,
+			periodStartDateKey: dualPeriodStartDateKey,
+			periodEndDateKey: dualPeriodEndDateKey,
+			periodBounds: dualPeriodBounds,
+			overtimeEnforcement: 'WARN' as const,
+			weekStartDay: 1,
+			additionalMandatoryRestDays: [],
+			defaultTimeZone: timeZone,
+		};
+		const dualBaseSettings: DualPayrollSettings = {
+			...baseTaxSettings,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			enableSeventhDayPay: false,
+		};
+
+		const buildDualEmployee = (fiscalDailyPay?: number | null): DualPayrollEmployee => ({
+			id: dualEmployeeId,
+			firstName: 'Mario',
+			lastName: 'Dual',
+			dailyPay: 500,
+			fiscalDailyPay,
+			paymentFrequency: 'WEEKLY',
+			shiftType: 'DIURNA',
+			locationGeographicZone: 'GENERAL',
+			locationTimeZone: timeZone,
+			hireDate: new Date('2020-01-01T00:00:00Z'),
+		});
+
+		it('keeps the current calculation when dual payroll is disabled', () => {
+			const standard = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					payrollSettings: dualBaseSettings,
+				}).employees,
+			);
+			const dualDisabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: false,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualDisabled.totalPay).toBe(standard.totalPay);
+			expect(dualDisabled.grossPay).toBe(standard.grossPay);
+			expect(dualDisabled.netPay).toBe(standard.netPay);
+			expect(dualDisabled.employeeWithholdings.total).toBe(standard.employeeWithholdings.total);
+			expect(dualDisabled.bases.sbcDaily).toBe(standard.bases.sbcDaily);
+		});
+
+		it('keeps the current calculation when dual payroll is enabled but fiscalDailyPay is null', () => {
+			const standard = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee()],
+					payrollSettings: dualBaseSettings,
+				}).employees,
+			);
+			const dualWithoutFiscal = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(null)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualWithoutFiscal.totalPay).toBe(standard.totalPay);
+			expect(dualWithoutFiscal.grossPay).toBe(standard.grossPay);
+			expect(dualWithoutFiscal.netPay).toBe(standard.netPay);
+			expect(dualWithoutFiscal.employeeWithholdings.total).toBe(
+				standard.employeeWithholdings.total,
+			);
+			expect(dualWithoutFiscal.bases.sbcDaily).toBe(standard.bases.sbcDaily);
+		});
+
+		it('calculates taxes on fiscal pay while keeping total real pay on the employee payment', () => {
+			const standard = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					payrollSettings: dualBaseSettings,
+				}).employees,
+			);
+			const dualEnabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualEnabled.totalRealPay).toBe(2500);
+			expect(dualEnabled.totalPay).toBe(2500);
+			expect(dualEnabled.fiscalDailyPay).toBe(300);
+			expect(dualEnabled.fiscalGrossPay).toBe(1500);
+			expect(dualEnabled.bases.sbcDaily).toBeLessThan(standard.bases.sbcDaily);
+			expect(dualEnabled.employeeWithholdings.total).toBeLessThan(
+				standard.employeeWithholdings.total,
+			);
+		});
+
+		it('calculates the complement from the difference between real and fiscal daily pay', () => {
+			const dualEnabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualEnabled.complementPay).toBe(1000);
+			expect(dualEnabled.totalRealPay).toBe(2500);
+			expect(dualEnabled.fiscalGrossPay).toBe(1500);
+		});
+
+		it('does not generate a complement when fiscalDailyPay is greater than or equal to dailyPay', () => {
+			const dualEnabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(600)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualEnabled.complementPay).toBe(0);
+			expect(dualEnabled.totalRealPay).toBe(2500);
+			expect(dualEnabled.fiscalGrossPay).toBe(2500);
+		});
 	});
 });
 

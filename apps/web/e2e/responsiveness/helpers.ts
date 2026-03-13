@@ -1,4 +1,4 @@
-import { expect, type Page, type ViewportSize } from '@playwright/test';
+import { expect, type Locator, type Page, type ViewportSize } from '@playwright/test';
 
 import {
 	buildTestRegistrationPayload,
@@ -51,4 +51,23 @@ export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
 	}));
 
 	expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth);
+}
+
+/**
+ * Asserts that an interactive element meets the minimum touch target height.
+ *
+ * @param locator - Locator for the interactive element
+ * @param minimumHeight - Minimum acceptable height in pixels
+ * @returns Promise that resolves when the assertion passes
+ * @throws {Error} When the element height is below the required minimum
+ */
+export async function expectMinimumTouchHeight(
+	locator: Locator,
+	minimumHeight = 44,
+): Promise<void> {
+	await expect(locator).toBeVisible({ timeout: 2_000 });
+	const box = await locator.boundingBox();
+
+	expect(box).not.toBeNull();
+	expect(box?.height ?? 0).toBeGreaterThanOrEqual(minimumHeight);
 }

@@ -187,7 +187,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			title: t('sections.web.features.dashboard.title'),
 			description: t('sections.web.features.dashboard.description'),
 			icon: LayoutDashboard,
-			span: 'sm:col-span-2',
+			span: 'min-[1025px]:col-span-2',
 		},
 		{
 			title: t('sections.web.features.employees.title'),
@@ -223,7 +223,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			title: t('sections.mobile.features.locations.title'),
 			description: t('sections.mobile.features.locations.description'),
 			icon: Building2,
-			span: 'sm:col-span-2',
+			span: 'min-[1025px]:col-span-2',
 		},
 	];
 
@@ -367,7 +367,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 					</div>
 				</Reveal>
 
-				<div className="grid gap-4 sm:grid-cols-3">
+				<div data-testid="landing-bento-grid" className="grid gap-4 min-[1025px]:grid-cols-3">
 					{bentoCards.map((card, i) => (
 						<div key={`${card.title}-wrapper-${i}`} className={card.span}>
 							{renderBentoCard(card, i)}

@@ -14,6 +14,7 @@ import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
 import { parseDateKey } from '@/lib/date-key';
 import { useOrgContext } from '@/lib/org-client-context';
+import { cn } from '@/lib/utils';
 import { PayrollHolidaysSection } from './payroll-holidays-section';
 
 const dayOptions = [
@@ -170,7 +171,7 @@ function getHydratedServerSnapshot(): boolean {
 
 export function PayrollSettingsClient(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('PayrollSettings');
 	const tCommon = useTranslations('Common');
 	const isHydrated = useSyncExternalStore(
@@ -205,6 +206,8 @@ export function PayrollSettingsClient(): React.ReactElement {
 
 	const isInitialLoading = !isHydrated || isLoading;
 	const isFormDisabled = isInitialLoading || mutation.isPending;
+	const canManageDualPayroll =
+		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
 
 	const form = useAppForm({
 		defaultValues: {
@@ -219,6 +222,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			absorbImssEmployeeShare: false,
 			absorbIsr: false,
 			enableSeventhDayPay: false,
+			enableDualPayroll: false,
 			countSaturdayAsWorkedForSeventhDay: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
@@ -304,6 +308,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 				aguinaldoDays,
 				vacationPremiumRate,
 				enableSeventhDayPay: value.enableSeventhDayPay,
+				enableDualPayroll: value.enableDualPayroll,
 				countSaturdayAsWorkedForSeventhDay:
 					value.countSaturdayAsWorkedForSeventhDay,
 				ptuEnabled: value.ptuEnabled,
@@ -343,6 +348,10 @@ export function PayrollSettingsClient(): React.ReactElement {
 		form.store,
 		(state) => state.values.enableSeventhDayPay,
 	);
+	const enableDualPayrollValue = useStore(
+		form.store,
+		(state) => state.values.enableDualPayroll,
+	);
 	const ptuIsExemptValue = useStore(form.store, (state) => state.values.ptuIsExempt);
 
 	useEffect(() => {
@@ -375,6 +384,9 @@ export function PayrollSettingsClient(): React.ReactElement {
 		}
 		if (data?.enableSeventhDayPay !== undefined) {
 			form.setFieldValue('enableSeventhDayPay', data.enableSeventhDayPay);
+		}
+		if (data?.enableDualPayroll !== undefined) {
+			form.setFieldValue('enableDualPayroll', data.enableDualPayroll);
 		}
 		if (data?.countSaturdayAsWorkedForSeventhDay !== undefined) {
 			form.setFieldValue(
@@ -427,6 +439,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.absorbImssEmployeeShare,
 		data?.absorbIsr,
 		data?.enableSeventhDayPay,
+		data?.enableDualPayroll,
 		data?.countSaturdayAsWorkedForSeventhDay,
 		data?.ptuEnabled,
 		data?.ptuMode,
@@ -641,6 +654,66 @@ export function PayrollSettingsClient(): React.ReactElement {
 								/>
 							)}
 						</form.AppField>
+						{canManageDualPayroll ? (
+							<div
+								className={cn(
+									'rounded-xl border p-4 transition-colors',
+									enableDualPayrollValue
+										? 'border-emerald-300/70 bg-emerald-50/70 shadow-sm'
+										: 'border-dashed bg-muted/30',
+								)}
+							>
+								<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+									<div className="space-y-1">
+										<p className="text-sm font-semibold text-foreground">
+											{t('taxSettings.fields.enableDualPayroll')}
+										</p>
+										<p className="text-xs text-muted-foreground">
+											{t('taxSettings.helpers.enableDualPayroll')}
+										</p>
+									</div>
+									<div className="min-w-0 flex-1">
+										<form.AppField name="enableDualPayroll">
+											{(field) => (
+												<field.ToggleField
+													label={t('taxSettings.fields.enableDualPayroll')}
+													description={t(
+														'taxSettings.helpers.enableDualPayroll',
+													)}
+													disabled={isFormDisabled}
+												/>
+											)}
+										</form.AppField>
+									</div>
+								</div>
+								<div className="mt-4 grid gap-3 md:grid-cols-3">
+									<div className="rounded-lg border border-white/60 bg-white/80 p-3">
+										<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+											{t('taxSettings.dualPayroll.realTitle')}
+										</p>
+										<p className="mt-1 text-sm text-foreground">
+											{t('taxSettings.dualPayroll.realDescription')}
+										</p>
+									</div>
+									<div className="rounded-lg border border-white/60 bg-white/80 p-3">
+										<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+											{t('taxSettings.dualPayroll.fiscalTitle')}
+										</p>
+										<p className="mt-1 text-sm text-foreground">
+											{t('taxSettings.dualPayroll.fiscalDescription')}
+										</p>
+									</div>
+									<div className="rounded-lg border border-white/60 bg-white/80 p-3">
+										<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+											{t('taxSettings.dualPayroll.complementTitle')}
+										</p>
+										<p className="mt-1 text-sm text-foreground">
+											{t('taxSettings.dualPayroll.complementDescription')}
+										</p>
+									</div>
+								</div>
+							</div>
+						) : null}
 						{enableSeventhDayPayValue ? (
 							<form.AppField name="countSaturdayAsWorkedForSeventhDay">
 								{(field) => (

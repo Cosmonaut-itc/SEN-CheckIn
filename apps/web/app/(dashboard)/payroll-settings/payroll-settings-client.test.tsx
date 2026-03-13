@@ -39,9 +39,12 @@ vi.mock('@/components/document-workflow-settings-section', () => ({
 /**
  * Renders payroll settings client page with query and i18n providers.
  *
+ * @param orgOverrides - Optional organization context overrides
  * @returns Render result
  */
-function renderWithProviders(): ReturnType<typeof render> {
+function renderWithProviders(
+	orgOverrides: Partial<React.ComponentProps<typeof OrgProvider>['value']> = {},
+): ReturnType<typeof render> {
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: { retry: false },
@@ -55,6 +58,8 @@ function renderWithProviders(): ReturnType<typeof render> {
 					organizationId: 'org-1',
 					organizationName: 'Org Test',
 					organizationSlug: 'org-test',
+					organizationRole: 'owner',
+					...orgOverrides,
 				}}
 			>
 				<NextIntlClientProvider locale="es" messages={messages}>
@@ -86,6 +91,7 @@ describe('PayrollSettingsClient', () => {
 			aguinaldoDays: 15,
 			vacationPremiumRate: 0.25,
 			enableSeventhDayPay: false,
+			enableDualPayroll: false,
 			countSaturdayAsWorkedForSeventhDay: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
@@ -120,6 +126,19 @@ describe('PayrollSettingsClient', () => {
 		expect(
 			document.getElementById('countSaturdayAsWorkedForSeventhDay'),
 		).not.toBeInTheDocument();
+		expect(document.getElementById('enableDualPayroll')).toBeInTheDocument();
+	});
+
+	it('hides the dual payroll toggle for organization members', async () => {
+		renderWithProviders({ organizationRole: 'member', userRole: 'member' });
+
+		await waitFor(() => {
+			expect(
+				screen.getByText('disciplinary.fields.enableDisciplinaryMeasures'),
+			).toBeInTheDocument();
+		});
+
+		expect(document.getElementById('enableDualPayroll')).not.toBeInTheDocument();
 	});
 
 	it('shows saturday counting toggle only when seventh day pay is enabled', async () => {
@@ -137,6 +156,7 @@ describe('PayrollSettingsClient', () => {
 			aguinaldoDays: 15,
 			vacationPremiumRate: 0.25,
 			enableSeventhDayPay: true,
+			enableDualPayroll: false,
 			countSaturdayAsWorkedForSeventhDay: true,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
@@ -173,6 +193,7 @@ describe('PayrollSettingsClient', () => {
 			aguinaldoDays: 15,
 			vacationPremiumRate: 0.25,
 			enableSeventhDayPay: false,
+			enableDualPayroll: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
 			ptuIsExempt: false,
@@ -224,6 +245,33 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
+	it('submits the dual payroll toggle through the payroll settings action', async () => {
+		renderWithProviders();
+
+		const dualPayrollInput = await screen.findByLabelText(
+			'taxSettings.fields.enableDualPayroll',
+		);
+		await waitFor(() => {
+			expect(dualPayrollInput).not.toBeChecked();
+		});
+		fireEvent.click(dualPayrollInput);
+		await waitFor(() => {
+			expect(dualPayrollInput).toBeChecked();
+		});
+		fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+		await waitFor(() => {
+			expect(mockUpdatePayrollSettingsAction).toHaveBeenCalledWith(
+				expect.objectContaining({
+					enableDualPayroll: true,
+				}),
+				expect.objectContaining({
+					mutationKey: ['payrollSettings', 'update'],
+				}),
+			);
+		});
+	});
+
 	it('persists valid lunch break fields when automatic deduction is disabled before saving', async () => {
 		mockFetchPayrollSettings.mockResolvedValueOnce({
 			id: 'payroll-1',
@@ -239,6 +287,7 @@ describe('PayrollSettingsClient', () => {
 			aguinaldoDays: 15,
 			vacationPremiumRate: 0.25,
 			enableSeventhDayPay: false,
+			enableDualPayroll: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
 			ptuIsExempt: false,
@@ -296,6 +345,7 @@ describe('PayrollSettingsClient', () => {
 			aguinaldoDays: 15,
 			vacationPremiumRate: 0.25,
 			enableSeventhDayPay: false,
+			enableDualPayroll: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
 			ptuIsExempt: false,

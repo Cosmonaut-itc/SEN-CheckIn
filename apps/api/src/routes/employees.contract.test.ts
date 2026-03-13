@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
+import { desc, eq } from 'drizzle-orm';
 
 import { calculateVacationAccrual, getServiceYearNumber } from '../services/vacations.js';
 import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	getUserSession,
 	requireErrorResponse,
 	requireResponseData,
 	requireRoute,
@@ -124,12 +126,14 @@ function requireVacationRequestPayload(value: unknown): VacationRequestPayload {
 describe('employee routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
+	let memberSession: Awaited<ReturnType<typeof getUserSession>>;
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 	let baseEmployeeId: string;
 
 	beforeAll(async () => {
 		client = createTestClient();
 		adminSession = await getAdminSession();
+		memberSession = await getUserSession();
 		seed = await getSeedData();
 
 		const createResponse = await client.employees.post({
@@ -255,6 +259,102 @@ describe('employee routes (contract)', () => {
 		expect(Number(employeeRecord.platformHoursYear ?? 0)).toBe(320);
 		expect(employeeRecord.ptuEligibilityOverride).toBe('INCLUDE');
 		expect(employeeRecord.aguinaldoDaysOverride).toBe(20);
+	});
+
+	it('lets admins update fiscalDailyPay and records an audit event', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const response = await employeeRoutes.put({
+			fiscalDailyPay: 320.25,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data as { fiscalDailyPay?: number | string | null } | undefined;
+		expect(Number(employeeRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
+
+		const [{ default: db }, { employeeAuditEvent }] = await Promise.all([
+			import('../db/index.js'),
+			import('../db/schema.js'),
+		]);
+		const auditRows = await db
+			.select()
+			.from(employeeAuditEvent)
+			.where(eq(employeeAuditEvent.employeeId, baseEmployeeId))
+			.orderBy(desc(employeeAuditEvent.createdAt))
+			.limit(1);
+		const latestAudit = auditRows[0];
+		expect(latestAudit?.changedFields).toContain('fiscalDailyPay');
+
+		const auditAfter = latestAudit?.after as { fiscalDailyPay?: string | null } | null | undefined;
+		expect(Number(auditAfter?.fiscalDailyPay ?? 0)).toBe(320.25);
+	});
+
+	it('rejects fiscalDailyPay when it is greater than or equal to dailyPay', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const response = await employeeRoutes.put({
+			fiscalDailyPay: 500,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'fiscalDailyPay validation');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('blocks member users from updating fiscalDailyPay', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const response = await employeeRoutes.put({
+			fiscalDailyPay: 310.5,
+			$headers: { cookie: memberSession.cookieHeader },
+		} as never);
+
+		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'member fiscalDailyPay update');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
+	});
+
+	it('shows fiscalDailyPay only to admins in employee detail and list responses', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const adminDetailResponse = await employeeRoutes.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(adminDetailResponse.status).toBe(200);
+		const adminDetailPayload = requireResponseData(adminDetailResponse);
+		const adminDetailRecord = adminDetailPayload.data as
+			| { fiscalDailyPay?: number | string | null }
+			| undefined;
+		expect(Number(adminDetailRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
+
+		const memberDetailResponse = await employeeRoutes.get({
+			$headers: { cookie: memberSession.cookieHeader },
+		});
+		expect(memberDetailResponse.status).toBe(200);
+		const memberDetailPayload = requireResponseData(memberDetailResponse);
+		const memberDetailRecord = memberDetailPayload.data as Record<string, unknown> | undefined;
+		expect(memberDetailRecord && 'fiscalDailyPay' in memberDetailRecord).toBe(false);
+
+		const adminListResponse = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 10, offset: 0 },
+		});
+		expect(adminListResponse.status).toBe(200);
+		const adminListPayload = requireResponseData(adminListResponse);
+		const adminListRecord = adminListPayload.data.find((item) => item.id === baseEmployeeId) as
+			| { fiscalDailyPay?: number | string | null }
+			| undefined;
+		expect(Number(adminListRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
+
+		const memberListResponse = await client.employees.get({
+			$headers: { cookie: memberSession.cookieHeader },
+			$query: { limit: 10, offset: 0 },
+		});
+		expect(memberListResponse.status).toBe(200);
+		const memberListPayload = requireResponseData(memberListResponse);
+		const memberListRecord = memberListPayload.data.find(
+			(item) => item.id === baseEmployeeId,
+		) as Record<string, unknown> | undefined;
+		expect(memberListRecord && 'fiscalDailyPay' in memberListRecord).toBe(false);
 	});
 
 	it('manages PTU history records for an employee', async () => {

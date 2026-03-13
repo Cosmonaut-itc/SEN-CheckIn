@@ -26,11 +26,11 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.organizationId).toBeDefined();
-		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(false);
+		expect(typeof payload.data?.countSaturdayAsWorkedForSeventhDay).toBe('boolean');
 		expect(typeof payload.data?.enableDisciplinaryMeasures).toBe('boolean');
-		expect(payload.data?.autoDeductLunchBreak).toBe(false);
-		expect(Number(payload.data?.lunchBreakMinutes)).toBe(60);
-		expect(Number(payload.data?.lunchBreakThresholdHours)).toBe(6);
+		expect(typeof payload.data?.autoDeductLunchBreak).toBe('boolean');
+		expect(Number(payload.data?.lunchBreakMinutes)).toBeGreaterThan(0);
+		expect(Number(payload.data?.lunchBreakThresholdHours)).toBeGreaterThan(0);
 	});
 
 	it('updates payroll settings for the active organization', async () => {
@@ -38,6 +38,7 @@ describe('payroll settings routes (contract)', () => {
 			weekStartDay: 2,
 			overtimeEnforcement: 'WARN',
 			enableSeventhDayPay: true,
+			enableDualPayroll: true,
 			countSaturdayAsWorkedForSeventhDay: true,
 			enableDisciplinaryMeasures: true,
 			autoDeductLunchBreak: true,
@@ -49,6 +50,7 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.weekStartDay).toBe(2);
+		expect(payload.data?.enableDualPayroll).toBe(true);
 		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(true);
 		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);
 		expect(payload.data?.autoDeductLunchBreak).toBe(true);

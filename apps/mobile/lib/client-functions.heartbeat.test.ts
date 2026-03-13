@@ -43,4 +43,24 @@ describe('sendDeviceHeartbeat', () => {
 			code: 'DEVICE_NOT_FOUND',
 		});
 	});
+
+	it('keeps non-device 404 heartbeat responses as UNKNOWN', async () => {
+		mockGetAccessToken.mockReturnValue('token-1');
+		mockAuthedFetchForEden.mockResolvedValue({
+			ok: false,
+			status: 404,
+			json: async () => ({
+				error: {
+					code: 'ROUTE_NOT_READY',
+					message: 'Route not ready',
+				},
+			}),
+		});
+
+		await expect(sendDeviceHeartbeat('device-1')).rejects.toMatchObject({
+			name: 'HeartbeatError',
+			status: 404,
+			code: 'UNKNOWN',
+		});
+	});
 });

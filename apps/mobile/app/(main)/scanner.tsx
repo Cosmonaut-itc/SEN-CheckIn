@@ -29,6 +29,7 @@ import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
 import type { AttendanceType } from '@/lib/query-keys';
+import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
 
 /** Represents the current status of the face scanning operation */
@@ -106,6 +107,7 @@ export default function ScannerScreen(): JSX.Element {
 	const [permission, requestPermission] = useCameraPermissions();
 	const router = useRouter();
 	const { clearSettings, settings } = useDeviceContext();
+	const { requestReauth } = useAuthContext();
 	const { colorScheme, isDarkMode } = useTheme();
 	const insets = useSafeAreaInsets();
 	const themeColors = useMemo<ThemeColors>(
@@ -184,16 +186,22 @@ export default function ScannerScreen(): JSX.Element {
 	 * @returns {Promise<void>} Resolves after local auth/device state is cleared and navigation occurs
 	 */
 	const handleStartDeviceLinking = useCallback(async (): Promise<void> => {
+		let shouldLockAuth = false;
+
 		try {
 			await signOut();
 		} catch (error) {
+			shouldLockAuth = true;
 			console.warn('[scanner] Failed to sign out before relinking device', error);
 		} finally {
+			if (shouldLockAuth) {
+				await requestReauth({ forceLock: true, reason: 'manual' });
+			}
 			await clearAuthStorage();
 			await clearSettings();
 			router.replace('/(auth)/login');
 		}
-	}, [clearSettings, router]);
+	}, [clearSettings, requestReauth, router]);
 
 	/**
 	 * Cycles between CHECK_IN, CHECK_OUT_AUTHORIZED, and CHECK_OUT attendance types

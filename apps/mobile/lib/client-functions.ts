@@ -807,13 +807,13 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 		const code: HeartbeatErrorCode =
 			rawCode === 'DEVICE_DISABLED'
 				? 'DEVICE_DISABLED'
-				: rawCode === 'DEVICE_NOT_FOUND' || rawCode === 'NOT_FOUND' || response.status === 404
+				: rawCode === 'DEVICE_NOT_FOUND'
 					? 'DEVICE_NOT_FOUND'
-				: rawCode === 'UNAUTHORIZED'
-					? 'UNAUTHORIZED'
-					: rawCode === 'FORBIDDEN'
-						? 'FORBIDDEN'
-						: 'UNKNOWN';
+					: rawCode === 'UNAUTHORIZED'
+						? 'UNAUTHORIZED'
+						: rawCode === 'FORBIDDEN'
+							? 'FORBIDDEN'
+							: 'UNKNOWN';
 		const message = payload?.error?.message ?? 'Failed to send device heartbeat';
 		console.error('[sendDeviceHeartbeat] API error:', response.status, message);
 		throw new HeartbeatError(message, response.status, code);

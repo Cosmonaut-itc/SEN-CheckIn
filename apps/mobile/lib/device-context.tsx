@@ -294,7 +294,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 						return;
 					}
 
-					if (error.code === 'DEVICE_NOT_FOUND' || error.status === 404) {
+					if (error.code === 'DEVICE_NOT_FOUND') {
 						console.warn('[device-context] Device missing, clearing local settings', {
 							deviceId: settings.deviceId,
 						});

@@ -8,6 +8,7 @@ const mockReplace = jest.fn();
 const mockSignOut = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearSettings = jest.fn();
+const mockRequestReauth = jest.fn();
 
 jest.mock('expo-router', () => ({
 	useRouter: () => ({
@@ -23,8 +24,7 @@ jest.mock('expo-router', () => ({
 
 jest.mock('expo-camera', () => {
 	const ReactActual = jest.requireActual<typeof import('react')>('react');
-	const ReactNativeActual =
-		jest.requireActual<typeof import('react-native')>('react-native');
+	const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 
 	const CameraView = ReactActual.forwardRef((props: unknown, ref: React.Ref<unknown>) => {
 		ReactActual.useImperativeHandle(ref, () => ({
@@ -52,8 +52,7 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('heroui-native', () => {
-	const ReactNativeActual =
-		jest.requireActual<typeof import('react-native')>('react-native');
+	const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 	const { Pressable, Text, View } = ReactNativeActual;
 
 	const Button = function MockButton({
@@ -102,8 +101,7 @@ jest.mock('heroui-native', () => {
 
 jest.mock('@/components/ui/icon-symbol', () => ({
 	IconSymbol: function MockIconSymbol() {
-		const ReactNativeActual =
-			jest.requireActual<typeof import('react-native')>('react-native');
+		const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
 		return <ReactNativeActual.View testID="icon-symbol" />;
 	},
 }));
@@ -125,6 +123,12 @@ jest.mock('@/lib/device-context', () => ({
 	useDeviceContext: () => ({
 		settings: null,
 		clearSettings: mockClearSettings,
+	}),
+}));
+
+jest.mock('@/providers/auth-provider', () => ({
+	useAuthContext: () => ({
+		requestReauth: (...args: unknown[]) => mockRequestReauth(...args),
 	}),
 }));
 
@@ -151,6 +155,7 @@ describe('ScannerScreen device linking state', () => {
 		mockSignOut.mockReset();
 		mockClearAuthStorage.mockReset();
 		mockClearSettings.mockReset();
+		mockRequestReauth.mockReset();
 	});
 
 	afterEach(() => {
@@ -176,5 +181,27 @@ describe('ScannerScreen device linking state', () => {
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 		});
 		expect(mockPush).not.toHaveBeenCalled();
+	});
+
+	it('locks auth state before routing to login when sign out fails', async () => {
+		mockSignOut.mockRejectedValue(new Error('network error'));
+		mockClearAuthStorage.mockResolvedValue(undefined);
+		mockClearSettings.mockResolvedValue(undefined);
+		mockRequestReauth.mockResolvedValue(undefined);
+
+		render(<ScannerScreen />);
+
+		fireEvent.press(screen.getByText('Toca para vincular este dispositivo'));
+
+		await waitFor(() => {
+			expect(mockRequestReauth).toHaveBeenCalledWith({
+				forceLock: true,
+				reason: 'manual',
+			});
+		});
+
+		expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+		expect(mockClearSettings).toHaveBeenCalledTimes(1);
+		expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 	});
 });

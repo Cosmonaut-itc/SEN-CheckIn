@@ -41,7 +41,7 @@ jest.mock('@/providers/auth-provider', () => ({
 function DeviceIdProbe(): JSX.Element {
 	const { settings, isHydrated } = useDeviceContext();
 
-	return <Text>{isHydrated ? settings?.deviceId ?? 'no-device' : 'loading'}</Text>;
+	return <Text>{isHydrated ? (settings?.deviceId ?? 'no-device') : 'loading'}</Text>;
 }
 
 describe('DeviceProvider heartbeat recovery', () => {
@@ -111,5 +111,34 @@ describe('DeviceProvider heartbeat recovery', () => {
 		jest.advanceTimersByTime(180_000);
 
 		expect(mockSendDeviceHeartbeat).toHaveBeenCalledTimes(1);
+	});
+
+	it('keeps local device settings when a heartbeat 404 is not a device-missing error', async () => {
+		mockSendDeviceHeartbeat.mockRejectedValue({
+			status: 404,
+			code: 'UNKNOWN',
+			message: 'Route not ready',
+		});
+		mockIsHeartbeatError.mockReturnValue(true);
+
+		const view = render(
+			<DeviceProvider>
+				<DeviceIdProbe />
+			</DeviceProvider>,
+		);
+
+		await waitFor(() => {
+			expect(mockSendDeviceHeartbeat).toHaveBeenCalledWith('device-1');
+		});
+
+		expect(mockDeleteItemAsync).not.toHaveBeenCalledWith('sen-checkin_device_settings');
+		expect(mockRequestReauth).not.toHaveBeenCalledWith({
+			forceLock: true,
+			reason: 'device_missing',
+		});
+
+		await waitFor(() => {
+			expect(view.getByText('device-1')).toBeTruthy();
+		});
 	});
 });

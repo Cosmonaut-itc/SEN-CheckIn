@@ -138,7 +138,7 @@ export interface EmployeeDeductionRow {
 	referenceNumber?: string | null;
 	satDeductionCode?: string | null;
 	notes?: string | null;
-	createdAt?: Date;
+	createdAt?: Date | null;
 }
 
 export interface PayrollDeductionBreakdownItem {

@@ -759,6 +759,72 @@ describe('employee deduction routes', () => {
 		});
 	});
 
+	it('filters employee deductions by status only', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'GET',
+				'/organizations/org-test/employees/employee-1/deductions?status=ACTIVE',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: [
+				{
+					id: 'deduction-active',
+					status: 'ACTIVE',
+				},
+			],
+		});
+	});
+
+	it('filters employee deductions by type only', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'GET',
+				'/organizations/org-test/employees/employee-1/deductions?type=LOAN',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: [
+				{
+					id: 'deduction-cancelled',
+					type: 'LOAN',
+				},
+			],
+		});
+	});
+
+	it('returns all deductions without filters', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'GET',
+				'/organizations/org-test/employees/employee-1/deductions',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		const payload = (await response.json()) as {
+			data: Array<{
+				id: string;
+			}>;
+		};
+		expect(payload.data).toHaveLength(3);
+		expect(payload.data.map((deduction) => deduction.id)).toEqual([
+			'deduction-active',
+			'deduction-paused',
+			'deduction-cancelled',
+		]);
+	});
+
 	describe('update validation', () => {
 		it('rejects empty update payload', async () => {
 			const { employeeDeductionRoutes } = await import('./employee-deductions.js');
@@ -776,6 +842,64 @@ describe('employee deduction routes', () => {
 				'At least one field must be provided for update',
 			);
 		});
+	});
+
+	it('updates deduction value and notes correctly', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				'/organizations/org-test/employees/employee-1/deductions/deduction-active',
+				{
+					value: 15.75,
+					notes: 'Ajuste administrativo',
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: {
+				id: 'deduction-active',
+				value: 15.75,
+				notes: 'Ajuste administrativo',
+			},
+		});
+		expect(dbState.deductions.find((entry) => entry.id === 'deduction-active')).toMatchObject({
+			value: '15.7500',
+			notes: 'Ajuste administrativo',
+		});
+	});
+
+	it('transitions from PAUSED to ACTIVE successfully', async () => {
+		dbState.deductions = [
+			dbState.deductions[1] as FakeDeductionRow,
+			dbState.deductions[0] as FakeDeductionRow,
+			dbState.deductions[2] as FakeDeductionRow,
+		];
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				'/organizations/org-test/employees/employee-1/deductions/deduction-paused',
+				{
+					status: 'ACTIVE',
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: {
+				id: 'deduction-paused',
+				status: 'ACTIVE',
+			},
+		});
+		expect(dbState.deductions.find((entry) => entry.id === 'deduction-paused')?.status).toBe(
+			'ACTIVE',
+		);
 	});
 
 	it('rejects invalid status transitions on update', async () => {

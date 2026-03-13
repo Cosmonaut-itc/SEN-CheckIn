@@ -1,6 +1,8 @@
 import * as React from 'react';
 
 const MOBILE_BREAKPOINT = 1024;
+const useIsomorphicLayoutEffect =
+	typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect;
 
 /**
  * Determines whether the current viewport should use mobile-responsive behavior.
@@ -10,7 +12,7 @@ const MOBILE_BREAKPOINT = 1024;
 export function useIsMobile() {
 	const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
 
-	React.useEffect(() => {
+	useIsomorphicLayoutEffect(() => {
 		const onChange = () => {
 			setIsMobile(window.innerWidth <= MOBILE_BREAKPOINT);
 		};

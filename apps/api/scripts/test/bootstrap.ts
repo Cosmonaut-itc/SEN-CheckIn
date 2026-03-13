@@ -166,6 +166,7 @@ async function resetPublicSchema(connectionString: string): Promise<void> {
 			DROP SCHEMA IF EXISTS public CASCADE;
 			DROP SCHEMA IF EXISTS drizzle CASCADE;
 			CREATE SCHEMA public;
+			GRANT ALL ON SCHEMA public TO PUBLIC;
 		`);
 	} finally {
 		await client.end();

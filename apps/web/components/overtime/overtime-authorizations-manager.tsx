@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, isValid, parse, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { CalendarIcon } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
@@ -24,25 +24,21 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	fetchEmployeesList,
 	fetchOvertimeAuthorizationsList,
 	type Employee,
+	type OvertimeAuthorization,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { mutationKeys, queryKeys, type OvertimeAuthorizationQueryParams } from '@/lib/query-keys';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
+import type { ColumnDef, ColumnFiltersState, PaginationState, SortingState } from '@tanstack/react-table';
 
 const DEFAULT_PAGE_SIZE = 20;
 const EMPLOYEE_QUERY_LIMIT = 100;
@@ -99,6 +95,9 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 	const [startDateFilter, setStartDateFilter] = useState<string>('');
 	const [endDateFilter, setEndDateFilter] = useState<string>('');
 	const [pageIndex, setPageIndex] = useState(0);
+	const [sorting, setSorting] = useState<SortingState>([]);
+	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 
 	const [employeeSearch, setEmployeeSearch] = useState<string>('');
@@ -131,6 +130,24 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 		if (!open) {
 			resetCreateForm();
 		}
+	};
+
+	/**
+	 * Adapts TanStack pagination updates to the local page-index state.
+	 *
+	 * @param updater - Next pagination state or updater function
+	 * @returns Nothing
+	 */
+	const handlePaginationChange = (
+		updater: React.SetStateAction<PaginationState>,
+	): void => {
+		const currentState: PaginationState = {
+			pageIndex,
+			pageSize: DEFAULT_PAGE_SIZE,
+		};
+		const nextState =
+			typeof updater === 'function' ? updater(currentState) : updater;
+		setPageIndex(nextState.pageIndex);
 	};
 
 	const employeeQueryParams = useMemo(
@@ -262,19 +279,6 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 		});
 	};
 
-	if (!organizationId) {
-		return (
-			<div className="space-y-2">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('noOrganization')}</p>
-			</div>
-		);
-	}
-
-	const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.limit));
-	const currentPage = Math.floor(pagination.offset / pagination.limit) + 1;
-	const canGoPrevious = pagination.offset > 0;
-	const canGoNext = pagination.offset + pagination.limit < pagination.total;
 	const helperShouldWarn = Number(authorizedHoursInput || 0) > LEGAL_DAILY_OVERTIME_LIMIT;
 	const isCreateFormValid =
 		Boolean(selectedEmployeeId) &&
@@ -288,20 +292,169 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 	const minimumAuthorizationDateValue = startOfDay(
 		parseDateKey(minimumAuthorizationDate) ?? new Date(),
 	);
+	const resolvedOrganizationId = organizationId ?? '';
 
-	return (
-		<div className="space-y-6">
-			<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-				<div className="space-y-1">
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
+	const columns = useMemo<ColumnDef<OvertimeAuthorization>[]>(
+		() => [
+			{
+				id: 'employee',
+				accessorFn: (row) => row.employeeName ?? row.employeeId,
+				header: t('table.headers.employee'),
+				cell: ({ row }) => (
+					<span className="font-medium">
+						{row.original.employeeName ?? row.original.employeeId}
+					</span>
+				),
+			},
+			{
+				accessorKey: 'dateKey',
+				header: t('table.headers.date'),
+			},
+			{
+				id: 'authorizedHours',
+				accessorFn: (row) => row.authorizedHours,
+				header: t('table.headers.hours'),
+				cell: ({ row }) => row.original.authorizedHours.toFixed(2),
+			},
+			{
+				accessorKey: 'status',
+				header: t('table.headers.status'),
+				cell: ({ row }) => (
+					<Badge
+						data-testid={`overtime-authorization-status-${row.original.id}`}
+						variant={
+							row.original.status === 'CANCELLED'
+								? 'neutral'
+								: row.original.status === 'PENDING'
+									? 'warning'
+									: 'success'
+						}
+					>
+						{t(`status.${row.original.status}`)}
+					</Badge>
+				),
+			},
+			{
+				id: 'authorizedByName',
+				accessorFn: (row) => row.authorizedByName ?? '',
+				header: t('table.headers.createdBy'),
+				cell: ({ row }) => row.original.authorizedByName ?? '—',
+			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				enableSorting: false,
+				enableGlobalFilter: false,
+				cell: ({ row }) =>
+					row.original.status === 'ACTIVE' ? (
+						<Button
+							type="button"
+							variant="outline"
+							className="min-h-11"
+							data-testid={`overtime-cancel-button-${row.original.id}`}
+							disabled={cancelMutation.isPending}
+							onClick={() =>
+								cancelMutation.mutate({
+									organizationId: resolvedOrganizationId,
+									id: row.original.id,
+								})
+							}
+						>
+							{t('actions.cancel')}
+						</Button>
+					) : (
+						<span className="text-muted-foreground">—</span>
+					),
+			},
+		],
+		[cancelMutation, resolvedOrganizationId, t],
+	);
+
+	const renderAuthorizationCard = useCallback(
+		(authorization: OvertimeAuthorization): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="space-y-1">
+						<p className="text-base font-semibold">
+							{authorization.employeeName ?? authorization.employeeId}
+						</p>
+						<p className="text-sm text-muted-foreground">{authorization.dateKey}</p>
+					</div>
+					<Badge
+						variant={
+							authorization.status === 'CANCELLED'
+								? 'neutral'
+								: authorization.status === 'PENDING'
+									? 'warning'
+									: 'success'
+						}
+					>
+						{t(`status.${authorization.status}`)}
+					</Badge>
 				</div>
 
-				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-					<DialogTrigger asChild>
-						<Button data-testid="overtime-create-trigger">{t('actions.create')}</Button>
-					</DialogTrigger>
-					<DialogContent>
+				<div className="grid gap-3">
+					<div className="grid grid-cols-2 gap-3">
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">{t('table.headers.hours')}</p>
+							<p className="text-sm font-medium">
+								{authorization.authorizedHours.toFixed(2)}
+							</p>
+						</div>
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">
+								{t('table.headers.createdBy')}
+							</p>
+							<p className="text-sm font-medium">
+								{authorization.authorizedByName ?? '—'}
+							</p>
+						</div>
+					</div>
+				</div>
+
+				{authorization.status === 'ACTIVE' ? (
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11 w-full"
+						data-testid={`overtime-cancel-button-${authorization.id}`}
+						disabled={cancelMutation.isPending}
+						onClick={() =>
+							cancelMutation.mutate({
+								organizationId: resolvedOrganizationId,
+								id: authorization.id,
+							})
+						}
+					>
+						{t('actions.cancel')}
+					</Button>
+				) : null}
+			</div>
+		),
+		[cancelMutation, resolvedOrganizationId, t],
+	);
+
+	if (!organizationId) {
+		return (
+			<div className="space-y-2">
+				<ResponsivePageHeader title={t('title')} description={t('noOrganization')} />
+			</div>
+		);
+	}
+
+	return (
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+						<DialogTrigger asChild>
+							<Button data-testid="overtime-create-trigger" className="min-h-11">
+								{t('actions.create')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
 						<DialogHeader>
 							<DialogTitle>{t('form.title')}</DialogTitle>
 							<DialogDescription>{t('subtitle')}</DialogDescription>
@@ -324,6 +477,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 									value={employeeSearch}
 									onChange={(event) => setEmployeeSearch(event.target.value)}
 									placeholder={t('form.placeholders.search')}
+									className="min-h-11"
 								/>
 							</div>
 
@@ -347,7 +501,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 								</select>
 							</div>
 
-							<div className="grid gap-4 md:grid-cols-2">
+							<div className="grid gap-4 min-[640px]:grid-cols-2">
 								<div className="space-y-2">
 									<Label htmlFor="overtime-date">{t('form.fields.date')}</Label>
 									<Popover>
@@ -368,14 +522,14 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 														<span>{t('form.placeholders.date')}</span>
 													)}
 												</span>
-												<CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-70" />
-											</button>
-										</PopoverTrigger>
-										<PopoverContent
-											className="w-auto p-0"
-											align="start"
-											data-testid="overtime-date-calendar"
-										>
+											<CalendarIcon className="ml-2 h-4 w-4 shrink-0 opacity-70" />
+										</button>
+									</PopoverTrigger>
+									<PopoverContent
+										className="w-[calc(100vw-2rem)] max-w-full p-0 min-[640px]:w-auto"
+										align="start"
+										data-testid="overtime-date-calendar"
+									>
 											<Calendar
 												mode="single"
 												selected={selectedAuthorizationDate}
@@ -402,6 +556,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 											setAuthorizedHoursInput(event.target.value)
 										}
 										placeholder={t('form.placeholders.hours')}
+										className="min-h-11"
 									/>
 								</div>
 							</div>
@@ -425,15 +580,17 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 									value={notes}
 									onChange={(event) => setNotes(event.target.value)}
 									placeholder={t('form.placeholders.notes')}
+									className="min-h-11"
 								/>
 							</div>
 
-							<div className="flex justify-end gap-2">
+							<div className="flex flex-col-reverse gap-2 min-[640px]:flex-row min-[640px]:justify-end">
 								<DialogClose asChild>
 									<Button
 										type="button"
 										variant="outline"
 										data-testid="overtime-cancel-dialog"
+										className="min-h-11"
 									>
 										{tCommon('cancel')}
 									</Button>
@@ -443,6 +600,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 									data-testid="overtime-submit-button"
 									disabled={createMutation.isPending || !isCreateFormValid}
 									onClick={handleCreateAuthorization}
+									className="min-h-11"
 								>
 									{createMutation.isPending
 										? t('actions.createSubmitting')
@@ -450,11 +608,12 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 								</Button>
 							</div>
 						</form>
-					</DialogContent>
-				</Dialog>
-			</div>
+						</DialogContent>
+					</Dialog>
+				}
+			/>
 
-			<div className="grid gap-4 md:grid-cols-4">
+			<div className="grid gap-4 min-[1025px]:grid-cols-4">
 				<div className="space-y-2">
 					<Label htmlFor="filter-employee">{t('filters.employee')}</Label>
 					<select
@@ -503,6 +662,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 							setStartDateFilter(event.target.value);
 							setPageIndex(0);
 						}}
+						className="min-h-11"
 					/>
 				</div>
 
@@ -516,116 +676,33 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 							setEndDateFilter(event.target.value);
 							setPageIndex(0);
 						}}
+						className="min-h-11"
 					/>
 				</div>
 			</div>
 
-			<div className="rounded-md border">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t('table.headers.employee')}</TableHead>
-							<TableHead>{t('table.headers.date')}</TableHead>
-							<TableHead>{t('table.headers.hours')}</TableHead>
-							<TableHead>{t('table.headers.status')}</TableHead>
-							<TableHead>{t('table.headers.createdBy')}</TableHead>
-							<TableHead>{t('table.headers.actions')}</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{authorizationsQuery.isLoading || authorizationsQuery.isFetching ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="text-center text-muted-foreground"
-								>
-									{tCommon('loading')}
-								</TableCell>
-							</TableRow>
-						) : authorizations.length === 0 ? (
-							<TableRow>
-								<TableCell
-									colSpan={6}
-									className="text-center text-muted-foreground"
-								>
-									{t('table.empty')}
-								</TableCell>
-							</TableRow>
-						) : (
-							authorizations.map((authorization) => (
-								<TableRow key={authorization.id}>
-									<TableCell className="font-medium">
-										{authorization.employeeName ?? authorization.employeeId}
-									</TableCell>
-									<TableCell>{authorization.dateKey}</TableCell>
-									<TableCell>
-										{authorization.authorizedHours.toFixed(2)}
-									</TableCell>
-									<TableCell>
-										<Badge
-											data-testid={`overtime-authorization-status-${authorization.id}`}
-											variant={
-												authorization.status === 'CANCELLED'
-													? 'neutral'
-													: authorization.status === 'PENDING'
-														? 'warning'
-														: 'success'
-											}
-										>
-											{t(`status.${authorization.status}`)}
-										</Badge>
-									</TableCell>
-									<TableCell>{authorization.authorizedByName ?? '—'}</TableCell>
-									<TableCell>
-										{authorization.status === 'ACTIVE' ? (
-											<Button
-												variant="outline"
-												size="sm"
-												data-testid={`overtime-cancel-button-${authorization.id}`}
-												disabled={cancelMutation.isPending}
-												onClick={() =>
-													cancelMutation.mutate({
-														organizationId,
-														id: authorization.id,
-													})
-												}
-											>
-												{t('actions.cancel')}
-											</Button>
-										) : (
-											<span className="text-muted-foreground">—</span>
-										)}
-									</TableCell>
-								</TableRow>
-							))
-						)}
-					</TableBody>
-				</Table>
-			</div>
-
-			<div className="flex items-center justify-between gap-3">
-				<p className="text-sm text-muted-foreground">
-					{currentPage} / {totalPages}
-				</p>
-				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
-						disabled={!canGoPrevious}
-					>
-						{tCommon('previous')}
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setPageIndex((current) => current + 1)}
-						disabled={!canGoNext}
-					>
-						{tCommon('next')}
-					</Button>
-				</div>
-			</div>
+			<ResponsiveDataView
+				columns={columns}
+				data={authorizations}
+				cardRenderer={renderAuthorizationCard}
+				getCardKey={(authorization) => authorization.id}
+				sorting={sorting}
+				onSortingChange={setSorting}
+				pagination={{ pageIndex, pageSize: DEFAULT_PAGE_SIZE }}
+				onPaginationChange={handlePaginationChange}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={setColumnFilters}
+				globalFilter={globalFilter}
+				onGlobalFilterChange={setGlobalFilter}
+				showToolbar={false}
+				showGlobalFilter={false}
+				manualPagination
+				manualFiltering
+				rowCount={pagination.total}
+				pageSizeOptions={[DEFAULT_PAGE_SIZE]}
+				emptyState={t('table.empty')}
+				isLoading={authorizationsQuery.isLoading || authorizationsQuery.isFetching}
+			/>
 		</div>
 	);
 }

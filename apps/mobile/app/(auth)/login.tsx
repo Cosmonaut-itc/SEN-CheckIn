@@ -702,7 +702,7 @@ export default function LoginScreen(): JSX.Element {
 			showsVerticalScrollIndicator={false}
 		>
 			{/* Header */}
-			<View className="gap-2">
+			<View className="gap-2 pt-4">
 				<Text className="text-base text-foreground-500 leading-relaxed">
 					{i18n.t('Login.header.subtitle')}
 				</Text>

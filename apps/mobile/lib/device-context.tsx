@@ -263,6 +263,16 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 		[settings?.deviceId],
 	);
 
+	/**
+	 * Clear persisted device settings from memory and storage.
+	 *
+	 * @returns Promise that resolves when storage is cleared
+	 */
+	const clearSettings = useCallback(async () => {
+		setSettings(null);
+		await writeStoredSettings(null);
+	}, []);
+
 	useEffect(() => {
 		let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -281,6 +291,15 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 							deviceId: settings.deviceId,
 						});
 						await requestReauth({ forceLock: true, reason: 'device_disabled' });
+						return;
+					}
+
+					if (error.code === 'DEVICE_NOT_FOUND') {
+						console.warn('[device-context] Device missing, clearing local settings', {
+							deviceId: settings.deviceId,
+						});
+						await clearSettings();
+						await requestReauth({ forceLock: true, reason: 'device_missing' });
 						return;
 					}
 
@@ -331,17 +350,7 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 			subscription.remove();
 			stopHeartbeat();
 		};
-	}, [authState, isAuthLoading, requestReauth, session, settings?.deviceId]);
-
-	/**
-	 * Clear persisted device settings from memory and storage.
-	 *
-	 * @returns Promise that resolves when storage is cleared
-	 */
-	const clearSettings = useCallback(async () => {
-		setSettings(null);
-		await writeStoredSettings(null);
-	}, []);
+	}, [authState, clearSettings, isAuthLoading, requestReauth, session, settings?.deviceId]);
 
 	const value = useMemo<DeviceContextValue>(
 		() => ({

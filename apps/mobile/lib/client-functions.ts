@@ -727,7 +727,12 @@ export async function fullEnrollmentFlow(input: {
 /**
  * Error payload for heartbeat failures.
  */
-export type HeartbeatErrorCode = 'DEVICE_DISABLED' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'UNKNOWN';
+export type HeartbeatErrorCode =
+	| 'DEVICE_DISABLED'
+	| 'DEVICE_NOT_FOUND'
+	| 'UNAUTHORIZED'
+	| 'FORBIDDEN'
+	| 'UNKNOWN';
 
 /**
  * Specialized error for heartbeat request failures.
@@ -802,11 +807,13 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 		const code: HeartbeatErrorCode =
 			rawCode === 'DEVICE_DISABLED'
 				? 'DEVICE_DISABLED'
-				: rawCode === 'UNAUTHORIZED'
-					? 'UNAUTHORIZED'
-					: rawCode === 'FORBIDDEN'
-						? 'FORBIDDEN'
-						: 'UNKNOWN';
+				: rawCode === 'DEVICE_NOT_FOUND'
+					? 'DEVICE_NOT_FOUND'
+					: rawCode === 'UNAUTHORIZED'
+						? 'UNAUTHORIZED'
+						: rawCode === 'FORBIDDEN'
+							? 'FORBIDDEN'
+							: 'UNKNOWN';
 		const message = payload?.error?.message ?? 'Failed to send device heartbeat';
 		console.error('[sendDeviceHeartbeat] API error:', response.status, message);
 		throw new HeartbeatError(message, response.status, code);

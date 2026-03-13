@@ -76,6 +76,7 @@
 		"body": "Un administrador debe aprobar el dispositivo en el panel web.",
 		"reason": {
 			"deviceDisabled": "Este dispositivo fue deshabilitado en el panel.",
+			"deviceMissing": "Este dispositivo ya no existe en el sistema. Debes volver a vincularlo.",
 			"refreshFailed": "No pudimos renovar la sesión."
 		},
 		"actions": {
@@ -100,7 +101,7 @@
 		},
 		"status": {
 			"idle": "Coloca tu rostro dentro del círculo",
-			"deviceNotLinked": "Dispositivo no vinculado. Ve a Configuración.",
+			"deviceNotLinked": "Dispositivo no vinculado. Toca para volver a vincularlo.",
 			"verifying": "Verificando rostro...",
 			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
 			"faceNotRecognized": "Rostro no reconocido. Inténtalo de nuevo.",
@@ -116,11 +117,7 @@
 				},
 				"personal": {
 					"label": "Personal",
-					"description": "La salida es por un asunto personal o permiso breve."
-				},
-				"regular": {
-					"label": "Fin de jornada",
-					"description": "Terminaste tu turno y ya no regresarás hoy."
+					"description": "La salida es por un asunto personal."
 				}
 			}
 		},

@@ -19,7 +19,12 @@ type SessionData = ReturnType<typeof useSession>['data'];
 
 type AuthState = 'ok' | 'refreshing' | 'grace' | 'locked';
 
-type LockReason = 'device_disabled' | 'refresh_failed' | 'manual' | 'unknown';
+type LockReason =
+	| 'device_disabled'
+	| 'device_missing'
+	| 'refresh_failed'
+	| 'manual'
+	| 'unknown';
 
 type ReauthOptions = {
 	forceLock?: boolean;
@@ -295,8 +300,13 @@ export function AuthProvider({ children }: PropsWithChildren): JSX.Element {
 				return;
 			}
 
-			if (authStateRef.current === 'locked' && lockReason === 'device_disabled') {
-				console.warn('[AuthProvider] Skipping reauth while device is disabled');
+			if (
+				authStateRef.current === 'locked' &&
+				(lockReason === 'device_disabled' || lockReason === 'device_missing')
+			) {
+				console.warn('[AuthProvider] Skipping reauth while device requires relinking', {
+					reason: lockReason,
+				});
 				return;
 			}
 

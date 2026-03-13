@@ -17,12 +17,15 @@ export default function LockedScreen(): JSX.Element {
 	const router = useRouter();
 	const { requestReauth, lockReason } = useAuthContext();
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
-	const isDeviceDisabled = lockReason === 'device_disabled';
+	const requiresDeviceRelinking =
+		lockReason === 'device_disabled' || lockReason === 'device_missing';
 
 	const reasonMessage = useMemo(() => {
 		switch (lockReason) {
 			case 'device_disabled':
 				return i18n.t('Locked.reason.deviceDisabled');
+			case 'device_missing':
+				return i18n.t('Locked.reason.deviceMissing');
 			case 'refresh_failed':
 				return i18n.t('Locked.reason.refreshFailed');
 			default:
@@ -59,9 +62,9 @@ export default function LockedScreen(): JSX.Element {
 					variant="primary"
 					size="md"
 					className="w-full"
-					isDisabled={isDeviceDisabled}
+					isDisabled={requiresDeviceRelinking}
 					onPress={() => {
-						if (isDeviceDisabled) return;
+						if (requiresDeviceRelinking) return;
 						void requestReauth();
 					}}
 				>
@@ -78,7 +81,11 @@ export default function LockedScreen(): JSX.Element {
 							} catch (error) {
 								console.warn('[locked] Failed to sign out', error);
 							} finally {
-								await clearAuthStorage();
+								try {
+									await clearAuthStorage();
+								} catch (error) {
+									console.warn('[locked] Cleanup error before sign-in', error);
+								}
 								router.replace('/(auth)/login');
 							}
 						})();

@@ -114,6 +114,8 @@ export interface UpdateEmployeeInput {
 	paymentFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	/** Optional SBC daily override */
 	sbcDailyOverride?: number | null;
+	/** Optional fiscal daily pay used when dual payroll is enabled */
+	fiscalDailyPay?: number | null;
 	/** Employment type for PTU eligibility */
 	employmentType?: 'PERMANENT' | 'EVENTUAL';
 	/** Trust employee flag */
@@ -282,6 +284,8 @@ export async function updateEmployee(input: UpdateEmployeeInput): Promise<Mutati
 			paymentFrequency: input.paymentFrequency,
 			sbcDailyOverride:
 				input.sbcDailyOverride === null ? null : (input.sbcDailyOverride ?? undefined),
+			fiscalDailyPay:
+				input.fiscalDailyPay === null ? null : (input.fiscalDailyPay ?? undefined),
 			employmentType: input.employmentType ?? undefined,
 			isTrustEmployee: input.isTrustEmployee ?? undefined,
 			isDirectorAdminGeneralManager: input.isDirectorAdminGeneralManager ?? undefined,

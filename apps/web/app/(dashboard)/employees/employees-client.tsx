@@ -217,6 +217,8 @@ interface EmployeeFormValues {
 	paymentFrequency: PaymentFrequency;
 	/** Pay for the full period */
 	periodPay: string;
+	/** Optional fiscal daily pay for dual payroll */
+	fiscalDailyPay: string;
 	/** Optional SBC daily override */
 	sbcDailyOverride: string;
 	/** Employment type for PTU eligibility */
@@ -654,6 +656,7 @@ const initialFormValues: EmployeeFormValues = {
 	hireDate: '',
 	paymentFrequency: 'MONTHLY',
 	periodPay: '',
+	fiscalDailyPay: '',
 	sbcDailyOverride: '',
 	employmentType: 'PERMANENT',
 	isTrustEmployee: false,
@@ -933,6 +936,41 @@ function calculateDailyPayFromPeriodPay(periodPay: number, frequency: PaymentFre
 function calculatePeriodPayFromDailyPay(dailyPay: number, frequency: PaymentFrequency): number {
 	const divisor = getPayPeriodDivisor(frequency);
 	return roundToTwoDecimals(dailyPay * divisor);
+}
+
+/**
+ * Parses an optional positive currency input.
+ *
+ * @param value - Raw text input
+ * @returns Parsed number, null when empty, or undefined when invalid
+ */
+function parseOptionalPositiveCurrencyInput(value: string): number | null | undefined {
+	const trimmed = value.trim();
+	if (trimmed === '') {
+		return null;
+	}
+	const parsed = Number(trimmed);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return undefined;
+	}
+	return parsed;
+}
+
+/**
+ * Calculates the daily complement between real and fiscal salary.
+ *
+ * @param dailyPay - Real daily pay
+ * @param fiscalDailyPay - Fiscal daily pay
+ * @returns Daily complement rounded to two decimals
+ */
+function calculateDailyComplement(
+	dailyPay: number,
+	fiscalDailyPay: number | null | undefined,
+): number {
+	if (fiscalDailyPay === null || fiscalDailyPay === undefined || fiscalDailyPay >= dailyPay) {
+		return 0;
+	}
+	return roundToTwoDecimals(dailyPay - fiscalDailyPay);
 }
 
 /**
@@ -1332,8 +1370,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	};
 
 	const isOrgSelected = Boolean(organizationId);
-	const canAccessDisciplinary =
+	const canManageSensitivePayroll =
 		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
+	const canAccessDisciplinary = canManageSensitivePayroll;
 
 	const { data: payrollSettings } = useQuery({
 		queryKey: queryKeys.payrollSettings.current(organizationId),
@@ -1341,6 +1380,9 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: isOrgSelected,
 	});
 	const isDisciplinaryEnabled = Boolean(payrollSettings?.enableDisciplinaryMeasures);
+	const isDualPayrollEnabled = Boolean(payrollSettings?.enableDualPayroll);
+	const canManageDualPayrollCompensation =
+		canManageSensitivePayroll && isDualPayrollEnabled;
 	const canUseDisciplinaryModule = canAccessDisciplinary && isDisciplinaryEnabled;
 	const secondaryDetailTabs = useMemo<EmployeeDetailTab[]>(
 		() =>
@@ -2340,6 +2382,13 @@ export function EmployeesPageClient(): React.ReactElement {
 						? null
 						: undefined
 					: Number(trimmedAguinaldoOverride);
+			const parsedFiscalDailyPay = (() => {
+				const parsed = parseOptionalPositiveCurrencyInput(value.fiscalDailyPay);
+				if (parsed === null) {
+					return isEditMode ? null : undefined;
+				}
+				return parsed;
+			})();
 			if (
 				parsedAguinaldoOverride !== undefined &&
 				parsedAguinaldoOverride !== null &&
@@ -2350,6 +2399,18 @@ export function EmployeesPageClient(): React.ReactElement {
 			}
 			const paymentFrequency = value.paymentFrequency ?? 'MONTHLY';
 			const dailyPay = calculateDailyPayFromPeriodPay(parsedPeriodPay, paymentFrequency);
+			if (parsedFiscalDailyPay === undefined) {
+				toast.error(t('validation.fiscalDailyPay'));
+				return;
+			}
+			if (
+				parsedFiscalDailyPay !== null &&
+				canManageDualPayrollCompensation &&
+				parsedFiscalDailyPay >= dailyPay
+			) {
+				toast.error(t('validation.fiscalDailyPayLessThanDailyPay'));
+				return;
+			}
 			const resolvedUserIdForCreate =
 				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
 			const normalizedUserIdForUpdate =
@@ -2373,6 +2434,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					status: value.status,
 					hireDate: trimmedHireDate === '' ? null : trimmedHireDate,
 					dailyPay,
+					fiscalDailyPay:
+						canManageDualPayrollCompensation ? parsedFiscalDailyPay : undefined,
 					paymentFrequency,
 					sbcDailyOverride: parsedSbcOverride,
 					employmentType: value.employmentType,
@@ -2468,15 +2531,29 @@ export function EmployeesPageClient(): React.ReactElement {
 	const lastName = useStore(form.store, (state) => state.values.lastName);
 	const codeValue = useStore(form.store, (state) => state.values.code);
 	const periodPayValue = useStore(form.store, (state) => state.values.periodPay);
+	const fiscalDailyPayValue = useStore(form.store, (state) => state.values.fiscalDailyPay);
 	const paymentFrequencyValue =
 		useStore(form.store, (state) => state.values.paymentFrequency) ?? 'MONTHLY';
 	const computedDailyPay = calculateDailyPayFromPeriodPay(
 		Number(periodPayValue || 0),
 		paymentFrequencyValue,
 	);
+	const parsedFiscalDailyPayPreview = parseOptionalPositiveCurrencyInput(fiscalDailyPayValue);
+	const isFiscalDailyPayInvalid =
+		parsedFiscalDailyPayPreview === undefined ||
+		(typeof parsedFiscalDailyPayPreview === 'number' &&
+			parsedFiscalDailyPayPreview >= computedDailyPay);
+	const fiscalDailyComplementPreview =
+		typeof parsedFiscalDailyPayPreview === 'number'
+			? calculateDailyComplement(computedDailyPay, parsedFiscalDailyPayPreview)
+			: 0;
 	const periodPayLabel = t('fields.periodPay', {
 		period: t(`paymentFrequency.${paymentFrequencyValue}`),
 	});
+	const activeEmployeeDailyComplement = calculateDailyComplement(
+		activeEmployee?.dailyPay ?? 0,
+		activeEmployee?.fiscalDailyPay,
+	);
 
 	const generateEmployeeCode = (first: string, last: string): string => {
 		const random = Math.floor(1000 + Math.random() * 9000).toString();
@@ -2708,6 +2785,10 @@ export function EmployeesPageClient(): React.ReactElement {
 						employee.paymentFrequency ?? 'MONTHLY',
 					),
 				),
+			);
+			form.setFieldValue(
+				'fiscalDailyPay',
+				employee.fiscalDailyPay ? String(employee.fiscalDailyPay) : '',
 			);
 			form.setFieldValue(
 				'sbcDailyOverride',
@@ -3373,6 +3454,32 @@ export function EmployeesPageClient(): React.ReactElement {
 												{activeEmployee?.userId ?? t('placeholders.noUser')}
 											</p>
 										</div>
+										{canManageDualPayrollCompensation ? (
+											<>
+												<div className="space-y-1">
+													<p className="text-muted-foreground">
+														{t('fields.fiscalDailyPay')}
+													</p>
+													<p className="font-medium">
+														{activeEmployee?.fiscalDailyPay !== undefined &&
+														activeEmployee?.fiscalDailyPay !== null
+															? formatCurrency(activeEmployee.fiscalDailyPay)
+															: tCommon('notAvailable')}
+													</p>
+												</div>
+												<div className="space-y-1">
+													<p className="text-muted-foreground">
+														{t('compensation.dailyComplement')}
+													</p>
+													<p className="font-medium">
+														{activeEmployee?.fiscalDailyPay !== undefined &&
+														activeEmployee?.fiscalDailyPay !== null
+															? formatCurrency(activeEmployeeDailyComplement)
+															: tCommon('notAvailable')}
+													</p>
+												</div>
+											</>
+										) : null}
 									</div>
 								</div>
 
@@ -5495,6 +5602,95 @@ export function EmployeesPageClient(): React.ReactElement {
 											/>
 										</div>
 									</div>
+									{canManageDualPayrollCompensation && isEditMode ? (
+										<div className="col-span-2 rounded-xl border border-emerald-300/70 bg-emerald-50/60 p-4">
+											<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+												<div className="space-y-3">
+													<div>
+														<p className="text-sm font-semibold text-foreground">
+															{t('compensation.title')}
+														</p>
+														<p className="text-xs text-muted-foreground">
+															{t('compensation.subtitle')}
+														</p>
+													</div>
+													<form.AppField
+														name="fiscalDailyPay"
+														validators={{
+															onChange: ({ value }) => {
+																const parsed =
+																	parseOptionalPositiveCurrencyInput(value);
+																if (parsed === null) {
+																	return undefined;
+																}
+																if (parsed === undefined) {
+																	return t('validation.fiscalDailyPay');
+																}
+																if (parsed >= computedDailyPay) {
+																	return t(
+																		'validation.fiscalDailyPayLessThanDailyPay',
+																	);
+																}
+																return undefined;
+															},
+														}}
+													>
+														{(field) => (
+															<field.TextField
+																label={t('fields.fiscalDailyPay')}
+																placeholder={t('placeholders.fiscalDailyPay')}
+																type="number"
+																description={t('helpers.fiscalDailyPay')}
+															/>
+														)}
+													</form.AppField>
+													{isFiscalDailyPayInvalid &&
+													fiscalDailyPayValue.trim() !== '' ? (
+														<p className="text-xs font-medium text-destructive">
+															{t('validation.fiscalDailyPayLessThanDailyPay')}
+														</p>
+													) : (
+														<p className="text-xs text-muted-foreground">
+															{t('compensation.liveHelper')}
+														</p>
+													)}
+												</div>
+												<div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm">
+													<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+														{t('compensation.previewTitle')}
+													</p>
+													<div className="mt-3 space-y-3">
+														<div className="flex items-center justify-between gap-3">
+															<span className="text-sm text-muted-foreground">
+																{t('compensation.realDailyPay')}
+															</span>
+															<span className="text-sm font-semibold text-foreground">
+																{formatCurrency(computedDailyPay)}
+															</span>
+														</div>
+														<div className="flex items-center justify-between gap-3">
+															<span className="text-sm text-muted-foreground">
+																{t('compensation.fiscalDailyPay')}
+															</span>
+															<span className="text-sm font-semibold text-foreground">
+																{typeof parsedFiscalDailyPayPreview === 'number'
+																	? formatCurrency(parsedFiscalDailyPayPreview)
+																	: tCommon('notAvailable')}
+															</span>
+														</div>
+														<div className="rounded-xl border border-emerald-200 bg-emerald-100/70 p-3">
+															<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-800">
+																{t('compensation.dailyComplement')}
+															</p>
+															<p className="mt-1 text-lg font-semibold text-emerald-950">
+																{formatCurrency(fiscalDailyComplementPreview)}
+															</p>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+									) : null}
 									<div className="col-span-2 sm:col-span-1">
 										<form.AppField
 											name="sbcDailyOverride"

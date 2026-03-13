@@ -58,13 +58,17 @@ import { buildErrorResponse } from '../utils/error-response.js';
  * @param args.authType - Authentication mechanism used by the request
  * @param args.organizationId - Organization whose payroll is being accessed
  * @param args.session - Active Better Auth session when using cookie auth
- * @returns True when the caller is an organization owner/admin
+ * @returns True when the caller can read dual payroll compensation for the organization
  */
 async function canViewDualPayrollCompensation(args: {
 	authType: 'session' | 'apiKey' | null;
 	organizationId: string;
 	session: { userId: string } | null;
 }): Promise<boolean> {
+	if (args.authType === 'apiKey') {
+		return true;
+	}
+
 	if (args.authType !== 'session' || !args.session) {
 		return false;
 	}

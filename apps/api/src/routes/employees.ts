@@ -259,6 +259,27 @@ async function hasOrganizationAdminRole(args: {
 }
 
 /**
+ * Checks whether the caller can read fiscal compensation data for the organization.
+ *
+ * @param args - Authorization context and organization
+ * @param args.authType - Authentication type
+ * @param args.session - Current auth session
+ * @param args.organizationId - Organization identifier
+ * @returns True when the caller can read fiscal compensation fields
+ */
+async function canViewFiscalCompensation(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	organizationId: string;
+}): Promise<boolean> {
+	if (args.authType === 'apiKey') {
+		return true;
+	}
+
+	return hasOrganizationAdminRole(args);
+}
+
+/**
  * Removes the fiscalDailyPay field from an employee-shaped payload.
  *
  * @param record - Employee payload that may include fiscalDailyPay
@@ -1034,7 +1055,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				set.status = status;
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
-			const canViewFiscalDailyPay = await hasOrganizationAdminRole({
+			const canViewFiscalDailyPay = await canViewFiscalCompensation({
 				authType,
 				session,
 				organizationId,
@@ -1273,7 +1294,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('You do not have access to this employee', 403);
 			}
 			const canViewFiscalDailyPay = record.organizationId
-				? await hasOrganizationAdminRole({
+				? await canViewFiscalCompensation({
 						authType,
 						session,
 						organizationId: record.organizationId,

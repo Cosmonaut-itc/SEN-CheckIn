@@ -8,6 +8,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getSeedData,
+	getTestApiKey,
 	getUserSession,
 	requireErrorResponse,
 	requireResponseData,
@@ -128,6 +129,7 @@ describe('employee routes (contract)', () => {
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
 	let memberSession: Awaited<ReturnType<typeof getUserSession>>;
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
+	let apiKey: string;
 	let baseEmployeeId: string;
 
 	beforeAll(async () => {
@@ -135,6 +137,7 @@ describe('employee routes (contract)', () => {
 		adminSession = await getAdminSession();
 		memberSession = await getUserSession();
 		seed = await getSeedData();
+		apiKey = await getTestApiKey();
 
 		const createResponse = await client.employees.post({
 			code: `EMP-${randomUUID().slice(0, 8)}`,
@@ -391,6 +394,37 @@ describe('employee routes (contract)', () => {
 			(item) => item.id === baseEmployeeId,
 		) as Record<string, unknown> | undefined;
 		expect(memberListRecord && 'fiscalDailyPay' in memberListRecord).toBe(false);
+	});
+
+	it('keeps fiscalDailyPay visible for api key employee detail and list reads', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const seedFiscalDailyPayResponse = await employeeRoutes.put({
+			dailyPay: 300,
+			fiscalDailyPay: 250,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+		expect(seedFiscalDailyPayResponse.status).toBe(200);
+
+		const apiKeyDetailResponse = await employeeRoutes.get({
+			$headers: { 'x-api-key': apiKey },
+		});
+		expect(apiKeyDetailResponse.status).toBe(200);
+		const apiKeyDetailPayload = requireResponseData(apiKeyDetailResponse);
+		const apiKeyDetailRecord = apiKeyDetailPayload.data as
+			| { fiscalDailyPay?: number | string | null }
+			| undefined;
+		expect(Number(apiKeyDetailRecord?.fiscalDailyPay ?? 0)).toBe(250);
+
+		const apiKeyListResponse = await client.employees.get({
+			$headers: { 'x-api-key': apiKey },
+			$query: { limit: 10, offset: 0 },
+		});
+		expect(apiKeyListResponse.status).toBe(200);
+		const apiKeyListPayload = requireResponseData(apiKeyListResponse);
+		const apiKeyListRecord = apiKeyListPayload.data.find(
+			(item) => item.id === baseEmployeeId,
+		) as { fiscalDailyPay?: number | string | null } | undefined;
+		expect(Number(apiKeyListRecord?.fiscalDailyPay ?? 0)).toBe(250);
 	});
 
 	it('lets admins lower dailyPay when dual payroll is disabled and fiscalDailyPay is stale', async () => {

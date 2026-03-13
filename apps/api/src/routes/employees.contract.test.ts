@@ -393,6 +393,35 @@ describe('employee routes (contract)', () => {
 		expect(memberListRecord && 'fiscalDailyPay' in memberListRecord).toBe(false);
 	});
 
+	it('lets admins lower dailyPay when dual payroll is disabled and fiscalDailyPay is stale', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const seedFiscalDailyPayResponse = await employeeRoutes.put({
+			dailyPay: 300,
+			fiscalDailyPay: 250,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+		expect(seedFiscalDailyPayResponse.status).toBe(200);
+
+		const disableDualPayrollResponse = await client['payroll-settings'].put({
+			enableDualPayroll: false,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(disableDualPayrollResponse.status).toBe(200);
+
+		const updateResponse = await employeeRoutes.put({
+			dailyPay: 200,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+
+		expect(updateResponse.status).toBe(200);
+		const updatePayload = requireResponseData(updateResponse);
+		const updatedRecord = updatePayload.data as
+			| { dailyPay?: number | string; fiscalDailyPay?: number | string | null }
+			| undefined;
+		expect(Number(updatedRecord?.dailyPay ?? 0)).toBe(200);
+		expect(updatedRecord?.fiscalDailyPay).toBeNull();
+	});
+
 	it('manages PTU history records for an employee', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const historyRoutes = requireRoute(

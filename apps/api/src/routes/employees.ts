@@ -3029,6 +3029,16 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					403,
 				);
 			}
+			const payrollSettingsRows = await db
+				.select({
+					aguinaldoDays: payrollSetting.aguinaldoDays,
+					enableDualPayroll: payrollSetting.enableDualPayroll,
+				})
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
+				.limit(1);
+			const payrollSettingsRow = payrollSettingsRows[0];
+			const isDualPayrollEnabled = Boolean(payrollSettingsRow?.enableDualPayroll);
 
 			const nextDailyPay = Number(
 				dailyPayInput !== undefined ? dailyPayInput : existingRecord.dailyPay ?? 0,
@@ -3039,10 +3049,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					? null
 					: Number(existingRecord.fiscalDailyPay);
 			const shouldClearHiddenFiscalDailyPay =
-				!canManageFiscalDailyPay &&
+				fiscalDailyPay === undefined &&
 				dailyPayInput !== undefined &&
 				existingFiscalDailyPay !== null &&
-				existingFiscalDailyPay >= nextDailyPay;
+				existingFiscalDailyPay >= nextDailyPay &&
+				(!canManageFiscalDailyPay || !isDualPayrollEnabled);
 			const nextFiscalDailyPay =
 				shouldClearHiddenFiscalDailyPay
 					? null
@@ -3061,12 +3072,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				if (aguinaldoDaysOverride === null) {
 					updatePayload.aguinaldoDaysOverride = null;
 				} else {
-					const payrollSettingsRows = await db
-						.select({ aguinaldoDays: payrollSetting.aguinaldoDays })
-						.from(payrollSetting)
-						.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
-						.limit(1);
-					const policyDays = Number(payrollSettingsRows[0]?.aguinaldoDays ?? 15);
+					const policyDays = Number(payrollSettingsRow?.aguinaldoDays ?? 15);
 					if (aguinaldoDaysOverride < 15 || aguinaldoDaysOverride < policyDays) {
 						set.status = 400;
 						return buildErrorResponse(

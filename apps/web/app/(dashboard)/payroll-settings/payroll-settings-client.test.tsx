@@ -141,6 +141,17 @@ describe('PayrollSettingsClient', () => {
 		expect(document.getElementById('enableDualPayroll')).not.toBeInTheDocument();
 	});
 
+	it('renders payroll settings in read-only mode for organization members', async () => {
+		renderWithProviders({ organizationRole: 'member', userRole: 'member' });
+
+		const riskWorkRateInput = await screen.findByLabelText('taxSettings.fields.riskWorkRate');
+
+		await waitFor(() => {
+			expect(riskWorkRateInput).toBeDisabled();
+		});
+		expect(screen.queryByRole('button', { name: 'save' })).not.toBeInTheDocument();
+	});
+
 	it('shows saturday counting toggle only when seventh day pay is enabled', async () => {
 		mockFetchPayrollSettings.mockResolvedValue({
 			id: 'payroll-1',

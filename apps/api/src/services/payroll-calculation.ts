@@ -1288,7 +1288,7 @@ export function calculatePayrollFromData(
 			shiftType: shiftKey,
 			dailyPay: realDailyPay,
 			fiscalDailyPay: resolvedDualPayrollPay.fiscalDailyPayUsed,
-			hourlyPay: hourlyRate,
+			hourlyPay: realHourlyRate,
 			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
 			seventhDayPay,
 			hoursWorked,

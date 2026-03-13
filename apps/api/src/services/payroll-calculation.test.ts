@@ -2855,6 +2855,23 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(dualEnabled.fiscalGrossPay).toBe(2500);
 		});
 
+		it('reports hourly pay using the real daily pay when dual payroll is enabled', () => {
+			const dualEnabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualEnabled.dailyPay).toBe(500);
+			expect(dualEnabled.fiscalDailyPay).toBe(300);
+			expect(dualEnabled.hourlyPay).toBe(62.5);
+		});
+
 		it('keeps total real pay aligned with the standard payroll when overtime and vacation pay exist', () => {
 			const dualAttendanceWithOvertime = [
 				'2025-12-15',

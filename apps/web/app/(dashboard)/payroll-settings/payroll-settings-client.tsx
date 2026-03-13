@@ -205,9 +205,11 @@ export function PayrollSettingsClient(): React.ReactElement {
 	});
 
 	const isInitialLoading = !isHydrated || isLoading;
-	const isFormDisabled = isInitialLoading || mutation.isPending;
-	const canManageDualPayroll =
+	const canManagePayrollSettings =
 		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
+	const isFormDisabled =
+		isInitialLoading || mutation.isPending || !canManagePayrollSettings;
+	const canManageDualPayroll = canManagePayrollSettings;
 
 	const form = useAppForm({
 		defaultValues: {
@@ -236,6 +238,10 @@ export function PayrollSettingsClient(): React.ReactElement {
 			lunchBreakThresholdHours: '6',
 		},
 		onSubmit: async ({ value }) => {
+			if (!canManagePayrollSettings) {
+				return;
+			}
+
 			const trimmedTimeZone = value.timeZone.trim();
 			if (!isValidIanaTimeZone(trimmedTimeZone)) {
 				toast.error(t('validation.invalidTimeZone'));
@@ -922,11 +928,13 @@ export function PayrollSettingsClient(): React.ReactElement {
 							)}
 						</form.AppField>
 						<form.AppForm>
-							<form.SubmitButton
-								label={tCommon('save')}
-								loadingLabel={tCommon('saving')}
-								className="mt-2"
-							/>
+							{canManagePayrollSettings ? (
+								<form.SubmitButton
+									label={tCommon('save')}
+									loadingLabel={tCommon('saving')}
+									className="mt-2"
+								/>
+							) : null}
 						</form.AppForm>
 					</form>
 				</CardContent>

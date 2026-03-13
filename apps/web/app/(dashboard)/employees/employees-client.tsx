@@ -18,13 +18,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
 	DialogContent,
@@ -177,6 +171,21 @@ const loadEmployeeDisciplinaryMeasuresTab = async () => {
 };
 
 const EmployeeDisciplinaryMeasuresTab = dynamic(loadEmployeeDisciplinaryMeasuresTab, {
+	ssr: false,
+	loading: FaceEnrollmentDialogFallback,
+});
+
+/**
+ * Lazily loads employee deductions tab to preserve the initial employee dialog bundle.
+ *
+ * @returns Promise resolving to EmployeeDeductionsManager component
+ */
+const loadEmployeeDeductionsTab = async () => {
+	const componentModule = await import('@/components/employee-deductions-manager');
+	return componentModule.EmployeeDeductionsManager;
+};
+
+const EmployeeDeductionsTab = dynamic(loadEmployeeDeductionsTab, {
 	ssr: false,
 	loading: FaceEnrollmentDialogFallback,
 });
@@ -547,7 +556,9 @@ function EmployeesTableSection({
 }: EmployeesTableSectionProps): React.ReactElement {
 	return (
 		<div className="space-y-4">
-			{bulkActions ? <div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div> : null}
+			{bulkActions ? (
+				<div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div>
+			) : null}
 			<div className="flex flex-wrap items-center gap-4">
 				<div className="relative flex-1 max-w-sm">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -779,6 +790,7 @@ const PRIMARY_DETAIL_TABS: EmployeeDetailTab[] = [
 	'documents',
 ];
 const SECONDARY_DETAIL_TABS: EmployeeDetailTab[] = [
+	'deductions',
 	'payroll',
 	'ptu',
 	'finiquito',
@@ -798,6 +810,7 @@ const VALID_DETAIL_TABS = new Set<EmployeeDetailTab>([
 	'summary',
 	'attendance',
 	'vacations',
+	'deductions',
 	'payroll',
 	'ptu',
 	'finiquito',
@@ -815,9 +828,7 @@ function parseEmployeeDetailTab(value: string | null | undefined): EmployeeDetai
 	if (!value) {
 		return null;
 	}
-	return VALID_DETAIL_TABS.has(value as EmployeeDetailTab)
-		? (value as EmployeeDetailTab)
-		: null;
+	return VALID_DETAIL_TABS.has(value as EmployeeDetailTab) ? (value as EmployeeDetailTab) : null;
 }
 
 /**
@@ -1139,6 +1150,13 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 				node.scrollTop = tabScrollByIdRef.current.vacations ?? 0;
 			},
+			deductions: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.deductions = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.deductions ?? 0;
+			},
 			payroll: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.payroll = node;
 				if (!node) {
@@ -1196,6 +1214,9 @@ export function EmployeesPageClient(): React.ReactElement {
 			vacations: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.vacations = event.currentTarget.scrollTop;
 			},
+			deductions: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.deductions = event.currentTarget.scrollTop;
+			},
 			payroll: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.payroll = event.currentTarget.scrollTop;
 			},
@@ -1249,9 +1270,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		(tab: EmployeeDetailTab): boolean => Boolean(visitedDetailTabs[tab]),
 		[visitedDetailTabs],
 	);
-	const ptuAguinaldoOptionHelp = useMemo<
-		{ key: string; label: string; description: string }[]
-	>(
+	const ptuAguinaldoOptionHelp = useMemo<{ key: string; label: string; description: string }[]>(
 		() => [
 			{
 				key: 'employmentTypePermanent',
@@ -1442,7 +1461,12 @@ export function EmployeesPageClient(): React.ReactElement {
 		Object.entries(visitedDetailTabs).some(
 			([tab, visited]) => visited && INSIGHTS_DETAIL_TABS.has(tab as EmployeeDetailTab),
 		);
-	const { data: insights, isLoading: isLoadingInsights, error: insightsError, refetch: refetchInsights } = useQuery({
+	const {
+		data: insights,
+		isLoading: isLoadingInsights,
+		error: insightsError,
+		refetch: refetchInsights,
+	} = useQuery({
 		queryKey: queryKeys.employees.insights(activeEmployee?.id ?? ''),
 		queryFn: async () => {
 			const response = await fetchEmployeeInsights(activeEmployee?.id ?? '');
@@ -1476,8 +1500,16 @@ export function EmployeesPageClient(): React.ReactElement {
 		[activeEmployee?.id],
 	);
 	const shouldFetchAudit =
-		Boolean(activeEmployee?.id) && isDialogOpen && isViewMode && Boolean(visitedDetailTabs.audit);
-	const { data: auditResponse, isLoading: isLoadingAudit, error: auditError, refetch: refetchAudit } = useQuery({
+		Boolean(activeEmployee?.id) &&
+		isDialogOpen &&
+		isViewMode &&
+		Boolean(visitedDetailTabs.audit);
+	const {
+		data: auditResponse,
+		isLoading: isLoadingAudit,
+		error: auditError,
+		refetch: refetchAudit,
+	} = useQuery({
 		queryKey: queryKeys.employees.audit(auditParams),
 		queryFn: () => fetchEmployeeAudit(auditParams),
 		enabled: shouldFetchAudit,
@@ -1489,7 +1521,12 @@ export function EmployeesPageClient(): React.ReactElement {
 		Boolean(activeEmployee?.id) &&
 		isDialogOpen &&
 		(isEditMode || (isViewMode && Boolean(visitedDetailTabs.ptu)));
-	const { data: ptuHistoryData, isLoading: isLoadingPtuHistory, error: ptuHistoryError, refetch: refetchPtuHistory } = useQuery({
+	const {
+		data: ptuHistoryData,
+		isLoading: isLoadingPtuHistory,
+		error: ptuHistoryError,
+		refetch: refetchPtuHistory,
+	} = useQuery({
 		queryKey: queryKeys.ptu.history(activeEmployee?.id ?? ''),
 		queryFn: () => fetchEmployeePtuHistory(activeEmployee?.id ?? ''),
 		enabled: shouldFetchPtuHistory,
@@ -1828,19 +1865,19 @@ export function EmployeesPageClient(): React.ReactElement {
 		}
 
 		const results = await Promise.all(
-				selectedEmployees.map((employee) => {
-					if (!employee.locationId) {
-						return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
-					}
-					return updateEmployee({
-						id: employee.id,
-						firstName: employee.firstName,
-						lastName: employee.lastName,
-						status: employee.status,
-						locationId: employee.locationId,
-						...updates,
-					});
-				}),
+			selectedEmployees.map((employee) => {
+				if (!employee.locationId) {
+					return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
+				}
+				return updateEmployee({
+					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
+					status: employee.status,
+					locationId: employee.locationId,
+					...updates,
+				});
+			}),
 		);
 
 		const failures = results.filter((result) => !result.success);
@@ -1862,13 +1899,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		setIsBulkEditOpen(false);
 		setBulkEditValues(createDefaultBulkEditValues());
 		queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
-	}, [
-		bulkEditValues,
-		queryClient,
-		selectedEmployees,
-		setBulkEditValues,
-		t,
-	]);
+	}, [bulkEditValues, queryClient, selectedEmployees, setBulkEditValues, t]);
 
 	/**
 	 * Updates termination form values and clears any existing preview.
@@ -2012,8 +2043,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		attendanceTimeZone,
 	]);
 	const ptuHistory = useMemo<PtuHistoryRecord[]>(
-		() =>
-			(ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),
+		() => (ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),
 		[ptuHistoryData],
 	);
 
@@ -2193,13 +2223,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		});
 		setPtuHistoryYearInput('');
 		setPtuHistoryAmountInput('');
-	}, [
-		activeEmployee,
-		ptuHistoryAmountInput,
-		ptuHistoryMutation,
-		ptuHistoryYearInput,
-		t,
-	]);
+	}, [activeEmployee, ptuHistoryAmountInput, ptuHistoryMutation, ptuHistoryYearInput, t]);
 
 	// Delete mutation
 	const deleteMutation = useMutation({
@@ -2731,9 +2755,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			);
 			form.setFieldValue(
 				'aguinaldoDaysOverride',
-				employee.aguinaldoDaysOverride
-					? String(employee.aguinaldoDaysOverride)
-					: '',
+				employee.aguinaldoDaysOverride ? String(employee.aguinaldoDaysOverride) : '',
 			);
 			setHasCustomCode(true);
 			setPtuHistoryYearInput('');
@@ -2757,12 +2779,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			setVisitedDetailTabs({ summary: true });
 			setIsDialogOpen(true);
 		},
-		[
-			form,
-			resetTerminationState,
-			setPtuHistoryAmountInput,
-			setPtuHistoryYearInput,
-		],
+		[form, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
 	);
 
 	/**
@@ -3064,7 +3081,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								) : null}
 								{canUseDisciplinaryModule ? (
 									<DropdownMenuItem asChild>
-										<Link href={`/disciplinary-measures?employeeId=${row.original.id}`}>
+										<Link
+											href={`/disciplinary-measures?employeeId=${row.original.id}`}
+										>
 											<ShieldAlert className="mr-2 h-4 w-4" />
 											{t('menu.openDisciplinaryModule')}
 										</Link>
@@ -3201,11 +3220,11 @@ export function EmployeesPageClient(): React.ReactElement {
 			deleteRekognitionConfirmId,
 			deleteMutation.isPending,
 			deleteRekognitionMutation.isPending,
-				handleDelete,
-				handleDeleteRekognition,
-				canUseDisciplinaryModule,
-			],
-		);
+			handleDelete,
+			handleDeleteRekognition,
+			canUseDisciplinaryModule,
+		],
+	);
 
 	if (!isOrgSelected) {
 		return (
@@ -3249,1089 +3268,3003 @@ export function EmployeesPageClient(): React.ReactElement {
 						</DialogHeader>
 						<div className="min-h-0 flex-1 overflow-hidden px-4 pb-4 sm:px-6 sm:pb-6">
 							{isViewMode ? (
-							<div className="flex h-full min-h-0 flex-col space-y-4 pt-4">
-								<div className="rounded-md border p-4">
-									<div className="flex flex-wrap items-start justify-between gap-4">
-										<div className="space-y-1">
-											<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-												{t('details.header')}
-											</p>
-											<div className="flex flex-wrap items-center gap-2">
-												<h2 className="text-xl font-semibold">
-													{activeEmployeeName || tCommon('notAvailable')}
-												</h2>
-												{activeEmployee?.status && (
-													<Badge
-														variant={
-															statusVariants[activeEmployee.status]
-														}
-													>
-														{t(`status.${activeEmployee.status}`)}
-													</Badge>
-												)}
+								<div className="flex h-full min-h-0 flex-col space-y-4 pt-4">
+									<div className="rounded-md border p-4">
+										<div className="flex flex-wrap items-start justify-between gap-4">
+											<div className="space-y-1">
+												<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+													{t('details.header')}
+												</p>
+												<div className="flex flex-wrap items-center gap-2">
+													<h2 className="text-xl font-semibold">
+														{activeEmployeeName ||
+															tCommon('notAvailable')}
+													</h2>
+													{activeEmployee?.status && (
+														<Badge
+															variant={
+																statusVariants[
+																	activeEmployee.status
+																]
+															}
+														>
+															{t(`status.${activeEmployee.status}`)}
+														</Badge>
+													)}
+												</div>
+												<p className="text-sm text-muted-foreground">
+													{t('details.codeLabel')}{' '}
+													<span className="font-medium text-foreground">
+														{activeEmployee?.code ??
+															tCommon('notAvailable')}
+													</span>
+												</p>
 											</div>
-											<p className="text-sm text-muted-foreground">
-												{t('details.codeLabel')}{' '}
-												<span className="font-medium text-foreground">
-													{activeEmployee?.code ??
+											<Button
+												variant="outline"
+												onClick={handleEditFromDetails}
+											>
+												<Pencil className="mr-2 h-4 w-4" />
+												{tCommon('edit')}
+											</Button>
+										</div>
+										<div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.location')}
+												</p>
+												<p className="font-medium">
+													{activeEmployeeLocation}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.jobPosition')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.jobPositionName ??
 														tCommon('notAvailable')}
-												</span>
-											</p>
-										</div>
-										<Button variant="outline" onClick={handleEditFromDetails}>
-											<Pencil className="mr-2 h-4 w-4" />
-											{tCommon('edit')}
-										</Button>
-									</div>
-									<div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.location')}
-											</p>
-											<p className="font-medium">{activeEmployeeLocation}</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.jobPosition')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.jobPositionName ??
-													tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.hireDate')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.hireDate
-													? format(
-															new Date(activeEmployee.hireDate),
-															t('dateFormat'),
-														)
-													: tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.shiftType')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.shiftType
-													? t(
-															`shiftTypeLabels.${activeEmployee.shiftType}`,
-														)
-													: tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.email')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.email ?? tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.phone')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.phone ?? tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.nss')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.nss ?? tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.rfc')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.rfc ?? tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.department')}
-											</p>
-											<p className="font-medium">
-												{activeEmployee?.department ??
-													tCommon('notAvailable')}
-											</p>
-										</div>
-										<div className="space-y-1">
-											<p className="text-muted-foreground">
-												{t('fields.user')}
-											</p>
-											<p className="font-medium truncate">
-												{activeEmployee?.userId ?? t('placeholders.noUser')}
-											</p>
-										</div>
-									</div>
-								</div>
-
-								<Tabs
-									value={detailTab}
-									onValueChange={handleDetailTabChange}
-									className="flex min-h-0 flex-1 flex-col"
-								>
-									<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
-										{PRIMARY_DETAIL_TABS.map((tab) => (
-											<TabsTrigger
-												key={tab}
-												value={tab}
-												onFocus={() => markTabAsVisited(tab)}
-											>
-												{t(`tabs.${tab}`)}
-											</TabsTrigger>
-										))}
-										<DropdownMenu>
-											<DropdownMenuTrigger asChild>
-												<Button
-													type="button"
-													variant="ghost"
-													size="sm"
-													className="h-8 px-2"
-													aria-label={t('tabs.moreAriaLabel')}
-												>
-													{t('tabs.more')}
-												</Button>
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												{secondaryDetailTabs.map((tab) => (
-													<DropdownMenuItem
-														key={tab}
-														onSelect={() => {
-															handleDetailTabChange(tab);
-														}}
-														className={cn(
-															detailTab === tab &&
-																'bg-muted font-medium',
-														)}
-													>
-														{t(`tabs.${tab}`)}
-													</DropdownMenuItem>
-												))}
-											</DropdownMenuContent>
-										</DropdownMenu>
-									</TabsList>
-
-									<TabsContent
-										value="documents"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'documents' && 'hidden')}
-									>
-										{isTabVisited('documents') ? (
-											<div
-												ref={registerTabScrollContainer('documents')}
-												onScroll={handleTabScroll('documents')}
-												className="h-full overflow-y-auto pt-4"
-											>
-												{activeEmployee?.id ? (
-													<EmployeeDocumentsTab employeeId={activeEmployee.id} />
-												) : (
-													<Card>
-														<CardContent className="py-8 text-sm text-muted-foreground">
-															{t('documents.empty')}
-														</CardContent>
-													</Card>
-												)}
+												</p>
 											</div>
-										) : null}
-									</TabsContent>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.hireDate')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.hireDate
+														? format(
+																new Date(activeEmployee.hireDate),
+																t('dateFormat'),
+															)
+														: tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.shiftType')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.shiftType
+														? t(
+																`shiftTypeLabels.${activeEmployee.shiftType}`,
+															)
+														: tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.email')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.email ??
+														tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.phone')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.phone ??
+														tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.nss')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.nss ?? tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.rfc')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.rfc ?? tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.department')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.department ??
+														tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.user')}
+												</p>
+												<p className="font-medium truncate">
+													{activeEmployee?.userId ??
+														t('placeholders.noUser')}
+												</p>
+											</div>
+										</div>
+									</div>
 
-									{canUseDisciplinaryModule ? (
+									<Tabs
+										value={detailTab}
+										onValueChange={handleDetailTabChange}
+										className="flex min-h-0 flex-1 flex-col"
+									>
+										<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+											{PRIMARY_DETAIL_TABS.map((tab) => (
+												<TabsTrigger
+													key={tab}
+													value={tab}
+													onFocus={() => markTabAsVisited(tab)}
+												>
+													{t(`tabs.${tab}`)}
+												</TabsTrigger>
+											))}
+											<DropdownMenu>
+												<DropdownMenuTrigger asChild>
+													<Button
+														type="button"
+														variant="ghost"
+														size="sm"
+														className="h-8 px-2"
+														aria-label={t('tabs.moreAriaLabel')}
+													>
+														{t('tabs.more')}
+													</Button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													{secondaryDetailTabs.map((tab) => (
+														<DropdownMenuItem
+															key={tab}
+															onSelect={() => {
+																handleDetailTabChange(tab);
+															}}
+															className={cn(
+																detailTab === tab &&
+																	'bg-muted font-medium',
+															)}
+														>
+															{t(`tabs.${tab}`)}
+														</DropdownMenuItem>
+													))}
+												</DropdownMenuContent>
+											</DropdownMenu>
+										</TabsList>
+
 										<TabsContent
-											value="disciplinary"
+											value="documents"
 											forceMount
-											className={cn('mt-0 min-h-0 flex-1', detailTab !== 'disciplinary' && 'hidden')}
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'documents' && 'hidden',
+											)}
 										>
-											{isTabVisited('disciplinary') ? (
+											{isTabVisited('documents') ? (
 												<div
-													ref={registerTabScrollContainer('disciplinary')}
-													onScroll={handleTabScroll('disciplinary')}
+													ref={registerTabScrollContainer('documents')}
+													onScroll={handleTabScroll('documents')}
 													className="h-full overflow-y-auto pt-4"
 												>
 													{activeEmployee?.id ? (
-														<EmployeeDisciplinaryMeasuresTab
+														<EmployeeDocumentsTab
 															employeeId={activeEmployee.id}
 														/>
 													) : (
 														<Card>
 															<CardContent className="py-8 text-sm text-muted-foreground">
-																{t('disciplinary.empty')}
+																{t('documents.empty')}
 															</CardContent>
 														</Card>
 													)}
 												</div>
 											) : null}
 										</TabsContent>
-									) : null}
 
-									<TabsContent
-										value="summary"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'summary' && 'hidden')}
-									>
-										{isTabVisited('summary') ? (
-											<div
-												ref={registerTabScrollContainer('summary')}
-												onScroll={handleTabScroll('summary')}
-												className="h-full overflow-y-auto pt-4"
+										{canUseDisciplinaryModule ? (
+											<TabsContent
+												value="disciplinary"
+												forceMount
+												className={cn(
+													'mt-0 min-h-0 flex-1',
+													detailTab !== 'disciplinary' && 'hidden',
+												)}
 											>
-										<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-											<Card>
-												<CardHeader className="flex-row items-center justify-between space-y-0">
-													<CardTitle className="text-sm font-medium">
-														{vacationBalance ? (
-															<TooltipProvider>
-																<Tooltip>
-																	<TooltipTrigger asChild>
-																		<span className="inline-flex items-center gap-1">
-																			{t(
-																				'summary.availableDays',
-																			)}
-																			<HelpCircle className="h-4 w-4 text-muted-foreground" />
-																		</span>
-																	</TooltipTrigger>
-																	<TooltipContent className="max-w-xs">
-																		<div className="space-y-1 text-sm">
-																			<p className="font-medium">
-																				{t(
-																					'vacationBalance.tooltip.title',
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.formula',
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.entitled',
-																					{
-																						value: vacationBalance.entitledDays,
-																					},
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.accrued',
-																					{
-																						value: vacationBalance.accruedDays.toFixed(
-																							2,
-																						),
-																					},
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.used',
-																					{
-																						value: vacationBalance.usedDays,
-																					},
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.pending',
-																					{
-																						value: vacationBalance.pendingDays,
-																					},
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.available',
-																					{
-																						value: vacationBalance.availableDays,
-																					},
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.serviceYear',
-																					{
-																						number: vacationBalance.serviceYearNumber,
-																						start:
-																							vacationBalance.serviceYearStartDateKey ??
-																							tCommon(
-																								'notAvailable',
-																							),
-																						end:
-																							vacationBalance.serviceYearEndDateKey ??
-																							tCommon(
-																								'notAvailable',
-																							),
-																					},
-																				)}
-																			</p>
-																			<p>
-																				{t(
-																					'vacationBalance.tooltip.asOf',
-																					{
-																						date: vacationBalance.asOfDateKey,
-																					},
-																				)}
-																			</p>
-																		</div>
-																	</TooltipContent>
-																</Tooltip>
-															</TooltipProvider>
-														) : (
-															t('summary.availableDays')
+												{isTabVisited('disciplinary') ? (
+													<div
+														ref={registerTabScrollContainer(
+															'disciplinary',
 														)}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<Skeleton className="h-7 w-20" />
-													) : vacationBalance ? (
-														<div className="text-2xl font-semibold">
-															{vacationBalance.availableDays}
-														</div>
-													) : (
-														<div className="text-sm text-muted-foreground">
-															{tCommon('notAvailable')}
-														</div>
-													)}
-													{vacationBalance && !isLoadingInsights && (
-														<p className="text-xs text-muted-foreground">
-															{t('summary.serviceYearShort', {
-																number: vacationBalance.serviceYearNumber,
-															})}
-														</p>
-													)}
-												</CardContent>
-											</Card>
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('summary.absences')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<Skeleton className="h-7 w-20" />
-													) : attendanceSummary ? (
-														<div className="text-2xl font-semibold">
-															{attendanceSummary.totalAbsentDays}
-														</div>
-													) : (
-														<div className="text-sm text-muted-foreground">
-															{tCommon('notAvailable')}
-														</div>
-													)}
-													<p className="text-xs text-muted-foreground">
-														{t('summary.last90Days')}
-													</p>
-												</CardContent>
-											</Card>
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('summary.leaves')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<Skeleton className="h-7 w-20" />
-													) : (
-														<div className="text-2xl font-semibold">
-															{leaveItems.length}
-														</div>
-													)}
-													<p className="text-xs text-muted-foreground">
-														{t('summary.last90Days')}
-													</p>
-												</CardContent>
-											</Card>
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('summary.payrollRuns')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<Skeleton className="h-7 w-20" />
-													) : (
-														<div className="text-2xl font-semibold">
-															{payrollRuns.length}
-														</div>
-													)}
-													<p className="text-xs text-muted-foreground">
-														{t('summary.lastPayrollRuns')}
-													</p>
-												</CardContent>
-											</Card>
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('summary.upcomingExceptions')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<Skeleton className="h-7 w-20" />
-													) : (
-														<div className="text-2xl font-semibold">
-															{upcomingExceptions.length}
-														</div>
-													)}
-													<p className="text-xs text-muted-foreground">
-														{t('summary.next90Days')}
-													</p>
-												</CardContent>
-											</Card>
-										</div>
-											</div>
-										) : null}
-									</TabsContent>
-
-									<TabsContent
-										value="attendance"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'attendance' && 'hidden')}
-									>
-										{isTabVisited('attendance') ? (
-											<div
-												ref={registerTabScrollContainer('attendance')}
-												onScroll={handleTabScroll('attendance')}
-												className="h-full overflow-y-auto pt-4"
-											>
-												<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-													<div>
-														<p className="text-sm font-medium">
-															{t('attendance.title')}
-														</p>
-														<p className="text-xs text-muted-foreground">
-															{t('attendance.subtitle')}
-														</p>
+														onScroll={handleTabScroll('disciplinary')}
+														className="h-full overflow-y-auto pt-4"
+													>
+														{activeEmployee?.id ? (
+															<EmployeeDisciplinaryMeasuresTab
+																employeeId={activeEmployee.id}
+															/>
+														) : (
+															<Card>
+																<CardContent className="py-8 text-sm text-muted-foreground">
+																	{t('disciplinary.empty')}
+																</CardContent>
+															</Card>
+														)}
 													</div>
-													{attendanceDrilldownHref ? (
-														<Button variant="outline" asChild>
-															<Link href={attendanceDrilldownHref}>
-																{t('attendance.viewInAttendance')}
-															</Link>
-														</Button>
-													) : null}
-												</div>
+												) : null}
+											</TabsContent>
+										) : null}
 
-												{insightsError ? (
-													<Card>
-														<CardContent className="flex items-center justify-between gap-3 py-6">
-															<p className="text-sm text-muted-foreground">
-																{t('attendance.partialError')}
-															</p>
-															<Button variant="outline" onClick={() => void refetchInsights()}>
-																{tCommon('retry')}
-															</Button>
-														</CardContent>
-													</Card>
-												) : (
-													<div className="space-y-4">
-														<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-															<Card>
-																<CardHeader className="pb-2">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.kpis.currentStreak')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{isLoadingInsights ? (
-																		<Skeleton className="h-7 w-20" />
-																	) : (
-																		<p className="text-2xl font-semibold">
-																			{attendanceKpis?.absenceStreakCurrentDays ?? 0}
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-															<Card>
-																<CardHeader className="pb-2">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.kpis.unjustified30d')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{isLoadingInsights ? (
-																		<Skeleton className="h-7 w-20" />
-																	) : (
-																		<p className="text-2xl font-semibold">
-																			{attendanceKpis?.unjustifiedAbsences30d ?? 0}
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-															<Card>
-																<CardHeader className="pb-2">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.kpis.attendanceRate30d')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{isLoadingInsights ? (
-																		<Skeleton className="h-7 w-20" />
-																	) : (
-																		<p className="text-2xl font-semibold">
-																			{(attendanceKpis?.attendanceRate30d ?? 0).toFixed(1)}%
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-															<Card>
-																<CardHeader className="pb-2">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.kpis.justified90d')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{isLoadingInsights ? (
-																		<Skeleton className="h-7 w-20" />
-																	) : (
-																		<p className="text-2xl font-semibold">
-																			{attendanceKpis?.justifiedLeaves90d ?? 0}
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-														</div>
-
+										<TabsContent
+											value="summary"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'summary' && 'hidden',
+											)}
+										>
+											{isTabVisited('summary') ? (
+												<div
+													ref={registerTabScrollContainer('summary')}
+													onScroll={handleTabScroll('summary')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 														<Card>
-															<CardHeader className="pb-2">
+															<CardHeader className="flex-row items-center justify-between space-y-0">
 																<CardTitle className="text-sm font-medium">
-																	{t('attendance.trendTitle')}
+																	{vacationBalance ? (
+																		<TooltipProvider>
+																			<Tooltip>
+																				<TooltipTrigger
+																					asChild
+																				>
+																					<span className="inline-flex items-center gap-1">
+																						{t(
+																							'summary.availableDays',
+																						)}
+																						<HelpCircle className="h-4 w-4 text-muted-foreground" />
+																					</span>
+																				</TooltipTrigger>
+																				<TooltipContent className="max-w-xs">
+																					<div className="space-y-1 text-sm">
+																						<p className="font-medium">
+																							{t(
+																								'vacationBalance.tooltip.title',
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.formula',
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.entitled',
+																								{
+																									value: vacationBalance.entitledDays,
+																								},
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.accrued',
+																								{
+																									value: vacationBalance.accruedDays.toFixed(
+																										2,
+																									),
+																								},
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.used',
+																								{
+																									value: vacationBalance.usedDays,
+																								},
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.pending',
+																								{
+																									value: vacationBalance.pendingDays,
+																								},
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.available',
+																								{
+																									value: vacationBalance.availableDays,
+																								},
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.serviceYear',
+																								{
+																									number: vacationBalance.serviceYearNumber,
+																									start:
+																										vacationBalance.serviceYearStartDateKey ??
+																										tCommon(
+																											'notAvailable',
+																										),
+																									end:
+																										vacationBalance.serviceYearEndDateKey ??
+																										tCommon(
+																											'notAvailable',
+																										),
+																								},
+																							)}
+																						</p>
+																						<p>
+																							{t(
+																								'vacationBalance.tooltip.asOf',
+																								{
+																									date: vacationBalance.asOfDateKey,
+																								},
+																							)}
+																						</p>
+																					</div>
+																				</TooltipContent>
+																			</Tooltip>
+																		</TooltipProvider>
+																	) : (
+																		t('summary.availableDays')
+																	)}
 																</CardTitle>
 															</CardHeader>
 															<CardContent>
 																{isLoadingInsights ? (
-																	<Skeleton className="h-12 w-full" />
-																) : attendanceTrend30d.length > 0 ? (
-																	<div className="flex items-end gap-1">
-																		{attendanceTrend30d.map((point) => (
-																			<span
-																				key={point.dateKey}
-																				title={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
-																				aria-label={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
-																				className={cn(
-																					'h-8 w-2 rounded-sm',
-																					point.status === 'PRESENT' && 'bg-[var(--status-success)]',
-																					point.status === 'ABSENT' && 'bg-destructive',
-																					point.status === 'LEAVE' && 'bg-[var(--status-warning)]',
-																					point.status === 'DAY_OFF' && 'bg-muted-foreground/40',
+																	<Skeleton className="h-7 w-20" />
+																) : vacationBalance ? (
+																	<div className="text-2xl font-semibold">
+																		{
+																			vacationBalance.availableDays
+																		}
+																	</div>
+																) : (
+																	<div className="text-sm text-muted-foreground">
+																		{tCommon('notAvailable')}
+																	</div>
+																)}
+																{vacationBalance &&
+																	!isLoadingInsights && (
+																		<p className="text-xs text-muted-foreground">
+																			{t(
+																				'summary.serviceYearShort',
+																				{
+																					number: vacationBalance.serviceYearNumber,
+																				},
+																			)}
+																		</p>
+																	)}
+															</CardContent>
+														</Card>
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('summary.absences')}
+																</CardTitle>
+															</CardHeader>
+															<CardContent>
+																{isLoadingInsights ? (
+																	<Skeleton className="h-7 w-20" />
+																) : attendanceSummary ? (
+																	<div className="text-2xl font-semibold">
+																		{
+																			attendanceSummary.totalAbsentDays
+																		}
+																	</div>
+																) : (
+																	<div className="text-sm text-muted-foreground">
+																		{tCommon('notAvailable')}
+																	</div>
+																)}
+																<p className="text-xs text-muted-foreground">
+																	{t('summary.last90Days')}
+																</p>
+															</CardContent>
+														</Card>
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('summary.leaves')}
+																</CardTitle>
+															</CardHeader>
+															<CardContent>
+																{isLoadingInsights ? (
+																	<Skeleton className="h-7 w-20" />
+																) : (
+																	<div className="text-2xl font-semibold">
+																		{leaveItems.length}
+																	</div>
+																)}
+																<p className="text-xs text-muted-foreground">
+																	{t('summary.last90Days')}
+																</p>
+															</CardContent>
+														</Card>
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('summary.payrollRuns')}
+																</CardTitle>
+															</CardHeader>
+															<CardContent>
+																{isLoadingInsights ? (
+																	<Skeleton className="h-7 w-20" />
+																) : (
+																	<div className="text-2xl font-semibold">
+																		{payrollRuns.length}
+																	</div>
+																)}
+																<p className="text-xs text-muted-foreground">
+																	{t('summary.lastPayrollRuns')}
+																</p>
+															</CardContent>
+														</Card>
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t(
+																		'summary.upcomingExceptions',
+																	)}
+																</CardTitle>
+															</CardHeader>
+															<CardContent>
+																{isLoadingInsights ? (
+																	<Skeleton className="h-7 w-20" />
+																) : (
+																	<div className="text-2xl font-semibold">
+																		{upcomingExceptions.length}
+																	</div>
+																)}
+																<p className="text-xs text-muted-foreground">
+																	{t('summary.next90Days')}
+																</p>
+															</CardContent>
+														</Card>
+													</div>
+												</div>
+											) : null}
+										</TabsContent>
+
+										<TabsContent
+											value="attendance"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'attendance' && 'hidden',
+											)}
+										>
+											{isTabVisited('attendance') ? (
+												<div
+													ref={registerTabScrollContainer('attendance')}
+													onScroll={handleTabScroll('attendance')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+														<div>
+															<p className="text-sm font-medium">
+																{t('attendance.title')}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{t('attendance.subtitle')}
+															</p>
+														</div>
+														{attendanceDrilldownHref ? (
+															<Button variant="outline" asChild>
+																<Link
+																	href={attendanceDrilldownHref}
+																>
+																	{t(
+																		'attendance.viewInAttendance',
+																	)}
+																</Link>
+															</Button>
+														) : null}
+													</div>
+
+													{insightsError ? (
+														<Card>
+															<CardContent className="flex items-center justify-between gap-3 py-6">
+																<p className="text-sm text-muted-foreground">
+																	{t('attendance.partialError')}
+																</p>
+																<Button
+																	variant="outline"
+																	onClick={() =>
+																		void refetchInsights()
+																	}
+																>
+																	{tCommon('retry')}
+																</Button>
+															</CardContent>
+														</Card>
+													) : (
+														<div className="space-y-4">
+															<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+																<Card>
+																	<CardHeader className="pb-2">
+																		<CardTitle className="text-sm font-medium">
+																			{t(
+																				'attendance.kpis.currentStreak',
+																			)}
+																		</CardTitle>
+																	</CardHeader>
+																	<CardContent>
+																		{isLoadingInsights ? (
+																			<Skeleton className="h-7 w-20" />
+																		) : (
+																			<p className="text-2xl font-semibold">
+																				{attendanceKpis?.absenceStreakCurrentDays ??
+																					0}
+																			</p>
+																		)}
+																	</CardContent>
+																</Card>
+																<Card>
+																	<CardHeader className="pb-2">
+																		<CardTitle className="text-sm font-medium">
+																			{t(
+																				'attendance.kpis.unjustified30d',
+																			)}
+																		</CardTitle>
+																	</CardHeader>
+																	<CardContent>
+																		{isLoadingInsights ? (
+																			<Skeleton className="h-7 w-20" />
+																		) : (
+																			<p className="text-2xl font-semibold">
+																				{attendanceKpis?.unjustifiedAbsences30d ??
+																					0}
+																			</p>
+																		)}
+																	</CardContent>
+																</Card>
+																<Card>
+																	<CardHeader className="pb-2">
+																		<CardTitle className="text-sm font-medium">
+																			{t(
+																				'attendance.kpis.attendanceRate30d',
+																			)}
+																		</CardTitle>
+																	</CardHeader>
+																	<CardContent>
+																		{isLoadingInsights ? (
+																			<Skeleton className="h-7 w-20" />
+																		) : (
+																			<p className="text-2xl font-semibold">
+																				{(
+																					attendanceKpis?.attendanceRate30d ??
+																					0
+																				).toFixed(1)}
+																				%
+																			</p>
+																		)}
+																	</CardContent>
+																</Card>
+																<Card>
+																	<CardHeader className="pb-2">
+																		<CardTitle className="text-sm font-medium">
+																			{t(
+																				'attendance.kpis.justified90d',
+																			)}
+																		</CardTitle>
+																	</CardHeader>
+																	<CardContent>
+																		{isLoadingInsights ? (
+																			<Skeleton className="h-7 w-20" />
+																		) : (
+																			<p className="text-2xl font-semibold">
+																				{attendanceKpis?.justifiedLeaves90d ??
+																					0}
+																			</p>
+																		)}
+																	</CardContent>
+																</Card>
+															</div>
+
+															<Card>
+																<CardHeader className="pb-2">
+																	<CardTitle className="text-sm font-medium">
+																		{t('attendance.trendTitle')}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{isLoadingInsights ? (
+																		<Skeleton className="h-12 w-full" />
+																	) : attendanceTrend30d.length >
+																	  0 ? (
+																		<div className="flex items-end gap-1">
+																			{attendanceTrend30d.map(
+																				(point) => (
+																					<span
+																						key={
+																							point.dateKey
+																						}
+																						title={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
+																						aria-label={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
+																						className={cn(
+																							'h-8 w-2 rounded-sm',
+																							point.status ===
+																								'PRESENT' &&
+																								'bg-[var(--status-success)]',
+																							point.status ===
+																								'ABSENT' &&
+																								'bg-destructive',
+																							point.status ===
+																								'LEAVE' &&
+																								'bg-[var(--status-warning)]',
+																							point.status ===
+																								'DAY_OFF' &&
+																								'bg-muted-foreground/40',
+																						)}
+																					/>
+																				),
+																			)}
+																		</div>
+																	) : (
+																		<p className="text-sm text-muted-foreground">
+																			{tCommon(
+																				'notAvailable',
+																			)}
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+
+															<div className="grid gap-4 lg:grid-cols-2">
+																<Card>
+																	<CardHeader className="min-h-16 pb-3">
+																		<CardTitle className="text-sm font-medium">
+																			{t(
+																				'attendance.absencesTitle',
+																			)}
+																		</CardTitle>
+																	</CardHeader>
+																	<CardContent className="min-h-[18rem]">
+																		{isLoadingInsights ? (
+																			<Skeleton className="h-24 w-full" />
+																		) : absenceMonthGroups.length >
+																		  0 ? (
+																			<Accordion
+																				type="single"
+																				collapsible
+																				defaultValue={
+																					attendanceCurrentMonthKey
+																				}
+																				className="w-full"
+																			>
+																				{absenceMonthGroups.map(
+																					(group) => (
+																						<AccordionItem
+																							key={
+																								group.monthKey
+																							}
+																							value={
+																								group.monthKey
+																							}
+																						>
+																							<AccordionTrigger className="items-center gap-3 text-sm">
+																								<span className="flex-1 text-left capitalize">
+																									{formatMonthLabel(
+																										group.monthKey,
+																									)}
+																								</span>
+																								<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
+																									{
+																										group.totalDays
+																									}
+																								</span>
+																							</AccordionTrigger>
+																							<AccordionContent>
+																								<ul className="space-y-1 text-sm">
+																									{group.dateKeys.map(
+																										(
+																											dateKey,
+																										) => (
+																											<li
+																												key={
+																													dateKey
+																												}
+																												className="flex items-center justify-between"
+																											>
+																												<span className="font-medium">
+																													{formatShortDateUtc(
+																														toUtcDate(
+																															dateKey,
+																														),
+																													)}
+																												</span>
+																												<span className="text-xs text-muted-foreground">
+																													{
+																														dateKey
+																													}
+																												</span>
+																											</li>
+																										),
+																									)}
+																								</ul>
+																							</AccordionContent>
+																						</AccordionItem>
+																					),
 																				)}
-																			/>
-																		))}
+																			</Accordion>
+																		) : (
+																			<div className="flex min-h-[8.5rem] items-start">
+																				<p className="text-sm text-muted-foreground">
+																					{t(
+																						'attendance.emptyAbsences',
+																					)}
+																				</p>
+																			</div>
+																		)}
+																	</CardContent>
+																</Card>
+
+																<Card>
+																	<CardHeader className="min-h-16 pb-3">
+																		<CardTitle className="text-sm font-medium">
+																			{t(
+																				'attendance.leavesTitle',
+																			)}
+																		</CardTitle>
+																	</CardHeader>
+																	<CardContent className="min-h-[18rem]">
+																		{isLoadingInsights ? (
+																			<Skeleton className="h-24 w-full" />
+																		) : leavesMonthGroups.length >
+																		  0 ? (
+																			<Accordion
+																				type="single"
+																				collapsible
+																				defaultValue={
+																					attendanceCurrentMonthKey
+																				}
+																				className="w-full"
+																			>
+																				{leavesMonthGroups.map(
+																					(group) => (
+																						<AccordionItem
+																							key={
+																								group.monthKey
+																							}
+																							value={
+																								group.monthKey
+																							}
+																						>
+																							<AccordionTrigger className="items-center gap-3 text-sm">
+																								<span className="flex-1 text-left capitalize">
+																									{formatMonthLabel(
+																										group.monthKey,
+																									)}
+																								</span>
+																								<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
+																									{
+																										group.totalDays
+																									}
+																								</span>
+																							</AccordionTrigger>
+																							<AccordionContent>
+																								<ul className="space-y-1 text-sm">
+																									{group.dateKeys.map(
+																										(
+																											dateKey,
+																										) => (
+																											<li
+																												key={
+																													dateKey
+																												}
+																												className="flex items-center justify-between"
+																											>
+																												<span className="font-medium">
+																													{formatShortDateUtc(
+																														toUtcDate(
+																															dateKey,
+																														),
+																													)}
+																												</span>
+																												<span className="text-xs text-muted-foreground">
+																													{
+																														dateKey
+																													}
+																												</span>
+																											</li>
+																										),
+																									)}
+																								</ul>
+																							</AccordionContent>
+																						</AccordionItem>
+																					),
+																				)}
+																			</Accordion>
+																		) : (
+																			<div className="flex min-h-[8.5rem] items-start">
+																				<p className="text-sm text-muted-foreground">
+																					{t(
+																						'attendance.emptyLeaves',
+																					)}
+																				</p>
+																			</div>
+																		)}
+																	</CardContent>
+																</Card>
+															</div>
+														</div>
+													)}
+												</div>
+											) : null}
+										</TabsContent>
+
+										<TabsContent
+											value="vacations"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'vacations' && 'hidden',
+											)}
+										>
+											{isTabVisited('vacations') ? (
+												<div
+													ref={registerTabScrollContainer('vacations')}
+													onScroll={handleTabScroll('vacations')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="space-y-4">
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('vacations.balanceTitle')}
+																</CardTitle>
+															</CardHeader>
+															<CardContent>
+																{isLoadingInsights ? (
+																	<div className="space-y-2">
+																		<Skeleton className="h-4 w-32" />
+																		<Skeleton className="h-4 w-24" />
+																	</div>
+																) : vacationBalance ? (
+																	<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+																		<div className="space-y-1">
+																			<p className="text-xs text-muted-foreground">
+																				{t(
+																					'vacations.balance.entitled',
+																				)}
+																			</p>
+																			<p className="text-lg font-semibold">
+																				{
+																					vacationBalance.entitledDays
+																				}
+																			</p>
+																		</div>
+																		<div className="space-y-1">
+																			<p className="text-xs text-muted-foreground">
+																				{t(
+																					'vacations.balance.accrued',
+																				)}
+																			</p>
+																			<p className="text-lg font-semibold">
+																				{vacationBalance.accruedDays.toFixed(
+																					2,
+																				)}
+																			</p>
+																		</div>
+																		<div className="space-y-1">
+																			<p className="text-xs text-muted-foreground">
+																				{t(
+																					'vacations.balance.used',
+																				)}
+																			</p>
+																			<p className="text-lg font-semibold">
+																				{
+																					vacationBalance.usedDays
+																				}
+																			</p>
+																		</div>
+																		<div className="space-y-1">
+																			<p className="text-xs text-muted-foreground">
+																				{t(
+																					'vacations.balance.pending',
+																				)}
+																			</p>
+																			<p className="text-lg font-semibold">
+																				{
+																					vacationBalance.pendingDays
+																				}
+																			</p>
+																		</div>
+																		<div className="space-y-1">
+																			<p className="text-xs text-muted-foreground">
+																				{t(
+																					'vacations.balance.available',
+																				)}
+																			</p>
+																			<p className="text-lg font-semibold">
+																				{
+																					vacationBalance.availableDays
+																				}
+																			</p>
+																		</div>
 																	</div>
 																) : (
 																	<p className="text-sm text-muted-foreground">
-																		{tCommon('notAvailable')}
+																		{t(
+																			'vacations.balanceUnavailable',
+																		)}
 																	</p>
 																)}
 															</CardContent>
 														</Card>
 
-														<div className="grid gap-4 lg:grid-cols-2">
-															<Card>
-																<CardHeader className="min-h-16 pb-3">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.absencesTitle')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent className="min-h-[18rem]">
+														<div className="rounded-md border">
+															<Table>
+																<TableHeader>
+																	<TableRow>
+																		<TableHead>
+																			{t(
+																				'vacations.table.headers.period',
+																			)}
+																		</TableHead>
+																		<TableHead>
+																			{t(
+																				'vacations.table.headers.days',
+																			)}
+																		</TableHead>
+																		<TableHead>
+																			{t(
+																				'vacations.table.headers.status',
+																			)}
+																		</TableHead>
+																	</TableRow>
+																</TableHeader>
+																<TableBody>
 																	{isLoadingInsights ? (
-																		<Skeleton className="h-24 w-full" />
-																	) : absenceMonthGroups.length > 0 ? (
-																		<Accordion
-																			type="single"
-																			collapsible
-																			defaultValue={attendanceCurrentMonthKey}
-																			className="w-full"
-																		>
-																			{absenceMonthGroups.map((group) => (
-																				<AccordionItem
-																					key={group.monthKey}
-																					value={group.monthKey}
-																				>
-																					<AccordionTrigger className="items-center gap-3 text-sm">
-																						<span className="flex-1 text-left capitalize">
-																							{formatMonthLabel(group.monthKey)}
-																						</span>
-																						<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
-																							{group.totalDays}
-																						</span>
-																					</AccordionTrigger>
-																					<AccordionContent>
-																						<ul className="space-y-1 text-sm">
-																							{group.dateKeys.map((dateKey) => (
-																								<li
-																									key={dateKey}
-																									className="flex items-center justify-between"
-																								>
-																									<span className="font-medium">
-																										{formatShortDateUtc(
-																											toUtcDate(dateKey),
-																										)}
-																									</span>
-																									<span className="text-xs text-muted-foreground">
-																										{dateKey}
-																									</span>
-																								</li>
-																							))}
-																						</ul>
-																					</AccordionContent>
-																				</AccordionItem>
-																			))}
-																		</Accordion>
+																		Array.from({
+																			length: 3,
+																		}).map((_, index) => (
+																			<TableRow key={index}>
+																				<TableCell>
+																					<Skeleton className="h-4 w-24" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-20" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-16" />
+																				</TableCell>
+																			</TableRow>
+																		))
+																	) : vacationRequests.length ===
+																	  0 ? (
+																		<TableRow>
+																			<TableCell
+																				colSpan={3}
+																				className="h-20 text-center"
+																			>
+																				{t(
+																					'vacations.table.empty',
+																				)}
+																			</TableCell>
+																		</TableRow>
 																	) : (
-																		<div className="flex min-h-[8.5rem] items-start">
-																			<p className="text-sm text-muted-foreground">
-																				{t('attendance.emptyAbsences')}
-																			</p>
-																		</div>
-																	)}
-																</CardContent>
-															</Card>
-
-															<Card>
-																<CardHeader className="min-h-16 pb-3">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.leavesTitle')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent className="min-h-[18rem]">
-																	{isLoadingInsights ? (
-																		<Skeleton className="h-24 w-full" />
-																	) : leavesMonthGroups.length > 0 ? (
-																		<Accordion
-																			type="single"
-																			collapsible
-																			defaultValue={attendanceCurrentMonthKey}
-																			className="w-full"
-																		>
-																			{leavesMonthGroups.map((group) => (
-																				<AccordionItem
-																					key={group.monthKey}
-																					value={group.monthKey}
+																		vacationRequests.map(
+																			(request) => (
+																				<TableRow
+																					key={request.id}
 																				>
-																					<AccordionTrigger className="items-center gap-3 text-sm">
-																						<span className="flex-1 text-left capitalize">
-																							{formatMonthLabel(group.monthKey)}
-																						</span>
-																						<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
-																							{group.totalDays}
-																						</span>
-																					</AccordionTrigger>
-																					<AccordionContent>
-																						<ul className="space-y-1 text-sm">
-																							{group.dateKeys.map((dateKey) => (
-																								<li
-																									key={dateKey}
-																									className="flex items-center justify-between"
-																								>
-																									<span className="font-medium">
-																										{formatShortDateUtc(
-																											toUtcDate(dateKey),
-																										)}
-																									</span>
-																									<span className="text-xs text-muted-foreground">
-																										{dateKey}
-																									</span>
-																								</li>
-																							))}
-																						</ul>
-																					</AccordionContent>
-																				</AccordionItem>
-																			))}
-																		</Accordion>
-																	) : (
-																		<div className="flex min-h-[8.5rem] items-start">
-																			<p className="text-sm text-muted-foreground">
-																				{t('attendance.emptyLeaves')}
-																			</p>
-																		</div>
+																					<TableCell>
+																						{formatDateRangeUtc(
+																							toUtcDate(
+																								request.startDateKey,
+																							),
+																							toUtcDate(
+																								request.endDateKey,
+																							),
+																						)}
+																					</TableCell>
+																					<TableCell>
+																						{tVacations(
+																							'table.daysSummary',
+																							{
+																								vacation:
+																									request.vacationDays,
+																								total: request.totalDays,
+																							},
+																						)}
+																					</TableCell>
+																					<TableCell>
+																						<Badge variant="outline">
+																							{tVacations(
+																								`status.${request.status}`,
+																							)}
+																						</Badge>
+																					</TableCell>
+																				</TableRow>
+																			),
+																		)
 																	)}
-																</CardContent>
-															</Card>
+																</TableBody>
+															</Table>
 														</div>
 													</div>
-												)}
-											</div>
-										) : null}
-									</TabsContent>
+												</div>
+											) : null}
+										</TabsContent>
 
-									<TabsContent
-										value="vacations"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'vacations' && 'hidden')}
-									>
-										{isTabVisited('vacations') ? (
-											<div
-												ref={registerTabScrollContainer('vacations')}
-												onScroll={handleTabScroll('vacations')}
-												className="h-full overflow-y-auto pt-4"
-											>
-										<div className="space-y-4">
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('vacations.balanceTitle')}
-													</CardTitle>
-												</CardHeader>
-												<CardContent>
-													{isLoadingInsights ? (
-														<div className="space-y-2">
-															<Skeleton className="h-4 w-32" />
-															<Skeleton className="h-4 w-24" />
-														</div>
-													) : vacationBalance ? (
-														<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-															<div className="space-y-1">
-																<p className="text-xs text-muted-foreground">
-																	{t(
-																		'vacations.balance.entitled',
-																	)}
-																</p>
-																<p className="text-lg font-semibold">
-																	{vacationBalance.entitledDays}
-																</p>
-															</div>
-															<div className="space-y-1">
-																<p className="text-xs text-muted-foreground">
-																	{t('vacations.balance.accrued')}
-																</p>
-																<p className="text-lg font-semibold">
-																	{vacationBalance.accruedDays.toFixed(
-																		2,
-																	)}
-																</p>
-															</div>
-															<div className="space-y-1">
-																<p className="text-xs text-muted-foreground">
-																	{t('vacations.balance.used')}
-																</p>
-																<p className="text-lg font-semibold">
-																	{vacationBalance.usedDays}
-																</p>
-															</div>
-															<div className="space-y-1">
-																<p className="text-xs text-muted-foreground">
-																	{t('vacations.balance.pending')}
-																</p>
-																<p className="text-lg font-semibold">
-																	{vacationBalance.pendingDays}
-																</p>
-															</div>
-															<div className="space-y-1">
-																<p className="text-xs text-muted-foreground">
-																	{t(
-																		'vacations.balance.available',
-																	)}
-																</p>
-																<p className="text-lg font-semibold">
-																	{vacationBalance.availableDays}
-																</p>
-															</div>
-														</div>
+										<TabsContent
+											value="deductions"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'deductions' && 'hidden',
+											)}
+										>
+											{isTabVisited('deductions') ? (
+												<div
+													ref={registerTabScrollContainer('deductions')}
+													onScroll={handleTabScroll('deductions')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													{activeEmployee?.id ? (
+														<EmployeeDeductionsTab
+															mode="employee"
+															employeeId={activeEmployee.id}
+															employeeName={`${activeEmployee.firstName} ${activeEmployee.lastName}`}
+														/>
 													) : (
-														<p className="text-sm text-muted-foreground">
-															{t('vacations.balanceUnavailable')}
-														</p>
+														<Card>
+															<CardContent className="py-8 text-sm text-muted-foreground">
+																{t('deductions.empty')}
+															</CardContent>
+														</Card>
 													)}
-												</CardContent>
-											</Card>
+												</div>
+											) : null}
+										</TabsContent>
 
-											<div className="rounded-md border">
-												<Table>
-													<TableHeader>
-														<TableRow>
-															<TableHead>
-																{t(
-																	'vacations.table.headers.period',
-																)}
-															</TableHead>
-															<TableHead>
-																{t('vacations.table.headers.days')}
-															</TableHead>
-															<TableHead>
-																{t(
-																	'vacations.table.headers.status',
-																)}
-															</TableHead>
-														</TableRow>
-													</TableHeader>
-													<TableBody>
-														{isLoadingInsights ? (
-															Array.from({ length: 3 }).map(
-																(_, index) => (
-																	<TableRow key={index}>
-																		<TableCell>
-																			<Skeleton className="h-4 w-24" />
-																		</TableCell>
-																		<TableCell>
-																			<Skeleton className="h-4 w-20" />
-																		</TableCell>
-																		<TableCell>
-																			<Skeleton className="h-4 w-16" />
+										<TabsContent
+											value="payroll"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'payroll' && 'hidden',
+											)}
+										>
+											{isTabVisited('payroll') ? (
+												<div
+													ref={registerTabScrollContainer('payroll')}
+													onScroll={handleTabScroll('payroll')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="rounded-md border">
+														<Table>
+															<TableHeader>
+																<TableRow>
+																	<TableHead>
+																		{t(
+																			'payroll.table.headers.period',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'payroll.table.headers.total',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'payroll.table.headers.status',
+																		)}
+																	</TableHead>
+																</TableRow>
+															</TableHeader>
+															<TableBody>
+																{isLoadingInsights ? (
+																	Array.from({ length: 3 }).map(
+																		(_, index) => (
+																			<TableRow key={index}>
+																				<TableCell>
+																					<Skeleton className="h-4 w-24" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-20" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-16" />
+																				</TableCell>
+																			</TableRow>
+																		),
+																	)
+																) : payrollRuns.length === 0 ? (
+																	<TableRow>
+																		<TableCell
+																			colSpan={3}
+																			className="h-20 text-center"
+																		>
+																			{t(
+																				'payroll.table.empty',
+																			)}
 																		</TableCell>
 																	</TableRow>
-																),
-															)
-														) : vacationRequests.length === 0 ? (
-															<TableRow>
-																<TableCell
-																	colSpan={3}
-																	className="h-20 text-center"
-																>
-																	{t('vacations.table.empty')}
-																</TableCell>
-															</TableRow>
-														) : (
-															vacationRequests.map((request) => (
-																<TableRow key={request.id}>
-																	<TableCell>
-																		{formatDateRangeUtc(
-																			toUtcDate(
-																				request.startDateKey,
-																			),
-																			toUtcDate(
-																				request.endDateKey,
-																			),
-																		)}
-																	</TableCell>
-																	<TableCell>
-																		{tVacations(
-																			'table.daysSummary',
-																			{
-																				vacation:
-																					request.vacationDays,
-																				total: request.totalDays,
-																			},
-																		)}
-																	</TableCell>
-																	<TableCell>
-																		<Badge variant="outline">
-																			{tVacations(
-																				`status.${request.status}`,
-																			)}
-																		</Badge>
-																	</TableCell>
-																</TableRow>
-															))
-														)}
-													</TableBody>
-												</Table>
-											</div>
-										</div>
-											</div>
-										) : null}
-									</TabsContent>
+																) : (
+																	payrollRuns.map((run) => (
+																		<TableRow
+																			key={run.payrollRunId}
+																		>
+																			<TableCell>
+																				{formatDateRangeUtc(
+																					new Date(
+																						run.periodStart,
+																					),
+																					new Date(
+																						run.periodEnd,
+																					),
+																				)}
+																			</TableCell>
+																			<TableCell>
+																				{formatCurrency(
+																					run.totalPay,
+																				)}
+																			</TableCell>
+																			<TableCell>
+																				<Badge variant="outline">
+																					{t(
+																						`payroll.status.${run.status}`,
+																					)}
+																				</Badge>
+																			</TableCell>
+																		</TableRow>
+																	))
+																)}
+															</TableBody>
+														</Table>
+													</div>
+												</div>
+											) : null}
+										</TabsContent>
 
-									<TabsContent
-										value="payroll"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'payroll' && 'hidden')}
-									>
-										{isTabVisited('payroll') ? (
-											<div
-												ref={registerTabScrollContainer('payroll')}
-												onScroll={handleTabScroll('payroll')}
-												className="h-full overflow-y-auto pt-4"
-											>
-										<div className="rounded-md border">
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>
-															{t('payroll.table.headers.period')}
-														</TableHead>
-														<TableHead>
-															{t('payroll.table.headers.total')}
-														</TableHead>
-														<TableHead>
-															{t('payroll.table.headers.status')}
-														</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{isLoadingInsights ? (
-														Array.from({ length: 3 }).map(
-															(_, index) => (
-																<TableRow key={index}>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-20" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-16" />
-																	</TableCell>
-																</TableRow>
-															),
-														)
-													) : payrollRuns.length === 0 ? (
-														<TableRow>
-															<TableCell
-																colSpan={3}
-																className="h-20 text-center"
-															>
-																{t('payroll.table.empty')}
-															</TableCell>
-														</TableRow>
-													) : (
-														payrollRuns.map((run) => (
-															<TableRow key={run.payrollRunId}>
-																<TableCell>
-																	{formatDateRangeUtc(
-																		new Date(run.periodStart),
-																		new Date(run.periodEnd),
-																	)}
-																</TableCell>
-																<TableCell>
-																	{formatCurrency(run.totalPay)}
-																</TableCell>
-																<TableCell>
-																	<Badge variant="outline">
+										<TabsContent
+											value="ptu"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'ptu' && 'hidden',
+											)}
+										>
+											{isTabVisited('ptu') ? (
+												<div
+													ref={registerTabScrollContainer('ptu')}
+													onScroll={handleTabScroll('ptu')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="grid gap-4 md:grid-cols-2">
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('ptuAguinaldo.title')}
+																</CardTitle>
+																<CardDescription>
+																	{t('ptuAguinaldo.subtitle')}
+																</CardDescription>
+															</CardHeader>
+															<CardContent className="space-y-3 text-sm">
+																<div className="flex items-center justify-between">
+																	<span className="text-muted-foreground">
+																		{t('fields.employmentType')}
+																	</span>
+																	<span className="font-medium">
 																		{t(
-																			`payroll.status.${run.status}`,
+																			`employmentType.${activeEmployee?.employmentType ?? 'PERMANENT'}`,
 																		)}
-																	</Badge>
-																</TableCell>
-															</TableRow>
-														))
-													)}
-												</TableBody>
-											</Table>
-										</div>
-											</div>
-										) : null}
-									</TabsContent>
+																	</span>
+																</div>
+																<div className="flex items-center justify-between">
+																	<span className="text-muted-foreground">
+																		{t(
+																			'fields.ptuEligibilityOverride',
+																		)}
+																	</span>
+																	<span className="font-medium">
+																		{t(
+																			`ptuEligibility.${activeEmployee?.ptuEligibilityOverride ?? 'DEFAULT'}`,
+																		)}
+																	</span>
+																</div>
+																<div className="flex items-center justify-between">
+																	<span className="text-muted-foreground">
+																		{t(
+																			'fields.aguinaldoDaysOverride',
+																		)}
+																	</span>
+																	<span className="font-medium">
+																		{activeEmployee?.aguinaldoDaysOverride
+																			? t(
+																					'ptuAguinaldo.values.days',
+																					{
+																						days: activeEmployee.aguinaldoDaysOverride,
+																					},
+																				)
+																			: tCommon(
+																					'notAvailable',
+																				)}
+																	</span>
+																</div>
+																<div className="flex items-center justify-between">
+																	<span className="text-muted-foreground">
+																		{t(
+																			'fields.platformHoursYear',
+																		)}
+																	</span>
+																	<span className="font-medium">
+																		{activeEmployee?.platformHoursYear ??
+																			tCommon('notAvailable')}
+																	</span>
+																</div>
+																<div className="grid gap-2">
+																	<div className="flex items-center justify-between">
+																		<span className="text-muted-foreground">
+																			{t(
+																				'fields.isTrustEmployee',
+																			)}
+																		</span>
+																		<span className="font-medium">
+																			{activeEmployee?.isTrustEmployee
+																				? t('labels.yes')
+																				: t('labels.no')}
+																		</span>
+																	</div>
+																	<div className="flex items-center justify-between">
+																		<span className="text-muted-foreground">
+																			{t(
+																				'fields.isDirectorAdminGeneralManager',
+																			)}
+																		</span>
+																		<span className="font-medium">
+																			{activeEmployee?.isDirectorAdminGeneralManager
+																				? t('labels.yes')
+																				: t('labels.no')}
+																		</span>
+																	</div>
+																	<div className="flex items-center justify-between">
+																		<span className="text-muted-foreground">
+																			{t(
+																				'fields.isDomesticWorker',
+																			)}
+																		</span>
+																		<span className="font-medium">
+																			{activeEmployee?.isDomesticWorker
+																				? t('labels.yes')
+																				: t('labels.no')}
+																		</span>
+																	</div>
+																	<div className="flex items-center justify-between">
+																		<span className="text-muted-foreground">
+																			{t(
+																				'fields.isPlatformWorker',
+																			)}
+																		</span>
+																		<span className="font-medium">
+																			{activeEmployee?.isPlatformWorker
+																				? t('labels.yes')
+																				: t('labels.no')}
+																		</span>
+																	</div>
+																</div>
+															</CardContent>
+														</Card>
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('ptuHistory.title')}
+																</CardTitle>
+																<CardDescription>
+																	{t('ptuHistory.subtitle')}
+																</CardDescription>
+															</CardHeader>
+															<CardContent>
+																<div className="rounded-md border">
+																	<Table>
+																		<TableHeader>
+																			<TableRow>
+																				<TableHead>
+																					{t(
+																						'ptuHistory.table.year',
+																					)}
+																				</TableHead>
+																				<TableHead className="text-right">
+																					{t(
+																						'ptuHistory.table.amount',
+																					)}
+																				</TableHead>
+																			</TableRow>
+																		</TableHeader>
+																		<TableBody>
+																			{ptuHistoryError ? (
+																				<TableRow>
+																					<TableCell
+																						colSpan={2}
+																					>
+																						<div className="flex items-center justify-between gap-3 py-2">
+																							<p className="text-sm text-muted-foreground">
+																								{t(
+																									'ptuHistory.partialError',
+																								)}
+																							</p>
+																							<Button
+																								variant="outline"
+																								size="sm"
+																								onClick={() =>
+																									void refetchPtuHistory()
+																								}
+																							>
+																								{tCommon(
+																									'retry',
+																								)}
+																							</Button>
+																						</div>
+																					</TableCell>
+																				</TableRow>
+																			) : isLoadingPtuHistory ? (
+																				<TableRow>
+																					<TableCell
+																						colSpan={2}
+																					>
+																						<Skeleton className="h-4 w-full" />
+																					</TableCell>
+																				</TableRow>
+																			) : ptuHistory.length ===
+																			  0 ? (
+																				<TableRow>
+																					<TableCell
+																						colSpan={2}
+																						className="h-20 text-center"
+																					>
+																						{t(
+																							'ptuHistory.table.empty',
+																						)}
+																					</TableCell>
+																				</TableRow>
+																			) : (
+																				ptuHistory.map(
+																					(entry) => (
+																						<TableRow
+																							key={
+																								entry.id
+																							}
+																						>
+																							<TableCell>
+																								{
+																									entry.fiscalYear
+																								}
+																							</TableCell>
+																							<TableCell className="text-right tabular-nums">
+																								{formatCurrency(
+																									entry.amount,
+																								)}
+																							</TableCell>
+																						</TableRow>
+																					),
+																				)
+																			)}
+																		</TableBody>
+																	</Table>
+																</div>
+															</CardContent>
+														</Card>
+													</div>
+												</div>
+											) : null}
+										</TabsContent>
 
-									<TabsContent
-										value="ptu"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'ptu' && 'hidden')}
-									>
-										{isTabVisited('ptu') ? (
-											<div
-												ref={registerTabScrollContainer('ptu')}
-												onScroll={handleTabScroll('ptu')}
-												className="h-full overflow-y-auto pt-4"
-											>
-										<div className="grid gap-4 md:grid-cols-2">
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('ptuAguinaldo.title')}
-													</CardTitle>
-													<CardDescription>
-														{t('ptuAguinaldo.subtitle')}
-													</CardDescription>
-												</CardHeader>
-												<CardContent className="space-y-3 text-sm">
-													<div className="flex items-center justify-between">
-														<span className="text-muted-foreground">
-															{t('fields.employmentType')}
-														</span>
-														<span className="font-medium">
-															{t(
-																`employmentType.${activeEmployee?.employmentType ?? 'PERMANENT'}`,
-															)}
-														</span>
-													</div>
-													<div className="flex items-center justify-between">
-														<span className="text-muted-foreground">
-															{t('fields.ptuEligibilityOverride')}
-														</span>
-														<span className="font-medium">
-															{t(
-																`ptuEligibility.${activeEmployee?.ptuEligibilityOverride ?? 'DEFAULT'}`,
-															)}
-														</span>
-													</div>
-													<div className="flex items-center justify-between">
-														<span className="text-muted-foreground">
-															{t('fields.aguinaldoDaysOverride')}
-														</span>
-														<span className="font-medium">
-															{activeEmployee?.aguinaldoDaysOverride
-																? t('ptuAguinaldo.values.days', {
-																		days: activeEmployee.aguinaldoDaysOverride,
-																	})
-																: tCommon('notAvailable')}
-														</span>
-													</div>
-													<div className="flex items-center justify-between">
-														<span className="text-muted-foreground">
-															{t('fields.platformHoursYear')}
-														</span>
-														<span className="font-medium">
-															{activeEmployee?.platformHoursYear ?? tCommon('notAvailable')}
-														</span>
-													</div>
-													<div className="grid gap-2">
-														<div className="flex items-center justify-between">
-															<span className="text-muted-foreground">
-																{t('fields.isTrustEmployee')}
-															</span>
-															<span className="font-medium">
-																{activeEmployee?.isTrustEmployee
-																	? t('labels.yes')
-																	: t('labels.no')}
-															</span>
+										<TabsContent
+											value="finiquito"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'finiquito' && 'hidden',
+											)}
+										>
+											{isTabVisited('finiquito') ? (
+												<div
+													ref={registerTabScrollContainer('finiquito')}
+													onScroll={handleTabScroll('finiquito')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+														<Card>
+															<CardHeader>
+																<CardTitle className="text-sm font-medium">
+																	{t('finiquito.form.title')}
+																</CardTitle>
+																<p className="text-xs text-muted-foreground">
+																	{t('finiquito.form.subtitle')}
+																</p>
+															</CardHeader>
+															<CardContent>
+																<div className="grid gap-4 sm:grid-cols-2">
+																	<TerminationDateField
+																		label={t(
+																			'finiquito.fields.terminationDate',
+																		)}
+																		placeholder={t(
+																			'finiquito.placeholders.terminationDate',
+																		)}
+																		value={
+																			terminationForm.terminationDateKey
+																		}
+																		onChange={(nextValue) =>
+																			updateTerminationForm({
+																				terminationDateKey:
+																					nextValue,
+																			})
+																		}
+																		disabled={
+																			isTerminationLocked
+																		}
+																	/>
+																	<TerminationDateField
+																		label={t(
+																			'finiquito.fields.lastDayWorkedDate',
+																		)}
+																		placeholder={t(
+																			'finiquito.placeholders.lastDayWorkedDate',
+																		)}
+																		value={
+																			terminationForm.lastDayWorkedDateKey
+																		}
+																		onChange={(nextValue) =>
+																			updateTerminationForm({
+																				lastDayWorkedDateKey:
+																					nextValue,
+																			})
+																		}
+																		disabled={
+																			isTerminationLocked
+																		}
+																	/>
+																	<div className="space-y-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.terminationReason',
+																			)}
+																		</Label>
+																		<Select
+																			value={
+																				terminationForm.terminationReason
+																			}
+																			onValueChange={(
+																				value,
+																			) =>
+																				updateTerminationForm(
+																					{
+																						terminationReason:
+																							value as TerminationReason,
+																					},
+																				)
+																			}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		>
+																			<SelectTrigger>
+																				<SelectValue
+																					placeholder={t(
+																						'finiquito.placeholders.terminationReason',
+																					)}
+																				/>
+																			</SelectTrigger>
+																			<SelectContent>
+																				{terminationReasonOptions.map(
+																					(option) => (
+																						<SelectItem
+																							key={
+																								option.value
+																							}
+																							value={
+																								option.value
+																							}
+																						>
+																							{t(
+																								option.labelKey,
+																							)}
+																						</SelectItem>
+																					),
+																				)}
+																			</SelectContent>
+																		</Select>
+																	</div>
+																	<div className="space-y-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.contractType',
+																			)}
+																		</Label>
+																		<Select
+																			value={
+																				terminationForm.contractType
+																			}
+																			onValueChange={(
+																				value,
+																			) =>
+																				updateTerminationForm(
+																					{
+																						contractType:
+																							value as EmploymentContractType,
+																					},
+																				)
+																			}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		>
+																			<SelectTrigger>
+																				<SelectValue
+																					placeholder={t(
+																						'finiquito.placeholders.contractType',
+																					)}
+																				/>
+																			</SelectTrigger>
+																			<SelectContent>
+																				{contractTypeOptions.map(
+																					(option) => (
+																						<SelectItem
+																							key={
+																								option.value
+																							}
+																							value={
+																								option.value
+																							}
+																						>
+																							{t(
+																								option.labelKey,
+																							)}
+																						</SelectItem>
+																					),
+																				)}
+																			</SelectContent>
+																		</Select>
+																	</div>
+																	<div className="space-y-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.unpaidDays',
+																			)}
+																		</Label>
+																		<Input
+																			type="number"
+																			min="0"
+																			step="0.01"
+																			value={
+																				terminationForm.unpaidDays
+																			}
+																			onChange={(event) =>
+																				updateTerminationForm(
+																					{
+																						unpaidDays:
+																							event
+																								.target
+																								.value,
+																					},
+																				)
+																			}
+																			placeholder={t(
+																				'finiquito.placeholders.unpaidDays',
+																			)}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		/>
+																	</div>
+																	<div className="space-y-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.otherDue',
+																			)}
+																		</Label>
+																		<Input
+																			type="number"
+																			min="0"
+																			step="0.01"
+																			value={
+																				terminationForm.otherDue
+																			}
+																			onChange={(event) =>
+																				updateTerminationForm(
+																					{
+																						otherDue:
+																							event
+																								.target
+																								.value,
+																					},
+																				)
+																			}
+																			placeholder={t(
+																				'finiquito.placeholders.otherDue',
+																			)}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		/>
+																	</div>
+																	<div className="space-y-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.vacationBalanceDays',
+																			)}
+																		</Label>
+																		<Input
+																			type="number"
+																			min="0"
+																			step="0.01"
+																			value={
+																				terminationForm.vacationBalanceDays
+																			}
+																			onChange={(event) =>
+																				updateTerminationForm(
+																					{
+																						vacationBalanceDays:
+																							event
+																								.target
+																								.value,
+																					},
+																				)
+																			}
+																			placeholder={t(
+																				'finiquito.placeholders.vacationBalanceDays',
+																			)}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		/>
+																		<p className="text-xs text-muted-foreground">
+																			{t(
+																				'finiquito.helpers.vacationBalanceDays',
+																			)}
+																		</p>
+																	</div>
+																	<div className="space-y-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.dailySalaryIndemnizacion',
+																			)}
+																		</Label>
+																		<Input
+																			type="number"
+																			min="0"
+																			step="0.01"
+																			value={
+																				terminationForm.dailySalaryIndemnizacion
+																			}
+																			onChange={(event) =>
+																				updateTerminationForm(
+																					{
+																						dailySalaryIndemnizacion:
+																							event
+																								.target
+																								.value,
+																					},
+																				)
+																			}
+																			placeholder={t(
+																				'finiquito.placeholders.dailySalaryIndemnizacion',
+																			)}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		/>
+																		<p className="text-xs text-muted-foreground">
+																			{t(
+																				'finiquito.helpers.dailySalaryIndemnizacion',
+																			)}
+																		</p>
+																	</div>
+																	<div className="space-y-2 sm:col-span-2">
+																		<Label>
+																			{t(
+																				'finiquito.fields.terminationNotes',
+																			)}
+																		</Label>
+																		<Textarea
+																			value={
+																				terminationForm.terminationNotes
+																			}
+																			onChange={(event) =>
+																				updateTerminationForm(
+																					{
+																						terminationNotes:
+																							event
+																								.target
+																								.value,
+																					},
+																				)
+																			}
+																			placeholder={t(
+																				'finiquito.placeholders.terminationNotes',
+																			)}
+																			disabled={
+																				isTerminationLocked
+																			}
+																		/>
+																	</div>
+																</div>
+
+																<div className="mt-4 space-y-3">
+																	<div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+																		<HelpCircle className="mt-0.5 h-4 w-4" />
+																		<span>
+																			{t(
+																				'finiquito.form.previewHint',
+																				{
+																					action: t(
+																						'finiquito.actions.preview',
+																					),
+																				},
+																			)}
+																		</span>
+																	</div>
+																	<div className="flex flex-wrap gap-2">
+																		<Button
+																			onClick={
+																				handleTerminationPreview
+																			}
+																			disabled={
+																				isTerminationLocked ||
+																				terminationPreviewMutation.isPending
+																			}
+																		>
+																			{terminationPreviewMutation.isPending ? (
+																				<>
+																					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																					{t(
+																						'finiquito.actions.previewLoading',
+																					)}
+																				</>
+																			) : (
+																				t(
+																					'finiquito.actions.preview',
+																				)
+																			)}
+																		</Button>
+
+																		<Dialog
+																			open={
+																				isTerminateDialogOpen
+																			}
+																			onOpenChange={
+																				setIsTerminateDialogOpen
+																			}
+																		>
+																			<DialogTrigger asChild>
+																				<Button
+																					variant="destructive"
+																					disabled={
+																						!canConfirmTermination ||
+																						terminationMutation.isPending
+																					}
+																				>
+																					{terminationMutation.isPending ? (
+																						<>
+																							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																							{t(
+																								'finiquito.actions.confirmLoading',
+																							)}
+																						</>
+																					) : (
+																						t(
+																							'finiquito.actions.confirm',
+																						)
+																					)}
+																				</Button>
+																			</DialogTrigger>
+																			<DialogContent>
+																				<DialogHeader>
+																					<DialogTitle>
+																						{t(
+																							'finiquito.dialog.title',
+																						)}
+																					</DialogTitle>
+																					<DialogDescription>
+																						{t(
+																							'finiquito.dialog.description',
+																							{
+																								name:
+																									activeEmployeeName ||
+																									tCommon(
+																										'notAvailable',
+																									),
+																								total: terminationPreview
+																									? formatCurrency(
+																											terminationPreview
+																												.totals
+																												.grossTotal,
+																										)
+																									: tCommon(
+																											'notAvailable',
+																										),
+																							},
+																						)}
+																					</DialogDescription>
+																				</DialogHeader>
+																				<DialogFooter>
+																					<Button
+																						variant="outline"
+																						onClick={() =>
+																							setIsTerminateDialogOpen(
+																								false,
+																							)
+																						}
+																					>
+																						{tCommon(
+																							'cancel',
+																						)}
+																					</Button>
+																					<Button
+																						variant="destructive"
+																						onClick={
+																							handleTerminateEmployee
+																						}
+																						disabled={
+																							terminationMutation.isPending
+																						}
+																					>
+																						{terminationMutation.isPending ? (
+																							<>
+																								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																								{t(
+																									'finiquito.actions.confirmLoading',
+																								)}
+																							</>
+																						) : (
+																							tCommon(
+																								'confirm',
+																							)
+																						)}
+																					</Button>
+																				</DialogFooter>
+																			</DialogContent>
+																		</Dialog>
+																		{canDownloadTerminationReceipt ? (
+																			<Button
+																				variant="outline"
+																				asChild
+																			>
+																				<a
+																					href={
+																						terminationReceiptUrl
+																					}
+																					target="_blank"
+																					rel="noopener noreferrer"
+																				>
+																					{t(
+																						'finiquito.actions.downloadReceipt',
+																					)}
+																				</a>
+																			</Button>
+																		) : (
+																			<Button
+																				variant="outline"
+																				disabled={
+																					isLoadingTerminationSettlement ||
+																					!canDownloadTerminationReceipt
+																				}
+																			>
+																				{isLoadingTerminationSettlement ? (
+																					<>
+																						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																						{t(
+																							'finiquito.actions.downloadReceiptLoading',
+																						)}
+																					</>
+																				) : (
+																					t(
+																						'finiquito.actions.downloadReceipt',
+																					)
+																				)}
+																			</Button>
+																		)}
+																	</div>
+																</div>
+															</CardContent>
+														</Card>
+
+														<div className="space-y-4">
+															<Card>
+																<CardHeader>
+																	<CardTitle className="text-sm font-medium">
+																		{t(
+																			'finiquito.results.finiquitoTitle',
+																		)}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{terminationPreview ? (
+																		<div className="space-y-2 text-sm">
+																			{finiquitoLines.map(
+																				(line) => (
+																					<div
+																						key={
+																							line.key
+																						}
+																						className="flex items-center justify-between"
+																					>
+																						<span>
+																							{
+																								line.label
+																							}
+																						</span>
+																						<span className="font-medium">
+																							{formatCurrency(
+																								line.value,
+																							)}
+																						</span>
+																					</div>
+																				),
+																			)}
+																			<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+																				<span>
+																					{t(
+																						'finiquito.breakdown.totalGross',
+																					)}
+																				</span>
+																				<span>
+																					{formatCurrency(
+																						terminationPreview
+																							.totals
+																							.finiquitoTotalGross,
+																					)}
+																				</span>
+																			</div>
+																		</div>
+																	) : (
+																		<p className="text-sm text-muted-foreground">
+																			{t(
+																				'finiquito.empty.preview',
+																			)}
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+
+															<Card>
+																<CardHeader>
+																	<CardTitle className="text-sm font-medium">
+																		{t(
+																			'finiquito.results.totalTitle',
+																		)}
+																	</CardTitle>
+																</CardHeader>
+																<CardContent>
+																	{terminationPreview ? (
+																		<div className="text-2xl font-semibold">
+																			{formatCurrency(
+																				terminationPreview
+																					.totals
+																					.grossTotal,
+																			)}
+																		</div>
+																	) : (
+																		<p className="text-sm text-muted-foreground">
+																			{t(
+																				'finiquito.empty.preview',
+																			)}
+																		</p>
+																	)}
+																</CardContent>
+															</Card>
+
+															<Accordion type="single" collapsible>
+																<AccordionItem value="liquidacion">
+																	<AccordionTrigger>
+																		{t(
+																			'finiquito.results.liquidacionTitle',
+																		)}
+																	</AccordionTrigger>
+																	<AccordionContent>
+																		{terminationPreview ? (
+																			<div className="space-y-2 text-sm">
+																				{liquidacionLines.map(
+																					(line) => (
+																						<div
+																							key={
+																								line.key
+																							}
+																							className="flex items-center justify-between"
+																						>
+																							<span>
+																								{
+																									line.label
+																								}
+																							</span>
+																							<span className="font-medium">
+																								{formatCurrency(
+																									line.value,
+																								)}
+																							</span>
+																						</div>
+																					),
+																				)}
+																				<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+																					<span>
+																						{t(
+																							'finiquito.breakdown.totalGross',
+																						)}
+																					</span>
+																					<span>
+																						{formatCurrency(
+																							terminationPreview
+																								.totals
+																								.liquidacionTotalGross,
+																						)}
+																					</span>
+																				</div>
+																				{terminationPreview
+																					.totals
+																					.liquidacionTotalGross ===
+																					0 && (
+																					<p className="text-xs text-muted-foreground">
+																						{t(
+																							'finiquito.empty.liquidacion',
+																						)}
+																					</p>
+																				)}
+																			</div>
+																		) : (
+																			<p className="text-sm text-muted-foreground">
+																				{t(
+																					'finiquito.empty.preview',
+																				)}
+																			</p>
+																		)}
+																	</AccordionContent>
+																</AccordionItem>
+															</Accordion>
 														</div>
-														<div className="flex items-center justify-between">
-															<span className="text-muted-foreground">
-																{t('fields.isDirectorAdminGeneralManager')}
-															</span>
-															<span className="font-medium">
-																{activeEmployee?.isDirectorAdminGeneralManager
-																	? t('labels.yes')
-																	: t('labels.no')}
-															</span>
-														</div>
-														<div className="flex items-center justify-between">
-															<span className="text-muted-foreground">
-																{t('fields.isDomesticWorker')}
-															</span>
-															<span className="font-medium">
-																{activeEmployee?.isDomesticWorker
-																	? t('labels.yes')
-																	: t('labels.no')}
-															</span>
-														</div>
-														<div className="flex items-center justify-between">
-															<span className="text-muted-foreground">
-																{t('fields.isPlatformWorker')}
-															</span>
-															<span className="font-medium">
-																{activeEmployee?.isPlatformWorker
-																	? t('labels.yes')
-																	: t('labels.no')}
-															</span>
-														</div>
 													</div>
-												</CardContent>
-											</Card>
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('ptuHistory.title')}
-													</CardTitle>
-													<CardDescription>
-														{t('ptuHistory.subtitle')}
-													</CardDescription>
-												</CardHeader>
-												<CardContent>
+												</div>
+											) : null}
+										</TabsContent>
+
+										<TabsContent
+											value="exceptions"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'exceptions' && 'hidden',
+											)}
+										>
+											{isTabVisited('exceptions') ? (
+												<div
+													ref={registerTabScrollContainer('exceptions')}
+													onScroll={handleTabScroll('exceptions')}
+													className="h-full overflow-y-auto pt-4"
+												>
 													<div className="rounded-md border">
+														<Table>
+															<TableHeader>
+																<TableRow>
+																	<TableHead>
+																		{t(
+																			'exceptions.table.headers.date',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'exceptions.table.headers.type',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'exceptions.table.headers.reason',
+																		)}
+																	</TableHead>
+																</TableRow>
+															</TableHeader>
+															<TableBody>
+																{isLoadingInsights ? (
+																	Array.from({ length: 3 }).map(
+																		(_, index) => (
+																			<TableRow key={index}>
+																				<TableCell>
+																					<Skeleton className="h-4 w-24" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-20" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-28" />
+																				</TableCell>
+																			</TableRow>
+																		),
+																	)
+																) : upcomingExceptions.length ===
+																  0 ? (
+																	<TableRow>
+																		<TableCell
+																			colSpan={3}
+																			className="h-20 text-center"
+																		>
+																			{t(
+																				'exceptions.table.empty',
+																			)}
+																		</TableCell>
+																	</TableRow>
+																) : (
+																	upcomingExceptions.map(
+																		(item) => (
+																			<TableRow key={item.id}>
+																				<TableCell>
+																					{formatShortDateUtc(
+																						toUtcDate(
+																							item.dateKey,
+																						),
+																					)}
+																				</TableCell>
+																				<TableCell>
+																					{t(
+																						`exceptionTypes.${item.exceptionType}`,
+																					)}
+																				</TableCell>
+																				<TableCell>
+																					{item.reason ??
+																						tCommon(
+																							'notAvailable',
+																						)}
+																				</TableCell>
+																			</TableRow>
+																		),
+																	)
+																)}
+															</TableBody>
+														</Table>
+													</div>
+												</div>
+											) : null}
+										</TabsContent>
+
+										<TabsContent
+											value="audit"
+											forceMount
+											className={cn(
+												'mt-0 min-h-0 flex-1',
+												detailTab !== 'audit' && 'hidden',
+											)}
+										>
+											{isTabVisited('audit') ? (
+												<div
+													ref={registerTabScrollContainer('audit')}
+													onScroll={handleTabScroll('audit')}
+													className="h-full overflow-y-auto pt-4"
+												>
+													<div className="rounded-md border">
+														<Table>
+															<TableHeader>
+																<TableRow>
+																	<TableHead>
+																		{t(
+																			'audit.table.headers.date',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'audit.table.headers.action',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'audit.table.headers.actor',
+																		)}
+																	</TableHead>
+																	<TableHead>
+																		{t(
+																			'audit.table.headers.fields',
+																		)}
+																	</TableHead>
+																</TableRow>
+															</TableHeader>
+															<TableBody>
+																{auditError ? (
+																	<TableRow>
+																		<TableCell colSpan={4}>
+																			<div className="flex items-center justify-between gap-3 py-2">
+																				<p className="text-sm text-muted-foreground">
+																					{t(
+																						'audit.partialError',
+																					)}
+																				</p>
+																				<Button
+																					variant="outline"
+																					size="sm"
+																					onClick={() =>
+																						void refetchAudit()
+																					}
+																				>
+																					{tCommon(
+																						'retry',
+																					)}
+																				</Button>
+																			</div>
+																		</TableCell>
+																	</TableRow>
+																) : isLoadingAudit ? (
+																	Array.from({ length: 3 }).map(
+																		(_, index) => (
+																			<TableRow key={index}>
+																				<TableCell>
+																					<Skeleton className="h-4 w-24" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-24" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-28" />
+																				</TableCell>
+																				<TableCell>
+																					<Skeleton className="h-4 w-32" />
+																				</TableCell>
+																			</TableRow>
+																		),
+																	)
+																) : auditEvents.length === 0 ? (
+																	<TableRow>
+																		<TableCell
+																			colSpan={4}
+																			className="h-20 text-center"
+																		>
+																			{t('audit.table.empty')}
+																		</TableCell>
+																	</TableRow>
+																) : (
+																	auditEvents.map((event) => {
+																		const actorLabel =
+																			event.actorName ??
+																			event.actorEmail ??
+																			event.actorUserId;
+																		const actorTypeLabel = t(
+																			`audit.actorTypes.${event.actorType}`,
+																		);
+																		const fieldsLabel =
+																			event.changedFields &&
+																			event.changedFields
+																				.length > 0
+																				? event.changedFields
+																						.map(
+																							(
+																								field,
+																							) =>
+																								auditFieldLabels[
+																									field
+																								] ??
+																								t(
+																									'audit.fields.unknown',
+																									{
+																										field,
+																									},
+																								),
+																						)
+																						.join(', ')
+																				: t(
+																						'audit.fields.none',
+																					);
+
+																		return (
+																			<TableRow
+																				key={event.id}
+																			>
+																				<TableCell>
+																					{format(
+																						new Date(
+																							event.createdAt,
+																						),
+																						t(
+																							'dateFormat',
+																						),
+																					)}
+																				</TableCell>
+																				<TableCell>
+																					{t(
+																						`audit.actions.${event.action}`,
+																					)}
+																				</TableCell>
+																				<TableCell>
+																					{actorLabel
+																						? `${actorTypeLabel} - ${actorLabel}`
+																						: actorTypeLabel}
+																				</TableCell>
+																				<TableCell>
+																					{fieldsLabel}
+																				</TableCell>
+																			</TableRow>
+																		);
+																	})
+																)}
+															</TableBody>
+														</Table>
+													</div>
+												</div>
+											) : null}
+										</TabsContent>
+									</Tabs>
+								</div>
+							) : (
+								<form
+									className="flex h-full min-h-0 flex-col"
+									onSubmit={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										form.handleSubmit();
+									}}
+								>
+									<div className="min-h-0 flex-1 overflow-y-auto">
+										<div className="grid gap-4 py-4 sm:grid-cols-2">
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="code"
+													validators={{
+														onChange: ({ value }) =>
+															!value.trim()
+																? t('validation.codeRequired')
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.TextField
+															label={t('fields.code')}
+															onValueChange={(next) => {
+																setHasCustomCode(true);
+																return next;
+															}}
+															disabled={isEditMode}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="firstName"
+													validators={{
+														onChange: ({ value }) =>
+															!value.trim()
+																? t('validation.firstNameRequired')
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.TextField
+															label={t('fields.firstName')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="lastName"
+													validators={{
+														onChange: ({ value }) =>
+															!value.trim()
+																? t('validation.lastNameRequired')
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.TextField
+															label={t('fields.lastName')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="nss">
+													{(field) => (
+														<field.TextField
+															label={t('fields.nss')}
+															placeholder={tCommon('optional')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="rfc">
+													{(field) => (
+														<field.TextField
+															label={t('fields.rfc')}
+															placeholder={tCommon('optional')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="email">
+													{(field) => (
+														<field.TextField
+															label={t('fields.email')}
+															type="email"
+															placeholder={tCommon('optional')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="userId">
+													{(field) => (
+														<field.SelectField
+															label={t('fields.user')}
+															options={memberOptions}
+															placeholder={
+																isLoadingMembers
+																	? tCommon('loading')
+																	: t('placeholders.selectUser')
+															}
+															disabled={isLoadingMembers}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="phone">
+													{(field) => (
+														<field.TextField
+															label={t('fields.phone')}
+															placeholder={tCommon('optional')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="locationId"
+													validators={{
+														onChange: ({ value }) =>
+															!value
+																? t('validation.locationRequired')
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.SelectField
+															label={t('fields.location')}
+															options={locations.map((location) => ({
+																value: location.id,
+																label: location.name,
+															}))}
+															placeholder={
+																isLoadingLocations
+																	? tCommon('loading')
+																	: t(
+																			'placeholders.selectLocation',
+																		)
+															}
+															disabled={isLoadingLocations}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="jobPositionId"
+													validators={{
+														onChange: ({ value }) =>
+															isCreateMode && !value
+																? t(
+																		'validation.jobPositionRequired',
+																	)
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.SelectField
+															label={t('fields.jobPosition')}
+															options={jobPositions.map(
+																(position) => ({
+																	value: position.id,
+																	label: position.name,
+																}),
+															)}
+															placeholder={
+																isLoadingJobPositions
+																	? tCommon('loading')
+																	: t(
+																			'placeholders.selectJobPosition',
+																		)
+															}
+															disabled={isLoadingJobPositions}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="department">
+													{(field) => (
+														<field.TextField
+															label={t('fields.department')}
+															placeholder={tCommon('optional')}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="status">
+													{(field) => (
+														<field.SelectField
+															label={t('fields.status')}
+															options={[
+																{
+																	value: 'ACTIVE',
+																	label: t('status.ACTIVE'),
+																},
+																{
+																	value: 'INACTIVE',
+																	label: t('status.INACTIVE'),
+																},
+																{
+																	value: 'ON_LEAVE',
+																	label: t('status.ON_LEAVE'),
+																},
+															]}
+															placeholder={t(
+																'placeholders.selectStatus',
+															)}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField name="shiftType">
+													{(field) => (
+														<field.SelectField
+															label={t('fields.shiftType')}
+															options={shiftTypeOptions.map(
+																(option) => ({
+																	value: option.value,
+																	label: t(option.labelKey),
+																}),
+															)}
+															placeholder={t(
+																'placeholders.selectShiftType',
+															)}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="hireDate"
+													validators={{
+														onChange: ({ value }) => {
+															const trimmedValue = value.trim();
+															if (!trimmedValue) {
+																return undefined;
+															}
+															const parsedValue = parse(
+																trimmedValue,
+																'yyyy-MM-dd',
+																new Date(),
+															);
+															if (
+																!isValid(parsedValue) ||
+																format(
+																	parsedValue,
+																	'yyyy-MM-dd',
+																) !== trimmedValue
+															) {
+																return t(
+																	'validation.hireDateInvalid',
+																);
+															}
+															const today = startOfDay(new Date());
+															if (
+																isAfter(
+																	startOfDay(parsedValue),
+																	today,
+																)
+															) {
+																return t(
+																	'validation.hireDateFutureNotAllowed',
+																);
+															}
+															return undefined;
+														},
+													}}
+												>
+													{(field) => (
+														<field.DateField
+															label={t('fields.hireDate')}
+															placeholder={t('placeholders.hireDate')}
+															variant="input"
+															minYear={1950}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="paymentFrequency"
+													validators={{
+														onChange: ({ value }) =>
+															!value
+																? t(
+																		'validation.paymentFrequencyRequired',
+																	)
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.SelectField
+															label={t('fields.paymentFrequency')}
+															options={[
+																{
+																	value: 'WEEKLY',
+																	label: t(
+																		'paymentFrequency.WEEKLY',
+																	),
+																},
+																{
+																	value: 'BIWEEKLY',
+																	label: t(
+																		'paymentFrequency.BIWEEKLY',
+																	),
+																},
+																{
+																	value: 'MONTHLY',
+																	label: t(
+																		'paymentFrequency.MONTHLY',
+																	),
+																},
+															]}
+															placeholder={t(
+																'placeholders.selectPaymentFrequency',
+															)}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="periodPay"
+													validators={{
+														onChange: ({ value }) =>
+															Number(value) <= 0
+																? t(
+																		'validation.periodPayGreaterThanZero',
+																	)
+																: undefined,
+													}}
+												>
+													{(field) => (
+														<field.TextField
+															label={periodPayLabel}
+															type="number"
+															placeholder={t(
+																'placeholders.periodPayExample',
+															)}
+														/>
+													)}
+												</form.AppField>
+											</div>
+											<div className="col-span-2">
+												<div className="grid grid-cols-4 items-center gap-4">
+													<Label className="text-right">
+														{t('fields.dailyPayCalculated')}
+													</Label>
+													<Input
+														className="col-span-3"
+														value={computedDailyPay.toFixed(2)}
+														readOnly
+														disabled
+													/>
+												</div>
+											</div>
+											<div className="col-span-2 sm:col-span-1">
+												<form.AppField
+													name="sbcDailyOverride"
+													validators={{
+														onChange: ({ value }) => {
+															const trimmed = value.trim();
+															if (!trimmed) {
+																return undefined;
+															}
+															const parsed = Number(trimmed);
+															if (
+																!Number.isFinite(parsed) ||
+																parsed <= 0
+															) {
+																return t(
+																	'validation.sbcDailyOverride',
+																);
+															}
+															return undefined;
+														},
+													}}
+												>
+													{(field) => (
+														<field.TextField
+															label={t('fields.sbcDailyOverride')}
+															placeholder={t(
+																'placeholders.sbcDailyOverride',
+															)}
+															description={t(
+																'helpers.sbcDailyOverride',
+															)}
+														/>
+													)}
+												</form.AppField>
+											</div>
+
+											<div className="col-span-2 space-y-3 rounded-md border p-3">
+												<div>
+													<p className="text-sm font-medium">
+														{t('ptuAguinaldo.title')}
+													</p>
+													<p className="text-xs text-muted-foreground">
+														{t('ptuAguinaldo.subtitle')}
+													</p>
+												</div>
+												<TooltipProvider>
+													<div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-2">
+														<p className="text-xs text-muted-foreground">
+															{t('ptuAguinaldo.optionsHelp.title')}
+														</p>
+														<div className="flex flex-wrap gap-2">
+															{ptuAguinaldoOptionHelp.map((item) => (
+																<Tooltip key={item.key}>
+																	<TooltipTrigger asChild>
+																		<Badge
+																			variant="outline"
+																			className="cursor-help gap-1"
+																		>
+																			<HelpCircle className="h-3 w-3" />
+																			{item.label}
+																		</Badge>
+																	</TooltipTrigger>
+																	<TooltipContent className="max-w-xs">
+																		<p className="text-xs">
+																			{item.description}
+																		</p>
+																	</TooltipContent>
+																</Tooltip>
+															))}
+														</div>
+													</div>
+												</TooltipProvider>
+												<div className="grid gap-4 sm:grid-cols-2">
+													<form.AppField name="employmentType">
+														{(field) => (
+															<field.SelectField
+																label={t('fields.employmentType')}
+																options={employmentTypeOptions.map(
+																	(option) => ({
+																		value: option.value,
+																		label: t(option.labelKey),
+																	}),
+																)}
+																placeholder={t(
+																	'placeholders.selectEmploymentType',
+																)}
+															/>
+														)}
+													</form.AppField>
+													<form.AppField name="ptuEligibilityOverride">
+														{(field) => (
+															<field.SelectField
+																label={t(
+																	'fields.ptuEligibilityOverride',
+																)}
+																options={ptuEligibilityOptions.map(
+																	(option) => ({
+																		value: option.value,
+																		label: t(option.labelKey),
+																	}),
+																)}
+																placeholder={t(
+																	'placeholders.selectPtuEligibility',
+																)}
+															/>
+														)}
+													</form.AppField>
+													<form.AppField
+														name="aguinaldoDaysOverride"
+														validators={{
+															onChange: ({ value }) => {
+																const trimmed = value.trim();
+																if (!trimmed) {
+																	return undefined;
+																}
+																const parsed = Number(trimmed);
+																if (
+																	!Number.isFinite(parsed) ||
+																	parsed < 0
+																) {
+																	return t(
+																		'validation.aguinaldoDaysOverride',
+																	);
+																}
+																return undefined;
+															},
+														}}
+													>
+														{(field) => (
+															<field.TextField
+																label={t(
+																	'fields.aguinaldoDaysOverride',
+																)}
+																placeholder={t(
+																	'placeholders.aguinaldoDaysOverride',
+																)}
+																type="number"
+																description={t(
+																	'helpers.aguinaldoDaysOverride',
+																)}
+															/>
+														)}
+													</form.AppField>
+													<form.AppField
+														name="platformHoursYear"
+														validators={{
+															onChange: ({ value }) => {
+																const trimmed = value.trim();
+																if (!trimmed) {
+																	return undefined;
+																}
+																const parsed = Number(trimmed);
+																if (
+																	!Number.isFinite(parsed) ||
+																	parsed < 0
+																) {
+																	return t(
+																		'validation.platformHoursYear',
+																	);
+																}
+																return undefined;
+															},
+														}}
+													>
+														{(field) => (
+															<field.TextField
+																label={t(
+																	'fields.platformHoursYear',
+																)}
+																placeholder={t(
+																	'placeholders.platformHoursYear',
+																)}
+																type="number"
+																description={t(
+																	'helpers.platformHoursYear',
+																)}
+															/>
+														)}
+													</form.AppField>
+												</div>
+												<div className="grid gap-3 sm:grid-cols-2">
+													<form.AppField name="isTrustEmployee">
+														{(field) => (
+															<field.ToggleField
+																label={t('fields.isTrustEmployee')}
+																description={t(
+																	'helpers.isTrustEmployee',
+																)}
+																orientation="vertical"
+															/>
+														)}
+													</form.AppField>
+													<form.AppField name="isDirectorAdminGeneralManager">
+														{(field) => (
+															<field.ToggleField
+																label={t(
+																	'fields.isDirectorAdminGeneralManager',
+																)}
+																description={t(
+																	'helpers.isDirectorAdminGeneralManager',
+																)}
+																orientation="vertical"
+															/>
+														)}
+													</form.AppField>
+													<form.AppField name="isDomesticWorker">
+														{(field) => (
+															<field.ToggleField
+																label={t('fields.isDomesticWorker')}
+																description={t(
+																	'helpers.isDomesticWorker',
+																)}
+																orientation="vertical"
+															/>
+														)}
+													</form.AppField>
+													<form.AppField name="isPlatformWorker">
+														{(field) => (
+															<field.ToggleField
+																label={t('fields.isPlatformWorker')}
+																description={t(
+																	'helpers.isPlatformWorker',
+																)}
+																orientation="vertical"
+															/>
+														)}
+													</form.AppField>
+												</div>
+
+												<div className="rounded-md border bg-muted/30 p-3">
+													<div className="flex flex-wrap items-center justify-between gap-2">
+														<div>
+															<p className="text-xs font-medium">
+																{t('ptuHistory.title')}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{t('ptuHistory.subtitle')}
+															</p>
+														</div>
+														<Button
+															type="button"
+															size="sm"
+															onClick={() =>
+																void handlePtuHistorySave()
+															}
+															disabled={
+																ptuHistoryMutation.isPending ||
+																!activeEmployee
+															}
+														>
+															{ptuHistoryMutation.isPending
+																? tCommon('saving')
+																: t('ptuHistory.actions.save')}
+														</Button>
+													</div>
+													<div className="mt-3 grid gap-3 sm:grid-cols-2">
+														<div className="flex flex-col gap-2">
+															<Label htmlFor="ptu-history-year">
+																{t('ptuHistory.fields.year')}
+															</Label>
+															<Input
+																id="ptu-history-year"
+																type="number"
+																min={2000}
+																value={ptuHistoryYearInput}
+																onChange={(event) =>
+																	setPtuHistoryYearInput(
+																		event.target.value,
+																	)
+																}
+															/>
+														</div>
+														<div className="flex flex-col gap-2">
+															<Label htmlFor="ptu-history-amount">
+																{t('ptuHistory.fields.amount')}
+															</Label>
+															<Input
+																id="ptu-history-amount"
+																type="number"
+																min={0}
+																step="0.01"
+																value={ptuHistoryAmountInput}
+																onChange={(event) =>
+																	setPtuHistoryAmountInput(
+																		event.target.value,
+																	)
+																}
+															/>
+														</div>
+													</div>
+													<div className="mt-3 rounded-md border bg-background">
 														<Table>
 															<TableHeader>
 																<TableRow>
@@ -4339,7 +6272,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																		{t('ptuHistory.table.year')}
 																	</TableHead>
 																	<TableHead className="text-right">
-																		{t('ptuHistory.table.amount')}
+																		{t(
+																			'ptuHistory.table.amount',
+																		)}
 																	</TableHead>
 																</TableRow>
 															</TableHeader>
@@ -4349,14 +6284,20 @@ export function EmployeesPageClient(): React.ReactElement {
 																		<TableCell colSpan={2}>
 																			<div className="flex items-center justify-between gap-3 py-2">
 																				<p className="text-sm text-muted-foreground">
-																					{t('ptuHistory.partialError')}
+																					{t(
+																						'ptuHistory.partialError',
+																					)}
 																				</p>
 																				<Button
 																					variant="outline"
 																					size="sm"
-																					onClick={() => void refetchPtuHistory()}
+																					onClick={() =>
+																						void refetchPtuHistory()
+																					}
 																				>
-																					{tCommon('retry')}
+																					{tCommon(
+																						'retry',
+																					)}
 																				</Button>
 																			</div>
 																		</TableCell>
@@ -4371,9 +6312,11 @@ export function EmployeesPageClient(): React.ReactElement {
 																	<TableRow>
 																		<TableCell
 																			colSpan={2}
-																			className="h-20 text-center"
+																			className="h-12 text-center text-xs text-muted-foreground"
 																		>
-																			{t('ptuHistory.table.empty')}
+																			{t(
+																				'ptuHistory.table.empty',
+																			)}
 																		</TableCell>
 																	</TableRow>
 																) : (
@@ -4383,7 +6326,9 @@ export function EmployeesPageClient(): React.ReactElement {
 																				{entry.fiscalYear}
 																			</TableCell>
 																			<TableCell className="text-right tabular-nums">
-																				{formatCurrency(entry.amount)}
+																				{formatCurrency(
+																					entry.amount,
+																				)}
 																			</TableCell>
 																		</TableRow>
 																	))
@@ -4391,1495 +6336,123 @@ export function EmployeesPageClient(): React.ReactElement {
 															</TableBody>
 														</Table>
 													</div>
-												</CardContent>
-											</Card>
-										</div>
+												</div>
 											</div>
-										) : null}
-									</TabsContent>
 
-									<TabsContent
-										value="finiquito"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'finiquito' && 'hidden')}
-									>
-										{isTabVisited('finiquito') ? (
-											<div
-												ref={registerTabScrollContainer('finiquito')}
-												onScroll={handleTabScroll('finiquito')}
-												className="h-full overflow-y-auto pt-4"
-											>
-										<div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-											<Card>
-												<CardHeader>
-													<CardTitle className="text-sm font-medium">
-														{t('finiquito.form.title')}
-													</CardTitle>
-													<p className="text-xs text-muted-foreground">
-														{t('finiquito.form.subtitle')}
-													</p>
-												</CardHeader>
-												<CardContent>
-													<div className="grid gap-4 sm:grid-cols-2">
-														<TerminationDateField
-															label={t(
-																'finiquito.fields.terminationDate',
-															)}
-															placeholder={t(
-																'finiquito.placeholders.terminationDate',
-															)}
-															value={
-																terminationForm.terminationDateKey
-															}
-															onChange={(nextValue) =>
-																updateTerminationForm({
-																	terminationDateKey: nextValue,
-																})
-															}
-															disabled={isTerminationLocked}
-														/>
-														<TerminationDateField
-															label={t(
-																'finiquito.fields.lastDayWorkedDate',
-															)}
-															placeholder={t(
-																'finiquito.placeholders.lastDayWorkedDate',
-															)}
-															value={
-																terminationForm.lastDayWorkedDateKey
-															}
-															onChange={(nextValue) =>
-																updateTerminationForm({
-																	lastDayWorkedDateKey: nextValue,
-																})
-															}
-															disabled={isTerminationLocked}
-														/>
-														<div className="space-y-2">
-															<Label>
-																{t(
-																	'finiquito.fields.terminationReason',
-																)}
-															</Label>
-															<Select
-																value={
-																	terminationForm.terminationReason
-																}
-																onValueChange={(value) =>
-																	updateTerminationForm({
-																		terminationReason:
-																			value as TerminationReason,
-																	})
-																}
-																disabled={isTerminationLocked}
-															>
-																<SelectTrigger>
-																	<SelectValue
-																		placeholder={t(
-																			'finiquito.placeholders.terminationReason',
-																		)}
-																	/>
-																</SelectTrigger>
-																<SelectContent>
-																	{terminationReasonOptions.map(
-																		(option) => (
-																			<SelectItem
-																				key={option.value}
-																				value={option.value}
-																			>
-																				{t(option.labelKey)}
-																			</SelectItem>
-																		),
-																	)}
-																</SelectContent>
-															</Select>
-														</div>
-														<div className="space-y-2">
-															<Label>
-																{t('finiquito.fields.contractType')}
-															</Label>
-															<Select
-																value={terminationForm.contractType}
-																onValueChange={(value) =>
-																	updateTerminationForm({
-																		contractType:
-																			value as EmploymentContractType,
-																	})
-																}
-																disabled={isTerminationLocked}
-															>
-																<SelectTrigger>
-																	<SelectValue
-																		placeholder={t(
-																			'finiquito.placeholders.contractType',
-																		)}
-																	/>
-																</SelectTrigger>
-																<SelectContent>
-																	{contractTypeOptions.map(
-																		(option) => (
-																			<SelectItem
-																				key={option.value}
-																				value={option.value}
-																			>
-																				{t(option.labelKey)}
-																			</SelectItem>
-																		),
-																	)}
-																</SelectContent>
-															</Select>
-														</div>
-														<div className="space-y-2">
-															<Label>
-																{t('finiquito.fields.unpaidDays')}
-															</Label>
-															<Input
-																type="number"
-																min="0"
-																step="0.01"
-																value={terminationForm.unpaidDays}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		unpaidDays:
-																			event.target.value,
-																	})
-																}
-																placeholder={t(
-																	'finiquito.placeholders.unpaidDays',
-																)}
-																disabled={isTerminationLocked}
-															/>
-														</div>
-														<div className="space-y-2">
-															<Label>
-																{t('finiquito.fields.otherDue')}
-															</Label>
-															<Input
-																type="number"
-																min="0"
-																step="0.01"
-																value={terminationForm.otherDue}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		otherDue:
-																			event.target.value,
-																	})
-																}
-																placeholder={t(
-																	'finiquito.placeholders.otherDue',
-																)}
-																disabled={isTerminationLocked}
-															/>
-														</div>
-														<div className="space-y-2">
-															<Label>
-																{t(
-																	'finiquito.fields.vacationBalanceDays',
-																)}
-															</Label>
-															<Input
-																type="number"
-																min="0"
-																step="0.01"
-																value={
-																	terminationForm.vacationBalanceDays
-																}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		vacationBalanceDays:
-																			event.target.value,
-																	})
-																}
-																placeholder={t(
-																	'finiquito.placeholders.vacationBalanceDays',
-																)}
-																disabled={isTerminationLocked}
-															/>
-															<p className="text-xs text-muted-foreground">
-																{t(
-																	'finiquito.helpers.vacationBalanceDays',
-																)}
-															</p>
-														</div>
-														<div className="space-y-2">
-															<Label>
-																{t(
-																	'finiquito.fields.dailySalaryIndemnizacion',
-																)}
-															</Label>
-															<Input
-																type="number"
-																min="0"
-																step="0.01"
-																value={
-																	terminationForm.dailySalaryIndemnizacion
-																}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		dailySalaryIndemnizacion:
-																			event.target.value,
-																	})
-																}
-																placeholder={t(
-																	'finiquito.placeholders.dailySalaryIndemnizacion',
-																)}
-																disabled={isTerminationLocked}
-															/>
-															<p className="text-xs text-muted-foreground">
-																{t(
-																	'finiquito.helpers.dailySalaryIndemnizacion',
-																)}
-															</p>
-														</div>
-														<div className="space-y-2 sm:col-span-2">
-															<Label>
-																{t(
-																	'finiquito.fields.terminationNotes',
-																)}
-															</Label>
-															<Textarea
-																value={
-																	terminationForm.terminationNotes
-																}
-																onChange={(event) =>
-																	updateTerminationForm({
-																		terminationNotes:
-																			event.target.value,
-																	})
-																}
-																placeholder={t(
-																	'finiquito.placeholders.terminationNotes',
-																)}
-																disabled={isTerminationLocked}
-															/>
-														</div>
+											<div className="col-span-2 space-y-2 rounded-md border p-3">
+												<div className="flex items-center justify-between">
+													<div>
+														<p className="text-sm font-medium">
+															{t('schedule.title')}
+														</p>
+														<p className="text-xs text-muted-foreground">
+															{t('schedule.subtitle')}
+														</p>
 													</div>
-
-													<div className="mt-4 space-y-3">
-														<div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
-															<HelpCircle className="mt-0.5 h-4 w-4" />
-															<span>
-																{t('finiquito.form.previewHint', {
-																	action: t(
-																		'finiquito.actions.preview',
-																	),
-																})}
-															</span>
+													{isScheduleLoading && (
+														<div className="flex items-center gap-2 text-xs text-muted-foreground">
+															<Loader2 className="h-4 w-4 animate-spin" />
+															{t('schedule.loading')}
 														</div>
-														<div className="flex flex-wrap gap-2">
-															<Button
-																onClick={handleTerminationPreview}
-																disabled={
-																	isTerminationLocked ||
-																	terminationPreviewMutation.isPending
-																}
+													)}
+												</div>
+												<div className="grid gap-2">
+													{daysOfWeek.map((day) => {
+														const entry = schedule.find(
+															(item) => item.dayOfWeek === day.value,
+														) ?? {
+															dayOfWeek: day.value,
+															startTime: '09:00',
+															endTime: '17:00',
+															isWorkingDay:
+																day.value >= 1 && day.value <= 5,
+														};
+														return (
+															<div
+																key={day.value}
+																className="grid grid-cols-12 items-center gap-2 rounded-md border p-2"
 															>
-																{terminationPreviewMutation.isPending ? (
-																	<>
-																		<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																		{t(
-																			'finiquito.actions.previewLoading',
-																		)}
-																	</>
-																) : (
-																	t('finiquito.actions.preview')
-																)}
-															</Button>
-
-															<Dialog
-																open={isTerminateDialogOpen}
-																onOpenChange={
-																	setIsTerminateDialogOpen
-																}
-															>
-																<DialogTrigger asChild>
-																	<Button
-																		variant="destructive"
-																		disabled={
-																			!canConfirmTermination ||
-																			terminationMutation.isPending
-																		}
-																	>
-																		{terminationMutation.isPending ? (
-																			<>
-																				<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																				{t(
-																					'finiquito.actions.confirmLoading',
-																				)}
-																			</>
-																		) : (
-																			t(
-																				'finiquito.actions.confirm',
-																			)
-																		)}
-																	</Button>
-																</DialogTrigger>
-																<DialogContent>
-																	<DialogHeader>
-																		<DialogTitle>
-																			{t(
-																				'finiquito.dialog.title',
-																			)}
-																		</DialogTitle>
-																		<DialogDescription>
-																			{t(
-																				'finiquito.dialog.description',
+																<div className="col-span-3 flex items-center gap-2">
+																	<input
+																		type="checkbox"
+																		className="h-4 w-4 accent-primary"
+																		checked={entry.isWorkingDay}
+																		onChange={(e) =>
+																			upsertScheduleEntry(
+																				day.value,
 																				{
-																					name:
-																						activeEmployeeName ||
-																						tCommon(
-																							'notAvailable',
-																						),
-																					total: terminationPreview
-																						? formatCurrency(
-																								terminationPreview
-																									.totals
-																									.grossTotal,
-																							)
-																						: tCommon(
-																								'notAvailable',
-																							),
+																					isWorkingDay:
+																						e.target
+																							.checked,
 																				},
-																			)}
-																		</DialogDescription>
-																	</DialogHeader>
-																	<DialogFooter>
-																		<Button
-																			variant="outline"
-																			onClick={() =>
-																				setIsTerminateDialogOpen(
-																					false,
-																				)
-																			}
-																		>
-																			{tCommon('cancel')}
-																		</Button>
-																		<Button
-																			variant="destructive"
-																			onClick={
-																				handleTerminateEmployee
-																			}
-																			disabled={
-																				terminationMutation.isPending
-																			}
-																		>
-																			{terminationMutation.isPending ? (
-																				<>
-																					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																					{t(
-																						'finiquito.actions.confirmLoading',
-																					)}
-																				</>
-																			) : (
-																				tCommon('confirm')
-																			)}
-																		</Button>
-																	</DialogFooter>
-																</DialogContent>
-															</Dialog>
-															{canDownloadTerminationReceipt ? (
-																<Button variant="outline" asChild>
-																	<a
-																		href={terminationReceiptUrl}
-																		target="_blank"
-																		rel="noopener noreferrer"
-																	>
-																		{t(
-																			'finiquito.actions.downloadReceipt',
-																		)}
-																	</a>
-																</Button>
-															) : (
-																<Button
-																	variant="outline"
-																	disabled={
-																		isLoadingTerminationSettlement ||
-																		!canDownloadTerminationReceipt
-																	}
-																>
-																	{isLoadingTerminationSettlement ? (
-																		<>
-																			<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																			{t(
-																				'finiquito.actions.downloadReceiptLoading',
-																			)}
-																		</>
-																	) : (
-																		t(
-																			'finiquito.actions.downloadReceipt',
-																		)
-																	)}
-																</Button>
-															)}
-														</div>
-													</div>
-												</CardContent>
-											</Card>
-
-											<div className="space-y-4">
-												<Card>
-													<CardHeader>
-														<CardTitle className="text-sm font-medium">
-															{t('finiquito.results.finiquitoTitle')}
-														</CardTitle>
-													</CardHeader>
-													<CardContent>
-														{terminationPreview ? (
-															<div className="space-y-2 text-sm">
-																{finiquitoLines.map((line) => (
-																	<div
-																		key={line.key}
-																		className="flex items-center justify-between"
-																	>
-																		<span>{line.label}</span>
-																		<span className="font-medium">
-																			{formatCurrency(
-																				line.value,
-																			)}
-																		</span>
-																	</div>
-																))}
-																<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
-																	<span>
-																		{t(
-																			'finiquito.breakdown.totalGross',
-																		)}
-																	</span>
-																	<span>
-																		{formatCurrency(
-																			terminationPreview
-																				.totals
-																				.finiquitoTotalGross,
-																		)}
-																	</span>
-																</div>
-															</div>
-														) : (
-															<p className="text-sm text-muted-foreground">
-																{t('finiquito.empty.preview')}
-															</p>
-														)}
-													</CardContent>
-												</Card>
-
-												<Card>
-													<CardHeader>
-														<CardTitle className="text-sm font-medium">
-															{t('finiquito.results.totalTitle')}
-														</CardTitle>
-													</CardHeader>
-													<CardContent>
-														{terminationPreview ? (
-															<div className="text-2xl font-semibold">
-																{formatCurrency(
-																	terminationPreview.totals
-																		.grossTotal,
-																)}
-															</div>
-														) : (
-															<p className="text-sm text-muted-foreground">
-																{t('finiquito.empty.preview')}
-															</p>
-														)}
-													</CardContent>
-												</Card>
-
-												<Accordion type="single" collapsible>
-													<AccordionItem value="liquidacion">
-														<AccordionTrigger>
-															{t(
-																'finiquito.results.liquidacionTitle',
-															)}
-														</AccordionTrigger>
-														<AccordionContent>
-															{terminationPreview ? (
-																<div className="space-y-2 text-sm">
-																	{liquidacionLines.map(
-																		(line) => (
-																			<div
-																				key={line.key}
-																				className="flex items-center justify-between"
-																			>
-																				<span>
-																					{line.label}
-																				</span>
-																				<span className="font-medium">
-																					{formatCurrency(
-																						line.value,
-																					)}
-																				</span>
-																			</div>
-																		),
-																	)}
-																	<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
-																		<span>
-																			{t(
-																				'finiquito.breakdown.totalGross',
-																			)}
-																		</span>
-																		<span>
-																			{formatCurrency(
-																				terminationPreview
-																					.totals
-																					.liquidacionTotalGross,
-																			)}
-																		</span>
-																	</div>
-																	{terminationPreview.totals
-																		.liquidacionTotalGross ===
-																		0 && (
-																		<p className="text-xs text-muted-foreground">
-																			{t(
-																				'finiquito.empty.liquidacion',
-																			)}
-																		</p>
-																	)}
-																</div>
-															) : (
-																<p className="text-sm text-muted-foreground">
-																	{t('finiquito.empty.preview')}
-																</p>
-															)}
-														</AccordionContent>
-													</AccordionItem>
-												</Accordion>
-											</div>
-										</div>
-											</div>
-										) : null}
-									</TabsContent>
-
-									<TabsContent
-										value="exceptions"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'exceptions' && 'hidden')}
-									>
-										{isTabVisited('exceptions') ? (
-											<div
-												ref={registerTabScrollContainer('exceptions')}
-												onScroll={handleTabScroll('exceptions')}
-												className="h-full overflow-y-auto pt-4"
-											>
-										<div className="rounded-md border">
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>
-															{t('exceptions.table.headers.date')}
-														</TableHead>
-														<TableHead>
-															{t('exceptions.table.headers.type')}
-														</TableHead>
-														<TableHead>
-															{t('exceptions.table.headers.reason')}
-														</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{isLoadingInsights ? (
-														Array.from({ length: 3 }).map(
-															(_, index) => (
-																<TableRow key={index}>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-20" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-28" />
-																	</TableCell>
-																</TableRow>
-															),
-														)
-													) : upcomingExceptions.length === 0 ? (
-														<TableRow>
-															<TableCell
-																colSpan={3}
-																className="h-20 text-center"
-															>
-																{t('exceptions.table.empty')}
-															</TableCell>
-														</TableRow>
-													) : (
-														upcomingExceptions.map((item) => (
-															<TableRow key={item.id}>
-																<TableCell>
-																	{formatShortDateUtc(
-																		toUtcDate(item.dateKey),
-																	)}
-																</TableCell>
-																<TableCell>
-																	{t(
-																		`exceptionTypes.${item.exceptionType}`,
-																	)}
-																</TableCell>
-																<TableCell>
-																	{item.reason ??
-																		tCommon('notAvailable')}
-																</TableCell>
-															</TableRow>
-														))
-													)}
-												</TableBody>
-											</Table>
-										</div>
-											</div>
-										) : null}
-									</TabsContent>
-
-									<TabsContent
-										value="audit"
-										forceMount
-										className={cn('mt-0 min-h-0 flex-1', detailTab !== 'audit' && 'hidden')}
-									>
-										{isTabVisited('audit') ? (
-											<div
-												ref={registerTabScrollContainer('audit')}
-												onScroll={handleTabScroll('audit')}
-												className="h-full overflow-y-auto pt-4"
-											>
-										<div className="rounded-md border">
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>
-															{t('audit.table.headers.date')}
-														</TableHead>
-														<TableHead>
-															{t('audit.table.headers.action')}
-														</TableHead>
-														<TableHead>
-															{t('audit.table.headers.actor')}
-														</TableHead>
-														<TableHead>
-															{t('audit.table.headers.fields')}
-														</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{auditError ? (
-														<TableRow>
-															<TableCell colSpan={4}>
-																<div className="flex items-center justify-between gap-3 py-2">
-																	<p className="text-sm text-muted-foreground">
-																		{t('audit.partialError')}
-																	</p>
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		onClick={() => void refetchAudit()}
-																	>
-																		{tCommon('retry')}
-																	</Button>
-																</div>
-															</TableCell>
-														</TableRow>
-													) : isLoadingAudit ? (
-														Array.from({ length: 3 }).map(
-															(_, index) => (
-																<TableRow key={index}>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-28" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-32" />
-																	</TableCell>
-																</TableRow>
-															),
-														)
-													) : auditEvents.length === 0 ? (
-														<TableRow>
-															<TableCell
-																colSpan={4}
-																className="h-20 text-center"
-															>
-																{t('audit.table.empty')}
-															</TableCell>
-														</TableRow>
-													) : (
-														auditEvents.map((event) => {
-															const actorLabel =
-																event.actorName ??
-																event.actorEmail ??
-																event.actorUserId;
-															const actorTypeLabel = t(
-																`audit.actorTypes.${event.actorType}`,
-															);
-															const fieldsLabel =
-																event.changedFields &&
-																event.changedFields.length > 0
-																	? event.changedFields
-																			.map(
-																				(field) =>
-																					auditFieldLabels[
-																						field
-																					] ??
-																					t(
-																						'audit.fields.unknown',
-																						{
-																							field,
-																						},
-																					),
 																			)
-																			.join(', ')
-																	: t('audit.fields.none');
-
-															return (
-																<TableRow key={event.id}>
-																	<TableCell>
-																		{format(
-																			new Date(
-																				event.createdAt,
-																			),
-																			t('dateFormat'),
-																		)}
-																	</TableCell>
-																	<TableCell>
-																		{t(
-																			`audit.actions.${event.action}`,
-																		)}
-																	</TableCell>
-																	<TableCell>
-																		{actorLabel
-																			? `${actorTypeLabel} - ${actorLabel}`
-																			: actorTypeLabel}
-																	</TableCell>
-																	<TableCell>
-																		{fieldsLabel}
-																	</TableCell>
-																</TableRow>
-															);
-														})
-													)}
-												</TableBody>
-											</Table>
-										</div>
-											</div>
-										) : null}
-									</TabsContent>
-								</Tabs>
-							</div>
-						) : (
-							<form
-								className="flex h-full min-h-0 flex-col"
-								onSubmit={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									form.handleSubmit();
-								}}
-							>
-								<div className="min-h-0 flex-1 overflow-y-auto">
-									<div className="grid gap-4 py-4 sm:grid-cols-2">
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="code"
-											validators={{
-												onChange: ({ value }) =>
-													!value.trim()
-														? t('validation.codeRequired')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.TextField
-													label={t('fields.code')}
-													onValueChange={(next) => {
-														setHasCustomCode(true);
-														return next;
-													}}
-													disabled={isEditMode}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="firstName"
-											validators={{
-												onChange: ({ value }) =>
-													!value.trim()
-														? t('validation.firstNameRequired')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.TextField label={t('fields.firstName')} />
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="lastName"
-											validators={{
-												onChange: ({ value }) =>
-													!value.trim()
-														? t('validation.lastNameRequired')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.TextField label={t('fields.lastName')} />
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="nss">
-											{(field) => (
-												<field.TextField
-													label={t('fields.nss')}
-													placeholder={tCommon('optional')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="rfc">
-											{(field) => (
-												<field.TextField
-													label={t('fields.rfc')}
-													placeholder={tCommon('optional')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="email">
-											{(field) => (
-												<field.TextField
-													label={t('fields.email')}
-													type="email"
-													placeholder={tCommon('optional')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="userId">
-											{(field) => (
-												<field.SelectField
-													label={t('fields.user')}
-													options={memberOptions}
-													placeholder={
-														isLoadingMembers
-															? tCommon('loading')
-															: t('placeholders.selectUser')
-													}
-													disabled={isLoadingMembers}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="phone">
-											{(field) => (
-												<field.TextField
-													label={t('fields.phone')}
-													placeholder={tCommon('optional')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="locationId"
-											validators={{
-												onChange: ({ value }) =>
-													!value
-														? t('validation.locationRequired')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.SelectField
-													label={t('fields.location')}
-													options={locations.map((location) => ({
-														value: location.id,
-														label: location.name,
-													}))}
-													placeholder={
-														isLoadingLocations
-															? tCommon('loading')
-															: t('placeholders.selectLocation')
-													}
-													disabled={isLoadingLocations}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="jobPositionId"
-											validators={{
-												onChange: ({ value }) =>
-													isCreateMode && !value
-														? t('validation.jobPositionRequired')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.SelectField
-													label={t('fields.jobPosition')}
-													options={jobPositions.map((position) => ({
-														value: position.id,
-														label: position.name,
-													}))}
-													placeholder={
-														isLoadingJobPositions
-															? tCommon('loading')
-															: t('placeholders.selectJobPosition')
-													}
-													disabled={isLoadingJobPositions}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="department">
-											{(field) => (
-												<field.TextField
-													label={t('fields.department')}
-													placeholder={tCommon('optional')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="status">
-											{(field) => (
-												<field.SelectField
-													label={t('fields.status')}
-													options={[
-														{
-															value: 'ACTIVE',
-															label: t('status.ACTIVE'),
-														},
-														{
-															value: 'INACTIVE',
-															label: t('status.INACTIVE'),
-														},
-														{
-															value: 'ON_LEAVE',
-															label: t('status.ON_LEAVE'),
-														},
-													]}
-													placeholder={t('placeholders.selectStatus')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField name="shiftType">
-											{(field) => (
-												<field.SelectField
-													label={t('fields.shiftType')}
-													options={shiftTypeOptions.map((option) => ({
-														value: option.value,
-														label: t(option.labelKey),
-													}))}
-													placeholder={t('placeholders.selectShiftType')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="hireDate"
-											validators={{
-												onChange: ({ value }) => {
-													const trimmedValue = value.trim();
-													if (!trimmedValue) {
-														return undefined;
-													}
-													const parsedValue = parse(
-														trimmedValue,
-														'yyyy-MM-dd',
-														new Date(),
-													);
-													if (
-														!isValid(parsedValue) ||
-														format(parsedValue, 'yyyy-MM-dd') !==
-															trimmedValue
-													) {
-														return t('validation.hireDateInvalid');
-													}
-													const today = startOfDay(new Date());
-													if (isAfter(startOfDay(parsedValue), today)) {
-														return t(
-															'validation.hireDateFutureNotAllowed',
+																		}
+																	/>
+																	<span className="text-sm">
+																		{t(day.labelKey)}
+																	</span>
+																</div>
+																<div className="col-span-4">
+																	<Label className="text-xs text-muted-foreground">
+																		{t('schedule.start')}
+																	</Label>
+																	<Input
+																		type="time"
+																		value={entry.startTime}
+																		disabled={
+																			!entry.isWorkingDay
+																		}
+																		onChange={(e) =>
+																			upsertScheduleEntry(
+																				day.value,
+																				{
+																					startTime:
+																						e.target
+																							.value,
+																				},
+																			)
+																		}
+																	/>
+																</div>
+																<div className="col-span-4">
+																	<Label className="text-xs text-muted-foreground">
+																		{t('schedule.end')}
+																	</Label>
+																	<Input
+																		type="time"
+																		value={entry.endTime}
+																		disabled={
+																			!entry.isWorkingDay
+																		}
+																		onChange={(e) =>
+																			upsertScheduleEntry(
+																				day.value,
+																				{
+																					endTime:
+																						e.target
+																							.value,
+																				},
+																			)
+																		}
+																	/>
+																</div>
+															</div>
 														);
-													}
-													return undefined;
-												},
-											}}
-										>
-											{(field) => (
-												<field.DateField
-													label={t('fields.hireDate')}
-													placeholder={t('placeholders.hireDate')}
-													variant="input"
-													minYear={1950}
-												/>
-											)}
-										</form.AppField>
+													})}
+												</div>
+											</div>
+										</div>
 									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="paymentFrequency"
-											validators={{
-												onChange: ({ value }) =>
-													!value
-														? t('validation.paymentFrequencyRequired')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.SelectField
-													label={t('fields.paymentFrequency')}
-													options={[
-														{
-															value: 'WEEKLY',
-															label: t('paymentFrequency.WEEKLY'),
-														},
-														{
-															value: 'BIWEEKLY',
-															label: t('paymentFrequency.BIWEEKLY'),
-														},
-														{
-															value: 'MONTHLY',
-															label: t('paymentFrequency.MONTHLY'),
-														},
-													]}
-													placeholder={t(
-														'placeholders.selectPaymentFrequency',
-													)}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="periodPay"
-											validators={{
-												onChange: ({ value }) =>
-													Number(value) <= 0
-														? t('validation.periodPayGreaterThanZero')
-														: undefined,
-											}}
-										>
-											{(field) => (
-												<field.TextField
-													label={periodPayLabel}
-													type="number"
-													placeholder={t('placeholders.periodPayExample')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<div className="col-span-2">
-										<div className="grid grid-cols-4 items-center gap-4">
-											<Label className="text-right">
-												{t('fields.dailyPayCalculated')}
-											</Label>
-											<Input
-												className="col-span-3"
-												value={computedDailyPay.toFixed(2)}
-												readOnly
-												disabled
+									<DialogFooter>
+										<form.AppForm>
+											<form.SubmitButton
+												label={tCommon('save')}
+												loadingLabel={tCommon('saving')}
 											/>
-										</div>
-									</div>
-									<div className="col-span-2 sm:col-span-1">
-										<form.AppField
-											name="sbcDailyOverride"
-											validators={{
-												onChange: ({ value }) => {
-													const trimmed = value.trim();
-													if (!trimmed) {
-														return undefined;
-													}
-													const parsed = Number(trimmed);
-													if (!Number.isFinite(parsed) || parsed <= 0) {
-														return t('validation.sbcDailyOverride');
-													}
-													return undefined;
-												},
-											}}
-										>
-											{(field) => (
-												<field.TextField
-													label={t('fields.sbcDailyOverride')}
-													placeholder={t('placeholders.sbcDailyOverride')}
-													description={t('helpers.sbcDailyOverride')}
-												/>
-											)}
-										</form.AppField>
-									</div>
-
-									<div className="col-span-2 space-y-3 rounded-md border p-3">
-										<div>
-											<p className="text-sm font-medium">
-												{t('ptuAguinaldo.title')}
-											</p>
-											<p className="text-xs text-muted-foreground">
-												{t('ptuAguinaldo.subtitle')}
-											</p>
-										</div>
-										<TooltipProvider>
-											<div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-2">
-												<p className="text-xs text-muted-foreground">
-													{t('ptuAguinaldo.optionsHelp.title')}
-												</p>
-												<div className="flex flex-wrap gap-2">
-													{ptuAguinaldoOptionHelp.map((item) => (
-														<Tooltip key={item.key}>
-															<TooltipTrigger asChild>
-																<Badge
-																	variant="outline"
-																	className="cursor-help gap-1"
-																>
-																	<HelpCircle className="h-3 w-3" />
-																	{item.label}
-																</Badge>
-															</TooltipTrigger>
-															<TooltipContent className="max-w-xs">
-																<p className="text-xs">
-																	{item.description}
-																</p>
-															</TooltipContent>
-														</Tooltip>
-													))}
-												</div>
-											</div>
-										</TooltipProvider>
-										<div className="grid gap-4 sm:grid-cols-2">
-											<form.AppField name="employmentType">
-												{(field) => (
-													<field.SelectField
-														label={t('fields.employmentType')}
-														options={employmentTypeOptions.map((option) => ({
-															value: option.value,
-															label: t(option.labelKey),
-														}))}
-														placeholder={t('placeholders.selectEmploymentType')}
-													/>
-												)}
-											</form.AppField>
-											<form.AppField name="ptuEligibilityOverride">
-												{(field) => (
-													<field.SelectField
-														label={t('fields.ptuEligibilityOverride')}
-														options={ptuEligibilityOptions.map((option) => ({
-															value: option.value,
-															label: t(option.labelKey),
-														}))}
-														placeholder={t('placeholders.selectPtuEligibility')}
-													/>
-												)}
-											</form.AppField>
-											<form.AppField
-												name="aguinaldoDaysOverride"
-												validators={{
-													onChange: ({ value }) => {
-														const trimmed = value.trim();
-														if (!trimmed) {
-															return undefined;
-														}
-														const parsed = Number(trimmed);
-														if (!Number.isFinite(parsed) || parsed < 0) {
-															return t('validation.aguinaldoDaysOverride');
-														}
-														return undefined;
-													},
-												}}
-											>
-												{(field) => (
-													<field.TextField
-														label={t('fields.aguinaldoDaysOverride')}
-														placeholder={t('placeholders.aguinaldoDaysOverride')}
-														type="number"
-														description={t('helpers.aguinaldoDaysOverride')}
-													/>
-												)}
-											</form.AppField>
-											<form.AppField
-												name="platformHoursYear"
-												validators={{
-													onChange: ({ value }) => {
-														const trimmed = value.trim();
-														if (!trimmed) {
-															return undefined;
-														}
-														const parsed = Number(trimmed);
-														if (!Number.isFinite(parsed) || parsed < 0) {
-															return t('validation.platformHoursYear');
-														}
-														return undefined;
-													},
-												}}
-											>
-												{(field) => (
-													<field.TextField
-														label={t('fields.platformHoursYear')}
-														placeholder={t('placeholders.platformHoursYear')}
-														type="number"
-														description={t('helpers.platformHoursYear')}
-													/>
-												)}
-											</form.AppField>
-										</div>
-										<div className="grid gap-3 sm:grid-cols-2">
-											<form.AppField name="isTrustEmployee">
-												{(field) => (
-													<field.ToggleField
-														label={t('fields.isTrustEmployee')}
-														description={t('helpers.isTrustEmployee')}
-														orientation="vertical"
-													/>
-												)}
-											</form.AppField>
-											<form.AppField name="isDirectorAdminGeneralManager">
-												{(field) => (
-													<field.ToggleField
-														label={t('fields.isDirectorAdminGeneralManager')}
-														description={t(
-															'helpers.isDirectorAdminGeneralManager',
-														)}
-														orientation="vertical"
-													/>
-												)}
-											</form.AppField>
-											<form.AppField name="isDomesticWorker">
-												{(field) => (
-													<field.ToggleField
-														label={t('fields.isDomesticWorker')}
-														description={t('helpers.isDomesticWorker')}
-														orientation="vertical"
-													/>
-												)}
-											</form.AppField>
-											<form.AppField name="isPlatformWorker">
-												{(field) => (
-													<field.ToggleField
-														label={t('fields.isPlatformWorker')}
-														description={t('helpers.isPlatformWorker')}
-														orientation="vertical"
-													/>
-												)}
-											</form.AppField>
-										</div>
-
-										<div className="rounded-md border bg-muted/30 p-3">
-											<div className="flex flex-wrap items-center justify-between gap-2">
-												<div>
-													<p className="text-xs font-medium">
-														{t('ptuHistory.title')}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														{t('ptuHistory.subtitle')}
-													</p>
-												</div>
-												<Button
-													type="button"
-													size="sm"
-													onClick={() => void handlePtuHistorySave()}
-													disabled={ptuHistoryMutation.isPending || !activeEmployee}
-												>
-													{ptuHistoryMutation.isPending
-														? tCommon('saving')
-														: t('ptuHistory.actions.save')}
-												</Button>
-											</div>
-											<div className="mt-3 grid gap-3 sm:grid-cols-2">
-												<div className="flex flex-col gap-2">
-													<Label htmlFor="ptu-history-year">
-														{t('ptuHistory.fields.year')}
-													</Label>
-													<Input
-														id="ptu-history-year"
-														type="number"
-														min={2000}
-														value={ptuHistoryYearInput}
-														onChange={(event) =>
-															setPtuHistoryYearInput(event.target.value)
-														}
-													/>
-												</div>
-												<div className="flex flex-col gap-2">
-													<Label htmlFor="ptu-history-amount">
-														{t('ptuHistory.fields.amount')}
-													</Label>
-													<Input
-														id="ptu-history-amount"
-														type="number"
-														min={0}
-														step="0.01"
-														value={ptuHistoryAmountInput}
-														onChange={(event) =>
-															setPtuHistoryAmountInput(event.target.value)
-														}
-													/>
-												</div>
-											</div>
-											<div className="mt-3 rounded-md border bg-background">
-												<Table>
-													<TableHeader>
-														<TableRow>
-															<TableHead>
-																{t('ptuHistory.table.year')}
-															</TableHead>
-															<TableHead className="text-right">
-																{t('ptuHistory.table.amount')}
-															</TableHead>
-														</TableRow>
-													</TableHeader>
-													<TableBody>
-														{ptuHistoryError ? (
-															<TableRow>
-																<TableCell colSpan={2}>
-																	<div className="flex items-center justify-between gap-3 py-2">
-																		<p className="text-sm text-muted-foreground">
-																			{t('ptuHistory.partialError')}
-																		</p>
-																		<Button
-																			variant="outline"
-																			size="sm"
-																			onClick={() => void refetchPtuHistory()}
-																		>
-																			{tCommon('retry')}
-																		</Button>
-																	</div>
-																</TableCell>
-															</TableRow>
-														) : isLoadingPtuHistory ? (
-															<TableRow>
-																<TableCell colSpan={2}>
-																	<Skeleton className="h-4 w-full" />
-																</TableCell>
-															</TableRow>
-														) : ptuHistory.length === 0 ? (
-															<TableRow>
-																<TableCell colSpan={2} className="h-12 text-center text-xs text-muted-foreground">
-																	{t('ptuHistory.table.empty')}
-																</TableCell>
-															</TableRow>
-														) : (
-															ptuHistory.map((entry) => (
-																<TableRow key={entry.id}>
-																	<TableCell>{entry.fiscalYear}</TableCell>
-																	<TableCell className="text-right tabular-nums">
-																		{formatCurrency(entry.amount)}
-																	</TableCell>
-																</TableRow>
-															))
-														)}
-													</TableBody>
-												</Table>
-											</div>
-										</div>
-									</div>
-
-									<div className="col-span-2 space-y-2 rounded-md border p-3">
-										<div className="flex items-center justify-between">
-											<div>
-												<p className="text-sm font-medium">
-													{t('schedule.title')}
-												</p>
-												<p className="text-xs text-muted-foreground">
-													{t('schedule.subtitle')}
-												</p>
-											</div>
-											{isScheduleLoading && (
-												<div className="flex items-center gap-2 text-xs text-muted-foreground">
-													<Loader2 className="h-4 w-4 animate-spin" />
-													{t('schedule.loading')}
-												</div>
-											)}
-										</div>
-										<div className="grid gap-2">
-											{daysOfWeek.map((day) => {
-												const entry = schedule.find(
-													(item) => item.dayOfWeek === day.value,
-												) ?? {
-													dayOfWeek: day.value,
-													startTime: '09:00',
-													endTime: '17:00',
-													isWorkingDay: day.value >= 1 && day.value <= 5,
-												};
-												return (
-													<div
-														key={day.value}
-														className="grid grid-cols-12 items-center gap-2 rounded-md border p-2"
-													>
-														<div className="col-span-3 flex items-center gap-2">
-															<input
-																type="checkbox"
-																className="h-4 w-4 accent-primary"
-																checked={entry.isWorkingDay}
-																onChange={(e) =>
-																	upsertScheduleEntry(day.value, {
-																		isWorkingDay:
-																			e.target.checked,
-																	})
-																}
-															/>
-															<span className="text-sm">
-																{t(day.labelKey)}
-															</span>
-														</div>
-														<div className="col-span-4">
-															<Label className="text-xs text-muted-foreground">
-																{t('schedule.start')}
-															</Label>
-															<Input
-																type="time"
-																value={entry.startTime}
-																disabled={!entry.isWorkingDay}
-																onChange={(e) =>
-																	upsertScheduleEntry(day.value, {
-																		startTime: e.target.value,
-																	})
-																}
-															/>
-														</div>
-														<div className="col-span-4">
-															<Label className="text-xs text-muted-foreground">
-																{t('schedule.end')}
-															</Label>
-															<Input
-																type="time"
-																value={entry.endTime}
-																disabled={!entry.isWorkingDay}
-																onChange={(e) =>
-																	upsertScheduleEntry(day.value, {
-																		endTime: e.target.value,
-																	})
-																}
-															/>
-														</div>
-													</div>
-												);
-											})}
-										</div>
-									</div>
-									</div>
-								</div>
-								<DialogFooter>
-									<form.AppForm>
-										<form.SubmitButton
-											label={tCommon('save')}
-											loadingLabel={tCommon('saving')}
-										/>
-									</form.AppForm>
-								</DialogFooter>
-							</form>
-						)}
+										</form.AppForm>
+									</DialogFooter>
+								</form>
+							)}
 						</div>
 					</DialogContent>
 				</Dialog>
@@ -5961,7 +6534,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder={t('bulk.placeholders.employmentType')} />
+									<SelectValue
+										placeholder={t('bulk.placeholders.employmentType')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{bulkEmploymentOptions.map((option) => (
@@ -5984,7 +6559,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder={t('bulk.placeholders.ptuEligibility')} />
+									<SelectValue
+										placeholder={t('bulk.placeholders.ptuEligibility')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{bulkPtuEligibilityOptions.map((option) => (
@@ -6114,7 +6691,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder={t('bulk.placeholders.aguinaldoOverride')} />
+									<SelectValue
+										placeholder={t('bulk.placeholders.aguinaldoOverride')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{bulkOverrideModeOptions.map((option) => (
@@ -6143,10 +6722,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						</div>
 					</div>
 					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsBulkEditOpen(false)}
-						>
+						<Button variant="outline" onClick={() => setIsBulkEditOpen(false)}>
 							{tCommon('cancel')}
 						</Button>
 						<Button onClick={() => void handleBulkApply()}>

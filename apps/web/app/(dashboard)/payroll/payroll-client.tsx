@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, CircleAlert, Loader2 } from 'lucide-react';
 import type React from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -190,6 +190,125 @@ function renderLunchBreakDeductionCell(
 				<p>{t('preview.lunchBreak.days', { count: deductedDays })}</p>
 				<p>{t('preview.lunchBreak.minutes', { count: deductedMinutes })}</p>
 			</div>
+		</div>
+	);
+}
+
+/**
+ * Renders deduction totals and a breakdown popover for a payroll row.
+ *
+ * @param row - Payroll calculation row
+ * @param t - Translation function for payroll copy
+ * @returns Deduction summary cell content
+ */
+function renderDeductionsCell(
+	row: PayrollCalculationEmployee,
+	t: ReturnType<typeof useTranslations>,
+): React.ReactElement {
+	const deductionsBreakdown = row.deductionsBreakdown ?? [];
+	const totalDeductions = row.totalDeductions ?? 0;
+	const exceededNetPay = row.warnings.some(
+		(warning) => warning.type === 'DEDUCTIONS_EXCEED_NET_PAY',
+	);
+
+	if (totalDeductions <= 0 || deductionsBreakdown.length === 0) {
+		return <span className="text-muted-foreground">-</span>;
+	}
+
+	return (
+		<div className="space-y-2">
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge variant={exceededNetPay ? 'warning' : 'accent'}>
+					{formatCurrency(totalDeductions)}
+				</Badge>
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button variant="ghost" size="sm" className="h-7 px-2">
+							{t('preview.table.deductionsBreakdown')}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent align="start" className="w-96">
+						<div className="space-y-3">
+							<div>
+								<p className="font-medium">{t('preview.deductions.title')}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('preview.deductions.description')}
+								</p>
+							</div>
+							<div className="space-y-2">
+								{deductionsBreakdown.map((deduction) => (
+									<div
+										key={deduction.deductionId}
+										className="rounded-xl border bg-muted/30 px-3 py-2"
+									>
+										<div className="flex items-start justify-between gap-3">
+											<div>
+												<p className="text-sm font-medium">
+													{deduction.label}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{t(
+														`preview.deductions.types.${deduction.type}`,
+													)}
+												</p>
+											</div>
+											<div className="text-right">
+												<p className="text-sm font-semibold">
+													{formatCurrency(deduction.appliedAmount)}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{t(
+														`preview.deductions.methods.${deduction.calculationMethod}`,
+													)}
+												</p>
+											</div>
+										</div>
+										<div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+											<span>
+												{t('preview.deductions.baseAmount', {
+													value: formatCurrency(deduction.baseAmount),
+												})}
+											</span>
+											{deduction.frequency === 'INSTALLMENTS' &&
+											deduction.totalInstallments ? (
+												<span>
+													{t('preview.deductions.installments', {
+														completed:
+															deduction.completedInstallmentsAfter,
+														total: deduction.totalInstallments,
+													})}
+												</span>
+											) : null}
+											{deduction.remainingAmountAfter !== null ? (
+												<span>
+													{t('preview.deductions.remaining', {
+														value: formatCurrency(
+															deduction.remainingAmountAfter,
+														),
+													})}
+												</span>
+											) : null}
+										</div>
+									</div>
+								))}
+							</div>
+							{exceededNetPay ? (
+								<div className="rounded-xl border border-[var(--status-warning)]/30 bg-[var(--status-warning-bg)]/70 px-3 py-2 text-xs text-[var(--status-warning)]">
+									<div className="flex items-center gap-2">
+										<CircleAlert className="h-4 w-4" />
+										<span>{t('preview.deductions.exceededNetPay')}</span>
+									</div>
+								</div>
+							) : null}
+						</div>
+					</PopoverContent>
+				</Popover>
+			</div>
+			{exceededNetPay ? (
+				<p className="text-xs text-[var(--status-warning)]">
+					{t('preview.deductions.capped')}
+				</p>
+			) : null}
 		</div>
 	);
 }
@@ -1067,6 +1186,9 @@ export function PayrollPageClient(): React.ReactElement {
 														{t('preview.table.lunchBreakDeduction')}
 													</TableHead>
 													<TableHead>
+														{t('preview.table.deductions')}
+													</TableHead>
+													<TableHead>
 														{t('preview.table.total')}
 													</TableHead>
 													<TableHead>
@@ -1194,6 +1316,9 @@ export function PayrollPageClient(): React.ReactElement {
 														</TableCell>
 														<TableCell>
 															{renderLunchBreakDeductionCell(row, t)}
+														</TableCell>
+														<TableCell>
+															{renderDeductionsCell(row, t)}
 														</TableCell>
 														<TableCell>
 															{formatCurrency(row.totalPay)}

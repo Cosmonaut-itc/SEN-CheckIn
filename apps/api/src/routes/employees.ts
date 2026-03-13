@@ -3063,6 +3063,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						shiftType: employee.shiftType,
 						hireDate: employee.hireDate,
 						dailyPay: employee.dailyPay,
+						fiscalDailyPay: employee.fiscalDailyPay,
 						paymentFrequency: employee.paymentFrequency,
 						employmentType: employee.employmentType,
 						isTrustEmployee: employee.isTrustEmployee,

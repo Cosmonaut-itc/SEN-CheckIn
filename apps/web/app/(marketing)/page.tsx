@@ -187,7 +187,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			title: t('sections.web.features.dashboard.title'),
 			description: t('sections.web.features.dashboard.description'),
 			icon: LayoutDashboard,
-			span: 'sm:col-span-2',
+			span: 'min-[1025px]:col-span-2',
 		},
 		{
 			title: t('sections.web.features.employees.title'),
@@ -223,7 +223,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 			title: t('sections.mobile.features.locations.title'),
 			description: t('sections.mobile.features.locations.description'),
 			icon: Building2,
-			span: 'sm:col-span-2',
+			span: 'min-[1025px]:col-span-2',
 		},
 	];
 
@@ -311,11 +311,15 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 				</Reveal>
 
 				<Reveal delay={0.2}>
-					<div className="mt-8 flex flex-wrap justify-center gap-3">
+					<div
+						data-testid="landing-hero-actions"
+						className="mt-8 flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:justify-center"
+					>
 						<Button
 							asChild
 							size="lg"
-							className="rounded-full bg-[color:var(--text-primary)] text-[color:var(--bg-primary)] shadow-[0_18px_45px_-28px_rgba(12,24,28,0.7)] hover:bg-[color:var(--bg-inverse)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
+							data-testid="landing-hero-primary-cta"
+							className="min-h-11 w-full rounded-full bg-[color:var(--text-primary)] text-[color:var(--bg-primary)] shadow-[0_18px_45px_-28px_rgba(12,24,28,0.7)] hover:bg-[color:var(--bg-inverse)] min-[1025px]:w-auto dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
 						>
 							<Link href="/login">{t('hero.primaryCta')}</Link>
 						</Button>
@@ -323,7 +327,8 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 							asChild
 							size="lg"
 							variant="outline"
-							className="rounded-full border-black/20 text-[color:var(--text-primary)] hover:bg-black/5 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
+							data-testid="landing-hero-secondary-cta"
+							className="min-h-11 w-full rounded-full border-black/20 text-[color:var(--text-primary)] hover:bg-black/5 min-[1025px]:w-auto dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
 						>
 							<Link href="/privacidad">{t('hero.secondaryCta')}</Link>
 						</Button>
@@ -367,7 +372,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 					</div>
 				</Reveal>
 
-				<div className="grid gap-4 sm:grid-cols-3">
+				<div data-testid="landing-bento-grid" className="grid gap-4 min-[1025px]:grid-cols-3">
 					{bentoCards.map((card, i) => (
 						<div key={`${card.title}-wrapper-${i}`} className={card.span}>
 							{renderBentoCard(card, i)}
@@ -421,8 +426,11 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 				<div className="pointer-events-none absolute -left-20 top-0 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,rgba(31,111,107,0.25)_0%,transparent_70%)] blur-3xl" />
 				<div className="pointer-events-none absolute -right-20 bottom-0 h-60 w-60 rounded-full bg-[radial-gradient(circle_at_center,rgba(200,116,61,0.2)_0%,transparent_70%)] blur-3xl" />
 
-				<div className="relative mx-auto w-full max-w-6xl gap-12 px-4 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-					<Reveal className="space-y-5">
+				<div
+					data-testid="landing-trust-section"
+					className="relative mx-auto flex w-full max-w-6xl flex-col gap-12 px-4 min-[1025px]:grid min-[1025px]:grid-cols-[1.1fr_0.9fr] min-[1025px]:items-center"
+				>
+					<Reveal dataTestId="landing-trust-copy" className="space-y-5">
 						<p className="text-xs font-semibold uppercase tracking-[0.4em] text-[color:var(--accent-secondary-light)]">
 							{t('sections.security.kicker')}
 						</p>
@@ -436,8 +444,12 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 						<p className="text-sm text-[color:var(--text-muted)] dark:text-[color:var(--text-tertiary)]">{privacyNote}</p>
 					</Reveal>
 
-					<Reveal className="mt-12 lg:mt-0" delay={0.1}>
-						<CardStack items={testimonials} className="mx-auto lg:mx-0" />
+					<Reveal
+						dataTestId="landing-trust-testimonials"
+						className="mt-12 min-[1025px]:mt-0"
+						delay={0.1}
+					>
+						<CardStack items={testimonials} className="mx-auto w-full max-w-full min-[1025px]:mx-0 min-[1025px]:max-w-md" />
 					</Reveal>
 				</div>
 			</section>
@@ -456,11 +468,11 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 						<p className="mx-auto mt-4 max-w-xl text-sm text-[color:var(--text-tertiary)] dark:text-[color:var(--text-tertiary)] sm:text-base">
 							{t('cta.subtitle')}
 						</p>
-						<div className="mt-8 flex flex-wrap justify-center gap-3">
+						<div className="mt-8 flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:justify-center">
 							<Button
 								asChild
 								size="lg"
-								className="rounded-full bg-[color:var(--text-primary)] text-[color:var(--bg-primary)] shadow-[0_18px_45px_-28px_rgba(12,24,28,0.7)] hover:bg-[color:var(--bg-inverse)] dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
+								className="min-h-11 w-full rounded-full bg-[color:var(--text-primary)] text-[color:var(--bg-primary)] shadow-[0_18px_45px_-28px_rgba(12,24,28,0.7)] hover:bg-[color:var(--bg-inverse)] min-[1025px]:w-auto dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
 							>
 								<Link href="/login">{t('cta.primary')}</Link>
 							</Button>
@@ -468,7 +480,7 @@ export default async function MarketingLandingPage(): Promise<React.ReactElement
 								asChild
 								size="lg"
 								variant="outline"
-								className="rounded-full border-black/20 text-[color:var(--text-primary)] hover:bg-black/5 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
+								className="min-h-11 w-full rounded-full border-black/20 text-[color:var(--text-primary)] hover:bg-black/5 min-[1025px]:w-auto dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
 							>
 								<Link href="/privacidad">{t('cta.secondary')}</Link>
 							</Button>

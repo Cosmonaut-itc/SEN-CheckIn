@@ -339,6 +339,35 @@ describe('employee routes (contract)', () => {
 		expect(Array.isArray(insights.attendance.leavesByMonth)).toBe(true);
 	});
 
+	it('returns insights for a seeded employee from the listing', async () => {
+		const listResponse = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 100, offset: 0 },
+		});
+		expect(listResponse.status).toBe(200);
+		const listPayload = requireResponseData(listResponse);
+		const seededEmployee = listPayload.data.find(
+			(record) => typeof record.id === 'string' && record.id !== baseEmployeeId,
+		);
+		if (!seededEmployee) {
+			throw new Error('Expected a seeded employee in the employee listing.');
+		}
+
+		const employeeRoutes = requireRoute(client.employees[seededEmployee.id], 'Employee route');
+		const insightsRoute = requireRoute(employeeRoutes.insights, 'Employee insights route');
+		const response = await insightsRoute.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const insights = payload.data;
+		if (!insights) {
+			throw new Error('Expected insights data for seeded employee.');
+		}
+		expect(insights.employeeId).toBe(seededEmployee.id);
+	});
+
 	it('returns audit events for an employee', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const auditRoute = requireRoute(employeeRoutes.audit, 'Employee audit route');

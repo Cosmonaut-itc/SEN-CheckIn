@@ -4,7 +4,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
-import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -14,6 +13,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -320,30 +321,110 @@ export function JobPositionsPageClient(): React.ReactElement {
 		[deleteConfirmId, deleteMutation.isPending, handleDelete, handleEdit, t, tCommon],
 	);
 
+	const renderJobPositionCard = useCallback(
+		(jobPosition: JobPosition): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="space-y-1">
+					<p className="text-base font-semibold">{jobPosition.name}</p>
+					<p className="text-sm text-muted-foreground">
+						{format(new Date(jobPosition.createdAt), t('dateFormat'))}
+					</p>
+				</div>
+
+				<div className="space-y-1">
+					<p className="text-sm text-muted-foreground">
+						{t('table.headers.description')}
+					</p>
+					<p className="text-sm font-medium">{jobPosition.description ?? '-'}</p>
+				</div>
+
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11"
+						onClick={() => handleEdit(jobPosition)}
+					>
+						<Pencil className="mr-2 h-4 w-4" />
+						{tCommon('edit')}
+					</Button>
+					<Dialog
+						open={deleteConfirmId === jobPosition.id}
+						onOpenChange={(open) =>
+							setDeleteConfirmId(open ? jobPosition.id : null)
+						}
+					>
+						<DialogTrigger asChild>
+							<Button type="button" variant="destructive" className="min-h-11">
+								<Trash2 className="mr-2 h-4 w-4" />
+								{tCommon('delete')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+							<DialogHeader>
+								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+								<DialogDescription>
+									{t('dialogs.delete.description', {
+										name: jobPosition.name,
+									})}
+								</DialogDescription>
+							</DialogHeader>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
+								<Button
+									variant="outline"
+									onClick={() => setDeleteConfirmId(null)}
+								>
+									{tCommon('cancel')}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => handleDelete(jobPosition.id)}
+									disabled={deleteMutation.isPending}
+								>
+									{deleteMutation.isPending ? (
+										<>
+											<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+											{tCommon('deleting')}
+										</>
+									) : (
+										tCommon('delete')
+									)}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+		),
+		[deleteConfirmId, deleteMutation.isPending, handleDelete, handleEdit, t, tCommon],
+	);
+
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('noOrganization')}</p>
+				<ResponsivePageHeader title={t('title')} description={t('noOrganization')} />
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-				</div>
-				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.add')}
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-[425px]">
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+						<DialogTrigger asChild>
+							<Button
+								onClick={handleCreateNew}
+								data-testid="job-positions-add-button"
+								className="min-h-11"
+							>
+								<Plus className="mr-2 h-4 w-4" />
+								{t('actions.add')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-[425px]">
 						<form
 							onSubmit={(e) => {
 								e.preventDefault();
@@ -377,6 +458,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 										<field.TextField
 											label={t('fields.name')}
 											placeholder={t('placeholders.nameExample')}
+											orientation="vertical"
 										/>
 									)}
 								</form.AppField>
@@ -386,26 +468,31 @@ export function JobPositionsPageClient(): React.ReactElement {
 											label={t('fields.description')}
 											placeholder={t('placeholders.descriptionOptional')}
 											rows={3}
+											orientation="vertical"
 										/>
 									)}
 								</form.AppField>
 							</div>
-							<DialogFooter>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 								<form.AppForm>
 									<form.SubmitButton
 										label={tCommon('save')}
 										loadingLabel={tCommon('saving')}
+										className="min-h-11 w-full min-[640px]:w-auto"
 									/>
 								</form.AppForm>
 							</DialogFooter>
 						</form>
-					</DialogContent>
-				</Dialog>
-			</div>
+						</DialogContent>
+					</Dialog>
+				}
+			/>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={jobPositions}
+				cardRenderer={renderJobPositionCard}
+				getCardKey={(jobPosition) => jobPosition.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

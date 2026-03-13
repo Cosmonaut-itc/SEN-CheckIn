@@ -3,7 +3,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient, useQueries } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { DataTable } from '@/components/data-table/data-table';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	Dialog,
 	DialogContent,
@@ -361,10 +362,93 @@ export function ScheduleTemplatesTab({
 		});
 	};
 
+	/**
+	 * Renders the shared action buttons for a schedule template.
+	 *
+	 * @param template - Template receiving the actions
+	 * @returns Action buttons block
+	 */
+	const renderTemplateActions = (template: ScheduleTemplate): React.ReactElement => (
+		<div className="flex items-center gap-2">
+			<Button
+				variant="outline"
+				size="icon"
+				className="h-11 w-11"
+				onClick={() => handleEdit(template)}
+				title={t('templates.actions.editTitle')}
+				aria-label={t('templates.actions.editTitle')}
+			>
+				<Pencil className="h-4 w-4" />
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				className="h-11 w-11"
+				onClick={() => {
+					setDeleteId(template.id);
+				}}
+				title={t('templates.actions.deleteTitle')}
+				aria-label={t('templates.actions.deleteTitle')}
+			>
+				<Trash2 className="h-4 w-4 text-destructive" />
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				className="h-11 w-11"
+				onClick={() => {
+					setAssigningTemplate(template);
+					setSelectedEmployeeIds([]);
+				}}
+				title={t('templates.actions.assignTitle')}
+				aria-label={t('templates.actions.assignTitle')}
+			>
+				<Users className="h-4 w-4" />
+			</Button>
+		</div>
+	);
+
+	/**
+	 * Renders the mobile card content for a schedule template.
+	 *
+	 * @param template - Template to display
+	 * @returns Mobile card content
+	 */
+	const renderTemplateCard = (template: ScheduleTemplate): React.ReactElement => (
+		<div className="space-y-4">
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0 space-y-1">
+					<p className="text-base font-semibold leading-tight">{template.name}</p>
+					<p className="text-sm text-muted-foreground">
+						{t(`shiftTypes.short.${template.shiftType}`)}
+					</p>
+				</div>
+				<div className="shrink-0">{renderTemplateActions(template)}</div>
+			</div>
+
+			<div className="grid gap-3 text-sm">
+				<div className="flex items-center justify-between gap-3">
+					<span className="text-muted-foreground">
+						{t('templates.table.headers.workingDays')}
+					</span>
+					<span className="text-right font-medium">{summarizeDays(template)}</span>
+				</div>
+				<div className="flex items-center justify-between gap-3">
+					<span className="text-muted-foreground">
+						{t('templates.table.headers.updated')}
+					</span>
+					<span className="font-medium">
+						{formatMonthDayUtc(new Date(template.updatedAt))}
+					</span>
+				</div>
+			</div>
+		</div>
+	);
+
 	if (!organizationId) {
 		return (
 			<div className="space-y-2 rounded-md border p-4">
-				<h2 className="text-lg font-semibold">{t('tabs.templates')}</h2>
+				<ResponsivePageHeader title={t('tabs.templates')} />
 				<p className="text-muted-foreground">{t('templates.noOrganization')}</p>
 			</div>
 		);
@@ -372,20 +456,22 @@ export function ScheduleTemplatesTab({
 
 	return (
 		<div className="space-y-4">
-			<div className="flex items-center justify-between">
-				<div>
-					<h2 className="text-xl font-semibold">{t('templates.title')}</h2>
-					<p className="text-sm text-muted-foreground">{t('templates.description')}</p>
-				</div>
-				<Button onClick={handleOpenCreate}>
-					<Plus className="mr-2 h-4 w-4" />
-					{t('templates.actions.new')}
-				</Button>
-			</div>
+			<ResponsivePageHeader
+				title={t('templates.title')}
+				description={t('templates.description')}
+				actions={
+					<Button onClick={handleOpenCreate}>
+						<Plus className="mr-2 h-4 w-4" />
+						{t('templates.actions.new')}
+					</Button>
+				}
+			/>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={templatesWithDays}
+				cardRenderer={renderTemplateCard}
+				getCardKey={(template) => template.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

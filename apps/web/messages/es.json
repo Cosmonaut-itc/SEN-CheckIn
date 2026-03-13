@@ -66,6 +66,21 @@
       "selectRow": "Seleccionar fila"
     }
   },
+  "ResponsiveCalendar": {
+    "weekView": "Vista del dia",
+    "previousDay": "Dia anterior",
+    "nextDay": "Dia siguiente",
+    "empty": "No hay horarios asignados para esta semana.",
+    "scheduleLabel": "Horario",
+    "noShift": "Sin horario asignado",
+    "reasonLabel": "Motivo:",
+    "sources": {
+      "template": "Plantilla",
+      "manual": "Manual",
+      "exception": "Excepcion",
+      "none": "Sin turno"
+    }
+  },
   "Sidebar": {
     "main": "Principal",
     "administration": "Administración",

@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
-import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -16,6 +15,8 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import { toast } from 'sonner';
 import { Plus, Trash2, Copy, Key, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
@@ -314,30 +315,127 @@ export function ApiKeysPageClient(): React.ReactElement {
 		[deleteConfirmId, handleDelete, t, tCommon, toggleKeyVisibility, visibleKeys],
 	);
 
-	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
+	const renderApiKeyCard = useCallback(
+		(apiKey: ApiKey): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="space-y-1">
+						<p className="text-base font-semibold">{apiKey.name || t('unnamed')}</p>
+						<code className="text-xs text-muted-foreground">
+							{visibleKeys.has(apiKey.id)
+								? `${apiKey.prefix ?? ''}${apiKey.start ?? ''}...`
+								: '••••••••••••'}
+						</code>
+					</div>
+					<Badge variant={apiKey.enabled ? 'default' : 'secondary'}>
+						{apiKey.enabled ? t('status.active') : t('status.disabled')}
+					</Badge>
 				</div>
-				<Dialog
-					open={isDialogOpen}
-					onOpenChange={(open) => {
-						setIsDialogOpen(open);
-						if (!open) {
-							setNewKeyValue(null);
-							form.reset();
-						}
-					}}
-				>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.create')}
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-[500px]">
+
+				<div className="grid gap-3">
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.lastUsed')}</p>
+						<p className="text-sm font-medium">
+							{apiKey.lastRequest
+								? format(new Date(apiKey.lastRequest), t('dateTimeFormat'))
+								: t('never')}
+						</p>
+					</div>
+					<div className="grid grid-cols-2 gap-3">
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">{t('table.headers.created')}</p>
+							<p className="text-sm font-medium">
+								{format(new Date(apiKey.createdAt), t('dateFormat'))}
+							</p>
+						</div>
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">{t('table.headers.expires')}</p>
+							<p className="text-sm font-medium">
+								{apiKey.expiresAt
+									? format(new Date(apiKey.expiresAt), t('dateFormat'))
+									: t('never')}
+							</p>
+						</div>
+					</div>
+				</div>
+
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11"
+						onClick={() => toggleKeyVisibility(apiKey.id)}
+					>
+						{visibleKeys.has(apiKey.id) ? (
+							<EyeOff className="mr-2 h-4 w-4" />
+						) : (
+							<Eye className="mr-2 h-4 w-4" />
+						)}
+						{visibleKeys.has(apiKey.id) ? t('actions.hideKey') : t('actions.showKey')}
+					</Button>
+					<Dialog
+						open={deleteConfirmId === apiKey.id}
+						onOpenChange={(open) => setDeleteConfirmId(open ? apiKey.id : null)}
+					>
+						<DialogTrigger asChild>
+							<Button type="button" variant="destructive" className="min-h-11">
+								<Trash2 className="mr-2 h-4 w-4" />
+								{tCommon('delete')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+							<DialogHeader>
+								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+								<DialogDescription>
+									{t('dialogs.delete.description')}
+								</DialogDescription>
+							</DialogHeader>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
+								<Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+									{tCommon('cancel')}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => handleDelete(apiKey.id)}
+								>
+									{tCommon('delete')}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+		),
+		[deleteConfirmId, handleDelete, t, tCommon, toggleKeyVisibility, visibleKeys],
+	);
+
+	return (
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<Dialog
+						open={isDialogOpen}
+						onOpenChange={(open) => {
+							setIsDialogOpen(open);
+							if (!open) {
+								setNewKeyValue(null);
+								form.reset();
+							}
+						}}
+					>
+						<DialogTrigger asChild>
+							<Button
+								onClick={handleCreateNew}
+								data-testid="api-keys-create-button"
+								className="min-h-11"
+							>
+								<Plus className="mr-2 h-4 w-4" />
+								{t('actions.create')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-[500px]">
 						{newKeyValue ? (
 							<>
 								<DialogHeader>
@@ -356,12 +454,13 @@ export function ApiKeysPageClient(): React.ReactElement {
 											variant="ghost"
 											size="icon"
 											onClick={() => copyToClipboard(newKeyValue)}
+											className="min-h-11 min-w-11"
 										>
 											<Copy className="h-4 w-4" />
 										</Button>
 									</div>
 								</div>
-								<DialogFooter>
+								<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 									<Button onClick={() => setIsDialogOpen(false)}>
 										{t('actions.done')}
 									</Button>
@@ -379,27 +478,32 @@ export function ApiKeysPageClient(): React.ReactElement {
 											<field.TextField
 												label={t('create.fields.name')}
 												placeholder={t('create.placeholders.name')}
+												orientation="vertical"
 											/>
 										)}
 									</form.AppField>
 								</div>
-								<DialogFooter>
+								<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 									<form.AppForm>
 										<form.SubmitButton
 											label={t('actions.createKey')}
 											loadingLabel={t('actions.creating')}
+											className="min-h-11 w-full min-[640px]:w-auto"
 										/>
 									</form.AppForm>
 								</DialogFooter>
 							</form>
 						)}
-					</DialogContent>
-				</Dialog>
-			</div>
+						</DialogContent>
+					</Dialog>
+				}
+			/>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={apiKeys}
+				cardRenderer={renderApiKeyCard}
+				getCardKey={(apiKey) => apiKey.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

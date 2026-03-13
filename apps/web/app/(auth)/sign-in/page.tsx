@@ -130,6 +130,7 @@ function SignInContent(): React.ReactElement {
 										startIcon={Mail}
 										autoComplete="email"
 										spellCheck={false}
+										inputClassName="min-h-11"
 									/>
 								)}
 							</form.AppField>
@@ -151,6 +152,7 @@ function SignInContent(): React.ReactElement {
 										startIcon={Lock}
 										autoComplete="current-password"
 										spellCheck={false}
+										inputClassName="min-h-11"
 									/>
 								)}
 							</form.AppField>
@@ -161,7 +163,7 @@ function SignInContent(): React.ReactElement {
 							<form.SubmitButton
 								label={t('signIn.actions.submit')}
 								loadingLabel={t('signIn.actions.submitting')}
-								className="w-full"
+								className="min-h-11 w-full"
 								dataTestId="sign-in-submit"
 							/>
 						</form.AppForm>

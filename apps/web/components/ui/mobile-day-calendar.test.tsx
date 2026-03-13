@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { enUS } from 'date-fns/locale';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -61,5 +62,19 @@ describe('MobileDayCalendar', () => {
 		fireEvent.click(screen.getByTestId('mobile-day-calendar-next'));
 
 		expect(handleDateChange).toHaveBeenCalledWith(new Date('2026-03-11T00:00:00.000Z'));
+	});
+
+	it('uses the provided date locale for the title label', () => {
+		render(
+			<MobileDayCalendar
+				date={monday}
+				employees={employees}
+				onDateChange={vi.fn()}
+				weekRange={weekRange}
+				locale={enUS}
+			/>,
+		);
+
+		expect(screen.getByText('Monday 9 Mar 2026')).toBeInTheDocument();
 	});
 });

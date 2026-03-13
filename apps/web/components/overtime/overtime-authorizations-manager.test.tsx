@@ -241,6 +241,16 @@ describe('OvertimeAuthorizationsManager', () => {
 		expect(screen.getByText('Admin Test')).toBeInTheDocument();
 	});
 
+	it('does not expose client-side sorting controls for server-paginated authorizations', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getAllByText('Ada Lovelace').length).toBeGreaterThan(0);
+		});
+
+		expect(screen.queryAllByRole('button', { name: 'sorting.none' })).toHaveLength(0);
+	});
+
 	it('captures the authorization form values from the dialog flow', async () => {
 		renderWithProviders();
 

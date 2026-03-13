@@ -1,9 +1,7 @@
 'use client';
 
-'use client';
-
 import type React from 'react';
-import { addDays, format, isAfter, isBefore, isSameDay, startOfDay } from 'date-fns';
+import { type Locale, addDays, format, isAfter, isBefore, isSameDay, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -64,6 +62,8 @@ export interface MobileDayCalendarProps {
 	};
 	/** Optional class name applied to the root element. */
 	className?: string;
+	/** Optional date-fns locale used to format the title. */
+	locale?: Locale;
 }
 
 /**
@@ -146,6 +146,7 @@ export function MobileDayCalendar({
 	onDateChange,
 	weekRange,
 	className,
+	locale = es,
 }: MobileDayCalendarProps): React.ReactElement {
 	const t = useTranslations('ResponsiveCalendar');
 	const selectedDate = startOfDay(toUtcCalendarDateLocal(date));
@@ -153,7 +154,7 @@ export function MobileDayCalendar({
 	const weekEnd = startOfDay(toUtcCalendarDateLocal(weekRange.end));
 	const canGoPrevious = isAfter(selectedDate, weekStart);
 	const canGoNext = isBefore(selectedDate, weekEnd);
-	const title = capitalize(format(selectedDate, 'EEEE d MMM yyyy', { locale: es }));
+	const title = capitalize(format(selectedDate, 'EEEE d MMM yyyy', { locale }));
 
 	/**
 	 * Moves the selected date by a fixed number of days.

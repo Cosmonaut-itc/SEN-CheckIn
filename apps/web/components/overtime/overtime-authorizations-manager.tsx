@@ -300,6 +300,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 				id: 'employee',
 				accessorFn: (row) => row.employeeName ?? row.employeeId,
 				header: t('table.headers.employee'),
+				enableSorting: false,
 				cell: ({ row }) => (
 					<span className="font-medium">
 						{row.original.employeeName ?? row.original.employeeId}
@@ -309,16 +310,19 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 			{
 				accessorKey: 'dateKey',
 				header: t('table.headers.date'),
+				enableSorting: false,
 			},
 			{
 				id: 'authorizedHours',
 				accessorFn: (row) => row.authorizedHours,
 				header: t('table.headers.hours'),
+				enableSorting: false,
 				cell: ({ row }) => row.original.authorizedHours.toFixed(2),
 			},
 			{
 				accessorKey: 'status',
 				header: t('table.headers.status'),
+				enableSorting: false,
 				cell: ({ row }) => (
 					<Badge
 						data-testid={`overtime-authorization-status-${row.original.id}`}
@@ -338,6 +342,7 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 				id: 'authorizedByName',
 				accessorFn: (row) => row.authorizedByName ?? '',
 				header: t('table.headers.createdBy'),
+				enableSorting: false,
 				cell: ({ row }) => row.original.authorizedByName ?? '—',
 			},
 			{

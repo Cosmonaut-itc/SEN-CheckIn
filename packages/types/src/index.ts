@@ -195,6 +195,7 @@ export type EmployeeDetailTab =
 	| 'summary'
 	| 'attendance'
 	| 'vacations'
+	| 'deductions'
 	| 'payroll'
 	| 'ptu'
 	| 'finiquito'

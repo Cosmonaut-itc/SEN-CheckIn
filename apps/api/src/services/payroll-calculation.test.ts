@@ -80,6 +80,49 @@ function buildWeeklySchedule(employeeId: string): ScheduleRow[] {
 }
 
 /**
+ * Builds schedule rows for the provided working weekdays.
+ *
+ * @param employeeId - Employee identifier
+ * @param workingDays - Working day indexes (0 = Sunday ... 6 = Saturday)
+ * @returns Schedule rows for the full week
+ */
+function buildScheduleForWorkingDays(
+	employeeId: string,
+	workingDays: number[],
+): ScheduleRow[] {
+	const workingDaySet = new Set(workingDays);
+	return Array.from({ length: 7 }, (_, dayOfWeek) => ({
+		employeeId,
+		dayOfWeek,
+		startTime: '09:00',
+		endTime: '17:00',
+		isWorkingDay: workingDaySet.has(dayOfWeek),
+	}));
+}
+
+/**
+ * Creates attendance rows for a list of worked date keys.
+ *
+ * @param employeeId - Employee identifier
+ * @param workedDateKeys - Date keys worked during the period
+ * @param timeZone - IANA timezone identifier
+ * @returns Attendance rows for the provided worked dates
+ */
+function buildAttendanceForDateKeys(
+	employeeId: string,
+	workedDateKeys: string[],
+	timeZone: string,
+): AttendanceRow[] {
+	return workedDateKeys.flatMap((dateKey) =>
+		createAttendancePair(
+			employeeId,
+			getUtcDateForZonedTime(dateKey, 9, 0, timeZone),
+			getUtcDateForZonedTime(dateKey, 17, 0, timeZone),
+		),
+	);
+}
+
+/**
  * Creates attendance rows for each working day in a weekly period.
  *
  * @param employeeId - Employee identifier
@@ -2461,6 +2504,131 @@ describe('payroll-calculation mexico taxes', () => {
 
 		const row = results[0];
 		expect(row?.seventhDayPay).toBe(0);
+	});
+
+	describe('countSaturdayAsWorkedForSeventhDay', () => {
+		const employeeId = 'emp-saturday-1';
+		const employee: PayrollEmployeeRow = {
+			id: employeeId,
+			firstName: 'Luisa',
+			lastName: 'Neri',
+			dailyPay: 350,
+			paymentFrequency: 'WEEKLY',
+			shiftType: 'DIURNA',
+			locationGeographicZone: 'GENERAL',
+			locationTimeZone: timeZone,
+		};
+		const periodStartDateKey = '2025-12-15';
+		const periodEndDateKey = '2025-12-21';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+		const calculationBaseArgs = {
+			employees: [employee],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			overtimeEnforcement: 'WARN' as const,
+			weekStartDay: 1,
+			additionalMandatoryRestDays: [],
+			defaultTimeZone: timeZone,
+		};
+		const defaultSeventhDaySettings: NonNullable<
+			CalculatePayrollFromDataArgs['payrollSettings']
+		> = {
+			enableSeventhDayPay: true,
+			countSaturdayAsWorkedForSeventhDay: false,
+		};
+		const countSaturdaySettings: NonNullable<
+			CalculatePayrollFromDataArgs['payrollSettings']
+		> = {
+			enableSeventhDayPay: true,
+			countSaturdayAsWorkedForSeventhDay: true,
+		};
+
+		it('preserves current behavior when saturday counting is disabled', () => {
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2025-12-15', '2025-12-16', '2025-12-17', '2025-12-18', '2025-12-19'],
+					timeZone,
+				),
+				payrollSettings: defaultSeventhDaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(350);
+		});
+
+		it('pays seventh day when saturday counting is enabled for a monday-to-friday schedule', () => {
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2025-12-15', '2025-12-16', '2025-12-17', '2025-12-18', '2025-12-19'],
+					timeZone,
+				),
+				payrollSettings: countSaturdaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(350);
+		});
+
+		it('does not pay seventh day when a monday-to-friday employee misses a weekday', () => {
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2025-12-15', '2025-12-16', '2025-12-18', '2025-12-19'],
+					timeZone,
+				),
+				payrollSettings: countSaturdaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(0);
+		});
+
+		it('does not pay seventh day when saturday is scheduled and the employee misses it', () => {
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5, 6]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2025-12-15', '2025-12-16', '2025-12-17', '2025-12-18', '2025-12-19'],
+					timeZone,
+				),
+				payrollSettings: countSaturdaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(0);
+		});
+
+		it('does not duplicate seventh day pay when saturday is worked extra on a monday-to-friday schedule', () => {
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					[
+						'2025-12-15',
+						'2025-12-16',
+						'2025-12-17',
+						'2025-12-18',
+						'2025-12-19',
+						'2025-12-20',
+					],
+					timeZone,
+				),
+				payrollSettings: countSaturdaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(350);
+		});
 	});
 
 	it('ensures fiscal invariants are preserved', () => {

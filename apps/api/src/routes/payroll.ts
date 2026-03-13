@@ -87,6 +87,7 @@ const calculatePayroll = async (args: {
 		autoDeductLunchBreak: boolean;
 		lunchBreakMinutes: number;
 		lunchBreakThresholdHours: number;
+		countSaturdayAsWorkedForSeventhDay: boolean;
 	};
 }> => {
 	const { organizationId, periodStartDateKey, periodEndDateKey, paymentFrequency } = args;
@@ -114,6 +115,9 @@ const calculatePayroll = async (args: {
 		autoDeductLunchBreak: Boolean(orgSettings[0]?.autoDeductLunchBreak ?? false),
 		lunchBreakMinutes: Number(orgSettings[0]?.lunchBreakMinutes ?? 60),
 		lunchBreakThresholdHours: Number(orgSettings[0]?.lunchBreakThresholdHours ?? 6),
+		countSaturdayAsWorkedForSeventhDay: Boolean(
+			orgSettings[0]?.countSaturdayAsWorkedForSeventhDay ?? false,
+		),
 	};
 
 	const periodBounds = getPayrollPeriodBounds({

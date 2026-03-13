@@ -61,6 +61,7 @@ export const payrollSettingsSchema = z.object({
 	autoDeductLunchBreak: z.boolean().optional(),
 	lunchBreakMinutes: z.coerce.number().int().min(15).max(120).optional(),
 	lunchBreakThresholdHours: z.coerce.number().min(4).max(10).optional(),
+	countSaturdayAsWorkedForSeventhDay: z.boolean().optional(),
 	ptuEnabled: z.boolean().optional(),
 	ptuMode: ptuModeEnum.optional(),
 	ptuIsExempt: z.boolean().optional(),

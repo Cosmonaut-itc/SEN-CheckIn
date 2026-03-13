@@ -86,6 +86,7 @@ describe('PayrollSettingsClient', () => {
 			aguinaldoDays: 15,
 			vacationPremiumRate: 0.25,
 			enableSeventhDayPay: false,
+			countSaturdayAsWorkedForSeventhDay: false,
 			ptuEnabled: false,
 			ptuMode: 'DEFAULT_RULES',
 			ptuIsExempt: false,
@@ -116,6 +117,45 @@ describe('PayrollSettingsClient', () => {
 			).toBeInTheDocument();
 		});
 		expect(screen.getByText('holidays.title')).toBeInTheDocument();
+		expect(
+			document.getElementById('countSaturdayAsWorkedForSeventhDay'),
+		).not.toBeInTheDocument();
+	});
+
+	it('shows saturday counting toggle only when seventh day pay is enabled', async () => {
+		mockFetchPayrollSettings.mockResolvedValue({
+			id: 'payroll-1',
+			organizationId: 'org-1',
+			weekStartDay: 1,
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDays: [],
+			riskWorkRate: 0,
+			statePayrollTaxRate: 0,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: 0.25,
+			enableSeventhDayPay: true,
+			countSaturdayAsWorkedForSeventhDay: true,
+			ptuEnabled: false,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: null,
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: true,
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(
+				document.getElementById('countSaturdayAsWorkedForSeventhDay'),
+			).toBeInTheDocument();
+		});
 	});
 
 	it('renders lunch break deduction toggle as enabled when settings enable automatic deduction', async () => {

@@ -2540,6 +2540,7 @@ export interface PayrollSettings {
 	aguinaldoDays: number;
 	vacationPremiumRate: number;
 	enableSeventhDayPay: boolean;
+	countSaturdayAsWorkedForSeventhDay: boolean;
 	ptuEnabled: boolean;
 	ptuMode: 'DEFAULT_RULES' | 'MANUAL';
 	ptuIsExempt: boolean;
@@ -2985,6 +2986,7 @@ type PayrollSettingsPayload = Omit<
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
+	| 'countSaturdayAsWorkedForSeventhDay'
 	| 'ptuEnabled'
 	| 'ptuMode'
 	| 'ptuIsExempt'
@@ -3000,6 +3002,7 @@ type PayrollSettingsPayload = Omit<
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
+	countSaturdayAsWorkedForSeventhDay?: boolean | null;
 	ptuEnabled?: boolean | null;
 	ptuMode?: 'DEFAULT_RULES' | 'MANUAL' | null;
 	ptuIsExempt?: boolean | null;
@@ -3051,6 +3054,9 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+		countSaturdayAsWorkedForSeventhDay: Boolean(
+			payload.countSaturdayAsWorkedForSeventhDay ?? false,
+		),
 		ptuEnabled: Boolean(payload.ptuEnabled ?? false),
 		ptuMode: payload.ptuMode ?? 'DEFAULT_RULES',
 		ptuIsExempt: Boolean(payload.ptuIsExempt ?? false),

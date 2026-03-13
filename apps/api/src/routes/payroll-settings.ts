@@ -69,6 +69,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				autoDeductLunchBreak: false,
 				lunchBreakMinutes: 60,
 				lunchBreakThresholdHours: '6',
+				countSaturdayAsWorkedForSeventhDay: false,
 				ptuEnabled: false,
 				ptuMode: 'DEFAULT_RULES',
 				ptuIsExempt: false,
@@ -147,6 +148,10 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.lunchBreakMinutes ?? existing[0]?.lunchBreakMinutes ?? 60;
 			const resolvedLunchBreakThresholdHours =
 				body.lunchBreakThresholdHours ?? existing[0]?.lunchBreakThresholdHours ?? 6;
+			const resolvedCountSaturdayAsWorkedForSeventhDay =
+				body.countSaturdayAsWorkedForSeventhDay ??
+				existing[0]?.countSaturdayAsWorkedForSeventhDay ??
+				false;
 			const resolvedPtuEnabled = body.ptuEnabled ?? existing[0]?.ptuEnabled ?? false;
 			const resolvedPtuMode = body.ptuMode ?? existing[0]?.ptuMode ?? 'DEFAULT_RULES';
 			const resolvedPtuIsExempt = body.ptuIsExempt ?? existing[0]?.ptuIsExempt ?? false;
@@ -190,6 +195,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				autoDeductLunchBreak: resolvedAutoDeductLunchBreak,
 				lunchBreakMinutes: resolvedLunchBreakMinutes,
 				lunchBreakThresholdHours: resolvedLunchBreakThresholdHoursValue,
+				countSaturdayAsWorkedForSeventhDay:
+					resolvedCountSaturdayAsWorkedForSeventhDay,
 				ptuEnabled: resolvedPtuEnabled,
 				ptuMode: resolvedPtuMode,
 				ptuIsExempt: resolvedPtuIsExempt,
@@ -218,6 +225,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						autoDeductLunchBreak: updatePayload.autoDeductLunchBreak,
 						lunchBreakMinutes: updatePayload.lunchBreakMinutes,
 						lunchBreakThresholdHours: updatePayload.lunchBreakThresholdHours,
+						countSaturdayAsWorkedForSeventhDay:
+							updatePayload.countSaturdayAsWorkedForSeventhDay,
 						ptuEnabled: updatePayload.ptuEnabled,
 						ptuMode: updatePayload.ptuMode,
 						ptuIsExempt: updatePayload.ptuIsExempt,

@@ -45,6 +45,7 @@ interface FakePayrollSettingRow {
 	autoDeductLunchBreak?: boolean;
 	lunchBreakMinutes?: number;
 	lunchBreakThresholdHours?: number;
+	countSaturdayAsWorkedForSeventhDay?: boolean;
 }
 
 type FakeEmployeeRow = PayrollEmployeeRow & {

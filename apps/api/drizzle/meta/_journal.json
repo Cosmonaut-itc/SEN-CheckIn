@@ -288,6 +288,13 @@
       "when": 1773271730582,
       "tag": "0040_luxuriant_hawkeye",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1773341909352,
+      "tag": "0041_fast_spacker_dave",
+      "breakpoints": true
     }
   ]
 }

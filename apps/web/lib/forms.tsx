@@ -55,6 +55,7 @@ type CommonFieldProps = {
 	startIcon?: React.ComponentType<{ className?: string }>;
 	autoComplete?: string;
 	spellCheck?: boolean;
+	inputClassName?: string;
 };
 
 /**
@@ -71,6 +72,7 @@ export function TextField({
 	startIcon: StartIcon,
 	autoComplete,
 	spellCheck,
+	inputClassName,
 }: CommonFieldProps & {
 	type?: string;
 	onValueChange?: (value: string) => string;
@@ -103,7 +105,7 @@ export function TextField({
 						disabled={disabled}
 						autoComplete={autoComplete}
 						spellCheck={spellCheck}
-						className={cn(StartIcon && 'pl-10')}
+						className={cn(StartIcon && 'pl-10', inputClassName)}
 					/>
 				</div>
 				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
@@ -136,6 +138,7 @@ export function TextField({
 					disabled={disabled}
 					autoComplete={autoComplete}
 					spellCheck={spellCheck}
+					className={inputClassName}
 				/>
 				{description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
 				{field.state.meta.errors.length > 0 && (

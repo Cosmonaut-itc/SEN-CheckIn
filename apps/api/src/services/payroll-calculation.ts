@@ -1107,6 +1107,7 @@ export function calculatePayrollFromData(
 		const taxDailyPay = resolvedDualPayrollPay.taxDailyPay;
 		const dualPayrollApplied = resolvedDualPayrollPay.fiscalDailyPayUsed !== null;
 		const hourlyRate = divisor > 0 ? taxDailyPay / divisor : 0;
+		const realHourlyRate = divisor > 0 ? realDailyPay / divisor : 0;
 
 		const normalPay = roundCurrency(adjustedNormalHours * hourlyRate);
 		const overtimeDoublePay = roundCurrency(
@@ -1130,6 +1131,31 @@ export function calculatePayrollFromData(
 			vacationPayAmount > 0
 				? roundCurrency(vacationPayAmount * resolvedTaxSettings.vacationPremiumRate)
 				: 0;
+		const realNormalPay = roundCurrency(adjustedNormalHours * realHourlyRate);
+		const realOvertimeDoublePay = roundCurrency(
+			payableOvertimeDoubleHours *
+				realHourlyRate *
+				OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
+		);
+		const realOvertimeTriplePay = roundCurrency(
+			payableOvertimeTripleHours *
+				realHourlyRate *
+				OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
+		);
+		const realSundayPremiumAmount =
+			sundaysWorkedCount > 0
+				? roundCurrency(sundaysWorkedCount * realDailyPay * SUNDAY_PREMIUM_RATE)
+				: 0;
+		const realMandatoryRestDayPremiumAmount =
+			mandatoryRestDaysWorkedCount > 0
+				? roundCurrency(mandatoryRestDaysWorkedCount * realDailyPay * 2)
+				: 0;
+		const realVacationPayAmount =
+			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * realDailyPay) : 0;
+		const realVacationPremiumAmount =
+			realVacationPayAmount > 0
+				? roundCurrency(realVacationPayAmount * resolvedTaxSettings.vacationPremiumRate)
+				: 0;
 
 		const workedDayKeys = new Set(
 			Array.from(calendarDayMinutes.entries())
@@ -1148,6 +1174,18 @@ export function calculatePayrollFromData(
 			workedDayKeys,
 			dailyPay: taxDailyPay,
 		});
+		const realSeventhDayPay = calculateSeventhDayPay({
+			enabled: Boolean(resolvedTaxSettings.enableSeventhDayPay),
+			countSaturdayAsWorkedForSeventhDay: Boolean(
+				resolvedTaxSettings.countSaturdayAsWorkedForSeventhDay,
+			),
+			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
+			periodStartDateKey,
+			periodEndDateKey,
+			schedule: scheduleMap.get(emp.id) ?? [],
+			workedDayKeys,
+			dailyPay: realDailyPay,
+		});
 
 		const fiscalGrossPay = roundCurrency(
 			normalPay +
@@ -1159,8 +1197,18 @@ export function calculatePayrollFromData(
 				vacationPayAmount +
 				vacationPremiumAmount,
 		);
+		const realGrossPay = roundCurrency(
+			realNormalPay +
+				realOvertimeDoublePay +
+				realOvertimeTriplePay +
+				realSundayPremiumAmount +
+				realMandatoryRestDayPremiumAmount +
+				realSeventhDayPay +
+				realVacationPayAmount +
+				realVacationPremiumAmount,
+		);
 		const complementPay = dualPayrollApplied
-			? roundCurrency(resolvedDualPayrollPay.dailyComplement * workedDayKeys.size)
+			? roundCurrency(Math.max(realGrossPay - fiscalGrossPay, 0))
 			: null;
 		const totalRealPay = dualPayrollApplied
 			? roundCurrency(fiscalGrossPay + (complementPay ?? 0))

@@ -3,6 +3,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getTestApiKey,
+	getUserSession,
 	requireErrorResponse,
 	requireResponseData,
 } from '../test-utils/contract-helpers.js';
@@ -10,11 +11,13 @@ import {
 describe('payroll settings routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
+	let memberSession: Awaited<ReturnType<typeof getUserSession>>;
 	let apiKey: string;
 
 	beforeAll(async () => {
 		client = createTestClient();
 		adminSession = await getAdminSession();
+		memberSession = await getUserSession();
 		apiKey = await getTestApiKey();
 	});
 
@@ -111,6 +114,17 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(400);
 		const errorPayload = requireErrorResponse(response, 'payroll settings validation');
 		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('blocks member users from updating payroll settings', async () => {
+		const response = await client['payroll-settings'].put({
+			enableDualPayroll: true,
+			$headers: { cookie: memberSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'member payroll settings update');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 
 	it('rejects payroll settings updates for unauthorized organizations', async () => {

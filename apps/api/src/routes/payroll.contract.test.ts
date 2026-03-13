@@ -44,6 +44,42 @@ describe('payroll routes (contract)', () => {
 		}
 		expect(calculation.employees).toBeDefined();
 		expect(Array.isArray(calculation.holidayNotices ?? [])).toBe(true);
+		if (Array.isArray(calculation.employees) && calculation.employees.length > 0) {
+			const firstEmployee = calculation.employees[0];
+			if (!firstEmployee) {
+				throw new Error('Expected at least one payroll calculation employee.');
+			}
+			expect('fiscalGrossPay' in firstEmployee).toBe(true);
+			expect('complementPay' in firstEmployee).toBe(true);
+			expect('totalRealPay' in firstEmployee).toBe(true);
+		}
+	});
+
+	it('redacts dual payroll fields from payroll previews for members', async () => {
+		const todayKey = toDateKeyUtc(new Date());
+		const startKey = addDaysToDateKey(todayKey, -14);
+
+		const response = await client.payroll.calculate.post({
+			periodStartDateKey: startKey,
+			periodEndDateKey: todayKey,
+			paymentFrequency: 'MONTHLY',
+			$headers: { cookie: memberSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const calculation = payload.data;
+		if (!calculation || typeof calculation !== 'object') {
+			throw new Error('Expected payroll calculation payload.');
+		}
+		if (Array.isArray(calculation.employees)) {
+			for (const employee of calculation.employees) {
+				expect('fiscalDailyPay' in employee).toBe(false);
+				expect('fiscalGrossPay' in employee).toBe(false);
+				expect('complementPay' in employee).toBe(false);
+				expect('totalRealPay' in employee).toBe(false);
+			}
+		}
 	});
 
 	it('processes payroll runs', async () => {
@@ -72,6 +108,54 @@ describe('payroll routes (contract)', () => {
 			Array.isArray((result as { calculation?: { holidayNotices?: unknown[] } }).calculation?.holidayNotices ?? []),
 		).toBe(true);
 		expect(Array.isArray((run as { holidayNotices?: unknown[] }).holidayNotices ?? [])).toBe(true);
+		const calculationEmployees = (
+			result as {
+				calculation?: { employees?: Array<Record<string, unknown>> };
+			}
+		).calculation?.employees;
+		if (Array.isArray(calculationEmployees) && calculationEmployees.length > 0) {
+			const firstEmployee = calculationEmployees[0];
+			if (!firstEmployee) {
+				throw new Error('Expected at least one processed payroll employee.');
+			}
+			expect('fiscalGrossPay' in firstEmployee).toBe(true);
+			expect('complementPay' in firstEmployee).toBe(true);
+			expect('totalRealPay' in firstEmployee).toBe(true);
+		}
+	});
+
+	it('redacts dual payroll fields from processed payroll calculations for members', async () => {
+		const todayKey = toDateKeyUtc(new Date());
+		const startKey = addDaysToDateKey(todayKey, -7);
+
+		const response = await client.payroll.process.post({
+			periodStartDateKey: startKey,
+			periodEndDateKey: todayKey,
+			paymentFrequency: 'MONTHLY',
+			$headers: { cookie: memberSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const result = payload.data;
+		if (!result || typeof result !== 'object') {
+			throw new Error('Expected payroll process payload.');
+		}
+		const calculationEmployees = (
+			result as {
+				calculation?: { employees?: Array<Record<string, unknown>> };
+			}
+		).calculation?.employees;
+		if (!Array.isArray(calculationEmployees)) {
+			throw new Error('Expected payroll process calculation employees.');
+		}
+
+		for (const employee of calculationEmployees) {
+			expect('fiscalDailyPay' in employee).toBe(false);
+			expect('fiscalGrossPay' in employee).toBe(false);
+			expect('complementPay' in employee).toBe(false);
+			expect('totalRealPay' in employee).toBe(false);
+		}
 	});
 
 	it('lists payroll runs', async () => {

@@ -84,6 +84,49 @@ async function canViewDualPayrollCompensation(args: {
 	return role === 'owner' || role === 'admin';
 }
 
+type DualPayrollCompensationShape = {
+	fiscalDailyPay?: unknown;
+	fiscalGrossPay?: unknown;
+	complementPay?: unknown;
+	totalRealPay?: unknown;
+};
+
+/**
+ * Removes dual payroll compensation fields from a payload.
+ *
+ * @param record - Payload that may expose fiscal compensation details
+ * @returns Payload without dual payroll compensation fields
+ */
+function omitDualPayrollCompensation<T extends DualPayrollCompensationShape>(
+	record: T,
+): Omit<T, 'fiscalDailyPay' | 'fiscalGrossPay' | 'complementPay' | 'totalRealPay'> {
+	const sanitizedRecord = { ...record } as Partial<T>;
+	delete sanitizedRecord.fiscalDailyPay;
+	delete sanitizedRecord.fiscalGrossPay;
+	delete sanitizedRecord.complementPay;
+	delete sanitizedRecord.totalRealPay;
+	return sanitizedRecord as Omit<
+		T,
+		'fiscalDailyPay' | 'fiscalGrossPay' | 'complementPay' | 'totalRealPay'
+	>;
+}
+
+/**
+ * Removes dual payroll compensation fields from employee collections when needed.
+ *
+ * @param employees - Employee records or calculation rows
+ * @param includeDualPayrollCompensation - Whether the caller can view fiscal compensation data
+ * @returns Sanitized employee collection
+ */
+function sanitizeDualPayrollEmployees<T extends DualPayrollCompensationShape>(
+	employees: T[],
+	includeDualPayrollCompensation: boolean,
+): Array<T | Omit<T, 'fiscalDailyPay' | 'fiscalGrossPay' | 'complementPay' | 'totalRealPay'>> {
+	return includeDualPayrollCompensation
+		? employees
+		: employees.map((employeeRecord) => omitDualPayrollCompensation(employeeRecord));
+}
+
 /**
  * Calculates payroll for employees within the organization and period.
  *
@@ -426,10 +469,18 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
 
 			return {
 				data: {
-					employees,
+					employees: sanitizeDualPayrollEmployees(
+						employees,
+						includeDualPayrollCompensation,
+					),
 					totalAmount,
 					taxSummary,
 					periodStartDateKey: body.periodStartDateKey,
@@ -479,6 +530,18 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
+			const sanitizedCalculation = {
+				...calculation,
+				employees: sanitizeDualPayrollEmployees(
+					calculation.employees,
+					includeDualPayrollCompensation,
+				),
+			};
 
 			const hasBlockingWarnings =
 				calculation.overtimeEnforcement === 'BLOCK' &&
@@ -491,7 +554,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse(
 					'Overtime limits exceeded. Resolve errors to process payroll.',
 					400,
-					{ details: { calculation } },
+					{ details: { calculation: sanitizedCalculation } },
 				);
 			}
 
@@ -615,7 +678,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return savedRun[0];
 			});
 
-			return { data: { run: runResult, calculation } };
+			return { data: { run: runResult, calculation: sanitizedCalculation } };
 		},
 		{
 			body: payrollProcessSchema,

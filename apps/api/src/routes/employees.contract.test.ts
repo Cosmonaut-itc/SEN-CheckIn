@@ -314,8 +314,24 @@ describe('employee routes (contract)', () => {
 		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 
-	it('shows fiscalDailyPay only to admins in employee detail and list responses', async () => {
+	it('lets members lower dailyPay without being blocked by hidden fiscalDailyPay', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const adminFiscalResponse = await employeeRoutes.put({
+			fiscalDailyPay: 320.25,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+		expect(adminFiscalResponse.status).toBe(200);
+
+		const memberUpdateResponse = await employeeRoutes.put({
+			dailyPay: 300,
+			$headers: { cookie: memberSession.cookieHeader },
+		} as never);
+
+		expect(memberUpdateResponse.status).toBe(200);
+		const memberPayload = requireResponseData(memberUpdateResponse);
+		const memberRecord = memberPayload.data as { dailyPay?: number | string } | undefined;
+		expect(Number(memberRecord?.dailyPay ?? 0)).toBe(300);
+
 		const adminDetailResponse = await employeeRoutes.get({
 			$headers: { cookie: adminSession.cookieHeader },
 		});
@@ -324,7 +340,27 @@ describe('employee routes (contract)', () => {
 		const adminDetailRecord = adminDetailPayload.data as
 			| { fiscalDailyPay?: number | string | null }
 			| undefined;
-		expect(Number(adminDetailRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
+		expect(adminDetailRecord?.fiscalDailyPay).toBeNull();
+	});
+
+	it('shows fiscalDailyPay only to admins in employee detail and list responses', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const seedFiscalDailyPayResponse = await employeeRoutes.put({
+			dailyPay: 300,
+			fiscalDailyPay: 250,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+		expect(seedFiscalDailyPayResponse.status).toBe(200);
+
+		const adminDetailResponse = await employeeRoutes.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(adminDetailResponse.status).toBe(200);
+		const adminDetailPayload = requireResponseData(adminDetailResponse);
+		const adminDetailRecord = adminDetailPayload.data as
+			| { fiscalDailyPay?: number | string | null }
+			| undefined;
+		expect(Number(adminDetailRecord?.fiscalDailyPay ?? 0)).toBe(250);
 
 		const memberDetailResponse = await employeeRoutes.get({
 			$headers: { cookie: memberSession.cookieHeader },
@@ -343,7 +379,7 @@ describe('employee routes (contract)', () => {
 		const adminListRecord = adminListPayload.data.find((item) => item.id === baseEmployeeId) as
 			| { fiscalDailyPay?: number | string | null }
 			| undefined;
-		expect(Number(adminListRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
+		expect(Number(adminListRecord?.fiscalDailyPay ?? 0)).toBe(250);
 
 		const memberListResponse = await client.employees.get({
 			$headers: { cookie: memberSession.cookieHeader },

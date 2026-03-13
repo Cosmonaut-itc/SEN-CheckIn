@@ -1,12 +1,45 @@
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { payrollSetting } from '../db/schema.js';
-import { combinedAuthPlugin } from '../plugins/auth.js';
+import { member, payrollSetting } from '../db/schema.js';
+import { combinedAuthPlugin, type AuthSession } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { payrollSettingsSchema } from '../schemas/payroll.js';
+
+/**
+ * Checks whether the caller can manage payroll settings for the organization.
+ *
+ * @param args - Authorization context
+ * @param args.authType - Authentication type used for the request
+ * @param args.session - Current authenticated session
+ * @param args.organizationId - Organization being updated
+ * @returns True when the caller is an organization owner or admin
+ */
+async function hasOrganizationAdminRole(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	organizationId: string;
+}): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+
+	const role = membership[0]?.role ?? null;
+	return role === 'owner' || role === 'admin';
+}
 
 /**
  * Payroll settings routes for per-organization configuration.
@@ -117,6 +150,17 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				const status = authType === 'apiKey' ? 403 : 400;
 				set.status = status;
 				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const canManagePayrollSettings = await hasOrganizationAdminRole({
+				authType,
+				session: session ?? null,
+				organizationId,
+			});
+
+			if (!canManagePayrollSettings) {
+				set.status = 403;
+				return buildErrorResponse('Only organization admins can update payroll settings', 403);
 			}
 
 			const existing = await db

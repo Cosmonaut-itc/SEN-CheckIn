@@ -2854,6 +2854,70 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(dualEnabled.totalRealPay).toBe(2500);
 			expect(dualEnabled.fiscalGrossPay).toBe(2500);
 		});
+
+		it('keeps total real pay aligned with the standard payroll when overtime and vacation pay exist', () => {
+			const dualAttendanceWithOvertime = [
+				'2025-12-15',
+				'2025-12-16',
+				'2025-12-17',
+				'2025-12-18',
+				'2025-12-19',
+			].flatMap((dateKey) =>
+				createAttendancePair(
+					dualEmployeeId,
+					getUtcDateForZonedTime(dateKey, 9, 0, timeZone),
+					getUtcDateForZonedTime(dateKey, 19, 0, timeZone),
+				),
+			);
+			const overtimeAuthorizations = [
+				'2025-12-15',
+				'2025-12-16',
+				'2025-12-17',
+				'2025-12-18',
+				'2025-12-19',
+			].map((dateKey) => ({
+				employeeId: dualEmployeeId,
+				dateKey,
+				authorizedHours: 2,
+				status: 'ACTIVE' as const,
+			}));
+			const vacationDayCounts = {
+				[dualEmployeeId]: 5,
+			};
+
+			const standard = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					attendanceRows: dualAttendanceWithOvertime,
+					overtimeAuthorizations,
+					vacationDayCounts,
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: false,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+			const dualEnabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					attendanceRows: dualAttendanceWithOvertime,
+					overtimeAuthorizations,
+					vacationDayCounts,
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(standard.totalPay).toBe(6937.5);
+			expect(dualEnabled.fiscalGrossPay).toBe(4162.5);
+			expect(dualEnabled.complementPay).toBe(2775);
+			expect(dualEnabled.totalRealPay).toBe(6937.5);
+			expect(dualEnabled.totalPay).toBe(standard.totalPay);
+		});
 	});
 });
 

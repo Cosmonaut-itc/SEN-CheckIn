@@ -3033,8 +3033,20 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const nextDailyPay = Number(
 				dailyPayInput !== undefined ? dailyPayInput : existingRecord.dailyPay ?? 0,
 			);
+			const existingFiscalDailyPay =
+				existingRecord.fiscalDailyPay === null ||
+				existingRecord.fiscalDailyPay === undefined
+					? null
+					: Number(existingRecord.fiscalDailyPay);
+			const shouldClearHiddenFiscalDailyPay =
+				!canManageFiscalDailyPay &&
+				dailyPayInput !== undefined &&
+				existingFiscalDailyPay !== null &&
+				existingFiscalDailyPay >= nextDailyPay;
 			const nextFiscalDailyPay =
-				fiscalDailyPay !== undefined ? fiscalDailyPay : existingRecord.fiscalDailyPay;
+				shouldClearHiddenFiscalDailyPay
+					? null
+					: (fiscalDailyPay !== undefined ? fiscalDailyPay : existingFiscalDailyPay);
 
 			if (
 				nextFiscalDailyPay !== null &&
@@ -3083,6 +3095,8 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			if (fiscalDailyPay !== undefined) {
 				updatePayload.fiscalDailyPay =
 					fiscalDailyPay === null ? null : fiscalDailyPay.toFixed(4);
+			} else if (shouldClearHiddenFiscalDailyPay) {
+				updatePayload.fiscalDailyPay = null;
 			}
 
 			if (userIdInput !== undefined) {

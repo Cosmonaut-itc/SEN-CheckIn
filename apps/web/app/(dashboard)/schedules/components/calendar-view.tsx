@@ -247,7 +247,9 @@ export function CalendarView({
 	 * Navigates to the current UTC day.
 	 */
 	const handleToday = (): void => {
-		setReferenceDate(toUtcMidnight(toUtcCalendarDateLocal(new Date())));
+		const today = toUtcMidnight(toUtcCalendarDateLocal(new Date()));
+		setReferenceDate(today);
+		setSelectedMobileDate(today);
 	};
 
 	if (!organizationId) {

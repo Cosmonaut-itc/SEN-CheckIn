@@ -24,11 +24,14 @@ vi.mock('@/lib/client-functions', () => ({
 
 vi.mock('@/components/ui/mobile-day-calendar', () => ({
 	MobileDayCalendar: ({
+		date,
 		weekRange,
 	}: {
+		date: Date;
 		weekRange: { start: Date; end: Date };
 	}): React.ReactElement => (
 		<div data-testid="mobile-day-calendar">
+			<span data-testid="mobile-selected-date">{date.toISOString()}</span>
 			<span data-testid="mobile-week-start">{weekRange.start.toISOString()}</span>
 			<span data-testid="mobile-week-end">{weekRange.end.toISOString()}</span>
 		</div>
@@ -106,6 +109,27 @@ describe('CalendarView', () => {
 
 		expect(screen.getByTestId('mobile-week-start')).toHaveTextContent(
 			'2026-03-16T00:00:00.000Z',
+		);
+	});
+
+	it('keeps today selected when jumping to the current week on mobile', () => {
+		vi.setSystemTime(new Date('2026-03-19T12:00:00.000Z'));
+		mockUseIsMobile.mockReturnValue(true);
+
+		render(<CalendarView {...defaultProps} />);
+
+		act(() => {
+			vi.runAllTimers();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'next' }));
+		fireEvent.click(screen.getByRole('button', { name: 'calendar.today' }));
+
+		expect(screen.getByTestId('mobile-week-start')).toHaveTextContent(
+			'2026-03-16T00:00:00.000Z',
+		);
+		expect(screen.getByTestId('mobile-selected-date')).toHaveTextContent(
+			'2026-03-19T00:00:00.000Z',
 		);
 	});
 });

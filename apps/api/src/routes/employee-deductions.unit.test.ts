@@ -10,7 +10,26 @@ type DrizzleCondition =
 			kind: 'eq';
 			column: unknown;
 			value: unknown;
+	  }
+	| {
+			kind: 'inArray';
+			column: unknown;
+			values: unknown[];
 	  };
+
+interface FakeSelectCall {
+	tableName: string | null;
+	condition: DrizzleCondition | null;
+	limit: number | null;
+	offset: number | null;
+	selection: 'all' | 'count';
+}
+
+interface FakeUpdateCall {
+	tableName: string | null;
+	condition: DrizzleCondition | null;
+	values: Record<string, unknown>;
+}
 
 interface FakeEmployeeRow {
 	id: string;
@@ -106,8 +125,20 @@ function getColumnName(column: unknown): string | null {
 	}
 
 	const nameSymbol = Symbol.for('drizzle:Name');
-	const value = (column as Record<symbol, unknown>)[nameSymbol];
-	return typeof value === 'string' ? value : null;
+	const symbolValue = (column as Record<symbol, unknown>)[nameSymbol];
+	if (typeof symbolValue === 'string') {
+		return symbolValue;
+	}
+
+	const objectValue = column as { name?: unknown; config?: { name?: unknown } };
+	if (typeof objectValue.name === 'string') {
+		return objectValue.name;
+	}
+	if (typeof objectValue.config?.name === 'string') {
+		return objectValue.config.name;
+	}
+
+	return null;
 }
 
 /**
@@ -138,7 +169,64 @@ function matchesCondition(row: Record<string, unknown>, condition: DrizzleCondit
 		return row[normalizedColumnName] === condition.value;
 	}
 
+	if (condition.kind === 'inArray') {
+		const columnName = getColumnName(condition.column);
+		if (!columnName) {
+			return true;
+		}
+
+		const normalizedColumnName = columnName
+			.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase())
+			.replace(/^organizationId$/, 'organizationId');
+		return condition.values.includes(row[normalizedColumnName]);
+	}
+
 	return true;
+}
+
+/**
+ * Flattens equality conditions into a column/value map for assertions.
+ *
+ * @param condition - Drizzle-like condition tree
+ * @returns Map of column names to expected values
+ */
+function flattenEqualityConditions(
+	condition: DrizzleCondition | null,
+): Record<string, unknown> {
+	if (!condition) {
+		return {};
+	}
+
+	if (condition.kind === 'and') {
+		return condition.conditions.reduce<Record<string, unknown>>((result, entry) => {
+			return { ...result, ...flattenEqualityConditions(entry) };
+		}, {});
+	}
+
+	if (condition.kind === 'eq') {
+		const columnName = getColumnName(condition.column);
+		return columnName ? { [columnName]: condition.value } : {};
+	}
+
+	return {};
+}
+
+const dbInspection: {
+	selects: FakeSelectCall[];
+	updates: FakeUpdateCall[];
+} = {
+	selects: [],
+	updates: [],
+};
+
+/**
+ * Clears recorded fake DB interactions between test cases.
+ *
+ * @returns Void
+ */
+function resetDbInspection(): void {
+	dbInspection.selects = [];
+	dbInspection.updates = [];
 }
 
 /**
@@ -147,13 +235,19 @@ function matchesCondition(row: Record<string, unknown>, condition: DrizzleCondit
 class FakeQuery {
 	private tableName: string | null = null;
 	private condition: DrizzleCondition | null = null;
+	private limitCount: number | null = null;
+	private offsetCount: number | null = null;
 
 	/**
 	 * Creates the builder.
 	 *
 	 * @param state - Shared mutable DB state
+	 * @param selection - Optional selected fields
 	 */
-	constructor(private readonly state: FakeDbState) {}
+	constructor(
+		private readonly state: FakeDbState,
+		private readonly selection?: Record<string, unknown>,
+	) {}
 
 	/**
 	 * Sets the source table.
@@ -197,7 +291,7 @@ class FakeQuery {
 	 * @returns The query builder
 	 */
 	limit(count: number): this {
-		void count;
+		this.limitCount = count;
 		return this;
 	}
 
@@ -208,7 +302,7 @@ class FakeQuery {
 	 * @returns The query builder
 	 */
 	offset(offset: number): this {
-		void offset;
+		this.offsetCount = offset;
 		return this;
 	}
 
@@ -229,22 +323,64 @@ class FakeQuery {
 	 * @returns Fake query results
 	 */
 	private execute(): unknown[] {
+		const isCountSelection = Object.values(this.selection ?? {}).some(
+			(value) =>
+				typeof value === 'object' && value !== null && (value as { kind?: string }).kind === 'count',
+		);
 		if (this.tableName === 'member') {
+			dbInspection.selects.push({
+				tableName: this.tableName,
+				condition: this.condition,
+				limit: this.limitCount,
+				offset: this.offsetCount,
+				selection: isCountSelection ? 'count' : 'all',
+			});
 			return [{ role: this.state.memberRole }];
 		}
 
 		if (this.tableName === 'employee') {
-			return this.state.employees.filter((row) =>
+			const rows = this.state.employees.filter((row) =>
 				matchesCondition(row as unknown as Record<string, unknown>, this.condition),
 			);
+			const paginatedRows = rows.slice(
+				this.offsetCount ?? 0,
+				this.limitCount === null ? undefined : (this.offsetCount ?? 0) + this.limitCount,
+			);
+			dbInspection.selects.push({
+				tableName: this.tableName,
+				condition: this.condition,
+				limit: this.limitCount,
+				offset: this.offsetCount,
+				selection: isCountSelection ? 'count' : 'all',
+			});
+			return isCountSelection ? [{ count: rows.length }] : paginatedRows;
 		}
 
 		if (this.tableName === 'employee_deduction') {
-			return this.state.deductions.filter((row) =>
+			const rows = this.state.deductions.filter((row) =>
 				matchesCondition(row as unknown as Record<string, unknown>, this.condition),
 			);
+			const paginatedRows = rows.slice(
+				this.offsetCount ?? 0,
+				this.limitCount === null ? undefined : (this.offsetCount ?? 0) + this.limitCount,
+			);
+			dbInspection.selects.push({
+				tableName: this.tableName,
+				condition: this.condition,
+				limit: this.limitCount,
+				offset: this.offsetCount,
+				selection: isCountSelection ? 'count' : 'all',
+			});
+			return isCountSelection ? [{ count: rows.length }] : paginatedRows;
 		}
 
+		dbInspection.selects.push({
+			tableName: this.tableName,
+			condition: this.condition,
+			limit: this.limitCount,
+			offset: this.offsetCount,
+			selection: isCountSelection ? 'count' : 'all',
+		});
 		return [];
 	}
 
@@ -273,7 +409,7 @@ class FakeQuery {
  * @returns Fake database implementation
  */
 function createFakeDb(state: FakeDbState): {
-	select: () => FakeQuery;
+	select: (selection?: Record<string, unknown>) => FakeQuery;
 	insert: (table: unknown) => {
 		values: (values: Record<string, unknown>) => {
 			returning: () => Promise<FakeDeductionRow[]>;
@@ -288,7 +424,7 @@ function createFakeDb(state: FakeDbState): {
 	};
 } {
 	return {
-		select: () => new FakeQuery(state),
+		select: (selection?: Record<string, unknown>) => new FakeQuery(state, selection),
 		insert: (table: unknown) => ({
 			values: (values: Record<string, unknown>) => ({
 				returning: async (): Promise<FakeDeductionRow[]> => {
@@ -333,7 +469,12 @@ function createFakeDb(state: FakeDbState): {
 			set: (values: Record<string, unknown>) => ({
 				where: (condition: DrizzleCondition) => ({
 					returning: async (): Promise<FakeDeductionRow[]> => {
-						void table;
+						const tableName = getTableName(table);
+						dbInspection.updates.push({
+							tableName,
+							condition,
+							values,
+						});
 						const row = state.deductions.find((entry) =>
 							matchesCondition(entry as unknown as Record<string, unknown>, condition),
 						);
@@ -444,6 +585,7 @@ mock.module('../utils/organization.js', () => ({
 
 describe('employee deduction routes', () => {
 	beforeEach(() => {
+		resetDbInspection();
 		dbState.memberRole = 'admin';
 		dbState.employees = [
 			{
@@ -872,6 +1014,67 @@ describe('employee deduction routes', () => {
 		});
 	});
 
+	it('preserves remainingAmount when only totalAmount is updated', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				'/organizations/org-test/employees/employee-1/deductions/deduction-cancelled',
+				{
+					totalAmount: 3000,
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: {
+				id: 'deduction-cancelled',
+				totalAmount: 3000,
+				remainingAmount: 1500,
+			},
+		});
+		expect(dbState.deductions.find((entry) => entry.id === 'deduction-cancelled')).toMatchObject({
+			totalAmount: '3000.00',
+			remainingAmount: '1500.00',
+		});
+	});
+
+	it('scopes deduction lookup and update by id, organization, and employee', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'PUT',
+				'/organizations/org-test/employees/employee-1/deductions/deduction-active',
+				{
+					notes: 'Ajuste con scope estricto',
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+
+		const deductionSelectCall = dbInspection.selects.find(
+			(call) => call.tableName === 'employee_deduction' && call.selection === 'all',
+		);
+		const deductionUpdateCall = dbInspection.updates.find(
+			(call) => call.tableName === 'employee_deduction',
+		);
+
+		expect(flattenEqualityConditions(deductionSelectCall?.condition ?? null)).toMatchObject({
+			id: 'deduction-active',
+			organization_id: 'org-test',
+			employee_id: 'employee-1',
+		});
+		expect(flattenEqualityConditions(deductionUpdateCall?.condition ?? null)).toMatchObject({
+			id: 'deduction-active',
+			organization_id: 'org-test',
+			employee_id: 'employee-1',
+		});
+	});
+
 	it('transitions from PAUSED to ACTIVE successfully', async () => {
 		dbState.deductions = [
 			dbState.deductions[1] as FakeDeductionRow,
@@ -988,6 +1191,83 @@ describe('employee deduction routes', () => {
 			error: {
 				message: 'Only owner/admin can manage employee deductions',
 			},
+		});
+	});
+
+	it('pushes organization-wide filters and pagination to the deductions queries', async () => {
+		dbState.employees = [
+			{
+				id: 'employee-1',
+				organizationId: 'org-test',
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+			},
+			{
+				id: 'employee-2',
+				organizationId: 'org-test',
+				firstName: 'Grace',
+				lastName: 'Hopper',
+			},
+		];
+		dbState.deductions = [
+			dbState.deductions[1] as FakeDeductionRow,
+			{
+				...(dbState.deductions[1] as FakeDeductionRow),
+				id: 'deduction-paused-employee-2',
+				employeeId: 'employee-2',
+			},
+			{
+				...(dbState.deductions[1] as FakeDeductionRow),
+				id: 'deduction-active-other',
+				status: 'ACTIVE',
+			},
+		];
+
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'GET',
+				'/organizations/org-test/deductions?status=PAUSED&type=OTHER&employeeId=employee-1&limit=1&offset=0',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: [
+				{
+					id: 'deduction-paused',
+					employeeId: 'employee-1',
+				},
+			],
+			pagination: {
+				limit: 1,
+				offset: 0,
+				total: 1,
+			},
+		});
+
+		const deductionSelectCalls = dbInspection.selects.filter(
+			(call) => call.tableName === 'employee_deduction',
+		);
+		const countCall = deductionSelectCalls.find((call) => call.selection === 'count');
+		const pageCall = deductionSelectCalls.find((call) => call.selection === 'all');
+
+		expect(flattenEqualityConditions(countCall?.condition ?? null)).toMatchObject({
+			organization_id: 'org-test',
+			status: 'PAUSED',
+			type: 'OTHER',
+			employee_id: 'employee-1',
+		});
+		expect(flattenEqualityConditions(pageCall?.condition ?? null)).toMatchObject({
+			organization_id: 'org-test',
+			status: 'PAUSED',
+			type: 'OTHER',
+			employee_id: 'employee-1',
+		});
+		expect(pageCall).toMatchObject({
+			limit: 1,
+			offset: 0,
 		});
 	});
 });

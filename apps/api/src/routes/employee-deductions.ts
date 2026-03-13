@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 
 import db from '../db/index.js';
@@ -298,7 +298,7 @@ function buildDeductionMutationValues(
 	const totalAmount = hasTotalAmount ? (payload.totalAmount ?? null) : undefined;
 	const remainingAmount = hasRemainingAmount
 		? (payload.remainingAmount ?? null)
-		: totalAmount ?? undefined;
+		: undefined;
 
 	return {
 		...(payload.label !== undefined ? { label: payload.label } : {}),
@@ -543,11 +543,13 @@ export const employeeDeductionRoutes = new Elysia({ prefix: '/organizations/:org
 				.from(employeeDeduction)
 				.where(
 					and(
+						eq(employeeDeduction.id, params.id),
 						eq(employeeDeduction.organizationId, organizationId),
 						eq(employeeDeduction.employeeId, params.employeeId),
 					),
-				);
-			const existing = employeeRows.find((row) => row.id === params.id);
+				)
+				.limit(1);
+			const existing = employeeRows[0] ?? null;
 			if (!existing) {
 				set.status = 404;
 				return buildErrorResponse('Employee deduction not found', 404);
@@ -598,11 +600,17 @@ export const employeeDeductionRoutes = new Elysia({ prefix: '/organizations/:org
 			const [updatedRow] = await db
 				.update(employeeDeduction)
 				.set(buildDeductionMutationValues(body))
-				.where(eq(employeeDeduction.id, params.id))
+				.where(
+					and(
+						eq(employeeDeduction.id, params.id),
+						eq(employeeDeduction.organizationId, organizationId),
+						eq(employeeDeduction.employeeId, params.employeeId),
+					),
+				)
 				.returning();
 			if (!updatedRow) {
-				set.status = 500;
-				return buildErrorResponse('Failed to update employee deduction', 500);
+				set.status = 404;
+				return buildErrorResponse('Employee deduction not found', 404);
 			}
 
 			return {
@@ -648,46 +656,60 @@ export const employeeDeductionRoutes = new Elysia({ prefix: '/organizations/:org
 				return buildErrorResponse('Only owner/admin can manage employee deductions', 403);
 			}
 
+			const conditions = [eq(employeeDeduction.organizationId, organizationId)];
+			if (query.status) {
+				conditions.push(eq(employeeDeduction.status, query.status));
+			}
+			if (query.type) {
+				conditions.push(eq(employeeDeduction.type, query.type));
+			}
+			if (query.employeeId) {
+				conditions.push(eq(employeeDeduction.employeeId, query.employeeId));
+			}
+
+			const whereClause = and(...conditions);
+			const [countRow] = await db
+				.select({ count: count() })
+				.from(employeeDeduction)
+				.where(whereClause);
+
 			const rows = await db
 				.select()
 				.from(employeeDeduction)
-				.where(eq(employeeDeduction.organizationId, organizationId))
-				.orderBy(desc(employeeDeduction.createdAt));
+				.where(whereClause)
+				.orderBy(desc(employeeDeduction.createdAt))
+				.limit(query.limit)
+				.offset(query.offset);
 
-			const employeeRows = await db
-				.select({
-					id: employee.id,
-					firstName: employee.firstName,
-					lastName: employee.lastName,
-				})
-				.from(employee)
-				.where(eq(employee.organizationId, organizationId));
+			const employeeIds = Array.from(new Set(rows.map((row) => row.employeeId)));
+			const employeeRows =
+				employeeIds.length === 0
+					? []
+					: await db
+							.select({
+								id: employee.id,
+								firstName: employee.firstName,
+								lastName: employee.lastName,
+							})
+							.from(employee)
+							.where(
+								and(
+									eq(employee.organizationId, organizationId),
+									inArray(employee.id, employeeIds),
+								),
+							);
 			const employeeNameById = new Map(
 				employeeRows.map((row) => [row.id, `${row.firstName} ${row.lastName}`.trim()]),
 			);
 
-			const filtered = rows.filter((row) => {
-				if (query.status && row.status !== query.status) {
-					return false;
-				}
-				if (query.type && row.type !== query.type) {
-					return false;
-				}
-				if (query.employeeId && row.employeeId !== query.employeeId) {
-					return false;
-				}
-				return true;
-			});
-			const paginated = filtered.slice(query.offset, query.offset + query.limit);
-
 			return {
-				data: paginated.map((row) =>
+				data: rows.map((row) =>
 					normalizeDeductionRow(row, employeeNameById.get(row.employeeId)),
 				),
 				pagination: {
 					limit: query.limit,
 					offset: query.offset,
-					total: filtered.length,
+					total: countRow?.count ?? 0,
 				},
 			};
 		},

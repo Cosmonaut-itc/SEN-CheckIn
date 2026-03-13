@@ -1365,10 +1365,14 @@ export function calculatePayrollFromData(
 				deduction.remainingAmount !== null && deduction.remainingAmount !== undefined;
 			const hasTotalAmount =
 				deduction.totalAmount !== null && deduction.totalAmount !== undefined;
+			const remainingBalanceCap =
+				hasRemainingAmount || hasTotalAmount ? Math.max(0, remainingBefore) : Number.POSITIVE_INFINITY;
+			const netPayCap = Math.max(0, remainingNetAfterDeductions);
 			const appliedAmount = roundCurrency(
-				Math.min(deductionAmount.calculatedAmount, Math.max(0, remainingNetAfterDeductions)),
+				Math.min(deductionAmount.calculatedAmount, netPayCap, remainingBalanceCap),
 			);
-			const cappedByNetPay = appliedAmount < deductionAmount.calculatedAmount;
+			const cappedByNetPay =
+				appliedAmount < deductionAmount.calculatedAmount && netPayCap <= remainingBalanceCap;
 			if (cappedByNetPay) {
 				deductionsExceededNetPay = true;
 			}

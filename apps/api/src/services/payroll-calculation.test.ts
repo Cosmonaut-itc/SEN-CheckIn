@@ -2958,6 +2958,30 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
 		});
 
+		it('caps tracked deductions by the remaining outstanding balance', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-remaining-balance',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 10,
+							completedInstallments: 9,
+							totalAmount: 5000,
+							remainingAmount: 200,
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(200);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(200);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
 		it('does not apply paused deductions', () => {
 			const { employees } = calculatePayrollFromData(
 				buildWeeklyPayrollArgsWithDeductions({

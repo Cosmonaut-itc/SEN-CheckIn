@@ -24,6 +24,10 @@ type DrizzleCondition =
 			value: Date | string;
 	  }
 	| {
+			kind: 'isNull';
+			column: unknown;
+	  }
+	| {
 			kind: 'inArray';
 			column: unknown;
 			values: unknown[];
@@ -77,6 +81,33 @@ interface FakeVacationRequestDayRow {
 	countsAsVacationDay: boolean;
 }
 
+interface FakeEmployeeDeductionRow {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	type: 'INFONAVIT' | 'ALIMONY' | 'FONACOT' | 'LOAN' | 'UNION_FEE' | 'ADVANCE' | 'OTHER';
+	label: string;
+	calculationMethod:
+		| 'PERCENTAGE_SBC'
+		| 'PERCENTAGE_NET'
+		| 'PERCENTAGE_GROSS'
+		| 'FIXED_AMOUNT'
+		| 'VSM_FACTOR';
+	value: string;
+	frequency: 'RECURRING' | 'ONE_TIME' | 'INSTALLMENTS';
+	totalInstallments: number | null;
+	completedInstallments: number;
+	totalAmount: string | null;
+	remainingAmount: string | null;
+	status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+	startDateKey: string;
+	endDateKey: string | null;
+	referenceNumber: string | null;
+	satDeductionCode: string | null;
+	notes: string | null;
+	createdAt: Date;
+}
+
 interface FakeDbState {
 	organizationId: string;
 	payrollSettings: FakePayrollSettingRow[];
@@ -85,6 +116,7 @@ interface FakeDbState {
 	attendanceRecords: AttendanceRow[];
 	vacationRequests: FakeVacationRequestRow[];
 	vacationRequestDays: FakeVacationRequestDayRow[];
+	employeeDeductions: FakeEmployeeDeductionRow[];
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
 	transactionCalled: boolean;
@@ -137,6 +169,84 @@ function createJsonPostRequest(path: string, body: unknown): Request {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body),
 	});
+}
+
+/**
+ * Seeds a standard weekly payroll scenario for process-route tests.
+ *
+ * @param args - Organization/employee identity values
+ * @returns Nothing
+ */
+function seedWeeklyProcessScenario(args: {
+	organizationId: string;
+	employeeId: string;
+	firstName: string;
+	lastName: string;
+	timeZone: string;
+}): void {
+	dbState.organizationId = args.organizationId;
+	dbState.payrollSettings = [
+		{
+			organizationId: args.organizationId,
+			overtimeEnforcement: 'WARN',
+			weekStartDay: 1,
+			additionalMandatoryRestDays: [],
+			timeZone: args.timeZone,
+		},
+	];
+	dbState.employees = [
+		{
+			id: args.employeeId,
+			organizationId: args.organizationId,
+			firstName: args.firstName,
+			lastName: args.lastName,
+			dailyPay: 800,
+			paymentFrequency: 'WEEKLY',
+			shiftType: 'DIURNA',
+			locationGeographicZone: 'GENERAL',
+			locationTimeZone: args.timeZone,
+			lastPayrollDate: null,
+		},
+	];
+	dbState.schedules = Array.from({ length: 7 }, (_, dayOfWeek) => ({
+		employeeId: args.employeeId,
+		dayOfWeek,
+		startTime: '09:00',
+		endTime: '17:00',
+		isWorkingDay: dayOfWeek !== 0,
+	}));
+	dbState.attendanceRecords = [
+		...createAttendancePair(
+			args.employeeId,
+			getUtcDateForZonedTime('2025-03-03', 9, 0, args.timeZone),
+			getUtcDateForZonedTime('2025-03-03', 17, 0, args.timeZone),
+		),
+		...createAttendancePair(
+			args.employeeId,
+			getUtcDateForZonedTime('2025-03-04', 9, 0, args.timeZone),
+			getUtcDateForZonedTime('2025-03-04', 17, 0, args.timeZone),
+		),
+		...createAttendancePair(
+			args.employeeId,
+			getUtcDateForZonedTime('2025-03-05', 9, 0, args.timeZone),
+			getUtcDateForZonedTime('2025-03-05', 17, 0, args.timeZone),
+		),
+		...createAttendancePair(
+			args.employeeId,
+			getUtcDateForZonedTime('2025-03-06', 9, 0, args.timeZone),
+			getUtcDateForZonedTime('2025-03-06', 17, 0, args.timeZone),
+		),
+		...createAttendancePair(
+			args.employeeId,
+			getUtcDateForZonedTime('2025-03-07', 9, 0, args.timeZone),
+			getUtcDateForZonedTime('2025-03-07', 17, 0, args.timeZone),
+		),
+		...createAttendancePair(
+			args.employeeId,
+			getUtcDateForZonedTime('2025-03-08', 9, 0, args.timeZone),
+			getUtcDateForZonedTime('2025-03-08', 17, 0, args.timeZone),
+		),
+	];
 }
 
 /**
@@ -499,6 +609,16 @@ function createFakeDb(state: FakeDbState): {
 					});
 			}
 
+			if (tableName === 'employee_deduction') {
+				const employeeIds =
+					extractInArrayValues(this.whereCondition)?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
+				return state.employeeDeductions.filter((row) =>
+					employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
+				);
+			}
+
 			if (tableName === 'payroll_run') {
 				const whereEq = this.whereCondition?.kind === 'eq' ? this.whereCondition : null;
 				const id = typeof whereEq?.value === 'string' ? whereEq.value : null;
@@ -610,20 +730,52 @@ function createFakeDb(state: FakeDbState): {
 				 * @returns Nothing
 				 */
 				const where = async (condition: DrizzleCondition): Promise<void> => {
-					if (tableName !== 'employee') {
+					if (tableName === 'employee') {
+						const employeeIds =
+							extractInArrayValues(condition)?.filter(
+								(value): value is string => typeof value === 'string',
+							) ?? [];
+						for (const emp of state.employees) {
+							if (employeeIds.includes(emp.id)) {
+								if (
+									values.lastPayrollDate instanceof Date ||
+									values.lastPayrollDate === null
+								) {
+									emp.lastPayrollDate = values.lastPayrollDate;
+								}
+							}
+						}
 						return;
 					}
-					const employeeIds =
-						extractInArrayValues(condition)?.filter(
-							(value): value is string => typeof value === 'string',
-						) ?? [];
-					for (const emp of state.employees) {
-						if (employeeIds.includes(emp.id)) {
+
+					if (tableName === 'employee_deduction') {
+						const deductionId = extractEqValue(
+							condition,
+							(value) => typeof value === 'string',
+						);
+						if (typeof deductionId !== 'string') {
+							return;
+						}
+						for (const deduction of state.employeeDeductions) {
+							if (deduction.id !== deductionId) {
+								continue;
+							}
 							if (
-								values.lastPayrollDate instanceof Date ||
-								values.lastPayrollDate === null
+								values.status === 'ACTIVE' ||
+								values.status === 'PAUSED' ||
+								values.status === 'COMPLETED' ||
+								values.status === 'CANCELLED'
 							) {
-								emp.lastPayrollDate = values.lastPayrollDate;
+								deduction.status = values.status;
+							}
+							if (typeof values.completedInstallments === 'number') {
+								deduction.completedInstallments = values.completedInstallments;
+							}
+							if (
+								values.remainingAmount === null ||
+								typeof values.remainingAmount === 'string'
+							) {
+								deduction.remainingAmount = values.remainingAmount as string | null;
 							}
 						}
 					}
@@ -689,6 +841,7 @@ const dbState: FakeDbState = {
 	attendanceRecords: [],
 	vacationRequests: [],
 	vacationRequestDays: [],
+	employeeDeductions: [],
 	payrollRuns: [],
 	payrollRunEmployees: [],
 	transactionCalled: false,
@@ -726,7 +879,12 @@ mock.module('drizzle-orm', () => {
 			column,
 			values,
 		}),
+		isNull: (column: unknown) => ({ kind: 'isNull' as const, column }),
 		lte: (column: unknown, value: Date) => ({ kind: 'lte' as const, column, value }),
+		or: (...conditions: DrizzleCondition[]) => ({
+			kind: 'and' as const,
+			conditions,
+		}),
 		relations: () => ({}),
 		sql: sqlTag,
 	};
@@ -751,6 +909,7 @@ describe('payroll routes', () => {
 		dbState.attendanceRecords = [];
 		dbState.vacationRequests = [];
 		dbState.vacationRequestDays = [];
+		dbState.employeeDeductions = [];
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
 		dbState.transactionCalled = false;
@@ -1403,5 +1562,107 @@ describe('payroll routes', () => {
 		expect(row?.vacationPayAmount).toBe(800);
 		expect(row?.vacationPremiumAmount).toBe(200);
 		expect(row?.totalPay).toBe(1000);
+	});
+
+	it('persists deduction snapshots and completes one-time deductions in /payroll/process', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-deductions',
+			employeeId: 'emp-ded-1',
+			firstName: 'Ada',
+			lastName: 'Lovelace',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-one-time',
+				organizationId: 'org-deductions',
+				employeeId: 'emp-ded-1',
+				type: 'OTHER',
+				label: 'Descuento unico',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'ONE_TIME',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: '500.00',
+				remainingAmount: '500.00',
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-deductions',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(dbState.payrollRunEmployees).toHaveLength(1);
+		expect(dbState.payrollRunEmployees[0]?.totalDeductions).toBe('500.00');
+		expect(Array.isArray(dbState.payrollRunEmployees[0]?.deductionsBreakdown)).toBe(true);
+		expect(
+			(dbState.payrollRunEmployees[0]?.deductionsBreakdown as Array<Record<string, unknown>>)[0]
+				?.statusAfter,
+		).toBe('COMPLETED');
+		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
+		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
+	});
+
+	it('increments installment deductions when payroll is processed', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-installments',
+			employeeId: 'emp-install-1',
+			firstName: 'Grace',
+			lastName: 'Hopper',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-installment',
+				organizationId: 'org-installments',
+				employeeId: 'emp-install-1',
+				type: 'LOAN',
+				label: 'Prestamo nomina',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'INSTALLMENTS',
+				totalInstallments: 10,
+				completedInstallments: 3,
+				totalAmount: '5000.00',
+				remainingAmount: '3500.00',
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-installments',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(dbState.employeeDeductions[0]?.completedInstallments).toBe(4);
+		expect(dbState.employeeDeductions[0]?.status).toBe('ACTIVE');
+		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('3000.00');
 	});
 });

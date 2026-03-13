@@ -6,6 +6,7 @@ import ScannerScreen from '@/app/(main)/scanner';
 const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockCheckOutReasonSheet = jest.fn();
+const mockRequestReauth = jest.fn();
 
 jest.mock('expo-router', () => ({
 	useRouter: () => ({
@@ -136,6 +137,12 @@ jest.mock('@/lib/device-context', () => ({
 	}),
 }));
 
+jest.mock('@/providers/auth-provider', () => ({
+	useAuthContext: () => ({
+		requestReauth: (...args: unknown[]) => mockRequestReauth(...args),
+	}),
+}));
+
 jest.mock('@/lib/auth-client', () => ({
 	clearAuthStorage: jest.fn(),
 	signOut: jest.fn(),
@@ -159,6 +166,7 @@ describe('ScannerScreen check-out reason flow', () => {
 		mockPush.mockReset();
 		mockReplace.mockReset();
 		mockCheckOutReasonSheet.mockReset();
+		mockRequestReauth.mockReset();
 	});
 
 	it('opens the reason sheet when the user scans an authorized check-out', async () => {

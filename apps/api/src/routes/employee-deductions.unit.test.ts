@@ -748,6 +748,35 @@ describe('employee deduction routes', () => {
 			});
 		});
 
+		for (const type of ['LOAN', 'ADVANCE'] as const) {
+			it(`rejects ${type} with non-fixed calculation method`, async () => {
+				const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+				const response = await employeeDeductionRoutes.handle(
+					createJsonRequest(
+						'POST',
+						'/organizations/org-test/employees/employee-1/deductions',
+						{
+							type,
+							label: type === 'LOAN' ? 'Prestamo variable' : 'Adelanto variable',
+							calculationMethod: 'VSM_FACTOR',
+							value: 1.2,
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 6,
+							startDateKey: '2026-03-01',
+						},
+					),
+				);
+
+				expect(response.status).toBe(400);
+				await expect(response.json()).resolves.toMatchObject({
+					error: {
+						message: 'LOAN and ADVANCE deductions only allow FIXED_AMOUNT',
+					},
+				});
+			});
+		}
+
 		it('rejects ADVANCE with RECURRING frequency', async () => {
 			const { employeeDeductionRoutes } = await import('./employee-deductions.js');
 

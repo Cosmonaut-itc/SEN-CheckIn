@@ -129,6 +129,14 @@ interface FakeDbState {
 				remainingAmount?: string | null;
 		  }
 		| null;
+	pendingDeductionMutationBeforeUpdate:
+		| {
+				id: string;
+				status?: FakeEmployeeDeductionRow['status'];
+				completedInstallments?: number;
+				remainingAmount?: string | null;
+		  }
+		| null;
 }
 
 /**
@@ -496,6 +504,67 @@ function extractInArrayValuesForColumn(
 }
 
 /**
+ * Evaluates whether a fake deduction row matches a Drizzle-like WHERE tree.
+ *
+ * @param row - Deduction row candidate
+ * @param condition - Drizzle-like condition tree
+ * @returns True when the row satisfies the condition
+ */
+function matchesDeductionCondition(
+	row: FakeEmployeeDeductionRow,
+	condition: DrizzleCondition | null,
+): boolean {
+	if (!condition) {
+		return true;
+	}
+
+	if (condition.kind === 'and') {
+		return condition.conditions.every((child) => matchesDeductionCondition(row, child));
+	}
+
+	const columnName = getConditionColumnName(condition.column);
+	if (!columnName) {
+		return true;
+	}
+
+	switch (condition.kind) {
+		case 'eq':
+			return getDeductionColumnValue(row, columnName) === condition.value;
+		case 'isNull':
+			return getDeductionColumnValue(row, columnName) === null;
+		default:
+			return true;
+	}
+}
+
+/**
+ * Maps fake deduction rows to the persisted column values used by predicates.
+ *
+ * @param row - Deduction row
+ * @param columnName - Persisted column name
+ * @returns Comparable column value
+ */
+function getDeductionColumnValue(
+	row: FakeEmployeeDeductionRow,
+	columnName: string,
+): string | number | null {
+	switch (columnName) {
+		case 'id':
+			return row.id;
+		case 'organization_id':
+			return row.organizationId;
+		case 'status':
+			return row.status;
+		case 'completed_installments':
+			return row.completedInstallments;
+		case 'remaining_amount':
+			return row.remainingAmount;
+		default:
+			return null;
+	}
+}
+
+/**
  * Creates a minimal Drizzle-like DB stub for route tests.
  *
  * @param state - Shared mutable DB state
@@ -765,7 +834,11 @@ function createFakeDb(state: FakeDbState): {
 		};
 		update: (table: unknown) => {
 			set: (values: Record<string, unknown>) => {
-				where: (condition: DrizzleCondition) => Promise<void>;
+				where: (condition: DrizzleCondition) => {
+					returning: (
+						selection?: Record<string, unknown>,
+					) => Promise<Record<string, unknown>[]>;
+				} & Promise<void>;
 			};
 		};
 		select: (selection?: unknown) => unknown;
@@ -824,7 +897,9 @@ function createFakeDb(state: FakeDbState): {
 				 * @param condition - Drizzle-like condition tree
 				 * @returns Nothing
 				 */
-				const where = async (condition: DrizzleCondition): Promise<void> => {
+				const applyWhere = async (
+					condition: DrizzleCondition,
+				): Promise<Record<string, unknown>[]> => {
 					if (tableName === 'employee') {
 						const employeeIds =
 							extractInArrayValues(condition)?.filter(
@@ -840,20 +915,40 @@ function createFakeDb(state: FakeDbState): {
 								}
 							}
 						}
-						return;
+						return [];
 					}
 
 					if (tableName === 'employee_deduction') {
 						state.deductionUpdateConditions.push(condition);
-						const deductionId = extractEqValue(
-							condition,
-							(value) => typeof value === 'string',
-						);
-						if (typeof deductionId !== 'string') {
-							return;
+						if (state.pendingDeductionMutationBeforeUpdate) {
+							for (const deduction of state.employeeDeductions) {
+								if (deduction.id !== state.pendingDeductionMutationBeforeUpdate.id) {
+									continue;
+								}
+								if (state.pendingDeductionMutationBeforeUpdate.status) {
+									deduction.status = state.pendingDeductionMutationBeforeUpdate.status;
+								}
+								if (
+									typeof state.pendingDeductionMutationBeforeUpdate
+										.completedInstallments === 'number'
+								) {
+									deduction.completedInstallments =
+										state.pendingDeductionMutationBeforeUpdate.completedInstallments;
+								}
+								if (
+									state.pendingDeductionMutationBeforeUpdate.remainingAmount !==
+									undefined
+								) {
+									deduction.remainingAmount =
+										state.pendingDeductionMutationBeforeUpdate.remainingAmount;
+								}
+							}
+							state.pendingDeductionMutationBeforeUpdate = null;
 						}
+
+						const updatedRows: Record<string, unknown>[] = [];
 						for (const deduction of state.employeeDeductions) {
-							if (deduction.id !== deductionId) {
+							if (!matchesDeductionCondition(deduction, condition)) {
 								continue;
 							}
 							if (
@@ -873,8 +968,38 @@ function createFakeDb(state: FakeDbState): {
 							) {
 								deduction.remainingAmount = values.remainingAmount as string | null;
 							}
+							updatedRows.push({ id: deduction.id });
 						}
+
+						return updatedRows;
 					}
+
+					return [];
+				};
+
+				const where = (condition: DrizzleCondition) => {
+					let execution: Promise<Record<string, unknown>[]> | null = null;
+					const executeOnce = (): Promise<Record<string, unknown>[]> => {
+						execution ??= applyWhere(condition);
+						return execution;
+					};
+					const updatePromise = executeOnce().then(() => undefined);
+					return Object.assign(updatePromise, {
+						returning: async (selection?: Record<string, unknown>) => {
+							const rows = await executeOnce();
+							if (!selection) {
+								return rows;
+							}
+							const selectedKeys = Object.keys(selection);
+							return rows.map((row) => {
+								const projectedRow: Record<string, unknown> = {};
+								for (const key of selectedKeys) {
+									projectedRow[key] = row[key];
+								}
+								return projectedRow;
+							});
+						},
+					});
 				};
 
 				return { where };
@@ -950,7 +1075,6 @@ function createFakeDb(state: FakeDbState): {
 			employeeDeductions: state.employeeDeductions,
 			payrollRuns: state.payrollRuns,
 			payrollRunEmployees: state.payrollRunEmployees,
-			deductionUpdateConditions: state.deductionUpdateConditions,
 		});
 
 		try {
@@ -960,7 +1084,6 @@ function createFakeDb(state: FakeDbState): {
 			state.employeeDeductions = snapshot.employeeDeductions;
 			state.payrollRuns = snapshot.payrollRuns;
 			state.payrollRunEmployees = snapshot.payrollRunEmployees;
-			state.deductionUpdateConditions = snapshot.deductionUpdateConditions;
 			throw error;
 		}
 	};
@@ -985,6 +1108,7 @@ const dbState: FakeDbState = {
 	transactionCalled: false,
 	deductionUpdateConditions: [],
 	pendingDeductionMutationBeforeTransaction: null,
+	pendingDeductionMutationBeforeUpdate: null,
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -1055,6 +1179,7 @@ describe('payroll routes', () => {
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
 		dbState.pendingDeductionMutationBeforeTransaction = null;
+		dbState.pendingDeductionMutationBeforeUpdate = null;
 	});
 
 	it('includes edge attendance events so clipped sessions are counted in /payroll/calculate', async () => {
@@ -1915,5 +2040,63 @@ describe('payroll routes', () => {
 		expect(dbState.payrollRunEmployees).toHaveLength(0);
 		expect(dbState.employeeDeductions[0]?.completedInstallments).toBe(4);
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('3000.00');
+	});
+
+	it('guards deduction updates with previous-state predicates', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-deduction-stale-write',
+			employeeId: 'emp-stale-1',
+			firstName: 'Mary',
+			lastName: 'Jackson',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-stale-write',
+				organizationId: 'org-deduction-stale-write',
+				employeeId: 'emp-stale-1',
+				type: 'LOAN',
+				label: 'Prestamo stale',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'INSTALLMENTS',
+				totalInstallments: 10,
+				completedInstallments: 3,
+				totalAmount: '5000.00',
+				remainingAmount: '3500.00',
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+		dbState.pendingDeductionMutationBeforeUpdate = {
+			id: 'deduction-stale-write',
+			completedInstallments: 4,
+			remainingAmount: '3000.00',
+		};
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-deduction-stale-write',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(409);
+		expect(flattenEqualityConditions(dbState.deductionUpdateConditions[0] ?? null)).toMatchObject({
+			id: 'deduction-stale-write',
+			organization_id: 'org-deduction-stale-write',
+			status: 'ACTIVE',
+			completed_installments: 3,
+			remaining_amount: '3500.00',
+		});
+		expect(dbState.payrollRuns).toHaveLength(0);
 	});
 });

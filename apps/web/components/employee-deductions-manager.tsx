@@ -514,10 +514,9 @@ export function EmployeeDeductionsManager({
 		const activeFixedAmountTotal = activeRows
 			.filter((row) => row.calculationMethod === 'FIXED_AMOUNT')
 			.reduce((total, row) => total + row.value, 0);
-		const pendingPrincipal = deductionRows.reduce(
-			(total, row) => total + (row.remainingAmount ?? 0),
-			0,
-		);
+		const pendingPrincipal = deductionRows
+			.filter((row) => row.status !== 'CANCELLED' && row.status !== 'COMPLETED')
+			.reduce((total, row) => total + (row.remainingAmount ?? 0), 0);
 		const installmentsInProgress = deductionRows.filter(
 			(row) =>
 				row.frequency === 'INSTALLMENTS' &&

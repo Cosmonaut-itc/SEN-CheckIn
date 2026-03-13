@@ -216,6 +216,54 @@ describe('EmployeeDeductionsManager', () => {
 					createdAt: new Date('2026-03-01T00:00:00.000Z'),
 					updatedAt: new Date('2026-03-01T00:00:00.000Z'),
 				},
+				{
+					id: 'ded-3',
+					organizationId: 'org-1',
+					employeeId: 'emp-1',
+					employeeName: 'Ada Lovelace',
+					type: 'OTHER',
+					label: 'Saldo cancelado',
+					calculationMethod: 'FIXED_AMOUNT',
+					value: 75,
+					frequency: 'INSTALLMENTS',
+					totalInstallments: 4,
+					completedInstallments: 1,
+					totalAmount: 300,
+					remainingAmount: 900,
+					status: 'CANCELLED',
+					startDateKey: '2026-03-01',
+					endDateKey: null,
+					referenceNumber: null,
+					satDeductionCode: null,
+					notes: null,
+					createdByUserId: 'user-1',
+					createdAt: new Date('2026-03-01T00:00:00.000Z'),
+					updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+				},
+				{
+					id: 'ded-4',
+					organizationId: 'org-1',
+					employeeId: 'emp-1',
+					employeeName: 'Ada Lovelace',
+					type: 'OTHER',
+					label: 'Saldo completado',
+					calculationMethod: 'FIXED_AMOUNT',
+					value: 50,
+					frequency: 'INSTALLMENTS',
+					totalInstallments: 2,
+					completedInstallments: 2,
+					totalAmount: 100,
+					remainingAmount: 700,
+					status: 'COMPLETED',
+					startDateKey: '2026-03-01',
+					endDateKey: null,
+					referenceNumber: null,
+					satDeductionCode: null,
+					notes: null,
+					createdByUserId: 'user-1',
+					createdAt: new Date('2026-03-01T00:00:00.000Z'),
+					updatedAt: new Date('2026-03-01T00:00:00.000Z'),
+				},
 			],
 			pagination: {
 				total: 41,
@@ -289,5 +337,7 @@ describe('EmployeeDeductionsManager', () => {
 				?.textContent ?? '';
 		expect(configuredCardText).toContain('150');
 		expect(configuredCardText).not.toContain('160');
+		expect(screen.getByText(/\$5,150\.00/)).toBeTruthy();
+		expect(screen.queryByText(/\$6,750\.00/)).toBeNull();
 	});
 });

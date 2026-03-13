@@ -206,11 +206,18 @@ export function validateDeductionBusinessRules(args: {
 		'PERCENTAGE_NET',
 		'FIXED_AMOUNT',
 	]);
+	const loanMethods = new Set<DeductionCalculationMethod>(['FIXED_AMOUNT']);
 	if (args.type === 'INFONAVIT' && !infonavitMethods.has(args.calculationMethod)) {
 		return 'INFONAVIT deductions only allow PERCENTAGE_SBC, FIXED_AMOUNT, or VSM_FACTOR';
 	}
 	if (args.type === 'ALIMONY' && !alimonyMethods.has(args.calculationMethod)) {
 		return 'ALIMONY deductions only allow PERCENTAGE_NET or FIXED_AMOUNT';
+	}
+	if (
+		(args.type === 'LOAN' || args.type === 'ADVANCE') &&
+		!loanMethods.has(args.calculationMethod)
+	) {
+		return 'LOAN and ADVANCE deductions only allow FIXED_AMOUNT';
 	}
 	if (
 		(args.type === 'LOAN' || args.type === 'ADVANCE') &&

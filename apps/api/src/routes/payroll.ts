@@ -663,7 +663,20 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						await tx.insert(payrollRunEmployee).values(rows);
 
 						for (const deductionUpdate of deductionUpdates) {
-							await tx
+							const previousStateConditions = [
+								eq(employeeDeduction.status, deductionUpdate.previousStatus),
+								eq(
+									employeeDeduction.completedInstallments,
+									deductionUpdate.previousCompletedInstallments,
+								),
+								deductionUpdate.previousRemainingAmount === null
+									? isNull(employeeDeduction.remainingAmount)
+									: eq(
+											employeeDeduction.remainingAmount,
+											deductionUpdate.previousRemainingAmount,
+										),
+							];
+							const updatedRows = await tx
 								.update(employeeDeduction)
 								.set({
 									status: deductionUpdate.status,
@@ -675,8 +688,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 									and(
 										eq(employeeDeduction.id, deductionUpdate.deductionId),
 										eq(employeeDeduction.organizationId, organizationId),
+										...previousStateConditions,
 									),
-								);
+								)
+								.returning({ id: employeeDeduction.id });
+							if (updatedRows.length === 0) {
+								throw new Error(PAYROLL_DEDUCTION_STATE_CONFLICT_ERROR);
+							}
 						}
 
 						const beforeRows = await tx

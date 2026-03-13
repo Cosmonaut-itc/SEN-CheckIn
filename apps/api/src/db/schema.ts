@@ -1803,6 +1803,7 @@ export const payrollSetting = pgTable('payroll_setting', {
 	/** Minimum continuous worked hours before auto lunch deduction applies. */
 	lunchBreakThresholdHours: numeric('lunch_break_threshold_hours', { precision: 4, scale: 2 })
 		.default('6')
+		.notNull(),
 	/** Counts Saturday as worked for seventh day pay when it is not scheduled. */
 	countSaturdayAsWorkedForSeventhDay: boolean(
 		'count_saturday_as_worked_for_seventh_day',

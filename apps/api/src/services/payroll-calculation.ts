@@ -1403,6 +1403,13 @@ export function calculatePayrollFromData(
 						statusAfter = 'COMPLETED';
 					}
 				}
+				if (
+					deduction.frequency === 'RECURRING' &&
+					(hasRemainingAmount || hasTotalAmount) &&
+					remainingAmountAfter === 0
+				) {
+					statusAfter = 'COMPLETED';
+				}
 			}
 
 			deductionsBreakdown.push({

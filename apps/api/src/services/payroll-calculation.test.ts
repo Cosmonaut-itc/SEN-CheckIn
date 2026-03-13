@@ -3014,6 +3014,28 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
 		});
 
+		it('completes recurring deductions when a tracked balance reaches zero', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'recurring-capped-balance',
+							type: 'OTHER',
+							frequency: 'RECURRING',
+							totalAmount: 500,
+							remainingAmount: 500,
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(500);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(500);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
 		it('does not apply paused deductions', () => {
 			const { employees } = calculatePayrollFromData(
 				buildWeeklyPayrollArgsWithDeductions({

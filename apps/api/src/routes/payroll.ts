@@ -591,7 +591,12 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								completedInstallments: deductionUpdate.completedInstallments,
 								remainingAmount: deductionUpdate.remainingAmount,
 							})
-							.where(eq(employeeDeduction.id, deductionUpdate.deductionId));
+							.where(
+								and(
+									eq(employeeDeduction.id, deductionUpdate.deductionId),
+									eq(employeeDeduction.organizationId, organizationId),
+								),
+							);
 					}
 
 					const beforeRows = await tx

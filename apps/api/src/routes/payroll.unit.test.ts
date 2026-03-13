@@ -120,6 +120,7 @@ interface FakeDbState {
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
 	transactionCalled: boolean;
+	deductionUpdateConditions: DrizzleCondition[];
 }
 
 /**
@@ -376,6 +377,40 @@ function extractEqValue(
 	}
 
 	return null;
+}
+
+/**
+ * Extracts equality conditions into a column/value record.
+ *
+ * @param condition - Drizzle-like WHERE condition tree
+ * @returns Map keyed by column name
+ */
+function flattenEqualityConditions(
+	condition: DrizzleCondition | null,
+): Record<string, unknown> {
+	if (!condition) {
+		return {};
+	}
+
+	if (condition.kind === 'and') {
+		return condition.conditions.reduce<Record<string, unknown>>((result, child) => {
+			return { ...result, ...flattenEqualityConditions(child) };
+		}, {});
+	}
+
+	if (condition.kind !== 'eq') {
+		return {};
+	}
+
+	const column = condition.column as { name?: unknown; config?: { name?: unknown } };
+	const columnName =
+		typeof column.name === 'string'
+			? column.name
+			: typeof column.config?.name === 'string'
+				? column.config.name
+				: null;
+
+	return columnName ? { [columnName]: condition.value } : {};
 }
 
 /**
@@ -749,6 +784,7 @@ function createFakeDb(state: FakeDbState): {
 					}
 
 					if (tableName === 'employee_deduction') {
+						state.deductionUpdateConditions.push(condition);
 						const deductionId = extractEqValue(
 							condition,
 							(value) => typeof value === 'string',
@@ -845,6 +881,7 @@ const dbState: FakeDbState = {
 	payrollRuns: [],
 	payrollRunEmployees: [],
 	transactionCalled: false,
+	deductionUpdateConditions: [],
 };
 
 const fakeDb = createFakeDb(dbState);
@@ -913,6 +950,7 @@ describe('payroll routes', () => {
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
 		dbState.transactionCalled = false;
+		dbState.deductionUpdateConditions = [];
 	});
 
 	it('includes edge attendance events so clipped sessions are counted in /payroll/calculate', async () => {
@@ -1664,5 +1702,60 @@ describe('payroll routes', () => {
 		expect(dbState.employeeDeductions[0]?.completedInstallments).toBe(4);
 		expect(dbState.employeeDeductions[0]?.status).toBe('ACTIVE');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('3000.00');
+		expect(flattenEqualityConditions(dbState.deductionUpdateConditions[0] ?? null)).toMatchObject({
+			id: 'deduction-installment',
+			organization_id: 'org-installments',
+		});
+	});
+
+	it('completes recurring capped deductions when payroll settles the remaining balance', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-recurring-cap',
+			employeeId: 'emp-recurring-1',
+			firstName: 'Katherine',
+			lastName: 'Johnson',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-recurring-cap',
+				organizationId: 'org-recurring-cap',
+				employeeId: 'emp-recurring-1',
+				type: 'OTHER',
+				label: 'Saldo administrativo',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'RECURRING',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: '500.00',
+				remainingAmount: '500.00',
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-recurring-cap',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(
+			(dbState.payrollRunEmployees[0]?.deductionsBreakdown as Array<Record<string, unknown>>)[0]
+				?.statusAfter,
+		).toBe('COMPLETED');
+		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
+		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
 	});
 });

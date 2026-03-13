@@ -204,4 +204,20 @@ describe('ScannerScreen device linking state', () => {
 		expect(mockClearSettings).toHaveBeenCalledTimes(1);
 		expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 	});
+
+	it('still navigates to login when auth storage cleanup fails during relinking', async () => {
+		mockSignOut.mockResolvedValue(undefined);
+		mockClearAuthStorage.mockRejectedValue(new Error('secure-store unavailable'));
+		mockClearSettings.mockResolvedValue(undefined);
+
+		render(<ScannerScreen />);
+
+		fireEvent.press(screen.getByText('Toca para vincular este dispositivo'));
+
+		await waitFor(() => {
+			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
+		});
+
+		expect(mockClearSettings).toHaveBeenCalledTimes(1);
+	});
 });

@@ -169,23 +169,23 @@ describe('ScannerScreen check-out reason flow', () => {
 		mockRequestReauth.mockReset();
 	});
 
-	it('opens the reason sheet when the user scans an authorized check-out', async () => {
+	it('opens the reason sheet when the user scans a regular check-out', async () => {
 		render(<ScannerScreen />);
 
 		fireEvent.press(screen.getByText('Entrada'));
-		fireEvent.press(screen.getByText('Escanear salida autorizada'));
+		fireEvent.press(screen.getByText('Salida autorizada'));
+		fireEvent.press(screen.getByText('Escanear salida'));
 
 		await waitFor(() => {
 			expect(screen.getByText('sheet-open')).toBeOnTheScreen();
 		});
 	});
 
-	it('does not open the reason sheet when the user scans a regular check-out', async () => {
+	it('does not open the reason sheet when the user scans an authorized check-out', async () => {
 		render(<ScannerScreen />);
 
 		fireEvent.press(screen.getByText('Entrada'));
-		fireEvent.press(screen.getByText('Salida autorizada'));
-		fireEvent.press(screen.getByText('Escanear salida'));
+		fireEvent.press(screen.getByText('Escanear salida autorizada'));
 
 		await waitFor(() => {
 			const latestCall = mockCheckOutReasonSheet.mock.calls.at(-1) as

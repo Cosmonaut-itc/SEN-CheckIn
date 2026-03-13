@@ -197,8 +197,16 @@ export default function ScannerScreen(): JSX.Element {
 			if (shouldLockAuth) {
 				await requestReauth({ forceLock: true, reason: 'manual' });
 			}
-			await clearAuthStorage();
-			await clearSettings();
+			try {
+				await clearAuthStorage();
+			} catch (error) {
+				console.warn('[scanner] Auth cleanup error during device relinking', error);
+			}
+			try {
+				await clearSettings();
+			} catch (error) {
+				console.warn('[scanner] Device cleanup error during device relinking', error);
+			}
 			router.replace('/(auth)/login');
 		}
 	}, [clearSettings, requestReauth, router]);
@@ -425,12 +433,12 @@ export default function ScannerScreen(): JSX.Element {
 	};
 
 	/**
-	 * Opens the reason selector for authorized check-outs and otherwise starts capture immediately.
+	 * Opens the reason selector for regular check-outs and otherwise starts capture immediately.
 	 *
 	 * @returns Promise that resolves once the interaction is handled
 	 */
 	const handleCapture = async (): Promise<void> => {
-		if (attendanceType === 'CHECK_OUT_AUTHORIZED') {
+		if (attendanceType === 'CHECK_OUT') {
 			setIsCheckOutReasonSheetOpen(true);
 			return;
 		}

@@ -81,7 +81,11 @@ export default function LockedScreen(): JSX.Element {
 							} catch (error) {
 								console.warn('[locked] Failed to sign out', error);
 							} finally {
-								await clearAuthStorage();
+								try {
+									await clearAuthStorage();
+								} catch (error) {
+									console.warn('[locked] Cleanup error before sign-in', error);
+								}
 								router.replace('/(auth)/login');
 							}
 						})();

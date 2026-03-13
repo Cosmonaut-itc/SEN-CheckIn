@@ -84,6 +84,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: number;
 		vacationPremiumRate: number;
 		enableSeventhDayPay: boolean;
+		enableDualPayroll: boolean;
 		autoDeductLunchBreak: boolean;
 		lunchBreakMinutes: number;
 		lunchBreakThresholdHours: number;
@@ -112,6 +113,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
+		enableDualPayroll: Boolean(orgSettings[0]?.enableDualPayroll ?? false),
 		autoDeductLunchBreak: Boolean(orgSettings[0]?.autoDeductLunchBreak ?? false),
 		lunchBreakMinutes: Number(orgSettings[0]?.lunchBreakMinutes ?? 60),
 		lunchBreakThresholdHours: Number(orgSettings[0]?.lunchBreakThresholdHours ?? 6),
@@ -144,6 +146,7 @@ const calculatePayroll = async (args: {
 			sbcDailyOverride: employee.sbcDailyOverride,
 			aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 			dailyPay: employee.dailyPay,
+			fiscalDailyPay: employee.fiscalDailyPay,
 			paymentFrequency: employee.paymentFrequency,
 			shiftType: employee.shiftType,
 			locationGeographicZone: location.geographicZone,
@@ -488,6 +491,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						hoursWorked: row.hoursWorked.toFixed(2),
 						hourlyPay: row.hourlyPay.toFixed(2),
 						totalPay: row.totalPay.toFixed(2),
+						fiscalDailyPay:
+							row.fiscalDailyPay === null ? null : row.fiscalDailyPay.toFixed(4),
+						fiscalGrossPay:
+							row.fiscalGrossPay === null ? null : row.fiscalGrossPay.toFixed(4),
+						complementPay:
+							row.complementPay === null ? null : row.complementPay.toFixed(4),
+						totalRealPay:
+							row.totalRealPay === null ? null : row.totalRealPay.toFixed(4),
 						normalHours: row.normalHours.toFixed(2),
 						normalPay: row.normalPay.toFixed(2),
 						overtimeDoubleHours: row.overtimeDoubleHours.toFixed(2),
@@ -670,6 +681,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					hoursWorked: payrollRunEmployee.hoursWorked,
 					hourlyPay: payrollRunEmployee.hourlyPay,
 					totalPay: payrollRunEmployee.totalPay,
+					fiscalDailyPay: payrollRunEmployee.fiscalDailyPay,
+					fiscalGrossPay: payrollRunEmployee.fiscalGrossPay,
+					complementPay: payrollRunEmployee.complementPay,
+					totalRealPay: payrollRunEmployee.totalRealPay,
 					normalHours: payrollRunEmployee.normalHours,
 					normalPay: payrollRunEmployee.normalPay,
 					overtimeDoubleHours: payrollRunEmployee.overtimeDoubleHours,
@@ -707,6 +722,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				hoursWorked: line.hoursWorked,
 				hourlyPay: line.hourlyPay,
 				totalPay: line.totalPay,
+				fiscalDailyPay: line.fiscalDailyPay,
+				fiscalGrossPay: line.fiscalGrossPay,
+				complementPay: line.complementPay,
+				totalRealPay: line.totalRealPay,
 				normalHours: line.normalHours,
 				normalPay: line.normalPay,
 				overtimeDoubleHours: line.overtimeDoubleHours,

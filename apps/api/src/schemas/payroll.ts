@@ -223,6 +223,10 @@ export const payrollEmployeeBreakdownSchema = z.object({
 	lunchBreakAutoDeductedDays: z.number(),
 	lunchBreakAutoDeductedMinutes: z.number(),
 	totalPay: z.number(),
+	fiscalDailyPay: z.number().nullable(),
+	fiscalGrossPay: z.number().nullable(),
+	complementPay: z.number().nullable(),
+	totalRealPay: z.number().nullable(),
 	grossPay: z.number(),
 	bases: z.object({
 		sbcDaily: z.number(),

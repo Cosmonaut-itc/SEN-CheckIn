@@ -57,6 +57,7 @@ export type PayrollCalculationRow = {
 	name: string;
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	dailyPay: number;
+	fiscalDailyPay: number | null;
 	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	seventhDayPay: number;
@@ -83,6 +84,9 @@ export type PayrollCalculationRow = {
 	lunchBreakAutoDeductedDays: number;
 	lunchBreakAutoDeductedMinutes: number;
 	totalPay: number;
+	fiscalGrossPay: number | null;
+	complementPay: number | null;
+	totalRealPay: number | null;
 	grossPay: number;
 	bases: MexicoPayrollTaxResult['bases'];
 	employeeWithholdings: MexicoPayrollTaxResult['employeeWithholdings'];
@@ -123,6 +127,7 @@ export interface PayrollEmployeeRow {
 	firstName: string;
 	lastName: string;
 	dailyPay: number | string | null;
+	fiscalDailyPay?: number | string | null;
 	hireDate?: Date | null;
 	sbcDailyOverride?: number | string | null;
 	aguinaldoDaysOverride?: number | string | null;
@@ -146,6 +151,7 @@ export interface CalculatePayrollFromDataArgs {
 	defaultTimeZone: string;
 	payrollSettings?: Partial<MexicoPayrollTaxSettings> & {
 		enableSeventhDayPay?: boolean;
+		enableDualPayroll?: boolean;
 		autoDeductLunchBreak?: boolean;
 		lunchBreakMinutes?: number;
 		lunchBreakThresholdHours?: number;
@@ -177,6 +183,7 @@ export interface PayrollIncapacitySummary {
 
 const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & {
 	enableSeventhDayPay: boolean;
+	enableDualPayroll: boolean;
 	autoDeductLunchBreak: boolean;
 	lunchBreakMinutes: number;
 	lunchBreakThresholdHours: number;
@@ -189,11 +196,63 @@ const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & {
 	aguinaldoDays: 15,
 	vacationPremiumRate: 0.25,
 	enableSeventhDayPay: false,
+	enableDualPayroll: false,
 	autoDeductLunchBreak: false,
 	lunchBreakMinutes: 60,
 	lunchBreakThresholdHours: 6,
 	countSaturdayAsWorkedForSeventhDay: false,
 };
+
+interface ResolvedDualPayrollPay {
+	realDailyPay: number;
+	taxDailyPay: number;
+	fiscalDailyPayUsed: number | null;
+	dailyComplement: number;
+}
+
+/**
+ * Resolves which daily pay should be used for fiscal calculations vs real payment.
+ *
+ * @param args - Dual payroll inputs
+ * @param args.dailyPay - Employee real daily pay
+ * @param args.fiscalDailyPay - Optional fiscal daily pay override
+ * @param args.enableDualPayroll - Whether dual payroll is enabled
+ * @returns Real/fiscal daily pay split and daily complement
+ */
+function resolveDualPayrollPay(args: {
+	dailyPay: number;
+	fiscalDailyPay: number | string | null | undefined;
+	enableDualPayroll: boolean;
+}): ResolvedDualPayrollPay {
+	const realDailyPay = Number(args.dailyPay);
+	const rawFiscalDailyPay =
+		args.fiscalDailyPay === null || args.fiscalDailyPay === undefined
+			? null
+			: Number(args.fiscalDailyPay);
+	const fiscalDailyPayIsUsable =
+		args.enableDualPayroll &&
+		rawFiscalDailyPay !== null &&
+		Number.isFinite(rawFiscalDailyPay) &&
+		rawFiscalDailyPay > 0;
+
+	if (!fiscalDailyPayIsUsable) {
+		return {
+			realDailyPay,
+			taxDailyPay: realDailyPay,
+			fiscalDailyPayUsed: null,
+			dailyComplement: 0,
+		};
+	}
+
+	const fiscalDailyPayUsed = Math.min(realDailyPay, rawFiscalDailyPay);
+
+	return {
+		realDailyPay,
+		taxDailyPay: fiscalDailyPayUsed,
+		fiscalDailyPayUsed,
+		dailyComplement: roundCurrency(Math.max(realDailyPay - fiscalDailyPayUsed, 0)),
+	};
+}
 
 /**
  * Parses an HH:mm or HH:mm:ss string into total minutes.
@@ -1039,8 +1098,15 @@ export function calculatePayrollFromData(
 		}
 
 		const divisor = shiftLimits.divisor || 8;
-		const effectiveDailyPay = Number(emp.dailyPay ?? 0);
-		const hourlyRate = divisor > 0 ? effectiveDailyPay / divisor : 0;
+		const resolvedDualPayrollPay = resolveDualPayrollPay({
+			dailyPay: Number(emp.dailyPay ?? 0),
+			fiscalDailyPay: emp.fiscalDailyPay ?? null,
+			enableDualPayroll: Boolean(resolvedTaxSettings.enableDualPayroll),
+		});
+		const realDailyPay = resolvedDualPayrollPay.realDailyPay;
+		const taxDailyPay = resolvedDualPayrollPay.taxDailyPay;
+		const dualPayrollApplied = resolvedDualPayrollPay.fiscalDailyPayUsed !== null;
+		const hourlyRate = divisor > 0 ? taxDailyPay / divisor : 0;
 
 		const normalPay = roundCurrency(adjustedNormalHours * hourlyRate);
 		const overtimeDoublePay = roundCurrency(
@@ -1051,15 +1117,15 @@ export function calculatePayrollFromData(
 		);
 		const sundayPremiumAmount =
 			sundaysWorkedCount > 0
-				? roundCurrency(sundaysWorkedCount * effectiveDailyPay * SUNDAY_PREMIUM_RATE)
+				? roundCurrency(sundaysWorkedCount * taxDailyPay * SUNDAY_PREMIUM_RATE)
 				: 0;
 		const mandatoryRestDayPremiumAmount =
 			mandatoryRestDaysWorkedCount > 0
-				? roundCurrency(mandatoryRestDaysWorkedCount * effectiveDailyPay * 2)
+				? roundCurrency(mandatoryRestDaysWorkedCount * taxDailyPay * 2)
 				: 0;
 		const vacationDaysPaid = Math.max(0, vacationDayCounts?.[emp.id] ?? 0);
 		const vacationPayAmount =
-			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * effectiveDailyPay) : 0;
+			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * taxDailyPay) : 0;
 		const vacationPremiumAmount =
 			vacationPayAmount > 0
 				? roundCurrency(vacationPayAmount * resolvedTaxSettings.vacationPremiumRate)
@@ -1080,10 +1146,10 @@ export function calculatePayrollFromData(
 			periodEndDateKey,
 			schedule: scheduleMap.get(emp.id) ?? [],
 			workedDayKeys,
-			dailyPay: effectiveDailyPay,
+			dailyPay: taxDailyPay,
 		});
 
-		const totalPay = roundCurrency(
+		const fiscalGrossPay = roundCurrency(
 			normalPay +
 				overtimeDoublePay +
 				overtimeTriplePay +
@@ -1093,17 +1159,24 @@ export function calculatePayrollFromData(
 				vacationPayAmount +
 				vacationPremiumAmount,
 		);
-		const grossPay = totalPay;
+		const complementPay = dualPayrollApplied
+			? roundCurrency(resolvedDualPayrollPay.dailyComplement * workedDayKeys.size)
+			: null;
+		const totalRealPay = dualPayrollApplied
+			? roundCurrency(fiscalGrossPay + (complementPay ?? 0))
+			: fiscalGrossPay;
+		const totalPay = totalRealPay;
+		const grossPay = totalRealPay;
 
 		const zone = (emp.locationGeographicZone ?? 'GENERAL') as keyof typeof MINIMUM_WAGES;
 		const minimumWageDaily = resolveMinimumWageDaily({
 			dateKey: periodEndDateKey,
 			zone,
 		});
-		if (effectiveDailyPay < minimumWageDaily) {
+		if (taxDailyPay < minimumWageDaily) {
 			warnings.push({
 				type: 'BELOW_MINIMUM_WAGE',
-				message: `El salario diario ${effectiveDailyPay.toFixed(
+				message: `El salario diario ${taxDailyPay.toFixed(
 					2,
 				)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
 				severity: 'warning',
@@ -1116,7 +1189,7 @@ export function calculatePayrollFromData(
 				: (emp.aguinaldoDaysOverride ?? resolvedTaxSettings.aguinaldoDays);
 
 		const sbcDaily = getSbcDaily({
-			dailyPay: effectiveDailyPay,
+			dailyPay: taxDailyPay,
 			hireDate: emp.hireDate ?? null,
 			sbcDailyOverride:
 				typeof emp.sbcDailyOverride === 'string'
@@ -1135,8 +1208,8 @@ export function calculatePayrollFromData(
 		});
 
 		const taxBreakdown = calculateMexicoPayrollTaxes({
-			dailyPay: effectiveDailyPay,
-			grossPay,
+			dailyPay: taxDailyPay,
+			grossPay: fiscalGrossPay,
 			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
 			periodStartDateKey,
 			periodEndDateKey,
@@ -1152,18 +1225,21 @@ export function calculatePayrollFromData(
 			},
 			imssExemptDateKeys: incapacityResult.imssExemptDateKeys,
 		});
+		const netPay = roundCurrency(totalRealPay - taxBreakdown.employeeWithholdings.total);
+		const companyCost = roundCurrency(totalRealPay + taxBreakdown.employerCosts.total);
 
 		grossTotalCents += toCents(grossPay);
 		employeeWithholdingsCents += toCents(taxBreakdown.employeeWithholdings.total);
 		employerCostsCents += toCents(taxBreakdown.employerCosts.total);
-		netPayCents += toCents(taxBreakdown.netPay);
-		companyCostCents += toCents(taxBreakdown.companyCost);
+		netPayCents += toCents(netPay);
+		companyCostCents += toCents(companyCost);
 
 		results.push({
 			employeeId: emp.id,
 			name: `${emp.firstName} ${emp.lastName}`,
 			shiftType: shiftKey,
-			dailyPay: effectiveDailyPay,
+			dailyPay: realDailyPay,
+			fiscalDailyPay: resolvedDualPayrollPay.fiscalDailyPayUsed,
 			hourlyPay: hourlyRate,
 			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
 			seventhDayPay,
@@ -1192,13 +1268,16 @@ export function calculatePayrollFromData(
 			lunchBreakAutoDeductedDays,
 			lunchBreakAutoDeductedMinutes,
 			totalPay,
+			fiscalGrossPay: dualPayrollApplied ? fiscalGrossPay : null,
+			complementPay,
+			totalRealPay: dualPayrollApplied ? totalRealPay : null,
 			grossPay,
 			bases: taxBreakdown.bases,
 			employeeWithholdings: taxBreakdown.employeeWithholdings,
 			employerCosts: taxBreakdown.employerCosts,
 			informationalLines: taxBreakdown.informationalLines,
-			netPay: taxBreakdown.netPay,
-			companyCost: taxBreakdown.companyCost,
+			netPay,
+			companyCost,
 			incapacitySummary: {
 				daysIncapacityTotal: incapacityResult.incapacitySummary.daysIncapacityTotal,
 				expectedImssSubsidyAmount: incapacityResult.imssSubsidy.expectedSubsidyAmount,

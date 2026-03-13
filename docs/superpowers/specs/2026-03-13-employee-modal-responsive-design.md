@@ -62,9 +62,10 @@ Se elimina el dropdown "Más" en mobile. Todos los tabs se muestran en una líne
 [Info] [Resumen] [Asistencia] [Vacaciones] [Documentos] [Nómina] [PTU] [Finiquito] [Excepciones] [Auditoría] [Disciplinario]
 ```
 
-- `overflow-x: auto` con `-webkit-overflow-scrolling: touch`
+- `overflow-x: auto` en el `TabsList`
 - El tab activo se auto-centra con `scrollIntoView({ behavior: 'smooth', inline: 'center' })`
 - En desktop: se mantiene el patrón actual (4 tabs + dropdown "Más")
+- **Nota:** El tab "Disciplinario" es condicional (solo visible si `canUseDisciplinaryModule` es true). La lista de tabs es dinámica y el scroll horizontal debe funcionar con un número variable de tabs.
 
 ### Estructura flex del dialog
 
@@ -75,7 +76,12 @@ DialogContent (fullscreen mobile)
 └── TabsContent (flex-1, min-h-0, overflow-y-auto) ← FIX CLAVE
 ```
 
-El fix del overflow se logra haciendo que `TabsContent` (o su contenedor padre) tenga `flex-1 min-h-0 overflow-y-auto`. Esto permite scroll interno sin que el `DialogContent` necesite cambiar su `overflow-hidden`.
+**Overflow fix:** El `overflow-hidden` en el `DialogContent` de `employees-client.tsx` (línea 3308) se **mantiene**. El scroll se logra aplicando `overflow-y-auto` en los contenedores internos:
+- En vista de detalles: el wrapper de `TabsContent` recibe `flex-1 min-h-0 overflow-y-auto`
+- En wizard: el area de form content recibe `flex-1 min-h-0 overflow-y-auto`
+- No se modifica el componente base `dialog.tsx` de shadcn
+
+**Migración de breakpoints:** Los prefijos `sm:` existentes en el `DialogContent` (ej. `sm:h-[calc(100vh-4rem)]`, `sm:max-w-5xl`, `sm:rounded-lg`) deben migrarse a `min-[1025px]:` para alinearse con la convención del proyecto. El breakpoint `sm` de Tailwind es 640px, lo cual crea una zona gris entre 640px-1024px donde `useIsMobile` devuelve true pero los estilos `sm:` ya aplican.
 
 ---
 
@@ -96,6 +102,7 @@ DialogContent (fullscreen mobile)
 **Paso 1 — Personal:**
 - Nombre (text)
 - Apellido (text)
+- Código (text, disabled en edición. En creación: se auto-genera a partir de Nombre+Apellido. Campo visible pero read-only, se actualiza reactivamente al cambiar nombre/apellido)
 - NSS (text, opcional)
 - RFC (text, opcional)
 - Correo electrónico (email, opcional)
@@ -103,7 +110,6 @@ DialogContent (fullscreen mobile)
 - Departamento (text, opcional)
 
 **Paso 2 — Laboral:**
-- Código (text, disabled en edición, auto-gen en creación)
 - Ubicación (combobox)
 - Puesto (combobox)
 - Estatus (combobox)
@@ -135,13 +141,29 @@ DialogContent (fullscreen mobile)
 - **Navegación:** Botones Anterior/Siguiente fijos en footer sticky. Paso 1 no muestra "Anterior". Paso 5 muestra "Guardar" en lugar de "Siguiente".
 - **Dot stepper:** Dots filled (●) para pasos visitados, dot con anillo (◉) para paso actual, dots vacíos (○) para pasos no visitados.
 - **Navegación libre:** El usuario puede navegar hacia adelante o atrás libremente sin validación por paso.
-- **Validación:** Al hacer "Guardar" en paso 5, se ejecuta la validación de todos los campos. Si hay errores, se muestra un toast con el paso que tiene el error y el stepper dot se marca en rojo.
+- **Validación:** Al hacer "Guardar" en paso 5, se ejecuta la validación de todos los campos. Si hay errores:
+  - Todos los pasos con errores se marcan con dots rojos en el stepper.
+  - Se muestra un toast indicando "Hay errores en los pasos X, Y" y se auto-navega al primer paso con errores.
+  - Después de corregir, el usuario debe volver al paso 5 y presionar "Guardar" de nuevo (no hay re-validación automática).
 - **Cierre con cambios:** Si hay campos modificados (comparados con el estado original), al intentar cerrar (X, escape, click overlay) se muestra `AlertDialog`:
   - Título: "¿Descartar cambios?"
   - Descripción: "Los cambios sin guardar se perderán."
   - Botones: "Cancelar" (vuelve al wizard) / "Descartar" (cierra el dialog)
 - **Crear vs Editar:** Mismo componente wizard. Título cambia ("Agregar empleado" vs "Editar empleado"). En crear, Código se auto-genera y no es editable.
 - **Solo mobile:** En desktop (>1024px), se usa el formulario actual con grid de 2 columnas. El wizard no aparece.
+
+### Gestión de estado del formulario
+
+El wizard **reutiliza la instancia existente de TanStack Form**. Los 5 pasos renderizan campos de la misma instancia de form. El componente wizard recibe la instancia como prop.
+
+Las entradas de horario (Paso 5) continúan usando su patrón de estado separado existente (`schedule`, `upsertScheduleEntry`) ya que no están integradas en TanStack Form actualmente.
+
+### Accesibilidad del wizard
+
+- El stepper usa `role="navigation"` con `aria-label="Progreso del formulario"`
+- Cada dot anuncia su label de paso y estado de completitud via `aria-label`
+- Paso actual marcado con `aria-current="step"`
+- Navegación por teclado estándar: Tab entre elementos interactivos, Enter/Space para activar
 
 ### Transición Vista → Edición
 
@@ -226,6 +248,8 @@ Principio: todas las tablas internas se convierten a cards stacked en mobile usa
 **Nuevos:**
 - `apps/web/components/employees/employee-wizard-mobile.tsx` — Componente wizard de 5 pasos
 - `apps/web/components/employees/employee-info-tab.tsx` — Contenido del tab Info
+- `apps/web/components/employees/employee-detail-dialog.tsx` — Dialog extraído de employees-client.tsx (reduce el archivo de 6000+ líneas)
+- `apps/web/e2e/responsiveness/employee-modal.spec.ts` — Tests E2E responsive del modal
 
 ## Fuera de alcance
 

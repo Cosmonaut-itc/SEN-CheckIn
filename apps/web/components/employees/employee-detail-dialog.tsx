@@ -10,6 +10,7 @@ import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
 import { Calendar as CalendarIcon, HelpCircle, Loader2, Pencil, Plus, X } from 'lucide-react';
 
 import { EmployeeInfoTab } from '@/components/employees/employee-info-tab';
+import { EmployeeCodeField } from '@/components/employees/employee-code-field';
 import {
 	EmployeeMobileFormWizard,
 	type EmployeeMobileWizardStep,
@@ -3226,6 +3227,8 @@ export function EmployeeDetailDialog({
 							discardDescription={t('wizard.discard.description')}
 							progressLabel={t.raw('wizard.progress') as string}
 							progressNavigationLabel={t('wizard.navigation')}
+							stepAriaLabel={t.raw('wizard.stepAriaLabel') as string}
+							stepErrorSuffix={t('wizard.stepErrorSuffix')}
 							dirty={isMobileWizardDirty}
 							errorStepIndexes={mobileWizardErrorSteps}
 							showDiscardFromOutside={showMobileDiscardFromOutside}
@@ -3259,13 +3262,11 @@ export function EmployeeDetailDialog({
 											}}
 										>
 											{(field: any) => (
-												<field.TextField
+												<EmployeeCodeField
+													field={field}
 													label={t('fields.code')}
-													onValueChange={(next: string) => {
-														setHasCustomCode(true);
-														return next;
-													}}
-													disabled={isEditMode}
+													isEditMode={isEditMode}
+													setHasCustomCode={setHasCustomCode}
 												/>
 											)}
 										</form.AppField>

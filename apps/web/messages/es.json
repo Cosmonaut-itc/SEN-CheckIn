@@ -312,6 +312,8 @@
 		"wizard": {
 			"navigation": "Progreso del formulario",
 			"progress": "Paso {current} de {total}: {step}",
+			"stepAriaLabel": "Paso {current}: {step}",
+			"stepErrorSuffix": "con errores",
 			"steps": {
 				"personal": "Personal",
 				"laboral": "Laboral",

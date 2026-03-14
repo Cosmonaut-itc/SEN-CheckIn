@@ -52,7 +52,11 @@ export interface EmployeeMobileFormWizardProps {
 	/** Progress label template using {current}, {total}, and {step}. */
 	progressLabel: string;
 	/** Navigation label for the stepper. */
-	progressNavigationLabel?: string;
+	progressNavigationLabel: string;
+	/** Step button aria-label template using {current}, {total}, and {step}. */
+	stepAriaLabel: string;
+	/** Suffix appended to aria labels when a step has validation errors. */
+	stepErrorSuffix: string;
 	/** Whether the wizard currently has unsaved changes. */
 	dirty: boolean;
 	/** Step indexes with validation errors. */
@@ -127,6 +131,29 @@ function formatProgressLabel(
 }
 
 /**
+ * Formats the aria-label applied to a step button.
+ *
+ * @param template - Base aria-label template
+ * @param current - Current one-based step index
+ * @param total - Total step count
+ * @param step - Current step title
+ * @param hasErrors - Whether the step currently has validation errors
+ * @param errorSuffix - Localized error suffix
+ * @returns Formatted step aria-label
+ */
+function formatStepAriaLabel(
+	template: string,
+	current: number,
+	total: number,
+	step: string,
+	hasErrors: boolean,
+	errorSuffix: string,
+): string {
+	const baseLabel = formatProgressLabel(template, current, total, step);
+	return hasErrors ? `${baseLabel} ${errorSuffix}` : baseLabel;
+}
+
+/**
  * Renders the mobile wizard used for create/edit employee flows.
  *
  * @param props - Component props
@@ -143,7 +170,9 @@ export function EmployeeMobileFormWizard({
 	discardTitle,
 	discardDescription,
 	progressLabel,
-	progressNavigationLabel = 'Progreso del formulario',
+	progressNavigationLabel,
+	stepAriaLabel,
+	stepErrorSuffix,
 	dirty,
 	errorStepIndexes,
 	showDiscardFromOutside = false,
@@ -261,9 +290,14 @@ export function EmployeeMobileFormWizard({
 					<div className="flex items-center gap-2 overflow-x-auto">
 						{steps.map((step, index) => {
 							const isCurrentStep = index === currentStepIndex;
-							const stepLabel = `Paso ${index + 1}: ${step.title}${
-								errorStepSet.has(index) ? ' con errores' : ''
-							}`;
+							const stepLabel = formatStepAriaLabel(
+								stepAriaLabel,
+								index + 1,
+								totalSteps,
+								step.title,
+								errorStepSet.has(index),
+								stepErrorSuffix,
+							);
 							return (
 								<Button
 									key={step.id}

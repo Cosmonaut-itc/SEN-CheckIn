@@ -35,6 +35,9 @@ function buildWizardProps(
 		discardTitle: '¿Descartar cambios?',
 		discardDescription: 'Los cambios sin guardar se perderán.',
 		progressLabel: 'Paso {current} de {total}: {step}',
+		progressNavigationLabel: 'Progreso del formulario',
+		stepAriaLabel: 'Paso {current}: {step}',
+		stepErrorSuffix: 'con errores',
 		dirty: false,
 		errorStepIndexes: [],
 		onClose: () => undefined,
@@ -79,6 +82,19 @@ describe('EmployeeMobileFormWizard', () => {
 			'w-11',
 		);
 		expect(screen.getByRole('button', { name: 'Paso 2: Laboral' })).toHaveClass('h-11', 'w-11');
+	});
+
+	it('uses the provided localized step aria labels and error suffix', () => {
+		renderWizard({
+			errorStepIndexes: [1],
+			stepAriaLabel: 'Step {current}: {step}',
+			stepErrorSuffix: 'has errors',
+		});
+
+		expect(screen.getByRole('button', { name: 'Step 1: Personal' })).toBeInTheDocument();
+		expect(
+			screen.getByRole('button', { name: 'Step 2: Laboral has errors' }),
+		).toBeInTheDocument();
 	});
 
 	it('confirms before closing when the wizard has unsaved changes', () => {

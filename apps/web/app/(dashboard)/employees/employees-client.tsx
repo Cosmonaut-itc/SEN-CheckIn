@@ -9,6 +9,7 @@ import {
 } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
 import { EmployeeDetailDialog } from '@/components/employees/employee-detail-dialog';
+import { EmployeeCodeField } from '@/components/employees/employee-code-field';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -3286,10 +3287,12 @@ export function EmployeesPageClient(): React.ReactElement {
 							}}
 						>
 							{(field) => (
-								<field.TextField
+								<EmployeeCodeField
+									field={field}
 									label={t('fields.code')}
+									isEditMode={isEditMode}
+									setHasCustomCode={setHasCustomCode}
 									orientation="vertical"
-									disabled
 								/>
 							)}
 						</form.AppField>
@@ -3843,6 +3846,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			form,
 			handlePtuHistorySave,
 			isCreateMode,
+			isEditMode,
 			isLoadingJobPositions,
 			isLoadingLocations,
 			isLoadingMembers,

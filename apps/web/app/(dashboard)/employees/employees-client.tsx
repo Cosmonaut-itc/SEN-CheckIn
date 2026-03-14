@@ -1126,6 +1126,8 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [mobileWizardErrorSteps, setMobileWizardErrorSteps] = useState<number[]>([]);
 	const [mobileWizardStepIndex, setMobileWizardStepIndex] = useState<number>(0);
 	const [mobileWizardBaseline, setMobileWizardBaseline] = useState<string | null>(null);
+	const [showMobileDiscardFromOutside, setShowMobileDiscardFromOutside] =
+		useState<boolean>(false);
 	const [generatedCodeSeed, setGeneratedCodeSeed] = useState<string>('0000');
 	const tabScrollByIdRef = useRef<Partial<Record<EmployeeDialogTab, number>>>({});
 	const tabContainerByIdRef = useRef<Partial<Record<EmployeeDialogTab, HTMLDivElement | null>>>(
@@ -2687,6 +2689,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const handleCreateNew = useCallback((): void => {
 		resetTerminationState();
+		setShowMobileDiscardFromOutside(false);
 		const nextGeneratedCodeSeed = Math.floor(1000 + Math.random() * 9000).toString();
 		const nextSchedule = createDefaultSchedule();
 		const nextFormValues: EmployeeFormValues = {
@@ -2725,6 +2728,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const openEmployeeDetailTab = useCallback(
 		(employee: Employee, tab: EmployeeDetailTab): void => {
 			resetTerminationState();
+			setShowMobileDiscardFromOutside(false);
 			setActiveEmployee(employee);
 			setDialogMode('view');
 			const initialTab = resolveInitialDetailTab(tab, isMobile);
@@ -2822,6 +2826,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const handleEdit = useCallback(
 		async (employee: Employee): Promise<void> => {
 			resetTerminationState();
+			setShowMobileDiscardFromOutside(false);
 			setIsScheduleLoading(true);
 			setActiveEmployee(employee);
 			setDialogMode('edit');
@@ -2925,6 +2930,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			form,
 			isMobile,
 			resetTerminationState,
+			setShowMobileDiscardFromOutside,
 			setPtuHistoryAmountInput,
 			setPtuHistoryYearInput,
 		],
@@ -2966,31 +2972,48 @@ export function EmployeesPageClient(): React.ReactElement {
 	}, [form, t]);
 
 	/**
+	 * Closes the employee dialog and resets related local state.
+	 *
+	 * @returns Nothing
+	 */
+	const closeEmployeeDialog = useCallback((): void => {
+		setShowMobileDiscardFromOutside(false);
+		setIsDialogOpen(false);
+		setMobileWizardBaseline(null);
+		setDialogMode('create');
+		setActiveEmployee(null);
+		const initialTab = resolveInitialDetailTab('summary', isMobile);
+		setDetailTab(initialTab);
+		setVisitedDetailTabs({ [initialTab]: true });
+		tabScrollByIdRef.current = {};
+		tabContainerByIdRef.current = {};
+		form.reset();
+		setHasCustomCode(false);
+		setSchedule(createDefaultSchedule());
+		setMobileWizardErrorSteps([]);
+		setMobileWizardStepIndex(0);
+		resetTerminationState();
+	}, [form, isMobile, resetTerminationState]);
+
+	/**
 	 * Handles dialog close and resets form state.
 	 *
 	 * @param open - Whether the dialog should be open
 	 */
 	const handleDialogOpenChange = useCallback(
 		(open: boolean): void => {
+			if (!open && isMobile && !isViewMode && isMobileWizardDirty) {
+				setShowMobileDiscardFromOutside(true);
+				return;
+			}
+
 			setIsDialogOpen(open);
+			setShowMobileDiscardFromOutside(false);
 			if (!open) {
-				setMobileWizardBaseline(null);
-				setDialogMode('create');
-				setActiveEmployee(null);
-				const initialTab = resolveInitialDetailTab('summary', isMobile);
-				setDetailTab(initialTab);
-				setVisitedDetailTabs({ [initialTab]: true });
-				tabScrollByIdRef.current = {};
-				tabContainerByIdRef.current = {};
-				form.reset();
-				setHasCustomCode(false);
-				setSchedule(createDefaultSchedule());
-				setMobileWizardErrorSteps([]);
-				setMobileWizardStepIndex(0);
-				resetTerminationState();
+				closeEmployeeDialog();
 			}
 		},
-		[form, isMobile, resetTerminationState],
+		[closeEmployeeDialog, isMobile, isMobileWizardDirty, isViewMode],
 	);
 
 	useEffect(() => {
@@ -4548,9 +4571,9 @@ export function EmployeesPageClient(): React.ReactElement {
 												onScroll={handleTabScroll('summary')}
 												className="h-full overflow-y-auto pt-4"
 											>
-										<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+										<div className="grid grid-cols-2 gap-3 min-[1025px]:gap-4 min-[1025px]:grid-cols-2 min-[1280px]:grid-cols-3">
 											<Card>
-												<CardHeader className="flex-row items-center justify-between space-y-0">
+												<CardHeader className="flex-row items-center justify-between space-y-0 px-3 pt-3 pb-0 min-[1025px]:px-6 min-[1025px]:pt-6">
 													<CardTitle className="text-sm font-medium">
 														{vacationBalance ? (
 															<TooltipProvider>
@@ -4652,7 +4675,7 @@ export function EmployeesPageClient(): React.ReactElement {
 														)}
 													</CardTitle>
 												</CardHeader>
-												<CardContent>
+												<CardContent className="px-3 pb-3 min-[1025px]:px-6 min-[1025px]:pb-6">
 													{isLoadingInsights ? (
 														<Skeleton className="h-7 w-20" />
 													) : vacationBalance ? (
@@ -4674,12 +4697,12 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 											<Card>
-												<CardHeader>
+												<CardHeader className="px-3 pt-3 pb-0 min-[1025px]:px-6 min-[1025px]:pt-6">
 													<CardTitle className="text-sm font-medium">
 														{t('summary.absences')}
 													</CardTitle>
 												</CardHeader>
-												<CardContent>
+												<CardContent className="px-3 pb-3 min-[1025px]:px-6 min-[1025px]:pb-6">
 													{isLoadingInsights ? (
 														<Skeleton className="h-7 w-20" />
 													) : attendanceSummary ? (
@@ -4697,12 +4720,12 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 											<Card>
-												<CardHeader>
+												<CardHeader className="px-3 pt-3 pb-0 min-[1025px]:px-6 min-[1025px]:pt-6">
 													<CardTitle className="text-sm font-medium">
 														{t('summary.leaves')}
 													</CardTitle>
 												</CardHeader>
-												<CardContent>
+												<CardContent className="px-3 pb-3 min-[1025px]:px-6 min-[1025px]:pb-6">
 													{isLoadingInsights ? (
 														<Skeleton className="h-7 w-20" />
 													) : (
@@ -4716,12 +4739,12 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 											<Card>
-												<CardHeader>
+												<CardHeader className="px-3 pt-3 pb-0 min-[1025px]:px-6 min-[1025px]:pt-6">
 													<CardTitle className="text-sm font-medium">
 														{t('summary.payrollRuns')}
 													</CardTitle>
 												</CardHeader>
-												<CardContent>
+												<CardContent className="px-3 pb-3 min-[1025px]:px-6 min-[1025px]:pb-6">
 													{isLoadingInsights ? (
 														<Skeleton className="h-7 w-20" />
 													) : (
@@ -4735,12 +4758,12 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 											<Card>
-												<CardHeader>
+												<CardHeader className="px-3 pt-3 pb-0 min-[1025px]:px-6 min-[1025px]:pt-6">
 													<CardTitle className="text-sm font-medium">
 														{t('summary.upcomingExceptions')}
 													</CardTitle>
 												</CardHeader>
-												<CardContent>
+												<CardContent className="px-3 pb-3 min-[1025px]:px-6 min-[1025px]:pb-6">
 													{isLoadingInsights ? (
 														<Skeleton className="h-7 w-20" />
 													) : (
@@ -4779,7 +4802,7 @@ export function EmployeesPageClient(): React.ReactElement {
 														</p>
 													</div>
 													{attendanceDrilldownHref ? (
-														<Button variant="outline" asChild>
+														<Button variant="outline" className="min-h-11" asChild>
 															<Link href={attendanceDrilldownHref}>
 																{t('attendance.viewInAttendance')}
 															</Link>
@@ -4800,7 +4823,7 @@ export function EmployeesPageClient(): React.ReactElement {
 													</Card>
 												) : (
 													<div className="space-y-4">
-														<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+														<div className="grid grid-cols-2 gap-3 min-[1025px]:grid-cols-2 min-[1280px]:grid-cols-4">
 															<Card>
 																<CardHeader className="pb-2">
 																	<CardTitle className="text-sm font-medium">
@@ -4901,7 +4924,7 @@ export function EmployeesPageClient(): React.ReactElement {
 															</CardContent>
 														</Card>
 
-														<div className="grid gap-4 lg:grid-cols-2">
+														<div className="grid gap-4 min-[1025px]:grid-cols-2">
 															<Card>
 																<CardHeader className="min-h-16 pb-3">
 																	<CardTitle className="text-sm font-medium">
@@ -5055,7 +5078,7 @@ export function EmployeesPageClient(): React.ReactElement {
 															<Skeleton className="h-4 w-24" />
 														</div>
 													) : vacationBalance ? (
-														<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+														<div className="grid grid-cols-2 gap-3 min-[1025px]:grid-cols-5">
 															<div className="space-y-1">
 																<p className="text-xs text-muted-foreground">
 																	{t(
@@ -5111,8 +5134,8 @@ export function EmployeesPageClient(): React.ReactElement {
 												</CardContent>
 											</Card>
 
-											<div className="rounded-md border">
-												<Table>
+												<div className="rounded-md border">
+													<Table className="min-w-[30rem]">
 													<TableHeader>
 														<TableRow>
 															<TableHead>
@@ -5209,7 +5232,7 @@ export function EmployeesPageClient(): React.ReactElement {
 												className="h-full overflow-y-auto pt-4"
 											>
 										<div className="rounded-md border">
-											<Table>
+											<Table className="min-w-[30rem]">
 												<TableHeader>
 													<TableRow>
 														<TableHead>
@@ -5289,7 +5312,7 @@ export function EmployeesPageClient(): React.ReactElement {
 												onScroll={handleTabScroll('ptu')}
 												className="h-full overflow-y-auto pt-4"
 											>
-										<div className="grid gap-4 md:grid-cols-2">
+										<div className="grid gap-4">
 											<Card>
 												<CardHeader>
 													<CardTitle className="text-sm font-medium">
@@ -5394,53 +5417,67 @@ export function EmployeesPageClient(): React.ReactElement {
 													</CardDescription>
 												</CardHeader>
 												<CardContent>
-													<div className="rounded-md border">
-														<Table>
-															<TableHeader>
-																<TableRow>
-																	<TableHead>
-																		{t('ptuHistory.table.year')}
-																	</TableHead>
-																	<TableHead className="text-right">
-																		{t('ptuHistory.table.amount')}
-																	</TableHead>
-																</TableRow>
-															</TableHeader>
-															<TableBody>
-																{ptuHistoryError ? (
+													{ptuHistoryError ? (
+														<div className="flex items-center justify-between gap-3 py-2">
+															<p className="text-sm text-muted-foreground">
+																{t('ptuHistory.partialError')}
+															</p>
+															<Button
+																variant="outline"
+																size="sm"
+																className="min-h-11"
+																onClick={() => void refetchPtuHistory()}
+															>
+																{tCommon('retry')}
+															</Button>
+														</div>
+													) : isLoadingPtuHistory ? (
+														<Skeleton className="h-4 w-full" />
+													) : ptuHistory.length === 0 ? (
+														<div className="py-6 text-center text-sm text-muted-foreground">
+															{t('ptuHistory.table.empty')}
+														</div>
+													) : isMobile ? (
+														<div className="space-y-3">
+															{ptuHistory.map((entry) => (
+																<div
+																	key={entry.id}
+																	className="rounded-lg border p-3"
+																>
+																	<div className="flex items-center justify-between gap-3">
+																		<span className="text-xs text-muted-foreground">
+																			{t('ptuHistory.table.year')}
+																		</span>
+																		<span className="font-medium">
+																			{entry.fiscalYear}
+																		</span>
+																	</div>
+																	<div className="mt-2 flex items-center justify-between gap-3">
+																		<span className="text-xs text-muted-foreground">
+																			{t('ptuHistory.table.amount')}
+																		</span>
+																		<span className="font-medium tabular-nums">
+																			{formatCurrency(entry.amount)}
+																		</span>
+																	</div>
+																</div>
+															))}
+														</div>
+													) : (
+														<div className="rounded-md border">
+															<Table>
+																<TableHeader>
 																	<TableRow>
-																		<TableCell colSpan={2}>
-																			<div className="flex items-center justify-between gap-3 py-2">
-																				<p className="text-sm text-muted-foreground">
-																					{t('ptuHistory.partialError')}
-																				</p>
-																				<Button
-																					variant="outline"
-																					size="sm"
-																					onClick={() => void refetchPtuHistory()}
-																				>
-																					{tCommon('retry')}
-																				</Button>
-																			</div>
-																		</TableCell>
+																		<TableHead>
+																			{t('ptuHistory.table.year')}
+																		</TableHead>
+																		<TableHead className="text-right">
+																			{t('ptuHistory.table.amount')}
+																		</TableHead>
 																	</TableRow>
-																) : isLoadingPtuHistory ? (
-																	<TableRow>
-																		<TableCell colSpan={2}>
-																			<Skeleton className="h-4 w-full" />
-																		</TableCell>
-																	</TableRow>
-																) : ptuHistory.length === 0 ? (
-																	<TableRow>
-																		<TableCell
-																			colSpan={2}
-																			className="h-20 text-center"
-																		>
-																			{t('ptuHistory.table.empty')}
-																		</TableCell>
-																	</TableRow>
-																) : (
-																	ptuHistory.map((entry) => (
+																</TableHeader>
+																<TableBody>
+																	{ptuHistory.map((entry) => (
 																		<TableRow key={entry.id}>
 																			<TableCell>
 																				{entry.fiscalYear}
@@ -5449,11 +5486,11 @@ export function EmployeesPageClient(): React.ReactElement {
 																				{formatCurrency(entry.amount)}
 																			</TableCell>
 																		</TableRow>
-																	))
-																)}
-															</TableBody>
-														</Table>
-													</div>
+																	))}
+																</TableBody>
+															</Table>
+														</div>
+													)}
 												</CardContent>
 											</Card>
 										</div>
@@ -5472,7 +5509,7 @@ export function EmployeesPageClient(): React.ReactElement {
 												onScroll={handleTabScroll('finiquito')}
 												className="h-full overflow-y-auto pt-4"
 											>
-										<div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+										<div className="grid gap-4 min-[1025px]:grid-cols-[1.2fr_1fr]">
 											<Card>
 												<CardHeader>
 													<CardTitle className="text-sm font-medium">
@@ -5483,7 +5520,7 @@ export function EmployeesPageClient(): React.ReactElement {
 													</p>
 												</CardHeader>
 												<CardContent>
-													<div className="grid gap-4 sm:grid-cols-2">
+													<div className="grid gap-4 min-[1025px]:grid-cols-2">
 														<TerminationDateField
 															label={t(
 																'finiquito.fields.terminationDate',
@@ -5694,7 +5731,7 @@ export function EmployeesPageClient(): React.ReactElement {
 																)}
 															</p>
 														</div>
-														<div className="space-y-2 sm:col-span-2">
+														<div className="space-y-2 min-[1025px]:col-span-2">
 															<Label>
 																{t(
 																	'finiquito.fields.terminationNotes',
@@ -5729,7 +5766,7 @@ export function EmployeesPageClient(): React.ReactElement {
 																})}
 															</span>
 														</div>
-														<div className="flex flex-wrap gap-2">
+														<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:flex-wrap">
 															<Button
 																onClick={handleTerminationPreview}
 																disabled={
@@ -6023,70 +6060,123 @@ export function EmployeesPageClient(): React.ReactElement {
 												onScroll={handleTabScroll('exceptions')}
 												className="h-full overflow-y-auto pt-4"
 											>
-										<div className="rounded-md border">
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>
-															{t('exceptions.table.headers.date')}
-														</TableHead>
-														<TableHead>
-															{t('exceptions.table.headers.type')}
-														</TableHead>
-														<TableHead>
-															{t('exceptions.table.headers.reason')}
-														</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{isLoadingInsights ? (
-														Array.from({ length: 3 }).map(
-															(_, index) => (
-																<TableRow key={index}>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-20" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-28" />
-																	</TableCell>
-																</TableRow>
-															),
-														)
-													) : upcomingExceptions.length === 0 ? (
-														<TableRow>
-															<TableCell
-																colSpan={3}
-																className="h-20 text-center"
+										{isMobile ? (
+											<div className="space-y-3">
+												{isLoadingInsights
+													? Array.from({ length: 3 }).map((_, index) => (
+															<div
+																key={index}
+																className="rounded-lg border p-3"
 															>
+																<Skeleton className="h-4 w-24" />
+																<Skeleton className="mt-2 h-4 w-20" />
+																<Skeleton className="mt-2 h-4 w-28" />
+															</div>
+														))
+													: upcomingExceptions.length === 0
+														? (
+															<div className="rounded-lg border p-4 text-sm text-muted-foreground">
 																{t('exceptions.table.empty')}
-															</TableCell>
+															</div>
+														)
+														: upcomingExceptions.map((item) => (
+															<div key={item.id} className="rounded-lg border p-3">
+																<div className="flex items-center justify-between gap-3">
+																	<span className="text-xs text-muted-foreground">
+																		{t('exceptions.table.headers.date')}
+																	</span>
+																	<span className="font-medium">
+																		{formatShortDateUtc(
+																			toUtcDate(item.dateKey),
+																		)}
+																	</span>
+																</div>
+																<div className="mt-2 flex items-center justify-between gap-3">
+																	<span className="text-xs text-muted-foreground">
+																		{t('exceptions.table.headers.type')}
+																	</span>
+																	<span className="text-right font-medium">
+																		{t(
+																			`exceptionTypes.${item.exceptionType}`,
+																		)}
+																	</span>
+																</div>
+																<div className="mt-2">
+																	<p className="text-xs text-muted-foreground">
+																		{t('exceptions.table.headers.reason')}
+																	</p>
+																	<p className="mt-1 text-sm font-medium">
+																		{item.reason ?? tCommon('notAvailable')}
+																	</p>
+																</div>
+															</div>
+														))}
+											</div>
+										) : (
+											<div className="rounded-md border">
+												<Table className="min-w-[30rem]">
+													<TableHeader>
+														<TableRow>
+															<TableHead>
+																{t('exceptions.table.headers.date')}
+															</TableHead>
+															<TableHead>
+																{t('exceptions.table.headers.type')}
+															</TableHead>
+															<TableHead>
+																{t('exceptions.table.headers.reason')}
+															</TableHead>
 														</TableRow>
-													) : (
-														upcomingExceptions.map((item) => (
-															<TableRow key={item.id}>
-																<TableCell>
-																	{formatShortDateUtc(
-																		toUtcDate(item.dateKey),
-																	)}
-																</TableCell>
-																<TableCell>
-																	{t(
-																		`exceptionTypes.${item.exceptionType}`,
-																	)}
-																</TableCell>
-																<TableCell>
-																	{item.reason ??
-																		tCommon('notAvailable')}
+													</TableHeader>
+													<TableBody>
+														{isLoadingInsights ? (
+															Array.from({ length: 3 }).map(
+																(_, index) => (
+																	<TableRow key={index}>
+																		<TableCell>
+																			<Skeleton className="h-4 w-24" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-20" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-28" />
+																		</TableCell>
+																	</TableRow>
+																),
+															)
+														) : upcomingExceptions.length === 0 ? (
+															<TableRow>
+																<TableCell
+																	colSpan={3}
+																	className="h-20 text-center"
+																>
+																	{t('exceptions.table.empty')}
 																</TableCell>
 															</TableRow>
-														))
-													)}
-												</TableBody>
-											</Table>
-										</div>
+														) : (
+															upcomingExceptions.map((item) => (
+																<TableRow key={item.id}>
+																	<TableCell>
+																		{formatShortDateUtc(
+																			toUtcDate(item.dateKey),
+																		)}
+																	</TableCell>
+																	<TableCell>
+																		{t(
+																			`exceptionTypes.${item.exceptionType}`,
+																		)}
+																	</TableCell>
+																	<TableCell>
+																		{item.reason ?? tCommon('notAvailable')}
+																	</TableCell>
+																</TableRow>
+															))
+														)}
+													</TableBody>
+												</Table>
+											</div>
+										)}
 											</div>
 										) : null}
 									</TabsContent>
@@ -6102,72 +6192,43 @@ export function EmployeesPageClient(): React.ReactElement {
 												onScroll={handleTabScroll('audit')}
 												className="h-full overflow-y-auto pt-4"
 											>
-										<div className="rounded-md border">
-											<Table>
-												<TableHeader>
-													<TableRow>
-														<TableHead>
-															{t('audit.table.headers.date')}
-														</TableHead>
-														<TableHead>
-															{t('audit.table.headers.action')}
-														</TableHead>
-														<TableHead>
-															{t('audit.table.headers.actor')}
-														</TableHead>
-														<TableHead>
-															{t('audit.table.headers.fields')}
-														</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{auditError ? (
-														<TableRow>
-															<TableCell colSpan={4}>
-																<div className="flex items-center justify-between gap-3 py-2">
-																	<p className="text-sm text-muted-foreground">
-																		{t('audit.partialError')}
-																	</p>
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		onClick={() => void refetchAudit()}
-																	>
-																		{tCommon('retry')}
-																	</Button>
-																</div>
-															</TableCell>
-														</TableRow>
-													) : isLoadingAudit ? (
-														Array.from({ length: 3 }).map(
-															(_, index) => (
-																<TableRow key={index}>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-24" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-28" />
-																	</TableCell>
-																	<TableCell>
-																		<Skeleton className="h-4 w-32" />
-																	</TableCell>
-																</TableRow>
-															),
-														)
-													) : auditEvents.length === 0 ? (
-														<TableRow>
-															<TableCell
-																colSpan={4}
-																className="h-20 text-center"
+										{auditError ? (
+											<div className="rounded-md border p-3">
+												<div className="flex items-center justify-between gap-3 py-2">
+													<p className="text-sm text-muted-foreground">
+														{t('audit.partialError')}
+													</p>
+													<Button
+														variant="outline"
+														size="sm"
+														className="min-h-11"
+														onClick={() => void refetchAudit()}
+													>
+														{tCommon('retry')}
+													</Button>
+												</div>
+											</div>
+										) : isMobile ? (
+											<div className="space-y-3">
+												{isLoadingAudit
+													? Array.from({ length: 3 }).map((_, index) => (
+															<div
+																key={index}
+																className="rounded-lg border p-3"
 															>
+																<Skeleton className="h-4 w-24" />
+																<Skeleton className="mt-2 h-4 w-24" />
+																<Skeleton className="mt-2 h-4 w-32" />
+																<Skeleton className="mt-2 h-4 w-full" />
+															</div>
+														))
+													: auditEvents.length === 0
+														? (
+															<div className="rounded-lg border p-4 text-sm text-muted-foreground">
 																{t('audit.table.empty')}
-															</TableCell>
-														</TableRow>
-													) : (
-														auditEvents.map((event) => {
+															</div>
+														)
+														: auditEvents.map((event) => {
 															const actorLabel =
 																event.actorName ??
 																event.actorEmail ??
@@ -6181,49 +6242,155 @@ export function EmployeesPageClient(): React.ReactElement {
 																	? event.changedFields
 																			.map(
 																				(field) =>
-																					auditFieldLabels[
-																						field
-																					] ??
-																					t(
-																						'audit.fields.unknown',
-																						{
-																							field,
-																						},
-																					),
+																					auditFieldLabels[field] ??
+																					t('audit.fields.unknown', {
+																						field,
+																					}),
 																			)
 																			.join(', ')
 																	: t('audit.fields.none');
 
 															return (
-																<TableRow key={event.id}>
-																	<TableCell>
-																		{format(
-																			new Date(
-																				event.createdAt,
-																			),
-																			t('dateFormat'),
-																		)}
-																	</TableCell>
-																	<TableCell>
-																		{t(
-																			`audit.actions.${event.action}`,
-																		)}
-																	</TableCell>
-																	<TableCell>
-																		{actorLabel
-																			? `${actorTypeLabel} - ${actorLabel}`
-																			: actorTypeLabel}
-																	</TableCell>
-																	<TableCell>
-																		{fieldsLabel}
-																	</TableCell>
-																</TableRow>
+																<div key={event.id} className="rounded-lg border p-3">
+																	<div className="flex items-center justify-between gap-3">
+																		<span className="text-xs text-muted-foreground">
+																			{t('audit.table.headers.date')}
+																		</span>
+																		<span className="font-medium">
+																			{format(
+																				new Date(event.createdAt),
+																				t('dateFormat'),
+																			)}
+																		</span>
+																	</div>
+																	<div className="mt-2 flex items-center justify-between gap-3">
+																		<span className="text-xs text-muted-foreground">
+																			{t('audit.table.headers.action')}
+																		</span>
+																		<span className="text-right font-medium">
+																			{t(`audit.actions.${event.action}`)}
+																		</span>
+																	</div>
+																	<div className="mt-2">
+																		<p className="text-xs text-muted-foreground">
+																			{t('audit.table.headers.actor')}
+																		</p>
+																		<p className="mt-1 text-sm font-medium">
+																			{actorLabel
+																				? `${actorTypeLabel} - ${actorLabel}`
+																				: actorTypeLabel}
+																		</p>
+																	</div>
+																	<div className="mt-2">
+																		<p className="text-xs text-muted-foreground">
+																			{t('audit.table.headers.fields')}
+																		</p>
+																		<p className="mt-1 text-sm font-medium">
+																			{fieldsLabel}
+																		</p>
+																	</div>
+																</div>
 															);
-														})
-													)}
-												</TableBody>
-											</Table>
-										</div>
+														})}
+											</div>
+										) : (
+											<div className="rounded-md border">
+												<Table className="min-w-[38rem]">
+													<TableHeader>
+														<TableRow>
+															<TableHead>
+																{t('audit.table.headers.date')}
+															</TableHead>
+															<TableHead>
+																{t('audit.table.headers.action')}
+															</TableHead>
+															<TableHead>
+																{t('audit.table.headers.actor')}
+															</TableHead>
+															<TableHead>
+																{t('audit.table.headers.fields')}
+															</TableHead>
+														</TableRow>
+													</TableHeader>
+													<TableBody>
+														{isLoadingAudit ? (
+															Array.from({ length: 3 }).map(
+																(_, index) => (
+																	<TableRow key={index}>
+																		<TableCell>
+																			<Skeleton className="h-4 w-24" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-24" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-28" />
+																		</TableCell>
+																		<TableCell>
+																			<Skeleton className="h-4 w-32" />
+																		</TableCell>
+																	</TableRow>
+																),
+															)
+														) : auditEvents.length === 0 ? (
+															<TableRow>
+																<TableCell
+																	colSpan={4}
+																	className="h-20 text-center"
+																>
+																	{t('audit.table.empty')}
+																</TableCell>
+															</TableRow>
+														) : (
+															auditEvents.map((event) => {
+																const actorLabel =
+																	event.actorName ??
+																	event.actorEmail ??
+																	event.actorUserId;
+																const actorTypeLabel = t(
+																	`audit.actorTypes.${event.actorType}`,
+																);
+																const fieldsLabel =
+																	event.changedFields &&
+																	event.changedFields.length > 0
+																		? event.changedFields
+																				.map(
+																					(field) =>
+																						auditFieldLabels[field] ??
+																						t('audit.fields.unknown', {
+																							field,
+																						}),
+																				)
+																				.join(', ')
+																		: t('audit.fields.none');
+
+																return (
+																	<TableRow key={event.id}>
+																		<TableCell>
+																			{format(
+																				new Date(event.createdAt),
+																				t('dateFormat'),
+																			)}
+																		</TableCell>
+																		<TableCell>
+																			{t(`audit.actions.${event.action}`)}
+																		</TableCell>
+																		<TableCell>
+																			{actorLabel
+																				? `${actorTypeLabel} - ${actorLabel}`
+																				: actorTypeLabel}
+																		</TableCell>
+																		<TableCell>
+																			{fieldsLabel}
+																		</TableCell>
+																	</TableRow>
+																);
+															})
+														)}
+													</TableBody>
+												</Table>
+											</div>
+										)}
 											</div>
 										) : null}
 									</TabsContent>
@@ -6244,11 +6411,13 @@ export function EmployeesPageClient(): React.ReactElement {
 								progressNavigationLabel={t('wizard.navigation')}
 								dirty={isMobileWizardDirty}
 								errorStepIndexes={mobileWizardErrorSteps}
+								showDiscardFromOutside={showMobileDiscardFromOutside}
+								setShowDiscardFromOutside={setShowMobileDiscardFromOutside}
 								activeStepIndex={mobileWizardStepIndex}
 								onActiveStepIndexChange={setMobileWizardStepIndex}
 								isSubmitting={createMutation.isPending || updateMutation.isPending}
 								steps={mobileWizardSteps}
-								onClose={() => handleDialogOpenChange(false)}
+								onClose={closeEmployeeDialog}
 								onSubmit={() => void handleMobileWizardSubmit()}
 							/>
 						) : (

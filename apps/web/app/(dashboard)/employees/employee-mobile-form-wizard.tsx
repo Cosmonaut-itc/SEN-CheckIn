@@ -4,6 +4,16 @@ import React from 'react';
 import { CheckCircle2, Circle, Disc3, X } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 /**
  * Mobile wizard step definition.
@@ -47,6 +57,10 @@ export interface EmployeeMobileFormWizardProps {
 	dirty: boolean;
 	/** Step indexes with validation errors. */
 	errorStepIndexes: number[];
+	/** Whether the discard confirmation should open due to an outside close request. */
+	showDiscardFromOutside?: boolean;
+	/** Updates the outside discard confirmation state. */
+	setShowDiscardFromOutside?: React.Dispatch<React.SetStateAction<boolean>>;
 	/** Optional controlled active step index. */
 	activeStepIndex?: number;
 	/** Notifies when the active step changes. */
@@ -132,6 +146,8 @@ export function EmployeeMobileFormWizard({
 	progressNavigationLabel = 'Progreso del formulario',
 	dirty,
 	errorStepIndexes,
+	showDiscardFromOutside = false,
+	setShowDiscardFromOutside,
 	activeStepIndex,
 	onActiveStepIndexChange,
 	isSubmitting = false,
@@ -154,6 +170,7 @@ export function EmployeeMobileFormWizard({
 		currentStep.title,
 	);
 	const isLastStep = currentStepIndex === totalSteps - 1;
+	const isDiscardDialogVisible = isDiscardDialogOpen || showDiscardFromOutside;
 
 	React.useEffect(() => {
 		setVisitedSteps((previousVisitedSteps) => {
@@ -162,6 +179,16 @@ export function EmployeeMobileFormWizard({
 			return nextVisitedSteps;
 		});
 	}, [currentStepIndex]);
+
+	/**
+	 * Closes the discard confirmation regardless of how it was opened.
+	 *
+	 * @returns Nothing
+	 */
+	const closeDiscardDialog = (): void => {
+		setIsDiscardDialogOpen(false);
+		setShowDiscardFromOutside?.(false);
+	};
 
 	/**
 	 * Moves the wizard to a target step index and tracks the visit.
@@ -281,50 +308,35 @@ export function EmployeeMobileFormWizard({
 				</div>
 			</div>
 
-			{isDiscardDialogOpen ? (
-				<div className="absolute inset-0 z-30 flex items-end justify-center bg-black/40 p-4">
-					<div
-						role="alertdialog"
-						aria-modal="true"
-						aria-labelledby="employee-mobile-discard-title"
-						aria-describedby="employee-mobile-discard-description"
-						className="w-full max-w-md rounded-3xl border bg-background p-4 shadow-[var(--shadow-lg)]"
-					>
-						<div className="space-y-2">
-							<h3 id="employee-mobile-discard-title" className="text-lg font-semibold">
-								{discardTitle}
-							</h3>
-							<p
-								id="employee-mobile-discard-description"
-								className="text-sm text-muted-foreground"
-							>
-								{discardDescription}
-							</p>
-						</div>
-						<div className="mt-4 flex items-center gap-3">
-							<Button
-								type="button"
-								variant="outline"
-								className="min-h-11 flex-1"
-								onClick={() => setIsDiscardDialogOpen(false)}
-							>
-								{cancelDiscardLabel}
-							</Button>
-							<Button
-								type="button"
-								variant="destructive"
-								className="min-h-11 flex-1"
-								onClick={() => {
-									setIsDiscardDialogOpen(false);
-									onClose();
-								}}
-							>
-								{confirmDiscardLabel}
-							</Button>
-						</div>
-					</div>
-				</div>
-			) : null}
+			<AlertDialog
+				open={isDiscardDialogVisible}
+				onOpenChange={(open) => {
+					if (!open) {
+						closeDiscardDialog();
+					}
+				}}
+			>
+				<AlertDialogContent className="w-[calc(100vw-2rem)] max-w-md rounded-3xl p-4">
+					<AlertDialogHeader>
+						<AlertDialogTitle>{discardTitle}</AlertDialogTitle>
+						<AlertDialogDescription>{discardDescription}</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter className="[&>button]:min-h-11 [&>button]:w-full min-[1025px]:[&>button]:w-auto">
+						<AlertDialogCancel onClick={closeDiscardDialog}>
+							{cancelDiscardLabel}
+						</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-white hover:bg-destructive/90"
+							onClick={() => {
+								closeDiscardDialog();
+								onClose();
+							}}
+						>
+							{confirmDiscardLabel}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	);
 }

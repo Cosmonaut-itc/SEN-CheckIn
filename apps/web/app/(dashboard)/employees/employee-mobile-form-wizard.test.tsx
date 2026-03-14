@@ -90,4 +90,44 @@ describe('EmployeeMobileFormWizard', () => {
 			screen.getByRole('button', { name: 'Paso 2: Laboral con errores' }),
 		).not.toHaveAttribute('aria-current', 'step');
 	});
+
+	it('shows the discard confirmation when requested from outside the wizard', () => {
+		const handleClose = vi.fn();
+		const setShowDiscardFromOutside = vi.fn();
+
+		render(
+			<EmployeeMobileFormWizard
+				title="Editar empleado"
+				closeLabel="Cerrar"
+				previousLabel="Anterior"
+				nextLabel="Siguiente"
+				saveLabel="Guardar"
+				cancelDiscardLabel="Cancelar"
+				confirmDiscardLabel="Descartar"
+				discardTitle="¿Descartar cambios?"
+				discardDescription="Los cambios sin guardar se perderán."
+				progressLabel="Paso {current} de {total}: {step}"
+				dirty
+				errorStepIndexes={[]}
+				showDiscardFromOutside={true}
+				setShowDiscardFromOutside={setShowDiscardFromOutside}
+				onClose={handleClose}
+				onSubmit={() => undefined}
+				steps={[
+					{ id: 'personal', title: 'Personal', content: <div>Personal</div> },
+					{ id: 'laboral', title: 'Laboral', content: <div>Laboral</div> },
+					{ id: 'salario', title: 'Salario', content: <div>Salario</div> },
+					{ id: 'ptu', title: 'PTU y Aguinaldo', content: <div>PTU</div> },
+					{ id: 'horario', title: 'Horario', content: <div>Horario</div> },
+				]}
+			/>,
+		);
+
+		expect(screen.getByText('¿Descartar cambios?')).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }));
+
+		expect(setShowDiscardFromOutside).toHaveBeenCalledWith(false);
+		expect(handleClose).not.toHaveBeenCalled();
+	});
 });

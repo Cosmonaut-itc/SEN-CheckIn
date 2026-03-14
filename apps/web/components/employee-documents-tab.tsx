@@ -681,7 +681,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 					<CardDescription>{t('documents.progress.description')}</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
-					<div className="grid gap-3 md:grid-cols-3">
+					<div className="grid grid-cols-2 gap-3 min-[1025px]:grid-cols-3">
 						<div className="rounded-md border border-border/70 bg-card/80 p-3">
 							<p className="text-xs text-muted-foreground">{t('documents.progress.percent')}</p>
 							<p className="text-2xl font-semibold text-foreground">
@@ -773,13 +773,14 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 											</p>
 										) : null}
 									</div>
-									<div className="flex flex-wrap items-center gap-2">
+									<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:flex-wrap min-[1025px]:items-center">
 										{canAdminReview && currentVersion ? (
 											<>
 												<Button
 													type="button"
 													size="sm"
 													variant="outline"
+													className="w-full min-h-11 min-[1025px]:w-auto"
 													onClick={() => void handleOpenDocument(currentVersion.id)}
 												>
 													<Eye className="mr-2 h-4 w-4" />
@@ -791,6 +792,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 															type="button"
 															size="sm"
 															variant="secondary"
+															className="w-full min-h-11 min-[1025px]:w-auto"
 															onClick={() =>
 																void handleReviewDocument(
 																	currentVersion,
@@ -805,6 +807,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 															type="button"
 															size="sm"
 															variant="destructive"
+															className="w-full min-h-11 min-[1025px]:w-auto"
 															onClick={() =>
 																void handleReviewDocument(
 																	currentVersion,
@@ -823,7 +826,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 								</div>
 
 								{requirement.isActive && !isLegalRequirement ? (
-									<div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,280px)_1fr] md:items-end">
+									<div className="mt-3 grid gap-3 min-[1025px]:grid-cols-[minmax(0,280px)_1fr] min-[1025px]:items-end">
 										{requirement.requirementKey === 'IDENTIFICATION' ? (
 											<div className="space-y-2">
 												<Label>{t('documents.fields.identificationSubtype')}</Label>
@@ -834,7 +837,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 													}
 													disabled={isPendingUpload}
 												>
-													<SelectTrigger>
+													<SelectTrigger className="min-h-11 w-full">
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent>
@@ -857,7 +860,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 													}
 													disabled={isPendingUpload}
 												>
-													<SelectTrigger>
+													<SelectTrigger className="min-h-11 w-full">
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent>
@@ -879,6 +882,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 												id={`document-upload-${requirement.requirementKey}`}
 												type="file"
 												accept=".pdf,image/jpeg,image/png"
+												className="min-h-11 w-full"
 												disabled={isUploadDisabled}
 												onChange={(event) => {
 													const file = event.target.files?.[0];
@@ -918,7 +922,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 						</div>
 					) : null}
 
-					<div className="grid gap-4 lg:grid-cols-2">
+					<div className="grid gap-4 min-[1025px]:grid-cols-2">
 						{legalKinds.map((kind) => {
 							const requirementKey =
 								kind === 'CONTRACT' ? 'SIGNED_CONTRACT' : 'SIGNED_NDA';
@@ -960,11 +964,12 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 										</div>
 									</CardHeader>
 									<CardContent className="space-y-3">
-										<div className="flex flex-wrap gap-2">
+										<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:flex-wrap">
 											<Button
 												type="button"
 												variant="outline"
 												size="sm"
+												className="w-full min-h-11 min-[1025px]:w-auto"
 												onClick={() => void handleGenerateLegal(kind)}
 												disabled={!summary.gateUnlocked || generateMutation.isPending}
 											>
@@ -983,6 +988,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 											<Button
 												type="button"
 												size="sm"
+												className="w-full min-h-11 min-[1025px]:w-auto"
 												onClick={() => setActiveSignatureKind(kind)}
 												disabled={!summary.gateUnlocked || !latestGeneration?.id}
 											>
@@ -993,6 +999,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 													type="button"
 													size="sm"
 													variant="ghost"
+													className="w-full min-h-11 min-[1025px]:w-auto"
 													onClick={() => void handleOpenDocument(currentVersion.id)}
 												>
 													<Eye className="mr-2 h-4 w-4" />
@@ -1009,6 +1016,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 												id={`physical-upload-${kind}`}
 												type="file"
 												accept=".pdf,image/jpeg,image/png"
+												className="min-h-11 w-full"
 												disabled={isPhysicalUploadDisabled}
 												onChange={(event) => {
 													const file = event.target.files?.[0];
@@ -1052,14 +1060,14 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 					<CardDescription>{t('documents.history.description')}</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
-					<div className="max-w-xs">
+					<div className="w-full min-[1025px]:max-w-xs">
 						<Select
 							value={historyFilter}
 							onValueChange={(value) =>
 								setHistoryFilter(value as EmployeeDocumentRequirementKey | 'ALL')
 							}
 						>
-							<SelectTrigger>
+							<SelectTrigger className="min-h-11 w-full">
 								<SelectValue placeholder={t('documents.history.filterAll')} />
 							</SelectTrigger>
 							<SelectContent>
@@ -1074,7 +1082,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 					</div>
 
 					<div className="rounded-md border">
-						<Table>
+						<Table className="min-w-[40rem]">
 							<TableHeader>
 								<TableRow>
 									<TableHead>{t('documents.history.headers.requirement')}</TableHead>
@@ -1118,6 +1126,7 @@ export function EmployeeDocumentsTab({ employeeId }: EmployeeDocumentsTabProps):
 														type="button"
 														size="sm"
 														variant="outline"
+														className="w-full min-h-11 min-[1025px]:w-auto"
 														onClick={() => void handleOpenDocument(row.id)}
 													>
 														<Eye className="mr-2 h-4 w-4" />

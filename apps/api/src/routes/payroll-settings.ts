@@ -22,6 +22,10 @@ async function hasOrganizationAdminRole(args: {
 	session: AuthSession | null;
 	organizationId: string;
 }): Promise<boolean> {
+	if (args.authType === 'apiKey') {
+		return true;
+	}
+
 	if (args.authType !== 'session' || !args.session) {
 		return false;
 	}

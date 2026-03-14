@@ -127,6 +127,21 @@ describe('payroll settings routes (contract)', () => {
 		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 
+	it('allows api key callers to update payroll settings for their organization', async () => {
+		const response = await client['payroll-settings'].put({
+			organizationId: adminSession.organizationId,
+			weekStartDay: 5,
+			enableDualPayroll: true,
+			$headers: { 'x-api-key': apiKey },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.data?.organizationId).toBe(adminSession.organizationId);
+		expect(payload.data?.weekStartDay).toBe(5);
+		expect(payload.data?.enableDualPayroll).toBe(true);
+	});
+
 	it('rejects payroll settings updates for unauthorized organizations', async () => {
 		const response = await client['payroll-settings'].put({
 			weekStartDay: 1,

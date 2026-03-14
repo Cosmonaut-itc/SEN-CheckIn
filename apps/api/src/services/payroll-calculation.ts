@@ -1221,15 +1221,15 @@ export function calculatePayrollFromData(
 			dateKey: periodEndDateKey,
 			zone,
 		});
-		if (taxDailyPay < minimumWageDaily) {
-			warnings.push({
-				type: 'BELOW_MINIMUM_WAGE',
-				message: `El salario diario ${taxDailyPay.toFixed(
-					2,
-				)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
-				severity: 'warning',
-			});
-		}
+			if (realDailyPay < minimumWageDaily) {
+				warnings.push({
+					type: 'BELOW_MINIMUM_WAGE',
+					message: `El salario diario ${realDailyPay.toFixed(
+						2,
+					)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
+					severity: 'warning',
+				});
+			}
 
 		const resolvedAguinaldoDays =
 			typeof emp.aguinaldoDaysOverride === 'string'

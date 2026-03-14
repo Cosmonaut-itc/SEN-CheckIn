@@ -2872,6 +2872,25 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(dualEnabled.hourlyPay).toBe(62.5);
 		});
 
+		it('does not emit below-minimum-wage warnings when only the fiscal daily pay is below minimum', () => {
+			const dualEnabled = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(200)],
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: true,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(dualEnabled.dailyPay).toBe(500);
+			expect(dualEnabled.fiscalDailyPay).toBe(200);
+			expect(dualEnabled.warnings.some((warning) => warning.type === 'BELOW_MINIMUM_WAGE')).toBe(
+				false,
+			);
+		});
+
 		it('keeps total real pay aligned with the standard payroll when overtime and vacation pay exist', () => {
 			const dualAttendanceWithOvertime = [
 				'2025-12-15',

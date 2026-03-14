@@ -399,7 +399,10 @@ export function calculateDeductionAmount(args: {
 			break;
 		case 'FIXED_AMOUNT':
 			baseAmount = configuredValue;
-			calculatedAmount = configuredValue * (applicableDays / periodDays);
+			calculatedAmount =
+				args.deduction.frequency === 'ONE_TIME'
+					? configuredValue
+					: configuredValue * (applicableDays / periodDays);
 			break;
 		case 'VSM_FACTOR':
 			baseAmount = args.minimumWageDaily * applicableDays;
@@ -1376,6 +1379,11 @@ export function calculatePayrollFromData(
 			if (cappedByNetPay) {
 				deductionsExceededNetPay = true;
 			}
+			const scheduledInstallmentTarget = roundCurrency(
+				Math.min(deductionAmount.calculatedAmount, remainingBalanceCap),
+			);
+			const installmentWasFullyApplied =
+				appliedAmount > 0 && appliedAmount >= scheduledInstallmentTarget;
 
 			totalDeductions = roundCurrency(totalDeductions + appliedAmount);
 			remainingNetAfterDeductions = roundCurrency(
@@ -1395,12 +1403,14 @@ export function calculatePayrollFromData(
 					remainingAmountAfter = 0;
 				}
 				if (deduction.frequency === 'INSTALLMENTS') {
-					completedInstallmentsAfter += 1;
-					if (
-						deduction.totalInstallments !== null &&
-						completedInstallmentsAfter >= deduction.totalInstallments
-					) {
-						statusAfter = 'COMPLETED';
+					if (installmentWasFullyApplied) {
+						completedInstallmentsAfter += 1;
+						if (
+							deduction.totalInstallments !== null &&
+							completedInstallmentsAfter >= deduction.totalInstallments
+						) {
+							statusAfter = 'COMPLETED';
+						}
 					}
 				}
 				if (

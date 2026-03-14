@@ -2907,6 +2907,27 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(300);
 		});
 
+		it('does not prorate ONE_TIME FIXED_AMOUNT deductions for partial periods', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-partial-period',
+							type: 'LOAN',
+							frequency: 'ONE_TIME',
+							value: 700,
+							startDateKey: '2025-03-05',
+							endDateKey: '2025-03-07',
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(700);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(700);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
 		it('calculates VSM_FACTOR deductions using the minimum wage', () => {
 			const args = buildWeeklyPayrollArgsWithDeductions({
 				employeeDeductions: [
@@ -2966,6 +2987,42 @@ describe('payroll-calculation mexico taxes', () => {
 
 			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(4);
 			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+		});
+
+		it('does not advance installment progress when net-pay capping only covers a partial payment', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeOverrides: {
+						dailyPay: 100,
+					},
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-partial-net-cap',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 4,
+							completedInstallments: 3,
+							totalAmount: 4000,
+							remainingAmount: 1000,
+							value: 1000,
+						}),
+					],
+				}),
+			);
+
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(netBeforeDeductions);
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(3);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(
+				Number((1000 - netBeforeDeductions).toFixed(2)),
+			);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+			expect(employees[0]?.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
 		});
 
 		it('marks installments as completed when the last payment is applied', () => {

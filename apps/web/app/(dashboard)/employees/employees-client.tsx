@@ -351,7 +351,9 @@ function EmployeesTableSection({
 }: EmployeesTableSectionProps): React.ReactElement {
 	return (
 		<div className="min-w-0 space-y-4">
-			{bulkActions ? <div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div> : null}
+			{bulkActions ? (
+				<div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div>
+			) : null}
 			<div className="grid gap-3 min-[1025px]:grid-cols-[minmax(0,1fr)_200px_200px_170px]">
 				<div className="relative min-w-0">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -617,9 +619,7 @@ function parseEmployeeDetailTab(value: string | null | undefined): EmployeeDetai
 	if (!value) {
 		return null;
 	}
-	return VALID_DETAIL_TABS.has(value as EmployeeDetailTab)
-		? (value as EmployeeDetailTab)
-		: null;
+	return VALID_DETAIL_TABS.has(value as EmployeeDetailTab) ? (value as EmployeeDetailTab) : null;
 }
 
 /**
@@ -709,9 +709,14 @@ function resolveInitialDetailTab(
  * @returns Zero-based step indexes with validation errors
  */
 function getMobileWizardErrorStepIndexes(
-	getFieldMeta: <TField extends keyof EmployeeFormValues>(fieldName: TField) => {
-		errors?: unknown[];
-	} | null | undefined,
+	getFieldMeta: <TField extends keyof EmployeeFormValues>(
+		fieldName: TField,
+	) =>
+		| {
+				errors?: unknown[];
+		  }
+		| null
+		| undefined,
 ): number[] {
 	return MOBILE_FORM_STEP_FIELD_NAMES.reduce<number[]>((indexes, fieldNames, stepIndex) => {
 		const hasStepErrors = fieldNames.some((fieldName) => {
@@ -1111,9 +1116,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		(tab: EmployeeDialogTab): boolean => Boolean(visitedDetailTabs[tab]),
 		[visitedDetailTabs],
 	);
-	const ptuAguinaldoOptionHelp = useMemo<
-		{ key: string; label: string; description: string }[]
-	>(
+	const ptuAguinaldoOptionHelp = useMemo<{ key: string; label: string; description: string }[]>(
 		() => [
 			{
 				key: 'employmentTypePermanent',
@@ -1304,7 +1307,12 @@ export function EmployeesPageClient(): React.ReactElement {
 		Object.entries(visitedDetailTabs).some(
 			([tab, visited]) => visited && INSIGHTS_DETAIL_TABS.has(tab as EmployeeDetailTab),
 		);
-	const { data: insights, isLoading: isLoadingInsights, error: insightsError, refetch: refetchInsights } = useQuery({
+	const {
+		data: insights,
+		isLoading: isLoadingInsights,
+		error: insightsError,
+		refetch: refetchInsights,
+	} = useQuery({
 		queryKey: queryKeys.employees.insights(activeEmployee?.id ?? ''),
 		queryFn: async () => {
 			const response = await fetchEmployeeInsights(activeEmployee?.id ?? '');
@@ -1338,8 +1346,16 @@ export function EmployeesPageClient(): React.ReactElement {
 		[activeEmployee?.id],
 	);
 	const shouldFetchAudit =
-		Boolean(activeEmployee?.id) && isDialogOpen && isViewMode && Boolean(visitedDetailTabs.audit);
-	const { data: auditResponse, isLoading: isLoadingAudit, error: auditError, refetch: refetchAudit } = useQuery({
+		Boolean(activeEmployee?.id) &&
+		isDialogOpen &&
+		isViewMode &&
+		Boolean(visitedDetailTabs.audit);
+	const {
+		data: auditResponse,
+		isLoading: isLoadingAudit,
+		error: auditError,
+		refetch: refetchAudit,
+	} = useQuery({
 		queryKey: queryKeys.employees.audit(auditParams),
 		queryFn: () => fetchEmployeeAudit(auditParams),
 		enabled: shouldFetchAudit,
@@ -1351,7 +1367,12 @@ export function EmployeesPageClient(): React.ReactElement {
 		Boolean(activeEmployee?.id) &&
 		isDialogOpen &&
 		(isEditMode || (isViewMode && Boolean(visitedDetailTabs.ptu)));
-	const { data: ptuHistoryData, isLoading: isLoadingPtuHistory, error: ptuHistoryError, refetch: refetchPtuHistory } = useQuery({
+	const {
+		data: ptuHistoryData,
+		isLoading: isLoadingPtuHistory,
+		error: ptuHistoryError,
+		refetch: refetchPtuHistory,
+	} = useQuery({
 		queryKey: queryKeys.ptu.history(activeEmployee?.id ?? ''),
 		queryFn: () => fetchEmployeePtuHistory(activeEmployee?.id ?? ''),
 		enabled: shouldFetchPtuHistory,
@@ -1683,19 +1704,19 @@ export function EmployeesPageClient(): React.ReactElement {
 		}
 
 		const results = await Promise.all(
-				selectedEmployees.map((employee) => {
-					if (!employee.locationId) {
-						return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
-					}
-					return updateEmployee({
-						id: employee.id,
-						firstName: employee.firstName,
-						lastName: employee.lastName,
-						status: employee.status,
-						locationId: employee.locationId,
-						...updates,
-					});
-				}),
+			selectedEmployees.map((employee) => {
+				if (!employee.locationId) {
+					return Promise.resolve({ success: false, error: 'MISSING_LOCATION' });
+				}
+				return updateEmployee({
+					id: employee.id,
+					firstName: employee.firstName,
+					lastName: employee.lastName,
+					status: employee.status,
+					locationId: employee.locationId,
+					...updates,
+				});
+			}),
 		);
 
 		const failures = results.filter((result) => !result.success);
@@ -1717,13 +1738,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		setIsBulkEditOpen(false);
 		setBulkEditValues(createDefaultBulkEditValues());
 		queryClient.invalidateQueries({ queryKey: queryKeys.employees.all });
-	}, [
-		bulkEditValues,
-		queryClient,
-		selectedEmployees,
-		setBulkEditValues,
-		t,
-	]);
+	}, [bulkEditValues, queryClient, selectedEmployees, setBulkEditValues, t]);
 
 	/**
 	 * Updates termination form values and clears any existing preview.
@@ -1863,8 +1878,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		attendanceTimeZone,
 	]);
 	const ptuHistory = useMemo<PtuHistoryRecord[]>(
-		() =>
-			(ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),
+		() => (ptuHistoryData ?? []).slice().sort((a, b) => b.fiscalYear - a.fiscalYear),
 		[ptuHistoryData],
 	);
 
@@ -2044,13 +2058,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		});
 		setPtuHistoryYearInput('');
 		setPtuHistoryAmountInput('');
-	}, [
-		activeEmployee,
-		ptuHistoryAmountInput,
-		ptuHistoryMutation,
-		ptuHistoryYearInput,
-		t,
-	]);
+	}, [activeEmployee, ptuHistoryAmountInput, ptuHistoryMutation, ptuHistoryYearInput, t]);
 
 	// Delete mutation
 	const deleteMutation = useMutation({
@@ -2446,13 +2454,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		setMobileWizardErrorSteps([]);
 		setMobileWizardStepIndex(0);
 		setIsDialogOpen(true);
-	}, [
-		form,
-		isMobile,
-		resetTerminationState,
-		setPtuHistoryAmountInput,
-		setPtuHistoryYearInput,
-	]);
+	}, [form, isMobile, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput]);
 
 	/**
 	 * Opens employee detail view in the requested tab.
@@ -2770,9 +2772,8 @@ export function EmployeesPageClient(): React.ReactElement {
 		const mobileTabsContainer = document.querySelector<HTMLElement>(
 			'[data-testid="employee-mobile-detail-tabs"]',
 		);
-		const activeTabTrigger = mobileTabsContainer?.querySelector<HTMLElement>(
-			'[data-state="active"]',
-		);
+		const activeTabTrigger =
+			mobileTabsContainer?.querySelector<HTMLElement>('[data-state="active"]');
 		if (typeof activeTabTrigger?.scrollIntoView !== 'function') {
 			return;
 		}
@@ -3028,7 +3029,9 @@ export function EmployeesPageClient(): React.ReactElement {
 							</span>
 						</div>
 						<div className="flex items-center justify-between gap-3">
-							<span className="text-muted-foreground">{t('table.headers.status')}</span>
+							<span className="text-muted-foreground">
+								{t('table.headers.status')}
+							</span>
 							<Badge variant={statusVariants[employee.status]}>
 								{t(`status.${employee.status}`)}
 							</Badge>
@@ -3237,12 +3240,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				cell: ({ row }) => renderEmployeeActions(row.original),
 			},
 		],
-		[
-			canUseDisciplinaryModule,
-			locationLookup,
-			renderEmployeeActions,
-			t,
-		],
+		[canUseDisciplinaryModule, locationLookup, renderEmployeeActions, t],
 	);
 
 	const mobileWizardSteps = useMemo(
@@ -3434,7 +3432,11 @@ export function EmployeesPageClient(): React.ReactElement {
 									if (!trimmedValue) {
 										return undefined;
 									}
-									const parsedValue = parse(trimmedValue, 'yyyy-MM-dd', new Date());
+									const parsedValue = parse(
+										trimmedValue,
+										'yyyy-MM-dd',
+										new Date(),
+									);
 									if (
 										!isValid(parsedValue) ||
 										format(parsedValue, 'yyyy-MM-dd') !== trimmedValue
@@ -3530,7 +3532,9 @@ export function EmployeesPageClient(): React.ReactElement {
 							)}
 						</form.AppField>
 						<div className="grid gap-2">
-							<Label htmlFor="mobile-daily-pay">{t('fields.dailyPayCalculated')}</Label>
+							<Label htmlFor="mobile-daily-pay">
+								{t('fields.dailyPayCalculated')}
+							</Label>
 							<Input
 								id="mobile-daily-pay"
 								value={computedDailyPay.toFixed(2)}
@@ -3716,7 +3720,9 @@ export function EmployeesPageClient(): React.ReactElement {
 										type="number"
 										min={2000}
 										value={ptuHistoryYearInput}
-										onChange={(event) => setPtuHistoryYearInput(event.target.value)}
+										onChange={(event) =>
+											setPtuHistoryYearInput(event.target.value)
+										}
 									/>
 								</div>
 								<div className="grid gap-2">
@@ -3910,12 +3916,12 @@ export function EmployeesPageClient(): React.ReactElement {
 					vacationBalance,
 					attendanceSummary: attendanceSummary
 						? {
-							totalAbsentDays: attendanceSummary.totalAbsentDays,
-							kpis: attendanceSummary.kpis ?? null,
-							trend30d: attendanceSummary.trend30d ?? [],
-							absencesByMonth: attendanceSummary.absencesByMonth ?? [],
-							leavesByMonth: attendanceSummary.leavesByMonth ?? [],
-						}
+								totalAbsentDays: attendanceSummary.totalAbsentDays,
+								kpis: attendanceSummary.kpis ?? null,
+								trend30d: attendanceSummary.trend30d ?? [],
+								absencesByMonth: attendanceSummary.absencesByMonth ?? [],
+								leavesByMonth: attendanceSummary.leavesByMonth ?? [],
+							}
 						: null,
 					leaveItems,
 					attendanceCurrentMonthKey,
@@ -4005,7 +4011,7 @@ export function EmployeesPageClient(): React.ReactElement {
 			/>
 
 			<Dialog open={isBulkEditOpen} onOpenChange={setIsBulkEditOpen}>
-				<DialogContent className="sm:max-w-2xl">
+				<DialogContent className="min-[1025px]:max-w-2xl">
 					<DialogHeader>
 						<DialogTitle>{t('bulk.title')}</DialogTitle>
 						<DialogDescription>{t('bulk.description')}</DialogDescription>
@@ -4032,7 +4038,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							</div>
 						</div>
 					</TooltipProvider>
-					<div className="grid gap-4 sm:grid-cols-2">
+					<div className="grid gap-4 min-[1025px]:grid-cols-2">
 						<div className="flex flex-col gap-2">
 							<Label>{t('bulk.fields.employmentType')}</Label>
 							<Select
@@ -4045,7 +4051,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder={t('bulk.placeholders.employmentType')} />
+									<SelectValue
+										placeholder={t('bulk.placeholders.employmentType')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{bulkEmploymentOptions.map((option) => (
@@ -4068,7 +4076,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder={t('bulk.placeholders.ptuEligibility')} />
+									<SelectValue
+										placeholder={t('bulk.placeholders.ptuEligibility')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{bulkPtuEligibilityOptions.map((option) => (
@@ -4198,7 +4208,9 @@ export function EmployeesPageClient(): React.ReactElement {
 								}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder={t('bulk.placeholders.aguinaldoOverride')} />
+									<SelectValue
+										placeholder={t('bulk.placeholders.aguinaldoOverride')}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{bulkOverrideModeOptions.map((option) => (
@@ -4227,10 +4239,7 @@ export function EmployeesPageClient(): React.ReactElement {
 						</div>
 					</div>
 					<DialogFooter>
-						<Button
-							variant="outline"
-							onClick={() => setIsBulkEditOpen(false)}
-						>
+						<Button variant="outline" onClick={() => setIsBulkEditOpen(false)}>
 							{tCommon('cancel')}
 						</Button>
 						<Button onClick={() => void handleBulkApply()}>

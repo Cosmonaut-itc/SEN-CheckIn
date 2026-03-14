@@ -61,6 +61,7 @@ import {
 	upsertEmployeePtuHistory,
 } from '@/lib/client-functions';
 import { useAppForm, useStore } from '@/lib/forms';
+import { buildClosedEmployeeDialogState } from '@/lib/employee-dialog-state';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -2249,11 +2250,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				if (!updateResult.success) {
 					return;
 				}
-				setIsDialogOpen(false);
-				setDialogMode('create');
-				setActiveEmployee(null);
-				setDetailTab(resolveInitialDetailTab('summary', isMobile));
-				setVisitedDetailTabs({ [resolveInitialDetailTab('summary', isMobile)]: true });
+				closeEmployeeDialog();
 				form.reset();
 				return;
 			} else if (isCreateMode) {
@@ -2313,11 +2310,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 
 				toast.error(t('toast.openDocumentsError'));
-				setIsDialogOpen(false);
-				setDialogMode('create');
-				setActiveEmployee(null);
-				setDetailTab(resolveInitialDetailTab('summary', isMobile));
-				setVisitedDetailTabs({ [resolveInitialDetailTab('summary', isMobile)]: true });
+				closeEmployeeDialog();
 				form.reset();
 				return;
 			}
@@ -2431,7 +2424,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	/**
 	 * Opens the dialog for creating a new employee.
 	 */
-	const handleCreateNew = useCallback((): void => {
+	const handleCreateNew = (): void => {
 		resetTerminationState();
 		setShowMobileDiscardFromOutside(false);
 		const nextGeneratedCodeSeed = Math.floor(1000 + Math.random() * 9000).toString();
@@ -2455,7 +2448,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		setMobileWizardErrorSteps([]);
 		setMobileWizardStepIndex(0);
 		setIsDialogOpen(true);
-	}, [form, isMobile, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput]);
+	};
 
 	/**
 	 * Opens employee detail view in the requested tab.
@@ -2561,135 +2554,121 @@ export function EmployeesPageClient(): React.ReactElement {
 	 *
 	 * @param employee - The employee to edit
 	 */
-	const handleEdit = useCallback(
-		async (employee: Employee): Promise<void> => {
-			resetTerminationState();
-			setShowMobileDiscardFromOutside(false);
-			setIsScheduleLoading(true);
-			setActiveEmployee(employee);
-			setDialogMode('edit');
-			const nextFormValues: EmployeeFormValues = {
-				code: employee.code,
-				firstName: employee.firstName,
-				lastName: employee.lastName,
-				nss: employee.nss ?? '',
-				rfc: employee.rfc ?? '',
-				email: employee.email ?? '',
-				userId: employee.userId ?? 'none',
-				phone: employee.phone ?? '',
-				jobPositionId: employee.jobPositionId ?? '',
-				locationId: employee.locationId ?? '',
-				department: employee.department ?? '',
-				status: employee.status,
-				hireDate: employee.hireDate
-					? format(new Date(employee.hireDate), 'yyyy-MM-dd')
-					: '',
-				paymentFrequency: employee.paymentFrequency ?? 'MONTHLY',
-				periodPay: String(
-					calculatePeriodPayFromDailyPay(
-						employee.dailyPay ?? 0,
-						employee.paymentFrequency ?? 'MONTHLY',
-					),
+	const handleEdit = async (employee: Employee): Promise<void> => {
+		resetTerminationState();
+		setShowMobileDiscardFromOutside(false);
+		setIsScheduleLoading(true);
+		setActiveEmployee(employee);
+		setDialogMode('edit');
+		const nextFormValues: EmployeeFormValues = {
+			code: employee.code,
+			firstName: employee.firstName,
+			lastName: employee.lastName,
+			nss: employee.nss ?? '',
+			rfc: employee.rfc ?? '',
+			email: employee.email ?? '',
+			userId: employee.userId ?? 'none',
+			phone: employee.phone ?? '',
+			jobPositionId: employee.jobPositionId ?? '',
+			locationId: employee.locationId ?? '',
+			department: employee.department ?? '',
+			status: employee.status,
+			hireDate: employee.hireDate ? format(employee.hireDate, 'yyyy-MM-dd') : '',
+			paymentFrequency: employee.paymentFrequency ?? 'MONTHLY',
+			periodPay: String(
+				calculatePeriodPayFromDailyPay(
+					employee.dailyPay ?? 0,
+					employee.paymentFrequency ?? 'MONTHLY',
 				),
-				sbcDailyOverride: employee.sbcDailyOverride
-					? String(employee.sbcDailyOverride)
-					: '',
-				employmentType: employee.employmentType ?? 'PERMANENT',
-				isTrustEmployee: Boolean(employee.isTrustEmployee),
-				isDirectorAdminGeneralManager: Boolean(employee.isDirectorAdminGeneralManager),
-				isDomesticWorker: Boolean(employee.isDomesticWorker),
-				isPlatformWorker: Boolean(employee.isPlatformWorker),
-				platformHoursYear: employee.platformHoursYear
-					? String(employee.platformHoursYear)
-					: '',
-				ptuEligibilityOverride: employee.ptuEligibilityOverride ?? 'DEFAULT',
-				aguinaldoDaysOverride: employee.aguinaldoDaysOverride
-					? String(employee.aguinaldoDaysOverride)
-					: '',
-				shiftType: employee.shiftType ?? 'DIURNA',
-			};
-			form.setFieldValue('code', nextFormValues.code);
-			form.setFieldValue('firstName', nextFormValues.firstName);
-			form.setFieldValue('lastName', nextFormValues.lastName);
-			form.setFieldValue('nss', nextFormValues.nss);
-			form.setFieldValue('rfc', nextFormValues.rfc);
-			form.setFieldValue('email', nextFormValues.email);
-			form.setFieldValue('userId', nextFormValues.userId);
-			form.setFieldValue('phone', nextFormValues.phone);
-			form.setFieldValue('jobPositionId', nextFormValues.jobPositionId);
-			form.setFieldValue('locationId', nextFormValues.locationId);
-			form.setFieldValue('department', nextFormValues.department);
-			form.setFieldValue('status', nextFormValues.status);
-			form.setFieldValue('shiftType', nextFormValues.shiftType);
-			form.setFieldValue('hireDate', nextFormValues.hireDate);
-			form.setFieldValue('paymentFrequency', nextFormValues.paymentFrequency);
-			form.setFieldValue('periodPay', nextFormValues.periodPay);
-			form.setFieldValue('sbcDailyOverride', nextFormValues.sbcDailyOverride);
-			form.setFieldValue('employmentType', nextFormValues.employmentType);
-			form.setFieldValue('isTrustEmployee', nextFormValues.isTrustEmployee);
-			form.setFieldValue(
-				'isDirectorAdminGeneralManager',
-				nextFormValues.isDirectorAdminGeneralManager,
-			);
-			form.setFieldValue('isDomesticWorker', nextFormValues.isDomesticWorker);
-			form.setFieldValue('isPlatformWorker', nextFormValues.isPlatformWorker);
-			form.setFieldValue('platformHoursYear', nextFormValues.platformHoursYear);
-			form.setFieldValue('ptuEligibilityOverride', nextFormValues.ptuEligibilityOverride);
-			form.setFieldValue('aguinaldoDaysOverride', nextFormValues.aguinaldoDaysOverride);
-			setHasCustomCode(true);
-			setPtuHistoryYearInput('');
-			setPtuHistoryAmountInput('');
+			),
+			sbcDailyOverride: employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
+			employmentType: employee.employmentType ?? 'PERMANENT',
+			isTrustEmployee: Boolean(employee.isTrustEmployee),
+			isDirectorAdminGeneralManager: Boolean(employee.isDirectorAdminGeneralManager),
+			isDomesticWorker: Boolean(employee.isDomesticWorker),
+			isPlatformWorker: Boolean(employee.isPlatformWorker),
+			platformHoursYear: employee.platformHoursYear
+				? String(employee.platformHoursYear)
+				: '',
+			ptuEligibilityOverride: employee.ptuEligibilityOverride ?? 'DEFAULT',
+			aguinaldoDaysOverride: employee.aguinaldoDaysOverride
+				? String(employee.aguinaldoDaysOverride)
+				: '',
+			shiftType: employee.shiftType ?? 'DIURNA',
+		};
+		form.setFieldValue('code', nextFormValues.code);
+		form.setFieldValue('firstName', nextFormValues.firstName);
+		form.setFieldValue('lastName', nextFormValues.lastName);
+		form.setFieldValue('nss', nextFormValues.nss);
+		form.setFieldValue('rfc', nextFormValues.rfc);
+		form.setFieldValue('email', nextFormValues.email);
+		form.setFieldValue('userId', nextFormValues.userId);
+		form.setFieldValue('phone', nextFormValues.phone);
+		form.setFieldValue('jobPositionId', nextFormValues.jobPositionId);
+		form.setFieldValue('locationId', nextFormValues.locationId);
+		form.setFieldValue('department', nextFormValues.department);
+		form.setFieldValue('status', nextFormValues.status);
+		form.setFieldValue('shiftType', nextFormValues.shiftType);
+		form.setFieldValue('hireDate', nextFormValues.hireDate);
+		form.setFieldValue('paymentFrequency', nextFormValues.paymentFrequency);
+		form.setFieldValue('periodPay', nextFormValues.periodPay);
+		form.setFieldValue('sbcDailyOverride', nextFormValues.sbcDailyOverride);
+		form.setFieldValue('employmentType', nextFormValues.employmentType);
+		form.setFieldValue('isTrustEmployee', nextFormValues.isTrustEmployee);
+		form.setFieldValue(
+			'isDirectorAdminGeneralManager',
+			nextFormValues.isDirectorAdminGeneralManager,
+		);
+		form.setFieldValue('isDomesticWorker', nextFormValues.isDomesticWorker);
+		form.setFieldValue('isPlatformWorker', nextFormValues.isPlatformWorker);
+		form.setFieldValue('platformHoursYear', nextFormValues.platformHoursYear);
+		form.setFieldValue('ptuEligibilityOverride', nextFormValues.ptuEligibilityOverride);
+		form.setFieldValue('aguinaldoDaysOverride', nextFormValues.aguinaldoDaysOverride);
+		setHasCustomCode(true);
+		setPtuHistoryYearInput('');
+		setPtuHistoryAmountInput('');
 
-			const detail = await fetchEmployeeById(employee.id);
-			const nextSchedule =
-				detail?.schedule && detail.schedule.length > 0
-					? detail.schedule.map((entry) => ({
-							dayOfWeek: entry.dayOfWeek,
-							startTime: entry.startTime,
-							endTime: entry.endTime,
-							isWorkingDay: entry.isWorkingDay,
-						}))
-					: createDefaultSchedule();
-			if (detail?.schedule && detail.schedule.length > 0) {
-				setSchedule(nextSchedule);
-			} else {
-				setSchedule(nextSchedule);
-			}
-			setMobileWizardBaseline(serializeEmployeeDraft(nextFormValues, nextSchedule));
-			setIsScheduleLoading(false);
-			const initialTab = resolveInitialDetailTab('summary', isMobile);
-			setDetailTab(initialTab);
-			setVisitedDetailTabs({ [initialTab]: true });
-			setMobileWizardErrorSteps([]);
-			setMobileWizardStepIndex(0);
-			setIsDialogOpen(true);
-		},
-		[
-			form,
-			isMobile,
-			resetTerminationState,
-			setShowMobileDiscardFromOutside,
-			setPtuHistoryAmountInput,
-			setPtuHistoryYearInput,
-		],
-	);
+		const detail = await fetchEmployeeById(employee.id);
+		const nextSchedule =
+			detail?.schedule && detail.schedule.length > 0
+				? detail.schedule.map((entry) => ({
+						dayOfWeek: entry.dayOfWeek,
+						startTime: entry.startTime,
+						endTime: entry.endTime,
+						isWorkingDay: entry.isWorkingDay,
+					}))
+				: createDefaultSchedule();
+		if (detail?.schedule && detail.schedule.length > 0) {
+			setSchedule(nextSchedule);
+		} else {
+			setSchedule(nextSchedule);
+		}
+		setMobileWizardBaseline(serializeEmployeeDraft(nextFormValues, nextSchedule));
+		setIsScheduleLoading(false);
+		const initialTab = resolveInitialDetailTab('summary', isMobile);
+		setDetailTab(initialTab);
+		setVisitedDetailTabs({ [initialTab]: true });
+		setMobileWizardErrorSteps([]);
+		setMobileWizardStepIndex(0);
+		setIsDialogOpen(true);
+	};
 
 	/**
 	 * Switches the dialog from view to edit mode.
 	 */
-	const handleEditFromDetails = useCallback((): void => {
+	const handleEditFromDetails = (): void => {
 		if (!activeEmployee) {
 			return;
 		}
 		void handleEdit(activeEmployee);
-	}, [activeEmployee, handleEdit]);
+	};
 
 	/**
 	 * Validates the mobile wizard and submits the shared form when no step errors remain.
 	 *
 	 * @returns Promise resolving once the submit attempt completes
 	 */
-	const handleMobileWizardSubmit = useCallback(async (): Promise<void> => {
+	const handleMobileWizardSubmit = async (): Promise<void> => {
 		await form.validateAllFields('submit');
 		const nextErrorSteps = getMobileWizardErrorStepIndexes((fieldName) =>
 			form.getFieldMeta(fieldName),
@@ -2707,52 +2686,49 @@ export function EmployeesPageClient(): React.ReactElement {
 
 		setMobileWizardErrorSteps([]);
 		await form.handleSubmit();
-	}, [form, t]);
+	};
 
 	/**
 	 * Closes the employee dialog and resets related local state.
 	 *
 	 * @returns Nothing
 	 */
-	const closeEmployeeDialog = useCallback((): void => {
-		setShowMobileDiscardFromOutside(false);
-		setIsDialogOpen(false);
-		setMobileWizardBaseline(null);
-		setDialogMode('create');
-		setActiveEmployee(null);
-		const initialTab = resolveInitialDetailTab('summary', isMobile);
-		setDetailTab(initialTab);
-		setVisitedDetailTabs({ [initialTab]: true });
+	const closeEmployeeDialog = (): void => {
+		const resetState = buildClosedEmployeeDialogState(isMobile);
+		setShowMobileDiscardFromOutside(resetState.showMobileDiscardFromOutside);
+		setIsDialogOpen(resetState.isDialogOpen);
+		setMobileWizardBaseline(resetState.mobileWizardBaseline);
+		setDialogMode(resetState.dialogMode);
+		setActiveEmployee(resetState.activeEmployee);
+		setDetailTab(resetState.detailTab);
+		setVisitedDetailTabs(resetState.visitedDetailTabs);
 		tabScrollByIdRef.current = {};
 		tabContainerByIdRef.current = {};
 		form.reset();
-		setHasCustomCode(false);
+		setHasCustomCode(resetState.hasCustomCode);
 		setSchedule(createDefaultSchedule());
-		setMobileWizardErrorSteps([]);
-		setMobileWizardStepIndex(0);
+		setMobileWizardErrorSteps(resetState.mobileWizardErrorSteps);
+		setMobileWizardStepIndex(resetState.mobileWizardStepIndex);
 		resetTerminationState();
-	}, [form, isMobile, resetTerminationState]);
+	};
 
 	/**
 	 * Handles dialog close and resets form state.
 	 *
 	 * @param open - Whether the dialog should be open
 	 */
-	const handleDialogOpenChange = useCallback(
-		(open: boolean): void => {
-			if (!open && isMobile && !isViewMode && isMobileWizardDirty) {
-				setShowMobileDiscardFromOutside(true);
-				return;
-			}
+	const handleDialogOpenChange = (open: boolean): void => {
+		if (!open && isMobile && !isViewMode && isMobileWizardDirty) {
+			setShowMobileDiscardFromOutside(true);
+			return;
+		}
 
-			setIsDialogOpen(open);
-			setShowMobileDiscardFromOutside(false);
-			if (!open) {
-				closeEmployeeDialog();
-			}
-		},
-		[closeEmployeeDialog, isMobile, isMobileWizardDirty, isViewMode],
-	);
+		setIsDialogOpen(open);
+		setShowMobileDiscardFromOutside(false);
+		if (!open) {
+			closeEmployeeDialog();
+		}
+	};
 
 	useEffect(() => {
 		if (!isDialogOpen || !isViewMode) {

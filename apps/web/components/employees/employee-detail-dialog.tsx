@@ -688,7 +688,7 @@ export function EmployeeDetailDialog({
 										<p className="font-medium">
 											{activeEmployee?.hireDate
 												? format(
-														new Date(activeEmployee.hireDate),
+														activeEmployee.hireDate,
 														t('dateFormat'),
 													)
 												: tCommon('notAvailable')}
@@ -935,7 +935,7 @@ export function EmployeeDetailDialog({
 											onScroll={handleTabScroll('summary')}
 											className="h-full overflow-y-auto pt-4"
 										>
-											<div className="grid grid-cols-2 gap-3 min-[1025px]:gap-4 min-[1025px]:grid-cols-2 min-[1280px]:grid-cols-3">
+											<div className="grid grid-cols-2 gap-3 min-[1025px]:gap-4 min-[1025px]:grid-cols-2 min-[1281px]:grid-cols-3">
 												<Card>
 													<CardHeader className="flex-row items-center justify-between space-y-0 px-3 pt-3 pb-0 min-[1025px]:px-6 min-[1025px]:pt-6">
 														<CardTitle className="text-sm font-medium">
@@ -1197,7 +1197,7 @@ export function EmployeeDetailDialog({
 												</Card>
 											) : (
 												<div className="space-y-4">
-													<div className="grid grid-cols-2 gap-3 min-[1025px]:grid-cols-2 min-[1280px]:grid-cols-4">
+													<div className="grid grid-cols-2 gap-3 min-[1025px]:grid-cols-2 min-[1281px]:grid-cols-4">
 														<Card>
 															<CardHeader className="pb-2">
 																<CardTitle className="text-sm font-medium">

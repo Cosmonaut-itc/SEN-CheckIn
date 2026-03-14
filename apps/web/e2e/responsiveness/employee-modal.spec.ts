@@ -18,6 +18,7 @@ import {
  */
 async function openSeededEmployeeDetail(page: import('@playwright/test').Page): Promise<void> {
 	await page.goto(`/employees?responsiveModalTest=${Date.now()}`);
+	// Reload so the page observes the active organization/session mutations performed by the browser-side setup helpers.
 	await page.reload();
 
 	const viewportWidth = page.viewportSize()?.width ?? RESPONSIVE_VIEWPORTS.mobile.width;

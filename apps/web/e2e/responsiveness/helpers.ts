@@ -1,6 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
-import { expect, type APIRequestContext, type Locator, type Page, type ViewportSize } from '@playwright/test';
+import {
+	expect,
+	type APIRequestContext,
+	type Locator,
+	type Page,
+	type ViewportSize,
+} from '@playwright/test';
 
 import {
 	buildTestRegistrationPayload,
@@ -33,9 +39,7 @@ export const RESPONSIVE_VIEWPORTS: Record<'mobile' | 'tablet', ViewportSize> = {
  * @returns Registration payload used to create and authenticate the user
  * @throws {Error} When provisioning or sign-in fails
  */
-export async function provisionResponsiveUser(
-	page: Page,
-): Promise<TestRegistrationPayload> {
+export async function provisionResponsiveUser(page: Page): Promise<TestRegistrationPayload> {
 	const registration = buildTestRegistrationPayload();
 	await registerTestAccounts(page, registration);
 	await signIn(page, registration.admin.email, registration.admin.password);
@@ -110,6 +114,7 @@ export async function seedResponsiveEmployeeData(
 			code: `RESP-${randomUUID().slice(0, 6)}`,
 			firstName: 'Empleado',
 			lastName: 'Responsive',
+			hireDate: '2025-01-01',
 			locationId,
 			jobPositionId,
 			status: 'ACTIVE',
@@ -212,6 +217,7 @@ export async function seedResponsiveEmployeeDataViaBrowser(
 						code: `RESP-${seedSuffix}`,
 						firstName: 'Empleado',
 						lastName: 'Responsive',
+						hireDate: '2025-01-01',
 						locationId,
 						jobPositionId,
 						status: 'ACTIVE',
@@ -282,12 +288,12 @@ export async function setActiveResponsiveOrganization(
 			return response.json();
 		};
 
-		const payload = (await readJson(
-			await fetch('/api/auth/organization/list'),
-		)) as { organizations?: AuthOrganization[]; data?: AuthOrganization[] } | AuthOrganization[];
+		const payload = (await readJson(await fetch('/api/auth/organization/list'))) as
+			| { organizations?: AuthOrganization[]; data?: AuthOrganization[] }
+			| AuthOrganization[];
 		const organizations = Array.isArray(payload)
 			? payload
-			: payload.organizations ?? payload.data ?? [];
+			: (payload.organizations ?? payload.data ?? []);
 		const organization = organizations.find((item) => item.slug === slug);
 		if (!organization?.id) {
 			throw new Error(`Expected organization id for slug "${slug}".`);

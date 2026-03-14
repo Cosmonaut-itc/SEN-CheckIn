@@ -6,14 +6,13 @@ import type {
 	RowSelectionState,
 	SortingState,
 } from '@tanstack/react-table';
+import { renderToString } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mockUseReactTable = vi.fn();
 
-vi.mock('@tanstack/react-table', async () => {
-	const actual = await vi.importActual<typeof import('@tanstack/react-table')>(
-		'@tanstack/react-table',
-	);
+vi.mock('@tanstack/react-table', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@tanstack/react-table')>();
 
 	return {
 		...actual,
@@ -111,7 +110,30 @@ describe('ResponsiveDataView', () => {
 		expect(screen.queryByRole('table')).toBeNull();
 	});
 
-	it('reuses a single table instance when rendering the desktop view', () => {
+	it('renders desktop markup during server render before switching to mobile cards', () => {
+		mockUseIsMobile.mockReturnValue(true);
+
+		const markup = renderToString(
+			<ResponsiveDataView
+				columns={columns}
+				data={[{ id: '1', name: 'Ada' }]}
+				sorting={sorting}
+				onSortingChange={createStateSetterMock<SortingState>()}
+				pagination={pagination}
+				onPaginationChange={createStateSetterMock<PaginationState>()}
+				columnFilters={columnFilters}
+				onColumnFiltersChange={createStateSetterMock<ColumnFiltersState>()}
+				globalFilter=""
+				onGlobalFilterChange={createStateSetterMock<string>()}
+				cardRenderer={(row) => <span>{row.name}</span>}
+			/>,
+		);
+
+		expect(markup).toContain('<table');
+		expect(markup).not.toContain('responsive-data-view-mobile');
+	});
+
+	it('keeps rendering the desktop table after mount on desktop viewports', () => {
 		mockUseIsMobile.mockReturnValue(false);
 
 		render(
@@ -130,7 +152,9 @@ describe('ResponsiveDataView', () => {
 			/>,
 		);
 
-		expect(mockUseReactTable).toHaveBeenCalledTimes(1);
+		expect(mockUseReactTable).toHaveBeenCalledTimes(2);
+		expect(screen.getByRole('table')).toBeInTheDocument();
+		expect(screen.queryByTestId('responsive-data-view-mobile')).toBeNull();
 	});
 
 	it('opens row details when tapping a mobile card', () => {

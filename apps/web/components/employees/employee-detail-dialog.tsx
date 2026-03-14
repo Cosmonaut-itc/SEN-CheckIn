@@ -664,7 +664,7 @@ export function EmployeeDetailDialog({
 										{tCommon('edit')}
 									</Button>
 								</div>
-								<div className="mt-4 grid gap-3 text-sm min-[1025px]:grid-cols-2 min-[1025px]:grid-cols-4">
+								<div className="mt-4 grid gap-3 text-sm min-[1025px]:grid-cols-2 min-[1281px]:grid-cols-4">
 									<div className="space-y-1">
 										<p className="text-muted-foreground">
 											{t('fields.location')}

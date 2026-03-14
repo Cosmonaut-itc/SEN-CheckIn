@@ -317,7 +317,7 @@ describe('employee routes (contract)', () => {
 		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 
-	it('lets members lower dailyPay without being blocked by hidden fiscalDailyPay', async () => {
+	it('blocks members from implicitly clearing hidden fiscalDailyPay via dailyPay updates', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const adminFiscalResponse = await employeeRoutes.put({
 			fiscalDailyPay: 320.25,
@@ -330,10 +330,12 @@ describe('employee routes (contract)', () => {
 			$headers: { cookie: memberSession.cookieHeader },
 		} as never);
 
-		expect(memberUpdateResponse.status).toBe(200);
-		const memberPayload = requireResponseData(memberUpdateResponse);
-		const memberRecord = memberPayload.data as { dailyPay?: number | string } | undefined;
-		expect(Number(memberRecord?.dailyPay ?? 0)).toBe(300);
+		expect(memberUpdateResponse.status).toBe(403);
+		const errorPayload = requireErrorResponse(
+			memberUpdateResponse,
+			'member hidden fiscalDailyPay update',
+		);
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
 
 		const adminDetailResponse = await employeeRoutes.get({
 			$headers: { cookie: adminSession.cookieHeader },
@@ -341,9 +343,10 @@ describe('employee routes (contract)', () => {
 		expect(adminDetailResponse.status).toBe(200);
 		const adminDetailPayload = requireResponseData(adminDetailResponse);
 		const adminDetailRecord = adminDetailPayload.data as
-			| { fiscalDailyPay?: number | string | null }
+			| { dailyPay?: number | string; fiscalDailyPay?: number | string | null }
 			| undefined;
-		expect(adminDetailRecord?.fiscalDailyPay).toBeNull();
+		expect(Number(adminDetailRecord?.dailyPay ?? 0)).not.toBe(300);
+		expect(Number(adminDetailRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
 	});
 
 	it('shows fiscalDailyPay only to admins in employee detail and list responses', async () => {
@@ -425,6 +428,29 @@ describe('employee routes (contract)', () => {
 			(item) => item.id === baseEmployeeId,
 		) as { fiscalDailyPay?: number | string | null } | undefined;
 		expect(Number(apiKeyListRecord?.fiscalDailyPay ?? 0)).toBe(250);
+	});
+
+	it('keeps fiscalDailyPay visible in employee update responses for api key callers', async () => {
+		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
+		const seedFiscalDailyPayResponse = await employeeRoutes.put({
+			dailyPay: 300,
+			fiscalDailyPay: 250,
+			$headers: { cookie: adminSession.cookieHeader },
+		} as never);
+		expect(seedFiscalDailyPayResponse.status).toBe(200);
+
+		const apiKeyUpdateResponse = await employeeRoutes.put({
+			department: 'Operaciones API',
+			$headers: { 'x-api-key': apiKey },
+		} as never);
+		expect(apiKeyUpdateResponse.status).toBe(200);
+
+		const apiKeyUpdatePayload = requireResponseData(apiKeyUpdateResponse);
+		const apiKeyUpdateRecord = apiKeyUpdatePayload.data as
+			| { department?: string | null; fiscalDailyPay?: number | string | null }
+			| undefined;
+		expect(apiKeyUpdateRecord?.department).toBe('Operaciones API');
+		expect(Number(apiKeyUpdateRecord?.fiscalDailyPay ?? 0)).toBe(250);
 	});
 
 	it('lets admins lower dailyPay when dual payroll is disabled and fiscalDailyPay is stale', async () => {

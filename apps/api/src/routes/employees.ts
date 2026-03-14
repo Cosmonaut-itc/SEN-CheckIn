@@ -2829,6 +2829,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				session,
 				organizationId: resolvedOrganizationId,
 			});
+			const canViewFiscalDailyPay = await canViewFiscalCompensation({
+				authType,
+				session,
+				organizationId: resolvedOrganizationId,
+			});
 
 			// Verify location exists if being updated
 			if (body.locationId) {
@@ -3069,22 +3074,34 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				existingRecord.fiscalDailyPay === undefined
 					? null
 					: Number(existingRecord.fiscalDailyPay);
-			const shouldClearHiddenFiscalDailyPay =
-				fiscalDailyPay === undefined &&
-				dailyPayInput !== undefined &&
-				existingFiscalDailyPay !== null &&
-				existingFiscalDailyPay >= nextDailyPay &&
-				(!canManageFiscalDailyPay || !isDualPayrollEnabled);
-			const nextFiscalDailyPay =
-				shouldClearHiddenFiscalDailyPay
-					? null
-					: (fiscalDailyPay !== undefined ? fiscalDailyPay : existingFiscalDailyPay);
+				const shouldClearHiddenFiscalDailyPay =
+					fiscalDailyPay === undefined &&
+					dailyPayInput !== undefined &&
+					existingFiscalDailyPay !== null &&
+					existingFiscalDailyPay >= nextDailyPay &&
+					canManageFiscalDailyPay &&
+					!isDualPayrollEnabled;
+				const nextFiscalDailyPay =
+					shouldClearHiddenFiscalDailyPay
+						? null
+						: (fiscalDailyPay !== undefined ? fiscalDailyPay : existingFiscalDailyPay);
 
-			if (
-				nextFiscalDailyPay !== null &&
-				nextFiscalDailyPay !== undefined &&
-				Number(nextFiscalDailyPay) >= nextDailyPay
-			) {
+				if (
+					!canManageFiscalDailyPay &&
+					fiscalDailyPay === undefined &&
+					dailyPayInput !== undefined &&
+					existingFiscalDailyPay !== null &&
+					existingFiscalDailyPay >= nextDailyPay
+				) {
+					set.status = 403;
+					return buildErrorResponse('Only organization admins can manage fiscalDailyPay', 403);
+				}
+
+				if (
+					nextFiscalDailyPay !== null &&
+					nextFiscalDailyPay !== undefined &&
+					Number(nextFiscalDailyPay) >= nextDailyPay
+				) {
 				set.status = 400;
 				return buildErrorResponse('Fiscal daily pay must be lower than dailyPay', 400);
 			}
@@ -3268,11 +3285,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 							schedule: typeof result.updatedSchedule;
 					  });
 				warnings?: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }>;
-			} = {
-				data: canManageFiscalDailyPay
-					? { ...result.updatedRecord, schedule: result.updatedSchedule }
-					: { ...omitFiscalDailyPay(result.updatedRecord), schedule: result.updatedSchedule },
-			};
+				} = {
+					data: canViewFiscalDailyPay
+						? { ...result.updatedRecord, schedule: result.updatedSchedule }
+						: { ...omitFiscalDailyPay(result.updatedRecord), schedule: result.updatedSchedule },
+				};
 
 			if (minWageValidation.warnings) {
 				response.warnings = minWageValidation.warnings;

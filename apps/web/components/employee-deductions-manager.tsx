@@ -572,7 +572,10 @@ export function EmployeeDeductionsManager({
 				activeCount: 0,
 			};
 			currentValue.count += 1;
-			currentValue.remainingAmount += deduction.remainingAmount ?? 0;
+			currentValue.remainingAmount +=
+				deduction.status !== 'CANCELLED' && deduction.status !== 'COMPLETED'
+					? (deduction.remainingAmount ?? 0)
+					: 0;
 			currentValue.activeCount += deduction.status === 'ACTIVE' ? 1 : 0;
 			summaryMap.set(deduction.type, currentValue);
 		}

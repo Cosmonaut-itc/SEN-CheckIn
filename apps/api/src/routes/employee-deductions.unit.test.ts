@@ -851,6 +851,31 @@ describe('employee deduction routes', () => {
 			expect(JSON.stringify(await response.json())).toContain('Date must be YYYY-MM-DD');
 		});
 
+		it('rejects date ranges where endDateKey is before startDateKey on create', async () => {
+			const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+			const response = await employeeDeductionRoutes.handle(
+				createJsonRequest(
+					'POST',
+					'/organizations/org-test/employees/employee-1/deductions',
+					{
+						type: 'OTHER',
+						label: 'Rango invalido',
+						calculationMethod: 'FIXED_AMOUNT',
+						value: 200,
+						frequency: 'RECURRING',
+						startDateKey: '2026-03-10',
+						endDateKey: '2026-03-01',
+					},
+				),
+			);
+
+			expect(response.status).toBe(422);
+			expect(JSON.stringify(await response.json())).toContain(
+				'endDateKey must be greater than or equal to startDateKey',
+			);
+		});
+
 		it('requires totalInstallments when frequency is INSTALLMENTS', async () => {
 			const { employeeDeductionRoutes } = await import('./employee-deductions.js');
 
@@ -1021,6 +1046,27 @@ describe('employee deduction routes', () => {
 			expect(JSON.stringify(await response.json())).toContain(
 				'At least one field must be provided for update',
 			);
+		});
+
+		it('rejects date ranges where a patched endDateKey precedes the persisted startDateKey', async () => {
+			const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+			const response = await employeeDeductionRoutes.handle(
+				createJsonRequest(
+					'PUT',
+					'/organizations/org-test/employees/employee-1/deductions/deduction-active',
+					{
+						endDateKey: '2026-02-28',
+					},
+				),
+			);
+
+			expect(response.status).toBe(400);
+			await expect(response.json()).resolves.toMatchObject({
+				error: {
+					message: 'endDateKey must be greater than or equal to startDateKey',
+				},
+			});
 		});
 	});
 

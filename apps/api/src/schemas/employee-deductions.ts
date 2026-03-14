@@ -4,6 +4,8 @@ import { parseDateKey } from '../utils/date-key.js';
 
 const MAX_DEDUCTION_VALUE = 999999.9999;
 const MAX_DEDUCTION_AMOUNT = 9999999999.99;
+export const DEDUCTION_DATE_RANGE_ERROR_MESSAGE =
+	'endDateKey must be greater than or equal to startDateKey';
 
 /**
  * Validates a date key in YYYY-MM-DD format.
@@ -77,6 +79,20 @@ const deductionAmountSchema = z.coerce
 	.max(MAX_DEDUCTION_AMOUNT, `amount must be less than or equal to ${MAX_DEDUCTION_AMOUNT}`);
 
 /**
+ * Checks whether a deduction date range is chronologically valid.
+ *
+ * @param startDateKey - Deduction start date key
+ * @param endDateKey - Optional deduction end date key
+ * @returns True when the end date is absent or falls on/after the start date
+ */
+export function hasValidDeductionDateRange(
+	startDateKey: string,
+	endDateKey: string | null | undefined,
+): boolean {
+	return endDateKey === null || endDateKey === undefined || endDateKey >= startDateKey;
+}
+
+/**
  * Path params for organization/employee-scoped deduction routes.
  */
 export const employeeDeductionParamsSchema = z.object({
@@ -110,7 +126,16 @@ export const employeeDeductionCreateSchema = z
 		satDeductionCode: z.string().trim().max(20).optional(),
 		notes: z.string().trim().max(1000).optional(),
 	})
-	.strict();
+	.strict()
+	.superRefine((value, context) => {
+		if (!hasValidDeductionDateRange(value.startDateKey, value.endDateKey)) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['endDateKey'],
+				message: DEDUCTION_DATE_RANGE_ERROR_MESSAGE,
+			});
+		}
+	});
 
 /**
  * Update payload for employee deductions.
@@ -131,6 +156,19 @@ export const employeeDeductionUpdateSchema = z
 		notes: z.string().trim().max(1000).nullable().optional(),
 	})
 	.strict()
+	.superRefine((value, context) => {
+		if (
+			value.startDateKey &&
+			value.endDateKey &&
+			!hasValidDeductionDateRange(value.startDateKey, value.endDateKey)
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				path: ['endDateKey'],
+				message: DEDUCTION_DATE_RANGE_ERROR_MESSAGE,
+			});
+		}
+	})
 	.refine((value) => Object.keys(value).length > 0, {
 		message: 'At least one field must be provided for update',
 	});

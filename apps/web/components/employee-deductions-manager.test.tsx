@@ -339,5 +339,13 @@ describe('EmployeeDeductionsManager', () => {
 		expect(configuredCardText).not.toContain('160');
 		expect(screen.getByText(/\$5,150\.00/)).toBeTruthy();
 		expect(screen.queryByText(/\$6,750\.00/)).toBeNull();
+
+		const otherTypeCardLabel = screen
+			.getAllByText('types.OTHER')
+			.find((element) => element.tagName === 'P');
+		const otherTypeCardText =
+			otherTypeCardLabel?.closest('div')?.parentElement?.parentElement?.textContent ?? '';
+		expect(otherTypeCardText).toContain('$150.00');
+		expect(otherTypeCardText).not.toContain('$1,750.00');
 	});
 });

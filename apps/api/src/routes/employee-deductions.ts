@@ -6,12 +6,14 @@ import { employee, employeeDeduction, member } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import type { AuthSession } from '../plugins/auth.js';
 import {
+	DEDUCTION_DATE_RANGE_ERROR_MESSAGE,
 	type EmployeeDeductionCreateInput,
 	employeeDeductionCreateSchema,
 	employeeDeductionDetailParamsSchema,
 	employeeDeductionListQuerySchema,
 	employeeDeductionParamsSchema,
 	employeeDeductionUpdateSchema,
+	hasValidDeductionDateRange,
 	organizationDeductionListQuerySchema,
 } from '../schemas/employee-deductions.js';
 import { buildErrorResponse } from '../utils/error-response.js';
@@ -587,6 +589,14 @@ export const employeeDeductionRoutes = new Elysia({ prefix: '/organizations/:org
 					: existing.remainingAmount === null
 						? null
 						: Number(existing.remainingAmount);
+			const resolvedStartDateKey = body.startDateKey ?? existing.startDateKey;
+			const resolvedEndDateKey =
+				body.endDateKey !== undefined ? body.endDateKey : existing.endDateKey;
+
+			if (!hasValidDeductionDateRange(resolvedStartDateKey, resolvedEndDateKey)) {
+				set.status = 400;
+				return buildErrorResponse(DEDUCTION_DATE_RANGE_ERROR_MESSAGE, 400);
+			}
 
 			const validationError = validateDeductionBusinessRules({
 				type: existing.type,

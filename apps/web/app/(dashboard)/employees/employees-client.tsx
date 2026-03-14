@@ -127,7 +127,10 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
-import { getFiscalDailyPaySubmissionError } from './employees-client.helpers';
+import {
+	getFiscalDailyPayPreviewFeedbackKey,
+	getFiscalDailyPaySubmissionError,
+} from './employees-client.helpers';
 
 /**
  * Lazily loads the face enrollment dialog to reduce the initial bundle size.
@@ -2539,10 +2542,13 @@ export function EmployeesPageClient(): React.ReactElement {
 		paymentFrequencyValue,
 	);
 	const parsedFiscalDailyPayPreview = parseOptionalPositiveCurrencyInput(fiscalDailyPayValue);
-	const isFiscalDailyPayInvalid =
-		parsedFiscalDailyPayPreview === undefined ||
-		(typeof parsedFiscalDailyPayPreview === 'number' &&
-			parsedFiscalDailyPayPreview >= computedDailyPay);
+	const fiscalDailyPayPreviewFeedbackKey = getFiscalDailyPayPreviewFeedbackKey({
+		canManageDualPayrollCompensation,
+		dailyPay: computedDailyPay,
+		fiscalDailyPayValue,
+		isEditMode,
+		parsedFiscalDailyPay: parsedFiscalDailyPayPreview,
+	});
 	const fiscalDailyComplementPreview =
 		typeof parsedFiscalDailyPayPreview === 'number'
 			? calculateDailyComplement(computedDailyPay, parsedFiscalDailyPayPreview)
@@ -5642,14 +5648,14 @@ export function EmployeesPageClient(): React.ReactElement {
 															/>
 														)}
 													</form.AppField>
-													{isFiscalDailyPayInvalid &&
-													fiscalDailyPayValue.trim() !== '' ? (
-														<p className="text-xs font-medium text-destructive">
-															{t('validation.fiscalDailyPayLessThanDailyPay')}
+													{fiscalDailyPayPreviewFeedbackKey ===
+													'compensation.liveHelper' ? (
+														<p className="text-xs text-muted-foreground">
+															{t(fiscalDailyPayPreviewFeedbackKey)}
 														</p>
 													) : (
-														<p className="text-xs text-muted-foreground">
-															{t('compensation.liveHelper')}
+														<p className="text-xs font-medium text-destructive">
+															{t(fiscalDailyPayPreviewFeedbackKey)}
 														</p>
 													)}
 												</div>

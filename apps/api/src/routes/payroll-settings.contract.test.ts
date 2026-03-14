@@ -127,7 +127,13 @@ describe('payroll settings routes (contract)', () => {
 		expect(errorPayload.error.code).toBe('FORBIDDEN');
 	});
 
-	it('allows api key callers to update payroll settings for their organization', async () => {
+	it('blocks api key callers from updating payroll settings for their organization', async () => {
+		const baselineResponse = await client['payroll-settings'].get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(baselineResponse.status).toBe(200);
+		const baselinePayload = requireResponseData(baselineResponse);
+
 		const response = await client['payroll-settings'].put({
 			organizationId: adminSession.organizationId,
 			weekStartDay: 5,
@@ -135,11 +141,19 @@ describe('payroll settings routes (contract)', () => {
 			$headers: { 'x-api-key': apiKey },
 		});
 
-		expect(response.status).toBe(200);
-		const payload = requireResponseData(response);
-		expect(payload.data?.organizationId).toBe(adminSession.organizationId);
-		expect(payload.data?.weekStartDay).toBe(5);
-		expect(payload.data?.enableDualPayroll).toBe(true);
+		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'api key payroll settings update');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
+
+		const adminReadbackResponse = await client['payroll-settings'].get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(adminReadbackResponse.status).toBe(200);
+		const adminReadbackPayload = requireResponseData(adminReadbackResponse);
+		expect(adminReadbackPayload.data?.weekStartDay).toBe(baselinePayload.data?.weekStartDay);
+		expect(adminReadbackPayload.data?.enableDualPayroll).toBe(
+			baselinePayload.data?.enableDualPayroll,
+		);
 	});
 
 	it('rejects payroll settings updates for unauthorized organizations', async () => {

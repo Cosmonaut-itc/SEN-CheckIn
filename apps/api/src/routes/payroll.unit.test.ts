@@ -2126,6 +2126,58 @@ describe('payroll routes', () => {
 		expect(dbState.employeeDeductions[0]?.value).toBe('650.0000');
 	});
 
+	it('returns conflict when an applied deduction changes configuration without changing state', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-deduction-recurring-conflict',
+			employeeId: 'emp-recurring-conflict-1',
+			firstName: 'Ellen',
+			lastName: 'Ochoa',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-recurring-conflict',
+				organizationId: 'org-deduction-recurring-conflict',
+				employeeId: 'emp-recurring-conflict-1',
+				type: 'OTHER',
+				label: 'Cuota recurrente',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'RECURRING',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: null,
+				remainingAmount: null,
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+		dbState.pendingDeductionMutationBeforeTransaction = {
+			id: 'deduction-recurring-conflict',
+			value: '650.0000',
+		};
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-deduction-recurring-conflict',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(409);
+		expect(dbState.payrollRuns).toHaveLength(0);
+		expect(dbState.payrollRunEmployees).toHaveLength(0);
+		expect(dbState.employeeDeductions[0]?.value).toBe('650.0000');
+	});
+
 	it('guards deduction updates with previous-state predicates', async () => {
 		seedWeeklyProcessScenario({
 			organizationId: 'org-deduction-stale-write',

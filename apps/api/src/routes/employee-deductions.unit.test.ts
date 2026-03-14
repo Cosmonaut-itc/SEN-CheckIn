@@ -1068,6 +1068,50 @@ describe('employee deduction routes', () => {
 				},
 			});
 		});
+
+		it('rejects lowering totalInstallments below completedInstallments', async () => {
+			dbState.deductions.push({
+				id: 'deduction-installments-progress',
+				organizationId: 'org-test',
+				employeeId: 'employee-1',
+				type: 'LOAN',
+				label: 'Prestamo en progreso',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'INSTALLMENTS',
+				totalInstallments: 6,
+				completedInstallments: 3,
+				totalAmount: '3000.00',
+				remainingAmount: '1500.00',
+				status: 'ACTIVE',
+				startDateKey: '2026-01-01',
+				endDateKey: null,
+				referenceNumber: 'LOAN-2',
+				satDeductionCode: null,
+				notes: null,
+				createdByUserId: 'user-1',
+				createdAt: new Date('2026-01-01T00:00:00.000Z'),
+				updatedAt: new Date('2026-02-10T00:00:00.000Z'),
+			});
+			const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+			const response = await employeeDeductionRoutes.handle(
+				createJsonRequest(
+					'PUT',
+					'/organizations/org-test/employees/employee-1/deductions/deduction-installments-progress',
+					{
+						totalInstallments: 2,
+					},
+				),
+			);
+
+			expect(response.status).toBe(400);
+			await expect(response.json()).resolves.toMatchObject({
+				error: {
+					message: 'totalInstallments cannot be less than completedInstallments',
+				},
+			});
+		});
 	});
 
 	it('updates deduction value and notes correctly', async () => {

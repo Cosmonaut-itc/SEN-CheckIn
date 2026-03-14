@@ -53,6 +53,7 @@ import { buildErrorResponse } from '../utils/error-response.js';
 
 interface PendingPayrollDeductionUpdate {
 	deductionId: string;
+	shouldPersistStateChange: boolean;
 	status: EmployeeDeductionRow['status'];
 	completedInstallments: number;
 	remainingAmount: string | null;
@@ -537,16 +538,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			const deductionUpdates: PendingPayrollDeductionUpdate[] =
 				calculation.employees.flatMap((row) =>
 					row.deductionsBreakdown
-						.filter(
-							(item) =>
-								item.appliedAmount > 0 &&
-								(item.statusAfter !== item.statusBefore ||
-									item.completedInstallmentsAfter !==
-										item.completedInstallmentsBefore ||
-									item.remainingAmountAfter !== item.remainingAmountBefore),
-						)
+						.filter((item) => item.appliedAmount > 0)
 						.map((item) => ({
 							deductionId: item.deductionId,
+							shouldPersistStateChange:
+								item.statusAfter !== item.statusBefore ||
+								item.completedInstallmentsAfter !== item.completedInstallmentsBefore ||
+								item.remainingAmountAfter !== item.remainingAmountBefore,
 							status: item.statusAfter,
 							completedInstallments: item.completedInstallmentsAfter,
 							remainingAmount: normalizeDeductionAmount(item.remainingAmountAfter),
@@ -693,7 +691,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						}));
 						await tx.insert(payrollRunEmployee).values(rows);
 
-						for (const deductionUpdate of deductionUpdates) {
+						for (const deductionUpdate of deductionUpdates.filter(
+							(update) => update.shouldPersistStateChange,
+						)) {
 							const previousStateConditions = [
 								eq(employeeDeduction.status, deductionUpdate.previousStatus),
 								eq(

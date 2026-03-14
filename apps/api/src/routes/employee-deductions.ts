@@ -196,6 +196,7 @@ export function validateDeductionBusinessRules(args: {
 	calculationMethod: DeductionCalculationMethod;
 	frequency: DeductionFrequency;
 	totalInstallments?: number | null;
+	completedInstallments?: number;
 	totalAmount?: number | null;
 	remainingAmount?: number | null;
 }): string | null {
@@ -230,6 +231,15 @@ export function validateDeductionBusinessRules(args: {
 	}
 	if (args.frequency === 'INSTALLMENTS' && (!args.totalInstallments || args.totalInstallments < 1)) {
 		return 'INSTALLMENTS deductions require totalInstallments greater than 0';
+	}
+	if (
+		args.frequency === 'INSTALLMENTS' &&
+		args.totalInstallments !== undefined &&
+		args.totalInstallments !== null &&
+		args.completedInstallments !== undefined &&
+		args.totalInstallments < args.completedInstallments
+	) {
+		return 'totalInstallments cannot be less than completedInstallments';
 	}
 	if (
 		args.totalAmount !== undefined &&
@@ -603,6 +613,7 @@ export const employeeDeductionRoutes = new Elysia({ prefix: '/organizations/:org
 				calculationMethod: existing.calculationMethod,
 				frequency: resolvedFrequency,
 				totalInstallments: resolvedTotalInstallments,
+				completedInstallments: existing.completedInstallments,
 				totalAmount: resolvedTotalAmount,
 				remainingAmount: resolvedRemainingAmount,
 			});

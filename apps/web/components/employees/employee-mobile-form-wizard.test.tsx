@@ -45,6 +45,37 @@ describe('EmployeeMobileFormWizard', () => {
 		expect(screen.getByRole('button', { name: 'Guardar' })).toBeInTheDocument();
 	});
 
+	it('uses 44px touch targets for stepper buttons', () => {
+		render(
+			<EmployeeMobileFormWizard
+				title="Editar empleado"
+				closeLabel="Cerrar"
+				previousLabel="Anterior"
+				nextLabel="Siguiente"
+				saveLabel="Guardar"
+				cancelDiscardLabel="Cancelar"
+				confirmDiscardLabel="Descartar"
+				discardTitle="¿Descartar cambios?"
+				discardDescription="Los cambios sin guardar se perderán."
+				progressLabel="Paso {current} de {total}: {step}"
+				dirty={false}
+				errorStepIndexes={[]}
+				onClose={() => undefined}
+				onSubmit={() => undefined}
+				steps={[
+					{ id: 'personal', title: 'Personal', content: <div>Personal</div> },
+					{ id: 'laboral', title: 'Laboral', content: <div>Laboral</div> },
+					{ id: 'salario', title: 'Salario', content: <div>Salario</div> },
+					{ id: 'ptu', title: 'PTU y Aguinaldo', content: <div>PTU</div> },
+					{ id: 'horario', title: 'Horario', content: <div>Horario</div> },
+				]}
+			/>,
+		);
+
+		expect(screen.getByRole('button', { name: 'Paso 1: Personal' })).toHaveClass('h-11', 'w-11');
+		expect(screen.getByRole('button', { name: 'Paso 2: Laboral' })).toHaveClass('h-11', 'w-11');
+	});
+
 	it('confirms before closing when the wizard has unsaved changes', () => {
 		const handleClose = vi.fn();
 

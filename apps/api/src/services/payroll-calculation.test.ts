@@ -2967,6 +2967,26 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
 		});
 
+		it('does not cap ONE_TIME percentage deductions by their configured rate', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-percentage-gross',
+							type: 'OTHER',
+							calculationMethod: 'PERCENTAGE_GROSS',
+							frequency: 'ONE_TIME',
+							value: 10,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(480);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
 		it('keeps ONE_TIME deductions active and tracks the remaining amount when net-pay capping blocks full collection', () => {
 			const { employees } = calculatePayrollFromData(
 				buildWeeklyPayrollArgsWithDeductions({
@@ -2996,6 +3016,28 @@ describe('payroll-calculation mexico taxes', () => {
 			);
 			expect(row.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
 			expect(row.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
+		});
+
+		it('does not prorate INSTALLMENTS FIXED_AMOUNT deductions for a partial first period', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-partial-period',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 12,
+							value: 700,
+							startDateKey: '2025-03-05',
+							endDateKey: '2025-03-07',
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(700);
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(1);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
 		});
 
 		it('increments installment progress when the deduction is applied', () => {

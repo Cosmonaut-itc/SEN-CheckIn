@@ -108,6 +108,20 @@ interface FakeEmployeeDeductionRow {
 	createdAt: Date;
 }
 
+interface FakePendingDeductionMutation {
+	id: string;
+	status?: FakeEmployeeDeductionRow['status'];
+	completedInstallments?: number;
+	remainingAmount?: string | null;
+	value?: string;
+	calculationMethod?: FakeEmployeeDeductionRow['calculationMethod'];
+	frequency?: FakeEmployeeDeductionRow['frequency'];
+	totalInstallments?: number | null;
+	totalAmount?: string | null;
+	startDateKey?: string;
+	endDateKey?: string | null;
+}
+
 interface FakeDbState {
 	organizationId: string;
 	payrollSettings: FakePayrollSettingRow[];
@@ -121,22 +135,8 @@ interface FakeDbState {
 	payrollRunEmployees: Record<string, unknown>[];
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
-	pendingDeductionMutationBeforeTransaction:
-		| {
-				id: string;
-				status?: FakeEmployeeDeductionRow['status'];
-				completedInstallments?: number;
-				remainingAmount?: string | null;
-		  }
-		| null;
-	pendingDeductionMutationBeforeUpdate:
-		| {
-				id: string;
-				status?: FakeEmployeeDeductionRow['status'];
-				completedInstallments?: number;
-				remainingAmount?: string | null;
-		  }
-		| null;
+	pendingDeductionMutationBeforeTransaction: FakePendingDeductionMutation | null;
+	pendingDeductionMutationBeforeUpdate: FakePendingDeductionMutation | null;
 }
 
 /**
@@ -559,8 +559,65 @@ function getDeductionColumnValue(
 			return row.completedInstallments;
 		case 'remaining_amount':
 			return row.remainingAmount;
+		case 'value':
+			return row.value;
+		case 'calculation_method':
+			return row.calculationMethod;
+		case 'frequency':
+			return row.frequency;
+		case 'total_installments':
+			return row.totalInstallments;
+		case 'total_amount':
+			return row.totalAmount;
+		case 'start_date_key':
+			return row.startDateKey;
+		case 'end_date_key':
+			return row.endDateKey;
 		default:
 			return null;
+	}
+}
+
+/**
+ * Applies a staged deduction mutation to the in-memory row.
+ *
+ * @param deduction - Mutable fake deduction row
+ * @param mutation - Pending mutation payload
+ * @returns Nothing
+ */
+function applyPendingDeductionMutation(
+	deduction: FakeEmployeeDeductionRow,
+	mutation: FakePendingDeductionMutation,
+): void {
+	if (mutation.status) {
+		deduction.status = mutation.status;
+	}
+	if (typeof mutation.completedInstallments === 'number') {
+		deduction.completedInstallments = mutation.completedInstallments;
+	}
+	if (mutation.remainingAmount !== undefined) {
+		deduction.remainingAmount = mutation.remainingAmount;
+	}
+	if (mutation.value !== undefined) {
+		deduction.value = mutation.value;
+	}
+	if (mutation.calculationMethod !== undefined) {
+		deduction.calculationMethod = mutation.calculationMethod;
+	}
+	if (mutation.frequency !== undefined) {
+		deduction.frequency = mutation.frequency;
+	}
+	if (mutation.totalInstallments !== undefined) {
+		deduction.totalInstallments = mutation.totalInstallments;
+	}
+	if (mutation.totalAmount !== undefined) {
+		deduction.totalAmount = mutation.totalAmount;
+	}
+	if (mutation.startDateKey !== undefined) {
+		deduction.startDateKey = mutation.startDateKey;
+	}
+	if (mutation.endDateKey !== undefined) {
+		deduction.endDateKey = mutation.endDateKey;
 	}
 }
 
@@ -925,23 +982,10 @@ function createFakeDb(state: FakeDbState): {
 								if (deduction.id !== state.pendingDeductionMutationBeforeUpdate.id) {
 									continue;
 								}
-								if (state.pendingDeductionMutationBeforeUpdate.status) {
-									deduction.status = state.pendingDeductionMutationBeforeUpdate.status;
-								}
-								if (
-									typeof state.pendingDeductionMutationBeforeUpdate
-										.completedInstallments === 'number'
-								) {
-									deduction.completedInstallments =
-										state.pendingDeductionMutationBeforeUpdate.completedInstallments;
-								}
-								if (
-									state.pendingDeductionMutationBeforeUpdate.remainingAmount !==
-									undefined
-								) {
-									deduction.remainingAmount =
-										state.pendingDeductionMutationBeforeUpdate.remainingAmount;
-								}
+								applyPendingDeductionMutation(
+									deduction,
+									state.pendingDeductionMutationBeforeUpdate,
+								);
 							}
 							state.pendingDeductionMutationBeforeUpdate = null;
 						}
@@ -1050,22 +1094,10 @@ function createFakeDb(state: FakeDbState): {
 				if (deduction.id !== state.pendingDeductionMutationBeforeTransaction.id) {
 					continue;
 				}
-				if (state.pendingDeductionMutationBeforeTransaction.status) {
-					deduction.status = state.pendingDeductionMutationBeforeTransaction.status;
-				}
-				if (
-					typeof state.pendingDeductionMutationBeforeTransaction.completedInstallments ===
-					'number'
-				) {
-					deduction.completedInstallments =
-						state.pendingDeductionMutationBeforeTransaction.completedInstallments;
-				}
-				if (
-					state.pendingDeductionMutationBeforeTransaction.remainingAmount !== undefined
-				) {
-					deduction.remainingAmount =
-						state.pendingDeductionMutationBeforeTransaction.remainingAmount;
-				}
+				applyPendingDeductionMutation(
+					deduction,
+					state.pendingDeductionMutationBeforeTransaction,
+				);
 			}
 			state.pendingDeductionMutationBeforeTransaction = null;
 		}
@@ -2042,6 +2074,58 @@ describe('payroll routes', () => {
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('3000.00');
 	});
 
+	it('returns conflict when deduction configuration changes before payroll updates are persisted', async () => {
+		seedWeeklyProcessScenario({
+			organizationId: 'org-deduction-config-conflict',
+			employeeId: 'emp-config-conflict-1',
+			firstName: 'Katherine',
+			lastName: 'Johnson',
+			timeZone,
+		});
+		dbState.employeeDeductions = [
+			{
+				id: 'deduction-config-conflict',
+				organizationId: 'org-deduction-config-conflict',
+				employeeId: 'emp-config-conflict-1',
+				type: 'LOAN',
+				label: 'Prestamo reconfigurado',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: '500.0000',
+				frequency: 'INSTALLMENTS',
+				totalInstallments: 10,
+				completedInstallments: 3,
+				totalAmount: '5000.00',
+				remainingAmount: '3500.00',
+				status: 'ACTIVE',
+				startDateKey: '2025-03-03',
+				endDateKey: null,
+				referenceNumber: null,
+				satDeductionCode: null,
+				notes: null,
+				createdAt: new Date('2025-03-01T00:00:00.000Z'),
+			},
+		];
+		dbState.pendingDeductionMutationBeforeTransaction = {
+			id: 'deduction-config-conflict',
+			value: '650.0000',
+		};
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: 'org-deduction-config-conflict',
+				periodStartDateKey: '2025-03-03',
+				periodEndDateKey: '2025-03-09',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(409);
+		expect(dbState.payrollRuns).toHaveLength(0);
+		expect(dbState.payrollRunEmployees).toHaveLength(0);
+		expect(dbState.employeeDeductions[0]?.value).toBe('650.0000');
+	});
+
 	it('guards deduction updates with previous-state predicates', async () => {
 		seedWeeklyProcessScenario({
 			organizationId: 'org-deduction-stale-write',
@@ -2077,6 +2161,7 @@ describe('payroll routes', () => {
 			id: 'deduction-stale-write',
 			completedInstallments: 4,
 			remainingAmount: '3000.00',
+			value: '650.0000',
 		};
 
 		const { payrollRoutes } = await import('./payroll.js');
@@ -2096,6 +2181,12 @@ describe('payroll routes', () => {
 			status: 'ACTIVE',
 			completed_installments: 3,
 			remaining_amount: '3500.00',
+			value: '500.0000',
+			calculation_method: 'FIXED_AMOUNT',
+			frequency: 'INSTALLMENTS',
+			total_installments: 10,
+			total_amount: '5000.00',
+			start_date_key: '2025-03-03',
 		});
 		expect(dbState.payrollRuns).toHaveLength(0);
 	});

@@ -148,18 +148,23 @@ export interface PayrollDeductionBreakdownItem {
 	calculationMethod: EmployeeDeductionRow['calculationMethod'];
 	frequency: EmployeeDeductionRow['frequency'];
 	configuredValue: number;
+	sourceValue: EmployeeDeductionRow['value'];
 	baseAmount: number;
 	calculatedAmount: number;
 	appliedAmount: number;
 	applicableDays: number;
 	totalInstallments: number | null;
+	sourceTotalInstallments: EmployeeDeductionRow['totalInstallments'];
 	completedInstallmentsBefore: number;
 	completedInstallmentsAfter: number;
 	remainingAmountBefore: number | null;
 	remainingAmountAfter: number | null;
+	sourceTotalAmount: EmployeeDeductionRow['totalAmount'];
 	statusBefore: EmployeeDeductionRow['status'];
 	statusAfter: EmployeeDeductionRow['status'];
 	cappedByNetPay: boolean;
+	sourceStartDateKey: EmployeeDeductionRow['startDateKey'];
+	sourceEndDateKey: EmployeeDeductionRow['endDateKey'];
 	referenceNumber: string | null;
 	satDeductionCode: string | null;
 }
@@ -400,7 +405,8 @@ export function calculateDeductionAmount(args: {
 		case 'FIXED_AMOUNT':
 			baseAmount = configuredValue;
 			calculatedAmount =
-				args.deduction.frequency === 'ONE_TIME'
+				args.deduction.frequency === 'ONE_TIME' ||
+				args.deduction.frequency === 'INSTALLMENTS'
 					? configuredValue
 					: configuredValue * (applicableDays / periodDays);
 			break;
@@ -1370,7 +1376,11 @@ export function calculatePayrollFromData(
 			const tracksRecoverableBalance =
 				hasRemainingAmount || hasTotalAmount || deduction.frequency === 'ONE_TIME';
 			const remainingBefore = tracksRecoverableBalance
-				? Number(deduction.remainingAmount ?? deduction.totalAmount ?? configuredValue)
+				? Number(
+						deduction.remainingAmount ??
+							deduction.totalAmount ??
+							deductionAmount.calculatedAmount,
+					)
 				: 0;
 			const remainingBalanceCap = tracksRecoverableBalance
 				? Math.max(0, remainingBefore)
@@ -1432,19 +1442,24 @@ export function calculatePayrollFromData(
 				calculationMethod: deduction.calculationMethod,
 				frequency: deduction.frequency,
 				configuredValue,
+				sourceValue: deduction.value,
 				baseAmount: deductionAmount.baseAmount,
 				calculatedAmount: deductionAmount.calculatedAmount,
 				appliedAmount,
 				applicableDays: deductionAmount.applicableDays,
 				totalInstallments: deduction.totalInstallments,
+				sourceTotalInstallments: deduction.totalInstallments,
 				completedInstallmentsBefore: deduction.completedInstallments,
 				completedInstallmentsAfter,
 				remainingAmountBefore:
 					hasRemainingAmount || hasTotalAmount ? roundCurrency(remainingBefore) : null,
 				remainingAmountAfter,
+				sourceTotalAmount: deduction.totalAmount,
 				statusBefore: deduction.status,
 				statusAfter,
 				cappedByNetPay,
+				sourceStartDateKey: deduction.startDateKey,
+				sourceEndDateKey: deduction.endDateKey,
 				referenceNumber: deduction.referenceNumber ?? null,
 				satDeductionCode: deduction.satDeductionCode ?? null,
 			});

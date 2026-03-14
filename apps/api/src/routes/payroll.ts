@@ -59,6 +59,13 @@ interface PendingPayrollDeductionUpdate {
 	previousStatus: EmployeeDeductionRow['status'];
 	previousCompletedInstallments: number;
 	previousRemainingAmount: string | null;
+	previousValue: string;
+	previousCalculationMethod: EmployeeDeductionRow['calculationMethod'];
+	previousFrequency: EmployeeDeductionRow['frequency'];
+	previousTotalInstallments: number | null;
+	previousTotalAmount: string | null;
+	previousStartDateKey: string;
+	previousEndDateKey: string | null;
 }
 
 const PAYROLL_DEDUCTION_STATE_CONFLICT_ERROR = 'PAYROLL_DEDUCTION_STATE_CONFLICT';
@@ -548,6 +555,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							previousRemainingAmount: normalizeDeductionAmount(
 								item.remainingAmountBefore,
 							),
+							previousValue: String(item.sourceValue),
+							previousCalculationMethod: item.calculationMethod,
+							previousFrequency: item.frequency,
+							previousTotalInstallments: item.sourceTotalInstallments,
+							previousTotalAmount: normalizeDeductionAmount(item.sourceTotalAmount),
+							previousStartDateKey: item.sourceStartDateKey,
+							previousEndDateKey: item.sourceEndDateKey,
 						})),
 				);
 
@@ -561,6 +575,13 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								status: employeeDeduction.status,
 								completedInstallments: employeeDeduction.completedInstallments,
 								remainingAmount: employeeDeduction.remainingAmount,
+								value: employeeDeduction.value,
+								calculationMethod: employeeDeduction.calculationMethod,
+								frequency: employeeDeduction.frequency,
+								totalInstallments: employeeDeduction.totalInstallments,
+								totalAmount: employeeDeduction.totalAmount,
+								startDateKey: employeeDeduction.startDateKey,
+								endDateKey: employeeDeduction.endDateKey,
 							})
 							.from(employeeDeduction)
 							.where(
@@ -587,7 +608,17 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								currentDeduction.completedInstallments !==
 									update.previousCompletedInstallments ||
 								normalizeDeductionAmount(currentDeduction.remainingAmount) !==
-									update.previousRemainingAmount
+									update.previousRemainingAmount ||
+								currentDeduction.value !== update.previousValue ||
+								currentDeduction.calculationMethod !==
+									update.previousCalculationMethod ||
+								currentDeduction.frequency !== update.previousFrequency ||
+								currentDeduction.totalInstallments !==
+									update.previousTotalInstallments ||
+								normalizeDeductionAmount(currentDeduction.totalAmount) !==
+									update.previousTotalAmount ||
+								currentDeduction.startDateKey !== update.previousStartDateKey ||
+								currentDeduction.endDateKey !== update.previousEndDateKey
 							);
 						});
 
@@ -674,6 +705,31 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 									: eq(
 											employeeDeduction.remainingAmount,
 											deductionUpdate.previousRemainingAmount,
+										),
+								eq(employeeDeduction.value, deductionUpdate.previousValue),
+								eq(
+									employeeDeduction.calculationMethod,
+									deductionUpdate.previousCalculationMethod,
+								),
+								eq(employeeDeduction.frequency, deductionUpdate.previousFrequency),
+								deductionUpdate.previousTotalInstallments === null
+									? isNull(employeeDeduction.totalInstallments)
+									: eq(
+											employeeDeduction.totalInstallments,
+											deductionUpdate.previousTotalInstallments,
+										),
+								deductionUpdate.previousTotalAmount === null
+									? isNull(employeeDeduction.totalAmount)
+									: eq(
+											employeeDeduction.totalAmount,
+											deductionUpdate.previousTotalAmount,
+										),
+								eq(employeeDeduction.startDateKey, deductionUpdate.previousStartDateKey),
+								deductionUpdate.previousEndDateKey === null
+									? isNull(employeeDeduction.endDateKey)
+									: eq(
+											employeeDeduction.endDateKey,
+											deductionUpdate.previousEndDateKey,
 										),
 							];
 							const updatedRows = await tx

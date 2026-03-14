@@ -1363,13 +1363,18 @@ export function calculatePayrollFromData(
 			}
 
 			const configuredValue = Number(deduction.value ?? 0);
-			const remainingBefore = Number(deduction.remainingAmount ?? deduction.totalAmount ?? 0);
 			const hasRemainingAmount =
 				deduction.remainingAmount !== null && deduction.remainingAmount !== undefined;
 			const hasTotalAmount =
 				deduction.totalAmount !== null && deduction.totalAmount !== undefined;
-			const remainingBalanceCap =
-				hasRemainingAmount || hasTotalAmount ? Math.max(0, remainingBefore) : Number.POSITIVE_INFINITY;
+			const tracksRecoverableBalance =
+				hasRemainingAmount || hasTotalAmount || deduction.frequency === 'ONE_TIME';
+			const remainingBefore = tracksRecoverableBalance
+				? Number(deduction.remainingAmount ?? deduction.totalAmount ?? configuredValue)
+				: 0;
+			const remainingBalanceCap = tracksRecoverableBalance
+				? Math.max(0, remainingBefore)
+				: Number.POSITIVE_INFINITY;
 			const netPayCap = Math.max(0, remainingNetAfterDeductions);
 			const appliedAmount = roundCurrency(
 				Math.min(deductionAmount.calculatedAmount, netPayCap, remainingBalanceCap),
@@ -1392,15 +1397,13 @@ export function calculatePayrollFromData(
 
 			let statusAfter: EmployeeDeductionRow['status'] = deduction.status;
 			let completedInstallmentsAfter = deduction.completedInstallments;
-			let remainingAmountAfter: number | null =
-				hasRemainingAmount || hasTotalAmount
-					? roundCurrency(Math.max(0, remainingBefore - appliedAmount))
-					: null;
+			const remainingAmountAfter: number | null = tracksRecoverableBalance
+				? roundCurrency(Math.max(0, remainingBefore - appliedAmount))
+				: null;
 
 			if (appliedAmount > 0) {
-				if (deduction.frequency === 'ONE_TIME') {
+				if (deduction.frequency === 'ONE_TIME' && remainingAmountAfter === 0) {
 					statusAfter = 'COMPLETED';
-					remainingAmountAfter = 0;
 				}
 				if (deduction.frequency === 'INSTALLMENTS') {
 					if (installmentWasFullyApplied) {
@@ -1414,8 +1417,8 @@ export function calculatePayrollFromData(
 					}
 				}
 				if (
-					deduction.frequency === 'RECURRING' &&
-					(hasRemainingAmount || hasTotalAmount) &&
+					(deduction.frequency === 'RECURRING' || deduction.frequency === 'INSTALLMENTS') &&
+					tracksRecoverableBalance &&
 					remainingAmountAfter === 0
 				) {
 					statusAfter = 'COMPLETED';

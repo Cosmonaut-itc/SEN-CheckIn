@@ -274,6 +274,7 @@ describe('EmployeeDeductionsManager', () => {
 	});
 
 	afterEach(() => {
+		vi.useRealTimers();
 		vi.restoreAllMocks();
 	});
 
@@ -347,5 +348,16 @@ describe('EmployeeDeductionsManager', () => {
 			otherTypeCardLabel?.closest('div')?.parentElement?.parentElement?.textContent ?? '';
 		expect(otherTypeCardText).toContain('$150.00');
 		expect(otherTypeCardText).not.toContain('$1,750.00');
+	});
+
+	it('prefills the create dialog startDateKey using the local date instead of UTC', async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date('2026-03-15T01:30:00.000Z'));
+
+		renderWithProviders();
+
+		fireEvent.click(screen.getByText('actions.add'));
+
+		expect(screen.getByLabelText('form.startDate')).toHaveValue('2026-03-14');
 	});
 });

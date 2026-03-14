@@ -2967,6 +2967,37 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
 		});
 
+		it('keeps ONE_TIME deductions active and tracks the remaining amount when net-pay capping blocks full collection', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeOverrides: {
+						dailyPay: 100,
+					},
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-net-cap',
+							type: 'LOAN',
+							frequency: 'ONE_TIME',
+							value: 1000,
+						}),
+					],
+				}),
+			);
+
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(netBeforeDeductions);
+			expect(row.deductionsBreakdown[0]?.remainingAmountAfter).toBe(
+				Number((1000 - netBeforeDeductions).toFixed(2)),
+			);
+			expect(row.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+			expect(row.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
+		});
+
 		it('increments installment progress when the deduction is applied', () => {
 			const { employees } = calculatePayrollFromData(
 				buildWeeklyPayrollArgsWithDeductions({
@@ -3044,6 +3075,30 @@ describe('payroll-calculation mexico taxes', () => {
 			);
 
 			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(10);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('completes installments when a tracked totalAmount is exhausted before totalInstallments is reached', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-total-cap',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 5,
+							completedInstallments: 3,
+							totalAmount: 100,
+							remainingAmount: 25,
+							value: 25,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(25);
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(4);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
 			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
 		});
 

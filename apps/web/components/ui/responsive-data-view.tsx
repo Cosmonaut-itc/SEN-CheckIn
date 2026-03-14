@@ -201,8 +201,13 @@ export function ResponsiveDataView<TData, TValue>({
 	onRowClick,
 }: ResponsiveDataViewProps<TData, TValue>): React.ReactElement {
 	const isMobile = useIsMobile();
+	const [hasMounted, setHasMounted] = React.useState<boolean>(false);
 
-	if (!isMobile) {
+	React.useEffect(() => {
+		setHasMounted(true);
+	}, []);
+
+	if (!hasMounted || !isMobile) {
 		return (
 			<DataTable
 				columns={columns}

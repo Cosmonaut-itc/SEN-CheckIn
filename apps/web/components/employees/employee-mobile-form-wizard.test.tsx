@@ -164,6 +164,15 @@ describe('EmployeeMobileFormWizard', () => {
 		expect(screen.getByRole('button', { name: 'Siguiente' })).toBeDisabled();
 	});
 
+	it('disables the save button on the last step while submitting', () => {
+		renderWizard({
+			activeStepIndex: 4,
+			isSubmitting: true,
+		});
+
+		expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
+	});
+
 	it('renders destructive step icons for steps with validation errors', () => {
 		renderWizard({
 			errorStepIndexes: [0, 2],

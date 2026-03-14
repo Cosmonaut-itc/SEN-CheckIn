@@ -664,7 +664,7 @@ export function EmployeeDetailDialog({
 										{tCommon('edit')}
 									</Button>
 								</div>
-								<div className="mt-4 grid gap-3 text-sm min-[1025px]:grid-cols-2 min-[1281px]:grid-cols-4">
+								<div className="mt-4 grid gap-3 text-sm min-[1025px]:grid-cols-4">
 									<div className="space-y-1">
 										<p className="text-muted-foreground">
 											{t('fields.location')}
@@ -787,7 +787,7 @@ export function EmployeeDetailDialog({
 										</TabsList>
 									</div>
 								) : (
-									<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
+									<TabsList className="h-auto w-full shrink-0 justify-start gap-1 overflow-x-auto p-1">
 										{PRIMARY_DETAIL_TABS.map((tab) => (
 											<TabsTrigger
 												key={tab}

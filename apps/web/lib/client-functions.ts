@@ -3950,13 +3950,21 @@ export async function fetchEmployeeDeductionsList(
 		return [];
 	}
 
+	const query: {
+		status?: EmployeeDeductionStatus;
+		type?: EmployeeDeductionType;
+	} = {};
+	if (params.status) {
+		query.status = params.status;
+	}
+	if (params.type) {
+		query.type = params.type;
+	}
+
 	const response = await api.organizations[params.organizationId].employees[
 		params.employeeId
 	].deductions.get({
-		$query: {
-			status: params.status,
-			type: params.type,
-		},
+		$query: query,
 	});
 
 	if (response.error) {
@@ -3997,9 +4005,9 @@ export async function fetchOrganizationDeductionsList(
 	const query = {
 		limit: clampPaginationLimit(params.limit, 20),
 		offset: clampPaginationOffset(params.offset),
-		employeeId: params.employeeId,
-		status: params.status,
-		type: params.type,
+		...(params.employeeId ? { employeeId: params.employeeId } : {}),
+		...(params.status ? { status: params.status } : {}),
+		...(params.type ? { type: params.type } : {}),
 	};
 	const response = await api.organizations[params.organizationId].deductions.get({
 		$query: query,

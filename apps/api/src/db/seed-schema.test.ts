@@ -9,6 +9,8 @@ describe('seedSchema', () => {
 		expect(seedSchema).toHaveProperty('employeeTerminationSettlement');
 		expect(seedSchema).toHaveProperty('employeeIncapacity');
 		expect(seedSchema).toHaveProperty('employeeIncapacityDocument');
+		expect(seedSchema).toHaveProperty('employeeDocumentVersion');
 		expect(seedSchema).toHaveProperty('overtimeAuthorization');
+		expect(seedSchema).toHaveProperty('employeeDeduction');
 	});
 });

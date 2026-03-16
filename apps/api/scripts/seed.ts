@@ -37,6 +37,8 @@ const {
 	employeeDisciplinaryAttachment,
 	employeeDisciplinaryDocumentVersion,
 	employeeDisciplinaryMeasure,
+	employeeDeduction,
+	employeeDocumentVersion,
 	employeeIncapacity,
 	employeeIncapacityDocument,
 	employeeLegalGeneration,
@@ -64,6 +66,8 @@ const {
 	scheduleException,
 	scheduleTemplate,
 	scheduleTemplateDay,
+	member,
+	user,
 	vacationRequest,
 	vacationRequestDay,
 } = schema;
@@ -85,13 +89,23 @@ type SeedJobPosition = typeof jobPosition.$inferSelect;
 type SeedScheduleTemplate = typeof scheduleTemplate.$inferSelect;
 type SeedEmployee = typeof employee.$inferSelect;
 type SeedDevice = typeof device.$inferSelect;
+type SeedOrganizationUsers = {
+	organizationId: string;
+	ownerUserId: string;
+	adminUserId: string;
+	employeeUserId: string;
+};
 
 type ScheduleTemplateDayRow = typeof scheduleTemplateDay.$inferInsert;
 type EmployeeScheduleRow = typeof employeeSchedule.$inferInsert;
 type ScheduleExceptionRow = typeof scheduleException.$inferInsert;
 type AttendanceRecordRow = typeof attendanceRecord.$inferInsert;
 type ClientRow = typeof client.$inferInsert;
+type UserRow = typeof user.$inferInsert;
+type MemberRow = typeof member.$inferInsert;
 type EmployeeAuditEventRow = typeof employeeAuditEvent.$inferInsert;
+type EmployeeDeductionRow = typeof employeeDeduction.$inferInsert;
+type EmployeeDocumentVersionRow = typeof employeeDocumentVersion.$inferInsert;
 type EmployeeTerminationSettlementRow = typeof employeeTerminationSettlement.$inferInsert;
 type EmployeeIncapacityRow = typeof employeeIncapacity.$inferInsert;
 type EmployeeIncapacityDocumentRow = typeof employeeIncapacityDocument.$inferInsert;
@@ -163,6 +177,15 @@ type EmployeeLifecycleSeedTotals = {
 
 type OvertimeAuthorizationSeedTotals = {
 	authorizations: number;
+};
+
+type EmployeeDocumentDemoSeedTotals = {
+	generations: number;
+	documents: number;
+};
+
+type EmployeeDeductionSeedTotals = {
+	deductions: number;
 };
 
 /**
@@ -424,6 +447,16 @@ function money(value: number): string {
 }
 
 /**
+ * Formats a number into a 4-decimal numeric string (Postgres numeric).
+ *
+ * @param value - Numeric value
+ * @returns String formatted with 4 decimals
+ */
+function decimal4(value: number): string {
+	return value.toFixed(4);
+}
+
+/**
  * Rounds a number to two decimal places for deterministic monetary math.
  *
  * @param value - Numeric value
@@ -507,6 +540,111 @@ async function ensureSeedOrganizations(seedNumber: number): Promise<SeedOrganiza
 		const bIndex = indexBySlug.get(b.slug) ?? 0;
 		return aIndex - bIndex;
 	});
+}
+
+/**
+ * Ensures deterministic Better Auth demo users and memberships exist for each organization.
+ *
+ * These rows are intentionally managed outside `seedSchema` because auth tables are not reset
+ * by the domain seed flow.
+ *
+ * @param args - Seed inputs
+ * @returns Organization users keyed by organization ID
+ */
+async function ensureSeedOrganizationUsers(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+}): Promise<Map<string, SeedOrganizationUsers>> {
+	const { seedNumber, organizations } = args;
+	const userRows: UserRow[] = [];
+	const memberRows: MemberRow[] = [];
+	const userMap = new Map<string, SeedOrganizationUsers>();
+
+	for (const org of organizations) {
+		const ownerUserId = deterministicUuid(seedNumber, `seed-user:${org.id}:owner`);
+		const adminUserId = deterministicUuid(seedNumber, `seed-user:${org.id}:admin`);
+		const employeeUserId = deterministicUuid(seedNumber, `seed-user:${org.id}:employee`);
+
+		userRows.push(
+			{
+				id: ownerUserId,
+				name: `Owner ${org.name}`,
+				email: `owner+${org.slug}@seed.sen-checkin.local`,
+				emailVerified: true,
+				image: null,
+				role: 'admin',
+				banned: false,
+				banReason: null,
+				banExpires: null,
+				username: `${org.slug}-owner`,
+				displayUsername: `${org.slug}-owner`,
+			},
+			{
+				id: adminUserId,
+				name: `RH ${org.name}`,
+				email: `rh+${org.slug}@seed.sen-checkin.local`,
+				emailVerified: true,
+				image: null,
+				role: 'admin',
+				banned: false,
+				banReason: null,
+				banExpires: null,
+				username: `${org.slug}-rh`,
+				displayUsername: `${org.slug}-rh`,
+			},
+			{
+				id: employeeUserId,
+				name: `Empleado ${org.name}`,
+				email: `empleado+${org.slug}@seed.sen-checkin.local`,
+				emailVerified: true,
+				image: null,
+				role: 'user',
+				banned: false,
+				banReason: null,
+				banExpires: null,
+				username: `${org.slug}-empleado`,
+				displayUsername: `${org.slug}-empleado`,
+			},
+		);
+
+		memberRows.push(
+			{
+				id: deterministicUuid(seedNumber, `seed-member:${org.id}:owner`),
+				organizationId: org.id,
+				userId: ownerUserId,
+				role: 'owner',
+			},
+			{
+				id: deterministicUuid(seedNumber, `seed-member:${org.id}:admin`),
+				organizationId: org.id,
+				userId: adminUserId,
+				role: 'admin',
+			},
+			{
+				id: deterministicUuid(seedNumber, `seed-member:${org.id}:employee`),
+				organizationId: org.id,
+				userId: employeeUserId,
+				role: 'member',
+			},
+		);
+
+		userMap.set(org.id, {
+			organizationId: org.id,
+			ownerUserId,
+			adminUserId,
+			employeeUserId,
+		});
+	}
+
+	if (userRows.length > 0) {
+		await db.insert(user).values(userRows).onConflictDoNothing();
+	}
+
+	if (memberRows.length > 0) {
+		await db.insert(member).values(memberRows).onConflictDoNothing();
+	}
+
+	return userMap;
 }
 
 /**
@@ -1744,6 +1882,615 @@ async function seedEmployees(args: {
 	}
 
 	return db.select().from(employee);
+}
+
+/**
+ * Links one seeded self-service user per organization to an active employee.
+ *
+ * @param args - Seed inputs
+ * @returns Promise that resolves when employee rows are updated
+ */
+async function assignSeedUsersToEmployees(args: {
+	employees: SeedEmployee[];
+	organizationUsers: Map<string, SeedOrganizationUsers>;
+}): Promise<void> {
+	const { employees, organizationUsers } = args;
+
+	for (const [organizationId, organizationUser] of organizationUsers.entries()) {
+		const targetEmployee = employees
+			.filter((row) => row.organizationId === organizationId)
+			.sort((left, right) => left.code.localeCompare(right.code))
+			.find((row) => row.status === 'ACTIVE');
+
+		if (!targetEmployee) {
+			continue;
+		}
+
+		await db
+			.update(employee)
+			.set({ userId: organizationUser.employeeUserId })
+			.where(eq(employee.id, targetEmployee.id));
+	}
+}
+
+/**
+ * Seeds employee-facing document versions and legal generations for demo flows.
+ *
+ * @param args - Seed inputs
+ * @returns Totals for seeded legal generations and document rows
+ * @throws When required legal templates are missing for an organization
+ */
+async function insertEmployeeDocumentDemoData(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	organizationUsers: Map<string, SeedOrganizationUsers>;
+	legalTemplatesByOrganization: Map<string, Map<LegalDocumentKindValue, LegalTemplateSeedInfo>>;
+}): Promise<EmployeeDocumentDemoSeedTotals> {
+	const { seedNumber, organizations, employees, organizationUsers, legalTemplatesByOrganization } =
+		args;
+	const generationRows: EmployeeLegalGenerationRow[] = [];
+	const documentRows: EmployeeDocumentVersionRow[] = [];
+	const reviewedAt = new Date();
+	const signedAtDateKey = reviewedAt.toISOString().slice(0, 10);
+
+	for (const org of organizations) {
+		const orgUsers = organizationUsers.get(org.id);
+		const templateLookup = legalTemplatesByOrganization.get(org.id);
+		const contractTemplate = templateLookup?.get('CONTRACT');
+		const ndaTemplate = templateLookup?.get('NDA');
+
+		if (!contractTemplate || !ndaTemplate) {
+			throw new Error(`Missing employee legal templates for organization "${org.slug}".`);
+		}
+
+		const orgEmployees = employees
+			.filter((row) => row.organizationId === org.id)
+			.sort((left, right) => left.code.localeCompare(right.code))
+			.slice(0, 2);
+		const primaryEmployee = orgEmployees[0];
+		const secondaryEmployee = orgEmployees[1];
+
+		if (!primaryEmployee) {
+			continue;
+		}
+
+		const reviewerUserId = orgUsers?.adminUserId ?? null;
+		const contractGenerationId = deterministicUuid(
+			seedNumber,
+			`employee-document-generation:${org.id}:${primaryEmployee.id}:contract`,
+		);
+		const ndaGenerationId = deterministicUuid(
+			seedNumber,
+			`employee-document-generation:${org.id}:${primaryEmployee.id}:nda`,
+		);
+
+		generationRows.push(
+			{
+				id: contractGenerationId,
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				kind: 'CONTRACT',
+				templateId: contractTemplate.templateId,
+				templateVersionNumber: contractTemplate.versionNumber,
+				generatedHtmlHash: sha256Hex(`seed:employee-document:html:${contractGenerationId}`),
+				generatedPdfHash: sha256Hex(`seed:employee-document:pdf:${contractGenerationId}`),
+				variablesSnapshot: {
+					source: 'seed',
+					employeeCode: primaryEmployee.code,
+					kind: 'CONTRACT',
+				},
+				generatedByUserId: reviewerUserId,
+				generatedAt: reviewedAt,
+			},
+			{
+				id: ndaGenerationId,
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				kind: 'NDA',
+				templateId: ndaTemplate.templateId,
+				templateVersionNumber: ndaTemplate.versionNumber,
+				generatedHtmlHash: sha256Hex(`seed:employee-document:html:${ndaGenerationId}`),
+				generatedPdfHash: sha256Hex(`seed:employee-document:pdf:${ndaGenerationId}`),
+				variablesSnapshot: {
+					source: 'seed',
+					employeeCode: primaryEmployee.code,
+					kind: 'NDA',
+				},
+				generatedByUserId: reviewerUserId,
+				generatedAt: reviewedAt,
+			},
+		);
+
+		documentRows.push(
+			{
+				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:identification:v1`),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'IDENTIFICATION',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'APPROVED',
+				reviewComment: null,
+				reviewedByUserId: reviewerUserId,
+				reviewedAt,
+				source: 'UPLOAD',
+				generationId: null,
+				identificationSubtype: 'INE',
+				employmentProfileSubtype: null,
+				signedAtDateKey: null,
+				verifiedByUserId: reviewerUserId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/IDENTIFICATION/v1.pdf`,
+				fileName: `identificacion-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 81_920,
+				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:identification:v1`),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'IDENTIFICATION',
+				},
+			},
+			{
+				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:tax-constancy:v1`),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'TAX_CONSTANCY',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'APPROVED',
+				reviewComment: null,
+				reviewedByUserId: reviewerUserId,
+				reviewedAt,
+				source: 'UPLOAD',
+				generationId: null,
+				identificationSubtype: null,
+				employmentProfileSubtype: null,
+				signedAtDateKey: null,
+				verifiedByUserId: reviewerUserId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/TAX_CONSTANCY/v1.pdf`,
+				fileName: `constancia-situacion-fiscal-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 73_728,
+				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:tax-constancy:v1`),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'TAX_CONSTANCY',
+				},
+			},
+			{
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:proof-of-address:v1`,
+				),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'PROOF_OF_ADDRESS',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'PENDING_REVIEW',
+				reviewComment: null,
+				reviewedByUserId: null,
+				reviewedAt: null,
+				source: 'UPLOAD',
+				generationId: null,
+				identificationSubtype: null,
+				employmentProfileSubtype: null,
+				signedAtDateKey: null,
+				verifiedByUserId: null,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/PROOF_OF_ADDRESS/v1.pdf`,
+				fileName: `comprobante-domicilio-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 65_536,
+				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:proof-of-address:v1`),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'PROOF_OF_ADDRESS',
+				},
+			},
+			{
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:social-security-evidence:v1`,
+				),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'SOCIAL_SECURITY_EVIDENCE',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'APPROVED',
+				reviewComment: null,
+				reviewedByUserId: reviewerUserId,
+				reviewedAt,
+				source: 'UPLOAD',
+				generationId: null,
+				identificationSubtype: null,
+				employmentProfileSubtype: null,
+				signedAtDateKey: null,
+				verifiedByUserId: reviewerUserId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/SOCIAL_SECURITY_EVIDENCE/v1.pdf`,
+				fileName: `nss-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 61_440,
+				sha256: sha256Hex(
+					`seed:employee-document:${primaryEmployee.id}:social-security-evidence:v1`,
+				),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'SOCIAL_SECURITY_EVIDENCE',
+				},
+			},
+			{
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:employment-profile:v1`,
+				),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'EMPLOYMENT_PROFILE',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'APPROVED',
+				reviewComment: null,
+				reviewedByUserId: reviewerUserId,
+				reviewedAt,
+				source: 'UPLOAD',
+				generationId: null,
+				identificationSubtype: null,
+				employmentProfileSubtype: 'CURRICULUM',
+				signedAtDateKey: null,
+				verifiedByUserId: reviewerUserId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/EMPLOYMENT_PROFILE/v1.pdf`,
+				fileName: `curriculum-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 94_208,
+				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:employment-profile:v1`),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'EMPLOYMENT_PROFILE',
+				},
+			},
+			{
+				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:signed-contract:v1`),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'SIGNED_CONTRACT',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'APPROVED',
+				reviewComment: null,
+				reviewedByUserId: reviewerUserId,
+				reviewedAt,
+				source: 'DIGITAL_SIGNATURE',
+				generationId: contractGenerationId,
+				identificationSubtype: null,
+				employmentProfileSubtype: null,
+				signedAtDateKey,
+				verifiedByUserId: reviewerUserId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/SIGNED_CONTRACT/v1.pdf`,
+				fileName: `contrato-firmado-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 129_024,
+				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:signed-contract:v1`),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'SIGNED_CONTRACT',
+				},
+			},
+			{
+				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:signed-nda:v1`),
+				organizationId: org.id,
+				employeeId: primaryEmployee.id,
+				requirementKey: 'SIGNED_NDA',
+				versionNumber: 1,
+				isCurrent: true,
+				reviewStatus: 'APPROVED',
+				reviewComment: null,
+				reviewedByUserId: reviewerUserId,
+				reviewedAt,
+				source: 'DIGITAL_SIGNATURE',
+				generationId: ndaGenerationId,
+				identificationSubtype: null,
+				employmentProfileSubtype: null,
+				signedAtDateKey,
+				verifiedByUserId: reviewerUserId,
+				bucket: SEED_BUCKET_NAME,
+				objectKey: `org/${org.id}/employees/${primaryEmployee.id}/documents/SIGNED_NDA/v1.pdf`,
+				fileName: `nda-firmado-${primaryEmployee.code}.pdf`,
+				contentType: 'application/pdf',
+				sizeBytes: 118_784,
+				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:signed-nda:v1`),
+				uploadedByUserId: reviewerUserId,
+				uploadedAt: reviewedAt,
+				metadata: {
+					source: 'seed',
+					requirementKey: 'SIGNED_NDA',
+				},
+			},
+		);
+
+		if (secondaryEmployee) {
+			documentRows.push(
+				{
+					id: deterministicUuid(
+						seedNumber,
+						`employee-document:${secondaryEmployee.id}:identification:v1`,
+					),
+					organizationId: org.id,
+					employeeId: secondaryEmployee.id,
+					requirementKey: 'IDENTIFICATION',
+					versionNumber: 1,
+					isCurrent: true,
+					reviewStatus: 'APPROVED',
+					reviewComment: null,
+					reviewedByUserId: reviewerUserId,
+					reviewedAt,
+					source: 'UPLOAD',
+					generationId: null,
+					identificationSubtype: 'PASSPORT',
+					employmentProfileSubtype: null,
+					signedAtDateKey: null,
+					verifiedByUserId: reviewerUserId,
+					bucket: SEED_BUCKET_NAME,
+					objectKey: `org/${org.id}/employees/${secondaryEmployee.id}/documents/IDENTIFICATION/v1.pdf`,
+					fileName: `pasaporte-${secondaryEmployee.code}.pdf`,
+					contentType: 'application/pdf',
+					sizeBytes: 86_016,
+					sha256: sha256Hex(
+						`seed:employee-document:${secondaryEmployee.id}:identification:v1`,
+					),
+					uploadedByUserId: reviewerUserId,
+					uploadedAt: reviewedAt,
+					metadata: {
+						source: 'seed',
+						requirementKey: 'IDENTIFICATION',
+					},
+				},
+				{
+					id: deterministicUuid(
+						seedNumber,
+						`employee-document:${secondaryEmployee.id}:tax-constancy:v1`,
+					),
+					organizationId: org.id,
+					employeeId: secondaryEmployee.id,
+					requirementKey: 'TAX_CONSTANCY',
+					versionNumber: 1,
+					isCurrent: true,
+					reviewStatus: 'REJECTED',
+					reviewComment: 'El PDF está borroso y debe volver a cargarse.',
+					reviewedByUserId: reviewerUserId,
+					reviewedAt,
+					source: 'UPLOAD',
+					generationId: null,
+					identificationSubtype: null,
+					employmentProfileSubtype: null,
+					signedAtDateKey: null,
+					verifiedByUserId: null,
+					bucket: SEED_BUCKET_NAME,
+					objectKey: `org/${org.id}/employees/${secondaryEmployee.id}/documents/TAX_CONSTANCY/v1.pdf`,
+					fileName: `constancia-situacion-fiscal-${secondaryEmployee.code}.pdf`,
+					contentType: 'application/pdf',
+					sizeBytes: 69_632,
+					sha256: sha256Hex(
+						`seed:employee-document:${secondaryEmployee.id}:tax-constancy:v1`,
+					),
+					uploadedByUserId: reviewerUserId,
+					uploadedAt: reviewedAt,
+					metadata: {
+						source: 'seed',
+						requirementKey: 'TAX_CONSTANCY',
+					},
+				},
+			);
+		}
+	}
+
+	if (generationRows.length > 0) {
+		await db.insert(employeeLegalGeneration).values(generationRows);
+	}
+
+	if (documentRows.length > 0) {
+		await db.insert(employeeDocumentVersion).values(documentRows);
+	}
+
+	return {
+		generations: generationRows.length,
+		documents: documentRows.length,
+	};
+}
+
+/**
+ * Seeds organization employee deductions to exercise payroll and deductions flows.
+ *
+ * @param args - Seed inputs
+ * @returns Total seeded deductions
+ */
+async function insertEmployeeDeductions(args: {
+	seedNumber: number;
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	organizationUsers: Map<string, SeedOrganizationUsers>;
+}): Promise<EmployeeDeductionSeedTotals> {
+	const { seedNumber, organizations, employees, organizationUsers } = args;
+	const deductionRows: EmployeeDeductionRow[] = [];
+	const todayDateKey = new Date().toISOString().slice(0, 10);
+
+	for (const org of organizations) {
+		const orgEmployees = employees
+			.filter((row) => row.organizationId === org.id)
+			.sort((left, right) => left.code.localeCompare(right.code))
+			.slice(0, 5);
+		const createdByUserId = organizationUsers.get(org.id)?.adminUserId;
+
+		if (!createdByUserId || orgEmployees.length === 0) {
+			continue;
+		}
+
+		const [
+			infonavitEmployee,
+			loanEmployee,
+			alimonyEmployee,
+			pausedEmployee,
+			advanceEmployee,
+		] = orgEmployees;
+
+		if (infonavitEmployee) {
+			deductionRows.push({
+				id: deterministicUuid(seedNumber, `employee-deduction:${org.id}:${infonavitEmployee.id}:infonavit`),
+				organizationId: org.id,
+				employeeId: infonavitEmployee.id,
+				type: 'INFONAVIT',
+				label: 'INFONAVIT cuota fija',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: decimal4(1250),
+				frequency: 'RECURRING',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: null,
+				remainingAmount: null,
+				status: 'ACTIVE',
+				startDateKey: addDaysToDateKey(todayDateKey, -240),
+				endDateKey: null,
+				referenceNumber: `INF-${org.slug.toUpperCase()}-001`,
+				satDeductionCode: '001',
+				notes: 'Descuento recurrente de ejemplo para pruebas de nómina.',
+				createdByUserId,
+				createdAt: new Date(),
+			});
+		}
+
+		if (loanEmployee) {
+			deductionRows.push({
+				id: deterministicUuid(seedNumber, `employee-deduction:${org.id}:${loanEmployee.id}:loan`),
+				organizationId: org.id,
+				employeeId: loanEmployee.id,
+				type: 'LOAN',
+				label: 'Préstamo interno',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: decimal4(600),
+				frequency: 'INSTALLMENTS',
+				totalInstallments: 12,
+				completedInstallments: 4,
+				totalAmount: money(7200),
+				remainingAmount: money(4800),
+				status: 'ACTIVE',
+				startDateKey: addDaysToDateKey(todayDateKey, -150),
+				endDateKey: null,
+				referenceNumber: `LOAN-${org.slug.toUpperCase()}-001`,
+				satDeductionCode: '004',
+				notes: 'Préstamo activo en parcialidades.',
+				createdByUserId,
+				createdAt: new Date(),
+			});
+		}
+
+		if (alimonyEmployee) {
+			deductionRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`employee-deduction:${org.id}:${alimonyEmployee.id}:alimony`,
+				),
+				organizationId: org.id,
+				employeeId: alimonyEmployee.id,
+				type: 'ALIMONY',
+				label: 'Pensión alimenticia',
+				calculationMethod: 'PERCENTAGE_NET',
+				value: decimal4(15),
+				frequency: 'RECURRING',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: null,
+				remainingAmount: null,
+				status: 'ACTIVE',
+				startDateKey: addDaysToDateKey(todayDateKey, -320),
+				endDateKey: null,
+				referenceNumber: `ALIM-${org.slug.toUpperCase()}-001`,
+				satDeductionCode: '002',
+				notes: 'Porcentaje neto para validar cálculos y desglose.',
+				createdByUserId,
+				createdAt: new Date(),
+			});
+		}
+
+		if (pausedEmployee) {
+			deductionRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`employee-deduction:${org.id}:${pausedEmployee.id}:paused`,
+				),
+				organizationId: org.id,
+				employeeId: pausedEmployee.id,
+				type: 'OTHER',
+				label: 'Descuento administrativo pausado',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: decimal4(250),
+				frequency: 'RECURRING',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: null,
+				remainingAmount: null,
+				status: 'PAUSED',
+				startDateKey: addDaysToDateKey(todayDateKey, -90),
+				endDateKey: null,
+				referenceNumber: `OTR-${org.slug.toUpperCase()}-001`,
+				satDeductionCode: null,
+				notes: 'Caso pausado para filtros de la vista de deducciones.',
+				createdByUserId,
+				createdAt: new Date(),
+			});
+		}
+
+		if (advanceEmployee) {
+			deductionRows.push({
+				id: deterministicUuid(
+					seedNumber,
+					`employee-deduction:${org.id}:${advanceEmployee.id}:advance`,
+				),
+				organizationId: org.id,
+				employeeId: advanceEmployee.id,
+				type: 'ADVANCE',
+				label: 'Anticipo de nómina',
+				calculationMethod: 'FIXED_AMOUNT',
+				value: decimal4(950),
+				frequency: 'ONE_TIME',
+				totalInstallments: null,
+				completedInstallments: 0,
+				totalAmount: money(950),
+				remainingAmount: money(950),
+				status: 'ACTIVE',
+				startDateKey: addDaysToDateKey(todayDateKey, -14),
+				endDateKey: addDaysToDateKey(todayDateKey, 30),
+				referenceNumber: `ADV-${org.slug.toUpperCase()}-001`,
+				satDeductionCode: '005',
+				notes: 'Anticipo pendiente de liquidarse en la siguiente corrida.',
+				createdByUserId,
+				createdAt: new Date(),
+			});
+		}
+	}
+
+	if (deductionRows.length > 0) {
+		await db.insert(employeeDeduction).values(deductionRows);
+	}
+
+	return { deductions: deductionRows.length };
 }
 
 /**
@@ -3366,6 +4113,11 @@ async function main(): Promise<void> {
 		await reset(db, seedSchema);
 	}
 
+	const organizationUsers = await ensureSeedOrganizationUsers({
+		seedNumber: args.seed,
+		organizations,
+	});
+
 	const baseline = await insertDomainBaseline({
 		seedNumber: args.seed,
 		organizations,
@@ -3396,6 +4148,10 @@ async function main(): Promise<void> {
 		templates: baseline.templates,
 		positionPayDefaults: baseline.positionPayDefaults,
 	});
+	await assignSeedUsersToEmployees({
+		employees,
+		organizationUsers,
+	});
 
 	const disciplinarySeedTotals = await insertDisciplinaryDemoData({
 		seedNumber: args.seed,
@@ -3408,6 +4164,13 @@ async function main(): Promise<void> {
 		organizations,
 		employees,
 		locations: baseline.locations,
+	});
+	const employeeDocumentSeedTotals = await insertEmployeeDocumentDemoData({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		organizationUsers,
+		legalTemplatesByOrganization,
 	});
 
 	await insertEmployeeSchedules(args.seed, employees);
@@ -3450,6 +4213,12 @@ async function main(): Promise<void> {
 		organizations,
 		employees,
 		locations: baseline.locations,
+	});
+	const employeeDeductionSeedTotals = await insertEmployeeDeductions({
+		seedNumber: args.seed,
+		organizations,
+		employees,
+		organizationUsers,
 	});
 
 	await insertPayrollRuns({
@@ -3505,10 +4274,13 @@ async function main(): Promise<void> {
 		'Employee incapacity documents:',
 		employeeLifecycleSeedTotals.incapacityDocuments,
 	);
+	console.log('Employee legal generations:', employeeDocumentSeedTotals.generations);
+	console.log('Employee document versions:', employeeDocumentSeedTotals.documents);
 	console.log(
 		'Overtime authorizations:',
 		overtimeAuthorizationSeedTotals.authorizations,
 	);
+	console.log('Employee deductions:', employeeDeductionSeedTotals.deductions);
 	console.log('PTU history rows:', ptuHistoryCount);
 	console.log('PTU runs:', ptuSeedTotals.runs, 'line items:', ptuSeedTotals.lineItems);
 	console.log(

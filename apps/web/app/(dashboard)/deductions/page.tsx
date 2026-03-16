@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import React from 'react';
 
 import { EmployeeDeductionsManager } from '@/components/employee-deductions-manager';
+import { buildOrganizationDeductionsQueryParams } from '@/lib/employee-deductions-query-params';
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
@@ -38,11 +39,14 @@ export default async function DeductionsPage(): Promise<React.ReactElement> {
 			limit: 100,
 			offset: 0,
 		});
-		prefetchOrganizationDeductionsList(queryClient, {
-			organizationId: organization.organizationId,
-			limit: 20,
-			offset: 0,
-		});
+		prefetchOrganizationDeductionsList(
+			queryClient,
+			buildOrganizationDeductionsQueryParams({
+				organizationId: organization.organizationId,
+				limit: 20,
+				offset: 0,
+			}),
+		);
 	}
 
 	return (

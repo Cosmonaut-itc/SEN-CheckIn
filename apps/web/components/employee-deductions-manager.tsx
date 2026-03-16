@@ -58,6 +58,10 @@ import {
 	fetchEmployeesList,
 	fetchOrganizationDeductionsList,
 } from '@/lib/client-functions';
+import {
+	buildEmployeeDeductionsQueryParams,
+	buildOrganizationDeductionsQueryParams,
+} from '@/lib/employee-deductions-query-params';
 import { useOrgContext } from '@/lib/org-client-context';
 import {
 	type EmployeeDeductionStatus,
@@ -426,51 +430,31 @@ export function EmployeeDeductionsManager({
 		[organizationId],
 	);
 
-	const employeeDeductionsQueryParams = useMemo<
-		| {
-				organizationId: string;
-				employeeId: string;
-				status?: EmployeeDeductionStatus;
-				type?: EmployeeDeductionType;
-		  }
-		| undefined
-	>(() => {
-		if (!organizationId || !employeeId) {
-			return undefined;
-		}
+	const employeeDeductionsQueryParams = useMemo(
+			() =>
+				buildEmployeeDeductionsQueryParams({
+					organizationId: organizationId ?? undefined,
+					employeeId,
+					status: parseDeductionStatus(statusFilter),
+					type: parseDeductionType(typeFilter),
+			}),
+		[employeeId, organizationId, statusFilter, typeFilter],
+	);
 
-		return {
-			organizationId,
-			employeeId,
-			status: parseDeductionStatus(statusFilter),
-			type: parseDeductionType(typeFilter),
-		};
-	}, [employeeId, organizationId, statusFilter, typeFilter]);
-
-	const organizationDeductionsQueryParams = useMemo<
-		| {
-				organizationId: string;
-				limit: number;
-				offset: number;
-				employeeId?: string;
-				status?: EmployeeDeductionStatus;
-				type?: EmployeeDeductionType;
-		  }
-		| undefined
-	>(() => {
-		if (!organizationId || isEmployeeMode) {
-			return undefined;
-		}
-
-		return {
-			organizationId,
-			limit: DEFAULT_PAGE_SIZE,
-			offset: pageIndex * DEFAULT_PAGE_SIZE,
-			employeeId: employeeFilter !== ALL_FILTER_VALUE ? employeeFilter : undefined,
-			status: parseDeductionStatus(statusFilter),
-			type: parseDeductionType(typeFilter),
-		};
-	}, [employeeFilter, isEmployeeMode, organizationId, pageIndex, statusFilter, typeFilter]);
+	const organizationDeductionsQueryParams = useMemo(
+		() =>
+			isEmployeeMode
+					? undefined
+					: buildOrganizationDeductionsQueryParams({
+							organizationId: organizationId ?? undefined,
+							limit: DEFAULT_PAGE_SIZE,
+							offset: pageIndex * DEFAULT_PAGE_SIZE,
+							employeeId: employeeFilter !== ALL_FILTER_VALUE ? employeeFilter : undefined,
+						status: parseDeductionStatus(statusFilter),
+						type: parseDeductionType(typeFilter),
+					}),
+		[employeeFilter, isEmployeeMode, organizationId, pageIndex, statusFilter, typeFilter],
+	);
 
 	const employeesQuery = useQuery({
 		queryKey: queryKeys.employees.list(employeeListQueryParams),

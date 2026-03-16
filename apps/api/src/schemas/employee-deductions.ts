@@ -63,6 +63,24 @@ export const deductionStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'COMPLETED', 'C
 export const deductionMutableStatusSchema = z.enum(['ACTIVE', 'PAUSED', 'CANCELLED']);
 
 /**
+ * Converts empty or stringified-undefined query params into missing values.
+ *
+ * @param value - Raw query-string value
+ * @returns `undefined` when the value should be ignored, otherwise the original value
+ */
+function normalizeOptionalQueryValue(value: unknown): unknown {
+	if (value === undefined || value === null) {
+		return undefined;
+	}
+
+	if (typeof value === 'string' && (value.trim() === '' || value === 'undefined')) {
+		return undefined;
+	}
+
+	return value;
+}
+
+/**
  * Deduction value numeric validator.
  */
 const deductionValueSchema = z.coerce
@@ -177,17 +195,20 @@ export const employeeDeductionUpdateSchema = z
  * Query filters for listing deductions on a single employee.
  */
 export const employeeDeductionListQuerySchema = z.object({
-	status: deductionStatusSchema.optional(),
-	type: deductionTypeSchema.optional(),
+	status: z.preprocess(normalizeOptionalQueryValue, deductionStatusSchema.optional()),
+	type: z.preprocess(normalizeOptionalQueryValue, deductionTypeSchema.optional()),
 });
 
 /**
  * Query filters for listing organization-wide deductions.
  */
 export const organizationDeductionListQuerySchema = z.object({
-	status: deductionStatusSchema.optional(),
-	type: deductionTypeSchema.optional(),
-	employeeId: z.string().min(1).optional(),
+	status: z.preprocess(normalizeOptionalQueryValue, deductionStatusSchema.optional()),
+	type: z.preprocess(normalizeOptionalQueryValue, deductionTypeSchema.optional()),
+	employeeId: z.preprocess(
+		normalizeOptionalQueryValue,
+		z.string().min(1).optional(),
+	),
 	limit: z.coerce.number().int().min(1).max(100).default(20),
 	offset: z.coerce.number().int().min(0).default(0),
 });

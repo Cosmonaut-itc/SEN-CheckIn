@@ -1425,4 +1425,38 @@ describe('employee deduction routes', () => {
 			offset: 0,
 		});
 	});
+
+	it('treats "undefined" organization-wide deduction filters as absent values', async () => {
+		const { employeeDeductionRoutes } = await import('./employee-deductions.js');
+
+		const response = await employeeDeductionRoutes.handle(
+			createJsonRequest(
+				'GET',
+				'/organizations/org-test/deductions?status=undefined&type=undefined&employeeId=undefined&limit=20&offset=0',
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			data: expect.any(Array),
+			pagination: {
+				limit: 20,
+				offset: 0,
+			},
+		});
+
+		const deductionSelectCalls = dbInspection.selects.filter(
+			(call) => call.tableName === 'employee_deduction',
+		);
+		const pageCall = deductionSelectCalls.find((call) => call.selection === 'all');
+
+		expect(flattenEqualityConditions(pageCall?.condition ?? null)).toMatchObject({
+			organization_id: 'org-test',
+		});
+		expect(flattenEqualityConditions(pageCall?.condition ?? null)).not.toHaveProperty('status');
+		expect(flattenEqualityConditions(pageCall?.condition ?? null)).not.toHaveProperty('type');
+		expect(flattenEqualityConditions(pageCall?.condition ?? null)).not.toHaveProperty(
+			'employee_id',
+		);
+	});
 });

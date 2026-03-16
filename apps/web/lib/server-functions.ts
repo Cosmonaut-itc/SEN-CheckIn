@@ -122,7 +122,10 @@ const getRequestHeaders = cache(async (): Promise<Headers> => {
  * }
  * ```
  */
-export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
+export function prefetchEmployeesList(
+	queryClient: QueryClient,
+	params?: ListQueryParams,
+): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {

@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import React from 'react';
+import { AccessibilityInfo, Animated } from 'react-native';
 
 import ScannerScreen from '@/app/(main)/scanner';
 import FaceEnrollmentScreen from '@/app/(main)/face-enrollment';
@@ -19,6 +20,7 @@ const mockRequestPermission = jest.fn();
 const mockTakePictureAsync = jest.fn();
 const mockRequestDeviceCode = jest.fn();
 const mockPollDeviceToken = jest.fn();
+const mockAnnounceForAccessibility = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: (...args: unknown[]) => mockUseQuery(...args),
@@ -91,6 +93,14 @@ jest.mock('expo-image', () => ({
 
 jest.mock('react-native-safe-area-context', () => ({
 	useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+	__esModule: true,
+	default: {
+		fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+		addEventListener: jest.fn(() => jest.fn()),
+	},
 }));
 
 jest.mock('@/constants/env', () => ({
@@ -305,6 +315,30 @@ jest.mock('@/lib/client-functions', () => ({
 
 describe('Mobile accessibility labels', () => {
 	beforeEach(() => {
+		jest.useFakeTimers();
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		jest.spyOn(Animated, 'loop').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
+		jest.spyOn(Animated, 'timing').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
+		jest
+			.spyOn(AccessibilityInfo, 'announceForAccessibility')
+			.mockImplementation((announcement: string) => {
+				mockAnnounceForAccessibility(announcement);
+				return Promise.resolve();
+			});
 		mockPush.mockReset();
 		mockReplace.mockReset();
 		mockGoBack.mockReset();
@@ -317,6 +351,7 @@ describe('Mobile accessibility labels', () => {
 		mockTakePictureAsync.mockReset();
 		mockRequestDeviceCode.mockReset();
 		mockPollDeviceToken.mockReset();
+		mockAnnounceForAccessibility.mockReset();
 
 		mockUseDeviceContext.mockReturnValue({
 			settings: {
@@ -387,6 +422,24 @@ describe('Mobile accessibility labels', () => {
 		expect(screen.getByLabelText('Escanear entrada')).toBeOnTheScreen();
 	});
 
+	it('announces scanner status changes for assistive technologies', async () => {
+		mockTakePictureAsync.mockResolvedValue({ base64: null });
+
+		render(<ScannerScreen />);
+
+		await act(async () => {
+			jest.advanceTimersByTime(150);
+		});
+		fireEvent.press(screen.getByLabelText('Escanear entrada'));
+
+		await screen.findByText('No se pudo capturar la imagen. Inténtalo de nuevo.');
+
+		expect(mockAnnounceForAccessibility).toHaveBeenCalledWith('Verificando rostro...');
+		expect(mockAnnounceForAccessibility).toHaveBeenCalledWith(
+			'No se pudo capturar la imagen. Inténtalo de nuevo.',
+		);
+	});
+
 	it('adds labels and hints to face enrollment controls', () => {
 		render(<FaceEnrollmentScreen />);
 
@@ -427,5 +480,10 @@ describe('Mobile accessibility labels', () => {
 		expect(screen.getByLabelText('Seleccionar motivo de salida: Comida')).toBeOnTheScreen();
 		expect(screen.getByLabelText('Seleccionar motivo de salida: Personal')).toBeOnTheScreen();
 		expect(screen.getByLabelText('Cancelar')).toBeOnTheScreen();
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
+		jest.useRealTimers();
 	});
 });

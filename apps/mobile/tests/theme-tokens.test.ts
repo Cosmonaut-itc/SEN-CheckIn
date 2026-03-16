@@ -12,6 +12,13 @@ describe('Michoacan theme tokens', () => {
 		expect(cssContent.toLowerCase()).toContain('b8602a');
 	});
 
+	it('keeps accent aliases mapped to accent instead of collapsing into primary', () => {
+		expect(cssContent).toContain('--color-accent: var(--accent);');
+		expect(cssContent).toContain('--color-accent-foreground: var(--accent-foreground);');
+		expect(cssContent).toContain('--color-accent-bg: var(--accent-bg);');
+		expect(cssContent).not.toContain('--color-accent: var(--primary);');
+	});
+
 	it('defines destructive with the canonical token name', () => {
 		expect(cssContent).toContain('--destructive');
 	});

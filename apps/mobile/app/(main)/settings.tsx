@@ -109,10 +109,9 @@ export default function SettingsScreen(): JSX.Element {
 	});
 
 	useEffect(() => {
-		if (!settings) return;
-		form.setFieldValue('name', settings.name);
-		form.setFieldValue('locationId', settings.locationId ?? '');
-	}, [form, settings]);
+		form.setFieldValue('name', settings?.name ?? '');
+		form.setFieldValue('locationId', settings?.locationId ?? '');
+	}, [form, settings?.locationId, settings?.name]);
 
 	const organizationId = session?.session?.activeOrganizationId ?? '—';
 	const organizationName =
@@ -170,7 +169,7 @@ export default function SettingsScreen(): JSX.Element {
 							className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
 							style={continuousCurve}
 						>
-							<Text className="text-lg">🏢</Text>
+							<IconSymbol name="building.2" size={18} color={iconColor} />
 						</View>
 						<View className="flex-1">
 							<Card.Title className="text-foreground text-lg">
@@ -238,7 +237,21 @@ export default function SettingsScreen(): JSX.Element {
 											isDisabled={isLocationsPending}
 										>
 											<Select.Trigger variant="outline" asChild>
-												<Button variant="tertiary" size="sm">
+												<Button
+													variant="tertiary"
+													size="sm"
+													accessibilityLabel={`${i18n.t(
+														'Settings.form.fields.location.accessibilityLabel',
+													)}: ${
+														selectedOption?.label ??
+														i18n.t(
+															'Settings.form.fields.location.placeholder',
+														)
+													}`}
+													accessibilityHint={i18n.t(
+														'Settings.form.fields.location.accessibilityHint',
+													)}
+												>
 													{selectedOption ? (
 														<View className="flex-row items-center gap-2">
 															<Text className="text-sm text-foreground">

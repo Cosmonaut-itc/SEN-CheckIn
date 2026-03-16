@@ -1,26 +1,35 @@
-import type { JSX } from 'react';
+import type { ComponentProps, JSX } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolView, type SymbolViewProps, type SymbolWeight } from 'expo-symbols';
-import { Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { View, type StyleProp, type ViewStyle } from 'react-native';
 
-const FALLBACK_SYMBOLS: Record<string, string> = {
-	'arrow.left.arrow.right': '↔︎',
-	'checkmark.circle': '✅',
-	'checkmark.seal.fill': '✅',
-	camera: '📷',
-	'chevron.left': '‹',
-	'chevron.right': '›',
-	'doc.on.doc': '📄',
-	'exclamationmark.circle': '⚠️',
-	'exclamationmark.triangle.fill': '⚠️',
-	gearshape: '⚙️',
-	link: '🔗',
-	'list.dash': '≡',
-	nosign: '⛔️',
-	'person.crop.circle.badge.plus': '👤+',
-	'square.and.arrow.up': '↗︎',
-	trash: '🗑️',
-	viewfinder: '📷',
-	'xmark.circle': '❌',
+const FALLBACK_SYMBOLS: Record<string, ComponentProps<typeof MaterialIcons>['name']> = {
+	'arrow.left.arrow.right': 'swap-horiz',
+	'building.2': 'business',
+	'checkmark.circle': 'check-circle',
+	'checkmark.circle.fill': 'check-circle',
+	'checkmark.seal.fill': 'check-circle',
+	camera: 'photo-camera',
+	'chevron.left': 'chevron-left',
+	'chevron.right': 'chevron-right',
+	clock: 'schedule',
+	'doc.on.doc': 'content-copy',
+	'exclamationmark.circle': 'warning',
+	'exclamationmark.triangle.fill': 'warning',
+	gearshape: 'settings',
+	iphone: 'smartphone',
+	'lightbulb.fill': 'lightbulb-outline',
+	link: 'link',
+	'list.dash': 'list',
+	magnifyingglass: 'search',
+	nosign: 'block',
+	'person.crop.circle.badge.plus': 'person-add-alt-1',
+	'square.and.arrow.up': 'share',
+	trash: 'delete-outline',
+	viewfinder: 'center-focus-strong',
+	'wifi.slash': 'wifi-off',
+	'xmark.circle': 'cancel',
+	'xmark.circle.fill': 'cancel',
 };
 
 /**
@@ -29,9 +38,11 @@ const FALLBACK_SYMBOLS: Record<string, string> = {
  * @param symbolName - SF Symbols name requested by the caller
  * @returns Fallback glyph string
  */
-function resolveFallbackSymbol(symbolName: SymbolViewProps['name']): string {
-	if (typeof symbolName !== 'string') return '•';
-	return FALLBACK_SYMBOLS[symbolName] ?? '•';
+function resolveFallbackSymbol(
+	symbolName: SymbolViewProps['name'],
+): ComponentProps<typeof MaterialIcons>['name'] {
+	if (typeof symbolName !== 'string') return 'radio-button-unchecked';
+	return FALLBACK_SYMBOLS[symbolName] ?? 'radio-button-unchecked';
 }
 
 /**
@@ -55,28 +66,8 @@ export function IconSymbol({
 }): JSX.Element {
 	if (process.env.EXPO_OS !== 'ios') {
 		return (
-			<View
-				style={[
-					{
-						width: size,
-						height: size,
-						alignItems: 'center',
-						justifyContent: 'center',
-					},
-					style,
-				]}
-			>
-				<Text
-					style={{
-						fontSize: size,
-						lineHeight: size,
-						color,
-						textAlign: 'center',
-					}}
-					allowFontScaling={false}
-				>
-					{resolveFallbackSymbol(name)}
-				</Text>
+			<View style={style}>
+				<MaterialIcons name={resolveFallbackSymbol(name)} size={size} color={color} />
 			</View>
 		);
 	}

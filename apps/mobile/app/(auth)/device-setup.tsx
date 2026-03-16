@@ -12,6 +12,8 @@ import {
 	type ViewStyle,
 } from 'react-native';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
@@ -53,6 +55,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 	const { settings, updateLocalSettings } = useDeviceContext();
 	const params = useLocalSearchParams<SearchParams>();
 	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
+	const [dangerColor, primaryColor, warningColor] = useThemeColor([
+		'destructive',
+		'primary',
+		'warning',
+	]);
 
 	const deviceId = useMemo(
 		() => normalizeParam(params.deviceId) ?? settings?.deviceId ?? null,
@@ -170,7 +177,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 					>
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
-						<Text className="text-3xl">⚠️</Text>
+						<IconSymbol
+							name="exclamationmark.triangle.fill"
+							size={28}
+							color={dangerColor}
+						/>
 					</View>
 					<View className="gap-2 items-center">
 						<Text className="text-2xl font-bold text-foreground text-center">
@@ -219,7 +230,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 							className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center"
 							style={continuousCurve}
 						>
-							<Text className="text-2xl">📱</Text>
+							<IconSymbol name="iphone" size={20} color={primaryColor} />
 						</View>
 						<View className="flex-1">
 							<Text className="text-xs uppercase tracking-widest text-primary font-bold">
@@ -327,7 +338,21 @@ export default function DeviceSetupScreen(): JSX.Element {
 										isDisabled={isLocationsPending}
 									>
 										<Select.Trigger variant="outline" asChild>
-											<Button variant="tertiary" size="sm">
+											<Button
+												variant="tertiary"
+												size="sm"
+												accessibilityLabel={`${i18n.t(
+													'DeviceSetup.form.fields.location.accessibilityLabel',
+												)}: ${
+													selectedOption?.label ??
+													i18n.t(
+														'DeviceSetup.form.fields.location.placeholder',
+													)
+												}`}
+												accessibilityHint={i18n.t(
+													'DeviceSetup.form.fields.location.accessibilityHint',
+												)}
+											>
 												{selectedOption ? (
 													<View className="flex-row items-center gap-2">
 														<Text className="text-sm text-foreground">
@@ -426,7 +451,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 					style={continuousCurve}
 				>
 					<View className="flex-row items-start gap-3">
-						<Text className="text-lg">💡</Text>
+						<IconSymbol name="lightbulb.fill" size={18} color={warningColor} />
 						<View className="flex-1 gap-1">
 							<Text className="text-sm font-semibold text-foreground">
 								{i18n.t('DeviceSetup.tip.title')}

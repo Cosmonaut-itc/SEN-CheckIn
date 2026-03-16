@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Animated } from 'react-native';
 
 import ScannerScreen from '@/app/(main)/scanner';
 import esTranslations from '@/lib/translations/es.json';
@@ -63,6 +64,27 @@ jest.mock('expo-haptics', () => ({
 
 jest.mock('react-native-safe-area-context', () => ({
 	useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+	__esModule: true,
+	default: {
+		fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+		addEventListener: jest.fn(() => jest.fn()),
+	},
+}));
+
+jest.mock('@/constants/env', () => ({
+	ENV: {
+		apiUrl: 'https://api.example.com',
+		webVerifyUrl: 'https://example.com/verificar',
+	},
+	envErrors: null,
+}));
+
+jest.mock('@/lib/api', () => ({
+	API_BASE_URL: 'https://api.example.com',
+	API_ENV_VALID: true,
 }));
 
 jest.mock('heroui-native', () => {
@@ -171,6 +193,23 @@ jest.mock('@/lib/face-recognition', () => ({
 describe('ScannerScreen device linking state', () => {
 	beforeEach(() => {
 		jest.spyOn(console, 'error').mockImplementation(() => undefined);
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		jest.spyOn(Animated, 'loop').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
+		jest.spyOn(Animated, 'timing').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
 		mockPush.mockReset();
 		mockReplace.mockReset();
 		mockSignOut.mockReset();
@@ -193,10 +232,14 @@ describe('ScannerScreen device linking state', () => {
 		expect(esTranslations.Scanner.status.deviceNotLinked).toBe(
 			'Dispositivo no vinculado. Toca para volver a vincularlo.',
 		);
-		expect(screen.getByText('Dispositivo no vinculado')).toBeOnTheScreen();
-		expect(screen.getByText('Configuración requerida')).toBeOnTheScreen();
+		expect(screen.getByText('Configura este dispositivo')).toBeOnTheScreen();
+		expect(
+			screen.getByText(
+				'Vincula la terminal para empezar a registrar asistencia desde aquí.',
+			),
+		).toBeOnTheScreen();
 
-		fireEvent.press(screen.getByText('Toca para vincular este dispositivo'));
+		fireEvent.press(screen.getByText('Vincular dispositivo'));
 
 		await waitFor(() => {
 			expect(mockSignOut).toHaveBeenCalledTimes(1);
@@ -215,7 +258,7 @@ describe('ScannerScreen device linking state', () => {
 
 		render(<ScannerScreen />);
 
-		fireEvent.press(screen.getByText('Toca para vincular este dispositivo'));
+		fireEvent.press(screen.getByText('Vincular dispositivo'));
 
 		await waitFor(() => {
 			expect(mockRequestReauth).toHaveBeenCalledWith({
@@ -229,6 +272,27 @@ describe('ScannerScreen device linking state', () => {
 		expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 	});
 
+	it('still clears auth and returns to login when reauth fails during relinking', async () => {
+		mockSignOut.mockRejectedValue(new Error('network error'));
+		mockRequestReauth.mockRejectedValue(new Error('reauth failed'));
+		mockClearAuthStorage.mockResolvedValue(undefined);
+		mockClearSettings.mockResolvedValue(undefined);
+
+		render(<ScannerScreen />);
+
+		fireEvent.press(screen.getByText('Vincular dispositivo'));
+
+		await waitFor(() => {
+			expect(mockRequestReauth).toHaveBeenCalledWith({
+				forceLock: true,
+				reason: 'manual',
+			});
+			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearSettings).toHaveBeenCalledTimes(1);
+			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
+		});
+	});
+
 	it('still navigates to login when auth storage cleanup fails during relinking', async () => {
 		mockSignOut.mockResolvedValue(undefined);
 		mockClearAuthStorage.mockRejectedValue(new Error('secure-store unavailable'));
@@ -236,7 +300,7 @@ describe('ScannerScreen device linking state', () => {
 
 		render(<ScannerScreen />);
 
-		fireEvent.press(screen.getByText('Toca para vincular este dispositivo'));
+		fireEvent.press(screen.getByText('Vincular dispositivo'));
 
 		await waitFor(() => {
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');

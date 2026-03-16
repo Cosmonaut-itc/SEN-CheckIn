@@ -7,7 +7,10 @@ describe('app.json configuration', () => {
 			name: string;
 			slug: string;
 			ios: { bundleIdentifier: string };
-			android: { adaptiveIcon: { backgroundColor: string } };
+			android: {
+				adaptiveIcon: { backgroundColor: string };
+				predictiveBackGestureEnabled: boolean;
+			};
 			plugins: unknown[];
 		};
 	};

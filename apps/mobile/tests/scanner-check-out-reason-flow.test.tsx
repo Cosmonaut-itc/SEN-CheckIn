@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Animated } from 'react-native';
 
 import ScannerScreen from '@/app/(main)/scanner';
 
@@ -60,6 +61,27 @@ jest.mock('expo-haptics', () => ({
 
 jest.mock('react-native-safe-area-context', () => ({
 	useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+	__esModule: true,
+	default: {
+		fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+		addEventListener: jest.fn(() => jest.fn()),
+	},
+}));
+
+jest.mock('@/constants/env', () => ({
+	ENV: {
+		apiUrl: 'https://api.example.com',
+		webVerifyUrl: 'https://example.com/verificar',
+	},
+	envErrors: null,
+}));
+
+jest.mock('@/lib/api', () => ({
+	API_BASE_URL: 'https://api.example.com',
+	API_ENV_VALID: true,
 }));
 
 jest.mock('heroui-native', () => {
@@ -183,10 +205,31 @@ jest.mock('@/lib/face-recognition', () => ({
  */
 describe('ScannerScreen check-out reason flow', () => {
 	beforeEach(() => {
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		jest.spyOn(Animated, 'loop').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
+		jest.spyOn(Animated, 'timing').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
 		mockPush.mockReset();
 		mockReplace.mockReset();
 		mockCheckOutReasonSheet.mockReset();
 		mockRequestReauth.mockReset();
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
 	});
 
 	it('opens the reason sheet when the user scans a regular check-out', async () => {

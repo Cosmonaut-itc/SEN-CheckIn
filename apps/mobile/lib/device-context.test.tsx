@@ -17,6 +17,14 @@ jest.mock('expo-secure-store', () => ({
 	deleteItemAsync: (...args: unknown[]) => mockDeleteItemAsync(...args),
 }));
 
+jest.mock('@react-native-community/netinfo', () => ({
+	__esModule: true,
+	default: {
+		fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+		addEventListener: jest.fn(() => jest.fn()),
+	},
+}));
+
 jest.mock('./client-functions', () => ({
 	fetchDeviceDetail: jest.fn(),
 	isHeartbeatError: (...args: unknown[]) => mockIsHeartbeatError(...args),

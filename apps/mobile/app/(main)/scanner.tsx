@@ -7,6 +7,7 @@ import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NetInfo from '@react-native-community/netinfo';
 import {
+	AccessibilityInfo,
 	Animated,
 	ScrollView,
 	Text,
@@ -307,11 +308,6 @@ export default function ScannerScreen(): JSX.Element {
 	const neutralGuideColor = withAlpha(themeColors.foreground, 0.8);
 	const ctaBackground = attendanceAccent;
 	const ctaContentColor = 'white';
-	const linkButtonBackground = withAlpha(themeColors.warning, isDarkMode ? 0.18 : 0.12);
-	const linkButtonBorder = withAlpha(
-		isDarkMode ? themeColors.warning : themeColors.primary,
-		isDarkMode ? 0.42 : 0.22,
-	);
 	const linkButtonContentColor = isDarkMode ? themeColors.warning : themeColors.primary;
 
 	/**
@@ -331,7 +327,11 @@ export default function ScannerScreen(): JSX.Element {
 			console.warn('[scanner] Failed to sign out before relinking device', error);
 		} finally {
 			if (shouldLockAuth) {
-				await requestReauth({ forceLock: true, reason: 'manual' });
+				try {
+					await requestReauth({ forceLock: true, reason: 'manual' });
+				} catch (error) {
+					console.warn('[scanner] Reauth lock failed during device relinking', error);
+				}
 			}
 			try {
 				await clearAuthStorage();
@@ -472,6 +472,19 @@ export default function ScannerScreen(): JSX.Element {
 			animateBorderColor(0);
 		}
 	}, [scanStatus.state, startPulseAnimation, stopAnimations, animateBorderColor]);
+
+	useEffect(() => {
+		const employeeName =
+			scanStatus.state === 'success' && 'employeeName' in scanStatus
+				? scanStatus.employeeName
+				: undefined;
+		const announcement =
+			scanStatus.state === 'success' && employeeName
+				? `${employeeName}. ${scanStatus.message}`
+				: scanStatus.message;
+
+		void AccessibilityInfo.announceForAccessibility(announcement);
+	}, [scanStatus, scanStatus.message, scanStatus.state]);
 
 	/**
 	 * Captures a photo and verifies the face against the recognition API
@@ -775,6 +788,9 @@ export default function ScannerScreen(): JSX.Element {
 
 					{/* Instruction text below face guide */}
 					<Animated.View
+						accessible
+						accessibilityLiveRegion="polite"
+						accessibilityRole="alert"
 						style={[styles.instructionContainer, { opacity: statusOpacity }]}
 					>
 						{scanStatus.state === 'success' && scanStatus.employeeName ? (

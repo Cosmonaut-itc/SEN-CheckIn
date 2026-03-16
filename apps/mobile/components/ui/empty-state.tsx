@@ -32,7 +32,7 @@ export function EmptyState({
 					</View>
 				) : null}
 				<View className="items-center gap-1">
-					<Card.Title className="text-center">{title}</Card.Title>
+					<Text className="text-center text-foreground font-semibold">{title}</Text>
 					<Text className="text-center text-foreground-500">{description}</Text>
 				</View>
 				{actionLabel && onAction ? (

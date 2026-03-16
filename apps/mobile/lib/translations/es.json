@@ -258,6 +258,8 @@
 				},
 				"location": {
 					"label": "Ubicación",
+					"accessibilityLabel": "Seleccionar ubicación del dispositivo",
+					"accessibilityHint": "Abre la lista de ubicaciones disponibles para este dispositivo.",
 					"loading": "Cargando ubicaciones...",
 					"placeholder": "Selecciona una ubicación",
 					"empty": "No hay ubicaciones disponibles"
@@ -329,6 +331,8 @@
 				},
 				"location": {
 					"label": "Ubicación",
+					"accessibilityLabel": "Seleccionar ubicación",
+					"accessibilityHint": "Abre la lista de ubicaciones disponibles para este dispositivo.",
 					"loading": "Cargando ubicaciones...",
 					"placeholder": "Selecciona una ubicación",
 					"empty": "No hay ubicaciones disponibles"

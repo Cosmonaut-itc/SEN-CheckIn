@@ -64,7 +64,7 @@
 		},
 		"errorDetails": {
 			"title": "Detalles del error",
-			"tip": "Tip: configura EXPO_PUBLIC_API_URL en tu archivo .env."
+			"tip": "Consejo: configura EXPO_PUBLIC_API_URL en tu archivo .env."
 		},
 		"actions": {
 			"refreshing": "Actualizando...",

@@ -10,6 +10,19 @@ const mockSignOut = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearSettings = jest.fn();
 const mockRequestReauth = jest.fn();
+const mockThemeColors: Record<string, string> = {
+	accent: '#B8602A',
+	background: '#110D0A',
+	border: '#3D3028',
+	danger: '#E8605A',
+	'default-hover': '#342A24',
+	foreground: '#F0EAE4',
+	muted: '#9A8B80',
+	overlay: '#342A24',
+	success: '#5CC98A',
+	surface: '#1C1613',
+	warning: '#F0B840',
+};
 
 jest.mock('expo-router', () => ({
 	useRouter: () => ({
@@ -118,6 +131,13 @@ jest.mock('@/providers/theme-provider', () => ({
 		colorScheme: 'dark',
 		isDarkMode: true,
 	}),
+}));
+
+jest.mock('@/hooks/use-theme-color', () => ({
+	useThemeColor: (themeColor: string | string[]) =>
+		Array.isArray(themeColor)
+			? themeColor.map((token) => mockThemeColors[token] ?? '#FFFFFF')
+			: (mockThemeColors[themeColor] ?? '#FFFFFF'),
 }));
 
 jest.mock('@/lib/device-context', () => ({

@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { CheckOutReasonSheet } from '@/components/attendance/check-out-reason-sheet';
-import { Colors, type ThemeColors } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import {
 	releaseAttendanceCaptureLock,
 	tryAcquireAttendanceCaptureLock,
@@ -38,6 +38,22 @@ type ScanStatus =
 	| { state: 'scanning'; message: string }
 	| { state: 'success'; message: string; employeeName?: string }
 	| { state: 'error'; message: string };
+
+type ScannerThemeColors = {
+	background: string;
+	border: string;
+	content1: string;
+	error: string;
+	foreground: string;
+	foreground400: string;
+	foreground500: string;
+	overlay: string;
+	overlayMuted: string;
+	primary: string;
+	success: string;
+	text: string;
+	warning: string;
+};
 
 /** Maximum size for face guide circle on larger devices (tablets) */
 const MAX_FACE_GUIDE_SIZE = 400;
@@ -108,11 +124,62 @@ export default function ScannerScreen(): JSX.Element {
 	const router = useRouter();
 	const { clearSettings, settings } = useDeviceContext();
 	const { requestReauth } = useAuthContext();
-	const { colorScheme, isDarkMode } = useTheme();
+	const { isDarkMode } = useTheme();
 	const insets = useSafeAreaInsets();
-	const themeColors = useMemo<ThemeColors>(
-		() => (colorScheme === 'dark' ? Colors.dark : Colors.light),
-		[colorScheme],
+	const [
+		backgroundColor,
+		themeBorderColor,
+		surfaceColor,
+		defaultHoverColor,
+		dangerColor,
+		foregroundColor,
+		mutedColor,
+		overlayColor,
+		primaryColor,
+		successColor,
+		warningColor,
+	] = useThemeColor([
+		'background',
+		'border',
+		'surface',
+		'default-hover',
+		'danger',
+		'foreground',
+		'muted',
+		'overlay',
+		'accent',
+		'success',
+		'warning',
+	]);
+	const themeColors = useMemo<ScannerThemeColors>(
+		() => ({
+			background: backgroundColor,
+			border: themeBorderColor,
+			content1: surfaceColor,
+			error: dangerColor,
+			foreground: foregroundColor,
+			foreground400: mutedColor,
+			foreground500: mutedColor,
+			overlay: overlayColor,
+			overlayMuted: defaultHoverColor,
+			primary: primaryColor,
+			success: successColor,
+			text: foregroundColor,
+			warning: warningColor,
+		}),
+		[
+			backgroundColor,
+			themeBorderColor,
+			dangerColor,
+			defaultHoverColor,
+			foregroundColor,
+			mutedColor,
+			overlayColor,
+			primaryColor,
+			successColor,
+			surfaceColor,
+			warningColor,
+		],
 	);
 	const styles = useMemo(
 		() => createScannerStyles(themeColors, isDarkMode, insets.top, insets.bottom),
@@ -814,7 +881,7 @@ type ScannerStyles = {
 };
 
 const createScannerStyles = (
-	themeColors: ThemeColors,
+	themeColors: ScannerThemeColors,
 	isDarkMode: boolean,
 	topInset: number,
 	bottomInset: number,

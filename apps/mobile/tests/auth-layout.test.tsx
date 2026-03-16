@@ -1,11 +1,11 @@
 import { render } from '@testing-library/react-native';
 import type { JSX } from 'react';
 
-import { Colors } from '@/constants/theme';
 import AuthLayout from '@/app/(auth)/_layout';
 
 const mockStack = jest.fn();
 const mockStackScreen = jest.fn();
+const mockUseThemeColor = jest.fn();
 
 jest.mock('expo-router', () => ({
 	Redirect: () => null,
@@ -34,6 +34,10 @@ jest.mock('expo-router/stack', () => {
 	return { Stack: MockStack };
 });
 
+jest.mock('@/hooks/use-theme-color', () => ({
+	useThemeColor: (themeColor: string | string[]) => mockUseThemeColor(themeColor),
+}));
+
 jest.mock('@/providers/auth-provider', () => ({
 	useAuthContext: () => ({
 		session: null,
@@ -49,13 +53,6 @@ jest.mock('@/lib/device-context', () => ({
 	}),
 }));
 
-jest.mock('@/providers/theme-provider', () => ({
-	useTheme: () => ({
-		colorScheme: 'dark',
-		isDarkMode: true,
-	}),
-}));
-
 jest.mock('@/lib/i18n', () => ({
 	i18n: {
 		t: (key: string) => key,
@@ -66,6 +63,14 @@ describe('AuthLayout', () => {
 	beforeEach(() => {
 		mockStack.mockReset();
 		mockStackScreen.mockReset();
+		mockUseThemeColor.mockReset();
+		mockUseThemeColor.mockImplementation((themeColor: string | string[]) => {
+			if (Array.isArray(themeColor)) {
+				return ['#110D0A', '#F0EAE4'];
+			}
+
+			return '#110D0A';
+		});
 	});
 
 	it('uses dark themed native header colors when the app is in dark mode', () => {
@@ -75,11 +80,11 @@ describe('AuthLayout', () => {
 			expect.objectContaining({
 				screenOptions: expect.objectContaining({
 					headerStyle: {
-						backgroundColor: Colors.dark.background,
+						backgroundColor: '#110D0A',
 					},
-					headerTintColor: Colors.dark.foreground,
+					headerTintColor: '#F0EAE4',
 					headerTitleStyle: {
-						color: Colors.dark.foreground,
+						color: '#F0EAE4',
 					},
 				}),
 			}),

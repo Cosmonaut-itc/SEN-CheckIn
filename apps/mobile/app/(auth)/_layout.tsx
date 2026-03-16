@@ -2,11 +2,10 @@ import type { JSX } from 'react';
 import { Redirect, type Href, useSegments } from 'expo-router';
 import { Stack } from 'expo-router/stack';
 
-import { Colors } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
-import { useTheme } from '@/providers/theme-provider';
 
 const LOCKED_ROUTE = '/(auth)/locked' as Href;
 
@@ -20,10 +19,9 @@ const LOCKED_ROUTE = '/(auth)/locked' as Href;
 export default function AuthLayout(): JSX.Element {
 	const { session, isLoading, authState } = useAuthContext();
 	const { settings, isHydrated } = useDeviceContext();
-	const { colorScheme } = useTheme();
 	const segments = useSegments();
 	const segmentList = Array.isArray(segments) ? (segments as readonly string[]) : [];
-	const themeColors = Colors[colorScheme];
+	const [backgroundColor, foregroundColor] = useThemeColor(['background', 'foreground']);
 
 	// Allow device-setup even with session (it's a post-auth onboarding step)
 	const isOnDeviceSetup = segmentList.includes('device-setup');
@@ -44,11 +42,11 @@ export default function AuthLayout(): JSX.Element {
 			screenOptions={{
 				headerTitleAlign: 'center',
 				headerStyle: {
-					backgroundColor: themeColors.background,
+					backgroundColor,
 				},
-				headerTintColor: themeColors.foreground,
+				headerTintColor: foregroundColor,
 				headerTitleStyle: {
-					color: themeColors.foreground,
+					color: foregroundColor,
 				},
 			}}
 		>

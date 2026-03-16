@@ -135,7 +135,7 @@
 @theme inline static {
 	--color-background: var(--background);
 	--color-card: var(--card);
-	--color-muted: var(--muted);
+	--color-muted: var(--muted-foreground);
 	--color-popover: var(--popover);
 	--color-background-inverse: var(--background-inverse);
 	--color-foreground: var(--foreground);
@@ -155,9 +155,13 @@
 	--color-secondary: var(--secondary);
 	--color-secondary-foreground: var(--secondary-foreground);
 	--color-secondary-bg: var(--secondary-bg);
-	--color-accent: var(--accent);
-	--color-accent-foreground: var(--accent-foreground);
-	--color-accent-bg: var(--accent-bg);
+	--color-accent: var(--primary);
+	--color-accent-foreground: var(--primary-foreground);
+	--color-accent-hover: var(--primary-hover);
+	--color-accent-soft: color-mix(in oklab, var(--primary) 15%, transparent);
+	--color-accent-soft-foreground: var(--primary);
+	--color-accent-soft-hover: color-mix(in oklab, var(--primary) 20%, transparent);
+	--color-accent-bg: var(--primary-bg);
 	--color-success: var(--success);
 	--color-success-foreground: var(--success-foreground);
 	--color-success-bg: var(--success-bg);
@@ -197,7 +201,7 @@
 	--color-field-border: var(--field-border);
 	--color-separator: var(--separator);
 	--color-divider: var(--divider);
-	--color-link: var(--link);
+	--color-link: var(--primary);
 	--color-segment: var(--segment);
 	--color-segment-foreground: var(--segment-foreground);
 	--color-focus: var(--focus);

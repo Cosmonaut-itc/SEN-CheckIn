@@ -8,7 +8,6 @@ import { Animated, Easing, Linking, ScrollView, Text, View } from 'react-native'
 import QRCode from 'react-qr-code';
 
 import { ENV, envErrors } from '@/constants/env';
-import { Colors } from '@/constants/theme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
 import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
@@ -16,6 +15,7 @@ import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functi
 import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { useAuthContext } from '@/providers/auth-provider';
+import { useTheme } from '@/providers/theme-provider';
 
 const DEVICE_CLIENT_ID = 'sen-checkin-mobile';
 const DEVICE_SCOPE = 'openid profile';
@@ -172,8 +172,13 @@ export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
 	const { session, isLoading, setSession, authState } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
-	const accentColor = useThemeColor({}, 'primary');
-	const qrForeground = Colors.light.text;
+	const { isDarkMode } = useTheme();
+	const [accentColor, foregroundColor, inverseBackgroundColor] = useThemeColor([
+		'accent',
+		'foreground',
+		'background-inverse',
+	]);
+	const qrForeground = isDarkMode ? inverseBackgroundColor : foregroundColor;
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
 
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);

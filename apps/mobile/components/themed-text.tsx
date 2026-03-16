@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 import { Text, type TextProps, type TextStyle } from 'react-native';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
 export type ThemedTextProps = TextProps & {
@@ -22,10 +23,10 @@ export function ThemedText({
 	type = 'default',
 	...rest
 }: ThemedTextProps): JSX.Element {
-	const color = useThemeColor(
-		{ light: lightColor, dark: darkColor },
-		type === 'link' ? 'tint' : 'text',
-	);
+	const colorScheme = useColorScheme() ?? 'light';
+	const themeColor = useThemeColor(type === 'link' ? 'accent' : 'foreground');
+	const color =
+		colorScheme === 'dark' ? (darkColor ?? themeColor) : (lightColor ?? themeColor);
 
 	return (
 		<Text

@@ -163,21 +163,30 @@ Dark mode (COMPLETE):
 | --background | #110D0A | oklch(0.10 0.02 50) | Noche Moreliana (warm) |
 | --foreground | #F0EAE4 | oklch(0.93 0.01 55) | Light warm beige |
 | --primary | #D4835E | oklch(0.65 0.11 50) | Light copper |
-| --primary-foreground | #FFFFFF | oklch(1.00 0 0) | White |
+| --primary-hover | #E09A78 | oklch(0.72 0.10 50) | Light copper hover |
+| --primary-foreground | #FFFFFF | oklch(1.00 0 0) | White (inherited from root) |
+| --primary-bg | rgba(212, 131, 94, 0.14) | — | Primary tint dark |
 | --secondary | #7FB573 | oklch(0.70 0.10 145) | Light green |
+| --secondary-bg | rgba(127, 181, 115, 0.14) | — | Secondary tint dark |
 | --accent | #C85A8A | oklch(0.55 0.14 345) | Light burgundy |
+| --accent-bg | rgba(200, 90, 138, 0.14) | — | Accent tint dark |
 | --muted | #28201B | oklch(0.20 0.02 50) | Dark warm brown |
-| --muted-foreground | #A8978B | oklch(0.67 0.03 55) | Warm muted |
+| --muted-foreground | #9A8B80 | oklch(0.62 0.03 55) | Warm muted |
+| --muted-foreground-subtle | #665A50 | oklch(0.44 0.03 50) | Subtle warm dark |
 | --card | #1C1613 | oklch(0.15 0.02 50) | Dark warm card |
 | --card-foreground | #D6CCC3 | oklch(0.84 0.02 55) | Warm beige |
 | --popover | #342A24 | oklch(0.25 0.03 50) | Dark warm popover |
-| --border | #3D2B20 | oklch(0.28 0.05 50) | Dark warm border |
-| --input | #28201B | oklch(0.20 0.02 50) | Dark input |
-| --ring | #7A6558 | oklch(0.50 0.04 50) | Dark focus ring |
+| --border | #3D3028 | oklch(0.28 0.04 50) | Dark warm border |
+| --input | #2D231C | oklch(0.21 0.03 50) | Dark input |
+| --ring | #4D3F36 | oklch(0.34 0.03 50) | Dark focus ring |
 | --success | #5CC98A | oklch(0.75 0.12 160) | Bright green |
+| --success-bg | rgba(92, 201, 138, 0.14) | — | Success tint dark |
 | --warning | #F0B840 | oklch(0.80 0.14 80) | Golden amber (DS BUG FIX: original was #C85A8A same as accent) |
+| --warning-bg | rgba(240, 184, 64, 0.14) | — | Warning tint dark |
 | --destructive | #E8605A | oklch(0.60 0.15 25) | Coral red |
+| --destructive-bg | rgba(232, 96, 90, 0.14) | — | Destructive tint dark |
 | --info | #7FB573 | oklch(0.70 0.10 145) | Same as secondary |
+| --info-bg | rgba(127, 181, 115, 0.14) | — | Info tint dark |
 
 **Pattern to follow (from HeroUI Native docs):**
 ```css

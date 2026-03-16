@@ -110,6 +110,7 @@
         "@types/jest": "29.5.14",
         "@types/react": "~19.1.0",
         "babel-preset-expo": "~54.0.10",
+        "culori": "^4.0.2",
         "elysia": "1.4.19",
         "eslint": "^9.25.0",
         "eslint-config-expo": "~10.0.0",

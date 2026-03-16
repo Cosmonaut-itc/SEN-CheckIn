@@ -6,6 +6,7 @@ import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
 import * as ExpoDevice from 'expo-device';
 import * as Crypto from 'expo-crypto';
+import NetInfo from '@react-native-community/netinfo';
 
 import type { Device } from '@sen-checkin/types';
 import {
@@ -14,6 +15,7 @@ import {
 	sendDeviceHeartbeat,
 	updateDeviceSettings,
 } from './client-functions';
+import { flushPendingAttendanceQueue } from './offline-attendance';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type DeviceSettings = {
@@ -168,6 +170,24 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 			setIsHydrated(true);
 		});
 	}, []);
+
+	useEffect(() => {
+		if (isAuthLoading) {
+			return;
+		}
+
+		const unsubscribe = NetInfo.addEventListener((state) => {
+			if (!state.isConnected) {
+				return;
+			}
+
+			void flushPendingAttendanceQueue().catch((error: unknown) => {
+				console.warn('[device-context] Failed to flush pending attendance queue', error);
+			});
+		});
+
+		return () => unsubscribe();
+	}, [isAuthLoading]);
 
 	/**
 	 * Merge and persist device settings locally.

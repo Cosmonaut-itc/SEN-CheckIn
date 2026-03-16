@@ -5,6 +5,7 @@ import { Button, Card, Spinner } from 'heroui-native';
 import type { CheckOutReason } from '@sen-checkin/types';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
 	Animated,
 	ScrollView,
@@ -31,6 +32,7 @@ import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
+import { isOfflineNetInfoState } from '@/lib/offline-attendance';
 import type { AttendanceType } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
@@ -272,6 +274,7 @@ export default function ScannerScreen(): JSX.Element {
 	const [attendanceType, setAttendanceType] = useState<AttendanceType>('CHECK_IN');
 	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const [isOffline, setIsOffline] = useState(false);
 	const captureLockRef = useRef(false);
 	const [scanStatus, setScanStatus] = useState<ScanStatus>({
 		state: 'idle',
@@ -412,6 +415,27 @@ export default function ScannerScreen(): JSX.Element {
 		}
 	}, [permission, requestPermission]);
 
+	useEffect(() => {
+		let isMounted = true;
+
+		void NetInfo.fetch().then((state) => {
+			if (!isMounted) {
+				return;
+			}
+
+			setIsOffline(isOfflineNetInfoState(state));
+		});
+
+		const unsubscribe = NetInfo.addEventListener((state) => {
+			setIsOffline(isOfflineNetInfoState(state));
+		});
+
+		return () => {
+			isMounted = false;
+			unsubscribe();
+		};
+	}, []);
+
 	// Reset camera state when screen comes into focus
 	// This ensures the camera initializes with the correct facing direction
 	useFocusEffect(
@@ -497,7 +521,7 @@ export default function ScannerScreen(): JSX.Element {
 								searchedFaceConfidence: match.searchedFaceConfidence,
 							};
 
-				await recordAttendance(
+				const attendanceResult = await recordAttendance(
 					match.employee.id,
 					settings.deviceId,
 					attendanceType,
@@ -511,7 +535,10 @@ export default function ScannerScreen(): JSX.Element {
 
 				setScanStatus({
 					state: 'success',
-					message: attendanceSuccessMessages[attendanceType],
+					message:
+						attendanceResult.delivery === 'queued'
+							? i18n.t('Scanner.success.queuedOffline')
+							: attendanceSuccessMessages[attendanceType],
 					employeeName: displayName || i18n.t('Scanner.success.employeeFallback'),
 				});
 
@@ -776,6 +803,23 @@ export default function ScannerScreen(): JSX.Element {
 						style={continuousCurve}
 					>
 						<Card.Body className="p-4 gap-4">
+							{isOffline ? (
+								<View className="rounded-2xl border border-warning-500/30 bg-warning-500/10 px-4 py-3 flex-row items-start gap-3">
+									<IconSymbol
+										name="wifi.slash"
+										size={18}
+										color={themeColors.warning}
+									/>
+									<View className="flex-1 gap-1">
+										<Text className="text-sm font-semibold text-foreground">
+											{i18n.t('Scanner.offline.title')}
+										</Text>
+										<Text className="text-xs text-foreground-500 leading-5">
+											{i18n.t('Scanner.offline.description')}
+										</Text>
+									</View>
+								</View>
+							) : null}
 							{!settings?.deviceId ? (
 								<EmptyState
 									title={i18n.t('Scanner.emptyState.title')}

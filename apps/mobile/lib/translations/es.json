@@ -132,6 +132,7 @@
 			"checkedIn": "¡Entrada registrada!",
 			"checkedOutAuthorized": "¡Salida autorizada registrada!",
 			"checkedOut": "¡Salida registrada!",
+			"queuedOffline": "Guardamos el registro y lo enviaremos cuando vuelva la red.",
 			"workOffsiteNotSupported": "Registro fuera de oficina disponible solo en web RH."
 		},
 		"deviceStatus": {
@@ -144,6 +145,10 @@
 			"title": "Configura este dispositivo",
 			"description": "Vincula la terminal para empezar a registrar asistencia desde aquí.",
 			"action": "Vincular dispositivo"
+		},
+		"offline": {
+			"title": "Sin conexión",
+			"description": "Los registros se guardarán y se enviarán cuando vuelva la red."
 		},
 		"actions": {
 			"verifying": "Verificando...",

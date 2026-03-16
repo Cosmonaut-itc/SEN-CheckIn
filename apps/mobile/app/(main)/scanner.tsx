@@ -19,6 +19,7 @@ import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CheckOutReasonSheet } from '@/components/attendance/check-out-reason-sheet';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { getAnimationDuration } from '@/lib/accessibility-motion';
@@ -775,6 +776,18 @@ export default function ScannerScreen(): JSX.Element {
 						style={continuousCurve}
 					>
 						<Card.Body className="p-4 gap-4">
+							{!settings?.deviceId ? (
+								<EmptyState
+									title={i18n.t('Scanner.emptyState.title')}
+									description={i18n.t('Scanner.emptyState.description')}
+									actionLabel={i18n.t('Scanner.emptyState.action')}
+									onAction={() => {
+										void handleStartDeviceLinking();
+									}}
+									icon={<DeviceLinkIcon size={20} color={linkButtonContentColor} />}
+								/>
+							) : (
+								<>
 							{/* Device status row */}
 							<View className="flex-row items-start justify-between gap-3">
 								<View className="flex-1 gap-1.5">
@@ -853,35 +866,7 @@ export default function ScannerScreen(): JSX.Element {
 								)}
 							</Button>
 
-							{/* Link device prompt */}
-							{!settings?.deviceId && (
-								<View className="items-center">
-									<Button
-										variant="secondary"
-										size="md"
-										className="min-h-12 self-center px-5"
-										accessibilityLabel={i18n.t('Scanner.actions.tapToLink')}
-										style={{
-											alignSelf: 'center',
-											backgroundColor: linkButtonBackground,
-											borderColor: linkButtonBorder,
-											borderWidth: 1.5,
-										}}
-										onPress={() => {
-											void handleStartDeviceLinking();
-										}}
-									>
-										<View className="flex-row items-center justify-center gap-2">
-											<DeviceLinkIcon size={18} color={linkButtonContentColor} />
-											<Button.Label
-												className="font-semibold text-center"
-												style={{ color: linkButtonContentColor }}
-											>
-												{i18n.t('Scanner.actions.tapToLink')}
-											</Button.Label>
-										</View>
-									</Button>
-								</View>
+								</>
 							)}
 						</Card.Body>
 					</Card>

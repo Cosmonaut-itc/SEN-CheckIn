@@ -140,6 +140,11 @@
 			"connected": "Conectado",
 			"setupRequired": "Configuración requerida"
 		},
+		"emptyState": {
+			"title": "Configura este dispositivo",
+			"description": "Vincula la terminal para empezar a registrar asistencia desde aquí.",
+			"action": "Vincular dispositivo"
+		},
 		"actions": {
 			"verifying": "Verificando...",
 			"scanCheckIn": "Escanear entrada",
@@ -175,6 +180,11 @@
 			"loading": "Cargando empleados...",
 			"loadError": "No se pudo cargar la lista de empleados.",
 			"empty": "No hay empleados que coincidan con la búsqueda.",
+			"emptyState": {
+				"title": "Sin resultados",
+				"description": "Prueba con otro nombre o limpia la búsqueda para volver a ver la lista completa.",
+				"clearSearch": "Limpiar búsqueda"
+			},
 			"truncatedWarning": "Se muestran solo {{limit}} empleados activos. Refina la búsqueda para ubicar más rápido al empleado.",
 			"badges": {
 				"registered": "Registrado",

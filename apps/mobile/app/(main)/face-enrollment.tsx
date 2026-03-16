@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import {
 	fetchFaceEnrollmentEmployees,
@@ -458,9 +459,23 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									showsVerticalScrollIndicator={false}
 								>
 									{filteredEmployees.length === 0 && !employeesQuery.isPending ? (
-										<Text className="text-foreground-500 text-sm" selectable>
-											{i18n.t('FaceEnrollment.employees.empty')}
-										</Text>
+										<EmptyState
+											title={i18n.t('FaceEnrollment.employees.emptyState.title')}
+											description={i18n.t(
+												'FaceEnrollment.employees.emptyState.description',
+											)}
+											actionLabel={i18n.t(
+												'FaceEnrollment.employees.emptyState.clearSearch',
+											)}
+											onAction={() => setSearchTerm('')}
+											icon={
+												<IconSymbol
+													name="magnifyingglass"
+													size={20}
+													color={mutedForegroundColor}
+												/>
+											}
+										/>
 									) : null}
 									{filteredEmployees.map((employee) => {
 										const isSelected = selectedEmployeeId === employee.id;

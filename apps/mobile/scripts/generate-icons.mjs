@@ -14,6 +14,11 @@ const ASSETS_DIR = resolve(MOBILE_ROOT, 'assets/images');
 const ICON_SIZE = 1024;
 const FAVICON_SIZE = 48;
 const COBRE_MICHOACANO = '#B8602A';
+const CREMA_MICHOACAN = '#FAF7F3';
+const SPLASH_SIZE = 1024;
+const SPLASH_SYMBOL_SIZE = 640;
+const SPLASH_TEXT_WIDTH = 520;
+const SPLASH_TEXT_HEIGHT = 140;
 
 /**
  * Build an SVG payload for a plain square fill.
@@ -86,6 +91,87 @@ async function writeMonochromeIcon(foregroundPng, size, outputPath) {
 }
 
 /**
+ * Paint a single solid color while preserving the alpha from a source image.
+ *
+ * @param {Buffer} sourcePng - Source image buffer whose alpha channel is reused.
+ * @param {number} size - Target width and height.
+ * @param {string} color - Solid color to apply.
+ * @returns {Promise<Buffer>} Colored PNG buffer with transparent background.
+ */
+async function paintFromAlpha(sourcePng, size, color) {
+	const alphaChannel = await sharp(sourcePng)
+		.resize(size, size, { fit: 'contain' })
+		.ensureAlpha()
+		.extractChannel('alpha')
+		.toBuffer();
+
+	return sharp({
+		create: {
+			width: size,
+			height: size,
+			channels: 3,
+			background: color,
+		},
+	})
+		.joinChannel(alphaChannel)
+		.png()
+		.toBuffer();
+}
+
+/**
+ * Build an SVG payload for splash text rendering.
+ *
+ * @param {number} width - SVG width.
+ * @param {number} height - SVG height.
+ * @param {string} color - Fill color for the text.
+ * @returns {string} SVG markup with centered checa. wordmark.
+ */
+function buildSplashTextSvg(width, height, color) {
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><text x="50%" y="50%" fill="${color}" text-anchor="middle" dominant-baseline="middle" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="100" font-weight="700" letter-spacing="-1.5">checa.</text></svg>`;
+}
+
+/**
+ * Compose splash icon asset with transparent background.
+ *
+ * @param {Buffer} foregroundPng - Foreground icon source buffer.
+ * @param {number} size - Output width and height.
+ * @param {string} outputPath - Absolute path for the PNG output.
+ * @returns {Promise<void>} Promise that resolves when splash icon is written.
+ */
+async function writeSplashIcon(foregroundPng, size, outputPath) {
+	const symbolBuffer = await paintFromAlpha(
+		foregroundPng,
+		SPLASH_SYMBOL_SIZE,
+		CREMA_MICHOACAN,
+	);
+	const textBuffer = await sharp(
+		Buffer.from(buildSplashTextSvg(SPLASH_TEXT_WIDTH, SPLASH_TEXT_HEIGHT, CREMA_MICHOACAN)),
+	)
+		.png()
+		.toBuffer();
+
+	const symbolX = Math.round((size - SPLASH_SYMBOL_SIZE) / 2);
+	const symbolY = 120;
+	const textX = Math.round((size - SPLASH_TEXT_WIDTH) / 2);
+	const textY = symbolY + SPLASH_SYMBOL_SIZE + 40;
+
+	await sharp({
+		create: {
+			width: size,
+			height: size,
+			channels: 4,
+			background: { r: 0, g: 0, b: 0, alpha: 0 },
+		},
+	})
+		.composite([
+			{ input: symbolBuffer, left: symbolX, top: symbolY },
+			{ input: textBuffer, left: textX, top: textY },
+		])
+		.png()
+		.toFile(outputPath);
+}
+
+/**
  * Generate all app icon assets from the canonical checa SVG source.
  *
  * @returns {Promise<void>} Promise that resolves once all assets are generated.
@@ -100,6 +186,7 @@ async function generateIcons() {
 	const backgroundPath = resolve(ASSETS_DIR, 'android-icon-background.png');
 	const monochromePath = resolve(ASSETS_DIR, 'android-icon-monochrome.png');
 	const faviconPath = resolve(ASSETS_DIR, 'favicon.png');
+	const splashPath = resolve(ASSETS_DIR, 'splash-icon.png');
 
 	const foregroundBuffer = await renderSvgToPng(foregroundSvg, ICON_SIZE, foregroundPath);
 	await renderSvgToPng(sourceSvg, ICON_SIZE, iconPath);
@@ -110,6 +197,7 @@ async function generateIcons() {
 	);
 	await writeMonochromeIcon(foregroundBuffer, ICON_SIZE, monochromePath);
 	await renderSvgToPng(sourceSvg, FAVICON_SIZE, faviconPath);
+	await writeSplashIcon(foregroundBuffer, SPLASH_SIZE, splashPath);
 }
 
 try {

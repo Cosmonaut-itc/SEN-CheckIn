@@ -14,14 +14,11 @@ const ASSETS_DIR = resolve(MOBILE_ROOT, 'assets/images');
 const ICON_SIZE = 1024;
 const FAVICON_SIZE = 48;
 const COBRE_MICHOACANO = '#B8602A';
-<<<<<<< HEAD
 const CREMA_MICHOACAN = '#FAF7F3';
 const SPLASH_SIZE = 1024;
 const SPLASH_SYMBOL_SIZE = 640;
 const SPLASH_TEXT_WIDTH = 520;
 const SPLASH_TEXT_HEIGHT = 140;
-=======
->>>>>>> 886a147 (feat(mobile): [2.1] create icon generation script with sharp)
 
 /**
  * Build an SVG payload for a plain square fill.
@@ -94,7 +91,6 @@ async function writeMonochromeIcon(foregroundPng, size, outputPath) {
 }
 
 /**
-<<<<<<< HEAD
  * Paint a single solid color while preserving the alpha from a source image.
  *
  * @param {Buffer} sourcePng - Source image buffer whose alpha channel is reused.
@@ -176,8 +172,6 @@ async function writeSplashIcon(foregroundPng, size, outputPath) {
 }
 
 /**
-=======
->>>>>>> 886a147 (feat(mobile): [2.1] create icon generation script with sharp)
  * Generate all app icon assets from the canonical checa SVG source.
  *
  * @returns {Promise<void>} Promise that resolves once all assets are generated.
@@ -192,10 +186,7 @@ async function generateIcons() {
 	const backgroundPath = resolve(ASSETS_DIR, 'android-icon-background.png');
 	const monochromePath = resolve(ASSETS_DIR, 'android-icon-monochrome.png');
 	const faviconPath = resolve(ASSETS_DIR, 'favicon.png');
-<<<<<<< HEAD
 	const splashPath = resolve(ASSETS_DIR, 'splash-icon.png');
-=======
->>>>>>> 886a147 (feat(mobile): [2.1] create icon generation script with sharp)
 
 	const foregroundBuffer = await renderSvgToPng(foregroundSvg, ICON_SIZE, foregroundPath);
 	await renderSvgToPng(sourceSvg, ICON_SIZE, iconPath);
@@ -206,10 +197,7 @@ async function generateIcons() {
 	);
 	await writeMonochromeIcon(foregroundBuffer, ICON_SIZE, monochromePath);
 	await renderSvgToPng(sourceSvg, FAVICON_SIZE, faviconPath);
-<<<<<<< HEAD
 	await writeSplashIcon(foregroundBuffer, SPLASH_SIZE, splashPath);
-=======
->>>>>>> 886a147 (feat(mobile): [2.1] create icon generation script with sharp)
 }
 
 try {

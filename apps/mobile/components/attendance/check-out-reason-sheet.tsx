@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { Button } from 'heroui-native';
 import { BottomSheet } from 'heroui-native/bottom-sheet';
 import type { JSX } from 'react';
@@ -41,6 +42,7 @@ export interface CheckOutReasonSheetProps {
 export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Element {
 	const insets = useSafeAreaInsets();
 	const bottomPadding = Math.max(insets.bottom + 12, 24);
+	const isIOS = process.env.EXPO_OS === 'ios';
 
 	return (
 		<BottomSheet
@@ -74,7 +76,12 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 								<Button
 									key={option.value}
 									variant="outline"
-									onPress={() => props.onSelectReason(option.value)}
+									onPress={() => {
+										if (isIOS) {
+											void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+										}
+										props.onSelectReason(option.value);
+									}}
 									className="min-h-16 justify-start border-default-200 bg-secondary px-4 py-3"
 									accessibilityLabel={i18n.t(
 										'Scanner.checkOutReason.accessibility.option',

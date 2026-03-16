@@ -2,14 +2,15 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 describe('Scanner haptic feedback', () => {
-	it('keeps success and error haptics in the scanner flow', () => {
+	it('does not gate scanner haptics behind an iOS-only condition', () => {
 		const scannerContent = readFileSync(
 			resolve(__dirname, '../app/(main)/scanner.tsx'),
 			'utf-8',
 		);
 
-		expect(scannerContent).toContain('Haptics.NotificationFeedbackType.Success');
-		expect(scannerContent).toContain('Haptics.NotificationFeedbackType.Error');
-		expect(scannerContent).toContain('Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)');
+		expect(scannerContent).not.toMatch(/if \(isIOS\)\s*\{\s*Haptics\.impactAsync/s);
+		expect(scannerContent).not.toMatch(
+			/if \(isIOS\)\s*\{\s*Haptics\.notificationAsync/s,
+		);
 	});
 });

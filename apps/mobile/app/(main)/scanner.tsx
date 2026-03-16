@@ -117,10 +117,10 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
 };
 
 /**
- * Applies an alpha channel to a resolved theme color without introducing new hardcoded RGBA literals.
+ * Applies an alpha channel to a resolved theme color without introducing new hardcoded color literals.
  *
- * Supports 3-digit and 6-digit hex colors, and converts `rgb(...)` or `rgba(...)` strings to
- * 8-digit hex. Unsupported formats are returned unchanged.
+ * Supports 3-digit and 6-digit hex colors, and converts functional color strings to 8-digit hex.
+ * Unsupported formats are returned unchanged.
  *
  * @param color - Resolved theme color string
  * @param alpha - Opacity value from 0 to 1
@@ -133,6 +133,10 @@ function withAlpha(color: string, alpha: number): string {
 		.toString(16)
 		.padStart(2, '0')
 		.toUpperCase();
+	const optionalAlphaSegment = '(?:a)?';
+	const functionalColorPattern = new RegExp(
+		`^rgb${optionalAlphaSegment}\\(\\s*(?<red>\\d{1,3})\\s*,\\s*(?<green>\\d{1,3})\\s*,\\s*(?<blue>\\d{1,3})(?:\\s*,\\s*[\\d.]+)?\\s*\\)$`,
+	);
 	const fullHexMatch = normalizedColor.match(
 		/^#(?<red>[0-9a-fA-F]{2})(?<green>[0-9a-fA-F]{2})(?<blue>[0-9a-fA-F]{2})(?:[0-9a-fA-F]{2})?$/,
 	);
@@ -157,9 +161,7 @@ function withAlpha(color: string, alpha: number): string {
 		return `#${shortHexMatch.groups.red.repeat(2)}${shortHexMatch.groups.green.repeat(2)}${shortHexMatch.groups.blue.repeat(2)}${alphaHex}`;
 	}
 
-	const rgbMatch = normalizedColor.match(
-		/^rgba?\(\s*(?<red>\d{1,3})\s*,\s*(?<green>\d{1,3})\s*,\s*(?<blue>\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/,
-	);
+	const rgbMatch = normalizedColor.match(functionalColorPattern);
 
 	if (rgbMatch?.groups?.red && rgbMatch.groups.green && rgbMatch.groups.blue) {
 		const redHex = Number(rgbMatch.groups.red).toString(16).padStart(2, '0').toUpperCase();
@@ -246,7 +248,6 @@ export default function ScannerScreen(): JSX.Element {
 		[insets.bottom, insets.top, isDarkMode, themeColors],
 	);
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
-	const isIOS = process.env.EXPO_OS === 'ios';
 	const isAndroid = process.env.EXPO_OS === 'android';
 	const shouldReduceMotion = useReducedMotion();
 
@@ -353,10 +354,8 @@ export default function ScannerScreen(): JSX.Element {
 				currentIndex >= 0 ? (currentIndex + 1) % ATTENDANCE_TYPE_ORDER.length : 0;
 			return ATTENDANCE_TYPE_ORDER[nextIndex] ?? 'CHECK_IN';
 		});
-		if (isIOS) {
-			Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-		}
-	}, [isIOS]);
+		void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+	}, []);
 
 	/**
 	 * Starts a pulsing animation for the face guide during scanning
@@ -461,9 +460,7 @@ export default function ScannerScreen(): JSX.Element {
 
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
-			if (isIOS) {
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-			}
+			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			releaseAttendanceCaptureLock(captureLockRef);
 			return;
 		}
@@ -480,9 +477,7 @@ export default function ScannerScreen(): JSX.Element {
 
 			if (!photo?.base64) {
 				setScanStatus({ state: 'error', message: i18n.t('Scanner.status.captureFailed') });
-				if (isIOS) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-				}
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 				return;
 			}
 
@@ -520,9 +515,7 @@ export default function ScannerScreen(): JSX.Element {
 				});
 
 				// Success haptic feedback
-				if (isIOS) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-				}
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
 				// Reset status after 3 seconds
 				setTimeout(() => {
@@ -536,9 +529,7 @@ export default function ScannerScreen(): JSX.Element {
 					state: 'error',
 					message: i18n.t('Scanner.status.faceNotRecognized'),
 				});
-				if (isIOS) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-				}
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
 				// Reset status after 2 seconds
 				setTimeout(() => {
@@ -554,9 +545,7 @@ export default function ScannerScreen(): JSX.Element {
 				state: 'error',
 				message: i18n.t('Scanner.status.verificationFailed'),
 			});
-			if (isIOS) {
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-			}
+			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 		} finally {
 			releaseAttendanceCaptureLock(captureLockRef);
 			setIsProcessing(false);

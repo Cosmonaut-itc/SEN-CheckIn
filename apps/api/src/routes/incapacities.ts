@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, desc, eq, gte, ilike, inArray, lte, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, lte, or, type SQL } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { endOfDay, format, startOfDay } from 'date-fns';
 import { z } from 'zod';
 import type { IncapacityType, SatTipoIncapacidad } from '@sen-checkin/types';

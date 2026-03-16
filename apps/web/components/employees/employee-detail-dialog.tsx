@@ -15,6 +15,7 @@ import {
 	EmployeeMobileFormWizard,
 	type EmployeeMobileWizardStep,
 } from '@/components/employees/employee-mobile-form-wizard';
+import { EmployeeDualPayrollCompensationPanel } from '@/app/(dashboard)/employees/employee-dual-payroll-compensation-panel';
 import {
 	Accordion,
 	AccordionContent,
@@ -204,6 +205,11 @@ interface EmployeeDetailDialogLookups {
 	isLoadingJobPositions: boolean;
 	periodPayLabel: string;
 	computedDailyPay: number;
+	canManageDualPayrollCompensation: boolean;
+	fiscalDailyPayPreviewFeedbackKey: string;
+	parsedFiscalDailyPayPreview: number | null | undefined;
+	fiscalDailyComplementPreview: number;
+	activeEmployeeDailyComplement: number;
 	ptuAguinaldoOptionHelp: Array<{ key: string; label: string; description: string }>;
 	ptuHistoryYearInput: string;
 	ptuHistoryAmountInput: string;
@@ -531,6 +537,11 @@ export function EmployeeDetailDialog({
 		isLoadingJobPositions,
 		periodPayLabel,
 		computedDailyPay,
+		canManageDualPayrollCompensation,
+		fiscalDailyPayPreviewFeedbackKey,
+		parsedFiscalDailyPayPreview,
+		fiscalDailyComplementPreview,
+		activeEmployeeDailyComplement,
 		ptuAguinaldoOptionHelp,
 		ptuHistoryYearInput,
 		ptuHistoryAmountInput,
@@ -742,6 +753,32 @@ export function EmployeeDetailDialog({
 											{activeEmployee?.userId ?? t('placeholders.noUser')}
 										</p>
 									</div>
+									{canManageDualPayrollCompensation ? (
+										<>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('fields.fiscalDailyPay')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.fiscalDailyPay !== undefined &&
+													activeEmployee?.fiscalDailyPay !== null
+														? formatCurrency(activeEmployee.fiscalDailyPay)
+														: tCommon('notAvailable')}
+												</p>
+											</div>
+											<div className="space-y-1">
+												<p className="text-muted-foreground">
+													{t('compensation.dailyComplement')}
+												</p>
+												<p className="font-medium">
+													{activeEmployee?.fiscalDailyPay !== undefined &&
+													activeEmployee?.fiscalDailyPay !== null
+														? formatCurrency(activeEmployeeDailyComplement)
+														: tCommon('notAvailable')}
+												</p>
+											</div>
+										</>
+									) : null}
 								</div>
 							</div>
 
@@ -3567,6 +3604,64 @@ export function EmployeeDetailDialog({
 											/>
 										</div>
 									</div>
+									{canManageDualPayrollCompensation && isEditMode ? (
+										<EmployeeDualPayrollCompensationPanel
+											title={t('compensation.title')}
+											subtitle={t('compensation.subtitle')}
+											field={
+												<form.AppField
+													name="fiscalDailyPay"
+													validators={{
+														onChange: ({ value }: { value: string }) => {
+															const trimmed = value.trim();
+															if (trimmed === '') {
+																return undefined;
+															}
+															const parsed = Number(trimmed);
+															if (!Number.isFinite(parsed) || parsed <= 0) {
+																return t('validation.fiscalDailyPay');
+															}
+															if (parsed >= computedDailyPay) {
+																return t(
+																	'validation.fiscalDailyPayLessThanDailyPay',
+																);
+															}
+															return undefined;
+														},
+													}}
+												>
+													{(field: any) => (
+														<field.TextField
+															label={t('fields.fiscalDailyPay')}
+															placeholder={t('placeholders.fiscalDailyPay')}
+															type="number"
+															description={t('helpers.fiscalDailyPay')}
+														/>
+													)}
+												</form.AppField>
+											}
+											feedback={t(fiscalDailyPayPreviewFeedbackKey)}
+											feedbackTone={
+												fiscalDailyPayPreviewFeedbackKey ===
+												'compensation.liveHelper'
+													? 'helper'
+													: 'error'
+											}
+											previewTitle={t('compensation.previewTitle')}
+											realDailyPayLabel={t('compensation.realDailyPay')}
+											realDailyPayValue={formatCurrency(computedDailyPay)}
+											fiscalDailyPayLabel={t('compensation.fiscalDailyPay')}
+											fiscalDailyPayValue={
+												typeof parsedFiscalDailyPayPreview === 'number'
+													? formatCurrency(parsedFiscalDailyPayPreview)
+													: tCommon('notAvailable')
+											}
+											dailyComplementLabel={t('compensation.dailyComplement')}
+											dailyComplementValue={formatCurrency(
+												fiscalDailyComplementPreview,
+											)}
+										/>
+									) : null}
 									<div className="col-span-2 min-[1025px]:col-span-1">
 										<form.AppField
 											name="sbcDailyOverride"

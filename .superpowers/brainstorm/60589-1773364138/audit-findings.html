@@ -1,0 +1,75 @@
+<h2>Auditoría de Responsividad Móvil — jale. by SEN</h2>
+<p class="subtitle">Hallazgos detectados en viewport 375×812 (iPhone 14)</p>
+
+<div class="section">
+  <h3>Problemas Críticos</h3>
+
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="schedules" onclick="toggleSelect(this)">
+      <div class="letter" style="background:#dc2626;color:white">!</div>
+      <div class="content">
+        <h3>Calendario de Horarios — Ilegible</h3>
+        <p>La vista semanal comprime 7 días en 375px. El texto "PLANT PLANT PLANT..." se repite ilegiblemente. Las celdas son demasiado pequeñas para mostrar información útil. <strong>Completamente inutilizable en móvil.</strong></p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="tables" onclick="toggleSelect(this)">
+      <div class="letter" style="background:#dc2626;color:white">!</div>
+      <div class="content">
+        <h3>Tablas de Datos — Truncadas</h3>
+        <p>Empleados (12 cols → 2 visibles), Asistencia (9 cols → 2), Ubicaciones (7 cols → 2). Las tablas solo muestran Código y Nombre. El resto de la info es inaccesible sin scroll horizontal.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="header-overlap" onclick="toggleSelect(this)">
+      <div class="letter" style="background:#ea580c;color:white">!</div>
+      <div class="content">
+        <h3>Headers de Páginas — Solapamiento</h3>
+        <p>En Empleados, Asistencia, Ubicaciones: el título de la página se solapa con los botones de acción ("Agregar empleado", "Registrar fuera de oficina"). Los botones se cortan o cubren el texto descriptivo.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Problemas Moderados</h3>
+
+  <div class="options" data-multiselect>
+    <div class="option" data-choice="bento" onclick="toggleSelect(this)">
+      <div class="letter" style="background:#f59e0b;color:white">M</div>
+      <div class="content">
+        <h3>Landing — Bento Grid Overflow</h3>
+        <p>Las 7 cards del bento grid desbordan 40px cada una. La sección de confianza (trust) desborda 80px. Los cards no se adaptan correctamente al ancho móvil.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="attendance-btns" onclick="toggleSelect(this)">
+      <div class="letter" style="background:#f59e0b;color:white">M</div>
+      <div class="content">
+        <h3>Asistencia — Botones de Acción</h3>
+        <p>Los 3 botones (Registrar fuera de oficina, Actualizar, Descargar CSV) se desbordan horizontalmente y no se apilan correctamente.</p>
+      </div>
+    </div>
+
+    <div class="option" data-choice="dashboard-stats" onclick="toggleSelect(this)">
+      <div class="letter" style="background:#f59e0b;color:white">M</div>
+      <div class="content">
+        <h3>Dashboard — Stats Cards Apretadas</h3>
+        <p>Las 5 tarjetas de métricas (Presentes, Ubicaciones, Empleados, Dispositivos, Organizaciones) se comprimen en una fila horizontal, sin buena legibilidad.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Funcionando Bien ✓</h3>
+  <ul style="list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:8px">
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Sign-in / Sign-up</li>
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Sidebar (overlay)</li>
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Hero Section</li>
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Nómina (cards)</li>
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Registrate</li>
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Privacidad</li>
+    <li style="background:#dcfce7;padding:6px 12px;border-radius:8px;font-size:0.85rem">Footer</li>
+  </ul>
+</div>

@@ -295,6 +295,20 @@
       "when": 1773341909352,
       "tag": "0041_fast_spacker_dave",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1773432449654,
+      "tag": "0042_stormy_lady_mastermind",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1773432659878,
+      "tag": "0043_silly_zombie",
+      "breakpoints": true
     }
   ]
 }

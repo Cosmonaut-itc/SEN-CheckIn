@@ -1,0 +1,30 @@
+[     633ms] [ERROR] %c%s%c [Server] Failed to fetch overtime authorizations: background: #e6e6e6;background: light-dark(rgba(0,0,0,0.1), rgba(255,255,255,0.25));color: #000000;color: light-dark(#000000, #ffffff);border-radius: 2px  Server   Error: [object Object]
+    at fetchOvertimeAuthorizationsListServer (about://React/Server/file:///Users/felixddhs/VSCODE/REPOS/SEN-CheckIn/apps/web/.next/dev/server/chunks/ssr/_c34683e9._.js?39:1583:22)
+    at resolveErrorDev (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1882:106)
+    at getOutlinedModel (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1434:28)
+    at parseModelString (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1548:50)
+    at Object.<anonymous> (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2475:51)
+    at JSON.parse (<anonymous>)
+    at initializeModelChunk (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1053:30)
+    at getOutlinedModel (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1372:17)
+    at parseModelString (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1602:50)
+    at Array.<anonymous> (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2475:51)
+    at JSON.parse (<anonymous>)
+    at initializeModelChunk (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:1053:30)
+    at resolveConsoleEntry (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2008:96)
+    at processFullStringRow (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2409:17)
+    at processFullBinaryRow (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2349:9)
+    at processBinaryChunk (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2459:98)
+    at progress (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-server-dom-turbopack_9212ccad._.js:2628:13) @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[    1750ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3001/api/organizations/7c5f19a9-dd14-443d-9201-8698f0e18fce/overtime-authorizations?limit=20&offset=0:0
+[    1750ms] [ERROR] Failed to fetch overtime authorizations: s: [object Object]
+    at http://localhost:3001/_next/static/chunks/node_modules_6c335b91._.js:12271:61
+    at async fetchOvertimeAuthorizationsList (http://localhost:3001/_next/static/chunks/_704e490b._.js:2305:22) Status: 403 @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[    3775ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3001/api/organizations/7c5f19a9-dd14-443d-9201-8698f0e18fce/overtime-authorizations?limit=20&offset=0:0
+[    3775ms] [ERROR] Failed to fetch overtime authorizations: s: [object Object]
+    at http://localhost:3001/_next/static/chunks/node_modules_6c335b91._.js:12271:61
+    at async fetchOvertimeAuthorizationsList (http://localhost:3001/_next/static/chunks/_704e490b._.js:2305:22) Status: 403 @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[    7817ms] [ERROR] Failed to load resource: the server responded with a status of 403 (Forbidden) @ http://localhost:3001/api/organizations/7c5f19a9-dd14-443d-9201-8698f0e18fce/overtime-authorizations?limit=20&offset=0:0
+[    7817ms] [ERROR] Failed to fetch overtime authorizations: s: [object Object]
+    at http://localhost:3001/_next/static/chunks/node_modules_6c335b91._.js:12271:61
+    at async fetchOvertimeAuthorizationsList (http://localhost:3001/_next/static/chunks/_704e490b._.js:2305:22) Status: 403 @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122

@@ -13,8 +13,10 @@ export default async function PayrollPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
 	const orgContext = await getActiveOrganizationContext();
 
-	prefetchPayrollSettings(queryClient, orgContext.organizationId ?? undefined);
-	prefetchPayrollRuns(queryClient, { organizationId: orgContext.organizationId ?? undefined });
+	await Promise.all([
+		prefetchPayrollSettings(queryClient, orgContext.organizationId ?? undefined),
+		prefetchPayrollRuns(queryClient, { organizationId: orgContext.organizationId ?? undefined }),
+	]);
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>

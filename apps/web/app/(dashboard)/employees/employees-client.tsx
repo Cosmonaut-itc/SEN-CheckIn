@@ -100,6 +100,11 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import {
+	getFiscalDailyPayPreviewFeedbackKey,
+	getFiscalDailyPaySubmissionError,
+} from './employees-client.helpers';
+
 /**
  * Lazily loads the face enrollment dialog to reduce the initial bundle size.
  *
@@ -160,6 +165,8 @@ interface EmployeeFormValues {
 	paymentFrequency: PaymentFrequency;
 	/** Pay for the full period */
 	periodPay: string;
+	/** Optional fiscal daily pay for dual payroll */
+	fiscalDailyPay: string;
 	/** Optional SBC daily override */
 	sbcDailyOverride: string;
 	/** Employment type for PTU eligibility */
@@ -465,6 +472,7 @@ const initialFormValues: EmployeeFormValues = {
 	hireDate: '',
 	paymentFrequency: 'MONTHLY',
 	periodPay: '',
+	fiscalDailyPay: '',
 	sbcDailyOverride: '',
 	employmentType: 'PERMANENT',
 	isTrustEmployee: false,
@@ -784,6 +792,44 @@ function calculateDailyPayFromPeriodPay(periodPay: number, frequency: PaymentFre
 function calculatePeriodPayFromDailyPay(dailyPay: number, frequency: PaymentFrequency): number {
 	const divisor = getPayPeriodDivisor(frequency);
 	return roundToTwoDecimals(dailyPay * divisor);
+}
+
+/**
+ * Parses an optional positive currency input.
+ *
+ * @param value - Raw text input
+ * @returns Parsed number, null when empty, or undefined when invalid
+ */
+function parseOptionalPositiveCurrencyInput(value: string): number | null | undefined {
+	const trimmed = value.trim();
+	if (trimmed === '') {
+		return null;
+	}
+
+	const parsed = Number(trimmed);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return undefined;
+	}
+
+	return parsed;
+}
+
+/**
+ * Calculates the daily complement between real and fiscal salary.
+ *
+ * @param dailyPay - Real daily pay
+ * @param fiscalDailyPay - Fiscal daily pay
+ * @returns Daily complement rounded to two decimals
+ */
+function calculateDailyComplement(
+	dailyPay: number,
+	fiscalDailyPay: number | null | undefined,
+): number {
+	if (fiscalDailyPay === null || fiscalDailyPay === undefined || fiscalDailyPay >= dailyPay) {
+		return 0;
+	}
+
+	return roundToTwoDecimals(dailyPay - fiscalDailyPay);
 }
 
 /**
@@ -1199,8 +1245,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	};
 
 	const isOrgSelected = Boolean(organizationId);
-	const canAccessDisciplinary =
+	const canManageSensitivePayroll =
 		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
+	const canAccessDisciplinary =
+		canManageSensitivePayroll;
 
 	const { data: payrollSettings } = useQuery({
 		queryKey: queryKeys.payrollSettings.current(organizationId),
@@ -1208,6 +1256,9 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: isOrgSelected,
 	});
 	const isDisciplinaryEnabled = Boolean(payrollSettings?.enableDisciplinaryMeasures);
+	const isDualPayrollEnabled = Boolean(payrollSettings?.enableDualPayroll);
+	const canManageDualPayrollCompensation =
+		canManageSensitivePayroll && isDualPayrollEnabled;
 	const canUseDisciplinaryModule = canAccessDisciplinary && isDisciplinaryEnabled;
 	const secondaryDetailTabs = useMemo<EmployeeDetailTab[]>(
 		() =>
@@ -2201,6 +2252,13 @@ export function EmployeesPageClient(): React.ReactElement {
 						? null
 						: undefined
 					: Number(trimmedAguinaldoOverride);
+			const parsedFiscalDailyPay = (() => {
+				const parsed = parseOptionalPositiveCurrencyInput(value.fiscalDailyPay);
+				if (parsed === null) {
+					return isEditMode ? null : undefined;
+				}
+				return parsed;
+			})();
 			if (
 				parsedAguinaldoOverride !== undefined &&
 				parsedAguinaldoOverride !== null &&
@@ -2211,6 +2269,16 @@ export function EmployeesPageClient(): React.ReactElement {
 			}
 			const paymentFrequency = value.paymentFrequency ?? 'MONTHLY';
 			const dailyPay = calculateDailyPayFromPeriodPay(parsedPeriodPay, paymentFrequency);
+			const fiscalDailyPaySubmissionError = getFiscalDailyPaySubmissionError({
+				canManageDualPayrollCompensation,
+				dailyPay,
+				isEditMode,
+				parsedFiscalDailyPay,
+			});
+			if (fiscalDailyPaySubmissionError) {
+				toast.error(t(fiscalDailyPaySubmissionError));
+				return;
+			}
 			const resolvedUserIdForCreate =
 				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
 			const normalizedUserIdForUpdate =
@@ -2234,6 +2302,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					status: value.status,
 					hireDate: trimmedHireDate === '' ? null : trimmedHireDate,
 					dailyPay,
+					fiscalDailyPay:
+						canManageDualPayrollCompensation ? parsedFiscalDailyPay : undefined,
 					paymentFrequency,
 					sbcDailyOverride: parsedSbcOverride,
 					employmentType: value.employmentType,
@@ -2321,6 +2391,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const lastName = useStore(form.store, (state) => state.values.lastName);
 	const codeValue = useStore(form.store, (state) => state.values.code);
 	const periodPayValue = useStore(form.store, (state) => state.values.periodPay);
+	const fiscalDailyPayValue = useStore(form.store, (state) => state.values.fiscalDailyPay);
 	const formValues = useStore(form.store, (state) => state.values);
 	const paymentFrequencyValue =
 		useStore(form.store, (state) => state.values.paymentFrequency) ?? 'MONTHLY';
@@ -2328,9 +2399,25 @@ export function EmployeesPageClient(): React.ReactElement {
 		Number(periodPayValue || 0),
 		paymentFrequencyValue,
 	);
+	const parsedFiscalDailyPayPreview = parseOptionalPositiveCurrencyInput(fiscalDailyPayValue);
+	const fiscalDailyPayPreviewFeedbackKey = getFiscalDailyPayPreviewFeedbackKey({
+		canManageDualPayrollCompensation,
+		dailyPay: computedDailyPay,
+		fiscalDailyPayValue,
+		isEditMode,
+		parsedFiscalDailyPay: parsedFiscalDailyPayPreview,
+	});
+	const fiscalDailyComplementPreview =
+		typeof parsedFiscalDailyPayPreview === 'number'
+			? calculateDailyComplement(computedDailyPay, parsedFiscalDailyPayPreview)
+			: 0;
 	const periodPayLabel = t('fields.periodPay', {
 		period: t(`paymentFrequency.${paymentFrequencyValue}`),
 	});
+	const activeEmployeeDailyComplement = calculateDailyComplement(
+		activeEmployee?.dailyPay ?? 0,
+		activeEmployee?.fiscalDailyPay,
+	);
 	const currentMobileWizardSnapshot = useMemo(
 		() => serializeEmployeeDraft(formValues, schedule),
 		[formValues, schedule],
@@ -2581,6 +2668,7 @@ export function EmployeesPageClient(): React.ReactElement {
 					employee.paymentFrequency ?? 'MONTHLY',
 				),
 			),
+			fiscalDailyPay: employee.fiscalDailyPay ? String(employee.fiscalDailyPay) : '',
 			sbcDailyOverride: employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
 			employmentType: employee.employmentType ?? 'PERMANENT',
 			isTrustEmployee: Boolean(employee.isTrustEmployee),
@@ -2612,6 +2700,7 @@ export function EmployeesPageClient(): React.ReactElement {
 		form.setFieldValue('hireDate', nextFormValues.hireDate);
 		form.setFieldValue('paymentFrequency', nextFormValues.paymentFrequency);
 		form.setFieldValue('periodPay', nextFormValues.periodPay);
+		form.setFieldValue('fiscalDailyPay', nextFormValues.fiscalDailyPay);
 		form.setFieldValue('sbcDailyOverride', nextFormValues.sbcDailyOverride);
 		form.setFieldValue('employmentType', nextFormValues.employmentType);
 		form.setFieldValue('isTrustEmployee', nextFormValues.isTrustEmployee);
@@ -3933,6 +4022,11 @@ export function EmployeesPageClient(): React.ReactElement {
 					isLoadingJobPositions,
 					periodPayLabel,
 					computedDailyPay,
+					canManageDualPayrollCompensation,
+					fiscalDailyPayPreviewFeedbackKey,
+					parsedFiscalDailyPayPreview,
+					fiscalDailyComplementPreview,
+					activeEmployeeDailyComplement,
 					ptuAguinaldoOptionHelp,
 					ptuHistoryYearInput,
 					ptuHistoryAmountInput,

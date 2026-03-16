@@ -1,0 +1,342 @@
+[     527ms] [ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <MenuProvider scope={{Menu:[...], ...}} open={false} onOpenChange={function useCallbackRef.useMemo} content={null} ...>
+      <MenuProvider scope={{Menu:[...], ...}} onClose={function Menu.useCallback} isUsingKeyboardRef={{current:false}} ...>
+        <DropdownMenuTrigger asChild={true}>
+          <DropdownMenuTrigger data-slot="dropdown-m..." asChild={true}>
+            <MenuAnchor asChild={true} __scopeMenu={{Menu:[...], ...}}>
+              <PopperAnchor __scopePopper={{Menu:[...], ...}} asChild={true} ref={null}>
+                <Primitive.div asChild={true} ref={function}>
+                  <Primitive.div.Slot ref={function}>
+                    <Primitive.div.SlotClone ref={function}>
+                      <Primitive.button type="button" id="radix-_R_r..." aria-haspopup="menu" aria-expanded={false} ...>
+                        <Primitive.button.Slot type="button" id="radix-_R_r..." aria-haspopup="menu" ...>
+                          <Primitive.button.SlotClone type="button" id="radix-_R_r..." aria-haspopup="menu" ...>
+                            <Button variant="ghost" size="icon" className="relative h..." aria-label="Cambiar tema" ...>
+                              <button
+                                data-slot="dropdown-menu-trigger"
+                                className={"inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm f..."}
+                                aria-label="Cambiar tema"
+                                type="button"
++                               id="radix-_R_r9eqqlb_"
+-                               id="radix-_R_3d9eqqlb_"
+                                aria-haspopup="menu"
+                                aria-expanded={false}
+                                aria-controls={undefined}
+                                data-state="closed"
+                                data-disabled={undefined}
+                                disabled={false}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+        ...
+ @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[     723ms] [ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <VacationsPageClient>
+      <div className="min-w-0 sp...">
+        <ResponsivePageHeader title="Vacaciones" description="Gestiona s..." actions={<Dialog>}>
+          <section data-testid="responsive..." className="flex flex-...">
+            <div>
+            <div data-testid="responsive..." className={"flex w-f..."}>
+              <Dialog open={false} onOpenChange={function bound dispatchSetState}>
+                <Dialog data-slot="dialog" open={false} onOpenChange={function bound dispatchSetState}>
+                  <DialogProvider scope={undefined} triggerRef={{current:null}} contentRef={{current:null}} ...>
+                    <DialogTrigger asChild={true}>
+                      <DialogTrigger data-slot="dialog-tri..." asChild={true}>
+                        <Primitive.button type="button" aria-haspopup="dialog" aria-expanded={false} ...>
+                          <Primitive.button.Slot type="button" aria-haspopup="dialog" aria-expanded={false} ...>
+                            <Primitive.button.SlotClone type="button" aria-haspopup="dialog" aria-expanded={false} ...>
+                              <Button data-testid="vacations-..." className="min-h-11" type="button" ...>
+                                <button
+                                  data-slot="dialog-trigger"
+                                  className={"inline-flex items-center justify-center gap-2 whitespace-nowrap rounded..."}
+                                  data-testid="vacations-create-button"
+                                  type="button"
+                                  aria-haspopup="dialog"
+                                  aria-expanded={false}
++                                 aria-controls="radix-_R_16atpet9eqqlb_"
+-                                 aria-controls="radix-_R_4pbn5rl9eqqlb_"
+                                  data-state="closed"
+                                  onClick={function handleEvent}
+                                  ref={function}
+                                >
++                                 Crear solicitud
+                    ...
+        ...
+          <div data-slot="card-content" className="px-6 space...">
+            ...
+              <div role="tablist" aria-orientation="horizontal" data-slot="tabs-list" className="text-muted..." ...>
+                ...
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={true}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_r..." focusable={true} active={true}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={true} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={true}
++                                   aria-controls="radix-_R_3aatpet9eqqlb_-content-all"
+-                                   aria-controls="radix-_R_d9bn5rl9eqqlb_-content-all"
+                                    data-state="active"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_3aatpet9eqqlb_-trigger-all"
+-                                   id="radix-_R_d9bn5rl9eqqlb_-trigger-all"
+                                    data-slot="tabs-trigger"
+                                    className={"data-[state=active]:bg-background data-[state=active]:text-[var(--acc..."}
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   Todos
+                ...
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_1..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_3aatpet9eqqlb_-content-SUBMITTED"
+-                                   aria-controls="radix-_R_d9bn5rl9eqqlb_-content-SUBMITTED"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_3aatpet9eqqlb_-trigger-SUBMITTED"
+-                                   id="radix-_R_d9bn5rl9eqqlb_-trigger-SUBMITTED"
+                                    data-slot="tabs-trigger"
+                                    className={"data-[state=active]:bg-background data-[state=active]:text-[var(--acc..."}
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   Enviada
+                ...
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_1..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_3aatpet9eqqlb_-content-APPROVED"
+-                                   aria-controls="radix-_R_d9bn5rl9eqqlb_-content-APPROVED"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_3aatpet9eqqlb_-trigger-APPROVED"
+-                                   id="radix-_R_d9bn5rl9eqqlb_-trigger-APPROVED"
+                                    data-slot="tabs-trigger"
+                                    className={"data-[state=active]:bg-background data-[state=active]:text-[var(--acc..."}
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   Aprobada
+                ...
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_2..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_3aatpet9eqqlb_-content-REJECTED"
+-                                   aria-controls="radix-_R_d9bn5rl9eqqlb_-content-REJECTED"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_3aatpet9eqqlb_-trigger-REJECTED"
+-                                   id="radix-_R_d9bn5rl9eqqlb_-trigger-REJECTED"
+                                    data-slot="tabs-trigger"
+                                    className={"data-[state=active]:bg-background data-[state=active]:text-[var(--acc..."}
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   Rechazada
+                ...
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_2..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_3aatpet9eqqlb_-content-CANCELLED"
+-                                   aria-controls="radix-_R_d9bn5rl9eqqlb_-content-CANCELLED"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_3aatpet9eqqlb_-trigger-CANCELLED"
+-                                   id="radix-_R_d9bn5rl9eqqlb_-trigger-CANCELLED"
+                                    data-slot="tabs-trigger"
+                                    className={"data-[state=active]:bg-background data-[state=active]:text-[var(--acc..."}
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   Cancelada
+                ...
+                  <RovingFocusGroupItem asChild={true} __scopeRovingFocusGroup={{...}} focusable={true} active={false}>
+                    <RovingFocusGroupCollectionItemSlot scope={{...}} id="radix-_R_3..." focusable={true} active={false}>
+                      <RovingFocusGroupCollectionItemSlot.Slot data-radix-collection-item="" ref={function}>
+                        <RovingFocusGroupCollectionItemSlot.SlotClone data-radix-collection-item="" ref={function}>
+                          <Primitive.span tabIndex={-1} data-orientation="horizontal" asChild={true} ref={function} ...>
+                            <Primitive.span.Slot tabIndex={-1} data-orientation="horizontal" ...>
+                              <Primitive.span.SlotClone tabIndex={-1} data-orientation="horizontal" ...>
+                                <Primitive.button type="button" role="tab" aria-selected={false} ...>
+                                  <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={false}
++                                   aria-controls="radix-_R_3aatpet9eqqlb_-content-DRAFT"
+-                                   aria-controls="radix-_R_d9bn5rl9eqqlb_-content-DRAFT"
+                                    data-state="inactive"
+                                    data-disabled={undefined}
+                                    disabled={false}
++                                   id="radix-_R_3aatpet9eqqlb_-trigger-DRAFT"
+-                                   id="radix-_R_d9bn5rl9eqqlb_-trigger-DRAFT"
+                                    data-slot="tabs-trigger"
+                                    className={"data-[state=active]:bg-background data-[state=active]:text-[var(--acc..."}
+                                    onMouseDown={function}
+                                    onKeyDown={function}
+                                    onFocus={function}
+                                    tabIndex={-1}
+                                    data-orientation="horizontal"
+                                    data-radix-collection-item=""
+                                    ref={function}
+                                  >
++                                   Borrador
+            ...
+              <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+                <SelectTrigger className="min-h-11 w...">
+                  <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                    <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                      <Primitive.div asChild={true} ref={function}>
+                        <Primitive.div.Slot ref={function}>
+                          <Primitive.div.SlotClone ref={function}>
+                            <Primitive.button type="button" role="combobox" aria-controls="radix-_R_d..." ...>
+                              <button
+                                type="button"
+                                role="combobox"
++                               aria-controls="radix-_R_daatpet9eqqlb_"
+-                               aria-controls="radix-_R_1l9bn5rl9eqqlb_"
+                                aria-expanded={false}
+                                aria-required={undefined}
+                                aria-autocomplete="none"
+                                dir="ltr"
+                                data-state="closed"
+                                disabled={false}
+                                data-disabled={undefined}
+                                data-placeholder={undefined}
+                                data-slot="select-trigger"
+                                data-size="default"
+                                className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=..."}
+                                onClick={function handleEvent}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+                ...
+            ...
+              <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+                <SelectTrigger className="h-8 w-[90px]">
+                  <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                    <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                      <Primitive.div asChild={true} ref={function}>
+                        <Primitive.div.Slot ref={function}>
+                          <Primitive.div.SlotClone ref={function}>
+                            <Primitive.button type="button" role="combobox" aria-controls="radix-_R_9..." ...>
+                              <button
+                                type="button"
+                                role="combobox"
++                               aria-controls="radix-_R_9vaatpet9eqqlb_"
+-                               aria-controls="radix-_R_17t9bn5rl9eqqlb_"
+                                aria-expanded={false}
+                                aria-required={undefined}
+                                aria-autocomplete="none"
+                                dir="ltr"
+                                data-state="closed"
+                                disabled={false}
+                                data-disabled={undefined}
+                                data-placeholder={undefined}
+                                data-slot="select-trigger"
+                                data-size="default"
+                                className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=..."}
+                                onClick={function handleEvent}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+                ...
+        ...
+ @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122

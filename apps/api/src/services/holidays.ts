@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { and, eq, gte, inArray, lte, sql, type InferInsertModel, type SQL } from 'drizzle-orm';
+import { and, eq, gte, lte, sql, type InferInsertModel, type SQL } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 
 import db from '../db/index.js';
 import {
@@ -529,8 +530,8 @@ export async function syncOrganizationHolidayCalendar(args: {
 						legalReference: sql`excluded.legal_reference`,
 						conflictReason: sql`excluded.conflict_reason`,
 						syncRunId: run.id,
-						approvedAt: null,
-						approvedBy: null,
+						approvedAt: sql`${holidayCalendarEntry.approvedAt}`,
+						approvedBy: sql`${holidayCalendarEntry.approvedBy}`,
 						rejectedAt: null,
 						rejectedBy: null,
 					},

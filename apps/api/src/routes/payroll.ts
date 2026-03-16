@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, lte } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { addDays, isBefore } from 'date-fns';
 
 import db from '../db/index.js';
@@ -10,6 +11,7 @@ import {
 	employeeIncapacity,
 	employeeSchedule,
 	location,
+	member,
 	organization,
 	overtimeAuthorization,
 	payrollRun,
@@ -50,6 +52,86 @@ import {
 import { buildErrorResponse } from '../utils/error-response.js';
 
 /**
+ * Checks whether the current caller can view dual payroll compensation data.
+ *
+ * @param args - Authorization context for the request
+ * @param args.authType - Authentication mechanism used by the request
+ * @param args.organizationId - Organization whose payroll is being accessed
+ * @param args.session - Active Better Auth session when using cookie auth
+ * @returns True when the caller can read dual payroll compensation for the organization
+ */
+async function canViewDualPayrollCompensation(args: {
+	authType: 'session' | 'apiKey' | null;
+	organizationId: string;
+	session: { userId: string } | null;
+}): Promise<boolean> {
+	if (args.authType === 'apiKey') {
+		return true;
+	}
+
+	if (args.authType !== 'session' || !args.session) {
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+
+	const role = membership[0]?.role ?? null;
+	return role === 'owner' || role === 'admin';
+}
+
+type DualPayrollCompensationShape = {
+	fiscalDailyPay?: unknown;
+	fiscalGrossPay?: unknown;
+	complementPay?: unknown;
+	totalRealPay?: unknown;
+};
+
+/**
+ * Removes dual payroll compensation fields from a payload.
+ *
+ * @param record - Payload that may expose fiscal compensation details
+ * @returns Payload without dual payroll compensation fields
+ */
+function omitDualPayrollCompensation<T extends DualPayrollCompensationShape>(
+	record: T,
+): Omit<T, 'fiscalDailyPay' | 'fiscalGrossPay' | 'complementPay' | 'totalRealPay'> {
+	const sanitizedRecord = { ...record } as Partial<T>;
+	delete sanitizedRecord.fiscalDailyPay;
+	delete sanitizedRecord.fiscalGrossPay;
+	delete sanitizedRecord.complementPay;
+	delete sanitizedRecord.totalRealPay;
+	return sanitizedRecord as Omit<
+		T,
+		'fiscalDailyPay' | 'fiscalGrossPay' | 'complementPay' | 'totalRealPay'
+	>;
+}
+
+/**
+ * Removes dual payroll compensation fields from employee collections when needed.
+ *
+ * @param employees - Employee records or calculation rows
+ * @param includeDualPayrollCompensation - Whether the caller can view fiscal compensation data
+ * @returns Sanitized employee collection
+ */
+function sanitizeDualPayrollEmployees<T extends DualPayrollCompensationShape>(
+	employees: T[],
+	includeDualPayrollCompensation: boolean,
+): Array<T | Omit<T, 'fiscalDailyPay' | 'fiscalGrossPay' | 'complementPay' | 'totalRealPay'>> {
+	return includeDualPayrollCompensation
+		? employees
+		: employees.map((employeeRecord) => omitDualPayrollCompensation(employeeRecord));
+}
+
+/**
  * Calculates payroll for employees within the organization and period.
  *
  * @param args - Organization and period parameters
@@ -84,6 +166,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: number;
 		vacationPremiumRate: number;
 		enableSeventhDayPay: boolean;
+		enableDualPayroll: boolean;
 		autoDeductLunchBreak: boolean;
 		lunchBreakMinutes: number;
 		lunchBreakThresholdHours: number;
@@ -112,6 +195,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
+		enableDualPayroll: Boolean(orgSettings[0]?.enableDualPayroll ?? false),
 		autoDeductLunchBreak: Boolean(orgSettings[0]?.autoDeductLunchBreak ?? false),
 		lunchBreakMinutes: Number(orgSettings[0]?.lunchBreakMinutes ?? 60),
 		lunchBreakThresholdHours: Number(orgSettings[0]?.lunchBreakThresholdHours ?? 6),
@@ -144,6 +228,7 @@ const calculatePayroll = async (args: {
 			sbcDailyOverride: employee.sbcDailyOverride,
 			aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 			dailyPay: employee.dailyPay,
+			fiscalDailyPay: employee.fiscalDailyPay,
 			paymentFrequency: employee.paymentFrequency,
 			shiftType: employee.shiftType,
 			locationGeographicZone: location.geographicZone,
@@ -388,10 +473,18 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
 
 			return {
 				data: {
-					employees,
+					employees: sanitizeDualPayrollEmployees(
+						employees,
+						includeDualPayrollCompensation,
+					),
 					totalAmount,
 					taxSummary,
 					periodStartDateKey: body.periodStartDateKey,
@@ -441,6 +534,18 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
+			const sanitizedCalculation = {
+				...calculation,
+				employees: sanitizeDualPayrollEmployees(
+					calculation.employees,
+					includeDualPayrollCompensation,
+				),
+			};
 
 			const hasBlockingWarnings =
 				calculation.overtimeEnforcement === 'BLOCK' &&
@@ -453,7 +558,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse(
 					'Overtime limits exceeded. Resolve errors to process payroll.',
 					400,
-					{ details: { calculation } },
+					{ details: { calculation: sanitizedCalculation } },
 				);
 			}
 
@@ -488,6 +593,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 						hoursWorked: row.hoursWorked.toFixed(2),
 						hourlyPay: row.hourlyPay.toFixed(2),
 						totalPay: row.totalPay.toFixed(2),
+						fiscalDailyPay:
+							row.fiscalDailyPay === null ? null : row.fiscalDailyPay.toFixed(4),
+						fiscalGrossPay:
+							row.fiscalGrossPay === null ? null : row.fiscalGrossPay.toFixed(4),
+						complementPay:
+							row.complementPay === null ? null : row.complementPay.toFixed(4),
+						totalRealPay:
+							row.totalRealPay === null ? null : row.totalRealPay.toFixed(4),
 						normalHours: row.normalHours.toFixed(2),
 						normalPay: row.normalPay.toFixed(2),
 						overtimeDoubleHours: row.overtimeDoubleHours.toFixed(2),
@@ -569,7 +682,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return savedRun[0];
 			});
 
-			return { data: { run: runResult, calculation } };
+			return { data: { run: runResult, calculation: sanitizedCalculation } };
 		},
 		{
 			body: payrollProcessSchema,
@@ -654,6 +767,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				set.status = 403;
 				return buildErrorResponse('You do not have access to this payroll run', 403);
 			}
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: record.organizationId,
+				session: session ?? null,
+			});
 
 			const organizationRows = await db
 				.select({ name: organization.name })
@@ -670,6 +788,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					hoursWorked: payrollRunEmployee.hoursWorked,
 					hourlyPay: payrollRunEmployee.hourlyPay,
 					totalPay: payrollRunEmployee.totalPay,
+					fiscalDailyPay: payrollRunEmployee.fiscalDailyPay,
+					fiscalGrossPay: payrollRunEmployee.fiscalGrossPay,
+					complementPay: payrollRunEmployee.complementPay,
+					totalRealPay: payrollRunEmployee.totalRealPay,
 					normalHours: payrollRunEmployee.normalHours,
 					normalPay: payrollRunEmployee.normalPay,
 					overtimeDoubleHours: payrollRunEmployee.overtimeDoubleHours,
@@ -707,6 +829,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				hoursWorked: line.hoursWorked,
 				hourlyPay: line.hourlyPay,
 				totalPay: line.totalPay,
+				...(includeDualPayrollCompensation
+					? {
+							fiscalDailyPay: line.fiscalDailyPay,
+							fiscalGrossPay: line.fiscalGrossPay,
+							complementPay: line.complementPay,
+							totalRealPay: line.totalRealPay,
+						}
+					: {}),
 				normalHours: line.normalHours,
 				normalPay: line.normalPay,
 				overtimeDoubleHours: line.overtimeDoubleHours,

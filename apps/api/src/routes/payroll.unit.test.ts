@@ -732,6 +732,16 @@ mock.module('drizzle-orm', () => {
 	};
 });
 
+mock.module('drizzle-orm/sql', () => {
+	return {
+		inArray: (column: unknown, values: unknown[]) => ({
+			kind: 'inArray' as const,
+			column,
+			values,
+		}),
+	};
+});
+
 mock.module('../db/index.js', () => ({ default: fakeDb }));
 mock.module('../plugins/auth.js', () => ({
 	combinedAuthPlugin: new Elysia({ name: 'mock-auth-plugin' }),

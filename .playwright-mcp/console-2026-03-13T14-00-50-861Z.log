@@ -1,0 +1,52 @@
+[     714ms] Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RedirectBoundary>
+      <RedirectErrorBoundary router={{...}}>
+        <InnerLayoutRouter url="/organizat..." tree={[...]} params={{}} cacheNode={{lazyData:null, ...}} ...>
+          <SegmentViewNode type="page" pagePath="/apps/web/...">
+            <SegmentTrieNode>
+            <OrganizationsPage>
+              <HydrationBoundary state={{...}}>
+                <OrganizationsPageClient>
+                  <Dialog open={false} ...>
+                    <Dialog data-slot="dialog" open={false} ...>
+                      <DialogProvider scope={undefined} triggerRef={{current:null}} contentRef={{current:null}} ...>
+                        <div className="min-w-0 sp...">
+                          <ResponsivePageHeader title="Organizaci..." description="Administra..." ...>
+                            <section data-testid="responsive..." className="flex flex-...">
+                              <div>
++                             <div
++                               data-testid="responsive-page-header-actions"
++                               className={"flex w-full flex-col gap-2 [&_a]:inline-flex [&_a]:min-h-11 [&_a]:w-full ..."}
++                             >
+                          ...
+                        ...
+          ...
+        ...
+
+    at throwOnHydrationMismatch (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:3342:56)
+    at beginWork (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:6769:918)
+    at runWithFiberInDEV (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:959:74)
+    at performUnitOfWork (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9556:97)
+    at workLoopSync (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9450:40)
+    at renderRootSync (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9434:13)
+    at performWorkOnRoot (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9062:186)
+    at performSyncWorkOnRoot (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:10232:9)
+    at flushSyncWorkAcrossRoots_impl (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:10148:316)
+    at flushSpawnedWork (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9908:13)
+    at commitRoot (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9714:432)
+    at commitRootWhenReady (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9188:9)
+    at performWorkOnRoot (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:9160:25)
+    at performWorkOnRootViaSchedulerTask (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js:10224:9)
+    at MessagePort.performWorkUntilDeadline (http://localhost:3001/_next/static/chunks/node_modules_next_dist_compiled_a0e4c7b4._.js:2647:64)

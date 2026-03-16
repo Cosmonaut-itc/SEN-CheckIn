@@ -1,12 +1,45 @@
 import { Elysia } from 'elysia';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import db from '../db/index.js';
-import { payrollSetting } from '../db/schema.js';
-import { combinedAuthPlugin } from '../plugins/auth.js';
+import { member, payrollSetting } from '../db/schema.js';
+import { combinedAuthPlugin, type AuthSession } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { payrollSettingsSchema } from '../schemas/payroll.js';
+
+/**
+ * Checks whether the caller can manage payroll settings for the organization.
+ *
+ * @param args - Authorization context
+ * @param args.authType - Authentication type used for the request
+ * @param args.session - Current authenticated session
+ * @param args.organizationId - Organization being updated
+ * @returns True when the caller is an organization owner or admin
+ */
+async function hasOrganizationAdminRole(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	organizationId: string;
+}): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
+		return false;
+	}
+
+	const membership = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(
+			and(
+				eq(member.userId, args.session.userId),
+				eq(member.organizationId, args.organizationId),
+			),
+		)
+		.limit(1);
+
+	const role = membership[0]?.role ?? null;
+	return role === 'owner' || role === 'admin';
+}
 
 /**
  * Payroll settings routes for per-organization configuration.
@@ -66,6 +99,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: 15,
 				vacationPremiumRate: '0.25',
 				enableSeventhDayPay: false,
+				enableDualPayroll: false,
 				autoDeductLunchBreak: false,
 				lunchBreakMinutes: 60,
 				lunchBreakThresholdHours: '6',
@@ -118,6 +152,17 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
+			const canManagePayrollSettings = await hasOrganizationAdminRole({
+				authType,
+				session: session ?? null,
+				organizationId,
+			});
+
+			if (!canManagePayrollSettings) {
+				set.status = 403;
+				return buildErrorResponse('Only organization admins can update payroll settings', 403);
+			}
+
 			const existing = await db
 				.select()
 				.from(payrollSetting)
@@ -142,6 +187,8 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				body.vacationPremiumRate ?? existing[0]?.vacationPremiumRate ?? 0.25;
 			const resolvedEnableSeventhDayPay =
 				body.enableSeventhDayPay ?? existing[0]?.enableSeventhDayPay ?? false;
+			const resolvedEnableDualPayroll =
+				body.enableDualPayroll ?? existing[0]?.enableDualPayroll ?? false;
 			const resolvedAutoDeductLunchBreak =
 				body.autoDeductLunchBreak ?? existing[0]?.autoDeductLunchBreak ?? false;
 			const resolvedLunchBreakMinutes =
@@ -192,6 +239,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				aguinaldoDays: resolvedAguinaldoDays,
 				vacationPremiumRate: resolvedVacationPremiumRateValue,
 				enableSeventhDayPay: resolvedEnableSeventhDayPay,
+				enableDualPayroll: resolvedEnableDualPayroll,
 				autoDeductLunchBreak: resolvedAutoDeductLunchBreak,
 				lunchBreakMinutes: resolvedLunchBreakMinutes,
 				lunchBreakThresholdHours: resolvedLunchBreakThresholdHoursValue,
@@ -222,6 +270,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						aguinaldoDays: updatePayload.aguinaldoDays,
 						vacationPremiumRate: updatePayload.vacationPremiumRate,
 						enableSeventhDayPay: updatePayload.enableSeventhDayPay,
+						enableDualPayroll: updatePayload.enableDualPayroll,
 						autoDeductLunchBreak: updatePayload.autoDeductLunchBreak,
 						lunchBreakMinutes: updatePayload.lunchBreakMinutes,
 						lunchBreakThresholdHours: updatePayload.lunchBreakThresholdHours,

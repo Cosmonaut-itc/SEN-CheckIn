@@ -115,6 +115,56 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
 };
 
 /**
+ * Applies an alpha channel to a resolved theme color without introducing new hardcoded RGBA literals.
+ *
+ * Supports 3-digit and 6-digit hex colors, and converts `rgb(...)` or `rgba(...)` strings to
+ * 8-digit hex. Unsupported formats are returned unchanged.
+ *
+ * @param color - Resolved theme color string
+ * @param alpha - Opacity value from 0 to 1
+ * @returns Color string with the requested alpha channel when parsing succeeds
+ */
+function withAlpha(color: string, alpha: number): string {
+	const normalizedColor = color.trim();
+	const normalizedAlpha = Math.max(0, Math.min(1, alpha));
+	const alphaHex = Math.round(normalizedAlpha * 255)
+		.toString(16)
+		.padStart(2, '0')
+		.toUpperCase();
+	const fullHexMatch = normalizedColor.match(
+		/^#(?<red>[0-9a-fA-F]{2})(?<green>[0-9a-fA-F]{2})(?<blue>[0-9a-fA-F]{2})(?:[0-9a-fA-F]{2})?$/,
+	);
+
+	if (fullHexMatch?.groups) {
+		return `#${fullHexMatch.groups.red}${fullHexMatch.groups.green}${fullHexMatch.groups.blue}${alphaHex}`;
+	}
+
+	const shortHexMatch = normalizedColor.match(
+		/^#(?<red>[0-9a-fA-F])(?<green>[0-9a-fA-F])(?<blue>[0-9a-fA-F])(?:[0-9a-fA-F])?$/,
+	);
+
+	if (shortHexMatch?.groups) {
+		return `#${shortHexMatch.groups.red.repeat(2)}${shortHexMatch.groups.green.repeat(2)}${shortHexMatch.groups.blue.repeat(2)}${alphaHex}`;
+	}
+
+	const rgbMatch = normalizedColor.match(
+		/^rgba?\(\s*(?<red>\d{1,3})\s*,\s*(?<green>\d{1,3})\s*,\s*(?<blue>\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/,
+	);
+
+	if (rgbMatch?.groups) {
+		const redHex = Number(rgbMatch.groups.red).toString(16).padStart(2, '0').toUpperCase();
+		const greenHex = Number(rgbMatch.groups.green)
+			.toString(16)
+			.padStart(2, '0')
+			.toUpperCase();
+		const blueHex = Number(rgbMatch.groups.blue).toString(16).padStart(2, '0').toUpperCase();
+		return `#${redHex}${greenHex}${blueHex}${alphaHex}`;
+	}
+
+	return color;
+}
+
+/**
  * Face scanner screen component for attendance verification
  * @returns {JSX.Element} The scanner screen with camera view and controls
  */
@@ -238,12 +288,15 @@ export default function ScannerScreen(): JSX.Element {
 			: attendanceType === 'CHECK_OUT_AUTHORIZED'
 				? themeColors.warning
 				: themeColors.error;
-	const neutralGuideColor = 'rgba(255, 255, 255, 0.8)';
+	const neutralGuideColor = withAlpha(themeColors.foreground, 0.8);
 	const ctaBackground = attendanceAccent;
-	const ctaContentColor = '#ffffff';
-	const linkButtonBackground = isDarkMode ? 'rgba(251, 191, 36, 0.18)' : 'rgba(245, 158, 11, 0.12)';
-	const linkButtonBorder = isDarkMode ? 'rgba(251, 191, 36, 0.42)' : 'rgba(180, 83, 9, 0.22)';
-	const linkButtonContentColor = isDarkMode ? '#FCD34D' : '#92400E';
+	const ctaContentColor = 'white';
+	const linkButtonBackground = withAlpha(themeColors.warning, isDarkMode ? 0.18 : 0.12);
+	const linkButtonBorder = withAlpha(
+		isDarkMode ? themeColors.warning : themeColors.primary,
+		isDarkMode ? 0.42 : 0.22,
+	);
+	const linkButtonContentColor = isDarkMode ? themeColors.warning : themeColors.primary;
 
 	/**
 	 * Reset the current auth state and return to device authorization.
@@ -1020,7 +1073,7 @@ const createScannerStyles = (
 		position: 'absolute',
 		width: 30,
 		height: 30,
-		borderColor: '#FFFFFF',
+		borderColor: 'white',
 		borderWidth: 3,
 	},
 	cornerTopLeft: {
@@ -1064,9 +1117,9 @@ const createScannerStyles = (
 	},
 	instructionText: {
 		fontSize: 16,
-		color: '#FFFFFF',
+		color: 'white',
 		textAlign: 'center',
-		textShadowColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.65)',
+		textShadowColor: withAlpha(themeColors.background, isDarkMode ? 0.8 : 0.65),
 		textShadowOffset: { width: 0, height: 1 },
 		textShadowRadius: 4,
 	},

@@ -37,6 +37,35 @@ const employerTypeOptions = [
 	{ value: 'PERSONA_FISICA', labelKey: 'ptu.employerTypeOptions.personaFisica' },
 ];
 
+const dualPayrollPreviewCards: Array<{
+	titleKey: 'taxSettings.dualPayroll.realTitle' | 'taxSettings.dualPayroll.fiscalTitle' | 'taxSettings.dualPayroll.complementTitle';
+	descriptionKey:
+		| 'taxSettings.dualPayroll.realDescription'
+		| 'taxSettings.dualPayroll.fiscalDescription'
+		| 'taxSettings.dualPayroll.complementDescription';
+	accentBarClassName: string;
+	titleClassName: string;
+}> = [
+	{
+		titleKey: 'taxSettings.dualPayroll.realTitle',
+		descriptionKey: 'taxSettings.dualPayroll.realDescription',
+		accentBarClassName: 'bg-[color:var(--accent-primary)]',
+		titleClassName: 'text-[color:var(--accent-primary)]',
+	},
+	{
+		titleKey: 'taxSettings.dualPayroll.fiscalTitle',
+		descriptionKey: 'taxSettings.dualPayroll.fiscalDescription',
+		accentBarClassName: 'bg-[color:var(--accent-secondary)]',
+		titleClassName: 'text-[color:var(--accent-secondary)]',
+	},
+	{
+		titleKey: 'taxSettings.dualPayroll.complementTitle',
+		descriptionKey: 'taxSettings.dualPayroll.complementDescription',
+		accentBarClassName: 'bg-[color:var(--accent-tertiary)]',
+		titleClassName: 'text-[color:var(--accent-tertiary)]',
+	},
+];
+
 const DATE_KEY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const EMPTY_FIELD_META = {
 	isValidating: false,
@@ -663,18 +692,18 @@ export function PayrollSettingsClient(): React.ReactElement {
 						{canManageDualPayroll ? (
 							<div
 								className={cn(
-									'rounded-xl border p-4 transition-colors',
+									'rounded-2xl border p-4 transition-colors',
 									enableDualPayrollValue
-										? 'border-emerald-300/70 bg-emerald-50/70 shadow-sm'
-										: 'border-dashed bg-muted/30',
+										? 'border-[color:var(--accent-primary)]/35 bg-[color:var(--accent-primary-bg)] shadow-[var(--shadow-sm)]'
+										: 'border-[color:var(--border-default)] bg-[color:var(--bg-secondary)]/70',
 								)}
 							>
 								<div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
 									<div className="space-y-1">
-										<p className="text-sm font-semibold text-foreground">
+										<p className="text-sm font-semibold text-[color:var(--text-primary)]">
 											{t('taxSettings.fields.enableDualPayroll')}
 										</p>
-										<p className="text-xs text-muted-foreground">
+										<p className="text-xs text-[color:var(--text-tertiary)]">
 											{t('taxSettings.helpers.enableDualPayroll')}
 										</p>
 									</div>
@@ -693,30 +722,37 @@ export function PayrollSettingsClient(): React.ReactElement {
 									</div>
 								</div>
 								<div className="mt-4 grid gap-3 md:grid-cols-3">
-									<div className="rounded-lg border border-white/60 bg-white/80 p-3">
-										<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-											{t('taxSettings.dualPayroll.realTitle')}
-										</p>
-										<p className="mt-1 text-sm text-foreground">
-											{t('taxSettings.dualPayroll.realDescription')}
-										</p>
-									</div>
-									<div className="rounded-lg border border-white/60 bg-white/80 p-3">
-										<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-											{t('taxSettings.dualPayroll.fiscalTitle')}
-										</p>
-										<p className="mt-1 text-sm text-foreground">
-											{t('taxSettings.dualPayroll.fiscalDescription')}
-										</p>
-									</div>
-									<div className="rounded-lg border border-white/60 bg-white/80 p-3">
-										<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-											{t('taxSettings.dualPayroll.complementTitle')}
-										</p>
-										<p className="mt-1 text-sm text-foreground">
-											{t('taxSettings.dualPayroll.complementDescription')}
-										</p>
-									</div>
+									{dualPayrollPreviewCards.map(
+										({
+											titleKey,
+											descriptionKey,
+											accentBarClassName,
+											titleClassName,
+										}) => (
+											<div
+												key={titleKey}
+												className="rounded-xl border border-[color:var(--border-default)] bg-[color:var(--bg-elevated)]/95 p-4 shadow-[var(--shadow-sm)]"
+											>
+												<div
+													className={cn(
+														'h-1.5 w-12 rounded-full',
+														accentBarClassName,
+													)}
+												/>
+												<p
+													className={cn(
+														'mt-3 text-[11px] font-semibold uppercase tracking-[0.16em]',
+														titleClassName,
+													)}
+												>
+													{t(titleKey)}
+												</p>
+												<p className="mt-2 text-sm leading-6 text-[color:var(--text-secondary)]">
+													{t(descriptionKey)}
+												</p>
+											</div>
+										),
+									)}
 								</div>
 							</div>
 						) : null}

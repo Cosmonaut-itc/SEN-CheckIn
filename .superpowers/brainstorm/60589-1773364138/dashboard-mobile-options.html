@@ -1,0 +1,210 @@
+<h2>Dashboard Móvil — Propuestas de Layout</h2>
+<p class="subtitle">El mapa es el elemento distintivo. ¿Cómo lo destacamos en móvil?</p>
+
+<div class="cards">
+  <!-- Option A: Full map hero -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8f5f0">
+      <div style="font-weight:700;margin-bottom:8px;font-size:0.75rem;letter-spacing:1px;color:#666">OPCIÓN A: MAPA HERO COMPLETO</div>
+      <div style="border:2px solid #c4956a;border-radius:12px;overflow:hidden;background:white">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #eee;align-items:center">
+          <div style="font-size:0.75rem;color:#666">☰</div>
+          <div style="font-size:0.7rem;font-weight:600">MAPA OPERATIVO</div>
+          <div style="font-size:0.75rem;color:#666">☀</div>
+        </div>
+        <!-- Map area - 60% of viewport -->
+        <div style="height:200px;background:linear-gradient(135deg,#d4e7d0 0%,#e8dcc8 40%,#c8d8c0 100%);position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="font-size:0.6rem;color:#555;text-align:center">
+            🗺️ MAPA INTERACTIVO<br>
+            <span style="font-size:0.5rem">(~60% del viewport)</span><br><br>
+            <div style="display:flex;gap:4px;justify-content:center">
+              <span style="background:#c4956a;color:white;padding:2px 6px;border-radius:8px;font-size:0.5rem">📍 2 ubicaciones</span>
+              <span style="background:#22c55e;color:white;padding:2px 6px;border-radius:8px;font-size:0.5rem">● 5 presentes</span>
+            </div>
+          </div>
+        </div>
+        <!-- Stats strip horizontal scrollable -->
+        <div style="display:flex;gap:8px;padding:8px 12px;overflow-x:auto;border-bottom:1px solid #eee">
+          <div style="min-width:70px;text-align:center;padding:6px;background:#fef3e2;border-radius:8px">
+            <div style="font-weight:700;font-size:0.9rem;color:#c4956a">0</div>
+            <div style="font-size:0.55rem;color:#888">Presentes</div>
+          </div>
+          <div style="min-width:70px;text-align:center;padding:6px;background:#f0fdf4;border-radius:8px">
+            <div style="font-weight:700;font-size:0.9rem;color:#16a34a">2</div>
+            <div style="font-size:0.55rem;color:#888">Ubicaciones</div>
+          </div>
+          <div style="min-width:70px;text-align:center;padding:6px;background:#eff6ff;border-radius:8px">
+            <div style="font-weight:700;font-size:0.9rem;color:#2563eb">25</div>
+            <div style="font-size:0.55rem;color:#888">Empleados</div>
+          </div>
+          <div style="min-width:70px;text-align:center;padding:6px;background:#faf5ff;border-radius:8px">
+            <div style="font-weight:700;font-size:0.9rem;color:#7c3aed">4</div>
+            <div style="font-size:0.55rem;color:#888">Dispositivos</div>
+          </div>
+        </div>
+        <!-- Content below -->
+        <div style="padding:10px 12px">
+          <div style="font-size:0.65rem;font-weight:600;color:#333;margin-bottom:6px">UBICACIONES</div>
+          <div style="background:#f9f6f2;padding:8px;border-radius:8px;margin-bottom:4px;font-size:0.6rem">
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-weight:600">Sucursal Centro</span>
+              <span style="background:#fef3e2;padding:1px 6px;border-radius:4px;font-size:0.5rem">0</span>
+            </div>
+            <span style="color:#888;font-size:0.5rem">SEN-CEN</span>
+          </div>
+          <div style="background:#f9f6f2;padding:8px;border-radius:8px;font-size:0.6rem">
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-weight:600">Sucursal Zona Fronteriza</span>
+              <span style="background:#fef3e2;padding:1px 6px;border-radius:4px;font-size:0.5rem">0</span>
+            </div>
+            <span style="color:#888;font-size:0.5rem">SEN-ZLFN</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Mapa Hero (60% viewport)</h3>
+      <p>El mapa ocupa ~60% del viewport visible. Stats en strip horizontal scrollable debajo. Ubicaciones y panel de detalle accesibles con scroll vertical. El mapa siempre es lo primero que ves.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Máxima visibilidad del mapa</li><li>Experiencia inmersiva tipo Google Maps</li><li>Stats accesibles sin scroll</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Menos espacio para datos tabulares</li><li>Requiere scroll para ver ubicaciones</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Split map + bottom sheet -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8f5f0">
+      <div style="font-weight:700;margin-bottom:8px;font-size:0.75rem;letter-spacing:1px;color:#666">OPCIÓN B: MAPA + BOTTOM SHEET</div>
+      <div style="border:2px solid #c4956a;border-radius:12px;overflow:hidden;background:white">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #eee;align-items:center">
+          <div style="font-size:0.75rem;color:#666">☰</div>
+          <div style="font-size:0.7rem;font-weight:600">MAPA OPERATIVO</div>
+          <div style="font-size:0.75rem;color:#666">☀</div>
+        </div>
+        <!-- Map area - full background -->
+        <div style="height:260px;background:linear-gradient(135deg,#d4e7d0 0%,#e8dcc8 40%,#c8d8c0 100%);position:relative">
+          <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.6rem;color:#555;text-align:center">
+            🗺️ MAPA FULL SCREEN<br>
+            <span style="font-size:0.5rem">(ocupa todo el fondo)</span><br><br>
+            <div style="display:flex;gap:4px;justify-content:center">
+              <span style="background:#c4956a;color:white;padding:2px 6px;border-radius:8px;font-size:0.5rem">📍 2 ubicaciones</span>
+            </div>
+          </div>
+          <!-- Bottom sheet overlay -->
+          <div style="position:absolute;bottom:0;left:0;right:0;background:white;border-radius:16px 16px 0 0;padding:0;box-shadow:0 -4px 20px rgba(0,0,0,0.1)">
+            <!-- Drag handle -->
+            <div style="text-align:center;padding:8px 0 4px">
+              <div style="width:40px;height:4px;background:#ddd;border-radius:2px;margin:0 auto"></div>
+            </div>
+            <!-- Stats row -->
+            <div style="display:flex;gap:4px;padding:4px 12px 8px;justify-content:space-around">
+              <div style="text-align:center">
+                <div style="font-weight:700;font-size:0.8rem;color:#c4956a">0</div>
+                <div style="font-size:0.5rem;color:#888">Presentes</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-weight:700;font-size:0.8rem;color:#16a34a">2</div>
+                <div style="font-size:0.5rem;color:#888">Ubic.</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-weight:700;font-size:0.8rem;color:#2563eb">25</div>
+                <div style="font-size:0.5rem;color:#888">Empl.</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-weight:700;font-size:0.8rem;color:#7c3aed">4</div>
+                <div style="font-size:0.5rem;color:#888">Disp.</div>
+              </div>
+            </div>
+            <!-- Expandable content hint -->
+            <div style="padding:6px 12px;border-top:1px solid #eee;font-size:0.55rem;color:#888;text-align:center">
+              ↑ Arrastra para ver ubicaciones y detalles
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Mapa Full + Bottom Sheet</h3>
+      <p>El mapa ocupa toda la pantalla. Un bottom sheet draggable (como Apple/Google Maps) se superpone con stats y ubicaciones. El usuario arrastra hacia arriba para ver más datos.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Mapa siempre visible al 100%</li><li>UX nativa tipo Maps app</li><li>Interacción familiar (drag up/down)</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Más complejo de implementar</li><li>Requiere librería de gestos o custom</li><li>Bottom sheet puede ocultar markers del mapa</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Tabs map/data -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8f5f0">
+      <div style="font-weight:700;margin-bottom:8px;font-size:0.75rem;letter-spacing:1px;color:#666">OPCIÓN C: MAPA HERO + TABS</div>
+      <div style="border:2px solid #c4956a;border-radius:12px;overflow:hidden;background:white">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #eee;align-items:center">
+          <div style="font-size:0.75rem;color:#666">☰</div>
+          <div style="font-size:0.7rem;font-weight:600">MAPA OPERATIVO</div>
+          <div style="font-size:0.75rem;color:#666">☀</div>
+        </div>
+        <!-- Map area - 45% -->
+        <div style="height:150px;background:linear-gradient(135deg,#d4e7d0 0%,#e8dcc8 40%,#c8d8c0 100%);position:relative;display:flex;align-items:center;justify-content:center">
+          <div style="font-size:0.6rem;color:#555;text-align:center">
+            🗺️ MAPA (~45%)<br>
+            <span style="font-size:0.5rem">Interactivo, tap en markers</span>
+          </div>
+        </div>
+        <!-- Stats strip -->
+        <div style="display:flex;gap:4px;padding:8px;justify-content:space-around;background:#faf8f5">
+          <div style="text-align:center">
+            <div style="font-weight:700;font-size:0.75rem;color:#c4956a">0</div>
+            <div style="font-size:0.5rem;color:#888">Presentes</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-weight:700;font-size:0.75rem;color:#16a34a">2</div>
+            <div style="font-size:0.5rem;color:#888">Ubicaciones</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-weight:700;font-size:0.75rem;color:#2563eb">25</div>
+            <div style="font-size:0.5rem;color:#888">Empleados</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-weight:700;font-size:0.75rem;color:#7c3aed">4</div>
+            <div style="font-size:0.5rem;color:#888">Dispositivos</div>
+          </div>
+        </div>
+        <!-- Tabs -->
+        <div style="display:flex;border-bottom:2px solid #eee;font-size:0.6rem">
+          <div style="flex:1;text-align:center;padding:8px;font-weight:600;color:#c4956a;border-bottom:2px solid #c4956a">Ubicaciones</div>
+          <div style="flex:1;text-align:center;padding:8px;color:#999">Fuera de oficina</div>
+          <div style="flex:1;text-align:center;padding:8px;color:#999">Actividad</div>
+        </div>
+        <!-- Tab content -->
+        <div style="padding:10px 12px">
+          <div style="background:#f9f6f2;padding:8px;border-radius:8px;margin-bottom:4px;font-size:0.6rem">
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-weight:600">Sucursal Centro</span>
+              <span style="background:#fef3e2;padding:1px 6px;border-radius:4px;font-size:0.5rem">0 presentes</span>
+            </div>
+            <span style="color:#888;font-size:0.5rem">SEN-CEN · Sin coordenadas</span>
+          </div>
+          <div style="background:#f9f6f2;padding:8px;border-radius:8px;font-size:0.6rem">
+            <div style="display:flex;justify-content:space-between">
+              <span style="font-weight:600">Zona Fronteriza</span>
+              <span style="background:#fef3e2;padding:1px 6px;border-radius:4px;font-size:0.5rem">0 presentes</span>
+            </div>
+            <span style="color:#888;font-size:0.5rem">SEN-ZLFN · Sin coordenadas</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Mapa Hero + Tabs</h3>
+      <p>El mapa ocupa ~45% del viewport. Stats en strip compacto. Los datos se organizan en tabs (Ubicaciones / Fuera de oficina / Actividad) para mantener todo accesible sin scroll excesivo.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Balance entre mapa y datos</li><li>Todo visible sin scroll extenso</li><li>Tabs familiares y fáciles</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Mapa más pequeño que opciones A/B</li><li>Tabs agregan complejidad de navegación</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

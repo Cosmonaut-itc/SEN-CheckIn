@@ -1,0 +1,230 @@
+[     731ms] [ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <MenuProvider scope={{Menu:[...], ...}} open={false} onOpenChange={function useCallbackRef.useMemo} content={null} ...>
+      <MenuProvider scope={{Menu:[...], ...}} onClose={function Menu.useCallback} isUsingKeyboardRef={{current:false}} ...>
+        <DropdownMenuTrigger asChild={true}>
+          <DropdownMenuTrigger data-slot="dropdown-m..." asChild={true}>
+            <MenuAnchor asChild={true} __scopeMenu={{Menu:[...], ...}}>
+              <PopperAnchor __scopePopper={{Menu:[...], ...}} asChild={true} ref={null}>
+                <Primitive.div asChild={true} ref={function}>
+                  <Primitive.div.Slot ref={function}>
+                    <Primitive.div.SlotClone ref={function}>
+                      <Primitive.button type="button" id="radix-_R_r..." aria-haspopup="menu" aria-expanded={false} ...>
+                        <Primitive.button.Slot type="button" id="radix-_R_r..." aria-haspopup="menu" ...>
+                          <Primitive.button.SlotClone type="button" id="radix-_R_r..." aria-haspopup="menu" ...>
+                            <Button variant="ghost" size="icon" className="relative h..." aria-label="Cambiar tema" ...>
+                              <button
+                                data-slot="dropdown-menu-trigger"
+                                className={"inline-flex items-center justify-center gap-2 whitespace-nowrap text-sm f..."}
+                                aria-label="Cambiar tema"
+                                type="button"
++                               id="radix-_R_r9eqqlb_"
+-                               id="radix-_R_3d9eqqlb_"
+                                aria-haspopup="menu"
+                                aria-expanded={false}
+                                aria-controls={undefined}
+                                data-state="closed"
+                                data-disabled={undefined}
+                                disabled={false}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+        ...
+ @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[     778ms] [ERROR] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <div className="space-y-6">
+      <div>
+      <div className="flex flex-...">
+        <div>
+        ...
+          <SelectCollectionProvider scope={undefined}>
+            <SelectCollectionProviderProvider scope={undefined} itemMap={Map} collectionRef={{current:null}}>
+              <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+                <SelectTrigger className="w-[150px]">
+                  <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                    <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                      <Primitive.div asChild={true} ref={function}>
+                        <Primitive.div.Slot ref={function}>
+                          <Primitive.div.SlotClone ref={function}>
+                            <Primitive.button type="button" role="combobox" aria-controls="radix-_R_j..." ...>
+                              <button
+                                type="button"
+                                role="combobox"
++                               aria-controls="radix-_R_jaatpet9eqqlb_"
+-                               aria-controls="radix-_R_2d9bn5rl9eqqlb_"
+                                aria-expanded={false}
+                                aria-required={undefined}
+                                aria-autocomplete="none"
+                                dir="ltr"
+                                data-state="closed"
+                                disabled={false}
+                                data-disabled={undefined}
+                                data-placeholder={undefined}
+                                data-slot="select-trigger"
+                                data-size="default"
+                                className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=..."}
+                                onClick={function handleEvent}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+                ...
+        ...
+          <SelectCollectionProvider scope={undefined}>
+            <SelectCollectionProviderProvider scope={undefined} itemMap={Map} collectionRef={{current:null}}>
+              <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+                <SelectTrigger className="w-[170px]">
+                  <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                    <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                      <Primitive.div asChild={true} ref={function}>
+                        <Primitive.div.Slot ref={function}>
+                          <Primitive.div.SlotClone ref={function}>
+                            <Primitive.button type="button" role="combobox" aria-controls="radix-_R_5..." ...>
+                              <button
+                                type="button"
+                                role="combobox"
++                               aria-controls="radix-_R_5aatpet9eqqlb_"
+-                               aria-controls="radix-_R_l9bn5rl9eqqlb_"
+                                aria-expanded={false}
+                                aria-required={undefined}
+                                aria-autocomplete="none"
+                                dir="ltr"
+                                data-state="closed"
+                                disabled={false}
+                                data-disabled={undefined}
+                                data-placeholder={undefined}
+                                data-slot="select-trigger"
+                                data-size="default"
+                                className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=..."}
+                                onClick={function handleEvent}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+                ...
+        ...
+          <SelectCollectionProvider scope={undefined}>
+            <SelectCollectionProviderProvider scope={undefined} itemMap={Map} collectionRef={{current:null}}>
+              <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+                <SelectTrigger className="w-[210px]">
+                  <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                    <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                      <Primitive.div asChild={true} ref={function}>
+                        <Primitive.div.Slot ref={function}>
+                          <Primitive.div.SlotClone ref={function}>
+                            <Primitive.button type="button" role="combobox" aria-controls="radix-_R_6..." ...>
+                              <button
+                                type="button"
+                                role="combobox"
++                               aria-controls="radix-_R_6aatpet9eqqlb_"
+-                               aria-controls="radix-_R_p9bn5rl9eqqlb_"
+                                aria-expanded={false}
+                                aria-required={undefined}
+                                aria-autocomplete="none"
+                                dir="ltr"
+                                data-state="closed"
+                                disabled={false}
+                                data-disabled={undefined}
+                                data-placeholder={undefined}
+                                data-slot="select-trigger"
+                                data-size="default"
+                                className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=..."}
+                                onClick={function handleEvent}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+                ...
+        ...
+          <SelectCollectionProvider scope={undefined}>
+            <SelectCollectionProviderProvider scope={undefined} itemMap={Map} collectionRef={{current:null}}>
+              <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+                <SelectTrigger className="w-[200px]">
+                  <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                    <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                      <Primitive.div asChild={true} ref={function}>
+                        <Primitive.div.Slot ref={function}>
+                          <Primitive.div.SlotClone ref={function}>
+                            <Primitive.button type="button" role="combobox" aria-controls="radix-_R_7..." ...>
+                              <button
+                                type="button"
+                                role="combobox"
++                               aria-controls="radix-_R_7aatpet9eqqlb_"
+-                               aria-controls="radix-_R_t9bn5rl9eqqlb_"
+                                aria-expanded={false}
+                                aria-required={undefined}
+                                aria-autocomplete="none"
+                                dir="ltr"
+                                data-state="closed"
+                                disabled={false}
+                                data-disabled={undefined}
+                                data-placeholder={undefined}
+                                data-slot="select-trigger"
+                                data-size="default"
+                                className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*=..."}
+                                onClick={function handleEvent}
+                                onPointerDown={function handleEvent}
+                                onKeyDown={function handleEvent}
+                                ref={function}
+                              >
+                ...
+      ...
+        <SelectCollectionProvider scope={undefined}>
+          <SelectCollectionProviderProvider scope={undefined} itemMap={Map} collectionRef={{current:null}}>
+            <SelectProvider scope={undefined} onNativeOptionAdd={function Select.useCallback} ...>
+              <SelectTrigger className="h-8 w-[90px]">
+                <SelectTrigger data-slot="select-tri..." data-size="default" className={"border-i..."}>
+                  <PopperAnchor asChild={true} __scopePopper={{Popper:[...]}}>
+                    <Primitive.div asChild={true} ref={function}>
+                      <Primitive.div.Slot ref={function}>
+                        <Primitive.div.SlotClone ref={function}>
+                          <Primitive.button type="button" role="combobox" aria-controls="radix-_R_1..." ...>
+                            <button
+                              type="button"
+                              role="combobox"
++                             aria-controls="radix-_R_17eatpet9eqqlb_"
+-                             aria-controls="radix-_R_4tpbn5rl9eqqlb_"
+                              aria-expanded={false}
+                              aria-required={undefined}
+                              aria-autocomplete="none"
+                              dir="ltr"
+                              data-state="closed"
+                              disabled={false}
+                              data-disabled={undefined}
+                              data-placeholder={undefined}
+                              data-slot="select-trigger"
+                              data-size="default"
+                              className={"border-input data-[placeholder]:text-muted-foreground [&_svg:not([class*='t..."}
+                              onClick={function handleEvent}
+                              onPointerDown={function handleEvent}
+                              onKeyDown={function handleEvent}
+                              ref={function}
+                            >
+              ...
+        ...
+      ...
+ @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122

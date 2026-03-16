@@ -131,6 +131,7 @@ import {
 	getFiscalDailyPayPreviewFeedbackKey,
 	getFiscalDailyPaySubmissionError,
 } from './employees-client.helpers';
+import { EmployeeDualPayrollCompensationPanel } from './employee-dual-payroll-compensation-panel';
 
 /**
  * Lazily loads the face enrollment dialog to reduce the initial bundle size.
@@ -5609,91 +5610,60 @@ export function EmployeesPageClient(): React.ReactElement {
 										</div>
 									</div>
 									{canManageDualPayrollCompensation && isEditMode ? (
-										<div className="col-span-2 rounded-xl border border-emerald-300/70 bg-emerald-50/60 p-4">
-											<div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-												<div className="space-y-3">
-													<div>
-														<p className="text-sm font-semibold text-foreground">
-															{t('compensation.title')}
-														</p>
-														<p className="text-xs text-muted-foreground">
-															{t('compensation.subtitle')}
-														</p>
-													</div>
-													<form.AppField
-														name="fiscalDailyPay"
-														validators={{
-															onChange: ({ value }) => {
-																const parsed =
-																	parseOptionalPositiveCurrencyInput(value);
-																const validationError =
-																	getFiscalDailyPaySubmissionError({
-																		canManageDualPayrollCompensation,
-																		dailyPay: computedDailyPay,
-																		isEditMode,
-																		parsedFiscalDailyPay: parsed,
-																	});
-																return validationError
-																	? t(validationError)
-																	: undefined;
-															},
-														}}
-													>
-														{(field) => (
-															<field.TextField
-																label={t('fields.fiscalDailyPay')}
-																placeholder={t('placeholders.fiscalDailyPay')}
-																type="number"
-																description={t('helpers.fiscalDailyPay')}
-															/>
-														)}
-													</form.AppField>
-													{fiscalDailyPayPreviewFeedbackKey ===
-													'compensation.liveHelper' ? (
-														<p className="text-xs text-muted-foreground">
-															{t(fiscalDailyPayPreviewFeedbackKey)}
-														</p>
-													) : (
-														<p className="text-xs font-medium text-destructive">
-															{t(fiscalDailyPayPreviewFeedbackKey)}
-														</p>
+										<EmployeeDualPayrollCompensationPanel
+											title={t('compensation.title')}
+											subtitle={t('compensation.subtitle')}
+											field={
+												<form.AppField
+													name="fiscalDailyPay"
+													validators={{
+														onChange: ({ value }) => {
+															const parsed =
+																parseOptionalPositiveCurrencyInput(value);
+															const validationError =
+																getFiscalDailyPaySubmissionError({
+																	canManageDualPayrollCompensation,
+																	dailyPay: computedDailyPay,
+																	isEditMode,
+																	parsedFiscalDailyPay: parsed,
+																});
+															return validationError
+																? t(validationError)
+																: undefined;
+														},
+													}}
+												>
+													{(field) => (
+														<field.TextField
+															label={t('fields.fiscalDailyPay')}
+															placeholder={t('placeholders.fiscalDailyPay')}
+															type="number"
+															description={t('helpers.fiscalDailyPay')}
+														/>
 													)}
-												</div>
-												<div className="rounded-2xl border border-white/70 bg-white/85 p-4 shadow-sm">
-													<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-														{t('compensation.previewTitle')}
-													</p>
-													<div className="mt-3 space-y-3">
-														<div className="flex items-center justify-between gap-3">
-															<span className="text-sm text-muted-foreground">
-																{t('compensation.realDailyPay')}
-															</span>
-															<span className="text-sm font-semibold text-foreground">
-																{formatCurrency(computedDailyPay)}
-															</span>
-														</div>
-														<div className="flex items-center justify-between gap-3">
-															<span className="text-sm text-muted-foreground">
-																{t('compensation.fiscalDailyPay')}
-															</span>
-															<span className="text-sm font-semibold text-foreground">
-																{typeof parsedFiscalDailyPayPreview === 'number'
-																	? formatCurrency(parsedFiscalDailyPayPreview)
-																	: tCommon('notAvailable')}
-															</span>
-														</div>
-														<div className="rounded-xl border border-emerald-200 bg-emerald-100/70 p-3">
-															<p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-800">
-																{t('compensation.dailyComplement')}
-															</p>
-															<p className="mt-1 text-lg font-semibold text-emerald-950">
-																{formatCurrency(fiscalDailyComplementPreview)}
-															</p>
-														</div>
-													</div>
-												</div>
-											</div>
-										</div>
+												</form.AppField>
+											}
+											feedback={t(fiscalDailyPayPreviewFeedbackKey)}
+											feedbackTone={
+												fiscalDailyPayPreviewFeedbackKey ===
+												'compensation.liveHelper'
+													? 'helper'
+													: 'error'
+											}
+											previewTitle={t('compensation.previewTitle')}
+											realDailyPayLabel={t('compensation.realDailyPay')}
+											realDailyPayValue={formatCurrency(computedDailyPay)}
+											fiscalDailyPayLabel={t('compensation.fiscalDailyPay')}
+											fiscalDailyPayValue={
+												typeof parsedFiscalDailyPayPreview === 'number'
+													? formatCurrency(parsedFiscalDailyPayPreview)
+													: tCommon('notAvailable')
+											}
+											dailyComplementLabel={t('compensation.dailyComplement')}
+											dailyComplementValue={formatCurrency(
+												fiscalDailyComplementPreview,
+											)}
+										/>
 									) : null}
 									<div className="col-span-2 sm:col-span-1">
 										<form.AppField

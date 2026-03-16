@@ -259,6 +259,20 @@ describe('PayrollPageClient', () => {
 		expect(screen.getByText('preview.lunchBreak.minutes')).toBeInTheDocument();
 	});
 
+	it('keeps horizontal overflow inside the payroll preview table container', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('María López')).toBeInTheDocument();
+		});
+
+		expect(screen.getByTestId('payroll-page-root')).toHaveClass('overflow-x-hidden');
+		expect(screen.getByTestId('payroll-preview-table-container')).toHaveClass(
+			'overflow-x-auto',
+		);
+		expect(screen.getByTestId('payroll-preview-table-container')).toHaveClass('max-w-full');
+	});
+
 	it('shows dual payroll columns and footer totals for admins when enabled', async () => {
 		mockFetchPayrollSettings.mockResolvedValueOnce({
 			id: 'payroll-1',

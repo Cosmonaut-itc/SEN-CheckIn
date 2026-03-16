@@ -705,7 +705,10 @@ export function PayrollPageClient(): React.ReactElement {
 	}
 
 	return (
-		<div className="space-y-6">
+		<div
+			data-testid="payroll-page-root"
+			className="min-w-0 space-y-6 overflow-x-hidden"
+		>
 			<div className="flex items-center justify-between">
 				<div>
 					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
@@ -713,7 +716,7 @@ export function PayrollPageClient(): React.ReactElement {
 				</div>
 			</div>
 
-			<Tabs defaultValue="payroll" className="space-y-4">
+			<Tabs defaultValue="payroll" className="min-w-0 space-y-4 overflow-x-hidden">
 				<TabsList>
 					<TabsTrigger value="payroll" data-testid="payroll-tab-payroll">
 						{t('tabs.payroll')}
@@ -734,7 +737,7 @@ export function PayrollPageClient(): React.ReactElement {
 					</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="payroll" className="space-y-6">
+				<TabsContent value="payroll" className="min-w-0 space-y-6 overflow-x-hidden">
 					<Card>
 						<CardHeader>
 							<CardTitle>{t('legalRules.title')}</CardTitle>
@@ -747,7 +750,7 @@ export function PayrollPageClient(): React.ReactElement {
 							<CardTitle>{t('insights.title')}</CardTitle>
 							<CardDescription>{t('insights.description')}</CardDescription>
 						</CardHeader>
-						<CardContent>
+						<CardContent className="min-w-0">
 							<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 								<div className="space-y-2">
 									<p className="text-sm font-medium">
@@ -968,12 +971,12 @@ export function PayrollPageClient(): React.ReactElement {
 						<p className="text-sm text-destructive">{t('payPeriod.invalidRange')}</p>
 					)}
 
-					<Card>
+					<Card className="min-w-0 overflow-hidden">
 						<CardHeader>
 							<CardTitle>{t('preview.title')}</CardTitle>
 							<CardDescription>{t('preview.description')}</CardDescription>
 						</CardHeader>
-						<CardContent>
+						<CardContent className="min-w-0 overflow-hidden">
 							{isCalculating ? (
 								<div className="flex items-center gap-2 text-sm text-muted-foreground">
 									<Loader2 className="h-4 w-4 animate-spin" />
@@ -1033,8 +1036,11 @@ export function PayrollPageClient(): React.ReactElement {
 											overtimeAuthorizationSummary.affectedEmployeesCount
 										}
 									/>
-									<div className="rounded-md border">
-										<Table>
+									<div
+										data-testid="payroll-preview-table-container"
+										className="max-w-full overflow-x-auto rounded-md border"
+									>
+										<Table className="min-w-max">
 											<TableHeader>
 												<TableRow>
 													<TableHead>

@@ -1,0 +1,21 @@
+[  589677ms] [ERROR] %c%s%c [organization-context] Failed to list organizations background: #e6e6e6;background: light-dark(rgba(0,0,0,0.1), rgba(255,255,255,0.25));color: #000000;color: light-dark(#000000, #ffffff);border-radius: 2px  Server   {status: 401, statusText: Unauthorized} @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[  589678ms] [ERROR] %c%s%c [organization-context] Failed to list organizations background: #e6e6e6;background: light-dark(rgba(0,0,0,0.1), rgba(255,255,255,0.25));color: #000000;color: light-dark(#000000, #ffffff);border-radius: 2px  Server   {status: 401, statusText: Unauthorized} @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:3122
+[  593844ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3001/api/auth/sign-in/email:0
+[  595427ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3001/api/auth/sign-in/email:0
+[  596360ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:3001/api/auth/sign-in/email:0
+[ 1421237ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:2292
+[ 1455702ms] [WARNING] [Fast Refresh] performing full reload
+
+Fast Refresh will perform a full reload when you edit a file that's imported by modules outside of the React rendering tree.
+You might have a file which exports a React component but also exports a value that is imported by a non-React component file.
+Consider migrating the non-React component export to a separate file and importing it into both files.
+
+It is also possible the parent component of the component you edited is a class component, which disables Fast Refresh.
+Fast Refresh requires at least one parent function component in your React tree. @ http://localhost:3001/_next/static/chunks/node_modules_next_dist_7a8122d0._.js:2292

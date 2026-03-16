@@ -283,6 +283,20 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
+	it('renders dual payroll explainer cards with theme-aware contrast classes', async () => {
+		renderWithProviders();
+
+		const realTitle = await screen.findByText('taxSettings.dualPayroll.realTitle');
+		const realDescription = screen.getByText('taxSettings.dualPayroll.realDescription');
+		const realCard = realTitle.parentElement;
+
+		expect(realCard).not.toBeNull();
+		expect(realCard).toHaveClass('bg-[color:var(--bg-elevated)]/95');
+		expect(realCard?.className).not.toContain('bg-white/80');
+		expect(realTitle).toHaveClass('text-[color:var(--accent-primary)]');
+		expect(realDescription).toHaveClass('text-[color:var(--text-secondary)]');
+	});
+
 	it('persists valid lunch break fields when automatic deduction is disabled before saving', async () => {
 		mockFetchPayrollSettings.mockResolvedValueOnce({
 			id: 'payroll-1',

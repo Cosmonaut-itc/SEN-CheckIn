@@ -9,22 +9,22 @@
 :root {
   /* === PALETA MICHOACÁN — v4.0 === */
   /* Fondos: crema cálido con toque de cantera rosa */
-  --bg-primary:#FAF7F3;--bg-secondary:#FFFFFF;--bg-tertiary:#F3EDE6;--bg-elevated:#FFFFFF;--bg-inverse:#1A1210;
+  --background:#FAF7F3;--card:#FFFFFF;--muted:#F3EDE6;--popover:#FFFFFF;--background-inverse:#1A1210;
   /* Texto: caoba profundo como base */
-  --text-primary:#2B1810;--text-secondary:#3D2B20;--text-tertiary:#7A6558;--text-muted:#A8978B;--text-inverse:#FAF7F3;--text-on-accent:#FFFFFF;
+  --foreground:#2B1810;--card-foreground:#3D2B20;--muted-foreground:#7A6558;--muted-foreground-subtle:#A8978B;--foreground-inverse:#FAF7F3;--primary-foreground:#FFFFFF;
   /* Bordes con tono rosado sutil */
-  --border-default:#E6DCD3;--border-subtle:#F0E8E1;--border-strong:#D1C2B6;
+  --border:#E6DCD3;--input:#F0E8E1;--ring:#D1C2B6;
   /* Primario: Cobre Michoacano vibrante */
-  --accent-primary:#B8602A;--accent-primary-hover:#9E4E1E;--accent-primary-bg:rgba(184,96,42,0.08);
+  --primary:#B8602A;--primary-hover:#9E4E1E;--primary-bg:rgba(184,96,42,0.08);
   /* Secundario: Verde Aguacate */
-  --accent-secondary:#4A7C3F;--accent-secondary-bg:rgba(74,124,63,0.08);
+  --secondary:#4A7C3F;--secondary-bg:rgba(74,124,63,0.08);
   /* Terciario: Guinda Pátzcuaro */
-  --accent-tertiary:#8B2252;--accent-tertiary-bg:rgba(139,34,82,0.08);
+  --accent:#8B2252;--accent-bg:rgba(139,34,82,0.08);
   /* Status: colores vivos con raíz mexicana */
-  --status-success:#2D8659;--status-success-bg:rgba(45,134,89,0.10);
-  --status-warning:#CC8A17;--status-warning-bg:rgba(204,138,23,0.10);
-  --status-error:#C4302B;--status-error-bg:rgba(196,48,43,0.10);
-  --status-info:#4A7C3F;--status-info-bg:rgba(74,124,63,0.10);
+  --success:#2D8659;--success-bg:rgba(45,134,89,0.10);
+  --warning:#CC8A17;--warning-bg:rgba(204,138,23,0.10);
+  --destructive:#C4302B;--destructive-bg:rgba(196,48,43,0.10);
+  --info:#4A7C3F;--info-bg:rgba(74,124,63,0.10);
   --shadow-sm:0 1px 3px rgba(43,24,16,0.05);--shadow-md:0 4px 16px rgba(43,24,16,0.08);
   --shadow-lg:0 12px 40px rgba(43,24,16,0.12);
   --nav-bg:rgba(250,247,243,0.88);--code-bg:#F5EDE5;--overlay:rgba(26,18,16,0.55);
@@ -35,143 +35,143 @@
 }
 [data-theme="dark"] {
   /* === PALETA MICHOACÁN OSCURA === */
-  --bg-primary:#110D0A;--bg-secondary:#1C1613;--bg-tertiary:#28201B;--bg-elevated:#342A24;--bg-inverse:#FBF7F2;
-  --text-primary:#F0EAE4;--text-secondary:#D6CCC3;--text-tertiary:#9A8B80;--text-muted:#665A50;--text-inverse:#2B1810;
-  --border-default:#3D3028;--border-subtle:#2D231C;--border-strong:#4D3F36;
+  --background:#110D0A;--card:#1C1613;--muted:#28201B;--popover:#342A24;--background-inverse:#FBF7F2;
+  --foreground:#F0EAE4;--card-foreground:#D6CCC3;--muted-foreground:#9A8B80;--muted-foreground-subtle:#665A50;--foreground-inverse:#2B1810;
+  --border:#3D3028;--input:#2D231C;--ring:#4D3F36;
   /* Cobre luminoso en dark */
-  --accent-primary:#D4835E;--accent-primary-hover:#E09A78;--accent-primary-bg:rgba(212,131,94,0.14);
+  --primary:#D4835E;--primary-hover:#E09A78;--primary-bg:rgba(212,131,94,0.14);
   /* Verde iluminado */
-  --accent-secondary:#7FB573;--accent-secondary-bg:rgba(127,181,115,0.14);
+  --secondary:#7FB573;--secondary-bg:rgba(127,181,115,0.14);
   /* Guinda cálida */
-  --accent-tertiary:#C85A8A;--accent-tertiary-bg:rgba(200,90,138,0.14);
-  --status-success:#5CC98A;--status-success-bg:rgba(92,201,138,0.16);
-  --status-warning:#C85A8A;--status-warning-bg:rgba(200,90,138,0.16);
-  --status-error:#E8605A;--status-error-bg:rgba(232,96,90,0.16);
-  --status-info:#7FB573;--status-info-bg:rgba(127,181,115,0.16);
+  --accent:#C85A8A;--accent-bg:rgba(200,90,138,0.14);
+  --success:#5CC98A;--success-bg:rgba(92,201,138,0.16);
+  --warning:#C85A8A;--warning-bg:rgba(200,90,138,0.16);
+  --destructive:#E8605A;--destructive-bg:rgba(232,96,90,0.16);
+  --info:#7FB573;--info-bg:rgba(127,181,115,0.16);
   --shadow-sm:0 1px 3px rgba(0,0,0,0.3);--shadow-md:0 4px 16px rgba(0,0,0,0.35);
   --shadow-lg:0 12px 40px rgba(0,0,0,0.4);
   --nav-bg:rgba(17,13,10,0.88);--code-bg:#28201B;--overlay:rgba(0,0,0,0.7);
 }
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:var(--font-body);background:var(--bg-primary);color:var(--text-secondary);
+body{font-family:var(--font-body);background:var(--background);color:var(--card-foreground);
   -webkit-font-smoothing:antialiased;transition:background var(--transition-base),color var(--transition-base);line-height:1.6}
 .layout{display:flex;min-height:100vh}
-.sidebar{width:270px;position:fixed;top:0;left:0;bottom:0;background:var(--bg-secondary);
-  border-right:1px solid var(--border-default);padding:24px 0;overflow-y:auto;z-index:50;
+.sidebar{width:270px;position:fixed;top:0;left:0;bottom:0;background:var(--card);
+  border-right:1px solid var(--border);padding:24px 0;overflow-y:auto;z-index:50;
   transition:background var(--transition-base)}
 .sidebar-logo{font-family:var(--font-display);font-size:20px;font-weight:800;
-  letter-spacing:5px;color:var(--text-primary);padding:0 24px;margin-bottom:2px}
-.sidebar-subtitle{font-size:10px;color:var(--text-muted);padding:0 24px;margin-bottom:28px;font-weight:500}
-.sidebar-section{font-size:10px;font-weight:700;color:var(--text-muted);
+  letter-spacing:5px;color:var(--foreground);padding:0 24px;margin-bottom:2px}
+.sidebar-subtitle{font-size:10px;color:var(--muted-foreground-subtle);padding:0 24px;margin-bottom:28px;font-weight:500}
+.sidebar-section{font-size:10px;font-weight:700;color:var(--muted-foreground-subtle);
   letter-spacing:2px;text-transform:uppercase;padding:16px 24px 6px}
-.sidebar-link{display:block;padding:7px 24px;font-size:13px;color:var(--text-tertiary);
+.sidebar-link{display:block;padding:7px 24px;font-size:13px;color:var(--muted-foreground);
   text-decoration:none;transition:all var(--transition-fast);font-weight:450;border-left:3px solid transparent}
-.sidebar-link:hover{color:var(--text-primary);background:var(--bg-tertiary)}
-.sidebar-link.active{color:var(--accent-primary);background:var(--accent-primary-bg);
-  border-left-color:var(--accent-primary);font-weight:600}
+.sidebar-link:hover{color:var(--foreground);background:var(--muted)}
+.sidebar-link.active{color:var(--primary);background:var(--primary-bg);
+  border-left-color:var(--primary);font-weight:600}
 .main{margin-left:270px;flex:1}
 .topbar{position:sticky;top:0;z-index:40;padding:14px 44px;background:var(--nav-bg);
-  backdrop-filter:blur(20px);border-bottom:1px solid var(--border-default);
+  backdrop-filter:blur(20px);border-bottom:1px solid var(--border);
   display:flex;justify-content:space-between;align-items:center}
-.topbar-title{font-size:14px;font-weight:600;color:var(--text-primary)}
-.theme-toggle{display:flex;background:var(--bg-tertiary);border:1px solid var(--border-default);
+.topbar-title{font-size:14px;font-weight:600;color:var(--foreground)}
+.theme-toggle{display:flex;background:var(--muted);border:1px solid var(--border);
   border-radius:var(--radius-full);padding:3px}
 .theme-btn{padding:5px 14px;border-radius:var(--radius-full);font-size:12px;font-weight:600;
   font-family:var(--font-body);border:none;cursor:pointer;transition:all var(--transition-fast);
-  color:var(--text-tertiary);background:transparent}
-.theme-btn.active{background:var(--bg-elevated);color:var(--text-primary);box-shadow:var(--shadow-sm)}
+  color:var(--muted-foreground);background:transparent}
+.theme-btn.active{background:var(--popover);color:var(--foreground);box-shadow:var(--shadow-sm)}
 .content{padding:44px;max-width:960px}
 .section{margin-bottom:68px;scroll-margin-top:72px}
-.section-label{font-size:11px;font-weight:700;color:var(--accent-primary);
+.section-label{font-size:11px;font-weight:700;color:var(--primary);
   letter-spacing:3px;text-transform:uppercase;margin-bottom:10px}
 .section h2{font-family:var(--font-display);font-size:32px;font-weight:700;
-  color:var(--text-primary);margin-bottom:10px;line-height:1.15}
-.section-desc{font-size:15px;color:var(--text-tertiary);max-width:620px;margin-bottom:32px;line-height:1.65}
+  color:var(--foreground);margin-bottom:10px;line-height:1.15}
+.section-desc{font-size:15px;color:var(--muted-foreground);max-width:620px;margin-bottom:32px;line-height:1.65}
 .subsection{margin-bottom:36px}
 .subsection h3{font-family:var(--font-display);font-size:20px;font-weight:700;
-  color:var(--text-primary);margin-bottom:6px}
-.subsection-desc{font-size:14px;color:var(--text-tertiary);margin-bottom:18px;line-height:1.6}
+  color:var(--foreground);margin-bottom:6px}
+.subsection-desc{font-size:14px;color:var(--muted-foreground);margin-bottom:18px;line-height:1.6}
 
 /* Platform badges */
 .pb{display:inline-flex;padding:3px 9px;border-radius:var(--radius-full);font-size:10px;font-weight:700;
   margin-right:5px;margin-bottom:4px;letter-spacing:0.5px}
 .pb-ios{background:#007AFF15;color:#007AFF}
 .pb-android{background:#34A85315;color:#34A853}
-.pb-web{background:var(--status-info-bg);color:var(--status-info)}
-.pb-sen{background:var(--accent-primary-bg);color:var(--accent-primary)}
+.pb-web{background:var(--info-bg);color:var(--info)}
+.pb-sen{background:var(--primary-bg);color:var(--primary)}
 
 /* Tables */
-.spec-table{width:100%;border-collapse:collapse;background:var(--bg-secondary);
-  border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default);margin-bottom:20px}
-.spec-table th{text-align:left;font-size:11px;font-weight:600;color:var(--text-muted);
+.spec-table{width:100%;border-collapse:collapse;background:var(--card);
+  border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);margin-bottom:20px}
+.spec-table th{text-align:left;font-size:11px;font-weight:600;color:var(--muted-foreground-subtle);
   text-transform:uppercase;letter-spacing:0.6px;padding:10px 14px;
-  border-bottom:1px solid var(--border-default);background:var(--bg-tertiary)}
-.spec-table td{padding:10px 14px;font-size:13px;color:var(--text-secondary);
-  border-bottom:1px solid var(--border-subtle);vertical-align:top}
+  border-bottom:1px solid var(--border);background:var(--muted)}
+.spec-table td{padding:10px 14px;font-size:13px;color:var(--card-foreground);
+  border-bottom:1px solid var(--input);vertical-align:top}
 .spec-table tr:last-child td{border-bottom:none}
-.spec-table .row-label{font-weight:600;color:var(--text-primary);white-space:nowrap}
+.spec-table .row-label{font-weight:600;color:var(--foreground);white-space:nowrap}
 
 /* Code */
 code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
-  padding:2px 5px;border-radius:3px;color:var(--accent-primary)}
-.code-block{background:var(--code-bg);border:1px solid var(--border-default);
+  padding:2px 5px;border-radius:3px;color:var(--primary)}
+.code-block{background:var(--code-bg);border:1px solid var(--border);
   border-radius:var(--radius-md);padding:18px;overflow-x:auto;margin-bottom:18px;
-  font-family:var(--font-mono);font-size:11.5px;line-height:1.7;color:var(--text-secondary)}
-.cm{color:var(--text-muted)} .ck{color:var(--accent-primary)} .cs{color:var(--accent-secondary)} .cn{color:var(--status-info)}
+  font-family:var(--font-mono);font-size:11.5px;line-height:1.7;color:var(--card-foreground)}
+.cm{color:var(--muted-foreground-subtle)} .ck{color:var(--primary)} .cs{color:var(--secondary)} .cn{color:var(--info)}
 
 /* Demo */
-.demo-box{background:var(--bg-secondary);border:1px solid var(--border-default);
+.demo-box{background:var(--card);border:1px solid var(--border);
   border-radius:var(--radius-lg);padding:24px;margin-bottom:18px}
-.demo-label{font-family:var(--font-mono);font-size:10px;color:var(--text-muted);margin-bottom:12px;
+.demo-label{font-family:var(--font-mono);font-size:10px;color:var(--muted-foreground-subtle);margin-bottom:12px;
   letter-spacing:0.5px}
 
 /* Guidelines */
 .guideline{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
 .gl-do,.gl-dont{padding:16px;border-radius:var(--radius-lg)}
-.gl-do{background:var(--status-success-bg);border:1px solid var(--status-success)}
-.gl-dont{background:var(--status-error-bg);border:1px solid var(--status-error)}
+.gl-do{background:var(--success-bg);border:1px solid var(--success)}
+.gl-dont{background:var(--destructive-bg);border:1px solid var(--destructive)}
 .gl-label{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px}
-.gl-do .gl-label{color:var(--status-success)} .gl-dont .gl-label{color:var(--status-error)}
+.gl-do .gl-label{color:var(--success)} .gl-dont .gl-label{color:var(--destructive)}
 .gl-text{font-size:13px;line-height:1.6}
-.gl-do .gl-text{color:var(--status-success)} .gl-dont .gl-text{color:var(--status-error)}
+.gl-do .gl-text{color:var(--success)} .gl-dont .gl-text{color:var(--destructive)}
 
 /* Comparison 3-col */
 .compare-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
-.compare-card{background:var(--bg-secondary);border:1px solid var(--border-default);
+.compare-card{background:var(--card);border:1px solid var(--border);
   border-radius:var(--radius-lg);padding:18px;transition:all var(--transition-base)}
 .compare-card:hover{box-shadow:var(--shadow-md)}
 .compare-card-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;
   margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.compare-card p{font-size:13px;color:var(--text-tertiary);line-height:1.55}
-.compare-card strong{color:var(--text-primary)}
+.compare-card p{font-size:13px;color:var(--muted-foreground);line-height:1.55}
+.compare-card strong{color:var(--foreground)}
 
 /* Info callout */
 .callout{padding:16px 18px;border-radius:var(--radius-md);font-size:13px;line-height:1.6;
   margin-bottom:18px;display:flex;gap:10px;align-items:flex-start}
-.callout-sen{background:var(--accent-primary-bg);color:var(--accent-primary);border-left:3px solid var(--accent-primary)}
-.callout-info{background:var(--status-info-bg);color:var(--status-info);border-left:3px solid var(--status-info)}
+.callout-sen{background:var(--primary-bg);color:var(--primary);border-left:3px solid var(--primary)}
+.callout-info{background:var(--info-bg);color:var(--info);border-left:3px solid var(--info)}
 
 /* Phone mockups */
 .phone-row{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;margin-bottom:20px}
-.phone-frame{width:220px;height:440px;border-radius:30px;border:3px solid var(--border-strong);
-  background:var(--bg-primary);overflow:hidden;position:relative;flex-shrink:0;box-shadow:var(--shadow-lg)}
-.phone-label{text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);
+.phone-frame{width:220px;height:440px;border-radius:30px;border:3px solid var(--ring);
+  background:var(--background);overflow:hidden;position:relative;flex-shrink:0;box-shadow:var(--shadow-lg)}
+.phone-label{text-align:center;font-size:11px;font-weight:600;color:var(--muted-foreground-subtle);
   margin-top:8px;letter-spacing:0.5px}
-.phone-notch{width:100px;height:24px;background:var(--text-primary);border-radius:0 0 14px 14px;
+.phone-notch{width:100px;height:24px;background:var(--foreground);border-radius:0 0 14px 14px;
   position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2}
-.phone-pill{width:70px;height:6px;background:var(--text-primary);border-radius:3px;
+.phone-pill{width:70px;height:6px;background:var(--foreground);border-radius:3px;
   position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:2}
 .phone-screen{padding:36px 12px 12px;height:100%;overflow:hidden}
 .phone-nav{display:flex;justify-content:space-around;padding:8px 0;
-  border-top:1px solid var(--border-default);position:absolute;bottom:0;left:0;right:0;
-  background:var(--bg-secondary)}
-.phone-nav-item{text-align:center;font-size:9px;color:var(--text-muted);font-weight:500}
-.phone-nav-item.active{color:var(--accent-primary)}
+  border-top:1px solid var(--border);position:absolute;bottom:0;left:0;right:0;
+  background:var(--card)}
+.phone-nav-item{text-align:center;font-size:9px;color:var(--muted-foreground-subtle);font-weight:500}
+.phone-nav-item.active{color:var(--primary)}
 .phone-nav-icon{font-size:16px;margin-bottom:1px}
 /* Android 3-button nav */
 .android-nav{display:flex;justify-content:center;gap:32px;padding:6px 0;
-  position:absolute;bottom:0;left:0;right:0;background:var(--bg-secondary);
-  border-top:1px solid var(--border-default)}
+  position:absolute;bottom:0;left:0;right:0;background:var(--card);
+  border-top:1px solid var(--border)}
 .android-nav-btn{width:14px;height:14px;display:flex;align-items:center;justify-content:center}
 
 @media(max-width:900px){
@@ -205,8 +205,12 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
   <a href="#safe-areas" class="sidebar-link">Safe Areas</a>
   <a href="#keyboard" class="sidebar-link">Teclado</a>
   <a href="#dark-mode" class="sidebar-link">Dark Mode</a>
-  <div class="sidebar-section">Producción</div>
+  <div class="sidebar-section">Implementación</div>
+  <a href="#uniwind-config" class="sidebar-link">Uniwind + HeroUI</a>
+  <a href="#uniwind-components" class="sidebar-link">Componentes Mobile</a>
   <a href="#tokens-expo" class="sidebar-link">Tokens Expo</a>
+
+  <div class="sidebar-section">Producción</div>
   <a href="#accessibility-platform" class="sidebar-link">Accesibilidad</a>
   <a href="#offline" class="sidebar-link">Offline First</a>
   <a href="#checklist" class="sidebar-link">Checklist</a>
@@ -241,33 +245,33 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:24px">
       <!-- Cobre Michoacano -->
-      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
         <div style="height:100px;background:#B8602A;position:relative">
           <div style="position:absolute;bottom:8px;left:12px;color:white;font-family:var(--font-mono);font-size:11px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.3)">#B8602A</div>
         </div>
-        <div style="padding:14px;background:var(--bg-secondary)">
-          <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px">Cobre Michoacano</div>
-          <div style="font-size:12px;color:var(--text-tertiary);line-height:1.4"><code>accent.primary</code><br>CTAs, links, elementos activos, focus states</div>
+        <div style="padding:14px;background:var(--card)">
+          <div style="font-weight:700;font-size:14px;color:var(--foreground);margin-bottom:2px">Cobre Michoacano</div>
+          <div style="font-size:12px;color:var(--muted-foreground);line-height:1.4"><code>accent.primary</code><br>CTAs, links, elementos activos, focus states</div>
         </div>
       </div>
       <!-- Verde Aguacate -->
-      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
         <div style="height:100px;background:#4A7C3F;position:relative">
           <div style="position:absolute;bottom:8px;left:12px;color:white;font-family:var(--font-mono);font-size:11px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.3)">#4A7C3F</div>
         </div>
-        <div style="padding:14px;background:var(--bg-secondary)">
-          <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px">Verde Aguacate</div>
-          <div style="font-size:12px;color:var(--text-tertiary);line-height:1.4"><code>accent.secondary</code><br>Badges, info, acciones secundarias, texto base</div>
+        <div style="padding:14px;background:var(--card)">
+          <div style="font-weight:700;font-size:14px;color:var(--foreground);margin-bottom:2px">Verde Aguacate</div>
+          <div style="font-size:12px;color:var(--muted-foreground);line-height:1.4"><code>accent.secondary</code><br>Badges, info, acciones secundarias, texto base</div>
         </div>
       </div>
       <!-- Guinda Pátzcuaro -->
-      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border)">
         <div style="height:100px;background:linear-gradient(135deg,#8B2252,#E8B830);position:relative">
           <div style="position:absolute;bottom:8px;left:12px;color:white;font-family:var(--font-mono);font-size:11px;font-weight:500;text-shadow:0 1px 3px rgba(0,0,0,0.3)">#8B2252</div>
         </div>
-        <div style="padding:14px;background:var(--bg-secondary)">
-          <div style="font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px">Guinda Pátzcuaro</div>
-          <div style="font-size:12px;color:var(--text-tertiary);line-height:1.4"><code>accent.tertiary</code><br>Highlights, warnings, badges premium, acentos</div>
+        <div style="padding:14px;background:var(--card)">
+          <div style="font-weight:700;font-size:14px;color:var(--foreground);margin-bottom:2px">Guinda Pátzcuaro</div>
+          <div style="font-size:12px;color:var(--muted-foreground);line-height:1.4"><code>accent.tertiary</code><br>Highlights, warnings, badges premium, acentos</div>
         </div>
       </div>
     </div>
@@ -278,41 +282,41 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     <p class="subsection-desc">Cada color tiene raíces reales en la cultura, geografía y tradiciones de Michoacán y Morelia.</p>
     
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px">
-      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px">
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <div style="width:28px;height:28px;border-radius:6px;background:#B8602A;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:#D4835E;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:rgba(184,96,42,0.15);flex-shrink:0;border:1px solid rgba(184,96,42,0.3)"></div>
         </div>
-        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌺 Cobre Michoacano</div>
-        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">Del cobre martillado artesanal de Santa Clara del Cobre, pueblo mágico de Michoacán. No es un naranja tímido — es el bronce cálido que evoca la tradición purépecha.</div>
+        <div style="font-weight:700;font-size:13px;color:var(--foreground);margin-bottom:4px">🌺 Cobre Michoacano</div>
+        <div style="font-size:12px;color:var(--muted-foreground);line-height:1.55">Del cobre martillado artesanal de Santa Clara del Cobre, pueblo mágico de Michoacán. No es un naranja tímido — es el bronce cálido que evoca la tradición purépecha.</div>
       </div>
-      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px">
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <div style="width:28px;height:28px;border-radius:6px;background:#4A7C3F;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:#7FB573;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:rgba(74,124,63,0.15);flex-shrink:0;border:1px solid rgba(74,124,63,0.3)"></div>
         </div>
-        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌌 Verde Aguacate</div>
-        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">De los aguacatales infinitos que cubren los cerros michoacanos. Un verde profundo y vivo que evoca abundancia, tierra fértil y el motor económico del estado.</div>
+        <div style="font-weight:700;font-size:13px;color:var(--foreground);margin-bottom:4px">🌌 Verde Aguacate</div>
+        <div style="font-size:12px;color:var(--muted-foreground);line-height:1.55">De los aguacatales infinitos que cubren los cerros michoacanos. Un verde profundo y vivo que evoca abundancia, tierra fértil y el motor económico del estado.</div>
       </div>
-      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px">
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <div style="width:28px;height:28px;border-radius:6px;background:#8B2252;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:#C85A8A;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:rgba(139,34,82,0.15);flex-shrink:0;border:1px solid rgba(139,34,82,0.3)"></div>
         </div>
-        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌵 Guinda Pátzcuaro</div>
-        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">De las lacas de Pátzcuaro y las artesanías purépechas de Uruapan. Una guinda profunda que conecta con la tradición textil y decorativa de los artesanos michoacanos.</div>
+        <div style="font-weight:700;font-size:13px;color:var(--foreground);margin-bottom:4px">🌵 Guinda Pátzcuaro</div>
+        <div style="font-size:12px;color:var(--muted-foreground);line-height:1.55">De las lacas de Pátzcuaro y las artesanías purépechas de Uruapan. Una guinda profunda que conecta con la tradición textil y decorativa de los artesanos michoacanos.</div>
       </div>
-      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px">
         <div style="display:flex;gap:8px;margin-bottom:10px">
           <div style="width:28px;height:28px;border-radius:6px;background:#00875A;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:#5CC98A;flex-shrink:0"></div>
           <div style="width:28px;height:28px;border-radius:6px;background:rgba(45,134,89,0.15);flex-shrink:0;border:1px solid rgba(45,134,89,0.3)"></div>
         </div>
-        <div style="font-weight:700;font-size:13px;color:var(--text-primary);margin-bottom:4px">🌿 Verde Bosque</div>
-        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.55">De los bosques de oyamel de las montañas michoacanas donde llegan las mariposas monarca. Un verde sereno y profundo para estados de éxito y confirmaciones.</div>
+        <div style="font-weight:700;font-size:13px;color:var(--foreground);margin-bottom:4px">🌿 Verde Bosque</div>
+        <div style="font-size:12px;color:var(--muted-foreground);line-height:1.55">De los bosques de oyamel de las montañas michoacanas donde llegan las mariposas monarca. Un verde sereno y profundo para estados de éxito y confirmaciones.</div>
       </div>
     </div>
   </div>
@@ -322,38 +326,38 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     <p class="subsection-desc">Los neutros tienen un undertone cálido con un toque cálido inspirado en la cantera moreliana de los edificios coloniales de Morelia.</p>
     
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:24px">
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:56px;background:#FBF7F2"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--text-primary)">bg.primary</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--foreground)">bg.primary</div>
           <code style="font-size:9px">#FBF7F2</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:56px;background:#FFFFFF"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--text-primary)">bg.secondary</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--foreground)">bg.secondary</div>
           <code style="font-size:9px">#FFFFFF</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:56px;background:#F5EDE5"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--text-primary)">bg.tertiary</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--foreground)">bg.tertiary</div>
           <code style="font-size:9px">#F5EDE5</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:56px;background:#1B0F3B"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--text-primary)">text.primary</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--foreground)">text.primary</div>
           <code style="font-size:9px">#1B0F3B</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:56px;background:#6B5E8A"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--text-primary)">text.tertiary</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--foreground)">text.tertiary</div>
           <code style="font-size:9px">#6B5E8A</code>
         </div>
       </div>
@@ -365,31 +369,31 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     <p class="subsection-desc">Para estados de la interfaz. Cada uno mantiene la vibración de la paleta principal.</p>
     
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px">
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:48px;background:#00875A"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--status-success)">Success</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--success)">Success</div>
           <code style="font-size:9px">#00875A</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:48px;background:#E8A317"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--status-warning)">Warning</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--warning)">Warning</div>
           <code style="font-size:9px">#E8A317</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:48px;background:#D42054"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--status-error)">Error</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--destructive)">Error</div>
           <code style="font-size:9px">#D42054</code>
         </div>
       </div>
-      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border-default)">
+      <div style="border-radius:var(--radius-md);overflow:hidden;border:1px solid var(--border)">
         <div style="height:48px;background:#4A7C3F"></div>
-        <div style="padding:8px;background:var(--bg-secondary);font-size:10px;text-align:center">
-          <div style="font-weight:600;color:var(--status-info)">Info</div>
+        <div style="padding:8px;background:var(--card);font-size:10px;text-align:center">
+          <div style="font-weight:600;color:var(--info)">Info</div>
           <code style="font-size:9px">#4A7C3F</code>
         </div>
       </div>
@@ -449,8 +453,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
       <!-- ANTES -->
-      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--status-error);margin-bottom:12px">✗ v3 — Antes</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--destructive);margin-bottom:12px">✗ v3 — Antes</div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <div style="width:36px;height:36px;border-radius:8px;background:#C4704B" title="Terracota"></div>
           <div style="width:36px;height:36px;border-radius:8px;background:#7A8B6F" title="Sage"></div>
@@ -458,11 +462,11 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
           <div style="width:36px;height:36px;border-radius:8px;background:#F5F3EE" title="Bg" style="border:1px solid #E8E5E0"></div>
           <div style="width:36px;height:36px;border-radius:8px;background:#1A1A1A" title="Text"></div>
         </div>
-        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.5">Tonos tierra apagados. Terracota + sage. Neutros grises. Conservador, seguro, anónimo. Podría ser cualquier app "orgánica".</div>
+        <div style="font-size:12px;color:var(--muted-foreground);line-height:1.5">Tonos tierra apagados. Terracota + sage. Neutros grises. Conservador, seguro, anónimo. Podría ser cualquier app "orgánica".</div>
       </div>
       <!-- DESPUÉS -->
-      <div style="background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);padding:18px">
-        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--status-success);margin-bottom:12px">✓ v4 — Ahora</div>
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--success);margin-bottom:12px">✓ v4 — Ahora</div>
         <div style="display:flex;gap:8px;margin-bottom:12px">
           <div style="width:36px;height:36px;border-radius:8px;background:#B8602A" title="Cobre Michoacano"></div>
           <div style="width:36px;height:36px;border-radius:8px;background:#4A7C3F" title="Verde Aguacate"></div>
@@ -470,7 +474,7 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
           <div style="width:36px;height:36px;border-radius:8px;background:#FBF7F2;border:1px solid #E8DDD4" title="Bg"></div>
           <div style="width:36px;height:36px;border-radius:8px;background:#1B0F3B" title="Text"></div>
         </div>
-        <div style="font-size:12px;color:var(--text-tertiary);line-height:1.5">Cobre michoacano cálido. Verde aguacate profundo. Guinda pátzcuaro. Neutros con toque cantera. <strong style="color:var(--text-primary)">Inconfundiblemente mexicano.</strong></div>
+        <div style="font-size:12px;color:var(--muted-foreground);line-height:1.5">Cobre michoacano cálido. Verde aguacate profundo. Guinda pátzcuaro. Neutros con toque cantera. <strong style="color:var(--foreground)">Inconfundiblemente mexicano.</strong></div>
       </div>
     </div>
   </div>
@@ -480,38 +484,38 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     <div class="code-block"><span class="cm">/* === PALETA MICHOACÁN v4.0 — Tema Claro === */</span>
 <span class="ck">:root</span> {
   <span class="cm">/* Acentos */</span>
-  --accent-primary: <span class="cs">#B8602A</span>;      <span class="cm">/* Cobre Michoacano */</span>
-  --accent-primary-hover: <span class="cs">#9E4E1E</span>;
-  --accent-secondary: <span class="cs">#4A7C3F</span>;     <span class="cm">/* Verde Aguacate */</span>
-  --accent-tertiary: <span class="cs">#8B2252</span>;      <span class="cm">/* Guinda Pátzcuaro */</span>
+  --primary: <span class="cs">#B8602A</span>;      <span class="cm">/* Cobre Michoacano */</span>
+  --primary-hover: <span class="cs">#9E4E1E</span>;
+  --secondary: <span class="cs">#4A7C3F</span>;     <span class="cm">/* Verde Aguacate */</span>
+  --accent: <span class="cs">#8B2252</span>;      <span class="cm">/* Guinda Pátzcuaro */</span>
 
   <span class="cm">/* Fondos — undertone cantera moreliana */</span>
-  --bg-primary: <span class="cs">#FBF7F2</span>;
-  --bg-secondary: <span class="cs">#FFFFFF</span>;
-  --bg-tertiary: <span class="cs">#F5EDE5</span>;
+  --background: <span class="cs">#FBF7F2</span>;
+  --card: <span class="cs">#FFFFFF</span>;
+  --muted: <span class="cs">#F5EDE5</span>;
 
   <span class="cm">/* Texto — base caoba, no negro puro */</span>
-  --text-primary: <span class="cs">#1B0F3B</span>;
-  --text-secondary: <span class="cs">#2A1F4E</span>;
-  --text-tertiary: <span class="cs">#6B5E8A</span>;
+  --foreground: <span class="cs">#1B0F3B</span>;
+  --card-foreground: <span class="cs">#2A1F4E</span>;
+  --muted-foreground: <span class="cs">#6B5E8A</span>;
 
   <span class="cm">/* Semánticos */</span>
-  --status-success: <span class="cs">#00875A</span>;     <span class="cm">/* Verde Bosque */</span>
-  --status-warning: <span class="cs">#E8A317</span>;     <span class="cm">/* Agave intenso */</span>
-  --status-error: <span class="cs">#D42054</span>;       <span class="cm">/* Rosa profundo */</span>
-  --status-info: <span class="cs">#4A7C3F</span>;        <span class="cm">/* Verde Aguacate */</span>
+  --success: <span class="cs">#00875A</span>;     <span class="cm">/* Verde Bosque */</span>
+  --warning: <span class="cs">#E8A317</span>;     <span class="cm">/* Agave intenso */</span>
+  --destructive: <span class="cs">#D42054</span>;       <span class="cm">/* Rosa profundo */</span>
+  --info: <span class="cs">#4A7C3F</span>;        <span class="cm">/* Verde Aguacate */</span>
 }
 
 <span class="cm">/* === Tema Oscuro — Noche Moreliana === */</span>
 <span class="ck">[data-theme="dark"]</span> {
-  --accent-primary: <span class="cs">#D4835E</span>;      <span class="cm">/* Rosa luminoso */</span>
-  --accent-secondary: <span class="cs">#7FB573</span>;     <span class="cm">/* Verde iluminado */</span>
-  --accent-tertiary: <span class="cs">#C85A8A</span>;      <span class="cm">/* Agave brillante */</span>
+  --primary: <span class="cs">#D4835E</span>;      <span class="cm">/* Rosa luminoso */</span>
+  --secondary: <span class="cs">#7FB573</span>;     <span class="cm">/* Verde iluminado */</span>
+  --accent: <span class="cs">#C85A8A</span>;      <span class="cm">/* Agave brillante */</span>
 
   <span class="cm">/* Fondos — tierra profunda, NO gris */</span>
-  --bg-primary: <span class="cs">#0E0A1A</span>;
-  --bg-secondary: <span class="cs">#171228</span>;
-  --bg-tertiary: <span class="cs">#201A36</span>;
+  --background: <span class="cs">#0E0A1A</span>;
+  --card: <span class="cs">#171228</span>;
+  --muted: <span class="cs">#201A36</span>;
 }</div>
   </div>
 
@@ -534,57 +538,57 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     <div class="demo-box">
       <div class="demo-label">BOTONES</div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-        <div style="background:var(--accent-primary);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Crear traspaso</div>
-        <div style="background:transparent;color:var(--accent-primary);padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;border:1.5px solid var(--accent-primary);cursor:pointer">Exportar</div>
-        <div style="background:var(--accent-secondary);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Ver detalles</div>
-        <div style="background:var(--status-error);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Eliminar</div>
+        <div style="background:var(--primary);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Crear traspaso</div>
+        <div style="background:transparent;color:var(--primary);padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;border:1.5px solid var(--primary);cursor:pointer">Exportar</div>
+        <div style="background:var(--secondary);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Ver detalles</div>
+        <div style="background:var(--destructive);color:white;padding:12px 24px;border-radius:var(--radius-md);font-weight:600;font-size:14px;cursor:pointer">Eliminar</div>
       </div>
     </div>
     
     <div class="demo-box">
       <div class="demo-label">BADGES Y ESTADOS</div>
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-        <span style="background:var(--status-success-bg);color:var(--status-success);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">✓ En stock</span>
-        <span style="background:var(--status-warning-bg);color:var(--status-warning);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">⚠ Retardos</span>
-        <span style="background:var(--status-error-bg);color:var(--status-error);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">✗ Agotado</span>
-        <span style="background:var(--accent-primary-bg);color:var(--accent-primary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">Nuevo</span>
-        <span style="background:var(--accent-secondary-bg);color:var(--accent-secondary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">Info</span>
-        <span style="background:var(--accent-tertiary-bg);color:var(--accent-tertiary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">★ Premium</span>
+        <span style="background:var(--success-bg);color:var(--success);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">✓ En stock</span>
+        <span style="background:var(--warning-bg);color:var(--warning);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">⚠ Retardos</span>
+        <span style="background:var(--destructive-bg);color:var(--destructive);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">✗ Agotado</span>
+        <span style="background:var(--primary-bg);color:var(--primary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">Nuevo</span>
+        <span style="background:var(--secondary-bg);color:var(--secondary);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">Info</span>
+        <span style="background:var(--accent-bg);color:var(--accent);padding:4px 12px;border-radius:100px;font-size:12px;font-weight:600">★ Premium</span>
       </div>
     </div>
     
     <div class="demo-box">
       <div class="demo-label">INPUT FOCUS</div>
       <div style="max-width:340px">
-        <div style="font-size:12px;font-weight:500;color:var(--text-secondary);margin-bottom:6px">Nombre del producto</div>
-        <div style="border:2px solid var(--accent-primary);border-radius:var(--radius-md);padding:12px 14px;font-size:14px;color:var(--text-primary);background:var(--bg-secondary);box-shadow:0 0 0 3px rgba(184,96,42,0.12)">Turno Matutino</div>
+        <div style="font-size:12px;font-weight:500;color:var(--card-foreground);margin-bottom:6px">Nombre del producto</div>
+        <div style="border:2px solid var(--primary);border-radius:var(--radius-md);padding:12px 14px;font-size:14px;color:var(--foreground);background:var(--card);box-shadow:0 0 0 3px rgba(184,96,42,0.12)">Turno Matutino</div>
       </div>
     </div>
 
     <div class="demo-box">
       <div class="demo-label">TARJETA CON ACENTO</div>
-      <div style="max-width:360px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:var(--radius-lg);overflow:hidden">
-        <div style="height:4px;background:linear-gradient(90deg,var(--accent-primary),var(--accent-secondary),var(--accent-tertiary))"></div>
+      <div style="max-width:360px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden">
+        <div style="height:4px;background:linear-gradient(90deg,var(--primary),var(--secondary),var(--accent))"></div>
         <div style="padding:18px">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">
             <div>
-              <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--text-primary)">Jale Centro</div>
-              <div style="font-size:12px;color:var(--text-tertiary)">Morelia, Michoacán</div>
+              <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--foreground)">Jale Centro</div>
+              <div style="font-size:12px;color:var(--muted-foreground)">Morelia, Michoacán</div>
             </div>
-            <span style="background:var(--status-success-bg);color:var(--status-success);padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600">Activa</span>
+            <span style="background:var(--success-bg);color:var(--success);padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600">Activa</span>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
             <div>
-              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Empleados</div>
-              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent-secondary)">48</div>
+              <div style="font-size:10px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.5px">Empleados</div>
+              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--secondary)">48</div>
             </div>
             <div>
-              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Valor</div>
-              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--text-primary)">$482K</div>
+              <div style="font-size:10px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.5px">Valor</div>
+              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--foreground)">$482K</div>
             </div>
             <div>
-              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px">Alertas</div>
-              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--accent-primary)">6</div>
+              <div style="font-size:10px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.5px">Alertas</div>
+              <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--primary)">6</div>
             </div>
           </div>
         </div>
@@ -663,23 +667,23 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
         <div class="phone-pill"></div>
         <div class="phone-screen" style="padding:28px 12px 48px">
           <!-- iOS nav style -->
-          <div style="font-size:10px;color:var(--text-muted);font-weight:500;margin-bottom:2px">← Personal</div>
-          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--text-primary);margin-bottom:14px">Jale</div>
+          <div style="font-size:10px;color:var(--muted-foreground-subtle);font-weight:500;margin-bottom:2px">← Personal</div>
+          <div style="font-family:var(--font-display);font-size:22px;font-weight:800;color:var(--foreground);margin-bottom:14px">Jale</div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-            <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;border:1px solid var(--border-default);">
-              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Empleados</div>
-              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text-primary)">48</div></div>
-            <div style="background:var(--bg-secondary);border-radius:10px;padding:12px;border:1px solid var(--border-default);">
-              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Retardos</div>
-              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--accent-primary)">6</div></div>
+            <div style="background:var(--card);border-radius:10px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:9px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.4px">Empleados</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--foreground)">48</div></div>
+            <div style="background:var(--card);border-radius:10px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:9px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.4px">Retardos</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--primary)">6</div></div>
           </div>
-          <div style="background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border-default);overflow:hidden">
-            <div style="padding:9px 12px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
-              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">María García</div><div style="font-size:9px;color:var(--text-muted)">Matutino</div></div>
-              <span style="font-size:12px;color:var(--text-muted)">›</span></div>
+          <div style="background:var(--card);border-radius:10px;border:1px solid var(--border);overflow:hidden">
+            <div style="padding:9px 12px;border-bottom:1px solid var(--input);display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:12px;font-weight:600;color:var(--foreground)">María García</div><div style="font-size:9px;color:var(--muted-foreground-subtle)">Matutino</div></div>
+              <span style="font-size:12px;color:var(--muted-foreground-subtle)">›</span></div>
             <div style="padding:9px 12px;display:flex;justify-content:space-between;align-items:center">
-              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">Carlos Hdz</div><div style="font-size:9px;color:var(--text-muted)">Vespertino</div></div>
-              <span style="font-size:12px;color:var(--text-muted)">›</span></div>
+              <div><div style="font-size:12px;font-weight:600;color:var(--foreground)">Carlos Hdz</div><div style="font-size:9px;color:var(--muted-foreground-subtle)">Vespertino</div></div>
+              <span style="font-size:12px;color:var(--muted-foreground-subtle)">›</span></div>
           </div>
         </div>
         <div class="phone-nav">
@@ -693,31 +697,31 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
     </div>
     <div>
       <div class="phone-frame">
-        <div style="width:60px;height:20px;background:var(--text-primary);border-radius:0 0 10px 10px;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2"></div>
+        <div style="width:60px;height:20px;background:var(--foreground);border-radius:0 0 10px 10px;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:2"></div>
         <div class="phone-screen" style="padding:28px 12px 48px">
           <!-- Android nav style -->
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <div style="font-size:16px;font-weight:600;color:var(--text-primary)">Jale</div>
+            <div style="font-size:16px;font-weight:600;color:var(--foreground)">Jale</div>
             <div style="font-size:14px">🔍</div>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-            <div style="background:var(--bg-secondary);border-radius:12px;padding:12px;border:1px solid var(--border-default);">
-              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Empleados</div>
-              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--text-primary)">48</div></div>
-            <div style="background:var(--bg-secondary);border-radius:12px;padding:12px;border:1px solid var(--border-default);">
-              <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.4px">Retardos</div>
-              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--accent-primary)">6</div></div>
+            <div style="background:var(--card);border-radius:12px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:9px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.4px">Empleados</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--foreground)">48</div></div>
+            <div style="background:var(--card);border-radius:12px;padding:12px;border:1px solid var(--border);">
+              <div style="font-size:9px;color:var(--muted-foreground-subtle);text-transform:uppercase;letter-spacing:0.4px">Retardos</div>
+              <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--primary)">6</div></div>
           </div>
-          <div style="background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border-default);overflow:hidden">
-            <div style="padding:10px 12px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center">
-              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">María García</div><div style="font-size:9px;color:var(--text-muted)">Matutino</div></div>
-              <div style="background:var(--status-success-bg);padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600;color:var(--status-success)">En stock</div></div>
+          <div style="background:var(--card);border-radius:12px;border:1px solid var(--border);overflow:hidden">
+            <div style="padding:10px 12px;border-bottom:1px solid var(--input);display:flex;justify-content:space-between;align-items:center">
+              <div><div style="font-size:12px;font-weight:600;color:var(--foreground)">María García</div><div style="font-size:9px;color:var(--muted-foreground-subtle)">Matutino</div></div>
+              <div style="background:var(--success-bg);padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600;color:var(--success)">En stock</div></div>
             <div style="padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
-              <div><div style="font-size:12px;font-weight:600;color:var(--text-primary)">Carlos Hdz</div><div style="font-size:9px;color:var(--text-muted)">Vespertino</div></div>
-              <div style="background:var(--status-warning-bg);padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600;color:var(--status-warning)">Retardos</div></div>
+              <div><div style="font-size:12px;font-weight:600;color:var(--foreground)">Carlos Hdz</div><div style="font-size:9px;color:var(--muted-foreground-subtle)">Vespertino</div></div>
+              <div style="background:var(--warning-bg);padding:2px 7px;border-radius:100px;font-size:9px;font-weight:600;color:var(--warning)">Retardos</div></div>
           </div>
           <!-- FAB -->
-          <div style="position:absolute;bottom:56px;right:20px;width:44px;height:44px;background:var(--accent-primary);border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:var(--shadow-md)">+</div>
+          <div style="position:absolute;bottom:56px;right:20px;width:44px;height:44px;background:var(--primary);border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;box-shadow:var(--shadow-md)">+</div>
         </div>
         <div class="phone-nav" style="padding-bottom:4px">
           <div class="phone-nav-item active"><div class="phone-nav-icon">🏠</div>Inicio</div>
@@ -994,11 +998,516 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
   </table>
 </div>
 
+<!-- UNIWIND + HEROUI NATIVE -->
+<div class="section" id="uniwind-config">
+  <div class="section-label">Implementación</div>
+  <h2>Uniwind + HeroUI Native</h2>
+  <p class="section-desc">SEN Mobile usa <strong>Uniwind</strong> (Tailwind CSS v4 para React Native) como motor de estilos y <strong>HeroUI Native</strong> como librería de componentes. Ambas se integran nativamente y comparten el mismo sistema de tokens via <code>global.css</code>.</p>
+
+  <div class="subsection">
+    <h3>Instalación</h3>
+    <div class="code-block"><span class="cm">/* 1. Core: Uniwind + Tailwind */</span>
+<span class="ck">bun add</span> uniwind tailwindcss
+
+<span class="cm">/* 2. HeroUI Native + peer dependencies */</span>
+<span class="ck">bun add</span> heroui-native
+<span class="ck">bun add</span> react-native-screens@^4.16.0 \
+  react-native-reanimated@^4.1.1 \
+  react-native-gesture-handler@^2.28.0 \
+  react-native-worklets@^0.5.1 \
+  react-native-safe-area-context@^5.6.0 \
+  react-native-svg@^15.12.1 \
+  tailwind-variants@^3.2.2 \
+  tailwind-merge@^3.4.0 \
+  @gorhom/bottom-sheet@^5.2.8
+
+<span class="cm">/* 3. Iconos: Lucide React Native (recomendado) */</span>
+<span class="ck">bun add</span> lucide-react-native
+
+<span class="cm">/* 4. Seguir la guía de instalación de Uniwind para
+      metro.config.js y babel.config.js */</span></div>
+  </div>
+
+  <div class="subsection">
+    <h3>global.css — Tema SEN para Uniwind</h3>
+    <p class="subsection-desc">Archivo central de diseño. Uniwind consume estas variables y genera clases como <code>bg-primary</code>, <code>text-foreground</code>, <code>rounded-lg</code> para React Native. Las variantes <code>ios:</code>, <code>android:</code> y <code>dark:</code> funcionan automáticamente.</p>
+    <div class="code-block"><span class="cm">/* ===========================================
+   global.css — SEN Design System · Jale Mobile
+   Paleta Michoacán v4.0 · Uniwind + HeroUI Native
+   =========================================== */</span>
+
+<span class="ck">@import</span> <span class="cs">'tailwindcss'</span>;
+<span class="ck">@import</span> <span class="cs">'uniwind'</span>;
+<span class="ck">@import</span> <span class="cs">'heroui-native/styles'</span>;
+<span class="ck">@source</span> <span class="cs">'./node_modules/heroui-native/lib'</span>;
+
+<span class="cm">/* ── Design Tokens ──────────────────────────
+   @theme genera clases para React Native:
+   bg-primary, text-foreground, rounded-lg, etc.
+   Las variantes ios: android: dark: funcionan
+   automáticamente con Uniwind.
+   ──────────────────────────────────────────── */</span>
+
+<span class="ck">@theme</span> {
+  <span class="cm">/* — Colores: Paleta Michoacán — */</span>
+  --color-background: <span class="cs">#FAF7F3</span>;
+  --color-card: <span class="cs">#FFFFFF</span>;
+  --color-muted: <span class="cs">#F3EDE6</span>;
+  --color-popover: <span class="cs">#FFFFFF</span>;
+  --color-background-inverse: <span class="cs">#1A1210</span>;
+
+  --color-foreground: <span class="cs">#2B1810</span>;
+  --color-card-foreground: <span class="cs">#3D2B20</span>;
+  --color-muted-foreground: <span class="cs">#7A6558</span>;
+  --color-subtle: <span class="cs">#A8978B</span>;
+  --color-foreground-inverse: <span class="cs">#FAF7F3</span>;
+
+  --color-border: <span class="cs">#E6DCD3</span>;
+  --color-input: <span class="cs">#F0E8E1</span>;
+  --color-ring: <span class="cs">#D1C2B6</span>;
+
+  <span class="cm">/* Cobre Michoacano — Primary */</span>
+  --color-primary: <span class="cs">#B8602A</span>;
+  --color-primary-hover: <span class="cs">#9E4E1E</span>;
+  --color-primary-bg: <span class="cs">rgba(184, 96, 42, 0.08)</span>;
+  --color-primary-bg-hover: <span class="cs">rgba(184, 96, 42, 0.14)</span>;
+  --color-primary-light: <span class="cs">#D4956A</span>;
+  --color-primary-foreground: <span class="cs">#FFFFFF</span>;
+
+  <span class="cm">/* Verde Aguacate — Secondary */</span>
+  --color-secondary: <span class="cs">#4A7C3F</span>;
+  --color-secondary-hover: <span class="cs">#3A6430</span>;
+  --color-secondary-bg: <span class="cs">rgba(74, 124, 63, 0.08)</span>;
+  --color-secondary-light: <span class="cs">#7FB573</span>;
+
+  <span class="cm">/* Guinda Pátzcuaro — Accent */</span>
+  --color-accent: <span class="cs">#8B2252</span>;
+  --color-accent-bg: <span class="cs">rgba(139, 34, 82, 0.08)</span>;
+
+  <span class="cm">/* Semánticos */</span>
+  --color-success: <span class="cs">#2D8659</span>;
+  --color-success-bg: <span class="cs">rgba(45, 134, 89, 0.10)</span>;
+  --color-warning: <span class="cs">#CC8A17</span>;
+  --color-warning-bg: <span class="cs">rgba(204, 138, 23, 0.10)</span>;
+  --color-destructive: <span class="cs">#C4302B</span>;
+  --color-destructive-bg: <span class="cs">rgba(196, 48, 43, 0.10)</span>;
+  --color-info: <span class="cs">#4A7C3F</span>;
+  --color-info-bg: <span class="cs">rgba(74, 124, 63, 0.10)</span>;
+
+  <span class="cm">/* — Tipografía — */</span>
+  --font-display: <span class="cs">'PlayfairDisplay_800ExtraBold'</span>;
+  --font-body: <span class="cs">'DMSans_400Regular'</span>;
+  --font-body-medium: <span class="cs">'DMSans_500Medium'</span>;
+  --font-body-semibold: <span class="cs">'DMSans_600SemiBold'</span>;
+  --font-mono: <span class="cs">'JetBrainsMono_400Regular'</span>;
+
+  <span class="cm">/* Tamaños con variante por plataforma */</span>
+  --text-display: <span class="cn">34px</span>;     <span class="cm">/* ios: 34, android: 36 */</span>
+  --text-h1: <span class="cn">28px</span>;
+  --text-h2: <span class="cn">22px</span>;          <span class="cm">/* ios: 22, android: 24 */</span>
+  --text-h3: <span class="cn">20px</span>;
+  --text-body: <span class="cn">17px</span>;        <span class="cm">/* ios: 17pt (HIG), android: 16sp (M3) */</span>
+  --text-caption: <span class="cn">15px</span>;     <span class="cm">/* ios: 15, android: 14 */</span>
+  --text-footnote: <span class="cn">13px</span>;    <span class="cm">/* ios: 13, android: 12 */</span>
+  --text-label: <span class="cn">12px</span>;
+
+  <span class="cm">/* — Espaciado (escala de 4px) — */</span>
+  --spacing: <span class="cn">4px</span>;
+
+  <span class="cm">/* — Border Radius — */</span>
+  --radius-sm: <span class="cn">6px</span>;
+  --radius-md: <span class="cn">10px</span>;       <span class="cm">/* ios: 10, android: 12 */</span>
+  --radius-lg: <span class="cn">14px</span>;       <span class="cm">/* ios: 14, android: 16 */</span>
+  --radius-xl: <span class="cn">20px</span>;
+  --radius-full: <span class="cn">100px</span>;
+
+  <span class="cm">/* — Sombras — */</span>
+  --shadow-sm: <span class="cn">0 1px 3px rgba(43, 24, 16, 0.05)</span>;
+  --shadow-md: <span class="cn">0 4px 16px rgba(43, 24, 16, 0.08)</span>;
+  --shadow-lg: <span class="cn">0 12px 40px rgba(43, 24, 16, 0.12)</span>;
+}
+
+<span class="cm">/* ── Tema Oscuro: Noche Moreliana ───────────
+   Uniwind activa dark: automáticamente.
+   ──────────────────────────────────────────── */</span>
+
+<span class="ck">@layer</span> theme {
+  :root {
+    <span class="ck">@variant</span> dark {
+      --color-background: <span class="cs">#110D0A</span>;
+      --color-card: <span class="cs">#1C1613</span>;
+      --color-muted: <span class="cs">#28201B</span>;
+      --color-popover: <span class="cs">#342A24</span>;
+      --color-background-inverse: <span class="cs">#FAF7F3</span>;
+
+      --color-foreground: <span class="cs">#F0EAE4</span>;
+      --color-card-foreground: <span class="cs">#D6CCC3</span>;
+      --color-muted-foreground: <span class="cs">#9A8B80</span>;
+      --color-subtle: <span class="cs">#665A50</span>;
+      --color-foreground-inverse: <span class="cs">#2B1810</span>;
+
+      --color-border: <span class="cs">#3D3028</span>;
+      --color-input: <span class="cs">#2D231C</span>;
+      --color-ring: <span class="cs">#4D3F36</span>;
+
+      --color-primary: <span class="cs">#D4835E</span>;
+      --color-primary-hover: <span class="cs">#E09A78</span>;
+      --color-primary-bg: <span class="cs">rgba(212, 131, 94, 0.14)</span>;
+      --color-primary-bg-hover: <span class="cs">rgba(212, 131, 94, 0.22)</span>;
+
+      --color-secondary: <span class="cs">#7FB573</span>;
+      --color-secondary-hover: <span class="cs">#96C88C</span>;
+      --color-secondary-bg: <span class="cs">rgba(127, 181, 115, 0.14)</span>;
+
+      --color-accent: <span class="cs">#C85A8A</span>;
+      --color-accent-bg: <span class="cs">rgba(200, 90, 138, 0.14)</span>;
+
+      --color-success: <span class="cs">#5CC98A</span>;
+      --color-success-bg: <span class="cs">rgba(92, 201, 138, 0.16)</span>;
+      --color-warning: <span class="cs">#E8B44A</span>;
+      --color-warning-bg: <span class="cs">rgba(232, 180, 74, 0.16)</span>;
+      --color-destructive: <span class="cs">#E8605A</span>;
+      --color-destructive-bg: <span class="cs">rgba(232, 96, 90, 0.16)</span>;
+      --color-info: <span class="cs">#7FB573</span>;
+      --color-info-bg: <span class="cs">rgba(127, 181, 115, 0.16)</span>;
+
+      --shadow-sm: <span class="cn">0 1px 3px rgba(0,0,0,0.3)</span>;
+      --shadow-md: <span class="cn">0 4px 16px rgba(0,0,0,0.35)</span>;
+      --shadow-lg: <span class="cn">0 12px 40px rgba(0,0,0,0.4)</span>;
+    }
+  }
+}
+
+<span class="cm">/* ── Ajustes por plataforma ──────────────────
+   Uniwind soporta ios: y android: como variantes.
+   Esto permite respetar HIG y M3 desde CSS.
+   ──────────────────────────────────────────── */</span>
+
+<span class="ck">@theme</span> static {
+  <span class="cm">/* Touch targets mínimos */</span>
+  --touch-min-ios: <span class="cn">44</span>;     <span class="cm">/* 44pt — Apple HIG */</span>
+  --touch-min-android: <span class="cn">48</span>; <span class="cm">/* 48dp — Material 3 */</span>
+
+  <span class="cm">/* Animación spring */</span>
+  --spring-damping-ios: <span class="cn">20</span>;
+  --spring-stiffness-ios: <span class="cn">300</span>;
+  --spring-damping-android: <span class="cn">18</span>;
+  --spring-stiffness-android: <span class="cn">250</span>;
+}</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Provider — App.tsx</h3>
+    <div class="code-block"><span class="ck">import</span> <span class="cs">'./global.css'</span>;
+<span class="ck">import</span> { HeroUINativeProvider } <span class="ck">from</span> <span class="cs">'heroui-native'</span>;
+<span class="ck">import</span> { GestureHandlerRootView } <span class="ck">from</span> <span class="cs">'react-native-gesture-handler'</span>;
+<span class="ck">import</span> { Uniwind } <span class="ck">from</span> <span class="cs">'uniwind'</span>;
+
+<span class="cm">// Respetar preferencia del sistema</span>
+Uniwind.setTheme(<span class="cs">'system'</span>);
+
+<span class="ck">export default function</span> App() {
+  <span class="ck">return</span> (
+    &lt;GestureHandlerRootView style={{ flex: <span class="cn">1</span> }}&gt;
+      &lt;HeroUINativeProvider&gt;
+        {<span class="cm">/* Tu app */</span>}
+      &lt;/HeroUINativeProvider&gt;
+    &lt;/GestureHandlerRootView&gt;
+  );
+}</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Cambio de tema programático</h3>
+    <div class="code-block"><span class="ck">import</span> { Uniwind, useUniwind } <span class="ck">from</span> <span class="cs">'uniwind'</span>;
+
+<span class="cm">// Cambiar tema globalmente</span>
+Uniwind.setTheme(<span class="cs">'dark'</span>);    <span class="cm">// Noche Moreliana</span>
+Uniwind.setTheme(<span class="cs">'light'</span>);   <span class="cm">// Tema claro</span>
+Uniwind.setTheme(<span class="cs">'system'</span>);  <span class="cm">// Seguir al OS</span>
+
+<span class="cm">// Leer tema actual en un componente</span>
+<span class="ck">const</span> { theme } = useUniwind();
+<span class="cm">// theme === 'light' | 'dark' | 'system'</span></div>
+  </div>
+</div>
+
+<!-- COMPONENTES MOBILE -->
+<div class="section" id="uniwind-components">
+  <div class="section-label">Implementación</div>
+  <h2>Componentes Mobile</h2>
+  <p class="section-desc">Código listo para copiar. Usa clases Uniwind (sintaxis Tailwind) + componentes HeroUI Native. Las variantes <code>ios:</code> y <code>android:</code> permiten respetar cada plataforma desde el mismo código.</p>
+
+  <div class="subsection">
+    <h3>Botones con HeroUI Native</h3>
+    <div class="code-block"><span class="ck">import</span> { Button } <span class="ck">from</span> <span class="cs">'heroui-native/button'</span>;
+<span class="ck">import</span> { Plus, Trash2 } <span class="ck">from</span> <span class="cs">'lucide-react-native'</span>;
+
+<span class="cm">{/* Primario — Cobre Michoacano */}</span>
+&lt;Button
+  <span class="ck">className</span>=<span class="cs">"bg-primary ios:min-h-[44px] android:min-h-[48px]
+    ios:rounded-[10px] android:rounded-[12px]"</span>
+  onPress={() =&gt; console.log(<span class="cs">'Crear'</span>)}&gt;
+  &lt;Plus size={<span class="cn">18</span>} color=<span class="cs">"white"</span> /&gt;
+  Crear traspaso
+&lt;/Button&gt;
+
+<span class="cm">{/* Secundario — Outline */}</span>
+&lt;Button
+  variant=<span class="cs">"bordered"</span>
+  <span class="ck">className</span>=<span class="cs">"border-ring text-foreground
+    ios:min-h-[44px] android:min-h-[48px]"</span>&gt;
+  Exportar
+&lt;/Button&gt;
+
+<span class="cm">{/* Destructivo */}</span>
+&lt;Button
+  color=<span class="cs">"danger"</span>
+  <span class="ck">className</span>=<span class="cs">"bg-destructive ios:min-h-[44px] android:min-h-[48px]"</span>&gt;
+  &lt;Trash2 size={<span class="cn">16</span>} color=<span class="cs">"white"</span> /&gt;
+  Eliminar
+&lt;/Button&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>TextField (Input) con HeroUI Native</h3>
+    <div class="code-block"><span class="ck">import</span> { TextField } <span class="ck">from</span> <span class="cs">'heroui-native/text-field'</span>;
+<span class="ck">import</span> { Search, AlertCircle } <span class="ck">from</span> <span class="cs">'lucide-react-native'</span>;
+
+<span class="cm">{/* Input normal */}</span>
+&lt;TextField
+  label=<span class="cs">"Nombre del empleado"</span>
+  placeholder=<span class="cs">"Ej: María García López"</span>
+  <span class="ck">className</span>=<span class="cs">"bg-background border-border rounded-md
+    ios:text-[17px] android:text-[16px]
+    focus:border-primary focus:ring-primary-bg"</span>
+/&gt;
+
+<span class="cm">{/* Input con error */}</span>
+&lt;TextField
+  label=<span class="cs">"Horas extra"</span>
+  value=<span class="cs">"-3"</span>
+  isInvalid
+  errorMessage=<span class="cs">"Las horas extra no pueden ser negativas"</span>
+  <span class="ck">className</span>=<span class="cs">"bg-background border-destructive rounded-md"</span>
+/&gt;
+
+<span class="cm">{/* Input con ícono de búsqueda */}</span>
+&lt;TextField
+  placeholder=<span class="cs">"Buscar empleado..."</span>
+  startContent={&lt;Search size={<span class="cn">18</span>} className=<span class="cs">"text-subtle"</span> /&gt;}
+  <span class="ck">className</span>=<span class="cs">"bg-muted border-border rounded-md"</span>
+/&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Card y Surface</h3>
+    <div class="code-block"><span class="ck">import</span> { Card } <span class="ck">from</span> <span class="cs">'heroui-native/card'</span>;
+<span class="ck">import</span> { View, Text } <span class="ck">from</span> <span class="cs">'react-native'</span>;
+<span class="ck">import</span> { Users, Clock, AlertTriangle } <span class="ck">from</span> <span class="cs">'lucide-react-native'</span>;
+
+<span class="cm">{/* Card estándar SEN */}</span>
+&lt;Card <span class="ck">className</span>=<span class="cs">"bg-card border border-border
+  ios:rounded-[14px] android:rounded-[16px] p-4"</span>&gt;
+  &lt;View <span class="ck">className</span>=<span class="cs">"w-11 h-11 items-center justify-center
+    rounded-md bg-primary-bg mb-4"</span>&gt;
+    &lt;Users size={<span class="cn">20</span>} className=<span class="cs">"text-primary"</span> /&gt;
+  &lt;/View&gt;
+  &lt;Text <span class="ck">className</span>=<span class="cs">"font-display text-h3 font-bold text-foreground"</span>&gt;
+    Personal
+  &lt;/Text&gt;
+  &lt;Text <span class="ck">className</span>=<span class="cs">"text-caption text-muted-foreground mt-1"</span>&gt;
+    48 empleados activos en 3 sucursales
+  &lt;/Text&gt;
+&lt;/Card&gt;
+
+<span class="cm">{/* Card con gradient top */}</span>
+&lt;Card <span class="ck">className</span>=<span class="cs">"bg-card border border-border rounded-lg overflow-hidden"</span>&gt;
+  &lt;View <span class="ck">className</span>=<span class="cs">"h-1 bg-primary"</span> /&gt;
+  &lt;View <span class="ck">className</span>=<span class="cs">"p-4"</span>&gt;
+    <span class="cm">{/* contenido */}</span>
+  &lt;/View&gt;
+&lt;/Card&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Badges (Chip) y Alert</h3>
+    <div class="code-block"><span class="ck">import</span> { Chip } <span class="ck">from</span> <span class="cs">'heroui-native/chip'</span>;
+<span class="ck">import</span> { Alert } <span class="ck">from</span> <span class="cs">'heroui-native/alert'</span>;
+<span class="ck">import</span> { CheckCircle, AlertTriangle, XCircle, Info } <span class="ck">from</span> <span class="cs">'lucide-react-native'</span>;
+
+<span class="cm">{/* Status badges */}</span>
+&lt;Chip <span class="ck">className</span>=<span class="cs">"bg-success-bg"</span>&gt;
+  &lt;CheckCircle size={<span class="cn">12</span>} className=<span class="cs">"text-success"</span> /&gt;
+  &lt;Text <span class="ck">className</span>=<span class="cs">"text-label font-semibold text-success"</span>&gt;Activo&lt;/Text&gt;
+&lt;/Chip&gt;
+
+&lt;Chip <span class="ck">className</span>=<span class="cs">"bg-warning-bg"</span>&gt;
+  &lt;AlertTriangle size={<span class="cn">12</span>} className=<span class="cs">"text-warning"</span> /&gt;
+  &lt;Text <span class="ck">className</span>=<span class="cs">"text-label font-semibold text-warning"</span>&gt;Retardo&lt;/Text&gt;
+&lt;/Chip&gt;
+
+&lt;Chip <span class="ck">className</span>=<span class="cs">"bg-destructive-bg"</span>&gt;
+  &lt;XCircle size={<span class="cn">12</span>} className=<span class="cs">"text-destructive"</span> /&gt;
+  &lt;Text <span class="ck">className</span>=<span class="cs">"text-label font-semibold text-destructive"</span>&gt;Falta&lt;/Text&gt;
+&lt;/Chip&gt;
+
+&lt;Chip <span class="ck">className</span>=<span class="cs">"bg-primary-bg"</span>&gt;
+  &lt;Text <span class="ck">className</span>=<span class="cs">"text-label font-semibold text-primary"</span>&gt;Nuevo ingreso&lt;/Text&gt;
+&lt;/Chip&gt;
+
+<span class="cm">{/* Alert de éxito */}</span>
+&lt;Alert
+  color=<span class="cs">"success"</span>
+  title=<span class="cs">"Nómina procesada"</span>
+  description=<span class="cs">"Ya puedes ver los recibos de la quincena."</span>
+  icon={&lt;CheckCircle size={<span class="cn">18</span>} /&gt;}
+  <span class="ck">className</span>=<span class="cs">"bg-success-bg border-l-[3px] border-success rounded-md"</span>
+/&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Dialog y BottomSheet</h3>
+    <div class="code-block"><span class="ck">import</span> { Dialog } <span class="ck">from</span> <span class="cs">'heroui-native/dialog'</span>;
+<span class="ck">import</span> { Button } <span class="ck">from</span> <span class="cs">'heroui-native/button'</span>;
+
+<span class="cm">{/* Modal de confirmación */}</span>
+&lt;Dialog isOpen={isOpen} onClose={onClose}&gt;
+  &lt;Dialog.Content <span class="ck">className</span>=<span class="cs">"bg-popover rounded-xl p-6
+    ios:rounded-[20px] android:rounded-[28px]"</span>&gt;
+    &lt;Dialog.Header&gt;
+      &lt;Text <span class="ck">className</span>=<span class="cs">"font-display text-h3 font-bold text-foreground"</span>&gt;
+        ¿Dar de baja a este empleado?
+      &lt;/Text&gt;
+    &lt;/Dialog.Header&gt;
+    &lt;Dialog.Body&gt;
+      &lt;Text <span class="ck">className</span>=<span class="cs">"text-body text-muted-foreground"</span>&gt;
+        Se generará su finiquito automáticamente.
+      &lt;/Text&gt;
+    &lt;/Dialog.Body&gt;
+    &lt;Dialog.Footer <span class="ck">className</span>=<span class="cs">"flex-row justify-end gap-3"</span>&gt;
+      &lt;Button variant=<span class="cs">"bordered"</span> onPress={onClose}&gt;Cancelar&lt;/Button&gt;
+      &lt;Button color=<span class="cs">"danger"</span> <span class="ck">className</span>=<span class="cs">"bg-destructive"</span>&gt;
+        Sí, dar de baja
+      &lt;/Button&gt;
+    &lt;/Dialog.Footer&gt;
+  &lt;/Dialog.Content&gt;
+&lt;/Dialog&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Tabs y Switch</h3>
+    <div class="code-block"><span class="ck">import</span> { Tabs } <span class="ck">from</span> <span class="cs">'heroui-native/tabs'</span>;
+<span class="ck">import</span> { Switch } <span class="ck">from</span> <span class="cs">'heroui-native/switch'</span>;
+<span class="ck">import</span> { Users, Clock, DollarSign } <span class="ck">from</span> <span class="cs">'lucide-react-native'</span>;
+
+<span class="cm">{/* Tab bar — respeta convenciones de cada OS */}</span>
+&lt;Tabs <span class="ck">className</span>=<span class="cs">"bg-card border-t border-border"</span>&gt;
+  &lt;Tabs.Tab
+    key=<span class="cs">"personal"</span>
+    title=<span class="cs">"Personal"</span>
+    icon={&lt;Users size={<span class="cn">20</span>} /&gt;}
+    <span class="ck">className</span>=<span class="cs">"text-muted-foreground data-[selected]:text-primary"</span>
+  /&gt;
+  &lt;Tabs.Tab
+    key=<span class="cs">"asistencia"</span>
+    title=<span class="cs">"Asistencia"</span>
+    icon={&lt;Clock size={<span class="cn">20</span>} /&gt;}
+  /&gt;
+  &lt;Tabs.Tab
+    key=<span class="cs">"nomina"</span>
+    title=<span class="cs">"Nómina"</span>
+    icon={&lt;DollarSign size={<span class="cn">20</span>} /&gt;}
+  /&gt;
+&lt;/Tabs&gt;
+
+<span class="cm">{/* Switch — toggle en cobre michoacano */}</span>
+&lt;Switch
+  isSelected={notificaciones}
+  onValueChange={setNotificaciones}
+  <span class="ck">className</span>=<span class="cs">"data-[selected]:bg-primary"</span>
+/&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Iconos: Lucide React Native</h3>
+    <p class="subsection-desc">SEN Mobile usa <strong>Lucide</strong> como librería de iconos. Son iconos SVG open-source, consistentes con el estilo limpio de la app. Uniwind permite estilizar los iconos con clases directamente.</p>
+    <div class="code-block"><span class="ck">import</span> {
+  Users, Clock, DollarSign,     <span class="cm">// Navegación</span>
+  Plus, Pencil, Trash2,          <span class="cm">// Acciones</span>
+  CheckCircle, AlertTriangle,    <span class="cm">// Status</span>
+  XCircle, Info,                 <span class="cm">// Feedback</span>
+  Search, Filter, SlidersH,      <span class="cm">// Búsqueda</span>
+  ChevronRight, ChevronDown,     <span class="cm">// Navegación</span>
+  Bell, Settings, LogOut,        <span class="cm">// Sistema</span>
+  MapPin, Calendar, FileText,    <span class="cm">// Datos</span>
+  Sun, Moon,                     <span class="cm">// Tema</span>
+} <span class="ck">from</span> <span class="cs">'lucide-react-native'</span>;
+
+<span class="cm">{/* Tamaños recomendados */}</span>
+&lt;Users size={<span class="cn">20</span>} className=<span class="cs">"text-primary"</span> /&gt;       <span class="cm">{/* Tab bar */}</span>
+&lt;Plus size={<span class="cn">18</span>} className=<span class="cs">"text-primary-foreground"</span> /&gt; <span class="cm">{/* En botón */}</span>
+&lt;CheckCircle size={<span class="cn">16</span>} className=<span class="cs">"text-success"</span> /&gt;    <span class="cm">{/* Badges */}</span>
+&lt;ChevronRight size={<span class="cn">16</span>} className=<span class="cs">"text-subtle"</span> /&gt;   <span class="cm">{/* Lista */}</span>
+&lt;Search size={<span class="cn">18</span>} className=<span class="cs">"text-muted-foreground"</span> /&gt; <span class="cm">{/* Search bar */}</span>
+
+<span class="cm">{/* Tamaño por plataforma */}</span>
+&lt;Users
+  size={Platform.select({ ios: <span class="cn">22</span>, android: <span class="cn">24</span> })}
+  className=<span class="cs">"text-primary"</span>
+/&gt;</div>
+  </div>
+
+  <div class="subsection">
+    <h3>Variantes por plataforma</h3>
+    <p class="subsection-desc">Uniwind soporta las variantes <code>ios:</code> y <code>android:</code> para respetar las guías de cada sistema sin duplicar componentes.</p>
+    <div class="code-block"><span class="cm">{/* Body text: iOS 17pt (HIG), Android 16sp (M3) */}</span>
+&lt;Text <span class="ck">className</span>=<span class="cs">"ios:text-[17px] android:text-[16px] text-foreground"</span>&gt;
+  Las PyMEs mexicanas merecen herramientas simples.
+&lt;/Text&gt;
+
+<span class="cm">{/* Touch targets: iOS 44pt, Android 48dp */}</span>
+&lt;Button <span class="ck">className</span>=<span class="cs">"ios:min-h-[44px] android:min-h-[48px]"</span>&gt;
+  Crear turno
+&lt;/Button&gt;
+
+<span class="cm">{/* Radius: iOS más sutil, Android M3 */}</span>
+&lt;Card <span class="ck">className</span>=<span class="cs">"ios:rounded-[14px] android:rounded-[16px]"</span>&gt;
+  ...
+&lt;/Card&gt;
+
+<span class="cm">{/* Feedback táctil */}</span>
+&lt;Button <span class="ck">className</span>=<span class="cs">"ios:active:opacity-70 android:active:scale-[0.98]"</span>&gt;
+  Confirmar
+&lt;/Button&gt;</div>
+    <div class="callout callout-sen">
+      <strong>Regla de oro:</strong> Usa los tokens SEN (color, tipo, espaciado) con clases Uniwind. Usa las variantes <code>ios:</code> y <code>android:</code> solo para comportamiento de plataforma (touch targets, radius, animaciones).
+    </div>
+  </div>
+
+  <div class="subsection">
+    <h3>Componentes HeroUI Native disponibles</h3>
+    <p class="subsection-desc">Referencia rápida de los 40+ componentes incluidos. Todos se importan granularmente para optimizar bundle.</p>
+    <table class="spec-table" style="margin-bottom:0">
+      <thead><tr><th>Categoría</th><th>Componentes</th><th>Import</th></tr></thead>
+      <tbody>
+        <tr><td class="row-label">Navegación</td><td>Tabs, Accordion, ListBox, Menu</td><td><code>heroui-native/tabs</code></td></tr>
+        <tr><td class="row-label">Formularios</td><td>TextField, TextArea, Checkbox, RadioGroup, Select, SearchField, InputOTP, ComboBox</td><td><code>heroui-native/text-field</code></td></tr>
+        <tr><td class="row-label">Overlays</td><td>Dialog, BottomSheet, Popover, Toast</td><td><code>heroui-native/dialog</code></td></tr>
+        <tr><td class="row-label">Feedback</td><td>Alert, Spinner, Skeleton</td><td><code>heroui-native/alert</code></td></tr>
+        <tr><td class="row-label">Layout</td><td>Card, Surface, Separator</td><td><code>heroui-native/card</code></td></tr>
+        <tr><td class="row-label">Controles</td><td>Button, Switch, Slider, Chip</td><td><code>heroui-native/button</code></td></tr>
+        <tr><td class="row-label">Media</td><td>Avatar</td><td><code>heroui-native/avatar</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <!-- TOKENS EXPO -->
 <div class="section" id="tokens-expo">
-  <div class="section-label">Producción</div>
-  <h2>Tokens Expo actualizados</h2>
-  <p class="section-desc">Tokens con valores Platform-specific donde aplica.</p>
+  <div class="section-label">Implementación</div>
+  <h2>Tokens Expo (legacy)</h2>
+  <p class="section-desc">Tokens como objeto JS para proyectos que aún no migraron a Uniwind. Para proyectos nuevos, usa la configuración <code>global.css</code> con Uniwind de la sección anterior.</p>
 
   <div class="code-block"><span class="cm">// theme/tokens.ts — v4 Paleta Michoacán con platform awareness</span>
 <span class="ck">import</span> { Platform } <span class="ck">from</span> <span class="cs">'react-native'</span>;
@@ -1110,21 +1619,21 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
   <p class="section-desc">Antes de publicar cualquier pantalla en Jale, verifica estos puntos.</p>
   <div class="demo-box">
     <div style="display:flex;flex-direction:column;gap:10px;font-size:14px">
-      <div style="color:var(--text-primary)">☐ <strong>Tokens:</strong> Todos los colores vienen de <code>useTheme()</code>, no hex directo</div>
-      <div style="color:var(--text-primary)">☐ <strong>Dark mode:</strong> Probado en ambos temas. Toggle funciona</div>
-      <div style="color:var(--text-primary)">☐ <strong>iOS body = 17pt, Android body = 16sp</strong></div>
-      <div style="color:var(--text-primary)">☐ <strong>Touch targets:</strong> iOS ≥ 44pt, Android ≥ 48dp</div>
-      <div style="color:var(--text-primary)">☐ <strong>Safe areas:</strong> Contenido no tapa notch, home indicator ni nav bar</div>
-      <div style="color:var(--text-primary)">☐ <strong>Keyboard:</strong> Inputs visibles con teclado abierto</div>
-      <div style="color:var(--text-primary)">☐ <strong>Font scaling:</strong> Layout no se rompe al 200% font size</div>
-      <div style="color:var(--text-primary)">☐ <strong>Accessibility labels:</strong> Todos los botones e inputs tienen label</div>
-      <div style="color:var(--text-primary)">☐ <strong>Reduce motion:</strong> Animaciones se simplifican cuando está activo</div>
-      <div style="color:var(--text-primary)">☐ <strong>Gestos:</strong> iOS swipe back funciona. Android back button funciona</div>
-      <div style="color:var(--text-primary)">☐ <strong>Feedback:</strong> iOS = opacity fade. Android = ripple</div>
-      <div style="color:var(--text-primary)">☐ <strong>Haptics:</strong> Acciones clave tienen feedback háptico</div>
-      <div style="color:var(--text-primary)">☐ <strong>Offline:</strong> Vista de personal funciona sin conexión</div>
-      <div style="color:var(--text-primary)">☐ <strong>Empty states:</strong> Todas las listas tienen estado vacío con CTA</div>
-      <div style="color:var(--text-primary)">☐ <strong>Voz SEN:</strong> Textos en tuteo, español mexicano, sin jerga corporativa</div>
+      <div style="color:var(--foreground)">☐ <strong>Tokens:</strong> Todos los colores usan clases Uniwind (<code>bg-primary</code>, <code>text-foreground</code>), no hex directo</div>
+      <div style="color:var(--foreground)">☐ <strong>Dark mode:</strong> Probado en ambos temas. Toggle funciona</div>
+      <div style="color:var(--foreground)">☐ <strong>iOS body = 17pt, Android body = 16sp</strong></div>
+      <div style="color:var(--foreground)">☐ <strong>Touch targets:</strong> iOS ≥ 44pt, Android ≥ 48dp</div>
+      <div style="color:var(--foreground)">☐ <strong>Safe areas:</strong> Contenido no tapa notch, home indicator ni nav bar</div>
+      <div style="color:var(--foreground)">☐ <strong>Keyboard:</strong> Inputs visibles con teclado abierto</div>
+      <div style="color:var(--foreground)">☐ <strong>Font scaling:</strong> Layout no se rompe al 200% font size</div>
+      <div style="color:var(--foreground)">☐ <strong>Accessibility labels:</strong> Todos los botones e inputs tienen label</div>
+      <div style="color:var(--foreground)">☐ <strong>Reduce motion:</strong> Animaciones se simplifican cuando está activo</div>
+      <div style="color:var(--foreground)">☐ <strong>Gestos:</strong> iOS swipe back funciona. Android back button funciona</div>
+      <div style="color:var(--foreground)">☐ <strong>Feedback:</strong> iOS = opacity fade. Android = ripple</div>
+      <div style="color:var(--foreground)">☐ <strong>Haptics:</strong> Acciones clave tienen feedback háptico</div>
+      <div style="color:var(--foreground)">☐ <strong>Offline:</strong> Vista de personal funciona sin conexión</div>
+      <div style="color:var(--foreground)">☐ <strong>Empty states:</strong> Todas las listas tienen estado vacío con CTA</div>
+      <div style="color:var(--foreground)">☐ <strong>Voz SEN:</strong> Textos en tuteo, español mexicano, sin jerga corporativa</div>
     </div>
   </div>
 </div>
@@ -1132,8 +1641,8 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
 <!-- AGENT TOKENS -->
 <div class="section" id="agent-tokens">
   <div class="section-label">Para agentes</div>
-  <h2>Tokens CSS — Copiar y pegar</h2>
-  <p class="section-desc">Bloque completo de tokens listo para que un agente de IA o un desarrollador lo copie directamente. Incluye ambos temas y valores para iOS y Android.</p>
+  <h2>Tokens — Copiar y pegar</h2>
+  <p class="section-desc">Bloques completos listos para copiar. Incluye: (1) <code>global.css</code> para Uniwind + HeroUI Native, (2) CSS puro para referencia, y (3) objeto JS para Expo legacy.</p>
 
   <div class="demo-box" style="padding:20px">
     <div class="demo-label">CSS TOKENS — TEMA CLARO + OSCURO (copiar completo)</div>
@@ -1144,57 +1653,57 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
    =========================================== */</span>
 
 <span class="ck">:root</span> {
-  <span class="cm">/* — Fondos (undertone cantera moreliana) — */</span>
-  --bg-primary: <span class="cs">#FBF7F2</span>;
-  --bg-secondary: <span class="cs">#FFFFFF</span>;
-  --bg-tertiary: <span class="cs">#F5EDE5</span>;
-  --bg-elevated: <span class="cs">#FFFFFF</span>;
-  --bg-inverse: <span class="cs">#1B0F1E</span>;
+  <span class="cm">/* — Background (undertone cantera moreliana) — */</span>
+  --background: <span class="cs">#FBF7F2</span>;
+  --card: <span class="cs">#FFFFFF</span>;
+  --muted: <span class="cs">#F5EDE5</span>;
+  --popover: <span class="cs">#FFFFFF</span>;
+  --background-inverse: <span class="cs">#1B0F1E</span>;
 
-  <span class="cm">/* — Texto (base caoba, no negro puro) — */</span>
-  --text-primary: <span class="cs">#1B0F3B</span>;
-  --text-secondary: <span class="cs">#2A1F4E</span>;
-  --text-tertiary: <span class="cs">#6B5E8A</span>;
-  --text-muted: <span class="cs">#9E93B5</span>;
-  --text-inverse: <span class="cs">#FBF7F2</span>;
-  --text-on-accent: <span class="cs">#FFFFFF</span>;
+  <span class="cm">/* — Foreground (base caoba, no negro puro) — */</span>
+  --foreground: <span class="cs">#1B0F3B</span>;
+  --card-foreground: <span class="cs">#2A1F4E</span>;
+  --muted-foreground: <span class="cs">#6B5E8A</span>;
+  --muted-foreground-subtle: <span class="cs">#9E93B5</span>;
+  --foreground-inverse: <span class="cs">#FBF7F2</span>;
+  --primary-foreground: <span class="cs">#FFFFFF</span>;
 
-  <span class="cm">/* — Bordes — */</span>
-  --border-default: <span class="cs">#E8DDD4</span>;
-  --border-subtle: <span class="cs">#F2EAE3</span>;
-  --border-strong: <span class="cs">#D4C4B8</span>;
+  <span class="cm">/* — Border — */</span>
+  --border: <span class="cs">#E8DDD4</span>;
+  --input: <span class="cs">#F2EAE3</span>;
+  --ring: <span class="cs">#D4C4B8</span>;
 
-  <span class="cm">/* — Acento primario: Cobre Michoacano — */</span>
-  --accent-primary: <span class="cs">#B8602A</span>;
-  --accent-primary-hover: <span class="cs">#9E4E1E</span>;
-  --accent-primary-bg: <span class="cs">rgba(184, 96, 42, 0.08)</span>;
+  <span class="cm">/* — Primary: Cobre Michoacano — */</span>
+  --primary: <span class="cs">#B8602A</span>;
+  --primary-hover: <span class="cs">#9E4E1E</span>;
+  --primary-bg: <span class="cs">rgba(184, 96, 42, 0.08)</span>;
 
-  <span class="cm">/* — Acento secundario: Verde Aguacate — */</span>
-  --accent-secondary: <span class="cs">#4A7C3F</span>;
-  --accent-secondary-bg: <span class="cs">rgba(74, 124, 63, 0.08)</span>;
+  <span class="cm">/* — Secondary: Verde Aguacate — */</span>
+  --secondary: <span class="cs">#4A7C3F</span>;
+  --secondary-bg: <span class="cs">rgba(74, 124, 63, 0.08)</span>;
 
-  <span class="cm">/* — Acento terciario: Guinda Pátzcuaro — */</span>
-  --accent-tertiary: <span class="cs">#8B2252</span>;
-  --accent-tertiary-bg: <span class="cs">rgba(139, 34, 82, 0.08)</span>;
+  <span class="cm">/* — Accent: Guinda Pátzcuaro — */</span>
+  --accent: <span class="cs">#8B2252</span>;
+  --accent-bg: <span class="cs">rgba(139, 34, 82, 0.08)</span>;
 
-  <span class="cm">/* — Semánticos — */</span>
-  --status-success: <span class="cs">#00875A</span>;
-  --status-success-bg: <span class="cs">rgba(0, 135, 90, 0.10)</span>;
-  --status-warning: <span class="cs">#E8A317</span>;
-  --status-warning-bg: <span class="cs">rgba(232, 163, 23, 0.10)</span>;
-  --status-error: <span class="cs">#D42054</span>;
-  --status-error-bg: <span class="cs">rgba(212, 32, 84, 0.10)</span>;
-  --status-info: <span class="cs">#4A7C3F</span>;
-  --status-info-bg: <span class="cs">rgba(74, 124, 63, 0.10)</span>;
+  <span class="cm">/* — Semantic — */</span>
+  --success: <span class="cs">#00875A</span>;
+  --success-bg: <span class="cs">rgba(0, 135, 90, 0.10)</span>;
+  --warning: <span class="cs">#E8A317</span>;
+  --warning-bg: <span class="cs">rgba(232, 163, 23, 0.10)</span>;
+  --destructive: <span class="cs">#D42054</span>;
+  --destructive-bg: <span class="cs">rgba(212, 32, 84, 0.10)</span>;
+  --info: <span class="cs">#4A7C3F</span>;
+  --info-bg: <span class="cs">rgba(74, 124, 63, 0.10)</span>;
 
-  <span class="cm">/* — Radios — */</span>
+  <span class="cm">/* — Radius — */</span>
   --radius-sm: <span class="cn">6</span>px;
   --radius-md: <span class="cn">10</span>px;
   --radius-lg: <span class="cn">14</span>px;
   --radius-xl: <span class="cn">20</span>px;
   --radius-full: <span class="cn">100</span>px;
 
-  <span class="cm">/* — Tipografía — */</span>
+  <span class="cm">/* — Typography — */</span>
   --font-display: <span class="cs">'Playfair Display'</span>, Georgia, serif;
   --font-body: <span class="cs">'DM Sans'</span>, -apple-system, sans-serif;
   --font-mono: <span class="cs">'JetBrains Mono'</span>, monospace;
@@ -1202,40 +1711,40 @@ code{font-family:var(--font-mono);font-size:11px;background:var(--code-bg);
 
 <span class="cm">/* — TEMA OSCURO (Noche Moreliana) — */</span>
 <span class="ck">[data-theme="dark"]</span> {
-  --bg-primary: <span class="cs">#0E0A1A</span>;
-  --bg-secondary: <span class="cs">#171228</span>;
-  --bg-tertiary: <span class="cs">#201A36</span>;
-  --bg-elevated: <span class="cs">#2A2344</span>;
-  --bg-inverse: <span class="cs">#FBF7F2</span>;
+  --background: <span class="cs">#0E0A1A</span>;
+  --card: <span class="cs">#171228</span>;
+  --muted: <span class="cs">#201A36</span>;
+  --popover: <span class="cs">#2A2344</span>;
+  --background-inverse: <span class="cs">#FBF7F2</span>;
 
-  --text-primary: <span class="cs">#F2EDE7</span>;
-  --text-secondary: <span class="cs">#D4CBDF</span>;
-  --text-tertiary: <span class="cs">#8F83A8</span>;
-  --text-muted: <span class="cs">#5C5270</span>;
-  --text-inverse: <span class="cs">#1B0F3B</span>;
+  --foreground: <span class="cs">#F2EDE7</span>;
+  --card-foreground: <span class="cs">#D4CBDF</span>;
+  --muted-foreground: <span class="cs">#8F83A8</span>;
+  --muted-foreground-subtle: <span class="cs">#5C5270</span>;
+  --foreground-inverse: <span class="cs">#1B0F3B</span>;
 
-  --border-default: <span class="cs">#2E2650</span>;
-  --border-subtle: <span class="cs">#221C3A</span>;
-  --border-strong: <span class="cs">#3D3560</span>;
+  --border: <span class="cs">#2E2650</span>;
+  --input: <span class="cs">#221C3A</span>;
+  --ring: <span class="cs">#3D3560</span>;
 
-  --accent-primary: <span class="cs">#D4835E</span>;
-  --accent-primary-hover: <span class="cs">#E09A78</span>;
-  --accent-primary-bg: <span class="cs">rgba(255, 77, 166, 0.14)</span>;
+  --primary: <span class="cs">#D4835E</span>;
+  --primary-hover: <span class="cs">#E09A78</span>;
+  --primary-bg: <span class="cs">rgba(255, 77, 166, 0.14)</span>;
 
-  --accent-secondary: <span class="cs">#7FB573</span>;
-  --accent-secondary-bg: <span class="cs">rgba(123, 127, 224, 0.14)</span>;
+  --secondary: <span class="cs">#7FB573</span>;
+  --secondary-bg: <span class="cs">rgba(123, 127, 224, 0.14)</span>;
 
-  --accent-tertiary: <span class="cs">#C85A8A</span>;
-  --accent-tertiary-bg: <span class="cs">rgba(240, 192, 64, 0.14)</span>;
+  --accent: <span class="cs">#C85A8A</span>;
+  --accent-bg: <span class="cs">rgba(240, 192, 64, 0.14)</span>;
 
-  --status-success: <span class="cs">#5CC98A</span>;
-  --status-success-bg: <span class="cs">rgba(61, 204, 142, 0.16)</span>;
-  --status-warning: <span class="cs">#C85A8A</span>;
-  --status-warning-bg: <span class="cs">rgba(240, 192, 64, 0.16)</span>;
-  --status-error: <span class="cs">#E8605A</span>;
-  --status-error-bg: <span class="cs">rgba(255, 90, 125, 0.16)</span>;
-  --status-info: <span class="cs">#7FB573</span>;
-  --status-info-bg: <span class="cs">rgba(123, 127, 224, 0.16)</span>;
+  --success: <span class="cs">#5CC98A</span>;
+  --success-bg: <span class="cs">rgba(61, 204, 142, 0.16)</span>;
+  --warning: <span class="cs">#C85A8A</span>;
+  --warning-bg: <span class="cs">rgba(240, 192, 64, 0.16)</span>;
+  --destructive: <span class="cs">#E8605A</span>;
+  --destructive-bg: <span class="cs">rgba(255, 90, 125, 0.16)</span>;
+  --info: <span class="cs">#7FB573</span>;
+  --info-bg: <span class="cs">rgba(123, 127, 224, 0.16)</span>;
 }
 
 <span class="cm">/* ===========================================

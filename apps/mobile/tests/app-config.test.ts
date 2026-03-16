@@ -39,6 +39,10 @@ describe('app.json configuration', () => {
 		expect(expo.android.adaptiveIcon.backgroundColor).toBe('#B8602A');
 	});
 
+	it('android predictive back gesture remains enabled', () => {
+		expect(expo.android.predictiveBackGestureEnabled).toBe(true);
+	});
+
 	it('slug stays unchanged', () => {
 		expect(expo.slug).toBe('sen-checkin');
 	});

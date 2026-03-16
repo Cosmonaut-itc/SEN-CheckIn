@@ -24,7 +24,7 @@
       },
       "versionCode": 19,
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
+      "predictiveBackGestureEnabled": true,
       "package": "com.senapps.sencheckin",
       "permissions": [
         "android.permission.CAMERA",

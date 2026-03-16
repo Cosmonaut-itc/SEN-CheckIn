@@ -748,9 +748,8 @@ export default function LoginScreen(): JSX.Element {
 				{verificationUrl && !isApproved ? (
 					<View className="items-center py-2 gap-2">
 						<View
-							className="bg-white p-3 rounded-2xl"
+							className="bg-white p-3 rounded-2xl shadow-md"
 							style={{
-								boxShadow: '0 4px 14px rgba(15, 23, 42, 0.16)',
 								borderCurve: 'continuous',
 							}}
 						>

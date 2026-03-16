@@ -83,6 +83,8 @@ export function AppTextField({
 				}}
 				placeholder={placeholder}
 				keyboardType={keyboardType}
+				accessibilityLabel={label}
+				accessibilityHint={description}
 				className="px-4 py-3 rounded-xl text-foreground"
 				style={CONTINUOUS_CURVE}
 			/>
@@ -150,17 +152,16 @@ export function SelectField<TValue extends string>({
 							presentation === 'dialog'
 								? {
 										wrapper: 'px-5',
-										content: 'rounded-2xl bg-background gap-2',
+										content: 'rounded-2xl bg-background gap-2 shadow-lg',
 									}
 								: undefined
 						}
 						className={
 							presentation !== 'dialog'
-								? 'rounded-2xl bg-background gap-2'
+								? 'rounded-2xl bg-background gap-2 shadow-lg'
 								: undefined
 						}
 						style={{
-							boxShadow: '0 12px 28px rgba(15, 23, 42, 0.2)',
 							borderCurve: 'continuous',
 						}}
 					>

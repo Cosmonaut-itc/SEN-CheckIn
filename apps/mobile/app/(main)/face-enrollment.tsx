@@ -99,6 +99,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const insets = useSafeAreaInsets();
 	const queryClient = useQueryClient();
 	const iconColor = useThemeColor('foreground');
+	const mutedForegroundColor = useThemeColor('muted-foreground');
+	const successColor = useThemeColor('success');
+	const warningColor = useThemeColor('warning');
 	const cameraRef = useRef<CameraView | null>(null);
 	const [cameraFacing, setCameraFacing] = useState<CameraType>('front');
 	const [permission, requestPermission] = useCameraPermissions();
@@ -336,7 +339,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 								<IconSymbol
 									name="exclamationmark.triangle.fill"
 									size={18}
-									color="#f59e0b"
+									color={warningColor}
 								/>
 								<Card.Title>{i18n.t('FaceEnrollment.device.title')}</Card.Title>
 							</View>
@@ -358,7 +361,11 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					<Card variant="default">
 						<Card.Body className="p-5 gap-3">
 							<View className="flex-row items-center gap-2">
-								<IconSymbol name="checkmark.seal.fill" size={22} color="#22c55e" />
+								<IconSymbol
+									name="checkmark.seal.fill"
+									size={22}
+									color={successColor}
+								/>
 								<Card.Title>{i18n.t('FaceEnrollment.success.title')}</Card.Title>
 							</View>
 							<Text className="text-foreground" selectable>
@@ -407,7 +414,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									placeholder={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
-									placeholderTextColor="rgba(115,115,115,0.9)"
+									placeholderTextColor={mutedForegroundColor}
 									className="bg-content2 text-foreground rounded-xl px-3 py-3"
 									accessibilityLabel={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',

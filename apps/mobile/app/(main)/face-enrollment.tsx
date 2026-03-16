@@ -419,6 +419,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									accessibilityLabel={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
+									accessibilityHint={i18n.t('FaceEnrollment.employees.searchHint')}
 								/>
 								{employeesQuery.isPending ? (
 									<View className="items-center py-5 gap-2">
@@ -462,6 +463,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 												variant={isSelected ? 'primary' : 'secondary'}
 												isDisabled={isEmployeeSelectionLocked}
 												onPress={() => setSelectedEmployeeId(employee.id)}
+												accessibilityLabel={`${employee.firstName} ${employee.lastName}`}
 											>
 												<View className="flex-row items-center justify-between gap-2 w-full">
 													<View className="flex-1">
@@ -511,6 +513,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										size="sm"
 										onPress={handleToggleCamera}
 										isDisabled={Boolean(capturedPhoto)}
+										accessibilityLabel={i18n.t(
+											'FaceEnrollment.camera.switchCamera',
+										)}
 									>
 										<Button.Label>
 											{i18n.t('FaceEnrollment.camera.switchCamera')}
@@ -535,6 +540,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 											source={{ uri: capturedPhoto.previewUri }}
 											style={{ width: '100%', height: 260, borderRadius: 16 }}
 											contentFit="cover"
+											accessibilityLabel={i18n.t(
+												'FaceEnrollment.camera.previewLabel',
+											)}
 										/>
 										<View className="flex-row gap-2">
 											<Button
@@ -545,6 +553,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 													setCapturedEmployeeId(null);
 												}}
 												isDisabled={enrollmentMutation.isPending}
+												accessibilityLabel={i18n.t(
+													'FaceEnrollment.actions.retake',
+												)}
 											>
 												<Button.Label>
 													{i18n.t('FaceEnrollment.actions.retake')}
@@ -556,6 +567,13 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 												isDisabled={
 													enrollmentMutation.isPending ||
 													!capturedEmployee
+												}
+												accessibilityLabel={
+													enrollmentMutation.isPending
+														? i18n.t(
+																'FaceEnrollment.actions.submitting',
+															)
+														: i18n.t('FaceEnrollment.actions.confirm')
 												}
 											>
 												<Button.Label>
@@ -580,6 +598,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 											isDisabled={
 												!selectedEmployee || enrollmentMutation.isPending
 											}
+											accessibilityLabel={i18n.t('FaceEnrollment.actions.capture')}
 										>
 											<Button.Label>
 												{i18n.t('FaceEnrollment.actions.capture')}

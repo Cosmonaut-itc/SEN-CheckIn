@@ -63,6 +63,7 @@ export default function LockedScreen(): JSX.Element {
 					size="md"
 					className="w-full"
 					isDisabled={requiresDeviceRelinking}
+					accessibilityLabel={i18n.t('Locked.actions.retry')}
 					onPress={() => {
 						if (requiresDeviceRelinking) return;
 						void requestReauth();
@@ -74,6 +75,7 @@ export default function LockedScreen(): JSX.Element {
 					variant="secondary"
 					size="md"
 					className="w-full"
+					accessibilityLabel={i18n.t('Locked.actions.signIn')}
 					onPress={() => {
 						void (async () => {
 							try {

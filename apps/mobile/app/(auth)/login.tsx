@@ -746,7 +746,11 @@ export default function LoginScreen(): JSX.Element {
 
 				{/* QR Code Section */}
 				{verificationUrl && !isApproved ? (
-					<View className="items-center py-2 gap-2">
+					<View
+						className="items-center py-2 gap-2"
+						accessible
+						accessibilityLabel={i18n.t('Login.accessibility.qrCode')}
+					>
 						<View
 							className="bg-white p-3 rounded-2xl shadow-md"
 							style={{
@@ -779,6 +783,11 @@ export default function LoginScreen(): JSX.Element {
 							className="w-full"
 							variant="primary"
 							size="md"
+							accessibilityLabel={
+								isRequestingCode
+									? i18n.t('Login.actions.refreshing')
+									: i18n.t('Login.actions.newCode')
+							}
 						>
 							<Button.Label>
 								{isRequestingCode
@@ -794,6 +803,7 @@ export default function LoginScreen(): JSX.Element {
 								onPress={() => {
 									void Linking.openURL(verificationUrl);
 								}}
+								accessibilityLabel={i18n.t('Login.actions.openLink')}
 							>
 								<Button.Label>{i18n.t('Login.actions.openLink')}</Button.Label>
 							</Button>
@@ -830,6 +840,7 @@ export default function LoginScreen(): JSX.Element {
 						variant="primary"
 						size="md"
 						className="w-full"
+						accessibilityLabel={i18n.t('Login.actions.tryAgain')}
 					>
 						<Button.Label>{i18n.t('Login.actions.tryAgain')}</Button.Label>
 					</Button>

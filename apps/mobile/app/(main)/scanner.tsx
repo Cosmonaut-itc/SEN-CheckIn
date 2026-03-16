@@ -117,8 +117,8 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
 /**
  * Applies an alpha channel to a resolved theme color without introducing new hardcoded RGBA literals.
  *
- * Supports 3-digit and 6-digit hex colors, and converts `rgb(...)` or `rgba(...)` strings to
- * 8-digit hex. Unsupported formats are returned unchanged.
+ * Supports 3-digit and 6-digit hex colors, and converts CSS color function strings to 8-digit
+ * hex. Unsupported formats are returned unchanged.
  *
  * @param color - Resolved theme color string
  * @param alpha - Opacity value from 0 to 1
@@ -135,7 +135,11 @@ function withAlpha(color: string, alpha: number): string {
 		/^#(?<red>[0-9a-fA-F]{2})(?<green>[0-9a-fA-F]{2})(?<blue>[0-9a-fA-F]{2})(?:[0-9a-fA-F]{2})?$/,
 	);
 
-	if (fullHexMatch?.groups) {
+	if (
+		fullHexMatch?.groups?.red &&
+		fullHexMatch.groups.green &&
+		fullHexMatch.groups.blue
+	) {
 		return `#${fullHexMatch.groups.red}${fullHexMatch.groups.green}${fullHexMatch.groups.blue}${alphaHex}`;
 	}
 
@@ -143,7 +147,11 @@ function withAlpha(color: string, alpha: number): string {
 		/^#(?<red>[0-9a-fA-F])(?<green>[0-9a-fA-F])(?<blue>[0-9a-fA-F])(?:[0-9a-fA-F])?$/,
 	);
 
-	if (shortHexMatch?.groups) {
+	if (
+		shortHexMatch?.groups?.red &&
+		shortHexMatch.groups.green &&
+		shortHexMatch.groups.blue
+	) {
 		return `#${shortHexMatch.groups.red.repeat(2)}${shortHexMatch.groups.green.repeat(2)}${shortHexMatch.groups.blue.repeat(2)}${alphaHex}`;
 	}
 
@@ -151,7 +159,7 @@ function withAlpha(color: string, alpha: number): string {
 		/^rgba?\(\s*(?<red>\d{1,3})\s*,\s*(?<green>\d{1,3})\s*,\s*(?<blue>\d{1,3})(?:\s*,\s*[\d.]+)?\s*\)$/,
 	);
 
-	if (rgbMatch?.groups) {
+	if (rgbMatch?.groups?.red && rgbMatch.groups.green && rgbMatch.groups.blue) {
 		const redHex = Number(rgbMatch.groups.red).toString(16).padStart(2, '0').toUpperCase();
 		const greenHex = Number(rgbMatch.groups.green)
 			.toString(16)
@@ -672,6 +680,7 @@ export default function ScannerScreen(): JSX.Element {
 						size="md"
 						className="flex-1 flex-row items-center gap-2 justify-center rounded-full"
 						onPress={toggleAttendanceType}
+						accessibilityLabel={i18n.t('Scanner.accessibility.toggleAttendanceType')}
 					>
 						<View style={styles.toggleIndicator}>
 							<View
@@ -707,6 +716,7 @@ export default function ScannerScreen(): JSX.Element {
 						size="md"
 						className="w-12 h-12 rounded-full"
 						onPress={() => router.push('/(main)/settings')}
+						accessibilityLabel={i18n.t('Scanner.accessibility.openSettings')}
 					>
 						<IconSymbol name="gearshape" size={20} color={themeColors.foreground} />
 					</Button>
@@ -821,6 +831,7 @@ export default function ScannerScreen(): JSX.Element {
 								isDisabled={isProcessing || !settings?.deviceId}
 								variant="primary"
 								className="w-full h-14"
+								accessibilityLabel={attendanceActionLabels[attendanceType]}
 								style={{
 									backgroundColor: ctaBackground,
 									borderColor: ctaBackground,
@@ -857,6 +868,7 @@ export default function ScannerScreen(): JSX.Element {
 										variant="secondary"
 										size="md"
 										className="min-h-12 self-center px-5"
+										accessibilityLabel={i18n.t('Scanner.actions.tapToLink')}
 										style={{
 											alignSelf: 'center',
 											backgroundColor: linkButtonBackground,

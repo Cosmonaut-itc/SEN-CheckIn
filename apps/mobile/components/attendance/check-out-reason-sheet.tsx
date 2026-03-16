@@ -76,6 +76,10 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 									variant="outline"
 									onPress={() => props.onSelectReason(option.value)}
 									className="min-h-16 justify-start border-default-200 bg-secondary px-4 py-3"
+									accessibilityLabel={i18n.t(
+										'Scanner.checkOutReason.accessibility.option',
+										{ label: option.label },
+									)}
 								>
 									<View className="gap-1">
 										<Button.Label className="text-foreground text-base font-semibold">
@@ -94,6 +98,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 								variant="ghost"
 								onPress={props.onClose}
 								className="border border-transparent"
+								accessibilityLabel={i18n.t('Common.cancel')}
 							>
 								<Button.Label className="text-foreground-500 font-medium">
 									{i18n.t('Common.cancel')}

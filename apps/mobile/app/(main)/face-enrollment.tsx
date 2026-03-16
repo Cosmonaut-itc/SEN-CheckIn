@@ -301,7 +301,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}, [router]);
 
 	const contentBottomPadding = Math.max(28, insets.bottom + 20);
-	const floatingBackButtonSize = 44;
+	const floatingBackButtonSize = 48;
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
@@ -631,7 +631,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					variant="secondary"
 					isIconOnly
 					size="md"
-					className="w-11 h-11 rounded-full"
+					className="w-12 h-12 rounded-full"
 					accessibilityLabel={i18n.t('FaceEnrollment.actions.backToScanner')}
 					onPress={handleBackToScanner}
 				>

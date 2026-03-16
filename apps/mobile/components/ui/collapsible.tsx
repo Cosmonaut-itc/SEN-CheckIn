@@ -26,6 +26,7 @@ export function Collapsible({
 				style={styles.heading}
 				onPress={() => setIsOpen((value) => !value)}
 				activeOpacity={0.8}
+				hitSlop={8}
 			>
 				<IconSymbol
 					name="chevron.right"
@@ -47,6 +48,8 @@ const styles: Record<string, ViewStyle> = {
 		flexDirection: 'row',
 		alignItems: 'center',
 		gap: 6,
+		minHeight: 48,
+		minWidth: 48,
 	},
 	content: {
 		paddingTop: 6,

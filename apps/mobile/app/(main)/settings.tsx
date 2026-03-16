@@ -111,7 +111,7 @@ export default function SettingsScreen(): JSX.Element {
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' }) satisfies ViewStyle, []);
-	const floatingBackButtonSize = 44;
+	const floatingBackButtonSize = 48;
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
@@ -387,7 +387,7 @@ export default function SettingsScreen(): JSX.Element {
 					variant="secondary"
 					isIconOnly
 					size="md"
-					className="w-11 h-11 rounded-full"
+					className="w-12 h-12 rounded-full"
 					accessibilityLabel={i18n.t('Settings.navigation.backToScanner')}
 					onPress={handleBackToScanner}
 				>

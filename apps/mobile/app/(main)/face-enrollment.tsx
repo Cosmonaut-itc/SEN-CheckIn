@@ -5,7 +5,7 @@ import { type Href, useNavigation, useRouter } from 'expo-router';
 import { Button, Card, Spinner, useThemeColor } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -116,6 +116,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const isDeviceLinked = Boolean(settings?.deviceId);
 	const hasLocationConfigured = Boolean(settings?.locationId);
 	const hasDeviceConfig = isDeviceLinked && hasLocationConfigured;
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? Math.max(insets.top, 16) : 0;
 	const employeeQueryParams = useMemo(
 		() => ({
 			limit: EMPLOYEE_FETCH_LIMIT,
@@ -318,16 +319,22 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}
 
 	return (
-		<View className="flex-1 bg-background">
-			<ScrollView
-				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="never"
-				contentContainerClassName="px-4 gap-4"
-				contentContainerStyle={{
-					paddingTop: contentTopPadding,
-					paddingBottom: contentBottomPadding,
-				}}
-			>
+		<KeyboardAvoidingView
+			className="flex-1 bg-background"
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={keyboardVerticalOffset}
+		>
+			<View className="flex-1 bg-background">
+				<ScrollView
+					className="flex-1 bg-background"
+					contentInsetAdjustmentBehavior="never"
+					contentContainerClassName="px-4 gap-4"
+					contentContainerStyle={{
+						paddingTop: contentTopPadding,
+						paddingBottom: contentBottomPadding,
+					}}
+					keyboardShouldPersistTaps="handled"
+				>
 				<Text className="text-foreground-500 text-sm" selectable>
 					{i18n.t('FaceEnrollment.subtitle')}
 				</Text>
@@ -638,6 +645,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					<IconSymbol name="chevron.left" size={22} color={iconColor} />
 				</Button>
 			</View>
-		</View>
+			</View>
+		</KeyboardAvoidingView>
 	);
 }

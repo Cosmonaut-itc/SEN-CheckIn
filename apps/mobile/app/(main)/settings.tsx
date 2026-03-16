@@ -3,7 +3,14 @@ import { type Href, useNavigation, useRouter } from 'expo-router';
 import { Button, Card, Select, Separator, useThemeColor, useToast } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, Text, View, type ViewStyle } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	Text,
+	View,
+	type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
@@ -115,6 +122,7 @@ export default function SettingsScreen(): JSX.Element {
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? Math.max(insets.top, 16) : 0;
 
 	/**
 	 * Navigate back to the previous screen when history exists.
@@ -133,16 +141,22 @@ export default function SettingsScreen(): JSX.Element {
 
 	return (
 		<View className="flex-1 bg-background">
-			<ScrollView
+			<KeyboardAvoidingView
 				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="never"
-				contentContainerClassName="px-4 gap-6"
-				contentContainerStyle={{
-					paddingTop: contentTopPadding,
-					paddingBottom: Math.max(40, insets.bottom + 20),
-				}}
-				showsVerticalScrollIndicator={false}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={keyboardVerticalOffset}
 			>
+				<ScrollView
+					className="flex-1 bg-background"
+					contentInsetAdjustmentBehavior="never"
+					contentContainerClassName="px-4 gap-6"
+					contentContainerStyle={{
+						paddingTop: contentTopPadding,
+						paddingBottom: Math.max(40, insets.bottom + 20),
+					}}
+					keyboardShouldPersistTaps="handled"
+					showsVerticalScrollIndicator={false}
+				>
 				<View className="gap-1">
 					<Text className="text-base text-foreground-500">
 						{i18n.t('Settings.subtitle')}
@@ -372,7 +386,8 @@ export default function SettingsScreen(): JSX.Element {
 						</Button>
 					</Card.Footer>
 				</Card>
-			</ScrollView>
+				</ScrollView>
+			</KeyboardAvoidingView>
 
 			<View
 				pointerEvents="box-none"

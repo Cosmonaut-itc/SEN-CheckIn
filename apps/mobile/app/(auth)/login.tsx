@@ -4,7 +4,16 @@ import { useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, ScrollView, Text, View } from 'react-native';
+import {
+	Animated,
+	Easing,
+	KeyboardAvoidingView,
+	Linking,
+	Platform,
+	ScrollView,
+	Text,
+	View,
+} from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import QRCode from 'react-qr-code';
 
@@ -183,6 +192,7 @@ export default function LoginScreen(): JSX.Element {
 	]);
 	const qrForeground = isDarkMode ? inverseBackgroundColor : foregroundColor;
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
 
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);
 	const [status, setStatus] = useState<AuthorizationStatus>({
@@ -703,12 +713,18 @@ export default function LoginScreen(): JSX.Element {
 	}, [accentColor, continuousCurve, isApproved, status.message, status.state]);
 
 	return (
-		<ScrollView
+		<KeyboardAvoidingView
 			className="flex-1 bg-background"
-			contentInsetAdjustmentBehavior="automatic"
-			contentContainerClassName="px-5 pt-4 pb-6 gap-4"
-			showsVerticalScrollIndicator={false}
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={keyboardVerticalOffset}
 		>
+			<ScrollView
+				className="flex-1 bg-background"
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerClassName="px-5 pt-4 pb-6 gap-4"
+				keyboardShouldPersistTaps="handled"
+				showsVerticalScrollIndicator={false}
+			>
 			{/* Header */}
 			<View className="gap-2 pt-4">
 				<Text className="text-base text-foreground-500 leading-relaxed">
@@ -849,6 +865,7 @@ export default function LoginScreen(): JSX.Element {
 					</Button>
 				</View>
 			) : null}
-		</ScrollView>
+			</ScrollView>
+		</KeyboardAvoidingView>
 	);
 }

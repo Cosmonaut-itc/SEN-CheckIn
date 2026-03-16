@@ -3,7 +3,14 @@ import * as ExpoDevice from 'expo-device';
 import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Card, Select, Spinner } from 'heroui-native';
 import { type JSX, useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, Text, View, type ViewStyle } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	Text,
+	View,
+	type ViewStyle,
+} from 'react-native';
 
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
@@ -44,6 +51,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 	const { session } = useAuthContext();
 	const { settings, updateLocalSettings } = useDeviceContext();
 	const params = useLocalSearchParams<SearchParams>();
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
 
 	const deviceId = useMemo(
 		() => normalizeParam(params.deviceId) ?? settings?.deviceId ?? null,
@@ -142,17 +150,23 @@ export default function DeviceSetupScreen(): JSX.Element {
 
 	if (!deviceId) {
 		return (
-			<ScrollView
+			<KeyboardAvoidingView
 				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="automatic"
-				contentContainerClassName="flex-1 items-center justify-center px-6"
-				showsVerticalScrollIndicator={false}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={keyboardVerticalOffset}
 			>
-				<Card
-					variant="default"
-					className="p-8 w-full max-w-md items-center gap-5 rounded-3xl"
-					style={continuousCurve}
+				<ScrollView
+					className="flex-1 bg-background"
+					contentInsetAdjustmentBehavior="automatic"
+					contentContainerClassName="flex-1 items-center justify-center px-6"
+					keyboardShouldPersistTaps="handled"
+					showsVerticalScrollIndicator={false}
 				>
+					<Card
+						variant="default"
+						className="p-8 w-full max-w-md items-center gap-5 rounded-3xl"
+						style={continuousCurve}
+					>
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
 						<Text className="text-3xl">⚠️</Text>
@@ -175,19 +189,26 @@ export default function DeviceSetupScreen(): JSX.Element {
 						</Link.Trigger>
 						<Link.Preview />
 					</Link>
-				</Card>
-			</ScrollView>
+					</Card>
+				</ScrollView>
+			</KeyboardAvoidingView>
 		);
 	}
 
 	return (
-		<ScrollView
+		<KeyboardAvoidingView
 			className="flex-1 bg-background"
-			contentInsetAdjustmentBehavior="automatic"
-			contentContainerClassName="px-5 pt-6 pb-10"
-			showsVerticalScrollIndicator={false}
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={keyboardVerticalOffset}
 		>
-			<View className="gap-8 max-w-lg w-full self-center">
+			<ScrollView
+				className="flex-1 bg-background"
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerClassName="px-5 pt-6 pb-10"
+				keyboardShouldPersistTaps="handled"
+				showsVerticalScrollIndicator={false}
+			>
+				<View className="gap-8 max-w-lg w-full self-center">
 				{/* Header Section */}
 				<View className="gap-3">
 					<View className="flex-row items-center gap-3">
@@ -413,7 +434,8 @@ export default function DeviceSetupScreen(): JSX.Element {
 						</View>
 					</View>
 				</View>
-			</View>
-		</ScrollView>
+				</View>
+			</ScrollView>
+		</KeyboardAvoidingView>
 	);
 }

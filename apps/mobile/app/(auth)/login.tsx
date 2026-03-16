@@ -5,11 +5,13 @@ import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Linking, ScrollView, Text, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import QRCode from 'react-qr-code';
 
 import { ENV, envErrors } from '@/constants/env';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
+import { getAnimationDuration } from '@/lib/accessibility-motion';
 import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
 import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
 import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
@@ -138,19 +140,20 @@ function AnimatedDots(): JSX.Element {
  */
 function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Element {
 	const pulseAnim = useRef(new Animated.Value(1)).current;
+	const shouldReduceMotion = useReducedMotion();
 
 	useEffect(() => {
 		const pulse = Animated.loop(
 			Animated.sequence([
 				Animated.timing(pulseAnim, {
 					toValue: 1.05,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					easing: Easing.inOut(Easing.ease),
 					useNativeDriver: true,
 				}),
 				Animated.timing(pulseAnim, {
 					toValue: 1,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					easing: Easing.inOut(Easing.ease),
 					useNativeDriver: true,
 				}),
@@ -158,7 +161,7 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 		);
 		pulse.start();
 		return () => pulse.stop();
-	}, [pulseAnim]);
+	}, [pulseAnim, shouldReduceMotion]);
 
 	return <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>{children}</Animated.View>;
 }

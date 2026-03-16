@@ -14,12 +14,14 @@ import {
 	type TextStyle,
 	type ViewStyle,
 } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { CheckOutReasonSheet } from '@/components/attendance/check-out-reason-sheet';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { getAnimationDuration } from '@/lib/accessibility-motion';
 import {
 	releaseAttendanceCaptureLock,
 	tryAcquireAttendanceCaptureLock,
@@ -246,6 +248,7 @@ export default function ScannerScreen(): JSX.Element {
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
 	const isIOS = process.env.EXPO_OS === 'ios';
 	const isAndroid = process.env.EXPO_OS === 'android';
+	const shouldReduceMotion = useReducedMotion();
 
 	// Use state for camera facing to ensure proper initialization
 	// This fixes a race condition where the camera may initialize with the wrong facing direction
@@ -364,17 +367,17 @@ export default function ScannerScreen(): JSX.Element {
 			Animated.sequence([
 				Animated.timing(pulseAnim, {
 					toValue: 1.05,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					useNativeDriver: true,
 				}),
 				Animated.timing(pulseAnim, {
 					toValue: 1,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					useNativeDriver: true,
 				}),
 			]),
 		).start();
-	}, [pulseAnim]);
+	}, [pulseAnim, shouldReduceMotion]);
 
 	/**
 	 * Stops all animations and resets to default state
@@ -394,11 +397,11 @@ export default function ScannerScreen(): JSX.Element {
 		(toValue: number) => {
 			Animated.timing(borderColorAnim, {
 				toValue,
-				duration: 300,
+				duration: getAnimationDuration(300, shouldReduceMotion),
 				useNativeDriver: false,
 			}).start();
 		},
-		[borderColorAnim],
+		[borderColorAnim, shouldReduceMotion],
 	);
 
 	// Request camera permissions on mount if not granted

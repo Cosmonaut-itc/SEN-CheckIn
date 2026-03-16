@@ -881,6 +881,8 @@ export const employee = pgTable(
 		hireDate: timestamp('hire_date'),
 		/** Daily pay rate for payroll calculations (salario diario) */
 		dailyPay: numeric('daily_pay', { precision: 10, scale: 2 }).default('0').notNull(),
+		/** Optional fiscal daily pay used when dual payroll is enabled. */
+		fiscalDailyPay: numeric('fiscal_daily_pay', { precision: 10, scale: 4 }),
 		/** Payment frequency for this employee */
 		paymentFrequency: paymentFrequency('payment_frequency').default('MONTHLY').notNull(),
 		/** Employment type for PTU eligibility rules */
@@ -1843,6 +1845,8 @@ export const payrollSetting = pgTable('payroll_setting', {
 		.notNull(),
 	/** Enables the seventh day pay calculation */
 	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
+	/** Enables fiscal/real dual payroll calculations for the organization. */
+	enableDualPayroll: boolean('enable_dual_payroll').default(false).notNull(),
 	/** Whether lunch break time is automatically deducted when no lunch checkout exists. */
 	autoDeductLunchBreak: boolean('auto_deduct_lunch_break').default(false).notNull(),
 	/** Minutes deducted for lunch break when auto deduction applies. */
@@ -2548,6 +2552,10 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 	hoursWorked: numeric('hours_worked', { precision: 10, scale: 2 }).default('0').notNull(),
 	hourlyPay: numeric('hourly_pay', { precision: 10, scale: 2 }).default('0').notNull(),
 	totalPay: numeric('total_pay', { precision: 12, scale: 2 }).default('0').notNull(),
+	fiscalDailyPay: numeric('fiscal_daily_pay', { precision: 10, scale: 4 }),
+	fiscalGrossPay: numeric('fiscal_gross_pay', { precision: 12, scale: 4 }),
+	complementPay: numeric('complement_pay', { precision: 12, scale: 4 }),
+	totalRealPay: numeric('total_real_pay', { precision: 12, scale: 4 }),
 	normalHours: numeric('normal_hours', { precision: 10, scale: 2 }).default('0').notNull(),
 	normalPay: numeric('normal_pay', { precision: 12, scale: 2 }).default('0').notNull(),
 	overtimeDoubleHours: numeric('overtime_double_hours', { precision: 10, scale: 2 })

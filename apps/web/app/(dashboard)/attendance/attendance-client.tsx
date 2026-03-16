@@ -18,7 +18,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useTranslations } from 'next-intl';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
 import {
 	Calendar as CalendarIcon,
@@ -49,6 +48,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -1096,57 +1097,141 @@ export function AttendancePageClient({
 	if (!organizationId) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<ResponsivePageHeader title={t('title')} />
 				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
 
-	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
+	/**
+	 * Renders the action controls for an attendance record.
+	 *
+	 * @param record - Attendance record receiving the actions
+	 * @returns Action buttons or null when the record is not editable
+	 */
+	const renderAttendanceActions = (record: AttendanceRecord): React.ReactElement | null => {
+		if (!canManageOffsite || record.type !== 'WORK_OFFSITE') {
+			return null;
+		}
+
+		return (
+			<div className="flex items-center gap-2">
+				<Button
+					type="button"
+					variant="outline"
+					size="icon"
+					className="h-11 w-11"
+					onClick={() => openEditOffsiteDialog(record)}
+				>
+					<Pencil className="h-4 w-4" />
+				</Button>
+				<Button
+					type="button"
+					variant="outline"
+					size="icon"
+					className="h-11 w-11 text-destructive hover:text-destructive"
+					onClick={() => handleRequestDeleteOffsite(record.id)}
+					disabled={deleteOffsiteMutation.isPending}
+				>
+					<Trash2 className="h-4 w-4" />
+				</Button>
+			</div>
+		);
+	};
+
+	/**
+	 * Renders the mobile attendance card used by the responsive data view.
+	 *
+	 * @param record - Attendance record to display
+	 * @returns Mobile card content
+	 */
+	const renderAttendanceCard = (record: AttendanceRecord): React.ReactElement => {
+		const actions = renderAttendanceActions(record);
+		return (
+			<div className="space-y-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0 space-y-1">
+						<p className="text-base font-semibold leading-tight">{record.employeeName}</p>
+						<p className="font-mono text-xs text-muted-foreground">{record.employeeId}</p>
+					</div>
+					<Badge variant={typeVariants[record.type]}>
+						{getAttendanceTypeLabel(t, record.type)}
+					</Badge>
 				</div>
-				<div className="flex items-center gap-2">
-					{navigationSource === 'employee-dialog' && returnEmployeeId ? (
-						<Button variant="outline" onClick={handleReturnToEmployees}>
-							{t('actions.returnToEmployee')}
-						</Button>
-					) : null}
-					{canManageOffsite && (
-						<Button onClick={openCreateOffsiteDialog}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.registerOffsite')}
-						</Button>
-					)}
-					<Button onClick={() => refetch()} variant="outline">
-						<RefreshCw className="mr-2 h-4 w-4" />
-						{t('actions.refresh')}
-					</Button>
-					<Button
-						onClick={handleExportCsv}
-						variant="outline"
-						disabled={isFetching || isExporting || totalRows === 0}
-					>
-						<Download className="mr-2 h-4 w-4" />
-						{t('actions.exportCsv')}
-					</Button>
+
+				<div className="grid gap-3 text-sm">
+					<div className="flex items-center justify-between gap-3">
+						<span className="text-muted-foreground">{t('table.headers.offsiteDayKind')}</span>
+						<span className="text-right font-medium">
+							{getOffsiteDayKindLabel(t, record.offsiteDayKind ?? null)}
+						</span>
+					</div>
+					<div className="flex items-center justify-between gap-3">
+						<span className="text-muted-foreground">{t('table.headers.time')}</span>
+						<span className="font-medium">
+							{format(new Date(record.timestamp), 'HH:mm:ss')}
+						</span>
+					</div>
+					<div className="flex items-center justify-between gap-3">
+						<span className="text-muted-foreground">{t('table.headers.date')}</span>
+						<span className="text-right font-medium">
+							{format(new Date(record.timestamp), t('dateFormat'))}
+						</span>
+					</div>
+					<div className="space-y-2">
+						<span className="text-muted-foreground">{t('table.headers.actions')}</span>
+						{actions ? actions : <p className="text-sm font-medium text-muted-foreground">-</p>}
+					</div>
 				</div>
 			</div>
+		);
+	};
 
-			<div className="flex flex-wrap items-center gap-4">
+	return (
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<>
+						{navigationSource === 'employee-dialog' && returnEmployeeId ? (
+							<Button variant="outline" onClick={handleReturnToEmployees}>
+								{t('actions.returnToEmployee')}
+							</Button>
+						) : null}
+						{canManageOffsite ? (
+							<Button onClick={openCreateOffsiteDialog}>
+								<Plus className="mr-2 h-4 w-4" />
+								{t('actions.registerOffsite')}
+							</Button>
+						) : null}
+						<Button onClick={() => refetch()} variant="outline">
+							<RefreshCw className="mr-2 h-4 w-4" />
+							{t('actions.refresh')}
+						</Button>
+						<Button
+							onClick={handleExportCsv}
+							variant="outline"
+							disabled={isFetching || isExporting || totalRows === 0}
+						>
+							<Download className="mr-2 h-4 w-4" />
+							{t('actions.exportCsv')}
+						</Button>
+					</>
+				}
+			/>
+
+			<div className="grid gap-3 min-[1025px]:grid-cols-2 xl:grid-cols-5">
 				{employeeFilterId && employeeFilterLabel ? (
 					<Badge
 						variant="secondary"
-						className="flex items-center gap-2 rounded-full px-3 py-1"
+						className="flex min-h-11 items-center gap-2 rounded-2xl px-3 py-2 xl:col-span-5"
 					>
 						<span>{t('employeeFilter.label', { employee: employeeFilterLabel })}</span>
 						<button
 							type="button"
 							onClick={handleRemoveEmployeeFilter}
-							className="rounded-full p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+							className="rounded-full p-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 							aria-label={t('employeeFilter.remove')}
 						>
 							<X className="h-3.5 w-3.5" />
@@ -1154,20 +1239,20 @@ export function AttendancePageClient({
 					</Badge>
 				) : null}
 
-				<div className="relative flex-1 max-w-sm">
+				<div className="relative min-w-0 xl:col-span-2">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						placeholder={t('search.placeholder')}
 						value={globalFilter}
 						onChange={(e) => handleGlobalFilterChange(e.target.value)}
-						className="pl-9"
+						className="min-h-11 pl-9"
 					/>
 				</div>
 
-				<div className="flex items-center gap-2">
+				<div className="grid gap-2">
 					<CalendarIcon className="h-4 w-4 text-muted-foreground" />
 					<Select value={datePreset} onValueChange={handlePresetChange}>
-						<SelectTrigger className="w-[150px]">
+						<SelectTrigger className="min-h-11 w-full">
 							<SelectValue placeholder={t('dateRange.placeholder')} />
 						</SelectTrigger>
 						<SelectContent>
@@ -1186,14 +1271,14 @@ export function AttendancePageClient({
 					</Select>
 				</div>
 
-				{datePreset === 'custom' && (
-					<>
+				{datePreset === 'custom' ? (
+					<div className="grid gap-3 min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:col-span-2">
 						<Popover>
 							<PopoverTrigger asChild>
 								<Button
 									variant="outline"
 									data-empty={!startDateValue}
-									className="data-[empty=true]:text-muted-foreground w-[170px] justify-start text-left font-normal"
+									className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
 								>
 									<CalendarIcon className="mr-2 h-4 w-4" />
 									{startDateValue ? (
@@ -1212,13 +1297,15 @@ export function AttendancePageClient({
 								/>
 							</PopoverContent>
 						</Popover>
-						<span className="text-muted-foreground">{t('dateRange.to')}</span>
+						<span className="hidden self-center text-center text-sm text-muted-foreground min-[1025px]:block">
+							{t('dateRange.to')}
+						</span>
 						<Popover>
 							<PopoverTrigger asChild>
 								<Button
 									variant="outline"
 									data-empty={!endDateValue}
-									className="data-[empty=true]:text-muted-foreground w-[170px] justify-start text-left font-normal"
+									className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
 								>
 									<CalendarIcon className="mr-2 h-4 w-4" />
 									{endDateValue ? (
@@ -1237,11 +1324,11 @@ export function AttendancePageClient({
 								/>
 							</PopoverContent>
 						</Popover>
-					</>
-				)}
+					</div>
+				) : null}
 
 				<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
-					<SelectTrigger className="w-[170px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={t('typeFilter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
@@ -1259,7 +1346,7 @@ export function AttendancePageClient({
 					value={offsiteDayKindFilter}
 					onValueChange={handleOffsiteDayKindFilterChange}
 				>
-					<SelectTrigger className="w-[210px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={t('offsite.filter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
@@ -1274,7 +1361,7 @@ export function AttendancePageClient({
 				</Select>
 
 				<Select value={locationFilterValue} onValueChange={handleLocationFilterChange}>
-					<SelectTrigger className="w-[200px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={t('locationFilter.placeholder')} />
 					</SelectTrigger>
 					<SelectContent>
@@ -1287,9 +1374,11 @@ export function AttendancePageClient({
 				</Select>
 			</div>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={records}
+				cardRenderer={renderAttendanceCard}
+				getCardKey={(record) => record.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

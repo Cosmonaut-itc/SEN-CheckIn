@@ -108,6 +108,7 @@ export interface Employee {
 	status: EmployeeStatus;
 	hireDate: Date | null;
 	dailyPay: number;
+	fiscalDailyPay?: number | null;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	employmentType: 'PERMANENT' | 'EVENTUAL';
 	isTrustEmployee: boolean;
@@ -545,13 +546,52 @@ export async function denyDeviceCode(userCode: string): Promise<boolean> {
 
 type EmployeePayload = Omit<
 	Employee,
-	'dailyPay' | 'sbcDailyOverride' | 'platformHoursYear' | 'aguinaldoDaysOverride'
+	| 'dailyPay'
+	| 'fiscalDailyPay'
+	| 'sbcDailyOverride'
+	| 'platformHoursYear'
+	| 'aguinaldoDaysOverride'
+	| 'hireDate'
+	| 'lastPayrollDate'
+	| 'createdAt'
+	| 'updatedAt'
 > & {
 	dailyPay?: number | string;
+	fiscalDailyPay?: number | string | null;
 	sbcDailyOverride?: number | string | null;
 	platformHoursYear?: number | string | null;
 	aguinaldoDaysOverride?: number | string | null;
+	hireDate?: string | Date | null;
+	lastPayrollDate?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
 };
+
+/**
+ * Normalizes a required timestamp value into a Date instance.
+ *
+ * @param value - Raw timestamp payload
+ * @returns Normalized Date instance
+ */
+function normalizeRequiredDate(value: string | Date): Date {
+	return value instanceof Date ? value : new Date(value);
+}
+
+/**
+ * Normalizes an optional timestamp value into a Date instance.
+ *
+ * @param value - Raw optional timestamp payload
+ * @returns Normalized Date, null, or undefined
+ */
+function normalizeOptionalDate(
+	value: string | Date | null | undefined,
+): Date | null | undefined {
+	if (value === null || value === undefined) {
+		return value;
+	}
+
+	return normalizeRequiredDate(value);
+}
 
 /**
  * Normalizes employee payloads with numeric strings into typed values.
@@ -563,6 +603,13 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 	return {
 		...record,
 		dailyPay: Number(record.dailyPay ?? 0),
+		fiscalDailyPay:
+			record.fiscalDailyPay === undefined
+				? undefined
+				: record.fiscalDailyPay === null
+					? null
+					: Number(record.fiscalDailyPay),
+		hireDate: normalizeOptionalDate(record.hireDate) ?? null,
 		employmentType: record.employmentType ?? 'PERMANENT',
 		isTrustEmployee: Boolean(record.isTrustEmployee ?? false),
 		isDirectorAdminGeneralManager: Boolean(record.isDirectorAdminGeneralManager ?? false),
@@ -595,6 +642,9 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 			record.disciplinaryOpenMeasuresCount === undefined
 				? undefined
 				: Number(record.disciplinaryOpenMeasuresCount),
+		lastPayrollDate: normalizeOptionalDate(record.lastPayrollDate),
+		createdAt: normalizeRequiredDate(record.createdAt),
+		updatedAt: normalizeRequiredDate(record.updatedAt),
 	};
 }
 
@@ -2544,6 +2594,7 @@ export interface PayrollSettings {
 	aguinaldoDays: number;
 	vacationPremiumRate: number;
 	enableSeventhDayPay: boolean;
+	enableDualPayroll: boolean;
 	countSaturdayAsWorkedForSeventhDay: boolean;
 	ptuEnabled: boolean;
 	ptuMode: 'DEFAULT_RULES' | 'MANUAL';
@@ -2713,6 +2764,7 @@ export interface PayrollCalculationEmployee {
 	name: string;
 	shiftType: 'DIURNA' | 'NOCTURNA' | 'MIXTA';
 	dailyPay: number;
+	fiscalDailyPay?: number | null;
 	hourlyPay: number;
 	paymentFrequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 	seventhDayPay: number;
@@ -2740,6 +2792,9 @@ export interface PayrollCalculationEmployee {
 	totalDeductions: number;
 	totalPay: number;
 	grossPay: number;
+	fiscalGrossPay?: number | null;
+	complementPay?: number | null;
+	totalRealPay?: number | null;
 	bases: PayrollTaxBases;
 	employeeWithholdings: PayrollEmployeeWithholdings;
 	employerCosts: PayrollEmployerCosts;
@@ -2788,6 +2843,7 @@ export interface PayrollRunEmployee {
 	employeeCode: string;
 	employeeNss?: string | null;
 	employeeRfc?: string | null;
+	fiscalDailyPay?: number | null;
 	hoursWorked: number;
 	hourlyPay: number;
 	totalPay: number;
@@ -2804,6 +2860,9 @@ export interface PayrollRunEmployee {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
+	fiscalGrossPay?: number | null;
+	complementPay?: number | null;
+	totalRealPay?: number | null;
 	lunchBreakAutoDeductedDays: number;
 	lunchBreakAutoDeductedMinutes: number;
 	deductionsBreakdown: PayrollDeductionBreakdownItem[];
@@ -3238,6 +3297,7 @@ type PayrollSettingsPayload = Omit<
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
+	| 'enableDualPayroll'
 	| 'countSaturdayAsWorkedForSeventhDay'
 	| 'ptuEnabled'
 	| 'ptuMode'
@@ -3254,6 +3314,7 @@ type PayrollSettingsPayload = Omit<
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
+	enableDualPayroll?: boolean | null;
 	countSaturdayAsWorkedForSeventhDay?: boolean | null;
 	ptuEnabled?: boolean | null;
 	ptuMode?: 'DEFAULT_RULES' | 'MANUAL' | null;
@@ -3306,6 +3367,7 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+		enableDualPayroll: Boolean(payload.enableDualPayroll ?? false),
 		countSaturdayAsWorkedForSeventhDay: Boolean(
 			payload.countSaturdayAsWorkedForSeventhDay ?? false,
 		),
@@ -4095,6 +4157,7 @@ export async function fetchPayrollRunDetail(
 			| {
 					run: PayrollRun & { totalAmount?: number | string };
 					employees: (PayrollRunEmployee & {
+						fiscalDailyPay?: number | string | null;
 						hoursWorked?: number | string;
 						hourlyPay?: number | string;
 						totalPay?: number | string;
@@ -4111,6 +4174,9 @@ export async function fetchPayrollRunDetail(
 						vacationDaysPaid?: number | string;
 						vacationPayAmount?: number | string;
 						vacationPremiumAmount?: number | string;
+						fiscalGrossPay?: number | string | null;
+						complementPay?: number | string | null;
+						totalRealPay?: number | string | null;
 						lunchBreakAutoDeductedDays?: number | string;
 						lunchBreakAutoDeductedMinutes?: number | string;
 						totalDeductions?: number | string;
@@ -4139,6 +4205,12 @@ export async function fetchPayrollRunDetail(
 	};
 	const normalizedEmployees = payload.employees.map((employee) => ({
 		...employee,
+		fiscalDailyPay:
+			employee.fiscalDailyPay === undefined
+				? undefined
+				: employee.fiscalDailyPay === null
+					? null
+					: Number(employee.fiscalDailyPay),
 		hoursWorked: Number(employee.hoursWorked ?? 0),
 		hourlyPay: Number(employee.hourlyPay ?? 0),
 		totalPay: Number(employee.totalPay ?? 0),
@@ -4155,6 +4227,24 @@ export async function fetchPayrollRunDetail(
 		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
 		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
+		fiscalGrossPay:
+			employee.fiscalGrossPay === undefined
+				? undefined
+				: employee.fiscalGrossPay === null
+					? null
+					: Number(employee.fiscalGrossPay),
+		complementPay:
+			employee.complementPay === undefined
+				? undefined
+				: employee.complementPay === null
+					? null
+					: Number(employee.complementPay),
+		totalRealPay:
+			employee.totalRealPay === undefined
+				? undefined
+				: employee.totalRealPay === null
+					? null
+					: Number(employee.totalRealPay),
 		lunchBreakAutoDeductedDays: Number(employee.lunchBreakAutoDeductedDays ?? 0),
 		lunchBreakAutoDeductedMinutes: Number(employee.lunchBreakAutoDeductedMinutes ?? 0),
 		totalDeductions: Number(employee.totalDeductions ?? 0),

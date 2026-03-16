@@ -27,7 +27,8 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { DataTable } from '@/components/data-table/data-table';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	fetchAllOrganizations,
 	fetchOrganizationMembers,
@@ -113,6 +114,8 @@ interface UsersTableSectionProps {
 	onGlobalFilterChange: React.Dispatch<React.SetStateAction<string>>;
 	/** Table column definitions. */
 	columns: ColumnDef<OrganizationMember>[];
+	/** Mobile card renderer for members. */
+	cardRenderer: (member: OrganizationMember) => React.ReactNode;
 	/** Member rows to display. */
 	members: OrganizationMember[];
 	/** Current sorting state. */
@@ -163,6 +166,7 @@ function UsersTableSection({
 	globalFilter,
 	onGlobalFilterChange,
 	columns,
+	cardRenderer,
 	members,
 	sorting,
 	onSortingChange,
@@ -183,8 +187,8 @@ function UsersTableSection({
 	return (
 		<div className="space-y-4">
 			{isSuperUser ? (
-				<div className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-muted/20 px-4 py-3">
-					<div className="flex items-center gap-3">
+				<div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3 min-[1025px]:flex-row min-[1025px]:items-center">
+					<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:items-center min-[1025px]:gap-3">
 						<span className="text-sm font-medium text-foreground">
 							{organizationLabel}
 						</span>
@@ -193,7 +197,7 @@ function UsersTableSection({
 							onValueChange={onOrganizationSelection}
 							disabled={isFetchingOrganizations}
 						>
-							<SelectTrigger className="w-[260px]">
+							<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[260px]">
 								<SelectValue
 									placeholder={
 										isFetchingOrganizations
@@ -217,22 +221,26 @@ function UsersTableSection({
 				</div>
 			) : null}
 
-			<div className="flex items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
+			<div className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center">
+				<div className="relative w-full min-[1025px]:max-w-sm">
 					<Input
 						placeholder={searchPlaceholder}
 						value={globalFilter}
 						onChange={(event) => onGlobalFilterChange(event.target.value)}
-						className="pl-3"
+						className="min-h-11 pl-3"
 						disabled={isLoading || !effectiveOrganizationId}
 					/>
 				</div>
-				<Badge variant="outline">{memberCountLabel}</Badge>
+				<Badge variant="outline" className="min-h-11 w-fit px-3 py-2">
+					{memberCountLabel}
+				</Badge>
 			</div>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={members}
+				cardRenderer={cardRenderer}
+				getCardKey={(member) => member.id}
 				sorting={sorting}
 				onSortingChange={onSortingChange}
 				pagination={pagination}
@@ -569,18 +577,53 @@ export function UsersPageClient(): React.ReactElement {
 		[t],
 	);
 
-	return (
-		<div className="space-y-6">
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">
-						{t('subtitle', {
-							organization: organizationLabel,
-						})}
-					</p>
+	const renderUserCard = useCallback(
+		(member: OrganizationMember): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="flex items-center gap-3">
+					<Avatar className="h-11 w-11">
+						<AvatarImage src={member.user.image ?? undefined} />
+						<AvatarFallback>{getInitials(member.user.name || member.user.email)}</AvatarFallback>
+					</Avatar>
+					<div className="space-y-1">
+						<p className="text-base font-semibold">
+							{member.user.name || member.user.email}
+						</p>
+						<p className="text-sm text-muted-foreground">{member.user.email}</p>
+					</div>
 				</div>
-				<div className="flex flex-wrap items-center gap-2">
+
+				<div className="grid gap-3">
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.role')}</p>
+						<div>
+							<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
+								<ShieldCheck className="mr-1 h-3 w-3" />
+								{t(`roles.${member.role}`)}
+							</Badge>
+						</div>
+					</div>
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.joined')}</p>
+						<p className="text-sm font-medium">
+							{format(new Date(member.createdAt), t('dateFormat'))}
+						</p>
+					</div>
+				</div>
+			</div>
+		),
+		[t],
+	);
+
+	return (
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle', {
+					organization: organizationLabel,
+				})}
+				actions={
+					<div className="flex flex-col gap-2 min-[1025px]:flex-row">
 					{isSuperUser ? (
 						<Dialog
 							open={isAssignDialogOpen}
@@ -592,12 +635,16 @@ export function UsersPageClient(): React.ReactElement {
 							}}
 						>
 							<DialogTrigger asChild>
-								<Button variant="outline" disabled={!effectiveOrganizationId}>
+								<Button
+									variant="outline"
+									disabled={!effectiveOrganizationId}
+									className="min-h-11"
+								>
 									<UserCheck className="mr-2 h-4 w-4" />
 									{t('actions.assignExisting')}
 								</Button>
 							</DialogTrigger>
-							<DialogContent>
+							<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
 								<form
 									onSubmit={(e) => {
 										e.preventDefault();
@@ -659,7 +706,7 @@ export function UsersPageClient(): React.ReactElement {
 												)}
 											</assignForm.AppField>
 										</div>
-										<DialogFooter className="mt-4">
+										<DialogFooter className="mt-4 flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 											<Button
 												variant="outline"
 												type="button"
@@ -670,6 +717,7 @@ export function UsersPageClient(): React.ReactElement {
 											<assignForm.SubmitButton
 												label={t('actions.assignExisting')}
 												loadingLabel={t('actions.assigning')}
+												className="min-h-11 w-full min-[640px]:w-auto"
 											/>
 										</DialogFooter>
 									</assignForm.AppForm>
@@ -679,12 +727,19 @@ export function UsersPageClient(): React.ReactElement {
 					) : null}
 					<Dialog open={isDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
 						<DialogTrigger asChild>
-							<Button disabled={!effectiveOrganizationId && !isSuperUser}>
+							<Button
+								disabled={!effectiveOrganizationId && !isSuperUser}
+								data-testid="users-create-button"
+								className="min-h-11"
+							>
 								<UserPlus className="mr-2 h-4 w-4" />
 								{t('actions.create')}
 							</Button>
 						</DialogTrigger>
-						<DialogContent>
+						<DialogContent
+							data-testid="users-create-dialog"
+							className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg"
+						>
 							<form
 								onSubmit={(e) => {
 									e.preventDefault();
@@ -792,7 +847,7 @@ export function UsersPageClient(): React.ReactElement {
 											)}
 										</form.AppField>
 									</div>
-									<DialogFooter className="mt-4">
+									<DialogFooter className="mt-4 flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 										<Button
 											variant="outline"
 											type="button"
@@ -803,14 +858,17 @@ export function UsersPageClient(): React.ReactElement {
 										<form.SubmitButton
 											label={t('actions.createUser')}
 											loadingLabel={t('actions.creating')}
+											className="min-h-11 w-full min-[640px]:w-auto"
+											dataTestId="users-create-submit"
 										/>
 									</DialogFooter>
 								</form.AppForm>
 							</form>
 						</DialogContent>
 					</Dialog>
-				</div>
-			</div>
+					</div>
+				}
+			/>
 
 			<MemoizedUsersTableSection
 				isSuperUser={Boolean(isSuperUser)}
@@ -822,6 +880,7 @@ export function UsersPageClient(): React.ReactElement {
 				globalFilter={globalFilter}
 				onGlobalFilterChange={handleGlobalFilterChange}
 				columns={columns}
+				cardRenderer={renderUserCard}
 				members={members}
 				sorting={sorting}
 				onSortingChange={setSorting}

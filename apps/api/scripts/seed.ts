@@ -23,6 +23,11 @@ import {
 	type VacationScheduleDay,
 	type VacationScheduleException,
 } from '../src/services/vacations.js';
+import {
+	buildDualPayrollDemoEmployeeOverrides,
+	buildSeedPayrollRunCompensation,
+	DUAL_PAYROLL_SEED_ORGANIZATION_SLUG,
+} from './dual-payroll-seed.js';
 import { seedSchema } from '../src/db/seed-schema.js';
 import * as schema from '../src/db/schema.js';
 
@@ -186,6 +191,18 @@ type EmployeeDocumentDemoSeedTotals = {
 
 type EmployeeDeductionSeedTotals = {
 	deductions: number;
+};
+
+type DualPayrollSeedSummary = {
+	organizationSlug: string;
+	enabled: boolean;
+	employees: Array<{
+		code: string;
+		fullName: string;
+		dailyPay: string;
+		fiscalDailyPay: string | null;
+		scenarioLabel: string;
+	}>;
 };
 
 /**
@@ -1409,6 +1426,7 @@ async function insertDomainBaseline(args: {
 			aguinaldoDays: 15,
 			vacationPremiumRate: '0.25',
 			enableSeventhDayPay: true,
+			enableDualPayroll: true,
 			autoDeductLunchBreak: true,
 			lunchBreakMinutes: 45,
 			lunchBreakThresholdHours: '6.00',
@@ -1431,6 +1449,7 @@ async function insertDomainBaseline(args: {
 			aguinaldoDays: 15,
 			vacationPremiumRate: '0.25',
 			enableSeventhDayPay: false,
+			enableDualPayroll: false,
 			autoDeductLunchBreak: true,
 			lunchBreakMinutes: 60,
 			lunchBreakThresholdHours: '5.50',
@@ -1807,11 +1826,13 @@ async function seedEmployees(args: {
 			throw new Error(`Missing employee codes for organization "${org.slug}".`);
 		}
 
+		const employeeIds = Array.from({ length: codes.length }, () => crypto.randomUUID());
+
 		await seed(db, { employee }, { seed: seedNumber + orgIndex }).refine((funcs) => ({
 			employee: {
 				count: codes.length,
 				columns: {
-					id: funcs.uuid(),
+					id: funcs.valuesFromArray({ values: employeeIds, isUnique: true }),
 					code: funcs.valuesFromArray({ values: codes, isUnique: true }),
 					firstName: funcs.firstName(),
 					lastName: funcs.lastName(),
@@ -2313,6 +2334,120 @@ async function insertEmployeeDocumentDemoData(args: {
 	return {
 		generations: generationRows.length,
 		documents: documentRows.length,
+	};
+}
+
+/**
+ * Applies deterministic dual payroll demo overrides to a subset of seeded employees.
+ *
+ * This keeps the general seeded employee pool intact while guaranteeing a few
+ * easy-to-find records for manual QA of the dual payroll flow.
+ *
+ * @param args - Inputs required to locate and update the demo employees
+ * @returns Updated employee collection plus a human-readable summary
+ * @throws When the dual payroll organization or any required demo employee is missing
+ */
+async function applyDualPayrollDemoOverrides(args: {
+	organizations: SeedOrganization[];
+	employees: SeedEmployee[];
+	locations: SeedLocation[];
+	templates: SeedScheduleTemplate[];
+}): Promise<{ employees: SeedEmployee[]; summary: DualPayrollSeedSummary }> {
+	const dualPayrollOrganization = args.organizations.find(
+		(organizationRow) => organizationRow.slug === DUAL_PAYROLL_SEED_ORGANIZATION_SLUG,
+	);
+	if (!dualPayrollOrganization) {
+		throw new Error('Missing dual payroll seed organization.');
+	}
+
+	const locationByCode = new Map(
+		args.locations
+			.filter((locationRow) => locationRow.organizationId === dualPayrollOrganization.id)
+			.map((locationRow) => [locationRow.code, locationRow]),
+	);
+	const templateByShiftType = new Map(
+		args.templates
+			.filter((templateRow) => templateRow.organizationId === dualPayrollOrganization.id)
+			.map((templateRow) => [templateRow.shiftType, templateRow]),
+	);
+	const employeeByCode = new Map(
+		args.employees
+			.filter((employeeRow) => employeeRow.organizationId === dualPayrollOrganization.id)
+			.map((employeeRow) => [employeeRow.code, employeeRow]),
+	);
+
+	const overrides = buildDualPayrollDemoEmployeeOverrides();
+	for (const override of overrides) {
+		const employeeRow = employeeByCode.get(override.code);
+		if (!employeeRow) {
+			throw new Error(
+				`Missing seeded employee "${override.code}" for dual payroll demo overrides.`,
+			);
+		}
+
+		const locationRow = locationByCode.get(override.locationCode);
+		if (!locationRow) {
+			throw new Error(
+				`Missing seeded location "${override.locationCode}" for dual payroll demo overrides.`,
+			);
+		}
+
+		const templateRow = templateByShiftType.get(override.shiftType);
+		if (!templateRow) {
+			throw new Error(
+				`Missing seeded ${override.shiftType} template for dual payroll demo overrides.`,
+			);
+		}
+
+		await db
+			.update(employee)
+			.set({
+				firstName: override.firstName,
+				lastName: override.lastName,
+				department: override.department,
+				status: 'ACTIVE',
+				locationId: locationRow.id,
+				scheduleTemplateId: templateRow.id,
+				shiftType: override.shiftType,
+				paymentFrequency: override.paymentFrequency,
+				dailyPay: override.dailyPay,
+				fiscalDailyPay: override.fiscalDailyPay,
+			})
+			.where(eq(employee.id, employeeRow.id));
+	}
+
+	const updatedEmployees = await db.select().from(employee);
+	const updatedEmployeeByCode = new Map(
+		updatedEmployees
+			.filter((employeeRow) => employeeRow.organizationId === dualPayrollOrganization.id)
+			.map((employeeRow) => [employeeRow.code, employeeRow]),
+	);
+
+	return {
+		employees: updatedEmployees,
+		summary: {
+			organizationSlug: dualPayrollOrganization.slug,
+			enabled: true,
+			employees: overrides.map((override) => {
+				const employeeRow = updatedEmployeeByCode.get(override.code);
+				if (!employeeRow) {
+					throw new Error(
+						`Missing updated employee "${override.code}" after dual payroll overrides.`,
+					);
+				}
+
+				return {
+					code: employeeRow.code,
+					fullName: `${employeeRow.firstName} ${employeeRow.lastName}`,
+					dailyPay: String(employeeRow.dailyPay ?? override.dailyPay),
+					fiscalDailyPay:
+						employeeRow.fiscalDailyPay === null || employeeRow.fiscalDailyPay === undefined
+							? null
+							: String(employeeRow.fiscalDailyPay),
+					scenarioLabel: override.scenarioLabel,
+				};
+			}),
+		},
 	};
 }
 
@@ -3646,12 +3781,16 @@ async function insertPayrollRuns(args: {
 					.select({
 						organizationId: payrollSetting.organizationId,
 						additionalMandatoryRestDays: payrollSetting.additionalMandatoryRestDays,
+						enableDualPayroll: payrollSetting.enableDualPayroll,
 					})
 					.from(payrollSetting)
 					.where(inArray(payrollSetting.organizationId, organizationIds));
 
 	const additionalMandatoryRestDaysByOrganization = new Map(
 		payrollSettings.map((row) => [row.organizationId, row.additionalMandatoryRestDays ?? []]),
+	);
+	const dualPayrollEnabledByOrganization = new Map(
+		payrollSettings.map((row) => [row.organizationId, Boolean(row.enableDualPayroll)]),
 	);
 
 	const attendance = await db
@@ -3674,6 +3813,7 @@ async function insertPayrollRuns(args: {
 	for (const org of organizations) {
 		const orgEmployees = employees.filter((e) => e.organizationId === org.id);
 		const runId = deterministicUuid(seedNumber, `payroll-run:${org.slug}:${periodStartKey}`);
+		const dualPayrollEnabled = dualPayrollEnabledByOrganization.get(org.id) ?? false;
 
 		const lineItems: PayrollRunEmployeeRow[] = [];
 		let totalAmount = 0;
@@ -3682,8 +3822,6 @@ async function insertPayrollRuns(args: {
 			const dailyPay = Number(emp.dailyPay ?? 0);
 			const shiftKey = (emp.shiftType ?? 'DIURNA') as keyof typeof SHIFT_LIMITS;
 			const divisor = SHIFT_LIMITS[shiftKey]?.divisor ?? 8;
-			const hourlyPay = divisor > 0 ? dailyPay / divisor : 0;
-
 			const records = (attendanceByEmployee.get(emp.id) ?? [])
 				.slice()
 				.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
@@ -3718,9 +3856,19 @@ async function insertPayrollRuns(args: {
 					lunchBreakAutoDeductedMinutes / 60,
 				0,
 			);
-			const normalPay = paidNormalHours * hourlyPay;
-			const overtimeDoublePay = authorizedOvertimeHours * hourlyPay * 2;
-			const totalPay = normalPay + overtimeDoublePay;
+			const seededCompensation = buildSeedPayrollRunCompensation({
+				dailyPay,
+				fiscalDailyPay:
+					dualPayrollEnabled && emp.fiscalDailyPay !== null && emp.fiscalDailyPay !== undefined
+						? Number(emp.fiscalDailyPay)
+						: null,
+				authorizedOvertimeHours,
+				paidNormalHours,
+				shiftDivisor: divisor,
+			});
+			const normalPay = seededCompensation.normalPay;
+			const overtimeDoublePay = seededCompensation.overtimeDoublePay;
+			const totalPay = seededCompensation.totalPay;
 			const hoursWorked = paidNormalHours + overtimeDoubleHours;
 			totalAmount += totalPay;
 
@@ -3729,8 +3877,24 @@ async function insertPayrollRuns(args: {
 				payrollRunId: runId,
 				employeeId: emp.id,
 				hoursWorked: money(hoursWorked),
-				hourlyPay: money(hourlyPay),
+				hourlyPay: money(seededCompensation.hourlyPay),
 				totalPay: money(totalPay),
+				fiscalDailyPay:
+					seededCompensation.fiscalDailyPay === null
+						? null
+						: seededCompensation.fiscalDailyPay.toFixed(4),
+				fiscalGrossPay:
+					seededCompensation.fiscalGrossPay === null
+						? null
+						: seededCompensation.fiscalGrossPay.toFixed(4),
+				complementPay:
+					seededCompensation.complementPay === null
+						? null
+						: seededCompensation.complementPay.toFixed(4),
+				totalRealPay:
+					seededCompensation.totalRealPay === null
+						? null
+						: seededCompensation.totalRealPay.toFixed(4),
 				normalHours: money(paidNormalHours),
 				normalPay: money(normalPay),
 				overtimeDoubleHours: money(overtimeDoubleHours),
@@ -4140,7 +4304,7 @@ async function main(): Promise<void> {
 
 	await insertScheduleTemplateDays(args.seed, baseline.templates);
 
-	const employees = await seedEmployees({
+	const seededEmployees = await seedEmployees({
 		seedNumber: args.seed,
 		organizations,
 		locations: baseline.locations,
@@ -4148,6 +4312,13 @@ async function main(): Promise<void> {
 		templates: baseline.templates,
 		positionPayDefaults: baseline.positionPayDefaults,
 	});
+	const dualPayrollSeed = await applyDualPayrollDemoOverrides({
+		organizations,
+		employees: seededEmployees,
+		locations: baseline.locations,
+		templates: baseline.templates,
+	});
+	const employees = dualPayrollSeed.employees;
 	await assignSeedUsersToEmployees({
 		employees,
 		organizationUsers,
@@ -4251,6 +4422,19 @@ async function main(): Promise<void> {
 
 	console.log('✅ Seed completed.');
 	console.log('Organizations:', organizations.map((o) => o.slug).join(', '));
+	console.log(
+		'Dual payroll org:',
+		`${dualPayrollSeed.summary.organizationSlug} (enabled=${dualPayrollSeed.summary.enabled})`,
+	);
+	console.log(
+		'Dual payroll demo employees:',
+		dualPayrollSeed.summary.employees
+			.map(
+				(employeeRow) =>
+					`${employeeRow.code} ${employeeRow.fullName} real=${employeeRow.dailyPay} fiscal=${employeeRow.fiscalDailyPay ?? 'null'} (${employeeRow.scenarioLabel})`,
+			)
+			.join(' | '),
+	);
 	console.log('Legacy clients:', baseline.clients.length);
 	console.log('Employees:', employees.length);
 	console.log('Vacation requests:', vacationSeeds.requests.length);

@@ -1,5 +1,5 @@
 {
-  "id": "cf913167-8645-4af4-9d7f-c95242612ae2",
+  "id": "0e0d8116-8568-49a2-ac21-e433463ae28f",
   "prevId": "4f426fe9-ad55-4c58-b50c-8cc52e3c4d10",
   "version": "7",
   "dialect": "postgresql",
@@ -1185,6 +1185,12 @@
           "notNull": true,
           "default": "'0'"
         },
+        "fiscal_daily_pay": {
+          "name": "fiscal_daily_pay",
+          "type": "numeric(10, 4)",
+          "primaryKey": false,
+          "notNull": false
+        },
         "payment_frequency": {
           "name": "payment_frequency",
           "type": "payment_frequency",
@@ -1548,263 +1554,6 @@
             "id"
           ],
           "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.employee_deduction": {
-      "name": "employee_deduction",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "employee_id": {
-          "name": "employee_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "type": {
-          "name": "type",
-          "type": "deduction_type",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "label": {
-          "name": "label",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "calculation_method": {
-          "name": "calculation_method",
-          "type": "deduction_calculation_method",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "value": {
-          "name": "value",
-          "type": "numeric(10, 4)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "frequency": {
-          "name": "frequency",
-          "type": "deduction_frequency",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total_installments": {
-          "name": "total_installments",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_installments": {
-          "name": "completed_installments",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "total_amount": {
-          "name": "total_amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "remaining_amount": {
-          "name": "remaining_amount",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "deduction_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'ACTIVE'"
-        },
-        "start_date_key": {
-          "name": "start_date_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "end_date_key": {
-          "name": "end_date_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reference_number": {
-          "name": "reference_number",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sat_deduction_code": {
-          "name": "sat_deduction_code",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by_user_id": {
-          "name": "created_by_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "employee_deduction_employee_status_idx": {
-          "name": "employee_deduction_employee_status_idx",
-          "columns": [
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "employee_deduction_org_type_idx": {
-          "name": "employee_deduction_org_type_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "employee_deduction_employee_type_status_idx": {
-          "name": "employee_deduction_employee_type_status_idx",
-          "columns": [
-            {
-              "expression": "employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "type",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "employee_deduction_organization_id_organization_id_fk": {
-          "name": "employee_deduction_organization_id_organization_id_fk",
-          "tableFrom": "employee_deduction",
-          "tableTo": "organization",
-          "columnsFrom": [
-            "organization_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "employee_deduction_employee_id_employee_id_fk": {
-          "name": "employee_deduction_employee_id_employee_id_fk",
-          "tableFrom": "employee_deduction",
-          "tableTo": "employee",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "employee_deduction_created_by_user_id_user_id_fk": {
-          "name": "employee_deduction_created_by_user_id_user_id_fk",
-          "tableFrom": "employee_deduction",
-          "tableTo": "user",
-          "columnsFrom": [
-            "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
@@ -6212,20 +5961,6 @@
           "notNull": true,
           "default": 0
         },
-        "deductions_breakdown": {
-          "name": "deductions_breakdown",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "total_deductions": {
-          "name": "total_deductions",
-          "type": "numeric(12, 2)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'0'"
-        },
         "tax_breakdown": {
           "name": "tax_breakdown",
           "type": "jsonb",
@@ -6383,6 +6118,13 @@
         },
         "enable_seventh_day_pay": {
           "name": "enable_seventh_day_pay",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "enable_dual_payroll": {
+          "name": "enable_dual_payroll",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -8136,49 +7878,6 @@
         "REGULAR",
         "LUNCH_BREAK",
         "PERSONAL"
-      ]
-    },
-    "public.deduction_calculation_method": {
-      "name": "deduction_calculation_method",
-      "schema": "public",
-      "values": [
-        "PERCENTAGE_SBC",
-        "PERCENTAGE_NET",
-        "PERCENTAGE_GROSS",
-        "FIXED_AMOUNT",
-        "VSM_FACTOR"
-      ]
-    },
-    "public.deduction_frequency": {
-      "name": "deduction_frequency",
-      "schema": "public",
-      "values": [
-        "RECURRING",
-        "ONE_TIME",
-        "INSTALLMENTS"
-      ]
-    },
-    "public.deduction_status": {
-      "name": "deduction_status",
-      "schema": "public",
-      "values": [
-        "ACTIVE",
-        "PAUSED",
-        "COMPLETED",
-        "CANCELLED"
-      ]
-    },
-    "public.deduction_type": {
-      "name": "deduction_type",
-      "schema": "public",
-      "values": [
-        "INFONAVIT",
-        "ALIMONY",
-        "FONACOT",
-        "LOAN",
-        "UNION_FEE",
-        "ADVANCE",
-        "OTHER"
       ]
     },
     "public.device_status": {

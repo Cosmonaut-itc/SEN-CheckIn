@@ -29,7 +29,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { DataTable } from '@/components/data-table/data-table';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	Table,
 	TableBody,
@@ -585,27 +586,70 @@ export function VacationsPageClient(): React.ReactElement {
 		[getEmployeeName, setDetailRequestWithNotes, t],
 	);
 
+	const renderVacationCard = useCallback(
+		(request: VacationRequest): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="space-y-1">
+						<p className="text-base font-semibold">{getEmployeeName(request)}</p>
+						<p className="text-sm text-muted-foreground">
+							{formatDateRangeUtc(
+								toUtcDate(request.startDateKey),
+								toUtcDate(request.endDateKey),
+							)}
+						</p>
+					</div>
+					<Badge variant={statusVariants[request.status]}>
+						{t(`status.${request.status}`)}
+					</Badge>
+				</div>
+
+				<div className="grid gap-3">
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.days')}</p>
+						<p className="text-sm font-medium">
+							{t('table.daysSummary', {
+								vacation: request.summary.vacationDays,
+								total: request.summary.totalDays,
+							})}
+						</p>
+					</div>
+				</div>
+
+				<Button
+					type="button"
+					variant="outline"
+					className="min-h-11 w-full"
+					onClick={() => setDetailRequestWithNotes(request)}
+				>
+					{t('actions.viewDetail')}
+				</Button>
+			</div>
+		),
+		[getEmployeeName, setDetailRequestWithNotes, t],
+	);
+
 	if (!organizationId) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('noOrganization')}</p>
+				<ResponsivePageHeader title={t('title')} description={t('noOrganization')} />
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between gap-4">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-				</div>
-				<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-					<DialogTrigger asChild>
-						<Button>{t('actions.create')}</Button>
-					</DialogTrigger>
-					<DialogContent className="sm:max-w-xl">
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+						<DialogTrigger asChild>
+							<Button data-testid="vacations-create-button" className="min-h-11">
+								{t('actions.create')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-xl">
 						<form
 							onSubmit={(event) => {
 								event.preventDefault();
@@ -619,7 +663,7 @@ export function VacationsPageClient(): React.ReactElement {
 								<DialogDescription>{t('form.description')}</DialogDescription>
 							</DialogHeader>
 
-							<div className="grid gap-8 sm:grid-cols-2">
+							<div className="grid gap-6 min-[640px]:grid-cols-2">
 								<createForm.AppField
 									name="employeeId"
 									validators={{
@@ -642,6 +686,7 @@ export function VacationsPageClient(): React.ReactElement {
 													: t('form.placeholders.employee')
 											}
 											disabled={isLoadingEmployees}
+											orientation="vertical"
 										/>
 									)}
 								</createForm.AppField>
@@ -658,12 +703,13 @@ export function VacationsPageClient(): React.ReactElement {
 												{ value: 'DRAFT', label: t('status.DRAFT') },
 											]}
 											placeholder={t('form.placeholders.status')}
+											orientation="vertical"
 										/>
 									)}
 								</createForm.AppField>
 							</div>
 
-							<div className="grid gap-4 sm:grid-cols-2">
+							<div className="grid gap-4 min-[640px]:grid-cols-2">
 								<createForm.AppField
 									name="startDateKey"
 									validators={{
@@ -681,7 +727,7 @@ export function VacationsPageClient(): React.ReactElement {
 													<Button
 														variant="outline"
 														data-empty={!field.state.value}
-														className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+														className="min-h-11 w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
 													>
 														<CalendarIcon className="mr-2 h-4 w-4" />
 														{field.state.value ? (
@@ -696,7 +742,7 @@ export function VacationsPageClient(): React.ReactElement {
 													</Button>
 												</PopoverTrigger>
 												<PopoverContent
-													className="w-auto p-0"
+													className="w-[calc(100vw-2rem)] max-w-full p-0 min-[640px]:w-auto"
 													align="start"
 												>
 													<Calendar
@@ -749,7 +795,7 @@ export function VacationsPageClient(): React.ReactElement {
 													<Button
 														variant="outline"
 														data-empty={!field.state.value}
-														className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+														className="min-h-11 w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
 													>
 														<CalendarIcon className="mr-2 h-4 w-4" />
 														{field.state.value ? (
@@ -764,7 +810,7 @@ export function VacationsPageClient(): React.ReactElement {
 													</Button>
 												</PopoverTrigger>
 												<PopoverContent
-													className="w-auto p-0"
+													className="w-[calc(100vw-2rem)] max-w-full p-0 min-[640px]:w-auto"
 													align="start"
 												>
 													<Calendar
@@ -799,22 +845,25 @@ export function VacationsPageClient(): React.ReactElement {
 										label={t('form.fields.notes')}
 										placeholder={t('form.placeholders.notes')}
 										rows={3}
+										orientation="vertical"
 									/>
 								)}
 							</createForm.AppField>
 
-							<DialogFooter>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 								<createForm.AppForm>
 									<createForm.SubmitButton
 										label={t('form.actions.submit')}
 										loadingLabel={tCommon('saving')}
+										className="min-h-11 w-full min-[640px]:w-auto"
 									/>
 								</createForm.AppForm>
 							</DialogFooter>
 						</form>
-					</DialogContent>
-				</Dialog>
-			</div>
+						</DialogContent>
+					</Dialog>
+				}
+			/>
 
 			<Card>
 				<CardHeader>
@@ -823,21 +872,21 @@ export function VacationsPageClient(): React.ReactElement {
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<Tabs value={statusFilterValue} onValueChange={handleStatusFilterChange}>
-						<TabsList className="flex flex-wrap">
+						<TabsList className="grid h-auto grid-cols-1 gap-2 bg-transparent p-0 min-[640px]:flex min-[640px]:flex-wrap">
 							{statusTabs.map((tab) => (
-								<TabsTrigger key={tab.value} value={tab.value}>
+								<TabsTrigger key={tab.value} value={tab.value} className="min-h-11">
 									{tab.label}
 								</TabsTrigger>
 							))}
 						</TabsList>
 					</Tabs>
 
-					<div className="flex flex-wrap items-center gap-3">
+					<div className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center">
 						<Select
 							value={selectedEmployeeIdValue}
 							onValueChange={handleEmployeeFilterChange}
 						>
-							<SelectTrigger className="w-[240px]">
+							<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[240px]">
 								<SelectValue placeholder={t('filters.employee')} />
 							</SelectTrigger>
 							<SelectContent>
@@ -850,21 +899,21 @@ export function VacationsPageClient(): React.ReactElement {
 							</SelectContent>
 						</Select>
 
-						<div className="flex items-center gap-2 text-sm text-muted-foreground">
-							<label className="flex items-center gap-2">
+						<div className="flex flex-col gap-3 text-sm text-muted-foreground min-[640px]:flex-row">
+							<label className="grid gap-2">
 								<span>{t('filters.from')}</span>
 								<input
 									type="date"
-									className="rounded border px-2 py-1 text-sm"
+									className="min-h-11 rounded border px-3 py-2 text-sm"
 									value={fromDate}
 									onChange={(event) => handleFromDateChange(event.target.value)}
 								/>
 							</label>
-							<label className="flex items-center gap-2">
+							<label className="grid gap-2">
 								<span>{t('filters.to')}</span>
 								<input
 									type="date"
-									className="rounded border px-2 py-1 text-sm"
+									className="min-h-11 rounded border px-3 py-2 text-sm"
 									value={toDate}
 									onChange={(event) => handleToDateChange(event.target.value)}
 								/>
@@ -872,9 +921,11 @@ export function VacationsPageClient(): React.ReactElement {
 						</div>
 					</div>
 
-					<DataTable
+					<ResponsiveDataView
 						columns={columns}
 						data={requests}
+						cardRenderer={renderVacationCard}
+						getCardKey={(request) => request.id}
 						sorting={sorting}
 						onSortingChange={setSorting}
 						pagination={pagination}
@@ -897,7 +948,7 @@ export function VacationsPageClient(): React.ReactElement {
 				open={Boolean(detailRequest)}
 				onOpenChange={(open) => !open && setDetailRequestWithNotes(null)}
 			>
-				<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-w-3xl">
+				<DialogContent className="max-h-[calc(100vh-4rem)] w-full max-w-[calc(100vw-2rem)] overflow-y-auto min-[640px]:max-w-3xl">
 					{detailRequest && (
 						<div className="space-y-4">
 							<DialogHeader>
@@ -1025,12 +1076,13 @@ export function VacationsPageClient(): React.ReactElement {
 											}
 										/>
 									</div>
-									<div className="flex flex-wrap items-center gap-2">
+									<div className="grid gap-2 min-[640px]:grid-cols-3">
 										{detailRequest.status === 'SUBMITTED' && (
 											<>
 												<Button
 													onClick={() => handleDecision('approve')}
 													disabled={approveMutation.isPending}
+													className="min-h-11"
 												>
 													{approveMutation.isPending ? (
 														<>
@@ -1045,6 +1097,7 @@ export function VacationsPageClient(): React.ReactElement {
 													variant="destructive"
 													onClick={() => handleDecision('reject')}
 													disabled={rejectMutation.isPending}
+													className="min-h-11"
 												>
 													{rejectMutation.isPending ? (
 														<>
@@ -1061,6 +1114,7 @@ export function VacationsPageClient(): React.ReactElement {
 											variant="outline"
 											onClick={() => handleDecision('cancel')}
 											disabled={cancelMutation.isPending}
+											className="min-h-11"
 										>
 											{cancelMutation.isPending ? (
 												<>
@@ -1075,7 +1129,7 @@ export function VacationsPageClient(): React.ReactElement {
 								</div>
 							) : null}
 
-							<DialogFooter>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 								<Button
 									variant="outline"
 									onClick={() => setDetailRequestWithNotes(null)}

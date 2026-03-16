@@ -141,6 +141,7 @@ function SignUpForm(): React.ReactElement {
 										placeholder="John Doe"
 										orientation="vertical"
 										startIcon={User}
+										inputClassName="min-h-11"
 									/>
 								)}
 							</form.AppField>
@@ -160,6 +161,7 @@ function SignUpForm(): React.ReactElement {
 										placeholder="admin@example.com"
 										orientation="vertical"
 										startIcon={Mail}
+										inputClassName="min-h-11"
 									/>
 								)}
 							</form.AppField>
@@ -179,6 +181,7 @@ function SignUpForm(): React.ReactElement {
 										placeholder="••••••••"
 										orientation="vertical"
 										startIcon={Lock}
+										inputClassName="min-h-11"
 									/>
 								)}
 							</form.AppField>
@@ -198,6 +201,7 @@ function SignUpForm(): React.ReactElement {
 										placeholder="••••••••"
 										orientation="vertical"
 										startIcon={Lock}
+										inputClassName="min-h-11"
 									/>
 								)}
 							</form.AppField>
@@ -208,7 +212,7 @@ function SignUpForm(): React.ReactElement {
 							<form.SubmitButton
 								label={t('signUp.actions.submit')}
 								loadingLabel={t('signUp.actions.submitting')}
-								className="w-full"
+								className="min-h-11 w-full"
 							/>
 						</form.AppForm>
 						<p className="text-center text-sm text-muted-foreground">

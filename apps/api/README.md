@@ -66,6 +66,42 @@ select count(*) from aguinaldo_run;
 select count(*) from aguinaldo_run_employee;
 ```
 
+### 1.1) Verificar escenarios de nómina dual
+
+El seed activa nómina dual para `sen-checkin` y deja 4 empleados demo fáciles de encontrar:
+`EMP-0001`, `EMP-0002`, `EMP-0003`, `EMP-0004`.
+
+```sql
+select
+  code,
+  first_name,
+  last_name,
+  daily_pay,
+  fiscal_daily_pay,
+  payment_frequency,
+  shift_type
+from employee
+where code in ('EMP-0001', 'EMP-0002', 'EMP-0003', 'EMP-0004')
+order by code;
+
+select organization_id, enable_dual_payroll, time_zone
+from payroll_setting
+order by created_at;
+
+select
+  pre.employee_id,
+  e.code,
+  pre.total_pay,
+  pre.fiscal_daily_pay,
+  pre.fiscal_gross_pay,
+  pre.complement_pay,
+  pre.total_real_pay
+from payroll_run_employee pre
+join employee e on e.id = pre.employee_id
+where e.code in ('EMP-0001', 'EMP-0002', 'EMP-0003', 'EMP-0004')
+order by e.code;
+```
+
 ### 2) Verificar endpoints (requiere sesión o API key)
 
 Todas las rutas (excepto `/api/auth/*`) requieren autenticación por **sesión** o **API key**.

@@ -55,6 +55,7 @@ function buildSettings(overrides: Partial<PayrollSettings> = {}): PayrollSetting
 		aguinaldoDays: 15,
 		vacationPremiumRate: 0.25,
 		enableSeventhDayPay: false,
+		enableDualPayroll: false,
 		countSaturdayAsWorkedForSeventhDay: false,
 		ptuEnabled: true,
 		ptuMode: 'DEFAULT_RULES',

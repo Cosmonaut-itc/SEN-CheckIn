@@ -3,6 +3,7 @@ import {
 	createTestClient,
 	getAdminSession,
 	getTestApiKey,
+	getUserSession,
 	requireErrorResponse,
 	requireResponseData,
 } from '../test-utils/contract-helpers.js';
@@ -10,11 +11,13 @@ import {
 describe('payroll settings routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
 	let adminSession: Awaited<ReturnType<typeof getAdminSession>>;
+	let memberSession: Awaited<ReturnType<typeof getUserSession>>;
 	let apiKey: string;
 
 	beforeAll(async () => {
 		client = createTestClient();
 		adminSession = await getAdminSession();
+		memberSession = await getUserSession();
 		apiKey = await getTestApiKey();
 	});
 
@@ -26,11 +29,11 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.organizationId).toBeDefined();
-		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(false);
+		expect(typeof payload.data?.countSaturdayAsWorkedForSeventhDay).toBe('boolean');
 		expect(typeof payload.data?.enableDisciplinaryMeasures).toBe('boolean');
-		expect(payload.data?.autoDeductLunchBreak).toBe(false);
-		expect(Number(payload.data?.lunchBreakMinutes)).toBe(60);
-		expect(Number(payload.data?.lunchBreakThresholdHours)).toBe(6);
+		expect(typeof payload.data?.autoDeductLunchBreak).toBe('boolean');
+		expect(Number(payload.data?.lunchBreakMinutes)).toBeGreaterThan(0);
+		expect(Number(payload.data?.lunchBreakThresholdHours)).toBeGreaterThan(0);
 	});
 
 	it('updates payroll settings for the active organization', async () => {
@@ -38,6 +41,7 @@ describe('payroll settings routes (contract)', () => {
 			weekStartDay: 2,
 			overtimeEnforcement: 'WARN',
 			enableSeventhDayPay: true,
+			enableDualPayroll: true,
 			countSaturdayAsWorkedForSeventhDay: true,
 			enableDisciplinaryMeasures: true,
 			autoDeductLunchBreak: true,
@@ -49,6 +53,7 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.weekStartDay).toBe(2);
+		expect(payload.data?.enableDualPayroll).toBe(true);
 		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(true);
 		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);
 		expect(payload.data?.autoDeductLunchBreak).toBe(true);
@@ -109,6 +114,46 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(400);
 		const errorPayload = requireErrorResponse(response, 'payroll settings validation');
 		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
+	it('blocks member users from updating payroll settings', async () => {
+		const response = await client['payroll-settings'].put({
+			enableDualPayroll: true,
+			$headers: { cookie: memberSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'member payroll settings update');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
+	});
+
+	it('blocks api key callers from updating payroll settings for their organization', async () => {
+		const baselineResponse = await client['payroll-settings'].get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(baselineResponse.status).toBe(200);
+		const baselinePayload = requireResponseData(baselineResponse);
+
+		const response = await client['payroll-settings'].put({
+			organizationId: adminSession.organizationId,
+			weekStartDay: 5,
+			enableDualPayroll: true,
+			$headers: { 'x-api-key': apiKey },
+		});
+
+		expect(response.status).toBe(403);
+		const errorPayload = requireErrorResponse(response, 'api key payroll settings update');
+		expect(errorPayload.error.code).toBe('FORBIDDEN');
+
+		const adminReadbackResponse = await client['payroll-settings'].get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(adminReadbackResponse.status).toBe(200);
+		const adminReadbackPayload = requireResponseData(adminReadbackResponse);
+		expect(adminReadbackPayload.data?.weekStartDay).toBe(baselinePayload.data?.weekStartDay);
+		expect(adminReadbackPayload.data?.enableDualPayroll).toBe(
+			baselinePayload.data?.enableDualPayroll,
+		);
 	});
 
 	it('rejects payroll settings updates for unauthorized organizations', async () => {

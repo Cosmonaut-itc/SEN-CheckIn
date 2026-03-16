@@ -45,6 +45,7 @@ import {
 	TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { hasSelectedText, isInteractiveRowClickTarget } from './row-click-guards';
 
 /**
  * Option configuration for faceted filters.
@@ -128,6 +129,8 @@ export interface DataTableProps<TData, TValue> {
 	enableRowSelection?: boolean;
 	/** Custom row id resolver for selection. */
 	getRowId?: (originalRow: TData, index: number, parent?: unknown) => string;
+	/** Optional row click handler for opening detail views. */
+	onRowClick?: (row: TData) => void;
 }
 
 const DEFAULT_PAGE_SIZES = [10, 20, 50];
@@ -196,6 +199,7 @@ export function DataTable<TData, TValue>({
 	onRowSelectionChange,
 	enableRowSelection = false,
 	getRowId,
+	onRowClick,
 }: DataTableProps<TData, TValue>): React.ReactElement {
 	const t = useTranslations('DataTable');
 
@@ -269,6 +273,22 @@ export function DataTable<TData, TValue>({
 	const pageCount = Math.max(table.getPageCount(), 1);
 	const currentPage = pagination.pageIndex + 1;
 
+	/**
+	 * Executes the row click action unless the interaction originated from an
+	 * embedded control or the user is selecting text.
+	 *
+	 * @param event - Table row click event
+	 * @param row - Original row data
+	 * @returns Nothing
+	 */
+	const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>, row: TData): void => {
+		if (!onRowClick || isInteractiveRowClickTarget(event.target) || hasSelectedText()) {
+			return;
+		}
+
+		onRowClick(row);
+	};
+
 	return (
 		<div className={cn('space-y-4', className)}>
 			{shouldShowToolbar ? (
@@ -320,7 +340,7 @@ export function DataTable<TData, TValue>({
 				</div>
 			) : null}
 
-			<div className="rounded-md border [content-visibility:auto] [contain-intrinsic-size:0_480px]">
+			<div className="max-w-full rounded-md border [content-visibility:auto] [contain-intrinsic-size:0_480px]">
 				<Table>
 					<TableHeader>
 						{table.getHeaderGroups().map((headerGroup) => (
@@ -386,7 +406,11 @@ export function DataTable<TData, TValue>({
 							))
 						) : table.getRowModel().rows.length > 0 ? (
 							table.getRowModel().rows.map((row) => (
-								<TableRow key={row.id}>
+								<TableRow
+									key={row.id}
+									onClick={(event) => handleRowClick(event, row.original)}
+									className={cn(onRowClick && 'cursor-pointer hover:bg-muted/50')}
+								>
 									{row.getVisibleCells().map((cell) => (
 										<TableCell key={cell.id}>
 											{flexRender(

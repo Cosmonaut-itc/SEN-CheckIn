@@ -293,7 +293,8 @@
 			"disciplinary": "Medidas",
 			"deductions": "Descuentos",
 			"more": "Más",
-			"moreAriaLabel": "Abrir menú de más pestañas"
+			"moreAriaLabel": "Abrir menú de más pestañas",
+			"info": "Info"
 		},
 		"summary": {
 			"availableDays": "Dias disponibles",
@@ -357,7 +358,8 @@
 				"headers": {
 					"period": "Periodo",
 					"days": "Dias",
-					"status": "Estatus"
+					"status": "Estatus",
+					"type": "Tipo"
 				},
 				"empty": "Sin solicitudes de vacaciones."
 			}
@@ -367,7 +369,8 @@
 				"headers": {
 					"period": "Periodo",
 					"total": "Total",
-					"status": "Estatus"
+					"status": "Estatus",
+					"frequency": "Frecuencia"
 				},
 				"empty": "Sin corridas de nomina."
 			},
@@ -547,7 +550,8 @@
 			"isPlatformWorker": "Trabajador de plataforma",
 			"platformHoursYear": "Horas en plataforma (año)",
 			"ptuEligibilityOverride": "Elegibilidad PTU",
-			"aguinaldoDaysOverride": "Días de aguinaldo (override)"
+			"aguinaldoDaysOverride": "Días de aguinaldo (override)",
+			"fiscalDailyPay": "Salario diario fiscal (MXN)"
 		},
 		"placeholders": {
 			"selectLocation": "Selecciona una ubicación",
@@ -563,7 +567,8 @@
 			"selectEmploymentType": "Selecciona el tipo",
 			"selectPtuEligibility": "Selecciona elegibilidad",
 			"aguinaldoDaysOverride": "Ej. 20",
-			"platformHoursYear": "Ej. 300"
+			"platformHoursYear": "Ej. 300",
+			"fiscalDailyPay": "p. ej., 320.2500"
 		},
 		"helpers": {
 			"sbcDailyOverride": "Deja vacío para calcular automático con SDI/SBC.",
@@ -572,7 +577,8 @@
 			"isDomesticWorker": "No participa en PTU.",
 			"isPlatformWorker": "Requiere mínimo 288 horas en el año.",
 			"platformHoursYear": "Horas efectivas del año para plataformas.",
-			"aguinaldoDaysOverride": "Debe ser ≥ política y ≥ 15 días."
+			"aguinaldoDaysOverride": "Debe ser ≥ política y ≥ 15 días.",
+			"fiscalDailyPay": "Déjalo vacío para usar el salario real. Debe ser menor al salario diario calculado."
 		},
 		"validation": {
 			"codeRequired": "El código es requerido",
@@ -586,7 +592,9 @@
 			"hireDateInvalid": "La fecha debe tener formato YYYY-MM-DD.",
 			"hireDateFutureNotAllowed": "La fecha de ingreso no puede ser posterior a hoy.",
 			"platformHoursYear": "Las horas de plataforma deben ser 0 o mayores.",
-			"aguinaldoDaysOverride": "El override de aguinaldo debe ser un número válido."
+			"aguinaldoDaysOverride": "El override de aguinaldo debe ser un número válido.",
+			"fiscalDailyPay": "Ingresa un salario diario fiscal válido.",
+			"fiscalDailyPayLessThanDailyPay": "El salario diario fiscal debe ser menor al salario diario real."
 		},
 		"paymentFrequency": {
 			"WEEKLY": "Semanal",
@@ -676,6 +684,7 @@
 		"menu": {
 			"open": "Abrir menú",
 			"viewDetails": "Ver detalles",
+			"viewDeductions": "Abrir descuentos",
 			"enrollFace": "Registrar rostro",
 			"reEnrollFace": "Volver a registrar rostro",
 			"removeFaceEnrollment": "Eliminar registro facial",
@@ -974,6 +983,36 @@
 				"signError": "No se pudo confirmar la firma digital.",
 				"signSuccess": "Firma digital confirmada."
 			}
+		},
+		"wizard": {
+			"navigation": "Progreso del formulario",
+			"progress": "Paso {current} de {total}: {step}",
+			"stepAriaLabel": "Paso {current}: {step}",
+			"stepErrorSuffix": "con errores",
+			"steps": {
+				"personal": "Personal",
+				"laboral": "Laboral",
+				"salario": "Salario",
+				"ptu": "PTU y Aguinaldo",
+				"horario": "Horario"
+			},
+			"discard": {
+				"title": "¿Descartar cambios?",
+				"description": "Los cambios sin guardar se perderán.",
+				"confirm": "Descartar"
+			},
+			"toast": {
+				"errors": "Hay errores en los pasos {steps}."
+			}
+		},
+		"compensation": {
+			"title": "Complemento salarial",
+			"subtitle": "Separa el salario que timbra fiscalmente del pago real del empleado.",
+			"previewTitle": "Vista rápida",
+			"realDailyPay": "Salario diario real",
+			"fiscalDailyPay": "Salario diario fiscal",
+			"dailyComplement": "Complemento diario",
+			"liveHelper": "El complemento se calcula en tiempo real con base en el salario diario actual."
 		}
 	},
 	"EmployeeDeductions": {
@@ -1608,7 +1647,10 @@
 				"warnings": "Alertas",
 				"detail": "Detalle fiscal",
 				"authorizedOvertime": "HE autorizadas",
-				"unauthorizedOvertime": "HE no autorizadas"
+				"unauthorizedOvertime": "HE no autorizadas",
+				"fiscalGrossPay": "Pago fiscal",
+				"complementPay": "Complemento",
+				"totalRealPay": "Total real"
 			},
 			"deductions": {
 				"title": "Desglose de descuentos",
@@ -1634,6 +1676,10 @@
 					"FIXED_AMOUNT": "Monto fijo",
 					"VSM_FACTOR": "Factor VSM"
 				}
+			},
+			"footer": {
+				"totalsLabel": "Totales",
+				"dualPayrollLabel": "Resumen fiscal vs real"
 			}
 		},
 		"csv": {
@@ -1692,7 +1738,11 @@
 				"warningsCount": "avisos_cantidad",
 				"warnings": "avisos",
 				"authorizedOvertimeHours": "horas_extra_autorizadas",
-				"unauthorizedOvertimeHours": "horas_extra_no_autorizadas"
+				"unauthorizedOvertimeHours": "horas_extra_no_autorizadas",
+				"fiscalGrossPay": "pago_fiscal",
+				"fiscalDailyPay": "salario_diario_fiscal",
+				"complementPay": "complemento",
+				"totalRealPay": "total_real"
 			}
 		},
 		"summary": {
@@ -1740,7 +1790,10 @@
 				"absorbedImssEmployeeShare": "IMSS obrero absorbido",
 				"absorbedIsr": "ISR absorbido",
 				"isrBeforeSubsidy": "ISR antes de subsidio",
-				"subsidyApplied": "Subsidio aplicado"
+				"subsidyApplied": "Subsidio aplicado",
+				"fiscalGrossPay": "Pago fiscal",
+				"complementPay": "Complemento",
+				"totalRealPay": "Total real"
 			}
 		},
 		"compliance": {
@@ -2066,7 +2119,8 @@
 				"absorbImssEmployeeShare": "Absorber IMSS obrero",
 				"absorbIsr": "Absorber ISR",
 				"enableSeventhDayPay": "Pagar séptimo día",
-				"countSaturdayAsWorkedForSeventhDay": "Contar sábado como día trabajado para cálculo de 7mo día"
+				"countSaturdayAsWorkedForSeventhDay": "Contar sábado como día trabajado para cálculo de 7mo día",
+				"enableDualPayroll": "Habilitar nómina dual (fiscal/real)"
 			},
 			"placeholders": {
 				"rate": "p. ej., 0.02",
@@ -2079,7 +2133,16 @@
 				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
 				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
 				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos.",
-				"countSaturdayAsWorkedForSeventhDay": "Empleados con jornada L-V tendrán el sábado contado como trabajado."
+				"countSaturdayAsWorkedForSeventhDay": "Empleados con jornada L-V tendrán el sábado contado como trabajado.",
+				"enableDualPayroll": "Usa un salario fiscal menor para IMSS/ISR y conserva el pago real del empleado como complemento."
+			},
+			"dualPayroll": {
+				"realTitle": "Pago real",
+				"realDescription": "El empleado sigue cobrando su salario completo por día trabajado.",
+				"fiscalTitle": "Pago fiscal",
+				"fiscalDescription": "IMSS, ISR, SBC, horas extra y primas usan el salario fiscal configurado por empleado.",
+				"complementTitle": "Complemento",
+				"complementDescription": "La diferencia entre salario real y fiscal se muestra por separado para control administrativo."
 			}
 		},
 		"lunchBreak": {
@@ -4281,6 +4344,21 @@
 			"createError": "No se pudo crear la autorización",
 			"cancelSuccess": "Autorización cancelada",
 			"cancelError": "No se pudo cancelar la autorización"
+		}
+	},
+	"ResponsiveCalendar": {
+		"weekView": "Vista del dia",
+		"previousDay": "Dia anterior",
+		"nextDay": "Dia siguiente",
+		"empty": "No hay horarios asignados para esta semana.",
+		"scheduleLabel": "Horario",
+		"noShift": "Sin horario asignado",
+		"reasonLabel": "Motivo:",
+		"sources": {
+			"template": "Plantilla",
+			"manual": "Manual",
+			"exception": "Excepcion",
+			"none": "Sin turno"
 		}
 	}
 }

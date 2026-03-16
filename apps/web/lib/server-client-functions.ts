@@ -82,9 +82,14 @@ const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
 
 type EmployeePayload = Omit<
 	Employee,
-	'dailyPay' | 'sbcDailyOverride' | 'platformHoursYear' | 'aguinaldoDaysOverride'
+	| 'dailyPay'
+	| 'fiscalDailyPay'
+	| 'sbcDailyOverride'
+	| 'platformHoursYear'
+	| 'aguinaldoDaysOverride'
 > & {
 	dailyPay?: number | string;
+	fiscalDailyPay?: number | string | null;
 	sbcDailyOverride?: number | string | null;
 	platformHoursYear?: number | string | null;
 	aguinaldoDaysOverride?: number | string | null;
@@ -100,6 +105,12 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 	return {
 		...record,
 		dailyPay: Number(record.dailyPay ?? 0),
+		fiscalDailyPay:
+			record.fiscalDailyPay === undefined
+				? undefined
+				: record.fiscalDailyPay === null
+					? null
+					: Number(record.fiscalDailyPay),
 		employmentType: record.employmentType ?? 'PERMANENT',
 		isTrustEmployee: Boolean(record.isTrustEmployee ?? false),
 		isDirectorAdminGeneralManager: Boolean(record.isDirectorAdminGeneralManager ?? false),
@@ -928,6 +939,7 @@ type PayrollSettingsPayload = Omit<
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
+	| 'enableDualPayroll'
 	| 'countSaturdayAsWorkedForSeventhDay'
 	| 'ptuEnabled'
 	| 'ptuMode'
@@ -944,6 +956,7 @@ type PayrollSettingsPayload = Omit<
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
+	enableDualPayroll?: boolean | null;
 	countSaturdayAsWorkedForSeventhDay?: boolean | null;
 	ptuEnabled?: boolean | null;
 	ptuMode?: 'DEFAULT_RULES' | 'MANUAL' | null;
@@ -996,6 +1009,7 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
+		enableDualPayroll: Boolean(payload.enableDualPayroll ?? false),
 		countSaturdayAsWorkedForSeventhDay: Boolean(
 			payload.countSaturdayAsWorkedForSeventhDay ?? false,
 		),

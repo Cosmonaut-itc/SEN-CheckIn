@@ -6,8 +6,9 @@ import { format, isValid, parse } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { DataTable } from '@/components/data-table/data-table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	Select,
 	SelectContent,
@@ -378,10 +379,97 @@ export function ScheduleExceptionsTab({
 		[t, tCommon],
 	);
 
+	/**
+	 * Renders the action buttons for a schedule exception.
+	 *
+	 * @param exception - Exception record receiving the actions
+	 * @returns Action button group
+	 */
+	const renderExceptionActions = (exception: ScheduleException): React.ReactElement => (
+		<div className="flex items-center gap-2">
+			<Button
+				variant="outline"
+				size="icon"
+				className="h-11 w-11"
+				onClick={() => {
+					setEditingException(exception);
+					setIsFormOpen(true);
+				}}
+				title={t('exceptions.actions.editTitle')}
+				aria-label={t('exceptions.actions.editTitle')}
+			>
+				<Pencil className="h-4 w-4" />
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				className="h-11 w-11"
+				onClick={() => setDeleteId(exception.id)}
+				title={t('exceptions.actions.deleteTitle')}
+				aria-label={t('exceptions.actions.deleteTitle')}
+			>
+				<Trash2 className="h-4 w-4 text-destructive" />
+			</Button>
+		</div>
+	);
+
+	/**
+	 * Renders the mobile card content for a schedule exception.
+	 *
+	 * @param exception - Exception row to display
+	 * @returns Mobile card content
+	 */
+	const renderExceptionCard = (exception: ScheduleException): React.ReactElement => (
+		<div className="space-y-4">
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0 space-y-1">
+					<p className="text-base font-semibold leading-tight">
+						{exception.employeeName
+							? `${exception.employeeName} ${exception.employeeLastName ?? ''}`.trim()
+							: exception.employeeId}
+					</p>
+					<p className="text-sm text-muted-foreground">
+						{t(`exceptions.types.${exception.exceptionType}`)}
+					</p>
+				</div>
+				<div className="shrink-0">{renderExceptionActions(exception)}</div>
+			</div>
+
+			<div className="grid gap-3 text-sm">
+				<div className="flex items-center justify-between gap-3">
+					<span className="text-muted-foreground">
+						{t('exceptions.table.headers.date')}
+					</span>
+					<span className="font-medium">
+						{formatShortDateUtc(new Date(exception.exceptionDate))}
+					</span>
+				</div>
+				<div className="flex items-center justify-between gap-3">
+					<span className="text-muted-foreground">
+						{t('exceptions.table.headers.time')}
+					</span>
+					<span className="text-right font-medium">
+						{exception.startTime && exception.endTime
+							? `${exception.startTime} - ${exception.endTime}`
+							: tCommon('notAvailable')}
+					</span>
+				</div>
+				<div className="flex items-start justify-between gap-3">
+					<span className="text-muted-foreground">
+						{t('exceptions.table.headers.reason')}
+					</span>
+					<span className="max-w-[60%] text-right font-medium">
+						{exception.reason ?? '-'}
+					</span>
+				</div>
+			</div>
+		</div>
+	);
+
 	if (!organizationId) {
 		return (
 			<div className="space-y-2 rounded-md border p-4">
-				<h2 className="text-lg font-semibold">{t('tabs.exceptions')}</h2>
+				<ResponsivePageHeader title={t('tabs.exceptions')} />
 				<p className="text-muted-foreground">{t('exceptions.noOrganization')}</p>
 			</div>
 		);
@@ -389,25 +477,25 @@ export function ScheduleExceptionsTab({
 
 	return (
 		<div className="space-y-4">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div>
-					<h2 className="text-xl font-semibold">{t('exceptions.title')}</h2>
-					<p className="text-sm text-muted-foreground">{t('exceptions.description')}</p>
-				</div>
-				<Button
-					onClick={() => {
-						setEditingException(null);
-						setIsFormOpen(true);
-					}}
-				>
-					<Plus className="mr-2 h-4 w-4" />
-					{t('exceptions.actions.add')}
-				</Button>
-			</div>
+			<ResponsivePageHeader
+				title={t('exceptions.title')}
+				description={t('exceptions.description')}
+				actions={
+					<Button
+						onClick={() => {
+							setEditingException(null);
+							setIsFormOpen(true);
+						}}
+					>
+						<Plus className="mr-2 h-4 w-4" />
+						{t('exceptions.actions.add')}
+					</Button>
+				}
+			/>
 
-			<div className="flex flex-wrap items-center gap-3">
+			<div className="grid gap-3 min-[1025px]:grid-cols-[240px_minmax(0,1fr)]">
 				<Select value={selectedEmployeeIdValue} onValueChange={handleEmployeeFilterChange}>
-					<SelectTrigger className="w-[240px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={t('exceptions.filters.allEmployees')} />
 					</SelectTrigger>
 					<SelectContent>
@@ -420,17 +508,15 @@ export function ScheduleExceptionsTab({
 					</SelectContent>
 				</Select>
 
-				<div className="flex items-center gap-3">
-					<span className="text-sm text-muted-foreground">
-						{t('exceptions.filters.from')}
-					</span>
-					<div className="w-[240px]">
+				<div className="grid gap-3 min-[1025px]:grid-cols-[auto_minmax(0,1fr)_auto_minmax(0,1fr)] min-[1025px]:items-center">
+					<span className="text-sm text-muted-foreground">{t('exceptions.filters.from')}</span>
+					<div className="w-full">
 						<Popover>
 							<PopoverTrigger asChild>
 								<Button
 									variant="outline"
 									data-empty={!fromDateValue}
-									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+									className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
 								>
 									<CalendarIcon className="mr-2 h-4 w-4" />
 									{fromDateValue ? (
@@ -453,16 +539,14 @@ export function ScheduleExceptionsTab({
 						</Popover>
 					</div>
 
-					<span className="text-sm text-muted-foreground">
-						{t('exceptions.filters.to')}
-					</span>
-					<div className="w-[240px]">
+					<span className="text-sm text-muted-foreground">{t('exceptions.filters.to')}</span>
+					<div className="w-full">
 						<Popover>
 							<PopoverTrigger asChild>
 								<Button
 									variant="outline"
 									data-empty={!toDateValue}
-									className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+									className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
 								>
 									<CalendarIcon className="mr-2 h-4 w-4" />
 									{toDateValue ? (
@@ -487,9 +571,11 @@ export function ScheduleExceptionsTab({
 				</div>
 			</div>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={exceptions}
+				cardRenderer={renderExceptionCard}
+				getCardKey={(exception) => exception.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

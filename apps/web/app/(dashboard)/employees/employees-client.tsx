@@ -8,17 +8,10 @@ import {
 	updateEmployee,
 } from '@/actions/employees';
 import { deleteRekognitionUser } from '@/actions/employees-rekognition';
-import { DataTable } from '@/components/data-table/data-table';
-import {
-	Accordion,
-	AccordionContent,
-	AccordionItem,
-	AccordionTrigger,
-} from '@/components/ui/accordion';
+import { EmployeeDetailDialog } from '@/components/employees/employee-detail-dialog';
+import { EmployeeCodeField } from '@/components/employees/employee-code-field';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
 	DialogContent,
@@ -26,8 +19,9 @@ import {
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
-	DialogTrigger,
 } from '@/components/ui/dialog';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -37,7 +31,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
 	Select,
 	SelectContent,
@@ -45,17 +38,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
 	type Employee,
@@ -78,11 +60,11 @@ import {
 	fetchPayrollSettings,
 	upsertEmployeePtuHistory,
 } from '@/lib/client-functions';
-import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm, useStore } from '@/lib/forms';
+import { buildClosedEmployeeDialogState } from '@/lib/employee-dialog-state';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
-import { cn } from '@/lib/utils';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type {
 	EmployeeDetailTab,
 	EmployeeTerminationSettlement,
@@ -97,16 +79,13 @@ import type {
 	RowSelectionState,
 	SortingState,
 } from '@tanstack/react-table';
-import { format, isAfter, isValid, parse, startOfDay, startOfMonth } from 'date-fns';
+import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
 import {
-	Calendar as CalendarIcon,
 	Eye,
 	FileText,
 	HelpCircle,
 	Loader2,
 	MoreHorizontal,
-	Pencil,
-	Plus,
 	ScanFace,
 	Search,
 	ShieldAlert,
@@ -120,6 +99,11 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+import {
+	getFiscalDailyPayPreviewFeedbackKey,
+	getFiscalDailyPaySubmissionError,
+} from './employees-client.helpers';
 
 /**
  * Lazily loads the face enrollment dialog to reduce the initial bundle size.
@@ -141,51 +125,6 @@ function FaceEnrollmentDialogFallback(): React.ReactElement | null {
 }
 
 const FaceEnrollmentDialog = dynamic(loadFaceEnrollmentDialog, {
-	ssr: false,
-	loading: FaceEnrollmentDialogFallback,
-});
-
-/**
- * Lazily loads employee document workflow tab to keep initial bundle smaller.
- *
- * @returns Promise resolving to the EmployeeDocumentsTab component
- */
-const loadEmployeeDocumentsTab = async () => {
-	const componentModule = await import('@/components/employee-documents-tab');
-	return componentModule.EmployeeDocumentsTab;
-};
-
-const EmployeeDocumentsTab = dynamic(loadEmployeeDocumentsTab, {
-	ssr: false,
-	loading: FaceEnrollmentDialogFallback,
-});
-
-/**
- * Lazily loads employee disciplinary tab to avoid increasing initial bundle size.
- *
- * @returns Promise resolving to EmployeeDisciplinaryMeasuresTab component
- */
-const loadEmployeeDisciplinaryMeasuresTab = async () => {
-	const componentModule = await import('@/components/employee-disciplinary-measures-tab');
-	return componentModule.EmployeeDisciplinaryMeasuresTab;
-};
-
-const EmployeeDisciplinaryMeasuresTab = dynamic(loadEmployeeDisciplinaryMeasuresTab, {
-	ssr: false,
-	loading: FaceEnrollmentDialogFallback,
-});
-
-/**
- * Lazily loads employee deductions tab to preserve the initial employee dialog bundle.
- *
- * @returns Promise resolving to EmployeeDeductionsManager component
- */
-const loadEmployeeDeductionsTab = async () => {
-	const componentModule = await import('@/components/employee-deductions-manager');
-	return componentModule.EmployeeDeductionsManager;
-};
-
-const EmployeeDeductionsTab = dynamic(loadEmployeeDeductionsTab, {
 	ssr: false,
 	loading: FaceEnrollmentDialogFallback,
 });
@@ -226,6 +165,8 @@ interface EmployeeFormValues {
 	paymentFrequency: PaymentFrequency;
 	/** Pay for the full period */
 	periodPay: string;
+	/** Optional fiscal daily pay for dual payroll */
+	fiscalDailyPay: string;
 	/** Optional SBC daily override */
 	sbcDailyOverride: string;
 	/** Employment type for PTU eligibility */
@@ -301,149 +242,6 @@ interface BulkEditValues {
 	aguinaldoDaysOverride: string;
 }
 
-type TerminationDateFieldProps = {
-	label: string;
-	placeholder?: string;
-	value: string;
-	onChange: (value: string) => void;
-	disabled?: boolean;
-	minYear?: number;
-	maxDate?: Date;
-};
-
-/**
- * Standalone date field for the finiquito form.
- *
- * @param props - Date field props including value and date constraints.
- * @returns A rendered date field with input and calendar popover.
- */
-function TerminationDateField({
-	label,
-	placeholder,
-	value,
-	onChange,
-	disabled,
-	minYear = 1950,
-	maxDate,
-}: TerminationDateFieldProps): React.ReactElement {
-	const tCommon = useTranslations('Common');
-	const resolvedPlaceholder = placeholder ?? label;
-	const parsedValue = useMemo(
-		() => (value ? parse(value, 'yyyy-MM-dd', new Date()) : undefined),
-		[value],
-	);
-	const isParsedValid =
-		parsedValue !== undefined &&
-		isValid(parsedValue) &&
-		format(parsedValue, 'yyyy-MM-dd') === value;
-	const selectedDateKey = isParsedValid ? value : '';
-	const selectedDate = useMemo(
-		() => (selectedDateKey ? parse(selectedDateKey, 'yyyy-MM-dd', new Date()) : undefined),
-		[selectedDateKey],
-	);
-	const resolvedMaxDate = useMemo(
-		() => (maxDate ? startOfDay(maxDate) : startOfDay(new Date())),
-		[maxDate],
-	);
-	const startMonth = useMemo(() => new Date(minYear, 0, 1), [minYear]);
-	const [open, setOpen] = useState(false);
-	const initialMonth = selectedDate ?? resolvedMaxDate ?? new Date();
-	const [month, setMonth] = useState<Date>(() => startOfMonth(initialMonth));
-
-	/* eslint-disable react-hooks/set-state-in-effect */
-	useEffect(() => {
-		if (!selectedDate) {
-			return;
-		}
-		setMonth((current) => {
-			const currentYear = current.getFullYear();
-			const currentMonth = current.getMonth();
-			const nextYear = selectedDate.getFullYear();
-			const nextMonth = selectedDate.getMonth();
-			if (currentYear === nextYear && currentMonth === nextMonth) {
-				return current;
-			}
-			return startOfMonth(selectedDate);
-		});
-	}, [selectedDate, selectedDateKey]);
-	/* eslint-enable react-hooks/set-state-in-effect */
-
-	const calendarRangeProps: {
-		startMonth?: Date;
-		endMonth?: Date;
-		disabled?: React.ComponentProps<typeof Calendar>['disabled'];
-	} = {};
-
-	if (startMonth) {
-		calendarRangeProps.startMonth = startMonth;
-	}
-
-	if (resolvedMaxDate) {
-		calendarRangeProps.endMonth = resolvedMaxDate;
-		calendarRangeProps.disabled = { after: resolvedMaxDate };
-	}
-
-	return (
-		<div className="space-y-2">
-			<Label>{label}</Label>
-			<Popover open={open} onOpenChange={setOpen}>
-				<div className="relative">
-					<Input
-						value={value}
-						onChange={(event) => {
-							const nextValue = event.target.value;
-							onChange(nextValue);
-							const nextParsed = nextValue
-								? parse(nextValue, 'yyyy-MM-dd', new Date())
-								: undefined;
-							const isNextValid =
-								nextParsed !== undefined &&
-								isValid(nextParsed) &&
-								format(nextParsed, 'yyyy-MM-dd') === nextValue;
-							if (isNextValid) {
-								setMonth(startOfMonth(nextParsed));
-							}
-						}}
-						placeholder={resolvedPlaceholder}
-						disabled={disabled}
-						className="pr-10"
-					/>
-					<PopoverTrigger asChild>
-						<Button
-							type="button"
-							variant="ghost"
-							size="icon"
-							className="absolute right-1 top-1/2 -translate-y-1/2"
-							disabled={disabled}
-							aria-label={tCommon('selectDate')}
-						>
-							<CalendarIcon className="h-4 w-4" />
-							<span className="sr-only">{tCommon('selectDate')}</span>
-						</Button>
-					</PopoverTrigger>
-				</div>
-				<PopoverContent className="w-auto p-0" align="start">
-					<Calendar
-						mode="single"
-						selected={selectedDate}
-						onSelect={(date) => {
-							onChange(date ? format(date, 'yyyy-MM-dd') : '');
-							if (date) {
-								setMonth(startOfMonth(date));
-							}
-						}}
-						initialFocus
-						captionLayout="dropdown"
-						month={month}
-						onMonthChange={(nextMonth) => setMonth(startOfMonth(nextMonth))}
-						{...calendarRangeProps}
-					/>
-				</PopoverContent>
-			</Popover>
-		</div>
-	);
-}
-
 /**
  * Props for the memoized employees table section.
  */
@@ -506,12 +304,16 @@ interface EmployeesTableSectionProps {
 	statusPlaceholder: string;
 	/** Optional bulk actions node. */
 	bulkActions?: React.ReactNode;
+	/** Mobile card renderer for each employee row. */
+	cardRenderer: (employee: Employee) => React.ReactNode;
 	/** Row selection state for bulk actions. */
 	rowSelection?: RowSelectionState;
 	/** Row selection change handler. */
 	onRowSelectionChange?: React.Dispatch<React.SetStateAction<RowSelectionState>>;
 	/** Optional row id resolver for selection. */
 	getRowId?: (row: Employee, index: number) => string;
+	/** Optional row click handler for opening employee details. */
+	onRowClick?: (employee: Employee) => void;
 }
 
 /**
@@ -550,23 +352,25 @@ function EmployeesTableSection({
 	jobPositionPlaceholder,
 	statusPlaceholder,
 	bulkActions,
+	cardRenderer,
 	rowSelection,
 	onRowSelectionChange,
 	getRowId,
+	onRowClick,
 }: EmployeesTableSectionProps): React.ReactElement {
 	return (
-		<div className="space-y-4">
+		<div className="min-w-0 space-y-4">
 			{bulkActions ? (
 				<div className="rounded-md border bg-muted/30 p-3">{bulkActions}</div>
 			) : null}
-			<div className="flex flex-wrap items-center gap-4">
-				<div className="relative flex-1 max-w-sm">
+			<div className="grid gap-3 min-[1025px]:grid-cols-[minmax(0,1fr)_200px_200px_170px]">
+				<div className="relative min-w-0">
 					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						placeholder={searchPlaceholder}
 						value={search}
 						onChange={(event) => onSearchChange(event.target.value)}
-						className="pl-9"
+						className="min-h-11 pl-9"
 					/>
 				</div>
 				<Select
@@ -574,7 +378,7 @@ function EmployeesTableSection({
 					onValueChange={onLocationFilterChange}
 					disabled={isLoadingLocations}
 				>
-					<SelectTrigger className="w-[200px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={locationPlaceholder} />
 					</SelectTrigger>
 					<SelectContent>
@@ -590,7 +394,7 @@ function EmployeesTableSection({
 					onValueChange={onJobPositionFilterChange}
 					disabled={isLoadingJobPositions}
 				>
-					<SelectTrigger className="w-[200px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={jobPositionPlaceholder} />
 					</SelectTrigger>
 					<SelectContent>
@@ -605,7 +409,7 @@ function EmployeesTableSection({
 					value={statusFilter}
 					onValueChange={(value) => onStatusFilterChange(value as StatusFilterValue)}
 				>
-					<SelectTrigger className="w-[170px]">
+					<SelectTrigger className="min-h-11 w-full">
 						<SelectValue placeholder={statusPlaceholder} />
 					</SelectTrigger>
 					<SelectContent>
@@ -618,9 +422,11 @@ function EmployeesTableSection({
 				</Select>
 			</div>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={employees}
+				cardRenderer={cardRenderer}
+				getCardKey={(employee) => employee.id}
 				sorting={sorting}
 				onSortingChange={onSortingChange}
 				pagination={pagination}
@@ -639,6 +445,7 @@ function EmployeesTableSection({
 				onRowSelectionChange={onRowSelectionChange}
 				enableRowSelection={Boolean(onRowSelectionChange)}
 				getRowId={getRowId}
+				onRowClick={onRowClick}
 			/>
 		</div>
 	);
@@ -665,6 +472,7 @@ const initialFormValues: EmployeeFormValues = {
 	hireDate: '',
 	paymentFrequency: 'MONTHLY',
 	periodPay: '',
+	fiscalDailyPay: '',
 	sbcDailyOverride: '',
 	employmentType: 'PERMANENT',
 	isTrustEmployee: false,
@@ -761,34 +569,13 @@ const ptuEligibilityOptions: {
 	{ value: 'EXCLUDE', labelKey: 'ptuEligibility.EXCLUDE' },
 ];
 
-const terminationReasonOptions: { value: TerminationReason; labelKey: string }[] = [
-	{ value: 'voluntary_resignation', labelKey: 'terminationReasons.voluntary_resignation' },
-	{ value: 'justified_rescission', labelKey: 'terminationReasons.justified_rescission' },
-	{ value: 'unjustified_dismissal', labelKey: 'terminationReasons.unjustified_dismissal' },
-	{ value: 'end_of_contract', labelKey: 'terminationReasons.end_of_contract' },
-	{ value: 'mutual_agreement', labelKey: 'terminationReasons.mutual_agreement' },
-	{ value: 'death', labelKey: 'terminationReasons.death' },
-];
-
-const contractTypeOptions: { value: EmploymentContractType; labelKey: string }[] = [
-	{ value: 'indefinite', labelKey: 'contractTypes.indefinite' },
-	{ value: 'fixed_term', labelKey: 'contractTypes.fixed_term' },
-	{ value: 'specific_work', labelKey: 'contractTypes.specific_work' },
-];
-
 const ALL_FILTER_VALUE = '__all__';
 const SHOULD_LOG_TAB_TELEMETRY = process.env.NODE_ENV === 'development';
 
 type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
-
-const PRIMARY_DETAIL_TABS: EmployeeDetailTab[] = [
-	'summary',
-	'attendance',
-	'vacations',
-	'documents',
-];
+type EmployeeDialogTab = EmployeeDetailTab | 'info';
 const SECONDARY_DETAIL_TABS: EmployeeDetailTab[] = [
 	'deductions',
 	'payroll',
@@ -817,6 +604,22 @@ const VALID_DETAIL_TABS = new Set<EmployeeDetailTab>([
 	'exceptions',
 	'audit',
 ]);
+const MOBILE_FORM_STEP_FIELD_NAMES = [
+	['code', 'firstName', 'lastName', 'nss', 'rfc', 'email', 'phone', 'department'],
+	['locationId', 'jobPositionId', 'status', 'shiftType', 'hireDate', 'userId'],
+	['paymentFrequency', 'periodPay', 'sbcDailyOverride'],
+	[
+		'employmentType',
+		'ptuEligibilityOverride',
+		'aguinaldoDaysOverride',
+		'platformHoursYear',
+		'isTrustEmployee',
+		'isDirectorAdminGeneralManager',
+		'isDomesticWorker',
+		'isPlatformWorker',
+	],
+	[],
+] as const;
 
 /**
  * Parses a tab candidate from URL/query input.
@@ -832,21 +635,6 @@ function parseEmployeeDetailTab(value: string | null | undefined): EmployeeDetai
 }
 
 /**
- * Formats a YYYY-MM month key with localized label.
- *
- * @param monthKey - Month key in YYYY-MM format
- * @returns Human-readable month label
- */
-function formatMonthLabel(monthKey: string): string {
-	const monthDate = new Date(`${monthKey}-01T00:00:00Z`);
-	return monthDate.toLocaleDateString('es-MX', {
-		month: 'long',
-		year: 'numeric',
-		timeZone: 'UTC',
-	});
-}
-
-/**
  * Generates a default Monday-Friday schedule 09:00-17:00.
  *
  * @returns Default schedule entries for the week
@@ -858,16 +646,6 @@ function createDefaultSchedule(): EmployeeScheduleEntry[] {
 		endTime: '17:00',
 		isWorkingDay: day.value >= 1 && day.value <= 5,
 	}));
-}
-
-/**
- * Parses a date key into a UTC Date instance.
- *
- * @param dateKey - Date key in YYYY-MM-DD format
- * @returns Date instance at UTC midnight
- */
-function toUtcDate(dateKey: string): Date {
-	return new Date(`${dateKey}T00:00:00Z`);
 }
 
 /**
@@ -892,6 +670,78 @@ function isValidDateKey(value: string): boolean {
  */
 function formatCurrency(value: number): string {
 	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
+}
+
+/**
+ * Serializes the current employee draft to compare unsaved mobile changes.
+ *
+ * @param values - Current form values
+ * @param scheduleEntries - Current schedule entries
+ * @returns Stable serialized draft representation
+ */
+function serializeEmployeeDraft(
+	values: EmployeeFormValues,
+	scheduleEntries: EmployeeScheduleEntry[],
+): string {
+	return JSON.stringify({
+		values,
+		scheduleEntries: scheduleEntries
+			.map((entry) => ({
+				dayOfWeek: entry.dayOfWeek,
+				startTime: entry.startTime,
+				endTime: entry.endTime,
+				isWorkingDay: entry.isWorkingDay,
+			}))
+			.sort((leftEntry, rightEntry) => leftEntry.dayOfWeek - rightEntry.dayOfWeek),
+	});
+}
+
+/**
+ * Resolves the initial detail tab when the dialog opens on a mobile viewport.
+ *
+ * @param requestedTab - Requested detail tab
+ * @param isMobile - Whether the mobile layout is active
+ * @returns The initial tab to display
+ */
+function resolveInitialDetailTab(
+	requestedTab: EmployeeDetailTab,
+	isMobile: boolean,
+): EmployeeDialogTab {
+	if (!isMobile) {
+		return requestedTab;
+	}
+
+	return requestedTab === 'summary' ? 'info' : requestedTab;
+}
+
+/**
+ * Extracts the mobile wizard step indexes that currently have validation errors.
+ *
+ * @param getFieldMeta - Callback that resolves field metadata by field name
+ * @returns Zero-based step indexes with validation errors
+ */
+function getMobileWizardErrorStepIndexes(
+	getFieldMeta: <TField extends keyof EmployeeFormValues>(
+		fieldName: TField,
+	) =>
+		| {
+				errors?: unknown[];
+		  }
+		| null
+		| undefined,
+): number[] {
+	return MOBILE_FORM_STEP_FIELD_NAMES.reduce<number[]>((indexes, fieldNames, stepIndex) => {
+		const hasStepErrors = fieldNames.some((fieldName) => {
+			const fieldMeta = getFieldMeta(fieldName);
+			return Array.isArray(fieldMeta?.errors) && fieldMeta.errors.length > 0;
+		});
+
+		if (hasStepErrors) {
+			indexes.push(stepIndex);
+		}
+
+		return indexes;
+	}, []);
 }
 
 /**
@@ -947,6 +797,44 @@ function calculatePeriodPayFromDailyPay(dailyPay: number, frequency: PaymentFreq
 }
 
 /**
+ * Parses an optional positive currency input.
+ *
+ * @param value - Raw text input
+ * @returns Parsed number, null when empty, or undefined when invalid
+ */
+function parseOptionalPositiveCurrencyInput(value: string): number | null | undefined {
+	const trimmed = value.trim();
+	if (trimmed === '') {
+		return null;
+	}
+
+	const parsed = Number(trimmed);
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		return undefined;
+	}
+
+	return parsed;
+}
+
+/**
+ * Calculates the daily complement between real and fiscal salary.
+ *
+ * @param dailyPay - Real daily pay
+ * @param fiscalDailyPay - Fiscal daily pay
+ * @returns Daily complement rounded to two decimals
+ */
+function calculateDailyComplement(
+	dailyPay: number,
+	fiscalDailyPay: number | null | undefined,
+): number {
+	if (fiscalDailyPay === null || fiscalDailyPay === undefined || fiscalDailyPay >= dailyPay) {
+		return 0;
+	}
+
+	return roundToTwoDecimals(dailyPay - fiscalDailyPay);
+}
+
+/**
  * Extracts created employee id from server action payload.
  *
  * @param payload - Raw mutation payload
@@ -997,9 +885,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
+	const isMobile = useIsMobile();
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
-	const tVacations = useTranslations('Vacations');
 	const [search, setSearch] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -1010,9 +898,9 @@ export function EmployeesPageClient(): React.ReactElement {
 	const [isDialogOpen, setIsDialogOpen] = useState<boolean>(false);
 	const [dialogMode, setDialogMode] = useState<EmployeeDialogMode>('create');
 	const [activeEmployee, setActiveEmployee] = useState<Employee | null>(null);
-	const [detailTab, setDetailTab] = useState<EmployeeDetailTab>('summary');
+	const [detailTab, setDetailTab] = useState<EmployeeDialogTab>('summary');
 	const [visitedDetailTabs, setVisitedDetailTabs] = useState<
-		Partial<Record<EmployeeDetailTab, boolean>>
+		Partial<Record<EmployeeDialogTab, boolean>>
 	>({ summary: true });
 	const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 	const [enrollingEmployee, setEnrollingEmployee] = useState<Employee | null>(null);
@@ -1036,8 +924,14 @@ export function EmployeesPageClient(): React.ReactElement {
 	);
 	const [ptuHistoryYearInput, setPtuHistoryYearInput] = useState<string>('');
 	const [ptuHistoryAmountInput, setPtuHistoryAmountInput] = useState<string>('');
-	const tabScrollByIdRef = useRef<Partial<Record<EmployeeDetailTab, number>>>({});
-	const tabContainerByIdRef = useRef<Partial<Record<EmployeeDetailTab, HTMLDivElement | null>>>(
+	const [mobileWizardErrorSteps, setMobileWizardErrorSteps] = useState<number[]>([]);
+	const [mobileWizardStepIndex, setMobileWizardStepIndex] = useState<number>(0);
+	const [mobileWizardBaseline, setMobileWizardBaseline] = useState<string | null>(null);
+	const [showMobileDiscardFromOutside, setShowMobileDiscardFromOutside] =
+		useState<boolean>(false);
+	const [generatedCodeSeed, setGeneratedCodeSeed] = useState<string>('0000');
+	const tabScrollByIdRef = useRef<Partial<Record<EmployeeDialogTab, number>>>({});
+	const tabContainerByIdRef = useRef<Partial<Record<EmployeeDialogTab, HTMLDivElement | null>>>(
 		{},
 	);
 	const tabSwitchStartRef = useRef<number | null>(null);
@@ -1053,7 +947,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @param tab - Detail tab to mark as visited
 	 * @returns void
 	 */
-	const markTabAsVisited = useCallback((tab: EmployeeDetailTab): void => {
+	const markTabAsVisited = useCallback((tab: EmployeeDialogTab): void => {
 		setVisitedDetailTabs((prev) => {
 			if (prev[tab]) {
 				return prev;
@@ -1099,7 +993,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 */
 	const handleDetailTabChange = useCallback(
 		(nextValue: string): void => {
-			const nextTab = nextValue as EmployeeDetailTab;
+			const nextTab = nextValue as EmployeeDialogTab;
 			const currentContainer = tabContainerByIdRef.current[detailTab];
 			if (currentContainer) {
 				tabScrollByIdRef.current[detailTab] = currentContainer.scrollTop;
@@ -1107,20 +1001,36 @@ export function EmployeesPageClient(): React.ReactElement {
 
 			setDetailTab(nextTab);
 			markTabAsVisited(nextTab);
-			emitTabSwitchTelemetry(nextTab);
+			if (nextTab !== 'info') {
+				emitTabSwitchTelemetry(nextTab);
+			}
 		},
 		[detailTab, emitTabSwitchTelemetry, markTabAsVisited],
 	);
 	const tabScrollContainerCallbacks = useMemo<
-		Record<EmployeeDetailTab, (node: HTMLDivElement | null) => void>
+		Record<EmployeeDialogTab, (node: HTMLDivElement | null) => void>
 	>(
 		() => ({
+			info: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.info = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.info ?? 0;
+			},
 			documents: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.documents = node;
 				if (!node) {
 					return;
 				}
 				node.scrollTop = tabScrollByIdRef.current.documents ?? 0;
+			},
+			deductions: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.deductions = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.deductions ?? 0;
 			},
 			disciplinary: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.disciplinary = node;
@@ -1149,13 +1059,6 @@ export function EmployeesPageClient(): React.ReactElement {
 					return;
 				}
 				node.scrollTop = tabScrollByIdRef.current.vacations ?? 0;
-			},
-			deductions: (node: HTMLDivElement | null): void => {
-				tabContainerByIdRef.current.deductions = node;
-				if (!node) {
-					return;
-				}
-				node.scrollTop = tabScrollByIdRef.current.deductions ?? 0;
 			},
 			payroll: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.payroll = node;
@@ -1196,11 +1099,17 @@ export function EmployeesPageClient(): React.ReactElement {
 		[],
 	);
 	const tabScrollCallbacks = useMemo<
-		Record<EmployeeDetailTab, (event: React.UIEvent<HTMLDivElement>) => void>
+		Record<EmployeeDialogTab, (event: React.UIEvent<HTMLDivElement>) => void>
 	>(
 		() => ({
+			info: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.info = event.currentTarget.scrollTop;
+			},
 			documents: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.documents = event.currentTarget.scrollTop;
+			},
+			deductions: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.deductions = event.currentTarget.scrollTop;
 			},
 			disciplinary: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.disciplinary = event.currentTarget.scrollTop;
@@ -1213,9 +1122,6 @@ export function EmployeesPageClient(): React.ReactElement {
 			},
 			vacations: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.vacations = event.currentTarget.scrollTop;
-			},
-			deductions: (event: React.UIEvent<HTMLDivElement>): void => {
-				tabScrollByIdRef.current.deductions = event.currentTarget.scrollTop;
 			},
 			payroll: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.payroll = event.currentTarget.scrollTop;
@@ -1243,7 +1149,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns Ref callback
 	 */
 	const registerTabScrollContainer = useCallback(
-		(tab: EmployeeDetailTab): ((node: HTMLDivElement | null) => void) =>
+		(tab: EmployeeDialogTab): ((node: HTMLDivElement | null) => void) =>
 			tabScrollContainerCallbacks[tab],
 		[tabScrollContainerCallbacks],
 	);
@@ -1255,7 +1161,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns Scroll handler
 	 */
 	const handleTabScroll = useCallback(
-		(tab: EmployeeDetailTab): ((event: React.UIEvent<HTMLDivElement>) => void) =>
+		(tab: EmployeeDialogTab): ((event: React.UIEvent<HTMLDivElement>) => void) =>
 			tabScrollCallbacks[tab],
 		[tabScrollCallbacks],
 	);
@@ -1267,7 +1173,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	 * @returns True when tab was visited
 	 */
 	const isTabVisited = useCallback(
-		(tab: EmployeeDetailTab): boolean => Boolean(visitedDetailTabs[tab]),
+		(tab: EmployeeDialogTab): boolean => Boolean(visitedDetailTabs[tab]),
 		[visitedDetailTabs],
 	);
 	const ptuAguinaldoOptionHelp = useMemo<{ key: string; label: string; description: string }[]>(
@@ -1351,8 +1257,10 @@ export function EmployeesPageClient(): React.ReactElement {
 	};
 
 	const isOrgSelected = Boolean(organizationId);
-	const canAccessDisciplinary =
+	const canManageSensitivePayroll =
 		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
+	const canAccessDisciplinary =
+		canManageSensitivePayroll;
 
 	const { data: payrollSettings } = useQuery({
 		queryKey: queryKeys.payrollSettings.current(organizationId),
@@ -1360,6 +1268,9 @@ export function EmployeesPageClient(): React.ReactElement {
 		enabled: isOrgSelected,
 	});
 	const isDisciplinaryEnabled = Boolean(payrollSettings?.enableDisciplinaryMeasures);
+	const isDualPayrollEnabled = Boolean(payrollSettings?.enableDualPayroll);
+	const canManageDualPayrollCompensation =
+		canManageSensitivePayroll && isDualPayrollEnabled;
 	const canUseDisciplinaryModule = canAccessDisciplinary && isDisciplinaryEnabled;
 	const secondaryDetailTabs = useMemo<EmployeeDetailTab[]>(
 		() =>
@@ -1548,13 +1459,6 @@ export function EmployeesPageClient(): React.ReactElement {
 	const locationLookup = useMemo(() => {
 		return new Map<string, string>(locations.map((loc) => [loc.id, loc.name || loc.code]));
 	}, [locations]);
-
-	const activeEmployeeName = useMemo(() => {
-		if (!activeEmployee) {
-			return '';
-		}
-		return `${activeEmployee.firstName} ${activeEmployee.lastName}`.trim();
-	}, [activeEmployee]);
 
 	const isTerminationLocked = activeEmployee?.status === 'INACTIVE';
 	const canConfirmTermination = Boolean(terminationPreview) && !isTerminationLocked;
@@ -2004,10 +1908,6 @@ export function EmployeesPageClient(): React.ReactElement {
 	const vacationBalance = insights?.vacation.balance ?? null;
 	const vacationRequests = insights?.vacation.requests ?? [];
 	const attendanceSummary = insights?.attendance ?? null;
-	const attendanceKpis = attendanceSummary?.kpis ?? null;
-	const attendanceTrend30d = attendanceSummary?.trend30d ?? [];
-	const absenceMonthGroups = attendanceSummary?.absencesByMonth ?? [];
-	const leavesMonthGroups = attendanceSummary?.leavesByMonth ?? [];
 	const leaveItems = insights?.leaves.items ?? [];
 	const upcomingExceptions = insights?.exceptions.items ?? [];
 	const payrollRuns = insights?.payroll.runs ?? [];
@@ -2364,6 +2264,13 @@ export function EmployeesPageClient(): React.ReactElement {
 						? null
 						: undefined
 					: Number(trimmedAguinaldoOverride);
+			const parsedFiscalDailyPay = (() => {
+				const parsed = parseOptionalPositiveCurrencyInput(value.fiscalDailyPay);
+				if (parsed === null) {
+					return isEditMode ? null : undefined;
+				}
+				return parsed;
+			})();
 			if (
 				parsedAguinaldoOverride !== undefined &&
 				parsedAguinaldoOverride !== null &&
@@ -2374,6 +2281,16 @@ export function EmployeesPageClient(): React.ReactElement {
 			}
 			const paymentFrequency = value.paymentFrequency ?? 'MONTHLY';
 			const dailyPay = calculateDailyPayFromPeriodPay(parsedPeriodPay, paymentFrequency);
+			const fiscalDailyPaySubmissionError = getFiscalDailyPaySubmissionError({
+				canManageDualPayrollCompensation,
+				dailyPay,
+				isEditMode,
+				parsedFiscalDailyPay,
+			});
+			if (fiscalDailyPaySubmissionError) {
+				toast.error(t(fiscalDailyPaySubmissionError));
+				return;
+			}
 			const resolvedUserIdForCreate =
 				value.userId && value.userId !== 'none' ? value.userId.trim() : undefined;
 			const normalizedUserIdForUpdate =
@@ -2397,6 +2314,8 @@ export function EmployeesPageClient(): React.ReactElement {
 					status: value.status,
 					hireDate: trimmedHireDate === '' ? null : trimmedHireDate,
 					dailyPay,
+					fiscalDailyPay:
+						canManageDualPayrollCompensation ? parsedFiscalDailyPay : undefined,
 					paymentFrequency,
 					sbcDailyOverride: parsedSbcOverride,
 					employmentType: value.employmentType,
@@ -2413,11 +2332,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				if (!updateResult.success) {
 					return;
 				}
-				setIsDialogOpen(false);
-				setDialogMode('create');
-				setActiveEmployee(null);
-				setDetailTab('summary');
-				setVisitedDetailTabs({ summary: true });
+				closeEmployeeDialog();
 				form.reset();
 				return;
 			} else if (isCreateMode) {
@@ -2477,11 +2392,7 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 
 				toast.error(t('toast.openDocumentsError'));
-				setIsDialogOpen(false);
-				setDialogMode('create');
-				setActiveEmployee(null);
-				setDetailTab('summary');
-				setVisitedDetailTabs({ summary: true });
+				closeEmployeeDialog();
 				form.reset();
 				return;
 			}
@@ -2492,34 +2403,62 @@ export function EmployeesPageClient(): React.ReactElement {
 	const lastName = useStore(form.store, (state) => state.values.lastName);
 	const codeValue = useStore(form.store, (state) => state.values.code);
 	const periodPayValue = useStore(form.store, (state) => state.values.periodPay);
+	const fiscalDailyPayValue = useStore(form.store, (state) => state.values.fiscalDailyPay);
+	const formValues = useStore(form.store, (state) => state.values);
 	const paymentFrequencyValue =
 		useStore(form.store, (state) => state.values.paymentFrequency) ?? 'MONTHLY';
 	const computedDailyPay = calculateDailyPayFromPeriodPay(
 		Number(periodPayValue || 0),
 		paymentFrequencyValue,
 	);
+	const parsedFiscalDailyPayPreview = parseOptionalPositiveCurrencyInput(fiscalDailyPayValue);
+	const fiscalDailyPayPreviewFeedbackKey = getFiscalDailyPayPreviewFeedbackKey({
+		canManageDualPayrollCompensation,
+		dailyPay: computedDailyPay,
+		fiscalDailyPayValue,
+		isEditMode,
+		parsedFiscalDailyPay: parsedFiscalDailyPayPreview,
+	});
+	const fiscalDailyComplementPreview =
+		typeof parsedFiscalDailyPayPreview === 'number'
+			? calculateDailyComplement(computedDailyPay, parsedFiscalDailyPayPreview)
+			: 0;
 	const periodPayLabel = t('fields.periodPay', {
 		period: t(`paymentFrequency.${paymentFrequencyValue}`),
 	});
+	const activeEmployeeDailyComplement = calculateDailyComplement(
+		activeEmployee?.dailyPay ?? 0,
+		activeEmployee?.fiscalDailyPay,
+	);
+	const currentMobileWizardSnapshot = useMemo(
+		() => serializeEmployeeDraft(formValues, schedule),
+		[formValues, schedule],
+	);
+	const isMobileWizardDirty =
+		isDialogOpen &&
+		isMobile &&
+		!isViewMode &&
+		mobileWizardBaseline !== null &&
+		currentMobileWizardSnapshot !== mobileWizardBaseline;
 
-	const generateEmployeeCode = (first: string, last: string): string => {
-		const random = Math.floor(1000 + Math.random() * 9000).toString();
+	const generateEmployeeCode = (first: string, last: string, seed: string): string => {
 		const base = [first, last]
 			.filter(Boolean)
 			.join('.')
 			.replace(/[^a-zA-Z0-9.]/g, '')
 			.toUpperCase();
-		return (base || 'EMP') + `-${random}`;
+		return `${base || 'EMP'}-${seed}`;
 	};
 
 	useEffect(() => {
 		if (!isCreateMode) return;
 		if (hasCustomCode) return;
-		// Only auto-generate when the code field is empty to avoid update loops
-		if (codeValue.trim() !== '') return;
-		const generated = generateEmployeeCode(firstName, lastName);
+		const generated = generateEmployeeCode(firstName, lastName, generatedCodeSeed);
+		if (codeValue === generated) {
+			return;
+		}
 		form.setFieldValue('code', generated);
-	}, [isCreateMode, hasCustomCode, firstName, lastName, codeValue, form]);
+	}, [isCreateMode, hasCustomCode, firstName, lastName, codeValue, form, generatedCodeSeed]);
 
 	/**
 	 * Upserts a schedule entry for a specific day.
@@ -2584,19 +2523,31 @@ export function EmployeesPageClient(): React.ReactElement {
 	/**
 	 * Opens the dialog for creating a new employee.
 	 */
-	const handleCreateNew = useCallback((): void => {
+	const handleCreateNew = (): void => {
 		resetTerminationState();
+		setShowMobileDiscardFromOutside(false);
+		const nextGeneratedCodeSeed = Math.floor(1000 + Math.random() * 9000).toString();
+		const nextSchedule = createDefaultSchedule();
+		const nextFormValues: EmployeeFormValues = {
+			...initialFormValues,
+			code: generateEmployeeCode('', '', nextGeneratedCodeSeed),
+		};
+		setMobileWizardBaseline(serializeEmployeeDraft(nextFormValues, nextSchedule));
+		setGeneratedCodeSeed(nextGeneratedCodeSeed);
 		setDialogMode('create');
 		setActiveEmployee(null);
-		setDetailTab('summary');
-		setVisitedDetailTabs({ summary: true });
+		setDetailTab(resolveInitialDetailTab('summary', isMobile));
+		setVisitedDetailTabs({ [resolveInitialDetailTab('summary', isMobile)]: true });
 		form.reset();
+		form.setFieldValue('code', nextFormValues.code);
 		setHasCustomCode(false);
-		setSchedule(createDefaultSchedule());
+		setSchedule(nextSchedule);
 		setPtuHistoryYearInput('');
 		setPtuHistoryAmountInput('');
+		setMobileWizardErrorSteps([]);
+		setMobileWizardStepIndex(0);
 		setIsDialogOpen(true);
-	}, [form, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput]);
+	};
 
 	/**
 	 * Opens employee detail view in the requested tab.
@@ -2607,16 +2558,18 @@ export function EmployeesPageClient(): React.ReactElement {
 	const openEmployeeDetailTab = useCallback(
 		(employee: Employee, tab: EmployeeDetailTab): void => {
 			resetTerminationState();
+			setShowMobileDiscardFromOutside(false);
 			setActiveEmployee(employee);
 			setDialogMode('view');
-			setDetailTab(tab);
+			const initialTab = resolveInitialDetailTab(tab, isMobile);
+			setDetailTab(initialTab);
 			// Reset keep-alive state per dialog session; mount only the entry tab first.
-			setVisitedDetailTabs({ [tab]: true });
+			setVisitedDetailTabs({ [initialTab]: true });
 			setPtuHistoryYearInput('');
 			setPtuHistoryAmountInput('');
 			setIsDialogOpen(true);
 		},
-		[resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
+		[isMobile, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
 	);
 
 	/**
@@ -2700,121 +2653,183 @@ export function EmployeesPageClient(): React.ReactElement {
 	 *
 	 * @param employee - The employee to edit
 	 */
-	const handleEdit = useCallback(
-		async (employee: Employee): Promise<void> => {
-			resetTerminationState();
-			setIsScheduleLoading(true);
-			setActiveEmployee(employee);
-			setDialogMode('edit');
-			form.setFieldValue('code', employee.code);
-			form.setFieldValue('firstName', employee.firstName);
-			form.setFieldValue('lastName', employee.lastName);
-			form.setFieldValue('nss', employee.nss ?? '');
-			form.setFieldValue('rfc', employee.rfc ?? '');
-			form.setFieldValue('email', employee.email ?? '');
-			form.setFieldValue('userId', employee.userId ?? 'none');
-			form.setFieldValue('phone', employee.phone ?? '');
-			form.setFieldValue('jobPositionId', employee.jobPositionId ?? '');
-			form.setFieldValue('locationId', employee.locationId ?? '');
-			form.setFieldValue('department', employee.department ?? '');
-			form.setFieldValue('status', employee.status);
-			form.setFieldValue('shiftType', employee.shiftType ?? 'DIURNA');
-			form.setFieldValue(
-				'hireDate',
-				employee.hireDate ? format(new Date(employee.hireDate), 'yyyy-MM-dd') : '',
-			);
-			form.setFieldValue('paymentFrequency', employee.paymentFrequency ?? 'MONTHLY');
-			form.setFieldValue(
-				'periodPay',
-				String(
-					calculatePeriodPayFromDailyPay(
-						employee.dailyPay ?? 0,
-						employee.paymentFrequency ?? 'MONTHLY',
-					),
+	const handleEdit = async (employee: Employee): Promise<void> => {
+		resetTerminationState();
+		setShowMobileDiscardFromOutside(false);
+		setIsScheduleLoading(true);
+		setActiveEmployee(employee);
+		setDialogMode('edit');
+		const nextFormValues: EmployeeFormValues = {
+			code: employee.code,
+			firstName: employee.firstName,
+			lastName: employee.lastName,
+			nss: employee.nss ?? '',
+			rfc: employee.rfc ?? '',
+			email: employee.email ?? '',
+			userId: employee.userId ?? 'none',
+			phone: employee.phone ?? '',
+			jobPositionId: employee.jobPositionId ?? '',
+			locationId: employee.locationId ?? '',
+			department: employee.department ?? '',
+			status: employee.status,
+			hireDate: employee.hireDate ? format(employee.hireDate, 'yyyy-MM-dd') : '',
+			paymentFrequency: employee.paymentFrequency ?? 'MONTHLY',
+			periodPay: String(
+				calculatePeriodPayFromDailyPay(
+					employee.dailyPay ?? 0,
+					employee.paymentFrequency ?? 'MONTHLY',
 				),
-			);
-			form.setFieldValue(
-				'sbcDailyOverride',
-				employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
-			);
-			form.setFieldValue('employmentType', employee.employmentType ?? 'PERMANENT');
-			form.setFieldValue('isTrustEmployee', Boolean(employee.isTrustEmployee));
-			form.setFieldValue(
-				'isDirectorAdminGeneralManager',
-				Boolean(employee.isDirectorAdminGeneralManager),
-			);
-			form.setFieldValue('isDomesticWorker', Boolean(employee.isDomesticWorker));
-			form.setFieldValue('isPlatformWorker', Boolean(employee.isPlatformWorker));
-			form.setFieldValue(
-				'platformHoursYear',
-				employee.platformHoursYear ? String(employee.platformHoursYear) : '',
-			);
-			form.setFieldValue(
-				'ptuEligibilityOverride',
-				employee.ptuEligibilityOverride ?? 'DEFAULT',
-			);
-			form.setFieldValue(
-				'aguinaldoDaysOverride',
-				employee.aguinaldoDaysOverride ? String(employee.aguinaldoDaysOverride) : '',
-			);
-			setHasCustomCode(true);
-			setPtuHistoryYearInput('');
-			setPtuHistoryAmountInput('');
+			),
+			fiscalDailyPay: employee.fiscalDailyPay ? String(employee.fiscalDailyPay) : '',
+			sbcDailyOverride: employee.sbcDailyOverride ? String(employee.sbcDailyOverride) : '',
+			employmentType: employee.employmentType ?? 'PERMANENT',
+			isTrustEmployee: Boolean(employee.isTrustEmployee),
+			isDirectorAdminGeneralManager: Boolean(employee.isDirectorAdminGeneralManager),
+			isDomesticWorker: Boolean(employee.isDomesticWorker),
+			isPlatformWorker: Boolean(employee.isPlatformWorker),
+			platformHoursYear: employee.platformHoursYear
+				? String(employee.platformHoursYear)
+				: '',
+			ptuEligibilityOverride: employee.ptuEligibilityOverride ?? 'DEFAULT',
+			aguinaldoDaysOverride: employee.aguinaldoDaysOverride
+				? String(employee.aguinaldoDaysOverride)
+				: '',
+			shiftType: employee.shiftType ?? 'DIURNA',
+		};
+		form.setFieldValue('code', nextFormValues.code);
+		form.setFieldValue('firstName', nextFormValues.firstName);
+		form.setFieldValue('lastName', nextFormValues.lastName);
+		form.setFieldValue('nss', nextFormValues.nss);
+		form.setFieldValue('rfc', nextFormValues.rfc);
+		form.setFieldValue('email', nextFormValues.email);
+		form.setFieldValue('userId', nextFormValues.userId);
+		form.setFieldValue('phone', nextFormValues.phone);
+		form.setFieldValue('jobPositionId', nextFormValues.jobPositionId);
+		form.setFieldValue('locationId', nextFormValues.locationId);
+		form.setFieldValue('department', nextFormValues.department);
+		form.setFieldValue('status', nextFormValues.status);
+		form.setFieldValue('shiftType', nextFormValues.shiftType);
+		form.setFieldValue('hireDate', nextFormValues.hireDate);
+		form.setFieldValue('paymentFrequency', nextFormValues.paymentFrequency);
+		form.setFieldValue('periodPay', nextFormValues.periodPay);
+		form.setFieldValue('fiscalDailyPay', nextFormValues.fiscalDailyPay);
+		form.setFieldValue('sbcDailyOverride', nextFormValues.sbcDailyOverride);
+		form.setFieldValue('employmentType', nextFormValues.employmentType);
+		form.setFieldValue('isTrustEmployee', nextFormValues.isTrustEmployee);
+		form.setFieldValue(
+			'isDirectorAdminGeneralManager',
+			nextFormValues.isDirectorAdminGeneralManager,
+		);
+		form.setFieldValue('isDomesticWorker', nextFormValues.isDomesticWorker);
+		form.setFieldValue('isPlatformWorker', nextFormValues.isPlatformWorker);
+		form.setFieldValue('platformHoursYear', nextFormValues.platformHoursYear);
+		form.setFieldValue('ptuEligibilityOverride', nextFormValues.ptuEligibilityOverride);
+		form.setFieldValue('aguinaldoDaysOverride', nextFormValues.aguinaldoDaysOverride);
+		setHasCustomCode(true);
+		setPtuHistoryYearInput('');
+		setPtuHistoryAmountInput('');
 
-			const detail = await fetchEmployeeById(employee.id);
-			if (detail?.schedule && detail.schedule.length > 0) {
-				setSchedule(
-					detail.schedule.map((entry) => ({
+		const detail = await fetchEmployeeById(employee.id);
+		const nextSchedule =
+			detail?.schedule && detail.schedule.length > 0
+				? detail.schedule.map((entry) => ({
 						dayOfWeek: entry.dayOfWeek,
 						startTime: entry.startTime,
 						endTime: entry.endTime,
 						isWorkingDay: entry.isWorkingDay,
-					})),
-				);
-			} else {
-				setSchedule(createDefaultSchedule());
-			}
-			setIsScheduleLoading(false);
-			setDetailTab('summary');
-			setVisitedDetailTabs({ summary: true });
-			setIsDialogOpen(true);
-		},
-		[form, resetTerminationState, setPtuHistoryAmountInput, setPtuHistoryYearInput],
-	);
+					}))
+				: createDefaultSchedule();
+		if (detail?.schedule && detail.schedule.length > 0) {
+			setSchedule(nextSchedule);
+		} else {
+			setSchedule(nextSchedule);
+		}
+		setMobileWizardBaseline(serializeEmployeeDraft(nextFormValues, nextSchedule));
+		setIsScheduleLoading(false);
+		const initialTab = resolveInitialDetailTab('summary', isMobile);
+		setDetailTab(initialTab);
+		setVisitedDetailTabs({ [initialTab]: true });
+		setMobileWizardErrorSteps([]);
+		setMobileWizardStepIndex(0);
+		setIsDialogOpen(true);
+	};
 
 	/**
 	 * Switches the dialog from view to edit mode.
 	 */
-	const handleEditFromDetails = useCallback((): void => {
+	const handleEditFromDetails = (): void => {
 		if (!activeEmployee) {
 			return;
 		}
 		void handleEdit(activeEmployee);
-	}, [activeEmployee, handleEdit]);
+	};
+
+	/**
+	 * Validates the mobile wizard and submits the shared form when no step errors remain.
+	 *
+	 * @returns Promise resolving once the submit attempt completes
+	 */
+	const handleMobileWizardSubmit = async (): Promise<void> => {
+		await form.validateAllFields('submit');
+		const nextErrorSteps = getMobileWizardErrorStepIndexes((fieldName) =>
+			form.getFieldMeta(fieldName),
+		);
+		if (nextErrorSteps.length > 0) {
+			setMobileWizardErrorSteps(nextErrorSteps);
+			setMobileWizardStepIndex(nextErrorSteps[0] ?? 0);
+			toast.error(
+				t('wizard.toast.errors', {
+					steps: nextErrorSteps.map((stepIndex) => stepIndex + 1).join(', '),
+				}),
+			);
+			return;
+		}
+
+		setMobileWizardErrorSteps([]);
+		await form.handleSubmit();
+	};
+
+	/**
+	 * Closes the employee dialog and resets related local state.
+	 *
+	 * @returns Nothing
+	 */
+	const closeEmployeeDialog = (): void => {
+		const resetState = buildClosedEmployeeDialogState(isMobile);
+		setShowMobileDiscardFromOutside(resetState.showMobileDiscardFromOutside);
+		setIsDialogOpen(resetState.isDialogOpen);
+		setMobileWizardBaseline(resetState.mobileWizardBaseline);
+		setDialogMode(resetState.dialogMode);
+		setActiveEmployee(resetState.activeEmployee);
+		setDetailTab(resetState.detailTab);
+		setVisitedDetailTabs(resetState.visitedDetailTabs);
+		tabScrollByIdRef.current = {};
+		tabContainerByIdRef.current = {};
+		form.reset();
+		setHasCustomCode(resetState.hasCustomCode);
+		setSchedule(createDefaultSchedule());
+		setMobileWizardErrorSteps(resetState.mobileWizardErrorSteps);
+		setMobileWizardStepIndex(resetState.mobileWizardStepIndex);
+		resetTerminationState();
+	};
 
 	/**
 	 * Handles dialog close and resets form state.
 	 *
 	 * @param open - Whether the dialog should be open
 	 */
-	const handleDialogOpenChange = useCallback(
-		(open: boolean): void => {
-			setIsDialogOpen(open);
-			if (!open) {
-				setDialogMode('create');
-				setActiveEmployee(null);
-				setDetailTab('summary');
-				setVisitedDetailTabs({ summary: true });
-				tabScrollByIdRef.current = {};
-				tabContainerByIdRef.current = {};
-				form.reset();
-				setHasCustomCode(false);
-				setSchedule(createDefaultSchedule());
-				resetTerminationState();
-			}
-		},
-		[form, resetTerminationState],
-	);
+	const handleDialogOpenChange = (open: boolean): void => {
+		if (!open && isMobile && !isViewMode && isMobileWizardDirty) {
+			setShowMobileDiscardFromOutside(true);
+			return;
+		}
+
+		setIsDialogOpen(open);
+		setShowMobileDiscardFromOutside(false);
+		if (!open) {
+			closeEmployeeDialog();
+		}
+	};
 
 	useEffect(() => {
 		if (!isDialogOpen || !isViewMode) {
@@ -2826,6 +2841,27 @@ export function EmployeesPageClient(): React.ReactElement {
 			activeContainer.scrollTop = tabScrollByIdRef.current[detailTab] ?? 0;
 		}
 	}, [detailTab, isDialogOpen, isViewMode]);
+
+	useEffect(() => {
+		if (!isDialogOpen || !isViewMode || !isMobile) {
+			return;
+		}
+
+		const mobileTabsContainer = document.querySelector<HTMLElement>(
+			'[data-testid="employee-mobile-detail-tabs"]',
+		);
+		const activeTabTrigger =
+			mobileTabsContainer?.querySelector<HTMLElement>('[data-state="active"]');
+		if (typeof activeTabTrigger?.scrollIntoView !== 'function') {
+			return;
+		}
+
+		activeTabTrigger.scrollIntoView({
+			behavior: 'smooth',
+			inline: 'center',
+			block: 'nearest',
+		});
+	}, [detailTab, isDialogOpen, isMobile, isViewMode]);
 
 	/**
 	 * Handles employee deletion.
@@ -2862,6 +2898,247 @@ export function EmployeesPageClient(): React.ReactElement {
 			deleteRekognitionMutation.mutate(id);
 		},
 		[deleteRekognitionMutation],
+	);
+
+	/**
+	 * Renders the actions menu and confirmation dialogs for an employee.
+	 *
+	 * @param employee - Employee record receiving the actions
+	 * @returns Action controls for table rows and mobile cards
+	 */
+	const renderEmployeeActions = useCallback(
+		(employee: Employee): React.ReactElement => (
+			<>
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button variant="ghost" size="icon" className="h-11 w-11">
+							<MoreHorizontal className="h-4 w-4" />
+							<span className="sr-only">{t('menu.open')}</span>
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onClick={() => handleViewDetails(employee)}>
+							<Eye className="mr-2 h-4 w-4" />
+							{t('menu.viewDetails')}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => void openEmployeeDetailById(employee.id, 'documents')}
+						>
+							<FileText className="mr-2 h-4 w-4" />
+							{t('menu.viewDocuments')}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => void openEmployeeDetailById(employee.id, 'deductions')}
+						>
+							<FileText className="mr-2 h-4 w-4" />
+							{t('menu.viewDeductions')}
+						</DropdownMenuItem>
+						{canUseDisciplinaryModule ? (
+							<DropdownMenuItem
+								onClick={() =>
+									void openEmployeeDetailById(employee.id, 'disciplinary')
+								}
+							>
+								<ShieldAlert className="mr-2 h-4 w-4" />
+								{t('menu.viewDisciplinaryMeasures')}
+							</DropdownMenuItem>
+						) : null}
+						{canUseDisciplinaryModule ? (
+							<DropdownMenuItem asChild>
+								<Link href={`/disciplinary-measures?employeeId=${employee.id}`}>
+									<ShieldAlert className="mr-2 h-4 w-4" />
+									{t('menu.openDisciplinaryModule')}
+								</Link>
+							</DropdownMenuItem>
+						) : null}
+						<DropdownMenuItem onClick={() => handleOpenEnrollDialog(employee)}>
+							<ScanFace className="mr-2 h-4 w-4" />
+							{employee.rekognitionUserId
+								? t('menu.reEnrollFace')
+								: t('menu.enrollFace')}
+						</DropdownMenuItem>
+						{employee.rekognitionUserId ? (
+							<DropdownMenuItem
+								onClick={() => setDeleteRekognitionConfirmId(employee.id)}
+								className="text-[color:var(--status-warning)] focus:text-[color:var(--status-warning)]"
+							>
+								<UserX className="mr-2 h-4 w-4" />
+								{t('menu.removeFaceEnrollment')}
+							</DropdownMenuItem>
+						) : null}
+						<DropdownMenuSeparator />
+						<DropdownMenuItem
+							onClick={() => setDeleteConfirmId(employee.id)}
+							className="text-destructive focus:text-destructive"
+						>
+							<Trash2 className="mr-2 h-4 w-4" />
+							{t('menu.deleteEmployee')}
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+
+				<Dialog
+					open={deleteConfirmId === employee.id}
+					onOpenChange={(open) => setDeleteConfirmId(open ? employee.id : null)}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>{t('dialogs.deleteEmployee.title')}</DialogTitle>
+							<DialogDescription>
+								{t('dialogs.deleteEmployee.description', {
+									name: `${employee.firstName} ${employee.lastName}`.trim(),
+								})}
+								{employee.rekognitionUserId ? (
+									<span className="mt-2 block text-[color:var(--status-warning)]">
+										{t('dialogs.deleteEmployee.faceNote')}
+									</span>
+								) : null}
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button variant="outline" onClick={() => setDeleteConfirmId(null)}>
+								{tCommon('cancel')}
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => handleDelete(employee.id)}
+								disabled={deleteMutation.isPending}
+							>
+								{deleteMutation.isPending ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										{tCommon('deleting')}
+									</>
+								) : (
+									tCommon('delete')
+								)}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+
+				<Dialog
+					open={deleteRekognitionConfirmId === employee.id}
+					onOpenChange={(open) =>
+						setDeleteRekognitionConfirmId(open ? employee.id : null)
+					}
+				>
+					<DialogContent>
+						<DialogHeader>
+							<DialogTitle>{t('dialogs.removeFaceEnrollment.title')}</DialogTitle>
+							<DialogDescription>
+								{t('dialogs.removeFaceEnrollment.description', {
+									name: `${employee.firstName} ${employee.lastName}`.trim(),
+								})}
+							</DialogDescription>
+						</DialogHeader>
+						<DialogFooter>
+							<Button
+								variant="outline"
+								onClick={() => setDeleteRekognitionConfirmId(null)}
+							>
+								{tCommon('cancel')}
+							</Button>
+							<Button
+								variant="destructive"
+								onClick={() => handleDeleteRekognition(employee.id)}
+								disabled={deleteRekognitionMutation.isPending}
+							>
+								{deleteRekognitionMutation.isPending ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										{tCommon('removing')}
+									</>
+								) : (
+									t('dialogs.removeFaceEnrollment.confirm')
+								)}
+							</Button>
+						</DialogFooter>
+					</DialogContent>
+				</Dialog>
+			</>
+		),
+		[
+			canUseDisciplinaryModule,
+			deleteConfirmId,
+			deleteMutation.isPending,
+			deleteRekognitionConfirmId,
+			deleteRekognitionMutation.isPending,
+			handleDelete,
+			handleDeleteRekognition,
+			handleOpenEnrollDialog,
+			handleViewDetails,
+			openEmployeeDetailById,
+			t,
+			tCommon,
+		],
+	);
+
+	/**
+	 * Renders the mobile employee card used by the responsive data view.
+	 *
+	 * @param employee - Employee record to display
+	 * @returns Responsive employee card content
+	 */
+	const renderEmployeeCard = useCallback(
+		(employee: Employee): React.ReactElement => {
+			const locationName = employee.locationId
+				? (locationLookup.get(employee.locationId) ?? t('table.unknownLocation'))
+				: '-';
+			const fullName = `${employee.firstName} ${employee.lastName}`.trim();
+			return (
+				<div className="space-y-4">
+					<div className="flex items-start justify-between gap-3">
+						<div className="min-w-0 space-y-2">
+							<Badge variant="outline" className="w-fit text-xs">
+								{employee.code}
+							</Badge>
+							<div className="space-y-1">
+								<p className="text-base font-semibold leading-tight">{fullName}</p>
+								<p className="text-sm text-muted-foreground">
+									{employee.jobPositionName ?? '-'}
+								</p>
+							</div>
+						</div>
+						<div className="shrink-0">{renderEmployeeActions(employee)}</div>
+					</div>
+
+					<div className="grid gap-3 text-sm">
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-muted-foreground">
+								{t('table.headers.location')}
+							</span>
+							<span className="max-w-[60%] text-right font-medium">
+								{locationName}
+							</span>
+						</div>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-muted-foreground">
+								{t('table.headers.status')}
+							</span>
+							<Badge variant={statusVariants[employee.status]}>
+								{t(`status.${employee.status}`)}
+							</Badge>
+						</div>
+						<div className="flex items-center justify-between gap-3">
+							<span className="text-muted-foreground">{t('table.headers.face')}</span>
+							{employee.rekognitionUserId ? (
+								<Badge variant="default" className="gap-1">
+									<UserCheck className="h-3 w-3" />
+									{t('face.enrolled')}
+								</Badge>
+							) : (
+								<Badge variant="outline" className="gap-1 text-muted-foreground">
+									<UserX className="h-3 w-3" />
+									{t('face.notEnrolled')}
+								</Badge>
+							)}
+						</div>
+					</div>
+				</div>
+			);
+		},
+		[locationLookup, renderEmployeeActions, t],
 	);
 
 	const columns = useMemo<ColumnDef<Employee>[]>(
@@ -3044,3419 +3321,749 @@ export function EmployeesPageClient(): React.ReactElement {
 				header: t('table.headers.actions'),
 				enableSorting: false,
 				enableGlobalFilter: false,
-				cell: ({ row }) => (
-					<>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" size="icon">
-									<MoreHorizontal className="h-4 w-4" />
-									<span className="sr-only">{t('menu.open')}</span>
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onClick={() => handleViewDetails(row.original)}>
-									<Eye className="mr-2 h-4 w-4" />
-									{t('menu.viewDetails')}
-								</DropdownMenuItem>
-								<DropdownMenuItem
-									onClick={() =>
-										void openEmployeeDetailById(row.original.id, 'documents')
+				cell: ({ row }) => renderEmployeeActions(row.original),
+			},
+		],
+		[canUseDisciplinaryModule, locationLookup, renderEmployeeActions, t],
+	);
+
+	const mobileWizardSteps = useMemo(
+		() => [
+			{
+				id: 'personal',
+				title: t('wizard.steps.personal'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField
+							name="firstName"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? t('validation.firstNameRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.firstName')}
+									orientation="vertical"
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="lastName"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? t('validation.lastNameRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.lastName')}
+									orientation="vertical"
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="code"
+							validators={{
+								onChange: ({ value }) =>
+									!value.trim() ? t('validation.codeRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<EmployeeCodeField
+									field={field}
+									label={t('fields.code')}
+									isEditMode={isEditMode}
+									setHasCustomCode={setHasCustomCode}
+									orientation="vertical"
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="nss">
+							{(field) => (
+								<field.TextField
+									label={t('fields.nss')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="rfc">
+							{(field) => (
+								<field.TextField
+									label={t('fields.rfc')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="email">
+							{(field) => (
+								<field.TextField
+									label={t('fields.email')}
+									type="email"
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="phone">
+							{(field) => (
+								<field.TextField
+									label={t('fields.phone')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="department">
+							{(field) => (
+								<field.TextField
+									label={t('fields.department')}
+									orientation="vertical"
+									placeholder={tCommon('optional')}
+								/>
+							)}
+						</form.AppField>
+					</div>
+				),
+			},
+			{
+				id: 'laboral',
+				title: t('wizard.steps.laboral'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField
+							name="locationId"
+							validators={{
+								onChange: ({ value }) =>
+									!value ? t('validation.locationRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label={t('fields.location')}
+									options={locations.map((location) => ({
+										value: location.id,
+										label: location.name,
+									}))}
+									orientation="vertical"
+									placeholder={
+										isLoadingLocations
+											? tCommon('loading')
+											: t('placeholders.selectLocation')
 									}
-								>
-									<FileText className="mr-2 h-4 w-4" />
-									{t('menu.viewDocuments')}
-								</DropdownMenuItem>
-								{canUseDisciplinaryModule ? (
-									<DropdownMenuItem
-										onClick={() =>
-											void openEmployeeDetailById(
-												row.original.id,
-												'disciplinary',
-											)
-										}
-									>
-										<ShieldAlert className="mr-2 h-4 w-4" />
-										{t('menu.viewDisciplinaryMeasures')}
-									</DropdownMenuItem>
-								) : null}
-								{canUseDisciplinaryModule ? (
-									<DropdownMenuItem asChild>
-										<Link
-											href={`/disciplinary-measures?employeeId=${row.original.id}`}
-										>
-											<ShieldAlert className="mr-2 h-4 w-4" />
-											{t('menu.openDisciplinaryModule')}
-										</Link>
-									</DropdownMenuItem>
-								) : null}
-								<DropdownMenuItem
-									onClick={() => handleOpenEnrollDialog(row.original)}
-								>
-									<ScanFace className="mr-2 h-4 w-4" />
-									{row.original.rekognitionUserId
-										? t('menu.reEnrollFace')
-										: t('menu.enrollFace')}
-								</DropdownMenuItem>
-								{row.original.rekognitionUserId && (
-									<DropdownMenuItem
-										onClick={() =>
-											setDeleteRekognitionConfirmId(row.original.id)
-										}
-										className="text-[color:var(--status-warning)] focus:text-[color:var(--status-warning)]"
-									>
-										<UserX className="mr-2 h-4 w-4" />
-										{t('menu.removeFaceEnrollment')}
-									</DropdownMenuItem>
+									disabled={isLoadingLocations}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="jobPositionId"
+							validators={{
+								onChange: ({ value }) =>
+									isCreateMode && !value
+										? t('validation.jobPositionRequired')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label={t('fields.jobPosition')}
+									options={jobPositions.map((position) => ({
+										value: position.id,
+										label: position.name,
+									}))}
+									orientation="vertical"
+									placeholder={
+										isLoadingJobPositions
+											? tCommon('loading')
+											: t('placeholders.selectJobPosition')
+									}
+									disabled={isLoadingJobPositions}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="status">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.status')}
+									orientation="vertical"
+									options={[
+										{ value: 'ACTIVE', label: t('status.ACTIVE') },
+										{ value: 'INACTIVE', label: t('status.INACTIVE') },
+										{ value: 'ON_LEAVE', label: t('status.ON_LEAVE') },
+									]}
+									placeholder={t('placeholders.selectStatus')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="shiftType">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.shiftType')}
+									orientation="vertical"
+									options={shiftTypeOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('placeholders.selectShiftType')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="hireDate"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmedValue = value.trim();
+									if (!trimmedValue) {
+										return undefined;
+									}
+									const parsedValue = parse(
+										trimmedValue,
+										'yyyy-MM-dd',
+										new Date(),
+									);
+									if (
+										!isValid(parsedValue) ||
+										format(parsedValue, 'yyyy-MM-dd') !== trimmedValue
+									) {
+										return t('validation.hireDateInvalid');
+									}
+									const today = startOfDay(new Date());
+									if (isAfter(startOfDay(parsedValue), today)) {
+										return t('validation.hireDateFutureNotAllowed');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.DateField
+									label={t('fields.hireDate')}
+									orientation="vertical"
+									placeholder={t('placeholders.hireDate')}
+									variant="input"
+									minYear={1950}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="userId">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.user')}
+									orientation="vertical"
+									options={memberOptions}
+									placeholder={
+										isLoadingMembers
+											? tCommon('loading')
+											: t('placeholders.selectUser')
+									}
+									disabled={isLoadingMembers}
+								/>
+							)}
+						</form.AppField>
+					</div>
+				),
+			},
+			{
+				id: 'salario',
+				title: t('wizard.steps.salario'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField
+							name="paymentFrequency"
+							validators={{
+								onChange: ({ value }) =>
+									!value ? t('validation.paymentFrequencyRequired') : undefined,
+							}}
+						>
+							{(field) => (
+								<field.SelectField
+									label={t('fields.paymentFrequency')}
+									orientation="vertical"
+									options={[
+										{
+											value: 'WEEKLY',
+											label: t('paymentFrequency.WEEKLY'),
+										},
+										{
+											value: 'BIWEEKLY',
+											label: t('paymentFrequency.BIWEEKLY'),
+										},
+										{
+											value: 'MONTHLY',
+											label: t('paymentFrequency.MONTHLY'),
+										},
+									]}
+									placeholder={t('placeholders.selectPaymentFrequency')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="periodPay"
+							validators={{
+								onChange: ({ value }) =>
+									Number(value) <= 0
+										? t('validation.periodPayGreaterThanZero')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={periodPayLabel}
+									orientation="vertical"
+									type="number"
+									placeholder={t('placeholders.periodPayExample')}
+								/>
+							)}
+						</form.AppField>
+						<div className="grid gap-2">
+							<Label htmlFor="mobile-daily-pay">
+								{t('fields.dailyPayCalculated')}
+							</Label>
+							<Input
+								id="mobile-daily-pay"
+								value={computedDailyPay.toFixed(2)}
+								readOnly
+								disabled
+							/>
+						</div>
+						<form.AppField
+							name="sbcDailyOverride"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmed = value.trim();
+									if (!trimmed) {
+										return undefined;
+									}
+									const parsed = Number(trimmed);
+									if (!Number.isFinite(parsed) || parsed <= 0) {
+										return t('validation.sbcDailyOverride');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.sbcDailyOverride')}
+									orientation="vertical"
+									placeholder={t('placeholders.sbcDailyOverride')}
+									description={t('helpers.sbcDailyOverride')}
+								/>
+							)}
+						</form.AppField>
+					</div>
+				),
+			},
+			{
+				id: 'ptu',
+				title: t('wizard.steps.ptu'),
+				content: (
+					<div className="grid gap-4">
+						<form.AppField name="employmentType">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.employmentType')}
+									orientation="vertical"
+									options={employmentTypeOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('placeholders.selectEmploymentType')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField name="ptuEligibilityOverride">
+							{(field) => (
+								<field.SelectField
+									label={t('fields.ptuEligibilityOverride')}
+									orientation="vertical"
+									options={ptuEligibilityOptions.map((option) => ({
+										value: option.value,
+										label: t(option.labelKey),
+									}))}
+									placeholder={t('placeholders.selectPtuEligibility')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="aguinaldoDaysOverride"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmed = value.trim();
+									if (!trimmed) {
+										return undefined;
+									}
+									const parsed = Number(trimmed);
+									if (!Number.isFinite(parsed) || parsed < 0) {
+										return t('validation.aguinaldoDaysOverride');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.aguinaldoDaysOverride')}
+									orientation="vertical"
+									placeholder={t('placeholders.aguinaldoDaysOverride')}
+									type="number"
+									description={t('helpers.aguinaldoDaysOverride')}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="platformHoursYear"
+							validators={{
+								onChange: ({ value }) => {
+									const trimmed = value.trim();
+									if (!trimmed) {
+										return undefined;
+									}
+									const parsed = Number(trimmed);
+									if (!Number.isFinite(parsed) || parsed < 0) {
+										return t('validation.platformHoursYear');
+									}
+									return undefined;
+								},
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('fields.platformHoursYear')}
+									orientation="vertical"
+									placeholder={t('placeholders.platformHoursYear')}
+									type="number"
+									description={t('helpers.platformHoursYear')}
+								/>
+							)}
+						</form.AppField>
+						<div className="grid gap-3">
+							<form.AppField name="isTrustEmployee">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isTrustEmployee')}
+										description={t('helpers.isTrustEmployee')}
+										orientation="vertical"
+									/>
 								)}
-								<DropdownMenuSeparator />
-								<DropdownMenuItem
-									onClick={() => setDeleteConfirmId(row.original.id)}
-									className="text-destructive focus:text-destructive"
+							</form.AppField>
+							<form.AppField name="isDirectorAdminGeneralManager">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isDirectorAdminGeneralManager')}
+										description={t('helpers.isDirectorAdminGeneralManager')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+							<form.AppField name="isDomesticWorker">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isDomesticWorker')}
+										description={t('helpers.isDomesticWorker')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+							<form.AppField name="isPlatformWorker">
+								{(field) => (
+									<field.ToggleField
+										label={t('fields.isPlatformWorker')}
+										description={t('helpers.isPlatformWorker')}
+										orientation="vertical"
+									/>
+								)}
+							</form.AppField>
+						</div>
+						<div className="rounded-2xl border p-4">
+							<div className="flex items-center justify-between gap-3">
+								<div>
+									<p className="text-sm font-medium">{t('ptuHistory.title')}</p>
+									<p className="text-xs text-muted-foreground">
+										{t('ptuHistory.subtitle')}
+									</p>
+								</div>
+								<Button
+									type="button"
+									size="sm"
+									onClick={() => void handlePtuHistorySave()}
+									disabled={ptuHistoryMutation.isPending || !activeEmployee}
 								>
-									<Trash2 className="mr-2 h-4 w-4" />
-									{t('menu.deleteEmployee')}
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-
-						<Dialog
-							open={deleteConfirmId === row.original.id}
-							onOpenChange={(open) =>
-								setDeleteConfirmId(open ? row.original.id : null)
-							}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>{t('dialogs.deleteEmployee.title')}</DialogTitle>
-									<DialogDescription>
-										{t('dialogs.deleteEmployee.description', {
-											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
-										})}
-										{row.original.rekognitionUserId && (
-											<span className="block mt-2 text-[color:var(--status-warning)]">
-												{t('dialogs.deleteEmployee.faceNote')}
-											</span>
-										)}
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter>
-									<Button
-										variant="outline"
-										onClick={() => setDeleteConfirmId(null)}
-									>
-										{tCommon('cancel')}
-									</Button>
-									<Button
-										variant="destructive"
-										onClick={() => handleDelete(row.original.id)}
-										disabled={deleteMutation.isPending}
-									>
-										{deleteMutation.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												{tCommon('deleting')}
-											</>
-										) : (
-											tCommon('delete')
-										)}
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-
-						<Dialog
-							open={deleteRekognitionConfirmId === row.original.id}
-							onOpenChange={(open) =>
-								setDeleteRekognitionConfirmId(open ? row.original.id : null)
-							}
-						>
-							<DialogContent>
-								<DialogHeader>
-									<DialogTitle>
-										{t('dialogs.removeFaceEnrollment.title')}
-									</DialogTitle>
-									<DialogDescription>
-										{t('dialogs.removeFaceEnrollment.description', {
-											name: `${row.original.firstName} ${row.original.lastName}`.trim(),
-										})}
-									</DialogDescription>
-								</DialogHeader>
-								<DialogFooter>
-									<Button
-										variant="outline"
-										onClick={() => setDeleteRekognitionConfirmId(null)}
-									>
-										{tCommon('cancel')}
-									</Button>
-									<Button
-										variant="destructive"
-										onClick={() => handleDeleteRekognition(row.original.id)}
-										disabled={deleteRekognitionMutation.isPending}
-									>
-										{deleteRekognitionMutation.isPending ? (
-											<>
-												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												{tCommon('removing')}
-											</>
-										) : (
-											t('dialogs.removeFaceEnrollment.confirm')
-										)}
-									</Button>
-								</DialogFooter>
-							</DialogContent>
-						</Dialog>
-					</>
+									{ptuHistoryMutation.isPending
+										? tCommon('saving')
+										: t('ptuHistory.actions.save')}
+								</Button>
+							</div>
+							<div className="mt-4 grid gap-3">
+								<div className="grid gap-2">
+									<Label htmlFor="mobile-ptu-history-year">
+										{t('ptuHistory.fields.year')}
+									</Label>
+									<Input
+										id="mobile-ptu-history-year"
+										type="number"
+										min={2000}
+										value={ptuHistoryYearInput}
+										onChange={(event) =>
+											setPtuHistoryYearInput(event.target.value)
+										}
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="mobile-ptu-history-amount">
+										{t('ptuHistory.fields.amount')}
+									</Label>
+									<Input
+										id="mobile-ptu-history-amount"
+										type="number"
+										min={0}
+										step="0.01"
+										value={ptuHistoryAmountInput}
+										onChange={(event) =>
+											setPtuHistoryAmountInput(event.target.value)
+										}
+									/>
+								</div>
+							</div>
+							<div className="mt-4 grid gap-3">
+								{ptuHistory.length === 0 ? (
+									<div className="rounded-xl border border-dashed p-4 text-sm text-muted-foreground">
+										{t('ptuHistory.table.empty')}
+									</div>
+								) : (
+									ptuHistory.map((entry) => (
+										<div key={entry.id} className="rounded-xl border p-4">
+											<p className="text-xs text-muted-foreground">
+												{t('ptuHistory.table.year')}
+											</p>
+											<p className="text-base font-semibold">
+												{entry.fiscalYear}
+											</p>
+											<p className="mt-2 text-xs text-muted-foreground">
+												{t('ptuHistory.table.amount')}
+											</p>
+											<p className="text-base font-semibold">
+												{formatCurrency(entry.amount)}
+											</p>
+										</div>
+									))
+								)}
+							</div>
+						</div>
+					</div>
+				),
+			},
+			{
+				id: 'horario',
+				title: t('wizard.steps.horario'),
+				content: (
+					<div className="grid gap-3">
+						{isScheduleLoading ? (
+							<div className="flex items-center gap-2 rounded-xl border p-4 text-sm text-muted-foreground">
+								<Loader2 className="h-4 w-4 animate-spin" />
+								{t('schedule.loading')}
+							</div>
+						) : null}
+						{daysOfWeek.map((day) => {
+							const entry = schedule.find((item) => item.dayOfWeek === day.value) ?? {
+								dayOfWeek: day.value,
+								startTime: '09:00',
+								endTime: '17:00',
+								isWorkingDay: day.value >= 1 && day.value <= 5,
+							};
+							return (
+								<div key={day.value} className="rounded-2xl border p-4">
+									<label className="flex items-center gap-3 text-sm font-medium">
+										<input
+											type="checkbox"
+											className="h-4 w-4 accent-primary"
+											checked={entry.isWorkingDay}
+											onChange={(event) =>
+												upsertScheduleEntry(day.value, {
+													isWorkingDay: event.target.checked,
+												})
+											}
+										/>
+										{t(day.labelKey)}
+									</label>
+									<div className="mt-4 grid gap-3">
+										<div className="grid gap-2">
+											<Label>{t('schedule.start')}</Label>
+											<Input
+												type="time"
+												value={entry.startTime}
+												disabled={!entry.isWorkingDay}
+												onChange={(event) =>
+													upsertScheduleEntry(day.value, {
+														startTime: event.target.value,
+													})
+												}
+											/>
+										</div>
+										<div className="grid gap-2">
+											<Label>{t('schedule.end')}</Label>
+											<Input
+												type="time"
+												value={entry.endTime}
+												disabled={!entry.isWorkingDay}
+												onChange={(event) =>
+													upsertScheduleEntry(day.value, {
+														endTime: event.target.value,
+													})
+												}
+											/>
+										</div>
+									</div>
+								</div>
+							);
+						})}
+					</div>
 				),
 			},
 		],
 		[
-			handleOpenEnrollDialog,
-			handleViewDetails,
-			openEmployeeDetailById,
-			locationLookup,
+			activeEmployee,
+			computedDailyPay,
+			form,
+			handlePtuHistorySave,
+			isCreateMode,
+			isEditMode,
+			isLoadingJobPositions,
+			isLoadingLocations,
+			isLoadingMembers,
+			isScheduleLoading,
+			jobPositions,
+			locations,
+			memberOptions,
+			periodPayLabel,
+			ptuHistory,
+			ptuHistoryAmountInput,
+			ptuHistoryMutation.isPending,
+			ptuHistoryYearInput,
+			schedule,
+			setPtuHistoryAmountInput,
+			setPtuHistoryYearInput,
 			t,
 			tCommon,
-			deleteConfirmId,
-			deleteRekognitionConfirmId,
-			deleteMutation.isPending,
-			deleteRekognitionMutation.isPending,
-			handleDelete,
-			handleDeleteRekognition,
-			canUseDisciplinaryModule,
+			upsertScheduleEntry,
 		],
 	);
 
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+				<ResponsivePageHeader title={t('title')} />
 				<p className="text-muted-foreground">{t('noOrganization')}</p>
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-				</div>
-				<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-					<DialogTrigger asChild>
-						<Button onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.addEmployee')}
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 sm:h-[calc(100vh-4rem)] sm:max-h-[calc(100vh-6rem)] sm:max-w-5xl sm:rounded-lg sm:border sm:p-0 lg:max-w-6xl">
-						<DialogHeader className="shrink-0 border-b px-6 py-4">
-							<DialogTitle>
-								{isCreateMode
-									? t('dialog.title.add')
-									: isEditMode
-										? t('dialog.title.edit')
-										: t('dialog.title.view')}
-							</DialogTitle>
-							<DialogDescription>
-								{isCreateMode
-									? t('dialog.description.add')
-									: isEditMode
-										? t('dialog.description.edit')
-										: t('dialog.description.view')}
-							</DialogDescription>
-						</DialogHeader>
-						<div className="min-h-0 flex-1 overflow-hidden px-4 pb-4 sm:px-6 sm:pb-6">
-							{isViewMode ? (
-								<div className="flex h-full min-h-0 flex-col space-y-4 pt-4">
-									<div className="rounded-md border p-4">
-										<div className="flex flex-wrap items-start justify-between gap-4">
-											<div className="space-y-1">
-												<p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-													{t('details.header')}
-												</p>
-												<div className="flex flex-wrap items-center gap-2">
-													<h2 className="text-xl font-semibold">
-														{activeEmployeeName ||
-															tCommon('notAvailable')}
-													</h2>
-													{activeEmployee?.status && (
-														<Badge
-															variant={
-																statusVariants[
-																	activeEmployee.status
-																]
-															}
-														>
-															{t(`status.${activeEmployee.status}`)}
-														</Badge>
-													)}
-												</div>
-												<p className="text-sm text-muted-foreground">
-													{t('details.codeLabel')}{' '}
-													<span className="font-medium text-foreground">
-														{activeEmployee?.code ??
-															tCommon('notAvailable')}
-													</span>
-												</p>
-											</div>
-											<Button
-												variant="outline"
-												onClick={handleEditFromDetails}
-											>
-												<Pencil className="mr-2 h-4 w-4" />
-												{tCommon('edit')}
-											</Button>
-										</div>
-										<div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.location')}
-												</p>
-												<p className="font-medium">
-													{activeEmployeeLocation}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.jobPosition')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.jobPositionName ??
-														tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.hireDate')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.hireDate
-														? format(
-																new Date(activeEmployee.hireDate),
-																t('dateFormat'),
-															)
-														: tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.shiftType')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.shiftType
-														? t(
-																`shiftTypeLabels.${activeEmployee.shiftType}`,
-															)
-														: tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.email')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.email ??
-														tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.phone')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.phone ??
-														tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.nss')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.nss ?? tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.rfc')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.rfc ?? tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.department')}
-												</p>
-												<p className="font-medium">
-													{activeEmployee?.department ??
-														tCommon('notAvailable')}
-												</p>
-											</div>
-											<div className="space-y-1">
-												<p className="text-muted-foreground">
-													{t('fields.user')}
-												</p>
-												<p className="font-medium truncate">
-													{activeEmployee?.userId ??
-														t('placeholders.noUser')}
-												</p>
-											</div>
-										</div>
-									</div>
-
-									<Tabs
-										value={detailTab}
-										onValueChange={handleDetailTabChange}
-										className="flex min-h-0 flex-1 flex-col"
-									>
-										<TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto p-1">
-											{PRIMARY_DETAIL_TABS.map((tab) => (
-												<TabsTrigger
-													key={tab}
-													value={tab}
-													onFocus={() => markTabAsVisited(tab)}
-												>
-													{t(`tabs.${tab}`)}
-												</TabsTrigger>
-											))}
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button
-														type="button"
-														variant="ghost"
-														size="sm"
-														className="h-8 px-2"
-														aria-label={t('tabs.moreAriaLabel')}
-													>
-														{t('tabs.more')}
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													{secondaryDetailTabs.map((tab) => (
-														<DropdownMenuItem
-															key={tab}
-															onSelect={() => {
-																handleDetailTabChange(tab);
-															}}
-															className={cn(
-																detailTab === tab &&
-																	'bg-muted font-medium',
-															)}
-														>
-															{t(`tabs.${tab}`)}
-														</DropdownMenuItem>
-													))}
-												</DropdownMenuContent>
-											</DropdownMenu>
-										</TabsList>
-
-										<TabsContent
-											value="documents"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'documents' && 'hidden',
-											)}
-										>
-											{isTabVisited('documents') ? (
-												<div
-													ref={registerTabScrollContainer('documents')}
-													onScroll={handleTabScroll('documents')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													{activeEmployee?.id ? (
-														<EmployeeDocumentsTab
-															employeeId={activeEmployee.id}
-														/>
-													) : (
-														<Card>
-															<CardContent className="py-8 text-sm text-muted-foreground">
-																{t('documents.empty')}
-															</CardContent>
-														</Card>
-													)}
-												</div>
-											) : null}
-										</TabsContent>
-
-										{canUseDisciplinaryModule ? (
-											<TabsContent
-												value="disciplinary"
-												forceMount
-												className={cn(
-													'mt-0 min-h-0 flex-1',
-													detailTab !== 'disciplinary' && 'hidden',
-												)}
-											>
-												{isTabVisited('disciplinary') ? (
-													<div
-														ref={registerTabScrollContainer(
-															'disciplinary',
-														)}
-														onScroll={handleTabScroll('disciplinary')}
-														className="h-full overflow-y-auto pt-4"
-													>
-														{activeEmployee?.id ? (
-															<EmployeeDisciplinaryMeasuresTab
-																employeeId={activeEmployee.id}
-															/>
-														) : (
-															<Card>
-																<CardContent className="py-8 text-sm text-muted-foreground">
-																	{t('disciplinary.empty')}
-																</CardContent>
-															</Card>
-														)}
-													</div>
-												) : null}
-											</TabsContent>
-										) : null}
-
-										<TabsContent
-											value="summary"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'summary' && 'hidden',
-											)}
-										>
-											{isTabVisited('summary') ? (
-												<div
-													ref={registerTabScrollContainer('summary')}
-													onScroll={handleTabScroll('summary')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-														<Card>
-															<CardHeader className="flex-row items-center justify-between space-y-0">
-																<CardTitle className="text-sm font-medium">
-																	{vacationBalance ? (
-																		<TooltipProvider>
-																			<Tooltip>
-																				<TooltipTrigger
-																					asChild
-																				>
-																					<span className="inline-flex items-center gap-1">
-																						{t(
-																							'summary.availableDays',
-																						)}
-																						<HelpCircle className="h-4 w-4 text-muted-foreground" />
-																					</span>
-																				</TooltipTrigger>
-																				<TooltipContent className="max-w-xs">
-																					<div className="space-y-1 text-sm">
-																						<p className="font-medium">
-																							{t(
-																								'vacationBalance.tooltip.title',
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.formula',
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.entitled',
-																								{
-																									value: vacationBalance.entitledDays,
-																								},
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.accrued',
-																								{
-																									value: vacationBalance.accruedDays.toFixed(
-																										2,
-																									),
-																								},
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.used',
-																								{
-																									value: vacationBalance.usedDays,
-																								},
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.pending',
-																								{
-																									value: vacationBalance.pendingDays,
-																								},
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.available',
-																								{
-																									value: vacationBalance.availableDays,
-																								},
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.serviceYear',
-																								{
-																									number: vacationBalance.serviceYearNumber,
-																									start:
-																										vacationBalance.serviceYearStartDateKey ??
-																										tCommon(
-																											'notAvailable',
-																										),
-																									end:
-																										vacationBalance.serviceYearEndDateKey ??
-																										tCommon(
-																											'notAvailable',
-																										),
-																								},
-																							)}
-																						</p>
-																						<p>
-																							{t(
-																								'vacationBalance.tooltip.asOf',
-																								{
-																									date: vacationBalance.asOfDateKey,
-																								},
-																							)}
-																						</p>
-																					</div>
-																				</TooltipContent>
-																			</Tooltip>
-																		</TooltipProvider>
-																	) : (
-																		t('summary.availableDays')
-																	)}
-																</CardTitle>
-															</CardHeader>
-															<CardContent>
-																{isLoadingInsights ? (
-																	<Skeleton className="h-7 w-20" />
-																) : vacationBalance ? (
-																	<div className="text-2xl font-semibold">
-																		{
-																			vacationBalance.availableDays
-																		}
-																	</div>
-																) : (
-																	<div className="text-sm text-muted-foreground">
-																		{tCommon('notAvailable')}
-																	</div>
-																)}
-																{vacationBalance &&
-																	!isLoadingInsights && (
-																		<p className="text-xs text-muted-foreground">
-																			{t(
-																				'summary.serviceYearShort',
-																				{
-																					number: vacationBalance.serviceYearNumber,
-																				},
-																			)}
-																		</p>
-																	)}
-															</CardContent>
-														</Card>
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('summary.absences')}
-																</CardTitle>
-															</CardHeader>
-															<CardContent>
-																{isLoadingInsights ? (
-																	<Skeleton className="h-7 w-20" />
-																) : attendanceSummary ? (
-																	<div className="text-2xl font-semibold">
-																		{
-																			attendanceSummary.totalAbsentDays
-																		}
-																	</div>
-																) : (
-																	<div className="text-sm text-muted-foreground">
-																		{tCommon('notAvailable')}
-																	</div>
-																)}
-																<p className="text-xs text-muted-foreground">
-																	{t('summary.last90Days')}
-																</p>
-															</CardContent>
-														</Card>
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('summary.leaves')}
-																</CardTitle>
-															</CardHeader>
-															<CardContent>
-																{isLoadingInsights ? (
-																	<Skeleton className="h-7 w-20" />
-																) : (
-																	<div className="text-2xl font-semibold">
-																		{leaveItems.length}
-																	</div>
-																)}
-																<p className="text-xs text-muted-foreground">
-																	{t('summary.last90Days')}
-																</p>
-															</CardContent>
-														</Card>
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('summary.payrollRuns')}
-																</CardTitle>
-															</CardHeader>
-															<CardContent>
-																{isLoadingInsights ? (
-																	<Skeleton className="h-7 w-20" />
-																) : (
-																	<div className="text-2xl font-semibold">
-																		{payrollRuns.length}
-																	</div>
-																)}
-																<p className="text-xs text-muted-foreground">
-																	{t('summary.lastPayrollRuns')}
-																</p>
-															</CardContent>
-														</Card>
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t(
-																		'summary.upcomingExceptions',
-																	)}
-																</CardTitle>
-															</CardHeader>
-															<CardContent>
-																{isLoadingInsights ? (
-																	<Skeleton className="h-7 w-20" />
-																) : (
-																	<div className="text-2xl font-semibold">
-																		{upcomingExceptions.length}
-																	</div>
-																)}
-																<p className="text-xs text-muted-foreground">
-																	{t('summary.next90Days')}
-																</p>
-															</CardContent>
-														</Card>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="attendance"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'attendance' && 'hidden',
-											)}
-										>
-											{isTabVisited('attendance') ? (
-												<div
-													ref={registerTabScrollContainer('attendance')}
-													onScroll={handleTabScroll('attendance')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-														<div>
-															<p className="text-sm font-medium">
-																{t('attendance.title')}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{t('attendance.subtitle')}
-															</p>
-														</div>
-														{attendanceDrilldownHref ? (
-															<Button variant="outline" asChild>
-																<Link
-																	href={attendanceDrilldownHref}
-																>
-																	{t(
-																		'attendance.viewInAttendance',
-																	)}
-																</Link>
-															</Button>
-														) : null}
-													</div>
-
-													{insightsError ? (
-														<Card>
-															<CardContent className="flex items-center justify-between gap-3 py-6">
-																<p className="text-sm text-muted-foreground">
-																	{t('attendance.partialError')}
-																</p>
-																<Button
-																	variant="outline"
-																	onClick={() =>
-																		void refetchInsights()
-																	}
-																>
-																	{tCommon('retry')}
-																</Button>
-															</CardContent>
-														</Card>
-													) : (
-														<div className="space-y-4">
-															<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-																<Card>
-																	<CardHeader className="pb-2">
-																		<CardTitle className="text-sm font-medium">
-																			{t(
-																				'attendance.kpis.currentStreak',
-																			)}
-																		</CardTitle>
-																	</CardHeader>
-																	<CardContent>
-																		{isLoadingInsights ? (
-																			<Skeleton className="h-7 w-20" />
-																		) : (
-																			<p className="text-2xl font-semibold">
-																				{attendanceKpis?.absenceStreakCurrentDays ??
-																					0}
-																			</p>
-																		)}
-																	</CardContent>
-																</Card>
-																<Card>
-																	<CardHeader className="pb-2">
-																		<CardTitle className="text-sm font-medium">
-																			{t(
-																				'attendance.kpis.unjustified30d',
-																			)}
-																		</CardTitle>
-																	</CardHeader>
-																	<CardContent>
-																		{isLoadingInsights ? (
-																			<Skeleton className="h-7 w-20" />
-																		) : (
-																			<p className="text-2xl font-semibold">
-																				{attendanceKpis?.unjustifiedAbsences30d ??
-																					0}
-																			</p>
-																		)}
-																	</CardContent>
-																</Card>
-																<Card>
-																	<CardHeader className="pb-2">
-																		<CardTitle className="text-sm font-medium">
-																			{t(
-																				'attendance.kpis.attendanceRate30d',
-																			)}
-																		</CardTitle>
-																	</CardHeader>
-																	<CardContent>
-																		{isLoadingInsights ? (
-																			<Skeleton className="h-7 w-20" />
-																		) : (
-																			<p className="text-2xl font-semibold">
-																				{(
-																					attendanceKpis?.attendanceRate30d ??
-																					0
-																				).toFixed(1)}
-																				%
-																			</p>
-																		)}
-																	</CardContent>
-																</Card>
-																<Card>
-																	<CardHeader className="pb-2">
-																		<CardTitle className="text-sm font-medium">
-																			{t(
-																				'attendance.kpis.justified90d',
-																			)}
-																		</CardTitle>
-																	</CardHeader>
-																	<CardContent>
-																		{isLoadingInsights ? (
-																			<Skeleton className="h-7 w-20" />
-																		) : (
-																			<p className="text-2xl font-semibold">
-																				{attendanceKpis?.justifiedLeaves90d ??
-																					0}
-																			</p>
-																		)}
-																	</CardContent>
-																</Card>
-															</div>
-
-															<Card>
-																<CardHeader className="pb-2">
-																	<CardTitle className="text-sm font-medium">
-																		{t('attendance.trendTitle')}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{isLoadingInsights ? (
-																		<Skeleton className="h-12 w-full" />
-																	) : attendanceTrend30d.length >
-																	  0 ? (
-																		<div className="flex items-end gap-1">
-																			{attendanceTrend30d.map(
-																				(point) => (
-																					<span
-																						key={
-																							point.dateKey
-																						}
-																						title={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
-																						aria-label={`${point.dateKey} - ${t(`attendance.trendStatus.${point.status}`)}`}
-																						className={cn(
-																							'h-8 w-2 rounded-sm',
-																							point.status ===
-																								'PRESENT' &&
-																								'bg-[var(--status-success)]',
-																							point.status ===
-																								'ABSENT' &&
-																								'bg-destructive',
-																							point.status ===
-																								'LEAVE' &&
-																								'bg-[var(--status-warning)]',
-																							point.status ===
-																								'DAY_OFF' &&
-																								'bg-muted-foreground/40',
-																						)}
-																					/>
-																				),
-																			)}
-																		</div>
-																	) : (
-																		<p className="text-sm text-muted-foreground">
-																			{tCommon(
-																				'notAvailable',
-																			)}
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-
-															<div className="grid gap-4 lg:grid-cols-2">
-																<Card>
-																	<CardHeader className="min-h-16 pb-3">
-																		<CardTitle className="text-sm font-medium">
-																			{t(
-																				'attendance.absencesTitle',
-																			)}
-																		</CardTitle>
-																	</CardHeader>
-																	<CardContent className="min-h-[18rem]">
-																		{isLoadingInsights ? (
-																			<Skeleton className="h-24 w-full" />
-																		) : absenceMonthGroups.length >
-																		  0 ? (
-																			<Accordion
-																				type="single"
-																				collapsible
-																				defaultValue={
-																					attendanceCurrentMonthKey
-																				}
-																				className="w-full"
-																			>
-																				{absenceMonthGroups.map(
-																					(group) => (
-																						<AccordionItem
-																							key={
-																								group.monthKey
-																							}
-																							value={
-																								group.monthKey
-																							}
-																						>
-																							<AccordionTrigger className="items-center gap-3 text-sm">
-																								<span className="flex-1 text-left capitalize">
-																									{formatMonthLabel(
-																										group.monthKey,
-																									)}
-																								</span>
-																								<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
-																									{
-																										group.totalDays
-																									}
-																								</span>
-																							</AccordionTrigger>
-																							<AccordionContent>
-																								<ul className="space-y-1 text-sm">
-																									{group.dateKeys.map(
-																										(
-																											dateKey,
-																										) => (
-																											<li
-																												key={
-																													dateKey
-																												}
-																												className="flex items-center justify-between"
-																											>
-																												<span className="font-medium">
-																													{formatShortDateUtc(
-																														toUtcDate(
-																															dateKey,
-																														),
-																													)}
-																												</span>
-																												<span className="text-xs text-muted-foreground">
-																													{
-																														dateKey
-																													}
-																												</span>
-																											</li>
-																										),
-																									)}
-																								</ul>
-																							</AccordionContent>
-																						</AccordionItem>
-																					),
-																				)}
-																			</Accordion>
-																		) : (
-																			<div className="flex min-h-[8.5rem] items-start">
-																				<p className="text-sm text-muted-foreground">
-																					{t(
-																						'attendance.emptyAbsences',
-																					)}
-																				</p>
-																			</div>
-																		)}
-																	</CardContent>
-																</Card>
-
-																<Card>
-																	<CardHeader className="min-h-16 pb-3">
-																		<CardTitle className="text-sm font-medium">
-																			{t(
-																				'attendance.leavesTitle',
-																			)}
-																		</CardTitle>
-																	</CardHeader>
-																	<CardContent className="min-h-[18rem]">
-																		{isLoadingInsights ? (
-																			<Skeleton className="h-24 w-full" />
-																		) : leavesMonthGroups.length >
-																		  0 ? (
-																			<Accordion
-																				type="single"
-																				collapsible
-																				defaultValue={
-																					attendanceCurrentMonthKey
-																				}
-																				className="w-full"
-																			>
-																				{leavesMonthGroups.map(
-																					(group) => (
-																						<AccordionItem
-																							key={
-																								group.monthKey
-																							}
-																							value={
-																								group.monthKey
-																							}
-																						>
-																							<AccordionTrigger className="items-center gap-3 text-sm">
-																								<span className="flex-1 text-left capitalize">
-																									{formatMonthLabel(
-																										group.monthKey,
-																									)}
-																								</span>
-																								<span className="min-w-12 text-right text-xs tabular-nums text-muted-foreground">
-																									{
-																										group.totalDays
-																									}
-																								</span>
-																							</AccordionTrigger>
-																							<AccordionContent>
-																								<ul className="space-y-1 text-sm">
-																									{group.dateKeys.map(
-																										(
-																											dateKey,
-																										) => (
-																											<li
-																												key={
-																													dateKey
-																												}
-																												className="flex items-center justify-between"
-																											>
-																												<span className="font-medium">
-																													{formatShortDateUtc(
-																														toUtcDate(
-																															dateKey,
-																														),
-																													)}
-																												</span>
-																												<span className="text-xs text-muted-foreground">
-																													{
-																														dateKey
-																													}
-																												</span>
-																											</li>
-																										),
-																									)}
-																								</ul>
-																							</AccordionContent>
-																						</AccordionItem>
-																					),
-																				)}
-																			</Accordion>
-																		) : (
-																			<div className="flex min-h-[8.5rem] items-start">
-																				<p className="text-sm text-muted-foreground">
-																					{t(
-																						'attendance.emptyLeaves',
-																					)}
-																				</p>
-																			</div>
-																		)}
-																	</CardContent>
-																</Card>
-															</div>
-														</div>
-													)}
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="vacations"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'vacations' && 'hidden',
-											)}
-										>
-											{isTabVisited('vacations') ? (
-												<div
-													ref={registerTabScrollContainer('vacations')}
-													onScroll={handleTabScroll('vacations')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="space-y-4">
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('vacations.balanceTitle')}
-																</CardTitle>
-															</CardHeader>
-															<CardContent>
-																{isLoadingInsights ? (
-																	<div className="space-y-2">
-																		<Skeleton className="h-4 w-32" />
-																		<Skeleton className="h-4 w-24" />
-																	</div>
-																) : vacationBalance ? (
-																	<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-																		<div className="space-y-1">
-																			<p className="text-xs text-muted-foreground">
-																				{t(
-																					'vacations.balance.entitled',
-																				)}
-																			</p>
-																			<p className="text-lg font-semibold">
-																				{
-																					vacationBalance.entitledDays
-																				}
-																			</p>
-																		</div>
-																		<div className="space-y-1">
-																			<p className="text-xs text-muted-foreground">
-																				{t(
-																					'vacations.balance.accrued',
-																				)}
-																			</p>
-																			<p className="text-lg font-semibold">
-																				{vacationBalance.accruedDays.toFixed(
-																					2,
-																				)}
-																			</p>
-																		</div>
-																		<div className="space-y-1">
-																			<p className="text-xs text-muted-foreground">
-																				{t(
-																					'vacations.balance.used',
-																				)}
-																			</p>
-																			<p className="text-lg font-semibold">
-																				{
-																					vacationBalance.usedDays
-																				}
-																			</p>
-																		</div>
-																		<div className="space-y-1">
-																			<p className="text-xs text-muted-foreground">
-																				{t(
-																					'vacations.balance.pending',
-																				)}
-																			</p>
-																			<p className="text-lg font-semibold">
-																				{
-																					vacationBalance.pendingDays
-																				}
-																			</p>
-																		</div>
-																		<div className="space-y-1">
-																			<p className="text-xs text-muted-foreground">
-																				{t(
-																					'vacations.balance.available',
-																				)}
-																			</p>
-																			<p className="text-lg font-semibold">
-																				{
-																					vacationBalance.availableDays
-																				}
-																			</p>
-																		</div>
-																	</div>
-																) : (
-																	<p className="text-sm text-muted-foreground">
-																		{t(
-																			'vacations.balanceUnavailable',
-																		)}
-																	</p>
-																)}
-															</CardContent>
-														</Card>
-
-														<div className="rounded-md border">
-															<Table>
-																<TableHeader>
-																	<TableRow>
-																		<TableHead>
-																			{t(
-																				'vacations.table.headers.period',
-																			)}
-																		</TableHead>
-																		<TableHead>
-																			{t(
-																				'vacations.table.headers.days',
-																			)}
-																		</TableHead>
-																		<TableHead>
-																			{t(
-																				'vacations.table.headers.status',
-																			)}
-																		</TableHead>
-																	</TableRow>
-																</TableHeader>
-																<TableBody>
-																	{isLoadingInsights ? (
-																		Array.from({
-																			length: 3,
-																		}).map((_, index) => (
-																			<TableRow key={index}>
-																				<TableCell>
-																					<Skeleton className="h-4 w-24" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-20" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-16" />
-																				</TableCell>
-																			</TableRow>
-																		))
-																	) : vacationRequests.length ===
-																	  0 ? (
-																		<TableRow>
-																			<TableCell
-																				colSpan={3}
-																				className="h-20 text-center"
-																			>
-																				{t(
-																					'vacations.table.empty',
-																				)}
-																			</TableCell>
-																		</TableRow>
-																	) : (
-																		vacationRequests.map(
-																			(request) => (
-																				<TableRow
-																					key={request.id}
-																				>
-																					<TableCell>
-																						{formatDateRangeUtc(
-																							toUtcDate(
-																								request.startDateKey,
-																							),
-																							toUtcDate(
-																								request.endDateKey,
-																							),
-																						)}
-																					</TableCell>
-																					<TableCell>
-																						{tVacations(
-																							'table.daysSummary',
-																							{
-																								vacation:
-																									request.vacationDays,
-																								total: request.totalDays,
-																							},
-																						)}
-																					</TableCell>
-																					<TableCell>
-																						<Badge variant="outline">
-																							{tVacations(
-																								`status.${request.status}`,
-																							)}
-																						</Badge>
-																					</TableCell>
-																				</TableRow>
-																			),
-																		)
-																	)}
-																</TableBody>
-															</Table>
-														</div>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="deductions"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'deductions' && 'hidden',
-											)}
-										>
-											{isTabVisited('deductions') ? (
-												<div
-													ref={registerTabScrollContainer('deductions')}
-													onScroll={handleTabScroll('deductions')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													{activeEmployee?.id ? (
-														<EmployeeDeductionsTab
-															mode="employee"
-															employeeId={activeEmployee.id}
-															employeeName={`${activeEmployee.firstName} ${activeEmployee.lastName}`}
-														/>
-													) : (
-														<Card>
-															<CardContent className="py-8 text-sm text-muted-foreground">
-																{t('deductions.empty')}
-															</CardContent>
-														</Card>
-													)}
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="payroll"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'payroll' && 'hidden',
-											)}
-										>
-											{isTabVisited('payroll') ? (
-												<div
-													ref={registerTabScrollContainer('payroll')}
-													onScroll={handleTabScroll('payroll')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="rounded-md border">
-														<Table>
-															<TableHeader>
-																<TableRow>
-																	<TableHead>
-																		{t(
-																			'payroll.table.headers.period',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'payroll.table.headers.total',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'payroll.table.headers.status',
-																		)}
-																	</TableHead>
-																</TableRow>
-															</TableHeader>
-															<TableBody>
-																{isLoadingInsights ? (
-																	Array.from({ length: 3 }).map(
-																		(_, index) => (
-																			<TableRow key={index}>
-																				<TableCell>
-																					<Skeleton className="h-4 w-24" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-20" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-16" />
-																				</TableCell>
-																			</TableRow>
-																		),
-																	)
-																) : payrollRuns.length === 0 ? (
-																	<TableRow>
-																		<TableCell
-																			colSpan={3}
-																			className="h-20 text-center"
-																		>
-																			{t(
-																				'payroll.table.empty',
-																			)}
-																		</TableCell>
-																	</TableRow>
-																) : (
-																	payrollRuns.map((run) => (
-																		<TableRow
-																			key={run.payrollRunId}
-																		>
-																			<TableCell>
-																				{formatDateRangeUtc(
-																					new Date(
-																						run.periodStart,
-																					),
-																					new Date(
-																						run.periodEnd,
-																					),
-																				)}
-																			</TableCell>
-																			<TableCell>
-																				{formatCurrency(
-																					run.totalPay,
-																				)}
-																			</TableCell>
-																			<TableCell>
-																				<Badge variant="outline">
-																					{t(
-																						`payroll.status.${run.status}`,
-																					)}
-																				</Badge>
-																			</TableCell>
-																		</TableRow>
-																	))
-																)}
-															</TableBody>
-														</Table>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="ptu"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'ptu' && 'hidden',
-											)}
-										>
-											{isTabVisited('ptu') ? (
-												<div
-													ref={registerTabScrollContainer('ptu')}
-													onScroll={handleTabScroll('ptu')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="grid gap-4 md:grid-cols-2">
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('ptuAguinaldo.title')}
-																</CardTitle>
-																<CardDescription>
-																	{t('ptuAguinaldo.subtitle')}
-																</CardDescription>
-															</CardHeader>
-															<CardContent className="space-y-3 text-sm">
-																<div className="flex items-center justify-between">
-																	<span className="text-muted-foreground">
-																		{t('fields.employmentType')}
-																	</span>
-																	<span className="font-medium">
-																		{t(
-																			`employmentType.${activeEmployee?.employmentType ?? 'PERMANENT'}`,
-																		)}
-																	</span>
-																</div>
-																<div className="flex items-center justify-between">
-																	<span className="text-muted-foreground">
-																		{t(
-																			'fields.ptuEligibilityOverride',
-																		)}
-																	</span>
-																	<span className="font-medium">
-																		{t(
-																			`ptuEligibility.${activeEmployee?.ptuEligibilityOverride ?? 'DEFAULT'}`,
-																		)}
-																	</span>
-																</div>
-																<div className="flex items-center justify-between">
-																	<span className="text-muted-foreground">
-																		{t(
-																			'fields.aguinaldoDaysOverride',
-																		)}
-																	</span>
-																	<span className="font-medium">
-																		{activeEmployee?.aguinaldoDaysOverride
-																			? t(
-																					'ptuAguinaldo.values.days',
-																					{
-																						days: activeEmployee.aguinaldoDaysOverride,
-																					},
-																				)
-																			: tCommon(
-																					'notAvailable',
-																				)}
-																	</span>
-																</div>
-																<div className="flex items-center justify-between">
-																	<span className="text-muted-foreground">
-																		{t(
-																			'fields.platformHoursYear',
-																		)}
-																	</span>
-																	<span className="font-medium">
-																		{activeEmployee?.platformHoursYear ??
-																			tCommon('notAvailable')}
-																	</span>
-																</div>
-																<div className="grid gap-2">
-																	<div className="flex items-center justify-between">
-																		<span className="text-muted-foreground">
-																			{t(
-																				'fields.isTrustEmployee',
-																			)}
-																		</span>
-																		<span className="font-medium">
-																			{activeEmployee?.isTrustEmployee
-																				? t('labels.yes')
-																				: t('labels.no')}
-																		</span>
-																	</div>
-																	<div className="flex items-center justify-between">
-																		<span className="text-muted-foreground">
-																			{t(
-																				'fields.isDirectorAdminGeneralManager',
-																			)}
-																		</span>
-																		<span className="font-medium">
-																			{activeEmployee?.isDirectorAdminGeneralManager
-																				? t('labels.yes')
-																				: t('labels.no')}
-																		</span>
-																	</div>
-																	<div className="flex items-center justify-between">
-																		<span className="text-muted-foreground">
-																			{t(
-																				'fields.isDomesticWorker',
-																			)}
-																		</span>
-																		<span className="font-medium">
-																			{activeEmployee?.isDomesticWorker
-																				? t('labels.yes')
-																				: t('labels.no')}
-																		</span>
-																	</div>
-																	<div className="flex items-center justify-between">
-																		<span className="text-muted-foreground">
-																			{t(
-																				'fields.isPlatformWorker',
-																			)}
-																		</span>
-																		<span className="font-medium">
-																			{activeEmployee?.isPlatformWorker
-																				? t('labels.yes')
-																				: t('labels.no')}
-																		</span>
-																	</div>
-																</div>
-															</CardContent>
-														</Card>
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('ptuHistory.title')}
-																</CardTitle>
-																<CardDescription>
-																	{t('ptuHistory.subtitle')}
-																</CardDescription>
-															</CardHeader>
-															<CardContent>
-																<div className="rounded-md border">
-																	<Table>
-																		<TableHeader>
-																			<TableRow>
-																				<TableHead>
-																					{t(
-																						'ptuHistory.table.year',
-																					)}
-																				</TableHead>
-																				<TableHead className="text-right">
-																					{t(
-																						'ptuHistory.table.amount',
-																					)}
-																				</TableHead>
-																			</TableRow>
-																		</TableHeader>
-																		<TableBody>
-																			{ptuHistoryError ? (
-																				<TableRow>
-																					<TableCell
-																						colSpan={2}
-																					>
-																						<div className="flex items-center justify-between gap-3 py-2">
-																							<p className="text-sm text-muted-foreground">
-																								{t(
-																									'ptuHistory.partialError',
-																								)}
-																							</p>
-																							<Button
-																								variant="outline"
-																								size="sm"
-																								onClick={() =>
-																									void refetchPtuHistory()
-																								}
-																							>
-																								{tCommon(
-																									'retry',
-																								)}
-																							</Button>
-																						</div>
-																					</TableCell>
-																				</TableRow>
-																			) : isLoadingPtuHistory ? (
-																				<TableRow>
-																					<TableCell
-																						colSpan={2}
-																					>
-																						<Skeleton className="h-4 w-full" />
-																					</TableCell>
-																				</TableRow>
-																			) : ptuHistory.length ===
-																			  0 ? (
-																				<TableRow>
-																					<TableCell
-																						colSpan={2}
-																						className="h-20 text-center"
-																					>
-																						{t(
-																							'ptuHistory.table.empty',
-																						)}
-																					</TableCell>
-																				</TableRow>
-																			) : (
-																				ptuHistory.map(
-																					(entry) => (
-																						<TableRow
-																							key={
-																								entry.id
-																							}
-																						>
-																							<TableCell>
-																								{
-																									entry.fiscalYear
-																								}
-																							</TableCell>
-																							<TableCell className="text-right tabular-nums">
-																								{formatCurrency(
-																									entry.amount,
-																								)}
-																							</TableCell>
-																						</TableRow>
-																					),
-																				)
-																			)}
-																		</TableBody>
-																	</Table>
-																</div>
-															</CardContent>
-														</Card>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="finiquito"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'finiquito' && 'hidden',
-											)}
-										>
-											{isTabVisited('finiquito') ? (
-												<div
-													ref={registerTabScrollContainer('finiquito')}
-													onScroll={handleTabScroll('finiquito')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-														<Card>
-															<CardHeader>
-																<CardTitle className="text-sm font-medium">
-																	{t('finiquito.form.title')}
-																</CardTitle>
-																<p className="text-xs text-muted-foreground">
-																	{t('finiquito.form.subtitle')}
-																</p>
-															</CardHeader>
-															<CardContent>
-																<div className="grid gap-4 sm:grid-cols-2">
-																	<TerminationDateField
-																		label={t(
-																			'finiquito.fields.terminationDate',
-																		)}
-																		placeholder={t(
-																			'finiquito.placeholders.terminationDate',
-																		)}
-																		value={
-																			terminationForm.terminationDateKey
-																		}
-																		onChange={(nextValue) =>
-																			updateTerminationForm({
-																				terminationDateKey:
-																					nextValue,
-																			})
-																		}
-																		disabled={
-																			isTerminationLocked
-																		}
-																	/>
-																	<TerminationDateField
-																		label={t(
-																			'finiquito.fields.lastDayWorkedDate',
-																		)}
-																		placeholder={t(
-																			'finiquito.placeholders.lastDayWorkedDate',
-																		)}
-																		value={
-																			terminationForm.lastDayWorkedDateKey
-																		}
-																		onChange={(nextValue) =>
-																			updateTerminationForm({
-																				lastDayWorkedDateKey:
-																					nextValue,
-																			})
-																		}
-																		disabled={
-																			isTerminationLocked
-																		}
-																	/>
-																	<div className="space-y-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.terminationReason',
-																			)}
-																		</Label>
-																		<Select
-																			value={
-																				terminationForm.terminationReason
-																			}
-																			onValueChange={(
-																				value,
-																			) =>
-																				updateTerminationForm(
-																					{
-																						terminationReason:
-																							value as TerminationReason,
-																					},
-																				)
-																			}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		>
-																			<SelectTrigger>
-																				<SelectValue
-																					placeholder={t(
-																						'finiquito.placeholders.terminationReason',
-																					)}
-																				/>
-																			</SelectTrigger>
-																			<SelectContent>
-																				{terminationReasonOptions.map(
-																					(option) => (
-																						<SelectItem
-																							key={
-																								option.value
-																							}
-																							value={
-																								option.value
-																							}
-																						>
-																							{t(
-																								option.labelKey,
-																							)}
-																						</SelectItem>
-																					),
-																				)}
-																			</SelectContent>
-																		</Select>
-																	</div>
-																	<div className="space-y-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.contractType',
-																			)}
-																		</Label>
-																		<Select
-																			value={
-																				terminationForm.contractType
-																			}
-																			onValueChange={(
-																				value,
-																			) =>
-																				updateTerminationForm(
-																					{
-																						contractType:
-																							value as EmploymentContractType,
-																					},
-																				)
-																			}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		>
-																			<SelectTrigger>
-																				<SelectValue
-																					placeholder={t(
-																						'finiquito.placeholders.contractType',
-																					)}
-																				/>
-																			</SelectTrigger>
-																			<SelectContent>
-																				{contractTypeOptions.map(
-																					(option) => (
-																						<SelectItem
-																							key={
-																								option.value
-																							}
-																							value={
-																								option.value
-																							}
-																						>
-																							{t(
-																								option.labelKey,
-																							)}
-																						</SelectItem>
-																					),
-																				)}
-																			</SelectContent>
-																		</Select>
-																	</div>
-																	<div className="space-y-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.unpaidDays',
-																			)}
-																		</Label>
-																		<Input
-																			type="number"
-																			min="0"
-																			step="0.01"
-																			value={
-																				terminationForm.unpaidDays
-																			}
-																			onChange={(event) =>
-																				updateTerminationForm(
-																					{
-																						unpaidDays:
-																							event
-																								.target
-																								.value,
-																					},
-																				)
-																			}
-																			placeholder={t(
-																				'finiquito.placeholders.unpaidDays',
-																			)}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		/>
-																	</div>
-																	<div className="space-y-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.otherDue',
-																			)}
-																		</Label>
-																		<Input
-																			type="number"
-																			min="0"
-																			step="0.01"
-																			value={
-																				terminationForm.otherDue
-																			}
-																			onChange={(event) =>
-																				updateTerminationForm(
-																					{
-																						otherDue:
-																							event
-																								.target
-																								.value,
-																					},
-																				)
-																			}
-																			placeholder={t(
-																				'finiquito.placeholders.otherDue',
-																			)}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		/>
-																	</div>
-																	<div className="space-y-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.vacationBalanceDays',
-																			)}
-																		</Label>
-																		<Input
-																			type="number"
-																			min="0"
-																			step="0.01"
-																			value={
-																				terminationForm.vacationBalanceDays
-																			}
-																			onChange={(event) =>
-																				updateTerminationForm(
-																					{
-																						vacationBalanceDays:
-																							event
-																								.target
-																								.value,
-																					},
-																				)
-																			}
-																			placeholder={t(
-																				'finiquito.placeholders.vacationBalanceDays',
-																			)}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		/>
-																		<p className="text-xs text-muted-foreground">
-																			{t(
-																				'finiquito.helpers.vacationBalanceDays',
-																			)}
-																		</p>
-																	</div>
-																	<div className="space-y-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.dailySalaryIndemnizacion',
-																			)}
-																		</Label>
-																		<Input
-																			type="number"
-																			min="0"
-																			step="0.01"
-																			value={
-																				terminationForm.dailySalaryIndemnizacion
-																			}
-																			onChange={(event) =>
-																				updateTerminationForm(
-																					{
-																						dailySalaryIndemnizacion:
-																							event
-																								.target
-																								.value,
-																					},
-																				)
-																			}
-																			placeholder={t(
-																				'finiquito.placeholders.dailySalaryIndemnizacion',
-																			)}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		/>
-																		<p className="text-xs text-muted-foreground">
-																			{t(
-																				'finiquito.helpers.dailySalaryIndemnizacion',
-																			)}
-																		</p>
-																	</div>
-																	<div className="space-y-2 sm:col-span-2">
-																		<Label>
-																			{t(
-																				'finiquito.fields.terminationNotes',
-																			)}
-																		</Label>
-																		<Textarea
-																			value={
-																				terminationForm.terminationNotes
-																			}
-																			onChange={(event) =>
-																				updateTerminationForm(
-																					{
-																						terminationNotes:
-																							event
-																								.target
-																								.value,
-																					},
-																				)
-																			}
-																			placeholder={t(
-																				'finiquito.placeholders.terminationNotes',
-																			)}
-																			disabled={
-																				isTerminationLocked
-																			}
-																		/>
-																	</div>
-																</div>
-
-																<div className="mt-4 space-y-3">
-																	<div className="flex items-start gap-2 rounded-md border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
-																		<HelpCircle className="mt-0.5 h-4 w-4" />
-																		<span>
-																			{t(
-																				'finiquito.form.previewHint',
-																				{
-																					action: t(
-																						'finiquito.actions.preview',
-																					),
-																				},
-																			)}
-																		</span>
-																	</div>
-																	<div className="flex flex-wrap gap-2">
-																		<Button
-																			onClick={
-																				handleTerminationPreview
-																			}
-																			disabled={
-																				isTerminationLocked ||
-																				terminationPreviewMutation.isPending
-																			}
-																		>
-																			{terminationPreviewMutation.isPending ? (
-																				<>
-																					<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																					{t(
-																						'finiquito.actions.previewLoading',
-																					)}
-																				</>
-																			) : (
-																				t(
-																					'finiquito.actions.preview',
-																				)
-																			)}
-																		</Button>
-
-																		<Dialog
-																			open={
-																				isTerminateDialogOpen
-																			}
-																			onOpenChange={
-																				setIsTerminateDialogOpen
-																			}
-																		>
-																			<DialogTrigger asChild>
-																				<Button
-																					variant="destructive"
-																					disabled={
-																						!canConfirmTermination ||
-																						terminationMutation.isPending
-																					}
-																				>
-																					{terminationMutation.isPending ? (
-																						<>
-																							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																							{t(
-																								'finiquito.actions.confirmLoading',
-																							)}
-																						</>
-																					) : (
-																						t(
-																							'finiquito.actions.confirm',
-																						)
-																					)}
-																				</Button>
-																			</DialogTrigger>
-																			<DialogContent>
-																				<DialogHeader>
-																					<DialogTitle>
-																						{t(
-																							'finiquito.dialog.title',
-																						)}
-																					</DialogTitle>
-																					<DialogDescription>
-																						{t(
-																							'finiquito.dialog.description',
-																							{
-																								name:
-																									activeEmployeeName ||
-																									tCommon(
-																										'notAvailable',
-																									),
-																								total: terminationPreview
-																									? formatCurrency(
-																											terminationPreview
-																												.totals
-																												.grossTotal,
-																										)
-																									: tCommon(
-																											'notAvailable',
-																										),
-																							},
-																						)}
-																					</DialogDescription>
-																				</DialogHeader>
-																				<DialogFooter>
-																					<Button
-																						variant="outline"
-																						onClick={() =>
-																							setIsTerminateDialogOpen(
-																								false,
-																							)
-																						}
-																					>
-																						{tCommon(
-																							'cancel',
-																						)}
-																					</Button>
-																					<Button
-																						variant="destructive"
-																						onClick={
-																							handleTerminateEmployee
-																						}
-																						disabled={
-																							terminationMutation.isPending
-																						}
-																					>
-																						{terminationMutation.isPending ? (
-																							<>
-																								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																								{t(
-																									'finiquito.actions.confirmLoading',
-																								)}
-																							</>
-																						) : (
-																							tCommon(
-																								'confirm',
-																							)
-																						)}
-																					</Button>
-																				</DialogFooter>
-																			</DialogContent>
-																		</Dialog>
-																		{canDownloadTerminationReceipt ? (
-																			<Button
-																				variant="outline"
-																				asChild
-																			>
-																				<a
-																					href={
-																						terminationReceiptUrl
-																					}
-																					target="_blank"
-																					rel="noopener noreferrer"
-																				>
-																					{t(
-																						'finiquito.actions.downloadReceipt',
-																					)}
-																				</a>
-																			</Button>
-																		) : (
-																			<Button
-																				variant="outline"
-																				disabled={
-																					isLoadingTerminationSettlement ||
-																					!canDownloadTerminationReceipt
-																				}
-																			>
-																				{isLoadingTerminationSettlement ? (
-																					<>
-																						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																						{t(
-																							'finiquito.actions.downloadReceiptLoading',
-																						)}
-																					</>
-																				) : (
-																					t(
-																						'finiquito.actions.downloadReceipt',
-																					)
-																				)}
-																			</Button>
-																		)}
-																	</div>
-																</div>
-															</CardContent>
-														</Card>
-
-														<div className="space-y-4">
-															<Card>
-																<CardHeader>
-																	<CardTitle className="text-sm font-medium">
-																		{t(
-																			'finiquito.results.finiquitoTitle',
-																		)}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{terminationPreview ? (
-																		<div className="space-y-2 text-sm">
-																			{finiquitoLines.map(
-																				(line) => (
-																					<div
-																						key={
-																							line.key
-																						}
-																						className="flex items-center justify-between"
-																					>
-																						<span>
-																							{
-																								line.label
-																							}
-																						</span>
-																						<span className="font-medium">
-																							{formatCurrency(
-																								line.value,
-																							)}
-																						</span>
-																					</div>
-																				),
-																			)}
-																			<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
-																				<span>
-																					{t(
-																						'finiquito.breakdown.totalGross',
-																					)}
-																				</span>
-																				<span>
-																					{formatCurrency(
-																						terminationPreview
-																							.totals
-																							.finiquitoTotalGross,
-																					)}
-																				</span>
-																			</div>
-																		</div>
-																	) : (
-																		<p className="text-sm text-muted-foreground">
-																			{t(
-																				'finiquito.empty.preview',
-																			)}
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-
-															<Card>
-																<CardHeader>
-																	<CardTitle className="text-sm font-medium">
-																		{t(
-																			'finiquito.results.totalTitle',
-																		)}
-																	</CardTitle>
-																</CardHeader>
-																<CardContent>
-																	{terminationPreview ? (
-																		<div className="text-2xl font-semibold">
-																			{formatCurrency(
-																				terminationPreview
-																					.totals
-																					.grossTotal,
-																			)}
-																		</div>
-																	) : (
-																		<p className="text-sm text-muted-foreground">
-																			{t(
-																				'finiquito.empty.preview',
-																			)}
-																		</p>
-																	)}
-																</CardContent>
-															</Card>
-
-															<Accordion type="single" collapsible>
-																<AccordionItem value="liquidacion">
-																	<AccordionTrigger>
-																		{t(
-																			'finiquito.results.liquidacionTitle',
-																		)}
-																	</AccordionTrigger>
-																	<AccordionContent>
-																		{terminationPreview ? (
-																			<div className="space-y-2 text-sm">
-																				{liquidacionLines.map(
-																					(line) => (
-																						<div
-																							key={
-																								line.key
-																							}
-																							className="flex items-center justify-between"
-																						>
-																							<span>
-																								{
-																									line.label
-																								}
-																							</span>
-																							<span className="font-medium">
-																								{formatCurrency(
-																									line.value,
-																								)}
-																							</span>
-																						</div>
-																					),
-																				)}
-																				<div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
-																					<span>
-																						{t(
-																							'finiquito.breakdown.totalGross',
-																						)}
-																					</span>
-																					<span>
-																						{formatCurrency(
-																							terminationPreview
-																								.totals
-																								.liquidacionTotalGross,
-																						)}
-																					</span>
-																				</div>
-																				{terminationPreview
-																					.totals
-																					.liquidacionTotalGross ===
-																					0 && (
-																					<p className="text-xs text-muted-foreground">
-																						{t(
-																							'finiquito.empty.liquidacion',
-																						)}
-																					</p>
-																				)}
-																			</div>
-																		) : (
-																			<p className="text-sm text-muted-foreground">
-																				{t(
-																					'finiquito.empty.preview',
-																				)}
-																			</p>
-																		)}
-																	</AccordionContent>
-																</AccordionItem>
-															</Accordion>
-														</div>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="exceptions"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'exceptions' && 'hidden',
-											)}
-										>
-											{isTabVisited('exceptions') ? (
-												<div
-													ref={registerTabScrollContainer('exceptions')}
-													onScroll={handleTabScroll('exceptions')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="rounded-md border">
-														<Table>
-															<TableHeader>
-																<TableRow>
-																	<TableHead>
-																		{t(
-																			'exceptions.table.headers.date',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'exceptions.table.headers.type',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'exceptions.table.headers.reason',
-																		)}
-																	</TableHead>
-																</TableRow>
-															</TableHeader>
-															<TableBody>
-																{isLoadingInsights ? (
-																	Array.from({ length: 3 }).map(
-																		(_, index) => (
-																			<TableRow key={index}>
-																				<TableCell>
-																					<Skeleton className="h-4 w-24" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-20" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-28" />
-																				</TableCell>
-																			</TableRow>
-																		),
-																	)
-																) : upcomingExceptions.length ===
-																  0 ? (
-																	<TableRow>
-																		<TableCell
-																			colSpan={3}
-																			className="h-20 text-center"
-																		>
-																			{t(
-																				'exceptions.table.empty',
-																			)}
-																		</TableCell>
-																	</TableRow>
-																) : (
-																	upcomingExceptions.map(
-																		(item) => (
-																			<TableRow key={item.id}>
-																				<TableCell>
-																					{formatShortDateUtc(
-																						toUtcDate(
-																							item.dateKey,
-																						),
-																					)}
-																				</TableCell>
-																				<TableCell>
-																					{t(
-																						`exceptionTypes.${item.exceptionType}`,
-																					)}
-																				</TableCell>
-																				<TableCell>
-																					{item.reason ??
-																						tCommon(
-																							'notAvailable',
-																						)}
-																				</TableCell>
-																			</TableRow>
-																		),
-																	)
-																)}
-															</TableBody>
-														</Table>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-
-										<TabsContent
-											value="audit"
-											forceMount
-											className={cn(
-												'mt-0 min-h-0 flex-1',
-												detailTab !== 'audit' && 'hidden',
-											)}
-										>
-											{isTabVisited('audit') ? (
-												<div
-													ref={registerTabScrollContainer('audit')}
-													onScroll={handleTabScroll('audit')}
-													className="h-full overflow-y-auto pt-4"
-												>
-													<div className="rounded-md border">
-														<Table>
-															<TableHeader>
-																<TableRow>
-																	<TableHead>
-																		{t(
-																			'audit.table.headers.date',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'audit.table.headers.action',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'audit.table.headers.actor',
-																		)}
-																	</TableHead>
-																	<TableHead>
-																		{t(
-																			'audit.table.headers.fields',
-																		)}
-																	</TableHead>
-																</TableRow>
-															</TableHeader>
-															<TableBody>
-																{auditError ? (
-																	<TableRow>
-																		<TableCell colSpan={4}>
-																			<div className="flex items-center justify-between gap-3 py-2">
-																				<p className="text-sm text-muted-foreground">
-																					{t(
-																						'audit.partialError',
-																					)}
-																				</p>
-																				<Button
-																					variant="outline"
-																					size="sm"
-																					onClick={() =>
-																						void refetchAudit()
-																					}
-																				>
-																					{tCommon(
-																						'retry',
-																					)}
-																				</Button>
-																			</div>
-																		</TableCell>
-																	</TableRow>
-																) : isLoadingAudit ? (
-																	Array.from({ length: 3 }).map(
-																		(_, index) => (
-																			<TableRow key={index}>
-																				<TableCell>
-																					<Skeleton className="h-4 w-24" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-24" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-28" />
-																				</TableCell>
-																				<TableCell>
-																					<Skeleton className="h-4 w-32" />
-																				</TableCell>
-																			</TableRow>
-																		),
-																	)
-																) : auditEvents.length === 0 ? (
-																	<TableRow>
-																		<TableCell
-																			colSpan={4}
-																			className="h-20 text-center"
-																		>
-																			{t('audit.table.empty')}
-																		</TableCell>
-																	</TableRow>
-																) : (
-																	auditEvents.map((event) => {
-																		const actorLabel =
-																			event.actorName ??
-																			event.actorEmail ??
-																			event.actorUserId;
-																		const actorTypeLabel = t(
-																			`audit.actorTypes.${event.actorType}`,
-																		);
-																		const fieldsLabel =
-																			event.changedFields &&
-																			event.changedFields
-																				.length > 0
-																				? event.changedFields
-																						.map(
-																							(
-																								field,
-																							) =>
-																								auditFieldLabels[
-																									field
-																								] ??
-																								t(
-																									'audit.fields.unknown',
-																									{
-																										field,
-																									},
-																								),
-																						)
-																						.join(', ')
-																				: t(
-																						'audit.fields.none',
-																					);
-
-																		return (
-																			<TableRow
-																				key={event.id}
-																			>
-																				<TableCell>
-																					{format(
-																						new Date(
-																							event.createdAt,
-																						),
-																						t(
-																							'dateFormat',
-																						),
-																					)}
-																				</TableCell>
-																				<TableCell>
-																					{t(
-																						`audit.actions.${event.action}`,
-																					)}
-																				</TableCell>
-																				<TableCell>
-																					{actorLabel
-																						? `${actorTypeLabel} - ${actorLabel}`
-																						: actorTypeLabel}
-																				</TableCell>
-																				<TableCell>
-																					{fieldsLabel}
-																				</TableCell>
-																			</TableRow>
-																		);
-																	})
-																)}
-															</TableBody>
-														</Table>
-													</div>
-												</div>
-											) : null}
-										</TabsContent>
-									</Tabs>
-								</div>
-							) : (
-								<form
-									className="flex h-full min-h-0 flex-col"
-									onSubmit={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-										form.handleSubmit();
-									}}
-								>
-									<div className="min-h-0 flex-1 overflow-y-auto">
-										<div className="grid gap-4 py-4 sm:grid-cols-2">
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="code"
-													validators={{
-														onChange: ({ value }) =>
-															!value.trim()
-																? t('validation.codeRequired')
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.TextField
-															label={t('fields.code')}
-															onValueChange={(next) => {
-																setHasCustomCode(true);
-																return next;
-															}}
-															disabled={isEditMode}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="firstName"
-													validators={{
-														onChange: ({ value }) =>
-															!value.trim()
-																? t('validation.firstNameRequired')
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.TextField
-															label={t('fields.firstName')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="lastName"
-													validators={{
-														onChange: ({ value }) =>
-															!value.trim()
-																? t('validation.lastNameRequired')
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.TextField
-															label={t('fields.lastName')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="nss">
-													{(field) => (
-														<field.TextField
-															label={t('fields.nss')}
-															placeholder={tCommon('optional')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="rfc">
-													{(field) => (
-														<field.TextField
-															label={t('fields.rfc')}
-															placeholder={tCommon('optional')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="email">
-													{(field) => (
-														<field.TextField
-															label={t('fields.email')}
-															type="email"
-															placeholder={tCommon('optional')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="userId">
-													{(field) => (
-														<field.SelectField
-															label={t('fields.user')}
-															options={memberOptions}
-															placeholder={
-																isLoadingMembers
-																	? tCommon('loading')
-																	: t('placeholders.selectUser')
-															}
-															disabled={isLoadingMembers}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="phone">
-													{(field) => (
-														<field.TextField
-															label={t('fields.phone')}
-															placeholder={tCommon('optional')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="locationId"
-													validators={{
-														onChange: ({ value }) =>
-															!value
-																? t('validation.locationRequired')
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.SelectField
-															label={t('fields.location')}
-															options={locations.map((location) => ({
-																value: location.id,
-																label: location.name,
-															}))}
-															placeholder={
-																isLoadingLocations
-																	? tCommon('loading')
-																	: t(
-																			'placeholders.selectLocation',
-																		)
-															}
-															disabled={isLoadingLocations}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="jobPositionId"
-													validators={{
-														onChange: ({ value }) =>
-															isCreateMode && !value
-																? t(
-																		'validation.jobPositionRequired',
-																	)
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.SelectField
-															label={t('fields.jobPosition')}
-															options={jobPositions.map(
-																(position) => ({
-																	value: position.id,
-																	label: position.name,
-																}),
-															)}
-															placeholder={
-																isLoadingJobPositions
-																	? tCommon('loading')
-																	: t(
-																			'placeholders.selectJobPosition',
-																		)
-															}
-															disabled={isLoadingJobPositions}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="department">
-													{(field) => (
-														<field.TextField
-															label={t('fields.department')}
-															placeholder={tCommon('optional')}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="status">
-													{(field) => (
-														<field.SelectField
-															label={t('fields.status')}
-															options={[
-																{
-																	value: 'ACTIVE',
-																	label: t('status.ACTIVE'),
-																},
-																{
-																	value: 'INACTIVE',
-																	label: t('status.INACTIVE'),
-																},
-																{
-																	value: 'ON_LEAVE',
-																	label: t('status.ON_LEAVE'),
-																},
-															]}
-															placeholder={t(
-																'placeholders.selectStatus',
-															)}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField name="shiftType">
-													{(field) => (
-														<field.SelectField
-															label={t('fields.shiftType')}
-															options={shiftTypeOptions.map(
-																(option) => ({
-																	value: option.value,
-																	label: t(option.labelKey),
-																}),
-															)}
-															placeholder={t(
-																'placeholders.selectShiftType',
-															)}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="hireDate"
-													validators={{
-														onChange: ({ value }) => {
-															const trimmedValue = value.trim();
-															if (!trimmedValue) {
-																return undefined;
-															}
-															const parsedValue = parse(
-																trimmedValue,
-																'yyyy-MM-dd',
-																new Date(),
-															);
-															if (
-																!isValid(parsedValue) ||
-																format(
-																	parsedValue,
-																	'yyyy-MM-dd',
-																) !== trimmedValue
-															) {
-																return t(
-																	'validation.hireDateInvalid',
-																);
-															}
-															const today = startOfDay(new Date());
-															if (
-																isAfter(
-																	startOfDay(parsedValue),
-																	today,
-																)
-															) {
-																return t(
-																	'validation.hireDateFutureNotAllowed',
-																);
-															}
-															return undefined;
-														},
-													}}
-												>
-													{(field) => (
-														<field.DateField
-															label={t('fields.hireDate')}
-															placeholder={t('placeholders.hireDate')}
-															variant="input"
-															minYear={1950}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="paymentFrequency"
-													validators={{
-														onChange: ({ value }) =>
-															!value
-																? t(
-																		'validation.paymentFrequencyRequired',
-																	)
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.SelectField
-															label={t('fields.paymentFrequency')}
-															options={[
-																{
-																	value: 'WEEKLY',
-																	label: t(
-																		'paymentFrequency.WEEKLY',
-																	),
-																},
-																{
-																	value: 'BIWEEKLY',
-																	label: t(
-																		'paymentFrequency.BIWEEKLY',
-																	),
-																},
-																{
-																	value: 'MONTHLY',
-																	label: t(
-																		'paymentFrequency.MONTHLY',
-																	),
-																},
-															]}
-															placeholder={t(
-																'placeholders.selectPaymentFrequency',
-															)}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="periodPay"
-													validators={{
-														onChange: ({ value }) =>
-															Number(value) <= 0
-																? t(
-																		'validation.periodPayGreaterThanZero',
-																	)
-																: undefined,
-													}}
-												>
-													{(field) => (
-														<field.TextField
-															label={periodPayLabel}
-															type="number"
-															placeholder={t(
-																'placeholders.periodPayExample',
-															)}
-														/>
-													)}
-												</form.AppField>
-											</div>
-											<div className="col-span-2">
-												<div className="grid grid-cols-4 items-center gap-4">
-													<Label className="text-right">
-														{t('fields.dailyPayCalculated')}
-													</Label>
-													<Input
-														className="col-span-3"
-														value={computedDailyPay.toFixed(2)}
-														readOnly
-														disabled
-													/>
-												</div>
-											</div>
-											<div className="col-span-2 sm:col-span-1">
-												<form.AppField
-													name="sbcDailyOverride"
-													validators={{
-														onChange: ({ value }) => {
-															const trimmed = value.trim();
-															if (!trimmed) {
-																return undefined;
-															}
-															const parsed = Number(trimmed);
-															if (
-																!Number.isFinite(parsed) ||
-																parsed <= 0
-															) {
-																return t(
-																	'validation.sbcDailyOverride',
-																);
-															}
-															return undefined;
-														},
-													}}
-												>
-													{(field) => (
-														<field.TextField
-															label={t('fields.sbcDailyOverride')}
-															placeholder={t(
-																'placeholders.sbcDailyOverride',
-															)}
-															description={t(
-																'helpers.sbcDailyOverride',
-															)}
-														/>
-													)}
-												</form.AppField>
-											</div>
-
-											<div className="col-span-2 space-y-3 rounded-md border p-3">
-												<div>
-													<p className="text-sm font-medium">
-														{t('ptuAguinaldo.title')}
-													</p>
-													<p className="text-xs text-muted-foreground">
-														{t('ptuAguinaldo.subtitle')}
-													</p>
-												</div>
-												<TooltipProvider>
-													<div className="space-y-2 rounded-md border border-dashed bg-muted/20 p-2">
-														<p className="text-xs text-muted-foreground">
-															{t('ptuAguinaldo.optionsHelp.title')}
-														</p>
-														<div className="flex flex-wrap gap-2">
-															{ptuAguinaldoOptionHelp.map((item) => (
-																<Tooltip key={item.key}>
-																	<TooltipTrigger asChild>
-																		<Badge
-																			variant="outline"
-																			className="cursor-help gap-1"
-																		>
-																			<HelpCircle className="h-3 w-3" />
-																			{item.label}
-																		</Badge>
-																	</TooltipTrigger>
-																	<TooltipContent className="max-w-xs">
-																		<p className="text-xs">
-																			{item.description}
-																		</p>
-																	</TooltipContent>
-																</Tooltip>
-															))}
-														</div>
-													</div>
-												</TooltipProvider>
-												<div className="grid gap-4 sm:grid-cols-2">
-													<form.AppField name="employmentType">
-														{(field) => (
-															<field.SelectField
-																label={t('fields.employmentType')}
-																options={employmentTypeOptions.map(
-																	(option) => ({
-																		value: option.value,
-																		label: t(option.labelKey),
-																	}),
-																)}
-																placeholder={t(
-																	'placeholders.selectEmploymentType',
-																)}
-															/>
-														)}
-													</form.AppField>
-													<form.AppField name="ptuEligibilityOverride">
-														{(field) => (
-															<field.SelectField
-																label={t(
-																	'fields.ptuEligibilityOverride',
-																)}
-																options={ptuEligibilityOptions.map(
-																	(option) => ({
-																		value: option.value,
-																		label: t(option.labelKey),
-																	}),
-																)}
-																placeholder={t(
-																	'placeholders.selectPtuEligibility',
-																)}
-															/>
-														)}
-													</form.AppField>
-													<form.AppField
-														name="aguinaldoDaysOverride"
-														validators={{
-															onChange: ({ value }) => {
-																const trimmed = value.trim();
-																if (!trimmed) {
-																	return undefined;
-																}
-																const parsed = Number(trimmed);
-																if (
-																	!Number.isFinite(parsed) ||
-																	parsed < 0
-																) {
-																	return t(
-																		'validation.aguinaldoDaysOverride',
-																	);
-																}
-																return undefined;
-															},
-														}}
-													>
-														{(field) => (
-															<field.TextField
-																label={t(
-																	'fields.aguinaldoDaysOverride',
-																)}
-																placeholder={t(
-																	'placeholders.aguinaldoDaysOverride',
-																)}
-																type="number"
-																description={t(
-																	'helpers.aguinaldoDaysOverride',
-																)}
-															/>
-														)}
-													</form.AppField>
-													<form.AppField
-														name="platformHoursYear"
-														validators={{
-															onChange: ({ value }) => {
-																const trimmed = value.trim();
-																if (!trimmed) {
-																	return undefined;
-																}
-																const parsed = Number(trimmed);
-																if (
-																	!Number.isFinite(parsed) ||
-																	parsed < 0
-																) {
-																	return t(
-																		'validation.platformHoursYear',
-																	);
-																}
-																return undefined;
-															},
-														}}
-													>
-														{(field) => (
-															<field.TextField
-																label={t(
-																	'fields.platformHoursYear',
-																)}
-																placeholder={t(
-																	'placeholders.platformHoursYear',
-																)}
-																type="number"
-																description={t(
-																	'helpers.platformHoursYear',
-																)}
-															/>
-														)}
-													</form.AppField>
-												</div>
-												<div className="grid gap-3 sm:grid-cols-2">
-													<form.AppField name="isTrustEmployee">
-														{(field) => (
-															<field.ToggleField
-																label={t('fields.isTrustEmployee')}
-																description={t(
-																	'helpers.isTrustEmployee',
-																)}
-																orientation="vertical"
-															/>
-														)}
-													</form.AppField>
-													<form.AppField name="isDirectorAdminGeneralManager">
-														{(field) => (
-															<field.ToggleField
-																label={t(
-																	'fields.isDirectorAdminGeneralManager',
-																)}
-																description={t(
-																	'helpers.isDirectorAdminGeneralManager',
-																)}
-																orientation="vertical"
-															/>
-														)}
-													</form.AppField>
-													<form.AppField name="isDomesticWorker">
-														{(field) => (
-															<field.ToggleField
-																label={t('fields.isDomesticWorker')}
-																description={t(
-																	'helpers.isDomesticWorker',
-																)}
-																orientation="vertical"
-															/>
-														)}
-													</form.AppField>
-													<form.AppField name="isPlatformWorker">
-														{(field) => (
-															<field.ToggleField
-																label={t('fields.isPlatformWorker')}
-																description={t(
-																	'helpers.isPlatformWorker',
-																)}
-																orientation="vertical"
-															/>
-														)}
-													</form.AppField>
-												</div>
-
-												<div className="rounded-md border bg-muted/30 p-3">
-													<div className="flex flex-wrap items-center justify-between gap-2">
-														<div>
-															<p className="text-xs font-medium">
-																{t('ptuHistory.title')}
-															</p>
-															<p className="text-xs text-muted-foreground">
-																{t('ptuHistory.subtitle')}
-															</p>
-														</div>
-														<Button
-															type="button"
-															size="sm"
-															onClick={() =>
-																void handlePtuHistorySave()
-															}
-															disabled={
-																ptuHistoryMutation.isPending ||
-																!activeEmployee
-															}
-														>
-															{ptuHistoryMutation.isPending
-																? tCommon('saving')
-																: t('ptuHistory.actions.save')}
-														</Button>
-													</div>
-													<div className="mt-3 grid gap-3 sm:grid-cols-2">
-														<div className="flex flex-col gap-2">
-															<Label htmlFor="ptu-history-year">
-																{t('ptuHistory.fields.year')}
-															</Label>
-															<Input
-																id="ptu-history-year"
-																type="number"
-																min={2000}
-																value={ptuHistoryYearInput}
-																onChange={(event) =>
-																	setPtuHistoryYearInput(
-																		event.target.value,
-																	)
-																}
-															/>
-														</div>
-														<div className="flex flex-col gap-2">
-															<Label htmlFor="ptu-history-amount">
-																{t('ptuHistory.fields.amount')}
-															</Label>
-															<Input
-																id="ptu-history-amount"
-																type="number"
-																min={0}
-																step="0.01"
-																value={ptuHistoryAmountInput}
-																onChange={(event) =>
-																	setPtuHistoryAmountInput(
-																		event.target.value,
-																	)
-																}
-															/>
-														</div>
-													</div>
-													<div className="mt-3 rounded-md border bg-background">
-														<Table>
-															<TableHeader>
-																<TableRow>
-																	<TableHead>
-																		{t('ptuHistory.table.year')}
-																	</TableHead>
-																	<TableHead className="text-right">
-																		{t(
-																			'ptuHistory.table.amount',
-																		)}
-																	</TableHead>
-																</TableRow>
-															</TableHeader>
-															<TableBody>
-																{ptuHistoryError ? (
-																	<TableRow>
-																		<TableCell colSpan={2}>
-																			<div className="flex items-center justify-between gap-3 py-2">
-																				<p className="text-sm text-muted-foreground">
-																					{t(
-																						'ptuHistory.partialError',
-																					)}
-																				</p>
-																				<Button
-																					variant="outline"
-																					size="sm"
-																					onClick={() =>
-																						void refetchPtuHistory()
-																					}
-																				>
-																					{tCommon(
-																						'retry',
-																					)}
-																				</Button>
-																			</div>
-																		</TableCell>
-																	</TableRow>
-																) : isLoadingPtuHistory ? (
-																	<TableRow>
-																		<TableCell colSpan={2}>
-																			<Skeleton className="h-4 w-full" />
-																		</TableCell>
-																	</TableRow>
-																) : ptuHistory.length === 0 ? (
-																	<TableRow>
-																		<TableCell
-																			colSpan={2}
-																			className="h-12 text-center text-xs text-muted-foreground"
-																		>
-																			{t(
-																				'ptuHistory.table.empty',
-																			)}
-																		</TableCell>
-																	</TableRow>
-																) : (
-																	ptuHistory.map((entry) => (
-																		<TableRow key={entry.id}>
-																			<TableCell>
-																				{entry.fiscalYear}
-																			</TableCell>
-																			<TableCell className="text-right tabular-nums">
-																				{formatCurrency(
-																					entry.amount,
-																				)}
-																			</TableCell>
-																		</TableRow>
-																	))
-																)}
-															</TableBody>
-														</Table>
-													</div>
-												</div>
-											</div>
-
-											<div className="col-span-2 space-y-2 rounded-md border p-3">
-												<div className="flex items-center justify-between">
-													<div>
-														<p className="text-sm font-medium">
-															{t('schedule.title')}
-														</p>
-														<p className="text-xs text-muted-foreground">
-															{t('schedule.subtitle')}
-														</p>
-													</div>
-													{isScheduleLoading && (
-														<div className="flex items-center gap-2 text-xs text-muted-foreground">
-															<Loader2 className="h-4 w-4 animate-spin" />
-															{t('schedule.loading')}
-														</div>
-													)}
-												</div>
-												<div className="grid gap-2">
-													{daysOfWeek.map((day) => {
-														const entry = schedule.find(
-															(item) => item.dayOfWeek === day.value,
-														) ?? {
-															dayOfWeek: day.value,
-															startTime: '09:00',
-															endTime: '17:00',
-															isWorkingDay:
-																day.value >= 1 && day.value <= 5,
-														};
-														return (
-															<div
-																key={day.value}
-																className="grid grid-cols-12 items-center gap-2 rounded-md border p-2"
-															>
-																<div className="col-span-3 flex items-center gap-2">
-																	<input
-																		type="checkbox"
-																		className="h-4 w-4 accent-primary"
-																		checked={entry.isWorkingDay}
-																		onChange={(e) =>
-																			upsertScheduleEntry(
-																				day.value,
-																				{
-																					isWorkingDay:
-																						e.target
-																							.checked,
-																				},
-																			)
-																		}
-																	/>
-																	<span className="text-sm">
-																		{t(day.labelKey)}
-																	</span>
-																</div>
-																<div className="col-span-4">
-																	<Label className="text-xs text-muted-foreground">
-																		{t('schedule.start')}
-																	</Label>
-																	<Input
-																		type="time"
-																		value={entry.startTime}
-																		disabled={
-																			!entry.isWorkingDay
-																		}
-																		onChange={(e) =>
-																			upsertScheduleEntry(
-																				day.value,
-																				{
-																					startTime:
-																						e.target
-																							.value,
-																				},
-																			)
-																		}
-																	/>
-																</div>
-																<div className="col-span-4">
-																	<Label className="text-xs text-muted-foreground">
-																		{t('schedule.end')}
-																	</Label>
-																	<Input
-																		type="time"
-																		value={entry.endTime}
-																		disabled={
-																			!entry.isWorkingDay
-																		}
-																		onChange={(e) =>
-																			upsertScheduleEntry(
-																				day.value,
-																				{
-																					endTime:
-																						e.target
-																							.value,
-																				},
-																			)
-																		}
-																	/>
-																</div>
-															</div>
-														);
-													})}
-												</div>
-											</div>
-										</div>
-									</div>
-									<DialogFooter>
-										<form.AppForm>
-											<form.SubmitButton
-												label={tCommon('save')}
-												loadingLabel={tCommon('saving')}
-											/>
-										</form.AppForm>
-									</DialogFooter>
-								</form>
-							)}
-						</div>
-					</DialogContent>
-				</Dialog>
-			</div>
+		<div className="min-w-0 space-y-6">
+			<EmployeeDetailDialog
+				isOpen={isDialogOpen}
+				mode={dialogMode}
+				activeEmployee={activeEmployee}
+				detailTab={detailTab}
+				form={form}
+				schedule={schedule}
+				upsertScheduleEntry={upsertScheduleEntry}
+				handlers={{
+					handleCreateNew,
+					onOpenChange: handleDialogOpenChange,
+					handleEditFromDetails,
+					handleDetailTabChange,
+					markTabAsVisited,
+					registerTabScrollContainer,
+					handleTabScroll,
+					isTabVisited,
+					closeEmployeeDialog,
+					setShowMobileDiscardFromOutside,
+					setMobileWizardStepIndex,
+					handleMobileWizardSubmit,
+					handlePtuHistorySave,
+					setPtuHistoryYearInput,
+					setPtuHistoryAmountInput,
+					refetchInsights,
+					refetchPtuHistory,
+					refetchAudit,
+					updateTerminationForm,
+					setIsTerminateDialogOpen,
+					handleTerminationPreview,
+					handleTerminateEmployee,
+					setHasCustomCode,
+				}}
+				lookups={{
+					activeEmployeeLocation,
+					isMobile,
+					canUseDisciplinaryModule,
+					secondaryDetailTabs,
+					vacationBalance,
+					attendanceSummary: attendanceSummary
+						? {
+								totalAbsentDays: attendanceSummary.totalAbsentDays,
+								kpis: attendanceSummary.kpis ?? null,
+								trend30d: attendanceSummary.trend30d ?? [],
+								absencesByMonth: attendanceSummary.absencesByMonth ?? [],
+								leavesByMonth: attendanceSummary.leavesByMonth ?? [],
+							}
+						: null,
+					leaveItems,
+					attendanceCurrentMonthKey,
+					attendanceDrilldownHref,
+					isLoadingInsights,
+					insightsError: Boolean(insightsError),
+					vacationRequests,
+					payrollRuns,
+					upcomingExceptions,
+					isLoadingPtuHistory,
+					ptuHistoryError: Boolean(ptuHistoryError),
+					ptuHistory,
+					isLoadingAudit,
+					auditError: Boolean(auditError),
+					auditEvents,
+					auditFieldLabels,
+					mobileWizardSteps,
+					isMobileWizardDirty,
+					mobileWizardErrorSteps,
+					mobileWizardStepIndex,
+					showMobileDiscardFromOutside,
+					createMutationPending: createMutation.isPending,
+					updateMutationPending: updateMutation.isPending,
+					memberOptions,
+					isLoadingMembers,
+					locations,
+					isLoadingLocations,
+					jobPositions,
+					isLoadingJobPositions,
+					periodPayLabel,
+					computedDailyPay,
+					canManageDualPayrollCompensation,
+					fiscalDailyPayPreviewFeedbackKey,
+					parsedFiscalDailyPayPreview,
+					fiscalDailyComplementPreview,
+					activeEmployeeDailyComplement,
+					ptuAguinaldoOptionHelp,
+					ptuHistoryYearInput,
+					ptuHistoryAmountInput,
+					ptuHistoryMutationPending: ptuHistoryMutation.isPending,
+					isScheduleLoading,
+					terminationForm,
+					isTerminationLocked,
+					terminationPreview,
+					isTerminateDialogOpen,
+					canDownloadTerminationReceipt,
+					terminationReceiptUrl: terminationReceiptUrl ?? undefined,
+					isLoadingTerminationSettlement,
+					canConfirmTermination,
+					finiquitoLines,
+					liquidacionLines,
+					terminationPreviewPending: terminationPreviewMutation.isPending,
+					terminationMutationPending: terminationMutation.isPending,
+				}}
+			/>
 
 			<MemoizedEmployeesTableSection
 				search={search}
@@ -6488,13 +4095,15 @@ export function EmployeesPageClient(): React.ReactElement {
 				jobPositionPlaceholder={t('filters.jobPosition.placeholder')}
 				statusPlaceholder={t('filters.status.placeholder')}
 				bulkActions={bulkActions}
+				cardRenderer={renderEmployeeCard}
 				rowSelection={rowSelection}
 				onRowSelectionChange={setRowSelection}
 				getRowId={(row) => row.id}
+				onRowClick={handleViewDetails}
 			/>
 
 			<Dialog open={isBulkEditOpen} onOpenChange={setIsBulkEditOpen}>
-				<DialogContent className="sm:max-w-2xl">
+				<DialogContent className="min-[1025px]:max-w-2xl">
 					<DialogHeader>
 						<DialogTitle>{t('bulk.title')}</DialogTitle>
 						<DialogDescription>{t('bulk.description')}</DialogDescription>
@@ -6521,7 +4130,7 @@ export function EmployeesPageClient(): React.ReactElement {
 							</div>
 						</div>
 					</TooltipProvider>
-					<div className="grid gap-4 sm:grid-cols-2">
+					<div className="grid gap-4 min-[1025px]:grid-cols-2">
 						<div className="flex flex-col gap-2">
 							<Label>{t('bulk.fields.employmentType')}</Label>
 							<Select

@@ -1,4 +1,5 @@
-import { and, desc, eq, gte, ilike, inArray, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { inArray } from 'drizzle-orm/sql';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
 
@@ -215,8 +216,30 @@ async function ensureAdminRoleForLinking(
 	args: { authType: 'session' | 'apiKey'; session: AuthSession | null; organizationId: string },
 	set: { status?: number | string } & Record<string, unknown>,
 ): Promise<boolean> {
-	if (args.authType !== 'session' || !args.session) {
+	const canManage = await hasOrganizationAdminRole(args);
+	if (!canManage) {
 		set.status = 403;
+		return false;
+	}
+
+	return true;
+}
+
+/**
+ * Checks whether the caller has admin privileges in the organization.
+ *
+ * @param args - Authorization context and organization
+ * @param args.authType - Authentication type
+ * @param args.session - Current auth session
+ * @param args.organizationId - Organization identifier
+ * @returns True when the caller is an admin or owner of the organization
+ */
+async function hasOrganizationAdminRole(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	organizationId: string;
+}): Promise<boolean> {
+	if (args.authType !== 'session' || !args.session) {
 		return false;
 	}
 
@@ -232,12 +255,42 @@ async function ensureAdminRoleForLinking(
 		.limit(1);
 
 	const role = membership[0]?.role ?? null;
-	if (!role || (role !== 'admin' && role !== 'owner')) {
-		set.status = 403;
-		return false;
+	return role === 'admin' || role === 'owner';
+}
+
+/**
+ * Checks whether the caller can read fiscal compensation data for the organization.
+ *
+ * @param args - Authorization context and organization
+ * @param args.authType - Authentication type
+ * @param args.session - Current auth session
+ * @param args.organizationId - Organization identifier
+ * @returns True when the caller can read fiscal compensation fields
+ */
+async function canViewFiscalCompensation(args: {
+	authType: 'session' | 'apiKey';
+	session: AuthSession | null;
+	organizationId: string;
+}): Promise<boolean> {
+	if (args.authType === 'apiKey') {
+		return true;
 	}
 
-	return true;
+	return hasOrganizationAdminRole(args);
+}
+
+/**
+ * Removes the fiscalDailyPay field from an employee-shaped payload.
+ *
+ * @param record - Employee payload that may include fiscalDailyPay
+ * @returns The payload without fiscalDailyPay
+ */
+function omitFiscalDailyPay<T extends { fiscalDailyPay?: unknown }>(
+	record: T,
+): Omit<T, 'fiscalDailyPay'> {
+	const { fiscalDailyPay, ...sanitizedRecord } = record;
+	void fiscalDailyPay;
+	return sanitizedRecord;
 }
 
 /**
@@ -1002,6 +1055,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				set.status = status;
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
+			const canViewFiscalDailyPay = await canViewFiscalCompensation({
+				authType,
+				session,
+				organizationId,
+			});
 
 			// Build conditions array
 			const conditions: [SQL<unknown>, ...SQL<unknown>[]] = [
@@ -1043,6 +1101,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
 					dailyPay: employee.dailyPay,
+					fiscalDailyPay: employee.fiscalDailyPay,
 					paymentFrequency: employee.paymentFrequency,
 					employmentType: employee.employmentType,
 					isTrustEmployee: employee.isTrustEmployee,
@@ -1116,7 +1175,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const enrichedResults = results.map((row) => {
 				const progress = progressByEmployee.get(row.id);
 				const disciplinaryCounts = disciplinaryCountByEmployee.get(row.id);
-				return {
+				const enrichedRow = {
 					...row,
 					documentProgressPercent: progress?.documentProgressPercent ?? 0,
 					documentMissingCount: progress?.documentMissingCount ?? 0,
@@ -1124,6 +1183,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					disciplinaryMeasuresCount: disciplinaryCounts?.total ?? 0,
 					disciplinaryOpenMeasuresCount: disciplinaryCounts?.open ?? 0,
 				};
+				if (canViewFiscalDailyPay) {
+					return enrichedRow;
+				}
+				return omitFiscalDailyPay(enrichedRow);
 			});
 
 			// Get total count with same filters
@@ -1184,6 +1247,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					shiftType: employee.shiftType,
 					hireDate: employee.hireDate,
 					dailyPay: employee.dailyPay,
+					fiscalDailyPay: employee.fiscalDailyPay,
 					paymentFrequency: employee.paymentFrequency,
 					employmentType: employee.employmentType,
 					isTrustEmployee: employee.isTrustEmployee,
@@ -1229,6 +1293,13 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				set.status = 403;
 				return buildErrorResponse('You do not have access to this employee', 403);
 			}
+			const canViewFiscalDailyPay = record.organizationId
+				? await canViewFiscalCompensation({
+						authType,
+						session,
+						organizationId: record.organizationId,
+					})
+				: false;
 
 			const schedule = await db
 				.select()
@@ -1236,7 +1307,11 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				.where(eq(employeeSchedule.employeeId, id))
 				.orderBy(employeeSchedule.dayOfWeek, employeeSchedule.startTime);
 
-			return { data: { ...record, schedule } };
+			if (canViewFiscalDailyPay) {
+				return { data: { ...record, schedule } };
+			}
+
+			return { data: { ...omitFiscalDailyPay(record), schedule } };
 		},
 		{
 			params: idParamSchema,
@@ -2749,6 +2824,16 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 			const auditActor = resolveEmployeeAuditActor(authType, session);
 			const beforeSnapshot = buildEmployeeAuditSnapshot(existingRecord);
+			const canManageFiscalDailyPay = await hasOrganizationAdminRole({
+				authType,
+				session,
+				organizationId: resolvedOrganizationId,
+			});
+			const canViewFiscalDailyPay = await canViewFiscalCompensation({
+				authType,
+				session,
+				organizationId: resolvedOrganizationId,
+			});
 
 			// Verify location exists if being updated
 			if (body.locationId) {
@@ -2834,7 +2919,10 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 
 			// Only update if there are fields to update
 			if (Object.keys(body).length === 0) {
-				return { data: existingRecord };
+				if (canManageFiscalDailyPay) {
+					return { data: existingRecord };
+				}
+				return { data: omitFiscalDailyPay(existingRecord) };
 			}
 
 			if (body.schedule && body.scheduleTemplateId) {
@@ -2886,19 +2974,20 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			// Extract schedule updates separately to avoid passing to employee table
-				const {
-					schedule,
-					scheduleTemplateId,
-					sbcDailyOverride,
-					userId: userIdInput,
-					code: _code,
-					dailyPay: dailyPayInput,
-					nss,
-					rfc,
-					platformHoursYear,
-					aguinaldoDaysOverride,
-					...employeeUpdate
-				} = body;
+			const {
+				schedule,
+				scheduleTemplateId,
+				sbcDailyOverride,
+				userId: userIdInput,
+				code: _code,
+				dailyPay: dailyPayInput,
+				fiscalDailyPay,
+				nss,
+				rfc,
+				platformHoursYear,
+				aguinaldoDaysOverride,
+				...employeeUpdate
+			} = body;
 			void _code;
 			const updatePayload: Partial<typeof employee.$inferInsert> = {
 				...employeeUpdate,
@@ -2959,41 +3048,99 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				updatePayload.dailyPay = normalizedDailyPay.toFixed(2);
 			}
 
-				if (aguinaldoDaysOverride !== undefined) {
-					if (aguinaldoDaysOverride === null) {
-						updatePayload.aguinaldoDaysOverride = null;
-					} else {
-						const payrollSettingsRows = await db
-							.select({ aguinaldoDays: payrollSetting.aguinaldoDays })
-							.from(payrollSetting)
-							.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
-							.limit(1);
-						const policyDays = Number(payrollSettingsRows[0]?.aguinaldoDays ?? 15);
-						if (aguinaldoDaysOverride < 15 || aguinaldoDaysOverride < policyDays) {
-							set.status = 400;
-							return buildErrorResponse(
-								'Aguinaldo override must be at least the policy value and >= 15',
-								400,
-								{
-									code: 'AGUINALDO_OVERRIDE_INVALID',
-									details: { policyDays },
-								},
-							);
-						}
-						updatePayload.aguinaldoDaysOverride = aguinaldoDaysOverride;
-					}
+			if (fiscalDailyPay !== undefined && !canManageFiscalDailyPay) {
+				set.status = 403;
+				return buildErrorResponse(
+					'Only organization admins can manage fiscalDailyPay',
+					403,
+				);
+			}
+			const payrollSettingsRows = await db
+				.select({
+					aguinaldoDays: payrollSetting.aguinaldoDays,
+					enableDualPayroll: payrollSetting.enableDualPayroll,
+				})
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, resolvedOrganizationId))
+				.limit(1);
+			const payrollSettingsRow = payrollSettingsRows[0];
+			const isDualPayrollEnabled = Boolean(payrollSettingsRow?.enableDualPayroll);
+
+			const nextDailyPay = Number(
+				dailyPayInput !== undefined ? dailyPayInput : existingRecord.dailyPay ?? 0,
+			);
+			const existingFiscalDailyPay =
+				existingRecord.fiscalDailyPay === null ||
+				existingRecord.fiscalDailyPay === undefined
+					? null
+					: Number(existingRecord.fiscalDailyPay);
+				const shouldClearHiddenFiscalDailyPay =
+					fiscalDailyPay === undefined &&
+					dailyPayInput !== undefined &&
+					existingFiscalDailyPay !== null &&
+					existingFiscalDailyPay >= nextDailyPay &&
+					canManageFiscalDailyPay &&
+					!isDualPayrollEnabled;
+				const nextFiscalDailyPay =
+					shouldClearHiddenFiscalDailyPay
+						? null
+						: (fiscalDailyPay !== undefined ? fiscalDailyPay : existingFiscalDailyPay);
+
+				if (
+					!canManageFiscalDailyPay &&
+					fiscalDailyPay === undefined &&
+					dailyPayInput !== undefined &&
+					existingFiscalDailyPay !== null &&
+					existingFiscalDailyPay >= nextDailyPay
+				) {
+					set.status = 403;
+					return buildErrorResponse('Only organization admins can manage fiscalDailyPay', 403);
 				}
 
-				if (platformHoursYear !== undefined) {
-					updatePayload.platformHoursYear =
-						platformHoursYear === null
-							? '0'
-							: Number(platformHoursYear).toFixed(2);
+				if (
+					nextFiscalDailyPay !== null &&
+					nextFiscalDailyPay !== undefined &&
+					Number(nextFiscalDailyPay) >= nextDailyPay
+				) {
+				set.status = 400;
+				return buildErrorResponse('Fiscal daily pay must be lower than dailyPay', 400);
+			}
+
+			if (aguinaldoDaysOverride !== undefined) {
+				if (aguinaldoDaysOverride === null) {
+					updatePayload.aguinaldoDaysOverride = null;
+				} else {
+					const policyDays = Number(payrollSettingsRow?.aguinaldoDays ?? 15);
+					if (aguinaldoDaysOverride < 15 || aguinaldoDaysOverride < policyDays) {
+						set.status = 400;
+						return buildErrorResponse(
+							'Aguinaldo override must be at least the policy value and >= 15',
+							400,
+							{
+								code: 'AGUINALDO_OVERRIDE_INVALID',
+								details: { policyDays },
+							},
+						);
+					}
+					updatePayload.aguinaldoDaysOverride = aguinaldoDaysOverride;
 				}
+			}
+
+			if (platformHoursYear !== undefined) {
+				updatePayload.platformHoursYear =
+					platformHoursYear === null ? '0' : Number(platformHoursYear).toFixed(2);
+			}
 
 			if (sbcDailyOverride !== undefined) {
 				updatePayload.sbcDailyOverride =
 					sbcDailyOverride === null ? null : sbcDailyOverride.toFixed(2);
+			}
+
+			if (fiscalDailyPay !== undefined) {
+				updatePayload.fiscalDailyPay =
+					fiscalDailyPay === null ? null : fiscalDailyPay.toFixed(4);
+			} else if (shouldClearHiddenFiscalDailyPay) {
+				updatePayload.fiscalDailyPay = null;
 			}
 
 			if (userIdInput !== undefined) {
@@ -3063,6 +3210,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						shiftType: employee.shiftType,
 						hireDate: employee.hireDate,
 						dailyPay: employee.dailyPay,
+						fiscalDailyPay: employee.fiscalDailyPay,
 						paymentFrequency: employee.paymentFrequency,
 						employmentType: employee.employmentType,
 						isTrustEmployee: employee.isTrustEmployee,
@@ -3131,11 +3279,17 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			const response: {
-				data: typeof result.updatedRecord & { schedule: typeof result.updatedSchedule };
+				data:
+					| (typeof result.updatedRecord & { schedule: typeof result.updatedSchedule })
+					| (Omit<typeof result.updatedRecord, 'fiscalDailyPay'> & {
+							schedule: typeof result.updatedSchedule;
+					  });
 				warnings?: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }>;
-			} = {
-				data: { ...result.updatedRecord, schedule: result.updatedSchedule },
-			};
+				} = {
+					data: canViewFiscalDailyPay
+						? { ...result.updatedRecord, schedule: result.updatedSchedule }
+						: { ...omitFiscalDailyPay(result.updatedRecord), schedule: result.updatedSchedule },
+				};
 
 			if (minWageValidation.warnings) {
 				response.warnings = minWageValidation.warnings;

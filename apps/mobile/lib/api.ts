@@ -5,16 +5,38 @@ import { getAccessToken } from './auth-client';
 
 /**
  * Base URL for the Sen CheckIn API.
- * Falls back to localhost for local development.
+ * Falls back to localhost for local development and to the production Railway
+ * host for release builds if env injection fails.
  */
-export const API_BASE_URL: string = ENV.apiUrl ?? 'http://localhost:3000'; // fallback only for dev visibility
+const LOCAL_DEV_API_BASE_URL = 'http://localhost:3000';
+const PRODUCTION_API_BASE_URL = 'https://sen-checkin-production.up.railway.app';
+const IS_DEVELOPMENT_RUNTIME =
+	process.env.NODE_ENV === 'production'
+		? false
+		: typeof __DEV__ === 'boolean'
+			? __DEV__
+			: true;
+
+export const API_BASE_URL: string = ENV.apiUrl
+	? ENV.apiUrl
+	: IS_DEVELOPMENT_RUNTIME
+		? LOCAL_DEV_API_BASE_URL
+		: PRODUCTION_API_BASE_URL;
+
+const IS_RELEASE_FALLBACK = !ENV.apiUrl && !IS_DEVELOPMENT_RUNTIME;
 
 if (envErrors) {
-	console.warn('[env] Missing or invalid EXPO_PUBLIC_API_URL. Device login will be disabled.');
-	console.warn(envErrors.format());
+	console.warn('[env] Invalid mobile environment configuration detected.');
+	console.warn(envErrors);
 }
 
-export const API_ENV_VALID = envIsValid;
+if (IS_RELEASE_FALLBACK) {
+	console.warn(
+		`[env] Missing or invalid EXPO_PUBLIC_API_URL in release build. Falling back to ${PRODUCTION_API_BASE_URL}.`,
+	);
+}
+
+export const API_ENV_VALID = envIsValid || IS_RELEASE_FALLBACK;
 
 /**
  * Custom fetch wrapper that injects Bearer token from device authorization.

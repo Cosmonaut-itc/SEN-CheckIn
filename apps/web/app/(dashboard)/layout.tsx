@@ -50,7 +50,7 @@ export default async function DashboardLayout({
 						<ThemeModeToggle />
 					</div>
 				</header>
-				<main className="flex-1 overflow-auto p-6">
+				<main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-6">
 					<OrganizationGate
 						role={userRole}
 						organizationRole={organizationRole}

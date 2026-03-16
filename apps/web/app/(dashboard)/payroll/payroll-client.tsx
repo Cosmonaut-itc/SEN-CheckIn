@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	Select,
 	SelectContent,
@@ -34,11 +36,11 @@ import {
 	Table,
 	TableBody,
 	TableCell,
+	TableFooter,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from '@/components/ui/table';
-import { DataTable } from '@/components/data-table/data-table';
 import {
 	Empty,
 	EmptyDescription,
@@ -75,6 +77,7 @@ import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
 import { PtuTab } from './ptu-tab';
 import { AguinaldoTab } from './aguinaldo-tab';
 import { PayrollHolidayNoticeCard } from './payroll-holiday-notice';
+import { buildPayrollCsvEmployeeRow, type CsvRow } from './payroll-client.helpers';
 import { PayrollOvertimeAlert } from '@/components/overtime/payroll-overtime-alert';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
@@ -89,12 +92,39 @@ function formatCurrency(value: number): string {
 	return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value);
 }
 
+/**
+ * Formats a payroll run period range for display.
+ *
+ * @param run - Payroll run metadata
+ * @param t - Payroll translation helper
+ * @returns Human-readable period label
+ */
+function formatPayrollRunPeriod(
+	run: PayrollRun,
+	t: ReturnType<typeof useTranslations>,
+): string {
+	return t('runHistory.periodRange', {
+		start: format(new Date(run.periodStart), t('dateFormat')),
+		end: format(new Date(run.periodEnd), t('dateFormat')),
+	});
+}
+
+/**
+ * Resolves the badge variant for a payroll run status.
+ *
+ * @param status - Payroll run status
+ * @returns Badge variant aligned with the run state
+ */
+function getPayrollRunStatusVariant(
+	status: PayrollRun['status'],
+): 'secondary' | 'success' {
+	return status === 'PROCESSED' ? 'success' : 'secondary';
+}
+
 type CsvColumn = {
 	key: string;
 	label: string;
 };
-
-type CsvRow = Record<string, string | number | null | undefined>;
 
 /**
  * Parses a date key string into a Date instance.
@@ -161,6 +191,32 @@ function aggregateTaxSummary(employees: PayrollCalculationEmployee[]): PayrollTa
 			employerCostsTotal: 0,
 			netPayTotal: 0,
 			companyCostTotal: 0,
+		},
+	);
+}
+
+/**
+ * Aggregates dual payroll totals from employee breakdowns.
+ *
+ * @param employees - Payroll calculation employees
+ * @returns Consolidated fiscal/complement/real totals
+ */
+function aggregateDualPayrollSummary(
+	employees: PayrollCalculationEmployee[],
+): { fiscalGrossTotal: number; complementTotal: number; totalRealTotal: number } {
+	return employees.reduce(
+		(acc, employee) => ({
+			fiscalGrossTotal:
+				acc.fiscalGrossTotal +
+				(employee.fiscalGrossPay ?? employee.grossPay ?? employee.totalPay ?? 0),
+			complementTotal: acc.complementTotal + (employee.complementPay ?? 0),
+			totalRealTotal:
+				acc.totalRealTotal + (employee.totalRealPay ?? employee.totalPay ?? 0),
+		}),
+		{
+			fiscalGrossTotal: 0,
+			complementTotal: 0,
+			totalRealTotal: 0,
 		},
 	);
 }
@@ -350,7 +406,7 @@ function computePeriod(
 
 export function PayrollPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Payroll');
 
 	const [paymentFrequency, setPaymentFrequency] =
@@ -432,6 +488,16 @@ export function PayrollPageClient(): React.ReactElement {
 			effectiveCalculation.taxSummary ?? aggregateTaxSummary(effectiveCalculation.employees)
 		);
 	}, [effectiveCalculation]);
+	const canViewDualPayroll =
+		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
+	const showDualPayrollColumns =
+		canViewDualPayroll && Boolean(settings?.enableDualPayroll);
+	const dualPayrollSummary = useMemo(() => {
+		if (!effectiveCalculation || !showDualPayrollColumns) {
+			return null;
+		}
+		return aggregateDualPayrollSummary(effectiveCalculation.employees);
+	}, [effectiveCalculation, showDualPayrollColumns]);
 
 	const overtimeAuthorizationSummary = useMemo(() => {
 		if (!effectiveCalculation) {
@@ -470,6 +536,14 @@ export function PayrollPageClient(): React.ReactElement {
 			{ key: 'periodStart', label: t('csv.headers.periodStart') },
 			{ key: 'periodEnd', label: t('csv.headers.periodEnd') },
 			{ key: 'dailyPay', label: t('csv.headers.dailyPay') },
+			...(showDualPayrollColumns
+				? [
+						{
+							key: 'fiscalDailyPay',
+							label: t('csv.headers.fiscalDailyPay'),
+						},
+				  ]
+				: []),
 			{ key: 'hourlyPay', label: t('csv.headers.hourlyPay') },
 			{ key: 'hoursWorked', label: t('csv.headers.hoursWorked') },
 			{ key: 'expectedHours', label: t('csv.headers.expectedHours') },
@@ -502,6 +576,22 @@ export function PayrollPageClient(): React.ReactElement {
 			},
 			{ key: 'seventhDayPay', label: t('csv.headers.seventhDayPay') },
 			{ key: 'totalPay', label: t('csv.headers.totalPay') },
+			...(showDualPayrollColumns
+				? [
+						{
+							key: 'fiscalGrossPay',
+							label: t('csv.headers.fiscalGrossPay'),
+						},
+						{
+							key: 'complementPay',
+							label: t('csv.headers.complementPay'),
+						},
+						{
+							key: 'totalRealPay',
+							label: t('csv.headers.totalRealPay'),
+						},
+				  ]
+				: []),
 			{ key: 'grossPay', label: t('csv.headers.grossPay') },
 			{
 				key: 'employeeWithholdingsTotal',
@@ -556,61 +646,14 @@ export function PayrollPageClient(): React.ReactElement {
 			{ key: 'warnings', label: t('csv.headers.warnings') },
 		];
 
-		const rows: CsvRow[] = effectiveCalculation.employees.map((row) => {
-			const warnings = row.warnings.map((warning) => warning.message).join(' | ');
-			return {
-				rowType: t('csv.rowTypes.employee'),
-				employeeId: row.employeeId,
-				employeeName: row.name,
-				paymentFrequency: t(`paymentFrequency.${row.paymentFrequency}`),
-				periodStart: periodStartDateKey,
-				periodEnd: periodEndDateKey,
-				dailyPay: row.dailyPay,
-				hourlyPay: row.hourlyPay,
-				hoursWorked: row.hoursWorked,
-				expectedHours: row.expectedHours,
-				normalHours: row.normalHours,
-				overtimeDoubleHours: row.overtimeDoubleHours,
-				overtimeTripleHours: row.overtimeTripleHours,
-				authorizedOvertimeHours: row.authorizedOvertimeHours,
-				unauthorizedOvertimeHours: row.unauthorizedOvertimeHours,
-				sundayPremiumAmount: row.sundayPremiumAmount,
-				mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount,
-				vacationDaysPaid: row.vacationDaysPaid ?? 0,
-				vacationPayAmount: row.vacationPayAmount ?? 0,
-				vacationPremiumAmount: row.vacationPremiumAmount ?? 0,
-				incapacityDays: row.incapacitySummary?.daysIncapacityTotal ?? 0,
-				incapacitySubsidy: row.incapacitySummary?.expectedImssSubsidyAmount ?? 0,
-				seventhDayPay: row.seventhDayPay ?? 0,
-				totalPay: row.totalPay,
-				grossPay: row.grossPay ?? row.totalPay,
-				employeeWithholdingsTotal: row.employeeWithholdings?.total ?? 0,
-				employeeWithholdingsIsr: row.employeeWithholdings?.isrWithheld ?? 0,
-				employeeWithholdingsImssTotal: row.employeeWithholdings?.imssEmployee?.total ?? 0,
-				employerCostsTotal: row.employerCosts?.total ?? 0,
-				employerCostsImssTotal: row.employerCosts?.imssEmployer?.total ?? 0,
-				employerCostsImssGuarderias: row.employerCosts?.imssEmployer?.guarderias ?? 0,
-				employerCostsSarRetiro: row.employerCosts?.sarRetiro ?? 0,
-				employerCostsInfonavit: row.employerCosts?.infonavit ?? 0,
-				employerCostsRiskWork: row.employerCosts?.riskWork ?? 0,
-				employerCostsIsn: row.employerCosts?.isn ?? 0,
-				employerCostsAbsorbedImssEmployeeShare:
-					row.employerCosts?.absorbedImssEmployeeShare ?? 0,
-				employerCostsAbsorbedIsr: row.employerCosts?.absorbedIsr ?? 0,
-				netPay: row.netPay ?? 0,
-				companyCost: row.companyCost ?? 0,
-				baseSbcDaily: row.bases?.sbcDaily ?? 0,
-				baseSbcPeriod: row.bases?.sbcPeriod ?? 0,
-				baseIsrBase: row.bases?.isrBase ?? 0,
-				baseDaysInPeriod: row.bases?.daysInPeriod ?? 0,
-				informationalIsrBeforeSubsidy: row.informationalLines?.isrBeforeSubsidy ?? 0,
-				informationalSubsidyApplied: row.informationalLines?.subsidyApplied ?? 0,
-				lunchBreakAutoDeductedDays: row.lunchBreakAutoDeductedDays ?? 0,
-				lunchBreakAutoDeductedMinutes: row.lunchBreakAutoDeductedMinutes ?? 0,
-				warningsCount: row.warnings.length,
-				warnings,
-			};
-		});
+		const rows: CsvRow[] = effectiveCalculation.employees.map((row) =>
+			buildPayrollCsvEmployeeRow({
+				row,
+				periodStartDateKey,
+				periodEndDateKey,
+				t,
+			}),
+		);
 
 		if (taxSummary) {
 			rows.push({
@@ -699,11 +742,7 @@ export function PayrollPageClient(): React.ReactElement {
 				id: 'period',
 				accessorFn: (row) => new Date(row.periodStart).getTime(),
 				header: t('runHistory.table.period'),
-				cell: ({ row }) =>
-					t('runHistory.periodRange', {
-						start: format(new Date(row.original.periodStart), t('dateFormat')),
-						end: format(new Date(row.original.periodEnd), t('dateFormat')),
-					}),
+				cell: ({ row }) => formatPayrollRunPeriod(row.original, t),
 			},
 			{
 				accessorKey: 'paymentFrequency',
@@ -787,6 +826,100 @@ export function PayrollPageClient(): React.ReactElement {
 		[t],
 	);
 
+	/**
+	 * Renders the mobile card layout for a payroll history row.
+	 *
+	 * @param run - Payroll run metadata
+	 * @returns Mobile payroll history card
+	 */
+	const renderPayrollRunCard = useCallback(
+		(run: PayrollRun): React.ReactElement => {
+			const notices = run.holidayNotices ?? [];
+
+			return (
+				<div className="space-y-4">
+					<div className="flex flex-col gap-3 min-[420px]:flex-row min-[420px]:items-start min-[420px]:justify-between">
+						<div className="space-y-1">
+							<p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+								{t('runHistory.table.period')}
+							</p>
+							<p className="text-base font-semibold">
+								{formatPayrollRunPeriod(run, t)}
+							</p>
+						</div>
+						<div className="flex flex-wrap gap-2">
+							<Badge variant="secondary">
+								{t(`paymentFrequency.${run.paymentFrequency}`)}
+							</Badge>
+							<Badge variant={getPayrollRunStatusVariant(run.status)}>
+								{t(`runStatus.${run.status}`)}
+							</Badge>
+						</div>
+					</div>
+
+					<div className="grid gap-3 min-[560px]:grid-cols-2">
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">
+								{t('runHistory.table.total')}
+							</p>
+							<p className="text-base font-semibold">
+								{formatCurrency(Number(run.totalAmount ?? 0))}
+							</p>
+						</div>
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">
+								{t('runHistory.table.processed')}
+							</p>
+							<p className="text-sm font-medium">
+								{run.processedAt
+									? format(new Date(run.processedAt), t('dateFormat'))
+									: '-'}
+							</p>
+						</div>
+					</div>
+
+					<div className="grid gap-2 [&_button]:min-h-11 [&_button]:w-full [&_a]:inline-flex [&_a]:min-h-11 [&_a]:w-full [&_a]:items-center [&_a]:justify-center">
+						{notices.length > 0 ? (
+							<Dialog>
+								<DialogTrigger asChild>
+									<Button variant="outline" className="min-h-11">
+										{t('runHistory.table.holidayNoticesCount', {
+											count: notices.length,
+										})}
+									</Button>
+								</DialogTrigger>
+								<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-2xl">
+									<DialogHeader>
+										<DialogTitle data-testid="payroll-holiday-notice-dialog-title">
+											{t('holidayNotice.title')}
+										</DialogTitle>
+									</DialogHeader>
+									<PayrollHolidayNoticeCard notices={notices} compact />
+								</DialogContent>
+							</Dialog>
+						) : (
+							<div className="rounded-2xl border border-dashed px-4 py-3 text-sm text-muted-foreground">
+								{t('runHistory.table.noHolidayNotices')}
+							</div>
+						)}
+
+						{run.status === 'PROCESSED' ? (
+							<PayrollRunReceiptsDialog run={run} />
+						) : (
+							<Badge
+								variant="outline"
+								className="justify-center rounded-2xl px-4 py-3 text-sm text-muted-foreground"
+							>
+								{t('receipts.unavailable')}
+							</Badge>
+						)}
+					</div>
+				</div>
+			);
+		},
+		[t],
+	);
+
 	const onProcess = async (): Promise<void> => {
 		if (isInvalidPeriodRange) {
 			toast.error(t('payPeriod.invalidRange'));
@@ -804,30 +937,32 @@ export function PayrollPageClient(): React.ReactElement {
 	if (!organizationId) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('noOrganization')}</p>
+				<ResponsivePageHeader title={t('title')} description={t('noOrganization')} />
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-				</div>
-			</div>
+		<div
+			data-testid="payroll-page-root"
+			className="min-w-0 space-y-6 overflow-x-hidden"
+		>
+			<ResponsivePageHeader title={t('title')} description={t('subtitle')} />
 
-			<Tabs defaultValue="payroll" className="space-y-4">
-				<TabsList>
-					<TabsTrigger value="payroll" data-testid="payroll-tab-payroll">
+			<Tabs defaultValue="payroll" className="min-w-0 space-y-4 overflow-x-hidden">
+				<TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 min-[1025px]:inline-flex min-[1025px]:h-10 min-[1025px]:w-auto min-[1025px]:gap-0 min-[1025px]:bg-muted min-[1025px]:p-1">
+					<TabsTrigger
+						value="payroll"
+						data-testid="payroll-tab-payroll"
+						className="min-h-11 w-full min-[1025px]:w-auto"
+					>
 						{t('tabs.payroll')}
 					</TabsTrigger>
 					<TabsTrigger
 						value="ptu"
 						disabled={!settings?.ptuEnabled}
 						data-testid="payroll-tab-ptu"
+						className="min-h-11 w-full min-[1025px]:w-auto"
 					>
 						{t('tabs.ptu')}
 					</TabsTrigger>
@@ -835,12 +970,13 @@ export function PayrollPageClient(): React.ReactElement {
 						value="aguinaldo"
 						disabled={!settings?.aguinaldoEnabled}
 						data-testid="payroll-tab-aguinaldo"
+						className="min-h-11 w-full min-[1025px]:w-auto"
 					>
 						{t('tabs.aguinaldo')}
 					</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="payroll" className="space-y-6">
+				<TabsContent value="payroll" className="min-w-0 space-y-6 overflow-x-hidden">
 					<Card>
 						<CardHeader>
 							<CardTitle>{t('legalRules.title')}</CardTitle>
@@ -853,7 +989,7 @@ export function PayrollPageClient(): React.ReactElement {
 							<CardTitle>{t('insights.title')}</CardTitle>
 							<CardDescription>{t('insights.description')}</CardDescription>
 						</CardHeader>
-						<CardContent>
+						<CardContent className="min-w-0">
 							<div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
 								<div className="space-y-2">
 									<p className="text-sm font-medium">
@@ -936,7 +1072,7 @@ export function PayrollPageClient(): React.ReactElement {
 							<CardTitle>{t('payPeriod.title')}</CardTitle>
 							<CardDescription>{t('payPeriod.description')}</CardDescription>
 						</CardHeader>
-						<CardContent className="grid gap-4 md:grid-cols-4">
+						<CardContent className="grid gap-4 min-[1025px]:grid-cols-4">
 							<div className="flex flex-col gap-2">
 								<label className="text-sm font-medium">
 									{t('payPeriod.paymentFrequency')}
@@ -956,7 +1092,7 @@ export function PayrollPageClient(): React.ReactElement {
 										setPeriodEndDateKey(next.periodEndDateKey);
 									}}
 								>
-									<SelectTrigger>
+									<SelectTrigger className="min-h-11 w-full">
 										<SelectValue placeholder={t('payPeriod.selectFrequency')} />
 									</SelectTrigger>
 									<SelectContent>
@@ -981,7 +1117,7 @@ export function PayrollPageClient(): React.ReactElement {
 										<Button
 											variant="outline"
 											data-empty={!periodStartDate}
-											className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+											className="min-h-11 w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
 										>
 											<CalendarIcon className="mr-2 h-4 w-4" />
 											{periodStartDate ? (
@@ -1015,7 +1151,7 @@ export function PayrollPageClient(): React.ReactElement {
 										<Button
 											variant="outline"
 											data-empty={!periodEndDate}
-											className="data-[empty=true]:text-muted-foreground w-full justify-start text-left font-normal"
+											className="min-h-11 w-full justify-start text-left font-normal data-[empty=true]:text-muted-foreground"
 										>
 											<CalendarIcon className="mr-2 h-4 w-4" />
 											{periodEndDate ? (
@@ -1040,9 +1176,9 @@ export function PayrollPageClient(): React.ReactElement {
 									</PopoverContent>
 								</Popover>
 							</div>
-							<div className="flex items-end">
+							<div className="flex flex-col justify-end gap-2">
 								<Button
-									className="w-full"
+									className="min-h-11 w-full"
 									onClick={onProcess}
 									disabled={
 										isCalculating ||
@@ -1061,11 +1197,11 @@ export function PayrollPageClient(): React.ReactElement {
 										t('actions.process')
 									)}
 								</Button>
-								{hasBlockingWarnings && (
-									<p className="mt-2 text-sm text-destructive">
+								{hasBlockingWarnings ? (
+									<p className="text-sm text-destructive">
 										{t('warnings.blockingOvertime')}
 									</p>
-								)}
+								) : null}
 							</div>
 						</CardContent>
 					</Card>
@@ -1074,12 +1210,12 @@ export function PayrollPageClient(): React.ReactElement {
 						<p className="text-sm text-destructive">{t('payPeriod.invalidRange')}</p>
 					)}
 
-					<Card>
+					<Card className="min-w-0 overflow-hidden">
 						<CardHeader>
 							<CardTitle>{t('preview.title')}</CardTitle>
 							<CardDescription>{t('preview.description')}</CardDescription>
 						</CardHeader>
-						<CardContent>
+						<CardContent className="min-w-0 overflow-hidden">
 							{isCalculating ? (
 								<div className="flex items-center gap-2 text-sm text-muted-foreground">
 									<Loader2 className="h-4 w-4 animate-spin" />
@@ -1102,13 +1238,13 @@ export function PayrollPageClient(): React.ReactElement {
 								</Empty>
 							) : (
 								<>
-									<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+									<div className="mb-4 flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center min-[1025px]:justify-between">
 										<div className="text-sm text-muted-foreground">
 											{t('preview.totalEmployees', {
 												count: effectiveCalculation.employees.length,
 											})}
 										</div>
-										<div className="flex items-center gap-3">
+										<div className="flex flex-col gap-3 min-[1025px]:items-end">
 											<div className="text-lg font-semibold">
 												{t('preview.totalAmount', {
 													total: formatCurrency(
@@ -1119,6 +1255,7 @@ export function PayrollPageClient(): React.ReactElement {
 											<Button
 												variant="outline"
 												size="sm"
+												className="min-h-11 w-full min-[1025px]:w-auto"
 												onClick={onExportCsv}
 												disabled={
 													effectiveCalculation.employees.length === 0
@@ -1139,8 +1276,11 @@ export function PayrollPageClient(): React.ReactElement {
 											overtimeAuthorizationSummary.affectedEmployeesCount
 										}
 									/>
-									<div className="rounded-md border">
-										<Table>
+									<div
+										data-testid="payroll-preview-table-container"
+										className="max-w-full overflow-x-auto rounded-md border"
+									>
+										<Table className="min-w-max">
 											<TableHeader>
 												<TableRow>
 													<TableHead>
@@ -1188,9 +1328,23 @@ export function PayrollPageClient(): React.ReactElement {
 													<TableHead>
 														{t('preview.table.deductions')}
 													</TableHead>
-													<TableHead>
-														{t('preview.table.total')}
-													</TableHead>
+													{showDualPayrollColumns ? (
+														<>
+															<TableHead>
+																{t('preview.table.fiscalGrossPay')}
+															</TableHead>
+															<TableHead>
+																{t('preview.table.complementPay')}
+															</TableHead>
+															<TableHead>
+																{t('preview.table.totalRealPay')}
+															</TableHead>
+														</>
+													) : (
+														<TableHead>
+															{t('preview.table.total')}
+														</TableHead>
+													)}
 													<TableHead>
 														{t('preview.table.warnings')}
 													</TableHead>
@@ -1320,9 +1474,27 @@ export function PayrollPageClient(): React.ReactElement {
 														<TableCell>
 															{renderDeductionsCell(row, t)}
 														</TableCell>
-														<TableCell>
-															{formatCurrency(row.totalPay)}
-														</TableCell>
+														{showDualPayrollColumns ? (
+															<>
+																<TableCell>
+																	{formatCurrency(
+																		row.fiscalGrossPay ?? row.grossPay,
+																	)}
+																</TableCell>
+																<TableCell>
+																	{formatCurrency(row.complementPay ?? 0)}
+																</TableCell>
+																<TableCell>
+																	{formatCurrency(
+																		row.totalRealPay ?? row.totalPay,
+																	)}
+																</TableCell>
+															</>
+														) : (
+															<TableCell>
+																{formatCurrency(row.totalPay)}
+															</TableCell>
+														)}
 														<TableCell>
 															{row.warnings.length === 0 ? (
 																<span className="text-xs text-muted-foreground">
@@ -1352,11 +1524,12 @@ export function PayrollPageClient(): React.ReactElement {
 																	<Button
 																		variant="outline"
 																		size="sm"
+																		className="min-h-11"
 																	>
 																		{t('preview.table.detail')}
 																	</Button>
 																</DialogTrigger>
-																<DialogContent className="sm:max-w-2xl">
+																<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-2xl">
 																	<DialogHeader>
 																		<DialogTitle>
 																			{t('taxDetail.title', {
@@ -1384,6 +1557,48 @@ export function PayrollPageClient(): React.ReactElement {
 																						)}
 																					</span>
 																				</div>
+																				{showDualPayrollColumns ? (
+																					<>
+																						<div className="flex items-center justify-between">
+																							<span className="text-muted-foreground">
+																								{t(
+																									'taxDetail.labels.fiscalGrossPay',
+																								)}
+																							</span>
+																							<span>
+																								{formatCurrency(
+																									row.fiscalGrossPay ??
+																										row.grossPay,
+																								)}
+																							</span>
+																						</div>
+																						<div className="flex items-center justify-between">
+																							<span className="text-muted-foreground">
+																								{t(
+																									'taxDetail.labels.complementPay',
+																								)}
+																							</span>
+																							<span>
+																								{formatCurrency(
+																									row.complementPay ?? 0,
+																								)}
+																							</span>
+																						</div>
+																						<div className="flex items-center justify-between">
+																							<span className="text-muted-foreground">
+																								{t(
+																									'taxDetail.labels.totalRealPay',
+																								)}
+																							</span>
+																							<span className="font-medium">
+																								{formatCurrency(
+																									row.totalRealPay ??
+																										row.totalPay,
+																								)}
+																							</span>
+																						</div>
+																					</>
+																				) : null}
 																				{row.vacationDaysPaid >
 																					0 && (
 																					<div className="flex items-center justify-between">
@@ -1782,6 +1997,38 @@ export function PayrollPageClient(): React.ReactElement {
 													</TableRow>
 												))}
 											</TableBody>
+											{showDualPayrollColumns && dualPayrollSummary ? (
+												<TableFooter>
+													<TableRow>
+														<TableCell colSpan={14}>
+															<div className="flex flex-col">
+																<span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+																	{t('preview.footer.totalsLabel')}
+																</span>
+																<span className="text-sm text-foreground">
+																	{t('preview.footer.dualPayrollLabel')}
+																</span>
+															</div>
+														</TableCell>
+														<TableCell>
+															{formatCurrency(
+																dualPayrollSummary.fiscalGrossTotal,
+															)}
+														</TableCell>
+														<TableCell>
+															{formatCurrency(
+																dualPayrollSummary.complementTotal,
+															)}
+														</TableCell>
+														<TableCell>
+															{formatCurrency(
+																dualPayrollSummary.totalRealTotal,
+															)}
+														</TableCell>
+														<TableCell colSpan={2} />
+													</TableRow>
+												</TableFooter>
+											) : null}
 										</Table>
 									</div>
 									{effectiveCalculation.employees.some(
@@ -1873,9 +2120,11 @@ export function PayrollPageClient(): React.ReactElement {
 							<CardDescription>{t('runHistory.description')}</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<DataTable
+							<ResponsiveDataView
 								columns={runColumns}
 								data={payrollRuns}
+								cardRenderer={renderPayrollRunCard}
+								getCardKey={(run) => run.id}
 								sorting={runsSorting}
 								onSortingChange={setRunsSorting}
 								pagination={runsPagination}

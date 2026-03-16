@@ -11,7 +11,7 @@
 
 import { authClient } from '@/lib/auth-client';
 import { getApiResponseData } from '@/lib/api-response';
-import type {
+import {
 	ApiKey,
 	AttendanceRecord,
 	AttendanceType,
@@ -19,6 +19,7 @@ import type {
 	DashboardCounts,
 	Device,
 	DeviceClient,
+	EmployeeDeduction,
 	Employee,
 	JobPosition,
 	Location,
@@ -41,6 +42,8 @@ import type {
 	ScheduleException,
 	ScheduleTemplate,
 	User,
+	type EmployeeDeductionPayload,
+	normalizeEmployeeDeduction,
 } from '@/lib/client-functions';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
@@ -48,9 +51,13 @@ import type {
 	CalendarQueryParams,
 	DisciplinaryKpisQueryParams,
 	DisciplinaryMeasuresQueryParams,
+	EmployeeDeductionListQueryParams,
+	EmployeeDeductionStatus,
+	EmployeeDeductionType,
 	JobPositionQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
+	OrganizationDeductionListQueryParams,
 	OvertimeAuthorizationQueryParams,
 	OrganizationAllQueryParams,
 	PayrollCalculateParams,
@@ -1168,6 +1175,101 @@ export async function fetchOvertimeAuthorizationsListServer(
 			createdAt: new Date(row.createdAt),
 			updatedAt: new Date(row.updatedAt),
 		})),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
+ * Fetches employee deductions for server-side rendering.
+ *
+ * @param cookieHeader - Forwarded cookie header from the incoming request
+ * @param params - Organization, employee, and optional filter params
+ * @returns Employee deductions list
+ * @throws Error when the API request fails
+ */
+export async function fetchEmployeeDeductionsListServer(
+	cookieHeader: string,
+	params?: EmployeeDeductionListQueryParams,
+): Promise<EmployeeDeduction[]> {
+	if (!params?.organizationId || !params.employeeId) {
+		return [];
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		status?: EmployeeDeductionStatus;
+		type?: EmployeeDeductionType;
+	} = {};
+	if (params.status) {
+		query.status = params.status;
+	}
+	if (params.type) {
+		query.type = params.type;
+	}
+	const response = await api.organizations[params.organizationId].employees[
+		params.employeeId
+	].deductions.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch employee deductions:', response.error);
+		throw new Error('Failed to fetch employee deductions');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeDeductionPayload[] | undefined) ?? [];
+	return rows.map(normalizeEmployeeDeduction);
+}
+
+/**
+ * Fetches organization-wide deductions for server-side rendering.
+ *
+ * @param cookieHeader - Forwarded cookie header from the incoming request
+ * @param params - Organization, filters, and pagination params
+ * @returns Paginated organization deductions response
+ * @throws Error when the API request fails
+ */
+export async function fetchOrganizationDeductionsListServer(
+	cookieHeader: string,
+	params?: OrganizationDeductionListQueryParams,
+): Promise<PaginatedResponse<EmployeeDeduction>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: clampPaginationLimit(params?.limit, 20),
+				offset: clampPaginationOffset(params?.offset),
+			},
+		};
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query = {
+		limit: clampPaginationLimit(params.limit, 20),
+		offset: clampPaginationOffset(params.offset),
+		...(params.employeeId ? { employeeId: params.employeeId } : {}),
+		...(params.status ? { status: params.status } : {}),
+		...(params.type ? { type: params.type } : {}),
+	};
+	const response = await api.organizations[params.organizationId].deductions.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch organization deductions:', response.error);
+		throw new Error('Failed to fetch organization deductions');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeDeductionPayload[] | undefined) ?? [];
+	return {
+		data: rows.map(normalizeEmployeeDeduction),
 		pagination: payload?.pagination ?? {
 			total: 0,
 			limit: query.limit,

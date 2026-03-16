@@ -12,6 +12,7 @@ const ADMIN_ROUTE_PREFIXES = [
 	'/api-keys',
 	'/payroll-settings',
 	'/overtime-authorizations',
+	'/deductions',
 	'/users',
 	'/organizations',
 ];

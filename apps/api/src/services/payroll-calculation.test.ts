@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 
 import { addDaysToDateKey } from '../utils/date-key.js';
+import { resolveMinimumWageDaily } from '../utils/minimum-wage.js';
 import { getUtcDateForZonedMidnight, toDateKeyInTimeZone } from '../utils/time-zone.js';
 import {
 	calculateMexicoPayrollTaxes,
+	getSbcDaily,
 	type MexicoPayrollTaxSettings,
 } from './mexico-payroll-taxes.js';
 import {
@@ -174,6 +176,111 @@ function buildLunchBreakSettings(overrides: {
 		lunchBreakMinutes: overrides.lunchBreakMinutes ?? 60,
 		lunchBreakThresholdHours: overrides.lunchBreakThresholdHours ?? 6,
 	} as CalculatePayrollFromDataArgs['payrollSettings'];
+}
+
+type TestEmployeeDeduction = {
+	id: string;
+	employeeId: string;
+	type:
+		| 'INFONAVIT'
+		| 'ALIMONY'
+		| 'FONACOT'
+		| 'LOAN'
+		| 'UNION_FEE'
+		| 'ADVANCE'
+		| 'OTHER';
+	label: string;
+	calculationMethod:
+		| 'PERCENTAGE_SBC'
+		| 'PERCENTAGE_NET'
+		| 'PERCENTAGE_GROSS'
+		| 'FIXED_AMOUNT'
+		| 'VSM_FACTOR';
+	value: number;
+	frequency: 'RECURRING' | 'ONE_TIME' | 'INSTALLMENTS';
+	totalInstallments: number | null;
+	completedInstallments: number;
+	totalAmount: number | null;
+	remainingAmount: number | null;
+	status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+	startDateKey: string;
+	endDateKey: string | null;
+};
+
+/**
+ * Creates a test employee deduction row.
+ *
+ * @param overrides - Field overrides for the deduction row
+ * @returns Deduction row payload for payroll calculation tests
+ */
+function createEmployeeDeduction(
+	overrides: Partial<TestEmployeeDeduction>,
+): TestEmployeeDeduction {
+	return {
+		id: overrides.id ?? `deduction-${Math.random().toString(16).slice(2, 8)}`,
+		employeeId: overrides.employeeId ?? 'emp-test-1',
+		type: overrides.type ?? 'OTHER',
+		label: overrides.label ?? 'Descuento de prueba',
+		calculationMethod: overrides.calculationMethod ?? 'FIXED_AMOUNT',
+		value: overrides.value ?? 100,
+		frequency: overrides.frequency ?? 'RECURRING',
+		totalInstallments: overrides.totalInstallments ?? null,
+		completedInstallments: overrides.completedInstallments ?? 0,
+		totalAmount: overrides.totalAmount ?? null,
+		remainingAmount: overrides.remainingAmount ?? null,
+		status: overrides.status ?? 'ACTIVE',
+		startDateKey: overrides.startDateKey ?? '2025-03-03',
+		endDateKey: overrides.endDateKey ?? null,
+	};
+}
+
+/**
+ * Builds a standard weekly payroll calculation input with optional deductions.
+ *
+ * @param args - Optional overrides for the weekly test scenario
+ * @returns Payroll calculation arguments
+ */
+function buildWeeklyPayrollArgsWithDeductions(args?: {
+	employeeDeductions?: TestEmployeeDeduction[];
+	attendanceRows?: AttendanceRow[];
+	employeeOverrides?: Partial<PayrollEmployeeRow>;
+}): CalculatePayrollFromDataArgs & { employeeDeductions?: TestEmployeeDeduction[] } {
+	const employeeId = args?.employeeOverrides?.id ?? 'emp-test-1';
+	const timeZone = 'America/Mexico_City';
+	const periodStartDateKey = '2025-03-03';
+	const periodEndDateKey = '2025-03-09';
+
+	return {
+		employees: [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				...args?.employeeOverrides,
+			},
+		],
+		schedules: buildWeeklySchedule(employeeId),
+		attendanceRows:
+			args?.attendanceRows ??
+			buildWeeklyAttendance(employeeId, periodStartDateKey, periodEndDateKey, timeZone),
+		periodStartDateKey,
+		periodEndDateKey,
+		periodBounds: getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		}),
+		overtimeEnforcement: 'WARN',
+		weekStartDay: 1,
+		additionalMandatoryRestDays: [],
+		defaultTimeZone: timeZone,
+		employeeDeductions: args?.employeeDeductions,
+	};
 }
 
 type DualPayrollEmployee = PayrollEmployeeRow & {
@@ -2683,6 +2790,517 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(Number(row.netPay.toFixed(2))).toBe(row.netPay);
 			expect(Number(row.companyCost.toFixed(2))).toBe(row.companyCost);
 		}
+	});
+
+	describe('employee deductions', () => {
+		it('keeps payroll unchanged when the employee has no deductions', () => {
+			const { employees } = calculatePayrollFromData(buildWeeklyPayrollArgsWithDeductions());
+
+			const row = employees[0];
+			expect(row?.totalDeductions).toBe(0);
+			expect(row?.deductionsBreakdown).toEqual([]);
+		});
+
+		it('calculates INFONAVIT deductions based on SBC', () => {
+			const args = buildWeeklyPayrollArgsWithDeductions({
+				employeeDeductions: [
+					createEmployeeDeduction({
+						type: 'INFONAVIT',
+						label: 'INFONAVIT SBC',
+						calculationMethod: 'PERCENTAGE_SBC',
+						value: 10,
+					}),
+				],
+			});
+
+			const { employees } = calculatePayrollFromData(args);
+			const row = employees[0];
+			const sbcDaily = getSbcDaily({
+				dailyPay: Number(args.employees[0]?.dailyPay ?? 0),
+				hireDate: args.employees[0]?.hireDate ?? null,
+				sbcDailyOverride:
+					typeof args.employees[0]?.sbcDailyOverride === 'string'
+						? Number(args.employees[0]?.sbcDailyOverride)
+						: (args.employees[0]?.sbcDailyOverride ?? null),
+				aguinaldoDays: 15,
+				vacationPremiumRate: 0.25,
+				periodEndDateKey: args.periodEndDateKey,
+			});
+			const expectedAmount = Number((0.1 * sbcDaily * 7).toFixed(2));
+
+			expect(row?.totalDeductions).toBe(expectedAmount);
+			expect(row?.deductionsBreakdown[0]?.appliedAmount).toBe(expectedAmount);
+		});
+
+		it('calculates ALIMONY percentage deductions after taxes', () => {
+			const args = buildWeeklyPayrollArgsWithDeductions({
+				employeeDeductions: [
+					createEmployeeDeduction({
+						type: 'ALIMONY',
+						label: 'Pension alimenticia',
+						calculationMethod: 'PERCENTAGE_NET',
+						value: 20,
+					}),
+				],
+			});
+
+			const { employees } = calculatePayrollFromData(args);
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const expectedAmount = Number(
+				((row.grossPay - row.employeeWithholdings.total) * 0.2).toFixed(2),
+			);
+
+			expect(row.totalDeductions).toBe(expectedAmount);
+			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(expectedAmount);
+		});
+
+		it('calculates PERCENTAGE_GROSS deductions correctly', () => {
+			const args = buildWeeklyPayrollArgsWithDeductions({
+				employeeDeductions: [
+					createEmployeeDeduction({
+						type: 'OTHER',
+						label: 'Fondo social',
+						calculationMethod: 'PERCENTAGE_GROSS',
+						value: 5,
+					}),
+				],
+			});
+
+			const { employees } = calculatePayrollFromData(args);
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const expectedAmount = Number((row.grossPay * 0.05).toFixed(2));
+
+			expect(row.totalDeductions).toBe(expectedAmount);
+			expect(row.deductionsBreakdown[0]).toMatchObject({
+				type: 'OTHER',
+				label: 'Fondo social',
+				calculationMethod: 'PERCENTAGE_GROSS',
+				configuredValue: 5,
+				baseAmount: row.grossPay,
+				appliedAmount: expectedAmount,
+			});
+		});
+
+		it('prorates PERCENTAGE_GROSS deductions for partial periods', () => {
+			const args = buildWeeklyPayrollArgsWithDeductions({
+				employeeDeductions: [
+					createEmployeeDeduction({
+						type: 'OTHER',
+						label: 'Fondo social parcial',
+						calculationMethod: 'PERCENTAGE_GROSS',
+						value: 5,
+						startDateKey: '2025-03-07',
+						endDateKey: '2025-03-09',
+					}),
+				],
+			});
+
+			const { employees } = calculatePayrollFromData(args);
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const expectedAmount = Number(((row.grossPay * (3 / 7)) * 0.05).toFixed(2));
+
+			expect(row.totalDeductions).toBe(expectedAmount);
+			expect(row.deductionsBreakdown[0]).toMatchObject({
+				type: 'OTHER',
+				label: 'Fondo social parcial',
+				calculationMethod: 'PERCENTAGE_GROSS',
+				applicableDays: 3,
+				appliedAmount: expectedAmount,
+			});
+		});
+
+		it('prorates FIXED_AMOUNT deductions for partial periods', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							label: 'Prestamo parcial',
+							value: 700,
+							startDateKey: '2025-03-05',
+							endDateKey: '2025-03-07',
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(300);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(300);
+		});
+
+		it('does not prorate ONE_TIME FIXED_AMOUNT deductions for partial periods', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-partial-period',
+							type: 'LOAN',
+							frequency: 'ONE_TIME',
+							value: 700,
+							startDateKey: '2025-03-05',
+							endDateKey: '2025-03-07',
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(700);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(700);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('calculates VSM_FACTOR deductions using the minimum wage', () => {
+			const args = buildWeeklyPayrollArgsWithDeductions({
+				employeeDeductions: [
+					createEmployeeDeduction({
+						type: 'INFONAVIT',
+						label: 'INFONAVIT VSM',
+						calculationMethod: 'VSM_FACTOR',
+						value: 2,
+					}),
+				],
+			});
+
+			const { employees } = calculatePayrollFromData(args);
+			const minimumWage = resolveMinimumWageDaily({
+				dateKey: args.periodEndDateKey,
+				zone: 'GENERAL',
+			});
+			const expectedAmount = Number((2 * minimumWage * 7).toFixed(2));
+
+			expect(employees[0]?.totalDeductions).toBe(expectedAmount);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(expectedAmount);
+		});
+
+		it('marks ONE_TIME deductions as completed after they are applied', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-1',
+							frequency: 'ONE_TIME',
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('does not cap ONE_TIME percentage deductions by their configured rate', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-percentage-gross',
+							type: 'OTHER',
+							calculationMethod: 'PERCENTAGE_GROSS',
+							frequency: 'ONE_TIME',
+							value: 10,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(480);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('keeps ONE_TIME deductions active and tracks the remaining amount when net-pay capping blocks full collection', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeOverrides: {
+						dailyPay: 100,
+					},
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'one-time-net-cap',
+							type: 'LOAN',
+							frequency: 'ONE_TIME',
+							value: 1000,
+						}),
+					],
+				}),
+			);
+
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(netBeforeDeductions);
+			expect(row.deductionsBreakdown[0]?.remainingAmountAfter).toBe(
+				Number((1000 - netBeforeDeductions).toFixed(2)),
+			);
+			expect(row.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+			expect(row.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
+		});
+
+		it('does not prorate INSTALLMENTS FIXED_AMOUNT deductions for a partial first period', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-partial-period',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 12,
+							value: 700,
+							startDateKey: '2025-03-05',
+							endDateKey: '2025-03-07',
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(700);
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(1);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+		});
+
+		it('increments installment progress when the deduction is applied', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-1',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 10,
+							completedInstallments: 3,
+							totalAmount: 5000,
+							remainingAmount: 3500,
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(4);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+		});
+
+		it('does not advance installment progress when net-pay capping only covers a partial payment', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeOverrides: {
+						dailyPay: 100,
+					},
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-partial-net-cap',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 4,
+							completedInstallments: 3,
+							totalAmount: 4000,
+							remainingAmount: 1000,
+							value: 1000,
+						}),
+					],
+				}),
+			);
+
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(netBeforeDeductions);
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(3);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(
+				Number((1000 - netBeforeDeductions).toFixed(2)),
+			);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('ACTIVE');
+			expect(employees[0]?.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
+		});
+
+		it('marks installments as completed when the last payment is applied', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-2',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 10,
+							completedInstallments: 9,
+							totalAmount: 5000,
+							remainingAmount: 500,
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(10);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('completes installments when a tracked totalAmount is exhausted before totalInstallments is reached', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-total-cap',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 5,
+							completedInstallments: 3,
+							totalAmount: 100,
+							remainingAmount: 25,
+							value: 25,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(25);
+			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(4);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('caps tracked deductions by the remaining outstanding balance', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'installment-remaining-balance',
+							type: 'LOAN',
+							frequency: 'INSTALLMENTS',
+							totalInstallments: 10,
+							completedInstallments: 9,
+							totalAmount: 5000,
+							remainingAmount: 200,
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(200);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(200);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('completes recurring deductions when a tracked balance reaches zero', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'recurring-capped-balance',
+							type: 'OTHER',
+							frequency: 'RECURRING',
+							totalAmount: 500,
+							remainingAmount: 500,
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(500);
+			expect(employees[0]?.deductionsBreakdown[0]?.appliedAmount).toBe(500);
+			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(0);
+			expect(employees[0]?.deductionsBreakdown[0]?.statusAfter).toBe('COMPLETED');
+		});
+
+		it('does not apply paused deductions', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'paused-1',
+							status: 'PAUSED',
+							value: 500,
+						}),
+					],
+				}),
+			);
+
+			expect(employees[0]?.totalDeductions).toBe(0);
+			expect(employees[0]?.deductionsBreakdown).toEqual([]);
+		});
+
+		it('applies multiple deductions in the required order', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'fixed-1',
+							label: 'Caja de ahorro',
+							calculationMethod: 'FIXED_AMOUNT',
+							value: 500,
+						}),
+						createEmployeeDeduction({
+							id: 'alimony-1',
+							type: 'ALIMONY',
+							label: 'Pension alimenticia',
+							calculationMethod: 'PERCENTAGE_NET',
+							value: 10,
+						}),
+					],
+				}),
+			);
+
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const expectedNetBasedAmount = Number(
+				((row.grossPay - row.employeeWithholdings.total) * 0.1).toFixed(2),
+			);
+			expect(row.deductionsBreakdown.map((item) => item.calculationMethod)).toEqual([
+				'PERCENTAGE_NET',
+				'FIXED_AMOUNT',
+			]);
+			expect(row.totalDeductions).toBe(Number((expectedNetBasedAmount + 500).toFixed(2)));
+		});
+
+		it('caps deductions when they exceed the net pay and adds a warning', () => {
+			const { employees } = calculatePayrollFromData(
+				buildWeeklyPayrollArgsWithDeductions({
+					employeeDeductions: [
+						createEmployeeDeduction({
+							id: 'oversized-1',
+							label: 'Prestamo enorme',
+							value: 100000,
+						}),
+					],
+				}),
+			);
+
+			const row = employees[0];
+			if (!row) {
+				throw new Error('Expected payroll row.');
+			}
+
+			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			expect(row.totalDeductions).toBe(netBeforeDeductions);
+			expect(row.netPay).toBe(0);
+			expect(row.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
+			expect(row.warnings.some((warning) => warning.type === 'DEDUCTIONS_EXCEED_NET_PAY')).toBe(
+				true,
+			);
+		});
 	});
 
 	describe('dual payroll', () => {

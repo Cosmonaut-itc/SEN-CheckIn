@@ -1,0 +1,26 @@
+<svg width="1024" height="1024" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="200" height="200" fill="#B8602A"/>
+  <!-- Subtle radial gradient overlay -->
+  <defs>
+    <radialGradient id="bg-glow" cx="0.35" cy="0.35" r="0.7">
+      <stop offset="0%" stop-color="#D4835E" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#B8602A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="200" height="200" fill="url(#bg-glow)"/>
+  <!-- Clock circle -->
+  <circle cx="95" cy="96" r="52" stroke="#FAF7F3" stroke-width="5.5" fill="none" stroke-opacity="0.95"/>
+  <!-- Hour markers - 12, 3, 6, 9 -->
+  <line x1="95" y1="50" x2="95" y2="57" stroke="#FAF7F3" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7"/>
+  <line x1="141" y1="96" x2="134" y2="96" stroke="#FAF7F3" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7"/>
+  <line x1="95" y1="142" x2="95" y2="135" stroke="#FAF7F3" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7"/>
+  <line x1="49" y1="96" x2="56" y2="96" stroke="#FAF7F3" stroke-width="3" stroke-linecap="round" stroke-opacity="0.7"/>
+  <!-- Clock hands - 9:00 -->
+  <line x1="95" y1="96" x2="95" y2="66" stroke="#FAF7F3" stroke-width="4.5" stroke-linecap="round"/>
+  <line x1="95" y1="96" x2="70" y2="96" stroke="#FAF7F3" stroke-width="4.5" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="95" cy="96" r="4" fill="#FAF7F3"/>
+  <!-- Checkmark badge - Verde Aguacate -->
+  <circle cx="138" cy="140" r="28" fill="#4A7C3F" stroke="#B8602A" stroke-width="3.5"/>
+  <polyline points="124,140 134,150 152,132" stroke="#FAF7F3" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

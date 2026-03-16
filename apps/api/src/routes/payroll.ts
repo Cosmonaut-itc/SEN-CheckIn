@@ -1,13 +1,13 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, eq, gte, lte } from 'drizzle-orm';
-import { inArray } from 'drizzle-orm/sql';
+import { and, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
 import { addDays, isBefore } from 'date-fns';
 
 import db from '../db/index.js';
 import {
 	attendanceRecord,
 	employee,
+	employeeDeduction,
 	employeeIncapacity,
 	employeeSchedule,
 	location,
@@ -30,6 +30,7 @@ import {
 import { isValidIanaTimeZone } from '../utils/time-zone.js';
 import {
 	calculatePayrollFromData,
+	type EmployeeDeductionRow,
 	getPayrollPeriodBounds,
 	type AttendanceRow,
 	type OvertimeAuthorizationRow,
@@ -50,6 +51,43 @@ import {
 	setEmployeeAuditSkip,
 } from '../services/employee-audit.js';
 import { buildErrorResponse } from '../utils/error-response.js';
+
+interface PendingPayrollDeductionUpdate {
+	deductionId: string;
+	shouldPersistStateChange: boolean;
+	status: EmployeeDeductionRow['status'];
+	completedInstallments: number;
+	remainingAmount: string | null;
+	previousStatus: EmployeeDeductionRow['status'];
+	previousCompletedInstallments: number;
+	previousRemainingAmount: string | null;
+	previousValue: string;
+	previousCalculationMethod: EmployeeDeductionRow['calculationMethod'];
+	previousFrequency: EmployeeDeductionRow['frequency'];
+	previousTotalInstallments: number | null;
+	previousTotalAmount: string | null;
+	previousStartDateKey: string;
+	previousEndDateKey: string | null;
+}
+
+const PAYROLL_DEDUCTION_STATE_CONFLICT_ERROR = 'PAYROLL_DEDUCTION_STATE_CONFLICT';
+
+/**
+ * Normalizes a deduction remaining amount into the persisted string format.
+ *
+ * @param value - Remaining amount from the calculation or database row
+ * @returns Comparable persisted string value
+ */
+function normalizeDeductionAmount(
+	value: number | string | null | undefined,
+): string | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+
+	const numericValue = Number(value);
+	return Number.isFinite(numericValue) ? numericValue.toFixed(2) : null;
+}
 
 /**
  * Checks whether the current caller can view dual payroll compensation data.
@@ -370,6 +408,44 @@ const calculatePayroll = async (args: {
 						),
 					);
 
+	const employeeDeductionRows: EmployeeDeductionRow[] =
+		employeeIds.length === 0
+			? []
+			: await db
+					.select({
+						id: employeeDeduction.id,
+						employeeId: employeeDeduction.employeeId,
+						type: employeeDeduction.type,
+						label: employeeDeduction.label,
+						calculationMethod: employeeDeduction.calculationMethod,
+						value: employeeDeduction.value,
+						frequency: employeeDeduction.frequency,
+						totalInstallments: employeeDeduction.totalInstallments,
+						completedInstallments: employeeDeduction.completedInstallments,
+						totalAmount: employeeDeduction.totalAmount,
+						remainingAmount: employeeDeduction.remainingAmount,
+						status: employeeDeduction.status,
+						startDateKey: employeeDeduction.startDateKey,
+						endDateKey: employeeDeduction.endDateKey,
+						referenceNumber: employeeDeduction.referenceNumber,
+						satDeductionCode: employeeDeduction.satDeductionCode,
+						notes: employeeDeduction.notes,
+						createdAt: employeeDeduction.createdAt,
+					})
+					.from(employeeDeduction)
+					.where(
+						and(
+							eq(employeeDeduction.organizationId, organizationId),
+							inArray(employeeDeduction.employeeId, employeeIds),
+							eq(employeeDeduction.status, 'ACTIVE'),
+							lte(employeeDeduction.startDateKey, periodEndDateKey),
+							or(
+								isNull(employeeDeduction.endDateKey),
+								gte(employeeDeduction.endDateKey, periodStartDateKey),
+							),
+						),
+					);
+
 	const {
 		employees: results,
 		totalAmount,
@@ -379,6 +455,7 @@ const calculatePayroll = async (args: {
 		schedules,
 		attendanceRows,
 		overtimeAuthorizations: overtimeAuthorizationRows,
+		employeeDeductions: employeeDeductionRows,
 		periodStartDateKey,
 		periodEndDateKey,
 		periodBounds,
@@ -562,125 +639,294 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 			}
 
-			const runResult = await db.transaction(async (tx) => {
-				const runId = crypto.randomUUID();
+			const deductionUpdates: PendingPayrollDeductionUpdate[] =
+				calculation.employees.flatMap((row) =>
+					row.deductionsBreakdown
+						.filter((item) => item.appliedAmount > 0)
+						.map((item) => ({
+							deductionId: item.deductionId,
+							shouldPersistStateChange:
+								item.statusAfter !== item.statusBefore ||
+								item.completedInstallmentsAfter !== item.completedInstallmentsBefore ||
+								item.remainingAmountAfter !== item.remainingAmountBefore,
+							status: item.statusAfter,
+							completedInstallments: item.completedInstallmentsAfter,
+							remainingAmount: normalizeDeductionAmount(item.remainingAmountAfter),
+							previousStatus: item.statusBefore,
+							previousCompletedInstallments: item.completedInstallmentsBefore,
+							previousRemainingAmount: normalizeDeductionAmount(
+								item.remainingAmountBefore,
+							),
+							previousValue: String(item.sourceValue),
+							previousCalculationMethod: item.calculationMethod,
+							previousFrequency: item.frequency,
+							previousTotalInstallments: item.sourceTotalInstallments,
+							previousTotalAmount: normalizeDeductionAmount(item.sourceTotalAmount),
+							previousStartDateKey: item.sourceStartDateKey,
+							previousEndDateKey: item.sourceEndDateKey,
+						})),
+				);
 
-				await tx.insert(payrollRun).values({
-					id: runId,
-					organizationId,
-					periodStart: calculation.periodStartUtc,
-					periodEnd: calculation.periodEndInclusiveUtc,
-					paymentFrequency: body.paymentFrequency ?? 'MONTHLY',
-					status: 'PROCESSED',
-					totalAmount: calculation.totalAmount.toFixed(2),
-					employeeCount: calculation.employees.length,
-					taxSummary: {
-						totals: calculation.taxSummary,
-						settings: calculation.payrollSettingsSnapshot,
-					},
-					holidayNotices: calculation.holidayNotices as unknown as Record<
-						string,
-						unknown
-					>[],
-					processedAt: new Date(),
-				});
+			let runResult: Record<string, unknown> | undefined;
+			try {
+				runResult = await db.transaction(async (tx) => {
+					if (deductionUpdates.length > 0) {
+						const currentDeductions = await tx
+							.select({
+								id: employeeDeduction.id,
+								status: employeeDeduction.status,
+								completedInstallments: employeeDeduction.completedInstallments,
+								remainingAmount: employeeDeduction.remainingAmount,
+								value: employeeDeduction.value,
+								calculationMethod: employeeDeduction.calculationMethod,
+								frequency: employeeDeduction.frequency,
+								totalInstallments: employeeDeduction.totalInstallments,
+								totalAmount: employeeDeduction.totalAmount,
+								startDateKey: employeeDeduction.startDateKey,
+								endDateKey: employeeDeduction.endDateKey,
+							})
+							.from(employeeDeduction)
+							.where(
+								and(
+									eq(employeeDeduction.organizationId, organizationId),
+									inArray(
+										employeeDeduction.id,
+										deductionUpdates.map((update) => update.deductionId),
+									),
+								),
+							);
+						const currentDeductionsById = new Map(
+							currentDeductions.map((row) => [row.id, row]),
+						);
+						const hasDeductionConflict = deductionUpdates.some((update) => {
+							const currentDeduction = currentDeductionsById.get(update.deductionId);
+							if (!currentDeduction) {
+								return true;
+							}
 
-				if (calculation.employees.length > 0) {
-					const employeeIds = calculation.employees.map((entry) => entry.employeeId);
-					const rows = calculation.employees.map((row) => ({
-						payrollRunId: runId,
-						employeeId: row.employeeId,
-						hoursWorked: row.hoursWorked.toFixed(2),
-						hourlyPay: row.hourlyPay.toFixed(2),
-						totalPay: row.totalPay.toFixed(2),
-						fiscalDailyPay:
-							row.fiscalDailyPay === null ? null : row.fiscalDailyPay.toFixed(4),
-						fiscalGrossPay:
-							row.fiscalGrossPay === null ? null : row.fiscalGrossPay.toFixed(4),
-						complementPay:
-							row.complementPay === null ? null : row.complementPay.toFixed(4),
-						totalRealPay:
-							row.totalRealPay === null ? null : row.totalRealPay.toFixed(4),
-						normalHours: row.normalHours.toFixed(2),
-						normalPay: row.normalPay.toFixed(2),
-						overtimeDoubleHours: row.overtimeDoubleHours.toFixed(2),
-						overtimeDoublePay: row.overtimeDoublePay.toFixed(2),
-						overtimeTripleHours: row.overtimeTripleHours.toFixed(2),
-						overtimeTriplePay: row.overtimeTriplePay.toFixed(2),
-						authorizedOvertimeHours: row.authorizedOvertimeHours.toFixed(2),
-						unauthorizedOvertimeHours: row.unauthorizedOvertimeHours.toFixed(2),
-						sundayPremiumAmount: row.sundayPremiumAmount.toFixed(2),
-						mandatoryRestDayPremiumAmount: row.mandatoryRestDayPremiumAmount.toFixed(2),
-						vacationDaysPaid: row.vacationDaysPaid,
-						vacationPayAmount: row.vacationPayAmount.toFixed(2),
-						vacationPremiumAmount: row.vacationPremiumAmount.toFixed(2),
-						lunchBreakAutoDeductedDays: row.lunchBreakAutoDeductedDays,
-						lunchBreakAutoDeductedMinutes: row.lunchBreakAutoDeductedMinutes,
-						taxBreakdown: {
-							grossPay: row.grossPay,
-							seventhDayPay: row.seventhDayPay,
-							bases: row.bases,
-							employeeWithholdings: row.employeeWithholdings,
-							employerCosts: row.employerCosts,
-							informationalLines: row.informationalLines,
-							netPay: row.netPay,
-							companyCost: row.companyCost,
-						},
+							return (
+								currentDeduction.status !== update.previousStatus ||
+								currentDeduction.completedInstallments !==
+									update.previousCompletedInstallments ||
+								normalizeDeductionAmount(currentDeduction.remainingAmount) !==
+									update.previousRemainingAmount ||
+								currentDeduction.value !== update.previousValue ||
+								currentDeduction.calculationMethod !==
+									update.previousCalculationMethod ||
+								currentDeduction.frequency !== update.previousFrequency ||
+								currentDeduction.totalInstallments !==
+									update.previousTotalInstallments ||
+								normalizeDeductionAmount(currentDeduction.totalAmount) !==
+									update.previousTotalAmount ||
+								currentDeduction.startDateKey !== update.previousStartDateKey ||
+								currentDeduction.endDateKey !== update.previousEndDateKey
+							);
+						});
+
+						if (hasDeductionConflict) {
+							throw new Error(PAYROLL_DEDUCTION_STATE_CONFLICT_ERROR);
+						}
+					}
+
+					const runId = crypto.randomUUID();
+					await tx.insert(payrollRun).values({
+						id: runId,
+						organizationId,
 						periodStart: calculation.periodStartUtc,
 						periodEnd: calculation.periodEndInclusiveUtc,
-					}));
-					await tx.insert(payrollRunEmployee).values(rows);
+						paymentFrequency: body.paymentFrequency ?? 'MONTHLY',
+						status: 'PROCESSED',
+						totalAmount: calculation.totalAmount.toFixed(2),
+						employeeCount: calculation.employees.length,
+						taxSummary: {
+							totals: calculation.taxSummary,
+							settings: calculation.payrollSettingsSnapshot,
+						},
+						holidayNotices: calculation.holidayNotices as unknown as Record<
+							string,
+							unknown
+						>[],
+						processedAt: new Date(),
+					});
 
-					const beforeRows = await tx
-						.select()
-						.from(employee)
-						.where(inArray(employee.id, employeeIds));
-					const beforeSnapshots = new Map(
-						beforeRows.map((row) => [row.id, buildEmployeeAuditSnapshot(row)]),
-					);
-					const auditActor = resolveEmployeeAuditActor(authType, session);
+					if (calculation.employees.length > 0) {
+						const employeeIds = calculation.employees.map((entry) => entry.employeeId);
+						const rows = calculation.employees.map((row) => ({
+							payrollRunId: runId,
+							employeeId: row.employeeId,
+							hoursWorked: row.hoursWorked.toFixed(2),
+							hourlyPay: row.hourlyPay.toFixed(2),
+							totalPay: row.totalPay.toFixed(2),
+							fiscalDailyPay:
+								row.fiscalDailyPay === null ? null : row.fiscalDailyPay.toFixed(4),
+							fiscalGrossPay:
+								row.fiscalGrossPay === null ? null : row.fiscalGrossPay.toFixed(4),
+							complementPay:
+								row.complementPay === null ? null : row.complementPay.toFixed(4),
+							totalRealPay:
+								row.totalRealPay === null ? null : row.totalRealPay.toFixed(4),
+							normalHours: row.normalHours.toFixed(2),
+							normalPay: row.normalPay.toFixed(2),
+							overtimeDoubleHours: row.overtimeDoubleHours.toFixed(2),
+							overtimeDoublePay: row.overtimeDoublePay.toFixed(2),
+							overtimeTripleHours: row.overtimeTripleHours.toFixed(2),
+							overtimeTriplePay: row.overtimeTriplePay.toFixed(2),
+							authorizedOvertimeHours: row.authorizedOvertimeHours.toFixed(2),
+							unauthorizedOvertimeHours: row.unauthorizedOvertimeHours.toFixed(2),
+							sundayPremiumAmount: row.sundayPremiumAmount.toFixed(2),
+							mandatoryRestDayPremiumAmount:
+								row.mandatoryRestDayPremiumAmount.toFixed(2),
+							vacationDaysPaid: row.vacationDaysPaid,
+							vacationPayAmount: row.vacationPayAmount.toFixed(2),
+							vacationPremiumAmount: row.vacationPremiumAmount.toFixed(2),
+							lunchBreakAutoDeductedDays: row.lunchBreakAutoDeductedDays,
+							lunchBreakAutoDeductedMinutes: row.lunchBreakAutoDeductedMinutes,
+							deductionsBreakdown: row.deductionsBreakdown as unknown as Record<
+								string,
+								unknown
+							>[],
+							totalDeductions: row.totalDeductions.toFixed(2),
+							taxBreakdown: {
+								grossPay: row.grossPay,
+								seventhDayPay: row.seventhDayPay,
+								bases: row.bases,
+								employeeWithholdings: row.employeeWithholdings,
+								employerCosts: row.employerCosts,
+								informationalLines: row.informationalLines,
+								netPay: row.netPay,
+								companyCost: row.companyCost,
+							},
+							periodStart: calculation.periodStartUtc,
+							periodEnd: calculation.periodEndInclusiveUtc,
+						}));
+						await tx.insert(payrollRunEmployee).values(rows);
 
-					await setEmployeeAuditSkip(tx);
-					await tx
-						.update(employee)
-						.set({ lastPayrollDate: calculation.periodEndInclusiveUtc })
-						.where(inArray(employee.id, employeeIds));
-
-					const afterRows = await tx
-						.select()
-						.from(employee)
-						.where(inArray(employee.id, employeeIds));
-
-					for (const row of afterRows) {
-						const beforeSnapshot = beforeSnapshots.get(row.id) ?? null;
-						const afterSnapshot = buildEmployeeAuditSnapshot(row);
-						const changedFields = beforeSnapshot
-							? getEmployeeAuditChangedFields(beforeSnapshot, afterSnapshot)
-							: ['lastPayrollDate'];
-						if (!changedFields.includes('lastPayrollDate')) {
-							changedFields.push('lastPayrollDate');
+						for (const deductionUpdate of deductionUpdates.filter(
+							(update) => update.shouldPersistStateChange,
+						)) {
+							const previousStateConditions = [
+								eq(employeeDeduction.status, deductionUpdate.previousStatus),
+								eq(
+									employeeDeduction.completedInstallments,
+									deductionUpdate.previousCompletedInstallments,
+								),
+								deductionUpdate.previousRemainingAmount === null
+									? isNull(employeeDeduction.remainingAmount)
+									: eq(
+											employeeDeduction.remainingAmount,
+											deductionUpdate.previousRemainingAmount,
+										),
+								eq(employeeDeduction.value, deductionUpdate.previousValue),
+								eq(
+									employeeDeduction.calculationMethod,
+									deductionUpdate.previousCalculationMethod,
+								),
+								eq(employeeDeduction.frequency, deductionUpdate.previousFrequency),
+								deductionUpdate.previousTotalInstallments === null
+									? isNull(employeeDeduction.totalInstallments)
+									: eq(
+											employeeDeduction.totalInstallments,
+											deductionUpdate.previousTotalInstallments,
+										),
+								deductionUpdate.previousTotalAmount === null
+									? isNull(employeeDeduction.totalAmount)
+									: eq(
+											employeeDeduction.totalAmount,
+											deductionUpdate.previousTotalAmount,
+										),
+								eq(employeeDeduction.startDateKey, deductionUpdate.previousStartDateKey),
+								deductionUpdate.previousEndDateKey === null
+									? isNull(employeeDeduction.endDateKey)
+									: eq(
+											employeeDeduction.endDateKey,
+											deductionUpdate.previousEndDateKey,
+										),
+							];
+							const updatedRows = await tx
+								.update(employeeDeduction)
+								.set({
+									status: deductionUpdate.status,
+									completedInstallments:
+										deductionUpdate.completedInstallments,
+									remainingAmount: deductionUpdate.remainingAmount,
+								})
+								.where(
+									and(
+										eq(employeeDeduction.id, deductionUpdate.deductionId),
+										eq(employeeDeduction.organizationId, organizationId),
+										...previousStateConditions,
+									),
+								)
+								.returning({ id: employeeDeduction.id });
+							if (updatedRows.length === 0) {
+								throw new Error(PAYROLL_DEDUCTION_STATE_CONFLICT_ERROR);
+							}
 						}
-						await createEmployeeAuditEvent(tx, {
-							employeeId: row.id,
-							organizationId: row.organizationId,
-							action: 'payroll_updated',
-							actorType: auditActor.actorType,
-							actorUserId: auditActor.actorUserId,
-							before: beforeSnapshot,
-							after: afterSnapshot,
-							changedFields,
-						});
+
+						const beforeRows = await tx
+							.select()
+							.from(employee)
+							.where(inArray(employee.id, employeeIds));
+						const beforeSnapshots = new Map(
+							beforeRows.map((row) => [row.id, buildEmployeeAuditSnapshot(row)]),
+						);
+						const auditActor = resolveEmployeeAuditActor(authType, session);
+
+						await setEmployeeAuditSkip(tx);
+						await tx
+							.update(employee)
+							.set({ lastPayrollDate: calculation.periodEndInclusiveUtc })
+							.where(inArray(employee.id, employeeIds));
+
+						const afterRows = await tx
+							.select()
+							.from(employee)
+							.where(inArray(employee.id, employeeIds));
+
+						for (const row of afterRows) {
+							const beforeSnapshot = beforeSnapshots.get(row.id) ?? null;
+							const afterSnapshot = buildEmployeeAuditSnapshot(row);
+							const changedFields = beforeSnapshot
+								? getEmployeeAuditChangedFields(beforeSnapshot, afterSnapshot)
+								: ['lastPayrollDate'];
+							if (!changedFields.includes('lastPayrollDate')) {
+								changedFields.push('lastPayrollDate');
+							}
+							await createEmployeeAuditEvent(tx, {
+								employeeId: row.id,
+								organizationId: row.organizationId,
+								action: 'payroll_updated',
+								actorType: auditActor.actorType,
+								actorUserId: auditActor.actorUserId,
+								before: beforeSnapshot,
+								after: afterSnapshot,
+								changedFields,
+							});
+						}
 					}
+
+					const savedRun = await tx
+						.select()
+						.from(payrollRun)
+						.where(eq(payrollRun.id, runId))
+						.limit(1);
+
+					return savedRun[0];
+				});
+			} catch (error) {
+				if (
+					error instanceof Error &&
+					error.message === PAYROLL_DEDUCTION_STATE_CONFLICT_ERROR
+				) {
+					set.status = 409;
+					return buildErrorResponse(
+						'Payroll deductions changed while processing. Recalculate and try again.',
+						409,
+					);
 				}
 
-				const savedRun = await tx
-					.select()
-					.from(payrollRun)
-					.where(eq(payrollRun.id, runId))
-					.limit(1);
-
-				return savedRun[0];
-			});
+				throw error;
+			}
 
 			return { data: { run: runResult, calculation: sanitizedCalculation } };
 		},
@@ -807,6 +1053,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					vacationPremiumAmount: payrollRunEmployee.vacationPremiumAmount,
 					lunchBreakAutoDeductedDays: payrollRunEmployee.lunchBreakAutoDeductedDays,
 					lunchBreakAutoDeductedMinutes: payrollRunEmployee.lunchBreakAutoDeductedMinutes,
+					deductionsBreakdown: payrollRunEmployee.deductionsBreakdown,
+					totalDeductions: payrollRunEmployee.totalDeductions,
 					taxBreakdown: payrollRunEmployee.taxBreakdown,
 					periodStart: payrollRunEmployee.periodStart,
 					periodEnd: payrollRunEmployee.periodEnd,
@@ -852,6 +1100,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				vacationPremiumAmount: line.vacationPremiumAmount,
 				lunchBreakAutoDeductedDays: line.lunchBreakAutoDeductedDays,
 				lunchBreakAutoDeductedMinutes: line.lunchBreakAutoDeductedMinutes,
+				deductionsBreakdown: line.deductionsBreakdown,
+				totalDeductions: line.totalDeductions,
 				taxBreakdown: line.taxBreakdown,
 				periodStart: line.periodStart,
 				periodEnd: line.periodEnd,

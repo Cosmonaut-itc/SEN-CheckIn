@@ -95,6 +95,8 @@ function buildEmployee(
 			isrBeforeSubsidy: 0,
 			subsidyApplied: 0,
 		},
+		deductionsBreakdown: [],
+		totalDeductions: 0,
 		netPay: 1740,
 		companyCost: 1740,
 		incapacitySummary: {

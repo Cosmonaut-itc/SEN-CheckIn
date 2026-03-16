@@ -577,6 +577,7 @@ type StatusFilterValue = EmployeeStatus | typeof ALL_FILTER_VALUE;
 type EmployeeDialogMode = 'create' | 'view' | 'edit';
 type EmployeeDialogTab = EmployeeDetailTab | 'info';
 const SECONDARY_DETAIL_TABS: EmployeeDetailTab[] = [
+	'deductions',
 	'payroll',
 	'ptu',
 	'finiquito',
@@ -596,6 +597,7 @@ const VALID_DETAIL_TABS = new Set<EmployeeDetailTab>([
 	'summary',
 	'attendance',
 	'vacations',
+	'deductions',
 	'payroll',
 	'ptu',
 	'finiquito',
@@ -1023,6 +1025,13 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 				node.scrollTop = tabScrollByIdRef.current.documents ?? 0;
 			},
+			deductions: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.deductions = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.deductions ?? 0;
+			},
 			disciplinary: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.disciplinary = node;
 				if (!node) {
@@ -1098,6 +1107,9 @@ export function EmployeesPageClient(): React.ReactElement {
 			},
 			documents: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.documents = event.currentTarget.scrollTop;
+			},
+			deductions: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.deductions = event.currentTarget.scrollTop;
 			},
 			disciplinary: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.disciplinary = event.currentTarget.scrollTop;
@@ -2914,6 +2926,12 @@ export function EmployeesPageClient(): React.ReactElement {
 						>
 							<FileText className="mr-2 h-4 w-4" />
 							{t('menu.viewDocuments')}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() => void openEmployeeDetailById(employee.id, 'deductions')}
+						>
+							<FileText className="mr-2 h-4 w-4" />
+							{t('menu.viewDeductions')}
 						</DropdownMenuItem>
 						{canUseDisciplinaryModule ? (
 							<DropdownMenuItem

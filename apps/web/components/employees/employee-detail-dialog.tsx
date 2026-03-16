@@ -99,6 +99,11 @@ const loadEmployeeDisciplinaryMeasuresTab = async () => {
 	return componentModule.EmployeeDisciplinaryMeasuresTab;
 };
 
+const loadEmployeeDeductionsTab = async () => {
+	const componentModule = await import('@/components/employee-deductions-manager');
+	return componentModule.EmployeeDeductionsManager;
+};
+
 function NullFallback(): React.ReactElement | null {
 	return null;
 }
@@ -109,6 +114,11 @@ const EmployeeDocumentsTab = dynamic(loadEmployeeDocumentsTab, {
 });
 
 const EmployeeDisciplinaryMeasuresTab = dynamic(loadEmployeeDisciplinaryMeasuresTab, {
+	ssr: false,
+	loading: NullFallback,
+});
+
+const EmployeeDeductionsTab = dynamic(loadEmployeeDeductionsTab, {
 	ssr: false,
 	loading: NullFallback,
 });
@@ -957,6 +967,37 @@ export function EmployeeDetailDialog({
 										) : null}
 									</TabsContent>
 								) : null}
+
+								<TabsContent
+									value="deductions"
+									forceMount
+									className={cn(
+										'mt-0 min-h-0 flex-1',
+										detailTab !== 'deductions' && 'hidden',
+									)}
+								>
+									{isTabVisited('deductions') ? (
+										<div
+											ref={registerTabScrollContainer('deductions')}
+											onScroll={handleTabScroll('deductions')}
+											className="h-full overflow-y-auto pt-4"
+										>
+											{activeEmployee?.id ? (
+												<EmployeeDeductionsTab
+													mode="employee"
+													employeeId={activeEmployee.id}
+													employeeName={`${activeEmployee.firstName} ${activeEmployee.lastName}`}
+												/>
+											) : (
+												<Card>
+													<CardContent className="py-8 text-sm text-muted-foreground">
+														{t('deductions.empty')}
+													</CardContent>
+												</Card>
+											)}
+										</div>
+									) : null}
+								</TabsContent>
 
 								<TabsContent
 									value="summary"

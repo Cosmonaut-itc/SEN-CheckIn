@@ -249,6 +249,9 @@ export const userRelations = relations(user, ({ many }) => ({
 	overtimeAuthorizationsApproved: many(overtimeAuthorization, {
 		relationName: 'overtimeAuthorizationApprovedBy',
 	}),
+	employeeDeductionsCreated: many(employeeDeduction, {
+		relationName: 'employeeDeductionCreatedBy',
+	}),
 	disciplinaryMeasuresClosed: many(employeeDisciplinaryMeasure, {
 		relationName: 'disciplinaryMeasureClosedBy',
 	}),
@@ -293,6 +296,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
 	overtimeAuthorizations: many(overtimeAuthorization),
+	employeeDeductions: many(employeeDeduction),
 	terminationSettlements: many(employeeTerminationSettlement),
 	documentWorkflowConfigs: many(organizationDocumentWorkflowConfig),
 	documentRequirements: many(organizationDocumentRequirement),
@@ -506,6 +510,49 @@ export const overtimeEnforcement = pgEnum('overtime_enforcement', ['WARN', 'BLOC
 export const overtimeAuthorizationStatus = pgEnum('overtime_authorization_status', [
 	'PENDING',
 	'ACTIVE',
+	'CANCELLED',
+]);
+
+/**
+ * Enum for generic employee deduction categories.
+ */
+export const deductionType = pgEnum('deduction_type', [
+	'INFONAVIT',
+	'ALIMONY',
+	'FONACOT',
+	'LOAN',
+	'UNION_FEE',
+	'ADVANCE',
+	'OTHER',
+]);
+
+/**
+ * Enum for employee deduction calculation strategies.
+ */
+export const deductionCalculationMethod = pgEnum('deduction_calculation_method', [
+	'PERCENTAGE_SBC',
+	'PERCENTAGE_NET',
+	'PERCENTAGE_GROSS',
+	'FIXED_AMOUNT',
+	'VSM_FACTOR',
+]);
+
+/**
+ * Enum for employee deduction recurrence rules.
+ */
+export const deductionFrequency = pgEnum('deduction_frequency', [
+	'RECURRING',
+	'ONE_TIME',
+	'INSTALLMENTS',
+]);
+
+/**
+ * Enum for employee deduction lifecycle status.
+ */
+export const deductionStatus = pgEnum('deduction_status', [
+	'ACTIVE',
+	'PAUSED',
+	'COMPLETED',
 	'CANCELLED',
 ]);
 
@@ -2011,6 +2058,7 @@ export const employeeRelations = relations(employee, ({ one, many }) => ({
 	disciplinaryAttachments: many(employeeDisciplinaryAttachment),
 	terminationDrafts: many(employeeTerminationDraft),
 	overtimeAuthorizations: many(overtimeAuthorization),
+	employeeDeductions: many(employeeDeduction),
 }));
 
 export const employeeAuditEventRelations = relations(employeeAuditEvent, ({ one }) => ({
@@ -2392,6 +2440,75 @@ export const overtimeAuthorizationRelations = relations(overtimeAuthorization, (
 }));
 
 /**
+ * Employee-level deductions such as INFONAVIT, alimony, and internal loans.
+ */
+export const employeeDeduction = pgTable(
+	'employee_deduction',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		type: deductionType('type').notNull(),
+		label: text('label').notNull(),
+		calculationMethod: deductionCalculationMethod('calculation_method').notNull(),
+		value: numeric('value', { precision: 10, scale: 4 }).notNull(),
+		frequency: deductionFrequency('frequency').notNull(),
+		totalInstallments: integer('total_installments'),
+		completedInstallments: integer('completed_installments').default(0).notNull(),
+		totalAmount: numeric('total_amount', { precision: 12, scale: 2 }),
+		remainingAmount: numeric('remaining_amount', { precision: 12, scale: 2 }),
+		status: deductionStatus('status').default('ACTIVE').notNull(),
+		startDateKey: text('start_date_key').notNull(),
+		endDateKey: text('end_date_key'),
+		referenceNumber: text('reference_number'),
+		satDeductionCode: text('sat_deduction_code'),
+		notes: text('notes'),
+		createdByUserId: text('created_by_user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('employee_deduction_employee_status_idx').on(table.employeeId, table.status),
+		index('employee_deduction_org_type_idx').on(table.organizationId, table.type),
+		index('employee_deduction_employee_type_status_idx').on(
+			table.employeeId,
+			table.type,
+			table.status,
+		),
+	],
+);
+
+/**
+ * Employee deduction relations.
+ */
+export const employeeDeductionRelations = relations(employeeDeduction, ({ one }) => ({
+	organization: one(organization, {
+		fields: [employeeDeduction.organizationId],
+		references: [organization.id],
+	}),
+	employee: one(employee, {
+		fields: [employeeDeduction.employeeId],
+		references: [employee.id],
+	}),
+	createdByUser: one(user, {
+		fields: [employeeDeduction.createdByUserId],
+		references: [user.id],
+		relationName: 'employeeDeductionCreatedBy',
+	}),
+}));
+
+/**
  * Payroll run header table.
  */
 export const payrollRun = pgTable('payroll_run', {
@@ -2481,6 +2598,13 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 	lunchBreakAutoDeductedDays: integer('lunch_break_auto_deducted_days').default(0).notNull(),
 	lunchBreakAutoDeductedMinutes: integer('lunch_break_auto_deducted_minutes')
 		.default(0)
+		.notNull(),
+	deductionsBreakdown: jsonb('deductions_breakdown')
+		.$type<Record<string, unknown>[]>()
+		.default([])
+		.notNull(),
+	totalDeductions: numeric('total_deductions', { precision: 12, scale: 2 })
+		.default('0')
 		.notNull(),
 	/** Snapshot of fiscal breakdown for the employee line */
 	taxBreakdown: jsonb('tax_breakdown').$type<Record<string, unknown>>(),

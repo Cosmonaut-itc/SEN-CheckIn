@@ -83,6 +83,8 @@ export type PayrollCalculationRow = {
 	vacationPremiumAmount: number;
 	lunchBreakAutoDeductedDays: number;
 	lunchBreakAutoDeductedMinutes: number;
+	deductionsBreakdown: PayrollDeductionBreakdownItem[];
+	totalDeductions: number;
 	totalPay: number;
 	fiscalGrossPay: number | null;
 	complementPay: number | null;
@@ -103,7 +105,8 @@ export type PayrollCalculationRow = {
 			| 'LUNCH_BREAK_AUTO_DEDUCTED'
 			| 'OVERTIME_NOT_AUTHORIZED'
 			| 'OVERTIME_EXCEEDED_AUTHORIZATION'
-			| 'BELOW_MINIMUM_WAGE';
+			| 'BELOW_MINIMUM_WAGE'
+			| 'DEDUCTIONS_EXCEED_NET_PAY';
 		message: string;
 		severity: 'warning' | 'error';
 	}[];
@@ -114,6 +117,60 @@ export interface OvertimeAuthorizationRow {
 	dateKey: string;
 	authorizedHours: number | string;
 	status: 'PENDING' | 'ACTIVE' | 'CANCELLED';
+}
+
+export interface EmployeeDeductionRow {
+	id: string;
+	employeeId: string;
+	type: 'INFONAVIT' | 'ALIMONY' | 'FONACOT' | 'LOAN' | 'UNION_FEE' | 'ADVANCE' | 'OTHER';
+	label: string;
+	calculationMethod:
+		| 'PERCENTAGE_SBC'
+		| 'PERCENTAGE_NET'
+		| 'PERCENTAGE_GROSS'
+		| 'FIXED_AMOUNT'
+		| 'VSM_FACTOR';
+	value: number | string;
+	frequency: 'RECURRING' | 'ONE_TIME' | 'INSTALLMENTS';
+	totalInstallments: number | null;
+	completedInstallments: number;
+	totalAmount: number | string | null;
+	remainingAmount: number | string | null;
+	status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+	startDateKey: string;
+	endDateKey: string | null;
+	referenceNumber?: string | null;
+	satDeductionCode?: string | null;
+	notes?: string | null;
+	createdAt?: Date | null;
+}
+
+export interface PayrollDeductionBreakdownItem {
+	deductionId: string;
+	type: EmployeeDeductionRow['type'];
+	label: string;
+	calculationMethod: EmployeeDeductionRow['calculationMethod'];
+	frequency: EmployeeDeductionRow['frequency'];
+	configuredValue: number;
+	sourceValue: EmployeeDeductionRow['value'];
+	baseAmount: number;
+	calculatedAmount: number;
+	appliedAmount: number;
+	applicableDays: number;
+	totalInstallments: number | null;
+	sourceTotalInstallments: EmployeeDeductionRow['totalInstallments'];
+	completedInstallmentsBefore: number;
+	completedInstallmentsAfter: number;
+	remainingAmountBefore: number | null;
+	remainingAmountAfter: number | null;
+	sourceTotalAmount: EmployeeDeductionRow['totalAmount'];
+	statusBefore: EmployeeDeductionRow['status'];
+	statusAfter: EmployeeDeductionRow['status'];
+	cappedByNetPay: boolean;
+	sourceStartDateKey: EmployeeDeductionRow['startDateKey'];
+	sourceEndDateKey: EmployeeDeductionRow['endDateKey'];
+	referenceNumber: string | null;
+	satDeductionCode: string | null;
 }
 
 export interface PayrollPeriodBounds {
@@ -142,6 +199,7 @@ export interface CalculatePayrollFromDataArgs {
 	schedules: ScheduleRow[];
 	attendanceRows: AttendanceRow[];
 	overtimeAuthorizations?: OvertimeAuthorizationRow[];
+	employeeDeductions?: EmployeeDeductionRow[];
 	periodStartDateKey: string;
 	periodEndDateKey: string;
 	periodBounds: PayrollPeriodBounds;
@@ -322,6 +380,107 @@ function getInclusiveDayCount(periodStartDateKey: string, periodEndDateKey: stri
 		cursor = addDaysToDateKey(cursor, 1);
 	}
 	return count;
+}
+
+/**
+ * Counts the number of active deduction days that overlap the payroll period.
+ *
+ * @param args - Deduction and payroll period bounds
+ * @returns Inclusive overlapping day count
+ */
+function getDeductionApplicableDays(args: {
+	startDateKey: string;
+	endDateKey: string | null;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+}): number {
+	const effectiveStart =
+		args.startDateKey > args.periodStartDateKey ? args.startDateKey : args.periodStartDateKey;
+	const effectiveEnd =
+		args.endDateKey && args.endDateKey < args.periodEndDateKey
+			? args.endDateKey
+			: args.periodEndDateKey;
+
+	if (effectiveEnd < effectiveStart) {
+		return 0;
+	}
+
+	return getInclusiveDayCount(effectiveStart, effectiveEnd);
+}
+
+/**
+ * Calculates the raw amount for a deduction before net-pay capping.
+ *
+ * @param args - Deduction amount inputs
+ * @returns Calculated amount, base amount, and applicable day counts
+ */
+export function calculateDeductionAmount(args: {
+	deduction: EmployeeDeductionRow;
+	grossPay: number;
+	netPayAfterTaxes: number;
+	sbcDaily: number;
+	minimumWageDaily: number;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+}): {
+	calculatedAmount: number;
+	baseAmount: number;
+	applicableDays: number;
+	periodDays: number;
+} {
+	const configuredValue = Number(args.deduction.value ?? 0);
+	const applicableDays = getDeductionApplicableDays({
+		startDateKey: args.deduction.startDateKey,
+		endDateKey: args.deduction.endDateKey,
+		periodStartDateKey: args.periodStartDateKey,
+		periodEndDateKey: args.periodEndDateKey,
+	});
+	const periodDays = getInclusiveDayCount(args.periodStartDateKey, args.periodEndDateKey);
+	if (applicableDays <= 0 || periodDays <= 0) {
+		return {
+			calculatedAmount: 0,
+			baseAmount: 0,
+			applicableDays,
+			periodDays,
+		};
+	}
+
+	let baseAmount = 0;
+	let calculatedAmount = 0;
+
+	switch (args.deduction.calculationMethod) {
+		case 'PERCENTAGE_SBC':
+			baseAmount = args.sbcDaily * applicableDays;
+			calculatedAmount = (configuredValue / 100) * baseAmount;
+			break;
+		case 'PERCENTAGE_NET':
+			baseAmount = args.netPayAfterTaxes;
+			calculatedAmount = (configuredValue / 100) * baseAmount;
+			break;
+		case 'PERCENTAGE_GROSS':
+			baseAmount = args.grossPay * (applicableDays / periodDays);
+			calculatedAmount = (configuredValue / 100) * baseAmount;
+			break;
+		case 'FIXED_AMOUNT':
+			baseAmount = configuredValue;
+			calculatedAmount =
+				args.deduction.frequency === 'ONE_TIME' ||
+				args.deduction.frequency === 'INSTALLMENTS'
+					? configuredValue
+					: configuredValue * (applicableDays / periodDays);
+			break;
+		case 'VSM_FACTOR':
+			baseAmount = args.minimumWageDaily * applicableDays;
+			calculatedAmount = configuredValue * baseAmount;
+			break;
+	}
+
+	return {
+		calculatedAmount: roundCurrency(calculatedAmount),
+		baseAmount: roundCurrency(baseAmount),
+		applicableDays,
+		periodDays,
+	};
 }
 
 /**
@@ -606,6 +765,27 @@ export function calculatePayrollFromData(
 			Math.max(0, Number(authorization.authorizedHours ?? 0) * 60),
 		);
 		overtimeAuthorizationMinutesByEmployeeId.set(employeeId, current);
+	}
+
+	const employeeDeductionsByEmployeeId = new Map<string, EmployeeDeductionRow[]>();
+	for (const deduction of args.employeeDeductions ?? []) {
+		if (deduction.status !== 'ACTIVE') {
+			continue;
+		}
+
+		const applicableDays = getDeductionApplicableDays({
+			startDateKey: deduction.startDateKey,
+			endDateKey: deduction.endDateKey,
+			periodStartDateKey,
+			periodEndDateKey,
+		});
+		if (applicableDays <= 0) {
+			continue;
+		}
+
+		const current = employeeDeductionsByEmployeeId.get(deduction.employeeId) ?? [];
+		current.push(deduction);
+		employeeDeductionsByEmployeeId.set(deduction.employeeId, current);
 	}
 
 	const additionalMandatoryRestDaySet = new Set<string>(additionalMandatoryRestDays);
@@ -1276,10 +1456,153 @@ export function calculatePayrollFromData(
 		const netPay = roundCurrency(totalRealPay - taxBreakdown.employeeWithholdings.total);
 		const companyCost = roundCurrency(totalRealPay + taxBreakdown.employerCosts.total);
 
+		const activeDeductions = (employeeDeductionsByEmployeeId.get(emp.id) ?? []).sort(
+			(left, right) => {
+				const leftPriority = left.calculationMethod === 'PERCENTAGE_NET' ? 0 : 1;
+				const rightPriority = right.calculationMethod === 'PERCENTAGE_NET' ? 0 : 1;
+				if (leftPriority !== rightPriority) {
+					return leftPriority - rightPriority;
+				}
+				const leftCreatedAt = left.createdAt?.getTime() ?? 0;
+				const rightCreatedAt = right.createdAt?.getTime() ?? 0;
+				if (leftCreatedAt !== rightCreatedAt) {
+					return leftCreatedAt - rightCreatedAt;
+				}
+				return left.id.localeCompare(right.id);
+			},
+		);
+
+		let remainingNetAfterDeductions = netPay;
+		let totalDeductions = 0;
+		let deductionsExceededNetPay = false;
+		const deductionsBreakdown: PayrollDeductionBreakdownItem[] = [];
+
+		for (const deduction of activeDeductions) {
+			const deductionAmount = calculateDeductionAmount({
+				deduction,
+				grossPay,
+				netPayAfterTaxes: netPay,
+				sbcDaily,
+				minimumWageDaily,
+				periodStartDateKey,
+				periodEndDateKey,
+			});
+			if (deductionAmount.calculatedAmount <= 0) {
+				continue;
+			}
+
+			const configuredValue = Number(deduction.value ?? 0);
+			const hasRemainingAmount =
+				deduction.remainingAmount !== null && deduction.remainingAmount !== undefined;
+			const hasTotalAmount =
+				deduction.totalAmount !== null && deduction.totalAmount !== undefined;
+			const tracksRecoverableBalance =
+				hasRemainingAmount || hasTotalAmount || deduction.frequency === 'ONE_TIME';
+			const remainingBefore = tracksRecoverableBalance
+				? Number(
+						deduction.remainingAmount ??
+							deduction.totalAmount ??
+							deductionAmount.calculatedAmount,
+					)
+				: 0;
+			const remainingBalanceCap = tracksRecoverableBalance
+				? Math.max(0, remainingBefore)
+				: Number.POSITIVE_INFINITY;
+			const netPayCap = Math.max(0, remainingNetAfterDeductions);
+			const appliedAmount = roundCurrency(
+				Math.min(deductionAmount.calculatedAmount, netPayCap, remainingBalanceCap),
+			);
+			const cappedByNetPay =
+				appliedAmount < deductionAmount.calculatedAmount && netPayCap <= remainingBalanceCap;
+			if (cappedByNetPay) {
+				deductionsExceededNetPay = true;
+			}
+			const scheduledInstallmentTarget = roundCurrency(
+				Math.min(deductionAmount.calculatedAmount, remainingBalanceCap),
+			);
+			const installmentWasFullyApplied =
+				appliedAmount > 0 && appliedAmount >= scheduledInstallmentTarget;
+
+			totalDeductions = roundCurrency(totalDeductions + appliedAmount);
+			remainingNetAfterDeductions = roundCurrency(
+				Math.max(0, remainingNetAfterDeductions - appliedAmount),
+			);
+
+			let statusAfter: EmployeeDeductionRow['status'] = deduction.status;
+			let completedInstallmentsAfter = deduction.completedInstallments;
+			const remainingAmountAfter: number | null = tracksRecoverableBalance
+				? roundCurrency(Math.max(0, remainingBefore - appliedAmount))
+				: null;
+
+			if (appliedAmount > 0) {
+				if (deduction.frequency === 'ONE_TIME' && remainingAmountAfter === 0) {
+					statusAfter = 'COMPLETED';
+				}
+				if (deduction.frequency === 'INSTALLMENTS') {
+					if (installmentWasFullyApplied) {
+						completedInstallmentsAfter += 1;
+						if (
+							deduction.totalInstallments !== null &&
+							completedInstallmentsAfter >= deduction.totalInstallments
+						) {
+							statusAfter = 'COMPLETED';
+						}
+					}
+				}
+				if (
+					(deduction.frequency === 'RECURRING' || deduction.frequency === 'INSTALLMENTS') &&
+					tracksRecoverableBalance &&
+					remainingAmountAfter === 0
+				) {
+					statusAfter = 'COMPLETED';
+				}
+			}
+
+			deductionsBreakdown.push({
+				deductionId: deduction.id,
+				type: deduction.type,
+				label: deduction.label,
+				calculationMethod: deduction.calculationMethod,
+				frequency: deduction.frequency,
+				configuredValue,
+				sourceValue: deduction.value,
+				baseAmount: deductionAmount.baseAmount,
+				calculatedAmount: deductionAmount.calculatedAmount,
+				appliedAmount,
+				applicableDays: deductionAmount.applicableDays,
+				totalInstallments: deduction.totalInstallments,
+				sourceTotalInstallments: deduction.totalInstallments,
+				completedInstallmentsBefore: deduction.completedInstallments,
+				completedInstallmentsAfter,
+				remainingAmountBefore:
+					hasRemainingAmount || hasTotalAmount ? roundCurrency(remainingBefore) : null,
+				remainingAmountAfter,
+				sourceTotalAmount: deduction.totalAmount,
+				statusBefore: deduction.status,
+				statusAfter,
+				cappedByNetPay,
+				sourceStartDateKey: deduction.startDateKey,
+				sourceEndDateKey: deduction.endDateKey,
+				referenceNumber: deduction.referenceNumber ?? null,
+				satDeductionCode: deduction.satDeductionCode ?? null,
+			});
+		}
+
+		if (deductionsExceededNetPay) {
+			warnings.push({
+				type: 'DEDUCTIONS_EXCEED_NET_PAY',
+				message:
+					'Los descuentos excedieron el neto disponible y se limitaron para evitar un pago negativo.',
+				severity: 'warning',
+			});
+		}
+
+		const finalNetPay = roundCurrency(Math.max(0, netPay - totalDeductions));
+
 		grossTotalCents += toCents(grossPay);
 		employeeWithholdingsCents += toCents(taxBreakdown.employeeWithholdings.total);
 		employerCostsCents += toCents(taxBreakdown.employerCosts.total);
-		netPayCents += toCents(netPay);
+		netPayCents += toCents(finalNetPay);
 		companyCostCents += toCents(companyCost);
 
 		results.push({
@@ -1315,6 +1638,8 @@ export function calculatePayrollFromData(
 			vacationPremiumAmount,
 			lunchBreakAutoDeductedDays,
 			lunchBreakAutoDeductedMinutes,
+			deductionsBreakdown,
+			totalDeductions,
 			totalPay,
 			fiscalGrossPay: dualPayrollApplied ? fiscalGrossPay : null,
 			complementPay,
@@ -1324,7 +1649,7 @@ export function calculatePayrollFromData(
 			employeeWithholdings: taxBreakdown.employeeWithholdings,
 			employerCosts: taxBreakdown.employerCosts,
 			informationalLines: taxBreakdown.informationalLines,
-			netPay,
+			netPay: finalNetPay,
 			companyCost,
 			incapacitySummary: {
 				daysIncapacityTotal: incapacityResult.incapacitySummary.daysIncapacityTotal,

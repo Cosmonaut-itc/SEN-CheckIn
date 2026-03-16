@@ -10,6 +10,8 @@ import Animated, {
 	withTiming,
 } from 'react-native-reanimated';
 
+import { useThemeColor } from '@/hooks/use-theme-color';
+
 const LOGO_SOURCE = require('../../assets/images/splash-icon.png');
 
 const ENTRANCE_DURATION_MS = 220;
@@ -38,26 +40,6 @@ function getTransitionDuration(isReduceMotionEnabled: boolean): number {
 }
 
 /**
- * Resolve overlay background color from the active theme.
- *
- * @param isDarkMode - Whether dark mode is active
- * @returns Hex color for the splash overlay background
- */
-function getOverlayBackgroundColor(isDarkMode: boolean): string {
-	return isDarkMode ? '#000000' : '#ffffff';
-}
-
-/**
- * Resolve spinner color from the active theme.
- *
- * @param isDarkMode - Whether dark mode is active
- * @returns Hex color for the loading spinner
- */
-function getSpinnerColor(isDarkMode: boolean): string {
-	return isDarkMode ? '#ffffff' : '#0f172a';
-}
-
-/**
  * Full-screen startup overlay that animates the app logo during boot.
  *
  * @param props - Overlay visibility, readiness state, and completion callback
@@ -66,11 +48,12 @@ function getSpinnerColor(isDarkMode: boolean): string {
 export function StartupIntroOverlay({
 	isVisible,
 	isAppReady,
-	isDarkMode,
+	isDarkMode: _isDarkMode,
 	onFinished,
 }: StartupIntroOverlayProps): JSX.Element | null {
 	const [phase, setPhase] = useState<StartupPhase>('animating');
 	const [isReduceMotionEnabled, setIsReduceMotionEnabled] = useState(false);
+	const [backgroundColor, spinnerColor] = useThemeColor(['background', 'primary']);
 	const hasStartedRef = useRef(false);
 	const hasFinishedRef = useRef(false);
 	const visibleSinceRef = useRef(Date.now());
@@ -250,8 +233,6 @@ export function StartupIntroOverlay({
 	}
 
 	const shouldShowSpinner = phase === 'waiting-ready' && !isAppReady;
-	const backgroundColor = getOverlayBackgroundColor(isDarkMode);
-	const spinnerColor = getSpinnerColor(isDarkMode);
 
 	return (
 		<Animated.View

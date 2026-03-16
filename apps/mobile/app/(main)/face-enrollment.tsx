@@ -19,6 +19,7 @@ import {
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 
 const SCANNER_ROUTE = '/(main)/scanner' as Href;
 const SETTINGS_ROUTE = '/(main)/settings' as Href;
@@ -335,7 +336,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					}}
 					keyboardShouldPersistTaps="handled"
 				>
-				<Text className="text-foreground-500 text-sm" selectable>
+				<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500`} selectable>
 					{i18n.t('FaceEnrollment.subtitle')}
 				</Text>
 

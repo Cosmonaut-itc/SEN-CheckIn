@@ -20,6 +20,7 @@ import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
 const SCANNER_ROUTE = '/(main)/scanner' as Href;
@@ -158,7 +159,7 @@ export default function SettingsScreen(): JSX.Element {
 					showsVerticalScrollIndicator={false}
 				>
 				<View className="gap-1">
-					<Text className="text-base text-foreground-500">
+					<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500`}>
 						{i18n.t('Settings.subtitle')}
 					</Text>
 				</View>

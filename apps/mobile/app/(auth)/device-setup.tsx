@@ -17,6 +17,7 @@ import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type SearchParams = {
@@ -175,7 +176,9 @@ export default function DeviceSetupScreen(): JSX.Element {
 						<Text className="text-2xl font-bold text-foreground text-center">
 							{i18n.t('DeviceSetup.errors.deviceNotFound.title')}
 						</Text>
-						<Text className="text-foreground-400 text-center text-base leading-6">
+						<Text
+							className={`${BODY_TEXT_CLASS_NAME} text-foreground-400 text-center leading-6`}
+						>
 							{i18n.t('DeviceSetup.errors.deviceNotFound.description')}
 						</Text>
 					</View>
@@ -224,7 +227,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 							</Text>
 						</View>
 					</View>
-					<Text className="text-foreground-400 text-base leading-6">
+					<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-400 leading-6`}>
 						{i18n.t('DeviceSetup.header.subtitle')}
 					</Text>
 				</View>
@@ -428,7 +431,9 @@ export default function DeviceSetupScreen(): JSX.Element {
 							<Text className="text-sm font-semibold text-foreground">
 								{i18n.t('DeviceSetup.tip.title')}
 							</Text>
-							<Text className="text-sm text-foreground-400 leading-5">
+							<Text
+								className={`${BODY_TEXT_CLASS_NAME} text-foreground-400 leading-5`}
+							>
 								{i18n.t('DeviceSetup.tip.body')}
 							</Text>
 						</View>

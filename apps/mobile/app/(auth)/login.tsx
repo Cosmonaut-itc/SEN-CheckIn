@@ -25,6 +25,7 @@ import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
 import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
 import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -727,7 +728,7 @@ export default function LoginScreen(): JSX.Element {
 			>
 			{/* Header */}
 			<View className="gap-2 pt-4">
-				<Text className="text-base text-foreground-500 leading-relaxed">
+				<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500 leading-relaxed`}>
 					{i18n.t('Login.header.subtitle')}
 				</Text>
 			</View>

@@ -33,6 +33,8 @@ export interface DashboardMapProps {
 	focusedLocation: Location | null;
 	/** Attendance records grouped by location id. */
 	presentByLocationId: Map<string, AttendancePresentRecord[]>;
+	/** Indicates when the map is rendered in the mobile hero layout. */
+	isMobileLayout?: boolean;
 }
 
 /**
@@ -128,6 +130,48 @@ function MapFocus({ location }: { location: Location | null }): null {
 }
 
 /**
+ * Keeps the MapLibre canvas in sync with responsive container changes.
+ *
+ * @param props - Layout mode used to trigger a resize pass.
+ * @returns Null (binds to the map instance).
+ */
+function MapResizeController({ isMobileLayout }: { isMobileLayout: boolean }): null {
+	const { map, isLoaded } = useMap();
+
+	useEffect(() => {
+		if (!map || !isLoaded) {
+			return;
+		}
+
+		let frameId = 0;
+
+		/**
+		 * Schedules a safe map resize on the next animation frame.
+		 *
+		 * @returns void
+		 */
+		const scheduleResize = (): void => {
+			cancelAnimationFrame(frameId);
+			frameId = window.requestAnimationFrame(() => {
+				map.resize();
+			});
+		};
+
+		scheduleResize();
+		window.addEventListener('resize', scheduleResize);
+		window.addEventListener('orientationchange', scheduleResize);
+
+		return () => {
+			cancelAnimationFrame(frameId);
+			window.removeEventListener('resize', scheduleResize);
+			window.removeEventListener('orientationchange', scheduleResize);
+		};
+	}, [isLoaded, isMobileLayout, map]);
+
+	return null;
+}
+
+/**
  * Dashboard map section rendered inside the dashboard page.
  *
  * @param props - Map data and selection state.
@@ -137,6 +181,7 @@ export function DashboardMap({
 	locations,
 	focusedLocation,
 	presentByLocationId,
+	isMobileLayout = false,
 }: DashboardMapProps): React.ReactElement {
 	const t = useTranslations('Dashboard');
 
@@ -145,6 +190,7 @@ export function DashboardMap({
 			<MapCanvas center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM}>
 				<MapAutoFit locations={locations} />
 				<MapFocus location={focusedLocation} />
+				<MapResizeController isMobileLayout={isMobileLayout} />
 				{locations.map((location) => {
 					// Skip rendering if coordinates are missing (defensive check)
 					if (location.latitude === null || location.longitude === null) {

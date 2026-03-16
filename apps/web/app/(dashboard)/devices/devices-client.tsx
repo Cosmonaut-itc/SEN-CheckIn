@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAppForm } from '@/lib/forms';
 import { Button } from '@/components/ui/button';
 import { useTranslations } from 'next-intl';
-import { DataTable } from '@/components/data-table/data-table';
 import {
 	Dialog,
 	DialogContent,
@@ -16,6 +15,8 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import { toast } from 'sonner';
 import { Pencil, Smartphone, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -371,33 +372,127 @@ export function DevicesPageClient(): React.ReactElement {
 		[deleteConfirmId, handleDelete, handleEdit, locationLookup, t, tCommon],
 	);
 
+	const renderDeviceCard = useCallback(
+		(device: Device): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="space-y-1">
+						<Badge variant="outline">{device.code}</Badge>
+						<p className="text-base font-semibold">{device.name ?? device.code}</p>
+					</div>
+					<Badge variant={statusVariants[device.status]}>{t(`status.${device.status}`)}</Badge>
+				</div>
+
+				<div className="grid gap-3">
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.type')}</p>
+						<p className="text-sm font-medium">{device.deviceType ?? '-'}</p>
+					</div>
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">
+							{t('table.headers.location')}
+						</p>
+						<p className="text-sm font-medium">
+							{device.locationId
+								? (locationLookup.get(device.locationId) ?? device.locationId)
+								: '-'}
+						</p>
+					</div>
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">
+							{t('table.headers.lastHeartbeat')}
+						</p>
+						<p className="text-sm font-medium">
+							{device.lastHeartbeat
+								? format(new Date(device.lastHeartbeat), t('dateTimeFormat'))
+								: '-'}
+						</p>
+					</div>
+				</div>
+
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11"
+						onClick={() => handleEdit(device)}
+					>
+						<Pencil className="mr-2 h-4 w-4" />
+						{tCommon('edit')}
+					</Button>
+					<Dialog
+						open={deleteConfirmId === device.id}
+						onOpenChange={(open) => setDeleteConfirmId(open ? device.id : null)}
+					>
+						<DialogTrigger asChild>
+							<Button type="button" variant="destructive" className="min-h-11">
+								<Trash2 className="mr-2 h-4 w-4" />
+								{tCommon('delete')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+							<DialogHeader>
+								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+								<DialogDescription>
+									{t('dialogs.delete.description', {
+										name: device.name || device.code,
+									})}
+								</DialogDescription>
+							</DialogHeader>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
+								<Button
+									variant="outline"
+									onClick={() => setDeleteConfirmId(null)}
+								>
+									{tCommon('cancel')}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => handleDelete(device.id)}
+								>
+									{tCommon('delete')}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+		),
+		[deleteConfirmId, handleDelete, handleEdit, locationLookup, t, tCommon],
+	);
+
 	if (!isOrgSelected) {
 		return (
 			<div className="space-y-4">
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('noOrganization')}</p>
+				<ResponsivePageHeader title={t('title')} description={t('noOrganization')} />
 			</div>
 		);
 	}
 
 	return (
-		<div className="space-y-6">
-			<div className="flex items-start justify-between">
-				<div className="space-y-1.5">
-					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-					<p className="text-muted-foreground">{t('subtitle')}</p>
-					<p className="text-sm text-muted-foreground">{t('description')}</p>
-				</div>
-				<Button asChild variant="secondary" aria-label={t('mobileSetup.ariaLabel')}>
-					<Link href="/device" className="flex items-center gap-2">
-						<Smartphone className="h-4 w-4" />
-						<span>{t('mobileSetup.label')}</span>
-					</Link>
-				</Button>
-			</div>
+		<div className="min-w-0 space-y-6">
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={
+					<Button
+						asChild
+						variant="secondary"
+						aria-label={t('mobileSetup.ariaLabel')}
+						data-testid="devices-setup-button"
+						className="min-h-11"
+					>
+						<Link href="/device" className="flex items-center gap-2">
+							<Smartphone className="h-4 w-4" />
+							<span>{t('mobileSetup.label')}</span>
+						</Link>
+					</Button>
+				}
+			/>
+			<p className="text-sm text-muted-foreground">{t('description')}</p>
 
 			<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-				<DialogContent className="sm:max-w-[425px]">
+				<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-[425px]">
 					<form onSubmit={handleSubmit}>
 						<DialogHeader>
 							<DialogTitle>{t('dialog.title')}</DialogTitle>
@@ -418,6 +513,7 @@ export function DevicesPageClient(): React.ReactElement {
 									<field.TextField
 										label={t('fields.name')}
 										placeholder={tCommon('optional')}
+										orientation="vertical"
 									/>
 								)}
 							</form.AppField>
@@ -426,6 +522,7 @@ export function DevicesPageClient(): React.ReactElement {
 									<field.TextField
 										label={t('fields.type')}
 										placeholder={t('placeholders.deviceType')}
+										orientation="vertical"
 									/>
 								)}
 							</form.AppField>
@@ -448,6 +545,7 @@ export function DevicesPageClient(): React.ReactElement {
 											},
 										]}
 										placeholder={t('placeholders.selectStatus')}
+										orientation="vertical"
 									/>
 								)}
 							</form.AppField>
@@ -457,15 +555,17 @@ export function DevicesPageClient(): React.ReactElement {
 										label={t('fields.location')}
 										options={locationOptions}
 										placeholder={t('placeholders.selectLocationOptional')}
+										orientation="vertical"
 									/>
 								)}
 							</form.AppField>
 						</div>
-						<DialogFooter>
+						<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 							<form.AppForm>
 								<form.SubmitButton
 									label={t('actions.saveChanges')}
 									loadingLabel={tCommon('saving')}
+									className="min-h-11 w-full min-[640px]:w-auto"
 								/>
 							</form.AppForm>
 						</DialogFooter>
@@ -473,9 +573,11 @@ export function DevicesPageClient(): React.ReactElement {
 				</DialogContent>
 			</Dialog>
 
-			<DataTable
+			<ResponsiveDataView
 				columns={columns}
 				data={devices}
+				cardRenderer={renderDeviceCard}
+				getCardKey={(device) => device.id}
 				sorting={sorting}
 				onSortingChange={setSorting}
 				pagination={pagination}

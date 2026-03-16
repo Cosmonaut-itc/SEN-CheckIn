@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 
 import { DisciplinaryMeasuresManager } from '@/components/disciplinary-measures-manager';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 
 /**
  * Dashboard client view for disciplinary measures.
@@ -15,10 +16,7 @@ export function DisciplinaryMeasuresPageClient(): React.ReactElement {
 
 	return (
 		<div className="space-y-4">
-			<div>
-				<h1 className="text-3xl font-bold tracking-tight">{t('page.title')}</h1>
-				<p className="text-muted-foreground">{t('page.subtitle')}</p>
-			</div>
+			<ResponsivePageHeader title={t('page.title')} description={t('page.subtitle')} />
 			<DisciplinaryMeasuresManager />
 		</div>
 	);

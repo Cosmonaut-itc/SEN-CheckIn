@@ -13,10 +13,21 @@ import { isValidIanaTimeZone } from '../utils/time-zone.js';
 // ============================================================================
 
 /**
+ * Accepts UUID-shaped identifiers stored in the database, including legacy
+ * seeded values that do not satisfy RFC variant bits.
+ */
+const uuidLikeStringSchema = z
+	.string()
+	.regex(
+		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+		'Invalid ID format',
+	);
+
+/**
  * Schema for UUID path parameter validation.
  */
 export const idParamSchema = z.object({
-	id: z.string().uuid('Invalid ID format'),
+	id: uuidLikeStringSchema,
 });
 
 /**

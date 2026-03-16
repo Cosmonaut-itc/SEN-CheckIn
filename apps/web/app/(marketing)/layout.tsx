@@ -72,13 +72,15 @@ export default async function MarketingLayout({
 						<Button
 							asChild
 							variant="outline"
-							className="h-9 rounded-full border-black/20 bg-transparent px-3 text-[color:var(--text-primary)] hover:bg-black/5 sm:px-4 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
+							data-testid="marketing-nav-sign-up"
+							className="min-h-11 rounded-full border-black/20 bg-transparent px-3 text-[color:var(--text-primary)] hover:bg-black/5 sm:px-4 dark:border-white/20 dark:text-[color:var(--text-primary)] dark:hover:bg-[color:var(--bg-secondary)]/10"
 						>
 							<Link href="/registrate">{tLanding('nav.signUp')}</Link>
 						</Button>
 						<Button
 							asChild
-							className="h-9 rounded-full bg-[color:var(--text-primary)] px-3 text-[color:var(--bg-primary)] shadow-[0_16px_35px_-20px_rgba(12,24,28,0.8)] hover:bg-[color:var(--bg-inverse)] sm:px-4 dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
+							data-testid="marketing-nav-login"
+							className="min-h-11 rounded-full bg-[color:var(--text-primary)] px-3 text-[color:var(--bg-primary)] shadow-[0_16px_35px_-20px_rgba(12,24,28,0.8)] hover:bg-[color:var(--bg-inverse)] sm:px-4 dark:bg-[color:var(--bg-inverse)] dark:text-[color:var(--text-inverse)] dark:hover:bg-[color:var(--bg-secondary)]"
 						>
 							<Link href="/login">{tLanding('nav.login')}</Link>
 						</Button>

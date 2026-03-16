@@ -43,7 +43,6 @@ import {
 	presignDisciplinarySignedActaAction,
 	type DisciplinaryMutationResult,
 } from '@/actions/disciplinary-measures';
-import { DataTable } from '@/components/data-table/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,6 +57,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import {
 	Select,
 	SelectContent,
@@ -905,6 +905,56 @@ export function DisciplinaryMeasuresManager({
 	const totalRows = measuresResponse?.pagination.total ?? 0;
 	const selectedMeasureDetail = (selectedMeasure ??
 		null) as DisciplinaryMeasureDetailRecord | null;
+	const kpiCards = useMemo(
+		() => [
+			{
+				key: 'employeesWithMeasures',
+				label: t('kpis.employeesWithMeasures'),
+				value: kpis?.employeesWithMeasures ?? 0,
+				icon: User,
+				className:
+					'border-amber-300/40 bg-gradient-to-br from-amber-50 to-white dark:border-amber-900/40 dark:from-amber-950/35 dark:to-card',
+				iconClassName: 'text-amber-700 dark:text-amber-300',
+			},
+			{
+				key: 'measuresInPeriod',
+				label: t('kpis.measuresInPeriod'),
+				value: kpis?.measuresInPeriod ?? 0,
+				icon: FileWarning,
+				className:
+					'border-orange-300/40 bg-gradient-to-br from-orange-50 to-white dark:border-orange-900/40 dark:from-orange-950/35 dark:to-card',
+				iconClassName: 'text-orange-700 dark:text-orange-300',
+			},
+			{
+				key: 'activeSuspensions',
+				label: t('kpis.activeSuspensions'),
+				value: kpis?.activeSuspensions ?? 0,
+				icon: Clock3,
+				className:
+					'border-rose-300/40 bg-gradient-to-br from-rose-50 to-white dark:border-rose-900/40 dark:from-rose-950/35 dark:to-card',
+				iconClassName: 'text-rose-700 dark:text-rose-300',
+			},
+			{
+				key: 'terminationEscalations',
+				label: t('kpis.terminationEscalations'),
+				value: kpis?.terminationEscalations ?? 0,
+				icon: ShieldAlert,
+				className:
+					'border-red-300/40 bg-gradient-to-br from-red-50 to-white dark:border-red-900/40 dark:from-red-950/35 dark:to-card',
+				iconClassName: 'text-red-700 dark:text-red-300',
+			},
+			{
+				key: 'openMeasures',
+				label: t('kpis.openMeasures'),
+				value: kpis?.openMeasures ?? 0,
+				icon: AlertTriangle,
+				className:
+					'border-yellow-300/40 bg-gradient-to-br from-yellow-50 to-white dark:border-yellow-900/40 dark:from-yellow-950/35 dark:to-card',
+				iconClassName: 'text-yellow-700 dark:text-yellow-300',
+			},
+		],
+		[kpis, t],
+	);
 
 	const columns = useMemo<ColumnDef<DisciplinaryMeasureRecord>[]>(
 		() => [
@@ -982,6 +1032,77 @@ export function DisciplinaryMeasuresManager({
 		[handleOpenDetail, t, tCommon],
 	);
 
+	/**
+	 * Renders the mobile card layout for a disciplinary measure row.
+	 *
+	 * @param measure - Disciplinary measure record to render
+	 * @returns Mobile card content
+	 */
+	const renderMeasureCard = useCallback(
+		(measure: DisciplinaryMeasureRecord): React.ReactNode => {
+			const employeeName =
+				`${measure.employeeFirstName ?? ''} ${measure.employeeLastName ?? ''}`.trim() ||
+				tCommon('notAvailable');
+			const employeeCode = measure.employeeCode ?? '—';
+
+			return (
+				<div className="space-y-4">
+					<div className="flex items-start justify-between gap-3">
+						<div className="space-y-1">
+							<p className="text-sm font-semibold text-foreground">#{measure.folio}</p>
+							<p className="text-xs text-muted-foreground">
+								{employeeName} · {employeeCode}
+							</p>
+						</div>
+						<Badge
+							variant={resolveStatusBadgeVariant(measure.status)}
+							data-testid={`disciplinary-measure-status-${measure.id}`}
+							data-status={measure.status}
+						>
+							{t(`status.${measure.status}`)}
+						</Badge>
+					</div>
+					<div className="grid gap-3">
+						<div className="space-y-1">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								{t('table.headers.incidentDate')}
+							</p>
+							<p className="text-sm text-foreground">{measure.incidentDateKey}</p>
+						</div>
+						<div className="space-y-1">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								{t('table.headers.outcome')}
+							</p>
+							<div>
+								<Badge variant={resolveOutcomeBadgeVariant(measure.outcome)}>
+									{t(`outcomes.${measure.outcome}`)}
+								</Badge>
+							</div>
+						</div>
+						<div className="space-y-1">
+							<p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								{t('table.headers.reason')}
+							</p>
+							<p className="line-clamp-2 text-sm text-muted-foreground">
+								{measure.reason}
+							</p>
+						</div>
+					</div>
+					<Button
+						type="button"
+						variant="outline"
+						className="w-full"
+						onClick={() => handleOpenDetail(measure.id)}
+						data-testid={`disciplinary-measure-view-detail-${measure.id}`}
+					>
+						{t('actions.viewDetail')}
+					</Button>
+				</div>
+			);
+		},
+		[handleOpenDetail, t, tCommon],
+	);
+
 	if (!canManage) {
 		return (
 			<Card>
@@ -996,85 +1117,49 @@ export function DisciplinaryMeasuresManager({
 	return (
 		<div className="space-y-4">
 			{embedded ? null : (
-				<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-					<Card className="border-amber-300/40 bg-gradient-to-br from-amber-50 to-white dark:border-amber-900/40 dark:from-amber-950/35 dark:to-card">
-						<CardContent className="flex items-center justify-between p-4">
-							<div>
-								<p className="text-xs text-muted-foreground">
-									{t('kpis.employeesWithMeasures')}
-								</p>
-								<p className="text-2xl font-semibold">
-									{kpis?.employeesWithMeasures ?? 0}
-								</p>
-							</div>
-							<User className="h-4 w-4 text-amber-700 dark:text-amber-300" />
-						</CardContent>
-					</Card>
-					<Card className="border-orange-300/40 bg-gradient-to-br from-orange-50 to-white dark:border-orange-900/40 dark:from-orange-950/35 dark:to-card">
-						<CardContent className="flex items-center justify-between p-4">
-							<div>
-								<p className="text-xs text-muted-foreground">
-									{t('kpis.measuresInPeriod')}
-								</p>
-								<p className="text-2xl font-semibold">
-									{kpis?.measuresInPeriod ?? 0}
-								</p>
-							</div>
-							<FileWarning className="h-4 w-4 text-orange-700 dark:text-orange-300" />
-						</CardContent>
-					</Card>
-					<Card className="border-rose-300/40 bg-gradient-to-br from-rose-50 to-white dark:border-rose-900/40 dark:from-rose-950/35 dark:to-card">
-						<CardContent className="flex items-center justify-between p-4">
-							<div>
-								<p className="text-xs text-muted-foreground">
-									{t('kpis.activeSuspensions')}
-								</p>
-								<p className="text-2xl font-semibold">
-									{kpis?.activeSuspensions ?? 0}
-								</p>
-							</div>
-							<Clock3 className="h-4 w-4 text-rose-700 dark:text-rose-300" />
-						</CardContent>
-					</Card>
-					<Card className="border-red-300/40 bg-gradient-to-br from-red-50 to-white dark:border-red-900/40 dark:from-red-950/35 dark:to-card">
-						<CardContent className="flex items-center justify-between p-4">
-							<div>
-								<p className="text-xs text-muted-foreground">
-									{t('kpis.terminationEscalations')}
-								</p>
-								<p className="text-2xl font-semibold">
-									{kpis?.terminationEscalations ?? 0}
-								</p>
-							</div>
-							<ShieldAlert className="h-4 w-4 text-red-700 dark:text-red-300" />
-						</CardContent>
-					</Card>
-					<Card className="border-yellow-300/40 bg-gradient-to-br from-yellow-50 to-white dark:border-yellow-900/40 dark:from-yellow-950/35 dark:to-card">
-						<CardContent className="flex items-center justify-between p-4">
-							<div>
-								<p className="text-xs text-muted-foreground">
-									{t('kpis.openMeasures')}
-								</p>
-								<p className="text-2xl font-semibold">{kpis?.openMeasures ?? 0}</p>
-							</div>
-							<AlertTriangle className="h-4 w-4 text-yellow-700 dark:text-yellow-300" />
-						</CardContent>
-					</Card>
+				<div
+					data-testid="disciplinary-measures-kpis"
+					className="flex gap-3 overflow-x-auto pb-2 min-[1025px]:grid min-[1025px]:grid-cols-5 min-[1025px]:overflow-visible"
+				>
+					{kpiCards.map((kpiCard) => {
+						const Icon = kpiCard.icon;
+						return (
+							<Card
+								key={kpiCard.key}
+								className={`min-w-[140px] flex-1 ${kpiCard.className} min-[1025px]:min-w-0`}
+							>
+								<CardContent className="flex items-center justify-between p-4">
+									<div>
+										<p className="text-xs text-muted-foreground">
+											{kpiCard.label}
+										</p>
+										<p className="text-2xl font-semibold">{kpiCard.value}</p>
+									</div>
+									<Icon className={`h-4 w-4 ${kpiCard.iconClassName}`} />
+								</CardContent>
+							</Card>
+						);
+					})}
 				</div>
 			)}
 
 			<Card>
 				<CardHeader>
-					<div className="flex flex-wrap items-center justify-between gap-2">
+					<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:items-center min-[1025px]:justify-between">
 						<div>
 							<CardTitle>{t('title')}</CardTitle>
 							<CardDescription>{t('subtitle')}</CardDescription>
 						</div>
 						<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
 							<DialogTrigger asChild>
-								<Button>{t('actions.create')}</Button>
+								<Button
+									className="w-full min-[1025px]:w-auto"
+									data-testid="disciplinary-measures-create-button"
+								>
+									{t('actions.create')}
+								</Button>
 							</DialogTrigger>
-							<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+							<DialogContent className="max-h-[90vh] w-full max-w-[calc(100vw-2rem)] overflow-y-auto min-[1025px]:max-w-xl">
 								<DialogHeader>
 									<DialogTitle>{t('createDialog.title')}</DialogTitle>
 									<DialogDescription>
@@ -1094,7 +1179,7 @@ export function DisciplinaryMeasuresManager({
 											}
 											disabled={Boolean(employeeId)}
 										>
-											<SelectTrigger>
+											<SelectTrigger className="w-full min-h-11">
 												<SelectValue
 													placeholder={t('placeholders.employee')}
 												/>
@@ -1111,11 +1196,12 @@ export function DisciplinaryMeasuresManager({
 											</SelectContent>
 										</Select>
 									</div>
-									<div className="grid gap-3 md:grid-cols-2">
+									<div className="grid gap-3 min-[1025px]:grid-cols-2">
 										<div className="space-y-1">
 											<Label>{t('fields.incidentDate')}</Label>
 											<Input
 												type="date"
+												className="min-h-11"
 												value={createForm.incidentDateKey}
 												onChange={(event) =>
 													setCreateForm((previous) => ({
@@ -1136,7 +1222,7 @@ export function DisciplinaryMeasuresManager({
 													}))
 												}
 											>
-												<SelectTrigger>
+												<SelectTrigger className="w-full min-h-11">
 													<SelectValue />
 												</SelectTrigger>
 												<SelectContent>
@@ -1156,6 +1242,7 @@ export function DisciplinaryMeasuresManager({
 										<Label>{t('fields.reason')}</Label>
 										<Textarea
 											rows={4}
+											className="min-h-28"
 											value={createForm.reason}
 											onChange={(event) =>
 												setCreateForm((previous) => ({
@@ -1168,6 +1255,7 @@ export function DisciplinaryMeasuresManager({
 									<div className="space-y-1">
 										<Label>{t('fields.policyReference')}</Label>
 										<Input
+											className="min-h-11"
 											value={createForm.policyReference}
 											onChange={(event) =>
 												setCreateForm((previous) => ({
@@ -1178,11 +1266,12 @@ export function DisciplinaryMeasuresManager({
 										/>
 									</div>
 									{createForm.outcome === 'suspension' ? (
-										<div className="grid gap-3 md:grid-cols-2">
+										<div className="grid gap-3 min-[1025px]:grid-cols-2">
 											<div className="space-y-1">
 												<Label>{t('fields.suspensionStartDate')}</Label>
 												<Input
 													type="date"
+													className="min-h-11"
 													value={createForm.suspensionStartDateKey}
 													onChange={(event) =>
 														setCreateForm((previous) => ({
@@ -1197,6 +1286,7 @@ export function DisciplinaryMeasuresManager({
 												<Label>{t('fields.suspensionEndDate')}</Label>
 												<Input
 													type="date"
+													className="min-h-11"
 													value={createForm.suspensionEndDateKey}
 													onChange={(event) =>
 														setCreateForm((previous) => ({
@@ -1210,7 +1300,7 @@ export function DisciplinaryMeasuresManager({
 										</div>
 									) : null}
 								</div>
-								<DialogFooter>
+								<DialogFooter className="flex-col-reverse gap-2 min-[1025px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[1025px]:[&>button]:w-auto">
 									<Button
 										variant="outline"
 										onClick={() => {
@@ -1239,10 +1329,11 @@ export function DisciplinaryMeasuresManager({
 					</div>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-						<div className="space-y-1 xl:col-span-2">
+					<div className="flex flex-col gap-2 min-[1025px]:grid min-[1025px]:grid-cols-5 min-[1025px]:gap-3">
+						<div className="space-y-1 min-[1025px]:col-span-2">
 							<Label>{t('filters.search')}</Label>
 							<Input
+								className="min-h-11"
 								value={search}
 								onChange={(event) => {
 									setSearch(event.target.value);
@@ -1264,7 +1355,7 @@ export function DisciplinaryMeasuresManager({
 										}));
 									}}
 								>
-									<SelectTrigger>
+									<SelectTrigger className="w-full min-h-11">
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
@@ -1292,7 +1383,7 @@ export function DisciplinaryMeasuresManager({
 									setPagination((previous) => ({ ...previous, pageIndex: 0 }));
 								}}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="w-full min-h-11">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -1314,7 +1405,7 @@ export function DisciplinaryMeasuresManager({
 									setPagination((previous) => ({ ...previous, pageIndex: 0 }));
 								}}
 							>
-								<SelectTrigger>
+								<SelectTrigger className="w-full min-h-11">
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
@@ -1331,6 +1422,7 @@ export function DisciplinaryMeasuresManager({
 							<Label>{t('filters.fromDate')}</Label>
 							<Input
 								type="date"
+								className="min-h-11"
 								value={fromDateKey}
 								onChange={(event) => {
 									setFromDateKey(event.target.value);
@@ -1342,6 +1434,7 @@ export function DisciplinaryMeasuresManager({
 							<Label>{t('filters.toDate')}</Label>
 							<Input
 								type="date"
+								className="min-h-11"
 								value={toDateKey}
 								onChange={(event) => {
 									setToDateKey(event.target.value);
@@ -1351,9 +1444,10 @@ export function DisciplinaryMeasuresManager({
 						</div>
 					</div>
 
-					<DataTable
+					<ResponsiveDataView
 						columns={columns}
 						data={measures}
+						cardRenderer={renderMeasureCard}
 						sorting={sorting}
 						onSortingChange={setSorting}
 						pagination={pagination}
@@ -1377,7 +1471,7 @@ export function DisciplinaryMeasuresManager({
 			</Card>
 
 			<Dialog open={isDetailOpen} onOpenChange={handleDetailDialogOpenChange}>
-				<DialogContent className="max-h-[calc(100vh-4rem)] overflow-y-auto sm:max-w-5xl lg:max-w-6xl">
+				<DialogContent className="max-h-[calc(100vh-4rem)] w-full max-w-[calc(100vw-2rem)] overflow-y-auto min-[1025px]:max-w-5xl min-[1280px]:max-w-6xl">
 					<DialogHeader>
 						<DialogTitle>{t('detail.title')}</DialogTitle>
 						<DialogDescription>
@@ -1395,7 +1489,7 @@ export function DisciplinaryMeasuresManager({
 						) : null}
 						{selectedMeasureDetail ? (
 							<div className="space-y-4">
-								<div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2 xl:grid-cols-4">
+								<div className="grid gap-3 rounded-lg border bg-card p-4 min-[1025px]:grid-cols-2 min-[1280px]:grid-cols-4">
 									<div>
 										<p className="text-xs text-muted-foreground">
 											{t('detail.fields.employee')}
@@ -1447,7 +1541,7 @@ export function DisciplinaryMeasuresManager({
 									</p>
 								</div>
 
-								<div className="grid gap-4 xl:grid-cols-2">
+								<div className="grid gap-4 min-[1280px]:grid-cols-2">
 									<Card>
 										<CardHeader className="pb-3">
 											<CardTitle className="text-base">
@@ -1466,7 +1560,7 @@ export function DisciplinaryMeasuresManager({
 												selectedMeasureDetail.documents.map((document) => (
 													<div
 														key={document.id}
-														className="flex items-center justify-between rounded-md border p-2"
+														className="flex flex-col gap-3 rounded-md border p-3 min-[1025px]:flex-row min-[1025px]:items-center min-[1025px]:justify-between"
 													>
 														<div>
 															<p className="text-sm font-medium">
@@ -1484,6 +1578,7 @@ export function DisciplinaryMeasuresManager({
 														<Button
 															variant="outline"
 															size="sm"
+															className="w-full min-[1025px]:w-auto"
 															onClick={() =>
 																void handleOpenDocument(
 																	selectedMeasureDetail.id,
@@ -1518,7 +1613,7 @@ export function DisciplinaryMeasuresManager({
 													(attachment) => (
 														<div
 															key={attachment.id}
-															className="flex items-center justify-between rounded-md border p-2"
+															className="flex flex-col gap-3 rounded-md border p-3 min-[1025px]:flex-row min-[1025px]:items-center min-[1025px]:justify-between"
 														>
 															<div>
 																<p className="text-sm font-medium">
@@ -1533,6 +1628,7 @@ export function DisciplinaryMeasuresManager({
 															<Button
 																variant="outline"
 																size="sm"
+																className="w-full min-[1025px]:w-auto"
 																onClick={() =>
 																	void handleDeleteAttachment(
 																		attachment.id,
@@ -1558,12 +1654,13 @@ export function DisciplinaryMeasuresManager({
 										<h3 className="text-sm font-semibold">
 											{t('detail.actions.title')}
 										</h3>
-										<div className="grid gap-3 xl:grid-cols-2">
+										<div className="grid gap-3 min-[1280px]:grid-cols-2">
 											<div className="space-y-2 rounded-md border bg-card p-3">
 												<p className="text-sm font-medium">
 													{t('actions.generateActa')}
 												</p>
 												<Button
+													className="w-full"
 													onClick={() => void handleGenerateActa()}
 													disabled={generateActaMutation.isPending}
 													data-testid="disciplinary-measure-generate-acta"
@@ -1586,6 +1683,7 @@ export function DisciplinaryMeasuresManager({
 												<Input
 													type="file"
 													accept=".pdf,image/jpeg,image/png"
+													className="min-h-11"
 													onChange={(event) =>
 														setSignedActaFile(
 															event.target.files?.[0] ?? null,
@@ -1593,6 +1691,7 @@ export function DisciplinaryMeasuresManager({
 													}
 												/>
 												<Button
+													className="w-full"
 													onClick={() => void handleUploadSignedActa()}
 												>
 													<Upload className="mr-2 h-4 w-4" />
@@ -1606,6 +1705,7 @@ export function DisciplinaryMeasuresManager({
 												</p>
 												<Button
 													variant="secondary"
+													className="w-full"
 													onClick={() => void handleGenerateRefusal()}
 													disabled={generateRefusalMutation.isPending}
 												>
@@ -1627,6 +1727,7 @@ export function DisciplinaryMeasuresManager({
 												<Input
 													type="file"
 													accept=".pdf,image/jpeg,image/png"
+													className="min-h-11"
 													onChange={(event) =>
 														setSignedRefusalFile(
 															event.target.files?.[0] ?? null,
@@ -1635,6 +1736,7 @@ export function DisciplinaryMeasuresManager({
 												/>
 												<Button
 													variant="secondary"
+													className="w-full"
 													onClick={() => void handleUploadRefusal()}
 												>
 													<Upload className="mr-2 h-4 w-4" />
@@ -1642,14 +1744,15 @@ export function DisciplinaryMeasuresManager({
 												</Button>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-card p-3 xl:col-span-2">
+											<div className="space-y-2 rounded-md border bg-card p-3 min-[1280px]:col-span-2">
 												<p className="text-sm font-medium">
 													{t('actions.uploadAttachment')}
 												</p>
-												<div className="flex flex-wrap items-center gap-2">
+												<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:items-center">
 													<Input
 														type="file"
 														accept=".pdf,image/jpeg,image/png"
+														className="min-h-11"
 														onChange={(event) =>
 															setAttachmentFile(
 																event.target.files?.[0] ?? null,
@@ -1658,6 +1761,7 @@ export function DisciplinaryMeasuresManager({
 													/>
 													<Button
 														variant="outline"
+														className="w-full min-[1025px]:w-auto"
 														onClick={() =>
 															void handleUploadAttachment()
 														}
@@ -1668,11 +1772,11 @@ export function DisciplinaryMeasuresManager({
 												</div>
 											</div>
 
-											<div className="space-y-2 rounded-md border bg-card p-3 xl:col-span-2">
+											<div className="space-y-2 rounded-md border bg-card p-3 min-[1280px]:col-span-2">
 												<p className="text-sm font-medium">
 													{t('actions.closeMeasure')}
 												</p>
-												<div className="grid gap-2 md:grid-cols-3">
+												<div className="grid gap-2 min-[1025px]:grid-cols-3">
 													<Select
 														value={closeSignatureStatus}
 														onValueChange={(value) =>
@@ -1681,7 +1785,7 @@ export function DisciplinaryMeasuresManager({
 															)
 														}
 													>
-														<SelectTrigger>
+														<SelectTrigger className="w-full min-h-11">
 															<SelectValue />
 														</SelectTrigger>
 														<SelectContent>
@@ -1700,6 +1804,7 @@ export function DisciplinaryMeasuresManager({
 														</SelectContent>
 													</Select>
 													<Textarea
+														className="min-h-24"
 														value={closeNotes}
 														onChange={(event) =>
 															setCloseNotes(event.target.value)
@@ -1708,6 +1813,7 @@ export function DisciplinaryMeasuresManager({
 														placeholder={t('placeholders.closeNotes')}
 													/>
 													<Button
+														className="w-full"
 														onClick={() => void handleCloseMeasure()}
 														disabled={closeMutation.isPending}
 													>
@@ -1738,7 +1844,7 @@ export function DisciplinaryMeasuresManager({
 							<p className="text-sm text-muted-foreground">{t('detail.empty')}</p>
 						)}
 					</div>
-					<DialogFooter>
+					<DialogFooter className="flex-col-reverse gap-2 min-[1025px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[1025px]:[&>button]:w-auto">
 						<Button
 							variant="outline"
 							onClick={() => handleDetailDialogOpenChange(false)}

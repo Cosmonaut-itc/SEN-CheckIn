@@ -8,7 +8,7 @@ import { Calendar as CalendarIcon, FileUp, Loader2, RefreshCw, Search } from 'lu
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import {
 	Dialog,
 	DialogContent,
@@ -26,7 +26,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
-import { DataTable } from '@/components/data-table/data-table';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	Table,
 	TableBody,
@@ -776,19 +777,67 @@ export function IncapacitiesPageClient(): React.ReactElement {
 		[t],
 	);
 
-	return (
-		<div className="space-y-6">
-			<Card>
-				<CardHeader className="flex flex-row items-start justify-between">
-					<div>
-						<CardTitle>{t('title')}</CardTitle>
-						<CardDescription>{t('subtitle')}</CardDescription>
+	const renderIncapacityCard = useCallback(
+		(record: IncapacityRecord): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="space-y-1">
+						<p className="text-base font-semibold">
+							{record.employeeName} {record.employeeLastName}
+						</p>
+						<p className="text-sm text-muted-foreground">
+							{formatDateRangeUtc(
+								toUtcDate(record.startDateKey),
+								toUtcDate(record.endDateKey),
+							)}
+						</p>
 					</div>
-					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-						<DialogTrigger asChild>
-							<Button>{t('actions.create')}</Button>
-						</DialogTrigger>
-						<DialogContent className="sm:max-w-2xl">
+					<Badge variant={statusVariants[record.status]}>{t(`status.${record.status}`)}</Badge>
+				</div>
+
+				<div className="grid gap-3">
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">{t('table.headers.type')}</p>
+						<p className="text-sm font-medium">{t(`type.${record.type}`)}</p>
+					</div>
+					<div className="grid grid-cols-2 gap-3">
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">{t('table.headers.days')}</p>
+							<p className="text-sm font-medium">{record.daysAuthorized}</p>
+						</div>
+						<div className="space-y-1">
+							<p className="text-sm text-muted-foreground">{t('table.headers.folio')}</p>
+							<p className="truncate text-sm font-medium">{record.caseId}</p>
+						</div>
+					</div>
+				</div>
+
+				<Button
+					type="button"
+					variant="outline"
+					className="min-h-11 w-full"
+					onClick={() => setEditingRecord(record)}
+				>
+					{t('table.actions.view')}
+				</Button>
+			</div>
+		),
+		[t],
+	);
+
+	return (
+		<div className="min-w-0 space-y-6">
+			<Card>
+				<CardHeader className="space-y-4">
+					<ResponsivePageHeader
+						title={t('title')}
+						description={t('subtitle')}
+						actions={
+							<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+								<DialogTrigger asChild>
+									<Button className="min-h-11">{t('actions.create')}</Button>
+								</DialogTrigger>
+								<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-2xl">
 							<DialogHeader>
 								<DialogTitle>{t('form.title')}</DialogTitle>
 								<DialogDescription>{t('form.description')}</DialogDescription>
@@ -801,7 +850,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 										createForm.handleSubmit();
 									}}
 								>
-									<div className="grid gap-4 md:grid-cols-2">
+									<div className="grid gap-4 min-[640px]:grid-cols-2">
 										<createForm.AppField
 											name="employeeId"
 											validators={{
@@ -819,6 +868,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 														label: `${emp.firstName} ${emp.lastName}`,
 														value: emp.id,
 													}))}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -835,6 +885,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 												<field.TextField
 													label={t('form.fields.caseId')}
 													placeholder={t('form.placeholders.caseId')}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -852,6 +903,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 															value: 'LIC140BIS',
 														},
 													]}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -897,6 +949,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 												<field.TextField
 													label={t('form.fields.daysAuthorized')}
 													type="number"
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -905,6 +958,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 												<field.TextField
 													label={t('form.fields.certificateFolio')}
 													placeholder={t('form.placeholders.certificateFolio')}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -919,6 +973,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 															value: 'recognized_by_IMSS',
 														},
 													]}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -940,6 +995,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 															value: 'recaida',
 														},
 													]}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
@@ -963,14 +1019,16 @@ export function IncapacitiesPageClient(): React.ReactElement {
 												<field.TextField
 													label={t('form.fields.percentOverride')}
 													placeholder={t('form.placeholders.percentOverride')}
+													orientation="vertical"
 												/>
 											)}
 										</createForm.AppField>
 									</div>
-									<DialogFooter className="mt-4 flex flex-col items-end gap-2">
+									<DialogFooter className="mt-4 flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 										<createForm.SubmitButton
 											label={t('form.actions.submit')}
 											loadingLabel={t('form.actions.submitting')}
+											className="min-h-11 w-full min-[640px]:w-auto"
 										/>
 										<createForm.Subscribe selector={(state) => [state.canSubmit]}>
 											{([canSubmit]) =>
@@ -984,18 +1042,20 @@ export function IncapacitiesPageClient(): React.ReactElement {
 									</DialogFooter>
 								</form>
 							</createForm.AppForm>
-						</DialogContent>
-					</Dialog>
+								</DialogContent>
+							</Dialog>
+						}
+					/>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="flex flex-wrap items-center gap-3">
-						<div className="relative w-full max-w-xs">
+					<div className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center">
+						<div className="relative w-full min-[1025px]:max-w-xs">
 							<Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
 							<Input
 								placeholder={t('filters.search')}
 								value={globalFilter}
 								onChange={(event) => handleGlobalFilterChange(event.target.value)}
-								className="pl-9"
+								className="min-h-11 pl-9"
 							/>
 						</div>
 						<Select
@@ -1005,7 +1065,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 								resetPagination();
 							}}
 						>
-							<SelectTrigger className="w-[220px]">
+							<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[220px]">
 								<SelectValue placeholder={t('filters.employee')} />
 							</SelectTrigger>
 							<SelectContent>
@@ -1026,7 +1086,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 								resetPagination();
 							}}
 						>
-							<SelectTrigger className="w-[180px]">
+							<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[180px]">
 								<SelectValue placeholder={t('filters.type')} />
 							</SelectTrigger>
 							<SelectContent>
@@ -1046,7 +1106,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 								resetPagination();
 							}}
 						>
-							<SelectTrigger className="w-[180px]">
+							<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[180px]">
 								<SelectValue placeholder={t('filters.status')} />
 							</SelectTrigger>
 							<SelectContent>
@@ -1057,7 +1117,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 								<SelectItem value="CANCELLED">{t('status.CANCELLED')}</SelectItem>
 							</SelectContent>
 						</Select>
-						<div className="flex items-center gap-2">
+						<div className="grid gap-3 min-[640px]:grid-cols-2">
 							<div className="relative">
 								<CalendarIcon className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
 								<Input
@@ -1067,7 +1127,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 										setFromDate(event.target.value);
 										resetPagination();
 									}}
-									className="pl-9"
+									className="min-h-11 pl-9"
 									aria-label={t('filters.from')}
 								/>
 							</div>
@@ -1080,19 +1140,21 @@ export function IncapacitiesPageClient(): React.ReactElement {
 										setToDate(event.target.value);
 										resetPagination();
 									}}
-									className="pl-9"
+									className="min-h-11 pl-9"
 									aria-label={t('filters.to')}
 								/>
 							</div>
 						</div>
-						<Button variant="outline" size="sm" onClick={() => refetch()}>
+						<Button variant="outline" className="min-h-11" onClick={() => refetch()}>
 							<RefreshCw className="mr-2 h-4 w-4" />
 							{t('actions.refresh')}
 						</Button>
 					</div>
-					<DataTable
+					<ResponsiveDataView
 						columns={columns}
 						data={records}
+						cardRenderer={renderIncapacityCard}
+						getCardKey={(record) => record.id}
 						sorting={sorting}
 						onSortingChange={setSorting}
 						pagination={pagination}
@@ -1115,7 +1177,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 				open={Boolean(editingRecord)}
 				onOpenChange={(open) => !open && setEditingRecord(null)}
 			>
-				<DialogContent className="sm:max-w-3xl">
+				<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-3xl">
 					<DialogHeader>
 						<DialogTitle>{t('detail.title')}</DialogTitle>
 						<DialogDescription>{t('detail.description')}</DialogDescription>

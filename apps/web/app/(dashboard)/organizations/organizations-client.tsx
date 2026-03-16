@@ -15,7 +15,8 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
-import { DataTable } from '@/components/data-table/data-table';
+import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
+import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
 import {
 	fetchAllOrganizations,
 	fetchOrganizations,
@@ -425,27 +426,101 @@ export function OrganizationsPageClient(): React.ReactElement {
 		[canCreateOrganization, handleCreateNew, t],
 	);
 
-	return (
-		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-			<div className="space-y-6">
-				<div className="flex items-center justify-between">
-					<div>
-						<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-						<p className="text-muted-foreground">{t('subtitle')}</p>
-					</div>
-					{canCreateOrganization ? (
-						<DialogTrigger asChild>
-							<Button onClick={handleCreateNew}>
-								<Plus className="mr-2 h-4 w-4" />
-								{t('actions.create')}
-							</Button>
-						</DialogTrigger>
-					) : null}
+	const renderOrganizationCard = useCallback(
+		(organization: Organization): React.ReactNode => (
+			<div className="space-y-4">
+				<div className="space-y-1">
+					<p className="text-base font-semibold">{organization.name}</p>
+					<code className="text-sm text-muted-foreground">{organization.slug}</code>
 				</div>
 
-				<DataTable
+				<div className="space-y-1">
+					<p className="text-sm text-muted-foreground">{t('table.headers.created')}</p>
+					<p className="text-sm font-medium">
+						{format(new Date(organization.createdAt), t('dateFormat'))}
+					</p>
+				</div>
+
+				<div className="grid grid-cols-2 gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						className="min-h-11"
+						onClick={() => handleEdit(organization)}
+					>
+						<Edit className="mr-2 h-4 w-4" />
+						{tCommon('edit')}
+					</Button>
+					<Dialog
+						open={deleteConfirmId === organization.id}
+						onOpenChange={(open) =>
+							setDeleteConfirmId(open ? organization.id : null)
+						}
+					>
+						<DialogTrigger asChild>
+							<Button type="button" variant="destructive" className="min-h-11">
+								<Trash2 className="mr-2 h-4 w-4" />
+								{tCommon('delete')}
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+							<DialogHeader>
+								<DialogTitle>{t('dialogs.delete.title')}</DialogTitle>
+								<DialogDescription>
+									{t('dialogs.delete.description', {
+										name: organization.name,
+									})}
+								</DialogDescription>
+							</DialogHeader>
+							<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
+								<Button
+									variant="outline"
+									onClick={() => setDeleteConfirmId(null)}
+								>
+									{tCommon('cancel')}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={() => handleDelete(organization.id)}
+								>
+									{tCommon('delete')}
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+		),
+		[deleteConfirmId, handleDelete, handleEdit, t, tCommon],
+	);
+
+	return (
+		<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+			<div className="min-w-0 space-y-6">
+				<ResponsivePageHeader
+					title={t('title')}
+					description={t('subtitle')}
+					actions={
+						canCreateOrganization ? (
+							<DialogTrigger asChild>
+								<Button
+									onClick={handleCreateNew}
+									data-testid="organizations-create-button"
+									className="min-h-11"
+								>
+									<Plus className="mr-2 h-4 w-4" />
+									{t('actions.create')}
+								</Button>
+							</DialogTrigger>
+						) : undefined
+					}
+				/>
+
+				<ResponsiveDataView
 					columns={columns}
 					data={organizations}
+					cardRenderer={renderOrganizationCard}
+					getCardKey={(organization) => organization.id}
 					sorting={sorting}
 					onSortingChange={handleSortingChange}
 					pagination={pagination}
@@ -463,7 +538,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 				/>
 			</div>
 
-			<DialogContent className="sm:max-w-[425px]">
+			<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-[425px]">
 				<form
 					onSubmit={(e) => {
 						e.preventDefault();
@@ -497,6 +572,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 										min: NAME_LIMITS.min,
 										max: NAME_LIMITS.max,
 									})}
+									orientation="vertical"
 									onValueChange={(val) => {
 										if (!editingOrganization) {
 											form.setFieldValue('slug', generateSlug(val));
@@ -519,18 +595,20 @@ export function OrganizationsPageClient(): React.ReactElement {
 										min: SLUG_LIMITS.min,
 										max: SLUG_LIMITS.max,
 									})}
+									orientation="vertical"
 									onValueChange={(val) => generateSlug(val)}
 								/>
 							)}
 						</form.AppField>
 					</div>
-					<DialogFooter>
+					<DialogFooter className="flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 						<form.AppForm>
 							<form.SubmitButton
 								label={editingOrganization ? tCommon('save') : t('actions.create')}
 								loadingLabel={
 									editingOrganization ? tCommon('saving') : t('actions.creating')
 								}
+								className="min-h-11 w-full min-[640px]:w-auto"
 							/>
 						</form.AppForm>
 					</DialogFooter>

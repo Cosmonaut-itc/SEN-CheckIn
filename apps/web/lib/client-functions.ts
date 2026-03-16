@@ -547,13 +547,47 @@ type EmployeePayload = Omit<
 	| 'sbcDailyOverride'
 	| 'platformHoursYear'
 	| 'aguinaldoDaysOverride'
+	| 'hireDate'
+	| 'lastPayrollDate'
+	| 'createdAt'
+	| 'updatedAt'
 > & {
 	dailyPay?: number | string;
 	fiscalDailyPay?: number | string | null;
 	sbcDailyOverride?: number | string | null;
 	platformHoursYear?: number | string | null;
 	aguinaldoDaysOverride?: number | string | null;
+	hireDate?: string | Date | null;
+	lastPayrollDate?: string | Date | null;
+	createdAt: string | Date;
+	updatedAt: string | Date;
 };
+
+/**
+ * Normalizes a required timestamp value into a Date instance.
+ *
+ * @param value - Raw timestamp payload
+ * @returns Normalized Date instance
+ */
+function normalizeRequiredDate(value: string | Date): Date {
+	return value instanceof Date ? value : new Date(value);
+}
+
+/**
+ * Normalizes an optional timestamp value into a Date instance.
+ *
+ * @param value - Raw optional timestamp payload
+ * @returns Normalized Date, null, or undefined
+ */
+function normalizeOptionalDate(
+	value: string | Date | null | undefined,
+): Date | null | undefined {
+	if (value === null || value === undefined) {
+		return value;
+	}
+
+	return normalizeRequiredDate(value);
+}
 
 /**
  * Normalizes employee payloads with numeric strings into typed values.
@@ -571,6 +605,7 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 				: record.fiscalDailyPay === null
 					? null
 					: Number(record.fiscalDailyPay),
+		hireDate: normalizeOptionalDate(record.hireDate) ?? null,
 		employmentType: record.employmentType ?? 'PERMANENT',
 		isTrustEmployee: Boolean(record.isTrustEmployee ?? false),
 		isDirectorAdminGeneralManager: Boolean(record.isDirectorAdminGeneralManager ?? false),
@@ -603,6 +638,9 @@ function normalizeEmployeeRecord(record: EmployeePayload): Employee {
 			record.disciplinaryOpenMeasuresCount === undefined
 				? undefined
 				: Number(record.disciplinaryOpenMeasuresCount),
+		lastPayrollDate: normalizeOptionalDate(record.lastPayrollDate),
+		createdAt: normalizeRequiredDate(record.createdAt),
+		updatedAt: normalizeRequiredDate(record.updatedAt),
 	};
 }
 

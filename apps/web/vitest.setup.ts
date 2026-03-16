@@ -10,8 +10,14 @@ import { afterEach, vi } from 'vitest';
  * @returns Mocked MediaQueryList object
  */
 function createMatchMedia(query: string): MediaQueryList {
+	const maxWidthMatch = query.match(/max-width:\s*(\d+)px/);
+	const minWidthMatch = query.match(/min-width:\s*(\d+)px/);
+	const matches =
+		(maxWidthMatch ? window.innerWidth <= Number(maxWidthMatch[1]) : true) &&
+		(minWidthMatch ? window.innerWidth >= Number(minWidthMatch[1]) : true);
+
 	return {
-		matches: false,
+		matches,
 		media: query,
 		onchange: null,
 		addEventListener: vi.fn(),
@@ -22,9 +28,13 @@ function createMatchMedia(query: string): MediaQueryList {
 	} as MediaQueryList;
 }
 
-if (!window.matchMedia) {
-	window.matchMedia = vi.fn().mockImplementation(createMatchMedia);
-}
+Object.defineProperty(window, 'innerWidth', {
+	configurable: true,
+	writable: true,
+	value: 1280,
+});
+
+window.matchMedia = vi.fn().mockImplementation(createMatchMedia);
 
 afterEach(cleanup);
 

@@ -117,8 +117,8 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
 /**
  * Applies an alpha channel to a resolved theme color without introducing new hardcoded RGBA literals.
  *
- * Supports 3-digit and 6-digit hex colors, and converts CSS color function strings to 8-digit
- * hex. Unsupported formats are returned unchanged.
+ * Supports 3-digit and 6-digit hex colors, and converts `rgb(...)` or `rgba(...)` strings to
+ * 8-digit hex. Unsupported formats are returned unchanged.
  *
  * @param color - Resolved theme color string
  * @param alpha - Opacity value from 0 to 1

@@ -14,6 +14,10 @@ describe('Splash assets', () => {
 
 		const stats = await sharp(splashPath).stats();
 		const alphaChannel = stats.channels[3];
+		expect(alphaChannel).toBeDefined();
+		if (!alphaChannel) {
+			throw new Error('No se encontro canal alpha en splash-icon.png');
+		}
 		expect(alphaChannel.min).toBeLessThan(255);
 		expect(alphaChannel.max).toBe(255);
 	});

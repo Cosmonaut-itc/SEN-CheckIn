@@ -7,4 +7,9 @@ describe('Login color migration', () => {
 	it('does not contain the previous hardcoded QR card shadow', () => {
 		expect(content).not.toContain('rgba(15, 23, 42, 0.16)');
 	});
+
+	it('uses an inverse foreground token for QR modules in dark mode', () => {
+		expect(content).toContain("'foreground-inverse'");
+		expect(content).not.toContain("'background-inverse'");
+	});
 });

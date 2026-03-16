@@ -187,12 +187,12 @@ export default function LoginScreen(): JSX.Element {
 	const { session, isLoading, setSession, authState } = useAuthContext();
 	const { updateLocalSettings } = useDeviceContext();
 	const { isDarkMode } = useTheme();
-	const [accentColor, foregroundColor, inverseBackgroundColor] = useThemeColor([
+	const [accentColor, foregroundColor, foregroundInverseColor] = useThemeColor([
 		'accent',
 		'foreground',
-		'background-inverse',
+		'foreground-inverse',
 	]);
-	const qrForeground = isDarkMode ? inverseBackgroundColor : foregroundColor;
+	const qrForeground = isDarkMode ? foregroundInverseColor : foregroundColor;
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
 	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
 

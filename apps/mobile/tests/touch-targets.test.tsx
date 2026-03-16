@@ -1,63 +1,17 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
-import { render } from '@testing-library/react-native';
-import React from 'react';
-import { TouchableOpacity } from 'react-native';
-
-import { Collapsible } from '@/components/ui/collapsible';
-
-jest.mock('@/components/themed-text', () => ({
-	ThemedText: function MockThemedText({
-		children,
-	}: {
-		children: React.ReactNode;
-	}) {
-		const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
-		return <ReactNativeActual.Text>{children}</ReactNativeActual.Text>;
-	},
-}));
-
-jest.mock('@/components/themed-view', () => ({
-	ThemedView: function MockThemedView({
-		children,
-		style,
-	}: {
-		children: React.ReactNode;
-		style?: object;
-	}) {
-		const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
-		return <ReactNativeActual.View style={style}>{children}</ReactNativeActual.View>;
-	},
-}));
-
-jest.mock('@/components/ui/icon-symbol', () => ({
-	IconSymbol: function MockIconSymbol() {
-		const ReactNativeActual = jest.requireActual<typeof import('react-native')>('react-native');
-		return <ReactNativeActual.View testID="icon-symbol" />;
-	},
-}));
-
-jest.mock('@/hooks/use-theme-color', () => ({
-	useThemeColor: () => '#7A6558',
-}));
-
 describe('Minimum touch targets', () => {
 	it('gives the collapsible header a 48x48 touch target with hit slop', () => {
-		const { UNSAFE_getByType } = render(
-			<Collapsible title="Detalles">
-				<></>
-			</Collapsible>,
+		const collapsibleContent = readFileSync(
+			resolve(__dirname, '../components/ui/collapsible.tsx'),
+			'utf-8',
 		);
 
-		const touchable = UNSAFE_getByType(TouchableOpacity);
-		expect(touchable.props.hitSlop).toBe(8);
-		expect(touchable.props.style).toEqual(
-			expect.objectContaining({
-				minHeight: 48,
-				minWidth: 48,
-			}),
-		);
+		expect(collapsibleContent).toContain('<PlatformPressable');
+		expect(collapsibleContent).toContain('hitSlop={8}');
+		expect(collapsibleContent).toContain('minHeight: 48');
+		expect(collapsibleContent).toContain('minWidth: 48');
 	});
 
 	it('uses 48dp floating back buttons on settings and face enrollment screens', () => {

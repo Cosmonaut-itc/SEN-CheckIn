@@ -17,12 +17,12 @@ import {
 	Modal,
 	ScrollView,
 	Text,
-	TouchableOpacity,
 	TouchableWithoutFeedback,
 	View,
 	type ViewStyle,
 } from 'react-native';
 
+import { PlatformPressable } from '@/components/ui/platform-pressable';
 import { i18n } from '@/lib/i18n';
 
 const formContexts = createFormHookContexts();
@@ -262,8 +262,7 @@ export function NativeSelectField<TValue extends string>({
 	return (
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
-			<TouchableOpacity
-				activeOpacity={0.82}
+			<PlatformPressable
 				className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1"
 				disabled={disabled}
 				onPress={handleOpenPicker}
@@ -275,7 +274,7 @@ export function NativeSelectField<TValue extends string>({
 				>
 					{displayLabel}
 				</Text>
-			</TouchableOpacity>
+			</PlatformPressable>
 			{description ? (
 				<Text className="text-sm text-foreground-400 leading-5">{description}</Text>
 			) : null}
@@ -310,9 +309,9 @@ export function NativeSelectField<TValue extends string>({
 								options.map((opt) => {
 									const isSelected = opt.value === field.state.value;
 									return (
-										<TouchableOpacity
+										<PlatformPressable
 											key={opt.value}
-											activeOpacity={0.85}
+											pressedOpacity={0.85}
 											className="py-3 px-2 rounded-lg flex-row items-center justify-between"
 											onPress={() => handleSelectValue(opt.value)}
 											style={CONTINUOUS_CURVE}
@@ -325,13 +324,13 @@ export function NativeSelectField<TValue extends string>({
 													●
 												</Text>
 											) : null}
-										</TouchableOpacity>
+										</PlatformPressable>
 									);
 								})
 							)}
 						</ScrollView>
-						<TouchableOpacity
-							activeOpacity={0.85}
+						<PlatformPressable
+							pressedOpacity={0.85}
 							className="py-3 rounded-xl border border-default-200 items-center"
 							onPress={() => setIsModalVisible(false)}
 							style={CONTINUOUS_CURVE}
@@ -339,7 +338,7 @@ export function NativeSelectField<TValue extends string>({
 							<Text className="text-foreground font-semibold">
 								{i18n.t('Common.cancel')}
 							</Text>
-						</TouchableOpacity>
+						</PlatformPressable>
 					</View>
 				</View>
 			</Modal>

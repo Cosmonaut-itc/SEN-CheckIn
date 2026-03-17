@@ -179,7 +179,7 @@ describe('DeviceSetupScreen fallback state', () => {
 		});
 	});
 
-	it('still loads locations when organization context is missing', () => {
+	it('keeps the locations query disabled when organization context is missing', () => {
 		mockUseDeviceContext.mockReturnValue({
 			settings: {
 				deviceId: 'device-1',
@@ -196,11 +196,32 @@ describe('DeviceSetupScreen fallback state', () => {
 			| { enabled?: boolean; queryFn?: () => Promise<unknown> }
 			| undefined;
 
+		expect(queryOptions?.enabled).toBe(false);
+		expect(mockFetchLocationsList).not.toHaveBeenCalled();
+	});
+
+	it('loads locations when both device and organization context are available', () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			updateLocalSettings: jest.fn(),
+		});
+
+		render(<DeviceSetupScreen />);
+
+		const queryOptions = mockUseQuery.mock.calls[0]?.[0] as
+			| { enabled?: boolean; queryFn?: () => Promise<unknown> }
+			| undefined;
+
 		expect(queryOptions?.enabled).toBe(true);
 		void queryOptions?.queryFn?.();
 		expect(mockFetchLocationsList).toHaveBeenCalledWith({
 			limit: 100,
-			organizationId: undefined,
+			organizationId: 'org-1',
 		});
 	});
 });

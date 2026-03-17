@@ -1,11 +1,14 @@
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { CheckOutReason } from '@sen-checkin/types';
+import { converter, formatRgb, parse } from 'culori';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import NetInfo from '@react-native-community/netinfo';
 import {
+	AccessibilityInfo,
 	Animated,
 	ScrollView,
 	Text,
@@ -14,12 +17,15 @@ import {
 	type TextStyle,
 	type ViewStyle,
 } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { EmptyState } from '@/components/ui/empty-state';
 import { CheckOutReasonSheet } from '@/components/attendance/check-out-reason-sheet';
-import { Colors, type ThemeColors } from '@/constants/theme';
+import { useThemeColor } from '@/hooks/use-theme-color';
+import { getAnimationDuration } from '@/lib/accessibility-motion';
 import {
 	releaseAttendanceCaptureLock,
 	tryAcquireAttendanceCaptureLock,
@@ -28,6 +34,7 @@ import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
+import { clearPendingAttendanceQueue, isOfflineNetInfoState } from '@/lib/offline-attendance';
 import type { AttendanceType } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
@@ -39,9 +46,27 @@ type ScanStatus =
 	| { state: 'success'; message: string; employeeName?: string }
 	| { state: 'error'; message: string };
 
+type ScannerThemeColors = {
+	background: string;
+	border: string;
+	content1: string;
+	error: string;
+	foreground: string;
+	foreground400: string;
+	foreground500: string;
+	overlay: string;
+	overlayMuted: string;
+	primary: string;
+	success: string;
+	text: string;
+	warning: string;
+};
+
 /** Maximum size for face guide circle on larger devices (tablets) */
 const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
+const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
+const convertResolvedThemeColorToRgb = converter('rgb');
 
 /**
  * Cross-platform link icon for the device-link CTA.
@@ -99,6 +124,73 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
 };
 
 /**
+ * Applies an alpha channel to a resolved theme color without introducing new hardcoded color literals.
+ *
+ * Supports 3-digit and 6-digit hex colors, and converts functional color strings to 8-digit hex.
+ * Unsupported formats are returned unchanged.
+ *
+ * @param color - Resolved theme color string
+ * @param alpha - Opacity value from 0 to 1
+ * @returns Color string with the requested alpha channel when parsing succeeds
+ */
+export function withAlpha(color: string, alpha: number): string {
+	const normalizedColor = color.trim();
+	const normalizedAlpha = Math.max(0, Math.min(1, alpha));
+	const alphaHex = Math.round(normalizedAlpha * 255)
+		.toString(16)
+		.padStart(2, '0')
+		.toUpperCase();
+	const optionalAlphaSegment = '(?:a)?';
+	const functionalColorPattern = new RegExp(
+		`^rgb${optionalAlphaSegment}\\(\\s*(?<red>\\d{1,3})\\s*,\\s*(?<green>\\d{1,3})\\s*,\\s*(?<blue>\\d{1,3})(?:\\s*,\\s*[\\d.]+)?\\s*\\)$`,
+	);
+	const fullHexMatch = normalizedColor.match(
+		/^#(?<red>[0-9a-fA-F]{2})(?<green>[0-9a-fA-F]{2})(?<blue>[0-9a-fA-F]{2})(?:[0-9a-fA-F]{2})?$/,
+	);
+
+	if (
+		fullHexMatch?.groups?.red &&
+		fullHexMatch.groups.green &&
+		fullHexMatch.groups.blue
+	) {
+		return `#${fullHexMatch.groups.red}${fullHexMatch.groups.green}${fullHexMatch.groups.blue}${alphaHex}`;
+	}
+
+	const shortHexMatch = normalizedColor.match(
+		/^#(?<red>[0-9a-fA-F])(?<green>[0-9a-fA-F])(?<blue>[0-9a-fA-F])(?:[0-9a-fA-F])?$/,
+	);
+
+	if (
+		shortHexMatch?.groups?.red &&
+		shortHexMatch.groups.green &&
+		shortHexMatch.groups.blue
+	) {
+		return `#${shortHexMatch.groups.red.repeat(2)}${shortHexMatch.groups.green.repeat(2)}${shortHexMatch.groups.blue.repeat(2)}${alphaHex}`;
+	}
+
+	const rgbMatch = normalizedColor.match(functionalColorPattern);
+
+	if (rgbMatch?.groups?.red && rgbMatch.groups.green && rgbMatch.groups.blue) {
+		const redHex = Number(rgbMatch.groups.red).toString(16).padStart(2, '0').toUpperCase();
+		const greenHex = Number(rgbMatch.groups.green)
+			.toString(16)
+			.padStart(2, '0')
+			.toUpperCase();
+		const blueHex = Number(rgbMatch.groups.blue).toString(16).padStart(2, '0').toUpperCase();
+		return `#${redHex}${greenHex}${blueHex}${alphaHex}`;
+	}
+
+	const parsedColor = parse(normalizedColor);
+	const rgbColor = parsedColor ? convertResolvedThemeColorToRgb(parsedColor) : null;
+
+	if (rgbColor) {
+		return formatRgb({ ...rgbColor, alpha: normalizedAlpha });
+	}
+
+	return color;
+}
+
+/**
  * Face scanner screen component for attendance verification
  * @returns {JSX.Element} The scanner screen with camera view and controls
  */
@@ -108,19 +200,70 @@ export default function ScannerScreen(): JSX.Element {
 	const router = useRouter();
 	const { clearSettings, settings } = useDeviceContext();
 	const { requestReauth } = useAuthContext();
-	const { colorScheme, isDarkMode } = useTheme();
+	const { isDarkMode } = useTheme();
 	const insets = useSafeAreaInsets();
-	const themeColors = useMemo<ThemeColors>(
-		() => (colorScheme === 'dark' ? Colors.dark : Colors.light),
-		[colorScheme],
+	const [
+		backgroundColor,
+		themeBorderColor,
+		surfaceColor,
+		defaultHoverColor,
+		dangerColor,
+		foregroundColor,
+		mutedColor,
+		overlayColor,
+		primaryColor,
+		successColor,
+		warningColor,
+	] = useThemeColor([
+		'background',
+		'border',
+		'surface',
+		'default-hover',
+		'danger',
+		'foreground',
+		'muted',
+		'overlay',
+		'primary',
+		'success',
+		'warning',
+	]);
+	const themeColors = useMemo<ScannerThemeColors>(
+		() => ({
+			background: backgroundColor,
+			border: themeBorderColor,
+			content1: surfaceColor,
+			error: dangerColor,
+			foreground: foregroundColor,
+			foreground400: mutedColor,
+			foreground500: mutedColor,
+			overlay: overlayColor,
+			overlayMuted: defaultHoverColor,
+			primary: primaryColor,
+			success: successColor,
+			text: foregroundColor,
+			warning: warningColor,
+		}),
+		[
+			backgroundColor,
+			themeBorderColor,
+			dangerColor,
+			defaultHoverColor,
+			foregroundColor,
+			mutedColor,
+			overlayColor,
+			primaryColor,
+			successColor,
+			surfaceColor,
+			warningColor,
+		],
 	);
 	const styles = useMemo(
 		() => createScannerStyles(themeColors, isDarkMode, insets.top, insets.bottom),
 		[insets.bottom, insets.top, isDarkMode, themeColors],
 	);
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
-	const isIOS = process.env.EXPO_OS === 'ios';
 	const isAndroid = process.env.EXPO_OS === 'android';
+	const shouldReduceMotion = useReducedMotion();
 
 	// Use state for camera facing to ensure proper initialization
 	// This fixes a race condition where the camera may initialize with the wrong facing direction
@@ -138,10 +281,12 @@ export default function ScannerScreen(): JSX.Element {
 	const pulseAnim = useRef(new Animated.Value(1)).current;
 	const statusOpacity = useRef(new Animated.Value(1)).current;
 	const borderColorAnim = useRef(new Animated.Value(0)).current;
+	const scanStatusResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const [attendanceType, setAttendanceType] = useState<AttendanceType>('CHECK_IN');
 	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
+	const [isOffline, setIsOffline] = useState(false);
 	const captureLockRef = useRef(false);
 	const [scanStatus, setScanStatus] = useState<ScanStatus>({
 		state: 'idle',
@@ -171,12 +316,45 @@ export default function ScannerScreen(): JSX.Element {
 			: attendanceType === 'CHECK_OUT_AUTHORIZED'
 				? themeColors.warning
 				: themeColors.error;
-	const neutralGuideColor = 'rgba(255, 255, 255, 0.8)';
+	const neutralGuideColor = withAlpha(themeColors.foreground, 0.8);
 	const ctaBackground = attendanceAccent;
-	const ctaContentColor = '#ffffff';
-	const linkButtonBackground = isDarkMode ? 'rgba(251, 191, 36, 0.18)' : 'rgba(245, 158, 11, 0.12)';
-	const linkButtonBorder = isDarkMode ? 'rgba(251, 191, 36, 0.42)' : 'rgba(180, 83, 9, 0.22)';
-	const linkButtonContentColor = isDarkMode ? '#FCD34D' : '#92400E';
+	const ctaContentColor = 'white';
+	const linkButtonContentColor = isDarkMode ? themeColors.warning : themeColors.primary;
+	const needsDeviceSetup = Boolean(settings?.deviceId) && !settings?.locationId;
+
+	/**
+	 * Clear any pending scan-status reset timeout.
+	 *
+	 * @returns {void} No return value
+	 */
+	const clearPendingScanStatusReset = useCallback((): void => {
+		if (!scanStatusResetTimeoutRef.current) {
+			return;
+		}
+
+		clearTimeout(scanStatusResetTimeoutRef.current);
+		scanStatusResetTimeoutRef.current = null;
+	}, []);
+
+	/**
+	 * Schedule a reset back to the idle scanner state.
+	 *
+	 * @param delayMs - Delay before clearing the current status
+	 * @returns {void} No return value
+	 */
+	const scheduleScanStatusReset = useCallback(
+		(delayMs: number): void => {
+			clearPendingScanStatusReset();
+			scanStatusResetTimeoutRef.current = setTimeout(() => {
+				setScanStatus({
+					state: 'idle',
+					message: i18n.t('Scanner.status.idle'),
+				});
+				scanStatusResetTimeoutRef.current = null;
+			}, delayMs);
+		},
+		[clearPendingScanStatusReset],
+	);
 
 	/**
 	 * Reset the current auth state and return to device authorization.
@@ -195,12 +373,21 @@ export default function ScannerScreen(): JSX.Element {
 			console.warn('[scanner] Failed to sign out before relinking device', error);
 		} finally {
 			if (shouldLockAuth) {
-				await requestReauth({ forceLock: true, reason: 'manual' });
+				try {
+					await requestReauth({ forceLock: true, reason: 'manual' });
+				} catch (error) {
+					console.warn('[scanner] Reauth lock failed during device relinking', error);
+				}
 			}
 			try {
 				await clearAuthStorage();
 			} catch (error) {
 				console.warn('[scanner] Auth cleanup error during device relinking', error);
+			}
+			try {
+				await clearPendingAttendanceQueue();
+			} catch (error) {
+				console.warn('[scanner] Offline queue cleanup error during device relinking', error);
 			}
 			try {
 				await clearSettings();
@@ -222,31 +409,34 @@ export default function ScannerScreen(): JSX.Element {
 				currentIndex >= 0 ? (currentIndex + 1) % ATTENDANCE_TYPE_ORDER.length : 0;
 			return ATTENDANCE_TYPE_ORDER[nextIndex] ?? 'CHECK_IN';
 		});
-		if (isIOS) {
-			Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-		}
-	}, [isIOS]);
+		void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+	}, []);
 
 	/**
 	 * Starts a pulsing animation for the face guide during scanning
 	 * @returns {void} Initiates the continuous pulse animation loop
 	 */
 	const startPulseAnimation = useCallback(() => {
+		if (shouldReduceMotion) {
+			pulseAnim.setValue(1);
+			return;
+		}
+
 		Animated.loop(
 			Animated.sequence([
 				Animated.timing(pulseAnim, {
 					toValue: 1.05,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					useNativeDriver: true,
 				}),
 				Animated.timing(pulseAnim, {
 					toValue: 1,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					useNativeDriver: true,
 				}),
 			]),
 		).start();
-	}, [pulseAnim]);
+	}, [pulseAnim, shouldReduceMotion]);
 
 	/**
 	 * Stops all animations and resets to default state
@@ -266,11 +456,11 @@ export default function ScannerScreen(): JSX.Element {
 		(toValue: number) => {
 			Animated.timing(borderColorAnim, {
 				toValue,
-				duration: 300,
+				duration: getAnimationDuration(300, shouldReduceMotion),
 				useNativeDriver: false,
 			}).start();
 		},
-		[borderColorAnim],
+		[borderColorAnim, shouldReduceMotion],
 	);
 
 	// Request camera permissions on mount if not granted
@@ -280,6 +470,27 @@ export default function ScannerScreen(): JSX.Element {
 			requestPermission();
 		}
 	}, [permission, requestPermission]);
+
+	useEffect(() => {
+		let isMounted = true;
+
+		void NetInfo.fetch().then((state) => {
+			if (!isMounted) {
+				return;
+			}
+
+			setIsOffline(isOfflineNetInfoState(state));
+		});
+
+		const unsubscribe = NetInfo.addEventListener((state) => {
+			setIsOffline(isOfflineNetInfoState(state));
+		});
+
+		return () => {
+			isMounted = false;
+			unsubscribe();
+		};
+	}, []);
 
 	// Reset camera state when screen comes into focus
 	// This ensures the camera initializes with the correct facing direction
@@ -318,6 +529,29 @@ export default function ScannerScreen(): JSX.Element {
 		}
 	}, [scanStatus.state, startPulseAnimation, stopAnimations, animateBorderColor]);
 
+	useEffect(() => {
+		const employeeName =
+			scanStatus.state === 'success' && 'employeeName' in scanStatus
+				? scanStatus.employeeName
+				: undefined;
+		const announcement =
+			scanStatus.state === 'success' && employeeName
+				? `${employeeName}. ${scanStatus.message}`
+				: scanStatus.message;
+
+		void AccessibilityInfo.announceForAccessibility(announcement);
+	}, [scanStatus, scanStatus.message, scanStatus.state]);
+
+	useEffect(() => {
+		return () => {
+			clearPendingScanStatusReset();
+		};
+	}, [clearPendingScanStatusReset]);
+
+	if (needsDeviceSetup) {
+		return <Redirect href={DEVICE_SETUP_ROUTE} />;
+	}
+
 	/**
 	 * Captures a photo and verifies the face against the recognition API
 	 * Records attendance on successful verification
@@ -330,9 +564,7 @@ export default function ScannerScreen(): JSX.Element {
 
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
-			if (isIOS) {
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-			}
+			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 			releaseAttendanceCaptureLock(captureLockRef);
 			return;
 		}
@@ -349,9 +581,7 @@ export default function ScannerScreen(): JSX.Element {
 
 			if (!photo?.base64) {
 				setScanStatus({ state: 'error', message: i18n.t('Scanner.status.captureFailed') });
-				if (isIOS) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-				}
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 				return;
 			}
 
@@ -370,7 +600,7 @@ export default function ScannerScreen(): JSX.Element {
 								searchedFaceConfidence: match.searchedFaceConfidence,
 							};
 
-				await recordAttendance(
+				const attendanceResult = await recordAttendance(
 					match.employee.id,
 					settings.deviceId,
 					attendanceType,
@@ -384,38 +614,27 @@ export default function ScannerScreen(): JSX.Element {
 
 				setScanStatus({
 					state: 'success',
-					message: attendanceSuccessMessages[attendanceType],
+					message:
+						attendanceResult.delivery === 'queued'
+							? i18n.t('Scanner.success.queuedOffline')
+							: attendanceSuccessMessages[attendanceType],
 					employeeName: displayName || i18n.t('Scanner.success.employeeFallback'),
 				});
 
 				// Success haptic feedback
-				if (isIOS) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-				}
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
 				// Reset status after 3 seconds
-				setTimeout(() => {
-					setScanStatus({
-						state: 'idle',
-						message: i18n.t('Scanner.status.idle'),
-					});
-				}, 3000);
+				scheduleScanStatusReset(3000);
 			} else {
 				setScanStatus({
 					state: 'error',
 					message: i18n.t('Scanner.status.faceNotRecognized'),
 				});
-				if (isIOS) {
-					Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-				}
+				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
 				// Reset status after 2 seconds
-				setTimeout(() => {
-					setScanStatus({
-						state: 'idle',
-						message: i18n.t('Scanner.status.idle'),
-					});
-				}, 2000);
+				scheduleScanStatusReset(2000);
 			}
 		} catch (error) {
 			console.error('Face verification failed:', error);
@@ -423,9 +642,7 @@ export default function ScannerScreen(): JSX.Element {
 				state: 'error',
 				message: i18n.t('Scanner.status.verificationFailed'),
 			});
-			if (isIOS) {
-				Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-			}
+			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 		} finally {
 			releaseAttendanceCaptureLock(captureLockRef);
 			setIsProcessing(false);
@@ -552,6 +769,7 @@ export default function ScannerScreen(): JSX.Element {
 						size="md"
 						className="flex-1 flex-row items-center gap-2 justify-center rounded-full"
 						onPress={toggleAttendanceType}
+						accessibilityLabel={i18n.t('Scanner.accessibility.toggleAttendanceType')}
 					>
 						<View style={styles.toggleIndicator}>
 							<View
@@ -587,6 +805,7 @@ export default function ScannerScreen(): JSX.Element {
 						size="md"
 						className="w-12 h-12 rounded-full"
 						onPress={() => router.push('/(main)/settings')}
+						accessibilityLabel={i18n.t('Scanner.accessibility.openSettings')}
 					>
 						<IconSymbol name="gearshape" size={20} color={themeColors.foreground} />
 					</Button>
@@ -625,6 +844,9 @@ export default function ScannerScreen(): JSX.Element {
 
 					{/* Instruction text below face guide */}
 					<Animated.View
+						accessible
+						accessibilityLiveRegion="polite"
+						accessibilityRole="alert"
 						style={[styles.instructionContainer, { opacity: statusOpacity }]}
 					>
 						{scanStatus.state === 'success' && scanStatus.employeeName ? (
@@ -653,6 +875,35 @@ export default function ScannerScreen(): JSX.Element {
 						style={continuousCurve}
 					>
 						<Card.Body className="p-4 gap-4">
+							{isOffline ? (
+								<View className="rounded-2xl border border-warning-500/30 bg-warning-500/10 px-4 py-3 flex-row items-start gap-3">
+									<IconSymbol
+										name="wifi.slash"
+										size={18}
+										color={themeColors.warning}
+									/>
+									<View className="flex-1 gap-1">
+										<Text className="text-sm font-semibold text-foreground">
+											{i18n.t('Scanner.offline.title')}
+										</Text>
+										<Text className="text-xs text-foreground-500 leading-5">
+											{i18n.t('Scanner.offline.description')}
+										</Text>
+									</View>
+								</View>
+							) : null}
+							{!settings?.deviceId ? (
+								<EmptyState
+									title={i18n.t('Scanner.emptyState.title')}
+									description={i18n.t('Scanner.emptyState.description')}
+									actionLabel={i18n.t('Scanner.emptyState.action')}
+									onAction={() => {
+										void handleStartDeviceLinking();
+									}}
+									icon={<DeviceLinkIcon size={20} color={linkButtonContentColor} />}
+								/>
+							) : (
+								<>
 							{/* Device status row */}
 							<View className="flex-row items-start justify-between gap-3">
 								<View className="flex-1 gap-1.5">
@@ -701,6 +952,7 @@ export default function ScannerScreen(): JSX.Element {
 								isDisabled={isProcessing || !settings?.deviceId}
 								variant="primary"
 								className="w-full h-14"
+								accessibilityLabel={attendanceActionLabels[attendanceType]}
 								style={{
 									backgroundColor: ctaBackground,
 									borderColor: ctaBackground,
@@ -730,34 +982,7 @@ export default function ScannerScreen(): JSX.Element {
 								)}
 							</Button>
 
-							{/* Link device prompt */}
-							{!settings?.deviceId && (
-								<View className="items-center">
-									<Button
-										variant="secondary"
-										size="md"
-										className="min-h-12 self-center px-5"
-										style={{
-											alignSelf: 'center',
-											backgroundColor: linkButtonBackground,
-											borderColor: linkButtonBorder,
-											borderWidth: 1.5,
-										}}
-										onPress={() => {
-											void handleStartDeviceLinking();
-										}}
-									>
-										<View className="flex-row items-center justify-center gap-2">
-											<DeviceLinkIcon size={18} color={linkButtonContentColor} />
-											<Button.Label
-												className="font-semibold text-center"
-												style={{ color: linkButtonContentColor }}
-											>
-												{i18n.t('Scanner.actions.tapToLink')}
-											</Button.Label>
-										</View>
-									</Button>
-								</View>
+								</>
 							)}
 						</Card.Body>
 					</Card>
@@ -814,7 +1039,7 @@ type ScannerStyles = {
 };
 
 const createScannerStyles = (
-	themeColors: ThemeColors,
+	themeColors: ScannerThemeColors,
 	isDarkMode: boolean,
 	topInset: number,
 	bottomInset: number,
@@ -953,7 +1178,7 @@ const createScannerStyles = (
 		position: 'absolute',
 		width: 30,
 		height: 30,
-		borderColor: '#FFFFFF',
+		borderColor: 'white',
 		borderWidth: 3,
 	},
 	cornerTopLeft: {
@@ -997,9 +1222,9 @@ const createScannerStyles = (
 	},
 	instructionText: {
 		fontSize: 16,
-		color: '#FFFFFF',
+		color: 'white',
 		textAlign: 'center',
-		textShadowColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.65)',
+		textShadowColor: withAlpha(themeColors.background, isDarkMode ? 0.8 : 0.65),
 		textShadowOffset: { width: 0, height: 1 },
 		textShadowRadius: 4,
 	},

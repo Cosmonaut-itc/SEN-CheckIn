@@ -2,12 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import { type Href, useNavigation, useRouter } from 'expo-router';
-import { Button, Card, Spinner, useThemeColor } from 'heroui-native';
+import { Button, Card, Input, Spinner, useThemeColor } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { EmptyState } from '@/components/ui/empty-state';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import {
 	fetchFaceEnrollmentEmployees,
@@ -19,6 +20,7 @@ import {
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 
 const SCANNER_ROUTE = '/(main)/scanner' as Href;
 const SETTINGS_ROUTE = '/(main)/settings' as Href;
@@ -60,6 +62,13 @@ const ENROLLMENT_API_ERROR_TRANSLATION_KEYS: Record<FaceEnrollmentApiErrorCode, 
 	UNKNOWN: 'FaceEnrollment.errors.api.UNKNOWN',
 };
 
+const LOCAL_ENROLLMENT_ERROR_KEYS = [
+	'FaceEnrollment.errors.associationFailed',
+	'FaceEnrollment.errors.captureFailed',
+	'FaceEnrollment.errors.cameraUnavailable',
+	'FaceEnrollment.errors.missingData',
+] as const;
+
 /**
  * Builds a searchable normalized label for employee local filtering.
  *
@@ -81,8 +90,11 @@ function resolveEnrollmentErrorMessage(error: unknown): string {
 		return i18n.t(ENROLLMENT_API_ERROR_TRANSLATION_KEYS[error.code]);
 	}
 
-	if (error instanceof Error && error.message) {
-		return error.message;
+	if (error instanceof Error) {
+		const localMessages = LOCAL_ENROLLMENT_ERROR_KEYS.map((key) => i18n.t(key));
+		if (localMessages.includes(error.message)) {
+			return error.message;
+		}
 	}
 
 	return i18n.t('FaceEnrollment.errors.generic');
@@ -99,7 +111,18 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const insets = useSafeAreaInsets();
 	const queryClient = useQueryClient();
 	const iconColor = useThemeColor('foreground');
+	const mutedForegroundColor = useThemeColor('muted-foreground');
+	const successColor = useThemeColor('success');
+	const warningColor = useThemeColor('warning');
 	const cameraRef = useRef<CameraView | null>(null);
+	const inputBorderRadius = useMemo(
+		() => Platform.select({ ios: 10, android: 12, default: 10 }),
+		[],
+	);
+	const cardBorderRadius = useMemo(
+		() => Platform.select({ ios: 14, android: 16, default: 14 }),
+		[],
+	);
 	const [cameraFacing, setCameraFacing] = useState<CameraType>('front');
 	const [permission, requestPermission] = useCameraPermissions();
 	const [searchTerm, setSearchTerm] = useState<string>('');
@@ -113,6 +136,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const isDeviceLinked = Boolean(settings?.deviceId);
 	const hasLocationConfigured = Boolean(settings?.locationId);
 	const hasDeviceConfig = isDeviceLinked && hasLocationConfigured;
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? Math.max(insets.top, 16) : 0;
 	const employeeQueryParams = useMemo(
 		() => ({
 			limit: EMPLOYEE_FETCH_LIMIT,
@@ -169,6 +193,8 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 
 	const isListTruncated =
 		(employeesQuery.data?.pagination.total ?? 0) > (employeesQuery.data?.data.length ?? 0);
+	const showEmployeesEmptyState =
+		!employeesQuery.isPending && !employeesQuery.isError && filteredEmployees.length === 0;
 
 	const enrollmentMutation = useMutation({
 		mutationKey: queryKeys.faceEnrollment.flow(),
@@ -298,7 +324,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}, [router]);
 
 	const contentBottomPadding = Math.max(28, insets.bottom + 20);
-	const floatingBackButtonSize = 44;
+	const floatingBackButtonSize = 48;
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
@@ -315,17 +341,23 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	}
 
 	return (
-		<View className="flex-1 bg-background">
-			<ScrollView
-				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="never"
-				contentContainerClassName="px-4 gap-4"
-				contentContainerStyle={{
-					paddingTop: contentTopPadding,
-					paddingBottom: contentBottomPadding,
-				}}
-			>
-				<Text className="text-foreground-500 text-sm" selectable>
+		<KeyboardAvoidingView
+			className="flex-1 bg-background"
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={keyboardVerticalOffset}
+		>
+			<View className="flex-1 bg-background">
+				<ScrollView
+					className="flex-1 bg-background"
+					contentInsetAdjustmentBehavior="never"
+					contentContainerClassName="px-4 gap-4"
+					contentContainerStyle={{
+						paddingTop: contentTopPadding,
+						paddingBottom: contentBottomPadding,
+					}}
+					keyboardShouldPersistTaps="handled"
+				>
+				<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500`} selectable>
 					{i18n.t('FaceEnrollment.subtitle')}
 				</Text>
 
@@ -336,7 +368,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 								<IconSymbol
 									name="exclamationmark.triangle.fill"
 									size={18}
-									color="#f59e0b"
+									color={warningColor}
 								/>
 								<Card.Title>{i18n.t('FaceEnrollment.device.title')}</Card.Title>
 							</View>
@@ -345,7 +377,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									? i18n.t('FaceEnrollment.device.locationRequired')
 									: i18n.t('FaceEnrollment.device.linkRequired')}
 							</Card.Description>
-							<Button onPress={handleOpenSettings}>
+							<Button variant="primary" onPress={handleOpenSettings}>
 								<Button.Label>
 									{i18n.t('FaceEnrollment.device.openSettings')}
 								</Button.Label>
@@ -358,7 +390,11 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					<Card variant="default">
 						<Card.Body className="p-5 gap-3">
 							<View className="flex-row items-center gap-2">
-								<IconSymbol name="checkmark.seal.fill" size={22} color="#22c55e" />
+								<IconSymbol
+									name="checkmark.seal.fill"
+									size={22}
+									color={successColor}
+								/>
 								<Card.Title>{i18n.t('FaceEnrollment.success.title')}</Card.Title>
 							</View>
 							<Text className="text-foreground" selectable>
@@ -386,7 +422,11 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										{i18n.t('FaceEnrollment.actions.registerAnother')}
 									</Button.Label>
 								</Button>
-								<Button className="flex-1" onPress={handleBackToScanner}>
+								<Button
+									variant="primary"
+									className="flex-1"
+									onPress={handleBackToScanner}
+								>
 									<Button.Label>
 										{i18n.t('FaceEnrollment.actions.backToScanner')}
 									</Button.Label>
@@ -401,17 +441,22 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 						<Card variant="default">
 							<Card.Body className="p-5 gap-3">
 								<Card.Title>{i18n.t('FaceEnrollment.employees.title')}</Card.Title>
-								<TextInput
+								<Text className="text-sm font-semibold text-foreground tracking-wide">
+									{i18n.t('FaceEnrollment.employees.searchLabel')}
+								</Text>
+								<Input
 									value={searchTerm}
 									onChangeText={setSearchTerm}
 									placeholder={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
-									placeholderTextColor="rgba(115,115,115,0.9)"
-									className="bg-content2 text-foreground rounded-xl px-3 py-3"
+									placeholderTextColor={mutedForegroundColor}
+									className="bg-input border border-default-200 text-foreground px-4 py-3"
+									style={{ borderRadius: inputBorderRadius }}
 									accessibilityLabel={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
+									accessibilityHint={i18n.t('FaceEnrollment.employees.searchHint')}
 								/>
 								{employeesQuery.isPending ? (
 									<View className="items-center py-5 gap-2">
@@ -441,10 +486,24 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									keyboardShouldPersistTaps="handled"
 									showsVerticalScrollIndicator={false}
 								>
-									{filteredEmployees.length === 0 && !employeesQuery.isPending ? (
-										<Text className="text-foreground-500 text-sm" selectable>
-											{i18n.t('FaceEnrollment.employees.empty')}
-										</Text>
+									{showEmployeesEmptyState ? (
+										<EmptyState
+											title={i18n.t('FaceEnrollment.employees.emptyState.title')}
+											description={i18n.t(
+												'FaceEnrollment.employees.emptyState.description',
+											)}
+											actionLabel={i18n.t(
+												'FaceEnrollment.employees.emptyState.clearSearch',
+											)}
+											onAction={() => setSearchTerm('')}
+											icon={
+												<IconSymbol
+													name="magnifyingglass"
+													size={20}
+													color={mutedForegroundColor}
+												/>
+											}
+										/>
 									) : null}
 									{filteredEmployees.map((employee) => {
 										const isSelected = selectedEmployeeId === employee.id;
@@ -455,6 +514,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 												variant={isSelected ? 'primary' : 'secondary'}
 												isDisabled={isEmployeeSelectionLocked}
 												onPress={() => setSelectedEmployeeId(employee.id)}
+												accessibilityLabel={`${employee.firstName} ${employee.lastName}`}
 											>
 												<View className="flex-row items-center justify-between gap-2 w-full">
 													<View className="flex-1">
@@ -504,6 +564,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										size="sm"
 										onPress={handleToggleCamera}
 										isDisabled={Boolean(capturedPhoto)}
+										accessibilityLabel={i18n.t(
+											'FaceEnrollment.camera.switchCamera',
+										)}
 									>
 										<Button.Label>
 											{i18n.t('FaceEnrollment.camera.switchCamera')}
@@ -516,7 +579,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										<Text className="text-foreground-500" selectable>
 											{i18n.t('FaceEnrollment.permission.description')}
 										</Text>
-										<Button onPress={requestPermission}>
+										<Button variant="primary" onPress={requestPermission}>
 											<Button.Label>
 												{i18n.t('FaceEnrollment.permission.grant')}
 											</Button.Label>
@@ -524,11 +587,19 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									</View>
 								) : capturedPhoto ? (
 									<View className="gap-3">
-										<Image
-											source={{ uri: capturedPhoto.previewUri }}
-											style={{ width: '100%', height: 260, borderRadius: 16 }}
-											contentFit="cover"
-										/>
+										<View
+											className="overflow-hidden border border-default-200"
+											style={{ width: '100%', height: 260, borderRadius: cardBorderRadius }}
+										>
+											<Image
+												source={{ uri: capturedPhoto.previewUri }}
+												style={{ width: '100%', height: '100%' }}
+												contentFit="cover"
+												accessibilityLabel={i18n.t(
+													'FaceEnrollment.camera.previewLabel',
+												)}
+											/>
+										</View>
 										<View className="flex-row gap-2">
 											<Button
 												variant="secondary"
@@ -538,17 +609,28 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 													setCapturedEmployeeId(null);
 												}}
 												isDisabled={enrollmentMutation.isPending}
+												accessibilityLabel={i18n.t(
+													'FaceEnrollment.actions.retake',
+												)}
 											>
 												<Button.Label>
 													{i18n.t('FaceEnrollment.actions.retake')}
 												</Button.Label>
 											</Button>
 											<Button
+												variant="primary"
 												className="flex-1"
 												onPress={handleConfirmEnrollment}
 												isDisabled={
 													enrollmentMutation.isPending ||
 													!capturedEmployee
+												}
+												accessibilityLabel={
+													enrollmentMutation.isPending
+														? i18n.t(
+																'FaceEnrollment.actions.submitting',
+															)
+														: i18n.t('FaceEnrollment.actions.confirm')
 												}
 											>
 												<Button.Label>
@@ -563,16 +645,23 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									</View>
 								) : (
 									<View className="gap-3">
-										<CameraView
-											ref={cameraRef}
-											facing={cameraFacing}
-											style={{ width: '100%', height: 260, borderRadius: 16 }}
-										/>
+										<View
+											className="overflow-hidden border border-default-200"
+											style={{ width: '100%', height: 260, borderRadius: cardBorderRadius }}
+										>
+											<CameraView
+												ref={cameraRef}
+												facing={cameraFacing}
+												style={{ width: '100%', height: '100%' }}
+											/>
+										</View>
 										<Button
+											variant="primary"
 											onPress={handleCapturePhoto}
 											isDisabled={
 												!selectedEmployee || enrollmentMutation.isPending
 											}
+											accessibilityLabel={i18n.t('FaceEnrollment.actions.capture')}
 										>
 											<Button.Label>
 												{i18n.t('FaceEnrollment.actions.capture')}
@@ -605,13 +694,14 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 					variant="secondary"
 					isIconOnly
 					size="md"
-					className="w-11 h-11 rounded-full"
+					className="w-12 h-12 rounded-full"
 					accessibilityLabel={i18n.t('FaceEnrollment.actions.backToScanner')}
 					onPress={handleBackToScanner}
 				>
 					<IconSymbol name="chevron.left" size={22} color={iconColor} />
 				</Button>
 			</View>
-		</View>
+			</View>
+		</KeyboardAvoidingView>
 	);
 }

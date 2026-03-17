@@ -17,6 +17,7 @@ import type {
 
 import { API_BASE_URL, api, authedFetchForEden } from './api';
 import { getAccessToken } from './auth-client';
+import { i18n } from './i18n';
 import type {
 	AttendanceQueryParams,
 	FaceEnrollmentEmployeeListQueryParams,
@@ -286,14 +287,14 @@ export async function fetchLocationsList(
 
 	if (error) {
 		console.error('[fetchLocationsList] Eden Treaty error:', error);
-		throw new Error('Failed to load locations');
+		throw new Error(i18n.t('Errors.api.loadLocations'));
 	}
 
 	// Type guard: check if data has the expected shape
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[fetchLocationsList] API error:', errorMessage);
-		throw new Error('Failed to load locations');
+		throw new Error(i18n.t('Errors.api.loadLocations'));
 	}
 
 	return {
@@ -373,13 +374,13 @@ export async function fetchDevicesList(
 
 	if (error) {
 		console.error('[fetchDevicesList] Eden Treaty error:', error);
-		throw new Error('Failed to load devices');
+		throw new Error(i18n.t('Errors.api.loadDevices'));
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[fetchDevicesList] API error:', errorMessage);
-		throw new Error('Failed to load devices');
+		throw new Error(i18n.t('Errors.api.loadDevices'));
 	}
 
 	return {
@@ -402,20 +403,20 @@ export async function fetchDevicesList(
 export async function fetchDeviceDetail(deviceId: string): Promise<DeviceDetail | null> {
 	const deviceEndpoint = api.devices[deviceId];
 	if (!deviceEndpoint) {
-		throw new Error('Invalid device endpoint');
+		throw new Error(i18n.t('Errors.api.invalidDeviceEndpoint'));
 	}
 
 	const { data, error } = await deviceEndpoint.get();
 
 	if (error) {
 		console.error('[fetchDeviceDetail] Eden Treaty error:', error);
-		throw new Error('Failed to load device');
+		throw new Error(i18n.t('Errors.api.loadDevice'));
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[fetchDeviceDetail] API error:', errorMessage);
-		throw new Error('Failed to load device');
+		throw new Error(i18n.t('Errors.api.loadDevice'));
 	}
 
 	return (data.data as DeviceDetail) ?? null;
@@ -441,17 +442,17 @@ export async function registerDevice(input: RegisterDeviceInput): Promise<Regist
 
 	if (error) {
 		console.error('[registerDevice] Eden Treaty error:', error);
-		throw new Error('Failed to register device');
+		throw new Error(i18n.t('Errors.api.registerDevice'));
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[registerDevice] API error:', errorMessage);
-		throw new Error('Failed to register device');
+		throw new Error(i18n.t('Errors.api.registerDevice'));
 	}
 
 	if (!data.data) {
-		throw new Error('Device registration returned no data');
+		throw new Error(i18n.t('Errors.api.registerDeviceMissingData'));
 	}
 
 	return {
@@ -484,24 +485,24 @@ export async function updateDeviceSettings(
 ): Promise<DeviceDetail> {
 	const deviceEndpoint = api.devices[deviceId];
 	if (!deviceEndpoint) {
-		throw new Error('Invalid device endpoint');
+		throw new Error(i18n.t('Errors.api.invalidDeviceEndpoint'));
 	}
 
 	const { data, error } = await deviceEndpoint.put(payload);
 
 	if (error) {
 		console.error('[updateDeviceSettings] Eden Treaty error:', error);
-		throw new Error('Failed to update device settings');
+		throw new Error(i18n.t('Errors.api.updateDeviceSettings'));
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[updateDeviceSettings] API error:', errorMessage);
-		throw new Error('Failed to update device settings');
+		throw new Error(i18n.t('Errors.api.updateDeviceSettings'));
 	}
 
 	if (!data.data) {
-		throw new Error('Device update returned no data');
+		throw new Error(i18n.t('Errors.api.updateDeviceMissingData'));
 	}
 
 	return data.data as DeviceDetail;
@@ -561,7 +562,7 @@ export async function fetchFaceEnrollmentEmployees(
 				const payload = response.error?.value as { message?: unknown } | undefined;
 				return typeof payload?.message === 'string'
 					? payload.message
-					: 'Failed to load face enrollment employees';
+					: i18n.t('Errors.api.loadFaceEnrollmentEmployees');
 			})();
 			console.error('[fetchFaceEnrollmentEmployees] Eden Treaty error:', {
 				status: response.status,
@@ -621,7 +622,7 @@ export async function createEmployeeRekognitionUser(
 ): Promise<UserCreationResult> {
 	const employeeRoute = api.employees[employeeId];
 	if (!employeeRoute) {
-		throw new Error('Invalid employee route');
+		throw new Error(i18n.t('Errors.api.invalidEmployeeRoute'));
 	}
 
 	const response = await employeeRoute['create-rekognition-user'].post({});
@@ -633,7 +634,7 @@ export async function createEmployeeRekognitionUser(
 
 	const payload = response.data as UserCreationResult | null;
 	if (!payload) {
-		throw new Error('Create Rekognition user response missing data');
+		throw new Error(i18n.t('Errors.api.createRekognitionUserMissingData'));
 	}
 
 	return payload;
@@ -653,7 +654,7 @@ export async function enrollEmployeeFace(
 ): Promise<FaceEnrollmentResult> {
 	const employeeRoute = api.employees[employeeId];
 	if (!employeeRoute) {
-		throw new Error('Invalid employee route');
+		throw new Error(i18n.t('Errors.api.invalidEmployeeRoute'));
 	}
 
 	const response = await employeeRoute['enroll-face'].post({
@@ -667,7 +668,7 @@ export async function enrollEmployeeFace(
 
 	const payload = response.data as FaceEnrollmentResult | null;
 	if (!payload) {
-		throw new Error('Face enrollment response missing data');
+		throw new Error(i18n.t('Errors.api.faceEnrollmentMissingData'));
 	}
 
 	return payload;
@@ -785,7 +786,6 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 	// This prevents errors during the initial OAuth 2.0 device authorization flow
 	const accessToken = getAccessToken();
 	if (!accessToken) {
-		console.log('[sendDeviceHeartbeat] Skipping heartbeat - no access token available yet');
 		return null;
 	}
 
@@ -814,7 +814,10 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 						: rawCode === 'FORBIDDEN'
 							? 'FORBIDDEN'
 							: 'UNKNOWN';
-		const message = payload?.error?.message ?? 'Failed to send device heartbeat';
+		const message =
+			typeof payload?.error?.message === 'string'
+				? payload.error.message
+				: i18n.t('Errors.api.sendDeviceHeartbeat');
 		console.error('[sendDeviceHeartbeat] API error:', response.status, message);
 		throw new HeartbeatError(message, response.status, code);
 	}
@@ -823,11 +826,11 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 
 	if ('error' in json && json.error) {
 		console.error('[sendDeviceHeartbeat] API error:', json.error);
-		throw new Error('Failed to send device heartbeat');
+		throw new Error(i18n.t('Errors.api.sendDeviceHeartbeat'));
 	}
 
 	if (!json.data) {
-		throw new Error('Heartbeat response missing data');
+		throw new Error(i18n.t('Errors.api.heartbeatMissingData'));
 	}
 
 	return json.data;
@@ -900,13 +903,13 @@ export async function fetchAttendanceList(
 
 	if (error) {
 		console.error('[fetchAttendanceList] Eden Treaty error:', error);
-		throw new Error('Failed to load attendance records');
+		throw new Error(i18n.t('Errors.api.loadAttendanceRecords'));
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[fetchAttendanceList] API error:', errorMessage);
-		throw new Error('Failed to load attendance records');
+		throw new Error(i18n.t('Errors.api.loadAttendanceRecords'));
 	}
 
 	return {
@@ -938,6 +941,26 @@ export interface CreateAttendanceInput {
 }
 
 /**
+ * Specialized error for attendance creation failures.
+ */
+export class AttendanceApiError extends Error {
+	readonly status: number;
+
+	/**
+	 * Creates a new attendance API error.
+	 *
+	 * @param message - Human-readable error message
+	 * @param status - HTTP status code associated with the failure
+	 * @param options - Optional error metadata such as the original cause
+	 */
+	constructor(message: string, status: number, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'AttendanceApiError';
+		this.status = status;
+	}
+}
+
+/**
  * Create an attendance record after successful face verification via the Eden Treaty client.
  *
  * @param input - Attendance payload including employeeId, deviceId, type, and optional metadata
@@ -949,7 +972,7 @@ export async function createAttendanceRecord(
 ): Promise<AttendanceRecord> {
 	const timestamp = input.timestamp ?? new Date();
 
-	const { data, error } = await api.attendance.post({
+	const response = await api.attendance.post({
 		employeeId: input.employeeId,
 		deviceId: input.deviceId,
 		type: input.type,
@@ -957,20 +980,27 @@ export async function createAttendanceRecord(
 		metadata: input.metadata,
 		timestamp,
 	});
+	const { data, error, status } = response;
 
 	if (error) {
 		console.error('[createAttendanceRecord] Eden Treaty error:', error);
-		throw new Error('Failed to create attendance record');
+		const errorCause = error instanceof Error ? error : new Error(String(error));
+		throw new AttendanceApiError(i18n.t('Errors.api.createAttendanceRecord'), status, {
+			cause: errorCause,
+		});
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[createAttendanceRecord] API error:', errorMessage);
-		throw new Error('Failed to create attendance record');
+		throw new AttendanceApiError(
+			i18n.t('Errors.api.createAttendanceRecord'),
+			status >= 400 ? status : 500,
+		);
 	}
 
 	if (!data.data) {
-		throw new Error('Attendance response missing data');
+		throw new AttendanceApiError(i18n.t('Errors.api.attendanceRecordMissingData'), 422);
 	}
 
 	return data.data as AttendanceRecord;

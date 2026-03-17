@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SEN CheckIn",
+    "name": "checa.",
     "slug": "sen-checkin",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,14 +17,14 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#B8602A",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "versionCode": 19,
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
+      "predictiveBackGestureEnabled": true,
       "package": "com.senapps.sencheckin",
       "permissions": [
         "android.permission.CAMERA",
@@ -44,17 +44,17 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff",
+          "backgroundColor": "#B8602A",
           "dark": {
             "image": "./assets/images/splash-icon.png",
-            "backgroundColor": "#000000"
+            "backgroundColor": "#110D0A"
           }
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "Permitir que SEN CheckIn acceda a tu camara para verificar la asistencia"
+          "cameraPermission": "Permitir que checa. acceda a tu camara para verificar la asistencia"
         }
       ]
     ],

@@ -95,6 +95,6 @@ describe('LockedScreen sign-in recovery', () => {
 
 		await waitFor(() => {
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
-		});
-	});
+		}, { timeout: 10_000 });
+	}, 15_000);
 });

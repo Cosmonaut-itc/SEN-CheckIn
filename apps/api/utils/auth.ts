@@ -10,6 +10,7 @@ import {
 } from 'better-auth/plugins';
 import db from '../src/db/index.js';
 import * as schema from '../src/db/schema.js';
+import { buildConfiguredOriginAllowlist, resolveTrustedOrigins } from '../src/utils/origin-allowlist.js';
 
 /**
  * BetterAuth configuration for the Sen CheckIn API.
@@ -34,6 +35,10 @@ type PluginEndpoints = AuthPlugins[number]['endpoints'];
 type AuthApi = Auth<AuthOptions>['api'] & UnionToIntersection<PluginEndpoints>;
 
 const AUTH_BASE_URL = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
+const configuredOrigins = buildConfiguredOriginAllowlist({
+	authBaseUrl: AUTH_BASE_URL,
+	corsOrigin: process.env.CORS_ORIGIN,
+});
 
 const authOptions: AuthOptions = {
 	database: drizzleAdapter(db, {
@@ -42,27 +47,15 @@ const authOptions: AuthOptions = {
 	}),
 	baseURL: AUTH_BASE_URL,
 	/**
-	 * Trusted origins are required for Better Auth to accept -origin requests
-	 * from the Next.js web app (dev runs on 3001). Update or extend as needed for
-	 * preview/staging hosts.
+	 * Trusted origins are required for Better Auth to accept cross-origin requests.
+	 * In development we also trust local LAN/Tailscale hosts dynamically so Expo
+	 * simulators/devices keep working when the host IP changes.
 	 */
-	trustedOrigins: [
-		'http://localhost:3000', // API host (fallback baseURL)
-		'http://localhost:3001', // Next.js web dev server origin
-		'http://127.0.0.1:3000',
-		'http://127.0.0.1:3001',
-		'http://10.0.2.2:3000', // Android emulator
-		'http://10.0.3.2:3000', // Genymotion
-		'http://0.0.0.0:3000',
-		'http://localhost:19000', // Expo dev (metro)
-		'http://127.0.0.1:19000',
-		'http://100.110.215.102:3000',
-		'http://100.89.145.51:3000',
-		'https://sen-check-in.vercel.app',
-		'sen-checkin://',
-		'https://sen-check-in.vercel.app/',
-		'null', // allow native/Expo fetches with null Origin header
-	].filter(Boolean),
+	trustedOrigins: async (request) =>
+		resolveTrustedOrigins(request.headers.get('origin'), {
+			configuredOrigins,
+			nodeEnv: process.env.NODE_ENV,
+		}),
 	emailAndPassword: {
 		enabled: true,
 	},

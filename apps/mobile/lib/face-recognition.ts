@@ -1,6 +1,6 @@
 import type { CheckOutReason, RecognitionResult } from '@sen-checkin/types';
 
-import { createAttendanceRecord } from './client-functions';
+import { submitAttendanceWithOfflineSupport } from './offline-attendance';
 import type { AttendanceType } from './query-keys';
 import { API_BASE_URL } from './api';
 import { authedFetch } from './auth-client';
@@ -29,7 +29,7 @@ export async function recordAttendance(
 	metadata?: Record<string, unknown>,
 	checkOutReason?: CheckOutReason,
 ) {
-	return createAttendanceRecord({
+	return submitAttendanceWithOfflineSupport({
 		employeeId,
 		deviceId,
 		type,

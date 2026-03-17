@@ -48,8 +48,9 @@
 		"expo-symbols": "~1.0.8",
 		"expo-system-ui": "~6.0.9",
 		"expo-web-browser": "~15.0.10",
-		"heroui-native": "1.0.0-rc.1",
+		"heroui-native": "1.0.0-rc.4",
 		"i18n-js": "^4.5.1",
+		"culori": "^4.0.2",
 		"postcss": "^8.5.6",
 		"react": "19.1.0",
 		"react-dom": "19.1.0",
@@ -84,6 +85,7 @@
 		"jest": "29.7.0",
 		"jest-expo": "^54.0.17",
 		"react-test-renderer": "19.1.0",
+		"sharp": "^0.34.5",
 		"typescript": "~5.9.2"
 	},
 	"private": true

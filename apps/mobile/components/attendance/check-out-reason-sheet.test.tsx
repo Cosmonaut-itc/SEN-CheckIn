@@ -6,9 +6,15 @@ import { CheckOutReasonSheet } from './check-out-reason-sheet';
 const mockOnClose = jest.fn();
 const mockOnSelectReason = jest.fn();
 const mockBottomSheetContent = jest.fn();
+const mockImpactAsync = jest.fn();
 
 jest.mock('react-native-safe-area-context', () => ({
 	useSafeAreaInsets: () => ({ top: 0, bottom: 24, left: 0, right: 0 }),
+}));
+
+jest.mock('expo-haptics', () => ({
+	ImpactFeedbackStyle: { Light: 'light' },
+	impactAsync: (...args: unknown[]) => mockImpactAsync(...args),
 }));
 
 jest.mock('heroui-native', () => {
@@ -103,6 +109,7 @@ describe('CheckOutReasonSheet', () => {
 		mockOnClose.mockReset();
 		mockOnSelectReason.mockReset();
 		mockBottomSheetContent.mockReset();
+		mockImpactAsync.mockReset();
 	});
 
 	it('renders all check-out reason options when open', () => {
@@ -132,6 +139,22 @@ describe('CheckOutReasonSheet', () => {
 		fireEvent.press(screen.getByText('Comida'));
 
 		expect(mockOnSelectReason).toHaveBeenCalledWith('LUNCH_BREAK');
+	});
+
+	it('triggers light haptic feedback when the user chooses an option', () => {
+		process.env.EXPO_OS = 'ios';
+
+		render(
+			<CheckOutReasonSheet
+				isOpen
+				onClose={mockOnClose}
+				onSelectReason={mockOnSelectReason}
+			/>,
+		);
+
+		fireEvent.press(screen.getByText('Personal'));
+
+		expect(mockImpactAsync).toHaveBeenCalledWith('light');
 	});
 
 	it('calls onClose when the user cancels the selector', () => {

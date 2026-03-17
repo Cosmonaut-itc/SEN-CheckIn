@@ -1,15 +1,25 @@
 import { useQuery } from '@tanstack/react-query';
 import * as ExpoDevice from 'expo-device';
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Card, Select, Spinner } from 'heroui-native';
-import { type JSX, useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, Text, View, type ViewStyle } from 'react-native';
+import { type JSX, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	Text,
+	View,
+	type ViewStyle,
+} from 'react-native';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { fetchLocationsList, updateDeviceSettings } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type SearchParams = {
@@ -44,6 +54,13 @@ export default function DeviceSetupScreen(): JSX.Element {
 	const { session } = useAuthContext();
 	const { settings, updateLocalSettings } = useDeviceContext();
 	const params = useLocalSearchParams<SearchParams>();
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
+	const [submissionError, setSubmissionError] = useState<string | null>(null);
+	const [dangerColor, primaryColor, warningColor] = useThemeColor([
+		'destructive',
+		'primary',
+		'warning',
+	]);
 
 	const deviceId = useMemo(
 		() => normalizeParam(params.deviceId) ?? settings?.deviceId ?? null,
@@ -68,12 +85,13 @@ export default function DeviceSetupScreen(): JSX.Element {
 		[settings?.name],
 	);
 
-	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
+	const { data: locationsResponse, isError: isLocationsError, isPending: isLocationsPending } =
+		useQuery({
 		queryKey: queryKeys.locations.list({ organizationId: organizationId ?? undefined }),
 		queryFn: () =>
 			fetchLocationsList({ limit: 100, organizationId: organizationId ?? undefined }),
-		enabled: Boolean(organizationId),
-	});
+		enabled: Boolean(deviceId && organizationId),
+		});
 
 	const locationOptions = useMemo(
 		() =>
@@ -93,6 +111,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 	 */
 	const handleFormSubmit = useCallback(
 		async ({ value }: { value: SetupFormValues }) => {
+			setSubmissionError(null);
 			if (!deviceId || !value.name || !value.locationId) {
 				return;
 			}
@@ -137,65 +156,92 @@ export default function DeviceSetupScreen(): JSX.Element {
 	 * @returns Promise that resolves after submit is processed
 	 */
 	const handleSubmit = useCallback(async () => {
-		await form.handleSubmit();
+		try {
+			await form.handleSubmit();
+		} catch {
+			setSubmissionError(i18n.t('DeviceSetup.form.errors.saveFailed'));
+		}
 	}, [form]);
+
+	/**
+	 * Route back to login from the fallback missing-device state.
+	 *
+	 * @returns {void} No return value
+	 */
+	const handleBackToLogin = useCallback((): void => {
+		router.replace('/(auth)/login');
+	}, [router]);
 
 	if (!deviceId) {
 		return (
-			<ScrollView
+			<KeyboardAvoidingView
 				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="automatic"
-				contentContainerClassName="flex-1 items-center justify-center px-6"
-				showsVerticalScrollIndicator={false}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={keyboardVerticalOffset}
 			>
-				<Card
-					variant="default"
-					className="p-8 w-full max-w-md items-center gap-5 rounded-3xl"
-					style={continuousCurve}
+				<ScrollView
+					className="flex-1 bg-background"
+					contentInsetAdjustmentBehavior="automatic"
+					contentContainerClassName="flex-1 items-center justify-center px-6"
+					keyboardShouldPersistTaps="handled"
+					showsVerticalScrollIndicator={false}
 				>
+					<Card
+						variant="default"
+						className="p-8 w-full max-w-md items-center gap-5 rounded-xl"
+						style={continuousCurve}
+					>
 					{/* Error Icon */}
 					<View className="w-16 h-16 rounded-full bg-danger-500/10 items-center justify-center">
-						<Text className="text-3xl">⚠️</Text>
+						<IconSymbol
+							name="exclamationmark.triangle.fill"
+							size={28}
+							color={dangerColor}
+						/>
 					</View>
 					<View className="gap-2 items-center">
 						<Text className="text-2xl font-bold text-foreground text-center">
 							{i18n.t('DeviceSetup.errors.deviceNotFound.title')}
 						</Text>
-						<Text className="text-foreground-400 text-center text-base leading-6">
+						<Text
+							className={`${BODY_TEXT_CLASS_NAME} text-foreground-400 text-center leading-6`}
+						>
 							{i18n.t('DeviceSetup.errors.deviceNotFound.description')}
 						</Text>
 					</View>
-					<Link href="/(auth)/login" replace>
-						<Link.Trigger>
-							<Button className="w-full" size="lg">
-								<Button.Label>
-									{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
-								</Button.Label>
-							</Button>
-						</Link.Trigger>
-						<Link.Preview />
-					</Link>
-				</Card>
-			</ScrollView>
+					<Button className="w-full" size="lg" onPress={handleBackToLogin}>
+						<Button.Label>
+							{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
+						</Button.Label>
+					</Button>
+					</Card>
+				</ScrollView>
+			</KeyboardAvoidingView>
 		);
 	}
 
 	return (
-		<ScrollView
+		<KeyboardAvoidingView
 			className="flex-1 bg-background"
-			contentInsetAdjustmentBehavior="automatic"
-			contentContainerClassName="px-5 pt-6 pb-10"
-			showsVerticalScrollIndicator={false}
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={keyboardVerticalOffset}
 		>
-			<View className="gap-8 max-w-lg w-full self-center">
+			<ScrollView
+				className="flex-1 bg-background"
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerClassName="px-5 pt-6 pb-10"
+				keyboardShouldPersistTaps="handled"
+				showsVerticalScrollIndicator={false}
+			>
+				<View className="gap-8 max-w-lg w-full self-center">
 				{/* Header Section */}
 				<View className="gap-3">
 					<View className="flex-row items-center gap-3">
 						<View
-							className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center"
+							className="w-12 h-12 rounded-xl bg-primary/10 items-center justify-center"
 							style={continuousCurve}
 						>
-							<Text className="text-2xl">📱</Text>
+							<IconSymbol name="iphone" size={20} color={primaryColor} />
 						</View>
 						<View className="flex-1">
 							<Text className="text-xs uppercase tracking-widest text-primary font-bold">
@@ -203,7 +249,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 							</Text>
 						</View>
 					</View>
-					<Text className="text-foreground-400 text-base leading-6">
+					<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-400 leading-6`}>
 						{i18n.t('DeviceSetup.header.subtitle')}
 					</Text>
 				</View>
@@ -211,7 +257,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				{/* Device Info Badge */}
 				<View className="flex-row gap-3">
 					<View
-						className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200 gap-1"
+						className="flex-1 p-4 bg-content1 rounded-lg border border-default-200 gap-1"
 						style={continuousCurve}
 					>
 						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold">
@@ -227,7 +273,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 						</Text>
 					</View>
 					<View
-						className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200 gap-1"
+						className="flex-1 p-4 bg-content1 rounded-lg border border-default-200 gap-1"
 						style={continuousCurve}
 					>
 						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold">
@@ -245,7 +291,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</View>
 
 				{/* Form Card */}
-				<Card variant="default" className="p-6 gap-6 rounded-3xl" style={continuousCurve}>
+				<Card variant="default" className="p-6 gap-6 rounded-xl" style={continuousCurve}>
 					<form.AppField
 						name="name"
 						validators={{
@@ -300,10 +346,24 @@ export default function DeviceSetupScreen(): JSX.Element {
 									<Select
 										value={selectedOption}
 										onValueChange={handleLocationChange}
-										isDisabled={isLocationsPending}
+										isDisabled={isLocationsPending || isLocationsError}
 									>
 										<Select.Trigger variant="outline" asChild>
-											<Button variant="tertiary" size="sm">
+											<Button
+												variant="tertiary"
+												size="sm"
+												accessibilityLabel={`${i18n.t(
+													'DeviceSetup.form.fields.location.accessibilityLabel',
+												)}: ${
+													selectedOption?.label ??
+													i18n.t(
+														'DeviceSetup.form.fields.location.placeholder',
+													)
+												}`}
+												accessibilityHint={i18n.t(
+													'DeviceSetup.form.fields.location.accessibilityHint',
+												)}
+											>
 												{selectedOption ? (
 													<View className="flex-row items-center gap-2">
 														<Text className="text-sm text-foreground">
@@ -316,6 +376,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 															? i18n.t(
 																	'DeviceSetup.form.fields.location.loading',
 																)
+															: isLocationsError
+																? i18n.t(
+																		'DeviceSetup.form.fields.location.loadError',
+																	)
 															: i18n.t(
 																	'DeviceSetup.form.fields.location.placeholder',
 																)}
@@ -324,14 +388,29 @@ export default function DeviceSetupScreen(): JSX.Element {
 											</Button>
 										</Select.Trigger>
 										<Select.Portal>
-											<Select.Overlay />
+											<Select.Overlay className="bg-overlay/80" />
 											<Select.Content
-												width={280}
-												className="rounded-2xl"
-												placement="bottom"
+												presentation="dialog"
+												className="rounded-xl"
+												classNames={{
+													wrapper: 'px-5',
+													content: 'rounded-xl bg-popover gap-2 shadow-lg',
+												}}
 												style={continuousCurve}
 											>
-												{locationOptions.length === 0 ? (
+												<Select.Close />
+												<Select.ListLabel className="text-lg font-bold text-foreground">
+													{i18n.t('DeviceSetup.form.fields.location.label')}
+												</Select.ListLabel>
+												{isLocationsError ? (
+													<View className="py-4">
+														<Text className="text-danger-500 text-center">
+															{i18n.t(
+																'DeviceSetup.form.fields.location.loadError',
+															)}
+														</Text>
+													</View>
+												) : locationOptions.length === 0 ? (
 													<View className="py-4">
 														<Text className="text-foreground-400 text-center">
 															{i18n.t(
@@ -377,7 +456,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 						<Button
 							size="lg"
 							variant="primary"
-							isDisabled={isLocationsPending}
+							isDisabled={isLocationsPending || isLocationsError}
 							onPress={handleSubmit}
 						>
 							{isLocationsPending ? (
@@ -394,26 +473,34 @@ export default function DeviceSetupScreen(): JSX.Element {
 							)}
 						</Button>
 					</form.AppForm>
+					{submissionError ? (
+						<Text className="text-sm text-danger-500 font-medium" selectable>
+							{submissionError}
+						</Text>
+					) : null}
 				</Card>
 
 				{/* Tip Section */}
 				<View
-					className="p-5 bg-content2/60 rounded-2xl border border-default-200/60"
+					className="p-5 bg-content2/60 rounded-xl border border-default-200/60"
 					style={continuousCurve}
 				>
 					<View className="flex-row items-start gap-3">
-						<Text className="text-lg">💡</Text>
+						<IconSymbol name="lightbulb.fill" size={18} color={warningColor} />
 						<View className="flex-1 gap-1">
 							<Text className="text-sm font-semibold text-foreground">
 								{i18n.t('DeviceSetup.tip.title')}
 							</Text>
-							<Text className="text-sm text-foreground-400 leading-5">
+							<Text
+								className={`${BODY_TEXT_CLASS_NAME} text-foreground-400 leading-5`}
+							>
 								{i18n.t('DeviceSetup.tip.body')}
 							</Text>
 						</View>
 					</View>
 				</View>
-			</View>
-		</ScrollView>
+				</View>
+			</ScrollView>
+		</KeyboardAvoidingView>
 	);
 }

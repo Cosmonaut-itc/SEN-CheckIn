@@ -36,24 +36,12 @@ import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
 import { schedulingRoutes } from './routes/scheduling.js';
 import { vacationRoutes } from './routes/vacations.js';
 import { internalHolidayRoutes } from './routes/internal-holidays.js';
+import { buildCorsOriginAllowlist, isOriginAllowed } from './utils/origin-allowlist.js';
 
-const defaultCorsOrigins: string[] = [
-	'http://localhost:3001',
-	'http://localhost:3000',
-	'http://127.0.0.1:3001',
-	'http://127.0.0.1:3000',
-	'https://sen-check-in.vercel.app',
-];
-
-const envCorsOrigins: string[] = (process.env.CORS_ORIGIN ?? '')
-	.split(',')
-	.map((origin) => origin.trim())
-	.filter(Boolean)
-	.map((origin) => origin.replace(/\/$/, ''));
-
-const corsAllowedOrigins: string[] = Array.from(
-	new Set([...defaultCorsOrigins, ...envCorsOrigins]),
-);
+const corsAllowedOrigins: string[] = buildCorsOriginAllowlist({
+	authBaseUrl: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
+	corsOrigin: process.env.CORS_ORIGIN,
+});
 
 /**
  * BetterAuth view handler for authentication endpoints.
@@ -74,20 +62,6 @@ const betterAuthView = (
 	}
 	context.set.status = 405;
 	return buildErrorResponse('Method not allowed', 405);
-};
-
-/**
- * Validates whether the incoming request origin is in the configured allowlist.
- *
- * @param origin - Origin header value from the incoming request
- * @returns True when the origin is permitted for CORS responses
- */
-const isOriginAllowed = (origin?: string | null): boolean => {
-	if (!origin) {
-		return false;
-	}
-	const normalizedOrigin = origin.replace(/\/$/, '');
-	return corsAllowedOrigins.includes(normalizedOrigin);
 };
 
 /**
@@ -142,7 +116,11 @@ export const createApp = () => {
 			// Core plugins - order matters: CORS, error handler and logger should be first
 			.use(
 				cors({
-					origin: (request: Request) => isOriginAllowed(request.headers.get('origin')),
+					origin: (request: Request) =>
+						isOriginAllowed(request.headers.get('origin'), {
+							configuredOrigins: corsAllowedOrigins,
+							nodeEnv: process.env.NODE_ENV,
+						}),
 					methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 					credentials: true,
 					allowedHeaders: [

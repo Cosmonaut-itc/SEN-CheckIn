@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { Button } from 'heroui-native';
 import { BottomSheet } from 'heroui-native/bottom-sheet';
 import type { JSX } from 'react';
@@ -48,10 +49,10 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 			onOpenChange={(isOpen: boolean) => (!isOpen ? props.onClose() : null)}
 		>
 			<BottomSheet.Portal>
-				<BottomSheet.Overlay className="bg-foreground/35" />
+				<BottomSheet.Overlay className="bg-overlay/80" />
 				<BottomSheet.Content
 					enablePanDownToClose
-					backgroundClassName="bg-background border border-default-200 rounded-t-[32px] shadow-none"
+					backgroundClassName="bg-background border border-default-200 rounded-t-xl shadow-none"
 					contentContainerClassName="px-5 pt-5"
 					contentContainerProps={{
 						style: {
@@ -74,8 +75,15 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 								<Button
 									key={option.value}
 									variant="outline"
-									onPress={() => props.onSelectReason(option.value)}
-									className="min-h-16 justify-start border-default-200 bg-secondary px-4 py-3"
+									onPress={() => {
+										void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+										props.onSelectReason(option.value);
+									}}
+									className="min-h-16 justify-start border-default-200 bg-secondary-bg px-4 py-3"
+									accessibilityLabel={i18n.t(
+										'Scanner.checkOutReason.accessibility.option',
+										{ label: option.label },
+									)}
 								>
 									<View className="gap-1">
 										<Button.Label className="text-foreground text-base font-semibold">
@@ -94,6 +102,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 								variant="ghost"
 								onPress={props.onClose}
 								className="border border-transparent"
+								accessibilityLabel={i18n.t('Common.cancel')}
 							>
 								<Button.Label className="text-foreground-500 font-medium">
 									{i18n.t('Common.cancel')}

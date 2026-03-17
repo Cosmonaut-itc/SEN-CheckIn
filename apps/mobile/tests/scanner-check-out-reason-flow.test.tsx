@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
+import { Animated } from 'react-native';
 
 import ScannerScreen from '@/app/(main)/scanner';
 
@@ -7,6 +8,19 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockCheckOutReasonSheet = jest.fn();
 const mockRequestReauth = jest.fn();
+const mockThemeColors: Record<string, string> = {
+	background: '#110D0A',
+	border: '#3D3028',
+	danger: '#E8605A',
+	'default-hover': '#342A24',
+	foreground: '#F0EAE4',
+	muted: '#9A8B80',
+	overlay: '#342A24',
+	primary: '#B8602A',
+	success: '#5CC98A',
+	surface: '#1C1613',
+	warning: '#F0B840',
+};
 
 jest.mock('expo-router', () => ({
 	useRouter: () => ({
@@ -47,6 +61,27 @@ jest.mock('expo-haptics', () => ({
 
 jest.mock('react-native-safe-area-context', () => ({
 	useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+	__esModule: true,
+	default: {
+		fetch: jest.fn(async () => ({ isConnected: true, isInternetReachable: true })),
+		addEventListener: jest.fn(() => jest.fn()),
+	},
+}));
+
+jest.mock('@/constants/env', () => ({
+	ENV: {
+		apiUrl: 'https://api.example.com',
+		webVerifyUrl: 'https://example.com/verificar',
+	},
+	envErrors: null,
+}));
+
+jest.mock('@/lib/api', () => ({
+	API_BASE_URL: 'https://api.example.com',
+	API_ENV_VALID: true,
 }));
 
 jest.mock('heroui-native', () => {
@@ -127,10 +162,18 @@ jest.mock('@/providers/theme-provider', () => ({
 	}),
 }));
 
+jest.mock('@/hooks/use-theme-color', () => ({
+	useThemeColor: (themeColor: string | string[]) =>
+		Array.isArray(themeColor)
+			? themeColor.map((token) => mockThemeColors[token] ?? '#FFFFFF')
+			: (mockThemeColors[themeColor] ?? '#FFFFFF'),
+}));
+
 jest.mock('@/lib/device-context', () => ({
 	useDeviceContext: () => ({
 		settings: {
 			deviceId: 'device-1',
+			locationId: 'location-1',
 			name: 'Terminal A',
 		},
 		clearSettings: jest.fn(),
@@ -163,10 +206,31 @@ jest.mock('@/lib/face-recognition', () => ({
  */
 describe('ScannerScreen check-out reason flow', () => {
 	beforeEach(() => {
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		jest.spyOn(Animated, 'loop').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
+		jest.spyOn(Animated, 'timing').mockImplementation(
+			() =>
+				({
+					start: () => undefined,
+					stop: () => undefined,
+					reset: () => undefined,
+				}) as Animated.CompositeAnimation,
+		);
 		mockPush.mockReset();
 		mockReplace.mockReset();
 		mockCheckOutReasonSheet.mockReset();
 		mockRequestReauth.mockReset();
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
 	});
 
 	it('opens the reason sheet when the user scans a regular check-out', async () => {

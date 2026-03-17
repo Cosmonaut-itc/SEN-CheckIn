@@ -6,6 +6,7 @@ import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
 import * as ExpoDevice from 'expo-device';
 import * as Crypto from 'expo-crypto';
+import NetInfo from '@react-native-community/netinfo';
 
 import type { Device } from '@sen-checkin/types';
 import {
@@ -14,6 +15,7 @@ import {
 	sendDeviceHeartbeat,
 	updateDeviceSettings,
 } from './client-functions';
+import { flushPendingAttendanceQueue, isOfflineNetInfoState } from './offline-attendance';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type DeviceSettings = {
@@ -168,6 +170,54 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 			setIsHydrated(true);
 		});
 	}, []);
+
+	useEffect(() => {
+		if (isAuthLoading || !session || authState === 'locked') {
+			return;
+		}
+
+		let isMounted = true;
+
+		/**
+		 * Flush queued attendance once the device reports reachable connectivity.
+		 *
+		 * @param state - Connectivity snapshot from NetInfo
+		 * @returns {void} No return value
+		 */
+		const flushWhenReachable = (state: {
+			isConnected: boolean | null;
+			isInternetReachable?: boolean | null;
+		}): void => {
+			if (isOfflineNetInfoState(state)) {
+				return;
+			}
+
+			void flushPendingAttendanceQueue().catch((error: unknown) => {
+				console.warn('[device-context] Failed to flush pending attendance queue', error);
+			});
+		};
+
+		void NetInfo.fetch()
+			.then((state) => {
+				if (!isMounted) {
+					return;
+				}
+
+				flushWhenReachable(state);
+			})
+			.catch((error: unknown) => {
+				console.warn('[device-context] Failed to inspect connectivity before queue flush', error);
+			});
+
+		const unsubscribe = NetInfo.addEventListener((state) => {
+			flushWhenReachable(state);
+		});
+
+		return () => {
+			isMounted = false;
+			unsubscribe();
+		};
+	}, [authState, isAuthLoading, session]);
 
 	/**
 	 * Merge and persist device settings locally.

@@ -83,7 +83,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('heroui-native', () => {
 	const mockReactNative = require('react-native') as typeof import('react-native');
-	const { Pressable, Text, View } = mockReactNative;
+	const { Pressable, Text, TextInput, View } = mockReactNative;
 
 	const Button = function MockButton({
 		children,
@@ -137,9 +137,14 @@ jest.mock('heroui-native', () => {
 		return <Text>Cargando...</Text>;
 	};
 
+	const Input = function MockInput(props: React.ComponentProps<typeof TextInput>) {
+		return <TextInput {...props} />;
+	};
+
 	return {
 		Button,
 		Card,
+		Input,
 		Spinner,
 		useThemeColor: () => '#111827',
 	};
@@ -280,6 +285,27 @@ describe('FaceEnrollmentScreen', () => {
 		await waitFor(() => {
 			expect(screen.getByText('Confirmar registro')).toBeTruthy();
 		});
+	});
+
+	it('shows the load error without falling through to the empty state when employee loading fails', () => {
+		mockUseQuery.mockReturnValue({
+			data: {
+				data: [],
+				pagination: {
+					total: 0,
+					limit: 200,
+					offset: 0,
+				},
+			},
+			isPending: false,
+			isError: true,
+		});
+
+		render(<FaceEnrollmentScreen />);
+
+		expect(screen.getByText('No se pudo cargar la lista de empleados.')).toBeOnTheScreen();
+		expect(screen.queryByText('Sin resultados')).not.toBeOnTheScreen();
+		expect(screen.queryByText('Limpiar búsqueda')).not.toBeOnTheScreen();
 	});
 
 	it('submits enrollment flow and shows success summary', async () => {

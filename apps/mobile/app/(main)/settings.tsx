@@ -3,16 +3,25 @@ import { type Href, useNavigation, useRouter } from 'expo-router';
 import { Button, Card, Select, Separator, useThemeColor, useToast } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo } from 'react';
-import { ScrollView, Text, View, type ViewStyle } from 'react-native';
+import {
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	Text,
+	View,
+	type ViewStyle,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { signOut } from '@/lib/auth-client';
+import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { fetchLocationsList } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
+import { clearPendingAttendanceQueue } from '@/lib/offline-attendance';
 import { queryKeys } from '@/lib/query-keys';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
 const SCANNER_ROUTE = '/(main)/scanner' as Href;
@@ -28,7 +37,8 @@ export default function SettingsScreen(): JSX.Element {
 	const navigation = useNavigation();
 	const iconColor = useThemeColor('foreground');
 	const { toast } = useToast();
-	const { session } = useAuthContext();
+	const { session, requestReauth } = useAuthContext();
+	const activeOrganizationId = session?.session?.activeOrganizationId ?? null;
 	const {
 		settings,
 		isHydrated,
@@ -38,10 +48,13 @@ export default function SettingsScreen(): JSX.Element {
 		clearSettings,
 	} = useDeviceContext();
 
-	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
-		queryKey: queryKeys.locations.list({ limit: 100 }),
-		queryFn: () => fetchLocationsList({ limit: 100 }),
-	});
+	const { data: locationsResponse, isError: isLocationsError, isPending: isLocationsPending } =
+		useQuery({
+		queryKey: queryKeys.locations.list({ organizationId: activeOrganizationId ?? undefined }),
+		queryFn: () =>
+			fetchLocationsList({ limit: 100, organizationId: activeOrganizationId ?? undefined }),
+		enabled: Boolean(activeOrganizationId),
+		});
 
 	const locationOptions = useMemo(
 		() =>
@@ -84,15 +97,12 @@ export default function SettingsScreen(): JSX.Element {
 					actionLabel: i18n.t('Common.ok'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
-			} catch (error: unknown) {
-				const message =
-					error instanceof Error
-						? error.message
-						: i18n.t('Settings.toast.saveError.fallbackDescription');
+			} catch (error) {
+				console.error('[settings] Failed to save device settings', error);
 				toast.show({
 					variant: 'danger',
 					label: i18n.t('Settings.toast.saveError.title'),
-					description: message,
+					description: i18n.t('Settings.toast.saveError.fallbackDescription'),
 					actionLabel: i18n.t('Common.dismiss'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
@@ -101,20 +111,21 @@ export default function SettingsScreen(): JSX.Element {
 	});
 
 	useEffect(() => {
-		if (!settings) return;
-		form.setFieldValue('name', settings.name);
-		form.setFieldValue('locationId', settings.locationId ?? '');
-	}, [form, settings]);
+		form.setFieldValue('name', settings?.name ?? '');
+		form.setFieldValue('locationId', settings?.locationId ?? '');
+	}, [form, settings?.locationId, settings?.name]);
 
-	const organizationId = session?.session?.activeOrganizationId ?? '—';
+	const organizationId = activeOrganizationId ?? '—';
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' }) satisfies ViewStyle, []);
-	const floatingBackButtonSize = 44;
+	const floatingBackButtonSize = 48;
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? Math.max(insets.top, 16) : 0;
+	const signOutButtonVariant = Platform.OS === 'ios' ? 'ghost' : 'danger';
 
 	/**
 	 * Navigate back to the previous screen when history exists.
@@ -133,18 +144,24 @@ export default function SettingsScreen(): JSX.Element {
 
 	return (
 		<View className="flex-1 bg-background">
-			<ScrollView
+			<KeyboardAvoidingView
 				className="flex-1 bg-background"
-				contentInsetAdjustmentBehavior="never"
-				contentContainerClassName="px-4 gap-6"
-				contentContainerStyle={{
-					paddingTop: contentTopPadding,
-					paddingBottom: Math.max(40, insets.bottom + 20),
-				}}
-				showsVerticalScrollIndicator={false}
+				behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+				keyboardVerticalOffset={keyboardVerticalOffset}
 			>
+				<ScrollView
+					className="flex-1 bg-background"
+					contentInsetAdjustmentBehavior="never"
+					contentContainerClassName="px-4 gap-6"
+					contentContainerStyle={{
+						paddingTop: contentTopPadding,
+						paddingBottom: Math.max(40, insets.bottom + 20),
+					}}
+					keyboardShouldPersistTaps="handled"
+					showsVerticalScrollIndicator={false}
+				>
 				<View className="gap-1">
-					<Text className="text-base text-foreground-500">
+					<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500`}>
 						{i18n.t('Settings.subtitle')}
 					</Text>
 				</View>
@@ -155,7 +172,7 @@ export default function SettingsScreen(): JSX.Element {
 							className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
 							style={continuousCurve}
 						>
-							<Text className="text-lg">🏢</Text>
+							<IconSymbol name="building.2" size={18} color={iconColor} />
 						</View>
 						<View className="flex-1">
 							<Card.Title className="text-foreground text-lg">
@@ -220,10 +237,28 @@ export default function SettingsScreen(): JSX.Element {
 										<Select
 											value={selectedOption}
 											onValueChange={handleLocationChange}
-											isDisabled={isLocationsPending}
+											isDisabled={
+												!activeOrganizationId ||
+												isLocationsPending ||
+												isLocationsError
+											}
 										>
 											<Select.Trigger variant="outline" asChild>
-												<Button variant="tertiary" size="sm">
+												<Button
+													variant="tertiary"
+													size="sm"
+													accessibilityLabel={`${i18n.t(
+														'Settings.form.fields.location.accessibilityLabel',
+													)}: ${
+														selectedOption?.label ??
+														i18n.t(
+															'Settings.form.fields.location.placeholder',
+														)
+													}`}
+													accessibilityHint={i18n.t(
+														'Settings.form.fields.location.accessibilityHint',
+													)}
+												>
 													{selectedOption ? (
 														<View className="flex-row items-center gap-2">
 															<Text className="text-sm text-foreground">
@@ -236,6 +271,10 @@ export default function SettingsScreen(): JSX.Element {
 																? i18n.t(
 																		'Settings.form.fields.location.loading',
 																	)
+																: isLocationsError
+																	? i18n.t(
+																			'Settings.form.fields.location.loadError',
+																		)
 																: i18n.t(
 																		'Settings.form.fields.location.placeholder',
 																	)}
@@ -244,14 +283,28 @@ export default function SettingsScreen(): JSX.Element {
 												</Button>
 											</Select.Trigger>
 											<Select.Portal>
-												<Select.Overlay />
+												<Select.Overlay className="bg-overlay/80" />
 												<Select.Content
-													width={280}
-													className="rounded-2xl"
-													placement="bottom"
+													presentation="dialog"
+													classNames={{
+														wrapper: 'px-5',
+														content: 'rounded-xl bg-popover gap-2 shadow-lg',
+													}}
 													style={continuousCurve}
 												>
-													{locationOptions.length === 0 ? (
+													<Select.Close />
+													<Select.ListLabel className="text-lg font-bold text-foreground">
+														{i18n.t('Settings.form.fields.location.label')}
+													</Select.ListLabel>
+													{isLocationsError ? (
+														<View className="py-4">
+															<Text className="text-danger-500 text-center">
+																{i18n.t(
+																	'Settings.form.fields.location.loadError',
+																)}
+															</Text>
+														</View>
+													) : locationOptions.length === 0 ? (
 														<View className="py-4">
 															<Text className="text-foreground-400 text-center">
 																{i18n.t(
@@ -328,40 +381,77 @@ export default function SettingsScreen(): JSX.Element {
 
 					<Card.Footer className="flex-row gap-3 px-5 pb-5 pt-3">
 						<Button
-							variant="danger"
+							variant={signOutButtonVariant}
 							className="flex-1"
 							isDisabled={isUpdating}
 							onPress={async () => {
+								let shouldLockAuth = false;
+
 								try {
 									await signOut();
-									await clearSettings();
+								} catch (error) {
+									console.error('[settings] Failed to sign out from settings', error);
+									shouldLockAuth = true;
+								} finally {
+									if (shouldLockAuth) {
+										try {
+											await requestReauth({ forceLock: true, reason: 'manual' });
+										} catch (error) {
+											console.warn(
+												'[settings] Reauth lock failed during sign-out',
+												error,
+											);
+										}
+									}
+									try {
+										await clearAuthStorage();
+									} catch (error) {
+										console.warn('[settings] Auth cleanup error during sign-out', error);
+									}
+									try {
+										await clearPendingAttendanceQueue();
+									} catch (error) {
+										console.warn(
+											'[settings] Offline queue cleanup error during sign-out',
+											error,
+										);
+									}
+									try {
+										await clearSettings();
+									} catch (error) {
+										console.warn('[settings] Device cleanup error during sign-out', error);
+									}
+									router.replace('/(auth)/login');
+
 									toast.show({
-										variant: 'success',
-										label: i18n.t('Settings.toast.signOutSuccess.title'),
-										description: i18n.t(
-											'Settings.toast.signOutSuccess.description',
+										variant: shouldLockAuth ? 'danger' : 'success',
+										label: i18n.t(
+											shouldLockAuth
+												? 'Settings.toast.signOutError.title'
+												: 'Settings.toast.signOutSuccess.title',
 										),
-										actionLabel: i18n.t('Common.ok'),
-										onActionPress: ({ hide }: { hide: () => void }) => hide(),
-									});
-								} catch (error: unknown) {
-									const message =
-										error instanceof Error
-											? error.message
-											: i18n.t(
-													'Settings.toast.signOutError.fallbackDescription',
-												);
-									toast.show({
-										variant: 'danger',
-										label: i18n.t('Settings.toast.signOutError.title'),
-										description: message,
-										actionLabel: i18n.t('Common.dismiss'),
+										description: i18n.t(
+											shouldLockAuth
+												? 'Settings.toast.signOutError.fallbackDescription'
+												: 'Settings.toast.signOutSuccess.description',
+										),
+										actionLabel: i18n.t(
+											shouldLockAuth ? 'Common.dismiss' : 'Common.ok',
+										),
 										onActionPress: ({ hide }: { hide: () => void }) => hide(),
 									});
 								}
 							}}
 						>
-							<Button.Label>{i18n.t('Settings.actions.signOut')}</Button.Label>
+							<Button.Label
+								className={
+									Platform.OS === 'ios'
+										? 'text-danger-500 font-medium'
+										: undefined
+								}
+							>
+								{i18n.t('Settings.actions.signOut')}
+							</Button.Label>
 						</Button>
 						<Button
 							variant="secondary"
@@ -372,7 +462,8 @@ export default function SettingsScreen(): JSX.Element {
 						</Button>
 					</Card.Footer>
 				</Card>
-			</ScrollView>
+				</ScrollView>
+			</KeyboardAvoidingView>
 
 			<View
 				pointerEvents="box-none"
@@ -387,7 +478,7 @@ export default function SettingsScreen(): JSX.Element {
 					variant="secondary"
 					isIconOnly
 					size="md"
-					className="w-11 h-11 rounded-full"
+					className="w-12 h-12 rounded-full"
 					accessibilityLabel={i18n.t('Settings.navigation.backToScanner')}
 					onPress={handleBackToScanner}
 				>

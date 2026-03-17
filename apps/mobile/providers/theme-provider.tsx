@@ -1,9 +1,11 @@
 import type { JSX, PropsWithChildren } from 'react';
-import { createContext, useMemo } from 'react';
+import { createContext, useEffect, useMemo } from 'react';
 import * as React from 'react';
+import { Uniwind } from 'uniwind';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { ThemeName } from '@/constants/theme';
+
+type ThemeName = 'light' | 'dark';
 
 type ThemeContextValue = {
 	/** Active color scheme, defaults to light when unavailable */
@@ -24,6 +26,10 @@ const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 export function ThemeProvider({ children }: PropsWithChildren): JSX.Element {
 	const systemScheme = useColorScheme();
 	const colorScheme = (systemScheme ?? 'light') as ThemeName;
+
+	useEffect(() => {
+		Uniwind.setTheme(colorScheme);
+	}, [colorScheme]);
 
 	const value = useMemo<ThemeContextValue>(
 		() => ({

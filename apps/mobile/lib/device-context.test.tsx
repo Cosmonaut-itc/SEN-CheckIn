@@ -10,11 +10,35 @@ const mockRequestReauth = jest.fn();
 const mockGetItemAsync = jest.fn();
 const mockSetItemAsync = jest.fn();
 const mockDeleteItemAsync = jest.fn();
+const mockFlushPendingAttendanceQueue = jest.fn();
+const mockNetInfoFetch = jest.fn();
+const mockNetInfoAddEventListener = jest.fn();
+type MockSessionState = { session: { id: string } } | null;
+
+const mockAuthContext: {
+	session: MockSessionState;
+	isLoading: boolean;
+	requestReauth: (...args: unknown[]) => unknown;
+	authState: string;
+} = {
+	session: { session: { id: 'session-1' } },
+	isLoading: false,
+	requestReauth: (...args: unknown[]) => mockRequestReauth(...args),
+	authState: 'ok',
+};
 
 jest.mock('expo-secure-store', () => ({
 	getItemAsync: (...args: unknown[]) => mockGetItemAsync(...args),
 	setItemAsync: (...args: unknown[]) => mockSetItemAsync(...args),
 	deleteItemAsync: (...args: unknown[]) => mockDeleteItemAsync(...args),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+	__esModule: true,
+	default: {
+		fetch: (...args: unknown[]) => mockNetInfoFetch(...args),
+		addEventListener: (...args: unknown[]) => mockNetInfoAddEventListener(...args),
+	},
 }));
 
 jest.mock('./client-functions', () => ({
@@ -24,13 +48,17 @@ jest.mock('./client-functions', () => ({
 	updateDeviceSettings: jest.fn(),
 }));
 
+jest.mock('./offline-attendance', () => {
+	const actual = jest.requireActual<typeof import('./offline-attendance')>('./offline-attendance');
+
+	return {
+		...actual,
+		flushPendingAttendanceQueue: (...args: unknown[]) => mockFlushPendingAttendanceQueue(...args),
+	};
+});
+
 jest.mock('@/providers/auth-provider', () => ({
-	useAuthContext: () => ({
-		session: { session: { id: 'session-1' } },
-		isLoading: false,
-		requestReauth: (...args: unknown[]) => mockRequestReauth(...args),
-		authState: 'ok',
-	}),
+	useAuthContext: () => mockAuthContext,
 }));
 
 /**
@@ -44,7 +72,7 @@ function DeviceIdProbe(): JSX.Element {
 	return <Text>{isHydrated ? (settings?.deviceId ?? 'no-device') : 'loading'}</Text>;
 }
 
-describe('DeviceProvider heartbeat recovery', () => {
+	describe('DeviceProvider heartbeat recovery', () => {
 	beforeEach(() => {
 		jest.useFakeTimers();
 		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -61,6 +89,14 @@ describe('DeviceProvider heartbeat recovery', () => {
 		mockGetItemAsync.mockReset();
 		mockSetItemAsync.mockReset();
 		mockDeleteItemAsync.mockReset();
+		mockFlushPendingAttendanceQueue.mockReset();
+		mockNetInfoFetch.mockReset();
+		mockNetInfoAddEventListener.mockReset();
+		mockNetInfoFetch.mockResolvedValue({ isConnected: true, isInternetReachable: true });
+		mockNetInfoAddEventListener.mockImplementation(() => jest.fn());
+		mockAuthContext.session = { session: { id: 'session-1' } };
+		mockAuthContext.isLoading = false;
+		mockAuthContext.authState = 'ok';
 		mockGetItemAsync.mockResolvedValue(
 			JSON.stringify({
 				deviceId: 'device-1',
@@ -140,5 +176,42 @@ describe('DeviceProvider heartbeat recovery', () => {
 		await waitFor(() => {
 			expect(view.getByText('device-1')).toBeTruthy();
 		});
+	});
+
+	it('waits for an authenticated reachable session before flushing queued attendance', async () => {
+		mockAuthContext.session = null;
+
+		const view = render(
+			<DeviceProvider>
+				<DeviceIdProbe />
+			</DeviceProvider>,
+		);
+
+		expect(mockNetInfoAddEventListener).not.toHaveBeenCalled();
+		expect(mockFlushPendingAttendanceQueue).not.toHaveBeenCalled();
+
+		mockAuthContext.session = { session: { id: 'session-1' } };
+
+		view.rerender(
+			<DeviceProvider>
+				<DeviceIdProbe />
+			</DeviceProvider>,
+		);
+
+		await waitFor(() => {
+			expect(mockNetInfoFetch).toHaveBeenCalledTimes(1);
+			expect(mockNetInfoAddEventListener).toHaveBeenCalledTimes(1);
+			expect(mockFlushPendingAttendanceQueue).toHaveBeenCalledTimes(1);
+		});
+
+		const listener = mockNetInfoAddEventListener.mock.calls[0]?.[0] as
+			| ((state: { isConnected: boolean | null; isInternetReachable?: boolean | null }) => void)
+			| undefined;
+
+		expect(listener).toBeDefined();
+
+		listener?.({ isConnected: true, isInternetReachable: false });
+
+		expect(mockFlushPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 	});
 });

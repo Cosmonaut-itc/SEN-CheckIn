@@ -4,18 +4,31 @@ import { useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Linking, ScrollView, Text, View } from 'react-native';
+import {
+	Animated,
+	Easing,
+	KeyboardAvoidingView,
+	Linking,
+	Platform,
+	ScrollView,
+	Text,
+	View,
+} from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import QRCode from 'react-qr-code';
 
 import { ENV, envErrors } from '@/constants/env';
-import { Colors } from '@/constants/theme';
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { API_BASE_URL, API_ENV_VALID } from '@/lib/api';
+import { getAnimationDuration } from '@/lib/accessibility-motion';
 import { authClient, refreshSession, saveAccessToken } from '@/lib/auth-client';
 import { registerDevice, type RegisterDeviceResponse } from '@/lib/client-functions';
 import { getStableDeviceCode, useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
+import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
+import { useTheme } from '@/providers/theme-provider';
 
 const DEVICE_CLIENT_ID = 'sen-checkin-mobile';
 const DEVICE_SCOPE = 'openid profile';
@@ -119,13 +132,19 @@ function deriveErrorMessage(error: unknown): string {
  */
 function AnimatedDots(): JSX.Element {
 	const [dots, setDots] = useState('');
+	const shouldReduceMotion = useReducedMotion();
 
 	useEffect(() => {
+		if (shouldReduceMotion) {
+			setDots('...');
+			return;
+		}
+
 		const interval = setInterval(() => {
 			setDots((prev) => (prev.length >= 3 ? '' : `${prev}.`));
-		}, 400);
+		}, getAnimationDuration(400, shouldReduceMotion));
 		return () => clearInterval(interval);
-	}, []);
+	}, [shouldReduceMotion]);
 
 	return <Text className="text-primary font-bold">{dots || '   '}</Text>;
 }
@@ -138,19 +157,25 @@ function AnimatedDots(): JSX.Element {
  */
 function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Element {
 	const pulseAnim = useRef(new Animated.Value(1)).current;
+	const shouldReduceMotion = useReducedMotion();
 
 	useEffect(() => {
+		if (shouldReduceMotion) {
+			pulseAnim.setValue(1);
+			return;
+		}
+
 		const pulse = Animated.loop(
 			Animated.sequence([
 				Animated.timing(pulseAnim, {
 					toValue: 1.05,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					easing: Easing.inOut(Easing.ease),
 					useNativeDriver: true,
 				}),
 				Animated.timing(pulseAnim, {
 					toValue: 1,
-					duration: 800,
+					duration: getAnimationDuration(800, shouldReduceMotion),
 					easing: Easing.inOut(Easing.ease),
 					useNativeDriver: true,
 				}),
@@ -158,7 +183,7 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 		);
 		pulse.start();
 		return () => pulse.stop();
-	}, [pulseAnim]);
+	}, [pulseAnim, shouldReduceMotion]);
 
 	return <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>{children}</Animated.View>;
 }
@@ -171,10 +196,16 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
 	const { session, isLoading, setSession, authState } = useAuthContext();
-	const { updateLocalSettings } = useDeviceContext();
-	const accentColor = useThemeColor({}, 'primary');
-	const qrForeground = Colors.light.text;
+	const { settings, updateLocalSettings, isHydrated } = useDeviceContext();
+	const { isDarkMode } = useTheme();
+	const [accentColor, foregroundColor, foregroundInverseColor] = useThemeColor([
+		'accent',
+		'foreground',
+		'foreground-inverse',
+	]);
+	const qrForeground = isDarkMode ? foregroundInverseColor : foregroundColor;
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
+	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
 
 	const [codeState, setCodeState] = useState<DeviceCodeState | null>(null);
 	const [status, setStatus] = useState<AuthorizationStatus>({
@@ -192,6 +223,7 @@ export default function LoginScreen(): JSX.Element {
 		organizationId: string | null;
 	} | null>(null);
 	const [isRoutingToSetup, setIsRoutingToSetup] = useState(false);
+	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
 	const isTerminal = useMemo(
 		() => ['approved', 'denied', 'expired', 'error'].includes(status.state),
@@ -280,16 +312,6 @@ export default function LoginScreen(): JSX.Element {
 	const registerApprovedDevice = useCallback(
 		async (organizationId: string | null): Promise<RegisterDeviceResponse> => {
 			const stableCode = await getStableDeviceCode();
-			console.log('[login] registerApprovedDevice payload', {
-				stableCode,
-				organizationId,
-				deviceName:
-					ExpoDevice.deviceName ??
-					ExpoDevice.modelName ??
-					i18n.t('Login.defaults.deviceName'),
-				deviceType: ExpoDevice.modelName ?? 'MOBILE',
-				platform: PLATFORM,
-			});
 			const registered = await registerDevice({
 				code: stableCode,
 				name:
@@ -306,13 +328,6 @@ export default function LoginScreen(): JSX.Element {
 				name: registered.device.name ?? registered.device.code,
 				locationId: registered.device.locationId ?? null,
 				organizationId: registered.device.organizationId ?? organizationId,
-			});
-
-			console.log('[login] registerApprovedDevice response', {
-				isNew: registered.isNew,
-				deviceId: registered.device.id,
-				locationId: registered.device.locationId,
-				deviceOrg: registered.device.organizationId,
 			});
 
 			return registered;
@@ -413,15 +428,7 @@ export default function LoginScreen(): JSX.Element {
 				});
 
 				try {
-					console.log('[login] Device approved, establishing session with token');
 					const sessionResult = await refreshSession(accessToken);
-
-					console.log('[login] Session result:', {
-						hasData: !!sessionResult.data,
-						hasSession: !!sessionResult.data?.session,
-						hasUser: !!sessionResult.data?.user,
-						error: sessionResult.error,
-					});
 
 					if (sessionResult.error || !sessionResult.data?.session) {
 						console.warn('[login] Session establishment failed');
@@ -433,31 +440,13 @@ export default function LoginScreen(): JSX.Element {
 						return;
 					}
 
-					console.log(
-						'[login] Session established for user:',
-						sessionResult.data.user?.name,
-					);
-
 					// Register device BEFORE setting session to avoid race condition
 					// with auto-navigation effect that triggers on session change
-					console.log('[login] Registering device with stable code');
 					const registration = await registerApprovedDevice(
 						sessionResult.data.session?.activeOrganizationId ?? null,
 					);
-					console.log('[login] Registration complete', {
-						isNew: registration.isNew,
-						hasLocation: Boolean(registration.device.locationId),
-						locationId: registration.device.locationId,
-					});
 
 					if (!registration.device.locationId) {
-						console.log('[login] Device requires setup, redirecting to setup screen', {
-							deviceId: registration.device.id,
-							organizationId:
-								registration.device.organizationId ??
-								sessionResult.data.session?.activeOrganizationId ??
-								null,
-						});
 						// Set routing flags BEFORE session to prevent auto-navigation race
 						setPendingSetup({
 							deviceId: registration.device.id,
@@ -479,8 +468,6 @@ export default function LoginScreen(): JSX.Element {
 						setSession(sessionResult.data);
 						return;
 					}
-
-					console.log('[login] Device configured, navigating to scanner');
 					// Set session in context before navigation
 					setSession(sessionResult.data);
 
@@ -592,18 +579,51 @@ export default function LoginScreen(): JSX.Element {
 
 	// Redirect to the scanner when a session already exists.
 	useEffect(() => {
-		if (!isLoading && session && !pendingSetup && !isRoutingToSetup && authState !== 'locked') {
-			console.log('[login] Auto-navigation to scanner (session present, no pending setup)');
+		const hydratedSettings = settings;
+
+		if (
+			!isLoading &&
+			needsDeviceSetup &&
+			hydratedSettings &&
+			session &&
+			!pendingSetup &&
+			!isRoutingToSetup &&
+			authState !== 'locked'
+		) {
+			setIsRoutingToSetup(true);
+			replaceToDeviceSetup({
+				deviceId: hydratedSettings.deviceId,
+				organizationId:
+					hydratedSettings.organizationId ?? session.session.activeOrganizationId ?? '',
+			});
+			return;
+		}
+
+		if (
+			!isLoading &&
+			isHydrated &&
+			session &&
+			!pendingSetup &&
+			!isRoutingToSetup &&
+			authState !== 'locked'
+		) {
 			replaceWhenReady('/(main)/scanner');
 		}
-	}, [authState, isLoading, isRoutingToSetup, pendingSetup, replaceWhenReady, session]);
+	}, [
+		authState,
+		isHydrated,
+		isLoading,
+		isRoutingToSetup,
+		needsDeviceSetup,
+		pendingSetup,
+		replaceToDeviceSetup,
+		replaceWhenReady,
+		session,
+		settings,
+	]);
 
 	useEffect(() => {
 		if (pendingSetup && !isRoutingToSetup) {
-			console.log(
-				'[login] Pending setup detected, ensuring navigation to device-setup',
-				pendingSetup,
-			);
 			setIsRoutingToSetup(true);
 			replaceToDeviceSetup({
 				deviceId: pendingSetup.deviceId,
@@ -625,12 +645,16 @@ export default function LoginScreen(): JSX.Element {
 		if (isApproved) {
 			return (
 				<PulseAnimation>
-					<Card variant="default" style={continuousCurve}>
-						<Card.Body className="gap-2 items-center py-4">
-							<Text className="text-4xl">✓</Text>
-							<Card.Title className="text-success-700 text-2xl">
-								{i18n.t('Login.approved.title')}
-								<AnimatedDots />
+						<Card variant="default" style={continuousCurve}>
+							<Card.Body className="gap-2 items-center py-4">
+								<IconSymbol
+									name="checkmark.circle.fill"
+									size={32}
+									color={accentColor}
+								/>
+								<Card.Title className="text-success-700 text-2xl">
+									{i18n.t('Login.approved.title')}
+									<AnimatedDots />
 							</Card.Title>
 							<Card.Description className="text-success-600">
 								{i18n.t('Login.approved.subtitle')}
@@ -653,57 +677,67 @@ export default function LoginScreen(): JSX.Element {
 		}
 
 		if (status.state === 'denied') {
-			return (
-				<Card variant="default" style={continuousCurve}>
-					<Card.Body className="items-center gap-2 py-3">
-						<Text className="text-xl">✕</Text>
-						<Card.Title className="text-danger-700 text-base">
-							{status.message}
-						</Card.Title>
+				return (
+					<Card variant="default" style={continuousCurve}>
+						<Card.Body className="items-center gap-2 py-3">
+							<IconSymbol name="xmark.circle.fill" size={22} color={foregroundColor} />
+							<Card.Title className="text-danger-700 text-base">
+								{status.message}
+							</Card.Title>
 					</Card.Body>
 				</Card>
 			);
 		}
 
 		if (status.state === 'expired') {
-			return (
-				<Card variant="default" style={continuousCurve}>
-					<Card.Body className="items-center gap-2 py-3">
-						<Text className="text-xl">⏱</Text>
-						<Card.Title className="text-warning-700 text-base">
-							{status.message}
-						</Card.Title>
+				return (
+					<Card variant="default" style={continuousCurve}>
+						<Card.Body className="items-center gap-2 py-3">
+							<IconSymbol name="clock" size={22} color={foregroundColor} />
+							<Card.Title className="text-warning-700 text-base">
+								{status.message}
+							</Card.Title>
 					</Card.Body>
 				</Card>
 			);
 		}
 
 		if (status.state === 'error') {
-			return (
-				<Card variant="default" style={continuousCurve}>
-					<Card.Body className="items-center gap-2 py-3">
-						<Text className="text-xl">⚠</Text>
-						<Card.Title className="text-danger-700 text-base">
-							{status.message}
-						</Card.Title>
+				return (
+					<Card variant="default" style={continuousCurve}>
+						<Card.Body className="items-center gap-2 py-3">
+							<IconSymbol
+								name="exclamationmark.triangle.fill"
+								size={22}
+								color={foregroundColor}
+							/>
+							<Card.Title className="text-danger-700 text-base">
+								{status.message}
+							</Card.Title>
 					</Card.Body>
 				</Card>
 			);
 		}
 
 		return null;
-	}, [accentColor, continuousCurve, isApproved, status.message, status.state]);
+	}, [accentColor, continuousCurve, foregroundColor, isApproved, status.message, status.state]);
 
 	return (
-		<ScrollView
+		<KeyboardAvoidingView
 			className="flex-1 bg-background"
-			contentInsetAdjustmentBehavior="automatic"
-			contentContainerClassName="px-5 pt-4 pb-6 gap-4"
-			showsVerticalScrollIndicator={false}
+			behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+			keyboardVerticalOffset={keyboardVerticalOffset}
 		>
+			<ScrollView
+				className="flex-1 bg-background"
+				contentInsetAdjustmentBehavior="automatic"
+				contentContainerClassName="px-5 pt-4 pb-6 gap-4"
+				keyboardShouldPersistTaps="handled"
+				showsVerticalScrollIndicator={false}
+			>
 			{/* Header */}
 			<View className="gap-2 pt-4">
-				<Text className="text-base text-foreground-500 leading-relaxed">
+				<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500 leading-relaxed`}>
 					{i18n.t('Login.header.subtitle')}
 				</Text>
 			</View>
@@ -741,11 +775,14 @@ export default function LoginScreen(): JSX.Element {
 
 				{/* QR Code Section */}
 				{verificationUrl && !isApproved ? (
-					<View className="items-center py-2 gap-2">
+					<View
+						className="items-center py-2 gap-2"
+						accessible
+						accessibilityLabel={i18n.t('Login.accessibility.qrCode')}
+					>
 						<View
-							className="bg-white p-3 rounded-2xl"
+							className="bg-white p-3 rounded-2xl shadow-md"
 							style={{
-								boxShadow: '0 4px 14px rgba(15, 23, 42, 0.16)',
 								borderCurve: 'continuous',
 							}}
 						>
@@ -775,6 +812,11 @@ export default function LoginScreen(): JSX.Element {
 							className="w-full"
 							variant="primary"
 							size="md"
+							accessibilityLabel={
+								isRequestingCode
+									? i18n.t('Login.actions.refreshing')
+									: i18n.t('Login.actions.newCode')
+							}
 						>
 							<Button.Label>
 								{isRequestingCode
@@ -784,12 +826,13 @@ export default function LoginScreen(): JSX.Element {
 						</Button>
 						{verificationUrl ? (
 							<Button
-								variant="primary"
+								variant="secondary"
 								className="w-full"
 								size="md"
 								onPress={() => {
 									void Linking.openURL(verificationUrl);
 								}}
+								accessibilityLabel={i18n.t('Login.actions.openLink')}
 							>
 								<Button.Label>{i18n.t('Login.actions.openLink')}</Button.Label>
 							</Button>
@@ -826,11 +869,13 @@ export default function LoginScreen(): JSX.Element {
 						variant="primary"
 						size="md"
 						className="w-full"
+						accessibilityLabel={i18n.t('Login.actions.tryAgain')}
 					>
 						<Button.Label>{i18n.t('Login.actions.tryAgain')}</Button.Label>
 					</Button>
 				</View>
 			) : null}
-		</ScrollView>
+			</ScrollView>
+		</KeyboardAvoidingView>
 	);
 }

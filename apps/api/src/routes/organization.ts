@@ -2,7 +2,7 @@ import { type SQL, and, asc, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
-import { auth } from '../../utils/auth.js';
+import { auth, organizationHooks } from '../../utils/auth.js';
 import db from '../db/index.js';
 import { member, organization, user as userTable } from '../db/schema.js';
 import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
@@ -722,39 +722,49 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 	 */
 	.post(
 		'/update-member-role-direct',
-		async ({ body, request, session, set }) => {
+		async ({ body, request, session, set, user }) => {
 			const organizationId = body.organizationId ?? session.activeOrganizationId ?? null;
+			const isSuperUser = user.role === 'admin';
 
 			if (!organizationId) {
 				set.status = 400;
 				return buildErrorResponse('Organization is required', 400);
 			}
 
-			const membership = await db
-				.select({ role: member.role })
-				.from(member)
-				.where(
-					and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)),
-				)
-				.limit(1);
+			if (!isSuperUser) {
+				const membership = await db
+					.select({ role: member.role })
+					.from(member)
+					.where(
+						and(
+							eq(member.userId, session.userId),
+							eq(member.organizationId, organizationId),
+						),
+					)
+					.limit(1);
 
-			const callerRole = membership[0]?.role ?? null;
+				const callerRole = membership[0]?.role ?? null;
 
-			if (!callerRole) {
-				set.status = 403;
-				return buildErrorResponse(
-					'You must belong to the organization to update members',
-					403,
-				);
-			}
+				if (!callerRole) {
+					set.status = 403;
+					return buildErrorResponse(
+						'You must belong to the organization to update members',
+						403,
+					);
+				}
 
-			if (callerRole !== 'admin' && callerRole !== 'owner') {
-				set.status = 403;
-				return buildErrorResponse('Only organization admins can update member roles', 403);
+				if (callerRole !== 'admin' && callerRole !== 'owner') {
+					set.status = 403;
+					return buildErrorResponse(
+						'Only organization admins can update member roles',
+						403,
+					);
+				}
 			}
 
 			const targetMembership = await db
 				.select({
+					createdAt: member.createdAt,
 					id: member.id,
 					organizationId: member.organizationId,
 					role: member.role,
@@ -777,38 +787,133 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			}
 
 			try {
-				const sessionHeaders = buildSessionHeaders(request);
-				const result = await auth.api.updateMemberRole({
-					body: {
-						memberId: body.memberId,
-						organizationId,
-						role: body.role,
-					},
-					headers: sessionHeaders,
-				});
+				if (isSuperUser) {
+					const shouldRunOrganizationHooks = Boolean(
+						organizationHooks.beforeUpdateMemberRole ||
+						organizationHooks.afterUpdateMemberRole,
+					);
+					const organizationRecord = shouldRunOrganizationHooks
+						? await db.query.organization.findFirst({
+								where: eq(organization.id, organizationId),
+							})
+						: null;
+					const userBeingUpdated = shouldRunOrganizationHooks
+						? await db.query.user.findFirst({
+								where: eq(userTable.id, targetMember.userId),
+							})
+						: null;
+					const beforeHookResult =
+						shouldRunOrganizationHooks &&
+						organizationRecord &&
+						userBeingUpdated &&
+						organizationHooks.beforeUpdateMemberRole
+							? await organizationHooks.beforeUpdateMemberRole({
+									member: targetMember,
+									newRole: body.role,
+									organization: organizationRecord,
+									user: userBeingUpdated,
+								})
+							: undefined;
+					const hookRole =
+						beforeHookResult &&
+						typeof beforeHookResult === 'object' &&
+						'data' in beforeHookResult
+							? (beforeHookResult.data?.role ?? body.role)
+							: body.role;
+					const roleToPersist =
+						hookRole === 'admin' || hookRole === 'member' ? hookRole : body.role;
 
-				const errorMessage = (result as { error?: { message?: string } }).error?.message;
-				const updatedMember =
-					(result as {
-						member?: {
-							id: string;
-							organizationId: string;
-							role: string;
-							userId: string;
-						} | null;
-					}).member ?? null;
-				const success = (result as { success?: boolean }).success ?? !errorMessage;
+					await db
+						.update(member)
+						.set({ role: roleToPersist })
+						.where(
+							and(
+								eq(member.id, body.memberId),
+								eq(member.organizationId, organizationId),
+							),
+						);
+				} else {
+					const sessionHeaders = buildSessionHeaders(request);
+					const result = await auth.api.updateMemberRole({
+						body: {
+							memberId: body.memberId,
+							organizationId,
+							role: body.role,
+						},
+						headers: sessionHeaders,
+					});
 
-				if (!success) {
-					set.status = 400;
-					return buildErrorResponse(errorMessage ?? 'Failed to update member role', 400);
+					const errorMessage = (result as { error?: { message?: string } }).error
+						?.message;
+					const success = (result as { success?: boolean }).success ?? !errorMessage;
+
+					if (!success) {
+						set.status = 400;
+						return buildErrorResponse(
+							errorMessage ?? 'Failed to update member role',
+							400,
+						);
+					}
+				}
+
+				const updatedMembership = await db
+					.select({
+						createdAt: member.createdAt,
+						id: member.id,
+						organizationId: member.organizationId,
+						role: member.role,
+						userId: member.userId,
+					})
+					.from(member)
+					.where(
+						and(
+							eq(member.id, body.memberId),
+							eq(member.organizationId, organizationId),
+						),
+					)
+					.limit(1);
+				const updatedMember = updatedMembership[0] ?? null;
+				if (isSuperUser && updatedMember && organizationHooks.afterUpdateMemberRole) {
+					const organizationRecord = await db.query.organization.findFirst({
+						where: eq(organization.id, organizationId),
+					});
+					const userBeingUpdated = await db.query.user.findFirst({
+						where: eq(userTable.id, updatedMember.userId),
+					});
+
+					if (organizationRecord && userBeingUpdated) {
+						await organizationHooks.afterUpdateMemberRole({
+							member: updatedMember,
+							organization: organizationRecord,
+							previousRole: targetMember.role,
+							user: userBeingUpdated,
+						});
+					}
 				}
 
 				return { success: true, data: { member: updatedMember } };
 			} catch (error) {
 				console.error('Failed to update member role:', error);
-				set.status = 500;
-				return buildErrorResponse('Failed to update member role', 500);
+				const errorObject =
+					error && typeof error === 'object' ? (error as Record<string, unknown>) : null;
+				const isBetterAuthError = errorObject
+					? 'status' in errorObject ||
+						'statusCode' in errorObject ||
+						'body' in errorObject
+					: false;
+				if (!isBetterAuthError) {
+					set.status = 500;
+					return buildErrorResponse('Failed to update member role', 500);
+				}
+
+				const normalizedError = normalizeBetterAuthError(
+					error,
+					'Failed to update member role',
+				);
+				set.status = normalizedError.status;
+				return buildErrorResponse(normalizedError.message, normalizedError.status, {
+					code: normalizedError.code,
+				});
 			}
 		},
 		{

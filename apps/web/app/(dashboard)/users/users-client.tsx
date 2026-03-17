@@ -38,6 +38,7 @@ import {
 	fetchUsers,
 	type Organization,
 	type OrganizationMember,
+	type OrganizationMembersResponse,
 	type OrganizationsAllResponse,
 } from '@/lib/client-functions';
 import { useSession } from '@/lib/auth-client';
@@ -145,26 +146,28 @@ function MemberRoleEditor({
 	if (!currentRole || !selectedRole) {
 		return (
 			<div className="space-y-1">
-					<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
-						<ShieldCheck className="mr-1 h-3 w-3" />
-						{t(`roles.${member.role}`)}
-					</Badge>
-					{canEditMemberRoles && member.role === 'owner' ? (
-						<p className="text-xs text-muted-foreground">{t('roleEditor.ownerProtected')}</p>
-					) : null}
-				</div>
-			);
+				<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
+					<ShieldCheck className="mr-1 h-3 w-3" />
+					{t(`roles.${member.role}`)}
+				</Badge>
+				{canEditMemberRoles && member.role === 'owner' ? (
+					<p className="text-xs text-muted-foreground">
+						{t('roleEditor.ownerProtected')}
+					</p>
+				) : null}
+			</div>
+		);
 	}
 
 	const hasChanged = selectedRole !== currentRole;
 
 	return (
 		<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:items-center">
-				<Select
-					value={selectedRole}
-					onValueChange={(value) => onRoleChange(member.id, value as ManagedOrganizationRole)}
-					disabled={!canEditMemberRoles || isSaving}
-				>
+			<Select
+				value={selectedRole}
+				onValueChange={(value) => onRoleChange(member.id, value as ManagedOrganizationRole)}
+				disabled={!canEditMemberRoles || isSaving}
+			>
 				<SelectTrigger
 					size="sm"
 					className="h-8 w-full min-[1025px]:w-[150px]"
@@ -184,11 +187,11 @@ function MemberRoleEditor({
 				type="button"
 				size="sm"
 				variant="outline"
-					className="w-full min-[1025px]:w-auto"
-					aria-label={t('actions.saveRoleFor', { user: memberLabel })}
-					onClick={() => onSave(member)}
-					disabled={!canEditMemberRoles || !hasChanged || isSaving}
-				>
+				className="w-full min-[1025px]:w-auto"
+				aria-label={t('actions.saveRoleFor', { user: memberLabel })}
+				onClick={() => onSave(member)}
+				disabled={!canEditMemberRoles || !hasChanged || isSaving}
+			>
 				{isSaving ? t('actions.savingRole') : t('actions.saveRole')}
 			</Button>
 		</div>
@@ -397,6 +400,8 @@ export function UsersPageClient(): React.ReactElement {
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+	const [isRefreshingAfterSelfDemotion, setIsRefreshingAfterSelfDemotion] =
+		useState<boolean>(false);
 	const [memberRoleOverrides, setMemberRoleOverrides] = useState<
 		Record<string, ManagedOrganizationRole>
 	>({});
@@ -410,9 +415,11 @@ export function UsersPageClient(): React.ReactElement {
 		: null;
 	const effectiveOrganizationId = isSuperUser ? resolvedSelectedOrganizationId : organizationId;
 	const canManageOrganizationUsers =
-		isSuperUser || organizationRole === 'admin' || organizationRole === 'owner';
+		!isRefreshingAfterSelfDemotion &&
+		(isSuperUser || organizationRole === 'admin' || organizationRole === 'owner');
 	const canEditOrganizationMemberRoles =
-		organizationRole === 'admin' || organizationRole === 'owner';
+		!isRefreshingAfterSelfDemotion &&
+		(isSuperUser || organizationRole === 'admin' || organizationRole === 'owner');
 
 	const organizationsQueryParams = {
 		limit: 100,
@@ -477,7 +484,11 @@ export function UsersPageClient(): React.ReactElement {
 		...(searchValue ? { search: searchValue } : {}),
 	};
 
-	const { data, isError: isMembersError, isFetching } = useQuery({
+	const {
+		data,
+		isError: isMembersError,
+		isFetching,
+	} = useQuery({
 		queryKey: queryKeys.organizationMembers.list(membersQueryParams),
 		queryFn: () => fetchOrganizationMembers(membersQueryParams),
 		enabled: Boolean(effectiveOrganizationId),
@@ -568,10 +579,10 @@ export function UsersPageClient(): React.ReactElement {
 	const form = useAppForm({
 		defaultValues: initialFormValues,
 		onSubmit: async ({ value }) => {
-				if (!canManageOrganizationUsers) {
-					toast.error(t('toast.roleUpdateError'));
-					return;
-				}
+			if (!canManageOrganizationUsers) {
+				toast.error(t('toast.roleUpdateError'));
+				return;
+			}
 
 			const resolvedOrganizationId = value.organizationId || effectiveOrganizationId;
 
@@ -635,7 +646,7 @@ export function UsersPageClient(): React.ReactElement {
 	});
 
 	const addMemberMutation = useMutation({
-		mutationKey: mutationKeys.organizationMembers.create,
+		mutationKey: mutationKeys.organizationMembers.add,
 		mutationFn: addOrganizationMember,
 		onSuccess: (result) => {
 			if (result.success) {
@@ -670,8 +681,42 @@ export function UsersPageClient(): React.ReactElement {
 				return;
 			}
 
+			const updatedMember = result.data?.member ?? null;
+			if (updatedMember) {
+				queryClient.setQueriesData<OrganizationMembersResponse>(
+					{ queryKey: queryKeys.organizationMembers.all },
+					(current) => {
+						if (!current) {
+							return current;
+						}
+
+						return {
+							...current,
+							members: current.members.map((currentMember) =>
+								currentMember.id === updatedMember.id
+									? {
+											...currentMember,
+											role: updatedMember.role,
+										}
+									: currentMember,
+							),
+						};
+					},
+				);
+			}
+
 			toast.success(t('toast.roleUpdateSuccess'));
-			if (!isSuperUser && variables.userId === session?.user?.id && variables.role === 'member') {
+			if (
+				!isSuperUser &&
+				variables.userId === session?.user?.id &&
+				variables.role === 'member'
+			) {
+				setIsRefreshingAfterSelfDemotion(true);
+				setMemberRoleOverrides((current) => {
+					const next = { ...current };
+					delete next[variables.memberId];
+					return next;
+				});
 				startTransition(() => {
 					router.refresh();
 				});
@@ -759,10 +804,10 @@ export function UsersPageClient(): React.ReactElement {
 	 */
 	const handleMemberRoleSave = useCallback(
 		async (member: OrganizationMember): Promise<void> => {
-				if (!effectiveOrganizationId || !canEditOrganizationMemberRoles) {
-					toast.error(t('toast.roleUpdateError'));
-					return;
-				}
+			if (!effectiveOrganizationId || !canEditOrganizationMemberRoles) {
+				toast.error(t('toast.roleUpdateError'));
+				return;
+			}
 
 			const currentRole = getEditableOrganizationRole(member.role);
 			const selectedRole = memberRoleOverrides[member.id] ?? currentRole;
@@ -778,14 +823,14 @@ export function UsersPageClient(): React.ReactElement {
 				userId: member.userId,
 			});
 		},
-				[
-					canEditOrganizationMemberRoles,
-					effectiveOrganizationId,
-					memberRoleOverrides,
-					t,
-					updateMemberRoleMutation,
-				],
-		);
+		[
+			canEditOrganizationMemberRoles,
+			effectiveOrganizationId,
+			memberRoleOverrides,
+			t,
+			updateMemberRoleMutation,
+		],
+	);
 
 	const columns = useMemo<ColumnDef<OrganizationMember>[]>(
 		() => [
@@ -822,10 +867,10 @@ export function UsersPageClient(): React.ReactElement {
 				accessorFn: (row) => row.role,
 				header: t('table.headers.role'),
 				cell: ({ row }) => (
-							<MemberRoleEditor
-								member={row.original}
-								canEditMemberRoles={canEditOrganizationMemberRoles}
-							selectedRole={
+					<MemberRoleEditor
+						member={row.original}
+						canEditMemberRoles={canEditOrganizationMemberRoles}
+						selectedRole={
 							memberRoleOverrides[row.original.id] ??
 							getEditableOrganizationRole(row.original.role)
 						}
@@ -852,10 +897,10 @@ export function UsersPageClient(): React.ReactElement {
 				enableSorting: false,
 			},
 		],
-			[
-					canEditOrganizationMemberRoles,
-					handleMemberRoleSave,
-					handleMemberRoleSelection,
+		[
+			canEditOrganizationMemberRoles,
+			handleMemberRoleSave,
+			handleMemberRoleSelection,
 			memberRoleOverrides,
 			t,
 			updateMemberRoleMutation.isPending,
@@ -869,7 +914,9 @@ export function UsersPageClient(): React.ReactElement {
 				<div className="flex items-center gap-3">
 					<Avatar className="h-11 w-11">
 						<AvatarImage src={member.user.image ?? undefined} alt="" />
-						<AvatarFallback>{getInitials(member.user.name || member.user.email)}</AvatarFallback>
+						<AvatarFallback>
+							{getInitials(member.user.name || member.user.email)}
+						</AvatarFallback>
 					</Avatar>
 					<div className="space-y-1">
 						<p className="text-base font-semibold">
@@ -883,10 +930,10 @@ export function UsersPageClient(): React.ReactElement {
 					<div className="space-y-1">
 						<p className="text-sm text-muted-foreground">{t('table.headers.role')}</p>
 						<div>
-									<MemberRoleEditor
-										member={member}
-										canEditMemberRoles={canEditOrganizationMemberRoles}
-									selectedRole={
+							<MemberRoleEditor
+								member={member}
+								canEditMemberRoles={canEditOrganizationMemberRoles}
+								selectedRole={
 									memberRoleOverrides[member.id] ??
 									getEditableOrganizationRole(member.role)
 								}
@@ -911,10 +958,10 @@ export function UsersPageClient(): React.ReactElement {
 				</div>
 			</div>
 		),
-			[
-				canEditOrganizationMemberRoles,
-				handleMemberRoleSave,
-				handleMemberRoleSelection,
+		[
+			canEditOrganizationMemberRoles,
+			handleMemberRoleSave,
+			handleMemberRoleSelection,
 			memberRoleOverrides,
 			t,
 			updateMemberRoleMutation.isPending,
@@ -931,69 +978,217 @@ export function UsersPageClient(): React.ReactElement {
 				})}
 				actions={
 					<div className="flex flex-col gap-2 min-[1025px]:flex-row">
-					{isSuperUser ? (
-						<Dialog
-							open={isAssignDialogOpen}
-							onOpenChange={(open) => {
-								setIsAssignDialogOpen(open);
-								if (!open) {
-									assignForm.reset();
-								}
-							}}
-						>
+						{isSuperUser ? (
+							<Dialog
+								open={isAssignDialogOpen}
+								onOpenChange={(open) => {
+									setIsAssignDialogOpen(open);
+									if (!open) {
+										assignForm.reset();
+									}
+								}}
+							>
+								<DialogTrigger asChild>
+									<Button
+										variant="outline"
+										disabled={!effectiveOrganizationId}
+										className="min-h-11"
+									>
+										<UserCheck className="mr-2 h-4 w-4" />
+										{t('actions.assignExisting')}
+									</Button>
+								</DialogTrigger>
+								<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+									<form
+										onSubmit={(e) => {
+											e.preventDefault();
+											e.stopPropagation();
+											assignForm.handleSubmit();
+										}}
+									>
+										<DialogHeader>
+											<DialogTitle>{t('assignDialog.title')}</DialogTitle>
+											<DialogDescription>
+												{t('assignDialog.description')}
+											</DialogDescription>
+										</DialogHeader>
+										<assignForm.AppForm>
+											<div className="mt-6 space-y-6">
+												<assignForm.AppField
+													name="userId"
+													validators={{
+														onChange: ({ value }) =>
+															value
+																? undefined
+																: t('validation.userRequired'),
+													}}
+												>
+													{(field) => (
+														<field.SelectField
+															label={t('fields.existingUser')}
+															placeholder={
+																isFetchingUsers
+																	? t('assignDialog.loadingUsers')
+																	: t('placeholders.existingUser')
+															}
+															options={userOptions}
+															disabled={
+																isFetchingUsers ||
+																userOptions.length === 0
+															}
+															orientation="vertical"
+														/>
+													)}
+												</assignForm.AppField>
+												<assignForm.AppField name="role">
+													{(field) => (
+														<field.SelectField
+															label={t('fields.role')}
+															placeholder={t(
+																'placeholders.selectRole',
+															)}
+															options={[
+																{
+																	value: 'admin',
+																	label: t('roles.admin'),
+																},
+																{
+																	value: 'member',
+																	label: t('roles.member'),
+																},
+															]}
+															orientation="vertical"
+														/>
+													)}
+												</assignForm.AppField>
+											</div>
+											<DialogFooter className="mt-4 flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
+												<Button
+													variant="outline"
+													type="button"
+													onClick={() => setIsAssignDialogOpen(false)}
+												>
+													{tCommon('cancel')}
+												</Button>
+												<assignForm.SubmitButton
+													label={t('actions.assignExisting')}
+													loadingLabel={t('actions.assigning')}
+													className="min-h-11 w-full min-[640px]:w-auto"
+												/>
+											</DialogFooter>
+										</assignForm.AppForm>
+									</form>
+								</DialogContent>
+							</Dialog>
+						) : null}
+						<Dialog open={isDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
 							<DialogTrigger asChild>
 								<Button
-									variant="outline"
-									disabled={!effectiveOrganizationId}
+									disabled={
+										!effectiveOrganizationId || !canManageOrganizationUsers
+									}
+									data-testid="users-create-button"
 									className="min-h-11"
 								>
-									<UserCheck className="mr-2 h-4 w-4" />
-									{t('actions.assignExisting')}
+									<UserPlus className="mr-2 h-4 w-4" />
+									{t('actions.create')}
 								</Button>
 							</DialogTrigger>
-							<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg">
+							<DialogContent
+								data-testid="users-create-dialog"
+								className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg"
+							>
 								<form
 									onSubmit={(e) => {
 										e.preventDefault();
 										e.stopPropagation();
-										assignForm.handleSubmit();
+										form.handleSubmit();
 									}}
 								>
 									<DialogHeader>
-										<DialogTitle>{t('assignDialog.title')}</DialogTitle>
+										<DialogTitle>{t('dialog.title')}</DialogTitle>
 										<DialogDescription>
-											{t('assignDialog.description')}
+											{t('dialog.description')}
 										</DialogDescription>
 									</DialogHeader>
-									<assignForm.AppForm>
+									<form.AppForm>
 										<div className="mt-6 space-y-6">
-											<assignForm.AppField
-												name="userId"
+											<form.AppField
+												name="organizationId"
 												validators={{
 													onChange: ({ value }) =>
 														value
 															? undefined
-															: t('validation.userRequired'),
+															: t('validation.organizationRequired'),
 												}}
 											>
 												{(field) => (
 													<field.SelectField
-														label={t('fields.existingUser')}
+														label={t('fields.organization')}
 														placeholder={
-															isFetchingUsers
-																? t('assignDialog.loadingUsers')
-																: t('placeholders.existingUser')
+															isFetchingOrganizations
+																? t('organizationSelector.loading')
+																: t(
+																		'organizationSelector.placeholder',
+																	)
 														}
-														options={userOptions}
+														options={createOrganizationOptions}
 														disabled={
-															isFetchingUsers ||
-															userOptions.length === 0
+															!isSuperUser ||
+															isFetchingOrganizations ||
+															createOrganizationOptions.length === 0
 														}
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="name">
+												{(field) => (
+													<field.TextField
+														label={t('fields.fullName')}
+														placeholder={t('placeholders.fullName')}
 														orientation="vertical"
 													/>
 												)}
-											</assignForm.AppField>
-											<assignForm.AppField name="role">
+											</form.AppField>
+											<form.AppField
+												name="email"
+												validators={{
+													onChange: ({ value }) =>
+														value.includes('@')
+															? undefined
+															: t('validation.validEmailRequired'),
+												}}
+											>
+												{(field) => (
+													<field.TextField
+														label={t('fields.email')}
+														placeholder={t('placeholders.email')}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="username">
+												{(field) => (
+													<field.TextField
+														label={t('fields.username')}
+														placeholder={t('placeholders.username')}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="password">
+												{(field) => (
+													<field.TextField
+														label={t('fields.temporaryPassword')}
+														type="password"
+														placeholder={t(
+															'placeholders.temporaryPassword',
+														)}
+														orientation="vertical"
+													/>
+												)}
+											</form.AppField>
+											<form.AppField name="role">
 												{(field) => (
 													<field.SelectField
 														label={t('fields.role')}
@@ -1008,166 +1203,29 @@ export function UsersPageClient(): React.ReactElement {
 																label: t('roles.member'),
 															},
 														]}
-														orientation="vertical"
 													/>
 												)}
-											</assignForm.AppField>
+											</form.AppField>
 										</div>
 										<DialogFooter className="mt-4 flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
 											<Button
 												variant="outline"
 												type="button"
-												onClick={() => setIsAssignDialogOpen(false)}
+												onClick={() => setIsDialogOpen(false)}
 											>
 												{tCommon('cancel')}
 											</Button>
-											<assignForm.SubmitButton
-												label={t('actions.assignExisting')}
-												loadingLabel={t('actions.assigning')}
+											<form.SubmitButton
+												label={t('actions.createUser')}
+												loadingLabel={t('actions.creating')}
 												className="min-h-11 w-full min-[640px]:w-auto"
+												dataTestId="users-create-submit"
 											/>
 										</DialogFooter>
-									</assignForm.AppForm>
+									</form.AppForm>
 								</form>
 							</DialogContent>
 						</Dialog>
-					) : null}
-					<Dialog open={isDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
-						<DialogTrigger asChild>
-								<Button
-									disabled={!effectiveOrganizationId || !canManageOrganizationUsers}
-								data-testid="users-create-button"
-								className="min-h-11"
-							>
-								<UserPlus className="mr-2 h-4 w-4" />
-								{t('actions.create')}
-							</Button>
-						</DialogTrigger>
-						<DialogContent
-							data-testid="users-create-dialog"
-							className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-lg"
-						>
-							<form
-								onSubmit={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									form.handleSubmit();
-								}}
-							>
-								<DialogHeader>
-									<DialogTitle>{t('dialog.title')}</DialogTitle>
-									<DialogDescription>{t('dialog.description')}</DialogDescription>
-								</DialogHeader>
-								<form.AppForm>
-									<div className="mt-6 space-y-6">
-										<form.AppField
-											name="organizationId"
-											validators={{
-												onChange: ({ value }) =>
-													value
-														? undefined
-														: t('validation.organizationRequired'),
-											}}
-										>
-											{(field) => (
-												<field.SelectField
-													label={t('fields.organization')}
-													placeholder={
-														isFetchingOrganizations
-															? t('organizationSelector.loading')
-															: t('organizationSelector.placeholder')
-													}
-													options={createOrganizationOptions}
-													disabled={
-														!isSuperUser ||
-														isFetchingOrganizations ||
-														createOrganizationOptions.length === 0
-													}
-												/>
-											)}
-										</form.AppField>
-										<form.AppField name="name">
-											{(field) => (
-												<field.TextField
-													label={t('fields.fullName')}
-													placeholder={t('placeholders.fullName')}
-													orientation="vertical"
-												/>
-											)}
-										</form.AppField>
-										<form.AppField
-											name="email"
-											validators={{
-												onChange: ({ value }) =>
-													value.includes('@')
-														? undefined
-														: t('validation.validEmailRequired'),
-											}}
-										>
-											{(field) => (
-												<field.TextField
-													label={t('fields.email')}
-													placeholder={t('placeholders.email')}
-													orientation="vertical"
-												/>
-											)}
-										</form.AppField>
-										<form.AppField name="username">
-											{(field) => (
-												<field.TextField
-													label={t('fields.username')}
-													placeholder={t('placeholders.username')}
-													orientation="vertical"
-												/>
-											)}
-										</form.AppField>
-										<form.AppField name="password">
-											{(field) => (
-												<field.TextField
-													label={t('fields.temporaryPassword')}
-													type="password"
-													placeholder={t(
-														'placeholders.temporaryPassword',
-													)}
-													orientation="vertical"
-												/>
-											)}
-										</form.AppField>
-										<form.AppField name="role">
-											{(field) => (
-												<field.SelectField
-													label={t('fields.role')}
-													placeholder={t('placeholders.selectRole')}
-													options={[
-														{ value: 'admin', label: t('roles.admin') },
-														{
-															value: 'member',
-															label: t('roles.member'),
-														},
-													]}
-												/>
-											)}
-										</form.AppField>
-									</div>
-									<DialogFooter className="mt-4 flex-col-reverse gap-2 min-[640px]:flex-row [&>button]:min-h-11 [&>button]:w-full min-[640px]:[&>button]:w-auto">
-										<Button
-											variant="outline"
-											type="button"
-											onClick={() => setIsDialogOpen(false)}
-										>
-											{tCommon('cancel')}
-										</Button>
-										<form.SubmitButton
-											label={t('actions.createUser')}
-											loadingLabel={t('actions.creating')}
-											className="min-h-11 w-full min-[640px]:w-auto"
-											dataTestId="users-create-submit"
-										/>
-									</DialogFooter>
-								</form.AppForm>
-							</form>
-						</DialogContent>
-					</Dialog>
 					</div>
 				}
 			/>

@@ -222,15 +222,49 @@ describe('organization routes (contract)', () => {
 
 	it('allows organization admins to update a member role in their organization', async () => {
 		const suffix = randomUUID().slice(0, 8);
+		const orgAdminEmail = `org-admin.${suffix}@example.com`;
+		const orgAdminUserId = await createMembershipUser(orgAdminEmail, `org_admin_${suffix}`);
+		await createMembership(orgAdminUserId, seed.organizationId, 'admin');
 		const memberUserId = await createMembershipUser(
 			`role-target.${suffix}@example.com`,
 			`role_target_${suffix}`,
 		);
 		const memberId = await createMembership(memberUserId, seed.organizationId, 'member');
+		const orgAdminCookie = await signInAsUser(orgAdminEmail, 'User123!Test');
 
 		const response = await client.organization['update-member-role-direct'].post({
 			memberId,
 			organizationId: seed.organizationId,
+			role: 'admin',
+			$headers: { cookie: orgAdminCookie },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.success).toBe(true);
+		expect(payload.data?.member?.role).toBe('admin');
+
+		const updatedMembership = await db
+			.select({ role: member.role })
+			.from(member)
+			.where(eq(member.id, memberId))
+			.limit(1);
+
+		expect(updatedMembership[0]?.role).toBe('admin');
+	});
+
+	it('allows platform superusers to update member roles without belonging to the organization', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const otherOrganizationId = await createTestOrganization(`superuser-${suffix}`);
+		const memberUserId = await createMembershipUser(
+			`superuser-target.${suffix}@example.com`,
+			`superuser_target_${suffix}`,
+		);
+		const memberId = await createMembership(memberUserId, otherOrganizationId, 'member');
+
+		const response = await client.organization['update-member-role-direct'].post({
+			memberId,
+			organizationId: otherOrganizationId,
 			role: 'admin',
 			$headers: { cookie: adminSession.cookieHeader },
 		});
@@ -247,6 +281,38 @@ describe('organization routes (contract)', () => {
 			.limit(1);
 
 		expect(updatedMembership[0]?.role).toBe('admin');
+	});
+
+	it('allows organization admins to demote themselves', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const orgAdminEmail = `self-demote.${suffix}@example.com`;
+		const orgAdminUserId = await createMembershipUser(orgAdminEmail, `self_demote_${suffix}`);
+		const orgAdminMemberId = await createMembership(
+			orgAdminUserId,
+			seed.organizationId,
+			'admin',
+		);
+		const orgAdminCookie = await signInAsUser(orgAdminEmail, 'User123!Test');
+
+		const response = await client.organization['update-member-role-direct'].post({
+			memberId: orgAdminMemberId,
+			organizationId: seed.organizationId,
+			role: 'member',
+			$headers: { cookie: orgAdminCookie },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.success).toBe(true);
+		expect(payload.data?.member?.role).toBe('member');
+
+		const updatedMembership = await db
+			.select({ role: member.role })
+			.from(member)
+			.where(eq(member.id, orgAdminMemberId))
+			.limit(1);
+
+		expect(updatedMembership[0]?.role).toBe('member');
 	});
 
 	it('allows organization owners to update members in their own organization', async () => {
@@ -359,8 +425,6 @@ describe('organization routes (contract)', () => {
 
 		expect(response.status).toBe(403);
 		const errorPayload = requireErrorResponse(response, 'owner role protection');
-		expect(errorPayload.error.message).toBe(
-			'Owner role cannot be changed from this endpoint',
-		);
+		expect(errorPayload.error.message).toBe('Owner role cannot be changed from this endpoint');
 	});
 });

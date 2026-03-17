@@ -9,7 +9,8 @@ import rawMessages from '@/messages/es.json';
 
 import { UsersPageClient } from './users-client';
 
-const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
+const messages =
+	(rawMessages as unknown as { default?: typeof rawMessages }).default ?? rawMessages;
 
 const mockFetchOrganizationMembers = vi.fn();
 const mockFetchUsers = vi.fn();
@@ -23,7 +24,7 @@ const mockRouterRefresh = vi.fn();
 vi.mock('next-intl', async () => {
 	const rawIntlMessages = await import('@/messages/es.json');
 	const intlMessages =
-		(rawIntlMessages as { default?: typeof rawIntlMessages }).default ?? rawIntlMessages;
+		(rawIntlMessages as unknown as { default?: typeof rawMessages }).default ?? rawIntlMessages;
 
 	/**
 	 * Resolves a dot-notated translation path from the Spanish test messages.
@@ -36,9 +37,7 @@ vi.mock('next-intl', async () => {
 			.split('.')
 			.reduce<unknown>(
 				(currentValue, segment) =>
-					currentValue &&
-					typeof currentValue === 'object' &&
-					segment in currentValue
+					currentValue && typeof currentValue === 'object' && segment in currentValue
 						? (currentValue as Record<string, unknown>)[segment]
 						: undefined,
 				intlMessages,
@@ -88,8 +87,7 @@ vi.mock('@/lib/auth-client', () => ({
 vi.mock('@/actions/users', () => ({
 	createOrganizationUser: vi.fn(),
 	addOrganizationMember: vi.fn(),
-	updateOrganizationMemberRole: (...args: unknown[]) =>
-		mockUpdateOrganizationMemberRole(...args),
+	updateOrganizationMemberRole: (...args: unknown[]) => mockUpdateOrganizationMemberRole(...args),
 }));
 
 vi.mock('sonner', () => ({
@@ -140,6 +138,12 @@ function renderWithProviders(
 
 describe('UsersPageClient', () => {
 	beforeEach(() => {
+		Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+			configurable: true,
+			value: vi.fn(),
+			writable: true,
+		});
+
 		mockFetchOrganizationMembers.mockReset();
 		mockFetchUsers.mockReset();
 		mockFetchAllOrganizations.mockReset();
@@ -266,19 +270,25 @@ describe('UsersPageClient', () => {
 		expect(screen.queryByRole('combobox', { name: 'Cambiar rol de Olga Owner' })).toBeNull();
 	});
 
-	it('keeps role changes disabled for superusers without organization membership', async () => {
+	it('allows platform superusers to edit roles without organization membership', async () => {
 		renderWithProviders({ organizationRole: null, userRole: 'admin' });
 
 		await waitFor(() => {
 			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
 		});
 
-		expect(
-			screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
-		).toBeDisabled();
-		expect(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' })).toBeDisabled();
-		expect(screen.getAllByText('Miembro')).toHaveLength(2);
-		expect(mockUpdateOrganizationMemberRole).not.toHaveBeenCalled();
+		fireEvent.click(screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }));
+		fireEvent.click(screen.getByRole('option', { name: 'Administrador' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockUpdateOrganizationMemberRole).toHaveBeenCalledWith({
+				memberId: 'member-1',
+				organizationId: 'org-1',
+				role: 'admin',
+				userId: 'user-1',
+			});
+		});
 	});
 
 	it('shows an error toast when updating the role fails', async () => {
@@ -381,6 +391,62 @@ describe('UsersPageClient', () => {
 			});
 		});
 		expect(mockRouterRefresh).toHaveBeenCalledTimes(1);
+		await waitFor(() => {
+			expect(
+				screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
+			).toHaveTextContent('Miembro');
+		});
+		expect(
+			screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
+		).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' })).toBeDisabled();
+		expect(screen.getByTestId('users-create-button')).toBeDisabled();
+	});
+
+	it('allows superusers to edit roles after switching organizations', async () => {
+		mockFetchAllOrganizations.mockResolvedValueOnce({
+			organizations: [
+				{ id: 'org-1', name: 'Organización Demo', slug: 'organizacion-demo' },
+				{ id: 'org-2', name: 'Organización Secundaria', slug: 'organizacion-secundaria' },
+			],
+		});
+
+		renderWithProviders({
+			organizationId: 'org-1',
+			organizationRole: 'owner',
+			userRole: 'admin',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByRole('combobox', { name: 'Organización' })).not.toBeDisabled();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Organización' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Organización Secundaria' }));
+
+		await waitFor(() => {
+			expect(mockFetchOrganizationMembers).toHaveBeenLastCalledWith({
+				limit: 10,
+				offset: 0,
+				organizationId: 'org-2',
+			});
+		});
+		await waitFor(() => {
+			expect(screen.getByRole('textbox', { name: 'Buscar miembros...' })).not.toBeDisabled();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Administrador' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockUpdateOrganizationMemberRole).toHaveBeenLastCalledWith({
+				memberId: 'member-1',
+				organizationId: 'org-2',
+				role: 'admin',
+				userId: 'user-1',
+			});
+		});
 	});
 
 	it('surfaces member query failures instead of showing a silent empty state', async () => {

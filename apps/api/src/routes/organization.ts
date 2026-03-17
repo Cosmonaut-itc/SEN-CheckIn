@@ -451,7 +451,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return buildErrorResponse('Organization is required', 400);
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
 			}
 
 			if (!isSuperUser) {
@@ -541,7 +543,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return buildErrorResponse('Organization is required', 400);
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
 			}
 
 			if (!isSuperUser) {
@@ -728,7 +732,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return buildErrorResponse('Organization is required', 400);
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
 			}
 
 			if (!isSuperUser) {
@@ -750,6 +756,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					return buildErrorResponse(
 						'You must belong to the organization to update members',
 						403,
+						{ code: 'ORGANIZATION_MEMBERSHIP_REQUIRED' },
 					);
 				}
 
@@ -758,6 +765,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					return buildErrorResponse(
 						'Only organization admins can update member roles',
 						403,
+						{ code: 'ORGANIZATION_ADMIN_REQUIRED' },
 					);
 				}
 			}
@@ -778,12 +786,16 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!targetMember) {
 				set.status = 404;
-				return buildErrorResponse('Member not found', 404);
+				return buildErrorResponse('Member not found', 404, {
+					code: 'MEMBER_NOT_FOUND',
+				});
 			}
 
 			if (targetMember.role === 'owner') {
 				set.status = 403;
-				return buildErrorResponse('Owner role cannot be changed from this endpoint', 403);
+				return buildErrorResponse('Owner role cannot be changed from this endpoint', 403, {
+					code: 'OWNER_ROLE_PROTECTED',
+				});
 			}
 
 			try {
@@ -834,7 +846,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						);
 				} else {
 					const sessionHeaders = buildSessionHeaders(request);
-					const result = await auth.api.updateMemberRole({
+					await auth.api.updateMemberRole({
 						body: {
 							memberId: body.memberId,
 							organizationId,
@@ -842,18 +854,6 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						},
 						headers: sessionHeaders,
 					});
-
-					const errorMessage = (result as { error?: { message?: string } }).error
-						?.message;
-					const success = (result as { success?: boolean }).success ?? !errorMessage;
-
-					if (!success) {
-						set.status = 400;
-						return buildErrorResponse(
-							errorMessage ?? 'Failed to update member role',
-							400,
-						);
-					}
 				}
 
 				const updatedMembership = await db

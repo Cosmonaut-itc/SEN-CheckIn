@@ -294,7 +294,8 @@ describe('UsersPageClient', () => {
 	it('shows an error toast when updating the role fails', async () => {
 		mockUpdateOrganizationMemberRole.mockResolvedValueOnce({
 			success: false,
-			error: 'Failed to update member role',
+			error: 'Only organization admins can update member roles',
+			errorCode: 'ORGANIZATION_ADMIN_REQUIRED',
 		});
 
 		renderWithProviders({ organizationRole: 'owner' });
@@ -308,7 +309,62 @@ describe('UsersPageClient', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }));
 
 		await waitFor(() => {
-			expect(mockToastError).toHaveBeenCalledWith('No se pudo actualizar el rol');
+			expect(mockToastError).toHaveBeenCalledWith(
+				'Solo los administradores de la organización pueden actualizar roles.',
+			);
+		});
+	});
+
+	it('refreshes members when the target member no longer exists', async () => {
+		mockFetchOrganizationMembers
+			.mockResolvedValueOnce({
+				members: [
+					{
+						id: 'member-1',
+						userId: 'user-1',
+						organizationId: 'org-1',
+						role: 'member',
+						createdAt: new Date('2026-01-10T00:00:00.000Z'),
+						user: {
+							id: 'user-1',
+							name: 'Ana Miembro',
+							email: 'ana@example.com',
+							image: null,
+						},
+					},
+				],
+				total: 1,
+			})
+			.mockResolvedValueOnce({
+				members: [],
+				total: 0,
+			});
+		mockUpdateOrganizationMemberRole.mockResolvedValueOnce({
+			success: false,
+			error: 'Member not found',
+			errorCode: 'MEMBER_NOT_FOUND',
+		});
+
+		renderWithProviders({ organizationRole: 'owner' });
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }));
+		fireEvent.click(screen.getByRole('option', { name: 'Administrador' }));
+		fireEvent.click(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockToastError).toHaveBeenCalledWith(
+				'El miembro ya no existe en esta organización.',
+			);
+		});
+		await waitFor(() => {
+			expect(mockFetchOrganizationMembers).toHaveBeenCalledTimes(2);
+		});
+		await waitFor(() => {
+			expect(screen.queryByText('Ana Miembro')).not.toBeInTheDocument();
 		});
 	});
 
@@ -447,6 +503,96 @@ describe('UsersPageClient', () => {
 				userId: 'user-1',
 			});
 		});
+	});
+
+	it('clears unsaved member role overrides after switching organizations', async () => {
+		mockFetchAllOrganizations.mockResolvedValueOnce({
+			organizations: [
+				{ id: 'org-1', name: 'Organización Demo', slug: 'organizacion-demo' },
+				{ id: 'org-2', name: 'Organización Secundaria', slug: 'organizacion-secundaria' },
+			],
+		});
+		mockFetchOrganizationMembers.mockImplementation(
+			async ({ organizationId }: { organizationId: string }) => {
+				if (organizationId === 'org-2') {
+					return {
+						members: [
+							{
+								id: 'member-2',
+								userId: 'user-2',
+								organizationId: 'org-2',
+								role: 'member',
+								createdAt: new Date('2026-01-10T00:00:00.000Z'),
+								user: {
+									id: 'user-2',
+									name: 'Bruno Secundario',
+									email: 'bruno@example.com',
+									image: null,
+								},
+							},
+						],
+						total: 1,
+					};
+				}
+
+				return {
+					members: [
+						{
+							id: 'member-1',
+							userId: 'user-1',
+							organizationId: 'org-1',
+							role: 'member',
+							createdAt: new Date('2026-01-10T00:00:00.000Z'),
+							user: {
+								id: 'user-1',
+								name: 'Ana Miembro',
+								email: 'ana@example.com',
+								image: null,
+							},
+						},
+					],
+					total: 1,
+				};
+			},
+		);
+
+		renderWithProviders({
+			organizationId: 'org-1',
+			organizationRole: 'owner',
+			userRole: 'admin',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }));
+		fireEvent.click(screen.getByRole('option', { name: 'Administrador' }));
+		expect(
+			screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
+		).toHaveTextContent('Administrador');
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Organización' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Organización Secundaria' }));
+
+		await waitFor(() => {
+			expect(screen.getByText('Bruno Secundario')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Organización' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Organización Demo' }));
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+		await waitFor(() => {
+			expect(
+				screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
+			).toHaveTextContent('Miembro');
+		});
+		expect(
+			screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }),
+		).toBeDisabled();
 	});
 
 	it('surfaces member query failures instead of showing a silent empty state', async () => {

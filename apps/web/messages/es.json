@@ -2892,6 +2892,10 @@
 			"organizationRequired": "Selecciona una organización.",
 			"organizationMembershipRequired": "Debes pertenecer a la organización para agregar usuarios.",
 			"organizationAdminRequired": "Solo los administradores pueden agregar usuarios.",
+			"roleUpdateOwnerProtected": "El rol de propietario no se puede cambiar desde este flujo.",
+			"roleUpdateOrganizationMembershipRequired": "Debes pertenecer a la organización para actualizar miembros.",
+			"roleUpdateOrganizationAdminRequired": "Solo los administradores de la organización pueden actualizar roles.",
+			"roleUpdateMemberNotFound": "El miembro ya no existe en esta organización.",
 			"createFailed": "No se pudo crear el usuario. Revisa los datos e intenta de nuevo.",
 			"addMemberFailed": "No se pudo asignar el usuario a la organización."
 		},

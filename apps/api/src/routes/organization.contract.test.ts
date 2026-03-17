@@ -220,6 +220,24 @@ describe('organization routes (contract)', () => {
 		expect(payload.data?.userId).toBeDefined();
 	}, 15_000);
 
+	it('returns organization-required when no organization context is available', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const orphanEmail = `orphan.${suffix}@example.com`;
+		await createMembershipUser(orphanEmail, `orphan_${suffix}`);
+		const orphanCookie = await signInAsUser(orphanEmail, 'User123!Test');
+
+		const response = await client.organization['update-member-role-direct'].post({
+			memberId: randomUUID(),
+			role: 'admin',
+			$headers: { cookie: orphanCookie },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'missing organization context');
+		expect(errorPayload.error.message).toBe('Organization is required');
+		expect(errorPayload.error.code).toBe('ORGANIZATION_REQUIRED');
+	});
+
 	it('allows organization admins to update a member role in their organization', async () => {
 		const suffix = randomUUID().slice(0, 8);
 		const orgAdminEmail = `org-admin.${suffix}@example.com`;
@@ -359,6 +377,7 @@ describe('organization routes (contract)', () => {
 		expect(response.status).toBe(403);
 		const errorPayload = requireErrorResponse(response, 'member role update');
 		expect(errorPayload.error.message).toBe('Only organization admins can update member roles');
+		expect(errorPayload.error.code).toBe('ORGANIZATION_ADMIN_REQUIRED');
 
 		const unchangedMembership = await db
 			.select({ role: member.role })
@@ -398,6 +417,7 @@ describe('organization routes (contract)', () => {
 		expect(errorPayload.error.message).toBe(
 			'You must belong to the organization to update members',
 		);
+		expect(errorPayload.error.code).toBe('ORGANIZATION_MEMBERSHIP_REQUIRED');
 
 		const unchangedMembership = await db
 			.select({ role: member.role })
@@ -406,6 +426,20 @@ describe('organization routes (contract)', () => {
 			.limit(1);
 
 		expect(unchangedMembership[0]?.role).toBe('member');
+	});
+
+	it('returns member-not-found when the target membership is missing', async () => {
+		const response = await client.organization['update-member-role-direct'].post({
+			memberId: randomUUID(),
+			organizationId: seed.organizationId,
+			role: 'admin',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(404);
+		const errorPayload = requireErrorResponse(response, 'missing membership update');
+		expect(errorPayload.error.message).toBe('Member not found');
+		expect(errorPayload.error.code).toBe('MEMBER_NOT_FOUND');
 	});
 
 	it('rejects attempts to change owner memberships from the direct endpoint', async () => {
@@ -426,5 +460,6 @@ describe('organization routes (contract)', () => {
 		expect(response.status).toBe(403);
 		const errorPayload = requireErrorResponse(response, 'owner role protection');
 		expect(errorPayload.error.message).toBe('Owner role cannot be changed from this endpoint');
+		expect(errorPayload.error.code).toBe('OWNER_ROLE_PROTECTED');
 	});
 });

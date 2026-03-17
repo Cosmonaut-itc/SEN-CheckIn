@@ -5,7 +5,13 @@ import { format } from 'date-fns';
 import { ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import React, { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+	startTransition,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -13,6 +19,7 @@ import {
 	type CreateOrganizationUserInput,
 	type CreateOrganizationUserErrorCode,
 	type UpdateOrganizationMemberRoleInput,
+	type UpdateOrganizationMemberRoleErrorCode,
 	addOrganizationMember,
 	createOrganizationUser,
 	updateOrganizationMemberRole,
@@ -87,6 +94,37 @@ const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 };
 
 const managedOrganizationRoles: ManagedOrganizationRole[] = ['admin', 'member'];
+
+/**
+ * Resolves the user-facing message for organization member role update failures.
+ *
+ * @param t - Translation resolver for the Users namespace
+ * @param errorCode - Stable error code returned by the server action
+ * @returns Localized toast message
+ */
+function getOrganizationMemberRoleUpdateErrorMessage(
+	t: (key: string, values?: Record<string, string | number>) => string,
+	errorCode?: UpdateOrganizationMemberRoleErrorCode,
+): string {
+	if (!errorCode) {
+		return t('toast.roleUpdateError');
+	}
+
+	switch (errorCode) {
+		case 'ORGANIZATION_REQUIRED':
+			return t('toast.selectOrganization');
+		case 'OWNER_ROLE_PROTECTED':
+			return t('errors.roleUpdateOwnerProtected');
+		case 'ORGANIZATION_MEMBERSHIP_REQUIRED':
+			return t('errors.roleUpdateOrganizationMembershipRequired');
+		case 'ORGANIZATION_ADMIN_REQUIRED':
+			return t('errors.roleUpdateOrganizationAdminRequired');
+		case 'MEMBER_NOT_FOUND':
+			return t('errors.roleUpdateMemberNotFound');
+		default:
+			return t('toast.roleUpdateError');
+	}
+}
 
 /**
  * Resolves the editable organization role for the inline role manager.
@@ -417,9 +455,7 @@ export function UsersPageClient(): React.ReactElement {
 	const canManageOrganizationUsers =
 		!isRefreshingAfterSelfDemotion &&
 		(isSuperUser || organizationRole === 'admin' || organizationRole === 'owner');
-	const canEditOrganizationMemberRoles =
-		!isRefreshingAfterSelfDemotion &&
-		(isSuperUser || organizationRole === 'admin' || organizationRole === 'owner');
+	const canEditOrganizationMemberRoles = canManageOrganizationUsers;
 
 	const organizationsQueryParams = {
 		limit: 100,
@@ -628,6 +664,7 @@ export function UsersPageClient(): React.ReactElement {
 			if (result.success) {
 				toast.success(t('toast.createSuccess'));
 				if (isSuperUser && variables.organizationId) {
+					setMemberRoleOverrides({});
 					setSelectedOrganizationId(variables.organizationId);
 					setPagination((prev) => ({ ...prev, pageIndex: 0 }));
 				}
@@ -672,7 +709,14 @@ export function UsersPageClient(): React.ReactElement {
 		},
 		onSuccess: (result, variables) => {
 			if (!result.success) {
-				toast.error(t('toast.roleUpdateError'));
+				toast.error(
+					getOrganizationMemberRoleUpdateErrorMessage(t, result.errorCode),
+				);
+				if (result.errorCode === 'MEMBER_NOT_FOUND') {
+					queryClient.invalidateQueries({
+						queryKey: queryKeys.organizationMembers.all,
+					});
+				}
 				setMemberRoleOverrides((current) => {
 					const next = { ...current };
 					delete next[variables.memberId];
@@ -775,6 +819,7 @@ export function UsersPageClient(): React.ReactElement {
 	 * @returns void
 	 */
 	const handleOrganizationSelection = useCallback((value: string): void => {
+		setMemberRoleOverrides({});
 		setSelectedOrganizationId(value || null);
 		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
 	}, []);

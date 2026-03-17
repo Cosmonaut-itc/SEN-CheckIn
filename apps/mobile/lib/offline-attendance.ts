@@ -8,6 +8,7 @@ import {
 } from '@/lib/client-functions';
 
 const PENDING_ATTENDANCE_STORAGE_KEY = 'sen-checkin_pending_attendance_queue';
+let flushPendingAttendanceQueueTask: Promise<number> | null = null;
 
 type PendingAttendanceQueueItem = Omit<CreateAttendanceInput, 'timestamp'> & {
 	timestamp: string;
@@ -95,7 +96,7 @@ export async function enqueuePendingAttendance(
  *
  * @returns Number of queued records flushed successfully
  */
-export async function flushPendingAttendanceQueue(): Promise<number> {
+async function flushPendingAttendanceQueueInternal(): Promise<number> {
 	const queue = await readPendingAttendanceQueue();
 	if (queue.length === 0) {
 		return 0;
@@ -130,6 +131,25 @@ export async function flushPendingAttendanceQueue(): Promise<number> {
 
 	await writePendingAttendanceQueue(remainingQueue);
 	return flushedCount;
+}
+
+/**
+ * Flush queued attendance records while connectivity is available.
+ *
+ * Serializes concurrent callers so the same persisted queue snapshot is not submitted twice.
+ *
+ * @returns Number of queued records flushed successfully
+ */
+export async function flushPendingAttendanceQueue(): Promise<number> {
+	if (flushPendingAttendanceQueueTask) {
+		return flushPendingAttendanceQueueTask;
+	}
+
+	flushPendingAttendanceQueueTask = flushPendingAttendanceQueueInternal().finally(() => {
+		flushPendingAttendanceQueueTask = null;
+	});
+
+	return flushPendingAttendanceQueueTask;
 }
 
 /**

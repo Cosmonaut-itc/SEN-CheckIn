@@ -15,7 +15,7 @@ import {
 	sendDeviceHeartbeat,
 	updateDeviceSettings,
 } from './client-functions';
-import { flushPendingAttendanceQueue } from './offline-attendance';
+import { flushPendingAttendanceQueue, isOfflineNetInfoState } from './offline-attendance';
 import { useAuthContext } from '@/providers/auth-provider';
 
 type DeviceSettings = {
@@ -172,22 +172,52 @@ export function DeviceProvider({ children }: PropsWithChildren): JSX.Element {
 	}, []);
 
 	useEffect(() => {
-		if (isAuthLoading) {
+		if (isAuthLoading || !session || authState === 'locked') {
 			return;
 		}
 
-		const unsubscribe = NetInfo.addEventListener((state) => {
-			if (!state.isConnected) {
+		let isMounted = true;
+
+		/**
+		 * Flush queued attendance once the device reports reachable connectivity.
+		 *
+		 * @param state - Connectivity snapshot from NetInfo
+		 * @returns {void} No return value
+		 */
+		const flushWhenReachable = (state: {
+			isConnected: boolean | null;
+			isInternetReachable?: boolean | null;
+		}): void => {
+			if (isOfflineNetInfoState(state)) {
 				return;
 			}
 
 			void flushPendingAttendanceQueue().catch((error: unknown) => {
 				console.warn('[device-context] Failed to flush pending attendance queue', error);
 			});
+		};
+
+		void NetInfo.fetch()
+			.then((state) => {
+				if (!isMounted) {
+					return;
+				}
+
+				flushWhenReachable(state);
+			})
+			.catch((error: unknown) => {
+				console.warn('[device-context] Failed to inspect connectivity before queue flush', error);
+			});
+
+		const unsubscribe = NetInfo.addEventListener((state) => {
+			flushWhenReachable(state);
 		});
 
-		return () => unsubscribe();
-	}, [isAuthLoading]);
+		return () => {
+			isMounted = false;
+			unsubscribe();
+		};
+	}, [authState, isAuthLoading, session]);
 
 	/**
 	 * Merge and persist device settings locally.

@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { CheckOutReason } from '@sen-checkin/types';
+import { converter, formatRgb, parse } from 'culori';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NetInfo from '@react-native-community/netinfo';
@@ -65,6 +66,7 @@ type ScannerThemeColors = {
 const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
 const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
+const convertResolvedThemeColorToRgb = converter('rgb');
 
 /**
  * Cross-platform link icon for the device-link CTA.
@@ -131,7 +133,7 @@ const calculateFaceGuideSize = (width: number, height: number): number => {
  * @param alpha - Opacity value from 0 to 1
  * @returns Color string with the requested alpha channel when parsing succeeds
  */
-function withAlpha(color: string, alpha: number): string {
+export function withAlpha(color: string, alpha: number): string {
 	const normalizedColor = color.trim();
 	const normalizedAlpha = Math.max(0, Math.min(1, alpha));
 	const alphaHex = Math.round(normalizedAlpha * 255)
@@ -176,6 +178,13 @@ function withAlpha(color: string, alpha: number): string {
 			.toUpperCase();
 		const blueHex = Number(rgbMatch.groups.blue).toString(16).padStart(2, '0').toUpperCase();
 		return `#${redHex}${greenHex}${blueHex}${alphaHex}`;
+	}
+
+	const parsedColor = parse(normalizedColor);
+	const rgbColor = parsedColor ? convertResolvedThemeColorToRgb(parsedColor) : null;
+
+	if (rgbColor) {
+		return formatRgb({ ...rgbColor, alpha: normalizedAlpha });
 	}
 
 	return color;

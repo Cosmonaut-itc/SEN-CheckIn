@@ -15,6 +15,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { AnyFieldApi, AnyFormApi } from '@tanstack/form-core';
 import {
 	Modal,
+	Platform,
 	ScrollView,
 	Text,
 	TouchableWithoutFeedback,
@@ -26,7 +27,14 @@ import { PlatformPressable } from '@/components/ui/platform-pressable';
 import { i18n } from '@/lib/i18n';
 
 const formContexts = createFormHookContexts();
-const CONTINUOUS_CURVE: ViewStyle = { borderCurve: 'continuous' };
+const INPUT_CURVE: ViewStyle = {
+	borderCurve: 'continuous',
+	borderRadius: Platform.select({ ios: 10, android: 12, default: 10 }) ?? 10,
+};
+const CARD_CURVE: ViewStyle = {
+	borderCurve: 'continuous',
+	borderRadius: Platform.select({ ios: 14, android: 16, default: 14 }) ?? 14,
+};
 
 export const fieldContext: Context<AnyFieldApi> = formContexts.fieldContext;
 export const formContext: Context<AnyFormApi> = formContexts.formContext;
@@ -85,8 +93,8 @@ export function AppTextField({
 				keyboardType={keyboardType}
 				accessibilityLabel={label}
 				accessibilityHint={description}
-				className="px-4 py-3 rounded-xl text-foreground"
-				style={CONTINUOUS_CURVE}
+				className="px-4 py-3 text-foreground bg-input border border-default-200"
+				style={INPUT_CURVE}
 			/>
 			{description ? <Description>{description}</Description> : null}
 			<FieldError>{errors.join(', ')}</FieldError>
@@ -136,8 +144,8 @@ export function SelectField<TValue extends string>({
 			<Select value={currentOption} onValueChange={handleValueChange} isDisabled={disabled}>
 				<Select.Trigger
 					variant="outline"
-					className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1 active:bg-content2"
-					style={CONTINUOUS_CURVE}
+					className="border border-default-200 px-4 py-3.5 bg-content1 active:bg-content2"
+					style={INPUT_CURVE}
 				>
 					<Select.Value
 						placeholder={placeholder ?? i18n.t('Common.selectOption')}
@@ -152,18 +160,16 @@ export function SelectField<TValue extends string>({
 							presentation === 'dialog'
 								? {
 										wrapper: 'px-5',
-										content: 'rounded-2xl bg-background gap-2 shadow-lg',
+										content: 'bg-popover gap-2 shadow-lg',
 									}
 								: undefined
 						}
 						className={
 							presentation !== 'dialog'
-								? 'rounded-2xl bg-background gap-2 shadow-lg'
+								? 'bg-popover gap-2 shadow-lg'
 								: undefined
 						}
-						style={{
-							borderCurve: 'continuous',
-						}}
+						style={CARD_CURVE}
 					>
 						{presentation === 'dialog' && <Select.Close />}
 						{presentation === 'dialog' && label ? (
@@ -176,8 +182,8 @@ export function SelectField<TValue extends string>({
 								key={opt.value}
 								value={opt.value}
 								label={opt.label}
-								className="px-4 py-3.5 rounded-xl active:bg-content2"
-								style={CONTINUOUS_CURVE}
+								className="px-4 py-3.5 active:bg-content2"
+								style={INPUT_CURVE}
 							>
 								<View className="flex-row items-center gap-3 flex-1">
 									<Select.ItemLabel className="text-base text-foreground flex-1" />
@@ -263,11 +269,11 @@ export function NativeSelectField<TValue extends string>({
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
 			<PlatformPressable
-				className="border border-default-200 rounded-xl px-4 py-3.5 bg-content1"
+				className="border border-default-200 px-4 py-3.5 bg-content1"
 				disabled={disabled}
 				onPress={handleOpenPicker}
 				hitSlop={8}
-				style={CONTINUOUS_CURVE}
+				style={INPUT_CURVE}
 			>
 				<Text
 					className={`text-base ${isPlaceholder ? 'text-foreground-400' : 'text-foreground'}`}
@@ -296,8 +302,8 @@ export function NativeSelectField<TValue extends string>({
 					</TouchableWithoutFeedback>
 
 					<View
-						className="bg-background rounded-2xl p-4 gap-3"
-						style={[{ maxHeight: '70%' }, CONTINUOUS_CURVE]}
+						className="bg-popover p-4 gap-3"
+						style={[{ maxHeight: '70%' }, CARD_CURVE]}
 					>
 						<Text className="text-base font-semibold text-foreground">{label}</Text>
 						<ScrollView className="flex-1" keyboardShouldPersistTaps="handled">
@@ -312,9 +318,9 @@ export function NativeSelectField<TValue extends string>({
 										<PlatformPressable
 											key={opt.value}
 											pressedOpacity={0.85}
-											className="py-3 px-2 rounded-lg flex-row items-center justify-between"
+											className="py-3 px-2 flex-row items-center justify-between"
 											onPress={() => handleSelectValue(opt.value)}
-											style={CONTINUOUS_CURVE}
+											style={INPUT_CURVE}
 										>
 											<Text className="text-base text-foreground">
 												{opt.label}
@@ -331,9 +337,9 @@ export function NativeSelectField<TValue extends string>({
 						</ScrollView>
 						<PlatformPressable
 							pressedOpacity={0.85}
-							className="py-3 rounded-xl border border-default-200 items-center"
+							className="py-3 border border-default-200 items-center"
 							onPress={() => setIsModalVisible(false)}
-							style={CONTINUOUS_CURVE}
+							style={INPUT_CURVE}
 						>
 							<Text className="text-foreground font-semibold">
 								{i18n.t('Common.cancel')}

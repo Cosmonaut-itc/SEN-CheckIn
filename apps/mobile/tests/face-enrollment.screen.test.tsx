@@ -83,7 +83,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('heroui-native', () => {
 	const mockReactNative = require('react-native') as typeof import('react-native');
-	const { Pressable, Text, View } = mockReactNative;
+	const { Pressable, Text, TextInput, View } = mockReactNative;
 
 	const Button = function MockButton({
 		children,
@@ -137,9 +137,14 @@ jest.mock('heroui-native', () => {
 		return <Text>Cargando...</Text>;
 	};
 
+	const Input = function MockInput(props: React.ComponentProps<typeof TextInput>) {
+		return <TextInput {...props} />;
+	};
+
 	return {
 		Button,
 		Card,
+		Input,
 		Spinner,
 		useThemeColor: () => '#111827',
 	};

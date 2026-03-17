@@ -282,7 +282,7 @@ export default function SettingsScreen(): JSX.Element {
 													presentation="dialog"
 													classNames={{
 														wrapper: 'px-5',
-														content: 'rounded-xl bg-background gap-2 shadow-lg',
+														content: 'rounded-xl bg-popover gap-2 shadow-lg',
 													}}
 													style={continuousCurve}
 												>

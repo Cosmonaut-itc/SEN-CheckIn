@@ -105,9 +105,11 @@ describe('Final review regressions', () => {
 		);
 
 		expect(settingsSource).toContain('presentation="dialog"');
+		expect(settingsSource).toContain('bg-popover');
 		expect(settingsSource).not.toContain('width={280}');
 		expect(settingsSource).not.toContain('placement="bottom"');
 		expect(deviceSetupSource).toContain('presentation="dialog"');
+		expect(deviceSetupSource).toContain('bg-popover');
 		expect(deviceSetupSource).not.toContain('width={280}');
 		expect(deviceSetupSource).not.toContain('placement="bottom"');
 	});
@@ -132,5 +134,20 @@ describe('Final review regressions', () => {
 		expect(settingsSource).toContain('Settings.form.fields.location.loadError');
 		expect(deviceSetupSource).toContain('DeviceSetup.form.fields.location.loadError');
 		expect(deviceSetupSource).toContain('DeviceSetup.form.errors.saveFailed');
+	});
+
+	it('keeps shared form surfaces on DS radii and elevated modal tokens', () => {
+		const formsSource = readFileSync(resolve(__dirname, '../lib/forms.tsx'), 'utf-8');
+		const faceEnrollmentSource = readFileSync(
+			resolve(__dirname, '../app/(main)/face-enrollment.tsx'),
+			'utf-8',
+		);
+
+		expect(formsSource).toContain("Platform.select({ ios: 10, android: 12, default: 10 })");
+		expect(formsSource).toContain("Platform.select({ ios: 14, android: 16, default: 14 })");
+		expect(formsSource).toContain('bg-popover');
+		expect(formsSource).not.toContain('rounded-2xl');
+		expect(faceEnrollmentSource).toContain('Input');
+		expect(faceEnrollmentSource).toContain('bg-input border border-default-200');
 	});
 });

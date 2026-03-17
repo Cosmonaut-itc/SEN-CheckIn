@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import { Image } from 'expo-image';
 import { type Href, useNavigation, useRouter } from 'expo-router';
-import { Button, Card, Spinner, useThemeColor } from 'heroui-native';
+import { Button, Card, Input, Spinner, useThemeColor } from 'heroui-native';
 import type { JSX } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EmptyState } from '@/components/ui/empty-state';
@@ -444,14 +444,14 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 								<Text className="text-sm font-semibold text-foreground tracking-wide">
 									{i18n.t('FaceEnrollment.employees.searchLabel')}
 								</Text>
-								<TextInput
+								<Input
 									value={searchTerm}
 									onChangeText={setSearchTerm}
 									placeholder={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
 									placeholderTextColor={mutedForegroundColor}
-									className="bg-content2 text-foreground px-3 py-3"
+									className="bg-input border border-default-200 text-foreground px-4 py-3"
 									style={{ borderRadius: inputBorderRadius }}
 									accessibilityLabel={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',

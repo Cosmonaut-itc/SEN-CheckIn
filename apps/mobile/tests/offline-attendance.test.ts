@@ -195,42 +195,48 @@ describe('Offline attendance support', () => {
 		expect(mockSetItemAsync).not.toHaveBeenCalled();
 	});
 
-	it('keeps queued records when flush fails with an auth-related 401', async () => {
-		jest.resetModules();
-		const storedQueue = JSON.stringify([
-			{
-				employeeId: 'employee-1',
-				deviceId: 'device-1',
-				type: 'CHECK_IN',
-				timestamp: '2026-03-16T00:00:00.000Z',
-			},
-			{
-				employeeId: 'employee-2',
-				deviceId: 'device-1',
-				type: 'CHECK_IN',
-				timestamp: '2026-03-16T00:01:00.000Z',
-			},
-		]);
-		mockGetItemAsync.mockResolvedValue(storedQueue);
+	it.each([401, 403, 408, 429])(
+		'keeps queued records when flush fails with retryable status %s',
+		async (status) => {
+			jest.resetModules();
+			const storedQueue = JSON.stringify([
+				{
+					employeeId: 'employee-1',
+					deviceId: 'device-1',
+					type: 'CHECK_IN',
+					timestamp: '2026-03-16T00:00:00.000Z',
+				},
+				{
+					employeeId: 'employee-2',
+					deviceId: 'device-1',
+					type: 'CHECK_IN',
+					timestamp: '2026-03-16T00:01:00.000Z',
+				},
+			]);
+			mockGetItemAsync.mockResolvedValue(storedQueue);
 
-		const authError = Object.assign(new Error('Errors.api.createAttendanceRecord'), {
-			status: 401,
-		});
-		mockCreateAttendanceRecord.mockRejectedValue(authError);
+			const retryableError = Object.assign(
+				new Error('Errors.api.createAttendanceRecord'),
+				{
+					status,
+				},
+			);
+			mockCreateAttendanceRecord.mockRejectedValue(retryableError);
 
-		const { flushPendingAttendanceQueue } = jest.requireActual(
-			'@/lib/offline-attendance',
-		) as typeof import('@/lib/offline-attendance');
+			const { flushPendingAttendanceQueue } = jest.requireActual(
+				'@/lib/offline-attendance',
+			) as typeof import('@/lib/offline-attendance');
 
-		await expect(flushPendingAttendanceQueue()).resolves.toBe(0);
+			await expect(flushPendingAttendanceQueue()).resolves.toBe(0);
 
-		expect(mockCreateAttendanceRecord).toHaveBeenCalledTimes(1);
-		expect(mockSetItemAsync).toHaveBeenCalledWith(
-			'sen-checkin_pending_attendance_queue',
-			storedQueue,
-		);
-		expect(mockDeleteItemAsync).not.toHaveBeenCalled();
-	});
+			expect(mockCreateAttendanceRecord).toHaveBeenCalledTimes(1);
+			expect(mockSetItemAsync).toHaveBeenCalledWith(
+				'sen-checkin_pending_attendance_queue',
+				storedQueue,
+			);
+			expect(mockDeleteItemAsync).not.toHaveBeenCalled();
+		},
+	);
 
 	it('shows an offline indicator on scanner when attendance must be queued', () => {
 		const scannerContent = readFileSync(

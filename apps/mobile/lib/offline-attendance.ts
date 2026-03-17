@@ -44,7 +44,7 @@ function isOfflineSubmissionError(error: unknown): boolean {
  * Determine whether an attendance submission failed permanently and should not block the queue.
  *
  * @param error - Unknown submission error to inspect
- * @returns True when the error exposes a 4xx HTTP status
+ * @returns True when the error exposes a non-retryable 4xx HTTP status
  */
 function isPermanentAttendanceSubmissionError(error: unknown): boolean {
 	if (!error || typeof error !== 'object') {
@@ -57,7 +57,9 @@ function isPermanentAttendanceSubmissionError(error: unknown): boolean {
 		status >= 400 &&
 		status < 500 &&
 		status !== 401 &&
-		status !== 403
+		status !== 403 &&
+		status !== 408 &&
+		status !== 429
 	);
 }
 

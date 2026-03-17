@@ -387,7 +387,14 @@ export default function SettingsScreen(): JSX.Element {
 								try {
 									await signOut();
 									await clearAuthStorage();
-									await clearPendingAttendanceQueue();
+									try {
+										await clearPendingAttendanceQueue();
+									} catch (error) {
+										console.warn(
+											'[settings] Offline queue cleanup error during sign-out',
+											error,
+										);
+									}
 									await clearSettings();
 									toast.show({
 										variant: 'success',

@@ -11,6 +11,7 @@ const mockToastShow = jest.fn();
 const mockSignOut = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearPendingAttendanceQueue = jest.fn();
+const mockClearSettings = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: (...args: unknown[]) => mockUseQuery(...args),
@@ -231,6 +232,7 @@ jest.mock('@/providers/auth-provider', () => ({
 
 describe('SettingsScreen organization gating', () => {
 	beforeEach(() => {
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		mockUseQuery.mockReset();
 		mockUseAuthContext.mockReset();
 		mockUseDeviceContext.mockReset();
@@ -239,6 +241,7 @@ describe('SettingsScreen organization gating', () => {
 		mockSignOut.mockReset();
 		mockClearAuthStorage.mockReset();
 		mockClearPendingAttendanceQueue.mockReset();
+		mockClearSettings.mockReset();
 
 		mockUseQuery.mockReturnValue({
 			data: null,
@@ -259,8 +262,12 @@ describe('SettingsScreen organization gating', () => {
 			isUpdating: false,
 			saveRemoteSettings: jest.fn(),
 			updateLocalSettings: jest.fn(),
-			clearSettings: jest.fn(),
+			clearSettings: mockClearSettings,
 		});
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
 	});
 
 	it('disables the location select when there is no active organization', () => {
@@ -288,6 +295,28 @@ describe('SettingsScreen organization gating', () => {
 			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
 			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 			expect(mockToastShow).toHaveBeenCalled();
+		});
+	});
+
+	it('still clears local settings when offline queue cleanup fails during sign-out', async () => {
+		mockSignOut.mockResolvedValue(undefined);
+		mockClearAuthStorage.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockRejectedValue(new Error('secure-store unavailable'));
+
+		render(<SettingsScreen />);
+
+		fireEvent.press(screen.getByText('Settings.actions.signOut'));
+
+		await waitFor(() => {
+			expect(mockSignOut).toHaveBeenCalledTimes(1);
+			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
+			expect(mockClearSettings).toHaveBeenCalledTimes(1);
+			expect(mockToastShow).toHaveBeenCalledWith(
+				expect.objectContaining({
+					variant: 'success',
+				}),
+			);
 		});
 	});
 });

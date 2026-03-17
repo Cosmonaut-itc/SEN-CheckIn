@@ -5,7 +5,7 @@
 	"main": "dist/index.js",
 	"module": "dist/index.js",
 	"scripts": {
-		"dev": "bun run --watch src/index.ts",
+		"dev": "NODE_ENV=development bun run --watch src/index.ts",
 		"build": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace --external pg-native",
 		"build:prod": "bun build src/index.ts --outdir dist --target bun --minify-syntax --minify-whitespace --external pg-native",
 		"start": "bun run scripts/start.js",

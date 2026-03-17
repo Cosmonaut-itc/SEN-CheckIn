@@ -116,10 +116,10 @@ export function buildCorsOriginAllowlist(config: OriginAllowlistConfig): string[
  * Determine whether the current runtime should relax origin checks for local development.
  *
  * @param nodeEnv - Node environment string.
- * @returns `true` outside production builds.
+ * @returns `true` only for explicit development and test runtimes.
  */
 export function isDevelopmentRuntime(nodeEnv?: string): boolean {
-	return nodeEnv === undefined || nodeEnv === 'development' || nodeEnv === 'test';
+	return nodeEnv === 'development' || nodeEnv === 'test';
 }
 
 /**

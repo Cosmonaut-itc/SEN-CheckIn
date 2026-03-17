@@ -1000,7 +1000,7 @@ export async function createAttendanceRecord(
 	}
 
 	if (!data.data) {
-		throw new Error(i18n.t('Errors.api.attendanceRecordMissingData'));
+		throw new AttendanceApiError(i18n.t('Errors.api.attendanceRecordMissingData'), 422);
 	}
 
 	return data.data as AttendanceRecord;

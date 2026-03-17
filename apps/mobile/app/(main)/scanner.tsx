@@ -34,7 +34,7 @@ import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { recordAttendance, verifyFace } from '@/lib/face-recognition';
-import { isOfflineNetInfoState } from '@/lib/offline-attendance';
+import { clearPendingAttendanceQueue, isOfflineNetInfoState } from '@/lib/offline-attendance';
 import type { AttendanceType } from '@/lib/query-keys';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
@@ -383,6 +383,11 @@ export default function ScannerScreen(): JSX.Element {
 				await clearAuthStorage();
 			} catch (error) {
 				console.warn('[scanner] Auth cleanup error during device relinking', error);
+			}
+			try {
+				await clearPendingAttendanceQueue();
+			} catch (error) {
+				console.warn('[scanner] Offline queue cleanup error during device relinking', error);
 			}
 			try {
 				await clearSettings();

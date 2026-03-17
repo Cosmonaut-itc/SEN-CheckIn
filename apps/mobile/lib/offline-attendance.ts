@@ -132,6 +132,15 @@ export async function enqueuePendingAttendance(
 }
 
 /**
+ * Delete any queued attendance records from secure storage.
+ *
+ * @returns Promise that resolves after the persisted queue is removed
+ */
+export async function clearPendingAttendanceQueue(): Promise<void> {
+	await writePendingAttendanceQueue([]);
+}
+
+/**
  * Flush queued attendance records while connectivity is available.
  *
  * Stops on the first failure so unflushed items remain persisted in order.

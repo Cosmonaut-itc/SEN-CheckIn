@@ -10,6 +10,7 @@ const mockReplace = jest.fn();
 const mockSignOut = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearSettings = jest.fn();
+const mockClearPendingAttendanceQueue = jest.fn();
 const mockRequestReauth = jest.fn();
 const mockThemeColors: Record<string, string> = {
 	background: '#110D0A',
@@ -182,6 +183,17 @@ jest.mock('@/lib/auth-client', () => ({
 	signOut: () => mockSignOut(),
 }));
 
+jest.mock('@/lib/offline-attendance', () => {
+	const actual = jest.requireActual<typeof import('@/lib/offline-attendance')>(
+		'@/lib/offline-attendance',
+	);
+
+	return {
+		...actual,
+		clearPendingAttendanceQueue: () => mockClearPendingAttendanceQueue(),
+	};
+});
+
 jest.mock('@/lib/attendance-capture-lock', () => ({
 	releaseAttendanceCaptureLock: jest.fn(),
 	tryAcquireAttendanceCaptureLock: jest.fn(() => true),
@@ -217,6 +229,7 @@ describe('ScannerScreen device linking state', () => {
 		mockSignOut.mockReset();
 		mockClearAuthStorage.mockReset();
 		mockClearSettings.mockReset();
+		mockClearPendingAttendanceQueue.mockReset();
 		mockRequestReauth.mockReset();
 		mockDeviceContext.mockReturnValue({
 			settings: null,
@@ -232,6 +245,7 @@ describe('ScannerScreen device linking state', () => {
 		mockSignOut.mockResolvedValue(undefined);
 		mockClearAuthStorage.mockResolvedValue(undefined);
 		mockClearSettings.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
 
 		render(<ScannerScreen />);
 
@@ -250,6 +264,7 @@ describe('ScannerScreen device linking state', () => {
 		await waitFor(() => {
 			expect(mockSignOut).toHaveBeenCalledTimes(1);
 			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 			expect(mockClearSettings).toHaveBeenCalledTimes(1);
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 		});
@@ -275,6 +290,7 @@ describe('ScannerScreen device linking state', () => {
 		mockSignOut.mockRejectedValue(new Error('network error'));
 		mockClearAuthStorage.mockResolvedValue(undefined);
 		mockClearSettings.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
 		mockRequestReauth.mockResolvedValue(undefined);
 
 		render(<ScannerScreen />);
@@ -289,6 +305,7 @@ describe('ScannerScreen device linking state', () => {
 		});
 
 		expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+		expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 		expect(mockClearSettings).toHaveBeenCalledTimes(1);
 		expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 	});
@@ -298,6 +315,7 @@ describe('ScannerScreen device linking state', () => {
 		mockRequestReauth.mockRejectedValue(new Error('reauth failed'));
 		mockClearAuthStorage.mockResolvedValue(undefined);
 		mockClearSettings.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
 
 		render(<ScannerScreen />);
 
@@ -309,6 +327,7 @@ describe('ScannerScreen device linking state', () => {
 				reason: 'manual',
 			});
 			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 			expect(mockClearSettings).toHaveBeenCalledTimes(1);
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 		});
@@ -318,6 +337,7 @@ describe('ScannerScreen device linking state', () => {
 		mockSignOut.mockResolvedValue(undefined);
 		mockClearAuthStorage.mockRejectedValue(new Error('secure-store unavailable'));
 		mockClearSettings.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
 
 		render(<ScannerScreen />);
 
@@ -327,6 +347,7 @@ describe('ScannerScreen device linking state', () => {
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 		});
 
+		expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 		expect(mockClearSettings).toHaveBeenCalledTimes(1);
 	});
 });

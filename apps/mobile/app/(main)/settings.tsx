@@ -19,6 +19,7 @@ import { fetchLocationsList } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
 import { i18n } from '@/lib/i18n';
+import { clearPendingAttendanceQueue } from '@/lib/offline-attendance';
 import { queryKeys } from '@/lib/query-keys';
 import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
@@ -386,6 +387,7 @@ export default function SettingsScreen(): JSX.Element {
 								try {
 									await signOut();
 									await clearAuthStorage();
+									await clearPendingAttendanceQueue();
 									await clearSettings();
 									toast.show({
 										variant: 'success',

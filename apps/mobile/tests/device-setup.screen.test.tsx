@@ -6,13 +6,12 @@ import DeviceSetupScreen from '@/app/(auth)/device-setup';
 const mockReplace = jest.fn();
 const mockUseDeviceContext = jest.fn();
 const mockHandleSubmit = jest.fn();
+const mockUseQuery = jest.fn();
+const mockUseAuthContext = jest.fn();
+const mockFetchLocationsList = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
-	useQuery: () => ({
-		data: null,
-		isError: false,
-		isPending: false,
-	}),
+	useQuery: (...args: unknown[]) => mockUseQuery(...args),
 }));
 
 jest.mock('expo-device', () => ({
@@ -87,7 +86,7 @@ jest.mock('@/hooks/use-theme-color', () => ({
 }));
 
 jest.mock('@/lib/client-functions', () => ({
-	fetchLocationsList: jest.fn(),
+	fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
 	updateDeviceSettings: jest.fn(),
 }));
 
@@ -119,9 +118,7 @@ jest.mock('@/lib/query-keys', () => ({
 }));
 
 jest.mock('@/providers/auth-provider', () => ({
-	useAuthContext: () => ({
-		session: null,
-	}),
+	useAuthContext: () => mockUseAuthContext(),
 }));
 
 describe('DeviceSetupScreen fallback state', () => {
@@ -129,6 +126,17 @@ describe('DeviceSetupScreen fallback state', () => {
 		mockReplace.mockReset();
 		mockHandleSubmit.mockReset();
 		mockUseDeviceContext.mockReset();
+		mockUseQuery.mockReset();
+		mockUseAuthContext.mockReset();
+		mockFetchLocationsList.mockReset();
+		mockUseQuery.mockReturnValue({
+			data: null,
+			isError: false,
+			isPending: false,
+		});
+		mockUseAuthContext.mockReturnValue({
+			session: null,
+		});
 		mockUseDeviceContext.mockReturnValue({
 			settings: null,
 			updateLocalSettings: jest.fn(),
@@ -138,6 +146,11 @@ describe('DeviceSetupScreen fallback state', () => {
 	it('renders without crashing and routes back to login when no deviceId is available', () => {
 		render(<DeviceSetupScreen />);
 
+		expect(mockUseQuery).toHaveBeenCalledWith(
+			expect.objectContaining({
+				enabled: false,
+			}),
+		);
 		expect(screen.getByText('DeviceSetup.errors.deviceNotFound.title')).toBeOnTheScreen();
 
 		fireEvent.press(screen.getByText('DeviceSetup.errors.deviceNotFound.backToLogin'));
@@ -163,6 +176,31 @@ describe('DeviceSetupScreen fallback state', () => {
 
 		await waitFor(() => {
 			expect(screen.getByText('DeviceSetup.form.errors.saveFailed')).toBeOnTheScreen();
+		});
+	});
+
+	it('still loads locations when organization context is missing', () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: null,
+			},
+			updateLocalSettings: jest.fn(),
+		});
+
+		render(<DeviceSetupScreen />);
+
+		const queryOptions = mockUseQuery.mock.calls[0]?.[0] as
+			| { enabled?: boolean; queryFn?: () => Promise<unknown> }
+			| undefined;
+
+		expect(queryOptions?.enabled).toBe(true);
+		void queryOptions?.queryFn?.();
+		expect(mockFetchLocationsList).toHaveBeenCalledWith({
+			limit: 100,
+			organizationId: undefined,
 		});
 	});
 });

@@ -90,7 +90,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 		queryKey: queryKeys.locations.list({ organizationId: organizationId ?? undefined }),
 		queryFn: () =>
 			fetchLocationsList({ limit: 100, organizationId: organizationId ?? undefined }),
-		enabled: Boolean(organizationId),
+		enabled: Boolean(deviceId),
 		});
 
 	const locationOptions = useMemo(

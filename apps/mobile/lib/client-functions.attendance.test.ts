@@ -94,4 +94,25 @@ describe('createAttendanceRecord', () => {
 			status: 404,
 		});
 	});
+
+	it('marks missing attendance payload data as a permanent contract failure', async () => {
+		mockAttendancePost.mockResolvedValue({
+			data: {
+				data: null,
+			},
+			error: null,
+			status: 200,
+		});
+
+		await expect(
+			createAttendanceRecord({
+				employeeId: 'employee-1',
+				deviceId: 'device-1',
+				type: 'CHECK_IN',
+			}),
+		).rejects.toMatchObject({
+			message: 'Errors.api.attendanceRecordMissingData',
+			status: 422,
+		});
+	});
 });

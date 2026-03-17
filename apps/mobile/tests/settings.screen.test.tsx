@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
 import SettingsScreen from '@/app/(main)/settings';
@@ -7,6 +7,10 @@ const mockUseQuery = jest.fn();
 const mockUseAuthContext = jest.fn();
 const mockUseDeviceContext = jest.fn();
 const mockSetFieldValue = jest.fn();
+const mockToastShow = jest.fn();
+const mockSignOut = jest.fn();
+const mockClearAuthStorage = jest.fn();
+const mockClearPendingAttendanceQueue = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: (...args: unknown[]) => mockUseQuery(...args),
@@ -124,7 +128,7 @@ jest.mock('heroui-native', () => {
 		useThemeColor: () => '#111827',
 		useToast: () => ({
 			toast: {
-				show: jest.fn(),
+				show: mockToastShow,
 			},
 		}),
 		Input: TextInput,
@@ -136,8 +140,8 @@ jest.mock('@/components/ui/icon-symbol', () => ({
 }));
 
 jest.mock('@/lib/auth-client', () => ({
-	clearAuthStorage: jest.fn(),
-	signOut: jest.fn(),
+	clearAuthStorage: (...args: unknown[]) => mockClearAuthStorage(...args),
+	signOut: (...args: unknown[]) => mockSignOut(...args),
 }));
 
 jest.mock('@/lib/client-functions', () => ({
@@ -205,6 +209,10 @@ jest.mock('@/lib/i18n', () => ({
 	},
 }));
 
+jest.mock('@/lib/offline-attendance', () => ({
+	clearPendingAttendanceQueue: (...args: unknown[]) => mockClearPendingAttendanceQueue(...args),
+}));
+
 jest.mock('@/lib/query-keys', () => ({
 	queryKeys: {
 		locations: {
@@ -227,6 +235,10 @@ describe('SettingsScreen organization gating', () => {
 		mockUseAuthContext.mockReset();
 		mockUseDeviceContext.mockReset();
 		mockSetFieldValue.mockReset();
+		mockToastShow.mockReset();
+		mockSignOut.mockReset();
+		mockClearAuthStorage.mockReset();
+		mockClearPendingAttendanceQueue.mockReset();
 
 		mockUseQuery.mockReturnValue({
 			data: null,
@@ -260,5 +272,22 @@ describe('SettingsScreen organization gating', () => {
 			}),
 		);
 		expect(screen.getByTestId('location-select-disabled-state')).toHaveTextContent('disabled');
+	});
+
+	it('clears the pending offline queue when signing out', async () => {
+		mockSignOut.mockResolvedValue(undefined);
+		mockClearAuthStorage.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
+
+		render(<SettingsScreen />);
+
+		fireEvent.press(screen.getByText('Settings.actions.signOut'));
+
+		await waitFor(() => {
+			expect(mockSignOut).toHaveBeenCalledTimes(1);
+			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
+			expect(mockToastShow).toHaveBeenCalled();
+		});
 	});
 });

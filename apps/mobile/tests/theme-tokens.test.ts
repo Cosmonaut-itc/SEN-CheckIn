@@ -28,6 +28,12 @@ describe('Michoacan theme tokens', () => {
 		expect(cssContent).toContain('--color-default-hover: var(--default-hover);');
 	});
 
+	it('maps muted aliases to the muted surface token instead of muted foreground', () => {
+		expect(cssContent).toContain('--color-muted: var(--muted);');
+		expect(cssContent).not.toContain('--color-muted: var(--muted-foreground);');
+		expect(cssContent).toContain('--color-muted-foreground: var(--muted-foreground);');
+	});
+
 	it('does not define danger as the canonical red token', () => {
 		expect(cssContent).not.toMatch(/^\s*--danger\s*:/m);
 	});

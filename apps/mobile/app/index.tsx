@@ -15,7 +15,7 @@ export default function Index(): JSX.Element {
 	const needsDeviceSetup =
 		hasActiveSession && isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
-	if (isLoading) {
+	if (isLoading || !isHydrated) {
 		return (
 			<ScrollView
 				className="flex-1 bg-background"

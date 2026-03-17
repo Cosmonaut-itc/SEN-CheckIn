@@ -21,6 +21,7 @@ const mockTakePictureAsync = jest.fn();
 const mockRequestDeviceCode = jest.fn();
 const mockPollDeviceToken = jest.fn();
 const mockAnnounceForAccessibility = jest.fn();
+const mockUseAuthContext = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: (...args: unknown[]) => mockUseQuery(...args),
@@ -273,14 +274,7 @@ jest.mock('@/lib/device-context', () => ({
 }));
 
 jest.mock('@/providers/auth-provider', () => ({
-	useAuthContext: () => ({
-		requestReauth: jest.fn(),
-		lockReason: 'refresh_failed',
-		session: null,
-		isLoading: false,
-		authState: 'signed_out',
-		setSession: jest.fn(),
-	}),
+	useAuthContext: () => mockUseAuthContext(),
 }));
 
 jest.mock('@/lib/auth-client', () => ({
@@ -352,6 +346,16 @@ describe('Mobile accessibility labels', () => {
 		mockRequestDeviceCode.mockReset();
 		mockPollDeviceToken.mockReset();
 		mockAnnounceForAccessibility.mockReset();
+		mockUseAuthContext.mockReset();
+
+		mockUseAuthContext.mockReturnValue({
+			requestReauth: jest.fn(),
+			lockReason: 'refresh_failed',
+			session: null,
+			isLoading: false,
+			authState: 'signed_out',
+			setSession: jest.fn(),
+		});
 
 		mockUseDeviceContext.mockReturnValue({
 			settings: {
@@ -459,6 +463,74 @@ describe('Mobile accessibility labels', () => {
 		).toBeOnTheScreen();
 		expect(await screen.findByLabelText('Nuevo código')).toBeOnTheScreen();
 		expect(await screen.findByLabelText('Abrir enlace')).toBeOnTheScreen();
+	});
+
+	it('does not redirect authenticated users to scanner until device hydration completes', () => {
+		mockUseAuthContext.mockReturnValue({
+			requestReauth: jest.fn(),
+			lockReason: 'refresh_failed',
+			session: { session: { id: 'session-1' } },
+			isLoading: false,
+			authState: 'ok',
+			setSession: jest.fn(),
+		});
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: null,
+				organizationId: 'org-1',
+				name: 'Terminal A',
+			},
+			clearSettings: jest.fn(),
+			saveRemoteSettings: jest.fn(),
+			updateLocalSettings: jest.fn(),
+			isHydrated: false,
+			isUpdating: false,
+		});
+
+		render(<LoginScreen />);
+
+		expect(mockReplace).not.toHaveBeenCalled();
+	});
+
+	it('routes authenticated devices without location back to device setup after hydration', () => {
+		mockUseAuthContext.mockReturnValue({
+			requestReauth: jest.fn(),
+			lockReason: 'refresh_failed',
+			session: {
+				session: {
+					id: 'session-1',
+					activeOrganizationId: 'org-1',
+				},
+			},
+			isLoading: false,
+			authState: 'ok',
+			setSession: jest.fn(),
+		});
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: null,
+				organizationId: 'org-1',
+				name: 'Terminal A',
+			},
+			clearSettings: jest.fn(),
+			saveRemoteSettings: jest.fn(),
+			updateLocalSettings: jest.fn(),
+			isHydrated: true,
+			isUpdating: false,
+		});
+
+		render(<LoginScreen />);
+
+		expect(mockReplace).toHaveBeenCalledWith({
+			pathname: '/(auth)/device-setup',
+			params: {
+				deviceId: 'device-1',
+				organizationId: 'org-1',
+			},
+		});
+		expect(mockReplace).not.toHaveBeenCalledWith('/(main)/scanner');
 	});
 
 	it('labels locked-screen recovery actions', () => {

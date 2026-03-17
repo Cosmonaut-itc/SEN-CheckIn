@@ -156,7 +156,7 @@
 	--shadow-lg: var(--shadow-lg-token);
 	--color-background: var(--background);
 	--color-card: var(--card);
-	--color-muted: var(--muted-foreground);
+	--color-muted: var(--muted);
 	--color-popover: var(--popover);
 	--color-background-inverse: var(--background-inverse);
 	--color-foreground: var(--foreground);

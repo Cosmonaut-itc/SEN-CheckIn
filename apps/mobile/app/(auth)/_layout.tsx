@@ -33,7 +33,14 @@ export default function AuthLayout(): JSX.Element {
 		return <Redirect href={LOCKED_ROUTE} />;
 	}
 
-	if (!isLoading && session && !isOnDeviceSetup && !needsDeviceSetup && authState !== 'locked') {
+	if (
+		!isLoading &&
+		isHydrated &&
+		session &&
+		!isOnDeviceSetup &&
+		!needsDeviceSetup &&
+		authState !== 'locked'
+	) {
 		return <Redirect href="/(main)/scanner" />;
 	}
 

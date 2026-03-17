@@ -1,8 +1,7 @@
 import type { JSX, PropsWithChildren } from 'react';
-import { createContext, useMemo } from 'react';
+import { createContext, useEffect, useMemo } from 'react';
 import * as React from 'react';
 import { Uniwind } from 'uniwind';
-import { useEffect } from 'react';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 

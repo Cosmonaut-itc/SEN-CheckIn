@@ -196,7 +196,7 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 export default function LoginScreen(): JSX.Element {
 	const router = useRouter();
 	const { session, isLoading, setSession, authState } = useAuthContext();
-	const { updateLocalSettings } = useDeviceContext();
+	const { settings, updateLocalSettings, isHydrated } = useDeviceContext();
 	const { isDarkMode } = useTheme();
 	const [accentColor, foregroundColor, foregroundInverseColor] = useThemeColor([
 		'accent',
@@ -223,6 +223,7 @@ export default function LoginScreen(): JSX.Element {
 		organizationId: string | null;
 	} | null>(null);
 	const [isRoutingToSetup, setIsRoutingToSetup] = useState(false);
+	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
 	const isTerminal = useMemo(
 		() => ['approved', 'denied', 'expired', 'error'].includes(status.state),
@@ -578,10 +579,48 @@ export default function LoginScreen(): JSX.Element {
 
 	// Redirect to the scanner when a session already exists.
 	useEffect(() => {
-		if (!isLoading && session && !pendingSetup && !isRoutingToSetup && authState !== 'locked') {
+		const hydratedSettings = settings;
+
+		if (
+			!isLoading &&
+			needsDeviceSetup &&
+			hydratedSettings &&
+			session &&
+			!pendingSetup &&
+			!isRoutingToSetup &&
+			authState !== 'locked'
+		) {
+			setIsRoutingToSetup(true);
+			replaceToDeviceSetup({
+				deviceId: hydratedSettings.deviceId,
+				organizationId:
+					hydratedSettings.organizationId ?? session.session.activeOrganizationId ?? '',
+			});
+			return;
+		}
+
+		if (
+			!isLoading &&
+			isHydrated &&
+			session &&
+			!pendingSetup &&
+			!isRoutingToSetup &&
+			authState !== 'locked'
+		) {
 			replaceWhenReady('/(main)/scanner');
 		}
-	}, [authState, isLoading, isRoutingToSetup, pendingSetup, replaceWhenReady, session]);
+	}, [
+		authState,
+		isHydrated,
+		isLoading,
+		isRoutingToSetup,
+		needsDeviceSetup,
+		pendingSetup,
+		replaceToDeviceSetup,
+		replaceWhenReady,
+		session,
+		settings,
+	]);
 
 	useEffect(() => {
 		if (pendingSetup && !isRoutingToSetup) {

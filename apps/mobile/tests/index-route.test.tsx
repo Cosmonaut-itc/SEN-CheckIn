@@ -53,6 +53,26 @@ describe('Index route gating', () => {
 		expect(mockRedirect).toHaveBeenCalledWith('/(auth)/device-setup');
 	});
 
+	it('waits for device hydration before redirecting authenticated kiosks', () => {
+		mockUseAuthContext.mockReturnValue({
+			session: { session: { id: 'session-1' } },
+			isLoading: false,
+			authState: 'ok',
+		});
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: false,
+		});
+
+		render(<Index />);
+
+		expect(mockRedirect).not.toHaveBeenCalled();
+	});
+
 	it('keeps authenticated kiosks with full setup on scanner', () => {
 		mockUseAuthContext.mockReturnValue({
 			session: { session: { id: 'session-1' } },

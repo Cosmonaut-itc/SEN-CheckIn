@@ -6,10 +6,17 @@ import AuthLayout from '@/app/(auth)/_layout';
 const mockStack = jest.fn();
 const mockStackScreen = jest.fn();
 const mockUseThemeColor = jest.fn();
+const mockRedirect = jest.fn();
+const mockUseAuthContext = jest.fn();
+const mockUseDeviceContext = jest.fn();
+const mockUseSegments = jest.fn();
 
 jest.mock('expo-router', () => ({
-	Redirect: () => null,
-	useSegments: () => [],
+	Redirect: ({ href }: { href: string }) => {
+		mockRedirect(href);
+		return null;
+	},
+	useSegments: () => mockUseSegments(),
 }));
 
 jest.mock('expo-router/stack', () => {
@@ -39,18 +46,11 @@ jest.mock('@/hooks/use-theme-color', () => ({
 }));
 
 jest.mock('@/providers/auth-provider', () => ({
-	useAuthContext: () => ({
-		session: null,
-		isLoading: false,
-		authState: 'ok',
-	}),
+	useAuthContext: () => mockUseAuthContext(),
 }));
 
 jest.mock('@/lib/device-context', () => ({
-	useDeviceContext: () => ({
-		settings: null,
-		isHydrated: true,
-	}),
+	useDeviceContext: () => mockUseDeviceContext(),
 }));
 
 jest.mock('@/lib/i18n', () => ({
@@ -61,9 +61,13 @@ jest.mock('@/lib/i18n', () => ({
 
 describe('AuthLayout', () => {
 	beforeEach(() => {
+		mockRedirect.mockReset();
 		mockStack.mockReset();
 		mockStackScreen.mockReset();
 		mockUseThemeColor.mockReset();
+		mockUseAuthContext.mockReset();
+		mockUseDeviceContext.mockReset();
+		mockUseSegments.mockReset();
 		mockUseThemeColor.mockImplementation((themeColor: string | string[]) => {
 			if (Array.isArray(themeColor)) {
 				return ['#110D0A', '#F0EAE4'];
@@ -71,6 +75,16 @@ describe('AuthLayout', () => {
 
 			return '#110D0A';
 		});
+		mockUseAuthContext.mockReturnValue({
+			session: null,
+			isLoading: false,
+			authState: 'ok',
+		});
+		mockUseDeviceContext.mockReturnValue({
+			settings: null,
+			isHydrated: true,
+		});
+		mockUseSegments.mockReturnValue([]);
 	});
 
 	it('uses dark themed native header colors when the app is in dark mode', () => {
@@ -89,5 +103,25 @@ describe('AuthLayout', () => {
 				}),
 			}),
 		);
+	});
+
+	it('waits for device hydration before redirecting authenticated users away from auth routes', () => {
+		mockUseAuthContext.mockReturnValue({
+			session: { session: { id: 'session-1' } },
+			isLoading: false,
+			authState: 'ok',
+		});
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: false,
+		});
+
+		render(<AuthLayout />);
+
+		expect(mockRedirect).not.toHaveBeenCalled();
 	});
 });

@@ -2,7 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { Button } from 'heroui-native';
 import { BottomSheet } from 'heroui-native/bottom-sheet';
 import type { JSX } from 'react';
-import { Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { CheckOutReason } from '@sen-checkin/types';
 
@@ -25,6 +25,11 @@ const CHECK_OUT_REASON_OPTIONS: CheckOutReasonOption[] = [
 		label: i18n.t('Scanner.checkOutReason.options.personal.label'),
 		description: i18n.t('Scanner.checkOutReason.options.personal.description'),
 	},
+	{
+		value: 'REGULAR',
+		label: i18n.t('Scanner.checkOutReason.options.regular.label'),
+		description: i18n.t('Scanner.checkOutReason.options.regular.description'),
+	},
 ];
 
 export interface CheckOutReasonSheetProps {
@@ -41,7 +46,7 @@ export interface CheckOutReasonSheetProps {
  */
 export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Element {
 	const insets = useSafeAreaInsets();
-	const bottomPadding = Math.max(insets.bottom + 12, 24);
+	const bottomPadding = Math.max(insets.bottom + 12, 36);
 
 	return (
 		<BottomSheet
@@ -52,6 +57,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 				<BottomSheet.Overlay className="bg-overlay/80" />
 				<BottomSheet.Content
 					enablePanDownToClose
+					snapPoints={['74%']}
 					backgroundClassName="bg-background border border-default-200 rounded-t-xl shadow-none"
 					contentContainerClassName="px-5 pt-5"
 					contentContainerProps={{
@@ -61,43 +67,53 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 					}}
 				>
 					<View className="gap-5">
-						<View className="gap-2">
-							<BottomSheet.Title className="text-foreground text-2xl font-semibold">
-								{i18n.t('Scanner.checkOutReason.title')}
-							</BottomSheet.Title>
-							<BottomSheet.Description className="text-foreground-500 text-sm leading-5">
-								{i18n.t('Scanner.checkOutReason.description')}
-							</BottomSheet.Description>
-						</View>
+						<ScrollView
+							testID="check-out-reason-scroll"
+							showsVerticalScrollIndicator={false}
+							style={{ maxHeight: 480 }}
+							contentContainerStyle={{ gap: 20, paddingBottom: 8 }}
+						>
+							<View className="gap-2">
+								<BottomSheet.Title className="text-foreground text-2xl font-semibold">
+									{i18n.t('Scanner.checkOutReason.title')}
+								</BottomSheet.Title>
+								<BottomSheet.Description className="text-foreground-500 text-sm leading-5">
+									{i18n.t('Scanner.checkOutReason.description')}
+								</BottomSheet.Description>
+							</View>
 
-						<View className="gap-3">
-							{CHECK_OUT_REASON_OPTIONS.map((option) => (
-								<Button
-									key={option.value}
-									variant="outline"
-									onPress={() => {
-										void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-										props.onSelectReason(option.value);
-									}}
-									className="min-h-16 justify-start border-default-200 bg-secondary-bg px-4 py-3"
-									accessibilityLabel={i18n.t(
-										'Scanner.checkOutReason.accessibility.option',
-										{ label: option.label },
-									)}
-								>
-									<View className="gap-1">
-										<Button.Label className="text-foreground text-base font-semibold">
-											{option.label}
-										</Button.Label>
-										<Text className="text-foreground-500 text-sm leading-5">
-											{option.description}
-										</Text>
-									</View>
-								</Button>
-							))}
-						</View>
+							<View testID="check-out-reason-options" className="gap-3">
+								{CHECK_OUT_REASON_OPTIONS.map((option) => (
+									<Button
+										key={option.value}
+										variant="outline"
+										onPress={() => {
+											void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+											props.onSelectReason(option.value);
+										}}
+										className="min-h-16 justify-start border-default-200 bg-secondary-bg px-4 py-3"
+										accessibilityLabel={i18n.t(
+											'Scanner.checkOutReason.accessibility.option',
+											{ label: option.label },
+										)}
+									>
+										<View className="gap-1">
+											<Button.Label className="text-foreground text-base font-semibold">
+												{option.label}
+											</Button.Label>
+											<Text className="text-foreground-500 text-sm leading-5">
+												{option.description}
+											</Text>
+										</View>
+									</Button>
+								))}
+							</View>
+						</ScrollView>
 
-						<View className="pt-1">
+						<View
+							testID="check-out-reason-footer"
+							className="border-t border-default-200 bg-background pt-4"
+						>
 							<Button
 								variant="ghost"
 								onPress={props.onClose}

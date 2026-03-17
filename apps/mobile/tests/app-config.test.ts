@@ -16,8 +16,8 @@ describe('app.json configuration', () => {
 	};
 	const { expo } = config;
 
-	it('app name is checa.', () => {
-		expect(expo.name).toBe('checa.');
+	it('app name is checa', () => {
+		expect(expo.name).toBe('checa');
 	});
 
 	it('splash backgroundColor is Cobre Michoacano', () => {

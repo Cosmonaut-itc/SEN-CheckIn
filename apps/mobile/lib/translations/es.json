@@ -143,6 +143,10 @@
 				"personal": {
 					"label": "Personal",
 					"description": "La salida es por un asunto personal."
+				},
+				"regular": {
+					"label": "Fin de jornada",
+					"description": "Terminaste tu turno y ya no regresarás hoy."
 				}
 			}
 		},
@@ -371,5 +375,29 @@
 			"title": "Consejo",
 			"body": "Coloca el dispositivo en un lugar fijo y con buena iluminación para mejores lecturas."
 		}
+	},
+	"Preview": {
+		"organizationName": "SEN Apps",
+		"organizationDescription": "Organización activa",
+		"organizationId": "7c5f19a9-dd14-443d-9201-8698f0e18fce",
+		"deviceName": "Terminal recepción",
+		"deviceId": "620caeba-fdab-4022-ae5f-92074bfe5df3",
+		"locationName": "Sucursal Centro",
+		"locationSecondaryName": "Almacén",
+		"locationId": "5d3b5f4a-3e50-41a4-934c-b9a32d938b91",
+		"userCode": "FDZV-NDLH",
+		"employeeOne": "María García",
+		"employeeTwo": "Luis Ramírez",
+		"employeeThree": "Ana López",
+		"employeeCodeOne": "EMP-001",
+		"employeeCodeTwo": "EMP-014",
+		"employeeCodeThree": "EMP-028",
+		"cameraHint": "Coloca el rostro dentro del encuadre",
+		"facePreviewTitle": "Vista previa lista",
+		"facePreviewBody": "El rostro quedó centrado y con iluminación suficiente para registrarse.",
+		"lockedReason": "La sesión de este dispositivo expiró y necesita autenticarse de nuevo.",
+		"scannerEmployee": "María García",
+		"scannerStatus": "Entrada verificada correctamente",
+		"scannerInstruction": "Coloca tu rostro dentro del círculo"
 	}
 }

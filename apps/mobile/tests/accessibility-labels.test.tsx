@@ -551,6 +551,9 @@ describe('Mobile accessibility labels', () => {
 
 		expect(screen.getByLabelText('Seleccionar motivo de salida: Comida')).toBeOnTheScreen();
 		expect(screen.getByLabelText('Seleccionar motivo de salida: Personal')).toBeOnTheScreen();
+		expect(
+			screen.getByLabelText('Seleccionar motivo de salida: Fin de jornada'),
+		).toBeOnTheScreen();
 		expect(screen.getByLabelText('Cancelar')).toBeOnTheScreen();
 	});
 

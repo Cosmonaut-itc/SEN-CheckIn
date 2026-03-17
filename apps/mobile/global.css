@@ -142,7 +142,11 @@
 	--spacing: 4px;
 	--radius-sm: 6px;
 	--radius-md: 10px;
+	--radius-md-ios: 10px;
+	--radius-md-android: 12px;
 	--radius-lg: 14px;
+	--radius-lg-ios: 14px;
+	--radius-lg-android: 16px;
 	--radius-xl: 20px;
 	--radius-full: 100px;
 	--shadow-sm: var(--shadow-sm-token);

@@ -119,7 +119,7 @@ describe('Final review regressions', () => {
 		);
 
 		expect(screenshotReadme).not.toContain('Using replace links with preview is not supported');
-		expect(screenshotReadme).toContain('redirected to the login flow');
+		expect(screenshotReadme).toContain('missing-device fallback state');
 	});
 
 	it('shows localized location load errors and setup submission failures', () => {

@@ -10,7 +10,7 @@
 - Playwright MCP could not be used against the native Expo Go URL because the tool blocks the `exp://` protocol and only allows `http:`, `https:`, `about:`, and `data:`.
 - The booted iOS simulator (`iPhone 17 Pro`) was available, but it was no longer in the state described by the plan. It opened on the unauthenticated login screen instead of the logged-in scanner/settings/face-enrollment flow required for the missing dark-mode screenshots.
 - Direct iOS deep-link attempts to `/(main)/scanner`, `/(main)/settings`, and `/(main)/face-enrollment` did not yield stable capture targets because the app redirected away from the protected stack without an active session.
-- The previous `/(auth)/device-setup` deep-link crash was fixed in this branch, but without a stable device context the route still redirected to the login flow, so it could not produce a reproducible screenshot target for the requested capture set.
+- The previous `/(auth)/device-setup` deep-link crash was fixed in this branch, but without a stable device context the route only showed its missing-device fallback state instead of the configured setup flow, so it could not produce a reproducible screenshot target for the requested capture set.
 - Android capture could not proceed because the local emulator process was not attached to `adb`; the SDK tool returned `no devices/emulators found`, so no reliable Android screenshot capture path was available from this workspace.
 
 ## Coverage Status

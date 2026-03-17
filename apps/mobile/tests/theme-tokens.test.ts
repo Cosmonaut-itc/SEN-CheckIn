@@ -61,7 +61,11 @@ describe('Michoacan theme tokens', () => {
 		expect(cssContent).toContain('--spacing: 4px;');
 		expect(cssContent).toContain('--radius-sm: 6px;');
 		expect(cssContent).toContain('--radius-md: 10px;');
+		expect(cssContent).toContain('--radius-md-ios: 10px;');
+		expect(cssContent).toContain('--radius-md-android: 12px;');
 		expect(cssContent).toContain('--radius-lg: 14px;');
+		expect(cssContent).toContain('--radius-lg-ios: 14px;');
+		expect(cssContent).toContain('--radius-lg-android: 16px;');
 		expect(cssContent).toContain('--radius-xl: 20px;');
 		expect(cssContent).toContain('--shadow-sm-token');
 		expect(cssContent).toContain('--shadow-md-token');

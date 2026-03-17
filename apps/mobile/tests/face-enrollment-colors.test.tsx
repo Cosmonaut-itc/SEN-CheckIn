@@ -31,4 +31,10 @@ describe('Face enrollment color migration', () => {
 	it('renders a persistent search label above the employee filter field', () => {
 		expect(content).toContain('FaceEnrollment.employees.searchLabel');
 	});
+
+	it('uses platform-specific DS radii for the search field and media frames', () => {
+		expect(content).toContain('Platform.select({ ios: 10, android: 12, default: 10 })');
+		expect(content).toContain('Platform.select({ ios: 14, android: 16, default: 14 })');
+		expect(content).not.toContain('borderRadius: 16');
+	});
 });

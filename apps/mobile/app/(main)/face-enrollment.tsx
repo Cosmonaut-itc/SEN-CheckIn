@@ -115,6 +115,14 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const successColor = useThemeColor('success');
 	const warningColor = useThemeColor('warning');
 	const cameraRef = useRef<CameraView | null>(null);
+	const inputBorderRadius = useMemo(
+		() => Platform.select({ ios: 10, android: 12, default: 10 }),
+		[],
+	);
+	const cardBorderRadius = useMemo(
+		() => Platform.select({ ios: 14, android: 16, default: 14 }),
+		[],
+	);
 	const [cameraFacing, setCameraFacing] = useState<CameraType>('front');
 	const [permission, requestPermission] = useCameraPermissions();
 	const [searchTerm, setSearchTerm] = useState<string>('');
@@ -185,6 +193,8 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 
 	const isListTruncated =
 		(employeesQuery.data?.pagination.total ?? 0) > (employeesQuery.data?.data.length ?? 0);
+	const showEmployeesEmptyState =
+		!employeesQuery.isPending && !employeesQuery.isError && filteredEmployees.length === 0;
 
 	const enrollmentMutation = useMutation({
 		mutationKey: queryKeys.faceEnrollment.flow(),
@@ -441,7 +451,8 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
 									placeholderTextColor={mutedForegroundColor}
-									className="bg-content2 text-foreground rounded-xl px-3 py-3"
+									className="bg-content2 text-foreground px-3 py-3"
+									style={{ borderRadius: inputBorderRadius }}
 									accessibilityLabel={i18n.t(
 										'FaceEnrollment.employees.searchPlaceholder',
 									)}
@@ -475,7 +486,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									keyboardShouldPersistTaps="handled"
 									showsVerticalScrollIndicator={false}
 								>
-									{filteredEmployees.length === 0 && !employeesQuery.isPending ? (
+									{showEmployeesEmptyState ? (
 										<EmptyState
 											title={i18n.t('FaceEnrollment.employees.emptyState.title')}
 											description={i18n.t(
@@ -576,14 +587,19 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									</View>
 								) : capturedPhoto ? (
 									<View className="gap-3">
-										<Image
-											source={{ uri: capturedPhoto.previewUri }}
-											style={{ width: '100%', height: 260, borderRadius: 16 }}
-											contentFit="cover"
-											accessibilityLabel={i18n.t(
-												'FaceEnrollment.camera.previewLabel',
-											)}
-										/>
+										<View
+											className="overflow-hidden border border-default-200"
+											style={{ width: '100%', height: 260, borderRadius: cardBorderRadius }}
+										>
+											<Image
+												source={{ uri: capturedPhoto.previewUri }}
+												style={{ width: '100%', height: '100%' }}
+												contentFit="cover"
+												accessibilityLabel={i18n.t(
+													'FaceEnrollment.camera.previewLabel',
+												)}
+											/>
+										</View>
 										<View className="flex-row gap-2">
 											<Button
 												variant="secondary"
@@ -629,11 +645,16 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									</View>
 								) : (
 									<View className="gap-3">
-										<CameraView
-											ref={cameraRef}
-											facing={cameraFacing}
-											style={{ width: '100%', height: 260, borderRadius: 16 }}
-										/>
+										<View
+											className="overflow-hidden border border-default-200"
+											style={{ width: '100%', height: 260, borderRadius: cardBorderRadius }}
+										>
+											<CameraView
+												ref={cameraRef}
+												facing={cameraFacing}
+												style={{ width: '100%', height: '100%' }}
+											/>
+										</View>
 										<Button
 											variant="primary"
 											onPress={handleCapturePhoto}

@@ -282,6 +282,27 @@ describe('FaceEnrollmentScreen', () => {
 		});
 	});
 
+	it('shows the load error without falling through to the empty state when employee loading fails', () => {
+		mockUseQuery.mockReturnValue({
+			data: {
+				data: [],
+				pagination: {
+					total: 0,
+					limit: 200,
+					offset: 0,
+				},
+			},
+			isPending: false,
+			isError: true,
+		});
+
+		render(<FaceEnrollmentScreen />);
+
+		expect(screen.getByText('No se pudo cargar la lista de empleados.')).toBeOnTheScreen();
+		expect(screen.queryByText('Sin resultados')).not.toBeOnTheScreen();
+		expect(screen.queryByText('Limpiar búsqueda')).not.toBeOnTheScreen();
+	});
+
 	it('submits enrollment flow and shows success summary', async () => {
 		mockFullEnrollmentFlow.mockResolvedValue({
 			success: true,

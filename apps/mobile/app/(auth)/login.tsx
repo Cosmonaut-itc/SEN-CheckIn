@@ -782,7 +782,7 @@ export default function LoginScreen(): JSX.Element {
 						</Button>
 						{verificationUrl ? (
 							<Button
-								variant="primary"
+								variant="secondary"
 								className="w-full"
 								size="md"
 								onPress={() => {

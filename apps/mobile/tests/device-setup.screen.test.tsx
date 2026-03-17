@@ -1,13 +1,16 @@
-import { fireEvent, render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 
 import DeviceSetupScreen from '@/app/(auth)/device-setup';
 
 const mockReplace = jest.fn();
+const mockUseDeviceContext = jest.fn();
+const mockHandleSubmit = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: () => ({
 		data: null,
+		isError: false,
 		isPending: false,
 	}),
 }));
@@ -89,15 +92,12 @@ jest.mock('@/lib/client-functions', () => ({
 }));
 
 jest.mock('@/lib/device-context', () => ({
-	useDeviceContext: () => ({
-		settings: null,
-		updateLocalSettings: jest.fn(),
-	}),
+	useDeviceContext: () => mockUseDeviceContext(),
 }));
 
 jest.mock('@/lib/forms', () => ({
 	useAppForm: () => ({
-		handleSubmit: jest.fn(),
+		handleSubmit: mockHandleSubmit,
 		setFieldValue: jest.fn(),
 		AppField: () => null,
 		AppForm: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -127,6 +127,12 @@ jest.mock('@/providers/auth-provider', () => ({
 describe('DeviceSetupScreen fallback state', () => {
 	beforeEach(() => {
 		mockReplace.mockReset();
+		mockHandleSubmit.mockReset();
+		mockUseDeviceContext.mockReset();
+		mockUseDeviceContext.mockReturnValue({
+			settings: null,
+			updateLocalSettings: jest.fn(),
+		});
 	});
 
 	it('renders without crashing and routes back to login when no deviceId is available', () => {
@@ -137,5 +143,26 @@ describe('DeviceSetupScreen fallback state', () => {
 		fireEvent.press(screen.getByText('DeviceSetup.errors.deviceNotFound.backToLogin'));
 
 		expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
+	});
+
+	it('shows a localized inline error when setup submission fails', async () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			updateLocalSettings: jest.fn(),
+		});
+		mockHandleSubmit.mockRejectedValue(new Error('network failed'));
+
+		render(<DeviceSetupScreen />);
+
+		fireEvent.press(screen.getByText('DeviceSetup.form.actions.saveAndContinue'));
+
+		await waitFor(() => {
+			expect(screen.getByText('DeviceSetup.form.errors.saveFailed')).toBeOnTheScreen();
+		});
 	});
 });

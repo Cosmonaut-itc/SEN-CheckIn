@@ -12,4 +12,8 @@ describe('Login color migration', () => {
 		expect(content).toContain("'foreground-inverse'");
 		expect(content).not.toContain("'background-inverse'");
 	});
+
+	it('keeps the secondary login CTA visually secondary', () => {
+		expect(content).toMatch(/<Button\s+variant="secondary"[\s\S]*Login\.actions\.openLink/);
+	});
 });

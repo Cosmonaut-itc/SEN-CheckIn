@@ -14,7 +14,26 @@
 		"noOptionsAvailable": "No hay opciones disponibles"
 	},
 	"Errors": {
-		"unexpected": "Ocurrió un error inesperado"
+		"unexpected": "Ocurrió un error inesperado",
+		"api": {
+			"loadLocations": "No se pudieron cargar las ubicaciones.",
+			"loadDevices": "No se pudieron cargar los dispositivos.",
+			"invalidDeviceEndpoint": "La configuración del dispositivo no está disponible en este momento.",
+			"loadDevice": "No se pudo cargar el dispositivo.",
+			"registerDevice": "No se pudo registrar el dispositivo.",
+			"registerDeviceMissingData": "El registro del dispositivo no devolvió datos válidos.",
+			"updateDeviceSettings": "No se pudo actualizar la configuración del dispositivo.",
+			"updateDeviceMissingData": "La actualización del dispositivo no devolvió datos válidos.",
+			"invalidEmployeeRoute": "La ruta del empleado no está disponible en este momento.",
+			"loadFaceEnrollmentEmployees": "No se pudo cargar la lista de empleados.",
+			"createRekognitionUserMissingData": "No se pudo preparar el registro facial del empleado.",
+			"faceEnrollmentMissingData": "La respuesta del registro facial no devolvió datos válidos.",
+			"sendDeviceHeartbeat": "No se pudo validar el estado del dispositivo.",
+			"heartbeatMissingData": "La validación del dispositivo no devolvió datos válidos.",
+			"loadAttendanceRecords": "No se pudieron cargar los registros de asistencia.",
+			"createAttendanceRecord": "No se pudo registrar la asistencia.",
+			"attendanceRecordMissingData": "La respuesta del registro de asistencia no devolvió datos válidos."
+		}
 	},
 	"Login": {
 		"defaults": {
@@ -180,6 +199,7 @@
 		},
 		"employees": {
 			"title": "Empleados activos",
+			"searchLabel": "Buscar empleado",
 			"searchPlaceholder": "Buscar por nombre o código",
 			"searchHint": "Escribe el nombre o el código del empleado que quieres buscar.",
 			"loading": "Cargando empleados...",
@@ -261,6 +281,7 @@
 					"accessibilityLabel": "Seleccionar ubicación del dispositivo",
 					"accessibilityHint": "Abre la lista de ubicaciones disponibles para este dispositivo.",
 					"loading": "Cargando ubicaciones...",
+					"loadError": "No se pudieron cargar las ubicaciones.",
 					"placeholder": "Selecciona una ubicación",
 					"empty": "No hay ubicaciones disponibles"
 				}
@@ -323,6 +344,9 @@
 				"nameRequired": "El nombre es obligatorio",
 				"locationRequired": "Selecciona una ubicación"
 			},
+			"errors": {
+				"saveFailed": "No se pudo guardar la configuración del dispositivo. Inténtalo de nuevo."
+			},
 			"fields": {
 				"name": {
 					"label": "Nombre del dispositivo",
@@ -334,6 +358,7 @@
 					"accessibilityLabel": "Seleccionar ubicación",
 					"accessibilityHint": "Abre la lista de ubicaciones disponibles para este dispositivo.",
 					"loading": "Cargando ubicaciones...",
+					"loadError": "No se pudieron cargar las ubicaciones.",
 					"placeholder": "Selecciona una ubicación",
 					"empty": "No hay ubicaciones disponibles"
 				}

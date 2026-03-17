@@ -56,4 +56,18 @@ describe('Michoacan theme tokens', () => {
 		expect(cssContent).toContain('@variant light');
 		expect(cssContent).toContain('@variant dark');
 	});
+
+	it('defines DS spacing, radius, and shadow tokens for utility classes', () => {
+		expect(cssContent).toContain('--spacing: 4px;');
+		expect(cssContent).toContain('--radius-sm: 6px;');
+		expect(cssContent).toContain('--radius-md: 10px;');
+		expect(cssContent).toContain('--radius-lg: 14px;');
+		expect(cssContent).toContain('--radius-xl: 20px;');
+		expect(cssContent).toContain('--shadow-sm-token');
+		expect(cssContent).toContain('--shadow-md-token');
+		expect(cssContent).toContain('--shadow-lg-token');
+		expect(cssContent).toContain('--shadow-sm: var(--shadow-sm-token);');
+		expect(cssContent).toContain('--shadow-md: var(--shadow-md-token);');
+		expect(cssContent).toContain('--shadow-lg: var(--shadow-lg-token);');
+	});
 });

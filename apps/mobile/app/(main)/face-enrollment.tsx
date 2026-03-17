@@ -62,6 +62,13 @@ const ENROLLMENT_API_ERROR_TRANSLATION_KEYS: Record<FaceEnrollmentApiErrorCode, 
 	UNKNOWN: 'FaceEnrollment.errors.api.UNKNOWN',
 };
 
+const LOCAL_ENROLLMENT_ERROR_KEYS = [
+	'FaceEnrollment.errors.associationFailed',
+	'FaceEnrollment.errors.captureFailed',
+	'FaceEnrollment.errors.cameraUnavailable',
+	'FaceEnrollment.errors.missingData',
+] as const;
+
 /**
  * Builds a searchable normalized label for employee local filtering.
  *
@@ -83,8 +90,11 @@ function resolveEnrollmentErrorMessage(error: unknown): string {
 		return i18n.t(ENROLLMENT_API_ERROR_TRANSLATION_KEYS[error.code]);
 	}
 
-	if (error instanceof Error && error.message) {
-		return error.message;
+	if (error instanceof Error) {
+		const localMessages = LOCAL_ENROLLMENT_ERROR_KEYS.map((key) => i18n.t(key));
+		if (localMessages.includes(error.message)) {
+			return error.message;
+		}
 	}
 
 	return i18n.t('FaceEnrollment.errors.generic');
@@ -421,6 +431,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 						<Card variant="default">
 							<Card.Body className="p-5 gap-3">
 								<Card.Title>{i18n.t('FaceEnrollment.employees.title')}</Card.Title>
+								<Text className="text-sm font-semibold text-foreground tracking-wide">
+									{i18n.t('FaceEnrollment.employees.searchLabel')}
+								</Text>
 								<TextInput
 									value={searchTerm}
 									onChangeText={setSearchTerm}

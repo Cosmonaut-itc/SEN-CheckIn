@@ -27,4 +27,8 @@ describe('Face enrollment color migration', () => {
 			/<Button\s+variant="primary"\s+className="flex-1"\s+onPress={handleConfirmEnrollment}/,
 		);
 	});
+
+	it('renders a persistent search label above the employee filter field', () => {
+		expect(content).toContain('FaceEnrollment.employees.searchLabel');
+	});
 });

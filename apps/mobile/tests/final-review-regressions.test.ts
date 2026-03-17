@@ -96,4 +96,41 @@ describe('Final review regressions', () => {
 		expect(deviceSetupSource).toContain('rounded-xl');
 		expect(deviceSetupSource).toContain('rounded-lg');
 	});
+
+	it('uses dialog-style location selectors on mobile setup and settings screens', () => {
+		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
+		const deviceSetupSource = readFileSync(
+			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
+			'utf-8',
+		);
+
+		expect(settingsSource).toContain('presentation="dialog"');
+		expect(settingsSource).not.toContain('width={280}');
+		expect(settingsSource).not.toContain('placement="bottom"');
+		expect(deviceSetupSource).toContain('presentation="dialog"');
+		expect(deviceSetupSource).not.toContain('width={280}');
+		expect(deviceSetupSource).not.toContain('placement="bottom"');
+	});
+
+	it('keeps the screenshot blocker notes aligned with the current device-setup behavior', () => {
+		const screenshotReadme = readFileSync(
+			resolve(__dirname, '../tests/screenshots/README.md'),
+			'utf-8',
+		);
+
+		expect(screenshotReadme).not.toContain('Using replace links with preview is not supported');
+		expect(screenshotReadme).toContain('redirected to the login flow');
+	});
+
+	it('shows localized location load errors and setup submission failures', () => {
+		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
+		const deviceSetupSource = readFileSync(
+			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
+			'utf-8',
+		);
+
+		expect(settingsSource).toContain('Settings.form.fields.location.loadError');
+		expect(deviceSetupSource).toContain('DeviceSetup.form.fields.location.loadError');
+		expect(deviceSetupSource).toContain('DeviceSetup.form.errors.saveFailed');
+	});
 });

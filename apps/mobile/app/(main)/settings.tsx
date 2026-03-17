@@ -47,12 +47,13 @@ export default function SettingsScreen(): JSX.Element {
 		clearSettings,
 	} = useDeviceContext();
 
-	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
+	const { data: locationsResponse, isError: isLocationsError, isPending: isLocationsPending } =
+		useQuery({
 		queryKey: queryKeys.locations.list({ organizationId: activeOrganizationId ?? undefined }),
 		queryFn: () =>
 			fetchLocationsList({ limit: 100, organizationId: activeOrganizationId ?? undefined }),
 		enabled: Boolean(activeOrganizationId),
-	});
+		});
 
 	const locationOptions = useMemo(
 		() =>
@@ -95,15 +96,11 @@ export default function SettingsScreen(): JSX.Element {
 					actionLabel: i18n.t('Common.ok'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
-			} catch (error: unknown) {
-				const message =
-					error instanceof Error
-						? error.message
-						: i18n.t('Settings.toast.saveError.fallbackDescription');
+			} catch {
 				toast.show({
 					variant: 'danger',
 					label: i18n.t('Settings.toast.saveError.title'),
-					description: message,
+					description: i18n.t('Settings.toast.saveError.fallbackDescription'),
 					actionLabel: i18n.t('Common.dismiss'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
@@ -238,7 +235,7 @@ export default function SettingsScreen(): JSX.Element {
 										<Select
 											value={selectedOption}
 											onValueChange={handleLocationChange}
-											isDisabled={isLocationsPending}
+											isDisabled={isLocationsPending || isLocationsError}
 										>
 											<Select.Trigger variant="outline" asChild>
 												<Button
@@ -268,6 +265,10 @@ export default function SettingsScreen(): JSX.Element {
 																? i18n.t(
 																		'Settings.form.fields.location.loading',
 																	)
+																: isLocationsError
+																	? i18n.t(
+																			'Settings.form.fields.location.loadError',
+																		)
 																: i18n.t(
 																		'Settings.form.fields.location.placeholder',
 																	)}
@@ -276,14 +277,28 @@ export default function SettingsScreen(): JSX.Element {
 												</Button>
 											</Select.Trigger>
 											<Select.Portal>
-												<Select.Overlay />
+												<Select.Overlay className="bg-overlay/80" />
 												<Select.Content
-													width={280}
-													className="rounded-2xl"
-													placement="bottom"
+													presentation="dialog"
+													classNames={{
+														wrapper: 'px-5',
+														content: 'rounded-xl bg-background gap-2 shadow-lg',
+													}}
 													style={continuousCurve}
 												>
-													{locationOptions.length === 0 ? (
+													<Select.Close />
+													<Select.ListLabel className="text-lg font-bold text-foreground">
+														{i18n.t('Settings.form.fields.location.label')}
+													</Select.ListLabel>
+													{isLocationsError ? (
+														<View className="py-4">
+															<Text className="text-danger-500 text-center">
+																{i18n.t(
+																	'Settings.form.fields.location.loadError',
+																)}
+															</Text>
+														</View>
+													) : locationOptions.length === 0 ? (
 														<View className="py-4">
 															<Text className="text-foreground-400 text-center">
 																{i18n.t(
@@ -377,17 +392,13 @@ export default function SettingsScreen(): JSX.Element {
 										actionLabel: i18n.t('Common.ok'),
 										onActionPress: ({ hide }: { hide: () => void }) => hide(),
 									});
-								} catch (error: unknown) {
-									const message =
-										error instanceof Error
-											? error.message
-											: i18n.t(
-													'Settings.toast.signOutError.fallbackDescription',
-												);
+								} catch {
 									toast.show({
 										variant: 'danger',
 										label: i18n.t('Settings.toast.signOutError.title'),
-										description: message,
+										description: i18n.t(
+											'Settings.toast.signOutError.fallbackDescription',
+										),
 										actionLabel: i18n.t('Common.dismiss'),
 										onActionPress: ({ hide }: { hide: () => void }) => hide(),
 									});

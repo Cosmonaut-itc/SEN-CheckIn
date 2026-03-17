@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as ExpoDevice from 'expo-device';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Card, Select, Spinner } from 'heroui-native';
-import { type JSX, useCallback, useEffect, useMemo } from 'react';
+import { type JSX, useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	KeyboardAvoidingView,
 	Platform,
@@ -55,6 +55,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 	const { settings, updateLocalSettings } = useDeviceContext();
 	const params = useLocalSearchParams<SearchParams>();
 	const keyboardVerticalOffset = Platform.OS === 'ios' ? 24 : 0;
+	const [submissionError, setSubmissionError] = useState<string | null>(null);
 	const [dangerColor, primaryColor, warningColor] = useThemeColor([
 		'destructive',
 		'primary',
@@ -84,12 +85,13 @@ export default function DeviceSetupScreen(): JSX.Element {
 		[settings?.name],
 	);
 
-	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
+	const { data: locationsResponse, isError: isLocationsError, isPending: isLocationsPending } =
+		useQuery({
 		queryKey: queryKeys.locations.list({ organizationId: organizationId ?? undefined }),
 		queryFn: () =>
 			fetchLocationsList({ limit: 100, organizationId: organizationId ?? undefined }),
 		enabled: Boolean(organizationId),
-	});
+		});
 
 	const locationOptions = useMemo(
 		() =>
@@ -109,6 +111,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 	 */
 	const handleFormSubmit = useCallback(
 		async ({ value }: { value: SetupFormValues }) => {
+			setSubmissionError(null);
 			if (!deviceId || !value.name || !value.locationId) {
 				return;
 			}
@@ -153,7 +156,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 	 * @returns Promise that resolves after submit is processed
 	 */
 	const handleSubmit = useCallback(async () => {
-		await form.handleSubmit();
+		try {
+			await form.handleSubmit();
+		} catch {
+			setSubmissionError(i18n.t('DeviceSetup.form.errors.saveFailed'));
+		}
 	}, [form]);
 
 	/**
@@ -339,7 +346,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 									<Select
 										value={selectedOption}
 										onValueChange={handleLocationChange}
-										isDisabled={isLocationsPending}
+										isDisabled={isLocationsPending || isLocationsError}
 									>
 										<Select.Trigger variant="outline" asChild>
 											<Button
@@ -369,6 +376,10 @@ export default function DeviceSetupScreen(): JSX.Element {
 															? i18n.t(
 																	'DeviceSetup.form.fields.location.loading',
 																)
+															: isLocationsError
+																? i18n.t(
+																		'DeviceSetup.form.fields.location.loadError',
+																	)
 															: i18n.t(
 																	'DeviceSetup.form.fields.location.placeholder',
 																)}
@@ -377,14 +388,29 @@ export default function DeviceSetupScreen(): JSX.Element {
 											</Button>
 										</Select.Trigger>
 										<Select.Portal>
-											<Select.Overlay />
+											<Select.Overlay className="bg-overlay/80" />
 											<Select.Content
-												width={280}
+												presentation="dialog"
 												className="rounded-xl"
-												placement="bottom"
+												classNames={{
+													wrapper: 'px-5',
+													content: 'rounded-xl bg-background gap-2 shadow-lg',
+												}}
 												style={continuousCurve}
 											>
-												{locationOptions.length === 0 ? (
+												<Select.Close />
+												<Select.ListLabel className="text-lg font-bold text-foreground">
+													{i18n.t('DeviceSetup.form.fields.location.label')}
+												</Select.ListLabel>
+												{isLocationsError ? (
+													<View className="py-4">
+														<Text className="text-danger-500 text-center">
+															{i18n.t(
+																'DeviceSetup.form.fields.location.loadError',
+															)}
+														</Text>
+													</View>
+												) : locationOptions.length === 0 ? (
 													<View className="py-4">
 														<Text className="text-foreground-400 text-center">
 															{i18n.t(
@@ -430,7 +456,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 						<Button
 							size="lg"
 							variant="primary"
-							isDisabled={isLocationsPending}
+							isDisabled={isLocationsPending || isLocationsError}
 							onPress={handleSubmit}
 						>
 							{isLocationsPending ? (
@@ -447,6 +473,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 							)}
 						</Button>
 					</form.AppForm>
+					{submissionError ? (
+						<Text className="text-sm text-danger-500 font-medium" selectable>
+							{submissionError}
+						</Text>
+					) : null}
 				</Card>
 
 				{/* Tip Section */}

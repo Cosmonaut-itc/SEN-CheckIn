@@ -993,7 +993,10 @@ export async function createAttendanceRecord(
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[createAttendanceRecord] API error:', errorMessage);
-		throw new AttendanceApiError(i18n.t('Errors.api.createAttendanceRecord'), Math.max(status, 500));
+		throw new AttendanceApiError(
+			i18n.t('Errors.api.createAttendanceRecord'),
+			status >= 400 ? status : 500,
+		);
 	}
 
 	if (!data.data) {

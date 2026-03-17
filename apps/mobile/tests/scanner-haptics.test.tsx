@@ -13,4 +13,15 @@ describe('Scanner haptic feedback', () => {
 			/if \(isIOS\)\s*\{\s*Haptics\.notificationAsync/s,
 		);
 	});
+
+	it('does not gate check-out reason haptics behind an iOS-only condition', () => {
+		const checkOutReasonSheetContent = readFileSync(
+			resolve(__dirname, '../components/attendance/check-out-reason-sheet.tsx'),
+			'utf-8',
+		);
+
+		expect(checkOutReasonSheetContent).not.toMatch(
+			/if \(isIOS\)\s*\{\s*void Haptics\.impactAsync/s,
+		);
+	});
 });

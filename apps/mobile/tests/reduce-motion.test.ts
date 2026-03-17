@@ -26,6 +26,10 @@ describe('Reduce motion support', () => {
 			loginContent.match(
 				/function PulseAnimation\(\{ children \}: \{ children: React\.ReactNode \}\): JSX\.Element \{[\s\S]*?return <Animated\.View style=\{\{ transform: \[\{ scale: pulseAnim \}\] \}\}>\{children\}<\/Animated\.View>;\n\}/,
 			)?.[0] ?? '';
+		const startPulseAnimationBlock =
+			scannerContent.match(
+				/const startPulseAnimation = useCallback\(\(\) => \{[\s\S]*?\}, \[pulseAnim, shouldReduceMotion\]\);/,
+			)?.[0] ?? '';
 
 		expect(scannerContent).toContain('useReducedMotion()');
 		expect(scannerContent).toContain('getAnimationDuration(');
@@ -33,6 +37,7 @@ describe('Reduce motion support', () => {
 		expect(loginContent).toContain('getAnimationDuration(');
 		expect(animatedDotsBlock).toContain('useReducedMotion()');
 		expect(animatedDotsBlock).toContain('if (shouldReduceMotion)');
+		expect(startPulseAnimationBlock).toContain('if (shouldReduceMotion)');
 		expect(pulseAnimationBlock).toContain('if (shouldReduceMotion)');
 	});
 });

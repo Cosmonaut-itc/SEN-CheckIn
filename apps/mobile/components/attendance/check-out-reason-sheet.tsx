@@ -42,7 +42,6 @@ export interface CheckOutReasonSheetProps {
 export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Element {
 	const insets = useSafeAreaInsets();
 	const bottomPadding = Math.max(insets.bottom + 12, 24);
-	const isIOS = process.env.EXPO_OS === 'ios';
 
 	return (
 		<BottomSheet
@@ -77,9 +76,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 									key={option.value}
 									variant="outline"
 									onPress={() => {
-										if (isIOS) {
-											void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-										}
+										void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 										props.onSelectReason(option.value);
 									}}
 									className="min-h-16 justify-start border-default-200 bg-secondary-bg px-4 py-3"

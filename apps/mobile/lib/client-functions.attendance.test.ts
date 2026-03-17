@@ -73,4 +73,25 @@ describe('createAttendanceRecord', () => {
 			status: 404,
 		});
 	});
+
+	it('preserves client status codes for API payload errors without a transport error object', async () => {
+		mockAttendancePost.mockResolvedValue({
+			data: {
+				error: 'Device no longer exists',
+			},
+			error: null,
+			status: 404,
+		});
+
+		await expect(
+			createAttendanceRecord({
+				employeeId: 'employee-1',
+				deviceId: 'device-1',
+				type: 'CHECK_IN',
+			}),
+		).rejects.toMatchObject({
+			message: 'Errors.api.createAttendanceRecord',
+			status: 404,
+		});
+	});
 });

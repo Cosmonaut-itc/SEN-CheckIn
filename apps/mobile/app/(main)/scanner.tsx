@@ -412,6 +412,11 @@ export default function ScannerScreen(): JSX.Element {
 	 * @returns {void} Initiates the continuous pulse animation loop
 	 */
 	const startPulseAnimation = useCallback(() => {
+		if (shouldReduceMotion) {
+			pulseAnim.setValue(1);
+			return;
+		}
+
 		Animated.loop(
 			Animated.sequence([
 				Animated.timing(pulseAnim, {

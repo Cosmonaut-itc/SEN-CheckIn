@@ -14,6 +14,7 @@ const DEFAULT_CONFIGURED_ORIGINS: readonly string[] = [
 ];
 
 const SCHEME_ONLY_ORIGIN_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/$/i;
+const CORS_PROTOCOLS = new Set(['http:', 'https:']);
 const DEV_PROTOCOLS = new Set(['http:', 'https:', 'exp:', 'exps:']);
 const LOCAL_LINK_LOCAL_IPV6_PATTERN = /^fe[89ab][0-9a-f]:/i;
 const LOCAL_UNIQUE_LOCAL_IPV6_PATTERN = /^(?:fc|fd)[0-9a-f]{2}:/i;
@@ -96,13 +97,29 @@ export function buildConfiguredOriginAllowlist(config: OriginAllowlistConfig): s
 }
 
 /**
+ * Build the subset of configured origins that are valid for browser CORS checks.
+ *
+ * @param config - Authentication/CORS configuration values.
+ * @returns Unique normalized HTTP(S) origins only.
+ */
+export function buildCorsOriginAllowlist(config: OriginAllowlistConfig): string[] {
+	return buildConfiguredOriginAllowlist(config).filter((origin) => {
+		try {
+			return CORS_PROTOCOLS.has(new URL(origin).protocol);
+		} catch {
+			return false;
+		}
+	});
+}
+
+/**
  * Determine whether the current runtime should relax origin checks for local development.
  *
  * @param nodeEnv - Node environment string.
  * @returns `true` outside production builds.
  */
 export function isDevelopmentRuntime(nodeEnv?: string): boolean {
-	return nodeEnv !== 'production';
+	return nodeEnv === 'development' || nodeEnv === 'test';
 }
 
 /**

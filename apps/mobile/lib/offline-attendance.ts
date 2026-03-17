@@ -41,6 +41,21 @@ function isOfflineSubmissionError(error: unknown): boolean {
 }
 
 /**
+ * Determine whether an attendance submission failed permanently and should not block the queue.
+ *
+ * @param error - Unknown submission error to inspect
+ * @returns True when the error exposes a 4xx HTTP status
+ */
+function isPermanentAttendanceSubmissionError(error: unknown): boolean {
+	if (!error || typeof error !== 'object') {
+		return false;
+	}
+
+	const status = Reflect.get(error, 'status');
+	return typeof status === 'number' && status >= 400 && status < 500;
+}
+
+/**
  * Determine whether a NetInfo state should be treated as offline.
  *
  * @param state - Connectivity payload from NetInfo
@@ -144,6 +159,14 @@ async function flushPendingAttendanceQueueInternal(): Promise<number> {
 			await createAttendanceRecord(payload);
 			flushedCount += 1;
 		} catch (error) {
+			if (isPermanentAttendanceSubmissionError(error)) {
+				console.warn(
+					'[offline-attendance] Discarding permanently failed queue item',
+					error,
+				);
+				continue;
+			}
+
 			remainingQueue.push(...queue.slice(index));
 			console.warn('[offline-attendance] Failed to flush pending queue', error);
 			break;

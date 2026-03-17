@@ -941,6 +941,26 @@ export interface CreateAttendanceInput {
 }
 
 /**
+ * Specialized error for attendance creation failures.
+ */
+export class AttendanceApiError extends Error {
+	readonly status: number;
+
+	/**
+	 * Creates a new attendance API error.
+	 *
+	 * @param message - Human-readable error message
+	 * @param status - HTTP status code associated with the failure
+	 * @param options - Optional error metadata such as the original cause
+	 */
+	constructor(message: string, status: number, options?: ErrorOptions) {
+		super(message, options);
+		this.name = 'AttendanceApiError';
+		this.status = status;
+	}
+}
+
+/**
  * Create an attendance record after successful face verification via the Eden Treaty client.
  *
  * @param input - Attendance payload including employeeId, deviceId, type, and optional metadata
@@ -952,7 +972,7 @@ export async function createAttendanceRecord(
 ): Promise<AttendanceRecord> {
 	const timestamp = input.timestamp ?? new Date();
 
-	const { data, error } = await api.attendance.post({
+	const response = await api.attendance.post({
 		employeeId: input.employeeId,
 		deviceId: input.deviceId,
 		type: input.type,
@@ -960,17 +980,20 @@ export async function createAttendanceRecord(
 		metadata: input.metadata,
 		timestamp,
 	});
+	const { data, error, status } = response;
 
 	if (error) {
 		console.error('[createAttendanceRecord] Eden Treaty error:', error);
 		const errorCause = error instanceof Error ? error : new Error(String(error));
-		throw new Error(i18n.t('Errors.api.createAttendanceRecord'), { cause: errorCause });
+		throw new AttendanceApiError(i18n.t('Errors.api.createAttendanceRecord'), status, {
+			cause: errorCause,
+		});
 	}
 
 	if (!data || 'error' in data) {
 		const errorMessage = data && 'error' in data ? String(data.error) : 'Unknown error';
 		console.error('[createAttendanceRecord] API error:', errorMessage);
-		throw new Error(i18n.t('Errors.api.createAttendanceRecord'));
+		throw new AttendanceApiError(i18n.t('Errors.api.createAttendanceRecord'), Math.max(status, 500));
 	}
 
 	if (!data.data) {

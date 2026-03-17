@@ -36,9 +36,9 @@ import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
 import { schedulingRoutes } from './routes/scheduling.js';
 import { vacationRoutes } from './routes/vacations.js';
 import { internalHolidayRoutes } from './routes/internal-holidays.js';
-import { buildConfiguredOriginAllowlist, isOriginAllowed } from './utils/origin-allowlist.js';
+import { buildCorsOriginAllowlist, isOriginAllowed } from './utils/origin-allowlist.js';
 
-const corsAllowedOrigins: string[] = buildConfiguredOriginAllowlist({
+const corsAllowedOrigins: string[] = buildCorsOriginAllowlist({
 	authBaseUrl: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
 	corsOrigin: process.env.CORS_ORIGIN,
 });

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+	buildCorsOriginAllowlist,
 	buildConfiguredOriginAllowlist,
+	isDevelopmentRuntime,
 	isOriginAllowed,
 	normalizeOrigin,
 	resolveTrustedOrigins,
@@ -42,6 +44,18 @@ describe('origin allowlist', () => {
 		expect(configuredOrigins).toContain('https://sen-check-in.vercel.app');
 	});
 
+	it('builds a web-only allowlist for CORS checks', () => {
+		const corsOrigins = buildCorsOriginAllowlist({
+			authBaseUrl: 'sen-checkin://',
+			corsOrigin: 'null, sen-checkin://, https://admin.example.com/, http://localhost:3001/',
+		});
+
+		expect(corsOrigins).toContain('https://admin.example.com');
+		expect(corsOrigins).toContain('http://localhost:3001');
+		expect(corsOrigins).not.toContain('null');
+		expect(corsOrigins).not.toContain('sen-checkin://');
+	});
+
 	it('rejects public internet origins in development', () => {
 		expect(isOriginAllowed('http://8.8.8.8:3000', {
 			configuredOrigins,
@@ -59,6 +73,14 @@ describe('origin allowlist', () => {
 		expect(isOriginAllowed('http://100.111.159.14:3000', {
 			configuredOrigins,
 			nodeEnv: 'production',
+		})).toBe(false);
+	});
+
+	it('treats missing node env as non-development for origin checks', () => {
+		expect(isDevelopmentRuntime(undefined)).toBe(false);
+		expect(isOriginAllowed('http://192.168.0.106:3000', {
+			configuredOrigins,
+			nodeEnv: undefined,
 		})).toBe(false);
 	});
 

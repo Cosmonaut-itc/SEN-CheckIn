@@ -50,4 +50,27 @@ describe('createAttendanceRecord', () => {
 			cause: networkError,
 		});
 	});
+
+	it('preserves the HTTP status for permanent attendance API errors', async () => {
+		mockAttendancePost.mockResolvedValue({
+			data: null,
+			error: {
+				value: {
+					message: 'Device no longer exists',
+				},
+			},
+			status: 404,
+		});
+
+		await expect(
+			createAttendanceRecord({
+				employeeId: 'employee-1',
+				deviceId: 'device-1',
+				type: 'CHECK_IN',
+			}),
+		).rejects.toMatchObject({
+			message: 'Errors.api.createAttendanceRecord',
+			status: 404,
+		});
+	});
 });

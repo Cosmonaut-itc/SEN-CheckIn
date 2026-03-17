@@ -27,12 +27,17 @@ jest.mock('@react-native-community/netinfo', () => ({
 
 describe('Offline attendance support', () => {
 	beforeEach(() => {
+		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		jest.resetModules();
 		mockGetItemAsync.mockReset();
 		mockSetItemAsync.mockReset();
 		mockDeleteItemAsync.mockReset();
 		mockCreateAttendanceRecord.mockReset();
 		mockNetInfoFetch.mockReset();
+	});
+
+	afterEach(() => {
+		jest.restoreAllMocks();
 	});
 
 	it('queues attendance payloads when there is no network', async () => {
@@ -151,6 +156,43 @@ describe('Offline attendance support', () => {
 		await expect(firstFlush).resolves.toBe(1);
 		await expect(secondFlush).resolves.toBe(1);
 		expect(mockDeleteItemAsync).toHaveBeenCalledTimes(1);
+	});
+
+	it('drops permanently invalid queue items so later records can still flush', async () => {
+		jest.resetModules();
+		mockGetItemAsync.mockResolvedValue(
+			JSON.stringify([
+				{
+					employeeId: 'employee-1',
+					deviceId: 'device-1',
+					type: 'CHECK_IN',
+					timestamp: '2026-03-16T00:00:00.000Z',
+				},
+				{
+					employeeId: 'employee-2',
+					deviceId: 'device-1',
+					type: 'CHECK_IN',
+					timestamp: '2026-03-16T00:01:00.000Z',
+				},
+			]),
+		);
+
+		const permanentError = Object.assign(new Error('Errors.api.createAttendanceRecord'), {
+			status: 404,
+		});
+		mockCreateAttendanceRecord
+			.mockRejectedValueOnce(permanentError)
+			.mockResolvedValueOnce({ id: 'attendance-2' });
+
+		const { flushPendingAttendanceQueue } = jest.requireActual(
+			'@/lib/offline-attendance',
+		) as typeof import('@/lib/offline-attendance');
+
+		await expect(flushPendingAttendanceQueue()).resolves.toBe(1);
+
+		expect(mockCreateAttendanceRecord).toHaveBeenCalledTimes(2);
+		expect(mockDeleteItemAsync).toHaveBeenCalledTimes(1);
+		expect(mockSetItemAsync).not.toHaveBeenCalled();
 	});
 
 	it('shows an offline indicator on scanner when attendance must be queued', () => {

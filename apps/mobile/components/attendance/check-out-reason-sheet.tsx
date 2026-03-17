@@ -53,7 +53,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 				<BottomSheet.Overlay className="bg-overlay/80" />
 				<BottomSheet.Content
 					enablePanDownToClose
-					backgroundClassName="bg-background border border-default-200 rounded-t-[32px] shadow-none"
+					backgroundClassName="bg-background border border-default-200 rounded-t-xl shadow-none"
 					contentContainerClassName="px-5 pt-5"
 					contentContainerProps={{
 						style: {

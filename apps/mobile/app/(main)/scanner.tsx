@@ -1,6 +1,6 @@
 import { type CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { Redirect, useFocusEffect, useRouter, type Href } from 'expo-router';
 import { Button, Card, Spinner } from 'heroui-native';
 import type { CheckOutReason } from '@sen-checkin/types';
 import type { JSX } from 'react';
@@ -64,6 +64,7 @@ type ScannerThemeColors = {
 /** Maximum size for face guide circle on larger devices (tablets) */
 const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
+const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
 
 /**
  * Cross-platform link icon for the device-link CTA.
@@ -213,7 +214,7 @@ export default function ScannerScreen(): JSX.Element {
 		'foreground',
 		'muted',
 		'overlay',
-		'accent',
+		'primary',
 		'success',
 		'warning',
 	]);
@@ -271,6 +272,7 @@ export default function ScannerScreen(): JSX.Element {
 	const pulseAnim = useRef(new Animated.Value(1)).current;
 	const statusOpacity = useRef(new Animated.Value(1)).current;
 	const borderColorAnim = useRef(new Animated.Value(0)).current;
+	const scanStatusResetTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	const [attendanceType, setAttendanceType] = useState<AttendanceType>('CHECK_IN');
 	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
@@ -309,6 +311,41 @@ export default function ScannerScreen(): JSX.Element {
 	const ctaBackground = attendanceAccent;
 	const ctaContentColor = 'white';
 	const linkButtonContentColor = isDarkMode ? themeColors.warning : themeColors.primary;
+	const needsDeviceSetup = Boolean(settings?.deviceId) && !settings?.locationId;
+
+	/**
+	 * Clear any pending scan-status reset timeout.
+	 *
+	 * @returns {void} No return value
+	 */
+	const clearPendingScanStatusReset = useCallback((): void => {
+		if (!scanStatusResetTimeoutRef.current) {
+			return;
+		}
+
+		clearTimeout(scanStatusResetTimeoutRef.current);
+		scanStatusResetTimeoutRef.current = null;
+	}, []);
+
+	/**
+	 * Schedule a reset back to the idle scanner state.
+	 *
+	 * @param delayMs - Delay before clearing the current status
+	 * @returns {void} No return value
+	 */
+	const scheduleScanStatusReset = useCallback(
+		(delayMs: number): void => {
+			clearPendingScanStatusReset();
+			scanStatusResetTimeoutRef.current = setTimeout(() => {
+				setScanStatus({
+					state: 'idle',
+					message: i18n.t('Scanner.status.idle'),
+				});
+				scanStatusResetTimeoutRef.current = null;
+			}, delayMs);
+		},
+		[clearPendingScanStatusReset],
+	);
 
 	/**
 	 * Reset the current auth state and return to device authorization.
@@ -486,6 +523,16 @@ export default function ScannerScreen(): JSX.Element {
 		void AccessibilityInfo.announceForAccessibility(announcement);
 	}, [scanStatus, scanStatus.message, scanStatus.state]);
 
+	useEffect(() => {
+		return () => {
+			clearPendingScanStatusReset();
+		};
+	}, [clearPendingScanStatusReset]);
+
+	if (needsDeviceSetup) {
+		return <Redirect href={DEVICE_SETUP_ROUTE} />;
+	}
+
 	/**
 	 * Captures a photo and verifies the face against the recognition API
 	 * Records attendance on successful verification
@@ -559,12 +606,7 @@ export default function ScannerScreen(): JSX.Element {
 				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
 				// Reset status after 3 seconds
-				setTimeout(() => {
-					setScanStatus({
-						state: 'idle',
-						message: i18n.t('Scanner.status.idle'),
-					});
-				}, 3000);
+				scheduleScanStatusReset(3000);
 			} else {
 				setScanStatus({
 					state: 'error',
@@ -573,12 +615,7 @@ export default function ScannerScreen(): JSX.Element {
 				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
 				// Reset status after 2 seconds
-				setTimeout(() => {
-					setScanStatus({
-						state: 'idle',
-						message: i18n.t('Scanner.status.idle'),
-					});
-				}, 2000);
+				scheduleScanStatusReset(2000);
 			}
 		} catch (error) {
 			console.error('Face verification failed:', error);

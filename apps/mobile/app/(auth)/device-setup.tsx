@@ -181,7 +181,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				>
 					<Card
 						variant="default"
-						className="p-8 w-full max-w-md items-center gap-5 rounded-3xl"
+						className="p-8 w-full max-w-md items-center gap-5 rounded-xl"
 						style={continuousCurve}
 					>
 					{/* Error Icon */}
@@ -231,7 +231,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				<View className="gap-3">
 					<View className="flex-row items-center gap-3">
 						<View
-							className="w-12 h-12 rounded-2xl bg-primary/10 items-center justify-center"
+							className="w-12 h-12 rounded-xl bg-primary/10 items-center justify-center"
 							style={continuousCurve}
 						>
 							<IconSymbol name="iphone" size={20} color={primaryColor} />
@@ -250,7 +250,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				{/* Device Info Badge */}
 				<View className="flex-row gap-3">
 					<View
-						className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200 gap-1"
+						className="flex-1 p-4 bg-content1 rounded-lg border border-default-200 gap-1"
 						style={continuousCurve}
 					>
 						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold">
@@ -266,7 +266,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 						</Text>
 					</View>
 					<View
-						className="flex-1 p-4 bg-content1 rounded-2xl border border-default-200 gap-1"
+						className="flex-1 p-4 bg-content1 rounded-lg border border-default-200 gap-1"
 						style={continuousCurve}
 					>
 						<Text className="text-xs uppercase tracking-widest text-foreground-400 font-semibold">
@@ -284,7 +284,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 				</View>
 
 				{/* Form Card */}
-				<Card variant="default" className="p-6 gap-6 rounded-3xl" style={continuousCurve}>
+				<Card variant="default" className="p-6 gap-6 rounded-xl" style={continuousCurve}>
 					<form.AppField
 						name="name"
 						validators={{
@@ -380,7 +380,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 											<Select.Overlay />
 											<Select.Content
 												width={280}
-												className="rounded-2xl"
+												className="rounded-xl"
 												placement="bottom"
 												style={continuousCurve}
 											>
@@ -451,7 +451,7 @@ export default function DeviceSetupScreen(): JSX.Element {
 
 				{/* Tip Section */}
 				<View
-					className="p-5 bg-content2/60 rounded-2xl border border-default-200/60"
+					className="p-5 bg-content2/60 rounded-xl border border-default-200/60"
 					style={continuousCurve}
 				>
 					<View className="flex-row items-start gap-3">

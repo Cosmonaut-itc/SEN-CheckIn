@@ -75,4 +75,25 @@ describe('Final review regressions', () => {
 		expect(loginSource).toContain('const shouldReduceMotion = useReducedMotion();');
 		expect(loginSource).toContain("setDots('...');");
 	});
+
+	it('scopes settings locations to the active organization', () => {
+		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
+
+		expect(settingsSource).toContain('queryKeys.locations.list({ organizationId: activeOrganizationId ?? undefined })');
+		expect(settingsSource).toContain(
+			'fetchLocationsList({ limit: 100, organizationId: activeOrganizationId ?? undefined })',
+		);
+	});
+
+	it('uses DS-compliant radius classes on device setup surfaces', () => {
+		const deviceSetupSource = readFileSync(
+			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
+			'utf-8',
+		);
+
+		expect(deviceSetupSource).not.toContain('rounded-3xl');
+		expect(deviceSetupSource).not.toContain('rounded-2xl');
+		expect(deviceSetupSource).toContain('rounded-xl');
+		expect(deviceSetupSource).toContain('rounded-lg');
+	});
 });

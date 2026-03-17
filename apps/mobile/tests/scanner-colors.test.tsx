@@ -15,4 +15,14 @@ describe('Scanner color migration', () => {
 	it('does not reference Colors from constants/theme', () => {
 		expect(content).not.toContain("from '@/constants/theme'");
 	});
+
+	it('uses the primary token instead of accent for scanner primary affordances', () => {
+		expect(content).toContain("'primary'");
+		expect(content).not.toContain("'accent'");
+	});
+
+	it('tracks scan status reset timers with cleanup refs', () => {
+		expect(content).toContain('scanStatusResetTimeoutRef');
+		expect(content).toContain('clearTimeout(scanStatusResetTimeoutRef.current);');
+	});
 });

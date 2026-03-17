@@ -9,7 +9,6 @@ const mockReplace = jest.fn();
 const mockCheckOutReasonSheet = jest.fn();
 const mockRequestReauth = jest.fn();
 const mockThemeColors: Record<string, string> = {
-	accent: '#B8602A',
 	background: '#110D0A',
 	border: '#3D3028',
 	danger: '#E8605A',
@@ -17,6 +16,7 @@ const mockThemeColors: Record<string, string> = {
 	foreground: '#F0EAE4',
 	muted: '#9A8B80',
 	overlay: '#342A24',
+	primary: '#B8602A',
 	success: '#5CC98A',
 	surface: '#1C1613',
 	warning: '#F0B840',
@@ -173,6 +173,7 @@ jest.mock('@/lib/device-context', () => ({
 	useDeviceContext: () => ({
 		settings: {
 			deviceId: 'device-1',
+			locationId: 'location-1',
 			name: 'Terminal A',
 		},
 		clearSettings: jest.fn(),

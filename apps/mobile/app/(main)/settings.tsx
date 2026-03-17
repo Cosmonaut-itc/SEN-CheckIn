@@ -37,6 +37,7 @@ export default function SettingsScreen(): JSX.Element {
 	const iconColor = useThemeColor('foreground');
 	const { toast } = useToast();
 	const { session } = useAuthContext();
+	const activeOrganizationId = session?.session?.activeOrganizationId ?? null;
 	const {
 		settings,
 		isHydrated,
@@ -47,8 +48,10 @@ export default function SettingsScreen(): JSX.Element {
 	} = useDeviceContext();
 
 	const { data: locationsResponse, isPending: isLocationsPending } = useQuery({
-		queryKey: queryKeys.locations.list({ limit: 100 }),
-		queryFn: () => fetchLocationsList({ limit: 100 }),
+		queryKey: queryKeys.locations.list({ organizationId: activeOrganizationId ?? undefined }),
+		queryFn: () =>
+			fetchLocationsList({ limit: 100, organizationId: activeOrganizationId ?? undefined }),
+		enabled: Boolean(activeOrganizationId),
 	});
 
 	const locationOptions = useMemo(
@@ -113,7 +116,7 @@ export default function SettingsScreen(): JSX.Element {
 		form.setFieldValue('locationId', settings?.locationId ?? '');
 	}, [form, settings?.locationId, settings?.name]);
 
-	const organizationId = session?.session?.activeOrganizationId ?? '—';
+	const organizationId = activeOrganizationId ?? '—';
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');

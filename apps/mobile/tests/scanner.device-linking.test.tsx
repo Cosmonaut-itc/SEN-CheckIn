@@ -12,7 +12,6 @@ const mockClearAuthStorage = jest.fn();
 const mockClearSettings = jest.fn();
 const mockRequestReauth = jest.fn();
 const mockThemeColors: Record<string, string> = {
-	accent: '#B8602A',
 	background: '#110D0A',
 	border: '#3D3028',
 	danger: '#E8605A',
@@ -20,12 +19,18 @@ const mockThemeColors: Record<string, string> = {
 	foreground: '#F0EAE4',
 	muted: '#9A8B80',
 	overlay: '#342A24',
+	primary: '#B8602A',
 	success: '#5CC98A',
 	surface: '#1C1613',
 	warning: '#F0B840',
 };
+const mockDeviceContext = jest.fn();
 
 jest.mock('expo-router', () => ({
+	Redirect: ({ href }: { href: string }) => {
+		mockReplace(href);
+		return null;
+	},
 	useRouter: () => ({
 		push: mockPush,
 		replace: mockReplace,
@@ -163,10 +168,7 @@ jest.mock('@/hooks/use-theme-color', () => ({
 }));
 
 jest.mock('@/lib/device-context', () => ({
-	useDeviceContext: () => ({
-		settings: null,
-		clearSettings: mockClearSettings,
-	}),
+	useDeviceContext: () => mockDeviceContext(),
 }));
 
 jest.mock('@/providers/auth-provider', () => ({
@@ -216,6 +218,10 @@ describe('ScannerScreen device linking state', () => {
 		mockClearAuthStorage.mockReset();
 		mockClearSettings.mockReset();
 		mockRequestReauth.mockReset();
+		mockDeviceContext.mockReturnValue({
+			settings: null,
+			clearSettings: mockClearSettings,
+		});
 	});
 
 	afterEach(() => {
@@ -248,6 +254,21 @@ describe('ScannerScreen device linking state', () => {
 			expect(mockReplace).toHaveBeenCalledWith('/(auth)/login');
 		});
 		expect(mockPush).not.toHaveBeenCalled();
+	});
+
+	it('redirects to device setup when the kiosk has a device but no configured location', () => {
+		mockDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: null,
+				name: 'Terminal A',
+			},
+			clearSettings: mockClearSettings,
+		});
+
+		render(<ScannerScreen />);
+
+		expect(mockReplace).toHaveBeenCalledWith('/(auth)/device-setup');
 	});
 
 	it('locks auth state before routing to login when sign out fails', async () => {

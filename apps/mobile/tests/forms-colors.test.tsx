@@ -17,4 +17,14 @@ describe('Forms color migration', () => {
 	it('renders the shared submit CTA as a primary button', () => {
 		expect(content).toContain('variant="primary"');
 	});
+
+	it('keeps the checkout reason sheet within the DS radius scale', () => {
+		const sheetContent = readFileSync(
+			resolve(__dirname, '../components/attendance/check-out-reason-sheet.tsx'),
+			'utf-8',
+		);
+
+		expect(sheetContent).not.toContain('rounded-t-[32px]');
+		expect(sheetContent).toContain('rounded-t-xl');
+	});
 });

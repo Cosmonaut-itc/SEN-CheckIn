@@ -9,6 +9,7 @@ import { View, type LayoutChangeEvent } from 'react-native';
 import 'react-native-reanimated';
 
 import { DeviceProvider } from '@/lib/device-context';
+import { ROOT_STACK_SCREEN_OPTIONS } from '@/lib/navigation-config';
 import { StartupGate } from '@/components/startup/startup-gate';
 import { QueryProvider } from '@/providers/query-provider';
 import { AuthProvider } from '@/providers/auth-provider';
@@ -164,11 +165,7 @@ function AppProviders(): JSX.Element {
 					<AuthProvider>
 						<DeviceProvider>
 							<Stack
-								screenOptions={{
-									headerShown: false,
-									// Use right-to-left slide animation for navigation transitions
-									animation: 'slide_from_right',
-								}}
+								screenOptions={ROOT_STACK_SCREEN_OPTIONS}
 							>
 								<Stack.Screen name="(auth)" />
 								<Stack.Screen name="(main)" />

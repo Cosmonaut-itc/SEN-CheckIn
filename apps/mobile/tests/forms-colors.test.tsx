@@ -7,4 +7,14 @@ describe('Forms color migration', () => {
 	it('does not contain the previous hardcoded select shadow', () => {
 		expect(content).not.toContain('rgba(15, 23, 42, 0.2)');
 	});
+
+	it('uses design-system overlay tokens instead of raw black scrims', () => {
+		expect(content).not.toContain('bg-black/40');
+		expect(content).not.toContain('bg-black/50');
+		expect(content).toContain('bg-overlay/80');
+	});
+
+	it('renders the shared submit CTA as a primary button', () => {
+		expect(content).toContain('variant="primary"');
+	});
 });

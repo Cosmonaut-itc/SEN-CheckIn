@@ -145,7 +145,7 @@ export function SelectField<TValue extends string>({
 					/>
 				</Select.Trigger>
 				<Select.Portal>
-					<Select.Overlay className="bg-black/40" />
+					<Select.Overlay className="bg-overlay/80" />
 					<Select.Content
 						presentation={presentation}
 						classNames={
@@ -290,7 +290,7 @@ export function NativeSelectField<TValue extends string>({
 				visible={isModalVisible}
 				onRequestClose={() => setIsModalVisible(false)}
 			>
-				<View className="flex-1 bg-black/50 px-6 justify-center">
+				<View className="flex-1 bg-overlay/80 px-6 justify-center">
 					<TouchableWithoutFeedback onPress={() => setIsModalVisible(false)}>
 						<View className="absolute inset-0" />
 					</TouchableWithoutFeedback>
@@ -367,6 +367,7 @@ export function SubmitButton({
 		<form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
 			{([canSubmit, isSubmitting]) => (
 				<Button
+					variant="primary"
 					className={className}
 					isDisabled={!canSubmit || isSubmitting}
 					onPress={() => form.handleSubmit()}

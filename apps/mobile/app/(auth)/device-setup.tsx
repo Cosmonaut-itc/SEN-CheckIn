@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import * as ExpoDevice from 'expo-device';
-import { Link, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Button, Card, Select, Spinner } from 'heroui-native';
 import { type JSX, useCallback, useEffect, useMemo } from 'react';
 import {
@@ -156,6 +156,15 @@ export default function DeviceSetupScreen(): JSX.Element {
 		await form.handleSubmit();
 	}, [form]);
 
+	/**
+	 * Route back to login from the fallback missing-device state.
+	 *
+	 * @returns {void} No return value
+	 */
+	const handleBackToLogin = useCallback((): void => {
+		router.replace('/(auth)/login');
+	}, [router]);
+
 	if (!deviceId) {
 		return (
 			<KeyboardAvoidingView
@@ -193,16 +202,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 							{i18n.t('DeviceSetup.errors.deviceNotFound.description')}
 						</Text>
 					</View>
-					<Link href="/(auth)/login" replace>
-						<Link.Trigger>
-							<Button className="w-full" size="lg">
-								<Button.Label>
-									{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
-								</Button.Label>
-							</Button>
-						</Link.Trigger>
-						<Link.Preview />
-					</Link>
+					<Button className="w-full" size="lg" onPress={handleBackToLogin}>
+						<Button.Label>
+							{i18n.t('DeviceSetup.errors.deviceNotFound.backToLogin')}
+						</Button.Label>
+					</Button>
 					</Card>
 				</ScrollView>
 			</KeyboardAvoidingView>

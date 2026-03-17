@@ -18,10 +18,16 @@ describe('Reduce motion support', () => {
 			resolve(__dirname, '../app/(auth)/login.tsx'),
 			'utf-8',
 		);
+		const animatedDotsBlock =
+			loginContent.match(
+				/function AnimatedDots\(\): JSX\.Element \{[\s\S]*?return <Text className="text-primary font-bold">\{dots \|\| '   '\}<\/Text>;\n\}/,
+			)?.[0] ?? '';
 
 		expect(scannerContent).toContain('useReducedMotion()');
 		expect(scannerContent).toContain('getAnimationDuration(');
 		expect(loginContent).toContain('useReducedMotion()');
 		expect(loginContent).toContain('getAnimationDuration(');
+		expect(animatedDotsBlock).toContain('useReducedMotion()');
+		expect(animatedDotsBlock).toContain('if (shouldReduceMotion)');
 	});
 });

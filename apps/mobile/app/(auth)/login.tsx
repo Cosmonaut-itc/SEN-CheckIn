@@ -132,13 +132,19 @@ function deriveErrorMessage(error: unknown): string {
  */
 function AnimatedDots(): JSX.Element {
 	const [dots, setDots] = useState('');
+	const shouldReduceMotion = useReducedMotion();
 
 	useEffect(() => {
+		if (shouldReduceMotion) {
+			setDots('...');
+			return;
+		}
+
 		const interval = setInterval(() => {
 			setDots((prev) => (prev.length >= 3 ? '' : `${prev}.`));
-		}, 400);
+		}, getAnimationDuration(400, shouldReduceMotion));
 		return () => clearInterval(interval);
-	}, []);
+	}, [shouldReduceMotion]);
 
 	return <Text className="text-primary font-bold">{dots || '   '}</Text>;
 }

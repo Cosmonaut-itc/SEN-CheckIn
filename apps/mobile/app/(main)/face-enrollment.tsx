@@ -357,7 +357,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 									? i18n.t('FaceEnrollment.device.locationRequired')
 									: i18n.t('FaceEnrollment.device.linkRequired')}
 							</Card.Description>
-							<Button onPress={handleOpenSettings}>
+							<Button variant="primary" onPress={handleOpenSettings}>
 								<Button.Label>
 									{i18n.t('FaceEnrollment.device.openSettings')}
 								</Button.Label>
@@ -402,7 +402,11 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										{i18n.t('FaceEnrollment.actions.registerAnother')}
 									</Button.Label>
 								</Button>
-								<Button className="flex-1" onPress={handleBackToScanner}>
+								<Button
+									variant="primary"
+									className="flex-1"
+									onPress={handleBackToScanner}
+								>
 									<Button.Label>
 										{i18n.t('FaceEnrollment.actions.backToScanner')}
 									</Button.Label>
@@ -551,7 +555,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 										<Text className="text-foreground-500" selectable>
 											{i18n.t('FaceEnrollment.permission.description')}
 										</Text>
-										<Button onPress={requestPermission}>
+										<Button variant="primary" onPress={requestPermission}>
 											<Button.Label>
 												{i18n.t('FaceEnrollment.permission.grant')}
 											</Button.Label>
@@ -585,6 +589,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 												</Button.Label>
 											</Button>
 											<Button
+												variant="primary"
 												className="flex-1"
 												onPress={handleConfirmEnrollment}
 												isDisabled={
@@ -617,6 +622,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 											style={{ width: '100%', height: 260, borderRadius: 16 }}
 										/>
 										<Button
+											variant="primary"
 											onPress={handleCapturePhoto}
 											isDisabled={
 												!selectedEmployee || enrollmentMutation.isPending

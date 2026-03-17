@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { signOut } from '@/lib/auth-client';
+import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { fetchLocationsList } from '@/lib/client-functions';
 import { useDeviceContext } from '@/lib/device-context';
 import { useAppForm } from '@/lib/forms';
@@ -123,6 +123,7 @@ export default function SettingsScreen(): JSX.Element {
 	const floatingBackButtonLeft = 16;
 	const contentTopPadding = floatingBackButtonTop + floatingBackButtonSize + 16;
 	const keyboardVerticalOffset = Platform.OS === 'ios' ? Math.max(insets.top, 16) : 0;
+	const signOutButtonVariant = Platform.OS === 'ios' ? 'ghost' : 'danger';
 
 	/**
 	 * Navigate back to the previous screen when history exists.
@@ -356,12 +357,13 @@ export default function SettingsScreen(): JSX.Element {
 
 					<Card.Footer className="flex-row gap-3 px-5 pb-5 pt-3">
 						<Button
-							variant="danger"
+							variant={signOutButtonVariant}
 							className="flex-1"
 							isDisabled={isUpdating}
 							onPress={async () => {
 								try {
 									await signOut();
+									await clearAuthStorage();
 									await clearSettings();
 									toast.show({
 										variant: 'success',
@@ -389,7 +391,15 @@ export default function SettingsScreen(): JSX.Element {
 								}
 							}}
 						>
-							<Button.Label>{i18n.t('Settings.actions.signOut')}</Button.Label>
+							<Button.Label
+								className={
+									Platform.OS === 'ios'
+										? 'text-danger-500 font-medium'
+										: undefined
+								}
+							>
+								{i18n.t('Settings.actions.signOut')}
+							</Button.Label>
 						</Button>
 						<Button
 							variant="secondary"

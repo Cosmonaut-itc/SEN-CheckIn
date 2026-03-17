@@ -45,4 +45,34 @@ describe('Final review regressions', () => {
 			'"accessibilityLabel": "Seleccionar ubicación del dispositivo"',
 		);
 	});
+
+	it('clears persisted auth tokens during settings sign out and keeps iOS destructive styling text-only', () => {
+		const settingsScreenSource = readFileSync(
+			resolve(__dirname, '../app/(main)/settings.tsx'),
+			'utf-8',
+		);
+
+		expect(settingsScreenSource).toContain('clearAuthStorage');
+		expect(settingsScreenSource).toContain('await clearAuthStorage()');
+		expect(settingsScreenSource).toContain("Platform.OS === 'ios' ? 'ghost' : 'danger'");
+		expect(settingsScreenSource).toContain("text-danger-500");
+	});
+
+	it('removes unsupported link previews from the device setup fallback screen', () => {
+		const deviceSetupSource = readFileSync(
+			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
+			'utf-8',
+		);
+
+		expect(deviceSetupSource).not.toContain('<Link.Preview />');
+		expect(deviceSetupSource).toContain("router.replace('/(auth)/login')");
+	});
+
+	it('makes animated dots respect reduce motion on the login screen', () => {
+		const loginSource = readFileSync(resolve(__dirname, '../app/(auth)/login.tsx'), 'utf-8');
+
+		expect(loginSource).toContain('function AnimatedDots(): JSX.Element');
+		expect(loginSource).toContain('const shouldReduceMotion = useReducedMotion();');
+		expect(loginSource).toContain("setDots('...');");
+	});
 });

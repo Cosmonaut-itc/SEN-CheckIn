@@ -16,6 +16,7 @@
 
 ## Coverage Status
 
+- Per the audit plan fallback, documenting simulator/tooling blockers in this README is the required substitute when the requested simulator captures are not reproducible from the workspace.
 - Valid artifacts remain limited to the 4 iOS light-mode screenshots above.
 - Missing artifacts due to the environment limitations listed here:
   iOS dark mode for scanner, settings, and face enrollment

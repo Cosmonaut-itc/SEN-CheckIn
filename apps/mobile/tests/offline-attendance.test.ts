@@ -55,6 +55,32 @@ describe('Offline attendance support', () => {
 		expect(mockCreateAttendanceRecord).not.toHaveBeenCalled();
 	});
 
+	it('queues attendance when a translated API error preserves an offline network cause', async () => {
+		jest.resetModules();
+		mockGetItemAsync.mockResolvedValue(null);
+		mockNetInfoFetch
+			.mockResolvedValueOnce({ isConnected: true, isInternetReachable: true })
+			.mockResolvedValueOnce({ isConnected: true, isInternetReachable: true });
+		mockCreateAttendanceRecord.mockRejectedValue(
+			new Error('Errors.api.createAttendanceRecord', {
+				cause: new Error('socket hang up'),
+			}),
+		);
+
+		const { submitAttendanceWithOfflineSupport } = jest.requireActual(
+			'@/lib/offline-attendance',
+		) as typeof import('@/lib/offline-attendance');
+
+		const result = await submitAttendanceWithOfflineSupport({
+			employeeId: 'employee-1',
+			deviceId: 'device-1',
+			type: 'CHECK_IN',
+		});
+
+		expect(result.delivery).toBe('queued');
+		expect(mockSetItemAsync).toHaveBeenCalledTimes(1);
+	});
+
 	it('flushes queued attendance once connectivity returns', async () => {
 		jest.resetModules();
 		mockGetItemAsync.mockResolvedValue(

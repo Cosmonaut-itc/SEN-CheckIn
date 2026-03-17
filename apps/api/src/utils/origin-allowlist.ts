@@ -15,6 +15,8 @@ const DEFAULT_CONFIGURED_ORIGINS: readonly string[] = [
 
 const SCHEME_ONLY_ORIGIN_PATTERN = /^[a-z][a-z0-9+.-]*:\/\/$/i;
 const DEV_PROTOCOLS = new Set(['http:', 'https:', 'exp:', 'exps:']);
+const LOCAL_LINK_LOCAL_IPV6_PATTERN = /^fe[89ab][0-9a-f]:/i;
+const LOCAL_UNIQUE_LOCAL_IPV6_PATTERN = /^(?:fc|fd)[0-9a-f]{2}:/i;
 
 export interface OriginAllowlistConfig {
 	authBaseUrl?: string;
@@ -47,7 +49,16 @@ export function normalizeOrigin(origin?: string | null): string | null {
 	}
 
 	try {
-		return new URL(trimmedOrigin).origin;
+		const parsedOrigin = new URL(trimmedOrigin);
+		if (parsedOrigin.origin !== 'null') {
+			return parsedOrigin.origin;
+		}
+
+		if (parsedOrigin.host) {
+			return `${parsedOrigin.protocol}//${parsedOrigin.host}`;
+		}
+
+		return `${parsedOrigin.protocol}//`;
 	} catch {
 		return trimmedOrigin.replace(/\/+$/, '');
 	}
@@ -117,9 +128,8 @@ export function isLocalDevelopmentHostname(hostname: string): boolean {
 	}
 
 	if (
-		normalizedHostname.startsWith('fe80:') ||
-		normalizedHostname.startsWith('fc') ||
-		normalizedHostname.startsWith('fd')
+		LOCAL_LINK_LOCAL_IPV6_PATTERN.test(normalizedHostname) ||
+		LOCAL_UNIQUE_LOCAL_IPV6_PATTERN.test(normalizedHostname)
 	) {
 		return true;
 	}

@@ -9,6 +9,7 @@ import {
 
 const PENDING_ATTENDANCE_STORAGE_KEY = 'sen-checkin_pending_attendance_queue';
 let flushPendingAttendanceQueueTask: Promise<number> | null = null;
+const OFFLINE_ERROR_MESSAGE_PATTERN = /network|internet|fetch|socket/i;
 
 type PendingAttendanceQueueItem = Omit<CreateAttendanceInput, 'timestamp'> & {
 	timestamp: string;
@@ -18,6 +19,26 @@ export type AttendanceSubmissionResult = {
 	delivery: 'sent' | 'queued';
 	record: AttendanceRecord | null;
 };
+
+/**
+ * Determine whether an error or one of its nested causes indicates a transient offline failure.
+ *
+ * @param error - Unknown submission error to inspect
+ * @returns True when any wrapped error message matches known offline failure terms
+ */
+function isOfflineSubmissionError(error: unknown): boolean {
+	let currentError: unknown = error;
+
+	while (currentError instanceof Error) {
+		if (OFFLINE_ERROR_MESSAGE_PATTERN.test(currentError.message)) {
+			return true;
+		}
+
+		currentError = currentError.cause;
+	}
+
+	return false;
+}
 
 /**
  * Determine whether a NetInfo state should be treated as offline.
@@ -175,8 +196,7 @@ export async function submitAttendanceWithOfflineSupport(
 		};
 	} catch (error) {
 		const latestNetState = await NetInfo.fetch().catch(() => netState);
-		const isOfflineError =
-			error instanceof Error && /network|internet|fetch|socket/i.test(error.message);
+		const isOfflineError = isOfflineSubmissionError(error);
 
 		if (isOfflineNetInfoState(latestNetState) || isOfflineError) {
 			return enqueuePendingAttendance(input);

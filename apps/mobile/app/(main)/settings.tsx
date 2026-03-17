@@ -235,7 +235,11 @@ export default function SettingsScreen(): JSX.Element {
 										<Select
 											value={selectedOption}
 											onValueChange={handleLocationChange}
-											isDisabled={isLocationsPending || isLocationsError}
+											isDisabled={
+												!activeOrganizationId ||
+												isLocationsPending ||
+												isLocationsError
+											}
 										>
 											<Select.Trigger variant="outline" asChild>
 												<Button

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import {
 	buildConfiguredOriginAllowlist,
 	isOriginAllowed,
+	normalizeOrigin,
 	resolveTrustedOrigins,
 } from './origin-allowlist.js';
 
@@ -59,5 +60,32 @@ describe('origin allowlist', () => {
 			configuredOrigins,
 			nodeEnv: 'production',
 		})).toBe(false);
+	});
+
+	it('does not collapse opaque development origins into the configured null origin', () => {
+		expect(normalizeOrigin('exp://192.168.0.106:8081')).toBe('exp://192.168.0.106:8081');
+		expect(isOriginAllowed('exp://192.168.0.106:8081', {
+			configuredOrigins,
+			nodeEnv: 'production',
+		})).toBe(false);
+		expect(isOriginAllowed('file:///tmp/check-in.html', {
+			configuredOrigins,
+			nodeEnv: 'production',
+		})).toBe(false);
+	});
+
+	it('only auto-allows IPv6 development hosts when they are actual local addresses', () => {
+		expect(isOriginAllowed('http://fc.attacker.com:3000', {
+			configuredOrigins,
+			nodeEnv: 'development',
+		})).toBe(false);
+		expect(isOriginAllowed('http://fd-server.internal.example.org:3000', {
+			configuredOrigins,
+			nodeEnv: 'development',
+		})).toBe(false);
+		expect(isOriginAllowed('http://[fd12:3456::1]:3000', {
+			configuredOrigins,
+			nodeEnv: 'development',
+		})).toBe(true);
 	});
 });

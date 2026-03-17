@@ -72,4 +72,24 @@ describe('Index route gating', () => {
 
 		expect(mockRedirect).toHaveBeenCalledWith('/(main)/scanner');
 	});
+
+	it('sends signed-out kiosks to login even if a stale device setup is still persisted', () => {
+		mockUseAuthContext.mockReturnValue({
+			session: null,
+			isLoading: false,
+			authState: 'signed_out',
+		});
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: true,
+		});
+
+		render(<Index />);
+
+		expect(mockRedirect).toHaveBeenCalledWith('/(auth)/login');
+	});
 });

@@ -11,7 +11,9 @@ const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
 export default function Index(): JSX.Element {
 	const { session, isLoading, authState } = useAuthContext();
 	const { settings, isHydrated } = useDeviceContext();
-	const needsDeviceSetup = isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
+	const hasActiveSession = Boolean(session?.session);
+	const needsDeviceSetup =
+		hasActiveSession && isHydrated && Boolean(settings?.deviceId) && !settings?.locationId;
 
 	if (isLoading) {
 		return (

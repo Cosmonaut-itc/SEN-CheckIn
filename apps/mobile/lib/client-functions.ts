@@ -963,7 +963,8 @@ export async function createAttendanceRecord(
 
 	if (error) {
 		console.error('[createAttendanceRecord] Eden Treaty error:', error);
-		throw new Error(i18n.t('Errors.api.createAttendanceRecord'));
+		const errorCause = error instanceof Error ? error : new Error(String(error));
+		throw new Error(i18n.t('Errors.api.createAttendanceRecord'), { cause: errorCause });
 	}
 
 	if (!data || 'error' in data) {

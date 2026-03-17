@@ -158,6 +158,76 @@ describe('Offline attendance support', () => {
 		expect(mockDeleteItemAsync).toHaveBeenCalledTimes(1);
 	});
 
+	it('preserves items enqueued while a flush is already in progress', async () => {
+		jest.resetModules();
+		let persistedQueue: string | null = JSON.stringify([
+			{
+				employeeId: 'employee-1',
+				deviceId: 'device-1',
+				type: 'CHECK_IN',
+				timestamp: '2026-03-16T00:00:00.000Z',
+			},
+		]);
+
+		mockGetItemAsync.mockImplementation(async () => persistedQueue);
+		mockSetItemAsync.mockImplementation(async (_key: string, value: string) => {
+			persistedQueue = value;
+		});
+		mockDeleteItemAsync.mockImplementation(async () => {
+			persistedQueue = null;
+		});
+
+		let resolveCreateAttendanceRecord:
+			| ((value: { id: string }) => void)
+			| null = null;
+		mockCreateAttendanceRecord.mockImplementation(
+			() =>
+				new Promise<{ id: string }>((resolve) => {
+					resolveCreateAttendanceRecord = resolve;
+				}),
+		);
+
+		const { enqueuePendingAttendance, flushPendingAttendanceQueue } = jest.requireActual(
+			'@/lib/offline-attendance',
+		) as typeof import('@/lib/offline-attendance');
+
+		const flushPromise = flushPendingAttendanceQueue();
+
+		await waitFor(() => {
+			expect(mockCreateAttendanceRecord).toHaveBeenCalledTimes(1);
+		});
+
+		const enqueuePromise = enqueuePendingAttendance({
+			employeeId: 'employee-2',
+			deviceId: 'device-1',
+			type: 'CHECK_OUT',
+			timestamp: new Date('2026-03-16T00:05:00.000Z'),
+		});
+
+		expect(resolveCreateAttendanceRecord).not.toBeNull();
+
+		if (!resolveCreateAttendanceRecord) {
+			throw new Error('Expected flush to start before enqueueing a new item');
+		}
+
+		const resolvePendingFlush: (value: { id: string }) => void = resolveCreateAttendanceRecord;
+		resolvePendingFlush({ id: 'attendance-1' });
+
+		await expect(flushPromise).resolves.toBe(1);
+		await expect(enqueuePromise).resolves.toMatchObject({ delivery: 'queued' });
+
+		expect(persistedQueue).toBe(
+			JSON.stringify([
+				{
+					employeeId: 'employee-2',
+					deviceId: 'device-1',
+					type: 'CHECK_OUT',
+					timestamp: '2026-03-16T00:05:00.000Z',
+				},
+			]),
+		);
+	});
+
 	it('drops permanently invalid queue items so later records can still flush', async () => {
 		jest.resetModules();
 		mockGetItemAsync.mockResolvedValue(

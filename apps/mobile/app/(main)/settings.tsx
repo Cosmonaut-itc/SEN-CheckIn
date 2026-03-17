@@ -37,7 +37,7 @@ export default function SettingsScreen(): JSX.Element {
 	const navigation = useNavigation();
 	const iconColor = useThemeColor('foreground');
 	const { toast } = useToast();
-	const { session } = useAuthContext();
+	const { session, requestReauth } = useAuthContext();
 	const activeOrganizationId = session?.session?.activeOrganizationId ?? null;
 	const {
 		settings,
@@ -97,7 +97,8 @@ export default function SettingsScreen(): JSX.Element {
 					actionLabel: i18n.t('Common.ok'),
 					onActionPress: ({ hide }: { hide: () => void }) => hide(),
 				});
-			} catch {
+			} catch (error) {
+				console.error('[settings] Failed to save device settings', error);
 				toast.show({
 					variant: 'danger',
 					label: i18n.t('Settings.toast.saveError.title'),
@@ -384,9 +385,29 @@ export default function SettingsScreen(): JSX.Element {
 							className="flex-1"
 							isDisabled={isUpdating}
 							onPress={async () => {
+								let shouldLockAuth = false;
+
 								try {
 									await signOut();
-									await clearAuthStorage();
+								} catch (error) {
+									console.error('[settings] Failed to sign out from settings', error);
+									shouldLockAuth = true;
+								} finally {
+									if (shouldLockAuth) {
+										try {
+											await requestReauth({ forceLock: true, reason: 'manual' });
+										} catch (error) {
+											console.warn(
+												'[settings] Reauth lock failed during sign-out',
+												error,
+											);
+										}
+									}
+									try {
+										await clearAuthStorage();
+									} catch (error) {
+										console.warn('[settings] Auth cleanup error during sign-out', error);
+									}
 									try {
 										await clearPendingAttendanceQueue();
 									} catch (error) {
@@ -395,24 +416,28 @@ export default function SettingsScreen(): JSX.Element {
 											error,
 										);
 									}
-									await clearSettings();
+									try {
+										await clearSettings();
+									} catch (error) {
+										console.warn('[settings] Device cleanup error during sign-out', error);
+									}
+									router.replace('/(auth)/login');
+
 									toast.show({
-										variant: 'success',
-										label: i18n.t('Settings.toast.signOutSuccess.title'),
-										description: i18n.t(
-											'Settings.toast.signOutSuccess.description',
+										variant: shouldLockAuth ? 'danger' : 'success',
+										label: i18n.t(
+											shouldLockAuth
+												? 'Settings.toast.signOutError.title'
+												: 'Settings.toast.signOutSuccess.title',
 										),
-										actionLabel: i18n.t('Common.ok'),
-										onActionPress: ({ hide }: { hide: () => void }) => hide(),
-									});
-								} catch {
-									toast.show({
-										variant: 'danger',
-										label: i18n.t('Settings.toast.signOutError.title'),
 										description: i18n.t(
-											'Settings.toast.signOutError.fallbackDescription',
+											shouldLockAuth
+												? 'Settings.toast.signOutError.fallbackDescription'
+												: 'Settings.toast.signOutSuccess.description',
 										),
-										actionLabel: i18n.t('Common.dismiss'),
+										actionLabel: i18n.t(
+											shouldLockAuth ? 'Common.dismiss' : 'Common.ok',
+										),
 										onActionPress: ({ hide }: { hide: () => void }) => hide(),
 									});
 								}

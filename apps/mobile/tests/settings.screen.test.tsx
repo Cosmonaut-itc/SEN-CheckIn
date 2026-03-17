@@ -12,6 +12,18 @@ const mockSignOut = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearPendingAttendanceQueue = jest.fn();
 const mockClearSettings = jest.fn();
+const mockRouterReplace = jest.fn();
+const mockRequestReauth = jest.fn();
+let capturedFormConfig:
+	| {
+			onSubmit: (input: {
+				value: {
+					name: string;
+					locationId: string;
+				};
+			}) => Promise<void>;
+	  }
+	| null = null;
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: (...args: unknown[]) => mockUseQuery(...args),
@@ -23,7 +35,7 @@ jest.mock('expo-router', () => ({
 		goBack: jest.fn(),
 	}),
 	useRouter: () => ({
-		replace: jest.fn(),
+		replace: mockRouterReplace,
 	}),
 }));
 
@@ -154,7 +166,17 @@ jest.mock('@/lib/device-context', () => ({
 }));
 
 jest.mock('@/lib/forms', () => ({
-	useAppForm: () => ({
+	useAppForm: (config: {
+		onSubmit: (input: {
+			value: {
+				name: string;
+				locationId: string;
+			};
+		}) => Promise<void>;
+	}) => {
+		capturedFormConfig = config;
+
+		return {
 		setFieldValue: mockSetFieldValue,
 		AppField: ({
 			children,
@@ -201,7 +223,8 @@ jest.mock('@/lib/forms', () => ({
 
 			return <ReactNativeActual.Text>{label}</ReactNativeActual.Text>;
 		},
-	}),
+		};
+	},
 }));
 
 jest.mock('@/lib/i18n', () => ({
@@ -233,6 +256,7 @@ jest.mock('@/providers/auth-provider', () => ({
 describe('SettingsScreen organization gating', () => {
 	beforeEach(() => {
 		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+		jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		mockUseQuery.mockReset();
 		mockUseAuthContext.mockReset();
 		mockUseDeviceContext.mockReset();
@@ -242,6 +266,9 @@ describe('SettingsScreen organization gating', () => {
 		mockClearAuthStorage.mockReset();
 		mockClearPendingAttendanceQueue.mockReset();
 		mockClearSettings.mockReset();
+		mockRouterReplace.mockReset();
+		mockRequestReauth.mockReset();
+		capturedFormConfig = null;
 
 		mockUseQuery.mockReturnValue({
 			data: null,
@@ -250,6 +277,7 @@ describe('SettingsScreen organization gating', () => {
 		});
 		mockUseAuthContext.mockReturnValue({
 			session: null,
+			requestReauth: mockRequestReauth,
 		});
 		mockUseDeviceContext.mockReturnValue({
 			settings: {
@@ -294,6 +322,8 @@ describe('SettingsScreen organization gating', () => {
 			expect(mockSignOut).toHaveBeenCalledTimes(1);
 			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
 			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
+			expect(mockClearSettings).toHaveBeenCalledTimes(1);
+			expect(mockRouterReplace).toHaveBeenCalledWith('/(auth)/login');
 			expect(mockToastShow).toHaveBeenCalled();
 		});
 	});
@@ -312,11 +342,111 @@ describe('SettingsScreen organization gating', () => {
 			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
 			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
 			expect(mockClearSettings).toHaveBeenCalledTimes(1);
+			expect(mockRouterReplace).toHaveBeenCalledWith('/(auth)/login');
 			expect(mockToastShow).toHaveBeenCalledWith(
 				expect.objectContaining({
 					variant: 'success',
 				}),
 			);
+		});
+	});
+
+	it('logs the underlying save failure before showing the fallback toast', async () => {
+		const saveError = new Error('save failed');
+		const mockSaveRemoteSettings = jest.fn().mockRejectedValue(saveError);
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: true,
+			isUpdating: false,
+			saveRemoteSettings: mockSaveRemoteSettings,
+			updateLocalSettings: jest.fn(),
+			clearSettings: mockClearSettings,
+		});
+
+		render(<SettingsScreen />);
+
+		expect(capturedFormConfig).not.toBeNull();
+
+		if (!capturedFormConfig) {
+			throw new Error('Expected SettingsScreen to provide a form config');
+		}
+
+		await capturedFormConfig.onSubmit({
+			value: {
+				name: 'Terminal B',
+				locationId: 'location-1',
+			},
+		});
+
+		expect(console.error).toHaveBeenCalledWith(
+			'[settings] Failed to save device settings',
+			saveError,
+		);
+		expect(mockToastShow).toHaveBeenCalledWith(
+			expect.objectContaining({
+				variant: 'danger',
+			}),
+		);
+	});
+
+	it('logs the underlying sign-out failure before showing the fallback toast', async () => {
+		const signOutError = new Error('sign out failed');
+		mockSignOut.mockRejectedValue(signOutError);
+		mockRequestReauth.mockResolvedValue(undefined);
+		mockClearAuthStorage.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
+		mockClearSettings.mockResolvedValue(undefined);
+
+		render(<SettingsScreen />);
+
+		fireEvent.press(screen.getByText('Settings.actions.signOut'));
+
+		await waitFor(() => {
+			expect(console.error).toHaveBeenCalledWith(
+				'[settings] Failed to sign out from settings',
+				signOutError,
+			);
+			expect(mockRequestReauth).toHaveBeenCalledWith({
+				forceLock: true,
+				reason: 'manual',
+			});
+			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
+			expect(mockClearSettings).toHaveBeenCalledTimes(1);
+			expect(mockRouterReplace).toHaveBeenCalledWith('/(auth)/login');
+			expect(mockToastShow).toHaveBeenCalledWith(
+				expect.objectContaining({
+					variant: 'danger',
+				}),
+			);
+		});
+	});
+
+	it('still clears local state and routes to login when reauth lock fails during sign-out fallback', async () => {
+		mockSignOut.mockRejectedValue(new Error('sign out failed'));
+		mockRequestReauth.mockRejectedValue(new Error('reauth failed'));
+		mockClearAuthStorage.mockResolvedValue(undefined);
+		mockClearPendingAttendanceQueue.mockResolvedValue(undefined);
+		mockClearSettings.mockResolvedValue(undefined);
+
+		render(<SettingsScreen />);
+
+		fireEvent.press(screen.getByText('Settings.actions.signOut'));
+
+		await waitFor(() => {
+			expect(mockRequestReauth).toHaveBeenCalledWith({
+				forceLock: true,
+				reason: 'manual',
+			});
+			expect(mockClearAuthStorage).toHaveBeenCalledTimes(1);
+			expect(mockClearPendingAttendanceQueue).toHaveBeenCalledTimes(1);
+			expect(mockClearSettings).toHaveBeenCalledTimes(1);
+			expect(mockRouterReplace).toHaveBeenCalledWith('/(auth)/login');
 		});
 	});
 });

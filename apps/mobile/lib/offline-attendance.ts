@@ -9,6 +9,7 @@ import {
 
 const PENDING_ATTENDANCE_STORAGE_KEY = 'sen-checkin_pending_attendance_queue';
 let flushPendingAttendanceQueueTask: Promise<number> | null = null;
+let pendingAttendanceQueueMutationTask: Promise<void> = Promise.resolve();
 const OFFLINE_ERROR_MESSAGE_PATTERN = /network|internet|fetch|socket/i;
 
 type PendingAttendanceQueueItem = Omit<CreateAttendanceInput, 'timestamp'> & {
@@ -112,6 +113,30 @@ async function writePendingAttendanceQueue(queue: PendingAttendanceQueueItem[]):
 }
 
 /**
+ * Serialize queue mutations so flushes and enqueues cannot overwrite each other's storage writes.
+ *
+ * @param operation - Queue mutation to run once prior mutations complete
+ * @returns Result returned by the mutation
+ */
+async function runPendingAttendanceQueueMutation<T>(
+	operation: () => Promise<T>,
+): Promise<T> {
+	const previousTask = pendingAttendanceQueueMutationTask;
+	let releaseMutationTask: (() => void) | undefined;
+	pendingAttendanceQueueMutationTask = new Promise<void>((resolve) => {
+		releaseMutationTask = resolve;
+	});
+
+	await previousTask;
+
+	try {
+		return await operation();
+	} finally {
+		releaseMutationTask?.();
+	}
+}
+
+/**
  * Add an attendance payload to the offline queue.
  *
  * @param input - Attendance payload to queue for later sync
@@ -120,17 +145,19 @@ async function writePendingAttendanceQueue(queue: PendingAttendanceQueueItem[]):
 export async function enqueuePendingAttendance(
 	input: CreateAttendanceInput,
 ): Promise<AttendanceSubmissionResult> {
-	const queue = await readPendingAttendanceQueue();
-	queue.push({
-		...input,
-		timestamp: (input.timestamp ?? new Date()).toISOString(),
-	});
-	await writePendingAttendanceQueue(queue);
+	return runPendingAttendanceQueueMutation(async () => {
+		const queue = await readPendingAttendanceQueue();
+		queue.push({
+			...input,
+			timestamp: (input.timestamp ?? new Date()).toISOString(),
+		});
+		await writePendingAttendanceQueue(queue);
 
-	return {
-		delivery: 'queued',
-		record: null,
-	};
+		return {
+			delivery: 'queued',
+			record: null,
+		};
+	});
 }
 
 /**
@@ -139,7 +166,9 @@ export async function enqueuePendingAttendance(
  * @returns Promise that resolves after the persisted queue is removed
  */
 export async function clearPendingAttendanceQueue(): Promise<void> {
-	await writePendingAttendanceQueue([]);
+	await runPendingAttendanceQueueMutation(async () => {
+		await writePendingAttendanceQueue([]);
+	});
 }
 
 /**
@@ -206,7 +235,9 @@ export async function flushPendingAttendanceQueue(): Promise<number> {
 		return flushPendingAttendanceQueueTask;
 	}
 
-	flushPendingAttendanceQueueTask = flushPendingAttendanceQueueInternal().finally(() => {
+	flushPendingAttendanceQueueTask = runPendingAttendanceQueueMutation(
+		flushPendingAttendanceQueueInternal,
+	).finally(() => {
 		flushPendingAttendanceQueueTask = null;
 	});
 

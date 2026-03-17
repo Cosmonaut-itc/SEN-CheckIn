@@ -64,7 +64,6 @@ export function primeAuthStorage(): Promise<void> {
 				const value = await SecureStore.getItemAsync(key);
 				if (value !== null) {
 					secureCache[key] = value;
-					console.log(`[auth-client] Loaded ${key} from SecureStore`);
 				}
 			}
 
@@ -72,7 +71,6 @@ export function primeAuthStorage(): Promise<void> {
 			const storedToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
 			if (storedToken) {
 				cachedAccessToken = storedToken;
-				console.log('[auth-client] Loaded access token from SecureStore');
 			}
 
 			const storedExpiresAt = await SecureStore.getItemAsync(ACCESS_TOKEN_EXPIRES_AT_KEY);
@@ -121,7 +119,6 @@ export async function clearAuthStorage(): Promise<void> {
 	cachedAccessToken = null;
 	cachedAccessTokenExpiresAt = null;
 	cachedRefreshToken = null;
-	console.log('[auth-client] Auth storage cleared');
 }
 
 /**
@@ -142,7 +139,6 @@ export async function saveAccessToken(
 	cachedAccessToken = token;
 	try {
 		await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, token);
-		console.log('[auth-client] Access token saved to SecureStore');
 		if (typeof options?.expiresIn === 'number' && options.expiresIn > 0) {
 			const expiresAt = Date.now() + options.expiresIn * 1000;
 			cachedAccessTokenExpiresAt = expiresAt;
@@ -238,7 +234,6 @@ const storageAdapter = {
 	 * @param value - Value to store
 	 */
 	setItem: (key: string, value: string): void => {
-		console.log(`[auth-client] setItem called: ${key}`);
 		secureCache[key] = value;
 		void SecureStore.setItemAsync(key, value).catch((err) => {
 			console.warn(`[auth-client] Failed to persist ${key}:`, err);
@@ -332,7 +327,6 @@ export async function authedFetch(input: RequestInfo | URL, init?: RequestInit):
 
 	if (shouldAttachToken && accessToken) {
 		headers.Authorization = `Bearer ${accessToken}`;
-		console.log('[authedFetch] Including Bearer token in request');
 	} else {
 		console.warn('[authedFetch] No valid access token available for request');
 	}

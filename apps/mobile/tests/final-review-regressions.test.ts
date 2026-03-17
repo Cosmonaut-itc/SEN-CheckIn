@@ -150,4 +150,15 @@ describe('Final review regressions', () => {
 		expect(faceEnrollmentSource).toContain('Input');
 		expect(faceEnrollmentSource).toContain('bg-input border border-default-200');
 	});
+
+	it('avoids console.log in production auth and client helpers', () => {
+		const authClientSource = readFileSync(resolve(__dirname, '../lib/auth-client.ts'), 'utf-8');
+		const clientFunctionsSource = readFileSync(
+			resolve(__dirname, '../lib/client-functions.ts'),
+			'utf-8',
+		);
+
+		expect(authClientSource).not.toContain('console.log');
+		expect(clientFunctionsSource).not.toContain('console.log');
+	});
 });

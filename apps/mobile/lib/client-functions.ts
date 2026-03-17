@@ -786,7 +786,6 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 	// This prevents errors during the initial OAuth 2.0 device authorization flow
 	const accessToken = getAccessToken();
 	if (!accessToken) {
-		console.log('[sendDeviceHeartbeat] Skipping heartbeat - no access token available yet');
 		return null;
 	}
 

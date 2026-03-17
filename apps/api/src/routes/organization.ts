@@ -25,6 +25,12 @@ const provisionUserSchema = z.object({
 	organizationId: z.string().min(1, 'ORGANIZATION_REQUIRED'),
 });
 
+const updateMemberRoleSchema = z.object({
+	memberId: z.string().min(1, 'memberId is required'),
+	organizationId: z.string().optional(),
+	role: z.enum(['admin', 'member']),
+});
+
 /**
  * Parses organization metadata when stored as JSON text.
  *
@@ -706,5 +712,106 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 		},
 		{
 			body: provisionUserSchema,
+		},
+	)
+	/**
+	 * Update an organization member role for organization admins and owners.
+	 *
+	 * @route POST /organization/update-member-role-direct
+	 * @returns success flag and updated member snapshot
+	 */
+	.post(
+		'/update-member-role-direct',
+		async ({ body, request, session, set }) => {
+			const organizationId = body.organizationId ?? session.activeOrganizationId ?? null;
+
+			if (!organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Organization is required', 400);
+			}
+
+			const membership = await db
+				.select({ role: member.role })
+				.from(member)
+				.where(
+					and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)),
+				)
+				.limit(1);
+
+			const callerRole = membership[0]?.role ?? null;
+
+			if (!callerRole) {
+				set.status = 403;
+				return buildErrorResponse(
+					'You must belong to the organization to update members',
+					403,
+				);
+			}
+
+			if (callerRole !== 'admin' && callerRole !== 'owner') {
+				set.status = 403;
+				return buildErrorResponse('Only organization admins can update member roles', 403);
+			}
+
+			const targetMembership = await db
+				.select({
+					id: member.id,
+					organizationId: member.organizationId,
+					role: member.role,
+					userId: member.userId,
+				})
+				.from(member)
+				.where(and(eq(member.id, body.memberId), eq(member.organizationId, organizationId)))
+				.limit(1);
+
+			const targetMember = targetMembership[0] ?? null;
+
+			if (!targetMember) {
+				set.status = 404;
+				return buildErrorResponse('Member not found', 404);
+			}
+
+			if (targetMember.role === 'owner') {
+				set.status = 403;
+				return buildErrorResponse('Owner role cannot be changed from this endpoint', 403);
+			}
+
+			try {
+				const sessionHeaders = buildSessionHeaders(request);
+				const result = await auth.api.updateMemberRole({
+					body: {
+						memberId: body.memberId,
+						organizationId,
+						role: body.role,
+					},
+					headers: sessionHeaders,
+				});
+
+				const errorMessage = (result as { error?: { message?: string } }).error?.message;
+				const updatedMember =
+					(result as {
+						member?: {
+							id: string;
+							organizationId: string;
+							role: string;
+							userId: string;
+						} | null;
+					}).member ?? null;
+				const success = (result as { success?: boolean }).success ?? !errorMessage;
+
+				if (!success) {
+					set.status = 400;
+					return buildErrorResponse(errorMessage ?? 'Failed to update member role', 400);
+				}
+
+				return { success: true, data: { member: updatedMember } };
+			} catch (error) {
+				console.error('Failed to update member role:', error);
+				set.status = 500;
+				return buildErrorResponse('Failed to update member role', 500);
+			}
+		},
+		{
+			body: updateMemberRoleSchema,
 		},
 	);

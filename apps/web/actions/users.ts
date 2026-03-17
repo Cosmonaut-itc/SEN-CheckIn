@@ -95,6 +95,18 @@ export interface AddOrganizationMemberInput {
 	role: 'admin' | 'member';
 }
 
+/**
+ * Input data for updating a member role within an organization.
+ */
+export interface UpdateOrganizationMemberRoleInput {
+	/** Organization member id */
+	memberId: string;
+	/** Target organization ID */
+	organizationId: string;
+	/** New role to assign within the organization */
+	role: 'admin' | 'member';
+}
+
 type ApiValidationDetail = {
 	summary?: string;
 };
@@ -375,6 +387,61 @@ export async function addOrganizationMember(
 		return {
 			success: false,
 			error: 'Failed to assign user to organization',
+		};
+	}
+}
+
+/**
+ * Updates an existing organization member role.
+ *
+ * Uses the API route instead of calling Better Auth directly from the client so
+ * platform superusers can manage memberships across organizations consistently.
+ *
+ * @param input - Member role update payload
+ * @returns Mutation result with optional member snapshot
+ */
+export async function updateOrganizationMemberRole(
+	input: UpdateOrganizationMemberRoleInput,
+): Promise<
+	MutationResult<{
+		member?: {
+			id: string;
+			organizationId: string;
+			role: string;
+			userId: string;
+		} | null;
+	}>
+> {
+	try {
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
+
+		const response = await api.organization['update-member-role-direct'].post({
+			memberId: input.memberId,
+			organizationId: input.organizationId,
+			role: input.role,
+		});
+
+		if (response.error) {
+			return {
+				success: false,
+				error: 'Failed to update member role',
+			};
+		}
+
+		const payload = getApiResponseData(response);
+		return {
+			success: true,
+			data: {
+				member: payload?.data?.member ?? null,
+			},
+		};
+	} catch (error) {
+		console.error('Failed to update organization member role:', error);
+		return {
+			success: false,
+			error: 'Failed to update member role',
 		};
 	}
 }

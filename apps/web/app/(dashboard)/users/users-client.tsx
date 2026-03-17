@@ -3,16 +3,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
 	type AddOrganizationMemberInput,
 	type CreateOrganizationUserInput,
 	type CreateOrganizationUserErrorCode,
+	type UpdateOrganizationMemberRoleInput,
 	addOrganizationMember,
 	createOrganizationUser,
+	updateOrganizationMemberRole,
 } from '@/actions/users';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -57,6 +60,10 @@ import {
 
 type CreateUserFormValues = CreateOrganizationUserInput;
 type AssignUserFormValues = Pick<AddOrganizationMemberInput, 'userId' | 'role'>;
+type ManagedOrganizationRole = 'admin' | 'member';
+type UpdateMemberRoleMutationInput = UpdateOrganizationMemberRoleInput & {
+	userId: string;
+};
 
 const initialFormValues: CreateUserFormValues = {
 	name: '',
@@ -77,6 +84,116 @@ const roleBadgeVariant: Record<string, 'default' | 'secondary' | 'outline'> = {
 	admin: 'secondary',
 	member: 'outline',
 };
+
+const managedOrganizationRoles: ManagedOrganizationRole[] = ['admin', 'member'];
+
+/**
+ * Resolves the editable organization role for the inline role manager.
+ *
+ * Owner is intentionally excluded here to avoid accidental ownership changes
+ * from the generic members screen.
+ *
+ * @param role - Raw organization role from Better Auth
+ * @returns Editable role value or null when it should stay read-only
+ */
+function getEditableOrganizationRole(role: string): ManagedOrganizationRole | null {
+	if (role === 'admin' || role === 'member') {
+		return role;
+	}
+
+	return null;
+}
+
+/**
+ * Props for the inline member role editor.
+ */
+interface MemberRoleEditorProps {
+	/** Member record being edited. */
+	member: OrganizationMember;
+	/** Whether the current viewer can edit organization member roles. */
+	canEditMemberRoles: boolean;
+	/** Currently selected role value for the member. */
+	selectedRole: ManagedOrganizationRole | null;
+	/** Whether the save action is pending for this member. */
+	isSaving: boolean;
+	/** Callback to update the local role selection. */
+	onRoleChange: (memberId: string, role: ManagedOrganizationRole) => void;
+	/** Callback to persist the new role. */
+	onSave: (member: OrganizationMember) => void;
+	/** Translation resolver for the Users namespace. */
+	t: (key: string, values?: Record<string, string | number>) => string;
+}
+
+/**
+ * Renders inline member-role controls for editable organization roles.
+ *
+ * @param props - Inline editor props
+ * @returns Role badge plus optional controls
+ */
+function MemberRoleEditor({
+	member,
+	canEditMemberRoles,
+	selectedRole,
+	isSaving,
+	onRoleChange,
+	onSave,
+	t,
+}: MemberRoleEditorProps): React.ReactElement {
+	const memberLabel = member.user.name || member.user.email;
+	const currentRole = getEditableOrganizationRole(member.role);
+
+	if (!currentRole || !selectedRole) {
+		return (
+			<div className="space-y-1">
+					<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
+						<ShieldCheck className="mr-1 h-3 w-3" />
+						{t(`roles.${member.role}`)}
+					</Badge>
+					{canEditMemberRoles && member.role === 'owner' ? (
+						<p className="text-xs text-muted-foreground">{t('roleEditor.ownerProtected')}</p>
+					) : null}
+				</div>
+			);
+	}
+
+	const hasChanged = selectedRole !== currentRole;
+
+	return (
+		<div className="flex flex-col gap-2 min-[1025px]:flex-row min-[1025px]:items-center">
+				<Select
+					value={selectedRole}
+					onValueChange={(value) => onRoleChange(member.id, value as ManagedOrganizationRole)}
+					disabled={!canEditMemberRoles || isSaving}
+				>
+				<SelectTrigger
+					size="sm"
+					className="h-8 w-full min-[1025px]:w-[150px]"
+					aria-label={t('actions.changeRoleFor', { user: memberLabel })}
+				>
+					<SelectValue placeholder={t('fields.role')} />
+				</SelectTrigger>
+				<SelectContent>
+					{managedOrganizationRoles.map((role) => (
+						<SelectItem key={role} value={role}>
+							{t(`roles.${role}`)}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+			<Button
+				type="button"
+				size="sm"
+				variant="outline"
+					className="w-full min-[1025px]:w-auto"
+					aria-label={t('actions.saveRoleFor', { user: memberLabel })}
+					onClick={() => onSave(member)}
+					disabled={!canEditMemberRoles || !hasChanged || isSaving}
+				>
+				{isSaving ? t('actions.savingRole') : t('actions.saveRole')}
+			</Button>
+		</div>
+	);
+}
 
 /**
  * Computes initials for an avatar fallback.
@@ -197,7 +314,10 @@ function UsersTableSection({
 							onValueChange={onOrganizationSelection}
 							disabled={isFetchingOrganizations}
 						>
-							<SelectTrigger className="min-h-11 w-full min-[1025px]:w-[260px]">
+							<SelectTrigger
+								className="min-h-11 w-full min-[1025px]:w-[260px]"
+								aria-label={organizationLabel}
+							>
 								<SelectValue
 									placeholder={
 										isFetchingOrganizations
@@ -225,6 +345,7 @@ function UsersTableSection({
 				<div className="relative w-full min-[1025px]:max-w-sm">
 					<Input
 						placeholder={searchPlaceholder}
+						aria-label={searchPlaceholder}
 						value={globalFilter}
 						onChange={(event) => onGlobalFilterChange(event.target.value)}
 						className="min-h-11 pl-3"
@@ -264,17 +385,21 @@ const MemoizedUsersTableSection = React.memo(UsersTableSection);
 
 export function UsersPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
-	const { organizationId, organizationName } = useOrgContext();
+	const router = useRouter();
+	const { organizationId, organizationName, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Users');
 	const tCommon = useTranslations('Common');
 	const { data: session, isPending: isSessionPending } = useSession();
-	const isSuperUser = session?.user?.role === 'admin';
+	const isSuperUser = session?.user?.role === 'admin' || userRole === 'admin';
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+	const [memberRoleOverrides, setMemberRoleOverrides] = useState<
+		Record<string, ManagedOrganizationRole>
+	>({});
 	const [selectedOrganizationId, setSelectedOrganizationId] = useState<string | null>(
 		organizationId ?? null,
 	);
@@ -284,13 +409,21 @@ export function UsersPageClient(): React.ReactElement {
 		? (selectedOrganizationId ?? organizationId ?? null)
 		: null;
 	const effectiveOrganizationId = isSuperUser ? resolvedSelectedOrganizationId : organizationId;
+	const canManageOrganizationUsers =
+		isSuperUser || organizationRole === 'admin' || organizationRole === 'owner';
+	const canEditOrganizationMemberRoles =
+		organizationRole === 'admin' || organizationRole === 'owner';
 
 	const organizationsQueryParams = {
 		limit: 100,
 		offset: 0,
 	};
 
-	const { data: organizationsResponse, isFetching: isFetchingOrganizations } = useQuery({
+	const {
+		data: organizationsResponse,
+		isError: isOrganizationsError,
+		isFetching: isFetchingOrganizations,
+	} = useQuery({
 		queryKey: queryKeys.super.organizationsAll.list(organizationsQueryParams),
 		queryFn: () => fetchAllOrganizations(organizationsQueryParams),
 		enabled: isSuperUser && !isSessionPending,
@@ -344,13 +477,17 @@ export function UsersPageClient(): React.ReactElement {
 		...(searchValue ? { search: searchValue } : {}),
 	};
 
-	const { data, isFetching } = useQuery({
+	const { data, isError: isMembersError, isFetching } = useQuery({
 		queryKey: queryKeys.organizationMembers.list(membersQueryParams),
 		queryFn: () => fetchOrganizationMembers(membersQueryParams),
 		enabled: Boolean(effectiveOrganizationId),
 	});
 
-	const { data: usersResponse = [], isFetching: isFetchingUsers } = useQuery({
+	const {
+		data: usersResponse = [],
+		isError: isUsersError,
+		isFetching: isFetchingUsers,
+	} = useQuery({
 		queryKey: queryKeys.users.list({ limit: 100, offset: 0 }),
 		queryFn: () => fetchUsers({ limit: 100, offset: 0 }),
 		enabled: isSuperUser && isAssignDialogOpen,
@@ -367,9 +504,29 @@ export function UsersPageClient(): React.ReactElement {
 		[usersResponse],
 	);
 	const isLoading = isFetching || isSessionPending;
-	const tableEmptyState = effectiveOrganizationId
-		? t('table.empty')
-		: t('table.emptyNoOrganization');
+	const tableEmptyState = isMembersError
+		? t('table.loadError')
+		: effectiveOrganizationId
+			? t('table.empty')
+			: t('table.emptyNoOrganization');
+
+	useEffect(() => {
+		if (isOrganizationsError) {
+			toast.error(t('toast.loadOrganizationsError'));
+		}
+	}, [isOrganizationsError, t]);
+
+	useEffect(() => {
+		if (isMembersError) {
+			toast.error(t('toast.loadMembersError'));
+		}
+	}, [isMembersError, t]);
+
+	useEffect(() => {
+		if (isUsersError) {
+			toast.error(t('toast.loadUsersError'));
+		}
+	}, [isUsersError, t]);
 
 	const createUserErrorMessages = useMemo<
 		Partial<Record<CreateOrganizationUserErrorCode, string>>
@@ -411,6 +568,11 @@ export function UsersPageClient(): React.ReactElement {
 	const form = useAppForm({
 		defaultValues: initialFormValues,
 		onSubmit: async ({ value }) => {
+				if (!canManageOrganizationUsers) {
+					toast.error(t('toast.roleUpdateError'));
+					return;
+				}
+
 			const resolvedOrganizationId = value.organizationId || effectiveOrganizationId;
 
 			if (!resolvedOrganizationId) {
@@ -451,9 +613,13 @@ export function UsersPageClient(): React.ReactElement {
 	const createUserMutation = useMutation({
 		mutationKey: mutationKeys.organizationMembers.create,
 		mutationFn: createOrganizationUser,
-		onSuccess: (result) => {
+		onSuccess: (result, variables) => {
 			if (result.success) {
 				toast.success(t('toast.createSuccess'));
+				if (isSuperUser && variables.organizationId) {
+					setSelectedOrganizationId(variables.organizationId);
+					setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+				}
 				setIsDialogOpen(false);
 				form.reset();
 				queryClient.invalidateQueries({
@@ -485,6 +651,48 @@ export function UsersPageClient(): React.ReactElement {
 		},
 		onError: () => {
 			toast.error(t('toast.assignError'));
+		},
+	});
+
+	const updateMemberRoleMutation = useMutation({
+		mutationKey: mutationKeys.organizationMembers.update,
+		mutationFn: async (input: UpdateMemberRoleMutationInput) => {
+			return updateOrganizationMemberRole(input);
+		},
+		onSuccess: (result, variables) => {
+			if (!result.success) {
+				toast.error(t('toast.roleUpdateError'));
+				setMemberRoleOverrides((current) => {
+					const next = { ...current };
+					delete next[variables.memberId];
+					return next;
+				});
+				return;
+			}
+
+			toast.success(t('toast.roleUpdateSuccess'));
+			if (!isSuperUser && variables.userId === session?.user?.id && variables.role === 'member') {
+				startTransition(() => {
+					router.refresh();
+				});
+				return;
+			}
+			setMemberRoleOverrides((current) => {
+				const next = { ...current };
+				delete next[variables.memberId];
+				return next;
+			});
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.organizationMembers.all,
+			});
+		},
+		onError: (_error, variables) => {
+			toast.error(t('toast.roleUpdateError'));
+			setMemberRoleOverrides((current) => {
+				const next = { ...current };
+				delete next[variables.memberId];
+				return next;
+			});
 		},
 	});
 
@@ -526,6 +734,59 @@ export function UsersPageClient(): React.ReactElement {
 		setPagination((prev) => ({ ...prev, pageIndex: 0 }));
 	}, []);
 
+	/**
+	 * Updates the in-memory role selection for a single member row.
+	 *
+	 * @param memberId - Organization member identifier
+	 * @param role - Newly selected managed role
+	 * @returns Nothing
+	 */
+	const handleMemberRoleSelection = useCallback(
+		(memberId: string, role: ManagedOrganizationRole): void => {
+			setMemberRoleOverrides((current) => ({
+				...current,
+				[memberId]: role,
+			}));
+		},
+		[],
+	);
+
+	/**
+	 * Persists the selected member role through Better Auth.
+	 *
+	 * @param member - Member row to update
+	 * @returns Promise that resolves when the mutation finishes
+	 */
+	const handleMemberRoleSave = useCallback(
+		async (member: OrganizationMember): Promise<void> => {
+				if (!effectiveOrganizationId || !canEditOrganizationMemberRoles) {
+					toast.error(t('toast.roleUpdateError'));
+					return;
+				}
+
+			const currentRole = getEditableOrganizationRole(member.role);
+			const selectedRole = memberRoleOverrides[member.id] ?? currentRole;
+
+			if (!selectedRole || !currentRole || selectedRole === currentRole) {
+				return;
+			}
+
+			await updateMemberRoleMutation.mutateAsync({
+				memberId: member.id,
+				organizationId: effectiveOrganizationId,
+				role: selectedRole,
+				userId: member.userId,
+			});
+		},
+				[
+					canEditOrganizationMemberRoles,
+					effectiveOrganizationId,
+					memberRoleOverrides,
+					t,
+					updateMemberRoleMutation,
+				],
+		);
+
 	const columns = useMemo<ColumnDef<OrganizationMember>[]>(
 		() => [
 			{
@@ -535,7 +796,7 @@ export function UsersPageClient(): React.ReactElement {
 				cell: ({ row }) => (
 					<div className="flex items-center gap-3">
 						<Avatar className="h-8 w-8">
-							<AvatarImage src={row.original.user.image ?? undefined} />
+							<AvatarImage src={row.original.user.image ?? undefined} alt="" />
 							<AvatarFallback className="text-xs">
 								{getInitials(row.original.user.name || row.original.user.email)}
 							</AvatarFallback>
@@ -545,6 +806,7 @@ export function UsersPageClient(): React.ReactElement {
 						</span>
 					</div>
 				),
+				enableSorting: false,
 			},
 			{
 				id: 'email',
@@ -553,18 +815,33 @@ export function UsersPageClient(): React.ReactElement {
 				cell: ({ row }) => (
 					<span className="text-muted-foreground">{row.original.user.email}</span>
 				),
+				enableSorting: false,
 			},
 			{
 				id: 'role',
 				accessorFn: (row) => row.role,
 				header: t('table.headers.role'),
 				cell: ({ row }) => (
-					<Badge variant={roleBadgeVariant[row.original.role] ?? 'outline'}>
-						<ShieldCheck className="mr-1 h-3 w-3" />
-						{t(`roles.${row.original.role}`)}
-					</Badge>
+							<MemberRoleEditor
+								member={row.original}
+								canEditMemberRoles={canEditOrganizationMemberRoles}
+							selectedRole={
+							memberRoleOverrides[row.original.id] ??
+							getEditableOrganizationRole(row.original.role)
+						}
+						isSaving={
+							updateMemberRoleMutation.isPending &&
+							updateMemberRoleMutation.variables?.memberId === row.original.id
+						}
+						onRoleChange={handleMemberRoleSelection}
+						onSave={(member) => {
+							void handleMemberRoleSave(member);
+						}}
+						t={t}
+					/>
 				),
 				enableGlobalFilter: false,
+				enableSorting: false,
 			},
 			{
 				id: 'joined',
@@ -572,9 +849,18 @@ export function UsersPageClient(): React.ReactElement {
 				header: t('table.headers.joined'),
 				cell: ({ row }) => format(new Date(row.original.createdAt), t('dateFormat')),
 				enableGlobalFilter: false,
+				enableSorting: false,
 			},
 		],
-		[t],
+			[
+					canEditOrganizationMemberRoles,
+					handleMemberRoleSave,
+					handleMemberRoleSelection,
+			memberRoleOverrides,
+			t,
+			updateMemberRoleMutation.isPending,
+			updateMemberRoleMutation.variables,
+		],
 	);
 
 	const renderUserCard = useCallback(
@@ -582,7 +868,7 @@ export function UsersPageClient(): React.ReactElement {
 			<div className="space-y-4">
 				<div className="flex items-center gap-3">
 					<Avatar className="h-11 w-11">
-						<AvatarImage src={member.user.image ?? undefined} />
+						<AvatarImage src={member.user.image ?? undefined} alt="" />
 						<AvatarFallback>{getInitials(member.user.name || member.user.email)}</AvatarFallback>
 					</Avatar>
 					<div className="space-y-1">
@@ -597,10 +883,23 @@ export function UsersPageClient(): React.ReactElement {
 					<div className="space-y-1">
 						<p className="text-sm text-muted-foreground">{t('table.headers.role')}</p>
 						<div>
-							<Badge variant={roleBadgeVariant[member.role] ?? 'outline'}>
-								<ShieldCheck className="mr-1 h-3 w-3" />
-								{t(`roles.${member.role}`)}
-							</Badge>
+									<MemberRoleEditor
+										member={member}
+										canEditMemberRoles={canEditOrganizationMemberRoles}
+									selectedRole={
+									memberRoleOverrides[member.id] ??
+									getEditableOrganizationRole(member.role)
+								}
+								isSaving={
+									updateMemberRoleMutation.isPending &&
+									updateMemberRoleMutation.variables?.memberId === member.id
+								}
+								onRoleChange={handleMemberRoleSelection}
+								onSave={(currentMember) => {
+									void handleMemberRoleSave(currentMember);
+								}}
+								t={t}
+							/>
 						</div>
 					</div>
 					<div className="space-y-1">
@@ -612,7 +911,15 @@ export function UsersPageClient(): React.ReactElement {
 				</div>
 			</div>
 		),
-		[t],
+			[
+				canEditOrganizationMemberRoles,
+				handleMemberRoleSave,
+				handleMemberRoleSelection,
+			memberRoleOverrides,
+			t,
+			updateMemberRoleMutation.isPending,
+			updateMemberRoleMutation.variables,
+		],
 	);
 
 	return (
@@ -727,8 +1034,8 @@ export function UsersPageClient(): React.ReactElement {
 					) : null}
 					<Dialog open={isDialogOpen} onOpenChange={handleCreateDialogOpenChange}>
 						<DialogTrigger asChild>
-							<Button
-								disabled={!effectiveOrganizationId && !isSuperUser}
+								<Button
+									disabled={!effectiveOrganizationId || !canManageOrganizationUsers}
 								data-testid="users-create-button"
 								className="min-h-11"
 							>
@@ -776,11 +1083,6 @@ export function UsersPageClient(): React.ReactElement {
 														isFetchingOrganizations ||
 														createOrganizationOptions.length === 0
 													}
-													onValueChange={(value) => {
-														if (isSuperUser) {
-															handleOrganizationSelection(value);
-														}
-													}}
 												/>
 											)}
 										</form.AppField>
@@ -895,7 +1197,11 @@ export function UsersPageClient(): React.ReactElement {
 				organizationLabel={t('organizationSelector.label')}
 				organizationPlaceholder={t('organizationSelector.placeholder')}
 				organizationLoadingLabel={t('organizationSelector.loading')}
-				organizationHelper={t('organizationSelector.helper')}
+				organizationHelper={
+					isOrganizationsError
+						? t('organizationSelector.loadError')
+						: t('organizationSelector.helper')
+				}
 				memberCountLabel={t('memberCount', { count: totalRows })}
 			/>
 		</div>

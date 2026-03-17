@@ -5,4 +5,20 @@
 - `ios-face-enrollment-light.png`: face enrollment empty/config-required state on iPhone 17 Pro (light mode)
 - `ios-device-setup-light.png`: device setup screen on iPhone 17 Pro (light mode)
 
-Android dark mode capture was attempted on the `Medium Phone API 36.1` emulator, but Expo Go became blocked by repeated `System UI isn't responding` overlays after the emulator restart. Dark-mode capture on iOS also did not yield stable in-app results, and a fresh iOS simulator for the unauthenticated login screen stayed at the Expo Go launcher instead of opening the project. Only the light-mode artifacts above are treated as valid visual verification. The code paths for the blocked states were still covered by automated tests and quality gates in this branch.
+## Capture Attempts on 2026-03-16
+
+- Playwright MCP could not be used against the native Expo Go URL because the tool blocks the `exp://` protocol and only allows `http:`, `https:`, `about:`, and `data:`.
+- The booted iOS simulator (`iPhone 17 Pro`) was available, but it was no longer in the state described by the plan. It opened on the unauthenticated login screen instead of the logged-in scanner/settings/face-enrollment flow required for the missing dark-mode screenshots.
+- Direct iOS deep-link attempts to `/(main)/scanner`, `/(main)/settings`, and `/(main)/face-enrollment` did not yield stable capture targets because the app redirected away from the protected stack without an active session.
+- A direct iOS deep link to `/(auth)/device-setup` triggered a runtime render error instead of the intended screen:
+  `Using replace links with preview is not supported`
+- Android capture could not proceed because the local emulator process was not attached to `adb`; the SDK tool returned `no devices/emulators found`, so no reliable Android screenshot capture path was available from this workspace.
+
+## Coverage Status
+
+- Valid artifacts remain limited to the 4 iOS light-mode screenshots above.
+- Missing artifacts due to the environment limitations listed here:
+  iOS dark mode for scanner, settings, and face enrollment
+  Android login and device setup
+  Additional empty-state and bottom-sheet captures
+- The blocked states still have automated coverage through the mobile test suite in this branch.

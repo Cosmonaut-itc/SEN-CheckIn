@@ -23,6 +23,11 @@ describe('Michoacan theme tokens', () => {
 		expect(cssContent).toContain('--destructive');
 	});
 
+	it('defines the default-hover token used by shared press feedback surfaces', () => {
+		expect(cssContent).toContain('--default-hover');
+		expect(cssContent).toContain('--color-default-hover: var(--default-hover);');
+	});
+
 	it('does not define danger as the canonical red token', () => {
 		expect(cssContent).not.toMatch(/^\s*--danger\s*:/m);
 	});

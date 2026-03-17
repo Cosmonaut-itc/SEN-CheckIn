@@ -160,6 +160,11 @@ function PulseAnimation({ children }: { children: React.ReactNode }): JSX.Elemen
 	const shouldReduceMotion = useReducedMotion();
 
 	useEffect(() => {
+		if (shouldReduceMotion) {
+			pulseAnim.setValue(1);
+			return;
+		}
+
 		const pulse = Animated.loop(
 			Animated.sequence([
 				Animated.timing(pulseAnim, {

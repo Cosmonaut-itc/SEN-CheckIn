@@ -76,12 +76,12 @@ describe('origin allowlist', () => {
 		})).toBe(false);
 	});
 
-	it('treats missing node env as non-development for origin checks', () => {
-		expect(isDevelopmentRuntime(undefined)).toBe(false);
+	it('treats missing node env as development in the default local workflow', () => {
+		expect(isDevelopmentRuntime(undefined)).toBe(true);
 		expect(isOriginAllowed('http://192.168.0.106:3000', {
 			configuredOrigins,
 			nodeEnv: undefined,
-		})).toBe(false);
+		})).toBe(true);
 	});
 
 	it('does not collapse opaque development origins into the configured null origin', () => {

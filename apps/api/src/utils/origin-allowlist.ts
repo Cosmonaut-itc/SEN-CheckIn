@@ -119,7 +119,7 @@ export function buildCorsOriginAllowlist(config: OriginAllowlistConfig): string[
  * @returns `true` outside production builds.
  */
 export function isDevelopmentRuntime(nodeEnv?: string): boolean {
-	return nodeEnv === 'development' || nodeEnv === 'test';
+	return nodeEnv === undefined || nodeEnv === 'development' || nodeEnv === 'test';
 }
 
 /**

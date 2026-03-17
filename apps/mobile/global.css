@@ -57,6 +57,7 @@
 		--surface-quaternary: var(--border);
 		--overlay: var(--popover);
 		--overlay-foreground: var(--card-foreground);
+		--default-hover: rgba(43, 24, 16, 0.08);
 		--default: var(--muted);
 		--default-foreground: var(--foreground);
 		--field-background: var(--input);
@@ -123,6 +124,7 @@
 		--surface-quaternary: var(--border);
 		--overlay: var(--popover);
 		--overlay-foreground: var(--card-foreground);
+		--default-hover: rgba(240, 234, 228, 0.10);
 		--default: var(--muted);
 		--default-foreground: var(--foreground);
 		--field-background: var(--input);
@@ -212,6 +214,7 @@
 	--color-surface-quaternary: var(--surface-quaternary);
 	--color-overlay: var(--overlay);
 	--color-overlay-foreground: var(--overlay-foreground);
+	--color-default-hover: var(--default-hover);
 	--color-default: var(--default);
 	--color-default-foreground: var(--default-foreground);
 	--color-field-background: var(--field-background);

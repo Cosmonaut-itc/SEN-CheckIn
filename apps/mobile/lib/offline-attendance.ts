@@ -52,7 +52,13 @@ function isPermanentAttendanceSubmissionError(error: unknown): boolean {
 	}
 
 	const status = Reflect.get(error, 'status');
-	return typeof status === 'number' && status >= 400 && status < 500;
+	return (
+		typeof status === 'number' &&
+		status >= 400 &&
+		status < 500 &&
+		status !== 401 &&
+		status !== 403
+	);
 }
 
 /**

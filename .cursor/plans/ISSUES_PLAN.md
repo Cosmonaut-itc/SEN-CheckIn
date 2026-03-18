@@ -10,8 +10,8 @@
 - [x] **EPIC 1: Autorizacion de Horas Extra** (4/4 issues)
 - [x] **EPIC 2: Descuento Automatico por Falta de Salida de Comida** (5/5 issues)
 - [x] **EPIC 3: Sabado como Dia Trabajado para 7mo Dia** (3/3 issues)
-- [ ] **EPIC 4: Nomina Fiscal vs Real** (0/4 issues)
-- [ ] **EPIC 5: Sistema Generico de Descuentos** (0/4 issues)
+- [x] **EPIC 4: Nomina Fiscal vs Real** (4/4 issues)
+- [x] **EPIC 5: Sistema Generico de Descuentos** (4/4 issues)
 
 ---
 
@@ -553,17 +553,17 @@ Cada empleado tiene un salario real (dailyPay actual) y un salario fiscal regist
 
 ### Epic 4 - Progreso
 
-- [ ] Issue 4.1: Configuracion y campo fiscal por empleado
-- [ ] Issue 4.2: Modificar calculo de nomina para usar salario fiscal
-- [ ] Issue 4.3: API - Gestionar salario fiscal por empleado
-- [ ] Issue 4.4: UI Web - Configuracion y campo de salario fiscal
+- [x] Issue 4.1: Configuracion y campo fiscal por empleado
+- [x] Issue 4.2: Modificar calculo de nomina para usar salario fiscal
+- [x] Issue 4.3: API - Gestionar salario fiscal por empleado
+- [x] Issue 4.4: UI Web - Configuracion y campo de salario fiscal
 
 ---
 
 ### Issue 4.1: Configuracion y campo fiscal por empleado
 
 **Tipo:** Backend (Schema + Migration)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 
@@ -588,18 +588,18 @@ Cada empleado tiene un salario real (dailyPay actual) y un salario fiscal regist
 
 **Pasos de implementacion:**
 
-- [ ] Agregar campo `enableDualPayroll` (boolean, default false) a payroll_setting
-- [ ] Agregar campo `fiscalDailyPay` (numeric 10,4, nullable) a employee
-- [ ] Generar y aplicar migracion
-- [ ] Verificar que empleados existentes quedan con fiscalDailyPay = null
-- [ ] Verificar que orgs existentes quedan con enableDualPayroll = false
+- [x] Agregar campo `enableDualPayroll` (boolean, default false) a payroll_setting
+- [x] Agregar campo `fiscalDailyPay` (numeric 10,4, nullable) a employee
+- [x] Generar y aplicar migracion
+- [x] Verificar que empleados existentes quedan con fiscalDailyPay = null
+- [x] Verificar que orgs existentes quedan con enableDualPayroll = false
 
 ---
 
 ### Issue 4.2: Modificar calculo de nomina para usar salario fiscal
 
 **Tipo:** Backend (Logica de negocio)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Cuando `enableDualPayroll = true`, el calculo de nomina debe usar `fiscalDailyPay` (si existe) en lugar de `dailyPay` para todos los calculos fiscales (IMSS, ISR, SBC).
@@ -635,33 +635,33 @@ Cuando `enableDualPayroll = true`, el calculo de nomina debe usar `fiscalDailyPa
 
 **Pasos de implementacion:**
 
-- [ ] Agregar campos `fiscalDailyPay`, `fiscalGrossPay`, `complementPay`, `totalRealPay` a payroll_run_employee
-- [ ] Generar y aplicar migracion
-- [ ] Modificar payroll-calculation.ts:
-    - [ ] Leer `enableDualPayroll` del payroll setting
-    - [ ] Si enabled y empleado tiene fiscalDailyPay:
-        - [ ] Sustituir dailyPay por fiscalDailyPay para calculo de SBC
-        - [ ] Sustituir para calculo de IMSS (employee + employer)
-        - [ ] Sustituir para calculo de ISR
-        - [ ] Sustituir para rate de horas extra
-        - [ ] Sustituir para premios dominicales y descanso obligatorio
-    - [ ] Calcular pago real total con dailyPay original
-    - [ ] Calcular complementPay = totalRealPay - fiscalGrossPay
-    - [ ] Guardar snapshots en payroll_run_employee
-- [ ] Verificar que enableDualPayroll = false no cambia nada
-- [ ] Escribir tests unitarios:
-    - [ ] Test: dual payroll OFF -> calculo identico al actual
-    - [ ] Test: dual payroll ON, fiscalDailyPay = null -> calculo identico (usa dailyPay)
-    - [ ] Test: dual payroll ON, fiscalDailyPay < dailyPay -> IMSS/ISR sobre fiscal, pago total sobre real
-    - [ ] Test: complemento = dailyPay - fiscalDailyPay calculado correctamente
-    - [ ] Test: fiscalDailyPay >= dailyPay -> complemento = 0
+- [x] Agregar campos `fiscalDailyPay`, `fiscalGrossPay`, `complementPay`, `totalRealPay` a payroll_run_employee
+- [x] Generar y aplicar migracion
+- [x] Modificar payroll-calculation.ts:
+    - [x] Leer `enableDualPayroll` del payroll setting
+    - [x] Si enabled y empleado tiene fiscalDailyPay:
+        - [x] Sustituir dailyPay por fiscalDailyPay para calculo de SBC
+        - [x] Sustituir para calculo de IMSS (employee + employer)
+        - [x] Sustituir para calculo de ISR
+        - [x] Sustituir para rate de horas extra
+        - [x] Sustituir para premios dominicales y descanso obligatorio
+    - [x] Calcular pago real total con dailyPay original
+    - [x] Calcular complementPay = totalRealPay - fiscalGrossPay
+    - [x] Guardar snapshots en payroll_run_employee
+- [x] Verificar que enableDualPayroll = false no cambia nada
+- [x] Escribir tests unitarios:
+    - [x] Test: dual payroll OFF -> calculo identico al actual
+    - [x] Test: dual payroll ON, fiscalDailyPay = null -> calculo identico (usa dailyPay)
+    - [x] Test: dual payroll ON, fiscalDailyPay < dailyPay -> IMSS/ISR sobre fiscal, pago total sobre real
+    - [x] Test: complemento = dailyPay - fiscalDailyPay calculado correctamente
+    - [x] Test: fiscalDailyPay >= dailyPay -> complemento = 0
 
 ---
 
 ### Issue 4.3: API - Gestionar salario fiscal por empleado
 
 **Tipo:** Backend (API)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Actualizar el endpoint de empleados para aceptar y retornar `fiscalDailyPay`.
@@ -678,22 +678,22 @@ Actualizar el endpoint de empleados para aceptar y retornar `fiscalDailyPay`.
 
 **Pasos de implementacion:**
 
-- [ ] Modificar PUT de employees para aceptar fiscalDailyPay
-    - [ ] Validar que solo admin puede setear este campo
-    - [ ] Validar que fiscalDailyPay < dailyPay si se proporciona
-- [ ] Modificar GET de employee individual para incluir fiscalDailyPay
-    - [ ] Solo retornar si el user tiene rol admin
-- [ ] Modificar GET de lista de employees para incluir fiscalDailyPay
-    - [ ] Solo retornar si el user tiene rol admin
-- [ ] Registrar cambio en employee_audit_event cuando fiscalDailyPay cambia
-- [ ] Actualizar endpoint PUT de payroll settings para aceptar enableDualPayroll
+- [x] Modificar PUT de employees para aceptar fiscalDailyPay
+    - [x] Validar que solo admin puede setear este campo
+    - [x] Validar que fiscalDailyPay < dailyPay si se proporciona
+- [x] Modificar GET de employee individual para incluir fiscalDailyPay
+    - [x] Solo retornar si el user tiene rol admin
+- [x] Modificar GET de lista de employees para incluir fiscalDailyPay
+    - [x] Solo retornar si el user tiene rol admin
+- [x] Registrar cambio en employee_audit_event cuando fiscalDailyPay cambia
+- [x] Actualizar endpoint PUT de payroll settings para aceptar enableDualPayroll
 
 ---
 
 ### Issue 4.4: UI Web - Configuracion y campo de salario fiscal
 
 **Tipo:** Frontend (Web)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 
@@ -705,19 +705,19 @@ Actualizar el endpoint de empleados para aceptar y retornar `fiscalDailyPay`.
 
 **Pasos de implementacion:**
 
-- [ ] Agregar toggle "Habilitar nomina dual" en payroll settings
-- [ ] En formulario de edicion de empleado:
-    - [ ] Agregar campo "Salario diario fiscal" (visible solo si enableDualPayroll = true)
-    - [ ] Mostrar complemento calculado en tiempo real (dailyPay - fiscalDailyPay)
-    - [ ] Validacion visual: fiscalDailyPay debe ser menor a dailyPay
-- [ ] En vista de payroll run (solo admin):
-    - [ ] Agregar columnas: Pago Fiscal | Complemento | Total Real
-    - [ ] Estas columnas solo aparecen si enableDualPayroll = true
-    - [ ] Totales en el footer de la tabla
-- [ ] Verificar que miembros no-admin NO ven:
-    - [ ] El campo fiscalDailyPay en perfil de empleado
-    - [ ] Las columnas fiscal/complemento en payroll run
-    - [ ] El toggle en payroll settings
+- [x] Agregar toggle "Habilitar nomina dual" en payroll settings
+- [x] En formulario de edicion de empleado:
+    - [x] Agregar campo "Salario diario fiscal" (visible solo si enableDualPayroll = true)
+    - [x] Mostrar complemento calculado en tiempo real (dailyPay - fiscalDailyPay)
+    - [x] Validacion visual: fiscalDailyPay debe ser menor a dailyPay
+- [x] En vista de payroll run (solo admin):
+    - [x] Agregar columnas: Pago Fiscal | Complemento | Total Real
+    - [x] Estas columnas solo aparecen si enableDualPayroll = true
+    - [x] Totales en el footer de la tabla
+- [x] Verificar que miembros no-admin NO ven:
+    - [x] El campo fiscalDailyPay en perfil de empleado
+    - [x] Las columnas fiscal/complemento en payroll run
+    - [x] El toggle en payroll settings
 
 ---
 
@@ -729,17 +729,17 @@ Se necesita un sistema flexible de descuentos que soporte: INFONAVIT (3 tipos de
 
 ### Epic 5 - Progreso
 
-- [ ] Issue 5.1: Modelo de datos - Tabla `employee_deduction`
-- [ ] Issue 5.2: API CRUD - Descuentos por empleado
-- [ ] Issue 5.3: Integrar descuentos en calculo de nomina
-- [ ] Issue 5.4: UI Web - Gestion de descuentos
+- [x] Issue 5.1: Modelo de datos - Tabla `employee_deduction`
+- [x] Issue 5.2: API CRUD - Descuentos por empleado
+- [x] Issue 5.3: Integrar descuentos en calculo de nomina
+- [x] Issue 5.4: UI Web - Gestion de descuentos
 
 ---
 
 ### Issue 5.1: Modelo de datos - Tabla `employee_deduction`
 
 **Tipo:** Backend (Schema + Migration)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Crear tabla generica de descuentos por empleado.
@@ -788,23 +788,23 @@ Crear tabla generica de descuentos por empleado.
 
 **Pasos de implementacion:**
 
-- [ ] Crear enum `deductionType` (INFONAVIT, ALIMONY, FONACOT, LOAN, UNION_FEE, ADVANCE, OTHER)
-- [ ] Crear enum `deductionCalculationMethod` (PERCENTAGE_SBC, PERCENTAGE_NET, PERCENTAGE_GROSS, FIXED_AMOUNT, VSM_FACTOR)
-- [ ] Crear enum `deductionFrequency` (RECURRING, ONE_TIME, INSTALLMENTS)
-- [ ] Crear enum `deductionStatus` (ACTIVE, PAUSED, COMPLETED, CANCELLED)
-- [ ] Crear tabla `employee_deduction` con todos los campos
-- [ ] Incluir campo `satDeductionCode` para compatibilidad futura con CFDI
-- [ ] Agregar foreign keys hacia employee, organization, user
-- [ ] Crear indices: (employeeId, status), (organizationId, type), (employeeId, type, status)
-- [ ] Generar migracion con `drizzle-kit generate`
-- [ ] Aplicar migracion
+- [x] Crear enum `deductionType` (INFONAVIT, ALIMONY, FONACOT, LOAN, UNION_FEE, ADVANCE, OTHER)
+- [x] Crear enum `deductionCalculationMethod` (PERCENTAGE_SBC, PERCENTAGE_NET, PERCENTAGE_GROSS, FIXED_AMOUNT, VSM_FACTOR)
+- [x] Crear enum `deductionFrequency` (RECURRING, ONE_TIME, INSTALLMENTS)
+- [x] Crear enum `deductionStatus` (ACTIVE, PAUSED, COMPLETED, CANCELLED)
+- [x] Crear tabla `employee_deduction` con todos los campos
+- [x] Incluir campo `satDeductionCode` para compatibilidad futura con CFDI
+- [x] Agregar foreign keys hacia employee, organization, user
+- [x] Crear indices: (employeeId, status), (organizationId, type), (employeeId, type, status)
+- [x] Generar migracion con `drizzle-kit generate`
+- [x] Aplicar migracion
 
 ---
 
 ### Issue 5.2: API CRUD - Descuentos por empleado
 
 **Tipo:** Backend (API Routes)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Endpoints para gestionar descuentos.
@@ -839,33 +839,33 @@ Endpoints para gestionar descuentos.
 
 **Pasos de implementacion:**
 
-- [ ] Crear archivo `apps/api/src/routes/employee-deductions.ts`
-- [ ] Implementar POST - crear descuento
-    - [ ] Validar rol admin
-    - [ ] Validar compatibilidad type + calculationMethod
-    - [ ] Validar que value > 0
-    - [ ] Validar que totalInstallments > 0 si frequency = INSTALLMENTS
-    - [ ] Validar startDateKey formato YYYY-MM-DD
-- [ ] Implementar GET por empleado - listar descuentos
-    - [ ] Filtros: status, type
-    - [ ] Ordenar por createdAt desc
-- [ ] Implementar PUT - modificar descuento
-    - [ ] Permitir cambiar: value, notes, status, endDateKey
-    - [ ] No permitir cambiar type o calculationMethod (crear nuevo descuento si cambia)
-    - [ ] Validar transiciones de status validas (ACTIVE->PAUSED, PAUSED->ACTIVE, \*->CANCELLED)
-- [ ] Implementar GET global de org - listar todos los descuentos
-    - [ ] Filtros: type, status, employeeId
-    - [ ] Paginacion
-    - [ ] Join con employee para mostrar nombre
-- [ ] Registrar ruta en `apps/api/src/routes/index.ts`
-- [ ] Probar endpoints
+- [x] Crear archivo `apps/api/src/routes/employee-deductions.ts`
+- [x] Implementar POST - crear descuento
+    - [x] Validar rol admin
+    - [x] Validar compatibilidad type + calculationMethod
+    - [x] Validar que value > 0
+    - [x] Validar que totalInstallments > 0 si frequency = INSTALLMENTS
+    - [x] Validar startDateKey formato YYYY-MM-DD
+- [x] Implementar GET por empleado - listar descuentos
+    - [x] Filtros: status, type
+    - [x] Ordenar por createdAt desc
+- [x] Implementar PUT - modificar descuento
+    - [x] Permitir cambiar: value, notes, status, endDateKey
+    - [x] No permitir cambiar type o calculationMethod (crear nuevo descuento si cambia)
+    - [x] Validar transiciones de status validas (ACTIVE->PAUSED, PAUSED->ACTIVE, \*->CANCELLED)
+- [x] Implementar GET global de org - listar todos los descuentos
+    - [x] Filtros: type, status, employeeId
+    - [x] Paginacion
+    - [x] Join con employee para mostrar nombre
+- [x] Registrar ruta en `apps/api/src/routes/index.ts`
+- [x] Probar endpoints
 
 ---
 
 ### Issue 5.3: Integrar descuentos en calculo de nomina
 
 **Tipo:** Backend (Logica de negocio)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 Modificar `payroll-calculation.ts` para aplicar descuentos activos de cada empleado.
@@ -907,46 +907,46 @@ Modificar `payroll-calculation.ts` para aplicar descuentos activos de cada emple
 
 **Pasos de implementacion:**
 
-- [ ] Agregar campos `deductionsBreakdown` (json) y `totalDeductions` (numeric) a payroll_run_employee
-- [ ] Generar y aplicar migracion
-- [ ] Crear funcion auxiliar `calculateDeductionAmount(deduction, context)`:
-    - [ ] Implementar calculo PERCENTAGE_SBC
-    - [ ] Implementar calculo PERCENTAGE_NET
-    - [ ] Implementar calculo PERCENTAGE_GROSS
-    - [ ] Implementar calculo FIXED_AMOUNT (con ajuste proporcional)
-    - [ ] Implementar calculo VSM_FACTOR
-- [ ] Integrar en payroll-calculation.ts:
-    - [ ] Fetch descuentos activos del empleado para el periodo
-    - [ ] Filtrar por rango de fechas (startDateKey/endDateKey)
-    - [ ] Calcular cada descuento en orden correcto (PERCENTAGE_NET despues de impuestos)
-    - [ ] Construir deductionsBreakdown JSON
-    - [ ] Sumar totalDeductions
-    - [ ] Restar del pago neto
-- [ ] Logica post-calculo:
-    - [ ] Marcar ONE_TIME como COMPLETED
-    - [ ] Incrementar completedInstallments en INSTALLMENTS
-    - [ ] Marcar COMPLETED si completedInstallments >= totalInstallments
-    - [ ] Actualizar remainingAmount
-- [ ] Validar que pago neto >= 0 (cap con warning si descuentos exceden el neto)
-- [ ] Escribir tests unitarios:
-    - [ ] Test: empleado sin descuentos -> sin cambios
-    - [ ] Test: INFONAVIT PERCENTAGE_SBC -> monto correcto
-    - [ ] Test: ALIMONY PERCENTAGE_NET -> se calcula post-impuestos
-    - [ ] Test: FIXED_AMOUNT con periodo parcial -> ajuste proporcional
-    - [ ] Test: VSM_FACTOR -> usa salario minimo correcto
-    - [ ] Test: ONE_TIME -> se marca COMPLETED despues de aplicar
-    - [ ] Test: INSTALLMENTS 3/10 -> incrementa a 4/10
-    - [ ] Test: INSTALLMENTS 10/10 -> se marca COMPLETED
-    - [ ] Test: descuento PAUSED -> no se aplica
-    - [ ] Test: multiples descuentos -> se aplican todos, orden correcto
-    - [ ] Test: descuentos exceden neto -> cap a 0 con warning
+- [x] Agregar campos `deductionsBreakdown` (json) y `totalDeductions` (numeric) a payroll_run_employee
+- [x] Generar y aplicar migracion
+- [x] Crear funcion auxiliar `calculateDeductionAmount(deduction, context)`:
+    - [x] Implementar calculo PERCENTAGE_SBC
+    - [x] Implementar calculo PERCENTAGE_NET
+    - [x] Implementar calculo PERCENTAGE_GROSS
+    - [x] Implementar calculo FIXED_AMOUNT (con ajuste proporcional)
+    - [x] Implementar calculo VSM_FACTOR
+- [x] Integrar en payroll-calculation.ts:
+    - [x] Fetch descuentos activos del empleado para el periodo
+    - [x] Filtrar por rango de fechas (startDateKey/endDateKey)
+    - [x] Calcular cada descuento en orden correcto (PERCENTAGE_NET despues de impuestos)
+    - [x] Construir deductionsBreakdown JSON
+    - [x] Sumar totalDeductions
+    - [x] Restar del pago neto
+- [x] Logica post-calculo:
+    - [x] Marcar ONE_TIME como COMPLETED
+    - [x] Incrementar completedInstallments en INSTALLMENTS
+    - [x] Marcar COMPLETED si completedInstallments >= totalInstallments
+    - [x] Actualizar remainingAmount
+- [x] Validar que pago neto >= 0 (cap con warning si descuentos exceden el neto)
+- [x] Escribir tests unitarios:
+    - [x] Test: empleado sin descuentos -> sin cambios
+    - [x] Test: INFONAVIT PERCENTAGE_SBC -> monto correcto
+    - [x] Test: ALIMONY PERCENTAGE_NET -> se calcula post-impuestos
+    - [x] Test: FIXED_AMOUNT con periodo parcial -> ajuste proporcional
+    - [x] Test: VSM_FACTOR -> usa salario minimo correcto
+    - [x] Test: ONE_TIME -> se marca COMPLETED despues de aplicar
+    - [x] Test: INSTALLMENTS 3/10 -> incrementa a 4/10
+    - [x] Test: INSTALLMENTS 10/10 -> se marca COMPLETED
+    - [x] Test: descuento PAUSED -> no se aplica
+    - [x] Test: multiples descuentos -> se aplican todos, orden correcto
+    - [x] Test: descuentos exceden neto -> cap a 0 con warning
 
 ---
 
 ### Issue 5.4: UI Web - Gestion de descuentos
 
 **Tipo:** Frontend (Web)
-**Status:** - [ ] Completada
+**Status:** - [x] Completada
 
 **Descripcion:**
 
@@ -964,29 +964,29 @@ Modificar `payroll-calculation.ts` para aplicar descuentos activos de cada emple
 
 **Pasos de implementacion:**
 
-- [ ] Crear seccion "Descuentos" en pagina de perfil de empleado
-    - [ ] Lista de descuentos con columnas: tipo, label, metodo, valor, status, progreso
-    - [ ] Badge de status con colores (verde=ACTIVE, amarillo=PAUSED, gris=COMPLETED, rojo=CANCELLED)
-    - [ ] Progress bar para descuentos INSTALLMENTS (ej: "3/10 cuotas - $1,500 restante")
-- [ ] Crear formulario/modal de creacion de descuento
-    - [ ] Selector de tipo (INFONAVIT, ALIMONY, FONACOT, etc.)
-    - [ ] Campos dinamicos segun tipo:
-        - [ ] INFONAVIT: metodo (% SBC / fijo / VSM), valor, numero de credito
-        - [ ] ALIMONY: metodo (% neto / fijo), valor, expediente judicial
-        - [ ] LOAN/ADVANCE: monto total, numero de cuotas, valor por cuota
-        - [ ] OTHER: label personalizado, metodo, valor
-    - [ ] Fecha inicio y fecha fin (opcional)
-    - [ ] Campo de notas
-- [ ] Acciones en lista: pausar, reactivar, cancelar
-- [ ] Crear vista global de descuentos (admin)
-    - [ ] Tabla con todos los descuentos de la organizacion
-    - [ ] Filtros: tipo, status, empleado
-    - [ ] Totales agregados por tipo
-- [ ] Modificar vista de payroll run:
-    - [ ] Agregar columna "Descuentos" con monto total
-    - [ ] Tooltip/expandible con desglose por tipo
-    - [ ] Indicador si hay descuentos que excedieron el neto
-- [ ] Verificar que solo admins tienen acceso a crear/modificar descuentos
+- [x] Crear seccion "Descuentos" en pagina de perfil de empleado
+    - [x] Lista de descuentos con columnas: tipo, label, metodo, valor, status, progreso
+    - [x] Badge de status con colores (verde=ACTIVE, amarillo=PAUSED, gris=COMPLETED, rojo=CANCELLED)
+    - [x] Progress bar para descuentos INSTALLMENTS (ej: "3/10 cuotas - $1,500 restante")
+- [x] Crear formulario/modal de creacion de descuento
+    - [x] Selector de tipo (INFONAVIT, ALIMONY, FONACOT, etc.)
+    - [x] Campos dinamicos segun tipo:
+        - [x] INFONAVIT: metodo (% SBC / fijo / VSM), valor, numero de credito
+        - [x] ALIMONY: metodo (% neto / fijo), valor, expediente judicial
+        - [x] LOAN/ADVANCE: monto total, numero de cuotas, valor por cuota
+        - [x] OTHER: label personalizado, metodo, valor
+    - [x] Fecha inicio y fecha fin (opcional)
+    - [x] Campo de notas
+- [x] Acciones en lista: pausar, reactivar, cancelar
+- [x] Crear vista global de descuentos (admin)
+    - [x] Tabla con todos los descuentos de la organizacion
+    - [x] Filtros: tipo, status, empleado
+    - [x] Totales agregados por tipo
+- [x] Modificar vista de payroll run:
+    - [x] Agregar columna "Descuentos" con monto total
+    - [x] Tooltip/expandible con desglose por tipo
+    - [x] Indicador si hay descuentos que excedieron el neto
+- [x] Verificar que solo admins tienen acceso a crear/modificar descuentos
 
 ---
 

@@ -955,6 +955,8 @@ export const mutationKeys = {
 	 */
 	organizationMembers: {
 		create: ['organizationMembers', 'create'] as const,
+		add: ['organizationMembers', 'add'] as const,
+		update: ['organizationMembers', 'update'] as const,
 	},
 
 	deviceAuth: {

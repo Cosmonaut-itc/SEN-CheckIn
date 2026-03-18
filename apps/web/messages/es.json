@@ -2830,6 +2830,7 @@
 			"label": "Organización",
 			"placeholder": "Selecciona una organización",
 			"loading": "Cargando organizaciones...",
+			"loadError": "No se pudieron cargar las organizaciones.",
 			"helper": "Selecciona una organización para ver miembros y crear usuarios.",
 			"fallback": "una organización"
 		},
@@ -2838,7 +2839,11 @@
 			"createUser": "Crear usuario",
 			"creating": "Creando...",
 			"assignExisting": "Asignar usuario existente",
-			"assigning": "Asignando..."
+			"assigning": "Asignando...",
+			"saveRole": "Guardar rol",
+			"savingRole": "Guardando...",
+			"changeRoleFor": "Cambiar rol de {user}",
+			"saveRoleFor": "Guardar rol de {user}"
 		},
 		"dialog": {
 			"title": "Crear usuario",
@@ -2872,23 +2877,27 @@
 			"userRequired": "Selecciona un usuario"
 		},
 		"errors": {
-			"passwordTooShort": "La contrasena debe tener al menos 8 caracteres.",
-			"passwordTooLong": "La contrasena es demasiado larga.",
-			"passwordRequired": "La contrasena es requerida.",
-			"invalidEmail": "El correo electronico no es valido.",
-			"emailRequired": "El correo electronico es requerido.",
+			"passwordTooShort": "La contraseña debe tener al menos 8 caracteres.",
+			"passwordTooLong": "La contraseña es demasiado larga.",
+			"passwordRequired": "La contraseña es requerida.",
+			"invalidEmail": "El correo electrónico no es válido.",
+			"emailRequired": "El correo electrónico es requerido.",
 			"emailAlreadyExists": "Ya existe un usuario con ese correo.",
-			"usernameTaken": "El usuario ya esta en uso.",
-			"usernameInvalid": "El usuario no es valido.",
+			"usernameTaken": "El usuario ya está en uso.",
+			"usernameInvalid": "El usuario no es válido.",
 			"usernameTooShort": "El usuario es demasiado corto.",
 			"usernameTooLong": "El usuario es demasiado largo.",
 			"nameRequired": "El nombre es requerido.",
 			"usernameRequired": "El usuario es requerido.",
-			"organizationRequired": "Selecciona una organizacion.",
-			"organizationMembershipRequired": "Debes pertenecer a la organizacion para agregar usuarios.",
+			"organizationRequired": "Selecciona una organización.",
+			"organizationMembershipRequired": "Debes pertenecer a la organización para agregar usuarios.",
 			"organizationAdminRequired": "Solo los administradores pueden agregar usuarios.",
+			"roleUpdateOwnerProtected": "El rol de propietario no se puede cambiar desde este flujo.",
+			"roleUpdateOrganizationMembershipRequired": "Debes pertenecer a la organización para actualizar miembros.",
+			"roleUpdateOrganizationAdminRequired": "Solo los administradores de la organización pueden actualizar roles.",
+			"roleUpdateMemberNotFound": "El miembro ya no existe en esta organización.",
 			"createFailed": "No se pudo crear el usuario. Revisa los datos e intenta de nuevo.",
-			"addMemberFailed": "No se pudo asignar el usuario a la organizacion."
+			"addMemberFailed": "No se pudo asignar el usuario a la organización."
 		},
 		"roles": {
 			"owner": "Propietario",
@@ -2907,7 +2916,11 @@
 				"joined": "Ingreso"
 			},
 			"empty": "No se encontraron miembros.",
-			"emptyNoOrganization": "Selecciona una organización para ver miembros."
+			"emptyNoOrganization": "Selecciona una organización para ver miembros.",
+			"loadError": "No se pudieron cargar los miembros."
+		},
+		"roleEditor": {
+			"ownerProtected": "El rol de propietario se mantiene fuera de este flujo."
 		},
 		"dateFormat": "dd/MM/yyyy",
 		"toast": {
@@ -2915,7 +2928,12 @@
 			"createSuccess": "Usuario creado y agregado a la organización",
 			"createError": "No se pudo crear el usuario",
 			"assignSuccess": "Usuario asignado a la organización",
-			"assignError": "No se pudo asignar el usuario"
+			"assignError": "No se pudo asignar el usuario",
+			"roleUpdateSuccess": "Rol actualizado correctamente",
+			"roleUpdateError": "No se pudo actualizar el rol",
+			"loadOrganizationsError": "No se pudieron cargar las organizaciones",
+			"loadMembersError": "No se pudieron cargar los miembros",
+			"loadUsersError": "No se pudieron cargar los usuarios"
 		}
 	},
 	"Organizations": {

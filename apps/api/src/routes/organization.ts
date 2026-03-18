@@ -2,7 +2,7 @@ import { type SQL, and, asc, count, desc, eq, ilike, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
-import { auth } from '../../utils/auth.js';
+import { auth, organizationHooks } from '../../utils/auth.js';
 import db from '../db/index.js';
 import { member, organization, user as userTable } from '../db/schema.js';
 import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
@@ -23,6 +23,12 @@ const provisionUserSchema = z.object({
 	password: z.string().min(8, 'PASSWORD_TOO_SHORT'),
 	role: z.enum(['admin', 'member']),
 	organizationId: z.string().min(1, 'ORGANIZATION_REQUIRED'),
+});
+
+const updateMemberRoleSchema = z.object({
+	memberId: z.string().min(1, 'memberId is required'),
+	organizationId: z.string().optional(),
+	role: z.enum(['admin', 'member']),
 });
 
 /**
@@ -445,7 +451,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return buildErrorResponse('Organization is required', 400);
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
 			}
 
 			if (!isSuperUser) {
@@ -535,7 +543,9 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			if (!organizationId) {
 				set.status = 400;
-				return buildErrorResponse('Organization is required', 400);
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
 			}
 
 			if (!isSuperUser) {
@@ -706,5 +716,207 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 		},
 		{
 			body: provisionUserSchema,
+		},
+	)
+	/**
+	 * Update an organization member role for organization admins and owners.
+	 *
+	 * @route POST /organization/update-member-role-direct
+	 * @returns success flag and updated member snapshot
+	 */
+	.post(
+		'/update-member-role-direct',
+		async ({ body, request, session, set, user }) => {
+			const organizationId = body.organizationId ?? session.activeOrganizationId ?? null;
+			const isSuperUser = user.role === 'admin';
+
+			if (!organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
+			}
+
+			if (!isSuperUser) {
+				const membership = await db
+					.select({ role: member.role })
+					.from(member)
+					.where(
+						and(
+							eq(member.userId, session.userId),
+							eq(member.organizationId, organizationId),
+						),
+					)
+					.limit(1);
+
+				const callerRole = membership[0]?.role ?? null;
+
+				if (!callerRole) {
+					set.status = 403;
+					return buildErrorResponse(
+						'You must belong to the organization to update members',
+						403,
+						{ code: 'ORGANIZATION_MEMBERSHIP_REQUIRED' },
+					);
+				}
+
+				if (callerRole !== 'admin' && callerRole !== 'owner') {
+					set.status = 403;
+					return buildErrorResponse(
+						'Only organization admins can update member roles',
+						403,
+						{ code: 'ORGANIZATION_ADMIN_REQUIRED' },
+					);
+				}
+			}
+
+			const targetMembership = await db
+				.select({
+					createdAt: member.createdAt,
+					id: member.id,
+					organizationId: member.organizationId,
+					role: member.role,
+					userId: member.userId,
+				})
+				.from(member)
+				.where(and(eq(member.id, body.memberId), eq(member.organizationId, organizationId)))
+				.limit(1);
+
+			const targetMember = targetMembership[0] ?? null;
+
+			if (!targetMember) {
+				set.status = 404;
+				return buildErrorResponse('Member not found', 404, {
+					code: 'MEMBER_NOT_FOUND',
+				});
+			}
+
+			if (targetMember.role === 'owner') {
+				set.status = 403;
+				return buildErrorResponse('Owner role cannot be changed from this endpoint', 403, {
+					code: 'OWNER_ROLE_PROTECTED',
+				});
+			}
+
+			try {
+				if (isSuperUser) {
+					const shouldRunOrganizationHooks = Boolean(
+						organizationHooks.beforeUpdateMemberRole ||
+						organizationHooks.afterUpdateMemberRole,
+					);
+					const organizationRecord = shouldRunOrganizationHooks
+						? await db.query.organization.findFirst({
+								where: eq(organization.id, organizationId),
+							})
+						: null;
+					const userBeingUpdated = shouldRunOrganizationHooks
+						? await db.query.user.findFirst({
+								where: eq(userTable.id, targetMember.userId),
+							})
+						: null;
+					const beforeHookResult =
+						shouldRunOrganizationHooks &&
+						organizationRecord &&
+						userBeingUpdated &&
+						organizationHooks.beforeUpdateMemberRole
+							? await organizationHooks.beforeUpdateMemberRole({
+									member: targetMember,
+									newRole: body.role,
+									organization: organizationRecord,
+									user: userBeingUpdated,
+								})
+							: undefined;
+					const hookRole =
+						beforeHookResult &&
+						typeof beforeHookResult === 'object' &&
+						'data' in beforeHookResult
+							? (beforeHookResult.data?.role ?? body.role)
+							: body.role;
+					const roleToPersist =
+						hookRole === 'admin' || hookRole === 'member' ? hookRole : body.role;
+
+					await db
+						.update(member)
+						.set({ role: roleToPersist })
+						.where(
+							and(
+								eq(member.id, body.memberId),
+								eq(member.organizationId, organizationId),
+							),
+						);
+				} else {
+					const sessionHeaders = buildSessionHeaders(request);
+					await auth.api.updateMemberRole({
+						body: {
+							memberId: body.memberId,
+							organizationId,
+							role: body.role,
+						},
+						headers: sessionHeaders,
+					});
+				}
+
+				const updatedMembership = await db
+					.select({
+						createdAt: member.createdAt,
+						id: member.id,
+						organizationId: member.organizationId,
+						role: member.role,
+						userId: member.userId,
+					})
+					.from(member)
+					.where(
+						and(
+							eq(member.id, body.memberId),
+							eq(member.organizationId, organizationId),
+						),
+					)
+					.limit(1);
+				const updatedMember = updatedMembership[0] ?? null;
+				if (isSuperUser && updatedMember && organizationHooks.afterUpdateMemberRole) {
+					const organizationRecord = await db.query.organization.findFirst({
+						where: eq(organization.id, organizationId),
+					});
+					const userBeingUpdated = await db.query.user.findFirst({
+						where: eq(userTable.id, updatedMember.userId),
+					});
+
+					if (organizationRecord && userBeingUpdated) {
+						await organizationHooks.afterUpdateMemberRole({
+							member: updatedMember,
+							organization: organizationRecord,
+							previousRole: targetMember.role,
+							user: userBeingUpdated,
+						});
+					}
+				}
+
+				return { success: true, data: { member: updatedMember } };
+			} catch (error) {
+				console.error('Failed to update member role:', error);
+				const errorObject =
+					error && typeof error === 'object' ? (error as Record<string, unknown>) : null;
+				const isBetterAuthError = errorObject
+					? 'status' in errorObject ||
+						'statusCode' in errorObject ||
+						'body' in errorObject
+					: false;
+				if (!isBetterAuthError) {
+					set.status = 500;
+					return buildErrorResponse('Failed to update member role', 500);
+				}
+
+				const normalizedError = normalizeBetterAuthError(
+					error,
+					'Failed to update member role',
+				);
+				set.status = normalizedError.status;
+				return buildErrorResponse(normalizedError.message, normalizedError.status, {
+					code: normalizedError.code,
+				});
+			}
+		},
+		{
+			body: updateMemberRoleSchema,
 		},
 	);

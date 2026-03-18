@@ -6,11 +6,15 @@ import {
 	bearer,
 	deviceAuthorization,
 	organization,
+	type OrganizationOptions,
 	username,
 } from 'better-auth/plugins';
 import db from '../src/db/index.js';
 import * as schema from '../src/db/schema.js';
-import { buildConfiguredOriginAllowlist, resolveTrustedOrigins } from '../src/utils/origin-allowlist.js';
+import {
+	buildConfiguredOriginAllowlist,
+	resolveTrustedOrigins,
+} from '../src/utils/origin-allowlist.js';
 
 /**
  * BetterAuth configuration for the Sen CheckIn API.
@@ -39,6 +43,8 @@ const configuredOrigins = buildConfiguredOriginAllowlist({
 	authBaseUrl: AUTH_BASE_URL,
 	corsOrigin: process.env.CORS_ORIGIN,
 });
+
+export const organizationHooks: NonNullable<OrganizationOptions['organizationHooks']> = {};
 
 const authOptions: AuthOptions = {
 	database: drizzleAdapter(db, {
@@ -85,6 +91,7 @@ const authOptions: AuthOptions = {
 			// Restrict organization creation to platform superusers.
 			allowUserToCreateOrganization: async (user) =>
 				process.env.NODE_ENV === 'production' ? user.role === 'admin' : true,
+			organizationHooks,
 		}),
 		/**
 		 * Username plugin to enable username-based sign-in.

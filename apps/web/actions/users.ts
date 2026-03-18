@@ -58,9 +58,20 @@ export type CreateOrganizationUserErrorCode =
 	| 'UNKNOWN';
 
 /**
+ * Error codes for organization member role updates.
+ */
+export type UpdateOrganizationMemberRoleErrorCode =
+	| 'ORGANIZATION_REQUIRED'
+	| 'ORGANIZATION_MEMBERSHIP_REQUIRED'
+	| 'ORGANIZATION_ADMIN_REQUIRED'
+	| 'OWNER_ROLE_PROTECTED'
+	| 'MEMBER_NOT_FOUND'
+	| 'UNKNOWN';
+
+/**
  * Result of a mutation operation.
  */
-export interface MutationResult<T = unknown> {
+export interface MutationResult<T = unknown, TErrorCode extends string = string> {
 	/** Whether the operation was successful */
 	success: boolean;
 	/** The data returned from the operation */
@@ -68,7 +79,7 @@ export interface MutationResult<T = unknown> {
 	/** Error message if the operation failed */
 	error?: string;
 	/** Error code if the operation failed */
-	errorCode?: CreateOrganizationUserErrorCode;
+	errorCode?: TErrorCode;
 }
 
 /**
@@ -92,6 +103,18 @@ export interface AddOrganizationMemberInput {
 	/** Target organization ID */
 	organizationId: string;
 	/** Role to assign within the organization */
+	role: 'admin' | 'member';
+}
+
+/**
+ * Input data for updating a member role within an organization.
+ */
+export interface UpdateOrganizationMemberRoleInput {
+	/** Organization member id */
+	memberId: string;
+	/** Target organization ID */
+	organizationId: string;
+	/** New role to assign within the organization */
 	role: 'admin' | 'member';
 }
 
@@ -129,6 +152,15 @@ const CREATE_USER_ERROR_CODES = new Set<CreateOrganizationUserErrorCode>([
 	'USER_SIGNUP_FAILED',
 	'ADD_MEMBER_FAILED',
 	'PROVISION_USER_FAILED',
+	'UNKNOWN',
+]);
+
+const UPDATE_MEMBER_ROLE_ERROR_CODES = new Set<UpdateOrganizationMemberRoleErrorCode>([
+	'ORGANIZATION_REQUIRED',
+	'ORGANIZATION_MEMBERSHIP_REQUIRED',
+	'ORGANIZATION_ADMIN_REQUIRED',
+	'OWNER_ROLE_PROTECTED',
+	'MEMBER_NOT_FOUND',
 	'UNKNOWN',
 ]);
 
@@ -275,6 +307,127 @@ function resolveCreateUserErrorCode(error: unknown): CreateOrganizationUserError
 }
 
 /**
+ * Normalizes raw role-update error codes into a known value.
+ *
+ * @param value - Raw error code from the API payload
+ * @returns Normalized error code or null when unavailable
+ */
+function normalizeUpdateOrganizationMemberRoleErrorCode(
+	value: string,
+): UpdateOrganizationMemberRoleErrorCode | null {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return null;
+	}
+
+	const normalized = trimmed
+		.replace(/[^a-zA-Z0-9]+/g, '_')
+		.replace(/^_+|_+$/g, '')
+		.toUpperCase();
+
+	if (UPDATE_MEMBER_ROLE_ERROR_CODES.has(normalized as UpdateOrganizationMemberRoleErrorCode)) {
+		return normalized as UpdateOrganizationMemberRoleErrorCode;
+	}
+
+	return null;
+}
+
+/**
+ * Extracts the API error payload details from a treaty client error object.
+ *
+ * @param error - Error payload returned by the API client
+ * @returns Best-effort error message and code from the payload
+ */
+function extractApiErrorInfo(error: unknown): { code: string | null; message: string | null } {
+	const payload = error as { message?: unknown; value?: ApiErrorPayload } | null;
+	const candidateCodes: string[] = [];
+	const candidateMessages: string[] = [];
+
+	const value = payload?.value;
+	if (!value || typeof value !== 'object') {
+		if (typeof payload?.message === 'string') {
+			candidateMessages.push(payload.message);
+		}
+
+		return {
+			code: candidateCodes.find((candidate) => candidate.trim().length > 0)?.trim() ?? null,
+			message:
+				candidateMessages
+					.find(
+						(candidate) =>
+							candidate.trim().length > 0 && candidate.trim() !== '[object Object]',
+					)
+					?.trim() ?? null,
+		};
+	}
+
+	const topLevelCode = (value as { code?: unknown }).code;
+	if (typeof topLevelCode === 'string') {
+		candidateCodes.push(topLevelCode);
+	}
+
+	const errorObject = typeof value.error === 'object' && value.error ? value.error : null;
+
+	if (errorObject && typeof errorObject === 'object') {
+		const code = (errorObject as { code?: unknown }).code;
+		if (typeof code === 'string') {
+			candidateCodes.push(code);
+		}
+
+		const message = (errorObject as { message?: unknown }).message;
+		if (typeof message === 'string') {
+			candidateMessages.push(message);
+		}
+
+		const summary = extractValidationSummary((errorObject as { details?: unknown }).details);
+		if (summary) {
+			candidateMessages.push(summary);
+		}
+	}
+
+	if (typeof value.error === 'string') {
+		candidateMessages.push(value.error);
+	}
+
+	const topLevelSummary = extractValidationSummary((value as { details?: unknown }).details);
+	if (topLevelSummary) {
+		candidateMessages.push(topLevelSummary);
+	}
+
+	if (typeof payload?.message === 'string') {
+		candidateMessages.push(payload.message);
+	}
+
+	return {
+		code: candidateCodes.find((candidate) => candidate.trim().length > 0)?.trim() ?? null,
+		message:
+			candidateMessages
+				.find(
+					(candidate) =>
+						candidate.trim().length > 0 && candidate.trim() !== '[object Object]',
+				)
+				?.trim() ?? null,
+	};
+}
+
+/**
+ * Resolves the role-update error code from a treaty client error payload.
+ *
+ * @param error - Error payload returned by the API client
+ * @returns Normalized update-role error code or null when unavailable
+ */
+function resolveUpdateOrganizationMemberRoleErrorCode(
+	error: unknown,
+): UpdateOrganizationMemberRoleErrorCode | null {
+	const errorCode = extractApiErrorInfo(error).code;
+	if (!errorCode) {
+		return null;
+	}
+
+	return normalizeUpdateOrganizationMemberRoleErrorCode(errorCode);
+}
+
+/**
  * Creates a new user and assigns them to an organization.
  *
  * @param input - User details and organization assignment
@@ -282,7 +435,7 @@ function resolveCreateUserErrorCode(error: unknown): CreateOrganizationUserError
  */
 export async function createOrganizationUser(
 	input: CreateOrganizationUserInput,
-): Promise<MutationResult<{ userId: string }>> {
+): Promise<MutationResult<{ userId: string }, CreateOrganizationUserErrorCode>> {
 	try {
 		const requestHeaders = await headers();
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
@@ -375,6 +528,69 @@ export async function addOrganizationMember(
 		return {
 			success: false,
 			error: 'Failed to assign user to organization',
+		};
+	}
+}
+
+/**
+ * Updates an existing organization member role.
+ *
+ * Uses the API route instead of calling Better Auth directly from the client so
+ * platform superusers can manage memberships across organizations consistently.
+ *
+ * @param input - Member role update payload
+ * @returns Mutation result with optional member snapshot
+ */
+export async function updateOrganizationMemberRole(
+	input: UpdateOrganizationMemberRoleInput,
+): Promise<
+	MutationResult<
+		{
+		member?: {
+			id: string;
+			organizationId: string;
+			role: string;
+			userId: string;
+		} | null;
+		},
+		UpdateOrganizationMemberRoleErrorCode
+	>
+> {
+	try {
+		const fallbackMessage = 'No se pudo actualizar el rol';
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
+
+		const response = await api.organization['update-member-role-direct'].post({
+			memberId: input.memberId,
+			organizationId: input.organizationId,
+			role: input.role,
+		});
+
+		if (response.error) {
+			const errorInfo = extractApiErrorInfo(response.error);
+			return {
+				success: false,
+				error: errorInfo.message ?? fallbackMessage,
+				errorCode:
+					resolveUpdateOrganizationMemberRoleErrorCode(response.error) ?? 'UNKNOWN',
+			};
+		}
+
+		const payload = getApiResponseData(response);
+		return {
+			success: true,
+			data: {
+				member: payload?.data?.member ?? null,
+			},
+		};
+	} catch (error) {
+		console.error('Failed to update organization member role:', error);
+		return {
+			success: false,
+			error: 'No se pudo actualizar el rol',
+			errorCode: 'UNKNOWN',
 		};
 	}
 }

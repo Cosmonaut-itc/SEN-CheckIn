@@ -171,22 +171,7 @@ describe('CheckOutReasonSheet', () => {
 		expect(mockImpactAsync).toHaveBeenCalledWith('light');
 	});
 
-	it('calls onClose when the user cancels the selector', () => {
-		render(
-			<CheckOutReasonSheet
-				isOpen
-				onClose={mockOnClose}
-				onSelectReason={mockOnSelectReason}
-			/>,
-		);
-
-		fireEvent.press(screen.getByText('Cancelar'));
-
-		expect(mockOnClose).toHaveBeenCalledTimes(1);
-		expect(mockOnSelectReason).not.toHaveBeenCalled();
-	});
-
-	it('configures the Hero UI Native sheet sizing to keep three options visible without losing footer separation', () => {
+	it('configures the Hero UI Native sheet sizing to keep three options visible', () => {
 		const { getByTestId } = render(
 			<CheckOutReasonSheet
 				isOpen
@@ -198,24 +183,17 @@ describe('CheckOutReasonSheet', () => {
 		expect(mockBottomSheetContent).toHaveBeenCalled();
 
 		const [contentProps] = mockBottomSheetContent.mock.calls.at(-1) as [Record<string, unknown>];
-		const footer = getByTestId('check-out-reason-footer');
-		const scrollArea = getByTestId('check-out-reason-scroll');
+		const optionsArea = getByTestId('check-out-reason-options');
 
 		expect(contentProps.backgroundClassName).toEqual(expect.stringContaining('bg-background'));
 		expect(contentProps.backgroundClassName).toEqual(expect.stringContaining('shadow-none'));
 		expect(contentProps.contentContainerClassName).toEqual(expect.stringContaining('px-5'));
-		expect(contentProps.snapPoints).toEqual(['74%']);
+		expect(contentProps.enableDynamicSizing).toBe(true);
 		expect(contentProps.contentContainerProps).toMatchObject({
 			style: {
 				paddingBottom: 36,
 			},
 		});
-		expect(footer.props.className).toEqual(expect.stringContaining('border-t'));
-		expect(footer.props.className).toEqual(expect.stringContaining('bg-background'));
-		expect(footer.props.className).toEqual(expect.stringContaining('pt-4'));
-		expect(scrollArea.props.showsVerticalScrollIndicator).toBe(false);
-		expect(scrollArea.props.style).toMatchObject({
-			maxHeight: 480,
-		});
+		expect(optionsArea.props.className).toEqual(expect.stringContaining('gap-3'));
 	});
 });

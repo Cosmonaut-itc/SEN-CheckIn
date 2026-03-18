@@ -25,6 +25,11 @@ const CHECK_OUT_REASON_OPTIONS: CheckOutReasonOption[] = [
 		label: i18n.t('Scanner.checkOutReason.options.personal.label'),
 		description: i18n.t('Scanner.checkOutReason.options.personal.description'),
 	},
+	{
+		value: 'REGULAR',
+		label: i18n.t('Scanner.checkOutReason.options.regular.label'),
+		description: i18n.t('Scanner.checkOutReason.options.regular.description'),
+	},
 ];
 
 export interface CheckOutReasonSheetProps {
@@ -41,7 +46,7 @@ export interface CheckOutReasonSheetProps {
  */
 export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Element {
 	const insets = useSafeAreaInsets();
-	const bottomPadding = Math.max(insets.bottom + 12, 24);
+	const bottomPadding = Math.max(insets.bottom + 12, 36);
 
 	return (
 		<BottomSheet
@@ -52,6 +57,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 				<BottomSheet.Overlay className="bg-overlay/80" />
 				<BottomSheet.Content
 					enablePanDownToClose
+					enableDynamicSizing
 					backgroundClassName="bg-background border border-default-200 rounded-t-xl shadow-none"
 					contentContainerClassName="px-5 pt-5"
 					contentContainerProps={{
@@ -60,7 +66,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 						},
 					}}
 				>
-					<View className="gap-5">
+					<View className="gap-5 pb-8">
 						<View className="gap-2">
 							<BottomSheet.Title className="text-foreground text-2xl font-semibold">
 								{i18n.t('Scanner.checkOutReason.title')}
@@ -70,7 +76,7 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 							</BottomSheet.Description>
 						</View>
 
-						<View className="gap-3">
+						<View testID="check-out-reason-options" className="gap-3">
 							{CHECK_OUT_REASON_OPTIONS.map((option) => (
 								<Button
 									key={option.value}
@@ -97,7 +103,10 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 							))}
 						</View>
 
-						<View className="pt-1">
+						<View
+							testID="check-out-reason-footer"
+							className="border-t border-default-200 bg-background pt-4"
+						>
 							<Button
 								variant="ghost"
 								onPress={props.onClose}

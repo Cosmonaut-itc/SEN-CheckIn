@@ -16,8 +16,8 @@ describe('app.json configuration', () => {
 	};
 	const { expo } = config;
 
-	it('app name is checa.', () => {
-		expect(expo.name).toBe('checa.');
+	it('app name is checa', () => {
+		expect(expo.name).toBe('checa');
 	});
 
 	it('splash backgroundColor is Cobre Michoacano', () => {
@@ -54,12 +54,13 @@ describe('app.json configuration', () => {
 		expect(expo.ios.bundleIdentifier).toBe('com.senapps.sencheckin');
 	});
 
-	it('camera permission text references checa.', () => {
+	it('camera permission text stays aligned with the launcher name', () => {
 		const cameraPlugin = expo.plugins.find(
 			(plugin) => Array.isArray(plugin) && plugin[0] === 'expo-camera',
 		) as [string, { cameraPermission: string }] | undefined;
 
 		expect(cameraPlugin).toBeDefined();
-		expect(cameraPlugin?.[1].cameraPermission).toContain('checa.');
+		expect(cameraPlugin?.[1].cameraPermission).toContain(expo.name);
+		expect(cameraPlugin?.[1].cameraPermission).not.toContain(`${expo.name}. acceda`);
 	});
 });

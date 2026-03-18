@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "checa.",
+    "name": "checa",
     "slug": "sen-checkin",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -54,7 +54,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Permitir que checa. acceda a tu camara para verificar la asistencia"
+          "cameraPermission": "Permitir que checa acceda a tu camara para verificar la asistencia"
         }
       ]
     ],

@@ -124,7 +124,7 @@ describe('CheckOutReasonSheet', () => {
 		expect(screen.getByText('Motivo de salida')).toBeOnTheScreen();
 		expect(screen.getByText('Comida')).toBeOnTheScreen();
 		expect(screen.getByText('Personal')).toBeOnTheScreen();
-		expect(screen.queryByText('Fin de jornada')).not.toBeOnTheScreen();
+		expect(screen.getByText('Fin de jornada')).toBeOnTheScreen();
 	});
 
 	it('sends the selected reason when the user chooses an option', () => {
@@ -139,6 +139,34 @@ describe('CheckOutReasonSheet', () => {
 		fireEvent.press(screen.getByText('Comida'));
 
 		expect(mockOnSelectReason).toHaveBeenCalledWith('LUNCH_BREAK');
+	});
+
+	it('sends the regular reason when the user chooses end of day', () => {
+		render(
+			<CheckOutReasonSheet
+				isOpen
+				onClose={mockOnClose}
+				onSelectReason={mockOnSelectReason}
+			/>,
+		);
+
+		fireEvent.press(screen.getByText('Fin de jornada'));
+
+		expect(mockOnSelectReason).toHaveBeenCalledWith('REGULAR');
+	});
+
+	it('renders an explicit cancel action and closes the sheet when pressed', () => {
+		render(
+			<CheckOutReasonSheet
+				isOpen
+				onClose={mockOnClose}
+				onSelectReason={mockOnSelectReason}
+			/>,
+		);
+
+		fireEvent.press(screen.getByLabelText('Cancelar'));
+
+		expect(mockOnClose).toHaveBeenCalled();
 	});
 
 	it('triggers light haptic feedback when the user chooses an option', () => {
@@ -157,23 +185,8 @@ describe('CheckOutReasonSheet', () => {
 		expect(mockImpactAsync).toHaveBeenCalledWith('light');
 	});
 
-	it('calls onClose when the user cancels the selector', () => {
-		render(
-			<CheckOutReasonSheet
-				isOpen
-				onClose={mockOnClose}
-				onSelectReason={mockOnSelectReason}
-			/>,
-		);
-
-		fireEvent.press(screen.getByText('Cancelar'));
-
-		expect(mockOnClose).toHaveBeenCalledTimes(1);
-		expect(mockOnSelectReason).not.toHaveBeenCalled();
-	});
-
-	it('configures the Hero UI Native sheet background and spacing to avoid clipping', () => {
-		render(
+	it('configures the Hero UI Native sheet sizing to keep three options visible', () => {
+		const { getByTestId } = render(
 			<CheckOutReasonSheet
 				isOpen
 				onClose={mockOnClose}
@@ -184,15 +197,17 @@ describe('CheckOutReasonSheet', () => {
 		expect(mockBottomSheetContent).toHaveBeenCalled();
 
 		const [contentProps] = mockBottomSheetContent.mock.calls.at(-1) as [Record<string, unknown>];
+		const optionsArea = getByTestId('check-out-reason-options');
 
 		expect(contentProps.backgroundClassName).toEqual(expect.stringContaining('bg-background'));
 		expect(contentProps.backgroundClassName).toEqual(expect.stringContaining('shadow-none'));
 		expect(contentProps.contentContainerClassName).toEqual(expect.stringContaining('px-5'));
-		expect(contentProps.snapPoints).toBeUndefined();
+		expect(contentProps.enableDynamicSizing).toBe(true);
 		expect(contentProps.contentContainerProps).toMatchObject({
 			style: {
 				paddingBottom: 36,
 			},
 		});
+		expect(optionsArea.props.className).toEqual(expect.stringContaining('gap-3'));
 	});
 });

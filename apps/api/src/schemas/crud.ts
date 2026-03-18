@@ -404,7 +404,7 @@ export const createAttendanceSchema = z
 		timestamp: z.coerce.date().optional(),
 		type: attendanceTypeEnum,
 		checkOutReason: checkOutReasonEnum.optional(),
-		metadata: z.record(z.unknown()).optional(),
+		metadata: z.record(z.string(), z.unknown()).optional(),
 		offsiteDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key').optional(),
 		offsiteDayKind: offsiteDayKindEnum.optional(),
 		offsiteReason: z.string().min(10).max(500).optional(),

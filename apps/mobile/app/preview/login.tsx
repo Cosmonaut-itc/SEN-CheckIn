@@ -20,7 +20,9 @@ export default function PreviewLoginScreen(): JSX.Element {
 		'foreground',
 		'foreground-inverse',
 	]);
+	const previewUserCode = i18n.t('Preview.userCode');
 	const qrForeground = isDarkMode ? foregroundInverseColor : foregroundColor;
+	const previewQrValue = `https://sen-checkin.app/device?user_code=${previewUserCode.replace('-', '')}`;
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
 
 	return (
@@ -50,7 +52,7 @@ export default function PreviewLoginScreen(): JSX.Element {
 								className="text-5xl font-black tracking-[0.3em] text-foreground"
 								selectable
 							>
-								{i18n.t('Preview.userCode')}
+								{previewUserCode}
 							</Text>
 						</View>
 					</View>
@@ -65,7 +67,7 @@ export default function PreviewLoginScreen(): JSX.Element {
 							style={{ borderCurve: 'continuous' }}
 						>
 							<QRCode
-								value="https://sen-checkin.app/device?user_code=FDZVNDLH"
+								value={previewQrValue}
 								size={140}
 								bgColor="white"
 								fgColor={qrForeground}

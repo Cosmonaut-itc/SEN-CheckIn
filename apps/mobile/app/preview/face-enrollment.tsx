@@ -8,6 +8,8 @@ import { i18n } from '@/lib/i18n';
 import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useThemeColor } from '@/hooks/use-theme-color';
 
+type PreviewEmployee = [name: string, code: string, isSelected: boolean];
+
 /**
  * Face-enrollment preview route used for store listing capture.
  *
@@ -28,6 +30,11 @@ export default function PreviewFaceEnrollmentScreen(): JSX.Element {
 	);
 	const floatingBackButtonTop = Math.max(8, insets.top + 8);
 	const contentTopPadding = floatingBackButtonTop + 64;
+	const previewEmployees: PreviewEmployee[] = [
+		[i18n.t('Preview.employeeOne'), i18n.t('Preview.employeeCodeOne'), true],
+		[i18n.t('Preview.employeeTwo'), i18n.t('Preview.employeeCodeTwo'), false],
+		[i18n.t('Preview.employeeThree'), i18n.t('Preview.employeeCodeThree'), false],
+	];
 
 	return (
 		<View className="flex-1 bg-background">
@@ -60,11 +67,7 @@ export default function PreviewFaceEnrollmentScreen(): JSX.Element {
 							style={{ borderRadius: inputBorderRadius }}
 						/>
 						<View className="gap-2">
-							{[
-								[i18n.t('Preview.employeeOne'), i18n.t('Preview.employeeCodeOne'), true],
-								[i18n.t('Preview.employeeTwo'), i18n.t('Preview.employeeCodeTwo'), false],
-								[i18n.t('Preview.employeeThree'), i18n.t('Preview.employeeCodeThree'), false],
-							].map(([name, code, isSelected]) => (
+							{previewEmployees.map(([name, code, isSelected]) => (
 								<Button
 									key={`${name}`}
 									variant={isSelected ? 'primary' : 'secondary'}

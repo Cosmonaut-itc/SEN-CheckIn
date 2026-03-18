@@ -155,6 +155,20 @@ describe('CheckOutReasonSheet', () => {
 		expect(mockOnSelectReason).toHaveBeenCalledWith('REGULAR');
 	});
 
+	it('renders an explicit cancel action and closes the sheet when pressed', () => {
+		render(
+			<CheckOutReasonSheet
+				isOpen
+				onClose={mockOnClose}
+				onSelectReason={mockOnSelectReason}
+			/>,
+		);
+
+		fireEvent.press(screen.getByLabelText('Cancelar'));
+
+		expect(mockOnClose).toHaveBeenCalled();
+	});
+
 	it('triggers light haptic feedback when the user chooses an option', () => {
 		process.env.EXPO_OS = 'ios';
 

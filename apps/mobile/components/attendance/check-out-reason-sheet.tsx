@@ -102,22 +102,6 @@ export function CheckOutReasonSheet(props: CheckOutReasonSheetProps): JSX.Elemen
 								</Button>
 							))}
 						</View>
-
-						<View
-							testID="check-out-reason-footer"
-							className="border-t border-default-200 bg-background pt-4"
-						>
-							<Button
-								variant="ghost"
-								onPress={props.onClose}
-								className="border border-transparent"
-								accessibilityLabel={i18n.t('Common.cancel')}
-							>
-								<Button.Label className="text-foreground-500 font-medium">
-									{i18n.t('Common.cancel')}
-								</Button.Label>
-							</Button>
-						</View>
 					</View>
 				</BottomSheet.Content>
 			</BottomSheet.Portal>

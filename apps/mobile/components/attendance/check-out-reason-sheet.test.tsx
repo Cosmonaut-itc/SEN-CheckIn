@@ -14,7 +14,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('expo-haptics', () => ({
 	ImpactFeedbackStyle: { Light: 'light' },
-	impactAsync: (...args: unknown[]) => mockImpactAsync(...args),
+	impactAsync: (...args) => mockImpactAsync(...args),
 }));
 
 jest.mock('heroui-native', () => {
@@ -153,20 +153,6 @@ describe('CheckOutReasonSheet', () => {
 		fireEvent.press(screen.getByText('Fin de jornada'));
 
 		expect(mockOnSelectReason).toHaveBeenCalledWith('REGULAR');
-	});
-
-	it('renders an explicit cancel action and closes the sheet when pressed', () => {
-		render(
-			<CheckOutReasonSheet
-				isOpen
-				onClose={mockOnClose}
-				onSelectReason={mockOnSelectReason}
-			/>,
-		);
-
-		fireEvent.press(screen.getByLabelText('Cancelar'));
-
-		expect(mockOnClose).toHaveBeenCalled();
 	});
 
 	it('triggers light haptic feedback when the user chooses an option', () => {

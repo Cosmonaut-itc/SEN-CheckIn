@@ -173,6 +173,27 @@ describe('recognition routes', () => {
 		});
 	});
 
+	it('accepts wrapped base64 image payloads', async () => {
+		const base64Image = Buffer.from('mime wrapped payload').toString('base64');
+		const wrappedBase64Image = `${base64Image.slice(0, 8)}\n${base64Image.slice(8)}`;
+
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest({
+				image: wrappedBase64Image,
+			}),
+		);
+		const payload = (await response.json()) as {
+			matched: boolean;
+			errorCode?: string;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBeUndefined();
+	});
+
 	it('includes auth timing in the total server timing metric', async () => {
 		const { recognitionRoutes } = await import('./recognition.js');
 		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);

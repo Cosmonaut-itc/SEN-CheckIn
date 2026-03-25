@@ -50,6 +50,7 @@ export function setSearchUsersByImageResult(result: SearchUsersByImageResult): v
  */
 export function setSearchUsersByImageError(error: Error): void {
 	mockState.searchError = error;
+	mockState.searchResult = defaultSearchResult;
 }
 
 /**
@@ -141,7 +142,10 @@ export function setupRekognitionMocks(): void {
 			}),
 			searchUsersByImage: async (): Promise<SearchUsersByImageResult> => {
 				if (mockState.searchError) {
-					throw mockState.searchError;
+					const error = mockState.searchError;
+					mockState.searchError = null;
+					mockState.searchResult = defaultSearchResult;
+					throw error;
 				}
 				return mockState.searchResult;
 			},

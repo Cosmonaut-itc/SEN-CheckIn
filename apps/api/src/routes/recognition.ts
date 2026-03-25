@@ -27,6 +27,7 @@ import {
  */
 const DEFAULT_SIMILARITY_THRESHOLD = 80;
 const BASE64_IMAGE_PREFIX_PATTERN = /^data:image\/\w+;base64,/;
+const BASE64_WHITESPACE_PATTERN = /\s+/g;
 const BASE64_PAYLOAD_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 interface RecognitionStageTimings {
@@ -120,7 +121,9 @@ function measureSync<T>(operation: () => T): { durationMs: number; result: T } {
  * @throws Error when the payload is not valid base64 image data
  */
 function decodeBase64Image(base64String: string): Uint8Array {
-	const cleanBase64 = base64String.replace(BASE64_IMAGE_PREFIX_PATTERN, '');
+	const cleanBase64 = base64String
+		.replace(BASE64_IMAGE_PREFIX_PATTERN, '')
+		.replace(BASE64_WHITESPACE_PATTERN, '');
 
 	if (!BASE64_PAYLOAD_PATTERN.test(cleanBase64)) {
 		throw new RecognitionBadRequestError(

@@ -14,7 +14,7 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('expo-haptics', () => ({
 	ImpactFeedbackStyle: { Light: 'light' },
-	impactAsync: (...args) => mockImpactAsync(...args),
+	impactAsync: (...args: unknown[]) => mockImpactAsync(...args),
 }));
 
 jest.mock('heroui-native', () => {

@@ -127,6 +127,7 @@
 			"verifying": "Verificando rostro...",
 			"captureFailed": "No se pudo capturar la imagen. Inténtalo de nuevo.",
 			"faceNotRecognized": "Rostro no reconocido. Inténtalo de nuevo.",
+			"verificationRetryable": "No pudimos validar el rostro por un problema temporal. Inténtalo de nuevo.",
 			"verificationFailed": "La verificación falló. Vuelve a intentar."
 		},
 		"checkOutReason": {

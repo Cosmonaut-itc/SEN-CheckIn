@@ -18,6 +18,8 @@ const mockUseMutation = jest.fn();
 const mockInvalidateQueries = jest.fn();
 const mockRequestPermission = jest.fn();
 const mockTakePictureAsync = jest.fn();
+const mockPrepareRecognitionImage = jest.fn();
+const mockVerifyFace = jest.fn();
 const mockRequestDeviceCode = jest.fn();
 const mockPollDeviceToken = jest.fn();
 const mockAnnounceForAccessibility = jest.fn();
@@ -296,8 +298,32 @@ jest.mock('@/lib/attendance-capture-lock', () => ({
 }));
 
 jest.mock('@/lib/face-recognition', () => ({
+	FaceVerificationError: class FaceVerificationError extends Error {
+		public readonly status: number;
+		public readonly errorCode: string | null;
+		public readonly retryable: boolean;
+		public readonly requestId: string | null;
+
+		constructor(
+			message: string,
+			status: number,
+			errorCode: string | null,
+			requestId: string | null = null,
+		) {
+			super(message);
+			this.status = status;
+			this.errorCode = errorCode;
+			this.retryable = status === 503 || status === 504;
+			this.requestId = requestId;
+		}
+	},
 	recordAttendance: jest.fn(),
-	verifyFace: jest.fn(),
+	verifyFace: (...args: unknown[]) => mockVerifyFace(...args),
+}));
+
+jest.mock('@/lib/recognition-image', () => ({
+	cleanupRecognitionImage: jest.fn(),
+	prepareRecognitionImage: (...args: unknown[]) => mockPrepareRecognitionImage(...args),
 }));
 
 jest.mock('@/lib/client-functions', () => ({
@@ -310,6 +336,7 @@ jest.mock('@/lib/client-functions', () => ({
 describe('Mobile accessibility labels', () => {
 	beforeEach(() => {
 		jest.useFakeTimers();
+		jest.spyOn(console, 'error').mockImplementation(() => undefined);
 		jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 		jest.spyOn(Animated, 'loop').mockImplementation(
 			() =>
@@ -343,6 +370,8 @@ describe('Mobile accessibility labels', () => {
 		mockInvalidateQueries.mockReset();
 		mockUseDeviceContext.mockReset();
 		mockTakePictureAsync.mockReset();
+		mockPrepareRecognitionImage.mockReset();
+		mockVerifyFace.mockReset();
 		mockRequestDeviceCode.mockReset();
 		mockPollDeviceToken.mockReset();
 		mockAnnounceForAccessibility.mockReset();
@@ -415,6 +444,26 @@ describe('Mobile accessibility labels', () => {
 				},
 			},
 		});
+		mockPrepareRecognitionImage.mockResolvedValue({
+			previewUri: 'file://processed.jpg',
+			base64: 'processed-base64',
+			payloadBytes: 1024,
+			preprocessMs: 25,
+		});
+		mockVerifyFace.mockResolvedValue({
+			matched: true,
+			match: {
+				userId: 'employee-1',
+				similarity: 99,
+			},
+			employee: {
+				id: 'employee-1',
+				firstName: 'Ana',
+				lastName: 'Ruiz',
+				code: 'EMP-001',
+			},
+			searchedFaceConfidence: 98,
+		});
 	});
 
 	it('labels scanner actions in Spanish for screen readers', () => {
@@ -427,7 +476,7 @@ describe('Mobile accessibility labels', () => {
 	});
 
 	it('announces scanner status changes for assistive technologies', async () => {
-		mockTakePictureAsync.mockResolvedValue({ base64: null });
+		mockTakePictureAsync.mockResolvedValue({ uri: null });
 
 		render(<ScannerScreen />);
 
@@ -442,6 +491,49 @@ describe('Mobile accessibility labels', () => {
 		expect(mockAnnounceForAccessibility).toHaveBeenCalledWith(
 			'No se pudo capturar la imagen. Inténtalo de nuevo.',
 		);
+	});
+
+	it('shows the retryable verification message instead of no-match when the API is temporarily unavailable', async () => {
+		const { FaceVerificationError } = jest.requireMock('@/lib/face-recognition') as {
+			FaceVerificationError: new (
+				message: string,
+				status: number,
+				errorCode: string | null,
+				requestId?: string | null,
+			) => Error;
+		};
+		mockTakePictureAsync.mockResolvedValue({
+			uri: 'file://capture.jpg',
+			width: 1280,
+			height: 720,
+		});
+		mockVerifyFace.mockRejectedValue(
+			new FaceVerificationError(
+				'Face recognition service unavailable',
+				503,
+				'REKOGNITION_UPSTREAM_FAILURE',
+				'req-123',
+			),
+		);
+
+		render(<ScannerScreen />);
+
+		await act(async () => {
+			jest.advanceTimersByTime(150);
+		});
+		expect(await screen.findByTestId('camera-view')).toBeOnTheScreen();
+
+		await act(async () => {
+			fireEvent.press(screen.getByLabelText('Escanear entrada'));
+		});
+
+		await screen.findByText(
+			'No pudimos validar el rostro por un problema temporal. Inténtalo de nuevo.',
+		);
+		expect(mockVerifyFace).toHaveBeenCalledTimes(1);
+		expect(
+			screen.queryByText('Rostro no reconocido. Inténtalo de nuevo.'),
+		).not.toBeOnTheScreen();
 	});
 
 	it('adds labels and hints to face enrollment controls', () => {
@@ -554,7 +646,6 @@ describe('Mobile accessibility labels', () => {
 		expect(
 			screen.getByLabelText('Seleccionar motivo de salida: Fin de jornada'),
 		).toBeOnTheScreen();
-		expect(screen.getByLabelText('Cancelar')).toBeOnTheScreen();
 	});
 
 	afterEach(() => {

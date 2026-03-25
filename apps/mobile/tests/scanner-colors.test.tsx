@@ -143,8 +143,19 @@ jest.mock('@/lib/i18n', () => ({
 }));
 
 jest.mock('@/lib/face-recognition', () => ({
+	FaceVerificationError: class FaceVerificationError extends Error {
+		public readonly status = 500;
+		public readonly errorCode: string | null = null;
+		public readonly retryable = false;
+		public readonly requestId: string | null = null;
+	},
 	recordAttendance: jest.fn(),
 	verifyFace: jest.fn(),
+}));
+
+jest.mock('@/lib/recognition-image', () => ({
+	cleanupRecognitionImage: jest.fn(),
+	prepareRecognitionImage: jest.fn(),
 }));
 
 jest.mock('@/lib/offline-attendance', () => ({

@@ -120,6 +120,10 @@ export interface RecognitionResult {
 	employee: MatchedEmployee | null;
 	/** Confidence score of the searched face detection, or null if detection failed */
 	searchedFaceConfidence: number | null;
+	/** Optional message providing additional context or error details */
+	message?: string;
+	/** Optional stable error code for failed recognition scenarios */
+	errorCode?: string;
 }
 
 // ============================================================================

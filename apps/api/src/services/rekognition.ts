@@ -13,6 +13,7 @@ import {
 	type SearchedFaceDetails,
 	type UserMatch,
 } from '@aws-sdk/client-rekognition';
+import { NodeHttpHandler } from '@smithy/node-http-handler';
 
 import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
 
@@ -22,6 +23,39 @@ import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
  *
  * @module services/rekognition
  */
+
+const DEFAULT_REKOGNITION_MAX_ATTEMPTS = 2;
+const DEFAULT_REKOGNITION_REQUEST_TIMEOUT_MS = 2500;
+const DEFAULT_REKOGNITION_CONNECTION_TIMEOUT_MS = 1000;
+
+/**
+ * Error thrown when Rekognition cannot complete a request successfully.
+ */
+export class RekognitionServiceError extends Error {
+	/** Stable error code returned to clients. */
+	public readonly errorCode: 'REKOGNITION_UPSTREAM_FAILURE' | 'REKOGNITION_UPSTREAM_TIMEOUT';
+
+	/** HTTP status to surface at the route boundary. */
+	public readonly httpStatus: 503 | 504;
+
+	/**
+	 * Creates a new RekognitionServiceError instance.
+	 *
+	 * @param message - Internal error message for logs
+	 * @param errorCode - Stable client-facing error code
+	 * @param httpStatus - HTTP status to return
+	 */
+	constructor(
+		message: string,
+		errorCode: 'REKOGNITION_UPSTREAM_FAILURE' | 'REKOGNITION_UPSTREAM_TIMEOUT',
+		httpStatus: 503 | 504,
+	) {
+		super(message);
+		this.name = 'RekognitionServiceError';
+		this.errorCode = errorCode;
+		this.httpStatus = httpStatus;
+	}
+}
 
 // ============================================================================
 // Configuration
@@ -33,9 +67,11 @@ import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
  * @throws Error if AWS_REGION_RKG is not set
  */
 function getAwsRegion(): string {
-	const region = process.env.AWS_REGION_RKG;
+	const region = process.env.AWS_REGION_RKG ?? process.env.AWS_REGION;
 	if (!region) {
-		throw new Error('AWS_REGION_RKG environment variable is required but not set.');
+		throw new Error(
+			'AWS_REGION or AWS_REGION_RKG environment variable is required but not set.',
+		);
 	}
 	return region;
 }
@@ -46,10 +82,12 @@ function getAwsRegion(): string {
  * @throws Error if AWS_REKOGNITION_COLLECTION_ID_RKG is not set
  */
 function getCollectionId(): string {
-	const collectionId = process.env.AWS_REKOGNITION_COLLECTION_ID_RKG;
+	const collectionId =
+		process.env.AWS_REKOGNITION_COLLECTION_ID_RKG ??
+		process.env.AWS_REKOGNITION_COLLECTION_ID;
 	if (!collectionId) {
 		throw new Error(
-			'AWS_REKOGNITION_COLLECTION_ID_RKG environment variable is required but not set.',
+			'AWS_REKOGNITION_COLLECTION_ID or AWS_REKOGNITION_COLLECTION_ID_RKG environment variable is required but not set.',
 		);
 	}
 	return collectionId;
@@ -66,8 +104,9 @@ function getRekognitionCredentials():
 			secretAccessKey: string;
 	  }
 	| undefined {
-	const accessKeyId = process.env.AWS_ACCESS_KEY_ID_RKG;
-	const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY_RKG;
+	const accessKeyId = process.env.AWS_ACCESS_KEY_ID_RKG ?? process.env.AWS_ACCESS_KEY_ID;
+	const secretAccessKey =
+		process.env.AWS_SECRET_ACCESS_KEY_RKG ?? process.env.AWS_SECRET_ACCESS_KEY;
 
 	if (!accessKeyId || !secretAccessKey) {
 		return undefined;
@@ -81,6 +120,22 @@ function getRekognitionCredentials():
  * Uses AWS credentials from the environment (CLI, IAM role, etc.).
  */
 let rekognitionClient: RekognitionClient | null = null;
+
+/**
+ * Reads a positive integer from the environment or falls back to a default.
+ *
+ * @param value - Raw environment variable value
+ * @param fallback - Default value to use when parsing fails
+ * @returns Parsed positive integer
+ */
+function parsePositiveInteger(value: string | undefined, fallback: number): number {
+	if (!value) {
+		return fallback;
+	}
+
+	const parsed = Number.parseInt(value, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
 
 /**
  * Builds the Rekognition service endpoint for a given region.
@@ -101,10 +156,28 @@ function getClient(): RekognitionClient {
 		const region = getAwsRegion();
 		const credentials = getRekognitionCredentials();
 		const endpoint = getRekognitionEndpoint(region);
+		const maxAttempts = parsePositiveInteger(
+			process.env.AWS_REKOGNITION_MAX_ATTEMPTS,
+			DEFAULT_REKOGNITION_MAX_ATTEMPTS,
+		);
+		const requestTimeout = parsePositiveInteger(
+			process.env.AWS_REKOGNITION_REQUEST_TIMEOUT_MS,
+			DEFAULT_REKOGNITION_REQUEST_TIMEOUT_MS,
+		);
+		const connectionTimeout = parsePositiveInteger(
+			process.env.AWS_REKOGNITION_CONNECTION_TIMEOUT_MS,
+			DEFAULT_REKOGNITION_CONNECTION_TIMEOUT_MS,
+		);
 		rekognitionClient = new RekognitionClient({
 			region,
 			credentials,
 			endpoint,
+			retryMode: 'standard',
+			maxAttempts,
+			requestHandler: new NodeHttpHandler({
+				requestTimeout,
+				connectionTimeout,
+			}),
 		});
 	}
 	return rekognitionClient;
@@ -510,6 +583,8 @@ export interface SearchUsersByImageResult {
 	similarity: number | null;
 	/** Confidence of the searched face detection */
 	searchedFaceConfidence: number | null;
+	/** Number of SDK attempts used for the upstream call */
+	attempts?: number;
 	/** Optional error message if search failed */
 	message?: string;
 }
@@ -541,19 +616,18 @@ export async function searchUsersByImage(
 	imageBytes: Uint8Array,
 	similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
 ): Promise<SearchUsersByImageResult> {
+	const client = getClient();
+	const collectionId = getCollectionId();
+	const command = new SearchUsersByImageCommand({
+		CollectionId: collectionId,
+		Image: {
+			Bytes: imageBytes,
+		},
+		MaxUsers: 1,
+		UserMatchThreshold: similarityThreshold,
+	});
+
 	try {
-		const client = getClient();
-		const collectionId = getCollectionId();
-
-		const command = new SearchUsersByImageCommand({
-			CollectionId: collectionId,
-			Image: {
-				Bytes: imageBytes,
-			},
-			MaxUsers: 1,
-			UserMatchThreshold: similarityThreshold,
-		});
-
 		const response = await client.send(command);
 
 		const userMatches: UserMatch[] = response.UserMatches ?? [];
@@ -566,6 +640,7 @@ export async function searchUsersByImage(
 				userId: topMatch.User.UserId,
 				similarity: topMatch.Similarity ?? null,
 				searchedFaceConfidence: searchedFace?.FaceDetail?.Confidence ?? null,
+				attempts: response.$metadata.attempts,
 			};
 		}
 
@@ -574,18 +649,23 @@ export async function searchUsersByImage(
 			userId: null,
 			similarity: null,
 			searchedFaceConfidence: searchedFace?.FaceDetail?.Confidence ?? null,
+			attempts: response.$metadata.attempts,
 			message: 'No matching user found above similarity threshold',
 		};
 	} catch (error) {
+		const errorName = error instanceof Error ? error.name : 'Error';
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error searching faces';
-		return {
-			matched: false,
-			userId: null,
-			similarity: null,
-			searchedFaceConfidence: null,
-			message: errorMessage,
-		};
+		const isTimeout =
+			errorName === 'TimeoutError' ||
+			errorName === 'AbortError' ||
+			errorMessage.toLowerCase().includes('timeout');
+
+		throw new RekognitionServiceError(
+			errorMessage,
+			isTimeout ? 'REKOGNITION_UPSTREAM_TIMEOUT' : 'REKOGNITION_UPSTREAM_FAILURE',
+			isTimeout ? 504 : 503,
+		);
 	}
 }
 

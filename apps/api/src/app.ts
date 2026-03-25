@@ -94,8 +94,6 @@ const createProtectedRoutes = () => {
 			.use(schedulingRoutes)
 			.use(vacationRoutes)
 			.use(incapacityRoutes)
-			// Face recognition routes (requires authentication)
-			.use(recognitionRoutes)
 	);
 };
 
@@ -163,6 +161,7 @@ export const createApp = () => {
 			// Public authentication routes (sign-in, sign-up, etc.)
 			.all('/api/auth/*', betterAuthView)
 			.use(internalHolidayRoutes)
+			.use(recognitionRoutes)
 			// All protected routes (require authentication)
 			.use(createProtectedRoutes())
 	);

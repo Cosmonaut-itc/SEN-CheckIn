@@ -29,6 +29,7 @@
 		"@elysiajs/cors": "^1.4.0",
 		"@elysiajs/openapi": "^1.4.11",
 		"@elysiajs/opentelemetry": "^1.4.7",
+		"@smithy/node-http-handler": "^4.4.5",
 		"@sen-checkin/types": "workspace:*",
 		"@sinclair/typebox": "^0.34.0",
 		"date-fns": "^4.1.0",

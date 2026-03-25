@@ -78,4 +78,35 @@ describe('verifyFace', () => {
 			}),
 		);
 	});
+
+	it('throws a non-retryable error for invalid recognition image failures', async () => {
+		mockAuthedFetch.mockResolvedValue({
+			ok: false,
+			status: 400,
+			headers: {
+				get: (headerName: string) =>
+					headerName.toLowerCase() === 'x-request-id' ? 'req-400' : null,
+			},
+			json: async () => ({
+				errorCode: 'REKOGNITION_INVALID_IMAGE',
+				message: 'Invalid recognition image',
+			}),
+		});
+
+		await expect(
+			verifyFace({
+				imageBase64: 'base64-image',
+				payloadBytes: 2048,
+				platform: 'android',
+				networkType: 'wifi',
+			}),
+		).rejects.toEqual(
+			expect.objectContaining<Partial<FaceVerificationError>>({
+				retryable: false,
+				status: 400,
+				errorCode: 'REKOGNITION_INVALID_IMAGE',
+				requestId: 'req-400',
+			}),
+		);
+	});
 });

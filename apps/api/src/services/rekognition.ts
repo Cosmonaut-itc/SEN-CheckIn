@@ -616,18 +616,18 @@ export async function searchUsersByImage(
 	imageBytes: Uint8Array,
 	similarityThreshold: number = DEFAULT_SIMILARITY_THRESHOLD,
 ): Promise<SearchUsersByImageResult> {
-	const client = getClient();
-	const collectionId = getCollectionId();
-	const command = new SearchUsersByImageCommand({
-		CollectionId: collectionId,
-		Image: {
-			Bytes: imageBytes,
-		},
-		MaxUsers: 1,
-		UserMatchThreshold: similarityThreshold,
-	});
-
 	try {
+		const client = getClient();
+		const collectionId = getCollectionId();
+		const command = new SearchUsersByImageCommand({
+			CollectionId: collectionId,
+			Image: {
+				Bytes: imageBytes,
+			},
+			MaxUsers: 1,
+			UserMatchThreshold: similarityThreshold,
+		});
+
 		const response = await client.send(command);
 
 		const userMatches: UserMatch[] = response.UserMatches ?? [];

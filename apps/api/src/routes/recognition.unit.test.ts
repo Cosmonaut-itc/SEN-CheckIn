@@ -189,8 +189,8 @@ describe('recognition routes', () => {
 		const serverTiming = response.headers.get('server-timing');
 		const totalEntry = serverTiming
 			?.split(',')
-			.map((entry) => entry.trim())
-			.find((entry) => entry.startsWith('total;dur='));
+			.map((entry: string) => entry.trim())
+			.find((entry: string) => entry.startsWith('total;dur='));
 
 		expect(response.status).toBe(200);
 		expect(totalEntry).toBeTruthy();
@@ -224,6 +224,31 @@ describe('recognition routes', () => {
 		expect(payload.message).toBe('Face recognition service unavailable');
 		expect(response.headers.get('x-request-id')).toBeTruthy();
 		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
+	});
+
+	it('preserves diagnostics headers for unexpected internal errors', async () => {
+		rekognitionMockState.error = new Error('unexpected failure');
+
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest({
+				image: Buffer.from('unexpected').toString('base64'),
+			}),
+		);
+		const payload = (await response.json()) as {
+			error?: {
+				code?: string;
+				message?: string;
+			};
+		};
+
+		expect(response.status).toBe(500);
+		expect(payload.error?.code).toBe('INTERNAL_ERROR');
+		expect(payload.error?.message).toBe('unexpected failure');
+		expect(response.headers.get('x-request-id')).toBe('test-request-id');
+		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
+		expect(response.headers.get('server-timing')).toContain('total;dur=');
 	});
 
 	it('fails closed when more than one employee shares the same rekognition user id', async () => {

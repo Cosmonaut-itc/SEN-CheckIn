@@ -333,8 +333,10 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 					total: 0,
 				},
 			};
-			let responsePayload: RecognitionResult;
+			let responsePayload: RecognitionResult | undefined;
 			let rekognitionStartedAt: number | null = null;
+			let unexpectedError: unknown;
+			let shouldRethrowUnexpectedError = false;
 
 			try {
 				const parseMeasurement = measureSync(() => parseRecognitionRequestBody(body));
@@ -513,15 +515,27 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 					const serializeMeasurement = measureSync(() => JSON.stringify(responsePayload));
 					diagnostics.timings.serialize = serializeMeasurement.durationMs;
 				} else {
-					throw error;
+					diagnostics.status = 500;
+					diagnostics.errorCode = 'INTERNAL_ERROR';
+					set.status = 500;
+					unexpectedError = error;
+					shouldRethrowUnexpectedError = true;
 				}
+			} finally {
+				diagnostics.status =
+					typeof set.status === 'number' ? set.status : diagnostics.status ?? 200;
+				diagnostics.timings.total = authTimingMs + (performance.now() - requestStartedAt);
+				applyRecognitionHeaders(set, diagnostics);
+				logRecognitionDiagnostics(diagnostics);
 			}
 
-			diagnostics.status =
-				typeof set.status === 'number' ? set.status : diagnostics.status ?? 200;
-			diagnostics.timings.total = authTimingMs + (performance.now() - requestStartedAt);
-			applyRecognitionHeaders(set, diagnostics);
-			logRecognitionDiagnostics(diagnostics);
+			if (shouldRethrowUnexpectedError) {
+				throw unexpectedError;
+			}
+
+			if (responsePayload === undefined) {
+				throw new Error('Recognition response payload was not created.');
+			}
 
 			return responsePayload;
 		},

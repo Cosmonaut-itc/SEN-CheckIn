@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import { AccessibilityInfo, Animated } from 'react-native';
 
@@ -491,6 +491,16 @@ describe('Mobile accessibility labels', () => {
 		expect(mockAnnounceForAccessibility).toHaveBeenCalledWith(
 			'No se pudo capturar la imagen. Inténtalo de nuevo.',
 		);
+
+		await act(async () => {
+			jest.advanceTimersByTime(4000);
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.queryByText('No se pudo capturar la imagen. Inténtalo de nuevo.'),
+			).not.toBeOnTheScreen();
+		});
 	});
 
 	it('shows the retryable verification message instead of no-match when the API is temporarily unavailable', async () => {
@@ -533,6 +543,73 @@ describe('Mobile accessibility labels', () => {
 		expect(mockVerifyFace).toHaveBeenCalledTimes(1);
 		expect(
 			screen.queryByText('Rostro no reconocido. Inténtalo de nuevo.'),
+		).not.toBeOnTheScreen();
+
+		await act(async () => {
+			jest.advanceTimersByTime(3000);
+		});
+
+		await waitFor(() => {
+			expect(
+				screen.queryByText(
+					'No pudimos validar el rostro por un problema temporal. Inténtalo de nuevo.',
+				),
+			).not.toBeOnTheScreen();
+		});
+	});
+
+	it('keeps the next scan in progress when a previous retry timer expires', async () => {
+		const { FaceVerificationError } = jest.requireMock('@/lib/face-recognition') as {
+			FaceVerificationError: new (
+				message: string,
+				status: number,
+				errorCode: string | null,
+				requestId?: string | null,
+			) => Error;
+		};
+		mockTakePictureAsync.mockResolvedValue({
+			uri: 'file://capture.jpg',
+			width: 1280,
+			height: 720,
+		});
+		mockVerifyFace
+			.mockRejectedValueOnce(
+				new FaceVerificationError(
+					'Face recognition service unavailable',
+					503,
+					'REKOGNITION_UPSTREAM_FAILURE',
+					'req-123',
+				),
+			)
+			.mockImplementationOnce(() => new Promise(() => undefined));
+
+		render(<ScannerScreen />);
+
+		await act(async () => {
+			jest.advanceTimersByTime(150);
+		});
+
+		await act(async () => {
+			fireEvent.press(screen.getByLabelText('Escanear entrada'));
+		});
+
+		await screen.findByText(
+			'No pudimos validar el rostro por un problema temporal. Inténtalo de nuevo.',
+		);
+
+		await act(async () => {
+			fireEvent.press(screen.getByLabelText('Escanear entrada'));
+		});
+
+		await screen.findByText('Verificando...');
+
+		await act(async () => {
+			jest.advanceTimersByTime(3000);
+		});
+
+		expect(screen.getByText('Verificando...')).toBeOnTheScreen();
+		expect(
+			screen.queryByText('Coloca tu rostro dentro del círculo'),
 		).not.toBeOnTheScreen();
 	});
 

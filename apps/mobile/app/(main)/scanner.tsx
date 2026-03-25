@@ -606,6 +606,8 @@ export default function ScannerScreen(): JSX.Element {
 			return;
 		}
 
+		clearPendingScanStatusReset();
+
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
 			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -635,6 +637,7 @@ export default function ScannerScreen(): JSX.Element {
 			if (!photo?.uri) {
 				setScanStatus({ state: 'error', message: i18n.t('Scanner.status.captureFailed') });
 				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+				scheduleScanStatusReset(4000);
 				return;
 			}
 
@@ -757,6 +760,7 @@ export default function ScannerScreen(): JSX.Element {
 				),
 			});
 			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+			scheduleScanStatusReset(retryableFailure ? 3000 : 4000);
 		} finally {
 			void cleanupRecognitionImage(processedPreviewUri);
 			releaseAttendanceCaptureLock(captureLockRef);

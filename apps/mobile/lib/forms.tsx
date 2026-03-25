@@ -35,6 +35,7 @@ const CARD_CURVE: ViewStyle = {
 	borderCurve: 'continuous',
 	borderRadius: Platform.select({ ios: 14, android: 16, default: 14 }) ?? 14,
 };
+const SELECT_OPTIONS_MAX_HEIGHT = 320;
 
 export const fieldContext: Context<AnyFieldApi> = formContexts.fieldContext;
 export const formContext: Context<AnyFormApi> = formContexts.formContext;
@@ -125,7 +126,7 @@ export function SelectField<TValue extends string>({
 	const field = useFieldContext();
 	const errors = field.state.meta.errors;
 	const accentColor = useThemeColor('accent');
-	const selectPresentation = presentation ?? 'popover';
+	const selectPresentation = presentation;
 
 	/** Find the currently selected option based on the field value */
 	const currentOption = options.find((opt) => opt.value === field.state.value);
@@ -179,32 +180,38 @@ export function SelectField<TValue extends string>({
 								: undefined
 						}
 						style={CARD_CURVE}
-						>
+					>
 						{selectPresentation === 'dialog' && <Select.Close />}
 						{selectPresentation === 'dialog' && label ? (
 							<Select.ListLabel className="text-lg font-bold text-foreground">
 								{label}
 							</Select.ListLabel>
 						) : null}
-						{options.map((opt) => (
-							<Select.Item
-								key={opt.value}
-								value={opt.value}
-								label={opt.label}
-								className="px-4 py-3.5 active:bg-content2"
-								style={INPUT_CURVE}
-							>
-								<View className="flex-row items-center gap-3 flex-1">
-									<Select.ItemLabel className="text-base text-foreground flex-1" />
-								</View>
-								<Select.ItemIndicator
-									iconProps={{
-										size: 20,
-										color: accentColor,
-									}}
-								/>
-							</Select.Item>
-						))}
+						<ScrollView
+							nestedScrollEnabled
+							showsVerticalScrollIndicator={options.length > 6}
+							style={{ maxHeight: SELECT_OPTIONS_MAX_HEIGHT }}
+						>
+							{options.map((opt) => (
+								<Select.Item
+									key={opt.value}
+									value={opt.value}
+									label={opt.label}
+									className="px-4 py-3.5 active:bg-content2"
+									style={INPUT_CURVE}
+								>
+									<View className="flex-row items-center gap-3 flex-1">
+										<Select.ItemLabel className="text-base text-foreground flex-1" />
+									</View>
+									<Select.ItemIndicator
+										iconProps={{
+											size: 20,
+											color: accentColor,
+										}}
+									/>
+								</Select.Item>
+							))}
+						</ScrollView>
 					</Select.Content>
 				</Select.Portal>
 			</Select>

@@ -28,18 +28,10 @@ describe('Final review regressions', () => {
 			'utf-8',
 		);
 
-		expect(settingsScreenSource).toContain(
-			"Settings.form.fields.location.accessibilityLabel",
-		);
-		expect(settingsScreenSource).toContain(
-			"Settings.form.fields.location.accessibilityHint",
-		);
-		expect(deviceSetupSource).toContain(
-			"DeviceSetup.form.fields.location.accessibilityLabel",
-		);
-		expect(deviceSetupSource).toContain(
-			"DeviceSetup.form.fields.location.accessibilityHint",
-		);
+		expect(settingsScreenSource).toContain('Settings.form.fields.location.accessibilityLabel');
+		expect(settingsScreenSource).toContain('Settings.form.fields.location.accessibilityHint');
+		expect(deviceSetupSource).toContain('DeviceSetup.form.fields.location.accessibilityLabel');
+		expect(deviceSetupSource).toContain('DeviceSetup.form.fields.location.accessibilityHint');
 		expect(translationsSource).toContain('"accessibilityLabel": "Seleccionar ubicación"');
 		expect(translationsSource).toContain(
 			'"accessibilityLabel": "Seleccionar ubicación del dispositivo"',
@@ -55,7 +47,7 @@ describe('Final review regressions', () => {
 		expect(settingsScreenSource).toContain('clearAuthStorage');
 		expect(settingsScreenSource).toContain('await clearAuthStorage()');
 		expect(settingsScreenSource).toContain("Platform.OS === 'ios' ? 'ghost' : 'danger'");
-		expect(settingsScreenSource).toContain("text-danger-500");
+		expect(settingsScreenSource).toContain('text-danger-500');
 	});
 
 	it('removes unsupported link previews from the device setup fallback screen', () => {
@@ -77,7 +69,10 @@ describe('Final review regressions', () => {
 	});
 
 	it('scopes settings locations to the active organization', () => {
-		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
+		const settingsSource = readFileSync(
+			resolve(__dirname, '../app/(main)/settings.tsx'),
+			'utf-8',
+		);
 
 		expect(settingsSource).toContain(
 			'const resolvedOrganizationId = activeOrganizationId ?? settings?.organizationId ?? null;',
@@ -104,35 +99,46 @@ describe('Final review regressions', () => {
 	});
 
 	it('uses standard popover location selectors on mobile setup and settings screens', () => {
-		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
-		const deviceSetupSource = readFileSync(
-			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
+		const settingsSource = readFileSync(
+			resolve(__dirname, '../app/(main)/settings.tsx'),
 			'utf-8',
 		);
-
-		expect(settingsSource).toContain('presentation="popover"');
-		expect(settingsSource).toContain('Select.Value');
-		expect(settingsSource).toContain('width="trigger"');
-		expect(settingsSource).toContain('placement="bottom"');
-		expect(deviceSetupSource).toContain('presentation="popover"');
-		expect(deviceSetupSource).toContain('Select.Value');
-		expect(deviceSetupSource).toContain('width="trigger"');
-		expect(deviceSetupSource).toContain('placement="bottom"');
-	});
-
-	it('keeps iOS select dialogs on the native full-window overlay', () => {
-		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
 		const deviceSetupSource = readFileSync(
 			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
 			'utf-8',
 		);
 		const formsSource = readFileSync(resolve(__dirname, '../lib/forms.tsx'), 'utf-8');
 
-		expect(settingsSource).not.toContain('disableFullWindowOverlay={Platform.OS === \'ios\'}');
-		expect(deviceSetupSource).not.toContain(
-			'disableFullWindowOverlay={Platform.OS === \'ios\'}',
+		expect(settingsSource).toContain('presentation="popover"');
+		expect(settingsSource).toContain('Select.Value');
+		expect(settingsSource).toContain('LOCATION_OPTIONS_MAX_HEIGHT = 320');
+		expect(settingsSource).toContain('nestedScrollEnabled');
+		expect(settingsSource).toContain('width="trigger"');
+		expect(settingsSource).toContain('placement="bottom"');
+		expect(deviceSetupSource).toContain('presentation="popover"');
+		expect(deviceSetupSource).toContain('Select.Value');
+		expect(deviceSetupSource).toContain('LOCATION_OPTIONS_MAX_HEIGHT = 320');
+		expect(deviceSetupSource).toContain('nestedScrollEnabled');
+		expect(deviceSetupSource).toContain('width="trigger"');
+		expect(deviceSetupSource).toContain('placement="bottom"');
+		expect(formsSource).toContain('SELECT_OPTIONS_MAX_HEIGHT = 320');
+		expect(formsSource).toContain('nestedScrollEnabled');
+	});
+
+	it('keeps iOS select dialogs on the native full-window overlay', () => {
+		const settingsSource = readFileSync(
+			resolve(__dirname, '../app/(main)/settings.tsx'),
+			'utf-8',
 		);
-		expect(formsSource).not.toContain('disableFullWindowOverlay={Platform.OS === \'ios\'}');
+		const deviceSetupSource = readFileSync(
+			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
+			'utf-8',
+		);
+		const formsSource = readFileSync(resolve(__dirname, '../lib/forms.tsx'), 'utf-8');
+
+		expect(settingsSource).not.toContain("disableFullWindowOverlay={Platform.OS === 'ios'}");
+		expect(deviceSetupSource).not.toContain("disableFullWindowOverlay={Platform.OS === 'ios'}");
+		expect(formsSource).not.toContain("disableFullWindowOverlay={Platform.OS === 'ios'}");
 	});
 
 	it('keeps the screenshot blocker notes aligned with the current device-setup behavior', () => {
@@ -146,7 +152,10 @@ describe('Final review regressions', () => {
 	});
 
 	it('shows localized location load errors and setup submission failures', () => {
-		const settingsSource = readFileSync(resolve(__dirname, '../app/(main)/settings.tsx'), 'utf-8');
+		const settingsSource = readFileSync(
+			resolve(__dirname, '../app/(main)/settings.tsx'),
+			'utf-8',
+		);
 		const deviceSetupSource = readFileSync(
 			resolve(__dirname, '../app/(auth)/device-setup.tsx'),
 			'utf-8',
@@ -164,12 +173,18 @@ describe('Final review regressions', () => {
 			'utf-8',
 		);
 
-		expect(formsSource).toContain("Platform.select({ ios: 10, android: 12, default: 10 })");
-		expect(formsSource).toContain("Platform.select({ ios: 14, android: 16, default: 14 })");
+		expect(formsSource).toContain('Platform.select({ ios: 10, android: 12, default: 10 })');
+		expect(formsSource).toContain('Platform.select({ ios: 14, android: 16, default: 14 })');
 		expect(formsSource).toContain('bg-popover');
 		expect(formsSource).toContain("presentation = 'popover'");
-		expect(formsSource).toContain("width={selectPresentation === 'popover' ? 'trigger' : undefined}");
-		expect(formsSource).toContain("placement={selectPresentation === 'popover' ? 'bottom' : undefined}");
+		expect(formsSource).toContain('const selectPresentation = presentation;');
+		expect(formsSource).not.toContain("const selectPresentation = presentation ?? 'popover';");
+		expect(formsSource).toContain(
+			"width={selectPresentation === 'popover' ? 'trigger' : undefined}",
+		);
+		expect(formsSource).toContain(
+			"placement={selectPresentation === 'popover' ? 'bottom' : undefined}",
+		);
 		expect(formsSource).toContain('Select.Value');
 		expect(formsSource).toContain('Select.TriggerIndicator');
 		expect(formsSource).not.toContain('rounded-2xl');

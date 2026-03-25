@@ -145,4 +145,31 @@ describe('rekognition service', () => {
 			});
 		});
 	});
+
+	it('classifies invalid recognition images as non-retryable bad requests', async () => {
+		await withRestoredEnvironment(async () => {
+			process.env.AWS_REGION = 'us-east-1';
+			delete process.env.AWS_REGION_RKG;
+			process.env.AWS_REKOGNITION_COLLECTION_ID = 'test-collection';
+			delete process.env.AWS_REKOGNITION_COLLECTION_ID_RKG;
+
+			const invalidImageError = Object.assign(new Error('unsupported image format'), {
+				name: 'InvalidImageFormatException',
+				$metadata: {
+					httpStatusCode: 400,
+				},
+			});
+			rekognitionSdkMockState.error = invalidImageError;
+
+			const { RekognitionServiceError, searchUsersByImage } = await import('./rekognition.js');
+			const searchPromise = searchUsersByImage(new Uint8Array([1, 2, 3]));
+
+			await expect(searchPromise).rejects.toBeInstanceOf(RekognitionServiceError);
+			await expect(searchPromise).rejects.toMatchObject({
+				errorCode: 'REKOGNITION_INVALID_IMAGE',
+				httpStatus: 400,
+				clientMessage: 'Invalid recognition image',
+			});
+		});
+	});
 });

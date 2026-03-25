@@ -27,16 +27,31 @@ import type { BoundingBox, FaceIndexResult } from '../schemas/recognition.js';
 const DEFAULT_REKOGNITION_MAX_ATTEMPTS = 2;
 const DEFAULT_REKOGNITION_REQUEST_TIMEOUT_MS = 2500;
 const DEFAULT_REKOGNITION_CONNECTION_TIMEOUT_MS = 1000;
+const REKOGNITION_INVALID_IMAGE_ERROR_NAMES = new Set([
+	'ImageTooLargeException',
+	'InvalidImageFormatException',
+	'InvalidParameterException',
+]);
+
+type RekognitionServiceErrorCode =
+	| 'REKOGNITION_INVALID_IMAGE'
+	| 'REKOGNITION_UPSTREAM_FAILURE'
+	| 'REKOGNITION_UPSTREAM_TIMEOUT';
+
+type RekognitionServiceHttpStatus = 400 | 503 | 504;
 
 /**
  * Error thrown when Rekognition cannot complete a request successfully.
  */
 export class RekognitionServiceError extends Error {
 	/** Stable error code returned to clients. */
-	public readonly errorCode: 'REKOGNITION_UPSTREAM_FAILURE' | 'REKOGNITION_UPSTREAM_TIMEOUT';
+	public readonly errorCode: RekognitionServiceErrorCode;
 
 	/** HTTP status to surface at the route boundary. */
-	public readonly httpStatus: 503 | 504;
+	public readonly httpStatus: RekognitionServiceHttpStatus;
+
+	/** Human-readable message that is safe to return to API clients. */
+	public readonly clientMessage: string;
 
 	/**
 	 * Creates a new RekognitionServiceError instance.
@@ -44,16 +59,21 @@ export class RekognitionServiceError extends Error {
 	 * @param message - Internal error message for logs
 	 * @param errorCode - Stable client-facing error code
 	 * @param httpStatus - HTTP status to return
+	 * @param clientMessage - Safe client-facing error message
 	 */
 	constructor(
 		message: string,
-		errorCode: 'REKOGNITION_UPSTREAM_FAILURE' | 'REKOGNITION_UPSTREAM_TIMEOUT',
-		httpStatus: 503 | 504,
+		errorCode: RekognitionServiceErrorCode,
+		httpStatus: RekognitionServiceHttpStatus,
+		clientMessage: string = httpStatus === 400
+			? 'Invalid recognition image'
+			: 'Face recognition service unavailable',
 	) {
 		super(message);
 		this.name = 'RekognitionServiceError';
 		this.errorCode = errorCode;
 		this.httpStatus = httpStatus;
+		this.clientMessage = clientMessage;
 	}
 }
 
@@ -145,6 +165,72 @@ function parsePositiveInteger(value: string | undefined, fallback: number): numb
 
 	const parsed = Number.parseInt(value, 10);
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/**
+ * Reads the upstream HTTP status code from an AWS SDK error when available.
+ *
+ * @param error - Unknown AWS SDK error value
+ * @returns Numeric HTTP status code or null when unavailable
+ */
+function getRekognitionErrorHttpStatus(error: unknown): number | null {
+	if (!error || typeof error !== 'object') {
+		return null;
+	}
+
+	const metadataValue = (error as { $metadata?: unknown }).$metadata;
+	if (!metadataValue || typeof metadataValue !== 'object') {
+		return null;
+	}
+
+	const httpStatusCode = (metadataValue as { httpStatusCode?: unknown }).httpStatusCode;
+	return typeof httpStatusCode === 'number' ? httpStatusCode : null;
+}
+
+/**
+ * Maps AWS Rekognition search failures to the API's stable error contract.
+ *
+ * @param error - Unknown upstream error thrown by the SDK
+ * @returns Stable error classification for route handling
+ */
+function classifySearchUsersByImageError(error: unknown): {
+	errorCode: RekognitionServiceErrorCode;
+	httpStatus: RekognitionServiceHttpStatus;
+	clientMessage: string;
+} {
+	const errorName = error instanceof Error ? error.name : 'Error';
+	const errorMessage =
+		error instanceof Error ? error.message : 'Unknown error searching faces';
+	const upstreamHttpStatus = getRekognitionErrorHttpStatus(error);
+	const isTimeout =
+		errorName === 'TimeoutError' ||
+		errorName === 'AbortError' ||
+		errorMessage.toLowerCase().includes('timeout');
+
+	if (isTimeout) {
+		return {
+			errorCode: 'REKOGNITION_UPSTREAM_TIMEOUT',
+			httpStatus: 504,
+			clientMessage: 'Face recognition service unavailable',
+		};
+	}
+
+	if (
+		upstreamHttpStatus === 400 &&
+		REKOGNITION_INVALID_IMAGE_ERROR_NAMES.has(errorName)
+	) {
+		return {
+			errorCode: 'REKOGNITION_INVALID_IMAGE',
+			httpStatus: 400,
+			clientMessage: 'Invalid recognition image',
+		};
+	}
+
+	return {
+		errorCode: 'REKOGNITION_UPSTREAM_FAILURE',
+		httpStatus: 503,
+		clientMessage: 'Face recognition service unavailable',
+	};
 }
 
 /**
@@ -663,18 +749,15 @@ export async function searchUsersByImage(
 			message: 'No matching user found above similarity threshold',
 		};
 	} catch (error) {
-		const errorName = error instanceof Error ? error.name : 'Error';
 		const errorMessage =
 			error instanceof Error ? error.message : 'Unknown error searching faces';
-		const isTimeout =
-			errorName === 'TimeoutError' ||
-			errorName === 'AbortError' ||
-			errorMessage.toLowerCase().includes('timeout');
+		const classification = classifySearchUsersByImageError(error);
 
 		throw new RekognitionServiceError(
 			errorMessage,
-			isTimeout ? 'REKOGNITION_UPSTREAM_TIMEOUT' : 'REKOGNITION_UPSTREAM_FAILURE',
-			isTimeout ? 504 : 503,
+			classification.errorCode,
+			classification.httpStatus,
+			classification.clientMessage,
 		);
 	}
 }

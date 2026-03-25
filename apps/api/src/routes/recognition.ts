@@ -472,7 +472,7 @@ export const recognitionRoutes = new Elysia({ prefix: '/recognition' })
 						match: null,
 						employee: null,
 						searchedFaceConfidence: null,
-						message: 'Face recognition service unavailable',
+						message: error.clientMessage,
 						errorCode: error.errorCode,
 					};
 					const serializeMeasurement = measureSync(() => JSON.stringify(responsePayload));

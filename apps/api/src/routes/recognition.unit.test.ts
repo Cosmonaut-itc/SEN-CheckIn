@@ -70,21 +70,26 @@ mock.module('../plugins/auth.js', () => ({
 mock.module('../services/rekognition.js', () => ({
 	RekognitionServiceError: class RekognitionServiceError extends Error {
 		public readonly errorCode:
+			| 'REKOGNITION_INVALID_IMAGE'
 			| 'REKOGNITION_UPSTREAM_FAILURE'
 			| 'REKOGNITION_UPSTREAM_TIMEOUT';
-		public readonly httpStatus: 503 | 504;
+		public readonly httpStatus: 400 | 503 | 504;
+		public readonly clientMessage: string;
 
 		constructor(
 			message: string,
 			errorCode:
+				| 'REKOGNITION_INVALID_IMAGE'
 				| 'REKOGNITION_UPSTREAM_FAILURE'
 				| 'REKOGNITION_UPSTREAM_TIMEOUT' = 'REKOGNITION_UPSTREAM_FAILURE',
-			httpStatus: 503 | 504 = 503,
+			httpStatus: 400 | 503 | 504 = 503,
+			clientMessage: string = 'Face recognition service unavailable',
 		) {
 			super(message);
 			this.name = 'RekognitionServiceError';
 			this.errorCode = errorCode;
 			this.httpStatus = httpStatus;
+			this.clientMessage = clientMessage;
 		}
 	},
 	searchUsersByImage: async (): Promise<MockSearchResult> => {
@@ -272,6 +277,36 @@ describe('recognition routes', () => {
 		expect(payload.matched).toBe(false);
 		expect(payload.errorCode).toBe('REKOGNITION_UPSTREAM_TIMEOUT');
 		expect(payload.message).toBe('Face recognition service unavailable');
+		expect(response.headers.get('x-request-id')).toBeTruthy();
+		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
+	});
+
+	it('returns non-retryable bad requests for invalid recognition images', async () => {
+		const { RekognitionServiceError } = await import('../services/rekognition.js');
+		rekognitionMockState.error = new RekognitionServiceError(
+			'invalid image format',
+			'REKOGNITION_INVALID_IMAGE',
+			400,
+			'Invalid recognition image',
+		);
+
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest({
+				image: Buffer.from('invalid-image').toString('base64'),
+			}),
+		);
+		const payload = (await response.json()) as {
+			matched: boolean;
+			errorCode?: string;
+			message?: string;
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBe('REKOGNITION_INVALID_IMAGE');
+		expect(payload.message).toBe('Invalid recognition image');
 		expect(response.headers.get('x-request-id')).toBeTruthy();
 		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
 	});

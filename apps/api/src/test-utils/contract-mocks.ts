@@ -50,7 +50,6 @@ export function setSearchUsersByImageResult(result: SearchUsersByImageResult): v
  */
 export function setSearchUsersByImageError(error: Error): void {
 	mockState.searchError = error;
-	mockState.searchResult = defaultSearchResult;
 }
 
 /**
@@ -69,21 +68,28 @@ export function setupRekognitionMocks(): void {
 		return {
 			RekognitionServiceError: class RekognitionServiceError extends Error {
 				public readonly errorCode:
+					| 'REKOGNITION_INVALID_IMAGE'
 					| 'REKOGNITION_UPSTREAM_FAILURE'
 					| 'REKOGNITION_UPSTREAM_TIMEOUT';
-				public readonly httpStatus: 503 | 504;
+				public readonly httpStatus: 400 | 503 | 504;
+				public readonly clientMessage: string;
 
 				constructor(
 					message: string,
 					errorCode:
+						| 'REKOGNITION_INVALID_IMAGE'
 						| 'REKOGNITION_UPSTREAM_FAILURE'
 						| 'REKOGNITION_UPSTREAM_TIMEOUT' = 'REKOGNITION_UPSTREAM_FAILURE',
-					httpStatus: 503 | 504 = 503,
+					httpStatus: 400 | 503 | 504 = 503,
+					clientMessage: string = httpStatus === 400
+						? 'Invalid recognition image'
+						: 'Face recognition service unavailable',
 				) {
 					super(message);
 					this.name = 'RekognitionServiceError';
 					this.errorCode = errorCode;
 					this.httpStatus = httpStatus;
+					this.clientMessage = clientMessage;
 				}
 			},
 			createUser: async (employeeId: string): Promise<CreateUserResult> => ({
@@ -144,7 +150,6 @@ export function setupRekognitionMocks(): void {
 				if (mockState.searchError) {
 					const error = mockState.searchError;
 					mockState.searchError = null;
-					mockState.searchResult = defaultSearchResult;
 					throw error;
 				}
 				return mockState.searchResult;

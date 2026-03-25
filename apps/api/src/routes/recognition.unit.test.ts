@@ -226,6 +226,35 @@ describe('recognition routes', () => {
 		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
 	});
 
+	it('returns timeout failures for upstream Rekognition timeouts', async () => {
+		const { RekognitionServiceError } = await import('../services/rekognition.js');
+		rekognitionMockState.error = new RekognitionServiceError(
+			'upstream timeout',
+			'REKOGNITION_UPSTREAM_TIMEOUT',
+			504,
+		);
+
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest({
+				image: Buffer.from('timeout').toString('base64'),
+			}),
+		);
+		const payload = (await response.json()) as {
+			matched: boolean;
+			errorCode?: string;
+			message?: string;
+		};
+
+		expect(response.status).toBe(504);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBe('REKOGNITION_UPSTREAM_TIMEOUT');
+		expect(payload.message).toBe('Face recognition service unavailable');
+		expect(response.headers.get('x-request-id')).toBeTruthy();
+		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
+	});
+
 	it('preserves diagnostics headers for unexpected internal errors', async () => {
 		rekognitionMockState.error = new Error('unexpected failure');
 

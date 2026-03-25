@@ -122,6 +122,16 @@ function getRekognitionCredentials():
 let rekognitionClient: RekognitionClient | null = null;
 
 /**
+ * Resets the memoized Rekognition client singleton.
+ * Intended only for deterministic unit tests.
+ *
+ * @returns Nothing
+ */
+export function resetRekognitionClientForTests(): void {
+	rekognitionClient = null;
+}
+
+/**
  * Reads a positive integer from the environment or falls back to a default.
  *
  * @param value - Raw environment variable value

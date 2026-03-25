@@ -47,13 +47,14 @@ export default function SettingsScreen(): JSX.Element {
 		updateLocalSettings,
 		clearSettings,
 	} = useDeviceContext();
+	const resolvedOrganizationId = activeOrganizationId ?? settings?.organizationId ?? null;
 
 	const { data: locationsResponse, isError: isLocationsError, isPending: isLocationsPending } =
 		useQuery({
-		queryKey: queryKeys.locations.list({ organizationId: activeOrganizationId ?? undefined }),
+		queryKey: queryKeys.locations.list({ organizationId: resolvedOrganizationId ?? undefined }),
 		queryFn: () =>
-			fetchLocationsList({ limit: 100, organizationId: activeOrganizationId ?? undefined }),
-		enabled: Boolean(activeOrganizationId),
+			fetchLocationsList({ limit: 100, organizationId: resolvedOrganizationId ?? undefined }),
+		enabled: Boolean(resolvedOrganizationId),
 		});
 
 	const locationOptions = useMemo(
@@ -115,7 +116,7 @@ export default function SettingsScreen(): JSX.Element {
 		form.setFieldValue('locationId', settings?.locationId ?? '');
 	}, [form, settings?.locationId, settings?.name]);
 
-	const organizationId = activeOrganizationId ?? '—';
+	const organizationId = resolvedOrganizationId ?? '—';
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');
@@ -239,54 +240,42 @@ export default function SettingsScreen(): JSX.Element {
 										<Text className="text-sm font-semibold text-foreground tracking-wide">
 											{i18n.t('Settings.form.fields.location.label')}
 										</Text>
-										<Select
-											value={selectedOption}
-											onValueChange={handleLocationChange}
-											isDisabled={
-												!activeOrganizationId ||
-												isLocationsPending ||
-												isLocationsError
-											}
-											presentation="dialog"
+									<Select
+										value={selectedOption}
+										onValueChange={handleLocationChange}
+										isDisabled={
+											!resolvedOrganizationId ||
+											isLocationsPending ||
+											isLocationsError
+										}
+										presentation="popover"
+									>
+										<Select.Trigger
+											accessibilityLabel={`${i18n.t(
+												'Settings.form.fields.location.accessibilityLabel',
+											)}: ${selectedOption?.label ?? locationTriggerLabel}`}
+											accessibilityHint={i18n.t(
+												'Settings.form.fields.location.accessibilityHint',
+											)}
 										>
-											<Select.Trigger
-												variant="unstyled"
-												className="flex-row items-center justify-between rounded-full bg-content2 px-5 py-4"
-												accessibilityLabel={`${i18n.t(
-													'Settings.form.fields.location.accessibilityLabel',
-												)}: ${selectedOption?.label ?? locationTriggerLabel}`}
-												accessibilityHint={i18n.t(
-													'Settings.form.fields.location.accessibilityHint',
-												)}
+											<Select.Value placeholder={locationTriggerLabel} />
+											<Select.TriggerIndicator />
+										</Select.Trigger>
+										<Select.Portal>
+											<Select.Overlay className="bg-overlay/80" />
+											<Select.Content
+												presentation="popover"
+												width="trigger"
+												placement="bottom"
+												className="bg-popover gap-2 shadow-lg"
+												style={continuousCurve}
 											>
-												<Text
-													className={
-														selectedOption
-															? 'text-sm text-foreground flex-1'
-															: 'text-sm text-field-placeholder flex-1'
-													}
-												>
-													{selectedOption?.label ?? locationTriggerLabel}
-												</Text>
-												<Select.TriggerIndicator />
-											</Select.Trigger>
-											<Select.Portal disableFullWindowOverlay={Platform.OS === 'ios'}>
-												<Select.Overlay className="bg-overlay/80" />
-												<Select.Content
-													presentation="dialog"
-													classNames={{
-														wrapper: 'px-5',
-														content: 'rounded-xl bg-popover gap-2 shadow-lg',
-													}}
-													style={continuousCurve}
-												>
-													<Select.Close />
-													<Select.ListLabel className="text-lg font-bold text-foreground">
-														{i18n.t('Settings.form.fields.location.label')}
-													</Select.ListLabel>
-													{isLocationsError ? (
-														<View className="py-4">
-															<Text className="text-danger-500 text-center">
+												<Select.ListLabel className="text-base font-semibold text-foreground">
+													{i18n.t('Settings.form.fields.location.label')}
+												</Select.ListLabel>
+												{isLocationsError ? (
+													<View className="py-4">
+														<Text className="text-danger-500 text-center">
 																{i18n.t(
 																	'Settings.form.fields.location.loadError',
 																)}
@@ -297,30 +286,21 @@ export default function SettingsScreen(): JSX.Element {
 															<Text className="text-foreground-400 text-center">
 																{i18n.t(
 																	'Settings.form.fields.location.empty',
-																)}
-															</Text>
-														</View>
-													) : (
-														<ScrollView>
-															{locationOptions.map((opt) => (
-																<Select.Item
-																	key={opt.value}
-																	value={opt.value}
-																	label={opt.label}
-																>
-																	<View className="flex-row items-center gap-3 flex-1">
-																		<Text className="text-base text-foreground flex-1">
-																			{opt.label}
-																		</Text>
-																	</View>
-																	<Select.ItemIndicator />
-																</Select.Item>
-															))}
-														</ScrollView>
-													)}
-												</Select.Content>
-											</Select.Portal>
-										</Select>
+															)}
+														</Text>
+													</View>
+												) : (
+													locationOptions.map((opt) => (
+														<Select.Item
+															key={opt.value}
+															value={opt.value}
+															label={opt.label}
+														/>
+													))
+												)}
+											</Select.Content>
+										</Select.Portal>
+									</Select>
 										{hasError ? (
 											<Text
 												className="text-sm text-danger-500 font-medium"

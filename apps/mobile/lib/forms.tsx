@@ -104,7 +104,7 @@ export function AppTextField({
 
 /**
  * SelectField component for form dropdowns using HeroUI Native Select.
- * Uses dialog presentation by default for mobile-optimized selection experience.
+ * Uses the standard popover presentation by default to keep trigger anchoring stable.
  *
  * @param props - Field configuration including label, options, and presentation style
  * @returns JSX Element rendering a styled select dropdown with validation support
@@ -115,7 +115,7 @@ export function SelectField<TValue extends string>({
 	description,
 	disabled,
 	options,
-	presentation = 'dialog',
+	presentation = 'popover',
 }: CommonFieldProps & {
 	/** Array of options with value and label pairs */
 	options: SelectOption<TValue>[];
@@ -125,7 +125,7 @@ export function SelectField<TValue extends string>({
 	const field = useFieldContext();
 	const errors = field.state.meta.errors;
 	const accentColor = useThemeColor('accent');
-	const selectPresentation = presentation ?? 'dialog';
+	const selectPresentation = presentation ?? 'popover';
 
 	/** Find the currently selected option based on the field value */
 	const currentOption = options.find((opt) => opt.value === field.state.value);
@@ -157,11 +157,14 @@ export function SelectField<TValue extends string>({
 						placeholder={placeholder ?? i18n.t('Common.selectOption')}
 						className="text-base text-foreground"
 					/>
+					<Select.TriggerIndicator />
 				</Select.Trigger>
-				<Select.Portal disableFullWindowOverlay={Platform.OS === 'ios'}>
+				<Select.Portal>
 					<Select.Overlay className="bg-overlay/80" />
 					<Select.Content
 						presentation={selectPresentation}
+						width={selectPresentation === 'popover' ? 'trigger' : undefined}
+						placement={selectPresentation === 'popover' ? 'bottom' : undefined}
 						classNames={
 							selectPresentation === 'dialog'
 								? {
@@ -176,7 +179,7 @@ export function SelectField<TValue extends string>({
 								: undefined
 						}
 						style={CARD_CURVE}
-					>
+						>
 						{selectPresentation === 'dialog' && <Select.Close />}
 						{selectPresentation === 'dialog' && label ? (
 							<Select.ListLabel className="text-lg font-bold text-foreground">

@@ -181,6 +181,13 @@ jest.mock('heroui-native', () => {
 	Select.Trigger = function MockSelectTrigger({ children }: { children: React.ReactNode }) {
 		return <View>{children}</View>;
 	};
+	Select.Value = function MockSelectValue({
+		placeholder,
+	}: {
+		placeholder?: string;
+	}) {
+		return placeholder ? <Text>{placeholder}</Text> : <View />;
+	};
 	Select.Portal = function MockSelectPortal({ children }: { children: React.ReactNode }) {
 		return <View>{children}</View>;
 	};

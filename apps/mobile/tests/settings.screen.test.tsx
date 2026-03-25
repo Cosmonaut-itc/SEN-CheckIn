@@ -9,6 +9,7 @@ const mockUseDeviceContext = jest.fn();
 const mockSetFieldValue = jest.fn();
 const mockToastShow = jest.fn();
 const mockSignOut = jest.fn();
+const mockFetchLocationsList = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearPendingAttendanceQueue = jest.fn();
 const mockClearSettings = jest.fn();
@@ -111,6 +112,13 @@ jest.mock('heroui-native', () => {
 	Select.Trigger = function MockSelectTrigger({ children }: { children: React.ReactNode }) {
 		return <View>{children}</View>;
 	};
+	Select.Value = function MockSelectValue({
+		placeholder,
+	}: {
+		placeholder?: string;
+	}) {
+		return placeholder ? <Text>{placeholder}</Text> : <View />;
+	};
 	Select.Portal = function MockSelectPortal({ children }: { children: React.ReactNode }) {
 		return <View>{children}</View>;
 	};
@@ -161,7 +169,7 @@ jest.mock('@/lib/auth-client', () => ({
 }));
 
 jest.mock('@/lib/client-functions', () => ({
-	fetchLocationsList: jest.fn(),
+	fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
 }));
 
 jest.mock('@/lib/device-context', () => ({
@@ -266,6 +274,7 @@ describe('SettingsScreen organization gating', () => {
 		mockSetFieldValue.mockReset();
 		mockToastShow.mockReset();
 		mockSignOut.mockReset();
+		mockFetchLocationsList.mockReset();
 		mockClearAuthStorage.mockReset();
 		mockClearPendingAttendanceQueue.mockReset();
 		mockClearSettings.mockReset();
@@ -310,6 +319,44 @@ describe('SettingsScreen organization gating', () => {
 			}),
 		);
 		expect(screen.getByTestId('location-select-disabled-state')).toHaveTextContent('disabled');
+	});
+
+	it('loads locations when session organization is missing but persisted device settings retain the organization context', async () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: true,
+			isUpdating: false,
+			saveRemoteSettings: jest.fn(),
+			updateLocalSettings: jest.fn(),
+			clearSettings: mockClearSettings,
+		});
+		mockFetchLocationsList.mockResolvedValue({
+			data: [],
+		});
+
+		render(<SettingsScreen />);
+
+		const queryOptions = mockUseQuery.mock.calls[0]?.[0] as
+			| {
+					enabled?: boolean;
+					queryKey?: unknown;
+					queryFn?: () => Promise<unknown>;
+			  }
+			| undefined;
+
+		expect(queryOptions?.enabled).toBe(true);
+		expect(queryOptions?.queryKey).toEqual(['locations', 'org-1']);
+		await queryOptions?.queryFn?.();
+		expect(mockFetchLocationsList).toHaveBeenCalledWith({
+			limit: 100,
+			organizationId: 'org-1',
+		});
+		expect(screen.getByText('Settings.organization.idLabel: org-1')).toBeOnTheScreen();
 	});
 
 	it('clears the pending offline queue when signing out', async () => {

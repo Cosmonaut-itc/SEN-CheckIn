@@ -1,5 +1,4 @@
 import './utils/disable-pg-native.js';
-import { cors } from '@elysiajs/cors';
 import { openapi } from '@elysiajs/openapi';
 import { opentelemetry } from '@elysiajs/opentelemetry';
 
@@ -11,6 +10,7 @@ import { configureLogger } from './logger/index.js';
 import { combinedAuthPlugin } from './plugins/auth.js';
 import { errorHandlerPlugin } from './plugins/error-handler.js';
 import { loggerPlugin } from './plugins/logger.js';
+import { createApiCorsPlugin } from './cors-config.js';
 import { buildErrorResponse } from './utils/error-response.js';
 
 // Route imports
@@ -36,13 +36,6 @@ import { scheduleExceptionRoutes } from './routes/schedule-exceptions.js';
 import { schedulingRoutes } from './routes/scheduling.js';
 import { vacationRoutes } from './routes/vacations.js';
 import { internalHolidayRoutes } from './routes/internal-holidays.js';
-import { buildCorsOriginAllowlist, isOriginAllowed } from './utils/origin-allowlist.js';
-
-const corsAllowedOrigins: string[] = buildCorsOriginAllowlist({
-	authBaseUrl: process.env.BETTER_AUTH_URL ?? 'http://localhost:3000',
-	corsOrigin: process.env.CORS_ORIGIN,
-});
-
 /**
  * BetterAuth view handler for authentication endpoints.
  * Handles GET, POST, and OPTIONS requests for authentication routes.
@@ -110,27 +103,11 @@ export const createApp = () => {
 	});
 
 	return (
-		new Elysia()
-			// Core plugins - order matters: CORS, error handler and logger should be first
-			.use(
-				cors({
-					origin: (request: Request) =>
-						isOriginAllowed(request.headers.get('origin'), {
-							configuredOrigins: corsAllowedOrigins,
-							nodeEnv: process.env.NODE_ENV,
-						}),
-					methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-					credentials: true,
-					allowedHeaders: [
-						'Content-Type',
-						'Authorization',
-						'x-api-key',
-						'x-internal-token',
-					],
-				}),
-			)
-			.use(errorHandlerPlugin)
-			.use(loggerPlugin)
+			new Elysia()
+				// Core plugins - order matters: CORS, error handler and logger should be first
+				.use(createApiCorsPlugin())
+				.use(errorHandlerPlugin)
+				.use(loggerPlugin)
 			.use(
 				openapi({
 					documentation: {

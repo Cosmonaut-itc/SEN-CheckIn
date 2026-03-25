@@ -332,10 +332,14 @@ export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).deri
 		apiKeyOrganizationId: string | null;
 		apiKeyOrganizationIds: string[];
 	}> => {
+		if (!getApiKeyFromRequest(request)) {
+			throw new UnauthorizedError('No API key provided');
+		}
+
 		const apiKeyContext = await resolveApiKeyContextFromRequest(request);
 
 		if (!apiKeyContext) {
-			throw new UnauthorizedError('No API key provided');
+			throw new UnauthorizedError('Invalid API key');
 		}
 
 		return apiKeyContext;

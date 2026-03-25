@@ -59,10 +59,13 @@ const rekognitionMockState: {
 
 mock.module('../db/index.js', () => ({ default: fakeDb }));
 mock.module('../plugins/auth.js', () => ({
-	recognitionAuthPlugin: new Elysia({ name: 'mock-recognition-auth' }).derive(() => ({
-		authTimingMs: 0,
-		requestId: 'test-request-id',
-	})),
+	recognitionAuthPlugin: new Elysia({ name: 'mock-recognition-auth' }).derive(
+		{ as: 'scoped' },
+		({ request }) => ({
+			authTimingMs: Number(request.headers.get('x-test-auth-timing-ms') ?? '0'),
+			requestId: 'test-request-id',
+		}),
+	),
 }));
 mock.module('../services/rekognition.js', () => ({
 	RekognitionServiceError: class RekognitionServiceError extends Error {
@@ -97,15 +100,20 @@ mock.module('../services/rekognition.js', () => ({
  * Builds a JSON POST request for the recognition route.
  *
  * @param body - Request body payload
+ * @param headers - Additional request headers for the test request
  * @returns Request instance
  */
-function createJsonRequest(body: Record<string, unknown>): Request {
+function createJsonRequest(
+	body: Record<string, unknown>,
+	headers?: Record<string, string>,
+): Request {
 	return new Request('http://localhost/recognition/identify', {
 		method: 'POST',
 		headers: {
 			'content-type': 'application/json',
 			'x-client-platform': 'android',
 			'x-client-network-type': 'wifi',
+			...headers,
 		},
 		body: JSON.stringify(body),
 	});
@@ -148,9 +156,45 @@ describe('recognition routes', () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(response.headers.get('x-request-id')).toBeTruthy();
+		expect(response.headers.get('x-request-id')).toBe('test-request-id');
 		expect(response.headers.get('server-timing')).toContain('rekognition;dur=');
 		expect(response.headers.get('server-timing')).toContain('db;dur=');
+	});
+
+	it('parses recognition request bodies from already-materialized objects', async () => {
+		const { parseRecognitionRequestBody } = await import('./recognition-body.js');
+		const body = {
+			image: Buffer.from('match').toString('base64'),
+		};
+
+		expect(parseRecognitionRequestBody(body)).toEqual({
+			image: body.image,
+			payloadBytes: Buffer.byteLength(JSON.stringify(body)),
+		});
+	});
+
+	it('includes auth timing in the total server timing metric', async () => {
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest(
+				{
+					image: Buffer.from('timing').toString('base64'),
+				},
+				{
+					'x-test-auth-timing-ms': '87.5',
+				},
+			),
+		);
+		const serverTiming = response.headers.get('server-timing');
+		const totalEntry = serverTiming
+			?.split(',')
+			.map((entry) => entry.trim())
+			.find((entry) => entry.startsWith('total;dur='));
+
+		expect(response.status).toBe(200);
+		expect(totalEntry).toBeTruthy();
+		expect(Number(totalEntry?.replace('total;dur=', ''))).toBeGreaterThanOrEqual(87.5);
 	});
 
 	it('returns retryable failures for upstream Rekognition errors', async () => {

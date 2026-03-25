@@ -199,6 +199,46 @@ describe('recognition routes', () => {
 		expect(payload.errorCode).toBeUndefined();
 	});
 
+	it('accepts unpadded base64 image payloads', async () => {
+		const base64Image = Buffer.from('abcd').toString('base64').replace(/=+$/, '');
+
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest({
+				image: base64Image,
+			}),
+		);
+		const payload = (await response.json()) as {
+			matched: boolean;
+			errorCode?: string;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBeUndefined();
+	});
+
+	it('rejects partially padded base64 image payloads', async () => {
+		const { recognitionRoutes } = await import('./recognition.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);
+		const response = await app.handle(
+			createJsonRequest({
+				image: 'ab=',
+			}),
+		);
+		const payload = (await response.json()) as {
+			matched: boolean;
+			errorCode?: string;
+			message?: string;
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBe('INVALID_IMAGE_BASE64');
+		expect(payload.message).toBe('Invalid base64 image data');
+	});
+
 	it('includes auth timing in the total server timing metric', async () => {
 		const { recognitionRoutes } = await import('./recognition.js');
 		const app = new Elysia().use(errorHandlerPlugin).use(recognitionRoutes);

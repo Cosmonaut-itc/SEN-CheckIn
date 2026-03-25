@@ -92,6 +92,40 @@ describe('recognition routes (contract)', () => {
 		expect(headers.get('server-timing')).toBeTruthy();
 	});
 
+	it('accepts unpadded base64 payloads', async () => {
+		setSearchUsersByImageResult({
+			matched: false,
+			userId: null,
+			similarity: null,
+			searchedFaceConfidence: 96,
+			message: 'No match',
+		});
+		const unpaddedBase64 = Buffer.from('abcd').toString('base64').replace(/=+$/, '');
+
+		const response = await client.recognition.identify.post({
+			image: unpaddedBase64,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBeUndefined();
+	});
+
+	it('rejects partially padded base64 payloads', async () => {
+		const response = await client.recognition.identify.post({
+			image: 'ab=',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const payload = requireResponseData(response);
+		expect(payload.matched).toBe(false);
+		expect(payload.errorCode).toBe('INVALID_IMAGE_BASE64');
+		expect(payload.message).toBe('Invalid base64 image data');
+	});
+
 	it('returns matched employees when rekognition finds a user', async () => {
 		setSearchUsersByImageResult({
 			matched: true,

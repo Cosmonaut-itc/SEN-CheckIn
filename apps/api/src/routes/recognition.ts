@@ -28,7 +28,7 @@ import {
 const DEFAULT_SIMILARITY_THRESHOLD = 80;
 const BASE64_IMAGE_PREFIX_PATTERN = /^data:image\/\w+;base64,/;
 const BASE64_WHITESPACE_PATTERN = /\s+/g;
-const BASE64_PAYLOAD_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const BASE64_PAYLOAD_PATTERN = /^(?:[A-Za-z0-9+/]*)(?:={0,2})$/;
 
 interface RecognitionStageTimings {
 	auth: number;
@@ -133,7 +133,20 @@ function decodeBase64Image(base64String: string): Uint8Array {
 		);
 	}
 
-	const bytes = Buffer.from(cleanBase64, 'base64');
+	const remainder = cleanBase64.length % 4;
+	if (remainder === 1 || (cleanBase64.includes('=') && remainder !== 0)) {
+		throw new RecognitionBadRequestError(
+			'Invalid base64 payload length',
+			'INVALID_IMAGE_BASE64',
+			'Invalid base64 image data',
+		);
+	}
+
+	const paddedBase64 = cleanBase64.padEnd(
+		cleanBase64.length + (remainder === 0 ? 0 : 4 - remainder),
+		'=',
+	);
+	const bytes = Buffer.from(paddedBase64, 'base64');
 
 	if (bytes.length === 0) {
 		throw new RecognitionBadRequestError(

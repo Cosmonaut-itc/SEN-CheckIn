@@ -325,6 +325,11 @@ export default function DeviceSetupScreen(): JSX.Element {
 								(opt) => opt.value === field.state.value,
 							);
 							const hasError = field.state.meta.errors.length > 0;
+							const locationTriggerLabel = isLocationsPending
+								? i18n.t('DeviceSetup.form.fields.location.loading')
+								: isLocationsError
+									? i18n.t('DeviceSetup.form.fields.location.loadError')
+									: i18n.t('DeviceSetup.form.fields.location.placeholder');
 
 							/**
 							 * Handles location selection from the HeroUI Native Select component.
@@ -347,47 +352,30 @@ export default function DeviceSetupScreen(): JSX.Element {
 										value={selectedOption}
 										onValueChange={handleLocationChange}
 										isDisabled={isLocationsPending || isLocationsError}
+										presentation="dialog"
 									>
-										<Select.Trigger variant="outline" asChild>
-											<Button
-												variant="tertiary"
-												size="sm"
-												accessibilityLabel={`${i18n.t(
-													'DeviceSetup.form.fields.location.accessibilityLabel',
-												)}: ${
-													selectedOption?.label ??
-													i18n.t(
-														'DeviceSetup.form.fields.location.placeholder',
-													)
-												}`}
-												accessibilityHint={i18n.t(
-													'DeviceSetup.form.fields.location.accessibilityHint',
-												)}
+										<Select.Trigger
+											variant="unstyled"
+											className="flex-row items-center justify-between rounded-full bg-content2 px-5 py-4"
+											accessibilityLabel={`${i18n.t(
+												'DeviceSetup.form.fields.location.accessibilityLabel',
+											)}: ${selectedOption?.label ?? locationTriggerLabel}`}
+											accessibilityHint={i18n.t(
+												'DeviceSetup.form.fields.location.accessibilityHint',
+											)}
+										>
+											<Text
+												className={
+													selectedOption
+														? 'text-sm text-foreground flex-1'
+														: 'text-sm text-field-placeholder flex-1'
+												}
 											>
-												{selectedOption ? (
-													<View className="flex-row items-center gap-2">
-														<Text className="text-sm text-foreground">
-															{selectedOption.label}
-														</Text>
-													</View>
-												) : (
-													<Text className="text-foreground">
-														{isLocationsPending
-															? i18n.t(
-																	'DeviceSetup.form.fields.location.loading',
-																)
-															: isLocationsError
-																? i18n.t(
-																		'DeviceSetup.form.fields.location.loadError',
-																	)
-															: i18n.t(
-																	'DeviceSetup.form.fields.location.placeholder',
-																)}
-													</Text>
-												)}
-											</Button>
+												{selectedOption?.label ?? locationTriggerLabel}
+											</Text>
+											<Select.TriggerIndicator />
 										</Select.Trigger>
-										<Select.Portal>
+										<Select.Portal disableFullWindowOverlay={Platform.OS === 'ios'}>
 											<Select.Overlay className="bg-overlay/80" />
 											<Select.Content
 												presentation="dialog"

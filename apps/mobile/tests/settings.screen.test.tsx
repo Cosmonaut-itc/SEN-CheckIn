@@ -132,6 +132,9 @@ jest.mock('heroui-native', () => {
 	Select.ItemIndicator = function MockSelectItemIndicator() {
 		return <View />;
 	};
+	Select.TriggerIndicator = function MockSelectTriggerIndicator() {
+		return <View />;
+	};
 
 	return {
 		Button,

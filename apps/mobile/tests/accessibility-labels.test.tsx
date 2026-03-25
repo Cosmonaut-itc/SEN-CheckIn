@@ -175,6 +175,37 @@ jest.mock('heroui-native', () => {
 		return <Text>Cargando...</Text>;
 	};
 
+	const Select = function MockSelect({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Trigger = function MockSelectTrigger({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Portal = function MockSelectPortal({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Overlay = function MockSelectOverlay() {
+		return <View />;
+	};
+	Select.Content = function MockSelectContent({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Close = function MockSelectClose() {
+		return <View />;
+	};
+	Select.ListLabel = function MockSelectListLabel({ children }: { children: React.ReactNode }) {
+		return <Text>{children}</Text>;
+	};
+	Select.Item = function MockSelectItem({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.ItemIndicator = function MockSelectItemIndicator() {
+		return <View />;
+	};
+	Select.TriggerIndicator = function MockSelectTriggerIndicator() {
+		return <View />;
+	};
+
 	return {
 		Button,
 		Card,
@@ -184,7 +215,7 @@ jest.mock('heroui-native', () => {
 		Description: ({ children }: { children: React.ReactNode }) => <Text>{children}</Text>,
 		FieldError: ({ children }: { children: React.ReactNode }) => <Text>{children}</Text>,
 		TextField: ({ children }: { children: React.ReactNode }) => <View>{children}</View>,
-		Select: ({ children }: { children: React.ReactNode }) => <View>{children}</View>,
+		Select,
 		Separator: () => <View />,
 		useThemeColor: () => '#111827',
 		useToast: () => ({

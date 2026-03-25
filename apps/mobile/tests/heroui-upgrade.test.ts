@@ -14,10 +14,10 @@ function readHeroUiPackage(): { version: string; main?: string; module?: string 
 }
 
 describe('HeroUI Native dependency upgrade', () => {
-	it('pins heroui-native to rc.4', () => {
+	it('pins heroui-native to 1.0.0', () => {
 		const heroUiPackage = readHeroUiPackage();
 
-		expect(heroUiPackage.version).toBe('1.0.0-rc.4');
+		expect(heroUiPackage.version).toBe('1.0.0');
 	});
 
 	it('keeps the package entry points available after the upgrade', () => {

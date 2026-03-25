@@ -125,6 +125,7 @@ export function SelectField<TValue extends string>({
 	const field = useFieldContext();
 	const errors = field.state.meta.errors;
 	const accentColor = useThemeColor('accent');
+	const selectPresentation = presentation ?? 'dialog';
 
 	/** Find the currently selected option based on the field value */
 	const currentOption = options.find((opt) => opt.value === field.state.value);
@@ -141,7 +142,12 @@ export function SelectField<TValue extends string>({
 	return (
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
-			<Select value={currentOption} onValueChange={handleValueChange} isDisabled={disabled}>
+			<Select
+				value={currentOption}
+				onValueChange={handleValueChange}
+				isDisabled={disabled}
+				presentation={selectPresentation}
+			>
 				<Select.Trigger
 					variant="outline"
 					className="border border-default-200 px-4 py-3.5 bg-content1 active:bg-content2"
@@ -152,12 +158,12 @@ export function SelectField<TValue extends string>({
 						className="text-base text-foreground"
 					/>
 				</Select.Trigger>
-				<Select.Portal>
+				<Select.Portal disableFullWindowOverlay={Platform.OS === 'ios'}>
 					<Select.Overlay className="bg-overlay/80" />
 					<Select.Content
-						presentation={presentation}
+						presentation={selectPresentation}
 						classNames={
-							presentation === 'dialog'
+							selectPresentation === 'dialog'
 								? {
 										wrapper: 'px-5',
 										content: 'bg-popover gap-2 shadow-lg',
@@ -165,14 +171,14 @@ export function SelectField<TValue extends string>({
 								: undefined
 						}
 						className={
-							presentation !== 'dialog'
+							selectPresentation !== 'dialog'
 								? 'bg-popover gap-2 shadow-lg'
 								: undefined
 						}
 						style={CARD_CURVE}
 					>
-						{presentation === 'dialog' && <Select.Close />}
-						{presentation === 'dialog' && label ? (
+						{selectPresentation === 'dialog' && <Select.Close />}
+						{selectPresentation === 'dialog' && label ? (
 							<Select.ListLabel className="text-lg font-bold text-foreground">
 								{label}
 							</Select.ListLabel>

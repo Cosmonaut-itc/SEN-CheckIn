@@ -22,8 +22,7 @@ describe('app CORS configuration', () => {
 				headers: {
 					origin: 'http://localhost:3000',
 					'access-control-request-method': 'POST',
-					'access-control-request-headers':
-						'content-type, x-client-platform, x-client-network-type, x-image-payload-bytes',
+					'access-control-request-headers': 'content-type, x-client-platform, x-client-network-type',
 				},
 			}),
 		);
@@ -42,7 +41,7 @@ describe('app CORS configuration', () => {
 		expect(actualResponse.status).toBe(200);
 		expect(allowHeaders.toLowerCase()).toContain('x-client-platform');
 		expect(allowHeaders.toLowerCase()).toContain('x-client-network-type');
-		expect(allowHeaders.toLowerCase()).toContain('x-image-payload-bytes');
+		expect(allowHeaders.toLowerCase()).not.toContain('x-image-payload-bytes');
 		expect(exposeHeaders.toLowerCase()).toContain('x-request-id');
 		expect(exposeHeaders.toLowerCase()).toContain('server-timing');
 	});

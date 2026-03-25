@@ -67,7 +67,6 @@ export async function verifyFace(input: VerifyFaceInput): Promise<RecognitionRes
 			'Content-Type': 'application/json',
 			'x-client-platform': input.platform,
 			'x-client-network-type': input.networkType ?? 'unknown',
-			'x-image-payload-bytes': input.payloadBytes.toString(),
 		},
 		body: JSON.stringify({ image: input.imageBase64 }),
 		credentials: 'include',

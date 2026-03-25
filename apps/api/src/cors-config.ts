@@ -9,7 +9,6 @@ export const API_CORS_ALLOWED_HEADERS = [
 	'x-internal-token',
 	'x-client-platform',
 	'x-client-network-type',
-	'x-image-payload-bytes',
 ] as const;
 
 export const API_CORS_EXPOSED_HEADERS = ['x-request-id', 'server-timing'] as const;

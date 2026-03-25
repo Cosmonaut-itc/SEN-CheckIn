@@ -41,7 +41,13 @@ describe('verifyFace', () => {
 					'Content-Type': 'application/json',
 					'x-client-platform': 'android',
 					'x-client-network-type': 'wifi',
-					'x-image-payload-bytes': '2048',
+				}),
+			}),
+		);
+		expect(mockAuthedFetch.mock.calls[0]?.[1]).toEqual(
+			expect.objectContaining({
+				headers: expect.not.objectContaining({
+					'x-image-payload-bytes': expect.any(String),
 				}),
 			}),
 		);

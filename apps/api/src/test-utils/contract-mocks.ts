@@ -13,6 +13,7 @@ import type {
 
 type RekognitionMockState = {
 	searchResult: SearchUsersByImageResult;
+	searchError: Error | null;
 };
 
 const defaultSearchResult: SearchUsersByImageResult = {
@@ -25,6 +26,7 @@ const defaultSearchResult: SearchUsersByImageResult = {
 
 const mockState: RekognitionMockState = {
 	searchResult: defaultSearchResult,
+	searchError: null,
 };
 
 let mocksInitialized = false;
@@ -37,6 +39,17 @@ let mocksInitialized = false;
  */
 export function setSearchUsersByImageResult(result: SearchUsersByImageResult): void {
 	mockState.searchResult = result;
+	mockState.searchError = null;
+}
+
+/**
+ * Overrides the next Rekognition search error thrown by searchUsersByImage.
+ *
+ * @param error - Error instance to throw from the mock implementation
+ * @returns Nothing
+ */
+export function setSearchUsersByImageError(error: Error): void {
+	mockState.searchError = error;
 }
 
 /**
@@ -53,6 +66,32 @@ export function setupRekognitionMocks(): void {
 
 	mock.module('../services/rekognition.js', () => {
 		return {
+			RekognitionServiceError: class RekognitionServiceError extends Error {
+				public readonly errorCode:
+					| 'REKOGNITION_INVALID_IMAGE'
+					| 'REKOGNITION_UPSTREAM_FAILURE'
+					| 'REKOGNITION_UPSTREAM_TIMEOUT';
+				public readonly httpStatus: 400 | 503 | 504;
+				public readonly clientMessage: string;
+
+				constructor(
+					message: string,
+					errorCode:
+						| 'REKOGNITION_INVALID_IMAGE'
+						| 'REKOGNITION_UPSTREAM_FAILURE'
+						| 'REKOGNITION_UPSTREAM_TIMEOUT' = 'REKOGNITION_UPSTREAM_FAILURE',
+					httpStatus: 400 | 503 | 504 = 503,
+					clientMessage: string = httpStatus === 400
+						? 'Invalid recognition image'
+						: 'Face recognition service unavailable',
+				) {
+					super(message);
+					this.name = 'RekognitionServiceError';
+					this.errorCode = errorCode;
+					this.httpStatus = httpStatus;
+					this.clientMessage = clientMessage;
+				}
+			},
 			createUser: async (employeeId: string): Promise<CreateUserResult> => ({
 				success: true,
 				userId: employeeId,
@@ -108,6 +147,11 @@ export function setupRekognitionMocks(): void {
 				message: undefined,
 			}),
 			searchUsersByImage: async (): Promise<SearchUsersByImageResult> => {
+				if (mockState.searchError) {
+					const error = mockState.searchError;
+					mockState.searchError = null;
+					throw error;
+				}
 				return mockState.searchResult;
 			},
 		};

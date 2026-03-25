@@ -940,7 +940,10 @@ export const employee = pgTable(
 			.$onUpdate(() => /* @__PURE__ */ new Date())
 			.notNull(),
 	},
-	(table) => [uniqueIndex('employee_org_user_uniq').on(table.organizationId, table.userId)],
+	(table) => [
+		uniqueIndex('employee_org_user_uniq').on(table.organizationId, table.userId),
+		index('employee_rekognition_user_id_idx').on(table.rekognitionUserId),
+	],
 );
 
 /**

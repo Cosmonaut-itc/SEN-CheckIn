@@ -20,6 +20,10 @@ import {
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
 import { queryKeys } from '@/lib/query-keys';
+import {
+	cleanupRecognitionImage,
+	prepareRecognitionImage,
+} from '@/lib/recognition-image';
 import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 
 const SCANNER_ROUTE = '/(main)/scanner' as Href;
@@ -191,6 +195,12 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 		}
 	}, [filteredEmployees, selectedEmployeeId]);
 
+	useEffect(() => {
+		return () => {
+			void cleanupRecognitionImage(capturedPhoto?.previewUri);
+		};
+	}, [capturedPhoto]);
+
 	const isListTruncated =
 		(employeesQuery.data?.pagination.total ?? 0) > (employeesQuery.data?.data.length ?? 0);
 	const showEmployeesEmptyState =
@@ -213,6 +223,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 				throw new Error(i18n.t('FaceEnrollment.errors.associationFailed'));
 			}
 
+			void cleanupRecognitionImage(capturedPhoto.previewUri);
 			setCapturedPhoto(null);
 			setCapturedEmployeeId(null);
 			setEnrollmentSummary({
@@ -243,19 +254,25 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 
 		try {
 			const photo = await cameraRef.current.takePictureAsync({
-				quality: 0.7,
-				base64: true,
-				skipProcessing: process.env.EXPO_OS === 'android',
+				quality: 1,
+				base64: false,
+				skipProcessing: false,
 			});
 
-			if (!photo?.base64) {
+			if (!photo?.uri) {
 				setSubmissionError(i18n.t('FaceEnrollment.errors.captureFailed'));
 				return;
 			}
 
+			const processedPhoto = await prepareRecognitionImage({
+				uri: photo.uri,
+				width: photo.width,
+				height: photo.height,
+			});
+
 			setCapturedPhoto({
-				previewUri: `data:image/jpeg;base64,${photo.base64}`,
-				base64: photo.base64,
+				previewUri: processedPhoto.previewUri,
+				base64: processedPhoto.base64,
 			});
 			setCapturedEmployeeId(selectedEmployee.id);
 		} catch {
@@ -283,13 +300,14 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	 * @returns No return value
 	 */
 	const handleRegisterAnother = useCallback((): void => {
+		void cleanupRecognitionImage(capturedPhoto?.previewUri);
 		setEnrollmentSummary(null);
 		setCapturedPhoto(null);
 		setCapturedEmployeeId(null);
 		setSearchTerm('');
 		setSelectedEmployeeId(null);
 		setSubmissionError(null);
-	}, []);
+	}, [capturedPhoto?.previewUri]);
 
 	/**
 	 * Toggles camera facing between front and back lenses.
@@ -605,6 +623,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 												variant="secondary"
 												className="flex-1"
 												onPress={() => {
+													void cleanupRecognitionImage(
+														capturedPhoto.previewUri,
+													);
 													setCapturedPhoto(null);
 													setCapturedEmployeeId(null);
 												}}

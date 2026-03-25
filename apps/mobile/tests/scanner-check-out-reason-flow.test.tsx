@@ -8,6 +8,7 @@ const mockPush = jest.fn();
 const mockReplace = jest.fn();
 const mockCheckOutReasonSheet = jest.fn();
 const mockRequestReauth = jest.fn();
+const mockPrepareRecognitionImage = jest.fn();
 const mockThemeColors: Record<string, string> = {
 	background: '#110D0A',
 	border: '#3D3028',
@@ -197,8 +198,19 @@ jest.mock('@/lib/attendance-capture-lock', () => ({
 }));
 
 jest.mock('@/lib/face-recognition', () => ({
+	FaceVerificationError: class FaceVerificationError extends Error {
+		public readonly status = 500;
+		public readonly errorCode: string | null = null;
+		public readonly retryable = false;
+		public readonly requestId: string | null = null;
+	},
 	recordAttendance: jest.fn(),
 	verifyFace: jest.fn(),
+}));
+
+jest.mock('@/lib/recognition-image', () => ({
+	cleanupRecognitionImage: jest.fn(),
+	prepareRecognitionImage: (...args: unknown[]) => mockPrepareRecognitionImage(...args),
 }));
 
 /**
@@ -227,6 +239,13 @@ describe('ScannerScreen check-out reason flow', () => {
 		mockReplace.mockReset();
 		mockCheckOutReasonSheet.mockReset();
 		mockRequestReauth.mockReset();
+		mockPrepareRecognitionImage.mockReset();
+		mockPrepareRecognitionImage.mockResolvedValue({
+			previewUri: 'file://processed.jpg',
+			base64: 'processed-base64',
+			payloadBytes: 1024,
+			preprocessMs: 25,
+		});
 	});
 
 	afterEach(() => {

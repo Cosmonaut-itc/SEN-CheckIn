@@ -5,6 +5,7 @@ import db from '../db/index.js';
 import { member } from '../db/schema.js';
 import { auth } from '../../utils/auth.js';
 import { UnauthorizedError } from '../errors/index.js';
+import { logger } from '../logger/index.js';
 
 /**
  * Session resolution result shape from BetterAuth.
@@ -51,6 +52,27 @@ const resolveSessionFromRequest = async (request: Request): Promise<AuthSessionR
 	});
 
 	return session ?? null;
+};
+
+/**
+ * Extracts an API key candidate from the incoming request headers.
+ *
+ * @param request - Incoming HTTP request
+ * @returns API key value when present, otherwise null
+ */
+const getApiKeyFromRequest = (request: Request): string | null => {
+	const authHeader = request.headers.get('authorization');
+	const apiKeyHeader = request.headers.get('x-api-key');
+
+	if (authHeader?.startsWith('Bearer ')) {
+		return authHeader.slice(7);
+	}
+
+	if (apiKeyHeader) {
+		return apiKeyHeader;
+	}
+
+	return null;
 };
 
 /**
@@ -225,6 +247,80 @@ const buildApiKeyContext = async (apiKey: {
 	};
 };
 
+/**
+ * Validates an API key from the request and returns the expanded auth context.
+ *
+ * @param request - Incoming HTTP request
+ * @returns API key auth context when present and valid, otherwise null
+ */
+const resolveApiKeyContextFromRequest = async (
+	request: Request,
+): Promise<{
+	apiKeyId: string;
+	apiKeyName: string | null;
+	apiKeyUserId: string;
+	apiKeyOrganizationId: string | null;
+	apiKeyOrganizationIds: string[];
+} | null> => {
+	const apiKey = getApiKeyFromRequest(request);
+
+	if (!apiKey) {
+		return null;
+	}
+
+	const result = await auth.api.verifyApiKey({
+		body: {
+			key: apiKey,
+		},
+	});
+
+	if (!result.valid || !result.key) {
+		return null;
+	}
+
+	return buildApiKeyContext(result.key);
+};
+
+/**
+ * Validates an API key for the recognition route without loading memberships.
+ *
+ * @param request - Incoming HTTP request
+ * @returns Minimal API key auth context when present and valid, otherwise null
+ */
+const resolveRecognitionApiKeyContextFromRequest = async (
+	request: Request,
+): Promise<{
+	apiKeyId: string;
+	apiKeyName: string | null;
+	apiKeyUserId: string;
+	apiKeyOrganizationId: null;
+	apiKeyOrganizationIds: [];
+} | null> => {
+	const apiKey = getApiKeyFromRequest(request);
+
+	if (!apiKey) {
+		return null;
+	}
+
+	const result = await auth.api.verifyApiKey({
+		body: {
+			key: apiKey,
+		},
+	});
+
+	if (!result.valid || !result.key) {
+		return null;
+	}
+
+	return {
+		apiKeyId: result.key.id,
+		apiKeyName: result.key.name ?? null,
+		apiKeyUserId: result.key.userId,
+		apiKeyOrganizationId: null,
+		apiKeyOrganizationIds: [],
+	};
+};
+
 export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).derive(
 	{ as: 'scoped' },
 	async ({
@@ -236,34 +332,17 @@ export const apiKeyAuthPlugin = new Elysia({ name: 'api-key-auth-plugin' }).deri
 		apiKeyOrganizationId: string | null;
 		apiKeyOrganizationIds: string[];
 	}> => {
-		// Extract API key from headers
-		const authHeader = request.headers.get('authorization');
-		const apiKeyHeader = request.headers.get('x-api-key');
-
-		let apiKey: string | null = null;
-
-		if (authHeader?.startsWith('Bearer ')) {
-			apiKey = authHeader.slice(7);
-		} else if (apiKeyHeader) {
-			apiKey = apiKeyHeader;
-		}
-
-		if (!apiKey) {
+		if (!getApiKeyFromRequest(request)) {
 			throw new UnauthorizedError('No API key provided');
 		}
 
-		// Validate the API key using BetterAuth
-		const result = await auth.api.verifyApiKey({
-			body: {
-				key: apiKey,
-			},
-		});
+		const apiKeyContext = await resolveApiKeyContextFromRequest(request);
 
-		if (!result.valid || !result.key) {
+		if (!apiKeyContext) {
 			throw new UnauthorizedError('Invalid API key');
 		}
 
-		return buildApiKeyContext(result.key);
+		return apiKeyContext;
 	},
 );
 
@@ -341,39 +420,125 @@ export const combinedAuthPlugin = new Elysia({ name: 'combined-auth-plugin' }).d
 			};
 		}
 
-		// If no session, try API key authentication
-		const authHeader = request.headers.get('authorization');
-		const apiKeyHeader = request.headers.get('x-api-key');
+		const apiKeyContext = await resolveApiKeyContextFromRequest(request);
 
-		let apiKey: string | null = null;
-
-		if (authHeader?.startsWith('Bearer ')) {
-			apiKey = authHeader.slice(7);
-		} else if (apiKeyHeader) {
-			apiKey = apiKeyHeader;
-		}
-
-		if (apiKey) {
-			const result = await auth.api.verifyApiKey({
-				body: {
-					key: apiKey,
-				},
-			});
-
-			if (result.valid && result.key) {
-				const apiKeyContext = await buildApiKeyContext(result.key);
-
-				return {
-					authType: 'apiKey',
-					user: null,
-					session: null,
-					sessionOrganizationIds: [],
-					...apiKeyContext,
-				};
-			}
+		if (apiKeyContext) {
+			return {
+				authType: 'apiKey',
+				user: null,
+				session: null,
+				sessionOrganizationIds: [],
+				...apiKeyContext,
+			};
 		}
 
 		// Neither authentication method succeeded
+		throw new UnauthorizedError('No valid session or API key found');
+	},
+);
+
+/**
+ * Lightweight authentication plugin for recognition routes.
+ * Accepts either session or API key auth without resolving organization memberships.
+ *
+ * @example
+ * ```typescript
+ * const recognitionOnly = new Elysia()
+ *   .use(recognitionAuthPlugin)
+ *   .post('/recognition/identify', ({ authTimingMs }) => ({ authTimingMs }));
+ * ```
+ */
+export const recognitionAuthPlugin = new Elysia({ name: 'recognition-auth-plugin' }).derive(
+	{ as: 'scoped' },
+	async ({
+		request,
+		set,
+	}): Promise<
+		(
+			| {
+					authType: 'session';
+					user: AuthUser;
+					session: AuthSession;
+					requestId: string;
+					apiKeyId: null;
+					apiKeyName: null;
+					apiKeyUserId: null;
+					apiKeyOrganizationId: null;
+					apiKeyOrganizationIds: [];
+			  }
+			| {
+					authType: 'apiKey';
+					user: null;
+					session: null;
+					requestId: string;
+					apiKeyId: string;
+					apiKeyName: string | null;
+					apiKeyUserId: string;
+					apiKeyOrganizationId: string | null;
+					apiKeyOrganizationIds: string[];
+			  }
+		) & {
+			authTimingMs: number;
+		}
+	> => {
+		const startedAt = performance.now();
+		const requestId = crypto.randomUUID();
+		const platform = request.headers.get('x-client-platform');
+		const networkType = request.headers.get('x-client-network-type');
+		const session = await resolveSessionFromRequest(request);
+
+		if (session) {
+			return {
+				authType: 'session',
+				user: session.user as AuthUser,
+				session: session.session as AuthSession,
+				requestId,
+				apiKeyId: null,
+				apiKeyName: null,
+				apiKeyUserId: null,
+				apiKeyOrganizationId: null,
+				apiKeyOrganizationIds: [],
+				authTimingMs: performance.now() - startedAt,
+			};
+		}
+
+		const apiKeyContext = await resolveRecognitionApiKeyContextFromRequest(request);
+
+		if (apiKeyContext) {
+			return {
+				authType: 'apiKey',
+				user: null,
+				session: null,
+				requestId,
+				...apiKeyContext,
+				authTimingMs: performance.now() - startedAt,
+			};
+		}
+
+		const authTimingMs = performance.now() - startedAt;
+		set.headers['x-request-id'] = requestId;
+		set.headers['server-timing'] = `auth;dur=${authTimingMs.toFixed(2)}`;
+		logger.warn('Recognition identify diagnostics', {
+			requestId,
+			platform,
+			networkType,
+			imageChars: null,
+			payloadBytes: request.headers.has('content-length')
+				? Number(request.headers.get('content-length'))
+				: null,
+			decodedBytes: 0,
+			authMs: authTimingMs,
+			parseMs: 0,
+			decodeMs: 0,
+			rekognitionMs: 0,
+			dbMs: 0,
+			serializeMs: 0,
+			totalMs: authTimingMs,
+			rekognitionAttempts: 0,
+			status: 401,
+			errorCode: 'UNAUTHORIZED',
+		});
+
 		throw new UnauthorizedError('No valid session or API key found');
 	},
 );

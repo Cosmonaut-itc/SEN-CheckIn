@@ -16,6 +16,7 @@ const mockFetchFaceEnrollmentEmployees: jest.Mock = jest.fn();
 const mockFullEnrollmentFlow: jest.Mock = jest.fn();
 const mockIsFaceEnrollmentApiError: jest.Mock = jest.fn();
 const mockTakePictureAsync: jest.Mock = jest.fn();
+const mockPrepareRecognitionImage: jest.Mock = jest.fn();
 const mockRequestPermission = jest.fn();
 
 jest.mock('@tanstack/react-query', () => ({
@@ -168,6 +169,11 @@ jest.mock('@/lib/client-functions', () => ({
 	isFaceEnrollmentApiError: (error: unknown) => mockIsFaceEnrollmentApiError(error),
 }));
 
+jest.mock('@/lib/recognition-image', () => ({
+	cleanupRecognitionImage: jest.fn(),
+	prepareRecognitionImage: (...args: unknown[]) => mockPrepareRecognitionImage(...args),
+}));
+
 /**
  * UI coverage for mobile face enrollment screen.
  */
@@ -186,6 +192,7 @@ describe('FaceEnrollmentScreen', () => {
 		mockFullEnrollmentFlow.mockReset();
 		mockIsFaceEnrollmentApiError.mockReset();
 		mockTakePictureAsync.mockReset();
+		mockPrepareRecognitionImage.mockReset();
 		mockRequestPermission.mockReset();
 
 		mockUseDeviceContext.mockReturnValue({
@@ -238,7 +245,17 @@ describe('FaceEnrollmentScreen', () => {
 			isError: false,
 		});
 
-		mockTakePictureAsync.mockResolvedValue({ base64: 'base64-image' });
+		mockTakePictureAsync.mockResolvedValue({
+			uri: 'file://capture.jpg',
+			width: 1280,
+			height: 720,
+		});
+		mockPrepareRecognitionImage.mockResolvedValue({
+			previewUri: 'file://processed.jpg',
+			base64: 'processed-base64-image',
+			payloadBytes: 2048,
+			preprocessMs: 42,
+		});
 		mockFetchFaceEnrollmentEmployees.mockResolvedValue({
 			data: [],
 			pagination: {
@@ -334,7 +351,7 @@ describe('FaceEnrollmentScreen', () => {
 
 		expect(mockFullEnrollmentFlow).toHaveBeenCalledWith({
 			employeeId: 'employee-1',
-			imageBase64: 'base64-image',
+			imageBase64: 'processed-base64-image',
 			hasRekognitionUser: false,
 		});
 		expect(mockInvalidateQueries).toHaveBeenCalled();
@@ -365,7 +382,7 @@ describe('FaceEnrollmentScreen', () => {
 
 		expect(mockFullEnrollmentFlow).toHaveBeenCalledWith({
 			employeeId: 'employee-1',
-			imageBase64: 'base64-image',
+			imageBase64: 'processed-base64-image',
 			hasRekognitionUser: false,
 		});
 	});

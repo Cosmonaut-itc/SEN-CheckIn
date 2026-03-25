@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import {
 	AccessibilityInfo,
 	Animated,
+	Platform,
 	ScrollView,
 	Text,
 	View,
@@ -33,9 +34,17 @@ import {
 import { clearAuthStorage, signOut } from '@/lib/auth-client';
 import { useDeviceContext } from '@/lib/device-context';
 import { i18n } from '@/lib/i18n';
-import { recordAttendance, verifyFace } from '@/lib/face-recognition';
+import {
+	FaceVerificationError,
+	recordAttendance,
+	verifyFace,
+} from '@/lib/face-recognition';
 import { clearPendingAttendanceQueue, isOfflineNetInfoState } from '@/lib/offline-attendance';
 import type { AttendanceType } from '@/lib/query-keys';
+import {
+	cleanupRecognitionImage,
+	prepareRecognitionImage,
+} from '@/lib/recognition-image';
 import { useAuthContext } from '@/providers/auth-provider';
 import { useTheme } from '@/providers/theme-provider';
 
@@ -67,6 +76,42 @@ const MAX_FACE_GUIDE_SIZE = 400;
 const ATTENDANCE_TYPE_ORDER: AttendanceType[] = ['CHECK_IN', 'CHECK_OUT_AUTHORIZED', 'CHECK_OUT'];
 const DEVICE_SETUP_ROUTE = '/(auth)/device-setup' as Href;
 const convertResolvedThemeColorToRgb = converter('rgb');
+
+/**
+ * Returns the current network type for recognition diagnostics.
+ *
+ * @returns Promise resolving to the current network type or null when unavailable
+ */
+async function getRecognitionNetworkType(): Promise<string | null> {
+	try {
+		const networkState = await NetInfo.fetch();
+		return networkState.type ?? null;
+	} catch (error) {
+		console.warn('[scanner] Failed to resolve network type for recognition', error);
+		return null;
+	}
+}
+
+/**
+ * Emits a structured client-side recognition timing log.
+ *
+ * @param diagnostics - Timing and payload metrics for a recognition attempt
+ * @returns No return value
+ */
+function logRecognitionAttempt(diagnostics: {
+	captureMs: number;
+	preprocessMs: number;
+	payloadBytes: number;
+	uploadServerMs: number;
+	totalMs: number;
+	networkType: string | null;
+	status: number;
+	outcome: 'match' | 'no-match' | 'retryable-failure' | 'failure';
+	errorCode?: string | null;
+	requestId?: string | null;
+}): void {
+	console.info('[scanner] recognition attempt', diagnostics);
+}
 
 /**
  * Cross-platform link icon for the device-link CTA.
@@ -262,7 +307,6 @@ export default function ScannerScreen(): JSX.Element {
 		[insets.bottom, insets.top, isDarkMode, themeColors],
 	);
 	const continuousCurve = useMemo(() => ({ borderCurve: 'continuous' as const }), []);
-	const isAndroid = process.env.EXPO_OS === 'android';
 	const shouldReduceMotion = useReducedMotion();
 
 	// Use state for camera facing to ensure proper initialization
@@ -562,6 +606,8 @@ export default function ScannerScreen(): JSX.Element {
 			return;
 		}
 
+		clearPendingScanStatusReset();
+
 		if (!cameraRef.current || !settings?.deviceId) {
 			setScanStatus({ state: 'error', message: i18n.t('Scanner.status.deviceNotLinked') });
 			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -571,23 +617,62 @@ export default function ScannerScreen(): JSX.Element {
 
 		setIsProcessing(true);
 		setScanStatus({ state: 'scanning', message: i18n.t('Scanner.status.verifying') });
+		let captureMs = 0;
+		let preprocessMs = 0;
+		let payloadBytes = 0;
+		let networkType: string | null = null;
+		const totalStartedAt = performance.now();
+		let verificationStartedAt: number | null = null;
+		let processedPreviewUri: string | null = null;
 
 		try {
+			const captureStartedAt = performance.now();
 			const photo = await cameraRef.current.takePictureAsync({
-				quality: 0.5,
-				base64: true,
-				skipProcessing: isAndroid, // Skip processing on Android for speed
+				quality: 1,
+				base64: false,
+				skipProcessing: false,
 			});
+			captureMs = performance.now() - captureStartedAt;
 
-			if (!photo?.base64) {
+			if (!photo?.uri) {
 				setScanStatus({ state: 'error', message: i18n.t('Scanner.status.captureFailed') });
 				void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+				scheduleScanStatusReset(4000);
 				return;
 			}
 
-			const match = await verifyFace(photo.base64);
+			const processedPhoto = await prepareRecognitionImage({
+				uri: photo.uri,
+				width: photo.width,
+				height: photo.height,
+			});
+			processedPreviewUri = processedPhoto.previewUri;
+			preprocessMs = processedPhoto.preprocessMs;
+			payloadBytes = processedPhoto.payloadBytes;
+			networkType = await getRecognitionNetworkType();
+			verificationStartedAt = performance.now();
+			const match = await verifyFace({
+				imageBase64: processedPhoto.base64,
+				payloadBytes: processedPhoto.payloadBytes,
+				platform: Platform.OS === 'ios' ? 'ios' : 'android',
+				networkType,
+			});
+			const uploadServerMs = performance.now() - verificationStartedAt;
+			const totalMs = performance.now() - captureStartedAt;
 
 			if (match.matched && match.employee) {
+				logRecognitionAttempt({
+					captureMs,
+					preprocessMs,
+					payloadBytes,
+					uploadServerMs,
+					totalMs,
+					networkType,
+					status: 200,
+					outcome: 'match',
+					errorCode: null,
+				});
+
 				const metadata =
 					attendanceType === 'CHECK_OUT_AUTHORIZED'
 						? {
@@ -627,6 +712,17 @@ export default function ScannerScreen(): JSX.Element {
 				// Reset status after 3 seconds
 				scheduleScanStatusReset(3000);
 			} else {
+				logRecognitionAttempt({
+					captureMs,
+					preprocessMs,
+					payloadBytes,
+					uploadServerMs,
+					totalMs,
+					networkType,
+					status: 200,
+					outcome: 'no-match',
+					errorCode: match.errorCode ?? null,
+				});
 				setScanStatus({
 					state: 'error',
 					message: i18n.t('Scanner.status.faceNotRecognized'),
@@ -638,12 +734,35 @@ export default function ScannerScreen(): JSX.Element {
 			}
 		} catch (error) {
 			console.error('Face verification failed:', error);
+			const retryableFailure =
+				error instanceof FaceVerificationError && error.retryable;
+			logRecognitionAttempt({
+				captureMs,
+				preprocessMs,
+				payloadBytes,
+				uploadServerMs:
+					verificationStartedAt === null
+						? 0
+						: performance.now() - verificationStartedAt,
+				totalMs: performance.now() - totalStartedAt,
+				networkType,
+				status: error instanceof FaceVerificationError ? error.status : 500,
+				outcome: retryableFailure ? 'retryable-failure' : 'failure',
+				errorCode: error instanceof FaceVerificationError ? error.errorCode : null,
+				requestId: error instanceof FaceVerificationError ? error.requestId : null,
+			});
 			setScanStatus({
 				state: 'error',
-				message: i18n.t('Scanner.status.verificationFailed'),
+				message: i18n.t(
+					retryableFailure
+						? 'Scanner.status.verificationRetryable'
+						: 'Scanner.status.verificationFailed',
+				),
 			});
 			void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+			scheduleScanStatusReset(retryableFailure ? 3000 : 4000);
 		} finally {
+			void cleanupRecognitionImage(processedPreviewUri);
 			releaseAttendanceCaptureLock(captureLockRef);
 			setIsProcessing(false);
 		}

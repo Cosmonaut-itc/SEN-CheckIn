@@ -9,21 +9,20 @@ const mockUseDeviceContext = jest.fn();
 const mockSetFieldValue = jest.fn();
 const mockToastShow = jest.fn();
 const mockSignOut = jest.fn();
+const mockFetchLocationsList = jest.fn();
 const mockClearAuthStorage = jest.fn();
 const mockClearPendingAttendanceQueue = jest.fn();
 const mockClearSettings = jest.fn();
 const mockRouterReplace = jest.fn();
 const mockRequestReauth = jest.fn();
-let capturedFormConfig:
-	| {
-			onSubmit: (input: {
-				value: {
-					name: string;
-					locationId: string;
-				};
-			}) => Promise<void>;
-	  }
-	| null = null;
+let capturedFormConfig: {
+	onSubmit: (input: {
+		value: {
+			name: string;
+			locationId: string;
+		};
+	}) => Promise<void>;
+} | null = null;
 
 jest.mock('@tanstack/react-query', () => ({
 	useQuery: (...args: unknown[]) => mockUseQuery(...args),
@@ -111,6 +110,9 @@ jest.mock('heroui-native', () => {
 	Select.Trigger = function MockSelectTrigger({ children }: { children: React.ReactNode }) {
 		return <View>{children}</View>;
 	};
+	Select.Value = function MockSelectValue({ placeholder }: { placeholder?: string }) {
+		return placeholder ? <Text>{placeholder}</Text> : <View />;
+	};
 	Select.Portal = function MockSelectPortal({ children }: { children: React.ReactNode }) {
 		return <View>{children}</View>;
 	};
@@ -130,6 +132,9 @@ jest.mock('heroui-native', () => {
 		return <View>{children}</View>;
 	};
 	Select.ItemIndicator = function MockSelectItemIndicator() {
+		return <View />;
+	};
+	Select.TriggerIndicator = function MockSelectTriggerIndicator() {
 		return <View />;
 	};
 
@@ -158,7 +163,7 @@ jest.mock('@/lib/auth-client', () => ({
 }));
 
 jest.mock('@/lib/client-functions', () => ({
-	fetchLocationsList: jest.fn(),
+	fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
 }));
 
 jest.mock('@/lib/device-context', () => ({
@@ -177,52 +182,52 @@ jest.mock('@/lib/forms', () => ({
 		capturedFormConfig = config;
 
 		return {
-		setFieldValue: mockSetFieldValue,
-		AppField: ({
-			children,
-			name,
-		}: {
-			children: (field: {
-				state: { value: string; meta: { errors: string[] } };
-				handleChange: (value: string) => void;
-				TextField: (props: {
-					label: string;
-					placeholder?: string;
-					description?: string;
-				}) => React.JSX.Element;
-			}) => React.ReactNode;
-			name: string;
-		}) =>
-			children({
-				state: {
-					value: '',
-					meta: { errors: [] },
-				},
-				handleChange: jest.fn(),
-				TextField: ({ label, placeholder, description }) => {
-					const ReactNativeActual =
-						jest.requireActual<typeof import('react-native')>('react-native');
+			setFieldValue: mockSetFieldValue,
+			AppField: ({
+				children,
+				name,
+			}: {
+				children: (field: {
+					state: { value: string; meta: { errors: string[] } };
+					handleChange: (value: string) => void;
+					TextField: (props: {
+						label: string;
+						placeholder?: string;
+						description?: string;
+					}) => React.JSX.Element;
+				}) => React.ReactNode;
+				name: string;
+			}) =>
+				children({
+					state: {
+						value: '',
+						meta: { errors: [] },
+					},
+					handleChange: jest.fn(),
+					TextField: ({ label, placeholder, description }) => {
+						const ReactNativeActual =
+							jest.requireActual<typeof import('react-native')>('react-native');
 
-					return (
-						<>
-							<ReactNativeActual.Text>{label}</ReactNativeActual.Text>
-							{placeholder ? (
-								<ReactNativeActual.Text>{placeholder}</ReactNativeActual.Text>
-							) : null}
-							{description ? (
-								<ReactNativeActual.Text>{description}</ReactNativeActual.Text>
-							) : null}
-						</>
-					);
-				},
-			}),
-		AppForm: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-		SubmitButton: ({ label }: { label: string }) => {
-			const ReactNativeActual =
-				jest.requireActual<typeof import('react-native')>('react-native');
+						return (
+							<>
+								<ReactNativeActual.Text>{label}</ReactNativeActual.Text>
+								{placeholder ? (
+									<ReactNativeActual.Text>{placeholder}</ReactNativeActual.Text>
+								) : null}
+								{description ? (
+									<ReactNativeActual.Text>{description}</ReactNativeActual.Text>
+								) : null}
+							</>
+						);
+					},
+				}),
+			AppForm: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+			SubmitButton: ({ label }: { label: string }) => {
+				const ReactNativeActual =
+					jest.requireActual<typeof import('react-native')>('react-native');
 
-			return <ReactNativeActual.Text>{label}</ReactNativeActual.Text>;
-		},
+				return <ReactNativeActual.Text>{label}</ReactNativeActual.Text>;
+			},
 		};
 	},
 }));
@@ -240,7 +245,10 @@ jest.mock('@/lib/offline-attendance', () => ({
 jest.mock('@/lib/query-keys', () => ({
 	queryKeys: {
 		locations: {
-			list: ({ organizationId }: { organizationId?: string }) => ['locations', organizationId],
+			list: ({ organizationId }: { organizationId?: string }) => [
+				'locations',
+				organizationId,
+			],
 		},
 	},
 }));
@@ -263,6 +271,7 @@ describe('SettingsScreen organization gating', () => {
 		mockSetFieldValue.mockReset();
 		mockToastShow.mockReset();
 		mockSignOut.mockReset();
+		mockFetchLocationsList.mockReset();
 		mockClearAuthStorage.mockReset();
 		mockClearPendingAttendanceQueue.mockReset();
 		mockClearSettings.mockReset();
@@ -307,6 +316,81 @@ describe('SettingsScreen organization gating', () => {
 			}),
 		);
 		expect(screen.getByTestId('location-select-disabled-state')).toHaveTextContent('disabled');
+	});
+
+	it('loads locations when session organization is missing but persisted device settings retain the organization context', async () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: true,
+			isUpdating: false,
+			saveRemoteSettings: jest.fn(),
+			updateLocalSettings: jest.fn(),
+			clearSettings: mockClearSettings,
+		});
+		mockFetchLocationsList.mockResolvedValue({
+			data: [],
+		});
+
+		render(<SettingsScreen />);
+
+		const queryOptions = mockUseQuery.mock.calls[0]?.[0] as
+			| {
+					enabled?: boolean;
+					queryKey?: unknown;
+					queryFn?: () => Promise<unknown>;
+			  }
+			| undefined;
+
+		expect(queryOptions?.enabled).toBe(true);
+		expect(queryOptions?.queryKey).toEqual(['locations', 'org-1']);
+		await queryOptions?.queryFn?.();
+		expect(mockFetchLocationsList).toHaveBeenCalledWith({
+			limit: 100,
+			organizationId: 'org-1',
+		});
+		expect(screen.getByText('Settings.organization.idLabel: org-1')).toBeOnTheScreen();
+	});
+
+	it('renders a bounded nested scroll view for long location lists', () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			isHydrated: true,
+			isUpdating: false,
+			saveRemoteSettings: jest.fn(),
+			updateLocalSettings: jest.fn(),
+			clearSettings: mockClearSettings,
+		});
+		mockUseQuery.mockReturnValue({
+			data: {
+				data: Array.from({ length: 8 }, (_, index) => ({
+					id: `location-${index}`,
+					name: `Ubicacion ${index}`,
+					code: `LOC-${index}`,
+				})),
+			},
+			isError: false,
+			isPending: false,
+		});
+
+		render(<SettingsScreen />);
+
+		const optionsScrollView = screen.getByTestId('settings-location-options-scroll');
+
+		expect(optionsScrollView.props.nestedScrollEnabled).toBe(true);
+		expect(optionsScrollView.props.showsVerticalScrollIndicator).toBe(true);
+		expect(optionsScrollView.props.style).toEqual({
+			maxHeight: 320,
+		});
 	});
 
 	it('clears the pending offline queue when signing out', async () => {

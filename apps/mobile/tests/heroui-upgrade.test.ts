@@ -1,6 +1,17 @@
 import { existsSync } from 'fs';
 
 /**
+ * Read the mobile app package manifest.
+ *
+ * @returns Mobile package metadata relevant to dependency policy checks
+ */
+function readMobilePackage(): { dependencies?: Record<string, string> } {
+	return require('../package.json') as {
+		dependencies?: Record<string, string>;
+	};
+}
+
+/**
  * Read the installed HeroUI Native package manifest used by the mobile app.
  *
  * @returns Installed package metadata relevant to the dependency upgrade
@@ -14,10 +25,16 @@ function readHeroUiPackage(): { version: string; main?: string; module?: string 
 }
 
 describe('HeroUI Native dependency upgrade', () => {
-	it('pins heroui-native to rc.4', () => {
+	it('pins heroui-native to 1.0.0 in the mobile manifest', () => {
+		const mobilePackage = readMobilePackage();
+
+		expect(mobilePackage.dependencies?.['heroui-native']).toBe('1.0.0');
+	});
+
+	it('keeps the installed package at 1.0.0', () => {
 		const heroUiPackage = readHeroUiPackage();
 
-		expect(heroUiPackage.version).toBe('1.0.0-rc.4');
+		expect(heroUiPackage.version).toBe('1.0.0');
 	});
 
 	it('keeps the package entry points available after the upgrade', () => {

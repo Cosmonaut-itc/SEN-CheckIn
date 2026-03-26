@@ -25,6 +25,7 @@ import { BODY_TEXT_CLASS_NAME } from '@/lib/typography';
 import { useAuthContext } from '@/providers/auth-provider';
 
 const SCANNER_ROUTE = '/(main)/scanner' as Href;
+const LOCATION_OPTIONS_MAX_HEIGHT = 320;
 
 /**
  * Settings screen for configuring device metadata and linkage.
@@ -47,14 +48,18 @@ export default function SettingsScreen(): JSX.Element {
 		updateLocalSettings,
 		clearSettings,
 	} = useDeviceContext();
+	const resolvedOrganizationId = activeOrganizationId ?? settings?.organizationId ?? null;
 
-	const { data: locationsResponse, isError: isLocationsError, isPending: isLocationsPending } =
-		useQuery({
-		queryKey: queryKeys.locations.list({ organizationId: activeOrganizationId ?? undefined }),
+	const {
+		data: locationsResponse,
+		isError: isLocationsError,
+		isPending: isLocationsPending,
+	} = useQuery({
+		queryKey: queryKeys.locations.list({ organizationId: resolvedOrganizationId ?? undefined }),
 		queryFn: () =>
-			fetchLocationsList({ limit: 100, organizationId: activeOrganizationId ?? undefined }),
-		enabled: Boolean(activeOrganizationId),
-		});
+			fetchLocationsList({ limit: 100, organizationId: resolvedOrganizationId ?? undefined }),
+		enabled: Boolean(resolvedOrganizationId),
+	});
 
 	const locationOptions = useMemo(
 		() =>
@@ -115,7 +120,7 @@ export default function SettingsScreen(): JSX.Element {
 		form.setFieldValue('locationId', settings?.locationId ?? '');
 	}, [form, settings?.locationId, settings?.name]);
 
-	const organizationId = activeOrganizationId ?? '—';
+	const organizationId = resolvedOrganizationId ?? '—';
 	const organizationName =
 		(session?.session as { organization?: { name?: string } })?.organization?.name ??
 		i18n.t('Settings.organization.fallbackName');
@@ -160,308 +165,308 @@ export default function SettingsScreen(): JSX.Element {
 					keyboardShouldPersistTaps="handled"
 					showsVerticalScrollIndicator={false}
 				>
-				<View className="gap-1">
-					<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500`}>
-						{i18n.t('Settings.subtitle')}
-					</Text>
-				</View>
-
-				<Card variant="default" style={continuousCurve}>
-					<Card.Header className="flex-row items-center gap-3 px-5 pt-5 pb-2">
-						<View
-							className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
-							style={continuousCurve}
-						>
-							<IconSymbol name="building.2" size={18} color={iconColor} />
-						</View>
-						<View className="flex-1">
-							<Card.Title className="text-foreground text-lg">
-								{organizationName}
-							</Card.Title>
-							<Card.Description className="text-foreground-500">
-								{i18n.t('Settings.organization.description')}
-							</Card.Description>
-						</View>
-					</Card.Header>
-					<Card.Body className="px-5 pb-5 pt-1">
-						<Text
-							className="text-foreground-500 font-mono text-sm"
-							numberOfLines={1}
-							ellipsizeMode="middle"
-							selectable
-						>
-							{i18n.t('Settings.organization.idLabel')}: {organizationId}
+					<View className="gap-1">
+						<Text className={`${BODY_TEXT_CLASS_NAME} text-foreground-500`}>
+							{i18n.t('Settings.subtitle')}
 						</Text>
-					</Card.Body>
-				</Card>
+					</View>
 
-				<Card variant="default" style={continuousCurve}>
-					<Card.Body className="p-5 gap-5">
-						<form.AppField
-							name="name"
-							validators={{
-								onChange: ({ value }) =>
-									!value.trim()
-										? i18n.t('Settings.form.validation.nameRequired')
-										: undefined,
-							}}
-						>
-							{(field) => (
-								<field.TextField
-									label={i18n.t('Settings.form.fields.name.label')}
-									placeholder={i18n.t('Settings.form.fields.name.placeholder')}
-									description={i18n.t('Settings.form.fields.name.description')}
-								/>
-							)}
-						</form.AppField>
-
-						<form.AppField name="locationId">
-							{(field) => {
-								const selectedOption = locationOptions.find(
-									(opt) => opt.value === field.state.value,
-								);
-								const hasError = field.state.meta.errors.length > 0;
-
-								const handleLocationChange = (option: {
-									value: string;
-									label: string;
-								}): void => {
-									field.handleChange(option.value);
-								};
-
-								return (
-									<View className="gap-1.5">
-										<Text className="text-sm font-semibold text-foreground tracking-wide">
-											{i18n.t('Settings.form.fields.location.label')}
-										</Text>
-										<Select
-											value={selectedOption}
-											onValueChange={handleLocationChange}
-											isDisabled={
-												!activeOrganizationId ||
-												isLocationsPending ||
-												isLocationsError
-											}
-										>
-											<Select.Trigger variant="outline" asChild>
-												<Button
-													variant="tertiary"
-													size="sm"
-													accessibilityLabel={`${i18n.t(
-														'Settings.form.fields.location.accessibilityLabel',
-													)}: ${
-														selectedOption?.label ??
-														i18n.t(
-															'Settings.form.fields.location.placeholder',
-														)
-													}`}
-													accessibilityHint={i18n.t(
-														'Settings.form.fields.location.accessibilityHint',
-													)}
-												>
-													{selectedOption ? (
-														<View className="flex-row items-center gap-2">
-															<Text className="text-sm text-foreground">
-																{selectedOption.label}
-															</Text>
-														</View>
-													) : (
-														<Text className="text-foreground">
-															{isLocationsPending
-																? i18n.t(
-																		'Settings.form.fields.location.loading',
-																	)
-																: isLocationsError
-																	? i18n.t(
-																			'Settings.form.fields.location.loadError',
-																		)
-																: i18n.t(
-																		'Settings.form.fields.location.placeholder',
-																	)}
-														</Text>
-													)}
-												</Button>
-											</Select.Trigger>
-											<Select.Portal>
-												<Select.Overlay className="bg-overlay/80" />
-												<Select.Content
-													presentation="dialog"
-													classNames={{
-														wrapper: 'px-5',
-														content: 'rounded-xl bg-popover gap-2 shadow-lg',
-													}}
-													style={continuousCurve}
-												>
-													<Select.Close />
-													<Select.ListLabel className="text-lg font-bold text-foreground">
-														{i18n.t('Settings.form.fields.location.label')}
-													</Select.ListLabel>
-													{isLocationsError ? (
-														<View className="py-4">
-															<Text className="text-danger-500 text-center">
-																{i18n.t(
-																	'Settings.form.fields.location.loadError',
-																)}
-															</Text>
-														</View>
-													) : locationOptions.length === 0 ? (
-														<View className="py-4">
-															<Text className="text-foreground-400 text-center">
-																{i18n.t(
-																	'Settings.form.fields.location.empty',
-																)}
-															</Text>
-														</View>
-													) : (
-														<ScrollView>
-															{locationOptions.map((opt) => (
-																<Select.Item
-																	key={opt.value}
-																	value={opt.value}
-																	label={opt.label}
-																>
-																	<View className="flex-row items-center gap-3 flex-1">
-																		<Text className="text-base text-foreground flex-1">
-																			{opt.label}
-																		</Text>
-																	</View>
-																	<Select.ItemIndicator />
-																</Select.Item>
-															))}
-														</ScrollView>
-													)}
-												</Select.Content>
-											</Select.Portal>
-										</Select>
-										{hasError ? (
-											<Text
-												className="text-sm text-danger-500 font-medium"
-												selectable
-											>
-												{field.state.meta.errors.join(', ')}
-											</Text>
-										) : null}
-									</View>
-								);
-							}}
-						</form.AppField>
-
-						<form.AppForm>
-							<form.SubmitButton
-								label={
-									settings?.deviceId
-										? i18n.t('Settings.form.actions.saveChanges')
-										: i18n.t('Settings.form.actions.linkDeviceFirst')
-								}
-								loadingLabel={i18n.t('Common.saving')}
-							/>
-						</form.AppForm>
-
-						<View className="gap-1">
-							<Text className="text-sm text-foreground-500">
-								{i18n.t('Settings.deviceId.label')}
-							</Text>
+					<Card variant="default" style={continuousCurve}>
+						<Card.Header className="flex-row items-center gap-3 px-5 pt-5 pb-2">
+							<View
+								className="w-10 h-10 rounded-xl bg-primary/10 items-center justify-center"
+								style={continuousCurve}
+							>
+								<IconSymbol name="building.2" size={18} color={iconColor} />
+							</View>
+							<View className="flex-1">
+								<Card.Title className="text-foreground text-lg">
+									{organizationName}
+								</Card.Title>
+								<Card.Description className="text-foreground-500">
+									{i18n.t('Settings.organization.description')}
+								</Card.Description>
+							</View>
+						</Card.Header>
+						<Card.Body className="px-5 pb-5 pt-1">
 							<Text
-								className="text-foreground font-mono text-sm"
+								className="text-foreground-500 font-mono text-sm"
 								numberOfLines={1}
 								ellipsizeMode="middle"
 								selectable
 							>
-								{settings?.deviceId ?? i18n.t('Settings.deviceId.notSet')}
+								{i18n.t('Settings.organization.idLabel')}: {organizationId}
 							</Text>
-							{!isHydrated ? (
-								<Text className="text-foreground-500">
-									{i18n.t('Settings.deviceId.loading')}
+						</Card.Body>
+					</Card>
+
+					<Card variant="default" style={continuousCurve}>
+						<Card.Body className="p-5 gap-5">
+							<form.AppField
+								name="name"
+								validators={{
+									onChange: ({ value }) =>
+										!value.trim()
+											? i18n.t('Settings.form.validation.nameRequired')
+											: undefined,
+								}}
+							>
+								{(field) => (
+									<field.TextField
+										label={i18n.t('Settings.form.fields.name.label')}
+										placeholder={i18n.t(
+											'Settings.form.fields.name.placeholder',
+										)}
+										description={i18n.t(
+											'Settings.form.fields.name.description',
+										)}
+									/>
+								)}
+							</form.AppField>
+
+							<form.AppField name="locationId">
+								{(field) => {
+									const selectedOption = locationOptions.find(
+										(opt) => opt.value === field.state.value,
+									);
+									const hasError = field.state.meta.errors.length > 0;
+									const locationTriggerLabel = isLocationsPending
+										? i18n.t('Settings.form.fields.location.loading')
+										: isLocationsError
+											? i18n.t('Settings.form.fields.location.loadError')
+											: i18n.t('Settings.form.fields.location.placeholder');
+
+									const handleLocationChange = (option: {
+										value: string;
+										label: string;
+									}): void => {
+										field.handleChange(option.value);
+									};
+
+									return (
+										<View className="gap-1.5">
+											<Text className="text-sm font-semibold text-foreground tracking-wide">
+												{i18n.t('Settings.form.fields.location.label')}
+											</Text>
+											<Select
+												value={selectedOption}
+												onValueChange={handleLocationChange}
+												isDisabled={
+													!resolvedOrganizationId ||
+													isLocationsPending ||
+													isLocationsError
+												}
+												presentation="popover"
+											>
+												<Select.Trigger
+													accessibilityLabel={`${i18n.t(
+														'Settings.form.fields.location.accessibilityLabel',
+													)}: ${selectedOption?.label ?? locationTriggerLabel}`}
+													accessibilityHint={i18n.t(
+														'Settings.form.fields.location.accessibilityHint',
+													)}
+												>
+													<Select.Value
+														placeholder={locationTriggerLabel}
+													/>
+													<Select.TriggerIndicator />
+												</Select.Trigger>
+												<Select.Portal>
+													<Select.Overlay className="bg-overlay/80" />
+													<Select.Content
+														presentation="popover"
+														width="trigger"
+														placement="bottom"
+														className="bg-popover gap-2 shadow-lg"
+														style={continuousCurve}
+													>
+														<Select.ListLabel className="text-base font-semibold text-foreground">
+															{i18n.t(
+																'Settings.form.fields.location.label',
+															)}
+														</Select.ListLabel>
+														{isLocationsError ? (
+															<View className="py-4">
+																<Text className="text-danger-500 text-center">
+																	{i18n.t(
+																		'Settings.form.fields.location.loadError',
+																	)}
+																</Text>
+															</View>
+														) : locationOptions.length === 0 ? (
+															<View className="py-4">
+																<Text className="text-foreground-400 text-center">
+																	{i18n.t(
+																		'Settings.form.fields.location.empty',
+																	)}
+																</Text>
+															</View>
+														) : (
+															<ScrollView
+																nestedScrollEnabled
+																showsVerticalScrollIndicator={
+																	locationOptions.length > 6
+																}
+																testID="settings-location-options-scroll"
+																style={{
+																	maxHeight:
+																		LOCATION_OPTIONS_MAX_HEIGHT,
+																}}
+															>
+																{locationOptions.map((opt) => (
+																	<Select.Item
+																		key={opt.value}
+																		value={opt.value}
+																		label={opt.label}
+																	/>
+																))}
+															</ScrollView>
+														)}
+													</Select.Content>
+												</Select.Portal>
+											</Select>
+											{hasError ? (
+												<Text
+													className="text-sm text-danger-500 font-medium"
+													selectable
+												>
+													{field.state.meta.errors.join(', ')}
+												</Text>
+											) : null}
+										</View>
+									);
+								}}
+							</form.AppField>
+
+							<form.AppForm>
+								<form.SubmitButton
+									label={
+										settings?.deviceId
+											? i18n.t('Settings.form.actions.saveChanges')
+											: i18n.t('Settings.form.actions.linkDeviceFirst')
+									}
+									loadingLabel={i18n.t('Common.saving')}
+								/>
+							</form.AppForm>
+
+							<View className="gap-1">
+								<Text className="text-sm text-foreground-500">
+									{i18n.t('Settings.deviceId.label')}
 								</Text>
-							) : null}
-						</View>
-					</Card.Body>
+								<Text
+									className="text-foreground font-mono text-sm"
+									numberOfLines={1}
+									ellipsizeMode="middle"
+									selectable
+								>
+									{settings?.deviceId ?? i18n.t('Settings.deviceId.notSet')}
+								</Text>
+								{!isHydrated ? (
+									<Text className="text-foreground-500">
+										{i18n.t('Settings.deviceId.loading')}
+									</Text>
+								) : null}
+							</View>
+						</Card.Body>
 
-					<Separator className="mx-5" />
+						<Separator className="mx-5" />
 
-					<Card.Footer className="flex-row gap-3 px-5 pb-5 pt-3">
-						<Button
-							variant={signOutButtonVariant}
-							className="flex-1"
-							isDisabled={isUpdating}
-							onPress={async () => {
-								let shouldLockAuth = false;
+						<Card.Footer className="flex-row gap-3 px-5 pb-5 pt-3">
+							<Button
+								variant={signOutButtonVariant}
+								className="flex-1"
+								isDisabled={isUpdating}
+								onPress={async () => {
+									let shouldLockAuth = false;
 
-								try {
-									await signOut();
-								} catch (error) {
-									console.error('[settings] Failed to sign out from settings', error);
-									shouldLockAuth = true;
-								} finally {
-									if (shouldLockAuth) {
+									try {
+										await signOut();
+									} catch (error) {
+										console.error(
+											'[settings] Failed to sign out from settings',
+											error,
+										);
+										shouldLockAuth = true;
+									} finally {
+										if (shouldLockAuth) {
+											try {
+												await requestReauth({
+													forceLock: true,
+													reason: 'manual',
+												});
+											} catch (error) {
+												console.warn(
+													'[settings] Reauth lock failed during sign-out',
+													error,
+												);
+											}
+										}
 										try {
-											await requestReauth({ forceLock: true, reason: 'manual' });
+											await clearAuthStorage();
 										} catch (error) {
 											console.warn(
-												'[settings] Reauth lock failed during sign-out',
+												'[settings] Auth cleanup error during sign-out',
 												error,
 											);
 										}
-									}
-									try {
-										await clearAuthStorage();
-									} catch (error) {
-										console.warn('[settings] Auth cleanup error during sign-out', error);
-									}
-									try {
-										await clearPendingAttendanceQueue();
-									} catch (error) {
-										console.warn(
-											'[settings] Offline queue cleanup error during sign-out',
-											error,
-										);
-									}
-									try {
-										await clearSettings();
-									} catch (error) {
-										console.warn('[settings] Device cleanup error during sign-out', error);
-									}
-									router.replace('/(auth)/login');
+										try {
+											await clearPendingAttendanceQueue();
+										} catch (error) {
+											console.warn(
+												'[settings] Offline queue cleanup error during sign-out',
+												error,
+											);
+										}
+										try {
+											await clearSettings();
+										} catch (error) {
+											console.warn(
+												'[settings] Device cleanup error during sign-out',
+												error,
+											);
+										}
+										router.replace('/(auth)/login');
 
-									toast.show({
-										variant: shouldLockAuth ? 'danger' : 'success',
-										label: i18n.t(
-											shouldLockAuth
-												? 'Settings.toast.signOutError.title'
-												: 'Settings.toast.signOutSuccess.title',
-										),
-										description: i18n.t(
-											shouldLockAuth
-												? 'Settings.toast.signOutError.fallbackDescription'
-												: 'Settings.toast.signOutSuccess.description',
-										),
-										actionLabel: i18n.t(
-											shouldLockAuth ? 'Common.dismiss' : 'Common.ok',
-										),
-										onActionPress: ({ hide }: { hide: () => void }) => hide(),
-									});
-								}
-							}}
-						>
-							<Button.Label
-								className={
-									Platform.OS === 'ios'
-										? 'text-danger-500 font-medium'
-										: undefined
-								}
+										toast.show({
+											variant: shouldLockAuth ? 'danger' : 'success',
+											label: i18n.t(
+												shouldLockAuth
+													? 'Settings.toast.signOutError.title'
+													: 'Settings.toast.signOutSuccess.title',
+											),
+											description: i18n.t(
+												shouldLockAuth
+													? 'Settings.toast.signOutError.fallbackDescription'
+													: 'Settings.toast.signOutSuccess.description',
+											),
+											actionLabel: i18n.t(
+												shouldLockAuth ? 'Common.dismiss' : 'Common.ok',
+											),
+											onActionPress: ({ hide }: { hide: () => void }) =>
+												hide(),
+										});
+									}
+								}}
 							>
-								{i18n.t('Settings.actions.signOut')}
-							</Button.Label>
-						</Button>
-						<Button
-							variant="secondary"
-							className="flex-1"
-							onPress={() => clearSettings()}
-						>
-							<Button.Label>{i18n.t('Settings.actions.clearCache')}</Button.Label>
-						</Button>
-					</Card.Footer>
-				</Card>
+								<Button.Label
+									className={
+										Platform.OS === 'ios'
+											? 'text-danger-500 font-medium'
+											: undefined
+									}
+								>
+									{i18n.t('Settings.actions.signOut')}
+								</Button.Label>
+							</Button>
+							<Button
+								variant="secondary"
+								className="flex-1"
+								onPress={() => clearSettings()}
+							>
+								<Button.Label>{i18n.t('Settings.actions.clearCache')}</Button.Label>
+							</Button>
+						</Card.Footer>
+					</Card>
 				</ScrollView>
 			</KeyboardAvoidingView>
 

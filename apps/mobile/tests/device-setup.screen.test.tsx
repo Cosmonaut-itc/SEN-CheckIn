@@ -61,18 +61,42 @@ jest.mock('heroui-native', () => {
 	Card.Title = function MockCardTitle({ children }: { children: React.ReactNode }) {
 		return <Text>{children}</Text>;
 	};
-	Card.Description = function MockCardDescription({
-		children,
-	}: {
-		children: React.ReactNode;
-	}) {
+	Card.Description = function MockCardDescription({ children }: { children: React.ReactNode }) {
 		return <Text>{children}</Text>;
+	};
+
+	const Select = function MockSelect({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Trigger = function MockSelectTrigger({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Value = function MockSelectValue({ placeholder }: { placeholder?: string }) {
+		return placeholder ? <Text>{placeholder}</Text> : <View />;
+	};
+	Select.Portal = function MockSelectPortal({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.Overlay = function MockSelectOverlay() {
+		return <View />;
+	};
+	Select.Content = function MockSelectContent({ children }: { children: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.ListLabel = function MockSelectListLabel({ children }: { children: React.ReactNode }) {
+		return <Text>{children}</Text>;
+	};
+	Select.Item = function MockSelectItem({ children }: { children?: React.ReactNode }) {
+		return <View>{children}</View>;
+	};
+	Select.TriggerIndicator = function MockSelectTriggerIndicator() {
+		return <View />;
 	};
 
 	return {
 		Button,
 		Card,
-		Select: () => null,
+		Select,
 		Spinner: () => null,
 	};
 });
@@ -98,7 +122,42 @@ jest.mock('@/lib/forms', () => ({
 	useAppForm: () => ({
 		handleSubmit: mockHandleSubmit,
 		setFieldValue: jest.fn(),
-		AppField: () => null,
+		AppField: ({
+			children,
+		}: {
+			children: (field: {
+				state: { value: string; meta: { errors: string[] } };
+				handleChange: (value: string) => void;
+				TextField: (props: {
+					label: string;
+					placeholder?: string;
+					description?: string;
+				}) => React.JSX.Element;
+			}) => React.ReactNode;
+		}) =>
+			children({
+				state: {
+					value: '',
+					meta: { errors: [] },
+				},
+				handleChange: jest.fn(),
+				TextField: ({ label, placeholder, description }) => {
+					const ReactNativeActual =
+						jest.requireActual<typeof import('react-native')>('react-native');
+
+					return (
+						<>
+							<ReactNativeActual.Text>{label}</ReactNativeActual.Text>
+							{placeholder ? (
+								<ReactNativeActual.Text>{placeholder}</ReactNativeActual.Text>
+							) : null}
+							{description ? (
+								<ReactNativeActual.Text>{description}</ReactNativeActual.Text>
+							) : null}
+						</>
+					);
+				},
+			}),
 		AppForm: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 	}),
 }));
@@ -222,6 +281,39 @@ describe('DeviceSetupScreen fallback state', () => {
 		expect(mockFetchLocationsList).toHaveBeenCalledWith({
 			limit: 100,
 			organizationId: 'org-1',
+		});
+	});
+
+	it('renders a bounded nested scroll view for long location lists', () => {
+		mockUseDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				name: 'Terminal A',
+				locationId: null,
+				organizationId: 'org-1',
+			},
+			updateLocalSettings: jest.fn(),
+		});
+		mockUseQuery.mockReturnValue({
+			data: {
+				data: Array.from({ length: 8 }, (_, index) => ({
+					id: `location-${index}`,
+					name: `Ubicacion ${index}`,
+					code: `LOC-${index}`,
+				})),
+			},
+			isError: false,
+			isPending: false,
+		});
+
+		render(<DeviceSetupScreen />);
+
+		const optionsScrollView = screen.getByTestId('device-setup-location-options-scroll');
+
+		expect(optionsScrollView.props.nestedScrollEnabled).toBe(true);
+		expect(optionsScrollView.props.showsVerticalScrollIndicator).toBe(true);
+		expect(optionsScrollView.props.style).toEqual({
+			maxHeight: 320,
 		});
 	});
 });

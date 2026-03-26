@@ -35,6 +35,7 @@ const CARD_CURVE: ViewStyle = {
 	borderCurve: 'continuous',
 	borderRadius: Platform.select({ ios: 14, android: 16, default: 14 }) ?? 14,
 };
+const SELECT_OPTIONS_MAX_HEIGHT = 320;
 
 export const fieldContext: Context<AnyFieldApi> = formContexts.fieldContext;
 export const formContext: Context<AnyFormApi> = formContexts.formContext;
@@ -104,7 +105,7 @@ export function AppTextField({
 
 /**
  * SelectField component for form dropdowns using HeroUI Native Select.
- * Uses dialog presentation by default for mobile-optimized selection experience.
+ * Uses the standard popover presentation by default to keep trigger anchoring stable.
  *
  * @param props - Field configuration including label, options, and presentation style
  * @returns JSX Element rendering a styled select dropdown with validation support
@@ -115,7 +116,7 @@ export function SelectField<TValue extends string>({
 	description,
 	disabled,
 	options,
-	presentation = 'dialog',
+	presentation = 'popover',
 }: CommonFieldProps & {
 	/** Array of options with value and label pairs */
 	options: SelectOption<TValue>[];
@@ -125,6 +126,7 @@ export function SelectField<TValue extends string>({
 	const field = useFieldContext();
 	const errors = field.state.meta.errors;
 	const accentColor = useThemeColor('accent');
+	const selectPresentation = presentation;
 
 	/** Find the currently selected option based on the field value */
 	const currentOption = options.find((opt) => opt.value === field.state.value);
@@ -141,7 +143,12 @@ export function SelectField<TValue extends string>({
 	return (
 		<View className="gap-1.5">
 			<Text className="text-sm font-semibold text-foreground tracking-wide">{label}</Text>
-			<Select value={currentOption} onValueChange={handleValueChange} isDisabled={disabled}>
+			<Select
+				value={currentOption}
+				onValueChange={handleValueChange}
+				isDisabled={disabled}
+				presentation={selectPresentation}
+			>
 				<Select.Trigger
 					variant="outline"
 					className="border border-default-200 px-4 py-3.5 bg-content1 active:bg-content2"
@@ -151,13 +158,16 @@ export function SelectField<TValue extends string>({
 						placeholder={placeholder ?? i18n.t('Common.selectOption')}
 						className="text-base text-foreground"
 					/>
+					<Select.TriggerIndicator />
 				</Select.Trigger>
 				<Select.Portal>
 					<Select.Overlay className="bg-overlay/80" />
 					<Select.Content
-						presentation={presentation}
+						presentation={selectPresentation}
+						width={selectPresentation === 'popover' ? 'trigger' : undefined}
+						placement={selectPresentation === 'popover' ? 'bottom' : undefined}
 						classNames={
-							presentation === 'dialog'
+							selectPresentation === 'dialog'
 								? {
 										wrapper: 'px-5',
 										content: 'bg-popover gap-2 shadow-lg',
@@ -165,37 +175,43 @@ export function SelectField<TValue extends string>({
 								: undefined
 						}
 						className={
-							presentation !== 'dialog'
+							selectPresentation !== 'dialog'
 								? 'bg-popover gap-2 shadow-lg'
 								: undefined
 						}
 						style={CARD_CURVE}
 					>
-						{presentation === 'dialog' && <Select.Close />}
-						{presentation === 'dialog' && label ? (
+						{selectPresentation === 'dialog' && <Select.Close />}
+						{selectPresentation === 'dialog' && label ? (
 							<Select.ListLabel className="text-lg font-bold text-foreground">
 								{label}
 							</Select.ListLabel>
 						) : null}
-						{options.map((opt) => (
-							<Select.Item
-								key={opt.value}
-								value={opt.value}
-								label={opt.label}
-								className="px-4 py-3.5 active:bg-content2"
-								style={INPUT_CURVE}
-							>
-								<View className="flex-row items-center gap-3 flex-1">
-									<Select.ItemLabel className="text-base text-foreground flex-1" />
-								</View>
-								<Select.ItemIndicator
-									iconProps={{
-										size: 20,
-										color: accentColor,
-									}}
-								/>
-							</Select.Item>
-						))}
+						<ScrollView
+							nestedScrollEnabled
+							showsVerticalScrollIndicator={options.length > 6}
+							style={{ maxHeight: SELECT_OPTIONS_MAX_HEIGHT }}
+						>
+							{options.map((opt) => (
+								<Select.Item
+									key={opt.value}
+									value={opt.value}
+									label={opt.label}
+									className="px-4 py-3.5 active:bg-content2"
+									style={INPUT_CURVE}
+								>
+									<View className="flex-row items-center gap-3 flex-1">
+										<Select.ItemLabel className="text-base text-foreground flex-1" />
+									</View>
+									<Select.ItemIndicator
+										iconProps={{
+											size: 20,
+											color: accentColor,
+										}}
+									/>
+								</Select.Item>
+							))}
+						</ScrollView>
 					</Select.Content>
 				</Select.Portal>
 			</Select>

@@ -10,6 +10,7 @@ import { OrgProvider } from '@/lib/org-client-context';
 import {
 	ImportClient,
 	resolveCurrentPreviewRowsForImport,
+	resolveNextCodeForImport,
 	resolveTrackedFilesForImport,
 } from './import-client';
 
@@ -109,11 +110,23 @@ vi.mock('@/components/ui/select', async () => {
 		children: React.ReactNode;
 	}
 
+	interface MockSelectTriggerProps {
+		id?: string;
+		'aria-label'?: string;
+		children: React.ReactNode;
+	}
+
 	function MockSelectItem({ value, children }: MockSelectItemProps): React.ReactElement {
 		return <option value={value}>{children}</option>;
 	}
 
 	MockSelectItem.displayName = 'MockSelectItem';
+
+	function MockSelectTrigger({ children }: MockSelectTriggerProps): React.ReactElement {
+		return <>{children}</>;
+	}
+
+	MockSelectTrigger.displayName = 'MockSelectTrigger';
 
 	function extractOptions(children: React.ReactNode): React.ReactNode[] {
 		return React.Children.toArray(children).flatMap((child) => {
@@ -129,13 +142,45 @@ vi.mock('@/components/ui/select', async () => {
 		});
 	}
 
+	function extractTriggerProps(children: React.ReactNode): Omit<
+		MockSelectTriggerProps,
+		'children'
+	> {
+		for (const child of React.Children.toArray(children)) {
+			if (!React.isValidElement<{ children?: React.ReactNode } & MockSelectTriggerProps>(child)) {
+				continue;
+			}
+
+			if (child.type === MockSelectTrigger) {
+				return {
+					id: child.props.id,
+					'aria-label': child.props['aria-label'],
+				};
+			}
+
+			const nestedProps = extractTriggerProps(child.props.children);
+			if (nestedProps.id || nestedProps['aria-label']) {
+				return nestedProps;
+			}
+		}
+
+		return {};
+	}
+
 	function MockSelect({
 		value = '',
 		onValueChange,
 		children,
 	}: MockSelectProps): React.ReactElement {
+		const triggerProps = extractTriggerProps(children);
+
 		return (
-			<select value={value} onChange={(event) => onValueChange?.(event.target.value)}>
+			<select
+				id={triggerProps.id}
+				aria-label={triggerProps['aria-label']}
+				value={value}
+				onChange={(event) => onValueChange?.(event.target.value)}
+			>
 				{extractOptions(children)}
 			</select>
 		);
@@ -145,7 +190,7 @@ vi.mock('@/components/ui/select', async () => {
 		Select: MockSelect,
 		SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 		SelectItem: MockSelectItem,
-		SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+		SelectTrigger: MockSelectTrigger,
 		SelectValue: () => null,
 	};
 });
@@ -270,5 +315,15 @@ describe('ImportClient', () => {
 				selectedFiles,
 			}),
 		).toEqual(selectedFiles);
+	});
+
+	it('reads the latest next code from the ref for append imports', () => {
+		const nextCodeRef = {
+			current: 1,
+		};
+
+		nextCodeRef.current = 3;
+
+		expect(resolveNextCodeForImport(nextCodeRef)).toBe(3);
 	});
 });

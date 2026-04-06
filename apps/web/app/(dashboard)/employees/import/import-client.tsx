@@ -280,6 +280,16 @@ export function resolveCurrentPreviewRowsForImport<T>(
 }
 
 /**
+ * Resolves the latest next employee code sequence for a document import mutation.
+ *
+ * @param nextCodeRef - Mutable ref with the latest employee code sequence
+ * @returns Next available employee code sequence
+ */
+export function resolveNextCodeForImport(nextCodeRef: React.MutableRefObject<number>): number {
+	return nextCodeRef.current;
+}
+
+/**
  * Resolves which files should participate in duplicate detection for a new import.
  *
  * @param args - Current step plus tracked file collections
@@ -317,11 +327,16 @@ export function ImportClient(): React.ReactElement {
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const previewRowsRef = useRef<PreviewRow[]>([]);
 	const [nextCode, setNextCode] = useState<number>(1);
+	const nextCodeRef = useRef<number>(1);
 	const [importResult, setImportResult] = useState<BulkCreateEmployeesResponse | null>(null);
 
 	useEffect(() => {
 		previewRowsRef.current = previewRows;
 	}, [previewRows]);
+
+	useEffect(() => {
+		nextCodeRef.current = nextCode;
+	}, [nextCode]);
 
 	const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
 		queryKey: queryKeys.locations.list({
@@ -419,7 +434,7 @@ export function ImportClient(): React.ReactElement {
 				employees: result.employees,
 				existingEmployees: existingEmployees.data,
 				currentRows: resolveCurrentPreviewRowsForImport(variables.mode, previewRowsRef),
-				nextCode,
+				nextCode: resolveNextCodeForImport(nextCodeRef),
 				validationT: tImport,
 			});
 
@@ -429,6 +444,7 @@ export function ImportClient(): React.ReactElement {
 			setProcessedFiles((currentFiles) =>
 				variables.mode === 'append' ? [...currentFiles, ...variables.files] : variables.files,
 			);
+			nextCodeRef.current = builtRows.nextCode;
 			setNextCode(builtRows.nextCode);
 			setSelectedFiles([]);
 			setProcessingMessage('');

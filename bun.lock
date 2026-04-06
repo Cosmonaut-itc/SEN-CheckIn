@@ -25,6 +25,7 @@
         "@elysiajs/cors": "^1.4.0",
         "@elysiajs/openapi": "^1.4.11",
         "@elysiajs/opentelemetry": "^1.4.7",
+        "@napi-rs/canvas": "^0.1.97",
         "@openrouter/ai-sdk-provider": "^2.4.0",
         "@sen-checkin/types": "workspace:*",
         "@sinclair/typebox": "^0.34.0",

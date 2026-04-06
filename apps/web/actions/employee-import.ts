@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers';
 
-import { API_BASE_URL } from '@/lib/server-api';
+import { API_BASE_URL, createServerApiClient } from '@/lib/server-api';
 
 type PaymentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
 
@@ -89,6 +89,11 @@ async function getCookieHeader(): Promise<string> {
  */
 function resolveErrorMessage(payload: unknown, fallbackStatus: number): string {
 	if (payload && typeof payload === 'object') {
+		const directMessage = (payload as { message?: unknown }).message;
+		if (typeof directMessage === 'string' && directMessage.length > 0) {
+			return directMessage;
+		}
+
 		const errorRecord = (payload as { error?: unknown }).error;
 		if (errorRecord && typeof errorRecord === 'object') {
 			const message = (errorRecord as { message?: unknown }).message;
@@ -102,57 +107,6 @@ function resolveErrorMessage(payload: unknown, fallbackStatus: number): string {
 }
 
 /**
- * Sends a JSON request to the employee import API endpoints.
- *
- * @param args - Request method, path and optional body
- * @returns Standardized mutation result
- */
-async function requestEmployeeImportApi<T>(args: {
-	method: 'POST' | 'DELETE';
-	path: string;
-	body?: Record<string, unknown>;
-}): Promise<MutationResult<T>> {
-	try {
-		const cookieHeader = await getCookieHeader();
-		const response = await fetch(`${API_BASE_URL}${args.path}`, {
-			method: args.method,
-			headers: {
-				'content-type': 'application/json',
-				cookie: cookieHeader,
-			},
-			body: args.body ? JSON.stringify(args.body) : undefined,
-		});
-		const payload = (await response.json().catch(() => null)) as T | {
-			error?: {
-				message?: string;
-			};
-		} | null;
-
-		if (!response.ok) {
-			return {
-				success: false,
-				error: resolveErrorMessage(payload, response.status),
-			};
-		}
-
-		return {
-			success: true,
-			data: payload as T,
-		};
-	} catch (error) {
-		console.error('[employee-import] API request failed', {
-			path: args.path,
-			method: args.method,
-			error,
-		});
-		return {
-			success: false,
-			error: 'No fue posible completar la solicitud.',
-		};
-	}
-}
-
-/**
  * Uploads a document for AI employee extraction.
  *
  * @param formData - Multipart request payload
@@ -163,6 +117,7 @@ export async function importDocument(
 ): Promise<MutationResult<ImportDocumentResponse>> {
 	try {
 		const cookieHeader = await getCookieHeader();
+		// Eden Treaty does not support multipart/FormData payloads in this flow yet.
 		const response = await fetch(`${API_BASE_URL}/employees/import`, {
 			method: 'POST',
 			headers: {
@@ -205,13 +160,34 @@ export async function importDocument(
 export async function bulkCreateEmployees(
 	input: BulkCreateEmployeesInput,
 ): Promise<MutationResult<BulkCreateEmployeesResponse>> {
-	return await requestEmployeeImportApi<BulkCreateEmployeesResponse>({
-		method: 'POST',
-		path: '/employees/bulk',
-		body: {
+	try {
+		const api = createServerApiClient(await getCookieHeader());
+		const response = await api.employees.bulk.post({
 			employees: input.employees,
-		},
-	});
+		});
+
+		if (response.error) {
+			return {
+				success: false,
+				error: resolveErrorMessage(response.error, 500),
+			};
+		}
+
+		return {
+			success: true,
+			data: response.data,
+		};
+	} catch (error) {
+		console.error('[employee-import] API request failed', {
+			path: '/employees/bulk',
+			method: 'POST',
+			error,
+		});
+		return {
+			success: false,
+			error: 'No fue posible completar la solicitud.',
+		};
+	}
 }
 
 /**
@@ -223,8 +199,30 @@ export async function bulkCreateEmployees(
 export async function undoBulkImport(
 	batchId: string,
 ): Promise<MutationResult<UndoBulkImportResponse>> {
-	return await requestEmployeeImportApi<UndoBulkImportResponse>({
-		method: 'DELETE',
-		path: `/employees/bulk/${batchId}`,
-	});
+	try {
+		const api = createServerApiClient(await getCookieHeader());
+		const response = await api.employees.bulk[batchId].delete();
+
+		if (response.error) {
+			return {
+				success: false,
+				error: resolveErrorMessage(response.error, 500),
+			};
+		}
+
+		return {
+			success: true,
+			data: response.data,
+		};
+	} catch (error) {
+		console.error('[employee-import] API request failed', {
+			path: `/employees/bulk/${batchId}`,
+			method: 'DELETE',
+			error,
+		});
+		return {
+			success: false,
+			error: 'No fue posible completar la solicitud.',
+		};
+	}
 }

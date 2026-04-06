@@ -29,8 +29,10 @@ export class RateLimiter {
 	 *
 	 * @param config - Rate limiter thresholds and window size
 	 * @returns RateLimiter instance
+	 * @throws {RangeError} When the configuration values are invalid
 	 */
 	constructor(config: RateLimitConfig) {
+		validateRateLimitConfig(config);
 		this.config = config;
 	}
 
@@ -43,6 +45,9 @@ export class RateLimiter {
 	check(key: string): RateLimitResult {
 		const now = Date.now();
 		const windowStart = now - this.config.windowMs;
+
+		this.pruneExpiredKeys(windowStart);
+
 		const existingTimestamps = this.timestamps.get(key) ?? [];
 		const recentTimestamps = existingTimestamps.filter((timestamp) => timestamp > windowStart);
 
@@ -64,5 +69,42 @@ export class RateLimiter {
 			remaining: this.config.maxRequests - recentTimestamps.length,
 			resetMs: resetTimestamp + this.config.windowMs - now,
 		};
+	}
+
+	/**
+	 * Removes entries whose full request history has already expired.
+	 *
+	 * @param windowStart - Inclusive lower bound for timestamps still inside the window
+	 * @returns Nothing
+	 */
+	private pruneExpiredKeys(windowStart: number): void {
+		for (const [key, timestamps] of this.timestamps.entries()) {
+			const recentTimestamps = timestamps.filter((timestamp) => timestamp > windowStart);
+			if (recentTimestamps.length === 0) {
+				this.timestamps.delete(key);
+				continue;
+			}
+
+			if (recentTimestamps.length !== timestamps.length) {
+				this.timestamps.set(key, recentTimestamps);
+			}
+		}
+	}
+}
+
+/**
+ * Validates rate-limiter configuration before the limiter is constructed.
+ *
+ * @param config - Rate limiter thresholds and window size
+ * @returns Nothing
+ * @throws {RangeError} When any configuration value is invalid
+ */
+function validateRateLimitConfig(config: RateLimitConfig): void {
+	if (!Number.isInteger(config.maxRequests) || config.maxRequests <= 0) {
+		throw new RangeError('maxRequests must be a positive integer.');
+	}
+
+	if (!Number.isFinite(config.windowMs) || config.windowMs <= 0) {
+		throw new RangeError('windowMs must be a positive number.');
 	}
 }

@@ -406,10 +406,14 @@ export function ImportClient(): React.ReactElement {
 			};
 		},
 		onSuccess: async (result, variables) => {
-			const existingEmployees = await fetchEmployeesList({
+			const employeeListQuery = {
 				organizationId,
 				limit: 1000,
 				offset: 0,
+			};
+			const existingEmployees = await queryClient.fetchQuery({
+				queryKey: queryKeys.employees.list(employeeListQuery),
+				queryFn: () => fetchEmployeesList(employeeListQuery),
 			});
 			const builtRows = buildPreviewRows({
 				employees: result.employees,

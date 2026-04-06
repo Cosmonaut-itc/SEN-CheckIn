@@ -3222,6 +3222,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 						sbcDailyOverride: employee.sbcDailyOverride,
 						locationId: employee.locationId,
+						importBatchId: employee.importBatchId,
 						organizationId: employee.organizationId,
 						userId: employee.userId,
 						scheduleTemplateId: employee.scheduleTemplateId,

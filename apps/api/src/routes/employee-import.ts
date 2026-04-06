@@ -48,6 +48,7 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 			authType,
 			session,
 			sessionOrganizationIds,
+			apiKeyId,
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 			apiKeyUserId,
@@ -110,7 +111,7 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 
 			try {
 				const fileBuffer = Buffer.from(await file.arrayBuffer());
-				const rateLimitKey = authType === 'apiKey' ? apiKeyUserId ?? 'api-key' : user.id;
+				const rateLimitKey = authType === 'apiKey' ? (apiKeyUserId ?? apiKeyId) : user.id;
 				const rateLimitResult = importRateLimiter.check(rateLimitKey);
 				if (!rateLimitResult.allowed) {
 					set.status = 429;

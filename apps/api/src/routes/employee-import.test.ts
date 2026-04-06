@@ -83,6 +83,37 @@ const fakeDbState: {
 const TEST_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const TEST_LOCATION_ID = '22222222-2222-4222-8222-222222222222';
 const TEST_JOB_POSITION_ID = '33333333-3333-4333-8333-333333333333';
+let mockCombinedAuthContext:
+	| {
+			authType: 'session';
+			user: { id: string };
+			session: {
+				id: string;
+				expiresAt: Date;
+				token: string;
+				createdAt: Date;
+				updatedAt: Date;
+				userId: string;
+				activeOrganizationId: string;
+			};
+			sessionOrganizationIds: string[];
+			apiKeyId: null;
+			apiKeyName: null;
+			apiKeyUserId: null;
+			apiKeyOrganizationId: null;
+			apiKeyOrganizationIds: [];
+	  }
+	| {
+			authType: 'apiKey';
+			user: null;
+			session: null;
+			sessionOrganizationIds: [];
+			apiKeyId: string;
+			apiKeyName: string | null;
+			apiKeyUserId: string | null;
+			apiKeyOrganizationId: string | null;
+			apiKeyOrganizationIds: string[];
+	  };
 
 const mockProcessDocument = mock(
 	async (
@@ -328,25 +359,10 @@ mock.module('../db/schema.js', () => ({
 }));
 
 mock.module('../plugins/auth.js', () => ({
-	combinedAuthPlugin: new Elysia({ name: 'mock-combined-auth' }).derive({ as: 'scoped' }, () => ({
-		authType: 'session' as const,
-		user: { id: 'user-1' },
-		session: {
-			id: 'session-1',
-			expiresAt: new Date('2099-01-01T00:00:00.000Z'),
-			token: 'token-1',
-			createdAt: new Date('2099-01-01T00:00:00.000Z'),
-			updatedAt: new Date('2099-01-01T00:00:00.000Z'),
-			userId: 'user-1',
-			activeOrganizationId: TEST_ORGANIZATION_ID,
-		},
-		sessionOrganizationIds: [TEST_ORGANIZATION_ID],
-		apiKeyId: null,
-		apiKeyName: null,
-		apiKeyUserId: null,
-		apiKeyOrganizationId: null,
-		apiKeyOrganizationIds: [],
-	})),
+	combinedAuthPlugin: new Elysia({ name: 'mock-combined-auth' }).derive(
+		{ as: 'scoped' },
+		() => mockCombinedAuthContext,
+	),
 }));
 
 mock.module('../services/document-ai.js', () => ({
@@ -389,6 +405,25 @@ function createJsonRequest(path: string, method: 'POST' | 'DELETE', body?: unkno
 
 describe('employee import routes', () => {
 	beforeEach(() => {
+		mockCombinedAuthContext = {
+			authType: 'session',
+			user: { id: 'user-1' },
+			session: {
+				id: 'session-1',
+				expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+				token: 'token-1',
+				createdAt: new Date('2099-01-01T00:00:00.000Z'),
+				updatedAt: new Date('2099-01-01T00:00:00.000Z'),
+				userId: 'user-1',
+				activeOrganizationId: TEST_ORGANIZATION_ID,
+			},
+			sessionOrganizationIds: [TEST_ORGANIZATION_ID],
+			apiKeyId: null,
+			apiKeyName: null,
+			apiKeyUserId: null,
+			apiKeyOrganizationId: null,
+			apiKeyOrganizationIds: [],
+		};
 		fakeDbState.locations = [{ id: TEST_LOCATION_ID, organizationId: TEST_ORGANIZATION_ID }];
 		fakeDbState.jobPositions = [
 			{ id: TEST_JOB_POSITION_ID, organizationId: TEST_ORGANIZATION_ID },
@@ -564,6 +599,67 @@ describe('employee import routes', () => {
 		expect(payload.error.message).toBe(
 			'Has alcanzado el límite de importaciones. Intenta más tarde.',
 		);
+	});
+
+	it('isolates the import rate limit bucket by api key id when the api key has no user id', async () => {
+		const employeeImportModule = await import('./employee-import.js');
+		employeeImportModule.resetEmployeeImportRateLimiterForTests();
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportModule.employeeImportRoutes);
+
+		mockCombinedAuthContext = {
+			authType: 'apiKey',
+			user: null,
+			session: null,
+			sessionOrganizationIds: [],
+			apiKeyId: 'api-key-a',
+			apiKeyName: 'Service A',
+			apiKeyUserId: null,
+			apiKeyOrganizationId: TEST_ORGANIZATION_ID,
+			apiKeyOrganizationIds: [TEST_ORGANIZATION_ID],
+		};
+
+		for (let attempt = 0; attempt < 10; attempt += 1) {
+			const formData = new FormData();
+			formData.append(
+				'file',
+				new File([`fake image ${attempt}`], `employees-${attempt}.png`, {
+					type: 'image/png',
+				}),
+			);
+			formData.append('defaultLocationId', TEST_LOCATION_ID);
+			formData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+			formData.append('defaultPaymentFrequency', 'MONTHLY');
+
+			const response = await app.handle(createMultipartRequest(formData));
+			expect(response.status).toBe(200);
+		}
+
+		mockCombinedAuthContext = {
+			authType: 'apiKey',
+			user: null,
+			session: null,
+			sessionOrganizationIds: [],
+			apiKeyId: 'api-key-b',
+			apiKeyName: 'Service B',
+			apiKeyUserId: null,
+			apiKeyOrganizationId: TEST_ORGANIZATION_ID,
+			apiKeyOrganizationIds: [TEST_ORGANIZATION_ID],
+		};
+
+		const secondKeyFormData = new FormData();
+		secondKeyFormData.append(
+			'file',
+			new File(['fake image other key'], 'employees-other-key.png', {
+				type: 'image/png',
+			}),
+		);
+		secondKeyFormData.append('defaultLocationId', TEST_LOCATION_ID);
+		secondKeyFormData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+		secondKeyFormData.append('defaultPaymentFrequency', 'MONTHLY');
+
+		const response = await app.handle(createMultipartRequest(secondKeyFormData));
+
+		expect(response.status).toBe(200);
 	});
 
 	it('creates employees in bulk and reports duplicate codes', async () => {

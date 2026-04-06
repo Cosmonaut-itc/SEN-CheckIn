@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { EmployeePageActions } from './employee-detail-dialog';
+
 const mockPush = vi.fn();
 
 vi.mock('next/navigation', () => ({
@@ -49,9 +51,7 @@ describe('EmployeePageActions', () => {
 		mockPush.mockReset();
 	});
 
-	it('routes to the bulk import page from the split button menu', async () => {
-		const { EmployeePageActions } = await import('./employee-detail-dialog');
-
+	it('routes to the bulk import page from the split button menu', () => {
 		render(<EmployeePageActions onCreateNew={vi.fn()} />);
 
 		expect(screen.getByTestId('employees-add-button')).toBeInTheDocument();

@@ -287,9 +287,7 @@ const daysOfWeek: { labelKey: string; value: number }[] = [
  * @param props - Action callbacks
  * @returns Split button with create and import actions
  */
-export function EmployeePageActions({
-	onCreateNew,
-}: EmployeePageActionsProps): React.ReactElement {
+export function EmployeePageActions({ onCreateNew }: EmployeePageActionsProps): React.ReactElement {
 	const t = useTranslations('Employees');
 	const router = useRouter();
 
@@ -760,10 +758,7 @@ export function EmployeeDetailDialog({
 										</p>
 										<p className="font-medium">
 											{activeEmployee?.hireDate
-												? format(
-														activeEmployee.hireDate,
-														t('dateFormat'),
-													)
+												? format(activeEmployee.hireDate, t('dateFormat'))
 												: tCommon('notAvailable')}
 										</p>
 									</div>
@@ -824,7 +819,9 @@ export function EmployeeDetailDialog({
 												<p className="font-medium">
 													{activeEmployee?.fiscalDailyPay !== undefined &&
 													activeEmployee?.fiscalDailyPay !== null
-														? formatCurrency(activeEmployee.fiscalDailyPay)
+														? formatCurrency(
+																activeEmployee.fiscalDailyPay,
+															)
 														: tCommon('notAvailable')}
 												</p>
 											</div>
@@ -835,7 +832,9 @@ export function EmployeeDetailDialog({
 												<p className="font-medium">
 													{activeEmployee?.fiscalDailyPay !== undefined &&
 													activeEmployee?.fiscalDailyPay !== null
-														? formatCurrency(activeEmployeeDailyComplement)
+														? formatCurrency(
+																activeEmployeeDailyComplement,
+															)
 														: tCommon('notAvailable')}
 												</p>
 											</div>
@@ -3705,14 +3704,23 @@ export function EmployeeDetailDialog({
 												<form.AppField
 													name="fiscalDailyPay"
 													validators={{
-														onChange: ({ value }: { value: string }) => {
+														onChange: ({
+															value,
+														}: {
+															value: string;
+														}) => {
 															const trimmed = value.trim();
 															if (trimmed === '') {
 																return undefined;
 															}
 															const parsed = Number(trimmed);
-															if (!Number.isFinite(parsed) || parsed <= 0) {
-																return t('validation.fiscalDailyPay');
+															if (
+																!Number.isFinite(parsed) ||
+																parsed <= 0
+															) {
+																return t(
+																	'validation.fiscalDailyPay',
+																);
 															}
 															if (parsed >= computedDailyPay) {
 																return t(
@@ -3726,9 +3734,13 @@ export function EmployeeDetailDialog({
 													{(field: any) => (
 														<field.TextField
 															label={t('fields.fiscalDailyPay')}
-															placeholder={t('placeholders.fiscalDailyPay')}
+															placeholder={t(
+																'placeholders.fiscalDailyPay',
+															)}
 															type="number"
-															description={t('helpers.fiscalDailyPay')}
+															description={t(
+																'helpers.fiscalDailyPay',
+															)}
 														/>
 													)}
 												</form.AppField>

@@ -280,6 +280,20 @@ export function resolveCurrentPreviewRowsForImport<T>(
 }
 
 /**
+ * Resolves which files should participate in duplicate detection for a new import.
+ *
+ * @param args - Current step plus tracked file collections
+ * @returns Files already known by the wizard for the active step
+ */
+export function resolveTrackedFilesForImport(args: {
+	step: ImportStep;
+	processedFiles: File[];
+	selectedFiles: File[];
+}): File[] {
+	return args.step === 'preview' ? args.processedFiles : args.selectedFiles;
+}
+
+/**
  * Employee bulk-import wizard client component.
  *
  * @returns Import flow UI
@@ -299,6 +313,7 @@ export function ImportClient(): React.ReactElement {
 	const [defaultPaymentFrequency, setDefaultPaymentFrequency] =
 		useState<PaymentFrequency>('MONTHLY');
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+	const [processedFiles, setProcessedFiles] = useState<File[]>([]);
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const previewRowsRef = useRef<PreviewRow[]>([]);
 	const [nextCode, setNextCode] = useState<number>(1);
@@ -407,6 +422,9 @@ export function ImportClient(): React.ReactElement {
 			setPreviewRows((currentRows) =>
 				variables.mode === 'append' ? [...currentRows, ...builtRows.rows] : builtRows.rows,
 			);
+			setProcessedFiles((currentFiles) =>
+				variables.mode === 'append' ? [...currentFiles, ...variables.files] : variables.files,
+			);
 			setNextCode(builtRows.nextCode);
 			setSelectedFiles([]);
 			setProcessingMessage('');
@@ -510,7 +528,15 @@ export function ImportClient(): React.ReactElement {
 		}
 
 		if (step === 'preview') {
-			const validFiles = prepareFilesForImport([], files, tImport);
+			const validFiles = prepareFilesForImport(
+				resolveTrackedFilesForImport({
+					step,
+					processedFiles,
+					selectedFiles,
+				}),
+				files,
+				tImport,
+			);
 
 			if (validFiles.length === 0) {
 				return;
@@ -526,7 +552,15 @@ export function ImportClient(): React.ReactElement {
 
 		setSelectedFiles((currentFiles) => [
 			...currentFiles,
-			...prepareFilesForImport(currentFiles, files, tImport),
+			...prepareFilesForImport(
+				resolveTrackedFilesForImport({
+					step,
+					processedFiles,
+					selectedFiles: currentFiles,
+				}),
+				files,
+				tImport,
+			),
 		]);
 	}
 

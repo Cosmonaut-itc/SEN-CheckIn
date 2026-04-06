@@ -7,7 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import rawMessages from '@/messages/es.json';
 import { OrgProvider } from '@/lib/org-client-context';
 
-import { ImportClient, resolveCurrentPreviewRowsForImport } from './import-client';
+import {
+	ImportClient,
+	resolveCurrentPreviewRowsForImport,
+	resolveTrackedFilesForImport,
+} from './import-client';
 
 const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
 
@@ -236,5 +240,35 @@ describe('ImportClient', () => {
 			'row-2',
 		]);
 		expect(resolveCurrentPreviewRowsForImport('replace', previewRowsRef)).toEqual([]);
+	});
+
+	it('uses processed files as the dedupe source while appending from preview', () => {
+		const processedFiles = [
+			new File(['processed'], 'empleados.png', {
+				type: 'image/png',
+				lastModified: 100,
+			}),
+		];
+		const selectedFiles = [
+			new File(['queued'], 'pendiente.png', {
+				type: 'image/png',
+				lastModified: 200,
+			}),
+		];
+
+		expect(
+			resolveTrackedFilesForImport({
+				step: 'preview',
+				processedFiles,
+				selectedFiles,
+			}),
+		).toEqual(processedFiles);
+		expect(
+			resolveTrackedFilesForImport({
+				step: 'config',
+				processedFiles,
+				selectedFiles,
+			}),
+		).toEqual(selectedFiles);
 	});
 });

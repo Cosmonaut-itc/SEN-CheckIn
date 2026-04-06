@@ -371,6 +371,44 @@ describe('employee import routes', () => {
 		expect(payload.processingMeta.totalEmployeesFound).toBe(1);
 	});
 
+	it('does not consume the import rate limit for invalid mime-type requests', async () => {
+		const employeeImportModule = await import('./employee-import.js');
+		employeeImportModule.resetEmployeeImportRateLimiterForTests();
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportModule.employeeImportRoutes);
+
+		for (let attempt = 0; attempt < 10; attempt += 1) {
+			const invalidFormData = new FormData();
+			invalidFormData.append(
+				'file',
+				new File(['fake text'], `invalid-${attempt}.txt`, {
+					type: 'text/plain',
+				}),
+			);
+			invalidFormData.append('defaultLocationId', TEST_LOCATION_ID);
+			invalidFormData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+			invalidFormData.append('defaultPaymentFrequency', 'MONTHLY');
+
+			const invalidResponse = await app.handle(createMultipartRequest(invalidFormData));
+			expect(invalidResponse.status).toBe(400);
+		}
+
+		const validFormData = new FormData();
+		validFormData.append(
+			'file',
+			new File(['fake image'], 'employees.png', {
+				type: 'image/png',
+			}),
+		);
+		validFormData.append('defaultLocationId', TEST_LOCATION_ID);
+		validFormData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+		validFormData.append('defaultPaymentFrequency', 'MONTHLY');
+
+		const response = await app.handle(createMultipartRequest(validFormData));
+
+		expect(response.status).toBe(200);
+		expect(mockProcessDocument).toHaveBeenCalledTimes(1);
+	});
+
 	it('creates employees in bulk and reports duplicate codes', async () => {
 		fakeDbState.employees = [
 			{

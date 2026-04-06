@@ -27,6 +27,15 @@ const importRateLimiter = new RateLimiter({
 });
 
 /**
+ * Resets the employee import limiter for deterministic tests.
+ *
+ * @returns Nothing
+ */
+export function resetEmployeeImportRateLimiterForTests(): void {
+	importRateLimiter.reset();
+}
+
+/**
  * Employee import routes for AI-assisted bulk import flows.
  */
 export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
@@ -56,16 +65,6 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				const status = authType === 'apiKey' ? 403 : 400;
 				set.status = status;
 				return buildErrorResponse('Organization is required or not permitted', status);
-			}
-
-			const rateLimitKey = authType === 'apiKey' ? apiKeyUserId ?? 'api-key' : user.id;
-			const rateLimitResult = importRateLimiter.check(rateLimitKey);
-			if (!rateLimitResult.allowed) {
-				set.status = 429;
-				return buildErrorResponse(
-					'Has alcanzado el límite de importaciones. Intenta más tarde.',
-					429,
-				);
 			}
 
 			const { file, defaultLocationId, defaultJobPositionId, defaultPaymentFrequency } = body;
@@ -111,6 +110,16 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 
 			try {
 				const fileBuffer = Buffer.from(await file.arrayBuffer());
+				const rateLimitKey = authType === 'apiKey' ? apiKeyUserId ?? 'api-key' : user.id;
+				const rateLimitResult = importRateLimiter.check(rateLimitKey);
+				if (!rateLimitResult.allowed) {
+					set.status = 429;
+					return buildErrorResponse(
+						'Has alcanzado el límite de importaciones. Intenta más tarde.',
+						429,
+					);
+				}
+
 				const startedAt = Date.now();
 				const result = await processDocument(fileBuffer, file.type);
 

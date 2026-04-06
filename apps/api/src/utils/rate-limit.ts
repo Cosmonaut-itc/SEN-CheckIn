@@ -72,6 +72,15 @@ export class RateLimiter {
 	}
 
 	/**
+	 * Clears all tracked timestamps. Intended for deterministic tests.
+	 *
+	 * @returns Nothing
+	 */
+	reset(): void {
+		this.timestamps.clear();
+	}
+
+	/**
 	 * Removes entries whose full request history has already expired.
 	 *
 	 * @param windowStart - Inclusive lower bound for timestamps still inside the window

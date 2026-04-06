@@ -31,6 +31,11 @@ type MockCondition =
 			value: unknown;
 	  }
 	| {
+			type: 'inArray';
+			column: unknown;
+			values: unknown[];
+	  }
+	| {
 			type: 'and';
 			conditions: MockCondition[];
 	  };
@@ -138,10 +143,42 @@ function getEqValue(condition: MockCondition | undefined, column: unknown): unkn
 		return condition.column === column ? condition.value : undefined;
 	}
 
+	if (condition.type === 'inArray') {
+		return undefined;
+	}
+
 	for (const nestedCondition of condition.conditions) {
 		const nestedValue = getEqValue(nestedCondition, column);
 		if (nestedValue !== undefined) {
 			return nestedValue;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Extracts values used for an inArray comparison inside a mocked drizzle condition.
+ *
+ * @param condition - Condition passed into the fake where clause
+ * @param column - Column token to locate
+ * @returns Matched values or undefined when absent
+ */
+function getInArrayValues(condition: MockCondition | undefined, column: unknown): unknown[] | undefined {
+	if (!condition) {
+		return undefined;
+	}
+
+	if (condition.type === 'inArray') {
+		return condition.column === column ? condition.values : undefined;
+	}
+
+	if (condition.type === 'and') {
+		for (const nestedCondition of condition.conditions) {
+			const nestedValue = getInArrayValues(nestedCondition, column);
+			if (nestedValue !== undefined) {
+				return nestedValue;
+			}
 		}
 	}
 
@@ -155,12 +192,52 @@ const fakeDb = {
 				limit: async () => {
 					if (table === locationTable) {
 						const id = getEqValue(condition, locationTable.id);
-						return fakeDbState.locations.filter((row) => row.id === id);
+						const organizationId = getEqValue(condition, locationTable.organizationId);
+						const ids = getInArrayValues(condition, locationTable.id);
+
+						return fakeDbState.locations.filter((row) => {
+							if (typeof id === 'string' && row.id !== id) {
+								return false;
+							}
+
+							if (Array.isArray(ids) && ids.length > 0 && !ids.includes(row.id)) {
+								return false;
+							}
+
+							if (
+								typeof organizationId === 'string' &&
+								row.organizationId !== organizationId
+							) {
+								return false;
+							}
+
+							return true;
+						});
 					}
 
 					if (table === jobPositionTable) {
 						const id = getEqValue(condition, jobPositionTable.id);
-						return fakeDbState.jobPositions.filter((row) => row.id === id);
+						const organizationId = getEqValue(condition, jobPositionTable.organizationId);
+						const ids = getInArrayValues(condition, jobPositionTable.id);
+
+						return fakeDbState.jobPositions.filter((row) => {
+							if (typeof id === 'string' && row.id !== id) {
+								return false;
+							}
+
+							if (Array.isArray(ids) && ids.length > 0 && !ids.includes(row.id)) {
+								return false;
+							}
+
+							if (
+								typeof organizationId === 'string' &&
+								row.organizationId !== organizationId
+							) {
+								return false;
+							}
+
+							return true;
+						});
 					}
 
 					if (table === employeeTable) {
@@ -236,6 +313,7 @@ mock.module('drizzle-orm', () => ({
 	...actualDrizzleOrmModule,
 	and: (...conditions: MockCondition[]) => ({ type: 'and', conditions }),
 	eq: (column: unknown, value: unknown) => ({ type: 'eq', column, value }),
+	inArray: (column: unknown, values: unknown[]) => ({ type: 'inArray', column, values }),
 }));
 
 mock.module('../db/index.js', () => ({
@@ -484,6 +562,74 @@ describe('employee import routes', () => {
 		});
 		expect(payload.results[0]?.success).toBe(false);
 		expect(payload.results[1]?.success).toBe(true);
+	});
+
+	it('rejects bulk creation when any location does not belong to the organization', async () => {
+		fakeDbState.locations.push({
+			id: 'loc-other-org',
+			organizationId: '99999999-9999-4999-8999-999999999999',
+		});
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: [
+					{
+						code: 'EMP-010',
+						firstName: 'Ana',
+						lastName: 'López',
+						dailyPay: 410,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: TEST_JOB_POSITION_ID,
+						locationId: 'loc-other-org',
+					},
+				],
+			}),
+		);
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.error.message).toBe('Las ubicaciones seleccionadas no existen en tu organización.');
+		expect(fakeDbState.employees).toHaveLength(0);
+	});
+
+	it('rejects bulk creation when any job position does not belong to the organization', async () => {
+		fakeDbState.jobPositions.push({
+			id: 'job-other-org',
+			organizationId: '99999999-9999-4999-8999-999999999999',
+		});
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: [
+					{
+						code: 'EMP-011',
+						firstName: 'Luis',
+						lastName: 'Pérez',
+						dailyPay: 410,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: 'job-other-org',
+						locationId: TEST_LOCATION_ID,
+					},
+				],
+			}),
+		);
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.error.message).toBe('Los puestos seleccionados no existen en tu organización.');
+		expect(fakeDbState.employees).toHaveLength(0);
 	});
 
 	it('returns a row-level duplicate error when the insert hits a unique violation', async () => {

@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { Elysia, t } from 'elysia';
 
 import db from '../db/index.js';
@@ -183,6 +183,54 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				const status = authType === 'apiKey' ? 403 : 400;
 				set.status = status;
 				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const locationIds = [...new Set(body.employees.map((employeeInput) => employeeInput.locationId))];
+			const jobPositionIds = [
+				...new Set(body.employees.map((employeeInput) => employeeInput.jobPositionId)),
+			];
+
+			const [organizationLocations, organizationJobPositions] = await Promise.all([
+				locationIds.length > 0
+					? db
+							.select({ id: location.id })
+							.from(location)
+							.where(
+								and(
+									eq(location.organizationId, organizationId),
+									inArray(location.id, locationIds),
+								),
+							)
+							.limit(locationIds.length)
+					: Promise.resolve([]),
+				jobPositionIds.length > 0
+					? db
+							.select({ id: jobPosition.id })
+							.from(jobPosition)
+							.where(
+								and(
+									eq(jobPosition.organizationId, organizationId),
+									inArray(jobPosition.id, jobPositionIds),
+								),
+							)
+							.limit(jobPositionIds.length)
+					: Promise.resolve([]),
+			]);
+
+			if (organizationLocations.length !== locationIds.length) {
+				set.status = 400;
+				return buildErrorResponse(
+					'Las ubicaciones seleccionadas no existen en tu organización.',
+					400,
+				);
+			}
+
+			if (organizationJobPositions.length !== jobPositionIds.length) {
+				set.status = 400;
+				return buildErrorResponse(
+					'Los puestos seleccionados no existen en tu organización.',
+					400,
+				);
 			}
 
 			const batchId = crypto.randomUUID();

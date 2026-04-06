@@ -216,21 +216,34 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				}
 
 				const employeeId = crypto.randomUUID();
-				await db.insert(employee).values({
-					id: employeeId,
-					code: parsedEmployee.data.code,
-					firstName: parsedEmployee.data.firstName,
-					lastName: parsedEmployee.data.lastName,
-					dailyPay: parsedEmployee.data.dailyPay.toFixed(2),
-					paymentFrequency: parsedEmployee.data.paymentFrequency,
-					jobPositionId: parsedEmployee.data.jobPositionId,
-					locationId: parsedEmployee.data.locationId,
-					organizationId,
-					importBatchId: batchId,
-					status: parsedEmployee.data.status,
-					employmentType: parsedEmployee.data.employmentType ?? 'PERMANENT',
-					shiftType: parsedEmployee.data.shiftType ?? 'DIURNA',
-				});
+				try {
+					await db.insert(employee).values({
+						id: employeeId,
+						code: parsedEmployee.data.code,
+						firstName: parsedEmployee.data.firstName,
+						lastName: parsedEmployee.data.lastName,
+						dailyPay: parsedEmployee.data.dailyPay.toFixed(2),
+						paymentFrequency: parsedEmployee.data.paymentFrequency,
+						jobPositionId: parsedEmployee.data.jobPositionId,
+						locationId: parsedEmployee.data.locationId,
+						organizationId,
+						importBatchId: batchId,
+						status: parsedEmployee.data.status,
+						employmentType: parsedEmployee.data.employmentType ?? 'PERMANENT',
+						shiftType: parsedEmployee.data.shiftType ?? 'DIURNA',
+					});
+				} catch (error) {
+					const isUniqueViolation = (error as { code?: string }).code === '23505';
+
+					results.push({
+						index,
+						success: false,
+						error: isUniqueViolation
+							? `Código "${parsedEmployee.data.code}" duplicado`
+							: 'Error interno al crear el empleado.',
+					});
+					continue;
+				}
 
 				results.push({
 					index,

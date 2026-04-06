@@ -65,10 +65,12 @@ const fakeDbState: {
 	locations: FakeLocationRow[];
 	jobPositions: FakeJobPositionRow[];
 	employees: FakeEmployeeRow[];
+	insertErrorsByCode: Map<string, { code?: string; message: string }>;
 } = {
 	locations: [],
 	jobPositions: [],
 	employees: [],
+	insertErrorsByCode: new Map(),
 };
 
 const TEST_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -195,6 +197,11 @@ const fakeDb = {
 	}),
 	insert: () => ({
 		values: async (value: FakeEmployeeRow) => {
+			const configuredError = fakeDbState.insertErrorsByCode.get(value.code);
+			if (configuredError) {
+				throw configuredError;
+			}
+
 			fakeDbState.employees.push(value);
 			return [value];
 		},
@@ -303,6 +310,7 @@ describe('employee import routes', () => {
 			{ id: TEST_JOB_POSITION_ID, organizationId: TEST_ORGANIZATION_ID },
 		];
 		fakeDbState.employees = [];
+		fakeDbState.insertErrorsByCode = new Map();
 		mockProcessDocument.mockClear();
 	});
 
@@ -431,6 +439,58 @@ describe('employee import routes', () => {
 		});
 		expect(payload.results[0]?.success).toBe(false);
 		expect(payload.results[1]?.success).toBe(true);
+	});
+
+	it('returns a row-level duplicate error when the insert hits a unique violation', async () => {
+		fakeDbState.insertErrorsByCode.set('EMP-003', {
+			code: '23505',
+			message: 'duplicate key value violates unique constraint',
+		});
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: [
+					{
+						code: 'EMP-003',
+						firstName: 'Ana',
+						lastName: 'López',
+						dailyPay: 410,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: TEST_JOB_POSITION_ID,
+						locationId: TEST_LOCATION_ID,
+					},
+				],
+			}),
+		);
+		const payload = (await response.json()) as {
+			summary: {
+				total: number;
+				created: number;
+				failed: number;
+			};
+			results: Array<{
+				index: number;
+				success: boolean;
+				error?: string;
+			}>;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.summary).toEqual({
+			total: 1,
+			created: 0,
+			failed: 1,
+		});
+		expect(payload.results).toEqual([
+			{
+				index: 0,
+				success: false,
+				error: 'Código "EMP-003" duplicado',
+			},
+		]);
+		expect(fakeDbState.employees).toHaveLength(0);
 	});
 
 	it('deletes employees for an imported batch', async () => {

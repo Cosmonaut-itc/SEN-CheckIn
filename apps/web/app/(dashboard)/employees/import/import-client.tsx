@@ -54,7 +54,7 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 type PaymentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
@@ -266,6 +266,20 @@ function buildPreviewRows(args: {
 }
 
 /**
+ * Resolves the current preview rows to use for a document import mutation.
+ *
+ * @param mode - Import behavior for the incoming files
+ * @param previewRowsRef - Mutable ref with the latest preview rows
+ * @returns Rows that should participate in duplicate detection
+ */
+export function resolveCurrentPreviewRowsForImport<T>(
+	mode: ImportMutationMode,
+	previewRowsRef: React.MutableRefObject<T[]>,
+): T[] {
+	return mode === 'append' ? previewRowsRef.current : [];
+}
+
+/**
  * Employee bulk-import wizard client component.
  *
  * @returns Import flow UI
@@ -286,8 +300,13 @@ export function ImportClient(): React.ReactElement {
 		useState<PaymentFrequency>('MONTHLY');
 	const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+	const previewRowsRef = useRef<PreviewRow[]>([]);
 	const [nextCode, setNextCode] = useState<number>(1);
 	const [importResult, setImportResult] = useState<BulkCreateEmployeesResponse | null>(null);
+
+	useEffect(() => {
+		previewRowsRef.current = previewRows;
+	}, [previewRows]);
 
 	const { data: locationsData, isLoading: isLoadingLocations } = useQuery({
 		queryKey: queryKeys.locations.list({
@@ -380,7 +399,7 @@ export function ImportClient(): React.ReactElement {
 			const builtRows = buildPreviewRows({
 				employees: result.employees,
 				existingEmployees: existingEmployees.data,
-				currentRows: variables.mode === 'append' ? previewRows : [],
+				currentRows: resolveCurrentPreviewRowsForImport(variables.mode, previewRowsRef),
 				nextCode,
 				validationT: tImport,
 			});

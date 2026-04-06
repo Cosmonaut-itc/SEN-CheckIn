@@ -1,13 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import rawMessages from '@/messages/es.json';
 import { OrgProvider } from '@/lib/org-client-context';
 
-import { ImportClient } from './import-client';
+import { ImportClient, resolveCurrentPreviewRowsForImport } from './import-client';
 
 const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
 
@@ -90,6 +90,62 @@ vi.mock('sonner', () => ({
 	},
 }));
 
+vi.mock('@/components/ui/select', async () => {
+	const ReactModule = await import('react');
+	const React = ReactModule.default;
+
+	interface MockSelectItemProps {
+		value: string;
+		children: React.ReactNode;
+	}
+
+	interface MockSelectProps {
+		value?: string;
+		onValueChange?: (value: string) => void;
+		children: React.ReactNode;
+	}
+
+	function MockSelectItem({ value, children }: MockSelectItemProps): React.ReactElement {
+		return <option value={value}>{children}</option>;
+	}
+
+	MockSelectItem.displayName = 'MockSelectItem';
+
+	function extractOptions(children: React.ReactNode): React.ReactNode[] {
+		return React.Children.toArray(children).flatMap((child) => {
+			if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+				return [];
+			}
+
+			if (child.type === MockSelectItem) {
+				return [child];
+			}
+
+			return extractOptions(child.props.children);
+		});
+	}
+
+	function MockSelect({
+		value = '',
+		onValueChange,
+		children,
+	}: MockSelectProps): React.ReactElement {
+		return (
+			<select value={value} onChange={(event) => onValueChange?.(event.target.value)}>
+				{extractOptions(children)}
+			</select>
+		);
+	}
+
+	return {
+		Select: MockSelect,
+		SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+		SelectItem: MockSelectItem,
+		SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+		SelectValue: () => null,
+	};
+});
+
 /**
  * Renders the import client with production-like providers.
  *
@@ -121,6 +177,10 @@ function renderWithProviders(): ReturnType<typeof render> {
 }
 
 describe('ImportClient', () => {
+	afterEach(() => {
+		cleanup();
+	});
+
 	beforeEach(() => {
 		mockPush.mockReset();
 		mockFetchLocationsList.mockReset();
@@ -162,5 +222,19 @@ describe('ImportClient', () => {
 			screen.getByText('Arrastra archivos aquí o haz clic para seleccionar'),
 		).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Analizar documentos' })).toBeDisabled();
+	});
+
+	it('reads the latest preview rows from the ref when append mode is active', () => {
+		const previewRowsRef = {
+			current: ['row-1'],
+		};
+
+		previewRowsRef.current = ['row-1', 'row-2'];
+
+		expect(resolveCurrentPreviewRowsForImport('append', previewRowsRef)).toEqual([
+			'row-1',
+			'row-2',
+		]);
+		expect(resolveCurrentPreviewRowsForImport('replace', previewRowsRef)).toEqual([]);
 	});
 });

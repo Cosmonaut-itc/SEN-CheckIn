@@ -258,7 +258,8 @@
 		"subtitle": "Administra registros de empleados y alta de rostros",
 		"noOrganization": "Selecciona una organización activa para administrar empleados.",
 		"actions": {
-			"addEmployee": "Agregar empleado"
+			"addEmployee": "Agregar empleado",
+			"importFromDocument": "Importar desde documento"
 		},
 		"import": {
 			"badge": "Importación asistida",

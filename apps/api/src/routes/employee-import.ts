@@ -319,33 +319,41 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
-			const batchEmployees = await db
-				.select({ id: employee.id })
-				.from(employee)
-				.where(
-					and(
-						eq(employee.importBatchId, params.batchId),
-						eq(employee.organizationId, organizationId),
-					),
-				)
-				.limit(10_000);
+			const { deleted } = await db.transaction(async (tx) => {
+				const batchEmployees = await tx
+					.select({ id: employee.id })
+					.from(employee)
+					.where(
+						and(
+							eq(employee.importBatchId, params.batchId),
+							eq(employee.organizationId, organizationId),
+						),
+					)
+					.limit(10_000);
 
-			if (batchEmployees.length === 0) {
+				if (batchEmployees.length === 0) {
+					return { deleted: 0 };
+				}
+
+				await tx
+					.delete(employee)
+					.where(
+						and(
+							eq(employee.importBatchId, params.batchId),
+							eq(employee.organizationId, organizationId),
+						),
+					);
+
+				return { deleted: batchEmployees.length };
+			});
+
+			if (deleted === 0) {
 				set.status = 404;
 				return buildErrorResponse('No se encontró el lote de importación.', 404);
 			}
 
-			await db
-				.delete(employee)
-				.where(
-					and(
-						eq(employee.importBatchId, params.batchId),
-						eq(employee.organizationId, organizationId),
-					),
-				);
-
 			return {
-				deleted: batchEmployees.length,
+				deleted,
 				batchId: params.batchId,
 			};
 		},

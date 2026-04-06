@@ -66,11 +66,13 @@ const fakeDbState: {
 	jobPositions: FakeJobPositionRow[];
 	employees: FakeEmployeeRow[];
 	insertErrorsByCode: Map<string, { code?: string; message: string }>;
+	transactionCalls: number;
 } = {
 	locations: [],
 	jobPositions: [],
 	employees: [],
 	insertErrorsByCode: new Map(),
+	transactionCalls: 0,
 };
 
 const TEST_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
@@ -224,6 +226,10 @@ const fakeDb = {
 			});
 		},
 	}),
+	transaction: async <T>(callback: (tx: typeof fakeDb) => Promise<T>): Promise<T> => {
+		fakeDbState.transactionCalls += 1;
+		return await callback(fakeDb);
+	},
 };
 
 mock.module('drizzle-orm', () => ({
@@ -311,6 +317,7 @@ describe('employee import routes', () => {
 		];
 		fakeDbState.employees = [];
 		fakeDbState.insertErrorsByCode = new Map();
+		fakeDbState.transactionCalls = 0;
 		mockProcessDocument.mockClear();
 	});
 
@@ -565,6 +572,7 @@ describe('employee import routes', () => {
 			deleted: 1,
 			batchId: 'batch-1',
 		});
+		expect(fakeDbState.transactionCalls).toBe(1);
 		expect(fakeDbState.employees).toHaveLength(0);
 	});
 });

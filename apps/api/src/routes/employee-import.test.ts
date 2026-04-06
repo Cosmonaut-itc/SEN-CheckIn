@@ -399,6 +399,33 @@ describe('employee import routes', () => {
 		mockProcessDocument.mockClear();
 	});
 
+	it('returns 400 when the uploaded file mime type is not supported', async () => {
+		const employeeImportModule = await import('./employee-import.js');
+		employeeImportModule.resetEmployeeImportRateLimiterForTests();
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportModule.employeeImportRoutes);
+		const formData = new FormData();
+		formData.append(
+			'file',
+			new File(['fake text'], 'employees.txt', {
+				type: 'text/plain',
+			}),
+		);
+		formData.append('defaultLocationId', TEST_LOCATION_ID);
+		formData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+		formData.append('defaultPaymentFrequency', 'MONTHLY');
+
+		const response = await app.handle(createMultipartRequest(formData));
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.error.message).toBe('Formato no soportado. Usa JPG, PNG, HEIC o PDF.');
+		expect(mockProcessDocument).not.toHaveBeenCalled();
+	});
+
 	it('returns 400 when no file is provided', async () => {
 		const { employeeImportRoutes } = await import('./employee-import.js');
 		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
@@ -492,6 +519,51 @@ describe('employee import routes', () => {
 
 		expect(response.status).toBe(200);
 		expect(mockProcessDocument).toHaveBeenCalledTimes(1);
+	});
+
+	it('returns 429 after the import rate limit is exceeded', async () => {
+		const employeeImportModule = await import('./employee-import.js');
+		employeeImportModule.resetEmployeeImportRateLimiterForTests();
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportModule.employeeImportRoutes);
+
+		for (let attempt = 0; attempt < 10; attempt += 1) {
+			const formData = new FormData();
+			formData.append(
+				'file',
+				new File([`fake image ${attempt}`], `employees-${attempt}.png`, {
+					type: 'image/png',
+				}),
+			);
+			formData.append('defaultLocationId', TEST_LOCATION_ID);
+			formData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+			formData.append('defaultPaymentFrequency', 'MONTHLY');
+
+			const response = await app.handle(createMultipartRequest(formData));
+			expect(response.status).toBe(200);
+		}
+
+		const exceededFormData = new FormData();
+		exceededFormData.append(
+			'file',
+			new File(['fake image overflow'], 'employees-overflow.png', {
+				type: 'image/png',
+			}),
+		);
+		exceededFormData.append('defaultLocationId', TEST_LOCATION_ID);
+		exceededFormData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+		exceededFormData.append('defaultPaymentFrequency', 'MONTHLY');
+
+		const response = await app.handle(createMultipartRequest(exceededFormData));
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(429);
+		expect(payload.error.message).toBe(
+			'Has alcanzado el límite de importaciones. Intenta más tarde.',
+		);
 	});
 
 	it('creates employees in bulk and reports duplicate codes', async () => {
@@ -720,5 +792,57 @@ describe('employee import routes', () => {
 		});
 		expect(fakeDbState.transactionCalls).toBe(1);
 		expect(fakeDbState.employees).toHaveLength(0);
+	});
+
+	it('returns 404 when deleting a non-existent import batch', async () => {
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk/batch-missing', 'DELETE'),
+		);
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(404);
+		expect(payload.error.message).toBe('No se encontró el lote de importación.');
+	});
+
+	it('scopes bulk delete to the active organization', async () => {
+		fakeDbState.employees = [
+			{
+				id: 'employee-foreign-org',
+				code: 'EMP-099',
+				firstName: 'Otra',
+				lastName: 'Organización',
+				dailyPay: '380.00',
+				paymentFrequency: 'MONTHLY',
+				jobPositionId: TEST_JOB_POSITION_ID,
+				locationId: TEST_LOCATION_ID,
+				organizationId: '99999999-9999-4999-8999-999999999999',
+				importBatchId: 'batch-shared',
+				status: 'ACTIVE',
+				employmentType: 'PERMANENT',
+				shiftType: 'DIURNA',
+			},
+		];
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk/batch-shared', 'DELETE'),
+		);
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(404);
+		expect(payload.error.message).toBe('No se encontró el lote de importación.');
+		expect(fakeDbState.employees).toHaveLength(1);
 	});
 });

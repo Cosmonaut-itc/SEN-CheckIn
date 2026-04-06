@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
+mock.restore();
+
 const rekognitionSdkMockState: {
 	error: Error | null;
 	response: {

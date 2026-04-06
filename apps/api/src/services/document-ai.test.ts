@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+
+mock.restore();
 
 const mockGenerateObject = mock(async () => ({
 	object: {
@@ -25,6 +27,10 @@ mock.module('ai', () => ({
 mock.module('@openrouter/ai-sdk-provider', () => ({
 	createOpenRouter: () => (modelId: string) => ({ modelId }),
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 describe('document-ai service', () => {
 	const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;

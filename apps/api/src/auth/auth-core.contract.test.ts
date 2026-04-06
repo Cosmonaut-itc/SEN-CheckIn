@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
 import {
+	ensureReachableTestDatabaseUrl,
 	ensureTestDatabaseUrl,
 	getAdminSession,
 	getSeedData,
@@ -14,6 +15,7 @@ describe('auth core endpoints (contract)', () => {
 
 	beforeAll(async () => {
 		ensureTestDatabaseUrl();
+		await ensureReachableTestDatabaseUrl();
 		const authModule = await import('../../utils/auth.js');
 		authInstance = authModule.auth;
 		adminSession = await getAdminSession();

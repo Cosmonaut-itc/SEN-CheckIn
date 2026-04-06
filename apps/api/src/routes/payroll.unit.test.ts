@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
 
 import {
@@ -7,6 +7,11 @@ import {
 	type PayrollEmployeeRow,
 } from '../services/payroll-calculation.js';
 import { getUtcDateForZonedMidnight } from '../utils/time-zone.js';
+
+mock.restore();
+
+const actualDrizzleOrmModule = await import('drizzle-orm');
+const actualDrizzleSqlModule = await import('drizzle-orm/sql');
 
 type DrizzleCondition =
 	| {
@@ -1164,6 +1169,7 @@ function sqlTag(
 
 mock.module('drizzle-orm', () => {
 	return {
+		...actualDrizzleOrmModule,
 		and: (...conditions: DrizzleCondition[]) => ({
 			kind: 'and' as const,
 			conditions,
@@ -1188,6 +1194,7 @@ mock.module('drizzle-orm', () => {
 
 mock.module('drizzle-orm/sql', () => {
 	return {
+		...actualDrizzleSqlModule,
 		inArray: (column: unknown, values: unknown[]) => ({
 			kind: 'inArray' as const,
 			column,
@@ -1222,6 +1229,10 @@ describe('payroll routes', () => {
 		dbState.deductionUpdateConditions = [];
 		dbState.pendingDeductionMutationBeforeTransaction = null;
 		dbState.pendingDeductionMutationBeforeUpdate = null;
+	});
+
+	afterAll(() => {
+		mock.restore();
 	});
 
 	it('includes edge attendance events so clipped sessions are counted in /payroll/calculate', async () => {

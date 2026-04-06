@@ -1,6 +1,9 @@
 import { edenTreaty } from '@elysiajs/eden';
 import { eq } from 'drizzle-orm';
 import { parseSetCookieHeader } from 'better-auth/cookies';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Client } from 'pg';
 
 import type { App } from '../app.js';
 
@@ -30,6 +33,11 @@ const TEST_DB_NAME = 'sen_checkin_test';
 const TEST_DB_USER = 'admin';
 const TEST_DB_HOST = '127.0.0.1';
 const TEST_DB_PORT = 5435;
+const DEFAULT_TEST_DB_PASSWORD = 'postgres';
+const TEST_BOOTSTRAP_ENTRY = resolve(
+	dirname(fileURLToPath(import.meta.url)),
+	'../../scripts/test/bootstrap.ts',
+);
 
 const ADMIN_CREDENTIALS: TestUserCredentials = {
 	email: 'admin@sen-checkin.test',
@@ -47,6 +55,7 @@ let cachedSeedData: SeedData | null = null;
 let cachedAdminSession: SessionContext | null = null;
 let cachedUserSession: SessionContext | null = null;
 let cachedApiKey: string | null = null;
+let cachedBootstrapPromise: Promise<void> | null = null;
 type TestApiClient = ReturnType<typeof edenTreaty<App>>;
 
 /**
@@ -58,6 +67,24 @@ type TestApiClient = ReturnType<typeof edenTreaty<App>>;
 function buildTestDatabaseUrl(password: string): string {
 	const encodedPassword = encodeURIComponent(password);
 	return `postgresql://${TEST_DB_USER}:${encodedPassword}@${TEST_DB_HOST}:${TEST_DB_PORT}/${TEST_DB_NAME}`;
+}
+
+/**
+ * Builds candidate URLs for the isolated test database.
+ *
+ * @returns Candidate connection strings ordered by preference
+ */
+function buildCandidateTestDatabaseUrls(): string[] {
+	const candidates = new Set<string>();
+	const configuredPassword = process.env.SEN_CHECKIN_PG_PASSWORD;
+
+	if (configuredPassword) {
+		candidates.add(buildTestDatabaseUrl(configuredPassword));
+	}
+
+	candidates.add(buildTestDatabaseUrl(DEFAULT_TEST_DB_PASSWORD));
+
+	return Array.from(candidates);
 }
 
 /**
@@ -78,19 +105,113 @@ export function ensureTestDatabaseUrl(): string {
 		}
 	}
 
-	const password = process.env.SEN_CHECKIN_PG_PASSWORD;
-	if (!password) {
+	const [derivedUrl] = buildCandidateTestDatabaseUrls();
+	if (!derivedUrl) {
 		if (providedDatabaseName) {
 			throw new Error(
 				`SEN_DB_URL must target "${TEST_DB_NAME}" for tests. Received "${providedDatabaseName}".`,
 			);
 		}
-		throw new Error('SEN_CHECKIN_PG_PASSWORD is required for API contract tests.');
+		throw new Error('Unable to derive a test database URL for API contract tests.');
 	}
 
-	const derivedUrl = buildTestDatabaseUrl(password);
 	process.env.SEN_DB_URL = derivedUrl;
 	return derivedUrl;
+}
+
+/**
+ * Checks whether a candidate connection string is reachable.
+ *
+ * @param connectionString - Candidate Postgres URL
+ * @returns True when the database accepts the connection
+ */
+async function canConnectToDatabase(connectionString: string): Promise<boolean> {
+	const client = new Client({
+		connectionString,
+		connectionTimeoutMillis: 1500,
+	});
+
+	try {
+		await client.connect();
+		await client.query('SELECT 1');
+		return true;
+	} catch {
+		return false;
+	} finally {
+		await client.end().catch(() => undefined);
+	}
+}
+
+/**
+ * Resolves a reachable test database URL and stores it in the environment.
+ *
+ * @returns Reachable Postgres test URL
+ */
+export async function ensureReachableTestDatabaseUrl(): Promise<string> {
+	const preferredUrl = ensureTestDatabaseUrl();
+
+	if (await canConnectToDatabase(preferredUrl)) {
+		process.env.SEN_DB_URL = preferredUrl;
+		return preferredUrl;
+	}
+
+	for (const candidateUrl of buildCandidateTestDatabaseUrls()) {
+		if (candidateUrl === preferredUrl) {
+			continue;
+		}
+
+		if (await canConnectToDatabase(candidateUrl)) {
+			process.env.SEN_DB_URL = candidateUrl;
+			return candidateUrl;
+		}
+	}
+
+	process.env.SEN_DB_URL = preferredUrl;
+	return preferredUrl;
+}
+
+/**
+ * Resets cached contract-test singletons after bootstrap.
+ *
+ * @returns Nothing
+ */
+function resetContractTestCaches(): void {
+	cachedApp = null;
+	cachedAppPromise = null;
+	cachedSeedData = null;
+	cachedAdminSession = null;
+	cachedUserSession = null;
+	cachedApiKey = null;
+}
+
+/**
+ * Bootstraps the isolated contract-test database once when seed data is missing.
+ *
+ * @returns Promise that resolves after bootstrap completes
+ */
+async function ensureBootstrappedTestDatabase(): Promise<void> {
+	if (!cachedBootstrapPromise) {
+		cachedBootstrapPromise = (async () => {
+			const connectionString = await ensureReachableTestDatabaseUrl();
+			const child = Bun.spawn(['bun', TEST_BOOTSTRAP_ENTRY], {
+				cwd: resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
+				env: {
+					...process.env,
+					SEN_DB_URL: connectionString,
+				},
+				stdio: ['ignore', 'inherit', 'inherit'],
+			});
+			const exitCode = await child.exited;
+			if (exitCode !== 0) {
+				throw new Error(`Contract test bootstrap failed with exit code ${exitCode}.`);
+			}
+			resetContractTestCaches();
+		})().finally(() => {
+			cachedBootstrapPromise = null;
+		});
+	}
+
+	return cachedBootstrapPromise;
 }
 
 /**
@@ -102,7 +223,7 @@ async function loadDatabase(): Promise<{
 	db: typeof import('../db/index.js').default;
 	schema: typeof import('../db/schema.js');
 }> {
-	ensureTestDatabaseUrl();
+	await ensureReachableTestDatabaseUrl();
 	const { default: db } = await import('../db/index.js');
 	const schema = await import('../db/schema.js');
 	return { db, schema };
@@ -114,7 +235,7 @@ async function loadDatabase(): Promise<{
  * @returns Auth instance
  */
 async function loadAuth(): Promise<typeof import('../../utils/auth.js').auth> {
-	ensureTestDatabaseUrl();
+	await ensureReachableTestDatabaseUrl();
 	const { auth } = await import('../../utils/auth.js');
 	return auth;
 }
@@ -196,7 +317,7 @@ export function getTestApp(): Promise<App> {
 		return cachedAppPromise;
 	}
 	cachedAppPromise = (async () => {
-		ensureTestDatabaseUrl();
+		await ensureReachableTestDatabaseUrl();
 		const { createApp } = await import('../app.js');
 		cachedApp = createApp();
 		return cachedApp;
@@ -358,7 +479,18 @@ export async function getSeedData(): Promise<SeedData> {
 		.where(eq(organization.slug, 'sen-checkin'))
 		.limit(1);
 
-	const organizationRow = orgRows[0];
+	let organizationRow = orgRows[0];
+	if (!organizationRow) {
+		await ensureBootstrappedTestDatabase();
+		const retryRows = await db
+			.select({
+				id: organization.id,
+			})
+			.from(organization)
+			.where(eq(organization.slug, 'sen-checkin'))
+			.limit(1);
+		organizationRow = retryRows[0];
+	}
 	if (!organizationRow) {
 		throw new Error('Seed organization "sen-checkin" was not found.');
 	}

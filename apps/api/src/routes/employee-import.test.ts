@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
 
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
+
+mock.restore();
+
+const actualDrizzleOrmModule = await import('drizzle-orm');
+const actualSchemaModule = await import('../db/schema.js');
+const actualDocumentAiModule = await import('../services/document-ai.js');
 
 const employeeTable = {
 	id: 'employee.id',
@@ -69,22 +75,48 @@ const TEST_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const TEST_LOCATION_ID = '22222222-2222-4222-8222-222222222222';
 const TEST_JOB_POSITION_ID = '33333333-3333-4333-8333-333333333333';
 
-const mockProcessDocument = mock(async () => ({
-	employees: [
-		{
-			firstName: 'María',
-			lastName: 'García',
-			dailyPay: 380,
-			confidence: 0.92,
-			fieldConfidence: {
-				firstName: 0.95,
-				lastName: 0.9,
-				dailyPay: 0.85,
-			},
-		},
-	],
-	pagesProcessed: 1,
-}));
+const mockProcessDocument = mock(
+	async (
+		_fileBuffer: Buffer,
+		_mimeType: string,
+		onProgress?: (progress: {
+			step: 'processing' | 'extracting';
+			currentPage?: number;
+			totalPages?: number;
+			message: string;
+		}) => void,
+	) => {
+		onProgress?.({
+			step: 'processing',
+			currentPage: 1,
+			totalPages: 1,
+			message: 'Procesando imagen...',
+		});
+		onProgress?.({
+			step: 'extracting',
+			currentPage: 1,
+			totalPages: 1,
+			message: 'Extrayendo datos del documento...',
+		});
+
+		return {
+			employees: [
+				{
+					firstName: 'María',
+					lastName: 'García',
+					dailyPay: 380,
+					confidence: 0.92,
+					fieldConfidence: {
+						firstName: 0.95,
+						lastName: 0.9,
+						dailyPay: 0.85,
+					},
+				},
+			],
+			pagesProcessed: 1,
+		};
+	},
+);
 
 /**
  * Extracts the value used for an equality comparison inside a mocked drizzle condition.
@@ -188,6 +220,7 @@ const fakeDb = {
 };
 
 mock.module('drizzle-orm', () => ({
+	...actualDrizzleOrmModule,
 	and: (...conditions: MockCondition[]) => ({ type: 'and', conditions }),
 	eq: (column: unknown, value: unknown) => ({ type: 'eq', column, value }),
 }));
@@ -197,6 +230,7 @@ mock.module('../db/index.js', () => ({
 }));
 
 mock.module('../db/schema.js', () => ({
+	...actualSchemaModule,
 	employee: employeeTable,
 	location: locationTable,
 	jobPosition: jobPositionTable,
@@ -206,7 +240,15 @@ mock.module('../plugins/auth.js', () => ({
 	combinedAuthPlugin: new Elysia({ name: 'mock-combined-auth' }).derive({ as: 'scoped' }, () => ({
 		authType: 'session' as const,
 		user: { id: 'user-1' },
-		session: { activeOrganizationId: TEST_ORGANIZATION_ID },
+		session: {
+			id: 'session-1',
+			expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+			token: 'token-1',
+			createdAt: new Date('2099-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2099-01-01T00:00:00.000Z'),
+			userId: 'user-1',
+			activeOrganizationId: TEST_ORGANIZATION_ID,
+		},
 		sessionOrganizationIds: [TEST_ORGANIZATION_ID],
 		apiKeyId: null,
 		apiKeyName: null,
@@ -217,8 +259,13 @@ mock.module('../plugins/auth.js', () => ({
 }));
 
 mock.module('../services/document-ai.js', () => ({
+	...actualDocumentAiModule,
 	processDocument: mockProcessDocument,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 /**
  * Creates a multipart POST request for the import endpoint.

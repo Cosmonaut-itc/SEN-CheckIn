@@ -93,6 +93,8 @@ describe('EmployeeImportPage', () => {
 		const getQueryClient = getQueryClientModule.getQueryClient as unknown as ReturnType<
 			typeof vi.fn
 		>;
+		const prefetchLocationsList =
+			serverFunctionsModule.prefetchLocationsList as unknown as ReturnType<typeof vi.fn>;
 		const prefetchJobPositionsList =
 			serverFunctionsModule.prefetchJobPositionsList as unknown as ReturnType<typeof vi.fn>;
 		const deferred = createDeferred<void>();
@@ -109,12 +111,20 @@ describe('EmployeeImportPage', () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(settled).toBe(false);
+		expect(prefetchLocationsList).toHaveBeenCalledWith(getQueryClient.mock.results[0].value, {
+			organizationId: 'org-1',
+			limit: 100,
+			offset: 0,
+		});
+
+		expect(prefetchJobPositionsList).toHaveBeenCalledWith(getQueryClient.mock.results[0].value, {
+			organizationId: 'org-1',
+			limit: 100,
+			offset: 0,
+		});
 
 		deferred.resolve();
 
 		await expect(pagePromise).resolves.toBeDefined();
-		expect(prefetchJobPositionsList).toHaveBeenCalledWith(getQueryClient.mock.results[0].value, {
-			organizationId: 'org-1',
-		});
 	});
 });

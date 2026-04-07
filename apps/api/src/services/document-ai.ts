@@ -8,6 +8,7 @@ import { z } from 'zod';
 const EXTRACTION_MODEL_ID = 'openai/gpt-4o';
 const MAX_IMAGE_DIMENSION = 2048;
 const JPEG_QUALITY = 85;
+const MAX_PDF_PAGES = 20;
 
 const SYSTEM_PROMPT = `Analiza este documento y extrae todos los empleados que encuentres.
 Para cada persona, extrae: nombre(s), apellido(s), y sueldo/salario si está visible.
@@ -16,11 +17,16 @@ Si un campo no es legible o no existe, devuelve null para ese campo.
 Asigna un score de confianza (0-1) a cada campo basado en qué tan legible/claro es el dato.
 NO incluyas encabezados, totales, firmas, o datos que no sean personas reales.`;
 
+const extractedEmployeeNameSchema = z.preprocess(
+	(value) => (value === null || value === undefined ? '' : value),
+	z.string(),
+);
+
 export const extractedEmployeesSchema = z.object({
 	employees: z.array(
 		z.object({
-			firstName: z.string(),
-			lastName: z.string(),
+			firstName: extractedEmployeeNameSchema,
+			lastName: extractedEmployeeNameSchema,
 			dailyPay: z.number().nullable(),
 			confidence: z.number().min(0).max(1),
 			fieldConfidence: z.object({
@@ -113,31 +119,28 @@ async function convertToProcessableImage(buffer: Buffer): Promise<string> {
 }
 
 /**
- * Renders each page of a PDF into a PNG image buffer.
+ * Renders a PDF page into a PNG image buffer.
  *
- * @param buffer - Raw PDF document buffer
- * @returns Image buffers for each rendered page
+ * @param pdfDocument - Loaded PDF.js document
+ * @param pageIndex - One-based page index to render
+ * @returns Image buffer for the rendered page
  */
-async function extractPagesFromPdf(buffer: Buffer): Promise<Buffer[]> {
-	const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
-	const pages: Buffer[] = [];
+async function renderPdfPageToBuffer(
+	pdfDocument: pdfjs.PDFDocumentProxy,
+	pageIndex: number,
+): Promise<Buffer> {
+	const page = await pdfDocument.getPage(pageIndex);
+	const viewport = page.getViewport({ scale: 2 });
+	const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+	const context = canvas.getContext('2d');
 
-	for (let pageIndex = 1; pageIndex <= pdfDocument.numPages; pageIndex += 1) {
-		const page = await pdfDocument.getPage(pageIndex);
-		const viewport = page.getViewport({ scale: 2 });
-		const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
-		const context = canvas.getContext('2d');
+	await page.render({
+		canvas: canvas as never,
+		canvasContext: context as never,
+		viewport,
+	}).promise;
 
-		await page.render({
-			canvas: canvas as never,
-			canvasContext: context as never,
-			viewport,
-		}).promise;
-
-		pages.push(canvas.toBuffer('image/png'));
-	}
-
-	return pages;
+	return canvas.toBuffer('image/png');
 }
 
 /**
@@ -147,6 +150,7 @@ async function extractPagesFromPdf(buffer: Buffer): Promise<Buffer[]> {
  * @param mimeType - Uploaded file media type
  * @param onProgress - Optional callback for progress updates
  * @returns Extracted employees and processed page count
+ * @throws {Error} When a PDF exceeds the supported page limit
  */
 export async function processDocument(
 	fileBuffer: Buffer,
@@ -159,31 +163,37 @@ export async function processDocument(
 			message: 'Extrayendo páginas del PDF...',
 		});
 
-		const pageBuffers = await extractPagesFromPdf(fileBuffer);
+		const pdfDocument = await pdfjs.getDocument({ data: new Uint8Array(fileBuffer) }).promise;
+		if (pdfDocument.numPages > MAX_PDF_PAGES) {
+			throw new Error(`El PDF excede el máximo permitido de ${MAX_PDF_PAGES} páginas.`);
+		}
+
+		const totalPages = pdfDocument.numPages;
 		const employees: ExtractedEmployee[] = [];
 
-		for (let pageIndex = 0; pageIndex < pageBuffers.length; pageIndex += 1) {
+		for (let pageIndex = 1; pageIndex <= totalPages; pageIndex += 1) {
 			onProgress?.({
 				step: 'processing',
-				currentPage: pageIndex + 1,
-				totalPages: pageBuffers.length,
-				message: `Procesando página ${pageIndex + 1} de ${pageBuffers.length}...`,
+				currentPage: pageIndex,
+				totalPages,
+				message: `Procesando página ${pageIndex} de ${totalPages}...`,
 			});
+			const pageBuffer = await renderPdfPageToBuffer(pdfDocument, pageIndex);
 			onProgress?.({
 				step: 'extracting',
-				currentPage: pageIndex + 1,
-				totalPages: pageBuffers.length,
-				message: `Extrayendo datos de la página ${pageIndex + 1}...`,
+				currentPage: pageIndex,
+				totalPages,
+				message: `Extrayendo datos de la página ${pageIndex}...`,
 			});
 
-			const base64Image = await convertToProcessableImage(pageBuffers[pageIndex] ?? Buffer.alloc(0));
+			const base64Image = await convertToProcessableImage(pageBuffer);
 			const result = await extractEmployeesFromImage(base64Image, 'image/jpeg');
 			employees.push(...result.employees);
 		}
 
 		return {
 			employees,
-			pagesProcessed: pageBuffers.length,
+			pagesProcessed: totalPages,
 		};
 	}
 

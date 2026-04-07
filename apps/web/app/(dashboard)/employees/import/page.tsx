@@ -25,9 +25,13 @@ export default async function EmployeeImportPage(): Promise<React.ReactElement> 
 	if (organization.organizationId) {
 		prefetchLocationsList(queryClient, {
 			organizationId: organization.organizationId,
+			limit: 100,
+			offset: 0,
 		});
 		await prefetchJobPositionsList(queryClient, {
 			organizationId: organization.organizationId,
+			limit: 100,
+			offset: 0,
 		});
 	}
 

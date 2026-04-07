@@ -1272,6 +1272,59 @@ describe('employee import routes', () => {
 		expect(fakeDbState.employees).toHaveLength(0);
 	});
 
+	it('writes audit events when undoing an imported batch', async () => {
+		fakeDbState.employees = [
+			{
+				id: 'employee-1',
+				code: 'EMP-010',
+				firstName: 'María',
+				lastName: 'García',
+				dailyPay: '380.00',
+				paymentFrequency: 'MONTHLY',
+				jobPositionId: TEST_JOB_POSITION_ID,
+				locationId: TEST_LOCATION_ID,
+				organizationId: TEST_ORGANIZATION_ID,
+				importBatchId: 'batch-1',
+				status: 'ACTIVE',
+				employmentType: 'PERMANENT',
+				shiftType: 'DIURNA',
+			},
+		];
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk/batch-1', 'DELETE'),
+		);
+		const payload = (await response.json()) as {
+			deleted: number;
+			batchId: string;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload).toEqual({
+			deleted: 1,
+			batchId: 'batch-1',
+		});
+		expect(fakeDbState.auditEvents).toHaveLength(1);
+		expect(fakeDbState.auditEvents[0]).toMatchObject({
+			employeeId: 'employee-1',
+			organizationId: TEST_ORGANIZATION_ID,
+			action: 'deleted',
+			actorType: 'user',
+			actorUserId: 'user-1',
+			before: expect.objectContaining({
+				id: 'employee-1',
+				code: 'EMP-010',
+				importBatchId: 'batch-1',
+				organizationId: TEST_ORGANIZATION_ID,
+			}),
+			after: null,
+			changedFields: [],
+		});
+		expect(fakeDbState.employees).toHaveLength(0);
+	});
+
 	it('returns 404 when deleting a non-existent import batch', async () => {
 		const { employeeImportRoutes } = await import('./employee-import.js');
 		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);

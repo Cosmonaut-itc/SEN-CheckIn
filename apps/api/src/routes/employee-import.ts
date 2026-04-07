@@ -434,9 +434,11 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
+			const auditActor = resolveEmployeeAuditActor(authType, session);
+
 			const { deleted } = await db.transaction(async (tx) => {
 				const batchEmployees = await tx
-					.select({ id: employee.id })
+					.select()
 					.from(employee)
 					.where(
 						and(
@@ -448,6 +450,20 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 
 				if (batchEmployees.length === 0) {
 					return { deleted: 0 };
+				}
+
+				await setEmployeeAuditSkip(tx);
+				for (const batchEmployee of batchEmployees) {
+					await createEmployeeAuditEvent(tx, {
+						employeeId: batchEmployee.id,
+						organizationId: batchEmployee.organizationId,
+						action: 'deleted',
+						actorType: auditActor.actorType,
+						actorUserId: auditActor.actorUserId,
+						before: buildEmployeeAuditSnapshot(batchEmployee),
+						after: null,
+						changedFields: [],
+					});
 				}
 
 				await tx

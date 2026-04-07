@@ -1,14 +1,10 @@
 import type React from 'react';
-import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-
-const mocks = vi.hoisted(() => ({
-	getQueryClient: vi.fn(),
-	getAdminAccessContext: vi.fn(),
-	prefetchLocationsList: vi.fn(),
-	prefetchJobPositionsList: vi.fn(),
-	dehydrate: vi.fn(),
-}));
+import * as getQueryClientModule from '@/lib/get-query-client';
+import type { AdminAccessContext } from '@/lib/organization-context';
+import * as organizationContextModule from '@/lib/organization-context';
+import * as serverFunctionsModule from '@/lib/server-functions';
+import type { QueryClient } from '@tanstack/react-query';
 
 /**
  * Creates a deferred promise for controlling async resolution in a test.
@@ -31,11 +27,11 @@ function createDeferred<T>(): {
 }
 
 vi.mock('@/lib/get-query-client', () => ({
-	getQueryClient: mocks.getQueryClient,
+	getQueryClient: vi.fn(),
 }));
 
 vi.mock('@/lib/organization-context', () => ({
-	getAdminAccessContext: mocks.getAdminAccessContext,
+	getAdminAccessContext: vi.fn(),
 }));
 
 vi.mock('@/lib/org-client-context', () => ({
@@ -45,21 +41,16 @@ vi.mock('@/lib/org-client-context', () => ({
 }));
 
 vi.mock('@/lib/server-functions', () => ({
-	prefetchLocationsList: mocks.prefetchLocationsList,
-	prefetchJobPositionsList: mocks.prefetchJobPositionsList,
+	prefetchLocationsList: vi.fn(),
+	prefetchJobPositionsList: vi.fn(),
 }));
 
-vi.mock('@tanstack/react-query', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('@tanstack/react-query')>();
-
-	return {
-		...actual,
-		dehydrate: mocks.dehydrate,
-		HydrationBoundary: ({ children }: { children: React.ReactNode }): React.ReactElement => (
-			<>{children}</>
-		),
-	};
-});
+vi.mock('@tanstack/react-query', () => ({
+	dehydrate: (): Record<string, never> => ({}),
+	HydrationBoundary: ({ children }: { children: React.ReactNode }): React.ReactElement => (
+		<>{children}</>
+	),
+}));
 
 vi.mock('./import-client', () => ({
 	ImportClient: (): React.ReactElement => <div data-testid="import-client" />,
@@ -67,15 +58,24 @@ vi.mock('./import-client', () => ({
 
 describe('EmployeeImportPage', () => {
 	beforeEach(() => {
-		const queryClient = new QueryClient();
-
-		mocks.getQueryClient.mockReset();
-		mocks.getAdminAccessContext.mockReset();
-		mocks.prefetchLocationsList.mockReset();
-		mocks.prefetchJobPositionsList.mockReset();
-		mocks.dehydrate.mockReset();
-		mocks.getQueryClient.mockReturnValue(queryClient);
-		mocks.getAdminAccessContext.mockResolvedValue({
+		const queryClient = { cacheKey: 'query-client' } as unknown as QueryClient;
+		const getQueryClient = getQueryClientModule.getQueryClient as unknown as ReturnType<
+			typeof vi.fn
+		>;
+		const getAdminAccessContext =
+			organizationContextModule.getAdminAccessContext as unknown as ReturnType<
+				typeof vi.fn
+			>;
+		const prefetchLocationsList =
+			serverFunctionsModule.prefetchLocationsList as unknown as ReturnType<typeof vi.fn>;
+		const prefetchJobPositionsList =
+			serverFunctionsModule.prefetchJobPositionsList as unknown as ReturnType<typeof vi.fn>;
+		getQueryClient.mockReset();
+		getAdminAccessContext.mockReset();
+		prefetchLocationsList.mockReset();
+		prefetchJobPositionsList.mockReset();
+		getQueryClient.mockReturnValue(queryClient);
+		getAdminAccessContext.mockResolvedValue({
 			organization: {
 				organizationId: 'org-1',
 				organizationSlug: 'org-1',
@@ -83,14 +83,20 @@ describe('EmployeeImportPage', () => {
 			},
 			organizationRole: 'owner',
 			userRole: 'admin',
-		});
-		mocks.prefetchLocationsList.mockReturnValue(undefined);
-		mocks.dehydrate.mockReturnValue({});
+			isSuperUser: false,
+			canAccessAdminRoutes: true,
+		} satisfies AdminAccessContext);
+		prefetchLocationsList.mockReturnValue(undefined);
 	});
 
 	it('waits for job positions prefetch before returning the hydrated page', async () => {
+		const getQueryClient = getQueryClientModule.getQueryClient as unknown as ReturnType<
+			typeof vi.fn
+		>;
+		const prefetchJobPositionsList =
+			serverFunctionsModule.prefetchJobPositionsList as unknown as ReturnType<typeof vi.fn>;
 		const deferred = createDeferred<void>();
-		mocks.prefetchJobPositionsList.mockReturnValue(deferred.promise);
+		prefetchJobPositionsList.mockReturnValue(deferred.promise);
 
 		const { default: EmployeeImportPage } = await import('./page');
 		const pagePromise = EmployeeImportPage();
@@ -107,11 +113,8 @@ describe('EmployeeImportPage', () => {
 		deferred.resolve();
 
 		await expect(pagePromise).resolves.toBeDefined();
-		expect(mocks.prefetchJobPositionsList).toHaveBeenCalledWith(
-			mocks.getQueryClient.mock.results[0].value,
-			{
-				organizationId: 'org-1',
-			},
-		);
+		expect(prefetchJobPositionsList).toHaveBeenCalledWith(getQueryClient.mock.results[0].value, {
+			organizationId: 'org-1',
+		});
 	});
 });

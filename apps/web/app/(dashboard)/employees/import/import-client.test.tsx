@@ -8,6 +8,7 @@ import rawMessages from '@/messages/es.json';
 import { OrgProvider } from '@/lib/org-client-context';
 
 import {
+	fetchExistingEmployeesForImport,
 	ImportClient,
 	resolveCurrentPreviewRowsForImport,
 	resolveInitialNextCodeForImport,
@@ -337,5 +338,39 @@ describe('ImportClient', () => {
 				{ code: 'EMP-XYZ' },
 			]),
 		).toBe(11);
+	});
+
+	it('loads all employee pages before deriving import defaults', async () => {
+		const fetchEmployees = vi
+			.fn()
+			.mockResolvedValueOnce({
+				data: [
+					{ code: 'EMP-001' },
+					{ code: 'EMP-002' },
+				],
+				pagination: { total: 3, limit: 2, offset: 0 },
+			})
+			.mockResolvedValueOnce({
+				data: [{ code: 'EMP-015' }],
+				pagination: { total: 3, limit: 2, offset: 2 },
+			});
+
+		const employees = await fetchExistingEmployeesForImport({
+			organizationId: 'org-1',
+			fetchEmployees,
+			pageSize: 2,
+		});
+
+		expect(fetchEmployees).toHaveBeenNthCalledWith(1, {
+			organizationId: 'org-1',
+			limit: 2,
+			offset: 0,
+		});
+		expect(fetchEmployees).toHaveBeenNthCalledWith(2, {
+			organizationId: 'org-1',
+			limit: 2,
+			offset: 2,
+		});
+		expect(resolveInitialNextCodeForImport(employees)).toBe(16);
 	});
 });

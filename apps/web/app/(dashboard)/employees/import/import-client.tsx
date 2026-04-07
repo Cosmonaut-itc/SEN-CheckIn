@@ -85,6 +85,18 @@ interface StepDefinition {
 }
 
 type ImportTranslator = (key: string, values?: Record<string, string | number>) => string;
+type EmployeeImportPageFetcher = (params: {
+	organizationId?: string | null;
+	limit: number;
+	offset: number;
+}) => Promise<{
+	data: Employee[];
+	pagination: {
+		total: number;
+		limit: number;
+		offset: number;
+	};
+}>;
 
 const ACCEPTED_TYPES = '.jpg,.jpeg,.png,.heic,.heif,.pdf';
 const ACCEPTED_MIME_TYPES = new Set<string>([
@@ -146,6 +158,48 @@ export function resolveInitialNextCodeForImport(
 	}, 0);
 
 	return highestExistingCode + 1;
+}
+
+/**
+ * Loads the full employee list needed by the import wizard across paginated API responses.
+ *
+ * @param args - Employee fetch configuration
+ * @param args.organizationId - Active organization identifier
+ * @param args.fetchEmployees - Employee list fetcher
+ * @param args.pageSize - Page size used for each request
+ * @returns All employees currently registered for the organization
+ */
+export async function fetchExistingEmployeesForImport(args: {
+	organizationId?: string | null;
+	fetchEmployees: EmployeeImportPageFetcher;
+	pageSize?: number;
+}): Promise<Employee[]> {
+	if (!args.organizationId) {
+		return [];
+	}
+
+	const pageSize = args.pageSize ?? 1000;
+	const employees: Employee[] = [];
+	let offset = 0;
+	let total = 0;
+
+	do {
+		const response = await args.fetchEmployees({
+			organizationId: args.organizationId,
+			limit: pageSize,
+			offset,
+		});
+
+		employees.push(...response.data);
+		total = response.pagination.total;
+		offset += pageSize;
+
+		if (response.data.length === 0) {
+			break;
+		}
+	} while (offset < total);
+
+	return employees;
 }
 
 /**
@@ -452,22 +506,17 @@ export function ImportClient(): React.ReactElement {
 			};
 		},
 		onSuccess: async (result, variables) => {
-			const employeeListQuery = {
+			const existingEmployees = await fetchExistingEmployeesForImport({
 				organizationId,
-				limit: 1000,
-				offset: 0,
-			};
-			const existingEmployees = await queryClient.fetchQuery({
-				queryKey: queryKeys.employees.list(employeeListQuery),
-				queryFn: () => fetchEmployeesList(employeeListQuery),
+				fetchEmployees: fetchEmployeesList,
 			});
 			const nextCodeSeed =
 				variables.mode === 'append'
 					? resolveNextCodeForImport(nextCodeRef)
-					: resolveInitialNextCodeForImport(existingEmployees.data);
+					: resolveInitialNextCodeForImport(existingEmployees);
 			const builtRows = buildPreviewRows({
 				employees: result.employees,
-				existingEmployees: existingEmployees.data,
+				existingEmployees,
 				currentRows: resolveCurrentPreviewRowsForImport(variables.mode, previewRowsRef),
 				nextCode: nextCodeSeed,
 				validationT: tImport,

@@ -8,8 +8,10 @@ import rawMessages from '@/messages/es.json';
 import { OrgProvider } from '@/lib/org-client-context';
 
 import {
+	extractEmployeesFromImportFiles,
 	fetchExistingEmployeesForImport,
 	ImportClient,
+	reconcilePreviewRowDuplicates,
 	resolveCurrentPreviewRowsForImport,
 	resolveInitialNextCodeForImport,
 	resolveNextCodeForImport,
@@ -22,6 +24,42 @@ const mockPush = vi.fn();
 const mockFetchLocationsList = vi.fn();
 const mockFetchJobPositionsList = vi.fn();
 const mockFetchEmployeesList = vi.fn();
+
+/**
+ * Resolves import translations from the Spanish fixture for helper-level tests.
+ *
+ * @param key - Translation key within Employees.import
+ * @param values - Optional interpolation values
+ * @returns Localized string
+ */
+function translateImportMessage(
+	key: string,
+	values?: Record<string, string | number>,
+): string {
+	const translationPath = `Employees.import.${key}`;
+	const localizedMessage = translationPath
+		.split('.')
+		.reduce<unknown>((currentValue, segment) => {
+			if (!currentValue || typeof currentValue !== 'object' || !(segment in currentValue)) {
+				return undefined;
+			}
+
+			return (currentValue as Record<string, unknown>)[segment];
+		}, messages);
+
+	const resolvedMessage =
+		typeof localizedMessage === 'string' ? localizedMessage : translationPath;
+
+	if (!values) {
+		return resolvedMessage;
+	}
+
+	return Object.entries(values).reduce(
+		(currentMessage, [placeholder, value]) =>
+			currentMessage.replace(`{${placeholder}}`, String(value)),
+		resolvedMessage,
+	);
+}
 
 vi.mock('next-intl', async () => {
 	const rawIntlMessages = await import('@/messages/es.json');
@@ -289,6 +327,178 @@ describe('ImportClient', () => {
 		expect(resolveCurrentPreviewRowsForImport('replace', previewRowsRef)).toEqual([]);
 	});
 
+	it('preserves successful employee extractions when a later file fails', async () => {
+		const firstFile = new File(['first'], 'empleados-1.png', { type: 'image/png' });
+		const secondFile = new File(['second'], 'empleados-2.png', { type: 'image/png' });
+		const importDocumentFn = vi
+			.fn()
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					employees: [
+						{
+							firstName: 'Ana',
+							lastName: 'Lopez',
+							dailyPay: 400,
+							confidence: 0.9,
+							fieldConfidence: {
+								firstName: 0.9,
+								lastName: 0.9,
+								dailyPay: 0.9,
+							},
+							locationId: 'loc-1',
+							jobPositionId: 'job-1',
+							paymentFrequency: 'MONTHLY',
+						},
+					],
+					processingMeta: {
+						pagesProcessed: 1,
+						totalEmployeesFound: 1,
+						processingTimeMs: 100,
+					},
+				},
+			})
+			.mockResolvedValueOnce({
+				success: false,
+				error: 'No se detectaron empleados en el documento.',
+			});
+
+		const result = await extractEmployeesFromImportFiles({
+			files: [firstFile, secondFile],
+			defaultLocationId: 'loc-1',
+			defaultJobPositionId: 'job-1',
+			defaultPaymentFrequency: 'MONTHLY',
+			importDocumentFn,
+			setProcessingMessage: vi.fn(),
+			tImport: translateImportMessage,
+		});
+
+		expect(result.employees).toHaveLength(1);
+		expect(result.pagesProcessed).toBe(1);
+		expect(result.successfulFiles).toEqual([firstFile]);
+		expect(result.failedFiles).toEqual([
+			{
+				file: secondFile,
+				error: 'No se detectaron empleados en el documento.',
+			},
+		]);
+	});
+
+	it('preserves successful employee extractions when a later file throws', async () => {
+		const firstFile = new File(['first'], 'empleados-1.png', { type: 'image/png' });
+		const secondFile = new File(['second'], 'empleados-2.png', { type: 'image/png' });
+		const importDocumentFn = vi
+			.fn()
+			.mockResolvedValueOnce({
+				success: true,
+				data: {
+					employees: [
+						{
+							firstName: 'Ana',
+							lastName: 'Lopez',
+							dailyPay: 400,
+							confidence: 0.9,
+							fieldConfidence: {
+								firstName: 0.9,
+								lastName: 0.9,
+								dailyPay: 0.9,
+							},
+							locationId: 'loc-1',
+							jobPositionId: 'job-1',
+							paymentFrequency: 'MONTHLY',
+						},
+					],
+					processingMeta: {
+						pagesProcessed: 1,
+						totalEmployeesFound: 1,
+						processingTimeMs: 100,
+					},
+				},
+			})
+			.mockRejectedValueOnce(new Error('Fallo de red'));
+
+		const result = await extractEmployeesFromImportFiles({
+			files: [firstFile, secondFile],
+			defaultLocationId: 'loc-1',
+			defaultJobPositionId: 'job-1',
+			defaultPaymentFrequency: 'MONTHLY',
+			importDocumentFn,
+			setProcessingMessage: vi.fn(),
+			tImport: translateImportMessage,
+		});
+
+		expect(result.employees).toHaveLength(1);
+		expect(result.successfulFiles).toEqual([firstFile]);
+		expect(result.failedFiles).toEqual([
+			{
+				file: secondFile,
+				error: 'No se pudieron analizar los documentos.',
+			},
+		]);
+	});
+
+	it('recomputes duplicate flags across preview rows after edits', () => {
+		const duplicatedRows = reconcilePreviewRowDuplicates({
+			rows: [
+				{
+					id: 'row-1',
+					firstName: 'Ana',
+					lastName: 'Lopez',
+					dailyPay: 400,
+					confidence: 0.9,
+					fieldConfidence: {
+						firstName: 0.9,
+						lastName: 0.9,
+						dailyPay: 0.9,
+					},
+					locationId: 'loc-1',
+					jobPositionId: 'job-1',
+					paymentFrequency: 'MONTHLY',
+					code: 'EMP-001',
+					included: true,
+					isDuplicate: false,
+					validationErrors: [],
+				},
+				{
+					id: 'row-2',
+					firstName: 'Ana',
+					lastName: 'Lopez',
+					dailyPay: 420,
+					confidence: 0.9,
+					fieldConfidence: {
+						firstName: 0.9,
+						lastName: 0.9,
+						dailyPay: 0.9,
+					},
+					locationId: 'loc-1',
+					jobPositionId: 'job-1',
+					paymentFrequency: 'MONTHLY',
+					code: 'EMP-002',
+					included: true,
+					isDuplicate: false,
+					validationErrors: [],
+				},
+			],
+			existingEmployees: [],
+		});
+
+		expect(duplicatedRows.map((row) => row.isDuplicate)).toEqual([false, true]);
+
+		const resolvedRows = reconcilePreviewRowDuplicates({
+			rows: [
+				{
+					...duplicatedRows[0],
+					firstName: 'Carla',
+					lastName: 'Ramirez',
+				},
+				duplicatedRows[1],
+			],
+			existingEmployees: [],
+		});
+
+		expect(resolvedRows.map((row) => row.isDuplicate)).toEqual([false, false]);
+	});
+
 	it('uses processed files as the dedupe source while appending from preview', () => {
 		const processedFiles = [
 			new File(['processed'], 'empleados.png', {
@@ -373,4 +583,5 @@ describe('ImportClient', () => {
 		});
 		expect(resolveInitialNextCodeForImport(employees)).toBe(151);
 	});
+
 });

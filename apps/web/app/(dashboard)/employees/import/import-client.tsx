@@ -77,6 +77,11 @@ interface ImportMutationPayload {
 interface ImportMutationResult {
 	employees: ImportedEmployeePreview[];
 	pagesProcessed: number;
+	successfulFiles: File[];
+	failedFiles: Array<{
+		file: File;
+		error: string;
+	}>;
 }
 
 interface StepDefinition {
@@ -88,6 +93,7 @@ type ImportTranslator = (key: string, values?: Record<string, string | number>) 
 type BulkImportWarning = NonNullable<
 	BulkCreateEmployeesResponse['results'][number]['warnings']
 >[number];
+type ImportDocumentMutation = typeof importDocument;
 type EmployeeImportPageFetcher = (params: {
 	organizationId?: string | null;
 	limit: number;
@@ -217,6 +223,35 @@ function buildEmployeeNameKey(firstName: string, lastName: string): string {
 }
 
 /**
+ * Recomputes duplicate badges for preview rows using existing employees plus row order.
+ *
+ * @param args - Rows under evaluation plus employees already registered in the organization
+ * @returns Preview rows with refreshed duplicate flags
+ */
+export function reconcilePreviewRowDuplicates(args: {
+	rows: PreviewRow[];
+	existingEmployees: ReadonlyArray<Pick<Employee, 'firstName' | 'lastName'>>;
+}): PreviewRow[] {
+	const seenNames = new Set<string>(
+		args.existingEmployees.map((employee) =>
+			buildEmployeeNameKey(employee.firstName, employee.lastName),
+		),
+	);
+
+	return args.rows.map((row) => {
+		const nameKey = buildEmployeeNameKey(row.firstName, row.lastName);
+		const isDuplicate = seenNames.has(nameKey);
+
+		seenNames.add(nameKey);
+
+		return {
+			...row,
+			isDuplicate,
+		};
+	});
+}
+
+/**
  * Resolves a localized warning message for a bulk-import row.
  *
  * @param warning - Warning returned by the bulk import API
@@ -339,30 +374,18 @@ function buildPreviewRows(args: {
 	nextCode: number;
 	validationT: ImportTranslator;
 }): { rows: PreviewRow[]; nextCode: number } {
-	const seenNames = new Set<string>([
-		...args.existingEmployees.map((employee) =>
-			buildEmployeeNameKey(employee.firstName, employee.lastName),
-		),
-		...args.currentRows.map((row) => buildEmployeeNameKey(row.firstName, row.lastName)),
-	]);
-
-	const rows = args.employees.map((employee, index) => {
-		const nameKey = buildEmployeeNameKey(employee.firstName, employee.lastName);
-		const isDuplicate = seenNames.has(nameKey);
-
-		seenNames.add(nameKey);
-
-		const row: PreviewRow = {
+	const rows = reconcilePreviewRowDuplicates({
+		rows: args.employees.map((employee, index) => ({
 			...employee,
 			id: globalThis.crypto.randomUUID(),
 			code: buildEmployeeCode(args.nextCode + index),
 			included: true,
-			isDuplicate,
+			isDuplicate: false,
 			validationErrors: [],
-		};
-
+		})),
+		existingEmployees: [...args.existingEmployees, ...args.currentRows],
+	}).map((row) => {
 		row.validationErrors = validatePreviewRow(row, args.validationT);
-
 		return row;
 	});
 
@@ -411,6 +434,81 @@ export function resolveTrackedFilesForImport(args: {
 }
 
 /**
+ * Extracts employees from multiple files while preserving successful results when later files fail.
+ *
+ * @param args - File batch plus import dependencies
+ * @returns Extracted employees, processed pages, and file-level success/failure bookkeeping
+ * @throws Error when every file fails to extract employees
+ */
+export async function extractEmployeesFromImportFiles(args: {
+	files: File[];
+	defaultLocationId: string;
+	defaultJobPositionId: string;
+	defaultPaymentFrequency: PaymentFrequency;
+	importDocumentFn: ImportDocumentMutation;
+	setProcessingMessage: (message: string) => void;
+	tImport: ImportTranslator;
+}): Promise<ImportMutationResult> {
+	const employees: ImportedEmployeePreview[] = [];
+	const successfulFiles: File[] = [];
+	const failedFiles: Array<{
+		file: File;
+		error: string;
+	}> = [];
+	let pagesProcessed = 0;
+
+	for (const [index, file] of args.files.entries()) {
+		args.setProcessingMessage(
+			args.tImport('processing.fileProgress', {
+				current: index + 1,
+				total: args.files.length,
+				name: file.name,
+			}),
+		);
+
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('defaultLocationId', args.defaultLocationId);
+		formData.append('defaultJobPositionId', args.defaultJobPositionId);
+		formData.append('defaultPaymentFrequency', args.defaultPaymentFrequency);
+
+		let result: Awaited<ReturnType<ImportDocumentMutation>>;
+		try {
+			result = await args.importDocumentFn(formData);
+		} catch {
+			failedFiles.push({
+				file,
+				error: args.tImport('toast.importError'),
+			});
+			continue;
+		}
+
+		if (!result.success || !result.data) {
+			failedFiles.push({
+				file,
+				error: result.error ?? args.tImport('toast.importError'),
+			});
+			continue;
+		}
+
+		employees.push(...result.data.employees);
+		pagesProcessed += result.data.processingMeta.pagesProcessed;
+		successfulFiles.push(file);
+	}
+
+	if (employees.length === 0) {
+		throw new Error(failedFiles[0]?.error ?? args.tImport('toast.importError'));
+	}
+
+	return {
+		employees,
+		pagesProcessed,
+		successfulFiles,
+		failedFiles,
+	};
+}
+
+/**
  * Employee bulk-import wizard client component.
  *
  * @returns Import flow UI
@@ -433,6 +531,7 @@ export function ImportClient(): React.ReactElement {
 	const [processedFiles, setProcessedFiles] = useState<File[]>([]);
 	const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
 	const previewRowsRef = useRef<PreviewRow[]>([]);
+	const existingEmployeesRef = useRef<Employee[]>([]);
 	const [nextCode, setNextCode] = useState<number>(1);
 	const nextCodeRef = useRef<number>(1);
 	const [importResult, setImportResult] = useState<BulkCreateEmployeesResponse | null>(null);
@@ -494,44 +593,22 @@ export function ImportClient(): React.ReactElement {
 	const importMutation = useMutation({
 		mutationKey: mutationKeys.employees.importDocument,
 		mutationFn: async (payload: ImportMutationPayload): Promise<ImportMutationResult> => {
-			const employees: ImportedEmployeePreview[] = [];
-			let pagesProcessed = 0;
-
-			for (const [index, file] of payload.files.entries()) {
-				setProcessingMessage(
-					tImport('processing.fileProgress', {
-						current: index + 1,
-						total: payload.files.length,
-						name: file.name,
-					}),
-				);
-
-				const formData = new FormData();
-				formData.append('file', file);
-				formData.append('defaultLocationId', defaultLocationId);
-				formData.append('defaultJobPositionId', defaultJobPositionId);
-				formData.append('defaultPaymentFrequency', defaultPaymentFrequency);
-
-				const result = await importDocument(formData);
-
-				if (!result.success || !result.data) {
-					throw new Error(result.error ?? tImport('toast.importError'));
-				}
-
-				employees.push(...result.data.employees);
-				pagesProcessed += result.data.processingMeta.pagesProcessed;
-			}
-
-			return {
-				employees,
-				pagesProcessed,
-			};
+			return await extractEmployeesFromImportFiles({
+				files: payload.files,
+				defaultLocationId,
+				defaultJobPositionId,
+				defaultPaymentFrequency,
+				importDocumentFn: importDocument,
+				setProcessingMessage,
+				tImport,
+			});
 		},
 		onSuccess: async (result, variables) => {
 			const existingEmployees = await fetchExistingEmployeesForImport({
 				organizationId,
 				fetchEmployees: fetchEmployeesList,
 			});
+			existingEmployeesRef.current = existingEmployees;
 			const nextCodeSeed =
 				variables.mode === 'append'
 					? resolveNextCodeForImport(nextCodeRef)
@@ -548,7 +625,9 @@ export function ImportClient(): React.ReactElement {
 				variables.mode === 'append' ? [...currentRows, ...builtRows.rows] : builtRows.rows,
 			);
 			setProcessedFiles((currentFiles) =>
-				variables.mode === 'append' ? [...currentFiles, ...variables.files] : variables.files,
+				variables.mode === 'append'
+					? [...currentFiles, ...result.successfulFiles]
+					: result.successfulFiles,
 			);
 			nextCodeRef.current = builtRows.nextCode;
 			setNextCode(builtRows.nextCode);
@@ -560,6 +639,14 @@ export function ImportClient(): React.ReactElement {
 				toast.success(
 					tImport('toast.appendSuccess', {
 						count: builtRows.rows.length,
+					}),
+				);
+			}
+
+			if (result.failedFiles.length > 0) {
+				toast.warning(
+					tImport('toast.partialImportWarning', {
+						count: result.failedFiles.length,
 					}),
 				);
 			}
@@ -738,19 +825,21 @@ export function ImportClient(): React.ReactElement {
 	 */
 	function updateRow(id: string, updates: Partial<PreviewRow>): void {
 		setPreviewRows((currentRows) =>
-			currentRows.map((row) => {
-				if (row.id !== id) {
-					return row;
-				}
+			reconcilePreviewRowDuplicates({
+				rows: currentRows.map((row) => {
+					const nextRow: PreviewRow =
+						row.id === id
+							? {
+									...row,
+									...updates,
+								}
+							: { ...row };
 
-				const nextRow: PreviewRow = {
-					...row,
-					...updates,
-				};
+					nextRow.validationErrors = validatePreviewRow(nextRow, tImport);
 
-				nextRow.validationErrors = validatePreviewRow(nextRow, tImport);
-
-				return nextRow;
+					return nextRow;
+				}),
+				existingEmployees: existingEmployeesRef.current,
 			}),
 		);
 	}
@@ -762,7 +851,12 @@ export function ImportClient(): React.ReactElement {
 	 * @returns Nothing
 	 */
 	function deleteRow(id: string): void {
-		setPreviewRows((currentRows) => currentRows.filter((row) => row.id !== id));
+		setPreviewRows((currentRows) =>
+			reconcilePreviewRowDuplicates({
+				rows: currentRows.filter((row) => row.id !== id),
+				existingEmployees: existingEmployeesRef.current,
+			}),
+		);
 	}
 
 	/**

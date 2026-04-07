@@ -356,6 +356,7 @@
 				"invalidType": "Algunos archivos no tienen un formato soportado.",
 				"duplicateFiles": "Se omitieron archivos repetidos.",
 				"importError": "No se pudieron analizar los documentos.",
+				"partialImportWarning": "{count, plural, one {# archivo no se pudo procesar; se conservaron los resultados válidos.} other {# archivos no se pudieron procesar; se conservaron los resultados válidos.}}",
 				"appendSuccess": "{count, plural, one {# fila agregada a la vista previa} other {# filas agregadas a la vista previa}}",
 				"bulkCreateError": "No se pudieron crear los empleados.",
 				"validationErrors": "Corrige los errores antes de importar.",

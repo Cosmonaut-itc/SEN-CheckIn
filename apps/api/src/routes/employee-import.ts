@@ -298,7 +298,12 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 					await db
 						.select({ id: employee.id })
 						.from(employee)
-						.where(eq(employee.code, parsedEmployee.data.code))
+						.where(
+							and(
+								eq(employee.code, parsedEmployee.data.code),
+								eq(employee.organizationId, organizationId),
+							),
+						)
 						.limit(1)
 				)[0];
 				if (existingCode) {

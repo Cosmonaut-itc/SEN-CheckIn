@@ -133,6 +133,7 @@ const fakeDbState: {
 };
 
 const TEST_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const OTHER_ORGANIZATION_ID = '99999999-9999-4999-8999-999999999999';
 const TEST_LOCATION_ID = '22222222-2222-4222-8222-222222222222';
 const TEST_JOB_POSITION_ID = '33333333-3333-4333-8333-333333333333';
 let mockCombinedAuthContext:
@@ -864,6 +865,72 @@ describe('employee import routes', () => {
 			locationId: TEST_LOCATION_ID,
 			jobPositionId: TEST_JOB_POSITION_ID,
 			importBatchId: payload.batchId,
+			organizationId: TEST_ORGANIZATION_ID,
+		});
+	});
+
+	it('allows importing a code that only exists in another organization', async () => {
+		fakeDbState.employees = [
+			{
+				id: 'existing-other-org',
+				code: 'EMP-001',
+				firstName: 'Ajeno',
+				lastName: 'Org',
+				dailyPay: '500.00',
+				paymentFrequency: 'MONTHLY',
+				jobPositionId: TEST_JOB_POSITION_ID,
+				locationId: TEST_LOCATION_ID,
+				organizationId: OTHER_ORGANIZATION_ID,
+				importBatchId: null,
+				status: 'ACTIVE',
+				employmentType: 'PERMANENT',
+				shiftType: 'DIURNA',
+			},
+		];
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: [
+					{
+						code: 'EMP-001',
+						firstName: 'Nueva',
+						lastName: 'Local',
+						dailyPay: 420,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: TEST_JOB_POSITION_ID,
+						locationId: TEST_LOCATION_ID,
+					},
+				],
+			}),
+		);
+		const payload = (await response.json()) as {
+			summary: {
+				total: number;
+				created: number;
+				failed: number;
+			};
+			results: Array<{
+				index: number;
+				success: boolean;
+				error?: string;
+			}>;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.summary).toEqual({
+			total: 1,
+			created: 1,
+			failed: 0,
+		});
+		expect(payload.results[0]).toMatchObject({
+			index: 0,
+			success: true,
+		});
+		expect(fakeDbState.employees).toHaveLength(2);
+		expect(fakeDbState.employees[1]).toMatchObject({
+			code: 'EMP-001',
 			organizationId: TEST_ORGANIZATION_ID,
 		});
 	});

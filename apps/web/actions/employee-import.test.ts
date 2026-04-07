@@ -83,6 +83,36 @@ describe('employee import actions', () => {
 		});
 	});
 
+	it('returns the backend message when bulk create fails with an Eden-wrapped error', async () => {
+		bulkPostMock.mockResolvedValue({
+			data: null,
+			error: {
+				value: {
+					message: 'Código duplicado',
+				},
+			},
+		});
+
+		const result = await bulkCreateEmployees({
+			employees: [
+				{
+					code: 'EMP-001',
+					firstName: 'Ana',
+					lastName: 'López',
+					dailyPay: 380,
+					paymentFrequency: 'MONTHLY',
+					jobPositionId: 'job-1',
+					locationId: 'loc-1',
+				},
+			],
+		});
+
+		expect(result).toEqual({
+			success: false,
+			error: 'Código duplicado',
+		});
+	});
+
 	it('undos bulk imports through the typed server api client', async () => {
 		bulkDeleteMock.mockResolvedValue({
 			data: {
@@ -96,5 +126,25 @@ describe('employee import actions', () => {
 
 		expect(result.success).toBe(true);
 		expect(bulkDeleteMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('returns the backend message when undo fails with an Eden-wrapped error', async () => {
+		bulkDeleteMock.mockResolvedValue({
+			data: null,
+			error: {
+				value: {
+					error: {
+						message: 'Batch no encontrado',
+					},
+				},
+			},
+		});
+
+		const result = await undoBulkImport('batch-1');
+
+		expect(result).toEqual({
+			success: false,
+			error: 'Batch no encontrado',
+		});
 	});
 });

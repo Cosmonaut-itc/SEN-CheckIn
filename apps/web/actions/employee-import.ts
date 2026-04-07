@@ -92,22 +92,38 @@ async function getCookieHeader(): Promise<string> {
  * @returns Error message string
  */
 function resolveErrorMessage(payload: unknown, fallbackStatus: number): string {
-	if (payload && typeof payload === 'object') {
-		const directMessage = (payload as { message?: unknown }).message;
-		if (typeof directMessage === 'string' && directMessage.length > 0) {
-			return directMessage;
-		}
-
-		const errorRecord = (payload as { error?: unknown }).error;
-		if (errorRecord && typeof errorRecord === 'object') {
-			const message = (errorRecord as { message?: unknown }).message;
-			if (typeof message === 'string' && message.length > 0) {
-				return message;
-			}
-		}
+	const extractedMessage = extractErrorMessage(payload);
+	if (extractedMessage) {
+		return extractedMessage;
 	}
 
 	return `Error del servidor (${fallbackStatus})`;
+}
+
+/**
+ * Traverses common API and Eden error wrappers to locate a message string.
+ *
+ * @param payload - Error payload to inspect
+ * @returns First message-like string found, or undefined when absent
+ */
+function extractErrorMessage(payload: unknown): string | undefined {
+	if (!payload || typeof payload !== 'object') {
+		return undefined;
+	}
+
+	const directMessage = (payload as { message?: unknown }).message;
+	if (typeof directMessage === 'string' && directMessage.length > 0) {
+		return directMessage;
+	}
+
+	const nestedError = (payload as { error?: unknown }).error;
+	const nestedErrorMessage = extractErrorMessage(nestedError);
+	if (nestedErrorMessage) {
+		return nestedErrorMessage;
+	}
+
+	const nestedValue = (payload as { value?: unknown }).value;
+	return extractErrorMessage(nestedValue);
 }
 
 /**

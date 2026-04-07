@@ -115,6 +115,7 @@ const ACCEPTED_MIME_TYPES = new Set<string>([
 	'image/heif',
 	'application/pdf',
 ]);
+const ACCEPTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.heif', '.pdf']);
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const LOW_CONFIDENCE_THRESHOLD = 0.7;
 
@@ -331,7 +332,8 @@ function prepareFilesForImport(
 			continue;
 		}
 
-		if (!ACCEPTED_MIME_TYPES.has(file.type)) {
+		const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+		if (!ACCEPTED_MIME_TYPES.has(file.type) && !ACCEPTED_EXTENSIONS.has(ext)) {
 			invalidTypeCount += 1;
 			continue;
 		}

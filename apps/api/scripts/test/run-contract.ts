@@ -57,7 +57,7 @@ async function runCommand(command: string, args: string[], env: NodeJS.ProcessEn
  * @throws Error when the helper cannot resolve a working database URL
  */
 async function resolveContractDatabaseUrl(): Promise<string> {
-	const contractHelpersModule = await import('../../src/test-utils/contract-helpers.ts');
+	const contractHelpersModule = await import('../../src/test-utils/contract-helpers.js');
 	return await contractHelpersModule.ensureReachableTestDatabaseUrl();
 }
 

@@ -29,6 +29,7 @@ const ACCEPTED_MIME_TYPES = new Set([
 	'image/heif',
 	'application/pdf',
 ]);
+const ACCEPTED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.heic', '.heif', '.pdf']);
 
 const importRateLimiter = new RateLimiter({
 	maxRequests: 10,
@@ -89,10 +90,23 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				return buildErrorResponse('El archivo excede el tamaño máximo de 10MB.', 400);
 			}
 
-			if (!ACCEPTED_MIME_TYPES.has(file.type)) {
+			const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+			if (!ACCEPTED_MIME_TYPES.has(file.type) && !ACCEPTED_EXTENSIONS.has(ext)) {
 				set.status = 400;
 				return buildErrorResponse('Formato no soportado. Usa JPG, PNG, HEIC o PDF.', 400);
 			}
+
+			const EXTENSION_MIME_MAP: Record<string, string> = {
+				'.jpg': 'image/jpeg',
+				'.jpeg': 'image/jpeg',
+				'.png': 'image/png',
+				'.heic': 'image/heic',
+				'.heif': 'image/heif',
+				'.pdf': 'application/pdf',
+			};
+			const effectiveMimeType = ACCEPTED_MIME_TYPES.has(file.type)
+				? file.type
+				: EXTENSION_MIME_MAP[ext] ?? file.type;
 
 			const locationRow = (
 				await db
@@ -131,7 +145,7 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				}
 
 				const startedAt = Date.now();
-				const result = await processDocument(fileBuffer, file.type);
+				const result = await processDocument(fileBuffer, effectiveMimeType);
 
 				if (result.employees.length === 0) {
 					set.status = 400;

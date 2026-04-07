@@ -88,12 +88,25 @@ let mockGenerateObjectPayload: {
 	},
 };
 
-const mockOutputObject = mock((options: { schema: { parse: (input: unknown) => unknown } }) =>
+interface GenerateTextCall {
+	messages?: unknown[];
+	output?: {
+		name?: string;
+		parseCompleteOutput?: unknown;
+		parsePartialOutput?: unknown;
+	};
+}
+
+const mockOutputObject = mock((options: Parameters<typeof actualOutput.object>[0]) =>
 	actualOutput.object(options),
 );
-const mockGenerateText = mock(async () => ({
-	output: mockGenerateObjectPayload.output,
-}));
+const mockGenerateText = mock(async (args?: GenerateTextCall) => {
+	void args;
+
+	return {
+		output: mockGenerateObjectPayload.output,
+	};
+});
 
 mock.module('ai', () => ({
 	generateText: mockGenerateText,
@@ -261,7 +274,7 @@ describe('document-ai service', () => {
 		await extractEmployeesFromImage('fake-base64', 'image/png');
 
 		expect(mockGenerateText).toHaveBeenCalledTimes(1);
-		expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+		expect(mockGenerateText.mock.calls.at(0)?.[0]).toMatchObject({
 			output: {
 				name: 'object',
 				parseCompleteOutput: expect.any(Function),
@@ -275,7 +288,7 @@ describe('document-ai service', () => {
 
 		await extractEmployeesFromImage('fake-base64', 'image/png');
 
-		expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+		expect(mockGenerateText.mock.calls.at(0)?.[0]).toMatchObject({
 			messages: [
 				{
 					role: 'user',
@@ -339,7 +352,7 @@ describe('document-ai service', () => {
 		expect(result.pagesProcessed).toBe(1);
 		expect(mockHeicConvert).toHaveBeenCalledTimes(1);
 		expect(mockSharp).toHaveBeenCalledWith(Buffer.from([0x48, 0x45, 0x49, 0x43]));
-		expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+		expect(mockGenerateText.mock.calls.at(0)?.[0]).toMatchObject({
 			messages: [
 				{
 					content: [

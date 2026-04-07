@@ -576,6 +576,34 @@ describe('employee import routes', () => {
 		expect(payload.processingMeta.totalEmployeesFound).toBe(1);
 	});
 
+	it('returns 400 when the uploaded PDF exceeds the supported page limit', async () => {
+		mockProcessDocument.mockRejectedValueOnce(
+			new Error('El PDF excede el máximo permitido de 20 páginas.'),
+		);
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+		const formData = new FormData();
+		formData.append(
+			'file',
+			new File(['fake pdf'], 'employees.pdf', {
+				type: 'application/pdf',
+			}),
+		);
+		formData.append('defaultLocationId', TEST_LOCATION_ID);
+		formData.append('defaultJobPositionId', TEST_JOB_POSITION_ID);
+		formData.append('defaultPaymentFrequency', 'MONTHLY');
+
+		const response = await app.handle(createMultipartRequest(formData));
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+			};
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.error.message).toBe('El PDF excede el máximo permitido de 20 páginas.');
+	});
+
 	it('does not consume the import rate limit for invalid mime-type requests', async () => {
 		const employeeImportModule = await import('./employee-import.js');
 		employeeImportModule.resetEmployeeImportRateLimiterForTests();

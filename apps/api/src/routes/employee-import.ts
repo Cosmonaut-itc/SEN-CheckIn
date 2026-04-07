@@ -150,6 +150,14 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 					},
 				};
 			} catch (error) {
+				if (
+					error instanceof Error &&
+					error.message.startsWith('El PDF excede el máximo permitido')
+				) {
+					set.status = 400;
+					return buildErrorResponse(error.message, 400);
+				}
+
 				console.error('Failed to process employee import document', error);
 				set.status = 500;
 				return buildErrorResponse('Error procesando documento. Intenta de nuevo.', 500);

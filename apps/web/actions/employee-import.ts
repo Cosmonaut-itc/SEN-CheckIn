@@ -173,9 +173,17 @@ export async function bulkCreateEmployees(
 			};
 		}
 
+		const payload = response.data ?? null;
+		if (!payload || 'error' in payload) {
+			return {
+				success: false,
+				error: 'No fue posible completar la solicitud.',
+			};
+		}
+
 		return {
 			success: true,
-			data: response.data,
+			data: payload,
 		};
 	} catch (error) {
 		console.error('[employee-import] API request failed', {
@@ -210,9 +218,17 @@ export async function undoBulkImport(
 			};
 		}
 
+		const payload = response.data ?? null;
+		if (!payload || 'error' in payload) {
+			return {
+				success: false,
+				error: 'No fue posible completar la solicitud.',
+			};
+		}
+
 		return {
 			success: true,
-			data: response.data,
+			data: payload,
 		};
 	} catch (error) {
 		console.error('[employee-import] API request failed', {

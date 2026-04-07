@@ -51,6 +51,10 @@ export interface BulkCreateEmployeesResponse {
 		success: boolean;
 		employeeId?: string;
 		error?: string;
+		warnings?: Array<{
+			code: 'BELOW_MINIMUM_WAGE';
+			details: Record<string, unknown>;
+		}>;
 	}>;
 	summary: {
 		total: number;

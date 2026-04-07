@@ -327,7 +327,11 @@
 				"successTitle": "{count, plural, one {# empleado creado correctamente} other {# empleados creados correctamente}}",
 				"successDescription": "El lote quedó registrado y ya aparece en el listado de empleados.",
 				"failedTitle": "{count, plural, one {# fila falló al importarse} other {# filas fallaron al importarse}}",
+				"warningTitle": "{count, plural, one {# fila se importó con advertencias} other {# filas se importaron con advertencias}}",
 				"failedRow": "Fila {row}: {error}",
+				"warningRow": "Fila {row}: {warning}",
+				"warningMinimumWage": "Sueldo diario por debajo del salario mínimo vigente.",
+				"warningGeneric": "Advertencia de importación.",
 				"unknownError": "Error desconocido"
 			},
 			"actions": {

@@ -85,6 +85,9 @@ interface StepDefinition {
 }
 
 type ImportTranslator = (key: string, values?: Record<string, string | number>) => string;
+type BulkImportWarning = NonNullable<
+	BulkCreateEmployeesResponse['results'][number]['warnings']
+>[number];
 type EmployeeImportPageFetcher = (params: {
 	organizationId?: string | null;
 	limit: number;
@@ -192,7 +195,7 @@ export async function fetchExistingEmployeesForImport(args: {
 
 		employees.push(...response.data);
 		total = response.pagination.total;
-		offset += pageSize;
+		offset += response.pagination.limit;
 
 		if (response.data.length === 0) {
 			break;
@@ -211,6 +214,25 @@ export async function fetchExistingEmployeesForImport(args: {
  */
 function buildEmployeeNameKey(firstName: string, lastName: string): string {
 	return `${firstName.trim().toLowerCase()} ${lastName.trim().toLowerCase()}`.trim();
+}
+
+/**
+ * Resolves a localized warning message for a bulk-import row.
+ *
+ * @param warning - Warning returned by the bulk import API
+ * @param t - Import translation accessor
+ * @returns Localized warning message
+ */
+function resolveBulkImportWarningMessage(
+	warning: BulkImportWarning,
+	t: ImportTranslator,
+): string {
+	switch (warning.code) {
+		case 'BELOW_MINIMUM_WAGE':
+			return t('results.warningMinimumWage');
+		default:
+			return t('results.warningGeneric');
+	}
 }
 
 /**
@@ -610,6 +632,8 @@ export function ImportClient(): React.ReactElement {
 	const hasValidationErrors = includedRows.some((row) => row.validationErrors.length > 0);
 	const canConfirm =
 		includedRows.length > 0 && !hasValidationErrors && !bulkCreateMutation.isPending;
+	const warningResults =
+		importResult?.results.filter((result) => (result.warnings?.length ?? 0) > 0) ?? [];
 
 	/**
 	 * Opens the hidden file input.
@@ -1417,6 +1441,36 @@ export function ImportClient(): React.ReactElement {
 													})}
 												</li>
 											))}
+									</ul>
+								</AlertDescription>
+							</Alert>
+						) : null}
+
+						{warningResults.length > 0 ? (
+							<Alert variant="warning">
+								<AlertTriangle />
+								<AlertTitle>
+									{tImport('results.warningTitle', {
+										count: warningResults.length,
+									})}
+								</AlertTitle>
+								<AlertDescription>
+									<ul className="space-y-1">
+										{warningResults.flatMap((result) =>
+											(result.warnings ?? []).map((warning) => (
+												<li
+													key={`${result.index}-${warning.code}`}
+												>
+													{tImport('results.warningRow', {
+														row: result.index + 1,
+														warning: resolveBulkImportWarningMessage(
+															warning,
+															tImport,
+														),
+													})}
+												</li>
+											)),
+										)}
 									</ul>
 								</AlertDescription>
 							</Alert>

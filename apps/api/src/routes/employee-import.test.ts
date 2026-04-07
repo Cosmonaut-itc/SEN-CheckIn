@@ -16,9 +16,11 @@ const employeeTable = {
 	organizationId: 'employee.organizationId',
 };
 const employeeAuditEventTable = actualSchemaModule.employeeAuditEvent;
+const payrollSettingTable = actualSchemaModule.payrollSetting;
 const locationTable = {
 	id: 'location.id',
 	organizationId: 'location.organizationId',
+	geographicZone: 'location.geographicZone',
 };
 const jobPositionTable = {
 	id: 'jobPosition.id',
@@ -44,11 +46,17 @@ type MockCondition =
 interface FakeLocationRow {
 	id: string;
 	organizationId: string | null;
+	geographicZone: 'GENERAL';
 }
 
 interface FakeJobPositionRow {
 	id: string;
 	organizationId: string | null;
+}
+
+interface FakePayrollSettingRow {
+	organizationId: string;
+	overtimeEnforcement: 'BLOCK' | 'WARN';
 }
 
 interface FakeEmployeeRow {
@@ -109,6 +117,7 @@ interface FakeDb {
 const fakeDbState: {
 	locations: FakeLocationRow[];
 	jobPositions: FakeJobPositionRow[];
+	payrollSettings: FakePayrollSettingRow[];
 	employees: FakeEmployeeRow[];
 	auditEvents: FakeEmployeeAuditEventRow[];
 	insertErrorsByCode: Map<string, { code?: string; message: string }>;
@@ -116,6 +125,7 @@ const fakeDbState: {
 } = {
 	locations: [],
 	jobPositions: [],
+	payrollSettings: [],
 	employees: [],
 	auditEvents: [],
 	insertErrorsByCode: new Map(),
@@ -286,6 +296,23 @@ const fakeDb: FakeDb = {
 
 							return true;
 						});
+					}
+
+					if (table === payrollSettingTable) {
+						const organizationId = getEqValue(condition, payrollSettingTable.organizationId);
+
+						return fakeDbState.payrollSettings
+							.filter((row) => {
+								if (
+									typeof organizationId === 'string' &&
+									row.organizationId !== organizationId
+								) {
+									return false;
+								}
+
+								return true;
+							})
+							.map((row) => ({ ...row }));
 					}
 
 					if (table === jobPositionTable) {
@@ -481,10 +508,17 @@ describe('employee import routes', () => {
 			apiKeyOrganizationId: null,
 			apiKeyOrganizationIds: [],
 		};
-		fakeDbState.locations = [{ id: TEST_LOCATION_ID, organizationId: TEST_ORGANIZATION_ID }];
+		fakeDbState.locations = [
+			{
+				id: TEST_LOCATION_ID,
+				organizationId: TEST_ORGANIZATION_ID,
+				geographicZone: 'GENERAL',
+			},
+		];
 		fakeDbState.jobPositions = [
 			{ id: TEST_JOB_POSITION_ID, organizationId: TEST_ORGANIZATION_ID },
 		];
+		fakeDbState.payrollSettings = [];
 		fakeDbState.employees = [];
 		fakeDbState.auditEvents = [];
 		fakeDbState.insertErrorsByCode = new Map();
@@ -834,6 +868,146 @@ describe('employee import routes', () => {
 		});
 	});
 
+	it('rejects bulk creation rows that fall below the minimum wage policy', async () => {
+		fakeDbState.payrollSettings = [
+			{
+				organizationId: TEST_ORGANIZATION_ID,
+				overtimeEnforcement: 'BLOCK',
+			},
+		];
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: [
+					{
+						code: 'EMP-020',
+						firstName: 'Ana',
+						lastName: 'López',
+						dailyPay: 100,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: TEST_JOB_POSITION_ID,
+						locationId: TEST_LOCATION_ID,
+					},
+					{
+						code: 'EMP-021',
+						firstName: 'Luis',
+						lastName: 'Pérez',
+						dailyPay: 420,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: TEST_JOB_POSITION_ID,
+						locationId: TEST_LOCATION_ID,
+					},
+				],
+			}),
+		);
+		const payload = (await response.json()) as {
+			batchId: string;
+			summary: {
+				total: number;
+				created: number;
+				failed: number;
+			};
+			results: Array<{
+				index: number;
+				success: boolean;
+				employeeId?: string;
+				error?: string;
+			}>;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.summary).toEqual({
+			total: 2,
+			created: 1,
+			failed: 1,
+		});
+		expect(payload.results).toEqual([
+			{
+				index: 0,
+				success: false,
+				error: 'El sueldo diario está por debajo del salario mínimo vigente.',
+			},
+			{
+				index: 1,
+				success: true,
+				employeeId: expect.any(String),
+			},
+		]);
+		expect(fakeDbState.employees).toHaveLength(1);
+		expect(fakeDbState.employees[0]?.code).toBe('EMP-021');
+		expect(fakeDbState.auditEvents).toHaveLength(1);
+	});
+
+	it('returns row-level warnings when the minimum wage policy is configured to warn', async () => {
+		fakeDbState.payrollSettings = [
+			{
+				organizationId: TEST_ORGANIZATION_ID,
+				overtimeEnforcement: 'WARN',
+			},
+		];
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: [
+					{
+						code: 'EMP-022',
+						firstName: 'Laura',
+						lastName: 'Nava',
+						dailyPay: 100,
+						paymentFrequency: 'MONTHLY',
+						jobPositionId: TEST_JOB_POSITION_ID,
+						locationId: TEST_LOCATION_ID,
+					},
+				],
+			}),
+		);
+		const payload = (await response.json()) as {
+			summary: {
+				total: number;
+				created: number;
+				failed: number;
+			};
+			results: Array<{
+				index: number;
+				success: boolean;
+				employeeId?: string;
+				error?: string;
+				warnings?: Array<{
+					code: 'BELOW_MINIMUM_WAGE';
+					details: Record<string, unknown>;
+				}>;
+			}>;
+		};
+
+		expect(response.status).toBe(200);
+		expect(payload.summary).toEqual({
+			total: 1,
+			created: 1,
+			failed: 0,
+		});
+		expect(payload.results).toEqual([
+			{
+				index: 0,
+				success: true,
+				employeeId: expect.any(String),
+				warnings: [
+					{
+						code: 'BELOW_MINIMUM_WAGE',
+						details: expect.objectContaining({
+							dailyPay: 100,
+						}),
+					},
+				],
+			},
+		]);
+		expect(fakeDbState.employees).toHaveLength(1);
+		expect(fakeDbState.auditEvents).toHaveLength(1);
+	});
+
 	it('rejects bulk creation when the employees array exceeds the supported maximum', async () => {
 		const { employeeImportRoutes } = await import('./employee-import.js');
 		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
@@ -876,6 +1050,7 @@ describe('employee import routes', () => {
 		fakeDbState.locations.push({
 			id: 'loc-other-org',
 			organizationId: '99999999-9999-4999-8999-999999999999',
+			geographicZone: 'GENERAL',
 		});
 		const { employeeImportRoutes } = await import('./employee-import.js');
 		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);

@@ -116,7 +116,7 @@ function decodeBase64Image(base64String: string): Uint8Array {
  * @param args.dateKey - Optional date key for minimum wage lookup (defaults to today)
  * @returns Validation result with error code (if BLOCK) or warnings (if WARN)
  */
-async function validateMinimumWage(args: {
+export async function validateMinimumWage(args: {
 	organizationId: string;
 	locationId: string | null;
 	dailyPay: number;

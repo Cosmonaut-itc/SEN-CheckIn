@@ -17,9 +17,11 @@ import { processDocument } from '../services/document-ai.js';
 import { RateLimiter } from '../utils/rate-limit.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
+import { validateMinimumWage } from './employees.js';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_BULK_EMPLOYEES = 500;
+const BELOW_MINIMUM_WAGE_ROW_ERROR = 'El sueldo diario está por debajo del salario mínimo vigente.';
 const ACCEPTED_MIME_TYPES = new Set([
 	'image/jpeg',
 	'image/png',
@@ -256,6 +258,10 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 				success: boolean;
 				employeeId?: string;
 				error?: string;
+				warnings?: Array<{
+					code: 'BELOW_MINIMUM_WAGE';
+					details: Record<string, unknown>;
+				}>;
 			}> = [];
 
 			for (const [index, employeeInput] of body.employees.entries()) {
@@ -269,6 +275,21 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 						index,
 						success: false,
 						error: 'Datos inválidos para crear el empleado.',
+					});
+					continue;
+				}
+
+				const minWageValidation = await validateMinimumWage({
+					organizationId,
+					locationId: parsedEmployee.data.locationId,
+					dailyPay: parsedEmployee.data.dailyPay,
+				});
+
+				if (!minWageValidation.isValid) {
+					results.push({
+						index,
+						success: false,
+						error: BELOW_MINIMUM_WAGE_ROW_ERROR,
 					});
 					continue;
 				}
@@ -345,6 +366,7 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 					index,
 					success: true,
 					employeeId,
+					warnings: minWageValidation.warnings,
 				});
 			}
 

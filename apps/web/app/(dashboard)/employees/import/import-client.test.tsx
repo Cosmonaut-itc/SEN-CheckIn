@@ -346,31 +346,31 @@ describe('ImportClient', () => {
 			.mockResolvedValueOnce({
 				data: [
 					{ code: 'EMP-001' },
-					{ code: 'EMP-002' },
+					{ code: 'EMP-099' },
 				],
-				pagination: { total: 3, limit: 2, offset: 0 },
+				pagination: { total: 150, limit: 100, offset: 0 },
 			})
 			.mockResolvedValueOnce({
-				data: [{ code: 'EMP-015' }],
-				pagination: { total: 3, limit: 2, offset: 2 },
+				data: [{ code: 'EMP-150' }],
+				pagination: { total: 150, limit: 100, offset: 100 },
 			});
 
 		const employees = await fetchExistingEmployeesForImport({
 			organizationId: 'org-1',
 			fetchEmployees,
-			pageSize: 2,
+			pageSize: 1000,
 		});
 
 		expect(fetchEmployees).toHaveBeenNthCalledWith(1, {
 			organizationId: 'org-1',
-			limit: 2,
+			limit: 1000,
 			offset: 0,
 		});
 		expect(fetchEmployees).toHaveBeenNthCalledWith(2, {
 			organizationId: 'org-1',
-			limit: 2,
-			offset: 2,
+			limit: 1000,
+			offset: 100,
 		});
-		expect(resolveInitialNextCodeForImport(employees)).toBe(16);
+		expect(resolveInitialNextCodeForImport(employees)).toBe(151);
 	});
 });

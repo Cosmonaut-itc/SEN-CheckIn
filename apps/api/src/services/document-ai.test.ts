@@ -2,7 +2,17 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun
 
 mock.restore();
 
+const { zodSchema: actualZodSchema, Output: actualOutput } = await import('ai');
+
 const MAX_PDF_PAGES = 20;
+const MAX_PDF_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+interface MockSharpChain {
+	rotate: () => MockSharpChain;
+	resize: () => MockSharpChain;
+	jpeg: () => MockSharpChain;
+	toBuffer: () => Promise<Buffer>;
+}
 
 let mockPdfPageCount = 0;
 const mockPdfGetPage = mock(async (pageIndex: number) => {
@@ -25,16 +35,17 @@ const mockCreateCanvas = mock(() => ({
 	getContext: () => ({}),
 	toBuffer: () => Buffer.from('rendered-page'),
 }));
-const mockSharpRotate = mock(function () {
+const mockSharpRotate = mock(function (this: MockSharpChain) {
 	return this;
 });
-const mockSharpResize = mock(function () {
+const mockSharpResize = mock(function (this: MockSharpChain) {
 	return this;
 });
-const mockSharpJpeg = mock(function () {
+const mockSharpJpeg = mock(function (this: MockSharpChain) {
 	return this;
 });
 const mockSharpToBuffer = mock(async () => Buffer.from('processed-image'));
+const mockHeicConvert = mock(async () => new Uint8Array([0x48, 0x45, 0x49, 0x43]));
 const mockSharp = mock((buffer: Buffer) => {
 	void buffer;
 
@@ -46,7 +57,7 @@ const mockSharp = mock((buffer: Buffer) => {
 	};
 });
 let mockGenerateObjectPayload: {
-	object: {
+	output: {
 		employees: Array<{
 			firstName: string | null;
 			lastName: string | null;
@@ -60,7 +71,7 @@ let mockGenerateObjectPayload: {
 		}>;
 	};
 } = {
-	object: {
+	output: {
 		employees: [
 			{
 				firstName: 'Juan',
@@ -77,14 +88,18 @@ let mockGenerateObjectPayload: {
 	},
 };
 
-const mockGenerateObject = mock(async (args?: { schema?: { parse: (input: unknown) => unknown } }) => ({
-	object: args?.schema
-		? (args.schema.parse(mockGenerateObjectPayload.object) as typeof mockGenerateObjectPayload.object)
-		: mockGenerateObjectPayload.object,
+const mockOutputObject = mock((options: { schema: { parse: (input: unknown) => unknown } }) =>
+	actualOutput.object(options),
+);
+const mockGenerateText = mock(async () => ({
+	output: mockGenerateObjectPayload.output,
 }));
 
 mock.module('ai', () => ({
-	generateObject: mockGenerateObject,
+	generateText: mockGenerateText,
+	Output: {
+		object: mockOutputObject,
+	},
 }));
 
 mock.module('@openrouter/ai-sdk-provider', () => ({
@@ -93,6 +108,10 @@ mock.module('@openrouter/ai-sdk-provider', () => ({
 
 mock.module('@napi-rs/canvas', () => ({
 	createCanvas: mockCreateCanvas,
+}));
+
+mock.module('heic-convert', () => ({
+	default: mockHeicConvert,
 }));
 
 mock.module('pdfjs-dist/legacy/build/pdf.mjs', () => ({
@@ -111,7 +130,8 @@ describe('document-ai service', () => {
 	const originalOpenRouterApiKey = process.env.OPENROUTER_API_KEY;
 
 	beforeEach(() => {
-		mockGenerateObject.mockClear();
+		mockGenerateText.mockClear();
+		mockOutputObject.mockClear();
 		mockPdfGetDocument.mockClear();
 		mockPdfGetPage.mockClear();
 		mockCreateCanvas.mockClear();
@@ -120,9 +140,10 @@ describe('document-ai service', () => {
 		mockSharpResize.mockClear();
 		mockSharpJpeg.mockClear();
 		mockSharpToBuffer.mockClear();
+		mockHeicConvert.mockClear();
 		mockPdfPageCount = 0;
 		mockGenerateObjectPayload = {
-			object: {
+			output: {
 				employees: [
 					{
 						firstName: 'Juan',
@@ -162,12 +183,13 @@ describe('document-ai service', () => {
 		expect(result.employees[0]?.lastName).toBe('Pérez');
 		expect(result.employees[0]?.dailyPay).toBe(450);
 		expect(result.employees[0]?.confidence).toBe(0.95);
-		expect(mockGenerateObject).toHaveBeenCalledTimes(1);
+		expect(mockGenerateText).toHaveBeenCalledTimes(1);
+		expect(mockOutputObject).toHaveBeenCalledTimes(1);
 	});
 
 	it('normalizes null employee names from OCR output', async () => {
 		mockGenerateObjectPayload = {
-			object: {
+			output: {
 				employees: [
 					{
 						firstName: null,
@@ -190,9 +212,37 @@ describe('document-ai service', () => {
 		expect(result.employees[0]?.lastName).toBe('');
 	});
 
+	it('builds a structured output schema with required nullable employee name fields', async () => {
+		const { extractedEmployeesResponseSchema } = await import('./document-ai.js');
+		const jsonSchema = (await Promise.resolve(actualZodSchema(extractedEmployeesResponseSchema).jsonSchema)) as {
+			properties?: {
+				employees?: {
+					items?: {
+						properties?: {
+							firstName?: { type?: string | string[] };
+							lastName?: { type?: string | string[] };
+						};
+						required?: string[];
+					};
+				};
+			};
+		};
+		const employeeItemSchema = jsonSchema.properties?.employees?.items;
+		const requiredFields = Array.isArray(employeeItemSchema?.required)
+			? employeeItemSchema.required
+			: [];
+		const firstNameTypes = employeeItemSchema?.properties?.firstName?.type;
+		const lastNameTypes = employeeItemSchema?.properties?.lastName?.type;
+
+		expect(requiredFields).toContain('firstName');
+		expect(requiredFields).toContain('lastName');
+		expect(firstNameTypes).toEqual(expect.arrayContaining(['string', 'null']));
+		expect(lastNameTypes).toEqual(expect.arrayContaining(['string', 'null']));
+	});
+
 	it('returns empty array when no employees are found', async () => {
-		mockGenerateObject.mockResolvedValueOnce({
-			object: {
+		mockGenerateText.mockResolvedValueOnce({
+			output: {
 				employees: [],
 			},
 		});
@@ -203,6 +253,53 @@ describe('document-ai service', () => {
 		const result = await extractEmployeesFromImage(fakeBase64, 'image/png');
 
 		expect(result.employees).toHaveLength(0);
+	});
+
+	it('uses AI SDK v6 Output.object structured output', async () => {
+		const { extractEmployeesFromImage } = await import('./document-ai.js');
+
+		await extractEmployeesFromImage('fake-base64', 'image/png');
+
+		expect(mockGenerateText).toHaveBeenCalledTimes(1);
+		expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+			output: {
+				name: 'object',
+				parseCompleteOutput: expect.any(Function),
+				parsePartialOutput: expect.any(Function),
+			},
+		});
+	});
+
+	it('sends a multimodal user message with the original image mime type', async () => {
+		const { extractEmployeesFromImage } = await import('./document-ai.js');
+
+		await extractEmployeesFromImage('fake-base64', 'image/png');
+
+		expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+			messages: [
+				{
+					role: 'user',
+					content: [
+						{ type: 'text' },
+						{
+							type: 'image',
+							image: 'fake-base64',
+							mediaType: 'image/png',
+						},
+					],
+				},
+			],
+		});
+	});
+
+	it('fails fast when OPENROUTER_API_KEY is missing', async () => {
+		delete process.env.OPENROUTER_API_KEY;
+		const { extractEmployeesFromImage } = await import('./document-ai.js');
+
+		await expect(extractEmployeesFromImage('fake-base64', 'image/png')).rejects.toThrow(
+			'OPENROUTER_API_KEY environment variable is required.',
+		);
+		expect(mockGenerateText).not.toHaveBeenCalled();
 	});
 
 	it('processes a single image file and reports progress', async () => {
@@ -233,6 +330,37 @@ describe('document-ai service', () => {
 		expect(mockSharpToBuffer).toHaveBeenCalledTimes(1);
 	});
 
+	it('converts HEIC images to JPEG before sending them to AI SDK', async () => {
+		const heicBuffer = Buffer.from([0x01, 0x02, 0x03, 0x04]);
+		const { processDocument } = await import('./document-ai.js');
+
+		const result = await processDocument(heicBuffer, 'image/heic');
+
+		expect(result.pagesProcessed).toBe(1);
+		expect(mockHeicConvert).toHaveBeenCalledTimes(1);
+		expect(mockSharp).toHaveBeenCalledWith(Buffer.from([0x48, 0x45, 0x49, 0x43]));
+		expect(mockGenerateText.mock.calls[0]?.[0]).toMatchObject({
+			messages: [
+				{
+					content: [
+						{ type: 'text' },
+						{ type: 'image', mediaType: 'image/jpeg' },
+					],
+				},
+			],
+		});
+	});
+
+	it('propagates HEIC conversion failures without calling AI SDK', async () => {
+		mockHeicConvert.mockRejectedValueOnce(new Error('HEIC conversion failed'));
+		const { processDocument } = await import('./document-ai.js');
+
+		await expect(processDocument(Buffer.from([0x01, 0x02]), 'image/heif')).rejects.toThrow(
+			'HEIC conversion failed',
+		);
+		expect(mockGenerateText).not.toHaveBeenCalled();
+	});
+
 	it('processes valid PDF pages one by one and reports the final page count', async () => {
 		mockPdfPageCount = 2;
 		const { processDocument } = await import('./document-ai.js');
@@ -243,12 +371,12 @@ describe('document-ai service', () => {
 		expect(result.employees).toHaveLength(2);
 		expect(mockPdfGetPage).toHaveBeenNthCalledWith(1, 1);
 		expect(mockPdfGetPage).toHaveBeenNthCalledWith(2, 2);
-		expect(mockGenerateObject).toHaveBeenCalledTimes(2);
+		expect(mockGenerateText).toHaveBeenCalledTimes(2);
 	});
 
 	it('stops rendering further PDF pages after the current extraction fails', async () => {
 		mockPdfPageCount = 3;
-		mockGenerateObject.mockRejectedValueOnce(new Error('OCR failed'));
+		mockGenerateText.mockRejectedValueOnce(new Error('OCR failed'));
 		const { processDocument } = await import('./document-ai.js');
 
 		await expect(processDocument(Buffer.from('%PDF-1.4'), 'application/pdf')).rejects.toThrow(
@@ -265,6 +393,26 @@ describe('document-ai service', () => {
 			`El PDF excede el máximo permitido de ${MAX_PDF_PAGES} páginas.`,
 		);
 		expect(mockPdfGetPage).not.toHaveBeenCalled();
-		expect(mockGenerateObject).not.toHaveBeenCalled();
+		expect(mockGenerateText).not.toHaveBeenCalled();
+	});
+
+	it('rejects oversized PDFs before loading them with pdfjs', async () => {
+		const { processDocument } = await import('./document-ai.js');
+
+		await expect(
+			processDocument(Buffer.alloc(MAX_PDF_FILE_SIZE_BYTES + 1), 'application/pdf'),
+		).rejects.toThrow('El PDF excede el tamaño máximo permitido de 10MB.');
+		expect(mockPdfGetDocument).not.toHaveBeenCalled();
+		expect(mockGenerateText).not.toHaveBeenCalled();
+	});
+
+	it('rejects unsupported mime types before processing them as images', async () => {
+		const { processDocument } = await import('./document-ai.js');
+
+		await expect(processDocument(Buffer.from('plain-text'), 'text/plain')).rejects.toThrow(
+			'Formato no soportado. Usa JPG, PNG, HEIC o PDF.',
+		);
+		expect(mockSharp).not.toHaveBeenCalled();
+		expect(mockGenerateText).not.toHaveBeenCalled();
 	});
 });

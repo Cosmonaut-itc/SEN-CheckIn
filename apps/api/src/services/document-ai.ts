@@ -1,6 +1,7 @@
 import { createCanvas } from '@napi-rs/canvas';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { generateObject } from 'ai';
+import { generateText, Output } from 'ai';
+import heicConvert from 'heic-convert';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import sharp from 'sharp';
 import { z } from 'zod';
@@ -9,6 +10,14 @@ const EXTRACTION_MODEL_ID = 'openai/gpt-4o';
 const MAX_IMAGE_DIMENSION = 2048;
 const JPEG_QUALITY = 85;
 const MAX_PDF_PAGES = 20;
+const MAX_PDF_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_DOCUMENT_MIME_TYPES = new Set([
+	'application/pdf',
+	'image/jpeg',
+	'image/png',
+	'image/heic',
+	'image/heif',
+]);
 
 const SYSTEM_PROMPT = `Analiza este documento y extrae todos los empleados que encuentres.
 Para cada persona, extrae: nombre(s), apellido(s), y sueldo/salario si está visible.
@@ -17,16 +26,11 @@ Si un campo no es legible o no existe, devuelve null para ese campo.
 Asigna un score de confianza (0-1) a cada campo basado en qué tan legible/claro es el dato.
 NO incluyas encabezados, totales, firmas, o datos que no sean personas reales.`;
 
-const extractedEmployeeNameSchema = z.preprocess(
-	(value) => (value === null || value === undefined ? '' : value),
-	z.string(),
-);
-
-export const extractedEmployeesSchema = z.object({
+export const extractedEmployeesResponseSchema = z.object({
 	employees: z.array(
 		z.object({
-			firstName: extractedEmployeeNameSchema,
-			lastName: extractedEmployeeNameSchema,
+			firstName: z.string().nullable(),
+			lastName: z.string().nullable(),
 			dailyPay: z.number().nullable(),
 			confidence: z.number().min(0).max(1),
 			fieldConfidence: z.object({
@@ -38,7 +42,17 @@ export const extractedEmployeesSchema = z.object({
 	),
 });
 
-export type ExtractedEmployee = z.infer<typeof extractedEmployeesSchema>['employees'][number];
+export interface ExtractedEmployee {
+	firstName: string;
+	lastName: string;
+	dailyPay: number | null;
+	confidence: number;
+	fieldConfidence: {
+		firstName: number;
+		lastName: number;
+		dailyPay: number;
+	};
+}
 
 export interface ExtractionResult {
 	employees: ExtractedEmployee[];
@@ -52,6 +66,22 @@ export interface ProcessingProgress {
 }
 
 type ProgressCallback = (progress: ProcessingProgress) => void;
+
+/**
+ * Normalizes nullable employee name fields returned by the model into strings.
+ *
+ * @param employee - Raw employee payload returned by the structured output schema
+ * @returns Employee with non-null name fields for downstream consumers
+ */
+function normalizeExtractedEmployee(
+	employee: z.infer<typeof extractedEmployeesResponseSchema>['employees'][number],
+): ExtractedEmployee {
+	return {
+		...employee,
+		firstName: employee.firstName ?? '',
+		lastName: employee.lastName ?? '',
+	};
+}
 
 /**
  * Creates the OpenRouter model instance lazily so imports stay side-effect free.
@@ -80,9 +110,11 @@ export async function extractEmployeesFromImage(
 	base64Image: string,
 	mimeType: string,
 ): Promise<ExtractionResult> {
-	const { object } = await generateObject({
+	const { output } = await generateText({
 		model: getExtractionModel(),
-		schema: extractedEmployeesSchema,
+		output: Output.object({
+			schema: extractedEmployeesResponseSchema,
+		}),
 		messages: [
 			{
 				role: 'user',
@@ -94,7 +126,7 @@ export async function extractEmployeesFromImage(
 		],
 	});
 
-	return { employees: object.employees };
+	return { employees: output.employees.map(normalizeExtractedEmployee) };
 }
 
 /**
@@ -157,7 +189,15 @@ export async function processDocument(
 	mimeType: string,
 	onProgress?: ProgressCallback,
 ): Promise<ExtractionResult & { pagesProcessed: number }> {
+	if (!SUPPORTED_DOCUMENT_MIME_TYPES.has(mimeType)) {
+		throw new Error('Formato no soportado. Usa JPG, PNG, HEIC o PDF.');
+	}
+
 	if (mimeType === 'application/pdf') {
+		if (fileBuffer.byteLength > MAX_PDF_FILE_SIZE_BYTES) {
+			throw new Error('El PDF excede el tamaño máximo permitido de 10MB.');
+		}
+
 		onProgress?.({
 			step: 'processing',
 			message: 'Extrayendo páginas del PDF...',
@@ -203,6 +243,20 @@ export async function processDocument(
 		totalPages: 1,
 		message: 'Procesando imagen...',
 	});
+
+	let imageBuffer = fileBuffer;
+	if (mimeType === 'image/heic' || mimeType === 'image/heif') {
+		const converted = await heicConvert({
+			buffer: fileBuffer.buffer.slice(
+				fileBuffer.byteOffset,
+				fileBuffer.byteOffset + fileBuffer.byteLength,
+			),
+			format: 'JPEG',
+			quality: 0.9,
+		});
+		imageBuffer = Buffer.from(converted);
+	}
+
 	onProgress?.({
 		step: 'extracting',
 		currentPage: 1,
@@ -210,7 +264,7 @@ export async function processDocument(
 		message: 'Extrayendo datos del documento...',
 	});
 
-	const base64Image = await convertToProcessableImage(fileBuffer);
+	const base64Image = await convertToProcessableImage(imageBuffer);
 	const result = await extractEmployeesFromImage(base64Image, 'image/jpeg');
 
 	return {

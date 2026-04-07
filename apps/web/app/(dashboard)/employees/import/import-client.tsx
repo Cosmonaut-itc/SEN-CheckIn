@@ -117,6 +117,37 @@ function buildEmployeeCode(serial: number): string {
 	return `EMP-${String(serial).padStart(3, '0')}`;
 }
 
+const EMPLOYEE_CODE_PATTERN = /^EMP-(\d+)$/;
+
+/**
+ * Resolves the first employee code that should be assigned for a fresh import session.
+ *
+ * @param existingEmployees - Employees already stored in the organization
+ * @returns Next available employee code sequence
+ */
+export function resolveInitialNextCodeForImport(
+	existingEmployees: ReadonlyArray<Pick<Employee, 'code'>>,
+): number {
+	const highestExistingCode = existingEmployees.reduce((highestCode, employee) => {
+		const normalizedCode = employee.code.trim().toUpperCase();
+		const match = EMPLOYEE_CODE_PATTERN.exec(normalizedCode);
+
+		if (!match) {
+			return highestCode;
+		}
+
+		const parsedCode = Number.parseInt(match[1] ?? '', 10);
+
+		if (Number.isNaN(parsedCode)) {
+			return highestCode;
+		}
+
+		return Math.max(highestCode, parsedCode);
+	}, 0);
+
+	return highestExistingCode + 1;
+}
+
 /**
  * Produces a normalized full-name key for duplicate detection.
  *
@@ -430,11 +461,15 @@ export function ImportClient(): React.ReactElement {
 				queryKey: queryKeys.employees.list(employeeListQuery),
 				queryFn: () => fetchEmployeesList(employeeListQuery),
 			});
+			const nextCodeSeed =
+				variables.mode === 'append'
+					? resolveNextCodeForImport(nextCodeRef)
+					: resolveInitialNextCodeForImport(existingEmployees.data);
 			const builtRows = buildPreviewRows({
 				employees: result.employees,
 				existingEmployees: existingEmployees.data,
 				currentRows: resolveCurrentPreviewRowsForImport(variables.mode, previewRowsRef),
-				nextCode: resolveNextCodeForImport(nextCodeRef),
+				nextCode: nextCodeSeed,
 				validationT: tImport,
 			});
 

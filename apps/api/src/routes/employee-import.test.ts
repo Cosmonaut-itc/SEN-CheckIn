@@ -15,6 +15,7 @@ const employeeTable = {
 	importBatchId: 'employee.importBatchId',
 	organizationId: 'employee.organizationId',
 };
+const employeeAuditEventTable = actualSchemaModule.employeeAuditEvent;
 const locationTable = {
 	id: 'location.id',
 	organizationId: 'location.organizationId',
@@ -66,16 +67,57 @@ interface FakeEmployeeRow {
 	shiftType: 'DIURNA';
 }
 
+interface FakeEmployeeAuditEventRow {
+	employeeId: string;
+	organizationId: string | null;
+	action: string;
+	actorType: 'user' | 'apiKey' | 'system';
+	actorUserId: string | null;
+	before: Record<string, unknown> | null;
+	after: Record<string, unknown> | null;
+	changedFields: string[];
+}
+
+interface FakeDbQueryResult {
+	limit: (count: number) => Promise<unknown[]>;
+}
+
+interface FakeDbFromResult {
+	from: (table: unknown) => {
+		where: (condition: MockCondition) => FakeDbQueryResult;
+	};
+}
+
+interface FakeDbInsertResult {
+	values: (
+		value: FakeEmployeeRow | FakeEmployeeAuditEventRow,
+	) => Promise<unknown[]>;
+}
+
+interface FakeDbDeleteResult {
+	where: (condition: MockCondition) => Promise<void>;
+}
+
+interface FakeDb {
+	select: () => FakeDbFromResult;
+	insert: (table: unknown) => FakeDbInsertResult;
+	delete: () => FakeDbDeleteResult;
+	execute: () => Promise<void>;
+	transaction: <T>(callback: (tx: FakeDb) => Promise<T>) => Promise<T>;
+}
+
 const fakeDbState: {
 	locations: FakeLocationRow[];
 	jobPositions: FakeJobPositionRow[];
 	employees: FakeEmployeeRow[];
+	auditEvents: FakeEmployeeAuditEventRow[];
 	insertErrorsByCode: Map<string, { code?: string; message: string }>;
 	transactionCalls: number;
 } = {
 	locations: [],
 	jobPositions: [],
 	employees: [],
+	auditEvents: [],
 	insertErrorsByCode: new Map(),
 	transactionCalls: 0,
 };
@@ -216,7 +258,7 @@ function getInArrayValues(condition: MockCondition | undefined, column: unknown)
 	return undefined;
 }
 
-const fakeDb = {
+const fakeDb: FakeDb = {
 	select: () => ({
 		from: (table: unknown) => ({
 			where: (condition: MockCondition) => ({
@@ -272,18 +314,21 @@ const fakeDb = {
 					}
 
 					if (table === employeeTable) {
+						const id = getEqValue(condition, employeeTable.id);
 						const code = getEqValue(condition, employeeTable.code);
 						const batchId = getEqValue(condition, employeeTable.importBatchId);
 						const organizationId = getEqValue(condition, employeeTable.organizationId);
 
-						if (typeof code === 'string') {
-							return fakeDbState.employees
-								.filter((row) => row.code === code)
-								.map((row) => ({ id: row.id }));
-						}
-
 						return fakeDbState.employees
 							.filter((row) => {
+								if (typeof id === 'string' && row.id !== id) {
+									return false;
+								}
+
+								if (typeof code === 'string' && row.code !== code) {
+									return false;
+								}
+
 								if (typeof batchId === 'string' && row.importBatchId !== batchId) {
 									return false;
 								}
@@ -297,7 +342,7 @@ const fakeDb = {
 
 								return true;
 							})
-							.map((row) => ({ id: row.id }));
+							.map((row) => ({ ...row }));
 					}
 
 					return [];
@@ -305,15 +350,26 @@ const fakeDb = {
 			}),
 		}),
 	}),
-	insert: () => ({
-		values: async (value: FakeEmployeeRow) => {
-			const configuredError = fakeDbState.insertErrorsByCode.get(value.code);
-			if (configuredError) {
-				throw configuredError;
+	insert: (table: unknown) => ({
+		values: async (value: FakeEmployeeRow | FakeEmployeeAuditEventRow) => {
+			if (table === employeeTable) {
+				const employeeValue = value as FakeEmployeeRow;
+				const configuredError = fakeDbState.insertErrorsByCode.get(employeeValue.code);
+				if (configuredError) {
+					throw configuredError;
+				}
+
+				fakeDbState.employees.push(employeeValue);
+				return [employeeValue];
 			}
 
-			fakeDbState.employees.push(value);
-			return [value];
+			if (table === employeeAuditEventTable) {
+				const auditValue = value as FakeEmployeeAuditEventRow;
+				fakeDbState.auditEvents.push(auditValue);
+				return [auditValue];
+			}
+
+			throw new Error('Unsupported insert table in fake DB');
 		},
 	}),
 	delete: () => ({
@@ -334,6 +390,7 @@ const fakeDb = {
 			});
 		},
 	}),
+	execute: async () => undefined,
 	transaction: async <T>(callback: (tx: typeof fakeDb) => Promise<T>): Promise<T> => {
 		fakeDbState.transactionCalls += 1;
 		return await callback(fakeDb);
@@ -429,6 +486,7 @@ describe('employee import routes', () => {
 			{ id: TEST_JOB_POSITION_ID, organizationId: TEST_ORGANIZATION_ID },
 		];
 		fakeDbState.employees = [];
+		fakeDbState.auditEvents = [];
 		fakeDbState.insertErrorsByCode = new Map();
 		fakeDbState.transactionCalls = 0;
 		mockProcessDocument.mockClear();
@@ -730,6 +788,60 @@ describe('employee import routes', () => {
 		});
 		expect(payload.results[0]?.success).toBe(false);
 		expect(payload.results[1]?.success).toBe(true);
+		expect(fakeDbState.auditEvents).toHaveLength(1);
+		expect(fakeDbState.auditEvents[0]).toMatchObject({
+			organizationId: TEST_ORGANIZATION_ID,
+			action: 'created',
+			actorType: 'user',
+			actorUserId: 'user-1',
+			before: null,
+			changedFields: [],
+		});
+		expect(fakeDbState.auditEvents[0]?.after).toMatchObject({
+			code: 'EMP-002',
+			locationId: TEST_LOCATION_ID,
+			jobPositionId: TEST_JOB_POSITION_ID,
+			importBatchId: payload.batchId,
+			organizationId: TEST_ORGANIZATION_ID,
+		});
+	});
+
+	it('rejects bulk creation when the employees array exceeds the supported maximum', async () => {
+		const { employeeImportRoutes } = await import('./employee-import.js');
+		const app = new Elysia().use(errorHandlerPlugin).use(employeeImportRoutes);
+
+		const response = await app.handle(
+			createJsonRequest('/employees/bulk', 'POST', {
+				employees: Array.from({ length: 501 }, (_, index) => ({
+					code: `EMP-${String(index).padStart(3, '0')}`,
+					firstName: 'Ana',
+					lastName: 'López',
+					dailyPay: 410,
+					paymentFrequency: 'MONTHLY',
+					jobPositionId: TEST_JOB_POSITION_ID,
+					locationId: TEST_LOCATION_ID,
+				})),
+			}),
+		);
+		const payload = (await response.json()) as {
+			error: {
+				message: string;
+				code: string;
+				details?: {
+					errors?: Array<{
+						summary?: string;
+					}>;
+				};
+			};
+		};
+
+		expect(response.status).toBe(400);
+		expect(payload.error.code).toBe('VALIDATION_ERROR');
+		expect(payload.error.details?.errors?.[0]?.summary).toBe(
+			'Expected array length to be less or equal to 500',
+		);
+		expect(fakeDbState.employees).toHaveLength(0);
+		expect(fakeDbState.auditEvents).toHaveLength(0);
 	});
 
 	it('rejects bulk creation when any location does not belong to the organization', async () => {

@@ -10,6 +10,7 @@ import { OrgProvider } from '@/lib/org-client-context';
 import {
 	ImportClient,
 	resolveCurrentPreviewRowsForImport,
+	resolveInitialNextCodeForImport,
 	resolveNextCodeForImport,
 	resolveTrackedFilesForImport,
 } from './import-client';
@@ -325,5 +326,16 @@ describe('ImportClient', () => {
 		nextCodeRef.current = 3;
 
 		expect(resolveNextCodeForImport(nextCodeRef)).toBe(3);
+	});
+
+	it('derives the next bulk-import code from the highest existing employee code', () => {
+		expect(resolveInitialNextCodeForImport([])).toBe(1);
+		expect(
+			resolveInitialNextCodeForImport([
+				{ code: 'EMP-001' },
+				{ code: 'EMP-010' },
+				{ code: 'EMP-XYZ' },
+			]),
+		).toBe(11);
 	});
 });

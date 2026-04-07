@@ -4,10 +4,7 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
-import {
-	prefetchJobPositionsList,
-	prefetchLocationsList,
-} from '@/lib/server-functions';
+import { prefetchJobPositionsList, prefetchLocationsList } from '@/lib/server-functions';
 
 import { ImportClient } from './import-client';
 
@@ -29,7 +26,7 @@ export default async function EmployeeImportPage(): Promise<React.ReactElement> 
 		prefetchLocationsList(queryClient, {
 			organizationId: organization.organizationId,
 		});
-		prefetchJobPositionsList(queryClient, {
+		await prefetchJobPositionsList(queryClient, {
 			organizationId: organization.organizationId,
 		});
 	}

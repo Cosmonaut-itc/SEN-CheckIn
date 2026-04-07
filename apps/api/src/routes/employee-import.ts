@@ -7,12 +7,19 @@ import db from '../db/index.js';
 import { employee, jobPosition, location } from '../db/schema.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { createEmployeeSchema } from '../schemas/crud.js';
+import {
+	buildEmployeeAuditSnapshot,
+	createEmployeeAuditEvent,
+	resolveEmployeeAuditActor,
+	setEmployeeAuditSkip,
+} from '../services/employee-audit.js';
 import { processDocument } from '../services/document-ai.js';
 import { RateLimiter } from '../utils/rate-limit.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_BULK_EMPLOYEES = 500;
 const ACCEPTED_MIME_TYPES = new Set([
 	'image/jpeg',
 	'image/png',
@@ -235,6 +242,7 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 			}
 
 			const batchId = crypto.randomUUID();
+			const auditActor = resolveEmployeeAuditActor(authType, session);
 			const results: Array<{
 				index: number;
 				success: boolean;
@@ -275,20 +283,42 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 
 				const employeeId = crypto.randomUUID();
 				try {
-					await db.insert(employee).values({
-						id: employeeId,
-						code: parsedEmployee.data.code,
-						firstName: parsedEmployee.data.firstName,
-						lastName: parsedEmployee.data.lastName,
-						dailyPay: parsedEmployee.data.dailyPay.toFixed(2),
-						paymentFrequency: parsedEmployee.data.paymentFrequency,
-						jobPositionId: parsedEmployee.data.jobPositionId,
-						locationId: parsedEmployee.data.locationId,
-						organizationId,
-						importBatchId: batchId,
-						status: parsedEmployee.data.status,
-						employmentType: parsedEmployee.data.employmentType ?? 'PERMANENT',
-						shiftType: parsedEmployee.data.shiftType ?? 'DIURNA',
+					await db.transaction(async (tx) => {
+						await setEmployeeAuditSkip(tx);
+						await tx.insert(employee).values({
+							id: employeeId,
+							code: parsedEmployee.data.code,
+							firstName: parsedEmployee.data.firstName,
+							lastName: parsedEmployee.data.lastName,
+							dailyPay: parsedEmployee.data.dailyPay.toFixed(2),
+							paymentFrequency: parsedEmployee.data.paymentFrequency,
+							jobPositionId: parsedEmployee.data.jobPositionId,
+							locationId: parsedEmployee.data.locationId,
+							organizationId,
+							importBatchId: batchId,
+							status: parsedEmployee.data.status,
+							employmentType: parsedEmployee.data.employmentType ?? 'PERMANENT',
+							shiftType: parsedEmployee.data.shiftType ?? 'DIURNA',
+						});
+
+						const createdRows = await tx
+							.select()
+							.from(employee)
+							.where(eq(employee.id, employeeId))
+							.limit(1);
+						const createdEmployee = createdRows[0];
+						if (createdEmployee) {
+							await createEmployeeAuditEvent(tx, {
+								employeeId,
+								organizationId: createdEmployee.organizationId,
+								action: 'created',
+								actorType: auditActor.actorType,
+								actorUserId: auditActor.actorUserId,
+								before: null,
+								after: buildEmployeeAuditSnapshot(createdEmployee),
+								changedFields: [],
+							});
+						}
 					});
 				} catch (error) {
 					const isUniqueViolation = (error as { code?: string }).code === '23505';
@@ -339,6 +369,7 @@ export const employeeImportRoutes = new Elysia({ prefix: '/employees' })
 						jobPositionId: t.String(),
 						locationId: t.String(),
 					}),
+					{ maxItems: MAX_BULK_EMPLOYEES },
 				),
 			}),
 		},

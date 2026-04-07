@@ -5,9 +5,19 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
-import { Calendar as CalendarIcon, HelpCircle, Loader2, Pencil, Plus, X } from 'lucide-react';
+import {
+	Calendar as CalendarIcon,
+	ChevronDown,
+	HelpCircle,
+	Loader2,
+	Pencil,
+	Plus,
+	Upload,
+	X,
+} from 'lucide-react';
 
 import { EmployeeInfoTab } from '@/components/employees/employee-info-tab';
 import { EmployeeCodeField } from '@/components/employees/employee-code-field';
@@ -251,6 +261,10 @@ export interface EmployeeDetailDialogProps {
 	lookups: EmployeeDetailDialogLookups;
 }
 
+export interface EmployeePageActionsProps {
+	onCreateNew: () => void;
+}
+
 const PRIMARY_DETAIL_TABS: EmployeeDetailTab[] = [
 	'summary',
 	'attendance',
@@ -266,6 +280,49 @@ const daysOfWeek: { labelKey: string; value: number }[] = [
 	{ labelKey: 'days.friday', value: 5 },
 	{ labelKey: 'days.saturday', value: 6 },
 ];
+
+/**
+ * Renders the employees page split action button.
+ *
+ * @param props - Action callbacks
+ * @returns Split button with create and import actions
+ */
+export function EmployeePageActions({ onCreateNew }: EmployeePageActionsProps): React.ReactElement {
+	const t = useTranslations('Employees');
+	const router = useRouter();
+
+	return (
+		<div className="flex w-full items-center gap-1 min-[1025px]:w-auto">
+			<DialogTrigger asChild>
+				<Button
+					data-testid="employees-add-button"
+					onClick={onCreateNew}
+					className="min-w-0 flex-1 rounded-r-none min-[1025px]:flex-none"
+				>
+					<Plus className="mr-2 h-4 w-4" />
+					{t('actions.addEmployee')}
+				</Button>
+			</DialogTrigger>
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						data-testid="employees-add-menu-button"
+						aria-label={t('actions.importFromDocument')}
+						className="w-12 rounded-l-none border-l border-l-primary-foreground/20 px-2 min-[1025px]:w-10"
+					>
+						<ChevronDown className="h-4 w-4" />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent align="end">
+					<DropdownMenuItem onClick={() => router.push('/employees/import')}>
+						<Upload className="mr-2 h-4 w-4" />
+						{t('actions.importFromDocument')}
+					</DropdownMenuItem>
+				</DropdownMenuContent>
+			</DropdownMenu>
+		</div>
+	);
+}
 const shiftTypeOptions: { value: Employee['shiftType']; labelKey: string }[] = [
 	{ value: 'DIURNA', labelKey: 'shiftTypeLabels.DIURNA' },
 	{ value: 'NOCTURNA', labelKey: 'shiftTypeLabels.NOCTURNA' },
@@ -573,14 +630,7 @@ export function EmployeeDetailDialog({
 			<ResponsivePageHeader
 				title={t('title')}
 				description={t('subtitle')}
-				actions={
-					<DialogTrigger asChild>
-						<Button data-testid="employees-add-button" onClick={handleCreateNew}>
-							<Plus className="mr-2 h-4 w-4" />
-							{t('actions.addEmployee')}
-						</Button>
-					</DialogTrigger>
-				}
+				actions={<EmployeePageActions onCreateNew={handleCreateNew} />}
 			/>
 			<DialogContent
 				showCloseButton={!isMobile}
@@ -708,10 +758,7 @@ export function EmployeeDetailDialog({
 										</p>
 										<p className="font-medium">
 											{activeEmployee?.hireDate
-												? format(
-														activeEmployee.hireDate,
-														t('dateFormat'),
-													)
+												? format(activeEmployee.hireDate, t('dateFormat'))
 												: tCommon('notAvailable')}
 										</p>
 									</div>
@@ -772,7 +819,9 @@ export function EmployeeDetailDialog({
 												<p className="font-medium">
 													{activeEmployee?.fiscalDailyPay !== undefined &&
 													activeEmployee?.fiscalDailyPay !== null
-														? formatCurrency(activeEmployee.fiscalDailyPay)
+														? formatCurrency(
+																activeEmployee.fiscalDailyPay,
+															)
 														: tCommon('notAvailable')}
 												</p>
 											</div>
@@ -783,7 +832,9 @@ export function EmployeeDetailDialog({
 												<p className="font-medium">
 													{activeEmployee?.fiscalDailyPay !== undefined &&
 													activeEmployee?.fiscalDailyPay !== null
-														? formatCurrency(activeEmployeeDailyComplement)
+														? formatCurrency(
+																activeEmployeeDailyComplement,
+															)
 														: tCommon('notAvailable')}
 												</p>
 											</div>
@@ -3653,14 +3704,23 @@ export function EmployeeDetailDialog({
 												<form.AppField
 													name="fiscalDailyPay"
 													validators={{
-														onChange: ({ value }: { value: string }) => {
+														onChange: ({
+															value,
+														}: {
+															value: string;
+														}) => {
 															const trimmed = value.trim();
 															if (trimmed === '') {
 																return undefined;
 															}
 															const parsed = Number(trimmed);
-															if (!Number.isFinite(parsed) || parsed <= 0) {
-																return t('validation.fiscalDailyPay');
+															if (
+																!Number.isFinite(parsed) ||
+																parsed <= 0
+															) {
+																return t(
+																	'validation.fiscalDailyPay',
+																);
 															}
 															if (parsed >= computedDailyPay) {
 																return t(
@@ -3674,9 +3734,13 @@ export function EmployeeDetailDialog({
 													{(field: any) => (
 														<field.TextField
 															label={t('fields.fiscalDailyPay')}
-															placeholder={t('placeholders.fiscalDailyPay')}
+															placeholder={t(
+																'placeholders.fiscalDailyPay',
+															)}
 															type="number"
-															description={t('helpers.fiscalDailyPay')}
+															description={t(
+																'helpers.fiscalDailyPay',
+															)}
 														/>
 													)}
 												</form.AppField>

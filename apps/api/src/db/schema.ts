@@ -918,6 +918,8 @@ export const employee = pgTable(
 		scheduleTemplateId: text('schedule_template_id').references(() => scheduleTemplate.id, {
 			onDelete: 'set null',
 		}),
+		/** Optional import batch identifier used to undo bulk imports */
+		importBatchId: text('import_batch_id'),
 		/** Organization that the employee belongs to */
 		organizationId: text('organization_id').references(() => organization.id, {
 			onDelete: 'cascade',
@@ -942,6 +944,7 @@ export const employee = pgTable(
 	},
 	(table) => [
 		uniqueIndex('employee_org_user_uniq').on(table.organizationId, table.userId),
+		index('employee_import_batch_id_idx').on(table.importBatchId),
 		index('employee_rekognition_user_id_idx').on(table.rekognitionUserId),
 	],
 );

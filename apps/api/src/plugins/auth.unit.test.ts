@@ -1,5 +1,8 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+
+const actualSchemaModule = await import('../db/schema.js');
+const actualDrizzleOrmModule = await import('drizzle-orm');
 
 type VerifyApiKeyResult = {
 	valid: boolean;
@@ -44,15 +47,16 @@ mock.module('../db/index.js', () => ({
 }));
 
 mock.module('../db/schema.js', () => ({
-	member: {
-		userId: 'user_id',
-		organizationId: 'organization_id',
-	},
+	...actualSchemaModule,
 }));
 
 mock.module('drizzle-orm', () => ({
-	eq: (column: unknown, value: unknown) => ({ column, value }),
+	...actualDrizzleOrmModule,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 describe('api key auth plugin', () => {
 	beforeEach(() => {

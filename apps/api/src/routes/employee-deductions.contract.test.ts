@@ -13,17 +13,21 @@ import {
 type RouteResponse<T> = Promise<{ status: number; data?: T; error?: { value?: unknown } | null }>;
 
 type EmployeeDeductionsRoute = {
-	post: (args: Record<string, unknown>) => RouteResponse<{ id: string; type: string; value: number; status: string }>;
-	get: (args: Record<string, unknown>) => RouteResponse<Array<{ id: string }>>;
+	post: (args: Record<string, unknown>) => RouteResponse<{
+		data: { id: string; type: string; value: number; status: string };
+	}>;
+	get: (args: Record<string, unknown>) => RouteResponse<{ data: Array<{ id: string }> }>;
 	[id: string]: unknown;
 };
 
 type EmployeeDeductionDetailRoute = {
-	put: (args: Record<string, unknown>) => RouteResponse<{ status: string; notes: string | null }>;
+	put: (args: Record<string, unknown>) => RouteResponse<{
+		data: { status: string; notes: string | null };
+	}>;
 };
 
 type OrganizationDeductionsRoute = {
-	get: (args: Record<string, unknown>) => RouteResponse<Array<{ id: string }>>;
+	get: (args: Record<string, unknown>) => RouteResponse<{ data: Array<{ id: string }> }>;
 };
 
 /**
@@ -95,7 +99,8 @@ describe('employee deduction routes (contract)', () => {
 		});
 
 		expect(createResponse.status).toBe(201);
-		const createdDeduction = requireResponseData(createResponse);
+		const createdPayload = requireResponseData(createResponse);
+		const createdDeduction = createdPayload.data;
 		expect(createdDeduction.type).toBe('INFONAVIT');
 		expect(createdDeduction.value).toBe(10.25);
 		expect(createdDeduction.status).toBe('ACTIVE');
@@ -106,7 +111,7 @@ describe('employee deduction routes (contract)', () => {
 		});
 
 		expect(listResponse.status).toBe(200);
-		const employeeDeductions = requireResponseData(listResponse);
+		const employeeDeductions = requireResponseData(listResponse).data;
 		expect(Array.isArray(employeeDeductions)).toBe(true);
 		expect(employeeDeductions.some((item: { id: string }) => item.id === createdDeduction.id)).toBe(
 			true,
@@ -123,7 +128,7 @@ describe('employee deduction routes (contract)', () => {
 		});
 
 		expect(updateResponse.status).toBe(200);
-		const updatedDeduction = requireResponseData(updateResponse);
+		const updatedDeduction = requireResponseData(updateResponse).data;
 		expect(updatedDeduction.status).toBe('PAUSED');
 		expect(updatedDeduction.notes).toBe('Pausa temporal');
 
@@ -137,7 +142,7 @@ describe('employee deduction routes (contract)', () => {
 		});
 
 		expect(organizationListResponse.status).toBe(200);
-		const organizationDeductions = requireResponseData(organizationListResponse);
+		const organizationDeductions = requireResponseData(organizationListResponse).data;
 		expect(Array.isArray(organizationDeductions)).toBe(true);
 		expect(
 			organizationDeductions.some((item: { id: string }) => item.id === createdDeduction.id),

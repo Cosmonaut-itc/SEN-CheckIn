@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+
+mock.restore();
 
 type DrizzleCondition =
 	| {
@@ -272,6 +274,10 @@ describe('overtime authorization routes', () => {
 			updatedAt: new Date('2099-01-01T00:00:00.000Z'),
 		};
 		dbState.updateReturningRows = [];
+	});
+
+	afterAll(() => {
+		mock.restore();
 	});
 
 	it('returns 500 when update loses the row before returning data', async () => {

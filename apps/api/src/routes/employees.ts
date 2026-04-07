@@ -116,7 +116,7 @@ function decodeBase64Image(base64String: string): Uint8Array {
  * @param args.dateKey - Optional date key for minimum wage lookup (defaults to today)
  * @returns Validation result with error code (if BLOCK) or warnings (if WARN)
  */
-async function validateMinimumWage(args: {
+export async function validateMinimumWage(args: {
 	organizationId: string;
 	locationId: string | null;
 	dailyPay: number;
@@ -3222,6 +3222,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 						sbcDailyOverride: employee.sbcDailyOverride,
 						locationId: employee.locationId,
+						importBatchId: employee.importBatchId,
 						organizationId: employee.organizationId,
 						userId: employee.userId,
 						scheduleTemplateId: employee.scheduleTemplateId,

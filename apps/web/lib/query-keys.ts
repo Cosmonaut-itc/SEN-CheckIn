@@ -771,6 +771,9 @@ export const mutationKeys = {
 		enrollFace: ['employees', 'enrollFace'] as const,
 		deleteRekognitionUser: ['employees', 'deleteRekognitionUser'] as const,
 		fullEnrollment: ['employees', 'fullEnrollment'] as const,
+		importDocument: ['employees', 'importDocument'] as const,
+		bulkCreate: ['employees', 'bulkCreate'] as const,
+		undoBulkImport: ['employees', 'undoBulkImport'] as const,
 	},
 
 	/**

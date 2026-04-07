@@ -1,5 +1,9 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+
+mock.restore();
+
+const actualRekognitionModule = await import('../services/rekognition.js');
 
 import { errorHandlerPlugin } from '../plugins/error-handler.js';
 
@@ -68,6 +72,7 @@ mock.module('../plugins/auth.js', () => ({
 	),
 }));
 mock.module('../services/rekognition.js', () => ({
+	...actualRekognitionModule,
 	RekognitionServiceError: class RekognitionServiceError extends Error {
 		public readonly errorCode:
 			| 'REKOGNITION_INVALID_IMAGE'
@@ -100,6 +105,10 @@ mock.module('../services/rekognition.js', () => ({
 		return rekognitionMockState.result;
 	},
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 /**
  * Builds a JSON POST request for the recognition route.

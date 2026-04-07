@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { Elysia } from 'elysia';
+
+mock.restore();
 
 type DrizzleCondition =
 	| {
@@ -579,9 +581,18 @@ mock.module('../plugins/auth.js', () => ({
 	),
 }));
 mock.module('../utils/organization.js', () => ({
-	resolveOrganizationId: ({ requestedOrganizationId }: { requestedOrganizationId?: string | null }) =>
-		requestedOrganizationId ?? dbState.organizationId,
+	resolveOrganizationId: ({
+		requestedOrganizationId,
+		session,
+	}: {
+		requestedOrganizationId?: string | null;
+		session?: { activeOrganizationId?: string | null } | null;
+	}) => requestedOrganizationId ?? session?.activeOrganizationId ?? dbState.organizationId,
 }));
+
+afterAll(() => {
+	mock.restore();
+});
 
 describe('employee deduction routes', () => {
 	beforeEach(() => {

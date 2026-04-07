@@ -258,7 +258,113 @@
 		"subtitle": "Administra registros de empleados y alta de rostros",
 		"noOrganization": "Selecciona una organización activa para administrar empleados.",
 		"actions": {
-			"addEmployee": "Agregar empleado"
+			"addEmployee": "Agregar empleado",
+			"importFromDocument": "Importar desde documento"
+		},
+		"import": {
+			"badge": "Importación asistida",
+			"title": "Importar empleados desde documento",
+			"subtitle": "Configura los valores por defecto y carga uno o más documentos para analizarlos con IA.",
+			"back": "Volver a empleados",
+			"stepLabel": "Paso {index}",
+			"steps": {
+				"config": "Configuración",
+				"processing": "Procesamiento",
+				"preview": "Vista previa",
+				"results": "Resultados"
+			},
+			"config": {
+				"title": "Carga y configuración",
+				"description": "Selecciona la ubicación, el puesto y la frecuencia de pago que se aplicarán por defecto a los empleados detectados."
+			},
+			"fields": {
+				"defaultLocation": "Ubicación por defecto",
+				"defaultJobPosition": "Puesto por defecto",
+				"defaultPaymentFrequency": "Frecuencia de pago"
+			},
+			"dropzone": {
+				"title": "Arrastra archivos aquí o haz clic para seleccionar",
+				"description": "Puedes combinar imágenes y PDFs. La IA extraerá nombre, apellido y sueldo diario para revisión posterior.",
+				"supportedFormats": "JPG, PNG, HEIC, PDF · Máximo 10 MB por archivo"
+			},
+			"files": {
+				"selectedCount": "Archivos seleccionados ({count})",
+				"maxSize": "Máximo 10 MB",
+				"remove": "Quitar archivo"
+			},
+			"processing": {
+				"title": "Analizando documentos",
+				"description": "Estamos extrayendo empleados desde los archivos cargados.",
+				"fileProgress": "Procesando archivo {current} de {total}: {name}"
+			},
+			"preview": {
+				"title": "Revisa antes de importar",
+				"description": "Edita, corrige o excluye filas antes de crear los empleados en bloque.",
+				"detectedCount": "{count, plural, one {# empleado detectado} other {# empleados detectados}}",
+				"headers": {
+					"include": "Incluir",
+					"dailyPay": "Sueldo diario",
+					"status": "Estado"
+				},
+				"toggleInclude": "Incluir fila en la importación",
+				"deleteRow": "Eliminar fila",
+				"lowConfidence": "Verificar",
+				"duplicate": "Posible duplicado",
+				"ready": "Listo",
+				"errorCount": "{count, plural, one {# error} other {# errores}}",
+				"validationTitle": "Corrige los campos requeridos",
+				"validationDescription": "Las filas marcadas no se pueden importar hasta tener nombre, apellido, sueldo diario, ubicación y puesto válidos.",
+				"summary": "{count, plural, one {# fila incluida para importar} other {# filas incluidas para importar}}",
+				"warningHelp": "Los badges amarillos indican confianza baja de la IA y conviene validarlos manualmente."
+			},
+			"confirming": {
+				"title": "Creando empleados",
+				"description": "Estamos registrando los empleados seleccionados."
+			},
+			"results": {
+				"title": "Importación completada",
+				"description": "Revisa el resultado final y, si hace falta, deshaz el lote recién creado.",
+				"successTitle": "{count, plural, one {# empleado creado correctamente} other {# empleados creados correctamente}}",
+				"successDescription": "El lote quedó registrado y ya aparece en el listado de empleados.",
+				"failedTitle": "{count, plural, one {# fila falló al importarse} other {# filas fallaron al importarse}}",
+				"warningTitle": "{count, plural, one {# fila se importó con advertencias} other {# filas se importaron con advertencias}}",
+				"failedRow": "Fila {row}: {error}",
+				"warningRow": "Fila {row}: {warning}",
+				"warningMinimumWage": "Sueldo diario por debajo del salario mínimo vigente.",
+				"warningGeneric": "Advertencia de importación.",
+				"unknownError": "Error desconocido"
+			},
+			"actions": {
+				"analyze": "Analizar documentos",
+				"addFiles": "Agregar más archivos",
+				"cancel": "Cancelar",
+				"confirm": "Importar {count, plural, one {# empleado} other {# empleados}}",
+				"undo": "Deshacer importación",
+				"goToEmployees": "Ir a empleados"
+			},
+			"validation": {
+				"requiredFirstName": "El nombre es requerido.",
+				"requiredLastName": "El apellido es requerido.",
+				"requiredDailyPay": "El sueldo diario debe ser mayor a 0.",
+				"requiredLocation": "La ubicación es requerida.",
+				"requiredJobPosition": "El puesto es requerido."
+			},
+			"toast": {
+				"selectFiles": "Selecciona al menos un archivo.",
+				"selectDefaults": "Selecciona ubicación y puesto por defecto.",
+				"invalidSize": "Algunos archivos exceden el tamaño máximo permitido de 10 MB.",
+				"invalidType": "Algunos archivos no tienen un formato soportado.",
+				"duplicateFiles": "Se omitieron archivos repetidos.",
+				"importError": "No se pudieron analizar los documentos.",
+				"partialImportWarning": "{count, plural, one {# archivo no se pudo procesar; se conservaron los resultados válidos.} other {# archivos no se pudieron procesar; se conservaron los resultados válidos.}}",
+				"appendSuccess": "{count, plural, one {# fila agregada a la vista previa} other {# filas agregadas a la vista previa}}",
+				"bulkCreateError": "No se pudieron crear los empleados.",
+				"validationErrors": "Corrige los errores antes de importar.",
+				"noIncludedRows": "Incluye al menos una fila para continuar.",
+				"undoMissingBatch": "No se encontró el lote de importación.",
+				"undoError": "No se pudo deshacer la importación.",
+				"undoSuccess": "La importación se deshizo correctamente."
+			}
 		},
 		"dialog": {
 			"title": {

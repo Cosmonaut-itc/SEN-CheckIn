@@ -1,11 +1,11 @@
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 
 import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 import { buildTestRegistrationPayload, registerTestAccounts, signIn } from './helpers/auth';
+import { ensureStorageStateFile } from './storage-state';
 
 interface CreateEntityResponse {
 	data?: {
@@ -28,15 +28,16 @@ interface PlaywrightFileUpload {
 	buffer: Buffer;
 }
 
+interface EmployeeListResponse {
+	data?: Array<{
+		firstName?: string;
+		lastName?: string;
+	}>;
+}
+
 const FIXTURE_PATH = path.resolve(process.cwd(), 'e2e', 'fixtures', 'NOMINA_TEST.jpg');
 const STORAGE_STATE_PATH = path.resolve(process.cwd(), 'e2e', '.auth-state.json');
 const AI_PROCESSING_TIMEOUT = 90_000;
-
-mkdirSync(path.dirname(STORAGE_STATE_PATH), { recursive: true });
-
-if (!existsSync(STORAGE_STATE_PATH)) {
-	writeFileSync(STORAGE_STATE_PATH, JSON.stringify({ cookies: [], origins: [] }));
-}
 
 /**
  * Creates a location record for E2E setup.
@@ -107,6 +108,42 @@ function getPreviewRows(page: Page): Locator {
 }
 
 /**
+ * Escapes a raw string so it can be used safely inside a regular expression.
+ *
+ * @param value - Raw string value
+ * @returns Regex-safe string
+ */
+function escapeRegExp(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Opens a select trigger and chooses the requested option once it is available.
+ *
+ * @param page - Playwright page instance
+ * @param trigger - Select trigger locator
+ * @param optionName - Visible option text to select
+ * @returns Promise that resolves after the option is selected
+ */
+async function chooseSelectOption(
+	page: Page,
+	trigger: Locator,
+	optionName: string,
+): Promise<void> {
+	const listbox = page.getByRole('listbox').last();
+	const option = listbox.getByRole('option', {
+		name: new RegExp(`^${escapeRegExp(optionName)}$`, 'i'),
+	});
+
+	await expect(trigger).toBeVisible();
+	await trigger.click();
+	await expect(listbox).toBeVisible({ timeout: 30_000 });
+	await expect(option).toBeVisible({ timeout: 30_000 });
+	await option.click();
+	await expect(trigger).toContainText(optionName, { timeout: 15_000 });
+}
+
+/**
  * Selects the default location and job position in the import wizard.
  *
  * @param page - Playwright page instance
@@ -117,11 +154,20 @@ async function selectDefaultImportValues(
 	page: Page,
 	options: UploadPreviewOptions,
 ): Promise<void> {
-	await page.locator('#employee-import-default-location').click();
-	await page.getByRole('option', { name: new RegExp(options.locationName, 'i') }).click();
+	await expect(
+		page.getByRole('heading', { name: /importar empleados desde documento/i }),
+	).toBeVisible();
 
-	await page.locator('#employee-import-default-job-position').click();
-	await page.getByRole('option', { name: new RegExp(options.jobPositionName, 'i') }).click();
+	await chooseSelectOption(
+		page,
+		page.locator('#employee-import-default-location'),
+		options.locationName,
+	);
+	await chooseSelectOption(
+		page,
+		page.locator('#employee-import-default-job-position'),
+		options.jobPositionName,
+	);
 }
 
 /**
@@ -186,7 +232,10 @@ test.describe.serial('Employee Bulk Import', () => {
 
 	test.describe.configure({ timeout: 180_000 });
 
-	test.beforeAll(async ({ browser }) => {
+	test.beforeAll(async ({ browser }, testInfo) => {
+		testInfo.setTimeout(180_000);
+		await ensureStorageStateFile(STORAGE_STATE_PATH);
+
 		const context = await browser.newContext();
 		const page = await context.newPage();
 		const request = context.request;
@@ -222,7 +271,11 @@ test.describe.serial('Employee Bulk Import', () => {
 
 		const rowCount = await previewRows.count();
 		expect(rowCount).toBeGreaterThan(0);
-		await removePreviewRowsWithErrors(page);
+		const deletedRows = await removePreviewRowsWithErrors(page);
+		const remainingRows = Math.max(rowCount - deletedRows, 0);
+
+		await expect(previewRows).toHaveCount(remainingRows);
+		expect(remainingRows).toBeGreaterThan(0);
 
 		await page.getByRole('button', { name: /importar \d+ empleado/i }).click();
 		await expect(
@@ -257,24 +310,46 @@ test.describe.serial('Employee Bulk Import', () => {
 
 		expect(initialRowCount).toBeGreaterThan(1);
 
-		const firstRow = getPreviewRows(page).first();
-		const firstNameInput = firstRow.getByRole('textbox').first();
-		await firstNameInput.clear();
-		await firstNameInput.fill('NombreEditado');
-
 		const secondRow = getPreviewRows(page).nth(1);
 		await secondRow.getByRole('button', { name: /eliminar fila/i }).click();
 
-		await expect(getPreviewRows(page)).toHaveCount(initialRowCount - 1);
+		const remainingRowsAfterDeletion = initialRowCount - 1;
+		await expect(getPreviewRows(page)).toHaveCount(remainingRowsAfterDeletion);
+		expect(remainingRowsAfterDeletion).toBeGreaterThan(0);
 
-		const thirdRowLocationSelect = getPreviewRows(page).nth(2).getByRole('combobox').first();
-		await expect(thirdRowLocationSelect).toBeVisible();
-		await removePreviewRowsWithErrors(page);
+		const lastRemainingRow = getPreviewRows(page).last();
+		const editedFirstName = `Nombre${randomUUID().slice(0, 6)}`;
+		const editedLastName = `Apellido${randomUUID().slice(0, 6)}`;
+		const remainingFirstNameInput = lastRemainingRow.getByRole('textbox').first();
+		const lastNameInput = lastRemainingRow.getByRole('textbox').nth(1);
+		await expect(remainingFirstNameInput).toBeVisible();
+		await remainingFirstNameInput.clear();
+		await remainingFirstNameInput.fill(editedFirstName);
+		await expect(remainingFirstNameInput).toHaveValue(editedFirstName);
+		await expect(lastNameInput).toBeVisible();
+		await lastNameInput.clear();
+		await lastNameInput.fill(editedLastName);
+		await expect(lastNameInput).toHaveValue(editedLastName);
+		const deletedRows = await removePreviewRowsWithErrors(page);
+		const remainingRows = Math.max(remainingRowsAfterDeletion - deletedRows, 0);
+
+		await expect(getPreviewRows(page)).toHaveCount(remainingRows);
+		expect(remainingRows).toBeGreaterThan(0);
 
 		await page.getByRole('button', { name: /importar \d+ empleado/i }).click();
 		await expect(
 			page.getByText(/empleados? creados? correctamente/i),
 		).toBeVisible({ timeout: 30_000 });
+		const employeesPayload = (await page.evaluate(async () => {
+			const response = await fetch('/api/employees?limit=100&offset=0');
+			return await response.json();
+		})) as EmployeeListResponse;
+		expect(
+			employeesPayload.data?.some(
+				(employee) =>
+					employee.firstName === editedFirstName && employee.lastName === editedLastName,
+			),
+		).toBe(true);
 
 		await page.getByRole('button', { name: /deshacer importación/i }).click();
 		await expect(page).toHaveURL(/\/employees/, { timeout: 15_000 });

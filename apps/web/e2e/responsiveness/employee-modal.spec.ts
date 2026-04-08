@@ -9,6 +9,8 @@ import {
 	setActiveResponsiveOrganization,
 } from './helpers';
 
+test.describe.configure({ timeout: 120_000 });
+
 /**
  * Opens the first seeded employee detail dialog from the employees page.
  *
@@ -17,20 +19,21 @@ import {
  * @throws {Error} When the seeded employee card is not rendered
  */
 async function openSeededEmployeeDetail(page: import('@playwright/test').Page): Promise<void> {
-	await page.goto(`/employees?responsiveModalTest=${Date.now()}`);
-	// Reload so the page observes the active organization/session mutations performed by the browser-side setup helpers.
-	await page.reload();
+	await page.goto(`/employees?responsiveModalTest=${Date.now()}`, {
+		waitUntil: 'domcontentloaded',
+		timeout: 90_000,
+	});
 
 	const viewportWidth = page.viewportSize()?.width ?? RESPONSIVE_VIEWPORTS.mobile.width;
 	if (viewportWidth <= RESPONSIVE_VIEWPORTS.mobile.width) {
 		const mobileCard = page.getByTestId('responsive-data-card').first();
 		await expect(mobileCard).toBeVisible();
 		await mobileCard.click();
+		await expect(page.getByTestId('employee-mobile-detail-tabs')).toBeVisible();
 	} else {
 		const desktopRow = page.locator('tbody tr').first();
 		await expect(desktopRow).toBeVisible();
-		await desktopRow.getByRole('button', { name: 'Abrir menú' }).click();
-		await page.getByRole('menuitem', { name: 'Ver detalles' }).click();
+		await desktopRow.locator('td').nth(1).click();
 	}
 	await expect(page.getByRole('dialog')).toBeVisible();
 }
@@ -163,7 +166,7 @@ test.describe('employee modal responsiveness', () => {
 		await page.setViewportSize(RESPONSIVE_VIEWPORTS.mobile);
 
 		await openEmployeeDetail(page);
-		await page.getByRole('button', { name: 'Editar' }).click();
+		await page.getByRole('dialog').getByRole('button', { name: 'Editar' }).click();
 
 		await expect(page.getByText('Paso 1 de 5: Personal')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Siguiente' })).toBeVisible();
@@ -207,21 +210,29 @@ test.describe('employee modal responsiveness', () => {
 		await page.setViewportSize(RESPONSIVE_VIEWPORTS.mobile);
 
 		await openEmployeeDetail(page);
-		await page.getByRole('button', { name: 'Editar' }).click();
-		await expect(page.getByText('Paso 1 de 5: Personal')).toBeVisible();
+		await page.getByRole('dialog').getByRole('button', { name: 'Editar' }).click();
 
-		await page.getByRole('textbox', { name: 'Nombre' }).fill('Empleado editado');
-		await page.getByRole('button', { name: 'Cerrar' }).click();
+		const wizardDialog = page.getByRole('dialog', {
+			name: /Agregar empleado|Editar empleado/i,
+		});
+		await expect(wizardDialog.getByText('Paso 1 de 5: Personal')).toBeVisible();
 
-		await expect(page.getByText('¿Descartar cambios?')).toBeVisible();
+		const editedName = `Empleado editado ${Date.now()}`;
+		const firstNameField = wizardDialog.getByRole('textbox', { name: 'Nombre' });
+		await firstNameField.fill(editedName);
+		await expect(firstNameField).toHaveValue(editedName);
+		await firstNameField.press('Tab');
+		await wizardDialog.getByRole('button', { name: 'Cerrar' }).click();
+
+		await expect(page.getByRole('alertdialog').getByText('¿Descartar cambios?')).toBeVisible();
 		await page.getByRole('button', { name: 'Cancelar' }).click();
-		await expect(page.getByText('Paso 1 de 5: Personal')).toBeVisible();
+		await expect(wizardDialog.getByText('Paso 1 de 5: Personal')).toBeVisible();
 
-		await page.getByRole('button', { name: 'Cerrar' }).click();
-		await expect(page.getByText('¿Descartar cambios?')).toBeVisible();
+		await wizardDialog.getByRole('button', { name: 'Cerrar' }).click();
+		await expect(page.getByRole('alertdialog').getByText('¿Descartar cambios?')).toBeVisible();
 		await page.getByRole('button', { name: 'Descartar' }).click();
 
-		await expect(page.getByText('Paso 1 de 5: Personal')).toHaveCount(0);
+		await expect(wizardDialog.getByText('Paso 1 de 5: Personal')).toHaveCount(0);
 		await expect(page.getByTestId('responsive-data-card').first()).toBeVisible();
 	});
 

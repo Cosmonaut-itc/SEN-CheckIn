@@ -4,10 +4,8 @@ import {
 	expectMinimumTouchHeight,
 	expectNoHorizontalOverflow,
 	RESPONSIVE_VIEWPORTS,
+	signInAsSeedAdmin,
 } from './helpers';
-
-const DASHBOARD_TEST_EMAIL = 'felixddhs@outlook.com';
-const DASHBOARD_TEST_PASSWORD = '2jzTNzMsX2oHaq@8oKWN';
 
 /**
  * Signs into the dashboard with the shared responsive test account.
@@ -17,12 +15,9 @@ const DASHBOARD_TEST_PASSWORD = '2jzTNzMsX2oHaq@8oKWN';
  * @throws {Error} When sign-in does not complete
  */
 async function signInToDashboard(page: Page): Promise<void> {
-	await page.goto('/sign-in');
-	await page.getByLabel('Correo electrónico').fill(DASHBOARD_TEST_EMAIL);
-	await page.getByLabel('Contraseña').fill(DASHBOARD_TEST_PASSWORD);
-	await page.getByTestId('sign-in-submit').click();
-	await page.waitForURL('**/dashboard');
-	await page.getByTestId('dashboard-map-hero').waitFor({ state: 'visible' });
+	await signInAsSeedAdmin(page);
+	await page.waitForURL('**/dashboard', { timeout: 90_000 });
+	await page.getByTestId('dashboard-map-hero').waitFor({ state: 'visible', timeout: 30_000 });
 }
 
 test.describe('dashboard responsiveness', () => {

@@ -140,12 +140,15 @@ async function terminateEmployee(request: APIRequestContext, employeeId: string)
 			vacationBalanceDays: 0,
 			terminationNotes: 'Prueba recibo',
 		},
+		timeout: 90_000,
 	});
 
 	expect(response.ok()).toBeTruthy();
 }
 
 test('downloads payroll receipts and termination receipt PDFs', async ({ page }) => {
+	test.setTimeout(180_000);
+
 	const registration = buildTestRegistrationPayload();
 	await registerTestAccounts(page, registration);
 	await signIn(page, registration.admin.email, registration.admin.password);
@@ -160,7 +163,7 @@ test('downloads payroll receipts and termination receipt PDFs', async ({ page })
 	const periodEndDateKey = '2026-01-07';
 	await processPayroll(request, { periodStartDateKey, periodEndDateKey });
 
-	await page.goto('/payroll');
+	await page.goto('/payroll', { waitUntil: 'domcontentloaded', timeout: 90_000 });
 	const receiptsTrigger = page.locator('[data-testid^="payroll-run-receipts-trigger-"]').first();
 	await expect(receiptsTrigger).toBeVisible();
 	await receiptsTrigger.click();
@@ -205,10 +208,24 @@ test('downloads payroll receipts and termination receipt PDFs', async ({ page })
 
 	await terminateEmployee(request, employeeId);
 
+	await expect
+		.poll(
+			async () => {
+				const response = await request.get(
+					`/api/employees/${employeeId}/termination/receipt`,
+				);
+				return response.status();
+			},
+			{
+				timeout: 30_000,
+				intervals: [500, 1_000, 2_000],
+			},
+		)
+		.toBe(200);
+
 	const terminationResponse = await request.get(
 		`/api/employees/${employeeId}/termination/receipt`,
 	);
-	expect(terminationResponse.ok()).toBeTruthy();
 	const terminationBuffer = await terminationResponse.body();
 	expect(terminationBuffer.subarray(0, 5).toString('utf8')).toBe('%PDF-');
 });

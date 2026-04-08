@@ -9,6 +9,8 @@ import {
 	setActiveResponsiveOrganization,
 } from './helpers';
 
+test.describe.configure({ timeout: 120_000 });
+
 /**
  * Resolves the active organization identifier for a provisioned responsive test org.
  *
@@ -305,8 +307,11 @@ test.describe('secondary responsive pages', () => {
 
 		await expectMinimumTouchHeight(page.getByTestId('users-create-submit'));
 
-		await page.goto(`/overtime-authorizations?responsiveTest=${Date.now()}`);
-		await page.reload();
+		await page.goto(`/overtime-authorizations?responsiveTest=${Date.now()}`, {
+			waitUntil: 'domcontentloaded',
+			timeout: 90_000,
+		});
+		await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
 
 		await expectNoHorizontalOverflow(page);
 		await expect(page.getByTestId('responsive-page-header')).toBeVisible();

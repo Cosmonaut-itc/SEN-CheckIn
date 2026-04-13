@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import rawMessages from '@/messages/es.json';
 
 import { EmployeeDetailDialog, EmployeePageActions } from './employee-detail-dialog';
+import { createEmployeeFixture } from './employee-test-fixtures';
 
 const mockPush = vi.fn();
 
@@ -134,24 +135,7 @@ describe('EmployeeDetailDialog', () => {
 			<EmployeeDetailDialog
 				isOpen
 				mode="view"
-				activeEmployee={
-					{
-						id: 'emp-1',
-						firstName: 'Ada',
-						lastName: 'Lovelace',
-						code: 'EMP-001',
-						status: 'ACTIVE',
-						jobPositionName: 'Ingeniería',
-						hireDate: new Date('2024-01-10T00:00:00.000Z'),
-						email: 'ada@example.com',
-						phone: '5555555555',
-						nss: '12345678901',
-						rfc: 'LOVA900101XXX',
-						department: 'Producto',
-						userId: 'user-1',
-						shiftType: 'DIURNA',
-					} as never
-				}
+				activeEmployee={createEmployeeFixture({ id: 'emp-1' })}
 				detailTab="vacations"
 				form={{}}
 				schedule={[]}

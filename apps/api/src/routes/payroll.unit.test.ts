@@ -52,6 +52,7 @@ interface FakePayrollSettingRow {
 	vacationPremiumRate?: number;
 	realVacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
+	enableDualPayroll?: boolean;
 	autoDeductLunchBreak?: boolean;
 	lunchBreakMinutes?: number;
 	lunchBreakThresholdHours?: number;
@@ -1883,6 +1884,104 @@ describe('payroll routes', () => {
 		expect(row?.vacationPayAmount).toBe(800);
 		expect(row?.vacationPremiumAmount).toBe(200);
 		expect(row?.totalPay).toBe(1000);
+	});
+
+	it('persists separated fiscal and real vacation premium rates in dual payroll runs', async () => {
+		dbState.organizationId = 'org-vac-dual';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				enableDualPayroll: true,
+				vacationPremiumRate: 0.25,
+				realVacationPremiumRate: 0.5,
+			},
+		];
+
+		const employeeId = 'emp-vac-dual';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				fiscalDailyPay: 500,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		const requestId = 'vac-req-dual-1';
+		dbState.vacationRequests = [
+			{
+				id: requestId,
+				organizationId: dbState.organizationId,
+				employeeId,
+				status: 'APPROVED',
+				startDateKey: '2025-01-03',
+				endDateKey: '2025-01-03',
+			},
+		];
+		dbState.vacationRequestDays = [
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-01-03',
+				countsAsVacationDay: true,
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-03',
+				periodEndDateKey: '2025-01-03',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				run: {
+					id: string;
+				};
+			};
+		};
+
+		expect(typeof json.data.run.id).toBe('string');
+
+		const storedRow = dbState.payrollRunEmployees[0] as
+			| {
+					employeeId?: string;
+					vacationPayAmount?: string;
+					vacationPremiumAmount?: string;
+					totalPay?: string;
+					taxBreakdown?: {
+						grossPay?: number;
+						realCompensation?: {
+							vacationPayAmount?: number | null;
+							vacationPremiumAmount?: number | null;
+						};
+					};
+			  }
+			| undefined;
+
+		expect(storedRow?.employeeId).toBe(employeeId);
+		expect(storedRow?.vacationPayAmount).toBe('500.00');
+		expect(storedRow?.vacationPremiumAmount).toBe('125.00');
+		expect(storedRow?.totalPay).toBe('1200.00');
+		expect(storedRow?.taxBreakdown?.grossPay).toBe(625);
+		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPayAmount).toBe(800);
+		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPremiumAmount).toBe(400);
 	});
 
 	it('persists deduction snapshots and completes one-time deductions in /payroll/process', async () => {

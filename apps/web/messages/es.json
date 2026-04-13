@@ -2248,8 +2248,8 @@
 				"realVacationPremiumRate": "Define el porcentaje aplicado al pago real de la prima vacacional. Ingresa el decimal equivalente (ej. 0.25 = 25%).",
 				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
 				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
-				"enableSeventhDayPay": "Paga el séptimo día cuando el periodo semanal cumpla la regla de asistencia configurada.",
-				"countSaturdayAsWorkedForSeventhDay": "Si está activo, una jornada L-V considera el sábado como trabajado solo para determinar si corresponde pagar el séptimo día.",
+				"enableSeventhDayPay": "Habilita el pago del séptimo día cuando el periodo semanal cumpla la regla de asistencia configurada.",
+				"countSaturdayAsWorkedForSeventhDay": "Si está activo, el sábado cuenta como asistido solo cuando no forma parte del horario laborable y únicamente para evaluar si corresponde pagar el séptimo día.",
 				"enableDualPayroll": "Usa un salario fiscal menor para IMSS/ISR y conserva el pago real del empleado como complemento."
 			},
 			"dualPayroll": {

@@ -1,10 +1,17 @@
-import { type SQL, and, asc, count, desc, eq, ilike, or } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, ilike, inArray, ne, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
 import { auth, organizationHooks } from '../../utils/auth.js';
 import db from '../db/index.js';
-import { employee, employeeDeduction, member, organization, user as userTable } from '../db/schema.js';
+import {
+	employee,
+	employeeDeduction,
+	employeeGratification,
+	member,
+	organization,
+	user as userTable,
+} from '../db/schema.js';
 import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { organizationAllQuerySchema, organizationMembersQuerySchema } from '../schemas/crud.js';
@@ -308,22 +315,61 @@ async function listUserMemberships(userId: string): Promise<MembershipSnapshot[]
  * @param actorUserId - User performing the deletion
  * @returns Surviving user id or null when none is available
  */
-async function resolveDeletionFallbackUserId(
-	deletedUserId: string,
-	actorUserId: string,
-): Promise<string | null> {
-	if (deletedUserId !== actorUserId) {
-		return actorUserId;
+async function resolveDeletionFallbackUserId(args: {
+	deletedUserId: string;
+	actorUserId: string;
+	affectedOrganizationIds: string[];
+}): Promise<string | null> {
+	const organizationIds = [...new Set(args.affectedOrganizationIds)];
+
+	if (args.deletedUserId !== args.actorUserId) {
+		if (organizationIds.length === 0) {
+			return args.actorUserId;
+		}
+
+		const actorMemberships = await db
+			.select({ organizationId: member.organizationId })
+			.from(member)
+			.where(
+				and(
+					eq(member.userId, args.actorUserId),
+					inArray(member.organizationId, organizationIds),
+				),
+			);
+		if (actorMemberships.length === organizationIds.length) {
+			return args.actorUserId;
+		}
 	}
 
-	const fallbackUsers = await db
-		.select({ id: userTable.id })
-		.from(userTable)
-		.limit(20);
+	if (organizationIds.length === 0) {
+		return null;
+	}
 
-	for (const user of fallbackUsers) {
-		if (user.id !== deletedUserId) {
-			return user.id;
+	const fallbackMemberships = await db
+		.select({
+			userId: member.userId,
+			organizationId: member.organizationId,
+		})
+		.from(member)
+		.where(
+			and(
+				inArray(member.organizationId, organizationIds),
+				ne(member.userId, args.deletedUserId),
+			),
+		);
+
+	const organizationsByUserId = new Map<string, Set<string>>();
+	for (const membership of fallbackMemberships) {
+		const existingOrganizations =
+			organizationsByUserId.get(membership.userId) ?? new Set<string>();
+		existingOrganizations.add(membership.organizationId);
+		organizationsByUserId.set(membership.userId, existingOrganizations);
+	}
+
+	for (const membership of fallbackMemberships) {
+		const candidateOrganizations = organizationsByUserId.get(membership.userId);
+		if (candidateOrganizations?.size === organizationIds.length) {
+			return membership.userId;
 		}
 	}
 
@@ -1047,7 +1093,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			const memberships = await listUserMemberships(body.userId);
 			if (!isSuperUser && organizationId) {
 				const belongsToCurrentOrganization = memberships.some(
-					assignedMembership => assignedMembership.organizationId === organizationId,
+					(assignedMembership) => assignedMembership.organizationId === organizationId,
 				);
 				if (!belongsToCurrentOrganization) {
 					set.status = 404;
@@ -1057,7 +1103,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				}
 
 				const foreignMemberships = memberships.filter(
-					assignedMembership => assignedMembership.organizationId !== organizationId,
+					(assignedMembership) => assignedMembership.organizationId !== organizationId,
 				);
 				if (foreignMemberships.length > 0) {
 					set.status = 409;
@@ -1097,19 +1143,38 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				}
 			}
 
-			const deductionsCreated = await db
-				.select({ count: count() })
-				.from(employeeDeduction)
-				.where(eq(employeeDeduction.createdByUserId, body.userId));
-			const createdDeductionsCount = Number(deductionsCreated[0]?.count ?? 0);
+			const [deductionsCreated, gratificationsCreated] = await Promise.all([
+				db
+					.select({ organizationId: employeeDeduction.organizationId })
+					.from(employeeDeduction)
+					.where(eq(employeeDeduction.createdByUserId, body.userId)),
+				db
+					.select({ organizationId: employeeGratification.organizationId })
+					.from(employeeGratification)
+					.where(eq(employeeGratification.createdByUserId, body.userId)),
+			]);
+			const createdDeductionsCount = deductionsCreated.length;
+			const createdGratificationsCount = gratificationsCreated.length;
+			const hasHistoricalOwnership =
+				createdDeductionsCount > 0 || createdGratificationsCount > 0;
+			const affectedOrganizationIds = [
+				...new Set([
+					...deductionsCreated.map((row) => row.organizationId),
+					...gratificationsCreated.map((row) => row.organizationId),
+				]),
+			];
 			const fallbackUserId =
-				createdDeductionsCount > 0
-					? await resolveDeletionFallbackUserId(body.userId, session.userId)
+				hasHistoricalOwnership
+					? await resolveDeletionFallbackUserId({
+							deletedUserId: body.userId,
+							actorUserId: session.userId,
+							affectedOrganizationIds,
+						})
 					: null;
-			if (createdDeductionsCount > 0 && !fallbackUserId) {
+			if (hasHistoricalOwnership && !fallbackUserId) {
 				set.status = 409;
 				return buildErrorResponse(
-					'Cannot preserve historical deduction ownership for the user deletion',
+					'Cannot preserve historical ownership for the user deletion',
 					409,
 					{ code: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED' },
 				);
@@ -1122,7 +1187,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			await db.transaction(async (tx) => {
 				if (linkedEmployees.length > 0) {
-					await tx.update(employee).set({ userId: null }).where(eq(employee.userId, body.userId));
+					await tx
+						.update(employee)
+						.set({ userId: null })
+						.where(eq(employee.userId, body.userId));
 				}
 
 				if (createdDeductionsCount > 0 && fallbackUserId) {
@@ -1130,6 +1198,13 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						.update(employeeDeduction)
 						.set({ createdByUserId: fallbackUserId })
 						.where(eq(employeeDeduction.createdByUserId, body.userId));
+				}
+
+				if (createdGratificationsCount > 0 && fallbackUserId) {
+					await tx
+						.update(employeeGratification)
+						.set({ createdByUserId: fallbackUserId })
+						.where(eq(employeeGratification.createdByUserId, body.userId));
 				}
 
 				await tx.delete(userTable).where(eq(userTable.id, body.userId));
@@ -1142,6 +1217,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					removedMemberships: memberships.length,
 					unlinkedEmployees: linkedEmployees.length,
 					reassignedDeductions: createdDeductionsCount,
+					reassignedGratifications: createdGratificationsCount,
 				},
 			};
 		},

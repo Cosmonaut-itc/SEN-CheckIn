@@ -8,10 +8,16 @@ import '../src/utils/disable-pg-native.js';
 import {
 	employee,
 	employeeDeduction,
+	employeeGratification,
 	organization,
 	payrollRun,
 	payrollRunEmployee,
 } from '../src/db/schema.js';
+import {
+	buildGratificationRollbackPlansFromRows,
+	type GratificationRollbackPlan,
+	type PayrollRunEmployeeGratificationRow,
+} from '../src/utils/payroll-rollback.js';
 
 type CliArgs = {
 	organizationQuery: string;
@@ -484,12 +490,34 @@ async function buildDeductionRollbackPlan(runId: string): Promise<DeductionRollb
 }
 
 /**
+ * Builds gratification rollback operations from the target payroll run line items.
+ *
+ * @param runId - Payroll run that will be removed
+ * @returns Gratification rollback plan derived from persisted breakdown snapshots
+ * @throws {Error} When the persisted gratification JSON is malformed
+ */
+async function buildGratificationRollbackPlan(
+	runId: string,
+): Promise<GratificationRollbackPlan[]> {
+	const rows = await db
+		.select({
+			employeeId: payrollRunEmployee.employeeId,
+			taxBreakdown: payrollRunEmployee.taxBreakdown,
+		})
+		.from(payrollRunEmployee)
+		.where(eq(payrollRunEmployee.payrollRunId, runId));
+
+	return buildGratificationRollbackPlansFromRows(rows as PayrollRunEmployeeGratificationRow[]);
+}
+
+/**
  * Prints a dry-run summary before any destructive mutation happens.
  *
  * @param organizationRecord - Organization selected for the rollback
  * @param targetRun - Payroll run that would be removed
  * @param employeePlans - Planned employee `last_payroll_date` updates
  * @param deductionPlans - Planned deduction state rollbacks
+ * @param gratificationPlans - Planned gratification state rollbacks
  * @returns Nothing
  */
 function printDryRunSummary(
@@ -497,6 +525,7 @@ function printDryRunSummary(
 	targetRun: TargetPayrollRun,
 	employeePlans: EmployeeRollbackPlan[],
 	deductionPlans: DeductionRollbackPlan[],
+	gratificationPlans: GratificationRollbackPlan[],
 ): void {
 	console.log('DRY RUN: no changes were applied.');
 	console.log(
@@ -534,6 +563,13 @@ function printDryRunSummary(
 					remainingAmountBefore: plan.remainingAmountBefore,
 					remainingAmountAfter: plan.remainingAmountAfter,
 				})),
+				gratificationUpdates: gratificationPlans.map((plan) => ({
+					gratificationId: plan.gratificationId,
+					employeeId: plan.employeeId,
+					statusBefore: plan.statusBefore,
+					statusAfter: plan.statusAfter,
+					sourceAmount: plan.sourceAmount,
+				})),
 			},
 			null,
 			2,
@@ -548,6 +584,7 @@ function printDryRunSummary(
  * @param targetRun - Payroll run that will be removed
  * @param employeePlans - Planned employee `last_payroll_date` updates
  * @param deductionPlans - Planned deduction state rollbacks
+ * @param gratificationPlans - Planned gratification state rollbacks
  * @returns Summary of applied mutations
  * @throws {Error} When current database state no longer matches the planned rollback
  */
@@ -555,7 +592,13 @@ async function applyRollback(
 	targetRun: TargetPayrollRun,
 	employeePlans: EmployeeRollbackPlan[],
 	deductionPlans: DeductionRollbackPlan[],
-): Promise<{ deletedRuns: number; updatedEmployees: number; updatedDeductions: number }> {
+	gratificationPlans: GratificationRollbackPlan[],
+): Promise<{
+	deletedRuns: number;
+	updatedEmployees: number;
+	updatedDeductions: number;
+	updatedGratifications: number;
+}> {
 	return db.transaction(async (tx) => {
 		if (deductionPlans.length > 0) {
 			const deductionIds = deductionPlans.map((plan) => plan.deductionId);
@@ -607,6 +650,44 @@ async function applyRollback(
 			}
 		}
 
+		if (gratificationPlans.length > 0) {
+			const gratificationIds = gratificationPlans.map((plan) => plan.gratificationId);
+			const currentGratifications = await tx
+				.select({
+					id: employeeGratification.id,
+					status: employeeGratification.status,
+					amount: employeeGratification.amount,
+					periodicity: employeeGratification.periodicity,
+					applicationMode: employeeGratification.applicationMode,
+					startDateKey: employeeGratification.startDateKey,
+					endDateKey: employeeGratification.endDateKey,
+				})
+				.from(employeeGratification)
+				.where(inArray(employeeGratification.id, gratificationIds));
+
+			const currentById = new Map(currentGratifications.map((row) => [row.id, row]));
+			for (const plan of gratificationPlans) {
+				const current = currentById.get(plan.gratificationId);
+				if (!current) {
+					throw new Error(`Gratification "${plan.gratificationId}" no longer exists.`);
+				}
+
+				const currentAmount = normalizeDatabaseMoney(current.amount);
+				if (
+					current.status !== plan.statusAfter ||
+					currentAmount !== plan.sourceAmount ||
+					current.periodicity !== plan.periodicity ||
+					current.applicationMode !== plan.applicationMode ||
+					current.startDateKey !== plan.sourceStartDateKey ||
+					current.endDateKey !== plan.sourceEndDateKey
+				) {
+					throw new Error(
+						`Gratification "${plan.gratificationId}" changed since the dry run. Aborting rollback.`,
+					);
+				}
+			}
+		}
+
 		let updatedEmployees = 0;
 		for (const plan of employeePlans) {
 			await tx
@@ -635,6 +716,23 @@ async function applyRollback(
 			updatedDeductions += 1;
 		}
 
+		let updatedGratifications = 0;
+		for (const plan of gratificationPlans) {
+			const updatedRows = await tx
+				.update(employeeGratification)
+				.set({
+					status: plan.statusBefore,
+				})
+				.where(eq(employeeGratification.id, plan.gratificationId))
+				.returning({ id: employeeGratification.id });
+
+			if (updatedRows.length !== 1) {
+				throw new Error(`Failed to rollback gratification "${plan.gratificationId}".`);
+			}
+
+			updatedGratifications += 1;
+		}
+
 		const deletedRuns = await tx
 			.delete(payrollRun)
 			.where(eq(payrollRun.id, targetRun.id))
@@ -648,6 +746,7 @@ async function applyRollback(
 			deletedRuns: deletedRuns.length,
 			updatedEmployees,
 			updatedDeductions,
+			updatedGratifications,
 		};
 	});
 }
@@ -668,13 +767,25 @@ async function main(): Promise<void> {
 	const targetRun = await resolveTargetPayrollRun(args, organizationRecord.id);
 	const employeePlans = await buildEmployeeRollbackPlan(targetRun.id);
 	const deductionPlans = await buildDeductionRollbackPlan(targetRun.id);
+	const gratificationPlans = await buildGratificationRollbackPlan(targetRun.id);
 
 	if (!args.apply) {
-		printDryRunSummary(organizationRecord, targetRun, employeePlans, deductionPlans);
+		printDryRunSummary(
+			organizationRecord,
+			targetRun,
+			employeePlans,
+			deductionPlans,
+			gratificationPlans,
+		);
 		return;
 	}
 
-	const result = await applyRollback(targetRun, employeePlans, deductionPlans);
+	const result = await applyRollback(
+		targetRun,
+		employeePlans,
+		deductionPlans,
+		gratificationPlans,
+	);
 	console.log(
 		JSON.stringify(
 			{

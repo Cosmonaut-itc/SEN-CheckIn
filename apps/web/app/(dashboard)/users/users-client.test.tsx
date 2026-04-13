@@ -23,48 +23,7 @@ const mockToastError = vi.fn();
 const mockRouterRefresh = vi.fn();
 
 vi.mock('next-intl', async () => {
-	const rawIntlMessages = await import('@/messages/es.json');
-	const intlMessages =
-		(rawIntlMessages as unknown as { default?: typeof rawMessages }).default ?? rawIntlMessages;
-
-	/**
-	 * Resolves a dot-notated translation path from the Spanish test messages.
-	 *
-	 * @param path - Translation namespace and key path
-	 * @returns Localized string when found, otherwise the original path
-	 */
-	function resolveTranslation(path: string): string {
-		const resolved = path
-			.split('.')
-			.reduce<unknown>(
-				(currentValue, segment) =>
-					currentValue && typeof currentValue === 'object' && segment in currentValue
-						? (currentValue as Record<string, unknown>)[segment]
-						: undefined,
-				intlMessages,
-			);
-
-		return typeof resolved === 'string' ? resolved : path;
-	}
-
-	return {
-		NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
-		useTranslations:
-			(namespace: string) =>
-			(key: string, values?: Record<string, string | number>): string => {
-				const localizedMessage = resolveTranslation(`${namespace}.${key}`);
-
-				if (!values) {
-					return localizedMessage;
-				}
-
-				return Object.entries(values).reduce(
-					(currentMessage, [placeholder, value]) =>
-						currentMessage.replace(`{${placeholder}}`, String(value)),
-					localizedMessage,
-				);
-			},
-	};
+	return import('@/lib/test-utils/next-intl');
 });
 
 vi.mock('next/navigation', () => ({

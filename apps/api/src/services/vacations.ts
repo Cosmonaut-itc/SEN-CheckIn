@@ -1,5 +1,3 @@
-import { format } from 'date-fns';
-
 import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { getMexicoMandatoryRestDayKeysForYear } from '../utils/mexico-mandatory-rest-days.js';
 import { getVacationDaysForYears } from './mexico-payroll-taxes.js';
@@ -257,7 +255,7 @@ export function buildMandatoryRestDayKeys(
 	return restDays;
 }
 
-const MAX_VACATION_RANGE_DAYS = 366;
+export const MAX_VACATION_RANGE_DAYS = 366;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -269,18 +267,16 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
  * @throws RangeError When the range is invalid or exceeds supported limits
  */
 function getValidatedRangeDays(startDateKey: string, endDateKey: string): number {
-	const startDate = new Date(`${startDateKey}T00:00:00Z`);
-	const endDate = new Date(`${endDateKey}T00:00:00Z`);
+	const startParts = parseDateKey(startDateKey);
+	const endParts = parseDateKey(endDateKey);
+	const startDate = Date.UTC(startParts.year, startParts.month - 1, startParts.day);
+	const endDate = Date.UTC(endParts.year, endParts.month - 1, endParts.day);
 
-	if (
-		Number.isNaN(startDate.getTime()) ||
-		Number.isNaN(endDate.getTime()) ||
-		endDate < startDate
-	) {
+	if (endDate < startDate) {
 		throw new RangeError('Invalid vacation date range');
 	}
 
-	const diffDays = Math.floor((endDate.getTime() - startDate.getTime()) / MS_PER_DAY) + 1;
+	const diffDays = Math.floor((endDate - startDate) / MS_PER_DAY) + 1;
 	if (diffDays > MAX_VACATION_RANGE_DAYS) {
 		throw new RangeError(`Vacation date range exceeds ${MAX_VACATION_RANGE_DAYS} days`);
 	}
@@ -320,7 +316,7 @@ export function buildVacationDayBreakdown(args: {
 
 	const exceptionMap = new Map<string, VacationScheduleExceptionType>();
 	for (const exception of exceptions) {
-		const key = format(exception.exceptionDate, 'yyyy-MM-dd');
+		const key = toDateKeyUtc(exception.exceptionDate);
 		exceptionMap.set(key, exception.exceptionType);
 	}
 

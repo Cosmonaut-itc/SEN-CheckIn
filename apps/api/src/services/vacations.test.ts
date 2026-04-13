@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+	MAX_VACATION_RANGE_DAYS,
 	buildVacationDayBreakdown,
 	calculateAvailableVacationDays,
 	calculateVacationAccrual,
 	getServiceYearNumber,
 } from './vacations.js';
+import { vacationRequestCreateSchema } from '../schemas/vacations.js';
+import { addDaysToDateKey } from '../utils/date-key.js';
 
 describe('vacations accrual', () => {
 	const hireDate = new Date('2025-01-01T00:00:00Z');
@@ -214,5 +217,85 @@ describe('buildVacationDayBreakdown', () => {
 		expect(breakdown.days[0]?.countsAsVacationDay).toBe(true);
 		expect(breakdown.days[1]?.dayType).toBe('EXCEPTION_DAY_OFF');
 		expect(breakdown.days[1]?.countsAsVacationDay).toBe(false);
+	});
+
+	it('keeps exception, holiday, and incapacity keys aligned to the requested UTC range', () => {
+		const breakdown = buildVacationDayBreakdown({
+			startDateKey: '2026-03-09',
+			endDateKey: '2026-03-13',
+			scheduleDays: [
+				{ dayOfWeek: 1, isWorkingDay: true },
+				{ dayOfWeek: 2, isWorkingDay: true },
+				{ dayOfWeek: 3, isWorkingDay: true },
+				{ dayOfWeek: 4, isWorkingDay: true },
+				{ dayOfWeek: 5, isWorkingDay: true },
+			],
+			exceptions: [
+				{
+					exceptionDate: new Date('2026-03-13T00:00:00Z'),
+					exceptionType: 'DAY_OFF',
+				},
+			],
+			mandatoryRestDayKeys: new Set(['2026-03-10']),
+			incapacityDateKeys: new Set(['2026-03-12']),
+			hireDate: new Date('2020-01-01T00:00:00Z'),
+		});
+
+		expect(breakdown.vacationDays).toBe(2);
+		expect(
+			breakdown.days.map((day) => ({
+				dateKey: day.dateKey,
+				countsAsVacationDay: day.countsAsVacationDay,
+				dayType: day.dayType,
+			})),
+		).toEqual([
+			{
+				dateKey: '2026-03-09',
+				countsAsVacationDay: true,
+				dayType: 'SCHEDULED_WORKDAY',
+			},
+			{
+				dateKey: '2026-03-10',
+				countsAsVacationDay: false,
+				dayType: 'MANDATORY_REST_DAY',
+			},
+			{
+				dateKey: '2026-03-11',
+				countsAsVacationDay: true,
+				dayType: 'SCHEDULED_WORKDAY',
+			},
+			{
+				dateKey: '2026-03-12',
+				countsAsVacationDay: false,
+				dayType: 'INCAPACITY',
+			},
+			{
+				dateKey: '2026-03-13',
+				countsAsVacationDay: false,
+				dayType: 'EXCEPTION_DAY_OFF',
+			},
+		]);
+	});
+});
+
+describe('vacation request schema', () => {
+	it('rejects ranges that exceed the supported vacation engine limit', () => {
+		const startDateKey = '2030-01-01';
+		const result = vacationRequestCreateSchema.safeParse({
+			startDateKey,
+			endDateKey: addDaysToDateKey(startDateKey, MAX_VACATION_RANGE_DAYS),
+		});
+
+		expect(result.success).toBe(false);
+		if (result.success) {
+			throw new Error('Expected vacation request schema validation to fail.');
+		}
+
+		expect(result.error.issues).toContainEqual(
+			expect.objectContaining({
+				path: ['endDateKey'],
+				message: `Vacation range exceeds ${MAX_VACATION_RANGE_DAYS} days`,
+			}),
+		);
 	});
 });

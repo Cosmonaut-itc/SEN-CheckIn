@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { EmployeeGratification } from '@/lib/client-functions';
 import { OrgProvider } from '@/lib/org-client-context';
 import { queryKeys } from '@/lib/query-keys';
 
@@ -202,6 +203,35 @@ function buildEmployee(
 		shiftType: 'DIURNA',
 		createdAt: new Date('2026-01-01T00:00:00.000Z'),
 		updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+	};
+}
+
+/**
+ * Builds a gratification fixture for organization table tests.
+ *
+ * @param overrides - Per-test gratification overrides
+ * @returns Gratification payload fixture
+ */
+function buildGratification(
+	overrides: Partial<EmployeeGratification> = {},
+): EmployeeGratification {
+	return {
+		id: 'grat-1',
+		organizationId: 'org-1',
+		employeeId: 'emp-1',
+		employeeName: 'Ada Lovelace',
+		concept: 'Cumpleaños',
+		amount: 500,
+		periodicity: 'ONE_TIME',
+		applicationMode: 'MANUAL',
+		status: 'ACTIVE',
+		startDateKey: '2026-04-01',
+		endDateKey: null,
+		notes: 'Bono especial',
+		createdByUserId: 'user-1',
+		createdAt: new Date('2026-04-01T00:00:00.000Z'),
+		updatedAt: new Date('2026-04-01T00:00:00.000Z'),
+		...overrides,
 	};
 }
 
@@ -407,6 +437,104 @@ describe('EmployeeGratificationsManager', () => {
 				expect.anything(),
 			);
 		});
+	});
+
+	it('returns to the first page when the current page becomes out of range after a cancellation', async () => {
+		let hasShrunkToSinglePage = false;
+
+		mockFetchOrganizationGratificationsList.mockImplementation(async (params) => {
+			if (params.offset === 20) {
+				return hasShrunkToSinglePage
+					? {
+							data: [],
+							pagination: {
+								total: 1,
+								limit: 20,
+								offset: 20,
+							},
+						}
+					: {
+							data: [
+								buildGratification({
+									id: 'grat-last',
+									concept: 'Ultima gratificacion',
+								}),
+							],
+							pagination: {
+								total: 21,
+								limit: 20,
+								offset: 20,
+							},
+						};
+			}
+
+			return {
+				data: [
+					buildGratification({
+						id: 'grat-survivor',
+						concept: 'Gratificacion vigente',
+					}),
+				],
+				pagination: {
+					total: hasShrunkToSinglePage ? 1 : 21,
+					limit: 20,
+					offset: 0,
+				},
+			};
+		});
+
+		mockCancelEmployeeGratificationAction.mockImplementation(async () => {
+			hasShrunkToSinglePage = true;
+			return {
+				success: true,
+				data: null,
+			};
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('Gratificacion vigente')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'next' }));
+
+		await waitFor(() => {
+			expect(mockFetchOrganizationGratificationsList).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					offset: 20,
+				}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText('Ultima gratificacion')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'actions.cancel' }));
+		fireEvent.click(screen.getByRole('button', { name: 'cancelDialog.confirm' }));
+
+		await waitFor(() => {
+			expect(mockCancelEmployeeGratificationAction).toHaveBeenCalledWith(
+				{
+					employeeId: 'emp-1',
+					id: 'grat-last',
+					organizationId: 'org-1',
+				},
+				expect.anything(),
+			);
+		});
+
+		await waitFor(() => {
+			expect(mockFetchOrganizationGratificationsList).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					offset: 0,
+				}),
+			);
+		});
+
+		expect(screen.getByText('Gratificacion vigente')).toBeInTheDocument();
+		expect(screen.queryByRole('button', { name: 'next' })).not.toBeInTheDocument();
 	});
 
 	it('loads employees beyond the first employees page into organization selectors', async () => {

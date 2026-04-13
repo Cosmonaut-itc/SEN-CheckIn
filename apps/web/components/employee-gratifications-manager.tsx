@@ -13,7 +13,7 @@ import {
 	XCircle,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -714,6 +714,19 @@ export function EmployeeGratificationsManager({
 	}
 
 	const totalPages = Math.max(1, Math.ceil(pagination.total / Math.max(pagination.limit, 1)));
+
+	useEffect(() => {
+		if (isEmployeeMode || organizationGratificationsQuery.isFetching) {
+			return;
+		}
+
+		const lastAvailablePageIndex = totalPages - 1;
+		if (pageIndex > lastAvailablePageIndex) {
+			// Keep pagination state aligned with server totals after list-shrinking mutations.
+			// eslint-disable-next-line react-hooks/set-state-in-effect
+			setPageIndex(lastAvailablePageIndex);
+		}
+	}, [isEmployeeMode, organizationGratificationsQuery.isFetching, pageIndex, totalPages]);
 
 	return (
 		<div className="space-y-5">

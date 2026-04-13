@@ -4,7 +4,14 @@ import { z } from 'zod';
 
 import { auth, organizationHooks } from '../../utils/auth.js';
 import db from '../db/index.js';
-import { employee, employeeDeduction, member, organization, user as userTable } from '../db/schema.js';
+import {
+	employee,
+	employeeDeduction,
+	employeeGratification,
+	member,
+	organization,
+	user as userTable,
+} from '../db/schema.js';
 import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { organizationAllQuerySchema, organizationMembersQuerySchema } from '../schemas/crud.js';
@@ -316,10 +323,7 @@ async function resolveDeletionFallbackUserId(
 		return actorUserId;
 	}
 
-	const fallbackUsers = await db
-		.select({ id: userTable.id })
-		.from(userTable)
-		.limit(20);
+	const fallbackUsers = await db.select({ id: userTable.id }).from(userTable).limit(20);
 
 	for (const user of fallbackUsers) {
 		if (user.id !== deletedUserId) {
@@ -1047,7 +1051,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 			const memberships = await listUserMemberships(body.userId);
 			if (!isSuperUser && organizationId) {
 				const belongsToCurrentOrganization = memberships.some(
-					assignedMembership => assignedMembership.organizationId === organizationId,
+					(assignedMembership) => assignedMembership.organizationId === organizationId,
 				);
 				if (!belongsToCurrentOrganization) {
 					set.status = 404;
@@ -1057,7 +1061,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				}
 
 				const foreignMemberships = memberships.filter(
-					assignedMembership => assignedMembership.organizationId !== organizationId,
+					(assignedMembership) => assignedMembership.organizationId !== organizationId,
 				);
 				if (foreignMemberships.length > 0) {
 					set.status = 409;
@@ -1102,14 +1106,19 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				.from(employeeDeduction)
 				.where(eq(employeeDeduction.createdByUserId, body.userId));
 			const createdDeductionsCount = Number(deductionsCreated[0]?.count ?? 0);
+			const gratificationsCreated = await db
+				.select({ count: count() })
+				.from(employeeGratification)
+				.where(eq(employeeGratification.createdByUserId, body.userId));
+			const createdGratificationsCount = Number(gratificationsCreated[0]?.count ?? 0);
 			const fallbackUserId =
-				createdDeductionsCount > 0
+				createdDeductionsCount > 0 || createdGratificationsCount > 0
 					? await resolveDeletionFallbackUserId(body.userId, session.userId)
 					: null;
-			if (createdDeductionsCount > 0 && !fallbackUserId) {
+			if ((createdDeductionsCount > 0 || createdGratificationsCount > 0) && !fallbackUserId) {
 				set.status = 409;
 				return buildErrorResponse(
-					'Cannot preserve historical deduction ownership for the user deletion',
+					'Cannot preserve historical ownership records for the user deletion',
 					409,
 					{ code: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED' },
 				);
@@ -1122,7 +1131,10 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 
 			await db.transaction(async (tx) => {
 				if (linkedEmployees.length > 0) {
-					await tx.update(employee).set({ userId: null }).where(eq(employee.userId, body.userId));
+					await tx
+						.update(employee)
+						.set({ userId: null })
+						.where(eq(employee.userId, body.userId));
 				}
 
 				if (createdDeductionsCount > 0 && fallbackUserId) {
@@ -1130,6 +1142,13 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 						.update(employeeDeduction)
 						.set({ createdByUserId: fallbackUserId })
 						.where(eq(employeeDeduction.createdByUserId, body.userId));
+				}
+
+				if (createdGratificationsCount > 0 && fallbackUserId) {
+					await tx
+						.update(employeeGratification)
+						.set({ createdByUserId: fallbackUserId })
+						.where(eq(employeeGratification.createdByUserId, body.userId));
 				}
 
 				await tx.delete(userTable).where(eq(userTable.id, body.userId));
@@ -1142,6 +1161,7 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 					removedMemberships: memberships.length,
 					unlinkedEmployees: linkedEmployees.length,
 					reassignedDeductions: createdDeductionsCount,
+					reassignedGratifications: createdGratificationsCount,
 				},
 			};
 		},

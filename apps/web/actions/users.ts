@@ -596,12 +596,12 @@ export async function updateOrganizationMemberRole(
 ): Promise<
 	MutationResult<
 		{
-		member?: {
-			id: string;
-			organizationId: string;
-			role: string;
-			userId: string;
-		} | null;
+			member?: {
+				id: string;
+				organizationId: string;
+				role: string;
+				userId: string;
+			} | null;
 		},
 		UpdateOrganizationMemberRoleErrorCode
 	>
@@ -651,14 +651,13 @@ export async function updateOrganizationMemberRole(
  * @param input - Target user deletion payload
  * @returns Mutation result with impact summary when deletion succeeds
  */
-export async function deleteGlobalUser(
-	input: DeleteGlobalUserInput,
-): Promise<
+export async function deleteGlobalUser(input: DeleteGlobalUserInput): Promise<
 	MutationResult<
 		{
 			removedMemberships: number;
 			unlinkedEmployees: number;
 			reassignedDeductions: number;
+			reassignedGratifications: number;
 		},
 		DeleteGlobalUserErrorCode
 	>
@@ -695,6 +694,7 @@ export async function deleteGlobalUser(
 				removedMemberships: Number(payload?.data?.removedMemberships ?? 0),
 				unlinkedEmployees: Number(payload?.data?.unlinkedEmployees ?? 0),
 				reassignedDeductions: Number(payload?.data?.reassignedDeductions ?? 0),
+				reassignedGratifications: Number(payload?.data?.reassignedGratifications ?? 0),
 			},
 		};
 	} catch (error) {

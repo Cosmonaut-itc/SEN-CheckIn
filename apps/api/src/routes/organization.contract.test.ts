@@ -4,7 +4,13 @@ import { eq } from 'drizzle-orm';
 import { parseSetCookieHeader } from 'better-auth/cookies';
 
 import db from '../db/index.js';
-import { employee, member, organization, user as userTable } from '../db/schema.js';
+import {
+	employee,
+	employeeGratification,
+	member,
+	organization,
+	user as userTable,
+} from '../db/schema.js';
 
 import {
 	createTestClient,
@@ -525,5 +531,58 @@ describe('organization routes (contract)', () => {
 		expect(response.status).toBe(409);
 		const errorPayload = requireErrorResponse(response, 'last admin protected');
 		expect(errorPayload.error.code).toBe('LAST_ADMIN_OR_OWNER_PROTECTED');
+	});
+
+	it('reassigns authored gratifications before deleting the global user', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const targetEmail = `grat-delete.${suffix}@example.com`;
+		const targetUserId = await createMembershipUser(targetEmail, `grat_delete_${suffix}`);
+		await createMembership(targetUserId, seed.organizationId, 'member');
+
+		const employeeId = randomUUID();
+		await db.insert(employee).values({
+			id: employeeId,
+			code: `GRAT-${suffix}`,
+			firstName: 'Usuario',
+			lastName: 'Gratificacion',
+			organizationId: seed.organizationId,
+			userId: targetUserId,
+			dailyPay: '500',
+		});
+
+		const gratificationId = randomUUID();
+		await db.insert(employeeGratification).values({
+			id: gratificationId,
+			organizationId: seed.organizationId,
+			employeeId,
+			concept: 'Cumpleaños',
+			amount: '350.00',
+			periodicity: 'ONE_TIME',
+			applicationMode: 'MANUAL',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			notes: 'Prueba de borrado global',
+			createdByUserId: targetUserId,
+		});
+
+		const response = await client.organization['delete-user-global'].post({
+			userId: targetUserId,
+			organizationId: seed.organizationId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.success).toBe(true);
+		expect(payload.data?.reassignedGratifications).toBe(1);
+
+		const gratificationRows = await db
+			.select({ createdByUserId: employeeGratification.createdByUserId })
+			.from(employeeGratification)
+			.where(eq(employeeGratification.id, gratificationId))
+			.limit(1);
+		expect(gratificationRows[0]?.createdByUserId).not.toBe(targetUserId);
+		expect(gratificationRows[0]?.createdByUserId).toBe(adminSession.userId);
 	});
 });

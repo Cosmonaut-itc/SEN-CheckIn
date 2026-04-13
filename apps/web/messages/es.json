@@ -3045,7 +3045,7 @@
 		"dialogs": {
 			"delete": {
 				"title": "Borrar usuario",
-				"description": "¿Seguro que deseas borrar globalmente a {name}? Se eliminarán sus accesos y membresías, pero se conservará el historial operativo."
+				"description": "¿Seguro que deseas borrar globalmente a {name}? Se eliminarán sus accesos y membresías, se conservará el empleado ligado y se preservará el historial operativo."
 			}
 		},
 		"roleEditor": {

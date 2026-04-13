@@ -155,7 +155,10 @@ describe('UsersPageClient', () => {
 		mockToastSuccess.mockReset();
 		mockToastError.mockReset();
 		mockRouterRefresh.mockReset();
-		vi.stubGlobal('confirm', vi.fn(() => true));
+		vi.stubGlobal(
+			'confirm',
+			vi.fn(() => true),
+		);
 
 		mockUseSession.mockReturnValue({
 			data: {
@@ -464,9 +467,7 @@ describe('UsersPageClient', () => {
 				screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
 			).toHaveTextContent('Miembro');
 		});
-		expect(
-			screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
-		).toBeDisabled();
+		expect(screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' })).toBeDisabled();
 		expect(screen.getByTestId('users-create-button')).toBeDisabled();
 	});
@@ -528,7 +529,7 @@ describe('UsersPageClient', () => {
 
 		await waitFor(() => {
 			expect(globalThis.confirm).toHaveBeenCalledWith(
-				'¿Seguro que deseas borrar globalmente a Ana Miembro? Se eliminarán sus accesos y membresías, pero se conservará el historial operativo.',
+				'¿Seguro que deseas borrar globalmente a Ana Miembro? Se eliminarán sus accesos y membresías, se conservará el empleado ligado y se preservará el historial operativo.',
 			);
 		});
 		await waitFor(() => {
@@ -627,9 +628,7 @@ describe('UsersPageClient', () => {
 				screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
 			).toHaveTextContent('Miembro');
 		});
-		expect(
-			screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }),
-		).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' })).toBeDisabled();
 	});
 
 	it('surfaces member query failures instead of showing a silent empty state', async () => {

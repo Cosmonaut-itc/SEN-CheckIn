@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
 import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
+import { MAX_VACATION_RANGE_DAYS } from '../services/vacations.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -120,7 +121,7 @@ describe('vacation routes (contract)', () => {
 		const startDateKey = '2030-01-01';
 		const response = await client.vacations.me.requests.post({
 			startDateKey,
-			endDateKey: addDaysToDateKey(startDateKey, 366),
+			endDateKey: addDaysToDateKey(startDateKey, MAX_VACATION_RANGE_DAYS),
 			requestedNotes: 'Rango invalido',
 			$headers: { cookie: userSession.cookieHeader },
 		});

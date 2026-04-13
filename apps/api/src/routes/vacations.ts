@@ -1,4 +1,3 @@
-import { format } from 'date-fns';
 import { and, eq, gte, lte, ne, type SQL } from 'drizzle-orm';
 import { inArray } from 'drizzle-orm/sql';
 import { Elysia } from 'elysia';
@@ -20,7 +19,7 @@ import type { AuthSession } from '../plugins/auth.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { idParamSchema } from '../schemas/crud.js';
-import { addDaysToDateKey, parseDateKey } from '../utils/date-key.js';
+import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import {
 	vacationRequestCreateSchema,
 	vacationRequestDecisionSchema,
@@ -1405,14 +1404,14 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 						'Schedule exceptions already exist for the requested dates',
 						409,
 						{
-							code: 'SCHEDULE_EXCEPTION_CONFLICT',
-							details: {
-								conflicts: existingExceptions.map((row) =>
-									format(row.exceptionDate, 'yyyy-MM-dd'),
-								),
+								code: 'SCHEDULE_EXCEPTION_CONFLICT',
+								details: {
+									conflicts: existingExceptions.map((row) =>
+										toDateKeyUtc(row.exceptionDate),
+									),
+								},
 							},
-						},
-					);
+						);
 				}
 			}
 

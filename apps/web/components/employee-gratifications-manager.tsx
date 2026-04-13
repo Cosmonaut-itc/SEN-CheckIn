@@ -1086,7 +1086,7 @@ export function EmployeeGratificationsManager({
 						<p className="text-sm text-muted-foreground">{t('table.description')}</p>
 					</div>
 					<p className="text-xs text-muted-foreground">
-						{t('table.visibleCount', { count: pagination.total })}
+						{t('table.visibleCount', { count: gratificationRows.length })}
 					</p>
 				</div>
 				<div className="overflow-x-auto">

@@ -20,6 +20,9 @@ vi.mock('next-intl', () => ({
 		if (key === 'pagination.summary') {
 			return `${values?.current ?? 0}/${values?.total ?? 0}/${values?.count ?? 0}`;
 		}
+		if (key === 'table.visibleCount') {
+			return `table.visibleCount:${values?.count ?? 0}`;
+		}
 		return key;
 	},
 }));
@@ -362,6 +365,17 @@ describe('EmployeeGratificationsManager', () => {
 		expect(screen.getByText('summary.activeAmountVisible')).toBeInTheDocument();
 		expect(screen.getByText('summary.automaticVisible')).toBeInTheDocument();
 		expect(screen.getByText('summary.manualVisible')).toBeInTheDocument();
+	});
+
+	it('shows the number of visible rows instead of the total paginated count', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('Cumpleaños')).toBeInTheDocument();
+		});
+
+		expect(screen.getByText('table.visibleCount:2')).toBeInTheDocument();
+		expect(screen.queryByText('table.visibleCount:21')).not.toBeInTheDocument();
 	});
 
 	it('asks for confirmation before cancelling a gratification', async () => {

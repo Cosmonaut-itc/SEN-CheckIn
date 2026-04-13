@@ -6,6 +6,7 @@ import { parseSetCookieHeader } from 'better-auth/cookies';
 import db from '../db/index.js';
 import {
 	employee,
+	employeeDeduction,
 	employeeGratification,
 	member,
 	organization,
@@ -486,6 +487,45 @@ describe('organization routes (contract)', () => {
 			dailyPay: '0',
 		});
 
+		const deductionId = randomUUID();
+		await db.insert(employeeDeduction).values({
+			id: deductionId,
+			organizationId: seed.organizationId,
+			employeeId,
+			type: 'INFONAVIT',
+			label: 'Descuento de prueba',
+			calculationMethod: 'FIXED_AMOUNT',
+			value: '250.00',
+			frequency: 'ONE_TIME',
+			totalInstallments: null,
+			completedInstallments: 0,
+			totalAmount: '250.00',
+			remainingAmount: '250.00',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			referenceNumber: null,
+			satDeductionCode: null,
+			notes: null,
+			createdByUserId: targetUserId,
+		});
+
+		const gratificationId = randomUUID();
+		await db.insert(employeeGratification).values({
+			id: gratificationId,
+			organizationId: seed.organizationId,
+			employeeId,
+			concept: 'Bono de prueba',
+			amount: '1250.00',
+			periodicity: 'ONE_TIME',
+			applicationMode: 'MANUAL',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			notes: null,
+			createdByUserId: targetUserId,
+		});
+
 		const response = await client.organization['delete-user-global'].post({
 			userId: targetUserId,
 			organizationId: seed.organizationId,
@@ -511,6 +551,216 @@ describe('organization routes (contract)', () => {
 			.where(eq(employee.id, employeeId))
 			.limit(1);
 		expect(employeeRows[0]?.userId).toBeNull();
+
+		const deductionRows = await db
+			.select({ createdByUserId: employeeDeduction.createdByUserId })
+			.from(employeeDeduction)
+			.where(eq(employeeDeduction.id, deductionId))
+			.limit(1);
+		expect(deductionRows[0]?.createdByUserId).toBe(adminSession.userId);
+
+		const gratificationRows = await db
+			.select({ createdByUserId: employeeGratification.createdByUserId })
+			.from(employeeGratification)
+			.where(eq(employeeGratification.id, gratificationId))
+			.limit(1);
+		expect(gratificationRows[0]?.createdByUserId).toBe(adminSession.userId);
+	});
+
+	it('reassigns self-deletion audit ownership to a user in the same organization', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const targetOrganizationId = await createTestOrganization(`fallback-${suffix}`);
+		const foreignOrganizationId = await createTestOrganization(`foreign-${suffix}`);
+		const ownerEmail = `fallback-owner.${suffix}@example.com`;
+		const ownerUsername = `fallback_owner_${suffix}`;
+		const ownerUserId = await createMembershipUser(ownerEmail, ownerUsername);
+		await createMembership(ownerUserId, targetOrganizationId, 'owner');
+
+		const foreignUserId = await createMembershipUser(
+			`foreign-user.${suffix}@example.com`,
+			`foreign_user_${suffix}`,
+		);
+		await createMembership(foreignUserId, foreignOrganizationId, 'member');
+		const survivingAdminUserId = await createMembershipUser(
+			`surviving-admin.${suffix}@example.com`,
+			`surviving_admin_${suffix}`,
+		);
+		await createMembership(survivingAdminUserId, targetOrganizationId, 'admin');
+
+		const employeeId = randomUUID();
+		await db.insert(employee).values({
+			id: employeeId,
+			code: `FALL-${suffix}`,
+			firstName: 'Cuenta',
+			lastName: 'Propia',
+			organizationId: targetOrganizationId,
+			userId: ownerUserId,
+			dailyPay: '0',
+		});
+
+		const deductionId = randomUUID();
+		await db.insert(employeeDeduction).values({
+			id: deductionId,
+			organizationId: targetOrganizationId,
+			employeeId,
+			type: 'INFONAVIT',
+			label: 'Descuento de fallback',
+			calculationMethod: 'FIXED_AMOUNT',
+			value: '100.00',
+			frequency: 'ONE_TIME',
+			totalInstallments: null,
+			completedInstallments: 0,
+			totalAmount: '100.00',
+			remainingAmount: '100.00',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			referenceNumber: null,
+			satDeductionCode: null,
+			notes: null,
+			createdByUserId: ownerUserId,
+		});
+
+		const gratificationId = randomUUID();
+		await db.insert(employeeGratification).values({
+			id: gratificationId,
+			organizationId: targetOrganizationId,
+			employeeId,
+			concept: 'Gratificación de fallback',
+			amount: '350.00',
+			periodicity: 'ONE_TIME',
+			applicationMode: 'MANUAL',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			notes: null,
+			createdByUserId: ownerUserId,
+		});
+
+		const ownerCookieHeader = await signInAsUser(ownerEmail, 'User123!Test');
+		const response = await client.organization['delete-user-global'].post({
+			userId: ownerUserId,
+			organizationId: targetOrganizationId,
+			$headers: { cookie: ownerCookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+
+		const remainingUsers = await db
+			.select({ id: userTable.id })
+			.from(userTable)
+			.where(eq(userTable.id, ownerUserId))
+			.limit(1);
+		expect(remainingUsers[0]).toBeUndefined();
+
+		const deductionRows = await db
+			.select({ createdByUserId: employeeDeduction.createdByUserId })
+			.from(employeeDeduction)
+			.where(eq(employeeDeduction.id, deductionId))
+			.limit(1);
+		expect(deductionRows[0]?.createdByUserId).toBe(survivingAdminUserId);
+
+		const gratificationRows = await db
+			.select({ createdByUserId: employeeGratification.createdByUserId })
+			.from(employeeGratification)
+			.where(eq(employeeGratification.id, gratificationId))
+			.limit(1);
+		expect(gratificationRows[0]?.createdByUserId).toBe(survivingAdminUserId);
+	});
+
+	it('reassigns historical ownership even when the deleted user no longer has memberships', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const targetOrganizationId = await createTestOrganization(`orphan-fallback-${suffix}`);
+		const targetUserId = await createMembershipUser(
+			`orphan-target.${suffix}@example.com`,
+			`orphan_target_${suffix}`,
+		);
+		const targetMembershipId = await createMembership(targetUserId, targetOrganizationId, 'member');
+		const survivingAdminUserId = await createMembershipUser(
+			`orphan-admin.${suffix}@example.com`,
+			`orphan_admin_${suffix}`,
+		);
+		await createMembership(survivingAdminUserId, targetOrganizationId, 'admin');
+
+		const employeeId = randomUUID();
+		await db.insert(employee).values({
+			id: employeeId,
+			code: `ORPH-${suffix}`,
+			firstName: 'Cuenta',
+			lastName: 'Sin Membresia',
+			organizationId: targetOrganizationId,
+			userId: targetUserId,
+			dailyPay: '0',
+		});
+
+		const deductionId = randomUUID();
+		await db.insert(employeeDeduction).values({
+			id: deductionId,
+			organizationId: targetOrganizationId,
+			employeeId,
+			type: 'INFONAVIT',
+			label: 'Descuento huérfano',
+			calculationMethod: 'FIXED_AMOUNT',
+			value: '175.00',
+			frequency: 'ONE_TIME',
+			totalInstallments: null,
+			completedInstallments: 0,
+			totalAmount: '175.00',
+			remainingAmount: '175.00',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			referenceNumber: null,
+			satDeductionCode: null,
+			notes: null,
+			createdByUserId: targetUserId,
+		});
+
+		const gratificationId = randomUUID();
+		await db.insert(employeeGratification).values({
+			id: gratificationId,
+			organizationId: targetOrganizationId,
+			employeeId,
+			concept: 'Gratificación huérfana',
+			amount: '275.00',
+			periodicity: 'ONE_TIME',
+			applicationMode: 'MANUAL',
+			status: 'ACTIVE',
+			startDateKey: '2026-04-01',
+			endDateKey: null,
+			notes: null,
+			createdByUserId: targetUserId,
+		});
+
+		await db.delete(member).where(eq(member.id, targetMembershipId));
+
+		const response = await client.organization['delete-user-global'].post({
+			userId: targetUserId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+
+		const remainingUsers = await db
+			.select({ id: userTable.id })
+			.from(userTable)
+			.where(eq(userTable.id, targetUserId))
+			.limit(1);
+		expect(remainingUsers[0]).toBeUndefined();
+
+		const deductionRows = await db
+			.select({ createdByUserId: employeeDeduction.createdByUserId })
+			.from(employeeDeduction)
+			.where(eq(employeeDeduction.id, deductionId))
+			.limit(1);
+		expect(deductionRows[0]?.createdByUserId).toBe(survivingAdminUserId);
+
+		const gratificationRows = await db
+			.select({ createdByUserId: employeeGratification.createdByUserId })
+			.from(employeeGratification)
+			.where(eq(employeeGratification.id, gratificationId))
+			.limit(1);
+		expect(gratificationRows[0]?.createdByUserId).toBe(survivingAdminUserId);
 	});
 
 	it('blocks deleting the last admin or owner in an organization', async () => {

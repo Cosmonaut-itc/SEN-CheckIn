@@ -13,6 +13,7 @@ import {
 	employeeGratificationUpdateSchema,
 	hasValidGratificationDateRange,
 	organizationGratificationListQuerySchema,
+	validateGratificationBusinessRules,
 	type EmployeeGratificationCreateInput,
 } from '../schemas/employee-gratifications.js';
 import { buildErrorResponse } from '../utils/error-response.js';
@@ -187,23 +188,6 @@ function isValidGratificationStatusTransition(
 	}
 
 	return false;
-}
-
-/**
- * Validates business rules driven by periodicity and application mode.
- *
- * @param args - Gratification input
- * @returns Error message when invalid, otherwise null
- */
-function validateGratificationBusinessRules(args: {
-	periodicity: GratificationPeriodicity;
-	applicationMode: GratificationApplicationMode;
-}): string | null {
-	if (args.applicationMode === 'MANUAL' && args.periodicity !== 'ONE_TIME') {
-		return 'Manual gratifications only allow ONE_TIME periodicity';
-	}
-
-	return null;
 }
 
 /**

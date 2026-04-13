@@ -1,4 +1,4 @@
-import { type SQL, and, asc, count, desc, eq, ilike, or } from 'drizzle-orm';
+import { type SQL, and, asc, count, desc, eq, ilike, inArray, ne, or } from 'drizzle-orm';
 import { Elysia } from 'elysia';
 import { z } from 'zod';
 
@@ -315,19 +315,67 @@ async function listUserMemberships(userId: string): Promise<MembershipSnapshot[]
  * @param actorUserId - User performing the deletion
  * @returns Surviving user id or null when none is available
  */
-async function resolveDeletionFallbackUserId(
-	deletedUserId: string,
-	actorUserId: string,
-): Promise<string | null> {
-	if (deletedUserId !== actorUserId) {
-		return actorUserId;
+async function resolveDeletionFallbackUserId(args: {
+	deletedUserId: string;
+	actorUserId: string;
+	affectedOrganizationIds: string[];
+}): Promise<string | null> {
+	const organizationIds = [...new Set(args.affectedOrganizationIds)];
+
+	if (args.deletedUserId !== args.actorUserId) {
+		if (organizationIds.length === 0) {
+			return args.actorUserId;
+		}
+
+		const actorMemberships = await db
+			.select({ organizationId: member.organizationId })
+			.from(member)
+			.where(
+				and(
+					eq(member.userId, args.actorUserId),
+					inArray(member.organizationId, organizationIds),
+				),
+			);
+		if (actorMemberships.length === organizationIds.length) {
+			return args.actorUserId;
+		}
 	}
 
-	const fallbackUsers = await db.select({ id: userTable.id }).from(userTable).limit(20);
+	if (organizationIds.length === 0) {
+		const fallbackUsers = await db
+			.select({ id: userTable.id })
+			.from(userTable)
+			.where(ne(userTable.id, args.deletedUserId))
+			.limit(20);
 
-	for (const user of fallbackUsers) {
-		if (user.id !== deletedUserId) {
-			return user.id;
+		return fallbackUsers[0]?.id ?? null;
+	}
+
+	const fallbackMemberships = await db
+		.select({
+			userId: member.userId,
+			organizationId: member.organizationId,
+		})
+		.from(member)
+		.where(
+			and(
+				inArray(member.organizationId, organizationIds),
+				ne(member.userId, args.deletedUserId),
+			),
+		);
+
+	const organizationsByUserId = new Map<string, Set<string>>();
+	for (const membership of fallbackMemberships) {
+		const existingOrganizations =
+			organizationsByUserId.get(membership.userId) ?? new Set<string>();
+		existingOrganizations.add(membership.organizationId);
+		organizationsByUserId.set(membership.userId, existingOrganizations);
+	}
+
+	for (const membership of fallbackMemberships) {
+		const candidateOrganizations = organizationsByUserId.get(membership.userId);
+		if (candidateOrganizations?.size === organizationIds.length) {
+			return membership.userId;
 		}
 	}
 
@@ -1101,24 +1149,38 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 				}
 			}
 
-			const deductionsCreated = await db
-				.select({ count: count() })
-				.from(employeeDeduction)
-				.where(eq(employeeDeduction.createdByUserId, body.userId));
-			const createdDeductionsCount = Number(deductionsCreated[0]?.count ?? 0);
-			const gratificationsCreated = await db
-				.select({ count: count() })
-				.from(employeeGratification)
-				.where(eq(employeeGratification.createdByUserId, body.userId));
-			const createdGratificationsCount = Number(gratificationsCreated[0]?.count ?? 0);
+			const [deductionsCreated, gratificationsCreated] = await Promise.all([
+				db
+					.select({ organizationId: employeeDeduction.organizationId })
+					.from(employeeDeduction)
+					.where(eq(employeeDeduction.createdByUserId, body.userId)),
+				db
+					.select({ organizationId: employeeGratification.organizationId })
+					.from(employeeGratification)
+					.where(eq(employeeGratification.createdByUserId, body.userId)),
+			]);
+			const createdDeductionsCount = deductionsCreated.length;
+			const createdGratificationsCount = gratificationsCreated.length;
+			const hasHistoricalOwnership =
+				createdDeductionsCount > 0 || createdGratificationsCount > 0;
+			const affectedOrganizationIds = [
+				...new Set([
+					...deductionsCreated.map((row) => row.organizationId),
+					...gratificationsCreated.map((row) => row.organizationId),
+				]),
+			];
 			const fallbackUserId =
-				createdDeductionsCount > 0 || createdGratificationsCount > 0
-					? await resolveDeletionFallbackUserId(body.userId, session.userId)
+				hasHistoricalOwnership
+					? await resolveDeletionFallbackUserId({
+							deletedUserId: body.userId,
+							actorUserId: session.userId,
+							affectedOrganizationIds,
+						})
 					: null;
-			if ((createdDeductionsCount > 0 || createdGratificationsCount > 0) && !fallbackUserId) {
+			if (hasHistoricalOwnership && !fallbackUserId) {
 				set.status = 409;
 				return buildErrorResponse(
-					'Cannot preserve historical ownership records for the user deletion',
+					'Cannot preserve historical ownership for the user deletion',
 					409,
 					{ code: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED' },
 				);

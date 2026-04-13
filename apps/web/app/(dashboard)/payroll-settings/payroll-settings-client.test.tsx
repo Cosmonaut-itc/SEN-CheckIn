@@ -310,7 +310,7 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
-	it('explains seventh day pay separately from saturday counting', async () => {
+	it('explains seventh day pay separately from saturday counting', () => {
 		const payrollSettingsMessages = messages.PayrollSettings;
 
 		expect(payrollSettingsMessages.taxSettings.helpers.enableSeventhDayPay).toBe(

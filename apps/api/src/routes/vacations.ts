@@ -1,4 +1,4 @@
-import { endOfDay, format, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
 import { and, eq, gte, lte, ne, type SQL } from 'drizzle-orm';
 import { inArray } from 'drizzle-orm/sql';
 import { Elysia } from 'elysia';
@@ -20,7 +20,7 @@ import type { AuthSession } from '../plugins/auth.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { idParamSchema } from '../schemas/crud.js';
-import { addDaysToDateKey } from '../utils/date-key.js';
+import { addDaysToDateKey, parseDateKey } from '../utils/date-key.js';
 import {
 	vacationRequestCreateSchema,
 	vacationRequestDecisionSchema,
@@ -62,6 +62,29 @@ type VacationRequestResponse = VacationRequestRow & {
 	days: VacationRequestDayRow[];
 	summary: VacationRequestSummary;
 };
+
+/**
+ * Converts a date key to a UTC boundary Date for database range queries.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @param endOfDay - When true, returns the last millisecond of the UTC day
+ * @returns UTC Date aligned to the requested boundary
+ */
+function getUtcBoundaryDate(dateKey: string, endOfDay = false): Date {
+	const { year, month, day } = parseDateKey(dateKey);
+
+	return new Date(
+		Date.UTC(
+			year,
+			month - 1,
+			day,
+			endOfDay ? 23 : 0,
+			endOfDay ? 59 : 0,
+			endOfDay ? 59 : 0,
+			endOfDay ? 999 : 0,
+		),
+	);
+}
 
 const VACATION_ERROR_CODES = {
 	EMPLOYEE_REQUIRED: 'VACATION_EMPLOYEE_REQUIRED',
@@ -193,8 +216,8 @@ async function loadScheduleExceptionsForRange(
 	startDateKey: string,
 	endDateKey: string,
 ): Promise<VacationScheduleException[]> {
-	const rangeStart = startOfDay(new Date(`${startDateKey}T00:00:00`));
-	const rangeEnd = endOfDay(new Date(`${endDateKey}T00:00:00`));
+	const rangeStart = getUtcBoundaryDate(startDateKey);
+	const rangeEnd = getUtcBoundaryDate(endDateKey, true);
 
 	const rows = await db
 		.select({
@@ -267,7 +290,8 @@ async function loadActiveIncapacityDateKeys(args: {
 	for (const overlap of overlaps) {
 		let cursor =
 			overlap.startDateKey < args.startDateKey ? args.startDateKey : overlap.startDateKey;
-		const rangeEnd = overlap.endDateKey > args.endDateKey ? args.endDateKey : overlap.endDateKey;
+		const rangeEnd =
+			overlap.endDateKey > args.endDateKey ? args.endDateKey : overlap.endDateKey;
 
 		for (let i = 0; i < 400 && cursor <= rangeEnd; i += 1) {
 			dateKeys.add(cursor);
@@ -1160,7 +1184,6 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 						{ code: VACATION_ERROR_CODES.OVERLAP },
 					);
 				}
-
 			}
 
 			const requestId = crypto.randomUUID();
@@ -1394,7 +1417,9 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			}
 
 			await db.transaction(async (tx) => {
-				await tx.delete(vacationRequestDay).where(eq(vacationRequestDay.requestId, request.id));
+				await tx
+					.delete(vacationRequestDay)
+					.where(eq(vacationRequestDay.requestId, request.id));
 
 				if (breakdown.days.length > 0) {
 					await tx.insert(vacationRequestDay).values(

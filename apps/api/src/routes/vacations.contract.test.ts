@@ -116,6 +116,21 @@ describe('vacation routes (contract)', () => {
 		expect(errorPayload.error.code).toBe('VACATION_INVALID_STATUS');
 	});
 
+	it('rejects ranges that exceed the supported vacation engine limit', async () => {
+		const startDateKey = '2030-01-01';
+		const response = await client.vacations.me.requests.post({
+			startDateKey,
+			endDateKey: addDaysToDateKey(startDateKey, 366),
+			requestedNotes: 'Rango invalido',
+			$headers: { cookie: userSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(400);
+		const errorPayload = requireErrorResponse(response, 'vacation range validation');
+		expect(errorPayload.error.message).toBe('Validation failed');
+		expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+	});
+
 	it('creates and approves vacation requests as admin', async () => {
 		const hireDate = new Date('2020-01-01T00:00:00Z');
 		const createEmployeeResponse = await client.employees.post({

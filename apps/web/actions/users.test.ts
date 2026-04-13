@@ -56,8 +56,13 @@ describe('user actions', () => {
 
 		const result = await deleteGlobalUser({
 			userId: 'user-1',
+			organizationId: 'org-1',
 		});
 
+		expect(deleteGlobalUserPostMock).toHaveBeenCalledWith({
+			userId: 'user-1',
+			organizationId: 'org-1',
+		});
 		expect(result.success).toBe(false);
 		expect(result.error).toBe('Cannot preserve historical ownership for the user deletion');
 		expect(result.errorCode).toBe('USER_DELETE_AUDIT_FALLBACK_REQUIRED');

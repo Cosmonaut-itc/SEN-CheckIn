@@ -88,10 +88,7 @@ function buildWeeklySchedule(employeeId: string): ScheduleRow[] {
  * @param workingDays - Working day indexes (0 = Sunday ... 6 = Saturday)
  * @returns Schedule rows for the full week
  */
-function buildScheduleForWorkingDays(
-	employeeId: string,
-	workingDays: number[],
-): ScheduleRow[] {
+function buildScheduleForWorkingDays(employeeId: string, workingDays: number[]): ScheduleRow[] {
 	const workingDaySet = new Set(workingDays);
 	return Array.from({ length: 7 }, (_, dayOfWeek) => ({
 		employeeId,
@@ -181,14 +178,7 @@ function buildLunchBreakSettings(overrides: {
 type TestEmployeeDeduction = {
 	id: string;
 	employeeId: string;
-	type:
-		| 'INFONAVIT'
-		| 'ALIMONY'
-		| 'FONACOT'
-		| 'LOAN'
-		| 'UNION_FEE'
-		| 'ADVANCE'
-		| 'OTHER';
+	type: 'INFONAVIT' | 'ALIMONY' | 'FONACOT' | 'LOAN' | 'UNION_FEE' | 'ADVANCE' | 'OTHER';
 	label: string;
 	calculationMethod:
 		| 'PERCENTAGE_SBC'
@@ -227,9 +217,7 @@ type TestEmployeeGratification = {
  * @param overrides - Field overrides for the deduction row
  * @returns Deduction row payload for payroll calculation tests
  */
-function createEmployeeDeduction(
-	overrides: Partial<TestEmployeeDeduction>,
-): TestEmployeeDeduction {
+function createEmployeeDeduction(overrides: Partial<TestEmployeeDeduction>): TestEmployeeDeduction {
 	return {
 		id: overrides.id ?? `deduction-${Math.random().toString(16).slice(2, 8)}`,
 		employeeId: overrides.employeeId ?? 'emp-test-1',
@@ -336,7 +324,9 @@ type DualPayrollSettings = NonNullable<CalculatePayrollFromDataArgs['payrollSett
 	enableDualPayroll?: boolean;
 };
 
-type DualPayrollCalculationRow = ReturnType<typeof calculatePayrollFromData>['employees'][number] & {
+type DualPayrollCalculationRow = ReturnType<
+	typeof calculatePayrollFromData
+>['employees'][number] & {
 	fiscalDailyPay?: number | null;
 	fiscalGrossPay?: number | null;
 	complementPay?: number | null;
@@ -2761,12 +2751,11 @@ describe('payroll-calculation mexico taxes', () => {
 			enableSeventhDayPay: true,
 			countSaturdayAsWorkedForSeventhDay: false,
 		};
-		const countSaturdaySettings: NonNullable<
-			CalculatePayrollFromDataArgs['payrollSettings']
-		> = {
-			enableSeventhDayPay: true,
-			countSaturdayAsWorkedForSeventhDay: true,
-		};
+		const countSaturdaySettings: NonNullable<CalculatePayrollFromDataArgs['payrollSettings']> =
+			{
+				enableSeventhDayPay: true,
+				countSaturdayAsWorkedForSeventhDay: true,
+			};
 
 		it('preserves current behavior when saturday counting is disabled', () => {
 			const { employees: results } = calculatePayrollFromData({
@@ -2990,7 +2979,7 @@ describe('payroll-calculation mexico taxes', () => {
 				throw new Error('Expected payroll row.');
 			}
 
-			const expectedAmount = Number(((row.grossPay * (3 / 7)) * 0.05).toFixed(2));
+			const expectedAmount = Number((row.grossPay * (3 / 7) * 0.05).toFixed(2));
 
 			expect(row.totalDeductions).toBe(expectedAmount);
 			expect(row.deductionsBreakdown[0]).toMatchObject({
@@ -3122,7 +3111,9 @@ describe('payroll-calculation mexico taxes', () => {
 				throw new Error('Expected payroll row.');
 			}
 
-			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			const netBeforeDeductions = Number(
+				(row.grossPay - row.employeeWithholdings.total).toFixed(2),
+			);
 			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(netBeforeDeductions);
 			expect(row.deductionsBreakdown[0]?.remainingAmountAfter).toBe(
 				Number((1000 - netBeforeDeductions).toFixed(2)),
@@ -3201,7 +3192,9 @@ describe('payroll-calculation mexico taxes', () => {
 				throw new Error('Expected payroll row.');
 			}
 
-			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			const netBeforeDeductions = Number(
+				(row.grossPay - row.employeeWithholdings.total).toFixed(2),
+			);
 			expect(row.deductionsBreakdown[0]?.appliedAmount).toBe(netBeforeDeductions);
 			expect(employees[0]?.deductionsBreakdown[0]?.completedInstallmentsAfter).toBe(3);
 			expect(employees[0]?.deductionsBreakdown[0]?.remainingAmountAfter).toBe(
@@ -3374,13 +3367,15 @@ describe('payroll-calculation mexico taxes', () => {
 				throw new Error('Expected payroll row.');
 			}
 
-			const netBeforeDeductions = Number((row.grossPay - row.employeeWithholdings.total).toFixed(2));
+			const netBeforeDeductions = Number(
+				(row.grossPay - row.employeeWithholdings.total).toFixed(2),
+			);
 			expect(row.totalDeductions).toBe(netBeforeDeductions);
 			expect(row.netPay).toBe(0);
 			expect(row.deductionsBreakdown[0]?.cappedByNetPay).toBe(true);
-			expect(row.warnings.some((warning) => warning.type === 'DEDUCTIONS_EXCEED_NET_PAY')).toBe(
-				true,
-			);
+			expect(
+				row.warnings.some((warning) => warning.type === 'DEDUCTIONS_EXCEED_NET_PAY'),
+			).toBe(true);
 		});
 	});
 
@@ -3396,13 +3391,7 @@ describe('payroll-calculation mexico taxes', () => {
 		const dualSchedule = buildScheduleForWorkingDays(dualEmployeeId, [1, 2, 3, 4, 5]);
 		const dualAttendance = buildAttendanceForDateKeys(
 			dualEmployeeId,
-			[
-				'2025-12-15',
-				'2025-12-16',
-				'2025-12-17',
-				'2025-12-18',
-				'2025-12-19',
-			],
+			['2025-12-15', '2025-12-16', '2025-12-17', '2025-12-18', '2025-12-19'],
 			timeZone,
 		);
 		const dualBaseArgs = {
@@ -3459,7 +3448,9 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(dualDisabled.totalPay).toBe(standard.totalPay);
 			expect(dualDisabled.grossPay).toBe(standard.grossPay);
 			expect(dualDisabled.netPay).toBe(standard.netPay);
-			expect(dualDisabled.employeeWithholdings.total).toBe(standard.employeeWithholdings.total);
+			expect(dualDisabled.employeeWithholdings.total).toBe(
+				standard.employeeWithholdings.total,
+			);
 			expect(dualDisabled.bases.sbcDaily).toBe(standard.bases.sbcDaily);
 		});
 
@@ -3585,9 +3576,9 @@ describe('payroll-calculation mexico taxes', () => {
 
 			expect(dualEnabled.dailyPay).toBe(500);
 			expect(dualEnabled.fiscalDailyPay).toBe(200);
-			expect(dualEnabled.warnings.some((warning) => warning.type === 'BELOW_MINIMUM_WAGE')).toBe(
-				false,
-			);
+			expect(
+				dualEnabled.warnings.some((warning) => warning.type === 'BELOW_MINIMUM_WAGE'),
+			).toBe(false);
 		});
 
 		it('keeps total real pay aligned with the standard payroll when overtime and vacation pay exist', () => {
@@ -3680,6 +3671,29 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(dualEnabled.totalRealPay).toBe(6250);
 		});
 
+		it('keeps the real vacation breakdown available in non-dual payroll when the real rate differs', () => {
+			const standard = requireDualPayrollRow(
+				calculatePayrollFromData({
+					...dualBaseArgs,
+					employees: [buildDualEmployee(300)],
+					vacationDayCounts: {
+						[dualEmployeeId]: 5,
+					},
+					payrollSettings: {
+						...dualBaseSettings,
+						enableDualPayroll: false,
+						vacationPremiumRate: 0.25,
+						realVacationPremiumRate: 0.5,
+					} as CalculatePayrollFromDataArgs['payrollSettings'],
+				}).employees,
+			);
+
+			expect(standard.vacationPremiumAmount).toBe(625);
+			expect(standard.realVacationPayAmount).toBe(2500);
+			expect(standard.realVacationPremiumAmount).toBe(1250);
+			expect(standard.totalPay).toBe(6250);
+		});
+
 		it('bases percentage-net deductions on the fiscal net when dual payroll is enabled', () => {
 			const dualEnabled = requireDualPayrollRow(
 				calculatePayrollFromData({
@@ -3747,9 +3761,11 @@ describe('payroll-calculation mexico taxes', () => {
 				(dualEnabled.fiscalGrossPay - dualEnabled.employeeWithholdings.total).toFixed(2),
 			);
 			const expectedNetPay = Number(
-				(dualEnabled.totalRealPay -
+				(
+					dualEnabled.totalRealPay -
 					dualEnabled.employeeWithholdings.total -
-					expectedFiscalNet).toFixed(2),
+					expectedFiscalNet
+				).toFixed(2),
 			);
 
 			expect(dualEnabled.deductionsBreakdown[0]).toMatchObject({
@@ -3820,12 +3836,16 @@ describe('payroll-calculation mexico taxes', () => {
 			const expectedFiscalBase = Number((expectedFiscalSbcDaily * 5).toFixed(2));
 			const expectedFiscalAmount = Number((expectedFiscalBase * 0.1).toFixed(2));
 			const expectedNetPay = Number(
-				(dualEnabled.totalRealPay -
+				(
+					dualEnabled.totalRealPay -
 					dualEnabled.employeeWithholdings.total -
-					expectedFiscalAmount).toFixed(2),
+					expectedFiscalAmount
+				).toFixed(2),
 			);
 
-			expect(standard.deductionsBreakdown[0]?.appliedAmount).toBeGreaterThan(expectedFiscalAmount);
+			expect(standard.deductionsBreakdown[0]?.appliedAmount).toBeGreaterThan(
+				expectedFiscalAmount,
+			);
 			expect(dualEnabled.bases.sbcDaily).toBe(expectedFiscalSbcDaily);
 			expect(dualEnabled.deductionsBreakdown[0]).toMatchObject({
 				type: 'INFONAVIT',

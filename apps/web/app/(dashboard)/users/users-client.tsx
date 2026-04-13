@@ -5,13 +5,7 @@ import { format } from 'date-fns';
 import { ShieldCheck, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import React, {
-	startTransition,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from 'react';
+import React, { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
@@ -747,9 +741,7 @@ export function UsersPageClient(): React.ReactElement {
 		},
 		onSuccess: (result, variables) => {
 			if (!result.success) {
-				toast.error(
-					getOrganizationMemberRoleUpdateErrorMessage(t, result.errorCode),
-				);
+				toast.error(getOrganizationMemberRoleUpdateErrorMessage(t, result.errorCode));
 				if (result.errorCode === 'MEMBER_NOT_FOUND') {
 					queryClient.invalidateQueries({
 						queryKey: queryKeys.organizationMembers.all,
@@ -970,9 +962,10 @@ export function UsersPageClient(): React.ReactElement {
 
 			await deleteUserMutation.mutateAsync({
 				userId: member.userId,
+				organizationId: effectiveOrganizationId,
 			});
 		},
-		[canDeleteUsers, deleteUserMutation, t],
+		[canDeleteUsers, deleteUserMutation, effectiveOrganizationId, t],
 	);
 
 	const columns = useMemo<ColumnDef<OrganizationMember>[]>(
@@ -1141,7 +1134,9 @@ export function UsersPageClient(): React.ReactElement {
 						</p>
 					</div>
 					<div className="space-y-1">
-						<p className="text-sm text-muted-foreground">{t('table.headers.actions')}</p>
+						<p className="text-sm text-muted-foreground">
+							{t('table.headers.actions')}
+						</p>
 						{canDeleteUsers && session?.user?.id !== member.userId ? (
 							<Button
 								type="button"

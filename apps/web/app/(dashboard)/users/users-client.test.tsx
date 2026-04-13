@@ -495,11 +495,57 @@ describe('UsersPageClient', () => {
 			expect(mockDeleteGlobalUser).toHaveBeenCalledWith(
 				{
 					userId: 'user-1',
+					organizationId: 'org-1',
 				},
 				expect.anything(),
 			);
 		});
 		expect(mockToastSuccess).toHaveBeenCalledWith('Usuario borrado correctamente');
+	});
+
+	it('deletes a user in the currently selected organization for superusers', async () => {
+		mockFetchAllOrganizations.mockResolvedValueOnce({
+			organizations: [
+				{ id: 'org-1', name: 'Organización Demo', slug: 'organizacion-demo' },
+				{ id: 'org-2', name: 'Organización Secundaria', slug: 'organizacion-secundaria' },
+			],
+		});
+
+		renderWithProviders({
+			organizationId: 'org-1',
+			organizationRole: 'owner',
+			userRole: 'admin',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByRole('combobox', { name: 'Organización' })).not.toBeDisabled();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Organización' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Organización Secundaria' }));
+
+		await waitFor(() => {
+			expect(mockFetchOrganizationMembers).toHaveBeenLastCalledWith({
+				limit: 10,
+				offset: 0,
+				organizationId: 'org-2',
+			});
+		});
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Borrar usuario Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockDeleteGlobalUser).toHaveBeenCalledWith(
+				{
+					userId: 'user-1',
+					organizationId: 'org-2',
+				},
+				expect.anything(),
+			);
+		});
 	});
 
 	it('shows the audit fallback message when global deletion cannot preserve historical ownership', async () => {

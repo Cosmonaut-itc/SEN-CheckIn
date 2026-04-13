@@ -649,11 +649,7 @@ function calculateSeventhDayPay(args: {
 	});
 	const saturdayIsScheduled = scheduledKeys.includes(saturdayDate ?? '');
 	const requiredWorkedDayKeys = [...scheduledKeys];
-	if (
-		countSaturdayAsWorkedForSeventhDay &&
-		saturdayDate &&
-		!saturdayIsScheduled
-	) {
+	if (countSaturdayAsWorkedForSeventhDay && saturdayDate && !saturdayIsScheduled) {
 		requiredWorkedDayKeys.push(saturdayDate);
 		resolvedWorkedDayKeys.add(saturdayDate);
 	}
@@ -1302,9 +1298,15 @@ export function calculatePayrollFromData(
 					0,
 					OVERTIME_LIMITS.MAX_WEEKLY_HOURS * 60 - weekProcessedOvertimeMinutes,
 				);
-				const dayDoubleMinutes = Math.min(dayTotalOvertimeMinutes, dayWeeklyDoubleRemaining);
+				const dayDoubleMinutes = Math.min(
+					dayTotalOvertimeMinutes,
+					dayWeeklyDoubleRemaining,
+				);
 				const dayTripleMinutes = Math.max(0, dayTotalOvertimeMinutes - dayDoubleMinutes);
-				const dayPayableDoubleMinutes = Math.min(dayDoubleMinutes, dayAuthorizedPaidMinutes);
+				const dayPayableDoubleMinutes = Math.min(
+					dayDoubleMinutes,
+					dayAuthorizedPaidMinutes,
+				);
 				const dayPayableTripleMinutes = Math.min(
 					dayTripleMinutes,
 					Math.max(0, dayAuthorizedPaidMinutes - dayDoubleMinutes),
@@ -1421,14 +1423,10 @@ export function calculatePayrollFromData(
 				: 0;
 		const realNormalPay = roundCurrency(adjustedNormalHours * realHourlyRate);
 		const realOvertimeDoublePay = roundCurrency(
-			payableOvertimeDoubleHours *
-				realHourlyRate *
-				OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
+			payableOvertimeDoubleHours * realHourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
 		);
 		const realOvertimeTriplePay = roundCurrency(
-			payableOvertimeTripleHours *
-				realHourlyRate *
-				OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
+			payableOvertimeTripleHours * realHourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
 		);
 		const realSundayPremiumAmount =
 			sundaysWorkedCount > 0
@@ -1477,9 +1475,15 @@ export function calculatePayrollFromData(
 
 			let statusAfter: EmployeeGratificationRow['status'] = gratification.status;
 			if (appliedAmount > 0) {
-				if (gratification.periodicity === 'ONE_TIME' || gratification.applicationMode === 'MANUAL') {
+				if (
+					gratification.periodicity === 'ONE_TIME' ||
+					gratification.applicationMode === 'MANUAL'
+				) {
 					statusAfter = 'COMPLETED';
-				} else if (gratification.endDateKey !== null && gratification.endDateKey <= periodEndDateKey) {
+				} else if (
+					gratification.endDateKey !== null &&
+					gratification.endDateKey <= periodEndDateKey
+				) {
 					statusAfter = 'COMPLETED';
 				}
 			}
@@ -1568,15 +1572,15 @@ export function calculatePayrollFromData(
 			dateKey: periodEndDateKey,
 			zone,
 		});
-			if (realDailyPay < minimumWageDaily) {
-				warnings.push({
-					type: 'BELOW_MINIMUM_WAGE',
-					message: `El salario diario ${realDailyPay.toFixed(
-						2,
-					)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
-					severity: 'warning',
-				});
-			}
+		if (realDailyPay < minimumWageDaily) {
+			warnings.push({
+				type: 'BELOW_MINIMUM_WAGE',
+				message: `El salario diario ${realDailyPay.toFixed(
+					2,
+				)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
+				severity: 'warning',
+			});
+		}
 
 		const resolvedAguinaldoDays =
 			typeof emp.aguinaldoDaysOverride === 'string'
@@ -1590,10 +1594,10 @@ export function calculatePayrollFromData(
 				typeof emp.sbcDailyOverride === 'string'
 					? Number(emp.sbcDailyOverride)
 					: (emp.sbcDailyOverride ?? null),
-				aguinaldoDays: resolvedAguinaldoDays,
-				vacationPremiumRate: resolvedTaxSettings.vacationPremiumRate,
-				periodEndDateKey,
-			});
+			aguinaldoDays: resolvedAguinaldoDays,
+			vacationPremiumRate: resolvedTaxSettings.vacationPremiumRate,
+			periodEndDateKey,
+		});
 
 		const incapacityResult = calculateIncapacitySummary({
 			periodStartDateKey,
@@ -1688,7 +1692,8 @@ export function calculatePayrollFromData(
 				Math.min(deductionAmount.calculatedAmount, netPayCap, remainingBalanceCap),
 			);
 			const cappedByNetPay =
-				appliedAmount < deductionAmount.calculatedAmount && netPayCap <= remainingBalanceCap;
+				appliedAmount < deductionAmount.calculatedAmount &&
+				netPayCap <= remainingBalanceCap;
 			if (cappedByNetPay) {
 				deductionsExceededNetPay = true;
 			}
@@ -1725,7 +1730,8 @@ export function calculatePayrollFromData(
 					}
 				}
 				if (
-					(deduction.frequency === 'RECURRING' || deduction.frequency === 'INSTALLMENTS') &&
+					(deduction.frequency === 'RECURRING' ||
+						deduction.frequency === 'INSTALLMENTS') &&
 					tracksRecoverableBalance &&
 					remainingAmountAfter === 0
 				) {
@@ -1811,8 +1817,8 @@ export function calculatePayrollFromData(
 			vacationDaysPaid,
 			vacationPayAmount,
 			vacationPremiumAmount,
-			realVacationPayAmount: dualPayrollApplied ? realVacationPayAmount : null,
-			realVacationPremiumAmount: dualPayrollApplied ? realVacationPremiumAmount : null,
+			realVacationPayAmount,
+			realVacationPremiumAmount,
 			lunchBreakAutoDeductedDays,
 			lunchBreakAutoDeductedMinutes,
 			gratificationsBreakdown,

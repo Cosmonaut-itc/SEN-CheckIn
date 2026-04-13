@@ -423,9 +423,7 @@ function extractEqValue(
  * @param condition - Drizzle-like WHERE condition tree
  * @returns Map keyed by column name
  */
-function flattenEqualityConditions(
-	condition: DrizzleCondition | null,
-): Record<string, unknown> {
+function flattenEqualityConditions(condition: DrizzleCondition | null): Record<string, unknown> {
 	if (!condition) {
 		return {};
 	}
@@ -456,9 +454,7 @@ function getConditionColumnName(column: unknown): string | null {
 	if (typeof resolvedColumn.name === 'string') {
 		return resolvedColumn.name;
 	}
-	return typeof resolvedColumn.config?.name === 'string'
-		? resolvedColumn.config.name
-		: null;
+	return typeof resolvedColumn.config?.name === 'string' ? resolvedColumn.config.name : null;
 }
 
 /**
@@ -506,9 +502,7 @@ function extractInArrayValuesForColumn(
 	}
 
 	if (condition.kind === 'inArray') {
-		return getConditionColumnName(condition.column) === columnName
-			? condition.values
-			: null;
+		return getConditionColumnName(condition.column) === columnName ? condition.values : null;
 	}
 
 	if (condition.kind !== 'and') {
@@ -1001,7 +995,9 @@ function createFakeDb(state: FakeDbState): {
 						state.deductionUpdateConditions.push(condition);
 						if (state.pendingDeductionMutationBeforeUpdate) {
 							for (const deduction of state.employeeDeductions) {
-								if (deduction.id !== state.pendingDeductionMutationBeforeUpdate.id) {
+								if (
+									deduction.id !== state.pendingDeductionMutationBeforeUpdate.id
+								) {
 									continue;
 								}
 								applyPendingDeductionMutation(
@@ -1499,9 +1495,9 @@ describe('payroll routes', () => {
 		expect(row?.hoursWorked).toBe(7);
 		expect(row?.lunchBreakAutoDeductedDays).toBe(1);
 		expect(row?.lunchBreakAutoDeductedMinutes).toBe(60);
-		expect(
-			row?.warnings.some((warning) => warning.type === 'LUNCH_BREAK_AUTO_DEDUCTED'),
-		).toBe(true);
+		expect(row?.warnings.some((warning) => warning.type === 'LUNCH_BREAK_AUTO_DEDUCTED')).toBe(
+			true,
+		);
 	});
 
 	it('skips lunch-break auto deduction when a lunch checkout already exists in /payroll/calculate', async () => {
@@ -1587,9 +1583,9 @@ describe('payroll routes', () => {
 		expect(row?.hoursWorked).toBe(8);
 		expect(row?.lunchBreakAutoDeductedDays).toBe(0);
 		expect(row?.lunchBreakAutoDeductedMinutes).toBe(0);
-		expect(
-			row?.warnings.some((warning) => warning.type === 'LUNCH_BREAK_AUTO_DEDUCTED'),
-		).toBe(false);
+		expect(row?.warnings.some((warning) => warning.type === 'LUNCH_BREAK_AUTO_DEDUCTED')).toBe(
+			false,
+		);
 	});
 
 	it('blocks /payroll/process when overtimeEnforcement is BLOCK and there are error warnings', async () => {
@@ -1997,6 +1993,89 @@ describe('payroll routes', () => {
 		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPremiumAmount).toBe(400);
 	});
 
+	it('persists the real vacation breakdown in non-dual payroll runs when the real rate differs', async () => {
+		dbState.organizationId = 'org-vac-real-standard';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				enableDualPayroll: false,
+				vacationPremiumRate: 0.25,
+				realVacationPremiumRate: 0.5,
+			},
+		];
+
+		const employeeId = 'emp-vac-real-standard';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		const requestId = 'vac-req-real-standard-1';
+		dbState.vacationRequests = [
+			{
+				id: requestId,
+				organizationId: dbState.organizationId,
+				employeeId,
+				status: 'APPROVED',
+				startDateKey: '2025-01-03',
+				endDateKey: '2025-01-03',
+			},
+		];
+		dbState.vacationRequestDays = [
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-01-03',
+				countsAsVacationDay: true,
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-03',
+				periodEndDateKey: '2025-01-03',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const storedRow = expectSinglePayrollRunEmployee<{
+			employeeId?: string;
+			vacationPayAmount?: string;
+			vacationPremiumAmount?: string;
+			totalPay?: string;
+			taxBreakdown?: {
+				realCompensation?: {
+					vacationPayAmount?: number | null;
+					vacationPremiumAmount?: number | null;
+				};
+			};
+		}>(dbState.payrollRunEmployees);
+
+		expect(storedRow?.employeeId).toBe(employeeId);
+		expect(storedRow?.vacationPayAmount).toBe('800.00');
+		expect(storedRow?.vacationPremiumAmount).toBe('200.00');
+		expect(storedRow?.totalPay).toBe('1200.00');
+		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPayAmount).toBe(800);
+		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPremiumAmount).toBe(400);
+	});
+
 	it('persists deduction snapshots and completes one-time deductions in /payroll/process', async () => {
 		seedWeeklyProcessScenario({
 			organizationId: 'org-deductions',
@@ -2097,7 +2176,9 @@ describe('payroll routes', () => {
 		expect(dbState.employeeDeductions[0]?.completedInstallments).toBe(4);
 		expect(dbState.employeeDeductions[0]?.status).toBe('ACTIVE');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('3000.00');
-		expect(flattenEqualityConditions(dbState.deductionUpdateConditions[0] ?? null)).toMatchObject({
+		expect(
+			flattenEqualityConditions(dbState.deductionUpdateConditions[0] ?? null),
+		).toMatchObject({
 			id: 'deduction-installment',
 			organization_id: 'org-installments',
 		});
@@ -2361,7 +2442,9 @@ describe('payroll routes', () => {
 		);
 
 		expect(response.status).toBe(409);
-		expect(flattenEqualityConditions(dbState.deductionUpdateConditions[0] ?? null)).toMatchObject({
+		expect(
+			flattenEqualityConditions(dbState.deductionUpdateConditions[0] ?? null),
+		).toMatchObject({
 			id: 'deduction-stale-write',
 			organization_id: 'org-deduction-stale-write',
 			status: 'ACTIVE',

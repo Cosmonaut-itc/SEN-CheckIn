@@ -137,6 +137,8 @@ export interface UpdateOrganizationMemberRoleInput {
 export interface DeleteGlobalUserInput {
 	/** Global user identifier to delete. */
 	userId: string;
+	/** Organization context for multi-organization sessions. */
+	organizationId?: string | null;
 }
 
 type ApiValidationDetail = {
@@ -676,8 +678,10 @@ export async function deleteGlobalUser(input: DeleteGlobalUserInput): Promise<
 		const requestHeaders = await headers();
 		const cookieHeader = requestHeaders.get('cookie') ?? '';
 		const api = createServerApiClient(cookieHeader);
+		const organizationId = input.organizationId?.trim() || null;
 		const response = await api.organization['delete-user-global'].post({
 			userId: input.userId,
+			...(organizationId ? { organizationId } : {}),
 		});
 
 		if (response.error) {

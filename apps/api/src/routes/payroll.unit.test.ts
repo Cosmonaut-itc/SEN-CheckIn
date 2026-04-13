@@ -52,6 +52,7 @@ interface FakePayrollSettingRow {
 	vacationPremiumRate?: number;
 	realVacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
+	enableDualPayroll?: boolean;
 	autoDeductLunchBreak?: boolean;
 	lunchBreakMinutes?: number;
 	lunchBreakThresholdHours?: number;
@@ -192,6 +193,21 @@ function createJsonPostRequest(path: string, body: unknown): Request {
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body),
 	});
+}
+
+/**
+ * Asserts that exactly one persisted payroll-run employee row exists.
+ *
+ * @template TRow - Expected row shape
+ * @param rows - Persisted payroll-run employee rows
+ * @returns The single persisted row cast to the requested shape
+ * @throws {Error} Propagates Bun assertion failures when row count differs
+ */
+function expectSinglePayrollRunEmployee<TRow extends Record<string, unknown>>(
+	rows: Record<string, unknown>[],
+): TRow {
+	expect(rows).toHaveLength(1);
+	return rows[0] as TRow;
 }
 
 /**
@@ -1885,6 +1901,102 @@ describe('payroll routes', () => {
 		expect(row?.totalPay).toBe(1000);
 	});
 
+	it('persists separated fiscal and real vacation premium rates in dual payroll runs', async () => {
+		dbState.organizationId = 'org-vac-dual';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				enableDualPayroll: true,
+				vacationPremiumRate: 0.25,
+				realVacationPremiumRate: 0.5,
+			},
+		];
+
+		const employeeId = 'emp-vac-dual';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				fiscalDailyPay: 500,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+
+		const requestId = 'vac-req-dual-1';
+		dbState.vacationRequests = [
+			{
+				id: requestId,
+				organizationId: dbState.organizationId,
+				employeeId,
+				status: 'APPROVED',
+				startDateKey: '2025-01-03',
+				endDateKey: '2025-01-03',
+			},
+		];
+		dbState.vacationRequestDays = [
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-01-03',
+				countsAsVacationDay: true,
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-01-03',
+				periodEndDateKey: '2025-01-03',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				run: {
+					id: string;
+				};
+			};
+		};
+
+		expect(typeof json.data.run.id).toBe('string');
+
+		const storedRow = expectSinglePayrollRunEmployee<{
+			employeeId?: string;
+			vacationPayAmount?: string;
+			vacationPremiumAmount?: string;
+			totalPay?: string;
+			taxBreakdown?: {
+				grossPay?: number;
+				realCompensation?: {
+					vacationPayAmount?: number | null;
+					vacationPremiumAmount?: number | null;
+				};
+			};
+		}>(dbState.payrollRunEmployees);
+
+		expect(storedRow?.employeeId).toBe(employeeId);
+		expect(storedRow?.vacationPayAmount).toBe('500.00');
+		expect(storedRow?.vacationPremiumAmount).toBe('125.00');
+		expect(storedRow?.totalPay).toBe('1200.00');
+		expect(storedRow?.taxBreakdown?.grossPay).toBe(625);
+		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPayAmount).toBe(800);
+		expect(storedRow?.taxBreakdown?.realCompensation?.vacationPremiumAmount).toBe(400);
+	});
+
 	it('persists deduction snapshots and completes one-time deductions in /payroll/process', async () => {
 		seedWeeklyProcessScenario({
 			organizationId: 'org-deductions',
@@ -1928,13 +2040,13 @@ describe('payroll routes', () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(dbState.payrollRunEmployees).toHaveLength(1);
-		expect(dbState.payrollRunEmployees[0]?.totalDeductions).toBe('500.00');
-		expect(Array.isArray(dbState.payrollRunEmployees[0]?.deductionsBreakdown)).toBe(true);
-		expect(
-			(dbState.payrollRunEmployees[0]?.deductionsBreakdown as Array<Record<string, unknown>>)[0]
-				?.statusAfter,
-		).toBe('COMPLETED');
+		const persistedRow = expectSinglePayrollRunEmployee<{
+			totalDeductions?: string;
+			deductionsBreakdown?: Array<Record<string, unknown>>;
+		}>(dbState.payrollRunEmployees);
+		expect(persistedRow.totalDeductions).toBe('500.00');
+		expect(Array.isArray(persistedRow.deductionsBreakdown)).toBe(true);
+		expect(persistedRow.deductionsBreakdown?.[0]?.statusAfter).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
 	});
@@ -2034,10 +2146,10 @@ describe('payroll routes', () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(
-			(dbState.payrollRunEmployees[0]?.deductionsBreakdown as Array<Record<string, unknown>>)[0]
-				?.statusAfter,
-		).toBe('COMPLETED');
+		const persistedRow = expectSinglePayrollRunEmployee<{
+			deductionsBreakdown?: Array<Record<string, unknown>>;
+		}>(dbState.payrollRunEmployees);
+		expect(persistedRow.deductionsBreakdown?.[0]?.statusAfter).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
 	});

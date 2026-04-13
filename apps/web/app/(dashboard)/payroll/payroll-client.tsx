@@ -2201,7 +2201,7 @@ export function PayrollPageClient(): React.ReactElement {
 											{showDualPayrollColumns && dualPayrollSummary ? (
 												<TableFooter>
 													<TableRow>
-														<TableCell colSpan={14}>
+														<TableCell colSpan={16}>
 															<div className="flex flex-col">
 																<span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
 																	{t(

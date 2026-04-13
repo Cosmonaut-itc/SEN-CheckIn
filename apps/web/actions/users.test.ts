@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { updateOrganizationMemberRole } from '@/actions/users';
+import { deleteGlobalUser, updateOrganizationMemberRole } from '@/actions/users';
 
 const updateMemberRolePostMock = vi.fn();
+const deleteGlobalUserPostMock = vi.fn();
 
 vi.mock('next/headers', () => ({
 	headers: vi.fn(async () => ({
@@ -15,6 +16,9 @@ vi.mock('@/lib/server-api', () => ({
 		organization: {
 			'update-member-role-direct': {
 				post: updateMemberRolePostMock,
+			},
+			'delete-user-global': {
+				post: deleteGlobalUserPostMock,
 			},
 		},
 	})),
@@ -34,6 +38,29 @@ vi.mock('@/lib/server-auth-client', () => ({
 describe('user actions', () => {
 	beforeEach(() => {
 		updateMemberRolePostMock.mockReset();
+		deleteGlobalUserPostMock.mockReset();
+	});
+
+	it('propagates the audit-fallback-required code from delete-user-global errors', async () => {
+		deleteGlobalUserPostMock.mockResolvedValue({
+			error: {
+				message: '[object Object]',
+				value: {
+					error: {
+						message: 'Cannot preserve historical ownership for the user deletion',
+						code: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED',
+					},
+				},
+			},
+		});
+
+		const result = await deleteGlobalUser({
+			userId: 'user-1',
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBe('Cannot preserve historical ownership for the user deletion');
+		expect(result.errorCode).toBe('USER_DELETE_AUDIT_FALLBACK_REQUIRED');
 	});
 
 	it('propagates nested role-update codes and messages from treaty errors', async () => {

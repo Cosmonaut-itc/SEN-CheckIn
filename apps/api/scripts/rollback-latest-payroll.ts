@@ -2,7 +2,6 @@ import 'dotenv/config';
 import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { z } from 'zod';
 
 import '../src/utils/disable-pg-native.js';
 import {
@@ -18,6 +17,13 @@ import {
 	type GratificationRollbackPlan,
 	type PayrollRunEmployeeGratificationRow,
 } from '../src/utils/payroll-rollback.js';
+import {
+	buildDeductionRollbackPlansFromRows,
+	normalizeDatabaseDecimal4,
+	normalizeDatabaseMoney,
+	type DeductionRollbackPlan,
+	type PayrollRunEmployeeDeductionRow,
+} from '../src/utils/deduction-rollback.js';
 
 type CliArgs = {
 	organizationQuery: string;
@@ -31,8 +37,6 @@ type OrganizationRow = {
 	slug: string;
 };
 
-type EmployeeDeductionStatus = typeof employeeDeduction.$inferSelect.status;
-
 type TargetPayrollRun = {
 	id: string;
 	organizationId: string;
@@ -44,11 +48,6 @@ type TargetPayrollRun = {
 	employeeCount: number;
 	processedAt: Date | null;
 	createdAt: Date;
-};
-
-type PayrollRunEmployeeRow = {
-	employeeId: string;
-	deductionsBreakdown: unknown;
 };
 
 type EmployeePayrollStateRow = {
@@ -65,43 +64,6 @@ type EmployeeRollbackPlan = {
 	currentLastPayrollDate: Date | null;
 	nextLastPayrollDate: Date | null;
 };
-
-type DeductionRollbackPlan = {
-	deductionId: string;
-	employeeId: string;
-	statusBefore: EmployeeDeductionStatus;
-	statusAfter: EmployeeDeductionStatus;
-	completedInstallmentsBefore: number;
-	completedInstallmentsAfter: number;
-	remainingAmountBefore: string | null;
-	remainingAmountAfter: string | null;
-	calculationMethod: string;
-	frequency: string;
-	sourceValue: string;
-	sourceTotalInstallments: number | null;
-	sourceTotalAmount: string | null;
-	sourceStartDateKey: string;
-	sourceEndDateKey: string | null;
-};
-
-const deductionBreakdownItemSchema = z.object({
-	deductionId: z.string().min(1),
-	calculationMethod: z.string().min(1),
-	frequency: z.string().min(1),
-	sourceValue: z.number(),
-	sourceTotalInstallments: z.number().int().nullable(),
-	completedInstallmentsBefore: z.number().int(),
-	completedInstallmentsAfter: z.number().int(),
-	remainingAmountBefore: z.number().nullable(),
-	remainingAmountAfter: z.number().nullable(),
-	sourceTotalAmount: z.number().nullable(),
-	statusBefore: z.string().min(1),
-	statusAfter: z.string().min(1),
-	sourceStartDateKey: z.string().min(1),
-	sourceEndDateKey: z.string().nullable(),
-});
-
-type DeductionBreakdownItem = z.infer<typeof deductionBreakdownItemSchema>;
 
 /**
  * Reads the Postgres connection string from environment variables.
@@ -194,46 +156,6 @@ function formatDate(value: Date | null): string | null {
 }
 
 /**
- * Formats a money-like numeric value to 2 decimals for Postgres numeric comparisons.
- *
- * @param value - Numeric value from JSON payload
- * @returns Fixed 2-decimal string or `null`
- */
-function formatMoney(value: number | null): string | null {
-	return value === null ? null : value.toFixed(2);
-}
-
-/**
- * Normalizes a persisted Postgres money-like numeric string to 2 decimals.
- *
- * @param value - Database numeric value
- * @returns Fixed 2-decimal string or `null`
- */
-function normalizeDatabaseMoney(value: string | number | null): string | null {
-	return value === null ? null : Number(value).toFixed(2);
-}
-
-/**
- * Formats a rate/value numeric field to 4 decimals for Postgres numeric comparisons.
- *
- * @param value - Numeric value from JSON payload
- * @returns Fixed 4-decimal string
- */
-function formatDecimal4(value: number): string {
-	return value.toFixed(4);
-}
-
-/**
- * Normalizes a persisted Postgres decimal string to 4 decimals.
- *
- * @param value - Database numeric value
- * @returns Fixed 4-decimal string
- */
-function normalizeDatabaseDecimal4(value: string | number): string {
-	return Number(value).toFixed(4);
-}
-
-/**
  * Resolves an organization from a case-insensitive slug or name query.
  *
  * @param organizations - Available organizations
@@ -293,17 +215,6 @@ function resolveOrganization(
 	}
 
 	throw new Error(`No organization found for "${query}".`);
-}
-
-/**
- * Parses persisted payroll deduction breakdown rows from JSONB.
- *
- * @param value - Raw JSONB value from `payroll_run_employee.deductions_breakdown`
- * @returns Validated deduction breakdown items
- * @throws {Error} When persisted deduction data is malformed
- */
-function parseDeductionBreakdown(value: unknown): DeductionBreakdownItem[] {
-	return z.array(deductionBreakdownItemSchema).parse(value);
 }
 
 /**
@@ -452,41 +363,7 @@ async function buildDeductionRollbackPlan(runId: string): Promise<DeductionRollb
 		.from(payrollRunEmployee)
 		.where(eq(payrollRunEmployee.payrollRunId, runId));
 
-	const rollbacks: DeductionRollbackPlan[] = [];
-
-	for (const row of rows as PayrollRunEmployeeRow[]) {
-		const items = parseDeductionBreakdown(row.deductionsBreakdown ?? []);
-		for (const item of items) {
-			const stateChanged =
-				item.statusBefore !== item.statusAfter ||
-				item.completedInstallmentsBefore !== item.completedInstallmentsAfter ||
-				item.remainingAmountBefore !== item.remainingAmountAfter;
-
-			if (!stateChanged) {
-				continue;
-			}
-
-			rollbacks.push({
-				deductionId: item.deductionId,
-				employeeId: row.employeeId,
-				statusBefore: item.statusBefore as EmployeeDeductionStatus,
-				statusAfter: item.statusAfter as EmployeeDeductionStatus,
-				completedInstallmentsBefore: item.completedInstallmentsBefore,
-				completedInstallmentsAfter: item.completedInstallmentsAfter,
-				remainingAmountBefore: formatMoney(item.remainingAmountBefore),
-				remainingAmountAfter: formatMoney(item.remainingAmountAfter),
-				calculationMethod: item.calculationMethod,
-				frequency: item.frequency,
-				sourceValue: formatDecimal4(item.sourceValue),
-				sourceTotalInstallments: item.sourceTotalInstallments,
-				sourceTotalAmount: formatMoney(item.sourceTotalAmount),
-				sourceStartDateKey: item.sourceStartDateKey,
-				sourceEndDateKey: item.sourceEndDateKey,
-			});
-		}
-	}
-
-	return rollbacks;
+	return buildDeductionRollbackPlansFromRows(rows as PayrollRunEmployeeDeductionRow[]);
 }
 
 /**

@@ -152,6 +152,8 @@ function getDeleteGlobalUserErrorMessage(
 			return t('errors.deleteLastAdminProtected');
 		case 'USER_DELETE_CROSS_ORG_DEPENDENCY':
 			return t('errors.deleteCrossOrgDependency');
+		case 'USER_DELETE_AUDIT_FALLBACK_REQUIRED':
+			return t('errors.deleteAuditFallbackRequired');
 		case 'ORGANIZATION_ADMIN_REQUIRED':
 			return t('errors.deleteRequiresAdmin');
 		case 'ORGANIZATION_MEMBERSHIP_REQUIRED':

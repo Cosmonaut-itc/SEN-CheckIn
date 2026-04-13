@@ -502,6 +502,27 @@ describe('UsersPageClient', () => {
 		expect(mockToastSuccess).toHaveBeenCalledWith('Usuario borrado correctamente');
 	});
 
+	it('shows the audit fallback message when global deletion cannot preserve historical ownership', async () => {
+		mockDeleteGlobalUser.mockResolvedValueOnce({
+			success: false,
+			errorCode: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED',
+		});
+
+		renderWithProviders({ organizationRole: 'owner', userRole: 'admin' });
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Borrar usuario Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockToastError).toHaveBeenCalledWith(
+				'No se puede borrar el usuario porque no existe otra persona con acceso a todas las organizaciones necesarias para conservar el historial.',
+			);
+		});
+	});
+
 	it('clears unsaved member role overrides after switching organizations', async () => {
 		mockFetchAllOrganizations.mockResolvedValueOnce({
 			organizations: [

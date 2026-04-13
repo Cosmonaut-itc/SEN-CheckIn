@@ -3020,6 +3020,7 @@
 			"deleteUserNotFound": "El usuario ya no existe o ya fue eliminado.",
 			"deleteLastAdminProtected": "No puedes borrar al último administrador o propietario activo.",
 			"deleteCrossOrgDependency": "Este usuario todavía pertenece a otras organizaciones y no se puede borrar desde este contexto.",
+			"deleteAuditFallbackRequired": "No se puede borrar el usuario porque no existe otra persona con acceso a todas las organizaciones necesarias para conservar el historial.",
 			"deleteRequiresAdmin": "Solo administradores autorizados pueden borrar usuarios.",
 			"deleteRequiresMembership": "Debes pertenecer a la organización para borrar este usuario.",
 			"createFailed": "No se pudo crear el usuario. Revisa los datos e intenta de nuevo.",

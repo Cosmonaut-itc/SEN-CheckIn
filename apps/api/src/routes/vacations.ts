@@ -20,6 +20,7 @@ import type { AuthSession } from '../plugins/auth.js';
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { idParamSchema } from '../schemas/crud.js';
+import { addDaysToDateKey } from '../utils/date-key.js';
 import {
 	vacationRequestCreateSchema,
 	vacationRequestDecisionSchema,
@@ -249,6 +250,38 @@ async function findIncapacityOverlaps(args: {
 }
 
 /**
+ * Expands active incapacity ranges into a per-day date key set.
+ *
+ * @param args - Range lookup inputs
+ * @returns Set of date keys covered by active incapacity records
+ */
+async function loadActiveIncapacityDateKeys(args: {
+	organizationId: string;
+	employeeId: string;
+	startDateKey: string;
+	endDateKey: string;
+}): Promise<Set<string>> {
+	const overlaps = await findIncapacityOverlaps(args);
+	const dateKeys = new Set<string>();
+
+	for (const overlap of overlaps) {
+		let cursor =
+			overlap.startDateKey < args.startDateKey ? args.startDateKey : overlap.startDateKey;
+		const rangeEnd = overlap.endDateKey > args.endDateKey ? args.endDateKey : overlap.endDateKey;
+
+		for (let i = 0; i < 400 && cursor <= rangeEnd; i += 1) {
+			dateKeys.add(cursor);
+			if (cursor === rangeEnd) {
+				break;
+			}
+			cursor = addDaysToDateKey(cursor, 1);
+		}
+	}
+
+	return dateKeys;
+}
+
+/**
  * Builds vacation request day breakdown using schedule and rest day policies.
  *
  * @param employeeRecord - Employee record
@@ -263,9 +296,15 @@ async function buildVacationRequestDays(
 	endDateKey: string,
 	additionalMandatoryRestDays: string[],
 ): Promise<ReturnType<typeof buildVacationDayBreakdown>> {
-	const [scheduleDays, exceptions] = await Promise.all([
+	const [scheduleDays, exceptions, incapacityDateKeys] = await Promise.all([
 		loadBaseScheduleDays(employeeRecord),
 		loadScheduleExceptionsForRange(employeeRecord.id, startDateKey, endDateKey),
+		loadActiveIncapacityDateKeys({
+			organizationId: employeeRecord.organizationId ?? '',
+			employeeId: employeeRecord.id,
+			startDateKey,
+			endDateKey,
+		}),
 	]);
 
 	const mandatoryRestDayKeys = buildMandatoryRestDayKeys(
@@ -280,6 +319,7 @@ async function buildVacationRequestDays(
 		scheduleDays,
 		exceptions,
 		mandatoryRestDayKeys,
+		incapacityDateKeys,
 		hireDate: employeeRecord.hireDate ?? null,
 	});
 }
@@ -781,21 +821,6 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				});
 			}
 
-			const incapacityOverlaps = await findIncapacityOverlaps({
-				organizationId,
-				employeeId: employeeRecord.id,
-				startDateKey: body.startDateKey,
-				endDateKey: body.endDateKey,
-			});
-
-			if (incapacityOverlaps.length > 0) {
-				set.status = 409;
-				return buildErrorResponse('Vacation request overlaps an active incapacity', 409, {
-					code: VACATION_ERROR_CODES.INCAPACITY_OVERLAP,
-					details: { conflicts: incapacityOverlaps },
-				});
-			}
-
 			const requestId = crypto.randomUUID();
 			const notes = body.requestedNotes?.trim() ? body.requestedNotes.trim() : undefined;
 
@@ -1136,24 +1161,6 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 					);
 				}
 
-				const incapacityOverlaps = await findIncapacityOverlaps({
-					organizationId,
-					employeeId: employeeRecord.id,
-					startDateKey: body.startDateKey,
-					endDateKey: body.endDateKey,
-				});
-
-				if (incapacityOverlaps.length > 0) {
-					set.status = 409;
-					return buildErrorResponse(
-						'Vacation request overlaps an active incapacity',
-						409,
-						{
-							code: VACATION_ERROR_CODES.INCAPACITY_OVERLAP,
-							details: { conflicts: incapacityOverlaps },
-						},
-					);
-				}
 			}
 
 			const requestId = crypto.randomUUID();
@@ -1254,17 +1261,36 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return buildErrorResponse('Vacation request cannot be approved', 400);
 			}
 
-			const dayRows = await db
-				.select({
-					dateKey: vacationRequestDay.dateKey,
-					countsAsVacationDay: vacationRequestDay.countsAsVacationDay,
-					serviceYearNumber: vacationRequestDay.serviceYearNumber,
-				})
-				.from(vacationRequestDay)
-				.where(eq(vacationRequestDay.requestId, request.id));
+			const settings = await db
+				.select({ additionalMandatoryRestDays: payrollSetting.additionalMandatoryRestDays })
+				.from(payrollSetting)
+				.where(eq(payrollSetting.organizationId, organizationId))
+				.limit(1);
 
+			const employeeRows = await db
+				.select()
+				.from(employee)
+				.where(
+					and(
+						eq(employee.id, request.employeeId),
+						eq(employee.organizationId, organizationId),
+					),
+				)
+				.limit(1);
+			const employeeRecord = employeeRows[0] ?? null;
+			if (!employeeRecord) {
+				set.status = 404;
+				return buildErrorResponse('Employee not found', 404);
+			}
+
+			const breakdown = await buildVacationRequestDays(
+				employeeRecord,
+				request.startDateKey,
+				request.endDateKey,
+				settings[0]?.additionalMandatoryRestDays ?? [],
+			);
 			const requestedDaysByServiceYear = new Map<number, number>();
-			const invalidServiceDays = dayRows.some(
+			const invalidServiceDays = breakdown.days.some(
 				(day) =>
 					day.countsAsVacationDay &&
 					(!day.serviceYearNumber || day.serviceYearNumber <= 0),
@@ -1277,7 +1303,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				);
 			}
 
-			for (const day of dayRows) {
+			for (const day of breakdown.days) {
 				if (!day.countsAsVacationDay) {
 					continue;
 				}
@@ -1290,17 +1316,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				}
 			}
 
-			const employeeRows = await db
-				.select({ hireDate: employee.hireDate })
-				.from(employee)
-				.where(
-					and(
-						eq(employee.id, request.employeeId),
-						eq(employee.organizationId, organizationId),
-					),
-				)
-				.limit(1);
-			const hireDate = employeeRows[0]?.hireDate ?? null;
+			const hireDate = employeeRecord.hireDate ?? null;
 			if (!hireDate) {
 				set.status = 400;
 				return buildErrorResponse(
@@ -1345,22 +1361,7 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 				return buildErrorResponse('Vacation request overlaps an approved request', 409);
 			}
 
-			const incapacityOverlaps = await findIncapacityOverlaps({
-				organizationId,
-				employeeId: request.employeeId,
-				startDateKey: request.startDateKey,
-				endDateKey: request.endDateKey,
-			});
-
-			if (incapacityOverlaps.length > 0) {
-				set.status = 409;
-				return buildErrorResponse('Vacation request overlaps an active incapacity', 409, {
-					code: VACATION_ERROR_CODES.INCAPACITY_OVERLAP,
-					details: { conflicts: incapacityOverlaps },
-				});
-			}
-
-			const exceptionDates = dayRows
+			const exceptionDates = breakdown.days
 				.filter((day) => day.countsAsVacationDay)
 				.map((day) => new Date(`${day.dateKey}T00:00:00`));
 
@@ -1393,6 +1394,21 @@ export const vacationRoutes = new Elysia({ prefix: '/vacations' })
 			}
 
 			await db.transaction(async (tx) => {
+				await tx.delete(vacationRequestDay).where(eq(vacationRequestDay.requestId, request.id));
+
+				if (breakdown.days.length > 0) {
+					await tx.insert(vacationRequestDay).values(
+						breakdown.days.map((day) => ({
+							requestId: request.id,
+							employeeId: request.employeeId,
+							dateKey: day.dateKey,
+							countsAsVacationDay: day.countsAsVacationDay,
+							dayType: day.dayType,
+							serviceYearNumber: day.serviceYearNumber ?? null,
+						})),
+					);
+				}
+
 				if (exceptionDates.length > 0) {
 					const exceptionType: (typeof scheduleException.$inferInsert)['exceptionType'] =
 						'DAY_OFF';

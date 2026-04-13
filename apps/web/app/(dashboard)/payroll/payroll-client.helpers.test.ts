@@ -44,6 +44,8 @@ function buildEmployee(
 		vacationDaysPaid: 0,
 		vacationPayAmount: 0,
 		vacationPremiumAmount: 0,
+		realVacationPayAmount: null,
+		realVacationPremiumAmount: null,
 		lunchBreakAutoDeductedDays: 0,
 		lunchBreakAutoDeductedMinutes: 0,
 		totalPay: 1740,
@@ -139,5 +141,22 @@ describe('buildPayrollCsvEmployeeRow', () => {
 		expect(row.fiscalGrossPay).toBe(1080);
 		expect(row.complementPay).toBe(0);
 		expect(row.totalRealPay).toBe(1080);
+	});
+
+	it('exports real vacation amounts when dual payroll fields are available', () => {
+		const row = buildPayrollCsvEmployeeRow({
+			row: buildEmployee({
+				vacationPayAmount: 600,
+				vacationPremiumAmount: 150,
+				realVacationPayAmount: 1000,
+				realVacationPremiumAmount: 250,
+			}),
+			periodStartDateKey: '2026-03-09',
+			periodEndDateKey: '2026-03-15',
+			t,
+		});
+
+		expect(row.realVacationPayAmount).toBe(1000);
+		expect(row.realVacationPremiumAmount).toBe(250);
 	});
 });

@@ -960,6 +960,7 @@ export const mutationKeys = {
 		create: ['organizationMembers', 'create'] as const,
 		add: ['organizationMembers', 'add'] as const,
 		update: ['organizationMembers', 'update'] as const,
+		delete: ['organizationMembers', 'delete'] as const,
 	},
 
 	deviceAuth: {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+	buildVacationDayBreakdown,
 	calculateAvailableVacationDays,
 	calculateVacationAccrual,
 	getServiceYearNumber,
@@ -129,5 +130,89 @@ describe('vacations service year number', () => {
 
 	it('returns 0 for dates before the hire date', () => {
 		expect(getServiceYearNumber(hireDate, '2025-06-14')).toBe(0);
+	});
+});
+
+describe('buildVacationDayBreakdown', () => {
+	it('counts only working days and excludes rest days, holidays, and incapacities', () => {
+		const breakdown = buildVacationDayBreakdown({
+			startDateKey: '2026-02-02',
+			endDateKey: '2026-02-06',
+			scheduleDays: [
+				{ dayOfWeek: 1, isWorkingDay: true },
+				{ dayOfWeek: 2, isWorkingDay: true },
+				{ dayOfWeek: 3, isWorkingDay: true },
+				{ dayOfWeek: 4, isWorkingDay: true },
+				{ dayOfWeek: 5, isWorkingDay: true },
+			],
+			exceptions: [],
+			mandatoryRestDayKeys: new Set(['2026-02-04']),
+			incapacityDateKeys: new Set(['2026-02-05']),
+			hireDate: new Date('2020-01-01T00:00:00Z'),
+		});
+
+		expect(breakdown.vacationDays).toBe(3);
+		expect(
+			breakdown.days.map((day) => ({
+				dateKey: day.dateKey,
+				countsAsVacationDay: day.countsAsVacationDay,
+				dayType: day.dayType,
+			})),
+		).toEqual([
+			{
+				dateKey: '2026-02-02',
+				countsAsVacationDay: true,
+				dayType: 'SCHEDULED_WORKDAY',
+			},
+			{
+				dateKey: '2026-02-03',
+				countsAsVacationDay: true,
+				dayType: 'SCHEDULED_WORKDAY',
+			},
+			{
+				dateKey: '2026-02-04',
+				countsAsVacationDay: false,
+				dayType: 'MANDATORY_REST_DAY',
+			},
+			{
+				dateKey: '2026-02-05',
+				countsAsVacationDay: false,
+				dayType: 'INCAPACITY',
+			},
+			{
+				dateKey: '2026-02-06',
+				countsAsVacationDay: true,
+				dayType: 'SCHEDULED_WORKDAY',
+			},
+		]);
+	});
+
+	it('counts exception workdays and keeps exception days off excluded', () => {
+		const breakdown = buildVacationDayBreakdown({
+			startDateKey: '2026-03-07',
+			endDateKey: '2026-03-08',
+			scheduleDays: [
+				{ dayOfWeek: 0, isWorkingDay: false },
+				{ dayOfWeek: 6, isWorkingDay: false },
+			],
+			exceptions: [
+				{
+					exceptionDate: new Date('2026-03-07T00:00:00Z'),
+					exceptionType: 'EXTRA_DAY',
+				},
+				{
+					exceptionDate: new Date('2026-03-08T00:00:00Z'),
+					exceptionType: 'DAY_OFF',
+				},
+			],
+			mandatoryRestDayKeys: new Set<string>(),
+			hireDate: new Date('2020-01-01T00:00:00Z'),
+		});
+
+		expect(breakdown.vacationDays).toBe(1);
+		expect(breakdown.days[0]?.dayType).toBe('EXCEPTION_WORKDAY');
+		expect(breakdown.days[0]?.countsAsVacationDay).toBe(true);
+		expect(breakdown.days[1]?.dayType).toBe('EXCEPTION_DAY_OFF');
+		expect(breakdown.days[1]?.countsAsVacationDay).toBe(false);
 	});
 });

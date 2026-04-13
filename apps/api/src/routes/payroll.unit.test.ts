@@ -50,6 +50,7 @@ interface FakePayrollSettingRow {
 	absorbIsr?: boolean;
 	aguinaldoDays?: number;
 	vacationPremiumRate?: number;
+	realVacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
 	autoDeductLunchBreak?: boolean;
 	lunchBreakMinutes?: number;

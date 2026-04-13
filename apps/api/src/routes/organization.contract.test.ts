@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { parseSetCookieHeader } from 'better-auth/cookies';
 
 import db from '../db/index.js';
-import { member, organization } from '../db/schema.js';
+import { employee, member, organization, user as userTable } from '../db/schema.js';
 
 import {
 	createTestClient,
@@ -461,5 +461,69 @@ describe('organization routes (contract)', () => {
 		const errorPayload = requireErrorResponse(response, 'owner role protection');
 		expect(errorPayload.error.message).toBe('Owner role cannot be changed from this endpoint');
 		expect(errorPayload.error.code).toBe('OWNER_ROLE_PROTECTED');
+	});
+
+	it('deletes a global user, removes memberships, and unlinks linked employees', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const targetEmail = `delete-target.${suffix}@example.com`;
+		const targetUserId = await createMembershipUser(targetEmail, `delete_target_${suffix}`);
+		await createMembership(targetUserId, seed.organizationId, 'member');
+
+		const employeeId = randomUUID();
+		await db.insert(employee).values({
+			id: employeeId,
+			code: `DEL-${suffix}`,
+			firstName: 'Cuenta',
+			lastName: 'Ligada',
+			organizationId: seed.organizationId,
+			userId: targetUserId,
+			dailyPay: '0',
+		});
+
+		const response = await client.organization['delete-user-global'].post({
+			userId: targetUserId,
+			organizationId: seed.organizationId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.success).toBe(true);
+		expect(payload.data?.removedMemberships).toBe(1);
+		expect(payload.data?.unlinkedEmployees).toBe(1);
+
+		const remainingUsers = await db
+			.select({ id: userTable.id })
+			.from(userTable)
+			.where(eq(userTable.id, targetUserId))
+			.limit(1);
+		expect(remainingUsers[0]).toBeUndefined();
+
+		const employeeRows = await db
+			.select({ userId: employee.userId })
+			.from(employee)
+			.where(eq(employee.id, employeeId))
+			.limit(1);
+		expect(employeeRows[0]?.userId).toBeNull();
+	});
+
+	it('blocks deleting the last admin or owner in an organization', async () => {
+		const suffix = randomUUID().slice(0, 8);
+		const protectedOrganizationId = await createTestOrganization(`protected-${suffix}`);
+		const lastAdminUserId = await createMembershipUser(
+			`last-admin.${suffix}@example.com`,
+			`last_admin_${suffix}`,
+		);
+		await createMembership(lastAdminUserId, protectedOrganizationId, 'admin');
+
+		const response = await client.organization['delete-user-global'].post({
+			userId: lastAdminUserId,
+			organizationId: protectedOrganizationId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(response.status).toBe(409);
+		const errorPayload = requireErrorResponse(response, 'last admin protected');
+		expect(errorPayload.error.code).toBe('LAST_ADMIN_OR_OWNER_PROTECTED');
 	});
 });

@@ -2593,6 +2593,7 @@ export interface PayrollSettings {
 	absorbIsr: boolean;
 	aguinaldoDays: number;
 	vacationPremiumRate: number;
+	realVacationPremiumRate?: number;
 	enableSeventhDayPay: boolean;
 	enableDualPayroll: boolean;
 	countSaturdayAsWorkedForSeventhDay: boolean;
@@ -2788,6 +2789,8 @@ export interface PayrollCalculationEmployee {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
+	realVacationPayAmount?: number | null;
+	realVacationPremiumAmount?: number | null;
 	deductionsBreakdown: PayrollDeductionBreakdownItem[];
 	totalDeductions: number;
 	totalPay: number;
@@ -2860,6 +2863,8 @@ export interface PayrollRunEmployee {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
+	realVacationPayAmount?: number | null;
+	realVacationPremiumAmount?: number | null;
 	fiscalGrossPay?: number | null;
 	complementPay?: number | null;
 	totalRealPay?: number | null;
@@ -3013,6 +3018,8 @@ type PayrollCalculationEmployeePayload = Omit<
 	| 'vacationDaysPaid'
 	| 'vacationPayAmount'
 	| 'vacationPremiumAmount'
+	| 'realVacationPayAmount'
+	| 'realVacationPremiumAmount'
 	| 'lunchBreakAutoDeductedDays'
 	| 'lunchBreakAutoDeductedMinutes'
 	| 'totalDeductions'
@@ -3043,6 +3050,8 @@ type PayrollCalculationEmployeePayload = Omit<
 	vacationDaysPaid?: number | string;
 	vacationPayAmount?: number | string;
 	vacationPremiumAmount?: number | string;
+	realVacationPayAmount?: number | string | null;
+	realVacationPremiumAmount?: number | string | null;
 	lunchBreakAutoDeductedDays?: number | string;
 	lunchBreakAutoDeductedMinutes?: number | string;
 	totalDeductions?: number | string;
@@ -3085,6 +3094,15 @@ function normalizePayrollCalculationEmployee(
 		vacationDaysPaid: Number(record.vacationDaysPaid ?? 0),
 		vacationPayAmount: Number(record.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(record.vacationPremiumAmount ?? 0),
+		realVacationPayAmount:
+			record.realVacationPayAmount === null || record.realVacationPayAmount === undefined
+				? null
+				: Number(record.realVacationPayAmount),
+		realVacationPremiumAmount:
+			record.realVacationPremiumAmount === null ||
+			record.realVacationPremiumAmount === undefined
+				? null
+				: Number(record.realVacationPremiumAmount),
 		lunchBreakAutoDeductedDays: Number(record.lunchBreakAutoDeductedDays ?? 0),
 		lunchBreakAutoDeductedMinutes: Number(record.lunchBreakAutoDeductedMinutes ?? 0),
 		totalDeductions: Number(record.totalDeductions ?? 0),
@@ -3294,6 +3312,7 @@ type PayrollSettingsPayload = Omit<
 	| 'statePayrollTaxRate'
 	| 'aguinaldoDays'
 	| 'vacationPremiumRate'
+	| 'realVacationPremiumRate'
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
@@ -3311,6 +3330,7 @@ type PayrollSettingsPayload = Omit<
 	statePayrollTaxRate?: number | string | null;
 	aguinaldoDays?: number | string | null;
 	vacationPremiumRate?: number | string | null;
+	realVacationPremiumRate?: number | string | null;
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
@@ -3364,6 +3384,10 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		statePayrollTaxRate: normalizeNumber(payload.statePayrollTaxRate, 0),
 		aguinaldoDays: normalizeNumber(payload.aguinaldoDays, 15),
 		vacationPremiumRate: normalizeNumber(payload.vacationPremiumRate, 0.25),
+		realVacationPremiumRate: normalizeNumber(
+			payload.realVacationPremiumRate ?? payload.vacationPremiumRate,
+			0.25,
+		),
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
@@ -4174,6 +4198,8 @@ export async function fetchPayrollRunDetail(
 						vacationDaysPaid?: number | string;
 						vacationPayAmount?: number | string;
 						vacationPremiumAmount?: number | string;
+						realVacationPayAmount?: number | string | null;
+						realVacationPremiumAmount?: number | string | null;
 						fiscalGrossPay?: number | string | null;
 						complementPay?: number | string | null;
 						totalRealPay?: number | string | null;
@@ -4227,6 +4253,16 @@ export async function fetchPayrollRunDetail(
 		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
 		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
+		realVacationPayAmount:
+			employee.realVacationPayAmount === null ||
+			employee.realVacationPayAmount === undefined
+				? null
+				: Number(employee.realVacationPayAmount),
+		realVacationPremiumAmount:
+			employee.realVacationPremiumAmount === null ||
+			employee.realVacationPremiumAmount === undefined
+				? null
+				: Number(employee.realVacationPremiumAmount),
 		fiscalGrossPay:
 			employee.fiscalGrossPay === undefined
 				? undefined

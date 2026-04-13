@@ -250,7 +250,7 @@ describe('incapacity routes (contract)', () => {
 		);
 	});
 
-	it('blocks vacation requests that overlap active incapacities', async () => {
+	it('allows vacation requests over active incapacities without consuming those days', async () => {
 		const startDateKey = '2031-05-01';
 		const endDateKey = addDaysToDateKey(startDateKey, 2);
 
@@ -274,9 +274,18 @@ describe('incapacity routes (contract)', () => {
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
-		expect(vacationResponse.status).toBe(409);
-		const errorPayload = requireErrorResponse(vacationResponse, 'vacation incapacity overlap');
-		expect(errorPayload.error.code).toBe('VACATION_INCAPACITY_OVERLAP');
+		expect(vacationResponse.status).toBe(200);
+		const vacationPayload = requireResponseData(vacationResponse);
+		const request = vacationPayload.data;
+		if (!request) {
+			throw new Error('Expected vacation request payload.');
+		}
+		expect(request.summary?.totalDays).toBe(3);
+		expect(request.summary?.vacationDays).toBe(0);
+		for (const day of request.days) {
+			expect(day.dayType).toBe('INCAPACITY');
+			expect(day.countsAsVacationDay).toBe(false);
+		}
 	});
 
 	it('presigns incapacity documents when bucket is configured or returns a configuration error', async () => {

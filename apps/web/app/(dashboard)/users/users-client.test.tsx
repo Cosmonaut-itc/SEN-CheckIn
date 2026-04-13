@@ -17,6 +17,7 @@ const mockFetchUsers = vi.fn();
 const mockFetchAllOrganizations = vi.fn();
 const mockUseSession = vi.fn();
 const mockUpdateOrganizationMemberRole = vi.fn();
+const mockDeleteGlobalUser = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockRouterRefresh = vi.fn();
@@ -88,6 +89,7 @@ vi.mock('@/actions/users', () => ({
 	createOrganizationUser: vi.fn(),
 	addOrganizationMember: vi.fn(),
 	updateOrganizationMemberRole: (...args: unknown[]) => mockUpdateOrganizationMemberRole(...args),
+	deleteGlobalUser: (...args: unknown[]) => mockDeleteGlobalUser(...args),
 }));
 
 vi.mock('sonner', () => ({
@@ -149,9 +151,11 @@ describe('UsersPageClient', () => {
 		mockFetchAllOrganizations.mockReset();
 		mockUseSession.mockReset();
 		mockUpdateOrganizationMemberRole.mockReset();
+		mockDeleteGlobalUser.mockReset();
 		mockToastSuccess.mockReset();
 		mockToastError.mockReset();
 		mockRouterRefresh.mockReset();
+		vi.stubGlobal('confirm', vi.fn(() => true));
 
 		mockUseSession.mockReturnValue({
 			data: {
@@ -212,6 +216,14 @@ describe('UsersPageClient', () => {
 					organizationId: 'org-1',
 					role: 'admin',
 				},
+			},
+		});
+		mockDeleteGlobalUser.mockResolvedValue({
+			success: true,
+			data: {
+				removedMemberships: 1,
+				unlinkedEmployees: 1,
+				reassignedDeductions: 0,
 			},
 		});
 	});
@@ -503,6 +515,31 @@ describe('UsersPageClient', () => {
 				userId: 'user-1',
 			});
 		});
+	});
+
+	it('deletes a user globally after confirmation', async () => {
+		renderWithProviders({ organizationRole: 'owner', userRole: 'admin' });
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Borrar usuario Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(globalThis.confirm).toHaveBeenCalledWith(
+				'¿Seguro que deseas borrar globalmente a Ana Miembro? Se eliminarán sus accesos y membresías, pero se conservará el historial operativo.',
+			);
+		});
+		await waitFor(() => {
+			expect(mockDeleteGlobalUser).toHaveBeenCalledWith(
+				{
+					userId: 'user-1',
+				},
+				expect.anything(),
+			);
+		});
+		expect(mockToastSuccess).toHaveBeenCalledWith('Usuario borrado correctamente');
 	});
 
 	it('clears unsaved member role overrides after switching organizations', async () => {

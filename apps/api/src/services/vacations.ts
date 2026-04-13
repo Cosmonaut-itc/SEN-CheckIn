@@ -300,10 +300,18 @@ export function buildVacationDayBreakdown(args: {
 	scheduleDays: VacationScheduleDay[];
 	exceptions: VacationScheduleException[];
 	mandatoryRestDayKeys: Set<string>;
+	incapacityDateKeys?: Set<string>;
 	hireDate?: Date | null;
 }): VacationDayBreakdown {
-	const { startDateKey, endDateKey, scheduleDays, exceptions, mandatoryRestDayKeys, hireDate } =
-		args;
+	const {
+		startDateKey,
+		endDateKey,
+		scheduleDays,
+		exceptions,
+		mandatoryRestDayKeys,
+		incapacityDateKeys,
+		hireDate,
+	} = args;
 
 	const scheduleMap = new Map<number, boolean>();
 	for (const day of scheduleDays) {
@@ -330,7 +338,9 @@ export function buildVacationDayBreakdown(args: {
 		let dayType: VacationDayType = 'SCHEDULED_REST_DAY';
 		let countsAsVacationDay = false;
 
-		if (mandatoryRestDayKeys.has(cursor)) {
+		if (incapacityDateKeys?.has(cursor)) {
+			dayType = 'INCAPACITY';
+		} else if (mandatoryRestDayKeys.has(cursor)) {
 			dayType = 'MANDATORY_REST_DAY';
 		} else {
 			const exceptionType = exceptionMap.get(cursor);

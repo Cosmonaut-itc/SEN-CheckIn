@@ -1814,6 +1814,8 @@
 				"vacationDaysPaid": "dias_vacaciones_pagadas",
 				"vacationPayAmount": "pago_vacaciones",
 				"vacationPremiumAmount": "prima_vacacional",
+				"realVacationPayAmount": "pago_vacaciones_real",
+				"realVacationPremiumAmount": "prima_vacacional_real",
 				"seventhDayPay": "septimo_dia",
 				"lunchBreakAutoDeductedDays": "comida_descuento_dias",
 				"lunchBreakAutoDeductedMinutes": "comida_descuento_minutos",
@@ -1875,9 +1877,11 @@
 				"grossPay": "Percepciones (bruto)",
 				"vacationDays": "Días de vacaciones",
 				"vacationPay": "Pago de vacaciones",
+				"vacationPayReal": "Pago de vacaciones real",
 				"incapacityDays": "Días de incapacidad",
 				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"vacationPremium": "Prima vacacional",
+				"vacationPremiumReal": "Prima vacacional real",
 				"employeeWithholdings": "Retenciones",
 				"netPay": "Neto",
 				"employerCosts": "Costos patrón",
@@ -2221,7 +2225,8 @@
 				"riskWorkRate": "Prima de riesgo de trabajo (RT)",
 				"statePayrollTaxRate": "Impuesto estatal sobre nóminas (ISN)",
 				"aguinaldoDays": "Días de aguinaldo",
-				"vacationPremiumRate": "Prima vacacional",
+				"vacationPremiumRate": "Prima vacacional fiscal",
+				"realVacationPremiumRate": "Prima vacacional real",
 				"absorbImssEmployeeShare": "Absorber IMSS obrero",
 				"absorbIsr": "Absorber ISR",
 				"enableSeventhDayPay": "Pagar séptimo día",
@@ -2235,11 +2240,12 @@
 			"helpers": {
 				"riskWorkRate": "Ingresa la tasa como decimal (ej. 0.06 = 6%).",
 				"statePayrollTaxRate": "Ingresa la tasa como decimal (ej. 0.02 = 2%).",
-				"vacationPremiumRate": "Ingresa la prima como decimal (ej. 0.25 = 25%).",
+				"vacationPremiumRate": "Define el porcentaje fiscal que se usa para integración y cálculo fiscal de la prima vacacional. Ingresa el decimal equivalente (ej. 0.25 = 25%).",
+				"realVacationPremiumRate": "Define el porcentaje aplicado al pago real de la prima vacacional. Ingresa el decimal equivalente (ej. 0.25 = 25%).",
 				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
 				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
-				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos.",
-				"countSaturdayAsWorkedForSeventhDay": "Empleados con jornada L-V tendrán el sábado contado como trabajado.",
+				"enableSeventhDayPay": "Paga el séptimo día cuando el periodo semanal cumpla la regla de asistencia configurada.",
+				"countSaturdayAsWorkedForSeventhDay": "Si está activo, una jornada L-V considera el sábado como trabajado solo para determinar si corresponde pagar el séptimo día.",
 				"enableDualPayroll": "Usa un salario fiscal menor para IMSS/ISR y conserva el pago real del empleado como complemento."
 			},
 			"dualPayroll": {
@@ -2949,7 +2955,11 @@
 			"saveRole": "Guardar rol",
 			"savingRole": "Guardando...",
 			"changeRoleFor": "Cambiar rol de {user}",
-			"saveRoleFor": "Guardar rol de {user}"
+			"saveRoleFor": "Guardar rol de {user}",
+			"delete": "Borrar usuario",
+			"deleting": "Borrando...",
+			"deleteFor": "Borrar usuario {user}",
+			"currentUserProtected": "Tu cuenta actual no se borra desde aquí."
 		},
 		"dialog": {
 			"title": "Crear usuario",
@@ -3002,6 +3012,12 @@
 			"roleUpdateOrganizationMembershipRequired": "Debes pertenecer a la organización para actualizar miembros.",
 			"roleUpdateOrganizationAdminRequired": "Solo los administradores de la organización pueden actualizar roles.",
 			"roleUpdateMemberNotFound": "El miembro ya no existe en esta organización.",
+			"deleteUserRequired": "Selecciona un usuario válido para borrarlo.",
+			"deleteUserNotFound": "El usuario ya no existe o ya fue eliminado.",
+			"deleteLastAdminProtected": "No puedes borrar al último administrador o propietario activo.",
+			"deleteCrossOrgDependency": "Este usuario todavía pertenece a otras organizaciones y no se puede borrar desde este contexto.",
+			"deleteRequiresAdmin": "Solo administradores autorizados pueden borrar usuarios.",
+			"deleteRequiresMembership": "Debes pertenecer a la organización para borrar este usuario.",
 			"createFailed": "No se pudo crear el usuario. Revisa los datos e intenta de nuevo.",
 			"addMemberFailed": "No se pudo asignar el usuario a la organización."
 		},
@@ -3019,11 +3035,18 @@
 				"member": "Miembro",
 				"email": "Correo",
 				"role": "Rol",
-				"joined": "Ingreso"
+				"joined": "Ingreso",
+				"actions": "Acciones"
 			},
 			"empty": "No se encontraron miembros.",
 			"emptyNoOrganization": "Selecciona una organización para ver miembros.",
 			"loadError": "No se pudieron cargar los miembros."
+		},
+		"dialogs": {
+			"delete": {
+				"title": "Borrar usuario",
+				"description": "¿Seguro que deseas borrar globalmente a {name}? Se eliminarán sus accesos y membresías, pero se conservará el historial operativo."
+			}
 		},
 		"roleEditor": {
 			"ownerProtected": "El rol de propietario se mantiene fuera de este flujo."
@@ -3037,6 +3060,8 @@
 			"assignError": "No se pudo asignar el usuario",
 			"roleUpdateSuccess": "Rol actualizado correctamente",
 			"roleUpdateError": "No se pudo actualizar el rol",
+			"deleteSuccess": "Usuario borrado correctamente",
+			"deleteError": "No se pudo borrar el usuario",
 			"loadOrganizationsError": "No se pudieron cargar las organizaciones",
 			"loadMembersError": "No se pudieron cargar los miembros",
 			"loadUsersError": "No se pudieron cargar los usuarios"

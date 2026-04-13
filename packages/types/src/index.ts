@@ -206,6 +206,55 @@ export type EmployeeDetailTab =
 	| 'exceptions'
 	| 'audit';
 
+/**
+ * Gratification recurrence modes.
+ */
+export type EmployeeGratificationPeriodicity = 'ONE_TIME' | 'RECURRING';
+
+/**
+ * Gratification application modes.
+ */
+export type EmployeeGratificationApplicationMode = 'MANUAL' | 'AUTOMATIC';
+
+/**
+ * Gratification lifecycle status.
+ */
+export type EmployeeGratificationStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+
+/**
+ * Employee gratification entity.
+ */
+export interface EmployeeGratification {
+	/** Unique identifier (UUID) */
+	id: string;
+	/** Organization identifier */
+	organizationId: string;
+	/** Employee identifier */
+	employeeId: string;
+	/** Free-form gratification concept */
+	concept: string;
+	/** Monetary amount */
+	amount: number;
+	/** How the gratification repeats */
+	periodicity: EmployeeGratificationPeriodicity;
+	/** Whether the gratification is captured manually or applied automatically */
+	applicationMode: EmployeeGratificationApplicationMode;
+	/** Gratification lifecycle status */
+	status: EmployeeGratificationStatus;
+	/** Start date key (YYYY-MM-DD) */
+	startDateKey: string;
+	/** Optional end date key (YYYY-MM-DD) */
+	endDateKey: string | null;
+	/** Optional notes */
+	notes: string | null;
+	/** Creator user identifier */
+	createdByUserId: string;
+	/** Record creation timestamp */
+	createdAt: Date;
+	/** Record last update timestamp */
+	updatedAt: Date;
+}
+
 // ============================================================================
 // Attendance Types
 // ============================================================================

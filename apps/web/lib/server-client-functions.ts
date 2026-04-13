@@ -936,6 +936,7 @@ type PayrollSettingsPayload = Omit<
 	| 'statePayrollTaxRate'
 	| 'aguinaldoDays'
 	| 'vacationPremiumRate'
+	| 'realVacationPremiumRate'
 	| 'absorbImssEmployeeShare'
 	| 'absorbIsr'
 	| 'enableSeventhDayPay'
@@ -953,6 +954,7 @@ type PayrollSettingsPayload = Omit<
 	statePayrollTaxRate?: number | string | null;
 	aguinaldoDays?: number | string | null;
 	vacationPremiumRate?: number | string | null;
+	realVacationPremiumRate?: number | string | null;
 	absorbImssEmployeeShare?: boolean | null;
 	absorbIsr?: boolean | null;
 	enableSeventhDayPay?: boolean | null;
@@ -1006,6 +1008,10 @@ function normalizePayrollSettings(payload?: PayrollSettingsPayload | null): Payr
 		statePayrollTaxRate: normalizeNumber(payload.statePayrollTaxRate, 0),
 		aguinaldoDays: normalizeNumber(payload.aguinaldoDays, 15),
 		vacationPremiumRate: normalizeNumber(payload.vacationPremiumRate, 0.25),
+		realVacationPremiumRate: normalizeNumber(
+			payload.realVacationPremiumRate ?? payload.vacationPremiumRate,
+			0.25,
+		),
 		absorbImssEmployeeShare: Boolean(payload.absorbImssEmployeeShare ?? false),
 		absorbIsr: Boolean(payload.absorbIsr ?? false),
 		enableSeventhDayPay: Boolean(payload.enableSeventhDayPay ?? false),
@@ -1311,6 +1317,8 @@ export async function fetchPayrollRunDetailServer(
 						vacationDaysPaid?: number | string;
 						vacationPayAmount?: number | string;
 						vacationPremiumAmount?: number | string;
+						realVacationPayAmount?: number | string | null;
+						realVacationPremiumAmount?: number | string | null;
 						lunchBreakAutoDeductedDays?: number | string;
 						lunchBreakAutoDeductedMinutes?: number | string;
 						periodStart: string | Date;
@@ -1351,6 +1359,16 @@ export async function fetchPayrollRunDetailServer(
 		vacationDaysPaid: Number(employee.vacationDaysPaid ?? 0),
 		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
+		realVacationPayAmount:
+			employee.realVacationPayAmount === null ||
+			employee.realVacationPayAmount === undefined
+				? null
+				: Number(employee.realVacationPayAmount),
+		realVacationPremiumAmount:
+			employee.realVacationPremiumAmount === null ||
+			employee.realVacationPremiumAmount === undefined
+				? null
+				: Number(employee.realVacationPremiumAmount),
 		lunchBreakAutoDeductedDays: Number(employee.lunchBreakAutoDeductedDays ?? 0),
 		lunchBreakAutoDeductedMinutes: Number(employee.lunchBreakAutoDeductedMinutes ?? 0),
 		periodStart: new Date(employee.periodStart),

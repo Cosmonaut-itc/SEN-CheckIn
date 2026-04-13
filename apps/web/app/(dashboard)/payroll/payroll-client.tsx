@@ -569,6 +569,11 @@ export function PayrollPageClient(): React.ReactElement {
 				key: 'vacationPremiumAmount',
 				label: t('csv.headers.vacationPremiumAmount'),
 			},
+			{ key: 'realVacationPayAmount', label: t('csv.headers.realVacationPayAmount') },
+			{
+				key: 'realVacationPremiumAmount',
+				label: t('csv.headers.realVacationPremiumAmount'),
+			},
 			{ key: 'incapacityDays', label: t('csv.headers.incapacityDays') },
 			{
 				key: 'incapacitySubsidy',
@@ -1444,6 +1449,18 @@ export function PayrollPageClient(): React.ReactElement {
 																	)}
 																</span>
 															)}
+																{showDualPayrollColumns &&
+																row.realVacationPayAmount != null &&
+																row.realVacationPayAmount >
+																	row.vacationPayAmount ? (
+																<span className="mt-1 block text-xs text-muted-foreground">
+																	{t('taxDetail.labels.vacationPayReal')}
+																	{': '}
+																	{formatCurrency(
+																		row.realVacationPayAmount,
+																	)}
+																</span>
+															) : null}
 														</TableCell>
 														<TableCell>
 															{row.vacationPremiumAmount > 0
@@ -1451,6 +1468,18 @@ export function PayrollPageClient(): React.ReactElement {
 																		row.vacationPremiumAmount,
 																	)
 																: '-'}
+																{showDualPayrollColumns &&
+																row.realVacationPremiumAmount != null &&
+																row.realVacationPremiumAmount >
+																	row.vacationPremiumAmount ? (
+																<span className="mt-1 block text-xs text-muted-foreground">
+																	{t('taxDetail.labels.vacationPremiumReal')}
+																	{': '}
+																	{formatCurrency(
+																		row.realVacationPremiumAmount,
+																	)}
+																</span>
+															) : null}
 														</TableCell>
 														<TableCell>
 															{row.incapacitySummary
@@ -1629,6 +1658,23 @@ export function PayrollPageClient(): React.ReactElement {
 																						</span>
 																					</div>
 																				)}
+																					{showDualPayrollColumns &&
+																					row.realVacationPayAmount != null &&
+																					row.realVacationPayAmount >
+																						row.vacationPayAmount ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationPayReal',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.realVacationPayAmount,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
 																				{row.vacationPremiumAmount >
 																					0 && (
 																					<div className="flex items-center justify-between">
@@ -1644,6 +1690,23 @@ export function PayrollPageClient(): React.ReactElement {
 																						</span>
 																					</div>
 																				)}
+																					{showDualPayrollColumns &&
+																					row.realVacationPremiumAmount != null &&
+																					row.realVacationPremiumAmount >
+																						row.vacationPremiumAmount ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationPremiumReal',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.realVacationPremiumAmount,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
 																				{row
 																					.incapacitySummary
 																					?.daysIncapacityTotal ? (

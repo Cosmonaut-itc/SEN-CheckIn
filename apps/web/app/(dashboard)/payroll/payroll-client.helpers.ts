@@ -45,6 +45,8 @@ export function buildPayrollCsvEmployeeRow(args: {
 		vacationDaysPaid: row.vacationDaysPaid ?? 0,
 		vacationPayAmount: row.vacationPayAmount ?? 0,
 		vacationPremiumAmount: row.vacationPremiumAmount ?? 0,
+		realVacationPayAmount: row.realVacationPayAmount ?? 0,
+		realVacationPremiumAmount: row.realVacationPremiumAmount ?? 0,
 		incapacityDays: row.incapacitySummary?.daysIncapacityTotal ?? 0,
 		incapacitySubsidy: row.incapacitySummary?.expectedImssSubsidyAmount ?? 0,
 		seventhDayPay: row.seventhDayPay ?? 0,

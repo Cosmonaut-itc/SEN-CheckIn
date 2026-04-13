@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { auth, organizationHooks } from '../../utils/auth.js';
 import db from '../db/index.js';
-import { member, organization, user as userTable } from '../db/schema.js';
+import { employee, employeeDeduction, member, organization, user as userTable } from '../db/schema.js';
 import { authPlugin, buildSessionHeaders } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { organizationAllQuerySchema, organizationMembersQuerySchema } from '../schemas/crud.js';
@@ -29,6 +29,11 @@ const updateMemberRoleSchema = z.object({
 	memberId: z.string().min(1, 'memberId is required'),
 	organizationId: z.string().optional(),
 	role: z.enum(['admin', 'member']),
+});
+
+const deleteGlobalUserSchema = z.object({
+	userId: z.string().min(1, 'userId is required'),
+	organizationId: z.string().optional(),
 });
 
 /**
@@ -76,6 +81,12 @@ type BetterAuthNormalizedError = {
 	message: string;
 	code?: string;
 	status: number;
+};
+
+type MembershipSnapshot = {
+	id: string;
+	organizationId: string;
+	role: string;
 };
 
 const BETTER_AUTH_STATUS_CODES: Record<string, number> = {
@@ -254,6 +265,69 @@ function resolveOrganizationOrderBy(
 				? organization.createdAt
 				: organization.name;
 	return sortDir === 'desc' ? desc(sortColumn) : asc(sortColumn);
+}
+
+/**
+ * Resolves the caller organization role when a superuser bypass is not used.
+ *
+ * @param userId - Caller user id
+ * @param organizationId - Target organization id
+ * @returns Membership role or null when missing
+ */
+async function getMembershipRole(userId: string, organizationId: string): Promise<string | null> {
+	const memberships = await db
+		.select({ role: member.role })
+		.from(member)
+		.where(and(eq(member.userId, userId), eq(member.organizationId, organizationId)))
+		.limit(1);
+
+	return memberships[0]?.role ?? null;
+}
+
+/**
+ * Lists all memberships for a target user.
+ *
+ * @param userId - User identifier
+ * @returns Membership snapshots across organizations
+ */
+async function listUserMemberships(userId: string): Promise<MembershipSnapshot[]> {
+	return await db
+		.select({
+			id: member.id,
+			organizationId: member.organizationId,
+			role: member.role,
+		})
+		.from(member)
+		.where(eq(member.userId, userId));
+}
+
+/**
+ * Resolves a fallback user id to preserve non-null historical references.
+ *
+ * @param deletedUserId - User being removed
+ * @param actorUserId - User performing the deletion
+ * @returns Surviving user id or null when none is available
+ */
+async function resolveDeletionFallbackUserId(
+	deletedUserId: string,
+	actorUserId: string,
+): Promise<string | null> {
+	if (deletedUserId !== actorUserId) {
+		return actorUserId;
+	}
+
+	const fallbackUsers = await db
+		.select({ id: userTable.id })
+		.from(userTable)
+		.limit(20);
+
+	for (const user of fallbackUsers) {
+		if (user.id !== deletedUserId) {
+			return user.id;
+		}
+	}
+
+	return null;
 }
 
 /**
@@ -918,5 +992,160 @@ export const organizationRoutes = new Elysia({ prefix: '/organization' })
 		},
 		{
 			body: updateMemberRoleSchema,
+		},
+	)
+	/**
+	 * Deletes a global user account while preserving employee/history links.
+	 *
+	 * @route POST /organization/delete-user-global
+	 * @returns success flag and deletion impact summary
+	 */
+	.post(
+		'/delete-user-global',
+		async ({ body, session, set, user }) => {
+			const organizationId = body.organizationId ?? session.activeOrganizationId ?? null;
+			const isSuperUser = user.role === 'admin';
+
+			if (!isSuperUser && !organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Organization is required', 400, {
+					code: 'ORGANIZATION_REQUIRED',
+				});
+			}
+
+			if (!isSuperUser && organizationId) {
+				const callerRole = await getMembershipRole(session.userId, organizationId);
+				if (!callerRole) {
+					set.status = 403;
+					return buildErrorResponse(
+						'You must belong to the organization to delete users',
+						403,
+						{ code: 'ORGANIZATION_MEMBERSHIP_REQUIRED' },
+					);
+				}
+
+				if (callerRole !== 'admin' && callerRole !== 'owner') {
+					set.status = 403;
+					return buildErrorResponse('Only organization admins can delete users', 403, {
+						code: 'ORGANIZATION_ADMIN_REQUIRED',
+					});
+				}
+			}
+
+			const targetUsers = await db
+				.select({ id: userTable.id })
+				.from(userTable)
+				.where(eq(userTable.id, body.userId))
+				.limit(1);
+			if (!targetUsers[0]) {
+				set.status = 404;
+				return buildErrorResponse('User not found', 404, {
+					code: 'USER_NOT_FOUND',
+				});
+			}
+
+			const memberships = await listUserMemberships(body.userId);
+			if (!isSuperUser && organizationId) {
+				const belongsToCurrentOrganization = memberships.some(
+					assignedMembership => assignedMembership.organizationId === organizationId,
+				);
+				if (!belongsToCurrentOrganization) {
+					set.status = 404;
+					return buildErrorResponse('User not found in organization', 404, {
+						code: 'USER_NOT_FOUND_IN_ORGANIZATION',
+					});
+				}
+
+				const foreignMemberships = memberships.filter(
+					assignedMembership => assignedMembership.organizationId !== organizationId,
+				);
+				if (foreignMemberships.length > 0) {
+					set.status = 409;
+					return buildErrorResponse(
+						'User belongs to additional organizations and cannot be deleted from this context',
+						409,
+						{ code: 'USER_DELETE_CROSS_ORG_DEPENDENCY' },
+					);
+				}
+			}
+
+			for (const membershipRow of memberships) {
+				if (membershipRow.role !== 'admin' && membershipRow.role !== 'owner') {
+					continue;
+				}
+
+				const remainingPrivilegedMembers = await db
+					.select({ count: count() })
+					.from(member)
+					.where(
+						and(
+							eq(member.organizationId, membershipRow.organizationId),
+							or(eq(member.role, 'admin'), eq(member.role, 'owner')),
+						),
+					);
+				const remainingCount = Number(remainingPrivilegedMembers[0]?.count ?? 0) - 1;
+				if (remainingCount <= 0) {
+					set.status = 409;
+					return buildErrorResponse(
+						'Cannot delete the last admin or owner of the organization',
+						409,
+						{
+							code: 'LAST_ADMIN_OR_OWNER_PROTECTED',
+							details: { organizationId: membershipRow.organizationId },
+						},
+					);
+				}
+			}
+
+			const deductionsCreated = await db
+				.select({ count: count() })
+				.from(employeeDeduction)
+				.where(eq(employeeDeduction.createdByUserId, body.userId));
+			const createdDeductionsCount = Number(deductionsCreated[0]?.count ?? 0);
+			const fallbackUserId =
+				createdDeductionsCount > 0
+					? await resolveDeletionFallbackUserId(body.userId, session.userId)
+					: null;
+			if (createdDeductionsCount > 0 && !fallbackUserId) {
+				set.status = 409;
+				return buildErrorResponse(
+					'Cannot preserve historical deduction ownership for the user deletion',
+					409,
+					{ code: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED' },
+				);
+			}
+
+			const linkedEmployees = await db
+				.select({ id: employee.id })
+				.from(employee)
+				.where(eq(employee.userId, body.userId));
+
+			await db.transaction(async (tx) => {
+				if (linkedEmployees.length > 0) {
+					await tx.update(employee).set({ userId: null }).where(eq(employee.userId, body.userId));
+				}
+
+				if (createdDeductionsCount > 0 && fallbackUserId) {
+					await tx
+						.update(employeeDeduction)
+						.set({ createdByUserId: fallbackUserId })
+						.where(eq(employeeDeduction.createdByUserId, body.userId));
+				}
+
+				await tx.delete(userTable).where(eq(userTable.id, body.userId));
+			});
+
+			return {
+				success: true,
+				data: {
+					userId: body.userId,
+					removedMemberships: memberships.length,
+					unlinkedEmployees: linkedEmployees.length,
+					reassignedDeductions: createdDeductionsCount,
+				},
+			};
+		},
+		{
+			body: deleteGlobalUserSchema,
 		},
 	);

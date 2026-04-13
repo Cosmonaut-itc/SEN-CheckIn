@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -350,14 +350,62 @@ describe('EmployeeDeductionsManager', () => {
 		expect(otherTypeCardText).not.toContain('$1,750.00');
 	});
 
+	it('shows separated progress fields for recurring and installment deductions', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('Caja de ahorro')).toBeTruthy();
+		});
+
+		const recurringRow = screen.getByText('Caja de ahorro').closest('tr');
+		const openBalanceRow = screen.getByText('Infonavit').closest('tr');
+		const installmentRow = screen.getByText('Saldo cancelado').closest('tr');
+
+		expect(recurringRow).toBeTruthy();
+		expect(openBalanceRow).toBeTruthy();
+		expect(installmentRow).toBeTruthy();
+
+		if (!recurringRow || !openBalanceRow || !installmentRow) {
+			throw new Error('Expected deduction rows to be rendered.');
+		}
+
+		expect(within(recurringRow).getByText('table.periodAmount')).toBeTruthy();
+		expect(within(recurringRow).getByText('table.totalAmount')).toBeTruthy();
+		expect(within(recurringRow).getByText('table.remainingAmount')).toBeTruthy();
+		expect(within(recurringRow).queryByText('table.completedInstallments')).toBeNull();
+		expect(within(recurringRow).queryByText('table.remainingInstallments')).toBeNull();
+
+		expect(within(openBalanceRow).getByText('table.periodAmount')).toBeTruthy();
+		expect(within(openBalanceRow).getByText('table.noTotalAmount')).toBeTruthy();
+		expect(within(openBalanceRow).getByText('table.remainingAmount')).toBeTruthy();
+		expect(within(openBalanceRow).queryByText('table.completedInstallments')).toBeNull();
+		expect(within(openBalanceRow).queryByText('table.remainingInstallments')).toBeNull();
+
+		expect(within(installmentRow).getByText('table.periodAmount')).toBeTruthy();
+		expect(within(installmentRow).getByText('table.totalAmount')).toBeTruthy();
+		expect(within(installmentRow).getByText('table.remainingAmount')).toBeTruthy();
+		expect(within(installmentRow).getByText('table.completedInstallments')).toBeTruthy();
+		expect(within(installmentRow).getByText('table.remainingInstallments')).toBeTruthy();
+	});
+
 	it('prefills the create dialog startDateKey using the local date instead of UTC', async () => {
+		const previousTimeZone = process.env.TZ;
+		process.env.TZ = 'America/Mexico_City';
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-03-15T01:30:00.000Z'));
 
-		renderWithProviders();
+		try {
+			renderWithProviders();
 
-		fireEvent.click(screen.getByText('actions.add'));
+			fireEvent.click(screen.getByText('actions.add'));
 
-		expect(screen.getByLabelText('form.startDate')).toHaveValue('2026-03-14');
+			expect(screen.getByLabelText('form.startDate')).toHaveValue('2026-03-14');
+		} finally {
+			if (previousTimeZone === undefined) {
+				delete process.env.TZ;
+			} else {
+				process.env.TZ = previousTimeZone;
+			}
+		}
 	});
 });

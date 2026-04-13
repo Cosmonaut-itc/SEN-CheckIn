@@ -328,6 +328,24 @@ function getInstallmentProgress(deduction: EmployeeDeduction): {
 }
 
 /**
+ * Resolves how many installments remain for a deduction.
+ *
+ * @param deduction - Deduction row
+ * @returns Remaining installments or null when not applicable
+ */
+function getRemainingInstallments(deduction: EmployeeDeduction): number | null {
+	if (
+		deduction.frequency !== 'INSTALLMENTS' ||
+		!deduction.totalInstallments ||
+		deduction.totalInstallments <= 0
+	) {
+		return null;
+	}
+
+	return Math.max(0, deduction.totalInstallments - deduction.completedInstallments);
+}
+
+/**
  * Parses a positive numeric input string into a number.
  *
  * @param value - Raw input string
@@ -1342,6 +1360,8 @@ export function EmployeeDeductionsManager({
 							) : (
 								deductionRows.map((deduction) => {
 									const installmentProgress = getInstallmentProgress(deduction);
+									const remainingInstallments =
+										getRemainingInstallments(deduction);
 
 									return (
 										<TableRow key={deduction.id}>
@@ -1394,31 +1414,75 @@ export function EmployeeDeductionsManager({
 																}}
 															/>
 														</div>
-														<p className="text-xs text-muted-foreground">
-															{t('table.installmentProgress', {
-																completed:
-																	deduction.completedInstallments,
-																total:
-																	deduction.totalInstallments ??
-																	0,
-																remaining:
-																	deduction.remainingAmount !==
-																	null
-																		? formatCurrency(
+														<div className="space-y-1 text-xs text-muted-foreground">
+															<p>
+																{t('table.periodAmount', {
+																	value: formatConfiguredValue(
+																		deduction,
+																		t,
+																	),
+																})}
+															</p>
+															<p>
+																{deduction.totalAmount !== null
+																	? t('table.totalAmount', {
+																			value: formatCurrency(
+																				deduction.totalAmount,
+																			),
+																		})
+																	: t('table.noTotalAmount')}
+															</p>
+															<p>
+																{deduction.remainingAmount !== null
+																	? t('table.remainingAmount', {
+																			value: formatCurrency(
 																				deduction.remainingAmount,
-																			)
-																		: t('table.noRemaining'),
-															})}
-														</p>
+																			),
+																		})
+																	: t('table.noRemaining')}
+															</p>
+															<p>
+																{t('table.completedInstallments', {
+																	completed:
+																		deduction.completedInstallments,
+																	total:
+																		deduction.totalInstallments ??
+																		0,
+																})}
+															</p>
+															<p>
+																{t('table.remainingInstallments', {
+																	count:
+																		remainingInstallments ?? 0,
+																})}
+															</p>
+														</div>
 													</div>
 												) : (
-													<div className="space-y-1">
+													<div className="space-y-1 text-xs text-muted-foreground">
 														<Badge variant="neutral">
 															{t(
 																`frequencies.${deduction.frequency}`,
 															)}
 														</Badge>
-														<p className="text-xs text-muted-foreground">
+														<p>
+															{t('table.periodAmount', {
+																value: formatConfiguredValue(
+																	deduction,
+																	t,
+																),
+															})}
+														</p>
+														<p>
+															{deduction.totalAmount !== null
+																? t('table.totalAmount', {
+																		value: formatCurrency(
+																			deduction.totalAmount,
+																		),
+																	})
+																: t('table.noTotalAmount')}
+														</p>
+														<p>
 															{deduction.remainingAmount !== null
 																? t('table.remainingAmount', {
 																		value: formatCurrency(

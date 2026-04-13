@@ -13,7 +13,7 @@ describe('payroll rollback utils', () => {
 							gratificationId: 'gratification-1',
 							periodicity: 'ONE_TIME',
 							applicationMode: 'MANUAL',
-							sourceAmount: 1200,
+							sourceAmount: '1200.00',
 							sourceStartDateKey: '2026-04-01',
 							sourceEndDateKey: null,
 							statusBefore: 'ACTIVE',
@@ -50,5 +50,30 @@ describe('payroll rollback utils', () => {
 				notes: null,
 			},
 		]);
+	});
+
+	it('rejects malformed persisted source amounts', () => {
+		expect(() =>
+			buildGratificationRollbackPlansFromRows([
+				{
+					employeeId: 'employee-1',
+					taxBreakdown: {
+						gratificationsBreakdown: [
+							{
+								gratificationId: 'gratification-1',
+								periodicity: 'ONE_TIME',
+								applicationMode: 'MANUAL',
+								sourceAmount: null,
+								sourceStartDateKey: '2026-04-01',
+								sourceEndDateKey: null,
+								statusBefore: 'ACTIVE',
+								statusAfter: 'COMPLETED',
+								notes: null,
+							},
+						],
+					},
+				},
+			]),
+		).toThrow();
 	});
 });

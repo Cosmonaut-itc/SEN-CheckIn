@@ -342,13 +342,7 @@ async function resolveDeletionFallbackUserId(args: {
 	}
 
 	if (organizationIds.length === 0) {
-		const fallbackUsers = await db
-			.select({ id: userTable.id })
-			.from(userTable)
-			.where(ne(userTable.id, args.deletedUserId))
-			.limit(20);
-
-		return fallbackUsers[0]?.id ?? null;
+		return null;
 	}
 
 	const fallbackMemberships = await db

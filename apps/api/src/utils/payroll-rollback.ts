@@ -24,7 +24,14 @@ const gratificationBreakdownItemSchema = z.object({
 	gratificationId: z.string().min(1),
 	periodicity: z.enum(['ONE_TIME', 'RECURRING']),
 	applicationMode: z.enum(['MANUAL', 'AUTOMATIC']),
-	sourceAmount: z.number(),
+	sourceAmount: z.union([
+		z.number().finite(),
+		z
+			.string()
+			.trim()
+			.regex(/^-?\d+(?:\.\d+)?$/)
+			.transform((value) => Number(value)),
+	]),
 	sourceStartDateKey: z.string().min(1),
 	sourceEndDateKey: z.string().nullable(),
 	statusBefore: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED']),

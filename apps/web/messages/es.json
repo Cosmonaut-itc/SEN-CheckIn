@@ -86,6 +86,7 @@
 		"payrollSettings": "Configuración de Nómina",
 		"users": "Usuarios",
 		"organizations": "Organizaciones",
+		"gratifications": "Gratificaciones",
 		"signOut": "Cerrar Sesión",
 		"userAvatarAlt": "Foto de perfil de {name}",
 		"userAvatarAltFallback": "Foto de perfil del usuario",
@@ -398,6 +399,7 @@
 			"documents": "Documentos",
 			"disciplinary": "Medidas",
 			"deductions": "Descuentos",
+			"gratifications": "Gratificaciones",
 			"more": "Más",
 			"moreAriaLabel": "Abrir menú de más pestañas",
 			"info": "Info"
@@ -791,6 +793,7 @@
 			"open": "Abrir menú",
 			"viewDetails": "Ver detalles",
 			"viewDeductions": "Abrir descuentos",
+			"viewGratifications": "Abrir gratificaciones",
 			"enrollFace": "Registrar rostro",
 			"reEnrollFace": "Volver a registrar rostro",
 			"removeFaceEnrollment": "Eliminar registro facial",
@@ -843,6 +846,9 @@
 		},
 		"deductions": {
 			"empty": "Selecciona un empleado para consultar sus descuentos."
+		},
+		"gratifications": {
+			"empty": "Selecciona un empleado para consultar sus gratificaciones."
 		},
 		"labels": {
 			"yes": "Sí",
@@ -1317,6 +1323,126 @@
 			"INSTALLMENTS": "Por cuotas"
 		}
 	},
+	"EmployeeGratifications": {
+		"hero": {
+			"badge": "Ingreso complementario",
+			"adminReady": "Control administrativo",
+			"readOnly": "Consulta",
+			"title": "Gratificaciones por empleado",
+			"employeeSubtitle": "Administra gratificaciones reales, no fiscales, para {name}.",
+			"employeeSubtitleFallback": "Consulta el estado actual de las gratificaciones del empleado.",
+			"organizationSubtitle": "Vista global para registrar cumpleaños, puntualidad y otros conceptos libres que impactan solo el salario real."
+		},
+		"summary": {
+			"activeGratifications": "Gratificaciones activas",
+			"activeAmount": "Monto real activo",
+			"automatic": "Automáticas activas",
+			"manual": "Manuales activas",
+			"visibleScope": "Calculado con los registros visibles en esta página.",
+			"countValue": "{count, plural, one {# registro} other {# registros}}"
+		},
+		"filters": {
+			"status": "Estatus",
+			"periodicity": "Periodicidad",
+			"applicationMode": "Aplicación",
+			"employee": "Empleado",
+			"allStatuses": "Todos los estatus",
+			"allPeriodicities": "Todas las periodicidades",
+			"allApplicationModes": "Todos los modos",
+			"allEmployees": "Todos los empleados"
+		},
+		"actions": {
+			"add": "Agregar gratificación",
+			"create": "Guardar gratificación",
+			"creating": "Guardando...",
+			"edit": "Editar",
+			"save": "Guardar cambios",
+			"updating": "Actualizando...",
+			"pause": "Pausar",
+			"resume": "Reactivar",
+			"cancel": "Cancelar"
+		},
+		"createDialog": {
+			"title": "Registrar gratificación",
+			"description": "Configura el concepto libre, su vigencia y cómo impacta el salario real."
+		},
+		"editDialog": {
+			"title": "Editar gratificación",
+			"description": "Actualiza el monto, vigencia o estatus operativo de la gratificación."
+		},
+		"form": {
+			"employee": "Empleado",
+			"employeePlaceholder": "Selecciona un empleado",
+			"concept": "Concepto",
+			"conceptPlaceholder": "Ej. Bono de cumpleaños",
+			"amount": "Monto",
+			"amountPlaceholder": "Ej. 500.00",
+			"applicationMode": "Modo de aplicación",
+			"periodicity": "Periodicidad",
+			"startDate": "Fecha de inicio",
+			"endDate": "Fecha de fin",
+			"notes": "Notas",
+			"notesPlaceholder": "Contexto operativo para RH o nómina."
+		},
+		"table": {
+			"title": "Listado de gratificaciones",
+			"description": "Monitorea gratificaciones reales vigentes por empleado y su estado operativo.",
+			"visibleCount": "{count, plural, one {# registro visible} other {# registros visibles}}",
+			"loading": "Cargando gratificaciones...",
+			"empty": "No hay gratificaciones para los filtros seleccionados.",
+			"readOnly": "Solo lectura",
+			"noEmployeeName": "Empleado no disponible",
+			"validityStart": "Inicio: {value}",
+			"validityEnd": "Fin: {value}",
+			"validityOpen": "Sin fecha de fin",
+			"columns": {
+				"employee": "Empleado",
+				"concept": "Concepto",
+				"amount": "Monto",
+				"schedule": "Aplicación",
+				"status": "Estatus",
+				"validity": "Vigencia",
+				"actions": "Acciones"
+			}
+		},
+		"pagination": {
+			"summary": "Página {current} de {total} · {count, plural, one {# registro} other {# registros}}"
+		},
+		"errors": {
+			"loadTitle": "No se pudieron cargar las gratificaciones",
+			"loadDescription": "Intenta de nuevo o ajusta los filtros para refrescar la vista."
+		},
+		"toast": {
+			"createSuccess": "Gratificación creada correctamente.",
+			"createError": "No se pudo crear la gratificación.",
+			"updateSuccess": "Gratificación actualizada correctamente.",
+			"updateError": "No se pudo actualizar la gratificación.",
+			"cancelSuccess": "Gratificación cancelada correctamente.",
+			"cancelError": "No se pudo cancelar la gratificación."
+		},
+		"validation": {
+			"employeeRequired": "Selecciona un empleado.",
+			"conceptRequired": "El concepto es obligatorio.",
+			"amountRequired": "Ingresa un monto mayor a cero.",
+			"startDateRequired": "La fecha de inicio es obligatoria.",
+			"endDateAfterStart": "La fecha fin debe ser igual o posterior a la fecha inicio.",
+			"manualOneTimeOnly": "Las gratificaciones manuales solo pueden ser de una sola ocasión."
+		},
+		"status": {
+			"ACTIVE": "Activa",
+			"PAUSED": "Pausada",
+			"COMPLETED": "Completada",
+			"CANCELLED": "Cancelada"
+		},
+		"periodicity": {
+			"ONE_TIME": "Una sola ocasión",
+			"RECURRING": "Recurrente"
+		},
+		"applicationMode": {
+			"MANUAL": "Manual",
+			"AUTOMATIC": "Automática"
+		}
+	},
 	"JobPositions": {
 		"title": "Puestos de Trabajo",
 		"subtitle": "Administra puestos y roles de empleados",
@@ -1751,6 +1877,8 @@
 				"incapacityDays": "Días de incapacidad",
 				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"lunchBreakDeduction": "Descuento comida",
+				"gratifications": "Gratificaciones",
+				"gratificationsBreakdown": "Ver desglose",
 				"deductions": "Descuentos",
 				"deductionsBreakdown": "Ver desglose",
 				"total": "Total",
@@ -1786,6 +1914,15 @@
 					"FIXED_AMOUNT": "Monto fijo",
 					"VSM_FACTOR": "Factor VSM"
 				}
+			},
+			"gratifications": {
+				"title": "Desglose de gratificaciones",
+				"description": "Conceptos libres aplicados al salario real sin afectar la base fiscal.",
+				"baseAmount": "Base: {value}",
+				"days": "{count, plural, one {# día aplicable} other {# días aplicables}}",
+				"status": "Estatus: {value}",
+				"periodicity": "Periodicidad: {value}",
+				"applicationMode": "Aplicación: {value}"
 			},
 			"footer": {
 				"totalsLabel": "Totales",
@@ -1854,7 +1991,8 @@
 				"fiscalGrossPay": "pago_fiscal",
 				"fiscalDailyPay": "salario_diario_fiscal",
 				"complementPay": "complemento",
-				"totalRealPay": "total_real"
+				"totalRealPay": "total_real",
+				"totalGratifications": "gratificaciones"
 			}
 		},
 		"summary": {
@@ -1886,6 +2024,7 @@
 				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"vacationPremium": "Prima vacacional",
 				"vacationPremiumReal": "Prima vacacional real",
+				"gratifications": "Gratificaciones",
 				"employeeWithholdings": "Retenciones",
 				"netPay": "Neto",
 				"employerCosts": "Costos patrón",

@@ -20,6 +20,7 @@ import {
 	Device,
 	DeviceClient,
 	EmployeeDeduction,
+	EmployeeGratification,
 	Employee,
 	JobPosition,
 	Location,
@@ -43,7 +44,9 @@ import {
 	ScheduleTemplate,
 	User,
 	type EmployeeDeductionPayload,
+	type EmployeeGratificationPayload,
 	normalizeEmployeeDeduction,
+	normalizeEmployeeGratification,
 } from '@/lib/client-functions';
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
@@ -54,10 +57,15 @@ import type {
 	EmployeeDeductionListQueryParams,
 	EmployeeDeductionStatus,
 	EmployeeDeductionType,
+	EmployeeGratificationApplicationMode,
+	EmployeeGratificationListQueryParams,
+	EmployeeGratificationPeriodicity,
+	EmployeeGratificationStatus,
 	JobPositionQueryParams,
 	IncapacityQueryParams,
 	ListQueryParams,
 	OrganizationDeductionListQueryParams,
+	OrganizationGratificationListQueryParams,
 	OvertimeAuthorizationQueryParams,
 	OrganizationAllQueryParams,
 	PayrollCalculateParams,
@@ -1284,6 +1292,106 @@ export async function fetchOrganizationDeductionsListServer(
 	};
 }
 
+/**
+ * Fetches employee gratifications for server-side rendering.
+ *
+ * @param cookieHeader - Forwarded cookie header from the incoming request
+ * @param params - Organization, employee, and optional filter params
+ * @returns Employee gratifications list
+ * @throws Error when the API request fails
+ */
+export async function fetchEmployeeGratificationsListServer(
+	cookieHeader: string,
+	params?: EmployeeGratificationListQueryParams,
+): Promise<EmployeeGratification[]> {
+	if (!params?.organizationId || !params.employeeId) {
+		return [];
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		status?: EmployeeGratificationStatus;
+		periodicity?: EmployeeGratificationPeriodicity;
+		applicationMode?: EmployeeGratificationApplicationMode;
+	} = {};
+	if (params.status) {
+		query.status = params.status;
+	}
+	if (params.periodicity) {
+		query.periodicity = params.periodicity;
+	}
+	if (params.applicationMode) {
+		query.applicationMode = params.applicationMode;
+	}
+	const response = await api.organizations[params.organizationId].employees[
+		params.employeeId
+	].gratifications.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch employee gratifications:', response.error);
+		throw new Error('Failed to fetch employee gratifications');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeGratificationPayload[] | undefined) ?? [];
+	return rows.map(normalizeEmployeeGratification);
+}
+
+/**
+ * Fetches organization-wide gratifications for server-side rendering.
+ *
+ * @param cookieHeader - Forwarded cookie header from the incoming request
+ * @param params - Organization, filters, and pagination params
+ * @returns Paginated organization gratifications response
+ * @throws Error when the API request fails
+ */
+export async function fetchOrganizationGratificationsListServer(
+	cookieHeader: string,
+	params?: OrganizationGratificationListQueryParams,
+): Promise<PaginatedResponse<EmployeeGratification>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: clampPaginationLimit(params?.limit, 20),
+				offset: clampPaginationOffset(params?.offset),
+			},
+		};
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query = {
+		limit: clampPaginationLimit(params.limit, 20),
+		offset: clampPaginationOffset(params.offset),
+		...(params.employeeId ? { employeeId: params.employeeId } : {}),
+		...(params.status ? { status: params.status } : {}),
+		...(params.periodicity ? { periodicity: params.periodicity } : {}),
+		...(params.applicationMode ? { applicationMode: params.applicationMode } : {}),
+	};
+	const response = await api.organizations[params.organizationId].gratifications.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch organization gratifications:', response.error);
+		throw new Error('Failed to fetch organization gratifications');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeGratificationPayload[] | undefined) ?? [];
+	return {
+		data: rows.map(normalizeEmployeeGratification),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
 export async function fetchPayrollRunDetailServer(
 	cookieHeader: string,
 	id: string,
@@ -1360,8 +1468,7 @@ export async function fetchPayrollRunDetailServer(
 		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
 		realVacationPayAmount:
-			employee.realVacationPayAmount === null ||
-			employee.realVacationPayAmount === undefined
+			employee.realVacationPayAmount === null || employee.realVacationPayAmount === undefined
 				? null
 				: Number(employee.realVacationPayAmount),
 		realVacationPremiumAmount:

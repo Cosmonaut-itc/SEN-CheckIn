@@ -46,6 +46,8 @@ function buildEmployee(
 		vacationPremiumAmount: 0,
 		realVacationPayAmount: null,
 		realVacationPremiumAmount: null,
+		gratificationsBreakdown: [],
+		totalGratifications: 0,
 		lunchBreakAutoDeductedDays: 0,
 		lunchBreakAutoDeductedMinutes: 0,
 		totalPay: 1740,
@@ -158,5 +160,18 @@ describe('buildPayrollCsvEmployeeRow', () => {
 
 		expect(row.realVacationPayAmount).toBe(1000);
 		expect(row.realVacationPremiumAmount).toBe(250);
+	});
+
+	it('exports total gratifications when real-only concepts are present', () => {
+		const row = buildPayrollCsvEmployeeRow({
+			row: buildEmployee({
+				totalGratifications: 750,
+			}),
+			periodStartDateKey: '2026-03-09',
+			periodEndDateKey: '2026-03-15',
+			t,
+		});
+
+		expect(row.totalGratifications).toBe(750);
 	});
 });

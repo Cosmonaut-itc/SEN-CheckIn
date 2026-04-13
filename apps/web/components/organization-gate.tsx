@@ -13,6 +13,7 @@ const ADMIN_ROUTE_PREFIXES = [
 	'/payroll-settings',
 	'/overtime-authorizations',
 	'/deductions',
+	'/gratifications',
 	'/users',
 	'/organizations',
 ];

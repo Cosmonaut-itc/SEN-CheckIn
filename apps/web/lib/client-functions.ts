@@ -55,6 +55,11 @@ import type {
 	EmployeeDeductionType,
 	DisciplinaryMeasuresQueryParams,
 	IncapacityQueryParams,
+	EmployeeGratificationListQueryParams,
+	EmployeeGratificationStatus,
+	EmployeeGratificationApplicationMode,
+	EmployeeGratificationPeriodicity,
+	OrganizationGratificationListQueryParams,
 	ListQueryParams,
 	OrganizationDeductionListQueryParams,
 	OvertimeAuthorizationQueryParams,
@@ -583,9 +588,7 @@ function normalizeRequiredDate(value: string | Date): Date {
  * @param value - Raw optional timestamp payload
  * @returns Normalized Date, null, or undefined
  */
-function normalizeOptionalDate(
-	value: string | Date | null | undefined,
-): Date | null | undefined {
+function normalizeOptionalDate(value: string | Date | null | undefined): Date | null | undefined {
 	if (value === null || value === undefined) {
 		return value;
 	}
@@ -2791,6 +2794,8 @@ export interface PayrollCalculationEmployee {
 	vacationPremiumAmount: number;
 	realVacationPayAmount?: number | null;
 	realVacationPremiumAmount?: number | null;
+	gratificationsBreakdown: PayrollGratificationBreakdownItem[];
+	totalGratifications: number;
 	deductionsBreakdown: PayrollDeductionBreakdownItem[];
 	totalDeductions: number;
 	totalPay: number;
@@ -2865,6 +2870,8 @@ export interface PayrollRunEmployee {
 	vacationPremiumAmount: number;
 	realVacationPayAmount?: number | null;
 	realVacationPremiumAmount?: number | null;
+	gratificationsBreakdown: PayrollGratificationBreakdownItem[];
+	totalGratifications: number;
 	fiscalGrossPay?: number | null;
 	complementPay?: number | null;
 	totalRealPay?: number | null;
@@ -2875,6 +2882,8 @@ export interface PayrollRunEmployee {
 	taxBreakdown?: {
 		grossPay: number;
 		seventhDayPay: number;
+		gratificationsBreakdown?: PayrollGratificationBreakdownItem[];
+		totalGratifications?: number;
 		bases: PayrollTaxBases;
 		employeeWithholdings: PayrollEmployeeWithholdings;
 		employerCosts: PayrollEmployerCosts;
@@ -2995,6 +3004,111 @@ export function normalizeEmployeeDeduction(record: EmployeeDeductionPayload): Em
 	};
 }
 
+/**
+ * Employee gratification record interface.
+ */
+export interface EmployeeGratification {
+	id: string;
+	organizationId: string;
+	employeeId: string;
+	employeeName?: string;
+	concept: string;
+	amount: number;
+	periodicity: EmployeeGratificationPeriodicity;
+	applicationMode: EmployeeGratificationApplicationMode;
+	status: EmployeeGratificationStatus;
+	startDateKey: string;
+	endDateKey: string | null;
+	notes: string | null;
+	createdByUserId: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export type EmployeeGratificationPayload = Omit<
+	EmployeeGratification,
+	'amount' | 'createdAt' | 'updatedAt'
+> & {
+	amount?: number | string;
+	createdAt: string | Date;
+	updatedAt: string | Date;
+};
+
+/**
+ * Normalizes employee gratification payload values.
+ *
+ * @param record - Raw employee gratification payload
+ * @returns Normalized employee gratification record
+ */
+export function normalizeEmployeeGratification(
+	record: EmployeeGratificationPayload,
+): EmployeeGratification {
+	return {
+		...record,
+		amount: Number(record.amount ?? 0),
+		createdAt: new Date(record.createdAt),
+		updatedAt: new Date(record.updatedAt),
+	};
+}
+
+export interface PayrollGratificationBreakdownItem {
+	gratificationId: string;
+	concept: string;
+	periodicity: EmployeeGratification['periodicity'];
+	applicationMode: EmployeeGratification['applicationMode'];
+	configuredAmount: number;
+	sourceAmount: number | string;
+	baseAmount: number;
+	calculatedAmount: number;
+	appliedAmount: number;
+	applicableDays: number;
+	sourceStartDateKey: string;
+	sourceEndDateKey: string | null;
+	statusBefore: EmployeeGratification['status'];
+	statusAfter: EmployeeGratification['status'];
+	notes: string | null;
+}
+
+type PayrollGratificationBreakdownItemPayload = Omit<
+	PayrollGratificationBreakdownItem,
+	| 'configuredAmount'
+	| 'sourceAmount'
+	| 'baseAmount'
+	| 'calculatedAmount'
+	| 'appliedAmount'
+	| 'applicableDays'
+> & {
+	configuredAmount?: number | string;
+	sourceAmount?: number | string;
+	baseAmount?: number | string;
+	calculatedAmount?: number | string;
+	appliedAmount?: number | string;
+	applicableDays?: number | string;
+};
+
+/**
+ * Normalizes gratification breakdown numeric fields.
+ *
+ * @param record - Raw gratification breakdown payload
+ * @returns Normalized gratification breakdown item
+ */
+function normalizePayrollGratificationBreakdownItem(
+	record: PayrollGratificationBreakdownItemPayload,
+): PayrollGratificationBreakdownItem {
+	return {
+		...record,
+		configuredAmount: Number(record.configuredAmount ?? 0),
+		sourceAmount:
+			typeof record.sourceAmount === 'number' || typeof record.sourceAmount === 'string'
+				? record.sourceAmount
+				: 0,
+		baseAmount: Number(record.baseAmount ?? 0),
+		calculatedAmount: Number(record.calculatedAmount ?? 0),
+		appliedAmount: Number(record.appliedAmount ?? 0),
+		applicableDays: Number(record.applicableDays ?? 0),
+	};
+}
+
 type PayrollCalculationEmployeePayload = Omit<
 	PayrollCalculationEmployee,
 	| 'dailyPay'
@@ -3020,6 +3134,8 @@ type PayrollCalculationEmployeePayload = Omit<
 	| 'vacationPremiumAmount'
 	| 'realVacationPayAmount'
 	| 'realVacationPremiumAmount'
+	| 'gratificationsBreakdown'
+	| 'totalGratifications'
 	| 'lunchBreakAutoDeductedDays'
 	| 'lunchBreakAutoDeductedMinutes'
 	| 'totalDeductions'
@@ -3052,6 +3168,8 @@ type PayrollCalculationEmployeePayload = Omit<
 	vacationPremiumAmount?: number | string;
 	realVacationPayAmount?: number | string | null;
 	realVacationPremiumAmount?: number | string | null;
+	gratificationsBreakdown?: PayrollGratificationBreakdownItemPayload[];
+	totalGratifications?: number | string;
 	lunchBreakAutoDeductedDays?: number | string;
 	lunchBreakAutoDeductedMinutes?: number | string;
 	totalDeductions?: number | string;
@@ -3103,6 +3221,10 @@ function normalizePayrollCalculationEmployee(
 			record.realVacationPremiumAmount === undefined
 				? null
 				: Number(record.realVacationPremiumAmount),
+		gratificationsBreakdown: (record.gratificationsBreakdown ?? []).map(
+			normalizePayrollGratificationBreakdownItem,
+		),
+		totalGratifications: Number(record.totalGratifications ?? 0),
 		lunchBreakAutoDeductedDays: Number(record.lunchBreakAutoDeductedDays ?? 0),
 		lunchBreakAutoDeductedMinutes: Number(record.lunchBreakAutoDeductedMinutes ?? 0),
 		totalDeductions: Number(record.totalDeductions ?? 0),
@@ -4122,6 +4244,109 @@ export async function fetchOrganizationDeductionsList(
 }
 
 /**
+ * Fetches gratifications for a single employee.
+ *
+ * @param params - Organization, employee, and optional filter params
+ * @returns Employee gratifications list
+ */
+export async function fetchEmployeeGratificationsList(
+	params?: EmployeeGratificationListQueryParams,
+): Promise<EmployeeGratification[]> {
+	if (!params?.organizationId || !params.employeeId) {
+		return [];
+	}
+
+	const query: {
+		status?: EmployeeGratificationStatus;
+		periodicity?: EmployeeGratificationPeriodicity;
+		applicationMode?: EmployeeGratificationApplicationMode;
+	} = {};
+	if (params.status) {
+		query.status = params.status;
+	}
+	if (params.periodicity) {
+		query.periodicity = params.periodicity;
+	}
+	if (params.applicationMode) {
+		query.applicationMode = params.applicationMode;
+	}
+
+	const response = await api.organizations[params.organizationId].employees[
+		params.employeeId
+	].gratifications.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch employee gratifications:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch employee gratifications');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeGratificationPayload[] | undefined) ?? [];
+	return rows.map(normalizeEmployeeGratification);
+}
+
+/**
+ * Fetches organization-wide gratifications with optional filters.
+ *
+ * @param params - Organization and filter params
+ * @returns Paginated gratifications response
+ */
+export async function fetchOrganizationGratificationsList(
+	params?: OrganizationGratificationListQueryParams,
+): Promise<PaginatedResponse<EmployeeGratification>> {
+	if (!params?.organizationId) {
+		return {
+			data: [],
+			pagination: {
+				total: 0,
+				limit: clampPaginationLimit(params?.limit, 20),
+				offset: clampPaginationOffset(params?.offset),
+			},
+		};
+	}
+
+	const query = {
+		limit: clampPaginationLimit(params.limit, 20),
+		offset: clampPaginationOffset(params.offset),
+		...(params.employeeId ? { employeeId: params.employeeId } : {}),
+		...(params.status ? { status: params.status } : {}),
+		...(params.periodicity ? { periodicity: params.periodicity } : {}),
+		...(params.applicationMode ? { applicationMode: params.applicationMode } : {}),
+	};
+	const response = await api.organizations[params.organizationId].gratifications.get({
+		$query: query,
+	});
+
+	if (response.error) {
+		console.error(
+			'Failed to fetch organization gratifications:',
+			response.error,
+			'Status:',
+			response.status,
+		);
+		throw new Error('Failed to fetch organization gratifications');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data as EmployeeGratificationPayload[] | undefined) ?? [];
+	return {
+		data: rows.map(normalizeEmployeeGratification),
+		pagination: payload?.pagination ?? {
+			total: 0,
+			limit: query.limit,
+			offset: query.offset,
+		},
+	};
+}
+
+/**
  * Retrieves payroll runs list.
  *
  * @param params - Filters for organization and pagination
@@ -4200,6 +4425,8 @@ export async function fetchPayrollRunDetail(
 						vacationPremiumAmount?: number | string;
 						realVacationPayAmount?: number | string | null;
 						realVacationPremiumAmount?: number | string | null;
+						gratificationsBreakdown?: PayrollGratificationBreakdownItemPayload[];
+						totalGratifications?: number | string;
 						fiscalGrossPay?: number | string | null;
 						complementPay?: number | string | null;
 						totalRealPay?: number | string | null;
@@ -4254,8 +4481,7 @@ export async function fetchPayrollRunDetail(
 		vacationPayAmount: Number(employee.vacationPayAmount ?? 0),
 		vacationPremiumAmount: Number(employee.vacationPremiumAmount ?? 0),
 		realVacationPayAmount:
-			employee.realVacationPayAmount === null ||
-			employee.realVacationPayAmount === undefined
+			employee.realVacationPayAmount === null || employee.realVacationPayAmount === undefined
 				? null
 				: Number(employee.realVacationPayAmount),
 		realVacationPremiumAmount:
@@ -4263,6 +4489,10 @@ export async function fetchPayrollRunDetail(
 			employee.realVacationPremiumAmount === undefined
 				? null
 				: Number(employee.realVacationPremiumAmount),
+		gratificationsBreakdown: (employee.gratificationsBreakdown ?? []).map(
+			normalizePayrollGratificationBreakdownItem,
+		),
+		totalGratifications: Number(employee.totalGratifications ?? 0),
 		fiscalGrossPay:
 			employee.fiscalGrossPay === undefined
 				? undefined
@@ -4287,6 +4517,17 @@ export async function fetchPayrollRunDetail(
 		deductionsBreakdown: (employee.deductionsBreakdown ?? []).map(
 			normalizePayrollDeductionBreakdownItem,
 		),
+		taxBreakdown: employee.taxBreakdown
+			? {
+					...employee.taxBreakdown,
+					grossPay: Number(employee.taxBreakdown.grossPay ?? 0),
+					seventhDayPay: Number(employee.taxBreakdown.seventhDayPay ?? 0),
+					totalGratifications: Number(employee.taxBreakdown.totalGratifications ?? 0),
+					gratificationsBreakdown: (
+						employee.taxBreakdown.gratificationsBreakdown ?? []
+					).map(normalizePayrollGratificationBreakdownItem),
+				}
+			: undefined,
 		periodStart: new Date(employee.periodStart),
 		periodEnd: new Date(employee.periodEnd),
 		createdAt: new Date(employee.createdAt),

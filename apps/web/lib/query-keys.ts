@@ -166,6 +166,26 @@ export interface OrganizationDeductionListQueryParams extends ListQueryParams {
 	type?: EmployeeDeductionType;
 }
 
+export type EmployeeGratificationStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+export type EmployeeGratificationPeriodicity = 'ONE_TIME' | 'RECURRING';
+export type EmployeeGratificationApplicationMode = 'MANUAL' | 'AUTOMATIC';
+
+export interface EmployeeGratificationListQueryParams extends Record<string, unknown> {
+	organizationId?: string;
+	employeeId: string;
+	status?: EmployeeGratificationStatus;
+	periodicity?: EmployeeGratificationPeriodicity;
+	applicationMode?: EmployeeGratificationApplicationMode;
+}
+
+export interface OrganizationGratificationListQueryParams extends ListQueryParams {
+	organizationId?: string;
+	employeeId?: string;
+	status?: EmployeeGratificationStatus;
+	periodicity?: EmployeeGratificationPeriodicity;
+	applicationMode?: EmployeeGratificationApplicationMode;
+}
+
 /**
  * Query parameters for overtime authorizations list.
  */
@@ -635,6 +655,15 @@ export const queryKeys = {
 		organization: (params?: OrganizationDeductionListQueryParams) =>
 			queryKeyConstructor(['employeeDeductions', 'organization'] as const, params),
 	},
+	employeeGratifications: {
+		all: ['employeeGratifications'] as const,
+		employee: (params: EmployeeGratificationListQueryParams) =>
+			queryKeyConstructor(['employeeGratifications', 'employee'] as const, params),
+		organization: (params?: OrganizationGratificationListQueryParams) =>
+			queryKeyConstructor(['employeeGratifications', 'organization'] as const, params),
+		detail: (params: { organizationId: string; employeeId: string; id: string }) =>
+			queryKeyConstructor(['employeeGratifications', 'detail'] as const, params),
+	},
 	overtimeAuthorizations: {
 		all: ['overtimeAuthorizations'] as const,
 		list: (params?: OvertimeAuthorizationQueryParams) =>
@@ -903,6 +932,11 @@ export const mutationKeys = {
 		create: ['employeeDeductions', 'create'] as const,
 		update: ['employeeDeductions', 'update'] as const,
 		cancel: ['employeeDeductions', 'cancel'] as const,
+	},
+	employeeGratifications: {
+		create: ['employeeGratifications', 'create'] as const,
+		update: ['employeeGratifications', 'update'] as const,
+		cancel: ['employeeGratifications', 'cancel'] as const,
 	},
 	payrollSettings: {
 		update: ['payrollSettings', 'update'] as const,

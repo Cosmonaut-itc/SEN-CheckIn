@@ -350,6 +350,20 @@ describe('EmployeeDeductionsManager', () => {
 		expect(otherTypeCardText).not.toContain('$1,750.00');
 	});
 
+	it('shows separated progress fields for recurring and installment deductions', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getAllByText('table.periodAmount').length).toBeGreaterThan(0);
+		});
+
+		expect(screen.getAllByText('table.totalAmount').length).toBeGreaterThan(0);
+		expect(screen.getAllByText('table.remainingAmount').length).toBeGreaterThan(0);
+		expect(screen.getAllByText('table.completedInstallments').length).toBeGreaterThan(0);
+		expect(screen.getAllByText('table.remainingInstallments').length).toBeGreaterThan(0);
+		expect(screen.getByText('table.noTotalAmount')).toBeTruthy();
+	});
+
 	it('prefills the create dialog startDateKey using the local date instead of UTC', async () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date('2026-03-15T01:30:00.000Z'));

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
-import { addDaysToDateKey } from '../utils/date-key.js';
+import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -203,6 +203,94 @@ describe('vacation routes (contract)', () => {
 			throw new Error('Expected vacation request status in approve response.');
 		}
 		expect(approvedRequest.status).toBe('APPROVED');
+	});
+
+	it('rejects approval when an existing schedule exception already covers the date', async () => {
+		const hireDate = new Date('2020-01-01T00:00:00Z');
+		const createEmployeeResponse = await client.employees.post({
+			code: `VAC-UTC-${Date.now()}`,
+			firstName: 'Vacaciones',
+			lastName: 'UTC',
+			email: `vacaciones.utc.${Date.now()}@example.com`,
+			phone: '+52 55 1111 1111',
+			jobPositionId: seed.jobPositionId,
+			locationId: seed.locationId,
+			organizationId: seed.organizationId,
+			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
+			hireDate,
+			dailyPay: 500,
+			paymentFrequency: 'BIWEEKLY',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createEmployeeResponse.status).toBe(201);
+		const createEmployeePayload = requireResponseData(createEmployeeResponse);
+		const createdEmployee = createEmployeePayload.data;
+		if (!createdEmployee?.id) {
+			throw new Error('Expected employee record in UTC conflict test.');
+		}
+
+		let conflictDateKey = addDaysToDateKey(toDateKeyUtc(new Date()), 30);
+		while (true) {
+			const conflictWeekday = new Date(`${conflictDateKey}T00:00:00Z`).getUTCDay();
+			if (conflictWeekday !== 0 && conflictWeekday !== 6) {
+				break;
+			}
+			conflictDateKey = addDaysToDateKey(conflictDateKey, 1);
+		}
+		const { year: conflictYear, month: conflictMonth, day: conflictDay } =
+			parseDateKey(conflictDateKey);
+		const conflictDate = new Date(conflictYear, conflictMonth - 1, conflictDay, 12, 0, 0, 0);
+		const existingExceptionResponse = await client['schedule-exceptions'].post({
+			employeeId: createdEmployee.id,
+			exceptionDate: conflictDate,
+			exceptionType: 'EXTRA_DAY',
+			startTime: '09:00',
+			endTime: '18:00',
+			reason: 'Cobertura UTC',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(existingExceptionResponse.status).toBe(201);
+
+		const createResponse = await client.vacations.requests.post({
+			employeeId: createdEmployee.id,
+			startDateKey: conflictDateKey,
+			endDateKey: conflictDateKey,
+			status: 'SUBMITTED',
+			requestedNotes: 'Solicitud con conflicto UTC',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(200);
+		const createPayload = requireResponseData(createResponse);
+		const createdRequest = createPayload.data;
+		if (!createdRequest?.id) {
+			throw new Error('Expected vacation request in UTC conflict test.');
+		}
+
+		const adminRequestRoutes = requireRoute(
+			client.vacations.requests[createdRequest.id],
+			'Vacation admin request route',
+		);
+		const approveRoute = requireRoute(
+			adminRequestRoutes.approve,
+			'Vacation request approve route',
+		);
+		const approveResponse = await approveRoute.post({
+			decisionNotes: 'Aprobado',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(approveResponse.status).toBe(409);
+		const errorPayload = requireErrorResponse(approveResponse, 'UTC schedule exception conflict');
+		expect(errorPayload.error.message).toBe(
+			'Schedule exceptions already exist for the requested dates',
+		);
+		expect(errorPayload.error.code).toBe('SCHEDULE_EXCEPTION_CONFLICT');
+		expect(errorPayload.error.details).toEqual({
+			conflicts: [conflictDateKey],
+		});
 	});
 
 	it('rejects vacation requests as admin', async () => {

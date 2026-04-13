@@ -230,6 +230,90 @@ function sanitizeDualPayrollEmployees<T extends DualPayrollCompensationShape>(
 }
 
 /**
+ * Removes dual payroll compensation data from a tax breakdown payload.
+ *
+ * @param taxBreakdown - Tax breakdown payload from the payroll run employee row
+ * @returns Tax breakdown payload without dual compensation details
+ */
+function sanitizeDualPayrollTaxBreakdown(
+	taxBreakdown: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+	if (!taxBreakdown) {
+		return taxBreakdown;
+	}
+
+	const sanitizedTaxBreakdown = { ...taxBreakdown };
+	delete sanitizedTaxBreakdown.realCompensation;
+	return sanitizedTaxBreakdown;
+}
+
+type DualPayrollRunShape = {
+	taxSummary?: Record<string, unknown> | null;
+};
+
+type DualPayrollSettingsSnapshotShape = {
+	realVacationPremiumRate?: unknown;
+	enableDualPayroll?: unknown;
+};
+
+/**
+ * Removes dual payroll-only settings from a payroll settings snapshot payload.
+ *
+ * @param settings - Payroll settings snapshot payload
+ * @returns Settings snapshot without dual-payroll-only fields
+ */
+function sanitizeDualPayrollSettingsSnapshot<T extends DualPayrollSettingsSnapshotShape>(
+	settings: T,
+): Omit<T, 'realVacationPremiumRate' | 'enableDualPayroll'> {
+	const sanitizedSettings = { ...settings } as Partial<T>;
+	delete sanitizedSettings.realVacationPremiumRate;
+	delete sanitizedSettings.enableDualPayroll;
+	return sanitizedSettings as Omit<T, 'realVacationPremiumRate' | 'enableDualPayroll'>;
+}
+
+/**
+ * Removes dual payroll-only settings from a payroll run tax summary payload.
+ *
+ * @param taxSummary - Payroll run tax summary payload
+ * @returns Tax summary payload without dual-payroll-only settings
+ */
+function sanitizeDualPayrollTaxSummary(
+	taxSummary: Record<string, unknown> | null,
+): Record<string, unknown> | null {
+	if (!taxSummary) {
+		return taxSummary;
+	}
+
+	const sanitizedTaxSummary = { ...taxSummary };
+	const settings = sanitizedTaxSummary.settings;
+	if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+		return sanitizedTaxSummary;
+	}
+
+	const sanitizedSettings = { ...(settings as Record<string, unknown>) };
+	delete sanitizedSettings.realVacationPremiumRate;
+	delete sanitizedSettings.enableDualPayroll;
+	sanitizedTaxSummary.settings = sanitizedSettings;
+	return sanitizedTaxSummary;
+}
+
+/**
+ * Removes dual payroll-only settings from a payroll run payload.
+ *
+ * @param run - Payroll run payload
+ * @returns Payroll run payload without dual-payroll-only settings
+ */
+function sanitizeDualPayrollRun<T extends DualPayrollRunShape>(run: T): T {
+	const sanitizedRun = { ...run };
+	if (!sanitizedRun.taxSummary) {
+		return sanitizedRun;
+	}
+
+	sanitizedRun.taxSummary = sanitizeDualPayrollTaxSummary(sanitizedRun.taxSummary);
+	return sanitizedRun;
+}
+
+/**
  * Calculates payroll for employees within the organization and period.
  *
  * @param args - Organization and period parameters
@@ -709,18 +793,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
-			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
-				authType,
-				organizationId,
-				session: session ?? null,
-			});
-			const sanitizedCalculation = {
-				...calculation,
-				employees: sanitizeDualPayrollEmployees(
-					calculation.employees,
-					includeDualPayrollCompensation,
-				),
-			};
+				const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+					authType,
+					organizationId,
+					session: session ?? null,
+				});
+				const sanitizedCalculation = {
+					...calculation,
+					employees: sanitizeDualPayrollEmployees(
+						calculation.employees,
+						includeDualPayrollCompensation,
+					),
+					payrollSettingsSnapshot: includeDualPayrollCompensation
+						? calculation.payrollSettingsSnapshot
+						: sanitizeDualPayrollSettingsSnapshot(calculation.payrollSettingsSnapshot),
+				};
 
 			const hasBlockingWarnings =
 				calculation.overtimeEnforcement === 'BLOCK' &&
@@ -1143,12 +1230,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				throw error;
 			}
 
-			return { data: { run: runResult, calculation: sanitizedCalculation } };
-		},
-		{
-			body: payrollProcessSchema,
-		},
-	)
+				const sanitizedRun =
+					includeDualPayrollCompensation || !runResult
+						? runResult
+						: sanitizeDualPayrollRun(
+								runResult as typeof runResult & {
+									taxSummary?: Record<string, unknown> | null;
+								},
+							);
+
+				return { data: { run: sanitizedRun, calculation: sanitizedCalculation } };
+			},
+			{
+				body: payrollProcessSchema,
+			},
+		)
 	/**
 	 * List payroll runs.
 	 */
@@ -1177,6 +1273,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				set.status = status;
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
 
 			const runs = await db
 				.select()
@@ -1186,7 +1287,17 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				.offset(query.offset)
 				.orderBy(payrollRun.createdAt);
 
-			return { data: runs };
+			return {
+				data: includeDualPayrollCompensation
+					? runs
+					: runs.map((run) =>
+							sanitizeDualPayrollRun(
+								run as typeof run & {
+									taxSummary?: Record<string, unknown> | null;
+								},
+							),
+						),
+			};
 		},
 		{
 			query: payrollRunQuerySchema,
@@ -1336,7 +1447,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				lunchBreakAutoDeductedMinutes: line.lunchBreakAutoDeductedMinutes,
 				deductionsBreakdown: line.deductionsBreakdown,
 				totalDeductions: line.totalDeductions,
-				taxBreakdown: line.taxBreakdown,
+				taxBreakdown: includeDualPayrollCompensation
+					? line.taxBreakdown
+					: sanitizeDualPayrollTaxBreakdown(
+							line.taxBreakdown as Record<string, unknown> | null,
+						),
 				periodStart: line.periodStart,
 				periodEnd: line.periodEnd,
 				createdAt: line.createdAt,
@@ -1348,6 +1463,19 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				employeeRfc: line.employeeRfc ?? null,
 			}));
 
-			return { data: { run: { ...record, organizationName }, employees } };
-		},
-	);
+			const runPayload = { ...record, organizationName };
+
+			return {
+				data: {
+					run: includeDualPayrollCompensation
+						? runPayload
+						: sanitizeDualPayrollRun(
+								runPayload as typeof runPayload & {
+									taxSummary?: Record<string, unknown> | null;
+								},
+							),
+					employees,
+				},
+			};
+			},
+		);

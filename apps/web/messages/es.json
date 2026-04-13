@@ -403,7 +403,7 @@
 			"info": "Info"
 		},
 		"summary": {
-			"availableDays": "Dias disponibles",
+			"availableDays": "Días disponibles del año vacacional",
 			"absences": "Ausencias injustificadas",
 			"leaves": "Ausencias justificadas (sin goce)",
 			"payrollRuns": "Corridas de nomina",
@@ -411,18 +411,18 @@
 			"last90Days": "Ultimos 90 dias",
 			"next90Days": "Proximos 90 dias",
 			"lastPayrollRuns": "Ultimas corridas",
-			"serviceYearShort": "Anio de servicio {number}"
+			"serviceYearShort": "Año vacacional {number}"
 		},
 		"vacationBalance": {
 			"tooltip": {
-				"title": "Calculo de dias disponibles",
-				"formula": "Disponibles = Devengados (redondeo hacia abajo) - Usados - Pendientes",
+				"title": "Cálculo del año vacacional",
+				"formula": "Disponibles = Devengados (redondeo hacia abajo) - Usados - Pendientes. El saldo se calcula por aniversario, no por año calendario.",
 				"entitled": "Asignados: {value}",
 				"accrued": "Devengados: {value}",
 				"used": "Usados: {value}",
 				"pending": "Pendientes: {value}",
 				"available": "Disponibles: {value}",
-				"serviceYear": "Anio {number}: {start} a {end}",
+				"serviceYear": "Año vacacional {number}: {start} a {end}",
 				"asOf": "Al corte: {date}"
 			}
 		},

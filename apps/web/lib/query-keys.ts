@@ -10,6 +10,9 @@
 import type {
 	DisciplinaryMeasureStatus,
 	DisciplinaryOutcome,
+	EmployeeGratificationApplicationMode as SharedEmployeeGratificationApplicationMode,
+	EmployeeGratificationPeriodicity as SharedEmployeeGratificationPeriodicity,
+	EmployeeGratificationStatus as SharedEmployeeGratificationStatus,
 	HolidayKind,
 	HolidaySource,
 	HolidayStatus,
@@ -164,6 +167,26 @@ export interface OrganizationDeductionListQueryParams extends ListQueryParams {
 	employeeId?: string;
 	status?: EmployeeDeductionStatus;
 	type?: EmployeeDeductionType;
+}
+
+export type EmployeeGratificationStatus = SharedEmployeeGratificationStatus;
+export type EmployeeGratificationPeriodicity = SharedEmployeeGratificationPeriodicity;
+export type EmployeeGratificationApplicationMode = SharedEmployeeGratificationApplicationMode;
+
+export interface EmployeeGratificationListQueryParams extends Record<string, unknown> {
+	organizationId?: string;
+	employeeId: string;
+	status?: EmployeeGratificationStatus;
+	periodicity?: EmployeeGratificationPeriodicity;
+	applicationMode?: EmployeeGratificationApplicationMode;
+}
+
+export interface OrganizationGratificationListQueryParams extends ListQueryParams {
+	organizationId?: string;
+	employeeId?: string;
+	status?: EmployeeGratificationStatus;
+	periodicity?: EmployeeGratificationPeriodicity;
+	applicationMode?: EmployeeGratificationApplicationMode;
 }
 
 /**
@@ -367,6 +390,12 @@ export const queryKeys = {
 		 */
 		list: (params?: ListQueryParams) =>
 			queryKeyConstructor(['employees', 'list'] as const, params),
+		/**
+		 * Generates a query key for consumers that need the full employee list.
+		 * @param params - Optional non-paginated filters
+		 */
+		listAll: (params?: { organizationId?: string | null }) =>
+			queryKeyConstructor(['employees', 'list-all'] as const, params),
 		/**
 		 * Generates a query key for a specific employee.
 		 * @param id - The employee ID
@@ -634,6 +663,15 @@ export const queryKeys = {
 			queryKeyConstructor(['employeeDeductions', 'employee'] as const, params),
 		organization: (params?: OrganizationDeductionListQueryParams) =>
 			queryKeyConstructor(['employeeDeductions', 'organization'] as const, params),
+	},
+	employeeGratifications: {
+		all: ['employeeGratifications'] as const,
+		employee: (params: EmployeeGratificationListQueryParams) =>
+			queryKeyConstructor(['employeeGratifications', 'employee'] as const, params),
+		organization: (params?: OrganizationGratificationListQueryParams) =>
+			queryKeyConstructor(['employeeGratifications', 'organization'] as const, params),
+		detail: (params: { organizationId: string; employeeId: string; id: string }) =>
+			queryKeyConstructor(['employeeGratifications', 'detail'] as const, params),
 	},
 	overtimeAuthorizations: {
 		all: ['overtimeAuthorizations'] as const,
@@ -903,6 +941,11 @@ export const mutationKeys = {
 		create: ['employeeDeductions', 'create'] as const,
 		update: ['employeeDeductions', 'update'] as const,
 		cancel: ['employeeDeductions', 'cancel'] as const,
+	},
+	employeeGratifications: {
+		create: ['employeeGratifications', 'create'] as const,
+		update: ['employeeGratifications', 'update'] as const,
+		cancel: ['employeeGratifications', 'cancel'] as const,
 	},
 	payrollSettings: {
 		update: ['payrollSettings', 'update'] as const,

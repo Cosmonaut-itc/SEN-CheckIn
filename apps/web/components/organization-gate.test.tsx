@@ -73,6 +73,21 @@ describe('OrganizationGate', () => {
 		expect(screen.queryByTestId('gate-content')).toBeNull();
 	});
 
+	it('redirects non-admin users away from gratifications', async () => {
+		mockPathname = '/gratifications';
+
+		renderWithIntl(
+			<OrganizationGate role="user" organizationRole="member" hasOrganization={true}>
+				<div data-testid="gate-content" />
+			</OrganizationGate>,
+		);
+
+		await waitFor(() => {
+			expect(replace).toHaveBeenCalledWith('/acceso-restringido');
+		});
+		expect(screen.queryByTestId('gate-content')).toBeNull();
+	});
+
 	it('hides content when no organization is selected', () => {
 		renderWithIntl(
 			<OrganizationGate role="user" organizationRole={null} hasOrganization={false}>

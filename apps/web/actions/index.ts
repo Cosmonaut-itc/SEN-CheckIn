@@ -100,6 +100,15 @@ export {
 	type UpdateEmployeeDeductionInput,
 } from './employee-deductions';
 
+// Export employee gratification actions and types (except MutationResult)
+export {
+	cancelEmployeeGratificationAction,
+	createEmployeeGratificationAction,
+	updateEmployeeGratificationAction,
+	type CreateEmployeeGratificationInput,
+	type UpdateEmployeeGratificationInput,
+} from './employee-gratifications';
+
 // Export employee Rekognition actions and types (except MutationResult)
 export {
 	createRekognitionUser,

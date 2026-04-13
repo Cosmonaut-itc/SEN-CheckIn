@@ -31,6 +31,7 @@ import {
 	Clock3,
 	HandCoins,
 	FileText,
+	Gift,
 	Settings2,
 	ShieldAlert,
 	Smartphone,
@@ -157,6 +158,11 @@ const adminNavItems: NavItem[] = [
 		titleKey: 'deductions',
 		href: '/deductions',
 		icon: HandCoins,
+	},
+	{
+		titleKey: 'gratifications',
+		href: '/gratifications',
+		icon: Gift,
 	},
 	{
 		titleKey: 'users',

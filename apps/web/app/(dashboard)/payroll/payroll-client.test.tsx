@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,6 +73,38 @@ function renderWithProviders(
 			</OrgProvider>
 		</QueryClientProvider>,
 	);
+}
+
+/**
+ * Verifies that the payroll preview footer spans the same number of columns as the header.
+ *
+ * @returns Nothing
+ * @throws When the preview table cannot be found or the footer is misaligned
+ */
+function expectPreviewFooterToAlignWithHeaders(): void {
+	const previewTableContainer = screen.getByTestId('payroll-preview-table-container');
+	const previewTable = previewTableContainer.querySelector('table');
+	expect(previewTable).not.toBeNull();
+
+	const headerCells = within(previewTable as HTMLTableElement).getAllByRole('columnheader');
+	const footerCells = Array.from(
+		(previewTable as HTMLTableElement).querySelectorAll('tfoot td'),
+	) as HTMLTableCellElement[];
+	const [footerLabelCell, ...footerValueCells] = footerCells;
+	const trailingFooterColumns = footerValueCells.reduce(
+		(total, cell) => total + Number(cell.getAttribute('colspan') ?? '1'),
+		0,
+	);
+	const footerColumnSpan = footerCells.reduce(
+		(total, cell) => total + Number(cell.getAttribute('colspan') ?? '1'),
+		0,
+	);
+
+	expect(footerLabelCell).toBeDefined();
+	expect(Number(footerLabelCell?.getAttribute('colspan') ?? '1')).toBe(
+		headerCells.length - trailingFooterColumns,
+	);
+	expect(footerColumnSpan).toBe(headerCells.length);
 }
 
 describe('PayrollPageClient', () => {
@@ -424,6 +456,7 @@ describe('PayrollPageClient', () => {
 		expect(screen.getByText('preview.table.complementPay')).toBeInTheDocument();
 		expect(screen.getByText('preview.table.totalRealPay')).toBeInTheDocument();
 		expect(screen.getByText('preview.footer.dualPayrollLabel')).toBeInTheDocument();
+		expectPreviewFooterToAlignWithHeaders();
 	});
 
 	it('falls back to regular gross pay in footer totals when dual payroll is mixed', async () => {
@@ -670,6 +703,7 @@ describe('PayrollPageClient', () => {
 		});
 
 		expect(screen.getByText('$2,400.00')).toBeInTheDocument();
+		expectPreviewFooterToAlignWithHeaders();
 	});
 
 	it('hides dual payroll columns for members even when enabled', async () => {

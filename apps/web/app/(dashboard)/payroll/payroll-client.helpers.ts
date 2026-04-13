@@ -47,6 +47,7 @@ export function buildPayrollCsvEmployeeRow(args: {
 		vacationPremiumAmount: row.vacationPremiumAmount ?? 0,
 		realVacationPayAmount: row.realVacationPayAmount ?? 0,
 		realVacationPremiumAmount: row.realVacationPremiumAmount ?? 0,
+		totalGratifications: row.totalGratifications ?? 0,
 		incapacityDays: row.incapacitySummary?.daysIncapacityTotal ?? 0,
 		incapacitySubsidy: row.incapacitySummary?.expectedImssSubsidyAmount ?? 0,
 		seventhDayPay: row.seventhDayPay ?? 0,
@@ -65,8 +66,7 @@ export function buildPayrollCsvEmployeeRow(args: {
 		employerCostsInfonavit: row.employerCosts?.infonavit ?? 0,
 		employerCostsRiskWork: row.employerCosts?.riskWork ?? 0,
 		employerCostsIsn: row.employerCosts?.isn ?? 0,
-		employerCostsAbsorbedImssEmployeeShare:
-			row.employerCosts?.absorbedImssEmployeeShare ?? 0,
+		employerCostsAbsorbedImssEmployeeShare: row.employerCosts?.absorbedImssEmployeeShare ?? 0,
 		employerCostsAbsorbedIsr: row.employerCosts?.absorbedIsr ?? 0,
 		netPay: row.netPay ?? 0,
 		companyCost: row.companyCost ?? 0,

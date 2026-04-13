@@ -3,46 +3,7 @@ import { useTranslations } from 'next-intl';
 import type React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import rawMessages from '@/messages/es.json';
-
-const messages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
-
-/**
- * Resolves a translation path from the Spanish messages fixture.
- *
- * @param path - Dot-notated translation path
- * @returns Localized text or the original key when absent
- */
-function resolveTranslation(path: string): string {
-	const resolved = path.split('.').reduce<unknown>((currentValue, segment) => {
-		if (!currentValue || typeof currentValue !== 'object' || !(segment in currentValue)) {
-			return undefined;
-		}
-
-		return (currentValue as Record<string, unknown>)[segment];
-	}, messages);
-
-	return typeof resolved === 'string' ? resolved : path;
-}
-
-vi.mock('next-intl', () => ({
-	useTranslations:
-		(namespace?: string) =>
-		(key: string, values?: Record<string, string | number>): string => {
-			const translationPath = namespace ? `${namespace}.${key}` : key;
-			const localizedMessage = resolveTranslation(translationPath);
-
-			if (!values) {
-				return localizedMessage;
-			}
-
-			return Object.entries(values).reduce(
-				(currentMessage, [placeholder, value]) =>
-					currentMessage.replace(`{${placeholder}}`, String(value)),
-				localizedMessage,
-			);
-		},
-}));
+vi.mock('next-intl', async () => import('@/lib/test-utils/next-intl'));
 
 /**
  * Renders the vacation summary labels used in the employee detail dialog.

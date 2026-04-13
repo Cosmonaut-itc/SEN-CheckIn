@@ -196,6 +196,21 @@ function createJsonPostRequest(path: string, body: unknown): Request {
 }
 
 /**
+ * Asserts that exactly one persisted payroll-run employee row exists.
+ *
+ * @template TRow - Expected row shape
+ * @param rows - Persisted payroll-run employee rows
+ * @returns The single persisted row cast to the requested shape
+ * @throws {Error} Propagates Bun assertion failures when row count differs
+ */
+function expectSinglePayrollRunEmployee<TRow extends Record<string, unknown>>(
+	rows: Record<string, unknown>[],
+): TRow {
+	expect(rows).toHaveLength(1);
+	return rows[0] as TRow;
+}
+
+/**
  * Seeds a standard weekly payroll scenario for process-route tests.
  *
  * @param args - Organization/employee identity values
@@ -1959,21 +1974,19 @@ describe('payroll routes', () => {
 
 		expect(typeof json.data.run.id).toBe('string');
 
-		const storedRow = dbState.payrollRunEmployees[0] as
-			| {
-					employeeId?: string;
-					vacationPayAmount?: string;
-					vacationPremiumAmount?: string;
-					totalPay?: string;
-					taxBreakdown?: {
-						grossPay?: number;
-						realCompensation?: {
-							vacationPayAmount?: number | null;
-							vacationPremiumAmount?: number | null;
-						};
-					};
-			  }
-			| undefined;
+		const storedRow = expectSinglePayrollRunEmployee<{
+			employeeId?: string;
+			vacationPayAmount?: string;
+			vacationPremiumAmount?: string;
+			totalPay?: string;
+			taxBreakdown?: {
+				grossPay?: number;
+				realCompensation?: {
+					vacationPayAmount?: number | null;
+					vacationPremiumAmount?: number | null;
+				};
+			};
+		}>(dbState.payrollRunEmployees);
 
 		expect(storedRow?.employeeId).toBe(employeeId);
 		expect(storedRow?.vacationPayAmount).toBe('500.00');
@@ -2027,13 +2040,13 @@ describe('payroll routes', () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(dbState.payrollRunEmployees).toHaveLength(1);
-		expect(dbState.payrollRunEmployees[0]?.totalDeductions).toBe('500.00');
-		expect(Array.isArray(dbState.payrollRunEmployees[0]?.deductionsBreakdown)).toBe(true);
-		expect(
-			(dbState.payrollRunEmployees[0]?.deductionsBreakdown as Array<Record<string, unknown>>)[0]
-				?.statusAfter,
-		).toBe('COMPLETED');
+		const persistedRow = expectSinglePayrollRunEmployee<{
+			totalDeductions?: string;
+			deductionsBreakdown?: Array<Record<string, unknown>>;
+		}>(dbState.payrollRunEmployees);
+		expect(persistedRow.totalDeductions).toBe('500.00');
+		expect(Array.isArray(persistedRow.deductionsBreakdown)).toBe(true);
+		expect(persistedRow.deductionsBreakdown?.[0]?.statusAfter).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
 	});
@@ -2133,10 +2146,10 @@ describe('payroll routes', () => {
 		);
 
 		expect(response.status).toBe(200);
-		expect(
-			(dbState.payrollRunEmployees[0]?.deductionsBreakdown as Array<Record<string, unknown>>)[0]
-				?.statusAfter,
-		).toBe('COMPLETED');
+		const persistedRow = expectSinglePayrollRunEmployee<{
+			deductionsBreakdown?: Array<Record<string, unknown>>;
+		}>(dbState.payrollRunEmployees);
+		expect(persistedRow.deductionsBreakdown?.[0]?.statusAfter).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.status).toBe('COMPLETED');
 		expect(dbState.employeeDeductions[0]?.remainingAmount).toBe('0.00');
 	});

@@ -310,6 +310,20 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
+	it('explains seventh day pay separately from saturday counting', async () => {
+		const payrollSettingsMessages = messages.PayrollSettings;
+
+		expect(payrollSettingsMessages.taxSettings.helpers.enableSeventhDayPay).toBe(
+			'Habilita el pago del séptimo día cuando el periodo semanal cumpla la regla de asistencia configurada.',
+		);
+		expect(payrollSettingsMessages.taxSettings.helpers.countSaturdayAsWorkedForSeventhDay).toBe(
+			'Si está activo, el sábado cuenta como asistido solo cuando no forma parte del horario laborable y únicamente para evaluar si corresponde pagar el séptimo día.',
+		);
+		expect(payrollSettingsMessages.taxSettings.helpers.countSaturdayAsWorkedForSeventhDay).not.toMatch(
+			/jornada L-V/i,
+		);
+	});
+
 	it('renders dual payroll explainer cards with theme-aware contrast classes', async () => {
 		renderWithProviders();
 

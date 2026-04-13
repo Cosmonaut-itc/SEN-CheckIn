@@ -3762,10 +3762,11 @@ describe('payroll-calculation mexico taxes', () => {
 		});
 
 		it('calculates INFONAVIT from the fiscal SBC and keeps the real complement outside the deduction base', () => {
+			const fiscalEmployee = buildDualEmployee(300);
 			const standard = requireDualPayrollRow(
 				calculatePayrollFromData({
 					...dualBaseArgs,
-					employees: [buildDualEmployee(300)],
+					employees: [fiscalEmployee],
 					employeeDeductions: [
 						createEmployeeDeduction({
 							employeeId: dualEmployeeId,
@@ -3784,7 +3785,7 @@ describe('payroll-calculation mexico taxes', () => {
 			const dualEnabled = requireDualPayrollRow(
 				calculatePayrollFromData({
 					...dualBaseArgs,
-					employees: [buildDualEmployee(300)],
+					employees: [fiscalEmployee],
 					employeeDeductions: [
 						createEmployeeDeduction({
 							employeeId: dualEmployeeId,
@@ -3805,7 +3806,18 @@ describe('payroll-calculation mexico taxes', () => {
 				throw new Error('Expected total real pay for dual payroll row.');
 			}
 
-			const expectedFiscalBase = Number((dualEnabled.bases.sbcDaily * 5).toFixed(2));
+			const expectedFiscalSbcDaily = getSbcDaily({
+				dailyPay: Number(fiscalEmployee.fiscalDailyPay ?? 0),
+				hireDate: fiscalEmployee.hireDate ?? null,
+				sbcDailyOverride:
+					typeof fiscalEmployee.sbcDailyOverride === 'string'
+						? Number(fiscalEmployee.sbcDailyOverride)
+						: (fiscalEmployee.sbcDailyOverride ?? null),
+				aguinaldoDays: baseTaxSettings.aguinaldoDays,
+				vacationPremiumRate: baseTaxSettings.vacationPremiumRate,
+				periodEndDateKey: dualPeriodEndDateKey,
+			});
+			const expectedFiscalBase = Number((expectedFiscalSbcDaily * 5).toFixed(2));
 			const expectedFiscalAmount = Number((expectedFiscalBase * 0.1).toFixed(2));
 			const expectedNetPay = Number(
 				(dualEnabled.totalRealPay -
@@ -3814,6 +3826,7 @@ describe('payroll-calculation mexico taxes', () => {
 			);
 
 			expect(standard.deductionsBreakdown[0]?.appliedAmount).toBeGreaterThan(expectedFiscalAmount);
+			expect(dualEnabled.bases.sbcDaily).toBe(expectedFiscalSbcDaily);
 			expect(dualEnabled.deductionsBreakdown[0]).toMatchObject({
 				type: 'INFONAVIT',
 				calculationMethod: 'PERCENTAGE_SBC',

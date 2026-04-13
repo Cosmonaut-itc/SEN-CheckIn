@@ -1335,9 +1335,13 @@
 		},
 		"summary": {
 			"activeGratifications": "Gratificaciones activas",
+			"activeGratificationsVisible": "Gratificaciones activas visibles",
 			"activeAmount": "Monto real activo",
+			"activeAmountVisible": "Monto real activo visible",
 			"automatic": "Automáticas activas",
+			"automaticVisible": "Automáticas activas visibles",
 			"manual": "Manuales activas",
+			"manualVisible": "Manuales activas visibles",
 			"visibleScope": "Calculado con los registros visibles en esta página.",
 			"countValue": "{count, plural, one {# registro} other {# registros}}"
 		},
@@ -1369,6 +1373,11 @@
 		"editDialog": {
 			"title": "Editar gratificación",
 			"description": "Actualiza el monto, vigencia o estatus operativo de la gratificación."
+		},
+		"cancelDialog": {
+			"title": "Confirmar cancelación",
+			"description": "¿Seguro que deseas cancelar \"{concept}\"? Esta acción no se puede deshacer desde esta pantalla.",
+			"confirm": "Sí, cancelar gratificación"
 		},
 		"form": {
 			"employee": "Empleado",

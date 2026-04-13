@@ -5,14 +5,16 @@ import React from 'react';
 
 import { EmployeeGratificationsManager } from '@/components/employee-gratifications-manager';
 import { buildOrganizationGratificationsQueryParams } from '@/lib/employee-gratifications-query-params';
+import { fetchAllEmployeesListResult } from '@/lib/fetch-all-employees';
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
-import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
+import { queryKeys } from '@/lib/query-keys';
 import {
-	prefetchEmployeesList,
-	prefetchOrganizationGratificationsList,
-} from '@/lib/server-functions';
+	fetchEmployeesListServer,
+	fetchPayrollSettingsServer,
+} from '@/lib/server-client-functions';
+import { prefetchOrganizationGratificationsList } from '@/lib/server-functions';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,10 +39,18 @@ export default async function GratificationsPage(): Promise<React.ReactElement> 
 		: null;
 
 	if (organization.organizationId) {
-		prefetchEmployeesList(queryClient, {
-			organizationId: organization.organizationId,
-			limit: 100,
-			offset: 0,
+		queryClient.prefetchQuery({
+			queryKey: queryKeys.employees.listAll({
+				organizationId: organization.organizationId,
+			}),
+			queryFn: () =>
+				fetchAllEmployeesListResult({
+					fetchEmployees: (params) => fetchEmployeesListServer(cookieHeader, params),
+					params: {
+						organizationId: organization.organizationId,
+					},
+					pageSize: 100,
+				}),
 		});
 		prefetchOrganizationGratificationsList(
 			queryClient,

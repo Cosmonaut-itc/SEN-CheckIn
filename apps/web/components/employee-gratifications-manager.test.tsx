@@ -4,6 +4,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
+import { queryKeys } from '@/lib/query-keys';
 
 import { EmployeeGratificationsManager } from './employee-gratifications-manager';
 
@@ -115,17 +116,19 @@ vi.mock('@/components/ui/select', async () => {
  *
  * @returns Render result
  */
-function renderWithProviders(): ReturnType<typeof render> {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false,
+function renderWithProviders(queryClient?: QueryClient): ReturnType<typeof render> {
+	const resolvedQueryClient =
+		queryClient ??
+		new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+				},
 			},
-		},
-	});
+		});
 
 	return render(
-		<QueryClientProvider client={queryClient}>
+		<QueryClientProvider client={resolvedQueryClient}>
 			<OrgProvider
 				value={{
 					organizationId: 'org-1',
@@ -140,6 +143,63 @@ function renderWithProviders(): ReturnType<typeof render> {
 			</OrgProvider>
 		</QueryClientProvider>,
 	);
+}
+
+/**
+ * Creates a query client for component tests.
+ *
+ * @returns Query client configured without retries
+ */
+function createTestQueryClient(): QueryClient {
+	return new QueryClient({
+		defaultOptions: {
+			queries: {
+				retry: false,
+			},
+		},
+	});
+}
+
+/**
+ * Builds a minimal employee fixture for selector tests.
+ *
+ * @param index - Numeric suffix used in ids and names
+ * @returns Employee payload fixture
+ */
+function buildEmployee(
+	index: number,
+): Awaited<ReturnType<typeof mockFetchEmployeesList>>['data'][number] {
+	return {
+		id: `emp-${index}`,
+		code: `EMP-${index}`,
+		firstName: `Empleado ${index}`,
+		lastName: 'Prueba',
+		email: null,
+		phone: null,
+		jobPositionId: null,
+		jobPositionName: null,
+		department: null,
+		status: 'ACTIVE',
+		hireDate: null,
+		locationId: null,
+		organizationId: 'org-1',
+		userId: null,
+		dailyPay: 400,
+		paymentFrequency: 'WEEKLY',
+		employmentType: 'PERMANENT',
+		isTrustEmployee: false,
+		isDirectorAdminGeneralManager: false,
+		isDomesticWorker: false,
+		isPlatformWorker: false,
+		platformHoursYear: 0,
+		ptuEligibilityOverride: 'DEFAULT',
+		aguinaldoDaysOverride: null,
+		sbcDailyOverride: null,
+		rekognitionUserId: null,
+		shiftType: 'DIURNA',
+		createdAt: new Date('2026-01-01T00:00:00.000Z'),
+		updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+	};
 }
 
 describe('EmployeeGratificationsManager', () => {
@@ -289,5 +349,127 @@ describe('EmployeeGratificationsManager', () => {
 		expect(screen.getAllByText(/\$500\.00/).length).toBeGreaterThan(0);
 		expect(screen.getAllByText('applicationMode.MANUAL').length).toBeGreaterThan(0);
 		expect(screen.getAllByText('applicationMode.AUTOMATIC').length).toBeGreaterThan(0);
+	});
+
+	it('labels summary cards as visible-only when the organization view is paginated', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('Cumpleaños')).toBeInTheDocument();
+		});
+
+		expect(screen.getByText('summary.activeGratificationsVisible')).toBeInTheDocument();
+		expect(screen.getByText('summary.activeAmountVisible')).toBeInTheDocument();
+		expect(screen.getByText('summary.automaticVisible')).toBeInTheDocument();
+		expect(screen.getByText('summary.manualVisible')).toBeInTheDocument();
+	});
+
+	it('asks for confirmation before cancelling a gratification', async () => {
+		mockCancelEmployeeGratificationAction.mockResolvedValue({
+			success: true,
+			data: null,
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByText('Cumpleaños')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getAllByRole('button', { name: 'actions.cancel' })[0]!);
+
+		expect(mockCancelEmployeeGratificationAction).not.toHaveBeenCalled();
+		expect(screen.getByText('cancelDialog.title')).toBeInTheDocument();
+
+		fireEvent.click(screen.getByRole('button', { name: 'cancelDialog.confirm' }));
+
+		await waitFor(() => {
+			expect(mockCancelEmployeeGratificationAction).toHaveBeenCalledWith(
+				{
+					employeeId: 'emp-1',
+					id: 'grat-1',
+					organizationId: 'org-1',
+				},
+				expect.anything(),
+			);
+		});
+	});
+
+	it('loads employees beyond the first employees page into organization selectors', async () => {
+		const queryClient = createTestQueryClient();
+		const firstEmployeesPage = Array.from({ length: 100 }, (_, index) =>
+			buildEmployee(index + 1),
+		);
+		const cachedEmployeesPage = {
+			data: firstEmployeesPage,
+			pagination: {
+				total: 101,
+				limit: 100,
+				offset: 0,
+			},
+		};
+
+		mockFetchEmployeesList.mockReset();
+		mockFetchEmployeesList.mockResolvedValueOnce(cachedEmployeesPage).mockResolvedValueOnce({
+			data: [buildEmployee(101)],
+			pagination: {
+				total: 101,
+				limit: 100,
+				offset: 100,
+			},
+		});
+
+		queryClient.setQueryData(
+			queryKeys.employees.list({
+				organizationId: 'org-1',
+				limit: 100,
+				offset: 0,
+			}),
+			cachedEmployeesPage,
+		);
+
+		renderWithProviders(queryClient);
+
+		await waitFor(() => {
+			expect(mockFetchEmployeesList).toHaveBeenNthCalledWith(1, {
+				limit: 100,
+				offset: 0,
+				organizationId: 'org-1',
+			});
+		});
+
+		await waitFor(() => {
+			expect(mockFetchEmployeesList).toHaveBeenNthCalledWith(2, {
+				limit: 100,
+				offset: 100,
+				organizationId: 'org-1',
+			});
+		});
+
+		expect(
+			queryClient.getQueryData(
+				queryKeys.employees.listAll({
+					organizationId: 'org-1',
+				}),
+			),
+		).toEqual({
+			data: [...firstEmployeesPage, buildEmployee(101)],
+			pagination: {
+				total: 101,
+				limit: 101,
+				offset: 0,
+			},
+		});
+		expect(
+			queryClient.getQueryData(
+				queryKeys.employees.list({
+					organizationId: 'org-1',
+					limit: 100,
+					offset: 0,
+				}),
+			),
+		).toEqual(cachedEmployeesPage);
+
+		expect(screen.getByRole('option', { name: 'Empleado 101 Prueba' })).toBeInTheDocument();
 	});
 });

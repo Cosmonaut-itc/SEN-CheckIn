@@ -38,6 +38,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
 	Select,
 	SelectContent,
 	SelectItem,
@@ -63,6 +73,7 @@ import {
 	buildEmployeeGratificationsQueryParams,
 	buildOrganizationGratificationsQueryParams,
 } from '@/lib/employee-gratifications-query-params';
+import { fetchAllEmployeesListResult } from '@/lib/fetch-all-employees';
 import { useOrgContext } from '@/lib/org-client-context';
 import {
 	type EmployeeGratificationApplicationMode,
@@ -275,21 +286,23 @@ export function EmployeeGratificationsManager({
 	const [editingGratification, setEditingGratification] = useState<EmployeeGratification | null>(
 		null,
 	);
+	const [gratificationPendingCancellation, setGratificationPendingCancellation] =
+		useState<EmployeeGratification | null>(null);
 	const [formState, setFormState] = useState<GratificationFormState>(() =>
 		createDefaultFormState(isEmployeeMode ? employeeId : undefined),
 	);
 
 	const employeesQuery = useQuery({
-		queryKey: queryKeys.employees.list({
+		queryKey: queryKeys.employees.listAll({
 			organizationId,
-			limit: EMPLOYEE_QUERY_LIMIT,
-			offset: 0,
 		}),
 		queryFn: () =>
-			fetchEmployeesList({
-				organizationId,
-				limit: EMPLOYEE_QUERY_LIMIT,
-				offset: 0,
+			fetchAllEmployeesListResult({
+				fetchEmployees: fetchEmployeesList,
+				params: {
+					organizationId,
+				},
+				pageSize: EMPLOYEE_QUERY_LIMIT,
 			}),
 		enabled: Boolean(!isEmployeeMode && organizationId),
 	});
@@ -401,34 +414,38 @@ export function EmployeeGratificationsManager({
 		return [
 			{
 				key: 'active',
-				label: t('summary.activeGratifications'),
+				label: t(
+					isVisibleSubset
+						? 'summary.activeGratificationsVisible'
+						: 'summary.activeGratifications',
+				),
 				value: t('summary.countValue', { count: activeRows.length }),
 				icon: Gift,
 				tone: 'accent',
 			},
 			{
 				key: 'activeAmount',
-				label: t('summary.activeAmount'),
+				label: t(isVisibleSubset ? 'summary.activeAmountVisible' : 'summary.activeAmount'),
 				value: formatCurrency(activeAmount),
 				icon: CircleDollarSign,
 				tone: 'success',
 			},
 			{
 				key: 'automatic',
-				label: t('summary.automatic'),
+				label: t(isVisibleSubset ? 'summary.automaticVisible' : 'summary.automatic'),
 				value: t('summary.countValue', { count: automaticCount }),
 				icon: RefreshCw,
 				tone: 'warning',
 			},
 			{
 				key: 'manual',
-				label: t('summary.manual'),
+				label: t(isVisibleSubset ? 'summary.manualVisible' : 'summary.manual'),
 				value: t('summary.countValue', { count: manualCount }),
 				icon: Sparkles,
 				tone: 'accent',
 			},
 		];
-	}, [gratificationRows, t]);
+	}, [gratificationRows, isVisibleSubset, t]);
 
 	const createMutation = useMutation({
 		mutationKey: mutationKeys.employeeGratifications.create,
@@ -672,6 +689,22 @@ export function EmployeeGratificationsManager({
 		if (!organizationId || cancelMutation.isPending) {
 			return;
 		}
+
+		setGratificationPendingCancellation(gratification);
+	}
+
+	/**
+	 * Cancels the selected gratification after confirmation.
+	 *
+	 * @returns Nothing
+	 */
+	function confirmCancellation(): void {
+		if (!organizationId || !gratificationPendingCancellation || cancelMutation.isPending) {
+			return;
+		}
+
+		const gratification = gratificationPendingCancellation;
+		setGratificationPendingCancellation(null);
 
 		cancelMutation.mutate({
 			organizationId,
@@ -1250,6 +1283,32 @@ export function EmployeeGratificationsManager({
 					</div>
 				) : null}
 			</section>
+
+			<AlertDialog
+				open={gratificationPendingCancellation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setGratificationPendingCancellation(null);
+					}
+				}}
+			>
+				<AlertDialogContent className="max-w-md rounded-3xl">
+					<AlertDialogHeader>
+						<AlertDialogTitle>{t('cancelDialog.title')}</AlertDialogTitle>
+						<AlertDialogDescription>
+							{t('cancelDialog.description', {
+								concept: gratificationPendingCancellation?.concept ?? '',
+							})}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>{tCommon('cancel')}</AlertDialogCancel>
+						<AlertDialogAction onClick={confirmCancellation}>
+							{t('cancelDialog.confirm')}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			<Dialog
 				open={editingGratification !== null}

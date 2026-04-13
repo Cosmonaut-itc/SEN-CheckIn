@@ -10,6 +10,9 @@
 import type {
 	DisciplinaryMeasureStatus,
 	DisciplinaryOutcome,
+	EmployeeGratificationApplicationMode as SharedEmployeeGratificationApplicationMode,
+	EmployeeGratificationPeriodicity as SharedEmployeeGratificationPeriodicity,
+	EmployeeGratificationStatus as SharedEmployeeGratificationStatus,
 	HolidayKind,
 	HolidaySource,
 	HolidayStatus,
@@ -166,9 +169,9 @@ export interface OrganizationDeductionListQueryParams extends ListQueryParams {
 	type?: EmployeeDeductionType;
 }
 
-export type EmployeeGratificationStatus = 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
-export type EmployeeGratificationPeriodicity = 'ONE_TIME' | 'RECURRING';
-export type EmployeeGratificationApplicationMode = 'MANUAL' | 'AUTOMATIC';
+export type EmployeeGratificationStatus = SharedEmployeeGratificationStatus;
+export type EmployeeGratificationPeriodicity = SharedEmployeeGratificationPeriodicity;
+export type EmployeeGratificationApplicationMode = SharedEmployeeGratificationApplicationMode;
 
 export interface EmployeeGratificationListQueryParams extends Record<string, unknown> {
 	organizationId?: string;
@@ -387,6 +390,12 @@ export const queryKeys = {
 		 */
 		list: (params?: ListQueryParams) =>
 			queryKeyConstructor(['employees', 'list'] as const, params),
+		/**
+		 * Generates a query key for consumers that need the full employee list.
+		 * @param params - Optional non-paginated filters
+		 */
+		listAll: (params?: { organizationId?: string | null }) =>
+			queryKeyConstructor(['employees', 'list-all'] as const, params),
 		/**
 		 * Generates a query key for a specific employee.
 		 * @param id - The employee ID

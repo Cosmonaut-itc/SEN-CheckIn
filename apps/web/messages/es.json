@@ -220,6 +220,23 @@
 			}
 		}
 	},
+	"Tours": {
+		"skipConfirmTitle": "Omitir tutorial?",
+		"skipConfirmMessage": "Puedes repetirlo desde el botón de ayuda (?) en cualquier momento.",
+		"skipConfirmButton": "Sí, omitir",
+		"skipCancelButton": "Continuar tutorial",
+		"completedMessage": "Tutorial completado! Puedes repetirlo desde el botón de ayuda.",
+		"helpButtonTooltip": "Repetir tutorial de esta sección",
+		"progressLabel": "Paso {current} de {total}",
+		"nextButton": "Siguiente",
+		"prevButton": "Anterior",
+		"skipButton": "Omitir tutorial",
+		"dashboard": {
+			"step1": "Aquí puedes ver los contadores principales de tu organización: empleados, dispositivos, ubicaciones y puestos.",
+			"step2": "Esta sección muestra los empleados presentes hoy con reconocimiento facial.",
+			"step3": "El mapa te permite visualizar la ubicación de tus sucursales."
+		}
+	},
 	"Errors": {
 		"Dashboard": {
 			"title": "Algo salió mal",

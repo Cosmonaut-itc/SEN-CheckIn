@@ -274,9 +274,9 @@ describe('TourProvider', () => {
 
 		await act(async () => {
 			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
-				action: 'next',
+				action: 'start',
 				index: 0,
-				lifecycle: 'complete',
+				lifecycle: 'init',
 				origin: null,
 				size: 3,
 				status: 'running',
@@ -286,6 +286,21 @@ describe('TourProvider', () => {
 		});
 
 		expect(joyrideState.props?.stepIndex).toBe(1);
+
+		await act(async () => {
+			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
+				action: 'next',
+				index: 1,
+				lifecycle: 'complete',
+				origin: null,
+				size: 3,
+				status: 'running',
+				step: {},
+				type: 'target:not-found',
+			});
+		});
+
+		expect(joyrideState.props?.stepIndex).toBe(2);
 
 		await act(async () => {
 			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
@@ -300,7 +315,7 @@ describe('TourProvider', () => {
 			});
 		});
 
-		expect(joyrideState.props?.stepIndex).toBe(0);
+		expect(joyrideState.props?.stepIndex).toBe(1);
 	});
 
 	it('closes the active tour and shows an error when completion persistence fails', async () => {
@@ -451,6 +466,23 @@ describe('useTour', () => {
 				completedAt: '2026-04-14T12:00:00.000Z',
 			},
 		]);
+
+		renderWithProviders(<UseTourProbe />);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+		});
+
+		await act(async () => {
+			await new Promise((resolve) => window.setTimeout(resolve, 600));
+		});
+
+		expect(screen.getByTestId('use-tour-state')).toHaveTextContent('false');
+		expect(joyrideState.props?.run).not.toBe(true);
+	});
+
+	it('does not auto-launch a tour when progress loading fails', async () => {
+		mockFetchTourProgress.mockRejectedValue(new Error('network down'));
 
 		renderWithProviders(<UseTourProbe />);
 

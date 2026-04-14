@@ -106,7 +106,7 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 	const organizationId = session?.session?.activeOrganizationId ?? null;
 	const progressScopeKey = `${userId ?? 'anonymous'}:${organizationId ?? 'none'}`;
 
-	const { data: progress = [], isFetched } = useQuery({
+	const { data: progress = [], isSuccess } = useQuery({
 		queryKey: queryKeys.tours.progress(userId, organizationId),
 		queryFn: fetchTourProgress,
 		enabled: Boolean(userId && organizationId),
@@ -187,11 +187,10 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 			}
 
 			if (event.type === EVENTS.STEP_AFTER || event.type === EVENTS.TARGET_NOT_FOUND) {
-				if (event.action === ACTIONS.NEXT) {
-					setStepIndex((currentIndex) => currentIndex + 1);
-				}
 				if (event.action === ACTIONS.PREV) {
 					setStepIndex((currentIndex) => Math.max(currentIndex - 1, 0));
+				} else {
+					setStepIndex((currentIndex) => currentIndex + 1);
 				}
 			}
 
@@ -258,11 +257,11 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 			activeTourId,
 			progressScopeKey,
 			progress,
-			isProgressReady: isFetched,
+			isProgressReady: isSuccess,
 			startTour,
 			isTourDone,
 		}),
-		[activeTourId, isFetched, isRunning, isTourDone, progress, progressScopeKey, startTour],
+		[activeTourId, isRunning, isSuccess, isTourDone, progress, progressScopeKey, startTour],
 	);
 
 	return (

@@ -62,9 +62,10 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const router = useRouter();
 	const t = useTranslations('Organizations');
 	const tCommon = useTranslations('Common');
-	useTour('organizations');
 	const { data: session, isPending: isSessionPending } = useSession();
 	const isSuperUser = session?.user?.role === 'admin';
+	const canCreateOrganization = isSuperUser;
+	useTour('organizations', canCreateOrganization);
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -122,7 +123,6 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const totalRows = isSuperUser
 		? ((organizationsResponse as OrganizationsAllResponse | undefined)?.total ?? 0)
 		: organizations.length;
-	const canCreateOrganization = isSuperUser;
 	const isLoading = isFetching || isSessionPending;
 
 	// Create mutation
@@ -505,7 +505,9 @@ export function OrganizationsPageClient(): React.ReactElement {
 					description={t('subtitle')}
 					actions={
 						<>
-							<TourHelpButton tourId="organizations" />
+							{canCreateOrganization ? (
+								<TourHelpButton tourId="organizations" />
+							) : null}
 							{canCreateOrganization ? (
 								<DialogTrigger asChild>
 									<Button

@@ -33,6 +33,17 @@ describe('attendance schema lunch break checkout reason', () => {
 });
 
 describe('tour progress schema', () => {
+	it('exports the supported tour progress status enum values', async () => {
+		const schemaModule = await import('./schema.js');
+
+		expect('tourProgressStatus' in schemaModule).toBe(true);
+		if (!('tourProgressStatus' in schemaModule)) {
+			throw new Error('Expected tourProgressStatus enum export.');
+		}
+
+		expect(schemaModule.tourProgressStatus.enumValues).toEqual(['completed', 'skipped']);
+	});
+
 	it('exports the expected tour_progress columns', () => {
 		const columns = getTableColumns(tourProgress) as Record<string, { notNull: boolean }>;
 

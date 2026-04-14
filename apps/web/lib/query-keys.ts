@@ -747,7 +747,11 @@ export const queryKeys = {
 	 */
 	tours: {
 		all: ['tours'] as const,
-		progress: () => ['tours', 'progress'] as const,
+		progress: (userId?: string | null, organizationId?: string | null) =>
+			queryKeyConstructor(['tours', 'progress'] as const, {
+				userId: userId ?? undefined,
+				organizationId: organizationId ?? undefined,
+			}),
 	},
 } as const;
 

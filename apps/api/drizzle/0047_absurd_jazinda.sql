@@ -1,9 +1,10 @@
+CREATE TYPE "public"."tour_progress_status" AS ENUM('completed', 'skipped');--> statement-breakpoint
 CREATE TABLE "tour_progress" (
 	"id" text PRIMARY KEY NOT NULL,
 	"user_id" text NOT NULL,
 	"organization_id" text NOT NULL,
 	"tour_id" text NOT NULL,
-	"status" text NOT NULL,
+	"status" "tour_progress_status" NOT NULL,
 	"completed_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint

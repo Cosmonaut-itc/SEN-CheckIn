@@ -48,7 +48,14 @@ describe('tour client functions', () => {
 
 	it('exposes stable query and mutation keys for tour progress', () => {
 		expect(queryKeys.tours.all).toEqual(['tours']);
-		expect(queryKeys.tours.progress()).toEqual(['tours', 'progress']);
+		expect(queryKeys.tours.progress('user-1', 'org-1')).toEqual([
+			'tours',
+			'progress',
+			{ userId: 'user-1', organizationId: 'org-1' },
+		]);
+		expect(queryKeys.tours.progress('user-1', 'org-2')).not.toEqual(
+			queryKeys.tours.progress('user-1', 'org-1'),
+		);
 		expect(mutationKeys.tours.complete).toEqual(['tours', 'complete']);
 		expect(mutationKeys.tours.reset).toEqual(['tours', 'reset']);
 	});

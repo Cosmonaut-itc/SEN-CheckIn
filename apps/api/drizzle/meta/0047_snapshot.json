@@ -7622,7 +7622,8 @@
         },
         "status": {
           "name": "status",
-          "type": "text",
+          "type": "tour_progress_status",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
         },
@@ -8335,6 +8336,14 @@
         "REGULAR",
         "LUNCH_BREAK",
         "PERSONAL"
+      ]
+    },
+    "public.tour_progress_status": {
+      "name": "tour_progress_status",
+      "schema": "public",
+      "values": [
+        "completed",
+        "skipped"
       ]
     },
     "public.deduction_calculation_method": {

@@ -13,6 +13,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { toast } from 'sonner';
 
+import { useSession } from '@/lib/auth-client';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -45,6 +46,8 @@ interface TourContextValue {
 	isRunning: boolean;
 	/** Active tour identifier when a tour is running. */
 	activeTourId: string | null;
+	/** Stable key for the current user and organization tour scope. */
+	progressScopeKey: string;
 	/** Loaded tour progress records for the active user. */
 	progress: TourProgressRecord[];
 	/** Whether the initial progress query has completed. */
@@ -92,16 +95,21 @@ function buildJoyrideSteps(
  */
 export function TourProvider({ children }: TourProviderProps): React.ReactElement {
 	const t = useTranslations('Tours');
+	const { data: session } = useSession();
 	const queryClient = useQueryClient();
 	const [isRunning, setIsRunning] = useState<boolean>(false);
 	const [activeTourId, setActiveTourId] = useState<string | null>(null);
 	const [steps, setSteps] = useState<JoyrideStep[]>([]);
 	const [stepIndex, setStepIndex] = useState<number>(0);
 	const [pendingSkip, setPendingSkip] = useState<PendingSkipState | null>(null);
+	const userId = session?.user?.id ?? null;
+	const organizationId = session?.session?.activeOrganizationId ?? null;
+	const progressScopeKey = `${userId ?? 'anonymous'}:${organizationId ?? 'none'}`;
 
 	const { data: progress = [], isFetched } = useQuery({
-		queryKey: queryKeys.tours.progress(),
+		queryKey: queryKeys.tours.progress(userId, organizationId),
 		queryFn: fetchTourProgress,
+		enabled: Boolean(userId && organizationId),
 		staleTime: 5 * 60 * 1000,
 	});
 
@@ -245,12 +253,13 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 		() => ({
 			isRunning,
 			activeTourId,
+			progressScopeKey,
 			progress,
 			isProgressReady: isFetched,
 			startTour,
 			isTourDone,
 		}),
-		[activeTourId, isFetched, isRunning, isTourDone, progress, startTour],
+		[activeTourId, isFetched, isRunning, isTourDone, progress, progressScopeKey, startTour],
 	);
 
 	return (

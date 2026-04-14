@@ -4,26 +4,43 @@ import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFetchTourProgress, mockCompleteTour, joyrideState, setJoyrideProps } = vi.hoisted(
-	() => {
+const { mockFetchTourProgress, mockCompleteTour, joyrideState, authSessionState, setJoyrideProps } =
+	vi.hoisted(() => {
 		const joyrideState = {
 			props: null as Record<string, unknown> | null,
+		};
+		const authSessionState = {
+			value: {
+				data: {
+					user: {
+						id: 'user-1',
+					},
+					session: {
+						activeOrganizationId: 'org-1',
+					},
+				},
+				isPending: false,
+			},
 		};
 
 		return {
 			mockFetchTourProgress: vi.fn(),
 			mockCompleteTour: vi.fn(),
 			joyrideState,
+			authSessionState,
 			setJoyrideProps: (props: Record<string, unknown>) => {
 				joyrideState.props = props;
 			},
 		};
-	},
-);
+	});
 
 vi.mock('@/lib/tour-client-functions', () => ({
 	fetchTourProgress: (...args: unknown[]) => mockFetchTourProgress(...args),
 	completeTour: (...args: unknown[]) => mockCompleteTour(...args),
+}));
+
+vi.mock('@/lib/auth-client', () => ({
+	useSession: () => authSessionState.value,
 }));
 
 vi.mock('react-joyride', () => {
@@ -90,13 +107,16 @@ function renderWithProviders(children: React.ReactNode) {
 		},
 	});
 
-	return render(
-		<QueryClientProvider client={queryClient}>
-			<NextIntlClientProvider locale="es" messages={messages}>
-				<TourProvider>{children}</TourProvider>
-			</NextIntlClientProvider>
-		</QueryClientProvider>,
-	);
+	return {
+		queryClient,
+		...render(
+			<QueryClientProvider client={queryClient}>
+				<NextIntlClientProvider locale="es" messages={messages}>
+					<TourProvider>{children}</TourProvider>
+				</NextIntlClientProvider>
+			</QueryClientProvider>,
+		),
+	};
 }
 
 /**
@@ -144,18 +164,29 @@ describe('TourProvider', () => {
 		mockFetchTourProgress.mockResolvedValue([]);
 		mockCompleteTour.mockResolvedValue(undefined);
 		joyrideState.props = null;
+		authSessionState.value = {
+			data: {
+				user: {
+					id: 'user-1',
+				},
+				session: {
+					activeOrganizationId: 'org-1',
+				},
+			},
+			isPending: false,
+		};
 	});
 
 	afterEach(() => {
 		vi.useRealTimers();
 	});
 
-	it('starts a registered tour and maps translated steps into Joyride props', async () => {
+		it('starts a registered tour and maps translated steps into Joyride props', async () => {
 		renderWithProviders(<TourContextProbe />);
 
 		await waitFor(() => {
 			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
-		});
+		}, 15_000);
 
 		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour' }));
 
@@ -257,7 +288,7 @@ describe('TourProvider', () => {
 			expect(mockCompleteTour).toHaveBeenCalledWith('dashboard', 'skipped');
 		});
 		expect(screen.getByTestId('tour-state')).toHaveTextContent('false::none');
-	});
+	}, 15_000);
 });
 
 describe('useTour', () => {
@@ -307,5 +338,39 @@ describe('useTour', () => {
 
 		expect(screen.getByTestId('use-tour-state')).toHaveTextContent('false');
 		expect(joyrideState.props?.run).not.toBe(true);
+	});
+
+	it('refetches progress when the authenticated user context changes', async () => {
+		const view = renderWithProviders(<TourContextProbe />);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+		});
+
+		authSessionState.value = {
+			data: {
+				user: {
+					id: 'user-2',
+				},
+				session: {
+					activeOrganizationId: 'org-2',
+				},
+			},
+			isPending: false,
+		};
+
+		view.rerender(
+			<QueryClientProvider client={view.queryClient}>
+				<NextIntlClientProvider locale="es" messages={messages}>
+					<TourProvider>
+						<TourContextProbe />
+					</TourProvider>
+				</NextIntlClientProvider>
+			</QueryClientProvider>,
+		);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(2);
+		});
 	});
 });

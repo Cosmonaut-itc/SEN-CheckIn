@@ -715,6 +715,11 @@ export const documentRequirementActivationStage = pgEnum('document_requirement_a
 	'LEGAL_AFTER_GATE',
 ]);
 
+/**
+ * Enum for tour progress status values.
+ */
+export const tourProgressStatus = pgEnum('tour_progress_status', ['completed', 'skipped']);
+
 // ============================================================================
 // Domain Tables
 // ============================================================================
@@ -2845,7 +2850,7 @@ export const tourProgress = pgTable(
 			.notNull()
 			.references(() => organization.id, { onDelete: 'cascade' }),
 		tourId: text('tour_id').notNull(),
-		status: text('status').notNull(),
+		status: tourProgressStatus('status').notNull(),
 		completedAt: timestamp('completed_at').defaultNow().notNull(),
 	},
 	(table) => [

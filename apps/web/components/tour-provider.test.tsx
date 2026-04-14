@@ -181,12 +181,12 @@ describe('TourProvider', () => {
 		vi.useRealTimers();
 	});
 
-		it('starts a registered tour and maps translated steps into Joyride props', async () => {
+	it('starts a registered tour and maps translated steps into Joyride props', async () => {
 		renderWithProviders(<TourContextProbe />);
 
 		await waitFor(() => {
 			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
-		}, 15_000);
+		}, { timeout: 15_000 });
 
 		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour' }));
 

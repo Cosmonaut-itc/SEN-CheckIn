@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mockRestartTour = vi.fn();
 
 vi.mock('@/components/tour-provider', () => ({
-	useTourContext: () => ({
+	useOptionalTourContext: () => ({
 		startTour: mockRestartTour,
 	}),
 }));

@@ -4,13 +4,22 @@ import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFetchTourProgress, mockCompleteTour, joyrideState } = vi.hoisted(() => ({
-	mockFetchTourProgress: vi.fn(),
-	mockCompleteTour: vi.fn(),
-	joyrideState: {
-		props: null as Record<string, unknown> | null,
+const { mockFetchTourProgress, mockCompleteTour, joyrideState, setJoyrideProps } = vi.hoisted(
+	() => {
+		const joyrideState = {
+			props: null as Record<string, unknown> | null,
+		};
+
+		return {
+			mockFetchTourProgress: vi.fn(),
+			mockCompleteTour: vi.fn(),
+			joyrideState,
+			setJoyrideProps: (props: Record<string, unknown>) => {
+				joyrideState.props = props;
+			},
+		};
 	},
-}));
+);
 
 vi.mock('@/lib/tour-client-functions', () => ({
 	fetchTourProgress: (...args: unknown[]) => mockFetchTourProgress(...args),
@@ -19,7 +28,7 @@ vi.mock('@/lib/tour-client-functions', () => ({
 
 vi.mock('react-joyride', () => {
 	const Joyride = (props: Record<string, unknown>) => {
-		joyrideState.props = props;
+		setJoyrideProps(props);
 		return <div data-testid="joyride-mock" />;
 	};
 

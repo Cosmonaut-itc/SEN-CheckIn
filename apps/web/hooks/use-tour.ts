@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react';
 
-import { useTourContext } from '@/components/tour-provider';
+import { useOptionalTourContext } from '@/components/tour-provider';
 
 /**
  * Hook for auto-launching a section tour on first visit and replaying it on demand.
@@ -14,8 +14,17 @@ export function useTour(tourId: string): {
 	restartTour: () => void;
 	isTourRunning: boolean;
 } {
-	const { activeTourId, isProgressReady, isRunning, isTourDone, startTour } = useTourContext();
+	const contextValue = useOptionalTourContext();
 	const hasAutoLaunched = useRef<boolean>(false);
+
+	if (!contextValue) {
+		return {
+			restartTour: () => undefined,
+			isTourRunning: false,
+		};
+	}
+
+	const { activeTourId, isProgressReady, isRunning, isTourDone, startTour } = contextValue;
 
 	useEffect(() => {
 		if (!isProgressReady || hasAutoLaunched.current || isTourDone(tourId) || isRunning) {

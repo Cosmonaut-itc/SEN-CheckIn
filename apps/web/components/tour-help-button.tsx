@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { useTourContext } from '@/components/tour-provider';
+import { useOptionalTourContext } from '@/components/tour-provider';
 
 /**
  * Props for the TourHelpButton component.
@@ -23,7 +23,7 @@ interface TourHelpButtonProps {
  * @returns Help button with tooltip affordance
  */
 export function TourHelpButton({ tourId }: TourHelpButtonProps): React.ReactElement {
-	const { startTour } = useTourContext();
+	const contextValue = useOptionalTourContext();
 	const t = useTranslations('Tours');
 
 	return (
@@ -33,7 +33,8 @@ export function TourHelpButton({ tourId }: TourHelpButtonProps): React.ReactElem
 					type="button"
 					variant="ghost"
 					size="icon-sm"
-					onClick={() => startTour(tourId)}
+					onClick={() => contextValue?.startTour(tourId)}
+					disabled={!contextValue}
 					aria-label={t('helpButtonTooltip')}
 					className="shrink-0 rounded-md border border-transparent hover:border-[color:var(--border-subtle)]"
 				>

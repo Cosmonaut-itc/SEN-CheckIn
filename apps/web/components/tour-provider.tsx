@@ -277,7 +277,7 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 					zIndex: 10000,
 					primaryColor: 'var(--primary)',
 					backgroundColor: 'var(--background)',
-					overlayColor: 'rgba(17, 13, 10, 0.7)',
+					overlayColor: 'var(--overlay)',
 					showProgress: true,
 					closeButtonAction: 'skip',
 					dismissKeyAction: false,
@@ -328,4 +328,13 @@ export function useTourContext(): TourContextValue {
 		throw new Error('useTourContext must be used within a TourProvider');
 	}
 	return contextValue;
+}
+
+/**
+ * Reads the current tour context when available.
+ *
+ * @returns Tour context value or null outside the provider
+ */
+export function useOptionalTourContext(): TourContextValue | null {
+	return useContext(TourContext) ?? null;
 }

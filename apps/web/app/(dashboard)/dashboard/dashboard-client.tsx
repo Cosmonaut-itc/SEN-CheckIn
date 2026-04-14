@@ -31,6 +31,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { TourHelpButton } from '@/components/tour-help-button';
+import { useTour } from '@/hooks/use-tour';
 import type { DashboardMapProps } from './dashboard-map';
 import {
 	fetchAttendancePresent,
@@ -147,6 +149,7 @@ export function DashboardPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Dashboard');
 	const isMobile = useIsMobile();
+	useTour('dashboard');
 	const { data: counts, isFetching: isCountsFetching } = useSuspenseQuery({
 		queryKey: queryKeys.dashboard.counts(organizationId),
 		queryFn: () => fetchDashboardCounts({ organizationId }),
@@ -394,6 +397,7 @@ export function DashboardPageClient(): React.ReactElement {
 					{t('map.actions.locations')}
 				</Link>
 			</Button>
+			<TourHelpButton tourId="dashboard" />
 		</div>
 	);
 
@@ -425,7 +429,11 @@ export function DashboardPageClient(): React.ReactElement {
 	);
 
 	const statsStrip = (
-		<section data-testid="dashboard-stats-strip" className="overflow-x-auto pb-1">
+		<section
+			data-testid="dashboard-stats-strip"
+			data-tour="dashboard-counters"
+			className="overflow-x-auto pb-1"
+		>
 			<div className="flex w-max min-w-full gap-3">
 				{metrics.map((metric) => (
 					<DashboardMetricCard
@@ -772,6 +780,7 @@ export function DashboardPageClient(): React.ReactElement {
 			<div className="-m-6 pb-8">
 				<section
 					data-testid="dashboard-map-hero"
+					data-tour="dashboard-map"
 					className="relative h-[60vh] min-h-[26rem] overflow-hidden border-b border-[color:var(--border-subtle)] bg-muted/20"
 				>
 					<DashboardMap
@@ -789,6 +798,7 @@ export function DashboardPageClient(): React.ReactElement {
 
 					<section
 						data-testid="dashboard-locations-panel"
+						data-tour="dashboard-present"
 						className="overflow-hidden rounded-2xl border bg-background/95 shadow-[var(--shadow-md)]"
 					>
 						{locationsPanelHeader}
@@ -800,7 +810,10 @@ export function DashboardPageClient(): React.ReactElement {
 	}
 
 	return (
-		<div className="relative -m-6 h-[calc(100vh-3.5rem)] min-h-[32rem]">
+		<div
+			data-tour="dashboard-map"
+			className="relative -m-6 h-[calc(100vh-3.5rem)] min-h-[32rem]"
+		>
 			<DashboardMap
 				locations={locationsWithCoords}
 				focusedLocation={focusedLocation}
@@ -821,7 +834,11 @@ export function DashboardPageClient(): React.ReactElement {
 								</p>
 								<p className="text-base font-semibold">{t('map.subtitle')}</p>
 							</div>
-							<div data-testid="dashboard-stats-strip" className="flex flex-wrap gap-4">
+							<div
+								data-testid="dashboard-stats-strip"
+								data-tour="dashboard-counters"
+								className="flex flex-wrap gap-4"
+							>
 								{metrics.map((metric) => (
 									<div key={metric.label} className="flex items-center gap-3">
 										<div
@@ -853,6 +870,7 @@ export function DashboardPageClient(): React.ReactElement {
 
 				<div
 					data-testid="dashboard-locations-panel"
+					data-tour="dashboard-present"
 					className="pointer-events-auto absolute bottom-4 right-4 top-24 w-full max-w-sm"
 				>
 					<div className="flex h-full flex-col rounded-xl border bg-background/90 shadow-sm backdrop-blur">

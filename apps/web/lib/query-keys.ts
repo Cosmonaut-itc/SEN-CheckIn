@@ -741,6 +741,14 @@ export const queryKeys = {
 				userCode,
 			}),
 	},
+
+	/**
+	 * Query keys for guided tour progress.
+	 */
+	tours: {
+		all: ['tours'] as const,
+		progress: () => ['tours', 'progress'] as const,
+	},
 } as const;
 
 /**
@@ -857,6 +865,11 @@ export const mutationKeys = {
 		cancel: ['incapacities', 'cancel'] as const,
 		presign: ['incapacities', 'presign'] as const,
 		confirm: ['incapacities', 'confirm'] as const,
+	},
+
+	tours: {
+		complete: ['tours', 'complete'] as const,
+		reset: ['tours', 'reset'] as const,
 	},
 
 	/**

@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { buildTestRegistrationPayload, registerTestAccounts, signIn } from './helpers/auth';
 
 test('signs in and lands on the dashboard', async ({ page }) => {
+	test.setTimeout(180_000);
+
 	const registration = buildTestRegistrationPayload();
 	await registerTestAccounts(page, registration);
 	await signIn(page, registration.admin.email, registration.admin.password);

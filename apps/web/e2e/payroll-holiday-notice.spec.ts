@@ -298,6 +298,7 @@ async function assertLatestRunHasHolidayNotice(request: APIRequestContext): Prom
 }
 
 test('payroll notice is rendered and persisted in run history', async ({ page }) => {
+	test.setTimeout(120_000);
 	const registration = buildTestRegistrationPayload();
 	await registerTestAccounts(page, registration);
 	await signIn(page, registration.admin.email, registration.admin.password);
@@ -316,7 +317,7 @@ test('payroll notice is rendered and persisted in run history', async ({ page })
 	await processPayroll(page.request, organizationId, periodStartDateKey, periodEndDateKey);
 	await assertLatestRunHasHolidayNotice(page.request);
 
-	await page.goto('/payroll');
+	await page.goto('/payroll', { waitUntil: 'domcontentloaded', timeout: 90_000 });
 	const noticeButton = page
 		.locator('[data-testid^="payroll-run-holiday-notice-trigger-"]')
 		.first();

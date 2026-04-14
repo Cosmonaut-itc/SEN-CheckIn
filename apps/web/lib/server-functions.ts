@@ -24,11 +24,13 @@ import {
 	type DisciplinaryKpisQueryParams,
 	type DisciplinaryMeasuresQueryParams,
 	type EmployeeDeductionListQueryParams,
+	type EmployeeGratificationListQueryParams,
 	type IncapacityQueryParams,
 	type JobPositionQueryParams,
 	type ListQueryParams,
 	type OvertimeAuthorizationQueryParams,
 	type OrganizationDeductionListQueryParams,
+	type OrganizationGratificationListQueryParams,
 	type OrganizationAllQueryParams,
 	type ScheduleExceptionQueryParams,
 	type ScheduleTemplateQueryParams,
@@ -44,6 +46,7 @@ import {
 	fetchDisciplinaryKpisServer,
 	fetchDisciplinaryMeasuresServer,
 	fetchEmployeeDeductionsListServer,
+	fetchEmployeeGratificationsListServer,
 	fetchEmployeesListServer,
 	fetchIncapacitiesListServer,
 	fetchJobPositionsListServer,
@@ -51,6 +54,7 @@ import {
 	fetchAllOrganizationsServer,
 	fetchOvertimeAuthorizationsListServer,
 	fetchOrganizationDeductionsListServer,
+	fetchOrganizationGratificationsListServer,
 	fetchOrganizationMembersServer,
 	fetchOrganizationsServer,
 	fetchPayrollRunsServer,
@@ -122,10 +126,7 @@ const getRequestHeaders = cache(async (): Promise<Headers> => {
  * }
  * ```
  */
-export function prefetchEmployeesList(
-	queryClient: QueryClient,
-	params?: ListQueryParams,
-): void {
+export function prefetchEmployeesList(queryClient: QueryClient, params?: ListQueryParams): void {
 	queryClient.prefetchQuery({
 		queryKey: queryKeys.employees.list(params),
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchEmployeesListServer>>> => {
@@ -199,6 +200,52 @@ export function prefetchOrganizationDeductionsList(
 		> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchOrganizationDeductionsListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches employee gratifications for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Employee-scoped filters
+ * @returns Nothing
+ */
+export function prefetchEmployeeGratificationsList(
+	queryClient: QueryClient,
+	params?: EmployeeGratificationListQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: params
+			? queryKeys.employeeGratifications.employee(params)
+			: queryKeys.employeeGratifications.all,
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchEmployeeGratificationsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchEmployeeGratificationsListServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches organization-wide gratifications for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Organization filters and pagination params
+ * @returns Nothing
+ */
+export function prefetchOrganizationGratificationsList(
+	queryClient: QueryClient,
+	params?: OrganizationGratificationListQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.employeeGratifications.organization(params),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchOrganizationGratificationsListServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchOrganizationGratificationsListServer(cookieHeader, params);
 		},
 	});
 }

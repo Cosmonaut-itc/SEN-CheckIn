@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import rawMessages from '@/messages/es.json';
 import { OrgProvider } from '@/lib/org-client-context';
+import { createTestTranslator } from '@/lib/test-utils/next-intl';
 
 import {
 	extractEmployeesFromImportFiles,
@@ -24,85 +25,10 @@ const mockPush = vi.fn();
 const mockFetchLocationsList = vi.fn();
 const mockFetchJobPositionsList = vi.fn();
 const mockFetchEmployeesList = vi.fn();
-
-/**
- * Resolves import translations from the Spanish fixture for helper-level tests.
- *
- * @param key - Translation key within Employees.import
- * @param values - Optional interpolation values
- * @returns Localized string
- */
-function translateImportMessage(
-	key: string,
-	values?: Record<string, string | number>,
-): string {
-	const translationPath = `Employees.import.${key}`;
-	const localizedMessage = translationPath
-		.split('.')
-		.reduce<unknown>((currentValue, segment) => {
-			if (!currentValue || typeof currentValue !== 'object' || !(segment in currentValue)) {
-				return undefined;
-			}
-
-			return (currentValue as Record<string, unknown>)[segment];
-		}, messages);
-
-	const resolvedMessage =
-		typeof localizedMessage === 'string' ? localizedMessage : translationPath;
-
-	if (!values) {
-		return resolvedMessage;
-	}
-
-	return Object.entries(values).reduce(
-		(currentMessage, [placeholder, value]) =>
-			currentMessage.replace(`{${placeholder}}`, String(value)),
-		resolvedMessage,
-	);
-}
+const translateImportMessage = createTestTranslator('Employees.import');
 
 vi.mock('next-intl', async () => {
-	const rawIntlMessages = await import('@/messages/es.json');
-	const intlMessages =
-		(rawIntlMessages as { default?: typeof rawMessages }).default ?? rawIntlMessages;
-
-	/**
-	 * Resolves a translation path from the Spanish messages fixture.
-	 *
-	 * @param path - Dot-notated translation path
-	 * @returns Localized text or the original key when absent
-	 */
-	function resolveTranslation(path: string): string {
-		const resolved = path.split('.').reduce<unknown>((currentValue, segment) => {
-			if (!currentValue || typeof currentValue !== 'object' || !(segment in currentValue)) {
-				return undefined;
-			}
-
-			return (currentValue as Record<string, unknown>)[segment];
-		}, intlMessages);
-
-		return typeof resolved === 'string' ? resolved : path;
-	}
-
-	return {
-		NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
-		useTranslations:
-			(namespace?: string) =>
-			(key: string, values?: Record<string, string | number>): string => {
-				const translationPath = namespace ? `${namespace}.${key}` : key;
-				const localizedMessage = resolveTranslation(translationPath);
-
-				if (!values) {
-					return localizedMessage;
-				}
-
-				return Object.entries(values).reduce(
-					(currentMessage, [placeholder, value]) =>
-						currentMessage.replace(`{${placeholder}}`, String(value)),
-					localizedMessage,
-				);
-			},
-	};
+	return import('@/lib/test-utils/next-intl');
 });
 
 vi.mock('next/navigation', () => ({

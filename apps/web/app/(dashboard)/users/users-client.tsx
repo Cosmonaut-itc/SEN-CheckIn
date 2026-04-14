@@ -2,26 +2,22 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
-import { ShieldCheck, UserCheck, UserPlus } from 'lucide-react';
+import { ShieldCheck, Trash2, UserCheck, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import React, {
-	startTransition,
-	useCallback,
-	useEffect,
-	useMemo,
-	useState,
-} from 'react';
+import React, { startTransition, useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import {
 	type AddOrganizationMemberInput,
 	type CreateOrganizationUserInput,
 	type CreateOrganizationUserErrorCode,
+	type DeleteGlobalUserErrorCode,
 	type UpdateOrganizationMemberRoleInput,
 	type UpdateOrganizationMemberRoleErrorCode,
 	addOrganizationMember,
 	createOrganizationUser,
+	deleteGlobalUser,
 	updateOrganizationMemberRole,
 } from '@/actions/users';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -123,6 +119,41 @@ function getOrganizationMemberRoleUpdateErrorMessage(
 			return t('errors.roleUpdateMemberNotFound');
 		default:
 			return t('toast.roleUpdateError');
+	}
+}
+
+/**
+ * Resolves the user-facing message for global user deletion failures.
+ *
+ * @param t - Translation resolver for the Users namespace
+ * @param errorCode - Stable error code returned by the server action
+ * @returns Localized toast message
+ */
+function getDeleteGlobalUserErrorMessage(
+	t: (key: string, values?: Record<string, string | number>) => string,
+	errorCode?: DeleteGlobalUserErrorCode,
+): string {
+	if (!errorCode) {
+		return t('toast.deleteError');
+	}
+
+	switch (errorCode) {
+		case 'USER_ID_REQUIRED':
+			return t('errors.deleteUserRequired');
+		case 'USER_NOT_FOUND':
+			return t('errors.deleteUserNotFound');
+		case 'LAST_ADMIN_OR_OWNER_PROTECTED':
+			return t('errors.deleteLastAdminProtected');
+		case 'USER_DELETE_CROSS_ORG_DEPENDENCY':
+			return t('errors.deleteCrossOrgDependency');
+		case 'USER_DELETE_AUDIT_FALLBACK_REQUIRED':
+			return t('errors.deleteAuditFallbackRequired');
+		case 'ORGANIZATION_ADMIN_REQUIRED':
+			return t('errors.deleteRequiresAdmin');
+		case 'ORGANIZATION_MEMBERSHIP_REQUIRED':
+			return t('errors.deleteRequiresMembership');
+		default:
+			return t('toast.deleteError');
 	}
 }
 
@@ -456,6 +487,7 @@ export function UsersPageClient(): React.ReactElement {
 		!isRefreshingAfterSelfDemotion &&
 		(isSuperUser || organizationRole === 'admin' || organizationRole === 'owner');
 	const canEditOrganizationMemberRoles = canManageOrganizationUsers;
+	const canDeleteUsers = canManageOrganizationUsers;
 
 	const organizationsQueryParams = {
 		limit: 100,
@@ -709,9 +741,7 @@ export function UsersPageClient(): React.ReactElement {
 		},
 		onSuccess: (result, variables) => {
 			if (!result.success) {
-				toast.error(
-					getOrganizationMemberRoleUpdateErrorMessage(t, result.errorCode),
-				);
+				toast.error(getOrganizationMemberRoleUpdateErrorMessage(t, result.errorCode));
 				if (result.errorCode === 'MEMBER_NOT_FOUND') {
 					queryClient.invalidateQueries({
 						queryKey: queryKeys.organizationMembers.all,
@@ -782,6 +812,36 @@ export function UsersPageClient(): React.ReactElement {
 				delete next[variables.memberId];
 				return next;
 			});
+		},
+	});
+
+	const deleteUserMutation = useMutation({
+		mutationKey: mutationKeys.organizationMembers.delete,
+		mutationFn: deleteGlobalUser,
+		onSuccess: (result, variables) => {
+			if (!result.success) {
+				toast.error(getDeleteGlobalUserErrorMessage(t, result.errorCode));
+				return;
+			}
+
+			toast.success(t('toast.deleteSuccess'));
+			setMemberRoleOverrides((current) => {
+				const next = { ...current };
+				const membership = members.find((member) => member.userId === variables.userId);
+				if (membership) {
+					delete next[membership.id];
+				}
+				return next;
+			});
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.organizationMembers.all,
+			});
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.users.all,
+			});
+		},
+		onError: () => {
+			toast.error(t('toast.deleteError'));
 		},
 	});
 
@@ -877,6 +937,37 @@ export function UsersPageClient(): React.ReactElement {
 		],
 	);
 
+	/**
+	 * Requests confirmation and deletes the selected global user account.
+	 *
+	 * @param member - Member row whose linked user will be deleted
+	 * @returns Promise that resolves when the mutation finishes
+	 */
+	const handleDeleteUser = useCallback(
+		async (member: OrganizationMember): Promise<void> => {
+			if (!canDeleteUsers || deleteUserMutation.isPending) {
+				return;
+			}
+
+			const memberLabel = member.user.name || member.user.email;
+			const confirmed = window.confirm(
+				t('dialogs.delete.description', {
+					name: memberLabel,
+				}),
+			);
+
+			if (!confirmed) {
+				return;
+			}
+
+			await deleteUserMutation.mutateAsync({
+				userId: member.userId,
+				organizationId: effectiveOrganizationId,
+			});
+		},
+		[canDeleteUsers, deleteUserMutation, effectiveOrganizationId, t],
+	);
+
 	const columns = useMemo<ColumnDef<OrganizationMember>[]>(
 		() => [
 			{
@@ -941,12 +1032,54 @@ export function UsersPageClient(): React.ReactElement {
 				enableGlobalFilter: false,
 				enableSorting: false,
 			},
+			{
+				id: 'actions',
+				header: t('table.headers.actions'),
+				cell: ({ row }) => {
+					const memberLabel = row.original.user.name || row.original.user.email;
+					const isDeleting =
+						deleteUserMutation.isPending &&
+						deleteUserMutation.variables?.userId === row.original.userId;
+					const isSelf = session?.user?.id === row.original.userId;
+
+					if (!canDeleteUsers || isSelf) {
+						return (
+							<span className="text-sm text-muted-foreground">
+								{isSelf ? t('actions.currentUserProtected') : t('table.readOnly')}
+							</span>
+						);
+					}
+
+					return (
+						<Button
+							type="button"
+							size="sm"
+							variant="destructive"
+							aria-label={t('actions.deleteFor', { user: memberLabel })}
+							onClick={() => {
+								void handleDeleteUser(row.original);
+							}}
+							disabled={isDeleting}
+						>
+							<Trash2 className="mr-1.5 h-4 w-4" />
+							{isDeleting ? t('actions.deleting') : t('actions.delete')}
+						</Button>
+					);
+				},
+				enableGlobalFilter: false,
+				enableSorting: false,
+			},
 		],
 		[
+			canDeleteUsers,
 			canEditOrganizationMemberRoles,
+			deleteUserMutation.isPending,
+			deleteUserMutation.variables,
+			handleDeleteUser,
 			handleMemberRoleSave,
 			handleMemberRoleSelection,
 			memberRoleOverrides,
+			session?.user?.id,
 			t,
 			updateMemberRoleMutation.isPending,
 			updateMemberRoleMutation.variables,
@@ -1000,14 +1133,54 @@ export function UsersPageClient(): React.ReactElement {
 							{format(new Date(member.createdAt), t('dateFormat'))}
 						</p>
 					</div>
+					<div className="space-y-1">
+						<p className="text-sm text-muted-foreground">
+							{t('table.headers.actions')}
+						</p>
+						{canDeleteUsers && session?.user?.id !== member.userId ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="destructive"
+								className="w-full min-[1025px]:w-auto"
+								aria-label={t('actions.deleteFor', {
+									user: member.user.name || member.user.email,
+								})}
+								onClick={() => {
+									void handleDeleteUser(member);
+								}}
+								disabled={
+									deleteUserMutation.isPending &&
+									deleteUserMutation.variables?.userId === member.userId
+								}
+							>
+								<Trash2 className="mr-1.5 h-4 w-4" />
+								{deleteUserMutation.isPending &&
+								deleteUserMutation.variables?.userId === member.userId
+									? t('actions.deleting')
+									: t('actions.delete')}
+							</Button>
+						) : (
+							<p className="text-sm text-muted-foreground">
+								{session?.user?.id === member.userId
+									? t('actions.currentUserProtected')
+									: t('table.readOnly')}
+							</p>
+						)}
+					</div>
 				</div>
 			</div>
 		),
 		[
+			canDeleteUsers,
 			canEditOrganizationMemberRoles,
+			deleteUserMutation.isPending,
+			deleteUserMutation.variables,
+			handleDeleteUser,
 			handleMemberRoleSave,
 			handleMemberRoleSelection,
 			memberRoleOverrides,
+			session?.user?.id,
 			t,
 			updateMemberRoleMutation.isPending,
 			updateMemberRoleMutation.variables,

@@ -114,6 +114,11 @@ const loadEmployeeDeductionsTab = async () => {
 	return componentModule.EmployeeDeductionsManager;
 };
 
+const loadEmployeeGratificationsTab = async () => {
+	const componentModule = await import('@/components/employee-gratifications-manager');
+	return componentModule.EmployeeGratificationsManager;
+};
+
 function NullFallback(): React.ReactElement | null {
 	return null;
 }
@@ -129,6 +134,11 @@ const EmployeeDisciplinaryMeasuresTab = dynamic(loadEmployeeDisciplinaryMeasures
 });
 
 const EmployeeDeductionsTab = dynamic(loadEmployeeDeductionsTab, {
+	ssr: false,
+	loading: NullFallback,
+});
+
+const EmployeeGratificationsTab = dynamic(loadEmployeeGratificationsTab, {
 	ssr: false,
 	loading: NullFallback,
 });
@@ -634,7 +644,7 @@ export function EmployeeDetailDialog({
 			/>
 			<DialogContent
 				showCloseButton={!isMobile}
-				className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 min-[1025px]:h-[calc(100vh-4rem)] min-[1025px]:max-h-[calc(100vh-6rem)] min-[1025px]:max-w-5xl min-[1025px]:rounded-lg min-[1025px]:border min-[1025px]:p-0 min-[1281px]:max-w-6xl"
+				className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 min-[1025px]:h-[calc(100dvh-2rem)] min-[1025px]:max-h-[calc(100dvh-2rem)] min-[1025px]:w-[min(96vw,96rem)] min-[1025px]:max-w-[calc(100vw-2rem)] min-[1025px]:rounded-lg min-[1025px]:border min-[1025px]:p-0"
 			>
 				<DialogHeader className="hidden shrink-0 border-b px-6 py-4 min-[1025px]:flex">
 					<DialogTitle>
@@ -652,9 +662,12 @@ export function EmployeeDetailDialog({
 								: t('dialog.description.view')}
 					</DialogDescription>
 				</DialogHeader>
-				<div className="min-h-0 flex-1 overflow-hidden px-4 pb-4 min-[1025px]:px-6 min-[1025px]:pb-6">
+				<div
+					data-testid="employee-detail-dialog-body"
+					className="min-h-0 min-w-0 flex-1 overflow-hidden px-4 pb-4 min-[1025px]:px-6 min-[1025px]:pb-6"
+				>
 					{isViewMode ? (
-						<div className="flex h-full min-h-0 flex-col space-y-4 pt-4">
+						<div className="flex h-full min-h-0 min-w-0 flex-col space-y-4 pt-4">
 							{isMobile ? (
 								<div className="sticky top-0 z-10 -mx-4 shrink-0 border-b bg-background/95 px-4 py-3 backdrop-blur-sm">
 									<div className="flex items-start gap-3">
@@ -848,7 +861,7 @@ export function EmployeeDetailDialog({
 								onValueChange={(value) =>
 									handleDetailTabChange(value as EmployeeDialogTab)
 								}
-								className="flex min-h-0 flex-1 flex-col"
+								className="flex min-h-0 min-w-0 flex-1 flex-col"
 							>
 								{isMobile ? (
 									<div
@@ -886,7 +899,7 @@ export function EmployeeDetailDialog({
 										</TabsList>
 									</div>
 								) : (
-									<TabsList className="h-auto w-full shrink-0 justify-start gap-1 overflow-x-auto p-1">
+									<TabsList className="h-auto w-full max-w-full shrink-0 justify-start gap-1 overflow-x-auto p-1">
 										{PRIMARY_DETAIL_TABS.map((tab) => (
 											<TabsTrigger
 												key={tab}
@@ -1043,6 +1056,37 @@ export function EmployeeDetailDialog({
 												<Card>
 													<CardContent className="py-8 text-sm text-muted-foreground">
 														{t('deductions.empty')}
+													</CardContent>
+												</Card>
+											)}
+										</div>
+									) : null}
+								</TabsContent>
+
+								<TabsContent
+									value="gratifications"
+									forceMount
+									className={cn(
+										'mt-0 min-h-0 flex-1',
+										detailTab !== 'gratifications' && 'hidden',
+									)}
+								>
+									{isTabVisited('gratifications') ? (
+										<div
+											ref={registerTabScrollContainer('gratifications')}
+											onScroll={handleTabScroll('gratifications')}
+											className="h-full overflow-y-auto pt-4"
+										>
+											{activeEmployee?.id ? (
+												<EmployeeGratificationsTab
+													mode="employee"
+													employeeId={activeEmployee.id}
+													employeeName={`${activeEmployee.firstName} ${activeEmployee.lastName}`}
+												/>
+											) : (
+												<Card>
+													<CardContent className="py-8 text-sm text-muted-foreground">
+														{t('gratifications.empty')}
 													</CardContent>
 												</Card>
 											)}
@@ -1634,7 +1678,7 @@ export function EmployeeDetailDialog({
 									value="vacations"
 									forceMount
 									className={cn(
-										'mt-0 min-h-0 flex-1',
+										'mt-0 min-h-0 min-w-0 flex-1',
 										detailTab !== 'vacations' && 'hidden',
 									)}
 								>
@@ -1642,7 +1686,8 @@ export function EmployeeDetailDialog({
 										<div
 											ref={registerTabScrollContainer('vacations')}
 											onScroll={handleTabScroll('vacations')}
-											className="h-full overflow-y-auto pt-4"
+											data-testid="employee-vacations-panel"
+											className="h-full min-w-0 overflow-y-auto overscroll-contain pt-4"
 										>
 											<div className="space-y-4">
 												<Card>
@@ -1658,7 +1703,7 @@ export function EmployeeDetailDialog({
 																<Skeleton className="h-4 w-24" />
 															</div>
 														) : vacationBalance ? (
-															<div className="grid grid-cols-2 gap-3 min-[1025px]:grid-cols-5">
+															<div className="grid grid-cols-1 gap-3 min-[640px]:grid-cols-2 min-[1281px]:grid-cols-5">
 																<div className="space-y-1">
 																	<p className="text-xs text-muted-foreground">
 																		{t(
@@ -1826,7 +1871,10 @@ export function EmployeeDetailDialog({
 														)}
 													</div>
 												) : (
-													<div className="rounded-md border">
+													<div
+														data-testid="employee-vacations-table-container"
+														className="overflow-x-auto rounded-md border"
+													>
 														<Table className="min-w-[30rem]">
 															<TableHeader>
 																<TableRow>

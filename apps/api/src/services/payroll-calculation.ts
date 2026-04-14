@@ -81,6 +81,10 @@ export type PayrollCalculationRow = {
 	vacationDaysPaid: number;
 	vacationPayAmount: number;
 	vacationPremiumAmount: number;
+	realVacationPayAmount: number | null;
+	realVacationPremiumAmount: number | null;
+	gratificationsBreakdown: PayrollGratificationBreakdownItem[];
+	totalGratifications: number;
 	lunchBreakAutoDeductedDays: number;
 	lunchBreakAutoDeductedMinutes: number;
 	deductionsBreakdown: PayrollDeductionBreakdownItem[];
@@ -145,6 +149,20 @@ export interface EmployeeDeductionRow {
 	createdAt?: Date | null;
 }
 
+export interface EmployeeGratificationRow {
+	id: string;
+	employeeId: string;
+	concept: string;
+	amount: number | string;
+	periodicity: 'ONE_TIME' | 'RECURRING';
+	applicationMode: 'MANUAL' | 'AUTOMATIC';
+	status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED';
+	startDateKey: string;
+	endDateKey: string | null;
+	notes?: string | null;
+	createdAt?: Date | null;
+}
+
 export interface PayrollDeductionBreakdownItem {
 	deductionId: string;
 	type: EmployeeDeductionRow['type'];
@@ -171,6 +189,24 @@ export interface PayrollDeductionBreakdownItem {
 	sourceEndDateKey: EmployeeDeductionRow['endDateKey'];
 	referenceNumber: string | null;
 	satDeductionCode: string | null;
+}
+
+export interface PayrollGratificationBreakdownItem {
+	gratificationId: string;
+	concept: string;
+	periodicity: EmployeeGratificationRow['periodicity'];
+	applicationMode: EmployeeGratificationRow['applicationMode'];
+	configuredAmount: number;
+	sourceAmount: EmployeeGratificationRow['amount'];
+	baseAmount: number;
+	calculatedAmount: number;
+	appliedAmount: number;
+	applicableDays: number;
+	sourceStartDateKey: string;
+	sourceEndDateKey: string | null;
+	statusBefore: EmployeeGratificationRow['status'];
+	statusAfter: EmployeeGratificationRow['status'];
+	notes: string | null;
 }
 
 export interface PayrollPeriodBounds {
@@ -200,6 +236,7 @@ export interface CalculatePayrollFromDataArgs {
 	attendanceRows: AttendanceRow[];
 	overtimeAuthorizations?: OvertimeAuthorizationRow[];
 	employeeDeductions?: EmployeeDeductionRow[];
+	employeeGratifications?: EmployeeGratificationRow[];
 	periodStartDateKey: string;
 	periodEndDateKey: string;
 	periodBounds: PayrollPeriodBounds;
@@ -208,6 +245,7 @@ export interface CalculatePayrollFromDataArgs {
 	additionalMandatoryRestDays: string[];
 	defaultTimeZone: string;
 	payrollSettings?: Partial<MexicoPayrollTaxSettings> & {
+		realVacationPremiumRate?: number;
 		enableSeventhDayPay?: boolean;
 		enableDualPayroll?: boolean;
 		autoDeductLunchBreak?: boolean;
@@ -240,6 +278,7 @@ export interface PayrollIncapacitySummary {
 }
 
 const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & {
+	realVacationPremiumRate: number;
 	enableSeventhDayPay: boolean;
 	enableDualPayroll: boolean;
 	autoDeductLunchBreak: boolean;
@@ -253,6 +292,7 @@ const DEFAULT_TAX_SETTINGS: MexicoPayrollTaxSettings & {
 	absorbIsr: false,
 	aguinaldoDays: 15,
 	vacationPremiumRate: 0.25,
+	realVacationPremiumRate: 0.25,
 	enableSeventhDayPay: false,
 	enableDualPayroll: false,
 	autoDeductLunchBreak: false,
@@ -409,6 +449,53 @@ function getDeductionApplicableDays(args: {
 }
 
 /**
+ * Calculates the raw amount for a gratification before period capping.
+ *
+ * @param args - Gratification amount inputs
+ * @returns Calculated amount, base amount, and applicable day counts
+ */
+function calculateGratificationAmount(args: {
+	gratification: EmployeeGratificationRow;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+}): {
+	calculatedAmount: number;
+	baseAmount: number;
+	applicableDays: number;
+	periodDays: number;
+} {
+	const configuredValue = Number(args.gratification.amount ?? 0);
+	const applicableDays = getDeductionApplicableDays({
+		startDateKey: args.gratification.startDateKey,
+		endDateKey: args.gratification.endDateKey,
+		periodStartDateKey: args.periodStartDateKey,
+		periodEndDateKey: args.periodEndDateKey,
+	});
+	const periodDays = getInclusiveDayCount(args.periodStartDateKey, args.periodEndDateKey);
+	if (applicableDays <= 0 || periodDays <= 0) {
+		return {
+			calculatedAmount: 0,
+			baseAmount: 0,
+			applicableDays,
+			periodDays,
+		};
+	}
+
+	const baseAmount = configuredValue;
+	const calculatedAmount =
+		args.gratification.periodicity === 'RECURRING'
+			? configuredValue * (applicableDays / periodDays)
+			: configuredValue;
+
+	return {
+		calculatedAmount: roundCurrency(calculatedAmount),
+		baseAmount: roundCurrency(baseAmount),
+		applicableDays,
+		periodDays,
+	};
+}
+
+/**
  * Calculates the raw amount for a deduction before net-pay capping.
  *
  * @param args - Deduction amount inputs
@@ -514,6 +601,27 @@ function getScheduledWorkingDateKeys(
 }
 
 /**
+ * Checks whether a weekly schedule matches the classic Monday-to-Friday pattern.
+ *
+ * @param schedule - Weekly schedule entries
+ * @returns True when Monday through Friday are working days and Saturday/Sunday are not
+ */
+function isClassicMondayToFridaySchedule(
+	schedule: Omit<ScheduleRow, 'employeeId'>[],
+): boolean {
+	const workingDays = new Set(
+		schedule.filter((entry) => entry.isWorkingDay).map((entry) => entry.dayOfWeek),
+	);
+
+	return (
+		workingDays.size === 5 &&
+		[1, 2, 3, 4, 5].every((dayOfWeek) => workingDays.has(dayOfWeek)) &&
+		!workingDays.has(0) &&
+		!workingDays.has(6)
+	);
+}
+
+/**
  * Calculates seventh day pay for weekly periods based on schedule and attendance.
  *
  * @param args - Seventh day inputs
@@ -561,16 +669,15 @@ function calculateSeventhDayPay(args: {
 		targetDayOfWeek: 6,
 	});
 	const saturdayIsScheduled = scheduledKeys.includes(saturdayDate ?? '');
-	const requiredWorkedDayKeys = [...scheduledKeys];
 	if (
 		countSaturdayAsWorkedForSeventhDay &&
 		saturdayDate &&
-		!saturdayIsScheduled
+		!saturdayIsScheduled &&
+		isClassicMondayToFridaySchedule(schedule)
 	) {
-		requiredWorkedDayKeys.push(saturdayDate);
-		resolvedWorkedDayKeys.add(saturdayDate);
+		return roundCurrency(dailyPay);
 	}
-	const completedAllScheduledDays = requiredWorkedDayKeys.every((key) =>
+	const completedAllScheduledDays = scheduledKeys.every((key) =>
 		resolvedWorkedDayKeys.has(key),
 	);
 	return completedAllScheduledDays ? roundCurrency(dailyPay) : 0;
@@ -786,6 +893,27 @@ export function calculatePayrollFromData(
 		const current = employeeDeductionsByEmployeeId.get(deduction.employeeId) ?? [];
 		current.push(deduction);
 		employeeDeductionsByEmployeeId.set(deduction.employeeId, current);
+	}
+
+	const employeeGratificationsByEmployeeId = new Map<string, EmployeeGratificationRow[]>();
+	for (const gratification of args.employeeGratifications ?? []) {
+		if (gratification.status !== 'ACTIVE') {
+			continue;
+		}
+
+		const applicableDays = getDeductionApplicableDays({
+			startDateKey: gratification.startDateKey,
+			endDateKey: gratification.endDateKey,
+			periodStartDateKey,
+			periodEndDateKey,
+		});
+		if (applicableDays <= 0) {
+			continue;
+		}
+
+		const current = employeeGratificationsByEmployeeId.get(gratification.employeeId) ?? [];
+		current.push(gratification);
+		employeeGratificationsByEmployeeId.set(gratification.employeeId, current);
 	}
 
 	const additionalMandatoryRestDaySet = new Set<string>(additionalMandatoryRestDays);
@@ -1194,9 +1322,15 @@ export function calculatePayrollFromData(
 					0,
 					OVERTIME_LIMITS.MAX_WEEKLY_HOURS * 60 - weekProcessedOvertimeMinutes,
 				);
-				const dayDoubleMinutes = Math.min(dayTotalOvertimeMinutes, dayWeeklyDoubleRemaining);
+				const dayDoubleMinutes = Math.min(
+					dayTotalOvertimeMinutes,
+					dayWeeklyDoubleRemaining,
+				);
 				const dayTripleMinutes = Math.max(0, dayTotalOvertimeMinutes - dayDoubleMinutes);
-				const dayPayableDoubleMinutes = Math.min(dayDoubleMinutes, dayAuthorizedPaidMinutes);
+				const dayPayableDoubleMinutes = Math.min(
+					dayDoubleMinutes,
+					dayAuthorizedPaidMinutes,
+				);
 				const dayPayableTripleMinutes = Math.min(
 					dayTripleMinutes,
 					Math.max(0, dayAuthorizedPaidMinutes - dayDoubleMinutes),
@@ -1313,14 +1447,10 @@ export function calculatePayrollFromData(
 				: 0;
 		const realNormalPay = roundCurrency(adjustedNormalHours * realHourlyRate);
 		const realOvertimeDoublePay = roundCurrency(
-			payableOvertimeDoubleHours *
-				realHourlyRate *
-				OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
+			payableOvertimeDoubleHours * realHourlyRate * OVERTIME_LIMITS.DOUBLE_RATE_MULTIPLIER,
 		);
 		const realOvertimeTriplePay = roundCurrency(
-			payableOvertimeTripleHours *
-				realHourlyRate *
-				OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
+			payableOvertimeTripleHours * realHourlyRate * OVERTIME_LIMITS.TRIPLE_RATE_MULTIPLIER,
 		);
 		const realSundayPremiumAmount =
 			sundaysWorkedCount > 0
@@ -1334,8 +1464,72 @@ export function calculatePayrollFromData(
 			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * realDailyPay) : 0;
 		const realVacationPremiumAmount =
 			realVacationPayAmount > 0
-				? roundCurrency(realVacationPayAmount * resolvedTaxSettings.vacationPremiumRate)
+				? roundCurrency(
+						realVacationPayAmount *
+							(resolvedTaxSettings.realVacationPremiumRate ??
+								resolvedTaxSettings.vacationPremiumRate),
+					)
 				: 0;
+
+		const activeGratifications = (employeeGratificationsByEmployeeId.get(emp.id) ?? []).sort(
+			(left, right) => {
+				const leftCreatedAt = left.createdAt?.getTime() ?? 0;
+				const rightCreatedAt = right.createdAt?.getTime() ?? 0;
+				if (leftCreatedAt !== rightCreatedAt) {
+					return leftCreatedAt - rightCreatedAt;
+				}
+				return left.id.localeCompare(right.id);
+			},
+		);
+
+		let totalGratifications = 0;
+		const gratificationsBreakdown: PayrollGratificationBreakdownItem[] = [];
+		for (const gratification of activeGratifications) {
+			const gratificationAmount = calculateGratificationAmount({
+				gratification,
+				periodStartDateKey,
+				periodEndDateKey,
+			});
+			if (gratificationAmount.calculatedAmount <= 0) {
+				continue;
+			}
+
+			const appliedAmount = roundCurrency(gratificationAmount.calculatedAmount);
+			totalGratifications = roundCurrency(totalGratifications + appliedAmount);
+
+			let statusAfter: EmployeeGratificationRow['status'] = gratification.status;
+			if (appliedAmount > 0) {
+				if (
+					gratification.periodicity === 'ONE_TIME' ||
+					gratification.applicationMode === 'MANUAL'
+				) {
+					statusAfter = 'COMPLETED';
+				} else if (
+					gratification.endDateKey !== null &&
+					gratification.endDateKey <= periodEndDateKey
+				) {
+					statusAfter = 'COMPLETED';
+				}
+			}
+
+			gratificationsBreakdown.push({
+				gratificationId: gratification.id,
+				concept: gratification.concept,
+				periodicity: gratification.periodicity,
+				applicationMode: gratification.applicationMode,
+				configuredAmount: Number(gratification.amount ?? 0),
+				sourceAmount: gratification.amount,
+				baseAmount: gratificationAmount.baseAmount,
+				calculatedAmount: gratificationAmount.calculatedAmount,
+				appliedAmount,
+				applicableDays: gratificationAmount.applicableDays,
+				sourceStartDateKey: gratification.startDateKey,
+				sourceEndDateKey: gratification.endDateKey,
+				statusBefore: gratification.status,
+				statusAfter,
+				notes: gratification.notes ?? null,
+			});
+		}
 
 		const workedDayKeys = new Set(
 			Array.from(calendarDayMinutes.entries())
@@ -1385,31 +1579,32 @@ export function calculatePayrollFromData(
 				realMandatoryRestDayPremiumAmount +
 				realSeventhDayPay +
 				realVacationPayAmount +
-				realVacationPremiumAmount,
+				realVacationPremiumAmount +
+				totalGratifications,
 		);
 		const complementPay = dualPayrollApplied
 			? roundCurrency(Math.max(realGrossPay - fiscalGrossPay, 0))
 			: null;
 		const totalRealPay = dualPayrollApplied
 			? roundCurrency(fiscalGrossPay + (complementPay ?? 0))
-			: fiscalGrossPay;
-		const totalPay = totalRealPay;
-		const grossPay = totalRealPay;
+			: realGrossPay;
+		const totalPay = realGrossPay;
+		const grossPay = realGrossPay;
 
 		const zone = (emp.locationGeographicZone ?? 'GENERAL') as keyof typeof MINIMUM_WAGES;
 		const minimumWageDaily = resolveMinimumWageDaily({
 			dateKey: periodEndDateKey,
 			zone,
 		});
-			if (realDailyPay < minimumWageDaily) {
-				warnings.push({
-					type: 'BELOW_MINIMUM_WAGE',
-					message: `El salario diario ${realDailyPay.toFixed(
-						2,
-					)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
-					severity: 'warning',
-				});
-			}
+		if (realDailyPay < minimumWageDaily) {
+			warnings.push({
+				type: 'BELOW_MINIMUM_WAGE',
+				message: `El salario diario ${realDailyPay.toFixed(
+					2,
+				)} está por debajo del salario mínimo para ${zone} (${minimumWageDaily.toFixed(2)}).`,
+				severity: 'warning',
+			});
+		}
 
 		const resolvedAguinaldoDays =
 			typeof emp.aguinaldoDaysOverride === 'string'
@@ -1435,9 +1630,12 @@ export function calculatePayrollFromData(
 			incapacityRecords: args.incapacityRecordsByEmployee?.[emp.id] ?? [],
 		});
 
+		const taxableGrossPay = dualPayrollApplied
+			? fiscalGrossPay
+			: roundCurrency(Math.max(grossPay - totalGratifications, 0));
 		const taxBreakdown = calculateMexicoPayrollTaxes({
 			dailyPay: taxDailyPay,
-			grossPay: fiscalGrossPay,
+			grossPay: taxableGrossPay,
 			paymentFrequency: emp.paymentFrequency ?? 'MONTHLY',
 			periodStartDateKey,
 			periodEndDateKey,
@@ -1453,8 +1651,13 @@ export function calculatePayrollFromData(
 			},
 			imssExemptDateKeys: incapacityResult.imssExemptDateKeys,
 		});
-		const netPay = roundCurrency(totalRealPay - taxBreakdown.employeeWithholdings.total);
-		const companyCost = roundCurrency(totalRealPay + taxBreakdown.employerCosts.total);
+		const fiscalNetPay = roundCurrency(
+			Math.max(0, taxableGrossPay - taxBreakdown.employeeWithholdings.total),
+		);
+		const netPay = roundCurrency(grossPay - taxBreakdown.employeeWithholdings.total);
+		const companyCost = roundCurrency(grossPay + taxBreakdown.employerCosts.total);
+		const deductionGrossPay = dualPayrollApplied ? fiscalGrossPay : grossPay;
+		const deductionNetPay = dualPayrollApplied ? fiscalNetPay : netPay;
 
 		const activeDeductions = (employeeDeductionsByEmployeeId.get(emp.id) ?? []).sort(
 			(left, right) => {
@@ -1472,7 +1675,7 @@ export function calculatePayrollFromData(
 			},
 		);
 
-		let remainingNetAfterDeductions = netPay;
+		let remainingNetAfterDeductions = deductionNetPay;
 		let totalDeductions = 0;
 		let deductionsExceededNetPay = false;
 		const deductionsBreakdown: PayrollDeductionBreakdownItem[] = [];
@@ -1480,8 +1683,8 @@ export function calculatePayrollFromData(
 		for (const deduction of activeDeductions) {
 			const deductionAmount = calculateDeductionAmount({
 				deduction,
-				grossPay,
-				netPayAfterTaxes: netPay,
+				grossPay: deductionGrossPay,
+				netPayAfterTaxes: deductionNetPay,
 				sbcDaily,
 				minimumWageDaily,
 				periodStartDateKey,
@@ -1513,7 +1716,8 @@ export function calculatePayrollFromData(
 				Math.min(deductionAmount.calculatedAmount, netPayCap, remainingBalanceCap),
 			);
 			const cappedByNetPay =
-				appliedAmount < deductionAmount.calculatedAmount && netPayCap <= remainingBalanceCap;
+				appliedAmount < deductionAmount.calculatedAmount &&
+				netPayCap <= remainingBalanceCap;
 			if (cappedByNetPay) {
 				deductionsExceededNetPay = true;
 			}
@@ -1550,7 +1754,8 @@ export function calculatePayrollFromData(
 					}
 				}
 				if (
-					(deduction.frequency === 'RECURRING' || deduction.frequency === 'INSTALLMENTS') &&
+					(deduction.frequency === 'RECURRING' ||
+						deduction.frequency === 'INSTALLMENTS') &&
 					tracksRecoverableBalance &&
 					remainingAmountAfter === 0
 				) {
@@ -1636,8 +1841,12 @@ export function calculatePayrollFromData(
 			vacationDaysPaid,
 			vacationPayAmount,
 			vacationPremiumAmount,
+			realVacationPayAmount,
+			realVacationPremiumAmount,
 			lunchBreakAutoDeductedDays,
 			lunchBreakAutoDeductedMinutes,
+			gratificationsBreakdown,
+			totalGratifications,
 			deductionsBreakdown,
 			totalDeductions,
 			totalPay,

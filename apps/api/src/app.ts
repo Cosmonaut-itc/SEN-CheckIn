@@ -19,6 +19,7 @@ import { deviceRoutes } from './routes/devices.js';
 import { employeeRoutes } from './routes/employees.js';
 import { employeeImportRoutes } from './routes/employee-import.js';
 import { employeeDeductionRoutes } from './routes/employee-deductions.js';
+import { employeeGratificationRoutes } from './routes/employee-gratifications.js';
 import { employeeDocumentRoutes } from './routes/employee-documents.js';
 import { disciplinaryMeasuresRoutes } from './routes/disciplinary-measures.js';
 import { incapacityRoutes } from './routes/incapacities.js';
@@ -73,6 +74,7 @@ const createProtectedRoutes = () => {
 			.use(employeeRoutes)
 			.use(employeeImportRoutes)
 			.use(employeeDeductionRoutes)
+			.use(employeeGratificationRoutes)
 			.use(employeeDocumentRoutes)
 			.use(disciplinaryMeasuresRoutes)
 			.use(deviceRoutes)

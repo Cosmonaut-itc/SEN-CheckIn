@@ -83,6 +83,7 @@ import { format, isAfter, isValid, parse, startOfDay } from 'date-fns';
 import {
 	Eye,
 	FileText,
+	Gift,
 	HelpCircle,
 	Loader2,
 	MoreHorizontal,
@@ -578,6 +579,7 @@ type EmployeeDialogMode = 'create' | 'view' | 'edit';
 type EmployeeDialogTab = EmployeeDetailTab | 'info';
 const SECONDARY_DETAIL_TABS: EmployeeDetailTab[] = [
 	'deductions',
+	'gratifications',
 	'payroll',
 	'ptu',
 	'finiquito',
@@ -598,6 +600,7 @@ const VALID_DETAIL_TABS = new Set<EmployeeDetailTab>([
 	'attendance',
 	'vacations',
 	'deductions',
+	'gratifications',
 	'payroll',
 	'ptu',
 	'finiquito',
@@ -1032,6 +1035,13 @@ export function EmployeesPageClient(): React.ReactElement {
 				}
 				node.scrollTop = tabScrollByIdRef.current.deductions ?? 0;
 			},
+			gratifications: (node: HTMLDivElement | null): void => {
+				tabContainerByIdRef.current.gratifications = node;
+				if (!node) {
+					return;
+				}
+				node.scrollTop = tabScrollByIdRef.current.gratifications ?? 0;
+			},
 			disciplinary: (node: HTMLDivElement | null): void => {
 				tabContainerByIdRef.current.disciplinary = node;
 				if (!node) {
@@ -1110,6 +1120,9 @@ export function EmployeesPageClient(): React.ReactElement {
 			},
 			deductions: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.deductions = event.currentTarget.scrollTop;
+			},
+			gratifications: (event: React.UIEvent<HTMLDivElement>): void => {
+				tabScrollByIdRef.current.gratifications = event.currentTarget.scrollTop;
 			},
 			disciplinary: (event: React.UIEvent<HTMLDivElement>): void => {
 				tabScrollByIdRef.current.disciplinary = event.currentTarget.scrollTop;
@@ -2932,6 +2945,14 @@ export function EmployeesPageClient(): React.ReactElement {
 						>
 							<FileText className="mr-2 h-4 w-4" />
 							{t('menu.viewDeductions')}
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onClick={() =>
+								void openEmployeeDetailById(employee.id, 'gratifications')
+							}
+						>
+							<Gift className="mr-2 h-4 w-4" />
+							{t('menu.viewGratifications')}
 						</DropdownMenuItem>
 						{canUseDisciplinaryModule ? (
 							<DropdownMenuItem

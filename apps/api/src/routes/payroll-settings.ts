@@ -98,6 +98,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				absorbIsr: false,
 				aguinaldoDays: 15,
 				vacationPremiumRate: '0.25',
+				realVacationPremiumRate: '0.25',
 				enableSeventhDayPay: false,
 				enableDualPayroll: false,
 				autoDeductLunchBreak: false,
@@ -185,6 +186,10 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 			const resolvedAguinaldoDays = body.aguinaldoDays ?? existing[0]?.aguinaldoDays ?? 15;
 			const resolvedVacationPremiumRate =
 				body.vacationPremiumRate ?? existing[0]?.vacationPremiumRate ?? 0.25;
+			const resolvedRealVacationPremiumRate =
+				body.realVacationPremiumRate ??
+				existing[0]?.realVacationPremiumRate ??
+				resolvedVacationPremiumRate;
 			const resolvedEnableSeventhDayPay =
 				body.enableSeventhDayPay ?? existing[0]?.enableSeventhDayPay ?? false;
 			const resolvedEnableDualPayroll =
@@ -222,6 +227,10 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				typeof resolvedVacationPremiumRate === 'number'
 					? resolvedVacationPremiumRate.toFixed(4)
 					: resolvedVacationPremiumRate;
+			const resolvedRealVacationPremiumRateValue =
+				typeof resolvedRealVacationPremiumRate === 'number'
+					? resolvedRealVacationPremiumRate.toFixed(4)
+					: resolvedRealVacationPremiumRate;
 			const resolvedLunchBreakThresholdHoursValue =
 				typeof resolvedLunchBreakThresholdHours === 'number'
 					? resolvedLunchBreakThresholdHours.toFixed(2)
@@ -238,6 +247,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 				absorbIsr: resolvedAbsorbIsr,
 				aguinaldoDays: resolvedAguinaldoDays,
 				vacationPremiumRate: resolvedVacationPremiumRateValue,
+				realVacationPremiumRate: resolvedRealVacationPremiumRateValue,
 				enableSeventhDayPay: resolvedEnableSeventhDayPay,
 				enableDualPayroll: resolvedEnableDualPayroll,
 				autoDeductLunchBreak: resolvedAutoDeductLunchBreak,
@@ -269,6 +279,7 @@ export const payrollSettingsRoutes = new Elysia({ prefix: '/payroll-settings' })
 						absorbIsr: updatePayload.absorbIsr,
 						aguinaldoDays: updatePayload.aguinaldoDays,
 						vacationPremiumRate: updatePayload.vacationPremiumRate,
+						realVacationPremiumRate: updatePayload.realVacationPremiumRate,
 						enableSeventhDayPay: updatePayload.enableSeventhDayPay,
 						enableDualPayroll: updatePayload.enableDualPayroll,
 						autoDeductLunchBreak: updatePayload.autoDeductLunchBreak,

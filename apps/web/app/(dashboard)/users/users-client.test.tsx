@@ -17,53 +17,13 @@ const mockFetchUsers = vi.fn();
 const mockFetchAllOrganizations = vi.fn();
 const mockUseSession = vi.fn();
 const mockUpdateOrganizationMemberRole = vi.fn();
+const mockDeleteGlobalUser = vi.fn();
 const mockToastSuccess = vi.fn();
 const mockToastError = vi.fn();
 const mockRouterRefresh = vi.fn();
 
 vi.mock('next-intl', async () => {
-	const rawIntlMessages = await import('@/messages/es.json');
-	const intlMessages =
-		(rawIntlMessages as unknown as { default?: typeof rawMessages }).default ?? rawIntlMessages;
-
-	/**
-	 * Resolves a dot-notated translation path from the Spanish test messages.
-	 *
-	 * @param path - Translation namespace and key path
-	 * @returns Localized string when found, otherwise the original path
-	 */
-	function resolveTranslation(path: string): string {
-		const resolved = path
-			.split('.')
-			.reduce<unknown>(
-				(currentValue, segment) =>
-					currentValue && typeof currentValue === 'object' && segment in currentValue
-						? (currentValue as Record<string, unknown>)[segment]
-						: undefined,
-				intlMessages,
-			);
-
-		return typeof resolved === 'string' ? resolved : path;
-	}
-
-	return {
-		NextIntlClientProvider: ({ children }: { children: React.ReactNode }) => children,
-		useTranslations:
-			(namespace: string) =>
-			(key: string, values?: Record<string, string | number>): string => {
-				const localizedMessage = resolveTranslation(`${namespace}.${key}`);
-
-				if (!values) {
-					return localizedMessage;
-				}
-
-				return Object.entries(values).reduce(
-					(currentMessage, [placeholder, value]) =>
-						currentMessage.replace(`{${placeholder}}`, String(value)),
-					localizedMessage,
-				);
-			},
-	};
+	return import('@/lib/test-utils/next-intl');
 });
 
 vi.mock('next/navigation', () => ({
@@ -88,6 +48,7 @@ vi.mock('@/actions/users', () => ({
 	createOrganizationUser: vi.fn(),
 	addOrganizationMember: vi.fn(),
 	updateOrganizationMemberRole: (...args: unknown[]) => mockUpdateOrganizationMemberRole(...args),
+	deleteGlobalUser: (...args: unknown[]) => mockDeleteGlobalUser(...args),
 }));
 
 vi.mock('sonner', () => ({
@@ -149,9 +110,14 @@ describe('UsersPageClient', () => {
 		mockFetchAllOrganizations.mockReset();
 		mockUseSession.mockReset();
 		mockUpdateOrganizationMemberRole.mockReset();
+		mockDeleteGlobalUser.mockReset();
 		mockToastSuccess.mockReset();
 		mockToastError.mockReset();
 		mockRouterRefresh.mockReset();
+		vi.stubGlobal(
+			'confirm',
+			vi.fn(() => true),
+		);
 
 		mockUseSession.mockReturnValue({
 			data: {
@@ -212,6 +178,14 @@ describe('UsersPageClient', () => {
 					organizationId: 'org-1',
 					role: 'admin',
 				},
+			},
+		});
+		mockDeleteGlobalUser.mockResolvedValue({
+			success: true,
+			data: {
+				removedMemberships: 1,
+				unlinkedEmployees: 1,
+				reassignedDeductions: 0,
 			},
 		});
 	});
@@ -452,9 +426,7 @@ describe('UsersPageClient', () => {
 				screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
 			).toHaveTextContent('Miembro');
 		});
-		expect(
-			screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
-		).toBeDisabled();
+		expect(screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' })).toBeDisabled();
 		expect(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' })).toBeDisabled();
 		expect(screen.getByTestId('users-create-button')).toBeDisabled();
 	});
@@ -502,6 +474,98 @@ describe('UsersPageClient', () => {
 				role: 'admin',
 				userId: 'user-1',
 			});
+		});
+	});
+
+	it('deletes a user globally after confirmation', async () => {
+		renderWithProviders({ organizationRole: 'owner', userRole: 'admin' });
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Borrar usuario Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(globalThis.confirm).toHaveBeenCalledWith(
+				'¿Seguro que deseas borrar globalmente a Ana Miembro? Se eliminarán sus accesos y membresías, se conservará el empleado ligado y se preservará el historial operativo.',
+			);
+		});
+		await waitFor(() => {
+			expect(mockDeleteGlobalUser).toHaveBeenCalledWith(
+				{
+					userId: 'user-1',
+					organizationId: 'org-1',
+				},
+				expect.anything(),
+			);
+		});
+		expect(mockToastSuccess).toHaveBeenCalledWith('Usuario borrado correctamente');
+	});
+
+	it('deletes a user in the currently selected organization for superusers', async () => {
+		mockFetchAllOrganizations.mockResolvedValueOnce({
+			organizations: [
+				{ id: 'org-1', name: 'Organización Demo', slug: 'organizacion-demo' },
+				{ id: 'org-2', name: 'Organización Secundaria', slug: 'organizacion-secundaria' },
+			],
+		});
+
+		renderWithProviders({
+			organizationId: 'org-1',
+			organizationRole: 'owner',
+			userRole: 'admin',
+		});
+
+		await waitFor(() => {
+			expect(screen.getByRole('combobox', { name: 'Organización' })).not.toBeDisabled();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Organización' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Organización Secundaria' }));
+
+		await waitFor(() => {
+			expect(mockFetchOrganizationMembers).toHaveBeenLastCalledWith({
+				limit: 10,
+				offset: 0,
+				organizationId: 'org-2',
+			});
+		});
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Borrar usuario Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockDeleteGlobalUser).toHaveBeenCalledWith(
+				{
+					userId: 'user-1',
+					organizationId: 'org-2',
+				},
+				expect.anything(),
+			);
+		});
+	});
+
+	it('shows the audit fallback message when global deletion cannot preserve historical ownership', async () => {
+		mockDeleteGlobalUser.mockResolvedValueOnce({
+			success: false,
+			errorCode: 'USER_DELETE_AUDIT_FALLBACK_REQUIRED',
+		});
+
+		renderWithProviders({ organizationRole: 'owner', userRole: 'admin' });
+
+		await waitFor(() => {
+			expect(screen.getByText('Ana Miembro')).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Borrar usuario Ana Miembro' }));
+
+		await waitFor(() => {
+			expect(mockToastError).toHaveBeenCalledWith(
+				'No se puede borrar el usuario porque no existe otra persona con acceso a todas las organizaciones necesarias para conservar el historial.',
+			);
 		});
 	});
 
@@ -590,9 +654,7 @@ describe('UsersPageClient', () => {
 				screen.getByRole('combobox', { name: 'Cambiar rol de Ana Miembro' }),
 			).toHaveTextContent('Miembro');
 		});
-		expect(
-			screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' }),
-		).toBeDisabled();
+		expect(screen.getByRole('button', { name: 'Guardar rol de Ana Miembro' })).toBeDisabled();
 	});
 
 	it('surfaces member query failures instead of showing a silent empty state', async () => {

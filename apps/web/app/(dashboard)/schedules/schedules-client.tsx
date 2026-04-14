@@ -106,7 +106,11 @@ export function SchedulesPageClient({
 					<TabsTrigger value="calendar" className="min-h-11">
 						{t('tabs.calendar')}
 					</TabsTrigger>
-					<TabsTrigger value="templates" className="min-h-11">
+					<TabsTrigger
+						value="templates"
+						className="min-h-11"
+						data-tour="schedules-templates-tab"
+					>
 						{t('tabs.templates')}
 					</TabsTrigger>
 					<TabsTrigger value="exceptions" className="min-h-11">

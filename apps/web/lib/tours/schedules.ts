@@ -19,7 +19,7 @@ export const schedulesTour: TourConfig = {
 			placement: 'top',
 		},
 		{
-			target: '[data-tour="schedule-templates-add"]',
+			target: '[data-tour="schedules-templates-tab"]',
 			contentKey: 'schedules.step3',
 			placement: 'bottom',
 		},

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { dashboardTour } from './dashboard';
+import { schedulesTour } from './schedules';
 import { getAllTourIds, getTourById, getTourByPath } from './registry';
 
 describe('tour registry', () => {
@@ -27,6 +28,26 @@ describe('tour registry', () => {
 				},
 			],
 		});
+	});
+
+	it('keeps the schedules tour bound to targets that exist on the default tab', () => {
+		expect(schedulesTour.steps).toEqual([
+			{
+				target: '[data-tour="schedules-tabs"]',
+				contentKey: 'schedules.step1',
+				placement: 'bottom',
+			},
+			{
+				target: '[data-tour="schedules-calendar"]',
+				contentKey: 'schedules.step2',
+				placement: 'top',
+			},
+			{
+				target: '[data-tour="schedules-templates-tab"]',
+				contentKey: 'schedules.step3',
+				placement: 'bottom',
+			},
+		]);
 	});
 
 	it('looks up tours by id', () => {

@@ -601,6 +601,27 @@ function getScheduledWorkingDateKeys(
 }
 
 /**
+ * Checks whether a weekly schedule matches the classic Monday-to-Friday pattern.
+ *
+ * @param schedule - Weekly schedule entries
+ * @returns True when Monday through Friday are working days and Saturday/Sunday are not
+ */
+function isClassicMondayToFridaySchedule(
+	schedule: Omit<ScheduleRow, 'employeeId'>[],
+): boolean {
+	const workingDays = new Set(
+		schedule.filter((entry) => entry.isWorkingDay).map((entry) => entry.dayOfWeek),
+	);
+
+	return (
+		workingDays.size === 5 &&
+		[1, 2, 3, 4, 5].every((dayOfWeek) => workingDays.has(dayOfWeek)) &&
+		!workingDays.has(0) &&
+		!workingDays.has(6)
+	);
+}
+
+/**
  * Calculates seventh day pay for weekly periods based on schedule and attendance.
  *
  * @param args - Seventh day inputs
@@ -648,12 +669,15 @@ function calculateSeventhDayPay(args: {
 		targetDayOfWeek: 6,
 	});
 	const saturdayIsScheduled = scheduledKeys.includes(saturdayDate ?? '');
-	const requiredWorkedDayKeys = [...scheduledKeys];
-	if (countSaturdayAsWorkedForSeventhDay && saturdayDate && !saturdayIsScheduled) {
-		requiredWorkedDayKeys.push(saturdayDate);
-		resolvedWorkedDayKeys.add(saturdayDate);
+	if (
+		countSaturdayAsWorkedForSeventhDay &&
+		saturdayDate &&
+		!saturdayIsScheduled &&
+		isClassicMondayToFridaySchedule(schedule)
+	) {
+		return roundCurrency(dailyPay);
 	}
-	const completedAllScheduledDays = requiredWorkedDayKeys.every((key) =>
+	const completedAllScheduledDays = scheduledKeys.every((key) =>
 		resolvedWorkedDayKeys.has(key),
 	);
 	return completedAllScheduledDays ? roundCurrency(dailyPay) : 0;

@@ -2787,7 +2787,7 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(results[0]?.seventhDayPay).toBe(350);
 		});
 
-		it('does not pay seventh day when a monday-to-friday employee misses a weekday', () => {
+		it('pays seventh day when saturday counting is enabled even if a monday-to-friday employee misses a weekday', () => {
 			const { employees: results } = calculatePayrollFromData({
 				...calculationBaseArgs,
 				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5]),
@@ -2799,7 +2799,7 @@ describe('payroll-calculation mexico taxes', () => {
 				payrollSettings: countSaturdaySettings,
 			});
 
-			expect(results[0]?.seventhDayPay).toBe(0);
+			expect(results[0]?.seventhDayPay).toBe(350);
 		});
 
 		it('does not pay seventh day when saturday is scheduled and the employee misses it', () => {
@@ -2837,6 +2837,46 @@ describe('payroll-calculation mexico taxes', () => {
 			});
 
 			expect(results[0]?.seventhDayPay).toBe(350);
+		});
+
+		it('pays seventh day for a monday-to-friday schedule stored with only 5 working-day rows', () => {
+			const partialMondayToFridaySchedule: ScheduleRow[] = [1, 2, 3, 4, 5].map(
+				(dayOfWeek) => ({
+					employeeId,
+					dayOfWeek,
+					startTime: '09:00',
+					endTime: '17:00',
+					isWorkingDay: true,
+				}),
+			);
+
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: partialMondayToFridaySchedule,
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2025-12-15', '2025-12-16', '2025-12-18', '2025-12-19'],
+					timeZone,
+				),
+				payrollSettings: countSaturdaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(350);
+		});
+
+		it('does not pay seventh day unconditionally for a sunday-to-friday schedule with saturday off', () => {
+			const { employees: results } = calculatePayrollFromData({
+				...calculationBaseArgs,
+				schedules: buildScheduleForWorkingDays(employeeId, [0, 1, 2, 3, 4, 5]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2025-12-15', '2025-12-16', '2025-12-18', '2025-12-19', '2025-12-21'],
+					timeZone,
+				),
+				payrollSettings: countSaturdaySettings,
+			});
+
+			expect(results[0]?.seventhDayPay).toBe(0);
 		});
 	});
 

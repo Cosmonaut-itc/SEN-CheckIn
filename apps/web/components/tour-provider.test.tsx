@@ -76,6 +76,7 @@ vi.mock('react-joyride', () => {
 		},
 		EVENTS: {
 			STEP_AFTER: 'step:after',
+			TARGET_NOT_FOUND: 'target:not-found',
 			TOUR_END: 'tour:end',
 		},
 		STATUS: {
@@ -259,6 +260,47 @@ describe('TourProvider', () => {
 			expect(mockCompleteTour).toHaveBeenCalledWith('dashboard', 'completed');
 		});
 		expect(screen.getByTestId('tour-state')).toHaveTextContent('false::none');
+	});
+
+	it('advances the controlled step index when Joyride reports a missing target', async () => {
+		renderWithProviders(<TourContextProbe />);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour' }));
+		expect(joyrideState.props?.stepIndex).toBe(0);
+
+		await act(async () => {
+			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
+				action: 'next',
+				index: 0,
+				lifecycle: 'complete',
+				origin: null,
+				size: 3,
+				status: 'running',
+				step: {},
+				type: 'target:not-found',
+			});
+		});
+
+		expect(joyrideState.props?.stepIndex).toBe(1);
+
+		await act(async () => {
+			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
+				action: 'prev',
+				index: 1,
+				lifecycle: 'complete',
+				origin: null,
+				size: 3,
+				status: 'running',
+				step: {},
+				type: 'target:not-found',
+			});
+		});
+
+		expect(joyrideState.props?.stepIndex).toBe(0);
 	});
 
 	it('closes the active tour and shows an error when completion persistence fails', async () => {

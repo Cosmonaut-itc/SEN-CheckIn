@@ -186,7 +186,7 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 				return;
 			}
 
-			if (event.type === EVENTS.STEP_AFTER) {
+			if (event.type === EVENTS.STEP_AFTER || event.type === EVENTS.TARGET_NOT_FOUND) {
 				if (event.action === ACTIONS.NEXT) {
 					setStepIndex((currentIndex) => currentIndex + 1);
 				}

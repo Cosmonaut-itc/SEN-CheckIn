@@ -3,6 +3,7 @@
 import React, { type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
+import { TourProvider } from '@/components/tour-provider';
 import { ThemeProvider } from '@/components/theme-provider';
 import { getQueryClient } from '@/lib/get-query-client';
 
@@ -78,7 +79,7 @@ export function Providers({ children }: ProvidersProps): React.ReactElement {
 	return (
 		<ThemeProvider defaultTheme="system" enableSystem>
 			<QueryClientProvider client={queryClient}>
-				{children}
+				<TourProvider>{children}</TourProvider>
 				{isDevelopment ? <ReactQueryDevtools initialIsOpen={false} /> : null}
 			</QueryClientProvider>
 		</ThemeProvider>

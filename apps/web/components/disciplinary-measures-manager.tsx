@@ -1329,7 +1329,10 @@ export function DisciplinaryMeasuresManager({
 					</div>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="flex flex-col gap-2 min-[1025px]:grid min-[1025px]:grid-cols-5 min-[1025px]:gap-3">
+					<div
+						data-tour="disciplinary-measures-filters"
+						className="flex flex-col gap-2 min-[1025px]:grid min-[1025px]:grid-cols-5 min-[1025px]:gap-3"
+					>
 						<div className="space-y-1 min-[1025px]:col-span-2">
 							<Label>{t('filters.search')}</Label>
 							<Input
@@ -1444,29 +1447,31 @@ export function DisciplinaryMeasuresManager({
 						</div>
 					</div>
 
-					<ResponsiveDataView
-						columns={columns}
-						data={measures}
-						cardRenderer={renderMeasureCard}
-						sorting={sorting}
-						onSortingChange={setSorting}
-						pagination={pagination}
-						onPaginationChange={setPagination}
-						columnFilters={columnFilters}
-						onColumnFiltersChange={setColumnFilters}
-						globalFilter=""
-						onGlobalFilterChange={() => {}}
-						manualPagination={true}
-						manualFiltering={true}
-						rowCount={totalRows}
-						showToolbar={false}
-						isLoading={isMeasuresLoading}
-						emptyState={
-							<p className="py-10 text-center text-sm text-muted-foreground">
-								{t('table.empty')}
-							</p>
-						}
-					/>
+					<div data-tour="disciplinary-measures-list">
+						<ResponsiveDataView
+							columns={columns}
+							data={measures}
+							cardRenderer={renderMeasureCard}
+							sorting={sorting}
+							onSortingChange={setSorting}
+							pagination={pagination}
+							onPaginationChange={setPagination}
+							columnFilters={columnFilters}
+							onColumnFiltersChange={setColumnFilters}
+							globalFilter=""
+							onGlobalFilterChange={() => {}}
+							manualPagination={true}
+							manualFiltering={true}
+							rowCount={totalRows}
+							showToolbar={false}
+							isLoading={isMeasuresLoading}
+							emptyState={
+								<p className="py-10 text-center text-sm text-muted-foreground">
+									{t('table.empty')}
+								</p>
+							}
+						/>
+					</div>
 				</CardContent>
 			</Card>
 

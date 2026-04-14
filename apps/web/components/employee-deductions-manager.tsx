@@ -87,6 +87,8 @@ interface EmployeeDeductionsManagerProps {
 	employeeId?: string;
 	/** Optional employee display name for subtitles. */
 	employeeName?: string;
+	/** Optional actions rendered next to the add button. */
+	headerActions?: React.ReactNode;
 }
 
 interface DeductionFormState {
@@ -392,6 +394,7 @@ export function EmployeeDeductionsManager({
 	mode,
 	employeeId,
 	employeeName,
+	headerActions,
 }: EmployeeDeductionsManagerProps): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
@@ -840,7 +843,10 @@ export function EmployeeDeductionsManager({
 			</section>
 
 			<div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-				<div className="grid gap-3 rounded-3xl border bg-card p-4 sm:grid-cols-2 xl:grid-cols-3">
+				<div
+					data-tour="deductions-filters"
+					className="grid gap-3 rounded-3xl border bg-card p-4 sm:grid-cols-2 xl:grid-cols-3"
+				>
 					<div className="space-y-2">
 						<Label>{t('filters.type')}</Label>
 						<Select
@@ -928,12 +934,18 @@ export function EmployeeDeductionsManager({
 							}
 						}}
 					>
-						<DialogTrigger asChild>
-							<Button className="h-11 rounded-full px-5">
-								<Plus className="mr-2 h-4 w-4" />
-								{t('actions.add')}
-							</Button>
-						</DialogTrigger>
+						<div
+							data-tour="deductions-header-actions"
+							className="flex flex-wrap items-center gap-2 justify-start lg:justify-end"
+						>
+							{headerActions}
+							<DialogTrigger asChild>
+								<Button className="h-11 rounded-full px-5">
+									<Plus className="mr-2 h-4 w-4" />
+									{t('actions.add')}
+								</Button>
+							</DialogTrigger>
+						</div>
 						<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
 							<DialogHeader>
 								<DialogTitle>{t('createDialog.title')}</DialogTitle>
@@ -1289,7 +1301,7 @@ export function EmployeeDeductionsManager({
 				</section>
 			) : null}
 
-			<div className="overflow-hidden rounded-3xl border bg-card shadow-sm">
+			<div data-tour="deductions-list" className="overflow-hidden rounded-3xl border bg-card shadow-sm">
 				<div className="flex items-center justify-between gap-3 border-b px-5 py-4">
 					<div>
 						<h3 className="text-base font-semibold text-foreground">

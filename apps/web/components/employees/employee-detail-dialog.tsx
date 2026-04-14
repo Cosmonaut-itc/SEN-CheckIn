@@ -55,6 +55,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import {
 	Select,
 	SelectContent,
@@ -293,6 +294,7 @@ export function EmployeePageActions({ onCreateNew }: EmployeePageActionsProps): 
 
 	return (
 		<div className="flex w-full items-center gap-1 min-[1025px]:w-auto">
+			<TourHelpButton tourId="employees" />
 			<DialogTrigger asChild>
 				<Button
 					data-testid="employees-add-button"

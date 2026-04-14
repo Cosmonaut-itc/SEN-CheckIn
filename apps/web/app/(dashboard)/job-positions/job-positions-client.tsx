@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -22,6 +23,7 @@ import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchJobPositionsList, type JobPosition } from '@/lib/client-functions';
 import { createJobPosition, updateJobPosition, deleteJobPosition } from '@/actions/job-positions';
 import { useAppForm } from '@/lib/forms';
+import { useTour } from '@/hooks/use-tour';
 import { useOrgContext } from '@/lib/org-client-context';
 import type {
 	ColumnDef,
@@ -59,6 +61,7 @@ export function JobPositionsPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('JobPositions');
 	const tCommon = useTranslations('Common');
+	useTour('job-positions');
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -413,7 +416,9 @@ export function JobPositionsPageClient(): React.ReactElement {
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+					<>
+						<TourHelpButton tourId="job-positions" />
+						<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 						<DialogTrigger asChild>
 							<Button
 								onClick={handleCreateNew}
@@ -484,30 +489,33 @@ export function JobPositionsPageClient(): React.ReactElement {
 							</DialogFooter>
 						</form>
 						</DialogContent>
-					</Dialog>
+						</Dialog>
+					</>
 				}
 			/>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={jobPositions}
-				cardRenderer={renderJobPositionCard}
-				getCardKey={(jobPosition) => jobPosition.id}
-				sorting={sorting}
-				onSortingChange={setSorting}
-				pagination={pagination}
-				onPaginationChange={setPagination}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				globalFilterPlaceholder={t('search.placeholder')}
-				manualPagination
-				manualFiltering
-				rowCount={totalRows}
-				emptyState={t('table.empty')}
-				isLoading={isFetching}
-			/>
+			<div data-tour="job-positions-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={jobPositions}
+					cardRenderer={renderJobPositionCard}
+					getCardKey={(jobPosition) => jobPosition.id}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={pagination}
+					onPaginationChange={setPagination}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={setColumnFilters}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={handleGlobalFilterChange}
+					globalFilterPlaceholder={t('search.placeholder')}
+					manualPagination
+					manualFiltering
+					rowCount={totalRows}
+					emptyState={t('table.empty')}
+					isLoading={isFetching}
+				/>
+			</div>
 		</div>
 	);
 }

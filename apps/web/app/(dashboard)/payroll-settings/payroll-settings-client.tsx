@@ -4,11 +4,13 @@ import React, { useEffect, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { DocumentWorkflowSettingsSection } from '@/components/document-workflow-settings-section';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchPayrollSettings } from '@/lib/client-functions';
 import { updatePayrollSettingsAction } from '@/actions/payroll';
 import { useAppForm, useStore } from '@/lib/forms';
+import { useTour } from '@/hooks/use-tour';
 import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
 import { isValidIanaTimeZone } from '@/lib/time-zone';
@@ -203,6 +205,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('PayrollSettings');
 	const tCommon = useTranslations('Common');
+	useTour('payroll-settings');
 	const isHydrated = useSyncExternalStore(
 		subscribeNoop,
 		getHydratedClientSnapshot,
@@ -511,12 +514,18 @@ export function PayrollSettingsClient(): React.ReactElement {
 
 	return (
 		<div className="space-y-4">
-			<div>
-				<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
-				<p className="text-muted-foreground">{t('subtitle')}</p>
+			<div
+				data-tour="payroll-settings-title"
+				className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-start min-[1025px]:justify-between"
+			>
+				<div>
+					<h1 className="text-3xl font-bold tracking-tight">{t('title')}</h1>
+					<p className="text-muted-foreground">{t('subtitle')}</p>
+				</div>
+				<TourHelpButton tourId="payroll-settings" />
 			</div>
 
-			<Card>
+			<Card data-tour="payroll-settings-week-start">
 				<CardHeader>
 					<CardTitle>{t('weekStart.title')}</CardTitle>
 					<CardDescription>{t('weekStart.description')}</CardDescription>

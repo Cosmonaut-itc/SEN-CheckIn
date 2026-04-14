@@ -65,6 +65,7 @@ import { buildClosedEmployeeDialogState } from '@/lib/employee-dialog-state';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTour } from '@/hooks/use-tour';
 import type {
 	EmployeeDetailTab,
 	EmployeeTerminationSettlement,
@@ -422,31 +423,33 @@ function EmployeesTableSection({
 				</Select>
 			</div>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={employees}
-				cardRenderer={cardRenderer}
-				getCardKey={(employee) => employee.id}
-				sorting={sorting}
-				onSortingChange={onSortingChange}
-				pagination={pagination}
-				onPaginationChange={onPaginationChange}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={onColumnFiltersChange}
-				globalFilter={search}
-				onGlobalFilterChange={onSearchChange}
-				showToolbar={false}
-				manualPagination
-				manualFiltering
-				rowCount={rowCount}
-				emptyState={emptyState}
-				isLoading={isLoading}
-				rowSelection={rowSelection}
-				onRowSelectionChange={onRowSelectionChange}
-				enableRowSelection={Boolean(onRowSelectionChange)}
-				getRowId={getRowId}
-				onRowClick={onRowClick}
-			/>
+			<div data-tour="employees-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={employees}
+					cardRenderer={cardRenderer}
+					getCardKey={(employee) => employee.id}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					pagination={pagination}
+					onPaginationChange={onPaginationChange}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={onColumnFiltersChange}
+					globalFilter={search}
+					onGlobalFilterChange={onSearchChange}
+					showToolbar={false}
+					manualPagination
+					manualFiltering
+					rowCount={rowCount}
+					emptyState={emptyState}
+					isLoading={isLoading}
+					rowSelection={rowSelection}
+					onRowSelectionChange={onRowSelectionChange}
+					enableRowSelection={Boolean(onRowSelectionChange)}
+					getRowId={getRowId}
+					onRowClick={onRowClick}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -888,6 +891,7 @@ export function EmployeesPageClient(): React.ReactElement {
 	const isMobile = useIsMobile();
 	const t = useTranslations('Employees');
 	const tCommon = useTranslations('Common');
+	useTour('employees');
 	const [search, setSearch] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });

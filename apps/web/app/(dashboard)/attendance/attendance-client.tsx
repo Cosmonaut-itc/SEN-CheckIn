@@ -50,10 +50,12 @@ import {
 } from '@/components/ui/select';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { queryKeys } from '@/lib/query-keys';
+import { useTour } from '@/hooks/use-tour';
 import {
 	createWorkOffsiteAttendance,
 	deleteWorkOffsiteAttendance,
@@ -335,6 +337,7 @@ export function AttendancePageClient({
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const t = useTranslations('Attendance');
+	useTour('attendance');
 	const initialStartDateKey =
 		normalizeDateKeyString(initialFilters?.from) ?? format(startOfDay(new Date()), 'yyyy-MM-dd');
 	const initialEndDateKey =
@@ -1193,7 +1196,8 @@ export function AttendancePageClient({
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<>
+					<div data-tour="attendance-actions" className="flex flex-wrap gap-2">
+						<TourHelpButton tourId="attendance" />
 						{navigationSource === 'employee-dialog' && returnEmployeeId ? (
 							<Button variant="outline" onClick={handleReturnToEmployees}>
 								{t('actions.returnToEmployee')}
@@ -1217,11 +1221,11 @@ export function AttendancePageClient({
 							<Download className="mr-2 h-4 w-4" />
 							{t('actions.exportCsv')}
 						</Button>
-					</>
+					</div>
 				}
 			/>
 
-			<div className="grid gap-3 min-[1025px]:grid-cols-2 xl:grid-cols-5">
+			<div data-tour="attendance-filters" className="grid gap-3 min-[1025px]:grid-cols-2 xl:grid-cols-5">
 				{employeeFilterId && employeeFilterLabel ? (
 					<Badge
 						variant="secondary"
@@ -1374,26 +1378,28 @@ export function AttendancePageClient({
 				</Select>
 			</div>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={records}
-				cardRenderer={renderAttendanceCard}
-				getCardKey={(record) => record.id}
-				sorting={sorting}
-				onSortingChange={setSorting}
-				pagination={pagination}
-				onPaginationChange={setPagination}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={handleColumnFiltersChange}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				showToolbar={false}
-				manualPagination
-				manualFiltering
-				rowCount={totalRows}
-				emptyState={t('table.empty')}
-				isLoading={isFetching}
-			/>
+			<div data-tour="attendance-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={records}
+					cardRenderer={renderAttendanceCard}
+					getCardKey={(record) => record.id}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={pagination}
+					onPaginationChange={setPagination}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={handleColumnFiltersChange}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={handleGlobalFilterChange}
+					showToolbar={false}
+					manualPagination
+					manualFiltering
+					rowCount={totalRows}
+					emptyState={t('table.empty')}
+					isLoading={isFetching}
+				/>
+			</div>
 
 			{!isFetching && records.length > 0 && (
 				<p className="text-sm text-muted-foreground">

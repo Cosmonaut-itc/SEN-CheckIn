@@ -3,13 +3,13 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { redirect } from 'next/navigation';
 import React from 'react';
 
-import { EmployeeDeductionsManager } from '@/components/employee-deductions-manager';
 import { buildOrganizationDeductionsQueryParams } from '@/lib/employee-deductions-query-params';
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
 import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import { prefetchEmployeesList, prefetchOrganizationDeductionsList } from '@/lib/server-functions';
+import { DeductionsPageClient } from './deductions-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +59,7 @@ export default async function DeductionsPage(): Promise<React.ReactElement> {
 					userRole,
 				}}
 			>
-				<EmployeeDeductionsManager mode="organization" />
+				<DeductionsPageClient />
 			</OrgProvider>
 		</HydrationBoundary>
 	);

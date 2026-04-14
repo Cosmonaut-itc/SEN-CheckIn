@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import {
 	Table,
 	TableBody,
@@ -58,6 +59,7 @@ import {
 } from '@/lib/client-functions';
 import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm } from '@/lib/forms';
+import { useTour } from '@/hooks/use-tour';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import type {
@@ -171,6 +173,7 @@ export function VacationsPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Vacations');
 	const tCommon = useTranslations('Common');
+	useTour('vacations');
 
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
@@ -643,7 +646,9 @@ export function VacationsPageClient(): React.ReactElement {
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+					<>
+						<TourHelpButton tourId="vacations" />
+						<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
 						<DialogTrigger asChild>
 							<Button data-testid="vacations-create-button" className="min-h-11">
 								{t('actions.create')}
@@ -861,11 +866,12 @@ export function VacationsPageClient(): React.ReactElement {
 							</DialogFooter>
 						</form>
 						</DialogContent>
-					</Dialog>
+						</Dialog>
+					</>
 				}
 			/>
 
-			<Card>
+			<Card data-tour="vacations-filters">
 				<CardHeader>
 					<CardTitle>{t('filters.title')}</CardTitle>
 					<CardDescription>{t('filters.description')}</CardDescription>
@@ -921,26 +927,28 @@ export function VacationsPageClient(): React.ReactElement {
 						</div>
 					</div>
 
-					<ResponsiveDataView
-						columns={columns}
-						data={requests}
-						cardRenderer={renderVacationCard}
-						getCardKey={(request) => request.id}
-						sorting={sorting}
-						onSortingChange={setSorting}
-						pagination={pagination}
-						onPaginationChange={setPagination}
-						columnFilters={columnFilters}
-						onColumnFiltersChange={handleColumnFiltersChange}
-						globalFilter={globalFilter}
-						onGlobalFilterChange={handleGlobalFilterChange}
-						showToolbar={false}
-						manualPagination
-						manualFiltering
-						rowCount={totalRows}
-						emptyState={t('table.empty')}
-						isLoading={isFetching}
-					/>
+					<div data-tour="vacations-list">
+						<ResponsiveDataView
+							columns={columns}
+							data={requests}
+							cardRenderer={renderVacationCard}
+							getCardKey={(request) => request.id}
+							sorting={sorting}
+							onSortingChange={setSorting}
+							pagination={pagination}
+							onPaginationChange={setPagination}
+							columnFilters={columnFilters}
+							onColumnFiltersChange={handleColumnFiltersChange}
+							globalFilter={globalFilter}
+							onGlobalFilterChange={handleGlobalFilterChange}
+							showToolbar={false}
+							manualPagination
+							manualFiltering
+							rowCount={totalRows}
+							emptyState={t('table.empty')}
+							isLoading={isFetching}
+						/>
+					</div>
 				</CardContent>
 			</Card>
 

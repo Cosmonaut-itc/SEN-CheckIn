@@ -3,12 +3,12 @@ import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { redirect } from 'next/navigation';
 import React from 'react';
 
-import { OvertimeAuthorizationsManager } from '@/components/overtime/overtime-authorizations-manager';
 import { getQueryClient } from '@/lib/get-query-client';
 import { getAdminAccessContext } from '@/lib/organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
 import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import { prefetchEmployeesList, prefetchOvertimeAuthorizationsList } from '@/lib/server-functions';
+import { OvertimeAuthorizationsPageClient } from './overtime-authorizations-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +55,7 @@ export default async function OvertimeAuthorizationsPage(): Promise<React.ReactE
 					userRole,
 				}}
 			>
-				<OvertimeAuthorizationsManager />
+				<OvertimeAuthorizationsPageClient />
 			</OrgProvider>
 		</HydrationBoundary>
 	);

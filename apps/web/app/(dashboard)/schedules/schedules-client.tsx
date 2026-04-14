@@ -4,7 +4,9 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { useTranslations } from 'next-intl';
+import { useTour } from '@/hooks/use-tour';
 import { queryKeys } from '@/lib/query-keys';
 import {
 	fetchEmployeesList,
@@ -40,6 +42,7 @@ export function SchedulesPageClient({
 }: SchedulesPageClientProps): React.ReactElement {
 	const t = useTranslations('Schedules');
 	const { organizationId } = useOrgContext();
+	useTour('schedules');
 	const [activeTab, setActiveTab] = useState<'calendar' | 'templates' | 'exceptions'>('calendar');
 
 	const employeeQueryParams = useMemo(
@@ -85,14 +88,21 @@ export function SchedulesPageClient({
 
 	return (
 		<div className="space-y-6">
-			<ResponsivePageHeader title={t('title')} description={t('subtitle')} />
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={<TourHelpButton tourId="schedules" />}
+			/>
 
 			<Tabs
 				value={activeTab}
 				onValueChange={(value) => setActiveTab(value as typeof activeTab)}
 				className="space-y-4"
 			>
-				<TabsList className="grid w-full grid-cols-3 min-[1025px]:inline-flex min-[1025px]:w-auto">
+				<TabsList
+					data-tour="schedules-tabs"
+					className="grid w-full grid-cols-3 min-[1025px]:inline-flex min-[1025px]:w-auto"
+				>
 					<TabsTrigger value="calendar" className="min-h-11">
 						{t('tabs.calendar')}
 					</TabsTrigger>
@@ -104,7 +114,7 @@ export function SchedulesPageClient({
 					</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="calendar" className="space-y-4">
+				<TabsContent value="calendar" className="space-y-4" data-tour="schedules-calendar">
 					<CalendarView
 						initialStartDate={initialStartDate}
 						initialEndDate={initialEndDate}

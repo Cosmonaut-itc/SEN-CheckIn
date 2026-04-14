@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import {
 	Table,
 	TableBody,
@@ -53,6 +54,7 @@ import {
 } from '@/lib/client-functions';
 import { formatDateRangeUtc, formatShortDateUtc } from '@/lib/date-format';
 import { useAppForm } from '@/lib/forms';
+import { useTour } from '@/hooks/use-tour';
 import { useOrgContext } from '@/lib/org-client-context';
 import { useSession } from '@/lib/auth-client';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
@@ -217,6 +219,7 @@ export function IncapacitiesPageClient(): React.ReactElement {
 		organizationRole === 'admin' ||
 		organizationRole === 'owner';
 	const t = useTranslations('Incapacities');
+	useTour('incapacities');
 
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
@@ -833,9 +836,13 @@ export function IncapacitiesPageClient(): React.ReactElement {
 						title={t('title')}
 						description={t('subtitle')}
 						actions={
-							<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+							<>
+								<TourHelpButton tourId="incapacities" />
+								<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
 								<DialogTrigger asChild>
-									<Button className="min-h-11">{t('actions.create')}</Button>
+									<Button className="min-h-11" data-tour="incapacities-create">
+										{t('actions.create')}
+									</Button>
 								</DialogTrigger>
 								<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-2xl">
 							<DialogHeader>
@@ -1043,12 +1050,16 @@ export function IncapacitiesPageClient(): React.ReactElement {
 								</form>
 							</createForm.AppForm>
 								</DialogContent>
-							</Dialog>
+								</Dialog>
+							</>
 						}
 					/>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					<div className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center">
+					<div
+						data-tour="incapacities-filters"
+						className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center"
+					>
 						<div className="relative w-full min-[1025px]:max-w-xs">
 							<Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
 							<Input
@@ -1150,26 +1161,28 @@ export function IncapacitiesPageClient(): React.ReactElement {
 							{t('actions.refresh')}
 						</Button>
 					</div>
-					<ResponsiveDataView
-						columns={columns}
-						data={records}
-						cardRenderer={renderIncapacityCard}
-						getCardKey={(record) => record.id}
-						sorting={sorting}
-						onSortingChange={setSorting}
-						pagination={pagination}
-						onPaginationChange={setPagination}
-						columnFilters={columnFilters}
-						onColumnFiltersChange={handleColumnFiltersChange}
-						globalFilter={globalFilter}
-						onGlobalFilterChange={handleGlobalFilterChange}
-						showToolbar={false}
-						manualPagination
-						manualFiltering
-						rowCount={totalRows}
-						emptyState={t('table.empty')}
-						isLoading={isFetching}
-					/>
+					<div data-tour="incapacities-list">
+						<ResponsiveDataView
+							columns={columns}
+							data={records}
+							cardRenderer={renderIncapacityCard}
+							getCardKey={(record) => record.id}
+							sorting={sorting}
+							onSortingChange={setSorting}
+							pagination={pagination}
+							onPaginationChange={setPagination}
+							columnFilters={columnFilters}
+							onColumnFiltersChange={handleColumnFiltersChange}
+							globalFilter={globalFilter}
+							onGlobalFilterChange={handleGlobalFilterChange}
+							showToolbar={false}
+							manualPagination
+							manualFiltering
+							rowCount={totalRows}
+							emptyState={t('table.empty')}
+							isLoading={isFetching}
+						/>
+					</div>
 				</CardContent>
 			</Card>
 

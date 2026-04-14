@@ -460,7 +460,7 @@ export function ScheduleTemplatesTab({
 				title={t('templates.title')}
 				description={t('templates.description')}
 				actions={
-					<Button onClick={handleOpenCreate}>
+					<Button onClick={handleOpenCreate} data-tour="schedule-templates-add">
 						<Plus className="mr-2 h-4 w-4" />
 						{t('templates.actions.new')}
 					</Button>

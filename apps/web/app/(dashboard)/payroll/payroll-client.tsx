@@ -17,6 +17,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import {
 	Select,
 	SelectContent,
@@ -58,6 +59,7 @@ import {
 	fetchPayrollSettings,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
+import { useTour } from '@/hooks/use-tour';
 import { type PayrollCalculateParams, mutationKeys, queryKeys } from '@/lib/query-keys';
 import {
 	addDaysToDateKey,
@@ -408,6 +410,7 @@ export function PayrollPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Payroll');
+	useTour('payroll');
 
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
@@ -947,10 +950,17 @@ export function PayrollPageClient(): React.ReactElement {
 			data-testid="payroll-page-root"
 			className="min-w-0 space-y-6 overflow-x-hidden"
 		>
-			<ResponsivePageHeader title={t('title')} description={t('subtitle')} />
+			<ResponsivePageHeader
+				title={t('title')}
+				description={t('subtitle')}
+				actions={<TourHelpButton tourId="payroll" />}
+			/>
 
 			<Tabs defaultValue="payroll" className="min-w-0 space-y-4 overflow-x-hidden">
-				<TabsList className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 min-[1025px]:inline-flex min-[1025px]:h-10 min-[1025px]:w-auto min-[1025px]:gap-0 min-[1025px]:bg-muted min-[1025px]:p-1">
+				<TabsList
+					data-tour="payroll-tabs"
+					className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 min-[1025px]:inline-flex min-[1025px]:h-10 min-[1025px]:w-auto min-[1025px]:gap-0 min-[1025px]:bg-muted min-[1025px]:p-1"
+				>
 					<TabsTrigger
 						value="payroll"
 						data-testid="payroll-tab-payroll"
@@ -1176,7 +1186,7 @@ export function PayrollPageClient(): React.ReactElement {
 									</PopoverContent>
 								</Popover>
 							</div>
-							<div className="flex flex-col justify-end gap-2">
+							<div className="flex flex-col justify-end gap-2" data-tour="payroll-process">
 								<Button
 									className="min-h-11 w-full"
 									onClick={onProcess}

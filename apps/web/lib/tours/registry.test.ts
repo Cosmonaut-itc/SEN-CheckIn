@@ -31,16 +31,37 @@ describe('tour registry', () => {
 
 	it('looks up tours by id', () => {
 		expect(getTourById('dashboard')).toEqual(dashboardTour);
+		expect(getTourById('employees')?.section).toBe('/employees');
+		expect(getTourById('payroll-settings')?.section).toBe('/payroll-settings');
 		expect(getTourById('unknown-tour')).toBeUndefined();
 	});
 
 	it('matches tours by pathname prefix', () => {
 		expect(getTourByPath('/dashboard')).toEqual(dashboardTour);
 		expect(getTourByPath('/dashboard/summary')).toEqual(dashboardTour);
-		expect(getTourByPath('/employees')).toBeUndefined();
+		expect(getTourByPath('/employees')?.id).toBe('employees');
+		expect(getTourByPath('/payroll-settings')?.id).toBe('payroll-settings');
 	});
 
 	it('returns the registered tour ids', () => {
-		expect(getAllTourIds()).toEqual(['dashboard']);
+		expect(getAllTourIds()).toEqual([
+			'dashboard',
+			'employees',
+			'locations',
+			'devices',
+			'job-positions',
+			'attendance',
+			'schedules',
+			'vacations',
+			'incapacities',
+			'payroll',
+			'payroll-settings',
+			'users',
+			'organizations',
+			'api-keys',
+			'overtime-authorizations',
+			'deductions',
+			'disciplinary-measures',
+		]);
 	});
 });

@@ -39,6 +39,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import {
 	fetchAllOrganizations,
 	fetchOrganizationMembers,
@@ -50,6 +51,7 @@ import {
 } from '@/lib/client-functions';
 import { useSession } from '@/lib/auth-client';
 import { useAppForm } from '@/lib/forms';
+import { useTour } from '@/hooks/use-tour';
 import { useOrgContext } from '@/lib/org-client-context';
 import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import type {
@@ -382,7 +384,10 @@ function UsersTableSection({
 				</div>
 			) : null}
 
-			<div className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center">
+			<div
+				data-tour="users-filters"
+				className="flex flex-col gap-3 min-[1025px]:flex-row min-[1025px]:items-center"
+			>
 				<div className="relative w-full min-[1025px]:max-w-sm">
 					<Input
 						placeholder={searchPlaceholder}
@@ -398,26 +403,28 @@ function UsersTableSection({
 				</Badge>
 			</div>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={members}
-				cardRenderer={cardRenderer}
-				getCardKey={(member) => member.id}
-				sorting={sorting}
-				onSortingChange={onSortingChange}
-				pagination={pagination}
-				onPaginationChange={onPaginationChange}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={onColumnFiltersChange}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={onGlobalFilterChange}
-				showToolbar={false}
-				manualPagination
-				manualFiltering
-				rowCount={rowCount}
-				emptyState={emptyState}
-				isLoading={isLoading}
-			/>
+			<div data-tour="users-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={members}
+					cardRenderer={cardRenderer}
+					getCardKey={(member) => member.id}
+					sorting={sorting}
+					onSortingChange={onSortingChange}
+					pagination={pagination}
+					onPaginationChange={onPaginationChange}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={onColumnFiltersChange}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={onGlobalFilterChange}
+					showToolbar={false}
+					manualPagination
+					manualFiltering
+					rowCount={rowCount}
+					emptyState={emptyState}
+					isLoading={isLoading}
+				/>
+			</div>
 		</div>
 	);
 }
@@ -430,6 +437,7 @@ export function UsersPageClient(): React.ReactElement {
 	const { organizationId, organizationName, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Users');
 	const tCommon = useTranslations('Common');
+	useTour('users');
 	const { data: session, isPending: isSessionPending } = useSession();
 	const isSuperUser = session?.user?.role === 'admin' || userRole === 'admin';
 	const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -1022,7 +1030,8 @@ export function UsersPageClient(): React.ReactElement {
 					organization: organizationLabel,
 				})}
 				actions={
-					<div className="flex flex-col gap-2 min-[1025px]:flex-row">
+					<div data-tour="users-actions" className="flex flex-col gap-2 min-[1025px]:flex-row">
+						<TourHelpButton tourId="users" />
 						{isSuperUser ? (
 							<Dialog
 								open={isAssignDialogOpen}

@@ -17,6 +17,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { toast } from 'sonner';
 import { Pencil, Smartphone, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -30,6 +31,7 @@ import {
 	type Location,
 } from '@/lib/client-functions';
 import { updateDevice, deleteDevice } from '@/actions/devices';
+import { useTour } from '@/hooks/use-tour';
 import { useOrgContext } from '@/lib/org-client-context';
 import type {
 	ColumnDef,
@@ -71,6 +73,7 @@ export function DevicesPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Devices');
 	const tCommon = useTranslations('Common');
+	useTour('devices');
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -475,7 +478,9 @@ export function DevicesPageClient(): React.ReactElement {
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<Button
+					<>
+						<TourHelpButton tourId="devices" />
+						<Button
 						asChild
 						variant="secondary"
 						aria-label={t('mobileSetup.ariaLabel')}
@@ -486,7 +491,8 @@ export function DevicesPageClient(): React.ReactElement {
 							<Smartphone className="h-4 w-4" />
 							<span>{t('mobileSetup.label')}</span>
 						</Link>
-					</Button>
+						</Button>
+					</>
 				}
 			/>
 			<p className="text-sm text-muted-foreground">{t('description')}</p>
@@ -573,26 +579,28 @@ export function DevicesPageClient(): React.ReactElement {
 				</DialogContent>
 			</Dialog>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={devices}
-				cardRenderer={renderDeviceCard}
-				getCardKey={(device) => device.id}
-				sorting={sorting}
-				onSortingChange={setSorting}
-				pagination={pagination}
-				onPaginationChange={setPagination}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				globalFilterPlaceholder={t('search.placeholder')}
-				manualPagination
-				manualFiltering
-				rowCount={totalRows}
-				emptyState={t('table.empty')}
-				isLoading={isFetching}
-			/>
+			<div data-tour="devices-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={devices}
+					cardRenderer={renderDeviceCard}
+					getCardKey={(device) => device.id}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={pagination}
+					onPaginationChange={setPagination}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={setColumnFilters}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={handleGlobalFilterChange}
+					globalFilterPlaceholder={t('search.placeholder')}
+					manualPagination
+					manualFiltering
+					rowCount={totalRows}
+					emptyState={t('table.empty')}
+					isLoading={isFetching}
+				/>
+			</div>
 		</div>
 	);
 }

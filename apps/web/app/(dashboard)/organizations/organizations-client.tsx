@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import {
 	fetchAllOrganizations,
 	fetchOrganizations,
@@ -40,6 +41,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import React, { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
+import { useTour } from '@/hooks/use-tour';
 
 /**
  * Form values for creating organizations.
@@ -60,6 +62,7 @@ export function OrganizationsPageClient(): React.ReactElement {
 	const router = useRouter();
 	const t = useTranslations('Organizations');
 	const tCommon = useTranslations('Common');
+	useTour('organizations');
 	const { data: session, isPending: isSessionPending } = useSession();
 	const isSuperUser = session?.user?.role === 'admin';
 	const [globalFilter, setGlobalFilter] = useState<string>('');
@@ -501,41 +504,46 @@ export function OrganizationsPageClient(): React.ReactElement {
 					title={t('title')}
 					description={t('subtitle')}
 					actions={
-						canCreateOrganization ? (
-							<DialogTrigger asChild>
-								<Button
-									onClick={handleCreateNew}
-									data-testid="organizations-create-button"
-									className="min-h-11"
-								>
-									<Plus className="mr-2 h-4 w-4" />
-									{t('actions.create')}
-								</Button>
-							</DialogTrigger>
-						) : undefined
+						<>
+							<TourHelpButton tourId="organizations" />
+							{canCreateOrganization ? (
+								<DialogTrigger asChild>
+									<Button
+										onClick={handleCreateNew}
+										data-testid="organizations-create-button"
+										className="min-h-11"
+									>
+										<Plus className="mr-2 h-4 w-4" />
+										{t('actions.create')}
+									</Button>
+								</DialogTrigger>
+							) : undefined}
+						</>
 					}
 				/>
 
-				<ResponsiveDataView
-					columns={columns}
-					data={organizations}
-					cardRenderer={renderOrganizationCard}
-					getCardKey={(organization) => organization.id}
-					sorting={sorting}
-					onSortingChange={handleSortingChange}
-					pagination={pagination}
-					onPaginationChange={setPagination}
-					columnFilters={columnFilters}
-					onColumnFiltersChange={setColumnFilters}
-					globalFilter={globalFilter}
-					onGlobalFilterChange={handleGlobalFilterChange}
-					globalFilterPlaceholder={t('search.placeholder')}
-					emptyState={emptyState}
-					isLoading={isLoading}
-					manualPagination={isSuperUser}
-					manualFiltering={isSuperUser}
-					rowCount={isSuperUser ? totalRows : undefined}
-				/>
+				<div data-tour="organizations-list">
+					<ResponsiveDataView
+						columns={columns}
+						data={organizations}
+						cardRenderer={renderOrganizationCard}
+						getCardKey={(organization) => organization.id}
+						sorting={sorting}
+						onSortingChange={handleSortingChange}
+						pagination={pagination}
+						onPaginationChange={setPagination}
+						columnFilters={columnFilters}
+						onColumnFiltersChange={setColumnFilters}
+						globalFilter={globalFilter}
+						onGlobalFilterChange={handleGlobalFilterChange}
+						globalFilterPlaceholder={t('search.placeholder')}
+						emptyState={emptyState}
+						isLoading={isLoading}
+						manualPagination={isSuperUser}
+						manualFiltering={isSuperUser}
+						rowCount={isSuperUser ? totalRows : undefined}
+					/>
+				</div>
 			</div>
 
 			<DialogContent className="w-full max-w-[calc(100vw-2rem)] min-[640px]:max-w-[425px]">

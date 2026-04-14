@@ -706,6 +706,7 @@ export function PayrollHolidaysSection(): React.ReactElement {
 							onChange={onImportCsvFile}
 						/>
 						<Button
+							data-tour="payroll-holidays-sync"
 							onClick={() => syncMutation.mutate()}
 							disabled={syncMutation.isPending}
 						>

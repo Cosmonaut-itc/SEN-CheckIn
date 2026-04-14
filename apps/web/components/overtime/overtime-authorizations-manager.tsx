@@ -44,6 +44,11 @@ const DEFAULT_PAGE_SIZE = 20;
 const EMPLOYEE_QUERY_LIMIT = 100;
 const LEGAL_DAILY_OVERTIME_LIMIT = 3;
 
+interface OvertimeAuthorizationsManagerProps {
+	/** Optional actions rendered alongside the create button. */
+	extraActions?: React.ReactNode;
+}
+
 const SELECT_CLASS_NAME =
 	'border-input h-9 w-full rounded-md border bg-background/80 px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-[var(--accent-primary)] focus-visible:ring-[var(--accent-primary-bg-hover)] focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50';
 const DATE_TRIGGER_CLASS_NAME =
@@ -84,7 +89,9 @@ function getMutationWarning(payload: unknown): string | null {
  *
  * @returns Overtime authorization manager content
  */
-export function OvertimeAuthorizationsManager(): React.ReactElement {
+export function OvertimeAuthorizationsManager({
+	extraActions,
+}: OvertimeAuthorizationsManagerProps): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId, organizationTimeZone } = useOrgContext();
 	const t = useTranslations('OvertimeAuthorizations');
@@ -453,7 +460,9 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+					<>
+						{extraActions}
+						<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 						<DialogTrigger asChild>
 							<Button data-testid="overtime-create-trigger" className="min-h-11">
 								{t('actions.create')}
@@ -614,11 +623,12 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 							</div>
 						</form>
 						</DialogContent>
-					</Dialog>
+						</Dialog>
+					</>
 				}
 			/>
 
-			<div className="grid gap-4 min-[1025px]:grid-cols-4">
+			<div data-tour="overtime-filters" className="grid gap-4 min-[1025px]:grid-cols-4">
 				<div className="space-y-2">
 					<Label htmlFor="filter-employee">{t('filters.employee')}</Label>
 					<select
@@ -686,28 +696,30 @@ export function OvertimeAuthorizationsManager(): React.ReactElement {
 				</div>
 			</div>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={authorizations}
-				cardRenderer={renderAuthorizationCard}
-				getCardKey={(authorization) => authorization.id}
-				sorting={sorting}
-				onSortingChange={setSorting}
-				pagination={{ pageIndex, pageSize: DEFAULT_PAGE_SIZE }}
-				onPaginationChange={handlePaginationChange}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={setGlobalFilter}
-				showToolbar={false}
-				showGlobalFilter={false}
-				manualPagination
-				manualFiltering
-				rowCount={pagination.total}
-				pageSizeOptions={[DEFAULT_PAGE_SIZE]}
-				emptyState={t('table.empty')}
-				isLoading={authorizationsQuery.isLoading || authorizationsQuery.isFetching}
-			/>
+			<div data-tour="overtime-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={authorizations}
+					cardRenderer={renderAuthorizationCard}
+					getCardKey={(authorization) => authorization.id}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={{ pageIndex, pageSize: DEFAULT_PAGE_SIZE }}
+					onPaginationChange={handlePaginationChange}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={setColumnFilters}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={setGlobalFilter}
+					showToolbar={false}
+					showGlobalFilter={false}
+					manualPagination
+					manualFiltering
+					rowCount={pagination.total}
+					pageSizeOptions={[DEFAULT_PAGE_SIZE]}
+					emptyState={t('table.empty')}
+					isLoading={authorizationsQuery.isLoading || authorizationsQuery.isFetching}
+				/>
+			</div>
 		</div>
 	);
 }

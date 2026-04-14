@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/command';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { toast } from 'sonner';
 import { Check, ChevronsUpDown, Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -48,6 +49,7 @@ import type {
 	SortingState,
 } from '@tanstack/react-table';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTour } from '@/hooks/use-tour';
 import type { LocationMapPickerProps } from './location-map-picker';
 
 /**
@@ -181,6 +183,7 @@ export function LocationsPageClient(): React.ReactElement {
 	const { organizationId } = useOrgContext();
 	const t = useTranslations('Locations');
 	const tCommon = useTranslations('Common');
+	useTour('locations');
 	const isMobile = useIsMobile();
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
@@ -737,7 +740,9 @@ export function LocationsPageClient(): React.ReactElement {
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
+					<>
+						<TourHelpButton tourId="locations" />
+						<Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
 						<DialogTrigger asChild>
 							<Button
 								onClick={handleCreateNew}
@@ -986,31 +991,34 @@ export function LocationsPageClient(): React.ReactElement {
 								</form.AppForm>
 							</DialogFooter>
 						</form>
-					</DialogContent>
-					</Dialog>
+						</DialogContent>
+						</Dialog>
+					</>
 				}
 			/>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={locations}
-				cardRenderer={renderLocationCard}
-				getCardKey={(location) => location.id}
-				sorting={sorting}
-				onSortingChange={setSorting}
-				pagination={pagination}
-				onPaginationChange={setPagination}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				globalFilterPlaceholder={t('search.placeholder')}
-				manualPagination
-				manualFiltering
-				rowCount={totalRows}
-				emptyState={t('table.empty')}
-				isLoading={isFetching}
-			/>
+			<div data-tour="locations-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={locations}
+					cardRenderer={renderLocationCard}
+					getCardKey={(location) => location.id}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={pagination}
+					onPaginationChange={setPagination}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={setColumnFilters}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={handleGlobalFilterChange}
+					globalFilterPlaceholder={t('search.placeholder')}
+					manualPagination
+					manualFiltering
+					rowCount={totalRows}
+					emptyState={t('table.empty')}
+					isLoading={isFetching}
+				/>
+			</div>
 		</div>
 	);
 }

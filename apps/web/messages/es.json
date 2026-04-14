@@ -235,6 +235,81 @@
 			"step1": "Aquí puedes ver los contadores principales de tu organización: empleados, dispositivos, ubicaciones y puestos.",
 			"step2": "Esta sección muestra los empleados presentes hoy con reconocimiento facial.",
 			"step3": "El mapa te permite visualizar la ubicación de tus sucursales."
+		},
+		"employees": {
+			"step1": "Usa este botón para registrar un empleado nuevo de forma manual.",
+			"step2": "Desde este menú puedes iniciar la importación asistida desde documentos.",
+			"step3": "Aquí consultas, filtras y abres el detalle completo de cada empleado."
+		},
+		"locations": {
+			"step1": "Aquí agregas una nueva ubicación con sus reglas operativas.",
+			"step2": "Esta lista reúne todas las ubicaciones activas para edición y seguimiento."
+		},
+		"devices": {
+			"step1": "Este acceso te lleva a la configuración del dispositivo de registro.",
+			"step2": "Aquí revisas el estado, asignación y disponibilidad de cada dispositivo."
+		},
+		"jobPositions": {
+			"step1": "Usa este botón para crear un nuevo puesto de trabajo.",
+			"step2": "Aquí administras el catálogo de puestos disponibles para la organización."
+		},
+		"attendance": {
+			"step1": "Estas acciones te permiten registrar incidencias fuera de oficina, refrescar datos y exportar resultados.",
+			"step2": "Desde aquí acotas la vista por periodo, tipo, ubicación y otros filtros operativos.",
+			"step3": "Aquí se concentra el historial de asistencia para consulta y seguimiento."
+		},
+		"schedules": {
+			"step1": "Estas pestañas organizan la operación por calendario, plantillas y excepciones.",
+			"step2": "En esta vista revisas la asignación diaria de horarios por empleado y ubicación.",
+			"step3": "Desde aquí puedes crear nuevas plantillas reutilizables de horario."
+		},
+		"vacations": {
+			"step1": "Usa este botón para capturar una nueva solicitud de vacaciones.",
+			"step2": "Aquí filtras solicitudes por estado, colaborador y rango de fechas.",
+			"step3": "Esta vista concentra el historial y el estatus de cada solicitud."
+		},
+		"incapacities": {
+			"step1": "Desde aquí registras una incapacidad nueva para el colaborador seleccionado.",
+			"step2": "Estos filtros te ayudan a revisar incapacidades por persona, tipo, estado y fechas.",
+			"step3": "Aquí administras el expediente completo de incapacidades y sus documentos."
+		},
+		"payroll": {
+			"step1": "Estas pestañas separan los procesos de nómina regular, PTU y aguinaldo.",
+			"step2": "Aquí ejecutas el cálculo y procesamiento del periodo actual.",
+			"step3": "En esta tabla validas la vista previa antes de cerrar una corrida."
+		},
+		"payrollSettings": {
+			"step1": "Aquí centralizas la configuración base que afecta cálculo, calendario y cumplimiento.",
+			"step2": "En esta sección ajustas el inicio de semana y parámetros operativos de nómina.",
+			"step3": "Este botón sincroniza el calendario de días festivos para mantener la operación al día."
+		},
+		"users": {
+			"step1": "Usa este botón para crear un usuario nuevo dentro de la organización activa.",
+			"step2": "Aquí filtras la vista por organización y por búsqueda rápida de miembros.",
+			"step3": "En esta tabla administras roles y acceso de los usuarios registrados."
+		},
+		"organizations": {
+			"step1": "Desde aquí puedes crear una organización nueva cuando tienes permisos suficientes.",
+			"step2": "Aquí consultas y administras las organizaciones disponibles en la plataforma."
+		},
+		"apiKeys": {
+			"step1": "Usa este botón para generar una nueva clave de API para integraciones.",
+			"step2": "Aquí revisas las claves existentes y puedes copiarlas o revocarlas."
+		},
+		"overtimeAuthorizations": {
+			"step1": "Desde aquí registras una autorización nueva de horas extra.",
+			"step2": "Estos filtros ayudan a revisar autorizaciones por empleado, estado y fechas.",
+			"step3": "Aquí se concentra el historial vigente de autorizaciones y cancelaciones."
+		},
+		"deductions": {
+			"step1": "Desde aquí puedes abrir el flujo para capturar un descuento nuevo.",
+			"step2": "Estos filtros te permiten acotar descuentos por tipo, estado y colaborador.",
+			"step3": "Aquí revisas el avance y vigencia de cada descuento activo o histórico."
+		},
+		"disciplinaryMeasures": {
+			"step1": "Usa este botón para registrar una nueva medida disciplinaria.",
+			"step2": "Aquí filtras casos por colaborador, estatus, resultado y fechas clave.",
+			"step3": "En esta vista das seguimiento al expediente y documentación de cada caso."
 		}
 	},
 	"Errors": {

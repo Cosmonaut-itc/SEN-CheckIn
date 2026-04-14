@@ -17,12 +17,14 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveDataView } from '@/components/ui/responsive-data-view';
 import { ResponsivePageHeader } from '@/components/ui/responsive-page-header';
+import { TourHelpButton } from '@/components/tour-help-button';
 import { toast } from 'sonner';
 import { Plus, Trash2, Copy, Key, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { queryKeys, mutationKeys } from '@/lib/query-keys';
 import { fetchApiKeys, type ApiKey } from '@/lib/client-functions';
 import { createApiKey, deleteApiKey } from '@/actions/api-keys';
+import { useTour } from '@/hooks/use-tour';
 import type {
 	ColumnDef,
 	ColumnFiltersState,
@@ -47,6 +49,7 @@ export function ApiKeysPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const t = useTranslations('ApiKeys');
 	const tCommon = useTranslations('Common');
+	useTour('api-keys');
 	const [globalFilter, setGlobalFilter] = useState<string>('');
 	const [sorting, setSorting] = useState<SortingState>([]);
 	const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
@@ -415,7 +418,9 @@ export function ApiKeysPageClient(): React.ReactElement {
 				title={t('title')}
 				description={t('subtitle')}
 				actions={
-					<Dialog
+					<>
+						<TourHelpButton tourId="api-keys" />
+						<Dialog
 						open={isDialogOpen}
 						onOpenChange={(open) => {
 							setIsDialogOpen(open);
@@ -495,26 +500,29 @@ export function ApiKeysPageClient(): React.ReactElement {
 							</form>
 						)}
 						</DialogContent>
-					</Dialog>
+						</Dialog>
+					</>
 				}
 			/>
 
-			<ResponsiveDataView
-				columns={columns}
-				data={apiKeys}
-				cardRenderer={renderApiKeyCard}
-				getCardKey={(apiKey) => apiKey.id}
-				sorting={sorting}
-				onSortingChange={setSorting}
-				pagination={pagination}
-				onPaginationChange={setPagination}
-				columnFilters={columnFilters}
-				onColumnFiltersChange={setColumnFilters}
-				globalFilter={globalFilter}
-				onGlobalFilterChange={handleGlobalFilterChange}
-				emptyState={t('table.empty')}
-				isLoading={isFetching}
-			/>
+			<div data-tour="api-keys-list">
+				<ResponsiveDataView
+					columns={columns}
+					data={apiKeys}
+					cardRenderer={renderApiKeyCard}
+					getCardKey={(apiKey) => apiKey.id}
+					sorting={sorting}
+					onSortingChange={setSorting}
+					pagination={pagination}
+					onPaginationChange={setPagination}
+					columnFilters={columnFilters}
+					onColumnFiltersChange={setColumnFilters}
+					globalFilter={globalFilter}
+					onGlobalFilterChange={handleGlobalFilterChange}
+					emptyState={t('table.empty')}
+					isLoading={isFetching}
+				/>
+			</div>
 		</div>
 	);
 }

@@ -14,14 +14,39 @@ export const payrollTour: TourConfig = {
 			placement: 'bottom',
 		},
 		{
-			target: '[data-tour="payroll-process"]',
+			target: '[data-tour="payroll-legal-rules"]',
 			contentKey: 'payroll.step2',
+			placement: 'bottom',
+		},
+		{
+			target: '[data-tour="payroll-insights"]',
+			contentKey: 'payroll.step3',
+			placement: 'bottom',
+		},
+		{
+			target: '[data-tour="payroll-process"]',
+			contentKey: 'payroll.step4',
 			placement: 'left',
 		},
 		{
-			target: '[data-testid="payroll-preview-table-container"]',
-			contentKey: 'payroll.step3',
+			target: '[data-tour="payroll-preview-table"]',
+			contentKey: 'payroll.step5',
 			placement: 'top',
+		},
+		{
+			target: '[data-tour="payroll-run-history"]',
+			contentKey: 'payroll.step6',
+			placement: 'top',
+		},
+		{
+			target: '[data-tour="payroll-tab-ptu"]',
+			contentKey: 'payroll.step7',
+			placement: 'bottom',
+		},
+		{
+			target: '[data-tour="payroll-tab-aguinaldo"]',
+			contentKey: 'payroll.step8',
+			placement: 'bottom',
 		},
 	],
 };

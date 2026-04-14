@@ -287,7 +287,9 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 				options={{
 					zIndex: 10000,
 					primaryColor: 'var(--primary)',
-					backgroundColor: 'var(--background)',
+					backgroundColor: 'var(--popover)',
+					textColor: 'var(--popover-foreground)',
+					arrowColor: 'var(--popover)',
 					overlayColor: 'var(--overlay)',
 					showProgress: true,
 					closeButtonAction: 'skip',
@@ -298,12 +300,18 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 				styles={{
 					buttonPrimary: {
 						borderRadius: 8,
+						color: 'var(--primary-foreground)',
 					},
 					buttonBack: {
 						borderRadius: 8,
+						color: 'var(--popover-foreground)',
 					},
 					buttonSkip: {
 						borderRadius: 8,
+						color: 'var(--popover-foreground)',
+					},
+					buttonClose: {
+						color: 'var(--popover-foreground)',
 					},
 				}}
 			/>

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,14 +14,105 @@ const messages = (rawMessages as { default?: typeof rawMessages }).default ?? ra
 const mockFetchPayrollSettings = vi.fn();
 const mockCalculatePayroll = vi.fn();
 const mockFetchPayrollRuns = vi.fn();
+const mockUseTour = vi.fn();
+const mockTourRestartById = new Map<string, ReturnType<typeof vi.fn>>();
 
-vi.mock('@/lib/client-functions', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('@/lib/client-functions')>();
+vi.mock('@/lib/client-functions', () => ({
+	fetchPayrollSettings: (...args: unknown[]) => mockFetchPayrollSettings(...args),
+	calculatePayroll: (...args: unknown[]) => mockCalculatePayroll(...args),
+	fetchPayrollRuns: (...args: unknown[]) => mockFetchPayrollRuns(...args),
+}));
+
+vi.mock('@/hooks/use-tour', () => ({
+	useTour: (...args: unknown[]) => mockUseTour(...args),
+}));
+
+vi.mock('@/components/tour-help-button', () => ({
+	TourHelpButton: ({ tourId }: { tourId: string }): React.ReactElement => (
+		<button
+			type="button"
+			data-testid="tour-help-button"
+			onClick={() => mockTourRestartById.get(tourId)?.()}
+		>
+			{tourId}
+		</button>
+	),
+}));
+
+vi.mock('@/components/ui/tabs', () => {
+	const TabsContext = React.createContext<{
+		value: string;
+		onValueChange?: (value: string) => void;
+	} | null>(null);
+
 	return {
-		...actual,
-		fetchPayrollSettings: (...args: unknown[]) => mockFetchPayrollSettings(...args),
-		calculatePayroll: (...args: unknown[]) => mockCalculatePayroll(...args),
-		fetchPayrollRuns: (...args: unknown[]) => mockFetchPayrollRuns(...args),
+		Tabs: ({
+			value,
+			onValueChange,
+			className,
+			children,
+		}: {
+			value: string;
+			onValueChange?: (value: string) => void;
+			className?: string;
+			children: React.ReactNode;
+		}): React.ReactElement => (
+			<TabsContext.Provider value={{ value, onValueChange }}>
+				<div className={className}>{children}</div>
+			</TabsContext.Provider>
+		),
+		TabsList: ({
+			children,
+			...props
+		}: React.HTMLAttributes<HTMLDivElement>): React.ReactElement => (
+			<div role="tablist" {...props}>
+				{children}
+			</div>
+		),
+		TabsTrigger: ({
+			value,
+			disabled,
+			children,
+			...props
+		}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+			value: string;
+		}): React.ReactElement => {
+			const contextValue = React.useContext(TabsContext);
+			const isSelected = contextValue?.value === value;
+
+			return (
+				<button
+					type="button"
+					role="tab"
+					aria-selected={isSelected}
+					data-state={isSelected ? 'active' : 'inactive'}
+					disabled={disabled}
+					onClick={() => {
+						if (!disabled) {
+							contextValue?.onValueChange?.(value);
+						}
+					}}
+					{...props}
+				>
+					{children}
+				</button>
+			);
+		},
+		TabsContent: ({
+			value,
+			children,
+			...props
+		}: React.HTMLAttributes<HTMLDivElement> & {
+			value: string;
+		}): React.ReactElement | null => {
+			const contextValue = React.useContext(TabsContext);
+
+			if (contextValue?.value !== value) {
+				return null;
+			}
+
+			return <div {...props}>{children}</div>;
+		},
 	};
 });
 
@@ -80,6 +171,19 @@ describe('PayrollPageClient', () => {
 		mockFetchPayrollSettings.mockReset();
 		mockCalculatePayroll.mockReset();
 		mockFetchPayrollRuns.mockReset();
+		mockUseTour.mockReset();
+		mockTourRestartById.clear();
+
+		mockUseTour.mockImplementation((tourId: string) => {
+			const restartTour = mockTourRestartById.get(tourId) ?? vi.fn();
+
+			mockTourRestartById.set(tourId, restartTour);
+
+			return {
+				restartTour,
+				isTourRunning: false,
+			};
+		});
 
 		mockFetchPayrollSettings.mockResolvedValue({
 			id: 'payroll-1',
@@ -257,6 +361,157 @@ describe('PayrollPageClient', () => {
 		expect(screen.getByText('preview.lunchBreak.badge')).toBeInTheDocument();
 		expect(screen.getByText('preview.lunchBreak.days')).toBeInTheDocument();
 		expect(screen.getByText('preview.lunchBreak.minutes')).toBeInTheDocument();
+	});
+
+	it('uses the contextual tour and help button for the active tab', async () => {
+		mockFetchPayrollSettings.mockResolvedValueOnce({
+			id: 'payroll-1',
+			organizationId: 'org-1',
+			weekStartDay: 1,
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDays: [],
+			riskWorkRate: 0,
+			statePayrollTaxRate: 0,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: 0.25,
+			enableSeventhDayPay: false,
+			enableDualPayroll: false,
+			ptuEnabled: true,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: null,
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 60,
+			lunchBreakThresholdHours: 6,
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('tour-help-button')).toHaveTextContent('payroll');
+		});
+
+		expect(mockUseTour.mock.calls).toEqual(
+			expect.arrayContaining([
+				['payroll', true],
+				['payroll-ptu', false],
+				['payroll-aguinaldo', false],
+			]),
+		);
+		expect(screen.getByTestId('payroll-tab-payroll')).toHaveAttribute('aria-selected', 'true');
+
+		await waitFor(() => {
+			expect(screen.getByTestId('payroll-tab-ptu')).not.toBeDisabled();
+		});
+
+		fireEvent.click(screen.getByTestId('payroll-tab-ptu'));
+
+		await waitFor(() => {
+			expect(screen.getByTestId('tour-help-button')).toHaveTextContent('payroll-ptu');
+		});
+
+		expect(mockUseTour.mock.calls).toEqual(
+			expect.arrayContaining([
+				['payroll', false],
+				['payroll-ptu', true],
+				['payroll-aguinaldo', false],
+			]),
+		);
+		expect(screen.getByTestId('payroll-tab-ptu')).toHaveAttribute('aria-selected', 'true');
+
+		await waitFor(() => {
+			expect(screen.getByTestId('payroll-tab-aguinaldo')).not.toBeDisabled();
+		});
+
+		fireEvent.click(screen.getByTestId('payroll-tab-aguinaldo'));
+
+		await waitFor(() => {
+			expect(screen.getByTestId('tour-help-button')).toHaveTextContent(
+				'payroll-aguinaldo',
+			);
+		});
+
+		expect(mockUseTour.mock.calls).toEqual(
+			expect.arrayContaining([
+				['payroll', false],
+				['payroll-ptu', false],
+				['payroll-aguinaldo', true],
+			]),
+		);
+		expect(screen.getByTestId('payroll-tab-aguinaldo')).toHaveAttribute(
+			'aria-selected',
+			'true',
+		);
+	});
+
+	it('keeps the payroll tour active when PTU is disabled in settings', async () => {
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('tour-help-button')).toHaveTextContent('payroll');
+		});
+
+		expect(screen.getByTestId('payroll-tab-ptu')).toBeDisabled();
+		expect(mockUseTour.mock.calls).toEqual(
+			expect.arrayContaining([
+				['payroll', true],
+				['payroll-ptu', false],
+				['payroll-aguinaldo', false],
+			]),
+		);
+	});
+
+	it('replays the payroll tour from the help button when aguinaldo is disabled', async () => {
+		mockFetchPayrollSettings.mockResolvedValueOnce({
+			id: 'payroll-1',
+			organizationId: 'org-1',
+			weekStartDay: 1,
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDays: [],
+			riskWorkRate: 0,
+			statePayrollTaxRate: 0,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: 0.25,
+			enableSeventhDayPay: false,
+			enableDualPayroll: false,
+			ptuEnabled: true,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: null,
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: false,
+			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 60,
+			lunchBreakThresholdHours: 6,
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+
+		renderWithProviders();
+
+		await waitFor(() => {
+			expect(screen.getByTestId('tour-help-button')).toHaveTextContent('payroll');
+		});
+
+		expect(screen.getByTestId('payroll-tab-aguinaldo')).toBeDisabled();
+
+		fireEvent.click(screen.getByTestId('tour-help-button'));
+
+		expect(mockTourRestartById.get('payroll')).toHaveBeenCalledTimes(1);
+		expect(mockTourRestartById.get('payroll-ptu')).not.toHaveBeenCalled();
+		expect(mockTourRestartById.get('payroll-aguinaldo')).not.toHaveBeenCalled();
 	});
 
 	it('keeps horizontal overflow inside the payroll preview table container', async () => {

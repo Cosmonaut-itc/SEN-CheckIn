@@ -275,9 +275,30 @@
 			"step3": "Aquí administras el expediente completo de incapacidades y sus documentos."
 		},
 		"payroll": {
-			"step1": "Estas pestañas separan los procesos de nómina regular, PTU y aguinaldo.",
-			"step2": "Aquí ejecutas el cálculo y procesamiento del periodo actual.",
-			"step3": "En esta tabla validas la vista previa antes de cerrar una corrida."
+			"step1": "Estas pestañas separan los procesos de nómina regular, PTU y aguinaldo para que cambies de flujo sin salir de la pantalla.",
+			"step2": "Aquí revisas las reglas legales y operativas que impactan el cálculo actual antes de procesar la nómina.",
+			"step3": "Este bloque concentra indicadores del periodo para validar montos, incidencias y señales relevantes antes del cierre.",
+			"step4": "Desde aquí ejecutas el cálculo, procesas la corrida y controlas las acciones principales del periodo seleccionado.",
+			"step5": "En esta tabla validas la vista previa por colaborador antes de confirmar o exportar la corrida de nómina.",
+			"step6": "Aquí consultas el historial de corridas para revisar estatus, resultados y documentos generados.",
+			"step7": "Esta pestaña te lleva al flujo específico de PTU cuando la organización lo tiene habilitado.",
+			"step8": "Esta pestaña abre el flujo de aguinaldo para calcular, revisar y procesar ese pago extraordinario."
+		},
+		"payrollPtu": {
+			"step1": "Esta pestaña identifica el flujo de PTU dentro del módulo de nómina.",
+			"step2": "Aquí defines la configuración base de PTU antes de calcular el reparto.",
+			"step3": "Desde estas acciones ejecutas el cálculo, procesamiento y tareas principales del reparto de utilidades.",
+			"step4": "En este resumen validas montos globales y señales clave antes de cerrar la corrida de PTU.",
+			"step5": "Aquí revisas el detalle por colaborador para confirmar el reparto calculado.",
+			"step6": "En esta sección consultas el historial de corridas de PTU ya generadas."
+		},
+		"payrollAguinaldo": {
+			"step1": "Esta pestaña identifica el flujo de aguinaldo dentro del módulo de nómina.",
+			"step2": "Aquí ajustas la configuración necesaria antes de calcular el aguinaldo del periodo.",
+			"step3": "Desde estas acciones ejecutas el cálculo, procesamiento y tareas principales del aguinaldo.",
+			"step4": "En este resumen validas totales, alertas y referencias clave antes de cerrar la corrida.",
+			"step5": "Aquí revisas el detalle por colaborador para confirmar el cálculo individual del aguinaldo.",
+			"step6": "En esta sección consultas el historial de corridas de aguinaldo registradas."
 		},
 		"payrollSettings": {
 			"step1": "Aquí centralizas la configuración base que afecta cálculo, calendario y cumplimiento.",

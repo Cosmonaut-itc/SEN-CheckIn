@@ -4,44 +4,43 @@ import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const {
-	mockFetchTourProgress,
-	mockCompleteTour,
-	mockToastError,
-	mockToastSuccess,
-	joyrideState,
-	authSessionState,
-	setJoyrideProps,
-} = vi.hoisted(() => {
-		const joyrideState = {
-			props: null as Record<string, unknown> | null,
-		};
-		const authSessionState = {
-			value: {
-				data: {
-					user: {
-						id: 'user-1',
-					},
-					session: {
-						activeOrganizationId: 'org-1',
-					},
-				},
-				isPending: false,
-			},
-		};
+import rawMessages from '@/messages/es.json';
+import { OrgProvider } from '@/lib/org-client-context';
+import { PayrollPageClient } from '@/app/(dashboard)/payroll/payroll-client';
 
-		return {
-			mockFetchTourProgress: vi.fn(),
-			mockCompleteTour: vi.fn(),
-			mockToastError: vi.fn(),
-			mockToastSuccess: vi.fn(),
-			joyrideState,
-			authSessionState,
-			setJoyrideProps: (props: Record<string, unknown>) => {
-				joyrideState.props = props;
+const mockFetchTourProgress = vi.fn();
+const mockCompleteTour = vi.fn();
+const mockToastError = vi.fn();
+const mockToastSuccess = vi.fn();
+const mockFetchPayrollSettings = vi.fn();
+const mockCalculatePayroll = vi.fn();
+const mockFetchPayrollRuns = vi.fn();
+const joyrideState = {
+	props: null as Record<string, unknown> | null,
+};
+const authSessionState = {
+	value: {
+		data: {
+			user: {
+				id: 'user-1',
 			},
-		};
-	});
+			session: {
+				activeOrganizationId: 'org-1',
+			},
+		},
+		isPending: false,
+	},
+};
+
+/**
+ * Stores the latest Joyride props exposed by the mock implementation.
+ *
+ * @param props - Joyride props snapshot
+ * @returns Void
+ */
+function setJoyrideProps(props: Record<string, unknown>): void {
+	joyrideState.props = props;
+}
 
 vi.mock('@/lib/tour-client-functions', () => ({
 	fetchTourProgress: (...args: unknown[]) => mockFetchTourProgress(...args),
@@ -52,11 +51,41 @@ vi.mock('@/lib/auth-client', () => ({
 	useSession: () => authSessionState.value,
 }));
 
+vi.mock('@/lib/client-functions', () => ({
+	fetchPayrollSettings: (...args: unknown[]) => mockFetchPayrollSettings(...args),
+	calculatePayroll: (...args: unknown[]) => mockCalculatePayroll(...args),
+	fetchPayrollRuns: (...args: unknown[]) => mockFetchPayrollRuns(...args),
+}));
+
 vi.mock('sonner', () => ({
 	toast: {
 		error: (...args: unknown[]) => mockToastError(...args),
 		success: (...args: unknown[]) => mockToastSuccess(...args),
 	},
+}));
+
+vi.mock('@/components/tour-help-button', async () => {
+	const actual = await vi.importActual<typeof import('./tour-provider')>('./tour-provider');
+
+	return {
+		TourHelpButton: ({ tourId }: { tourId: string }): React.ReactElement => {
+			const { startTour } = actual.useTourContext();
+
+			return (
+				<button
+					type="button"
+					data-testid="tour-help-button"
+					onClick={() => startTour(tourId)}
+				>
+					{tourId}
+				</button>
+			);
+		},
+	};
+});
+
+vi.mock('@/actions/payroll', () => ({
+	processPayrollAction: vi.fn().mockResolvedValue({ success: true, data: null }),
 }));
 
 vi.mock('react-joyride', () => {
@@ -89,6 +118,8 @@ vi.mock('react-joyride', () => {
 
 import { TourProvider, useTourContext } from './tour-provider';
 import { useTour } from '@/hooks/use-tour';
+
+const payrollMessages = (rawMessages as { default?: typeof rawMessages }).default ?? rawMessages;
 
 const messages = {
 	Tours: {
@@ -138,6 +169,41 @@ function renderWithProviders(children: React.ReactNode) {
 }
 
 /**
+ * Renders the payroll page with the production providers used by the guided tour.
+ *
+ * @param children - React subtree under test
+ * @returns Testing library render result
+ */
+function renderPayrollWithProviders(children: React.ReactNode) {
+	const queryClient = new QueryClient({
+		defaultOptions: {
+			queries: { retry: false },
+			mutations: { retry: false },
+		},
+	});
+
+	return {
+		queryClient,
+		...render(
+			<QueryClientProvider client={queryClient}>
+				<OrgProvider
+					value={{
+						organizationId: 'org-1',
+						organizationSlug: 'org-1',
+						organizationName: 'Org Test',
+						organizationRole: 'owner',
+					}}
+				>
+					<NextIntlClientProvider locale="es" messages={payrollMessages}>
+						<TourProvider>{children}</TourProvider>
+					</NextIntlClientProvider>
+				</OrgProvider>
+			</QueryClientProvider>,
+		),
+	};
+}
+
+/**
  * Consumer component used to exercise the tour context API.
  *
  * @returns Probe element
@@ -175,14 +241,191 @@ function UseTourProbe(): React.ReactElement {
 	);
 }
 
+/**
+ * Consumer component used to start the payroll guided tour.
+ *
+ * @returns Probe element
+ */
+function PayrollTourProbe(): React.ReactElement {
+	const { startTour } = useTourContext();
+
+	return (
+		<button type="button" onClick={() => startTour('payroll')}>
+			Iniciar tour payroll
+		</button>
+	);
+}
+
 describe('TourProvider', () => {
 	beforeEach(() => {
 		mockFetchTourProgress.mockReset();
 		mockCompleteTour.mockReset();
 		mockToastError.mockReset();
 		mockToastSuccess.mockReset();
+		mockFetchPayrollSettings.mockReset();
+		mockCalculatePayroll.mockReset();
+		mockFetchPayrollRuns.mockReset();
 		mockFetchTourProgress.mockResolvedValue([]);
 		mockCompleteTour.mockResolvedValue(undefined);
+		mockFetchPayrollSettings.mockResolvedValue({
+			id: 'payroll-1',
+			organizationId: 'org-1',
+			weekStartDay: 1,
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDays: [],
+			riskWorkRate: 0,
+			statePayrollTaxRate: 0,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: 0.25,
+			enableSeventhDayPay: false,
+			enableDualPayroll: false,
+			ptuEnabled: true,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: null,
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: true,
+			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 60,
+			lunchBreakThresholdHours: 6,
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+		mockCalculatePayroll.mockResolvedValue({
+			employees: [
+				{
+					employeeId: 'emp-1',
+					name: 'María López',
+					shiftType: 'DIURNA',
+					dailyPay: 300,
+					fiscalDailyPay: null,
+					hourlyPay: 37.5,
+					paymentFrequency: 'WEEKLY',
+					seventhDayPay: 0,
+					hoursWorked: 48,
+					expectedHours: 48,
+					normalHours: 48,
+					overtimeDoubleHours: 0,
+					overtimeTripleHours: 0,
+					sundayHoursWorked: 0,
+					mandatoryRestDaysWorkedCount: 0,
+					mandatoryRestDayDateKeys: [],
+					normalPay: 1800,
+					overtimeDoublePay: 0,
+					overtimeTriplePay: 0,
+					sundayPremiumAmount: 0,
+					mandatoryRestDayPremiumAmount: 0,
+					vacationDaysPaid: 0,
+					vacationPayAmount: 0,
+					vacationPremiumAmount: 0,
+					totalPay: 1740,
+					grossPay: 1740,
+					fiscalGrossPay: null,
+					complementPay: null,
+					totalRealPay: null,
+					bases: {
+						sbcDaily: 300,
+						sbcPeriod: 2100,
+						isrBase: 1740,
+						daysInPeriod: 7,
+						umaDaily: 113.14,
+						minimumWageDaily: 278.8,
+					},
+					employeeWithholdings: {
+						imssEmployee: {
+							emExcess: 0,
+							pd: 0,
+							gmp: 0,
+							iv: 0,
+							cv: 0,
+							total: 0,
+						},
+						isrWithheld: 0,
+						infonavitCredit: 0,
+						total: 0,
+					},
+					employerCosts: {
+						imssEmployer: {
+							emFixed: 0,
+							emExcess: 0,
+							pd: 0,
+							gmp: 0,
+							iv: 0,
+							cv: 0,
+							guarderias: 0,
+							total: 0,
+						},
+						sarRetiro: 0,
+						infonavit: 0,
+						isn: 0,
+						riskWork: 0,
+						absorbedImssEmployeeShare: 0,
+						absorbedIsr: 0,
+						total: 0,
+					},
+					informationalLines: {
+						isrBeforeSubsidy: 0,
+						subsidyApplied: 0,
+					},
+					netPay: 1740,
+					companyCost: 1740,
+					incapacitySummary: {
+						daysIncapacityTotal: 0,
+						expectedImssSubsidyAmount: 0,
+						byType: {
+							EG: {
+								days: 0,
+								subsidyDays: 0,
+								subsidyRate: 0,
+								expectedSubsidyAmount: 0,
+							},
+							RT: {
+								days: 0,
+								subsidyDays: 0,
+								subsidyRate: 0,
+								expectedSubsidyAmount: 0,
+							},
+							MAT: {
+								days: 0,
+								subsidyDays: 0,
+								subsidyRate: 0,
+								expectedSubsidyAmount: 0,
+							},
+							LIC140BIS: {
+								days: 0,
+								subsidyDays: 0,
+								subsidyRate: 0,
+								expectedSubsidyAmount: 0,
+							},
+						},
+					},
+					lunchBreakAutoDeductedDays: 0,
+					lunchBreakAutoDeductedMinutes: 0,
+					warnings: [],
+					deductionsBreakdown: [],
+					totalDeductions: 0,
+				},
+			],
+			totalAmount: 1740,
+			taxSummary: {
+				grossTotal: 1740,
+				employeeWithholdingsTotal: 0,
+				employerCostsTotal: 0,
+				netPayTotal: 1740,
+				companyCostTotal: 1740,
+			},
+			periodStartDateKey: '2026-03-09',
+			periodEndDateKey: '2026-03-15',
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			warnings: [],
+			holidayNotices: [],
+		});
+		mockFetchPayrollRuns.mockResolvedValue([]);
 		joyrideState.props = null;
 		authSessionState.value = {
 			data: {
@@ -226,12 +469,133 @@ describe('TourProvider', () => {
 				disableBeacon: true,
 			},
 			{
-				target: '[data-tour="dashboard-map"]',
+				target: '[data-tour="dashboard-map-summary"]',
 				content: 'dashboard.step3',
-				placement: 'top',
+				placement: 'bottom',
 				disableBeacon: true,
 			},
 		]);
+	});
+
+	it('maps the expanded payroll tour to selectors that exist in the payroll page DOM', async () => {
+		renderPayrollWithProviders(
+			<>
+				<PayrollTourProbe />
+				<PayrollPageClient />
+			</>,
+		);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+			expect(mockFetchPayrollSettings).toHaveBeenCalledTimes(1);
+			expect(mockCalculatePayroll).toHaveBeenCalledTimes(1);
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour payroll' }));
+
+		await waitFor(() => {
+			expect(joyrideState.props?.run).toBe(true);
+			expect(Array.isArray(joyrideState.props?.steps)).toBe(true);
+		});
+
+		const payrollSteps = joyrideState.props?.steps as Array<{ target: string }> | undefined;
+		expect(payrollSteps).toHaveLength(8);
+
+		for (const step of payrollSteps ?? []) {
+			expect(document.querySelector(step.target)).not.toBeNull();
+		}
+	});
+
+	it('replays the payroll tour from the help button when aguinaldo is disabled', async () => {
+		mockFetchTourProgress.mockResolvedValueOnce([
+			{
+				tourId: 'payroll',
+				status: 'completed',
+				completedAt: '2026-03-15T00:00:00.000Z',
+			},
+		]);
+		mockFetchPayrollSettings.mockResolvedValueOnce({
+			id: 'payroll-1',
+			organizationId: 'org-1',
+			weekStartDay: 1,
+			timeZone: 'America/Mexico_City',
+			overtimeEnforcement: 'WARN',
+			additionalMandatoryRestDays: [],
+			riskWorkRate: 0,
+			statePayrollTaxRate: 0,
+			absorbImssEmployeeShare: false,
+			absorbIsr: false,
+			aguinaldoDays: 15,
+			vacationPremiumRate: 0.25,
+			enableSeventhDayPay: false,
+			enableDualPayroll: false,
+			ptuEnabled: true,
+			ptuMode: 'DEFAULT_RULES',
+			ptuIsExempt: false,
+			ptuExemptReason: null,
+			employerType: 'PERSONA_MORAL',
+			aguinaldoEnabled: false,
+			enableDisciplinaryMeasures: true,
+			autoDeductLunchBreak: true,
+			lunchBreakMinutes: 60,
+			lunchBreakThresholdHours: 6,
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		});
+
+		renderPayrollWithProviders(<PayrollPageClient />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId('tour-help-button')).toHaveTextContent('payroll');
+			expect(screen.getByTestId('payroll-tab-aguinaldo')).toBeDisabled();
+		});
+
+		expect(joyrideState.props?.run).toBe(false);
+
+		fireEvent.click(screen.getByTestId('tour-help-button'));
+
+		await waitFor(() => {
+			expect(joyrideState.props?.run).toBe(true);
+		});
+
+		expect(joyrideState.props?.steps).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					target: '[data-tour="payroll-tabs"]',
+				}),
+			]),
+		);
+	});
+
+	it('uses readable tooltip color tokens for the guided tour card', async () => {
+		renderWithProviders(<TourContextProbe />);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour' }));
+
+		expect(joyrideState.props?.options).toMatchObject({
+			backgroundColor: 'var(--popover)',
+			textColor: 'var(--popover-foreground)',
+			arrowColor: 'var(--popover)',
+			primaryColor: 'var(--primary)',
+		});
+		expect(joyrideState.props?.styles).toMatchObject({
+			buttonPrimary: {
+				color: 'var(--primary-foreground)',
+			},
+			buttonBack: {
+				color: 'var(--popover-foreground)',
+			},
+			buttonSkip: {
+				color: 'var(--popover-foreground)',
+			},
+			buttonClose: {
+				color: 'var(--popover-foreground)',
+			},
+		});
 	});
 
 	it('marks a running tour as completed when Joyride finishes', async () => {

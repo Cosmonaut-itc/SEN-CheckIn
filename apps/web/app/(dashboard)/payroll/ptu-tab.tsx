@@ -598,7 +598,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 
 	if (!settings?.ptuEnabled) {
 		return (
-			<Card>
+			<Card data-tour="payroll-ptu-config">
 				<CardHeader>
 					<CardTitle>{t('disabled.title')}</CardTitle>
 					<CardDescription>{t('disabled.description')}</CardDescription>
@@ -609,7 +609,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 
 	return (
 		<div className="space-y-6">
-			<Card>
+			<Card data-tour="payroll-ptu-config">
 				<CardHeader>
 					<CardTitle>{t('config.title')}</CardTitle>
 					<CardDescription>{t('config.description')}</CardDescription>
@@ -711,7 +711,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 				) : null}
 			</Card>
 
-			<div className="flex flex-wrap items-center gap-3">
+			<div className="flex flex-wrap items-center gap-3" data-tour="payroll-ptu-actions">
 				<Button
 					variant="outline"
 					onClick={handleCalculate}
@@ -804,7 +804,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 				</Dialog>
 			</div>
 
-			<Card>
+			<Card data-tour="payroll-ptu-summary">
 				<CardHeader>
 					<CardTitle>{t('summary.title')}</CardTitle>
 					<CardDescription>{t('summary.description')}</CardDescription>
@@ -883,7 +883,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card data-tour="payroll-ptu-table">
 				<CardHeader>
 					<CardTitle>{t('table.title')}</CardTitle>
 					<CardDescription>{t('table.description')}</CardDescription>
@@ -1058,7 +1058,7 @@ export function PtuTab({ settings, isLoading }: PtuTabProps): React.ReactElement
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card data-tour="payroll-ptu-history">
 				<CardHeader>
 					<CardTitle>{t('history.title')}</CardTitle>
 					<CardDescription>{t('history.description')}</CardDescription>

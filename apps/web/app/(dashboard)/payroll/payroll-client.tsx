@@ -83,6 +83,7 @@ import { buildPayrollCsvEmployeeRow, type CsvRow } from './payroll-client.helper
 import { PayrollOvertimeAlert } from '@/components/overtime/payroll-overtime-alert';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
+type PayrollTabValue = 'payroll' | 'ptu' | 'aguinaldo';
 
 /**
  * Formats a numeric value as Mexican Peso currency (MXN).
@@ -406,14 +407,56 @@ function computePeriod(
 	};
 }
 
+/**
+ * Determines whether a payroll tab is currently available.
+ *
+ * @param tab - Tab identifier to validate
+ * @param settings - Payroll settings backing tab availability
+ * @returns True when the tab can be activated
+ */
+function isPayrollTabEnabled(
+	tab: PayrollTabValue,
+	settings: PayrollSettings | null | undefined,
+): boolean {
+	if (tab === 'ptu') {
+		return Boolean(settings?.ptuEnabled);
+	}
+
+	if (tab === 'aguinaldo') {
+		return Boolean(settings?.aguinaldoEnabled);
+	}
+
+	return true;
+}
+
+/**
+ * Maps the active payroll tab to its matching guided-tour identifier.
+ *
+ * @param activeTab - Currently selected payroll tab
+ * @returns Tour identifier for the active tab
+ */
+function getPayrollTourId(
+	activeTab: PayrollTabValue,
+): 'payroll' | 'payroll-ptu' | 'payroll-aguinaldo' {
+	if (activeTab === 'ptu') {
+		return 'payroll-ptu';
+	}
+
+	if (activeTab === 'aguinaldo') {
+		return 'payroll-aguinaldo';
+	}
+
+	return 'payroll';
+}
+
 export function PayrollPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Payroll');
-	useTour('payroll');
 
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
+	const [activeTab, setActiveTab] = useState<PayrollTabValue>('payroll');
 
 	const [periodStartDateKey, setPeriodStartDateKey] = useState<string>(
 		() => computePeriod(1, defaultFrequency, 'America/Mexico_City').periodStartDateKey,
@@ -440,6 +483,18 @@ export function PayrollPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 	const payrollTimeZone = settings?.timeZone ?? 'America/Mexico_City';
+	const effectiveActiveTab = isPayrollTabEnabled(activeTab, settings) ? activeTab : 'payroll';
+	const activeTourId = getPayrollTourId(effectiveActiveTab);
+
+	useTour('payroll', effectiveActiveTab === 'payroll');
+	useTour(
+		'payroll-ptu',
+		effectiveActiveTab === 'ptu' && isPayrollTabEnabled('ptu', settings),
+	);
+	useTour(
+		'payroll-aguinaldo',
+		effectiveActiveTab === 'aguinaldo' && isPayrollTabEnabled('aguinaldo', settings),
+	);
 
 	/* eslint-disable react-hooks/set-state-in-effect */
 	useEffect(() => {
@@ -953,10 +1008,21 @@ export function PayrollPageClient(): React.ReactElement {
 			<ResponsivePageHeader
 				title={t('title')}
 				description={t('subtitle')}
-				actions={<TourHelpButton tourId="payroll" />}
+				actions={<TourHelpButton tourId={activeTourId} />}
 			/>
 
-			<Tabs defaultValue="payroll" className="min-w-0 space-y-4 overflow-x-hidden">
+			<Tabs
+				value={effectiveActiveTab}
+				onValueChange={(value) => {
+					const nextTab = value as PayrollTabValue;
+					if (!isPayrollTabEnabled(nextTab, settings)) {
+						return;
+					}
+
+					setActiveTab(nextTab);
+				}}
+				className="min-w-0 space-y-4 overflow-x-hidden"
+			>
 				<TabsList
 					data-tour="payroll-tabs"
 					className="grid h-auto w-full grid-cols-1 gap-2 bg-transparent p-0 min-[1025px]:inline-flex min-[1025px]:h-10 min-[1025px]:w-auto min-[1025px]:gap-0 min-[1025px]:bg-muted min-[1025px]:p-1"
@@ -971,6 +1037,7 @@ export function PayrollPageClient(): React.ReactElement {
 					<TabsTrigger
 						value="ptu"
 						disabled={!settings?.ptuEnabled}
+						data-tour="payroll-tab-ptu"
 						data-testid="payroll-tab-ptu"
 						className="min-h-11 w-full min-[1025px]:w-auto"
 					>
@@ -979,6 +1046,7 @@ export function PayrollPageClient(): React.ReactElement {
 					<TabsTrigger
 						value="aguinaldo"
 						disabled={!settings?.aguinaldoEnabled}
+						data-tour="payroll-tab-aguinaldo"
 						data-testid="payroll-tab-aguinaldo"
 						className="min-h-11 w-full min-[1025px]:w-auto"
 					>
@@ -987,14 +1055,14 @@ export function PayrollPageClient(): React.ReactElement {
 				</TabsList>
 
 				<TabsContent value="payroll" className="min-w-0 space-y-6 overflow-x-hidden">
-					<Card>
+					<Card data-tour="payroll-legal-rules">
 						<CardHeader>
 							<CardTitle>{t('legalRules.title')}</CardTitle>
 							<CardDescription>{t('legalRules.description')}</CardDescription>
 						</CardHeader>
 					</Card>
 
-					<Card>
+					<Card data-tour="payroll-insights">
 						<CardHeader>
 							<CardTitle>{t('insights.title')}</CardTitle>
 							<CardDescription>{t('insights.description')}</CardDescription>
@@ -1287,6 +1355,7 @@ export function PayrollPageClient(): React.ReactElement {
 										}
 									/>
 									<div
+										data-tour="payroll-preview-table"
 										data-testid="payroll-preview-table-container"
 										className="max-w-full overflow-x-auto rounded-md border"
 									>
@@ -2124,7 +2193,7 @@ export function PayrollPageClient(): React.ReactElement {
 						</Card>
 					) : null}
 
-					<Card>
+					<Card data-tour="payroll-run-history">
 						<CardHeader>
 							<CardTitle>{t('runHistory.title')}</CardTitle>
 							<CardDescription>{t('runHistory.description')}</CardDescription>

@@ -11,6 +11,8 @@ import { locationsTour } from './locations';
 import { organizationsTour } from './organizations';
 import { overtimeAuthorizationsTour } from './overtime-authorizations';
 import { payrollTour } from './payroll';
+import { payrollAguinaldoTour } from './payroll-aguinaldo';
+import { payrollPtuTour } from './payroll-ptu';
 import { payrollSettingsTour } from './payroll-settings';
 import { schedulesTour } from './schedules';
 import type { TourConfig } from './types';
@@ -28,6 +30,8 @@ const tours: TourConfig[] = [
 	vacationsTour,
 	incapacitiesTour,
 	payrollTour,
+	payrollPtuTour,
+	payrollAguinaldoTour,
 	payrollSettingsTour,
 	usersTour,
 	organizationsTour,

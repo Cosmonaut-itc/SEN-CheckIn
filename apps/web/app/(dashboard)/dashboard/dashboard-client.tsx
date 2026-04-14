@@ -401,11 +401,12 @@ export function DashboardPageClient(): React.ReactElement {
 		</div>
 	);
 
-	const summaryCard = (
-		<Card
-			data-testid="dashboard-summary-card"
-			className="gap-4 border-[color:var(--border-subtle)] bg-background/95 py-5 shadow-[var(--shadow-md)]"
-		>
+		const summaryCard = (
+			<Card
+				data-testid="dashboard-summary-card"
+				data-tour="dashboard-map-summary"
+				className="gap-4 border-[color:var(--border-subtle)] bg-background/95 py-5 shadow-[var(--shadow-md)]"
+			>
 			<CardContent className="flex flex-col gap-4 px-5">
 				<div className="space-y-1">
 					<p className="text-xs uppercase tracking-[0.28em] text-muted-foreground">
@@ -825,6 +826,7 @@ export function DashboardPageClient(): React.ReactElement {
 				<div className="pointer-events-auto absolute left-4 right-4 top-4">
 					<div
 						data-testid="dashboard-summary-card"
+						data-tour="dashboard-map-summary"
 						className="rounded-xl border bg-background/80 p-4 shadow-sm backdrop-blur"
 					>
 						<div className="flex flex-col gap-4 min-[1025px]:flex-row min-[1025px]:items-center min-[1025px]:justify-between">

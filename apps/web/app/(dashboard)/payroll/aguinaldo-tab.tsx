@@ -506,7 +506,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 
 	if (!settings?.aguinaldoEnabled) {
 		return (
-			<Card>
+			<Card data-tour="payroll-aguinaldo-config">
 				<CardHeader>
 					<CardTitle>{t('disabled.title')}</CardTitle>
 					<CardDescription>{t('disabled.description')}</CardDescription>
@@ -517,7 +517,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 
 	return (
 		<div className="space-y-6">
-			<Card>
+			<Card data-tour="payroll-aguinaldo-config">
 				<CardHeader>
 					<CardTitle>{t('config.title')}</CardTitle>
 					<CardDescription>{t('config.description')}</CardDescription>
@@ -583,7 +583,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 				</CardContent>
 			</Card>
 
-			<div className="flex flex-wrap items-center gap-3">
+			<div className="flex flex-wrap items-center gap-3" data-tour="payroll-aguinaldo-actions">
 				<Button
 					variant="outline"
 					onClick={handleCalculate}
@@ -676,7 +676,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 				</Dialog>
 			</div>
 
-			<Card>
+			<Card data-tour="payroll-aguinaldo-summary">
 				<CardHeader>
 					<CardTitle>{t('summary.title')}</CardTitle>
 					<CardDescription>{t('summary.description')}</CardDescription>
@@ -755,7 +755,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card data-tour="payroll-aguinaldo-table">
 				<CardHeader>
 					<CardTitle>{t('table.title')}</CardTitle>
 					<CardDescription>{t('table.description')}</CardDescription>
@@ -897,7 +897,7 @@ export function AguinaldoTab({ settings, isLoading }: AguinaldoTabProps): React.
 				</CardContent>
 			</Card>
 
-			<Card>
+			<Card data-tour="payroll-aguinaldo-history">
 				<CardHeader>
 					<CardTitle>{t('history.title')}</CardTitle>
 					<CardDescription>{t('history.description')}</CardDescription>

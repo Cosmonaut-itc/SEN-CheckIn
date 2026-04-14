@@ -19,9 +19,9 @@ export const dashboardTour: TourConfig = {
 			placement: 'bottom',
 		},
 		{
-			target: '[data-tour="dashboard-map"]',
+			target: '[data-tour="dashboard-map-summary"]',
 			contentKey: 'dashboard.step3',
-			placement: 'top',
+			placement: 'bottom',
 		},
 	],
 };

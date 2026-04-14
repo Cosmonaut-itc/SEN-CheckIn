@@ -226,6 +226,7 @@
 		"skipConfirmButton": "Sí, omitir",
 		"skipCancelButton": "Continuar tutorial",
 		"completedMessage": "Tutorial completado! Puedes repetirlo desde el botón de ayuda.",
+		"saveErrorMessage": "No se pudo guardar el progreso del tutorial.",
 		"helpButtonTooltip": "Repetir tutorial de esta sección",
 		"progressLabel": "Paso {current} de {total}",
 		"nextButton": "Siguiente",

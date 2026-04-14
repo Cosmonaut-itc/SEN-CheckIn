@@ -4,8 +4,15 @@ import { NextIntlClientProvider } from 'next-intl';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockFetchTourProgress, mockCompleteTour, joyrideState, authSessionState, setJoyrideProps } =
-	vi.hoisted(() => {
+const {
+	mockFetchTourProgress,
+	mockCompleteTour,
+	mockToastError,
+	mockToastSuccess,
+	joyrideState,
+	authSessionState,
+	setJoyrideProps,
+} = vi.hoisted(() => {
 		const joyrideState = {
 			props: null as Record<string, unknown> | null,
 		};
@@ -26,6 +33,8 @@ const { mockFetchTourProgress, mockCompleteTour, joyrideState, authSessionState,
 		return {
 			mockFetchTourProgress: vi.fn(),
 			mockCompleteTour: vi.fn(),
+			mockToastError: vi.fn(),
+			mockToastSuccess: vi.fn(),
 			joyrideState,
 			authSessionState,
 			setJoyrideProps: (props: Record<string, unknown>) => {
@@ -41,6 +50,13 @@ vi.mock('@/lib/tour-client-functions', () => ({
 
 vi.mock('@/lib/auth-client', () => ({
 	useSession: () => authSessionState.value,
+}));
+
+vi.mock('sonner', () => ({
+	toast: {
+		error: (...args: unknown[]) => mockToastError(...args),
+		success: (...args: unknown[]) => mockToastSuccess(...args),
+	},
 }));
 
 vi.mock('react-joyride', () => {
@@ -80,6 +96,7 @@ const messages = {
 		skipConfirmButton: 'Sí, omitir',
 		skipCancelButton: 'Continuar tutorial',
 		completedMessage: 'Tutorial completado! Puedes repetirlo desde el botón de ayuda.',
+		saveErrorMessage: 'No se pudo guardar el progreso del tutorial.',
 		helpButtonTooltip: 'Repetir tutorial de esta sección',
 		progressLabel: 'Paso {current} de {total}',
 		nextButton: 'Siguiente',
@@ -161,6 +178,8 @@ describe('TourProvider', () => {
 	beforeEach(() => {
 		mockFetchTourProgress.mockReset();
 		mockCompleteTour.mockReset();
+		mockToastError.mockReset();
+		mockToastSuccess.mockReset();
 		mockFetchTourProgress.mockResolvedValue([]);
 		mockCompleteTour.mockResolvedValue(undefined);
 		joyrideState.props = null;
@@ -242,6 +261,37 @@ describe('TourProvider', () => {
 		expect(screen.getByTestId('tour-state')).toHaveTextContent('false::none');
 	});
 
+	it('closes the active tour and shows an error when completion persistence fails', async () => {
+		mockCompleteTour.mockRejectedValue(new Error('network down'));
+
+		renderWithProviders(<TourContextProbe />);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour' }));
+
+		await act(async () => {
+			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
+				action: 'next',
+				index: 2,
+				lifecycle: 'complete',
+				origin: null,
+				size: 3,
+				status: 'finished',
+				step: {},
+				type: 'tour:end',
+			});
+		});
+
+		await waitFor(() => {
+			expect(mockCompleteTour).toHaveBeenCalledWith('dashboard', 'completed');
+			expect(mockToastError).toHaveBeenCalledWith('saveErrorMessage');
+		});
+		expect(screen.getByTestId('tour-state')).toHaveTextContent('false::none');
+	});
+
 	it('asks for confirmation before marking a skipped tour as skipped', async () => {
 		renderWithProviders(<TourContextProbe />);
 
@@ -289,6 +339,40 @@ describe('TourProvider', () => {
 		});
 		expect(screen.getByTestId('tour-state')).toHaveTextContent('false::none');
 	}, 15_000);
+
+	it('closes the skip confirmation and shows an error when skip persistence fails', async () => {
+		mockCompleteTour.mockRejectedValue(new Error('network down'));
+
+		renderWithProviders(<TourContextProbe />);
+
+		await waitFor(() => {
+			expect(mockFetchTourProgress).toHaveBeenCalledTimes(1);
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'Iniciar tour' }));
+
+		await act(async () => {
+			(joyrideState.props?.onEvent as ((event: Record<string, unknown>) => void) | undefined)?.({
+				action: 'skip',
+				index: 1,
+				lifecycle: 'complete',
+				origin: null,
+				size: 3,
+				status: 'skipped',
+				step: {},
+				type: 'tour:end',
+			});
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'skipConfirmButton' }));
+
+		await waitFor(() => {
+			expect(mockCompleteTour).toHaveBeenCalledWith('dashboard', 'skipped');
+			expect(mockToastError).toHaveBeenCalledWith('saveErrorMessage');
+		});
+		expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+		expect(screen.getByTestId('tour-state')).toHaveTextContent('false::none');
+	});
 });
 
 describe('useTour', () => {

@@ -24,7 +24,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { queryKeys } from '@/lib/query-keys';
+import { mutationKeys, queryKeys } from '@/lib/query-keys';
 import {
 	completeTour,
 	fetchTourProgress,
@@ -113,18 +113,6 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 		staleTime: 5 * 60 * 1000,
 	});
 
-	const completeTourMutation = useMutation({
-		mutationKey: queryKeys.tours.all,
-		mutationFn: ({ tourId, status }: { tourId: string; status: 'completed' | 'skipped' }) =>
-			completeTour(tourId, status),
-		onSuccess: async (_data, variables) => {
-			await queryClient.invalidateQueries({ queryKey: queryKeys.tours.all });
-			if (variables.status === 'completed') {
-				toast.success(t('completedMessage'));
-			}
-		},
-	});
-
 	/**
 	 * Clears the in-memory state for the active tour.
 	 *
@@ -137,6 +125,21 @@ export function TourProvider({ children }: TourProviderProps): React.ReactElemen
 		setStepIndex(0);
 		setPendingSkip(null);
 	}, []);
+
+	const completeTourMutation = useMutation({
+		mutationKey: mutationKeys.tours.complete,
+		mutationFn: ({ tourId, status }: { tourId: string; status: 'completed' | 'skipped' }) =>
+			completeTour(tourId, status),
+		onSuccess: async (_data, variables) => {
+			await queryClient.invalidateQueries({ queryKey: queryKeys.tours.all });
+			if (variables.status === 'completed') {
+				toast.success(t('completedMessage'));
+			}
+		},
+		onError: () => {
+			toast.error(t('saveErrorMessage'));
+		},
+	});
 
 	/**
 	 * Starts a registered tour from the first step.

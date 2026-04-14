@@ -12,7 +12,7 @@ import { getApiResponseData } from '@/lib/api-response';
  */
 export interface TourProgressRecord {
 	tourId: string;
-	status: string;
+	status: 'completed' | 'skipped';
 	completedAt: string;
 }
 

@@ -86,6 +86,20 @@ describe('tour client functions', () => {
 		]);
 	});
 
+	it('throws when loading tour progress fails', async () => {
+		mockTourProgressGet.mockResolvedValue({
+			data: null,
+			error: {
+				value: {
+					message: 'Unauthorized',
+				},
+			},
+			status: 401,
+		});
+
+		await expect(fetchTourProgress()).rejects.toThrow();
+	});
+
 	it('posts completion status to the tour endpoint', async () => {
 		mockTourCompletePost.mockResolvedValue({
 			data: {
@@ -99,5 +113,19 @@ describe('tour client functions', () => {
 		await completeTour('employees', 'skipped');
 
 		expect(mockTourCompletePost).toHaveBeenCalledWith({ status: 'skipped' });
+	});
+
+	it('throws when persisting tour completion fails', async () => {
+		mockTourCompletePost.mockResolvedValue({
+			data: null,
+			error: {
+				value: {
+					message: 'Forbidden',
+				},
+			},
+			status: 403,
+		});
+
+		await expect(completeTour('employees', 'skipped')).rejects.toThrow();
 	});
 });

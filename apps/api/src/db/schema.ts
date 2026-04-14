@@ -2823,3 +2823,37 @@ export const aguinaldoRunEmployee = pgTable(
 		index('aguinaldo_run_employee_employee_idx').on(table.employeeId),
 	],
 );
+
+// ============================================================================
+// Tour Progress
+// ============================================================================
+
+/**
+ * Tour progress table - tracks guided tour completion per user per organization.
+ * Stores whether a user has completed or skipped each section's tutorial.
+ */
+export const tourProgress = pgTable(
+	'tour_progress',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		tourId: text('tour_id').notNull(),
+		status: text('status').notNull(),
+		completedAt: timestamp('completed_at').defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex('tour_progress_user_org_tour_uniq').on(
+			table.userId,
+			table.organizationId,
+			table.tourId,
+		),
+		index('tour_progress_user_org_idx').on(table.userId, table.organizationId),
+	],
+);

@@ -5,6 +5,7 @@ import {
 	buildVacationDayBreakdown,
 	calculateAvailableVacationDays,
 	calculateVacationAccrual,
+	countSaturdayBonusDaysForPeriod,
 	getServiceYearNumber,
 } from './vacations.js';
 import { vacationRequestCreateSchema } from '../schemas/vacations.js';
@@ -275,6 +276,137 @@ describe('buildVacationDayBreakdown', () => {
 				dayType: 'EXCEPTION_DAY_OFF',
 			},
 		]);
+	});
+});
+
+describe('countSaturdayBonusDaysForPeriod', () => {
+	const mondayToFridaySchedule = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+		dayOfWeek,
+		isWorkingDay: true,
+	}));
+	const mondayToSaturdaySchedule = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+		dayOfWeek,
+		isWorkingDay: true,
+	}));
+	const fridayOnlySchedule = [
+		{
+			dayOfWeek: 5,
+			isWorkingDay: true,
+		},
+	];
+
+	it('returns 0 when saturday counting is disabled', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: false,
+			periodStartDateKey: '2025-12-15',
+			periodEndDateKey: '2025-12-21',
+			scheduleDays: mondayToFridaySchedule,
+			vacationPeriods: [
+				{
+					startDateKey: '2025-12-15',
+					endDateKey: '2025-12-21',
+				},
+			],
+		});
+
+		expect(bonusDays).toBe(0);
+	});
+
+	it('counts one saturday bonus day for a classic monday-to-friday employee', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: true,
+			periodStartDateKey: '2025-12-15',
+			periodEndDateKey: '2025-12-21',
+			scheduleDays: mondayToFridaySchedule,
+			vacationPeriods: [
+				{
+					startDateKey: '2025-12-15',
+					endDateKey: '2025-12-21',
+				},
+			],
+		});
+
+		expect(bonusDays).toBe(1);
+	});
+
+	it('returns 0 for non-monday-to-friday schedules', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: true,
+			periodStartDateKey: '2025-12-15',
+			periodEndDateKey: '2025-12-21',
+			scheduleDays: mondayToSaturdaySchedule,
+			vacationPeriods: [
+				{
+					startDateKey: '2025-12-15',
+					endDateKey: '2025-12-21',
+				},
+			],
+		});
+
+		expect(bonusDays).toBe(0);
+	});
+
+	it('counts two saturday bonus days for a biweekly span with two saturdays', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: true,
+			periodStartDateKey: '2025-12-15',
+			periodEndDateKey: '2025-12-28',
+			scheduleDays: mondayToFridaySchedule,
+			vacationPeriods: [
+				{
+					startDateKey: '2025-12-15',
+					endDateKey: '2025-12-28',
+				},
+			],
+		});
+
+		expect(bonusDays).toBe(2);
+	});
+
+	it('returns 0 for a friday-only vacation period', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: true,
+			periodStartDateKey: '2025-12-19',
+			periodEndDateKey: '2025-12-21',
+			scheduleDays: fridayOnlySchedule,
+			vacationPeriods: [
+				{
+					startDateKey: '2025-12-19',
+					endDateKey: '2025-12-19',
+				},
+			],
+		});
+
+		expect(bonusDays).toBe(0);
+	});
+
+	it('counts saturday when the vacation spans from friday to monday', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: true,
+			periodStartDateKey: '2025-12-19',
+			periodEndDateKey: '2025-12-22',
+			scheduleDays: mondayToFridaySchedule,
+			vacationPeriods: [
+				{
+					startDateKey: '2025-12-19',
+					endDateKey: '2025-12-22',
+				},
+			],
+		});
+
+		expect(bonusDays).toBe(1);
+	});
+
+	it('returns 0 when there are no vacation periods', () => {
+		const bonusDays = countSaturdayBonusDaysForPeriod({
+			countSaturdayAsWorkedForSeventhDay: true,
+			periodStartDateKey: '2025-12-15',
+			periodEndDateKey: '2025-12-21',
+			scheduleDays: mondayToFridaySchedule,
+			vacationPeriods: [],
+		});
+
+		expect(bonusDays).toBe(0);
 	});
 });
 

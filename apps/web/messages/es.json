@@ -1896,7 +1896,21 @@
 		"dateFormat": "dd/MM/yyyy",
 		"summary": "Mostrando {count, plural, one {# registro} other {# registros}}",
 		"csv": {
-			"fileName": "asistencia_{start}_{end}.csv"
+			"fileName": "asistencia_{start}_{end}.csv",
+			"headers": {
+				"employeeName": "Empleado",
+				"employeeId": "ID de empleado",
+				"date": "Fecha",
+				"firstEntry": "Primera entrada",
+				"lastExit": "Ultima salida",
+				"totalHours": "Horas totales"
+			},
+			"values": {
+				"incomplete": "Incompleto",
+				"noEntry": "Sin entrada",
+				"noExit": "Sin salida",
+				"workOffsite": "Fuera de oficina"
+			}
 		},
 		"employeeFilter": {
 			"label": "Empleado: {employee}",

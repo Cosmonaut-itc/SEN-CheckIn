@@ -57,6 +57,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { queryKeys } from '@/lib/query-keys';
 import { useTour } from '@/hooks/use-tour';
 import {
+	aggregateAttendanceByPersonDay,
+	type AttendanceSummaryCsvRow,
+	type AttendanceSummaryLabels,
+} from './attendance-export-helpers';
+import {
 	createWorkOffsiteAttendance,
 	deleteWorkOffsiteAttendance,
 	fetchEmployeesList,
@@ -86,6 +91,7 @@ const ALL_LOCATIONS_VALUE = '__all__';
 const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
 const EXPORT_PAGE_SIZE = 100;
 const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
+const DEFAULT_ATTENDANCE_TIME_ZONE = 'America/Mexico_City';
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
@@ -117,25 +123,10 @@ interface AttendancePageClientProps {
 }
 
 /**
- * CSV row shape for attendance exports.
- */
-type AttendanceCsvRow = {
-	employeeName: string;
-	employeeId: string;
-	deviceId: string;
-	deviceLocation: string;
-	type: string;
-	offsiteDayKind: string;
-	offsiteReason: string;
-	time: string;
-	date: string;
-};
-
-/**
  * CSV column definition for attendance exports.
  */
 type CsvColumn = {
-	key: keyof AttendanceCsvRow;
+	key: keyof AttendanceSummaryCsvRow;
 	label: string;
 };
 
@@ -248,7 +239,7 @@ function resolveAttendanceTimeZone(value: string | undefined): string | undefine
  * @param value - CSV cell value
  * @returns Escaped CSV-safe string
  */
-function escapeCsvValue(value: AttendanceCsvRow[keyof AttendanceCsvRow]): string {
+function escapeCsvValue(value: AttendanceSummaryCsvRow[keyof AttendanceSummaryCsvRow]): string {
 	const rawValue = value ?? '';
 	const stringValue = String(rawValue);
 	const escaped = stringValue.replace(/"/g, '""');
@@ -263,7 +254,7 @@ function escapeCsvValue(value: AttendanceCsvRow[keyof AttendanceCsvRow]): string
  * @param rows - CSV rows
  * @returns CSV string content
  */
-function buildCsvContent(columns: CsvColumn[], rows: AttendanceCsvRow[]): string {
+function buildCsvContent(columns: CsvColumn[], rows: AttendanceSummaryCsvRow[]): string {
 	const header = columns.map((column) => escapeCsvValue(column.label)).join(',');
 	const lines = rows.map((row) =>
 		columns.map((column) => escapeCsvValue(row[column.key])).join(','),
@@ -331,7 +322,7 @@ async function fetchAllAttendanceRecords(
 export function AttendancePageClient({
 	initialFilters,
 }: AttendancePageClientProps): React.ReactElement {
-	const { organizationId, organizationRole } = useOrgContext();
+	const { organizationId, organizationRole, organizationTimeZone } = useOrgContext();
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const pathname = usePathname();
@@ -369,6 +360,8 @@ export function AttendancePageClient({
 	const returnEmployeeId = initialFilters?.returnEmployeeId ?? null;
 	const returnTab = initialFilters?.returnTab ?? 'attendance';
 	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
+	const attendanceExportTimeZone =
+		organizationTimeZone ?? deepLinkTimeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
 
 	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
@@ -1048,29 +1041,24 @@ export function AttendancePageClient({
 				return;
 			}
 
+			const summaryLabels: AttendanceSummaryLabels = {
+				incomplete: t('csv.values.incomplete'),
+				noEntry: t('csv.values.noEntry'),
+				noExit: t('csv.values.noExit'),
+				workOffsite: t('csv.values.workOffsite'),
+			};
 			const columns: CsvColumn[] = [
-				{ key: 'employeeName', label: t('table.headers.employeeName') },
-				{ key: 'employeeId', label: t('table.headers.employeeId') },
-				{ key: 'deviceId', label: t('table.headers.deviceId') },
-				{ key: 'deviceLocation', label: t('table.headers.deviceLocation') },
-				{ key: 'type', label: t('table.headers.type') },
-				{ key: 'offsiteDayKind', label: t('table.headers.offsiteDayKind') },
-				{ key: 'offsiteReason', label: t('table.headers.offsiteReason') },
-				{ key: 'time', label: t('table.headers.time') },
-				{ key: 'date', label: t('table.headers.date') },
+				{ key: 'employeeName', label: t('csv.headers.employeeName') },
+				{ key: 'employeeId', label: t('csv.headers.employeeId') },
+				{ key: 'date', label: t('csv.headers.date') },
+				{ key: 'firstEntry', label: t('csv.headers.firstEntry') },
+				{ key: 'lastExit', label: t('csv.headers.lastExit') },
+				{ key: 'totalHours', label: t('csv.headers.totalHours') },
 			];
-
-			const rows: AttendanceCsvRow[] = exportRecords.map((record) => ({
-				employeeName: record.employeeName,
-				employeeId: record.employeeId,
-				deviceId: record.deviceId,
-				deviceLocation: record.deviceLocationName ?? locationFallback,
-				type: getAttendanceTypeLabel(t, record.type),
-				offsiteDayKind: getOffsiteDayKindLabel(t, record.offsiteDayKind ?? null),
-				offsiteReason: record.offsiteReason ?? '',
-				time: format(new Date(record.timestamp), 'HH:mm:ss'),
-				date: format(new Date(record.timestamp), t('dateFormat')),
-			}));
+			const rows = aggregateAttendanceByPersonDay(exportRecords, {
+				labels: summaryLabels,
+				timeZone: attendanceExportTimeZone,
+			});
 
 			const csv = buildCsvContent(columns, rows);
 			const fileName = t('csv.fileName', {
@@ -1088,9 +1076,9 @@ export function AttendancePageClient({
 		deviceLocationId,
 		employeeFilterId,
 		end,
-		locationFallback,
 		normalizedOffsiteDayKind,
 		normalizedSearch,
+		attendanceExportTimeZone,
 		organizationId,
 		start,
 		t,

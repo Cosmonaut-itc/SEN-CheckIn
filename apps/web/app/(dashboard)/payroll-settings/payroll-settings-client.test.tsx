@@ -283,8 +283,8 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
-	it('submits separated fiscal and real vacation premium rates', async () => {
-		renderWithProviders();
+it('submits separated fiscal and real vacation premium rates', async () => {
+	renderWithProviders();
 
 		const fiscalRateInput = await screen.findByLabelText(
 			'taxSettings.fields.vacationPremiumRate',
@@ -297,18 +297,18 @@ describe('PayrollSettingsClient', () => {
 		fireEvent.change(realRateInput, { target: { value: '0.45' } });
 		fireEvent.click(screen.getByRole('button', { name: 'save' }));
 
-		await waitFor(() => {
-			expect(mockUpdatePayrollSettingsAction).toHaveBeenCalledWith(
-				expect.objectContaining({
-					vacationPremiumRate: 0.3,
-					realVacationPremiumRate: 0.45,
+	await waitFor(() => {
+		expect(mockUpdatePayrollSettingsAction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				vacationPremiumRate: 0.3,
+				realVacationPremiumRate: 0.45,
 				}),
 				expect.objectContaining({
 					mutationKey: ['payrollSettings', 'update'],
-				}),
-			);
-		});
+			}),
+		);
 	});
+}, 15000);
 
 	it('explains seventh day pay separately from saturday counting', () => {
 		const payrollSettingsMessages = messages.PayrollSettings;

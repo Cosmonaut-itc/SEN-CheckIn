@@ -520,6 +520,44 @@ function extractInArrayValuesForColumn(
 }
 
 /**
+ * Extracts the first string comparison value for a specific column.
+ *
+ * @param condition - Drizzle-like condition tree
+ * @param columnName - Column name to match
+ * @param kind - Comparison operator kind to extract
+ * @returns Matching string value or null
+ */
+function extractStringComparisonForColumn(
+	condition: DrizzleCondition | null,
+	columnName: string,
+	kind: 'gte' | 'lte',
+): string | null {
+	if (!condition) {
+		return null;
+	}
+
+	if (condition.kind === kind) {
+		return getConditionColumnName(condition.column) === columnName &&
+			typeof condition.value === 'string'
+			? condition.value
+			: null;
+	}
+
+	if (condition.kind !== 'and') {
+		return null;
+	}
+
+	for (const child of condition.conditions) {
+		const value = extractStringComparisonForColumn(child, columnName, kind);
+		if (value !== null) {
+			return value;
+		}
+	}
+
+	return null;
+}
+
+/**
  * Evaluates whether a fake deduction row matches a Drizzle-like WHERE tree.
  *
  * @param row - Deduction row candidate
@@ -782,9 +820,10 @@ function createFakeDb(state: FakeDbState): {
 				}
 				const selectionKeys = Object.keys(this.selection as Record<string, unknown>);
 				return rows.map((row) => {
+					const rowRecord = row as unknown as Record<string, unknown>;
 					const projectedRow: Record<string, unknown> = {};
 					for (const key of selectionKeys) {
-						projectedRow[key] = (row as Record<string, unknown>)[key];
+						projectedRow[key] = rowRecord[key];
 					}
 					return projectedRow;
 				});
@@ -837,6 +876,64 @@ function createFakeDb(state: FakeDbState): {
 						}
 						return true;
 					});
+			}
+
+			if (tableName === 'vacation_request') {
+				const employeeIds =
+					extractInArrayValuesForColumn(this.whereCondition, 'employee_id')?.filter(
+						(value): value is string => typeof value === 'string',
+					) ?? [];
+				const statusFilter = extractEqValue(
+					this.whereCondition,
+					(value) =>
+						typeof value === 'string' &&
+						['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CANCELLED'].includes(value),
+				);
+				const orgFilter = extractEqValue(
+					this.whereCondition,
+					(value) => typeof value === 'string' && value === state.organizationId,
+				);
+				const startDateKeyUpperBound = extractStringComparisonForColumn(
+					this.whereCondition,
+					'start_date_key',
+					'lte',
+				);
+				const endDateKeyLowerBound = extractStringComparisonForColumn(
+					this.whereCondition,
+					'end_date_key',
+					'gte',
+				);
+
+				const rows = state.vacationRequests
+					.filter((row) =>
+						employeeIds.length === 0 ? true : employeeIds.includes(row.employeeId),
+					)
+					.filter((row) =>
+						typeof statusFilter === 'string' ? row.status === statusFilter : true,
+					)
+					.filter((row) =>
+						typeof orgFilter === 'string' ? row.organizationId === orgFilter : true,
+					)
+					.filter((row) =>
+						startDateKeyUpperBound ? row.startDateKey <= startDateKeyUpperBound : true,
+					)
+					.filter((row) =>
+						endDateKeyLowerBound ? row.endDateKey >= endDateKeyLowerBound : true,
+					);
+
+				if (!this.selection || typeof this.selection !== 'object') {
+					return rows;
+				}
+
+				const selectionKeys = Object.keys(this.selection as Record<string, unknown>);
+				return rows.map((row) => {
+					const rowRecord = row as unknown as Record<string, unknown>;
+					const projectedRow: Record<string, unknown> = {};
+					for (const key of selectionKeys) {
+						projectedRow[key] = rowRecord[key];
+					}
+					return projectedRow;
+				});
 			}
 
 			if (tableName === 'employee_deduction') {
@@ -1895,6 +1992,102 @@ describe('payroll routes', () => {
 		expect(row?.vacationPayAmount).toBe(800);
 		expect(row?.vacationPremiumAmount).toBe(200);
 		expect(row?.totalPay).toBe(1000);
+	});
+
+	it('adds saturday vacation bonus pay for approved vacation periods spanning saturday in /payroll/calculate', async () => {
+		dbState.organizationId = 'org-vac-saturday';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				vacationPremiumRate: 0.25,
+				countSaturdayAsWorkedForSeventhDay: true,
+			},
+		];
+
+		const employeeId = 'emp-vac-saturday';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+		dbState.schedules = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+			employeeId,
+			dayOfWeek,
+			startTime: '09:00',
+			endTime: '17:00',
+			isWorkingDay: true,
+		}));
+
+		const requestId = 'vac-req-saturday-1';
+		dbState.vacationRequests = [
+			{
+				id: requestId,
+				organizationId: dbState.organizationId,
+				employeeId,
+				status: 'APPROVED',
+				startDateKey: '2025-12-19',
+				endDateKey: '2025-12-22',
+			},
+		];
+		dbState.vacationRequestDays = [
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-12-19',
+				countsAsVacationDay: true,
+			},
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-12-22',
+				countsAsVacationDay: true,
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-12-15',
+				periodEndDateKey: '2025-12-21',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: {
+					employeeId: string;
+					vacationDaysPaid: number;
+					vacationPayAmount: number;
+					vacationPremiumAmount: number;
+					totalPay: number;
+					grossPay: number;
+				}[];
+			};
+		};
+
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.vacationDaysPaid).toBe(1);
+		expect(row?.vacationPayAmount).toBe(800);
+		expect(row?.vacationPremiumAmount).toBe(200);
+		expect(row?.totalPay).toBe(1800);
+		expect(row?.grossPay).toBe(1800);
 	});
 
 	it('persists separated fiscal and real vacation premium rates in dual payroll runs', async () => {

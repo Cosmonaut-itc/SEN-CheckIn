@@ -1902,8 +1902,8 @@
 				"employeeId": "ID de empleado",
 				"date": "Fecha",
 				"firstEntry": "Primera entrada",
-				"lastExit": "Ultima salida",
-				"totalHours": "Horas totales"
+				"lastExit": "Última salida",
+				"totalHours": "Horas trabajadas"
 			},
 			"values": {
 				"incomplete": "Incompleto",

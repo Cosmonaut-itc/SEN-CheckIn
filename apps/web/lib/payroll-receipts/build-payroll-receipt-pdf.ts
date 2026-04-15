@@ -309,6 +309,8 @@ export async function buildPayrollReceiptPdf(input: PayrollReceiptInput): Promis
 	const employerCostsTotal = toNumber(taxBreakdown?.employerCosts?.total);
 	const netPay = toNumber(taxBreakdown?.netPay ?? grossPay - employeeWithholdingsTotal);
 	const companyCost = toNumber(taxBreakdown?.companyCost ?? grossPay + employerCostsTotal);
+	const hasDualPayroll =
+		input.employee.fiscalGrossPay !== null && input.employee.fiscalGrossPay !== undefined;
 
 	let cursorY = height - margin;
 	page.drawText(input.t('title'), {
@@ -337,33 +339,71 @@ export async function buildPayrollReceiptPdf(input: PayrollReceiptInput): Promis
 	});
 	cursorY -= 16;
 
-	const summaryRows: PayrollReceiptSummary[] = [
-		{
-			label: input.t('summary.rows.companyCost'),
-			value: companyCost,
-			color: SUMMARY_COLOR_POSITIVE,
-		},
-		{
-			label: input.t('summary.rows.grossPay'),
-			value: grossPay,
-			color: SUMMARY_COLOR_POSITIVE,
-		},
-		{
-			label: input.t('summary.rows.employerCosts'),
-			value: employerCostsTotal,
-			color: SUMMARY_COLOR_WARNING,
-		},
-		{
-			label: input.t('summary.rows.employeeWithholdings'),
-			value: employeeWithholdingsTotal,
-			color: SUMMARY_COLOR_NEGATIVE,
-		},
-		{
-			label: input.t('summary.rows.netPay'),
-			value: netPay,
-			color: SUMMARY_COLOR_POSITIVE,
-		},
-	];
+	const summaryRows: PayrollReceiptSummary[] = hasDualPayroll
+		? [
+				{
+					label: input.t('summary.rows.companyCost'),
+					value: companyCost,
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+				{
+					label: input.t('summary.rows.fiscalGrossPay'),
+					value: toNumber(input.employee.fiscalGrossPay ?? grossPay),
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+				{
+					label: input.t('summary.rows.complementPay'),
+					value: toNumber(input.employee.complementPay ?? 0),
+					color: SUMMARY_COLOR_WARNING,
+				},
+				{
+					label: input.t('summary.rows.totalRealPay'),
+					value: toNumber(input.employee.totalRealPay ?? input.employee.totalPay),
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+				{
+					label: input.t('summary.rows.employerCosts'),
+					value: employerCostsTotal,
+					color: SUMMARY_COLOR_WARNING,
+				},
+				{
+					label: input.t('summary.rows.employeeWithholdings'),
+					value: employeeWithholdingsTotal,
+					color: SUMMARY_COLOR_NEGATIVE,
+				},
+				{
+					label: input.t('summary.rows.netPay'),
+					value: netPay,
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+			]
+		: [
+				{
+					label: input.t('summary.rows.companyCost'),
+					value: companyCost,
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+				{
+					label: input.t('summary.rows.grossPay'),
+					value: grossPay,
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+				{
+					label: input.t('summary.rows.employerCosts'),
+					value: employerCostsTotal,
+					color: SUMMARY_COLOR_WARNING,
+				},
+				{
+					label: input.t('summary.rows.employeeWithholdings'),
+					value: employeeWithholdingsTotal,
+					color: SUMMARY_COLOR_NEGATIVE,
+				},
+				{
+					label: input.t('summary.rows.netPay'),
+					value: netPay,
+					color: SUMMARY_COLOR_POSITIVE,
+				},
+			];
 
 	for (const row of summaryRows) {
 		drawSummaryRow(

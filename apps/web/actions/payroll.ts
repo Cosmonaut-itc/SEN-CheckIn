@@ -15,6 +15,7 @@ export interface UpdatePayrollSettingsInput {
 	absorbIsr?: boolean;
 	aguinaldoDays?: number;
 	vacationPremiumRate?: number;
+	realVacationPremiumRate?: number;
 	enableSeventhDayPay?: boolean;
 	enableDualPayroll?: boolean;
 	countSaturdayAsWorkedForSeventhDay?: boolean;
@@ -73,6 +74,7 @@ export async function updatePayrollSettingsAction(
 			absorbIsr: input.absorbIsr,
 			aguinaldoDays: input.aguinaldoDays,
 			vacationPremiumRate: input.vacationPremiumRate,
+			realVacationPremiumRate: input.realVacationPremiumRate,
 			enableSeventhDayPay: input.enableSeventhDayPay,
 			enableDualPayroll: input.enableDualPayroll,
 			countSaturdayAsWorkedForSeventhDay:

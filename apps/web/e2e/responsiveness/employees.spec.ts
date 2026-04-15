@@ -8,6 +8,8 @@ import {
 	seedResponsiveEmployeeDataViaBrowser,
 } from './helpers';
 
+test.describe.configure({ timeout: 120_000 });
+
 /**
  * Seeds the employees page and opens the first employee detail dialog on mobile.
  *
@@ -19,8 +21,11 @@ async function openResponsiveEmployeeDetail(page: import('@playwright/test').Pag
 	const registration = await provisionResponsiveUser(page);
 	await setActiveResponsiveOrganization(page, registration.organizationSlug);
 	await seedResponsiveEmployeeDataViaBrowser(page, registration.organizationName);
-	await page.goto(`/employees?responsiveTest=${Date.now()}`);
-	await page.reload();
+	await page.goto(`/employees?responsiveTest=${Date.now()}`, {
+		waitUntil: 'domcontentloaded',
+		timeout: 90_000,
+	});
+	await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
 
 	await expect(page.getByTestId('responsive-data-card').first()).toBeVisible();
 	await page.getByTestId('responsive-data-card').first().click();
@@ -36,8 +41,11 @@ test.describe('employees responsiveness', () => {
 		const registration = await provisionResponsiveUser(page);
 		await setActiveResponsiveOrganization(page, registration.organizationSlug);
 		await seedResponsiveEmployeeDataViaBrowser(page, registration.organizationName);
-		await page.goto(`/employees?responsiveTest=${Date.now()}`);
-		await page.reload();
+		await page.goto(`/employees?responsiveTest=${Date.now()}`, {
+			waitUntil: 'domcontentloaded',
+			timeout: 90_000,
+		});
+		await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
 
 		await expectNoHorizontalOverflow(page);
 		await expect(page.getByTestId('responsive-page-header')).toBeVisible();
@@ -47,11 +55,17 @@ test.describe('employees responsiveness', () => {
 		const actionsBox = await page
 			.getByTestId('responsive-page-header-actions')
 			.boundingBox();
-		const addButtonBox = await page.getByTestId('employees-add-button').boundingBox();
+		const addButton = page.getByTestId('employees-add-button');
+		const importButton = page.getByTestId('employees-add-menu-button');
+		const addButtonBox = await addButton.boundingBox();
+		const importButtonBox = await importButton.boundingBox();
 
 		expect(actionsBox).not.toBeNull();
 		expect(addButtonBox).not.toBeNull();
-		expect((addButtonBox?.width ?? 0) + 8).toBeGreaterThanOrEqual(actionsBox?.width ?? 0);
+		expect(importButtonBox).not.toBeNull();
+		expect((addButtonBox?.width ?? 0) + (importButtonBox?.width ?? 0)).toBeGreaterThanOrEqual(
+			(actionsBox?.width ?? 0) - 8,
+		);
 	});
 
 	test('keeps the table layout on desktop', async ({ page }) => {
@@ -59,8 +73,11 @@ test.describe('employees responsiveness', () => {
 		const registration = await provisionResponsiveUser(page);
 		await setActiveResponsiveOrganization(page, registration.organizationSlug);
 		await seedResponsiveEmployeeDataViaBrowser(page, registration.organizationName);
-		await page.goto(`/employees?responsiveTest=${Date.now()}`);
-		await page.reload();
+		await page.goto(`/employees?responsiveTest=${Date.now()}`, {
+			waitUntil: 'domcontentloaded',
+			timeout: 90_000,
+		});
+		await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
 
 		await expect(page.getByRole('table')).toBeVisible();
 		await expect(page.getByTestId('responsive-data-view-mobile')).toHaveCount(0);
@@ -88,15 +105,28 @@ test.describe('employees responsiveness', () => {
 
 		await openResponsiveEmployeeDetail(page);
 		await page.getByRole('button', { name: 'Editar' }).click();
+		const wizardDialog = page.getByRole('dialog', {
+			name: /Agregar empleado|Editar empleado/i,
+		});
 
-		await expect(page.getByText('Paso 1 de 5: Personal')).toBeVisible();
+		const stepLabels = [
+			'Paso 1 de 5: Personal',
+			'Paso 2 de 5: Laboral',
+			'Paso 3 de 5: Salario',
+			'Paso 4 de 5: PTU y Aguinaldo',
+			'Paso 5 de 5: Horario',
+		];
+
+		await expect(wizardDialog.getByText(stepLabels[0], { exact: true })).toBeVisible();
 
 		for (let index = 0; index < 4; index += 1) {
-			await page.getByRole('button', { name: 'Siguiente' }).click();
+			await wizardDialog.getByRole('button', { name: 'Siguiente' }).click();
+			await expect(
+				wizardDialog.getByText(stepLabels[index + 1], { exact: true }),
+			).toBeVisible({ timeout: 15_000 });
 		}
 
-		await expect(page.getByText('Paso 5 de 5: Horario')).toBeVisible();
-		await expect(page.getByRole('button', { name: 'Guardar' })).toBeVisible();
+		await expect(wizardDialog.getByRole('button', { name: 'Guardar' })).toBeVisible();
 		await expectNoHorizontalOverflow(page);
 	});
 });

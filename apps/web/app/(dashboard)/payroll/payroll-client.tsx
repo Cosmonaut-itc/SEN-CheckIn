@@ -102,10 +102,7 @@ function formatCurrency(value: number): string {
  * @param t - Payroll translation helper
  * @returns Human-readable period label
  */
-function formatPayrollRunPeriod(
-	run: PayrollRun,
-	t: ReturnType<typeof useTranslations>,
-): string {
+function formatPayrollRunPeriod(run: PayrollRun, t: ReturnType<typeof useTranslations>): string {
 	return t('runHistory.periodRange', {
 		start: format(new Date(run.periodStart), t('dateFormat')),
 		end: format(new Date(run.periodEnd), t('dateFormat')),
@@ -118,9 +115,7 @@ function formatPayrollRunPeriod(
  * @param status - Payroll run status
  * @returns Badge variant aligned with the run state
  */
-function getPayrollRunStatusVariant(
-	status: PayrollRun['status'],
-): 'secondary' | 'success' {
+function getPayrollRunStatusVariant(status: PayrollRun['status']): 'secondary' | 'success' {
 	return status === 'PROCESSED' ? 'success' : 'secondary';
 }
 
@@ -204,17 +199,18 @@ function aggregateTaxSummary(employees: PayrollCalculationEmployee[]): PayrollTa
  * @param employees - Payroll calculation employees
  * @returns Consolidated fiscal/complement/real totals
  */
-function aggregateDualPayrollSummary(
-	employees: PayrollCalculationEmployee[],
-): { fiscalGrossTotal: number; complementTotal: number; totalRealTotal: number } {
+function aggregateDualPayrollSummary(employees: PayrollCalculationEmployee[]): {
+	fiscalGrossTotal: number;
+	complementTotal: number;
+	totalRealTotal: number;
+} {
 	return employees.reduce(
 		(acc, employee) => ({
 			fiscalGrossTotal:
 				acc.fiscalGrossTotal +
 				(employee.fiscalGrossPay ?? employee.grossPay ?? employee.totalPay ?? 0),
 			complementTotal: acc.complementTotal + (employee.complementPay ?? 0),
-			totalRealTotal:
-				acc.totalRealTotal + (employee.totalRealPay ?? employee.totalPay ?? 0),
+			totalRealTotal: acc.totalRealTotal + (employee.totalRealPay ?? employee.totalPay ?? 0),
 		}),
 		{
 			fiscalGrossTotal: 0,
@@ -373,6 +369,111 @@ function renderDeductionsCell(
 }
 
 /**
+ * Renders gratification totals and a breakdown popover for a payroll row.
+ *
+ * @param row - Payroll calculation row
+ * @param t - Translation function for payroll copy
+ * @param tGratifications - Translation function for gratification labels
+ * @returns Gratification summary cell content
+ */
+function renderGratificationsCell(
+	row: PayrollCalculationEmployee,
+	t: ReturnType<typeof useTranslations>,
+	tGratifications: ReturnType<typeof useTranslations>,
+): React.ReactElement {
+	const gratificationsBreakdown = row.gratificationsBreakdown ?? [];
+	const totalGratifications = row.totalGratifications ?? 0;
+
+	if (totalGratifications <= 0 || gratificationsBreakdown.length === 0) {
+		return <span className="text-muted-foreground">-</span>;
+	}
+
+	return (
+		<div className="space-y-2">
+			<div className="flex flex-wrap items-center gap-2">
+				<Badge variant="accent">{formatCurrency(totalGratifications)}</Badge>
+				<Popover>
+					<PopoverTrigger asChild>
+						<Button variant="ghost" size="sm" className="h-7 px-2">
+							{t('preview.table.gratificationsBreakdown')}
+						</Button>
+					</PopoverTrigger>
+					<PopoverContent align="start" className="w-96">
+						<div className="space-y-3">
+							<div>
+								<p className="font-medium">{t('preview.gratifications.title')}</p>
+								<p className="text-xs text-muted-foreground">
+									{t('preview.gratifications.description')}
+								</p>
+							</div>
+							<div className="space-y-2">
+								{gratificationsBreakdown.map((gratification) => (
+									<div
+										key={`${gratification.gratificationId}-${gratification.sourceStartDateKey}`}
+										className="rounded-xl border bg-muted/30 px-3 py-2"
+									>
+										<div className="flex items-start justify-between gap-3">
+											<div>
+												<p className="text-sm font-medium">
+													{gratification.concept}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{t('preview.gratifications.applicationMode', {
+														value: tGratifications(
+															`applicationMode.${gratification.applicationMode}`,
+														),
+													})}
+												</p>
+											</div>
+											<div className="text-right">
+												<p className="text-sm font-semibold">
+													{formatCurrency(gratification.appliedAmount)}
+												</p>
+												<p className="text-xs text-muted-foreground">
+													{t('preview.gratifications.periodicity', {
+														value: tGratifications(
+															`periodicity.${gratification.periodicity}`,
+														),
+													})}
+												</p>
+											</div>
+										</div>
+										<div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+											<span>
+												{t('preview.gratifications.baseAmount', {
+													value: formatCurrency(gratification.baseAmount),
+												})}
+											</span>
+											<span>
+												{t('preview.gratifications.days', {
+													count: gratification.applicableDays,
+												})}
+											</span>
+											<span>
+												{t('preview.gratifications.status', {
+													value: tGratifications(
+														`status.${gratification.statusAfter}`,
+													),
+												})}
+											</span>
+										</div>
+										{gratification.notes ? (
+											<p className="mt-2 text-xs text-muted-foreground">
+												{gratification.notes}
+											</p>
+										) : null}
+									</div>
+								))}
+							</div>
+						</div>
+					</PopoverContent>
+				</Popover>
+			</div>
+		</div>
+	);
+}
+
+/**
  * Computes period boundaries based on week start and frequency.
  *
  * @param weekStartDay - Day index the week starts on
@@ -453,6 +554,7 @@ export function PayrollPageClient(): React.ReactElement {
 	const queryClient = useQueryClient();
 	const { organizationId, organizationRole, userRole } = useOrgContext();
 	const t = useTranslations('Payroll');
+	const tGratifications = useTranslations('EmployeeGratifications');
 
 	const [paymentFrequency, setPaymentFrequency] =
 		useState<PayrollCalculateParams['paymentFrequency']>(defaultFrequency);
@@ -548,8 +650,7 @@ export function PayrollPageClient(): React.ReactElement {
 	}, [effectiveCalculation]);
 	const canViewDualPayroll =
 		userRole === 'admin' || organizationRole === 'owner' || organizationRole === 'admin';
-	const showDualPayrollColumns =
-		canViewDualPayroll && Boolean(settings?.enableDualPayroll);
+	const showDualPayrollColumns = canViewDualPayroll && Boolean(settings?.enableDualPayroll);
 	const dualPayrollSummary = useMemo(() => {
 		if (!effectiveCalculation || !showDualPayrollColumns) {
 			return null;
@@ -600,7 +701,7 @@ export function PayrollPageClient(): React.ReactElement {
 							key: 'fiscalDailyPay',
 							label: t('csv.headers.fiscalDailyPay'),
 						},
-				  ]
+					]
 				: []),
 			{ key: 'hourlyPay', label: t('csv.headers.hourlyPay') },
 			{ key: 'hoursWorked', label: t('csv.headers.hoursWorked') },
@@ -627,6 +728,15 @@ export function PayrollPageClient(): React.ReactElement {
 				key: 'vacationPremiumAmount',
 				label: t('csv.headers.vacationPremiumAmount'),
 			},
+			{ key: 'realVacationPayAmount', label: t('csv.headers.realVacationPayAmount') },
+			{
+				key: 'realVacationPremiumAmount',
+				label: t('csv.headers.realVacationPremiumAmount'),
+			},
+			{
+				key: 'totalGratifications',
+				label: t('csv.headers.totalGratifications'),
+			},
 			{ key: 'incapacityDays', label: t('csv.headers.incapacityDays') },
 			{
 				key: 'incapacitySubsidy',
@@ -648,7 +758,7 @@ export function PayrollPageClient(): React.ReactElement {
 							key: 'totalRealPay',
 							label: t('csv.headers.totalRealPay'),
 						},
-				  ]
+					]
 				: []),
 			{ key: 'grossPay', label: t('csv.headers.grossPay') },
 			{
@@ -1001,10 +1111,7 @@ export function PayrollPageClient(): React.ReactElement {
 	}
 
 	return (
-		<div
-			data-testid="payroll-page-root"
-			className="min-w-0 space-y-6 overflow-x-hidden"
-		>
+		<div data-testid="payroll-page-root" className="min-w-0 space-y-6 overflow-x-hidden">
 			<ResponsivePageHeader
 				title={t('title')}
 				description={t('subtitle')}
@@ -1405,6 +1512,9 @@ export function PayrollPageClient(): React.ReactElement {
 														{t('preview.table.lunchBreakDeduction')}
 													</TableHead>
 													<TableHead>
+														{t('preview.table.gratifications')}
+													</TableHead>
+													<TableHead>
 														{t('preview.table.deductions')}
 													</TableHead>
 													{showDualPayrollColumns ? (
@@ -1523,6 +1633,20 @@ export function PayrollPageClient(): React.ReactElement {
 																	)}
 																</span>
 															)}
+															{showDualPayrollColumns &&
+															row.realVacationPayAmount != null &&
+															row.realVacationPayAmount >
+																row.vacationPayAmount ? (
+																<span className="mt-1 block text-xs text-muted-foreground">
+																	{t(
+																		'taxDetail.labels.vacationPayReal',
+																	)}
+																	{': '}
+																	{formatCurrency(
+																		row.realVacationPayAmount,
+																	)}
+																</span>
+															) : null}
 														</TableCell>
 														<TableCell>
 															{row.vacationPremiumAmount > 0
@@ -1530,6 +1654,20 @@ export function PayrollPageClient(): React.ReactElement {
 																		row.vacationPremiumAmount,
 																	)
 																: '-'}
+															{showDualPayrollColumns &&
+															row.realVacationPremiumAmount != null &&
+															row.realVacationPremiumAmount >
+																row.vacationPremiumAmount ? (
+																<span className="mt-1 block text-xs text-muted-foreground">
+																	{t(
+																		'taxDetail.labels.vacationPremiumReal',
+																	)}
+																	{': '}
+																	{formatCurrency(
+																		row.realVacationPremiumAmount,
+																	)}
+																</span>
+															) : null}
 														</TableCell>
 														<TableCell>
 															{row.incapacitySummary
@@ -1551,21 +1689,32 @@ export function PayrollPageClient(): React.ReactElement {
 															{renderLunchBreakDeductionCell(row, t)}
 														</TableCell>
 														<TableCell>
+															{renderGratificationsCell(
+																row,
+																t,
+																tGratifications,
+															)}
+														</TableCell>
+														<TableCell>
 															{renderDeductionsCell(row, t)}
 														</TableCell>
 														{showDualPayrollColumns ? (
 															<>
 																<TableCell>
 																	{formatCurrency(
-																		row.fiscalGrossPay ?? row.grossPay,
+																		row.fiscalGrossPay ??
+																			row.grossPay,
 																	)}
 																</TableCell>
 																<TableCell>
-																	{formatCurrency(row.complementPay ?? 0)}
+																	{formatCurrency(
+																		row.complementPay ?? 0,
+																	)}
 																</TableCell>
 																<TableCell>
 																	{formatCurrency(
-																		row.totalRealPay ?? row.totalPay,
+																		row.totalRealPay ??
+																			row.totalPay,
 																	)}
 																</TableCell>
 															</>
@@ -1659,7 +1808,8 @@ export function PayrollPageClient(): React.ReactElement {
 																							</span>
 																							<span>
 																								{formatCurrency(
-																									row.complementPay ?? 0,
+																									row.complementPay ??
+																										0,
 																								)}
 																							</span>
 																						</div>
@@ -1708,6 +1858,24 @@ export function PayrollPageClient(): React.ReactElement {
 																						</span>
 																					</div>
 																				)}
+																				{showDualPayrollColumns &&
+																				row.realVacationPayAmount !=
+																					null &&
+																				row.realVacationPayAmount >
+																					row.vacationPayAmount ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationPayReal',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.realVacationPayAmount,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
 																				{row.vacationPremiumAmount >
 																					0 && (
 																					<div className="flex items-center justify-between">
@@ -1719,6 +1887,39 @@ export function PayrollPageClient(): React.ReactElement {
 																						<span>
 																							{formatCurrency(
 																								row.vacationPremiumAmount,
+																							)}
+																						</span>
+																					</div>
+																				)}
+																				{showDualPayrollColumns &&
+																				row.realVacationPremiumAmount !=
+																					null &&
+																				row.realVacationPremiumAmount >
+																					row.vacationPremiumAmount ? (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.vacationPremiumReal',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.realVacationPremiumAmount,
+																							)}
+																						</span>
+																					</div>
+																				) : null}
+																				{row.totalGratifications >
+																					0 && (
+																					<div className="flex items-center justify-between">
+																						<span className="text-muted-foreground">
+																							{t(
+																								'taxDetail.labels.gratifications',
+																							)}
+																						</span>
+																						<span>
+																							{formatCurrency(
+																								row.totalGratifications,
 																							)}
 																						</span>
 																					</div>
@@ -2079,13 +2280,17 @@ export function PayrollPageClient(): React.ReactElement {
 											{showDualPayrollColumns && dualPayrollSummary ? (
 												<TableFooter>
 													<TableRow>
-														<TableCell colSpan={14}>
+														<TableCell colSpan={16}>
 															<div className="flex flex-col">
 																<span className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-																	{t('preview.footer.totalsLabel')}
+																	{t(
+																		'preview.footer.totalsLabel',
+																	)}
 																</span>
 																<span className="text-sm text-foreground">
-																	{t('preview.footer.dualPayrollLabel')}
+																	{t(
+																		'preview.footer.dualPayrollLabel',
+																	)}
 																</span>
 															</div>
 														</TableCell>

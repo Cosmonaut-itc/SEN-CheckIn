@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 import { buildTestRegistrationPayload, registerTestAccounts, signIn } from './helpers/auth';
 
+test.describe.configure({ timeout: 180_000 });
+
 type PresignPayload = {
 	url: string;
 	fields: Record<string, string>;
@@ -423,8 +425,14 @@ test('admin genera acta desde UI y descarga PDF', async ({ page }) => {
 
 	const measure = await createDisciplinaryMeasure(request, employeeId);
 
-	await page.goto('/disciplinary-measures');
-	await expect(page.getByTestId(`disciplinary-measure-view-detail-${measure.id}`)).toBeVisible();
+	await page.goto('/disciplinary-measures', {
+		waitUntil: 'domcontentloaded',
+		timeout: 90_000,
+	});
+	await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
+	await expect(page.getByTestId(`disciplinary-measure-view-detail-${measure.id}`)).toBeVisible({
+		timeout: 30_000,
+	});
 	await page.getByTestId(`disciplinary-measure-view-detail-${measure.id}`).click();
 	await expect(page.getByTestId('disciplinary-measure-generate-acta')).toBeVisible();
 

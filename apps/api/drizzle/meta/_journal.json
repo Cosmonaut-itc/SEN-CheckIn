@@ -334,8 +334,22 @@
     {
       "idx": 47,
       "version": "7",
+      "when": 1776019200000,
+      "tag": "0047_employee_gratifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1776087600000,
+      "tag": "0048_real_vacation_premium_rate",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
       "when": 1776182637793,
-      "tag": "0047_absurd_jazinda",
+      "tag": "0049_absurd_jazinda",
       "breakpoints": true
     }
   ]

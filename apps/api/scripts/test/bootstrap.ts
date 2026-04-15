@@ -151,6 +151,26 @@ async function waitForDatabase(
 }
 
 /**
+ * Determines whether the test database is already reachable.
+ *
+ * @param connectionString - Postgres connection string
+ * @returns Promise that resolves to true when the database accepts queries
+ */
+async function isDatabaseReady(connectionString: string): Promise<boolean> {
+	const client = new Client({ connectionString });
+
+	try {
+		await client.connect();
+		await client.query('SELECT 1');
+		return true;
+	} catch {
+		return false;
+	} finally {
+		await client.end().catch(() => undefined);
+	}
+}
+
+/**
  * Resets the public schema in the isolated test database to guarantee clean migrations.
  *
  * @param connectionString - Postgres connection string
@@ -162,6 +182,12 @@ async function resetPublicSchema(connectionString: string): Promise<void> {
 
 	try {
 		await client.connect();
+		await client.query(`
+			SELECT pg_terminate_backend(pid)
+			FROM pg_stat_activity
+			WHERE datname = current_database()
+				AND pid <> pg_backend_pid()
+		`);
 		await client.query(`
 			DROP SCHEMA IF EXISTS public CASCADE;
 			DROP SCHEMA IF EXISTS drizzle CASCADE;
@@ -342,18 +368,22 @@ async function main(): Promise<void> {
 	process.env.SEN_DB_URL = testDatabaseUrl;
 	process.env.NODE_ENV = process.env.NODE_ENV ?? 'test';
 
-	console.log('[bootstrap] Starting test Postgres via Docker...');
-	await runCommand(
-		'docker',
-		['compose', '--project-name', TEST_COMPOSE_PROJECT, '-f', composePath, 'up', '-d'],
-		{
-			cwd: apiRoot,
-			env: process.env,
-		},
-	);
+	if (await isDatabaseReady(testDatabaseUrl)) {
+		console.log('[bootstrap] Reusing existing test Postgres instance.');
+	} else {
+		console.log('[bootstrap] Starting test Postgres via Docker...');
+		await runCommand(
+			'docker',
+			['compose', '--project-name', TEST_COMPOSE_PROJECT, '-f', composePath, 'up', '-d'],
+			{
+				cwd: apiRoot,
+				env: process.env,
+			},
+		);
 
-	console.log('[bootstrap] Waiting for database readiness...');
-	await waitForDatabase(testDatabaseUrl, 30_000, 1_000);
+		console.log('[bootstrap] Waiting for database readiness...');
+		await waitForDatabase(testDatabaseUrl, 30_000, 1_000);
+	}
 
 	console.log('[bootstrap] Resetting public schema...');
 	await resetPublicSchema(testDatabaseUrl);

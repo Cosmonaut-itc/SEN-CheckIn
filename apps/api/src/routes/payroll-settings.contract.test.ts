@@ -30,6 +30,7 @@ describe('payroll settings routes (contract)', () => {
 		const payload = requireResponseData(response);
 		expect(payload.data?.organizationId).toBeDefined();
 		expect(typeof payload.data?.countSaturdayAsWorkedForSeventhDay).toBe('boolean');
+		expect(Number(payload.data?.realVacationPremiumRate)).toBeGreaterThanOrEqual(0.25);
 		expect(typeof payload.data?.enableDisciplinaryMeasures).toBe('boolean');
 		expect(typeof payload.data?.autoDeductLunchBreak).toBe('boolean');
 		expect(Number(payload.data?.lunchBreakMinutes)).toBeGreaterThan(0);
@@ -41,6 +42,8 @@ describe('payroll settings routes (contract)', () => {
 			weekStartDay: 2,
 			overtimeEnforcement: 'WARN',
 			enableSeventhDayPay: true,
+			vacationPremiumRate: 0.3,
+			realVacationPremiumRate: 0.45,
 			enableDualPayroll: true,
 			countSaturdayAsWorkedForSeventhDay: true,
 			enableDisciplinaryMeasures: true,
@@ -53,6 +56,8 @@ describe('payroll settings routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data?.weekStartDay).toBe(2);
+		expect(Number(payload.data?.vacationPremiumRate)).toBe(0.3);
+		expect(Number(payload.data?.realVacationPremiumRate)).toBe(0.45);
 		expect(payload.data?.enableDualPayroll).toBe(true);
 		expect(payload.data?.countSaturdayAsWorkedForSeventhDay).toBe(true);
 		expect(payload.data?.enableDisciplinaryMeasures).toBe(true);

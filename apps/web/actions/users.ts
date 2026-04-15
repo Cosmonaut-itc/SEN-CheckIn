@@ -69,6 +69,19 @@ export type UpdateOrganizationMemberRoleErrorCode =
 	| 'UNKNOWN';
 
 /**
+ * Error codes for global user deletion failures.
+ */
+export type DeleteGlobalUserErrorCode =
+	| 'USER_ID_REQUIRED'
+	| 'USER_NOT_FOUND'
+	| 'LAST_ADMIN_OR_OWNER_PROTECTED'
+	| 'USER_DELETE_CROSS_ORG_DEPENDENCY'
+	| 'USER_DELETE_AUDIT_FALLBACK_REQUIRED'
+	| 'ORGANIZATION_ADMIN_REQUIRED'
+	| 'ORGANIZATION_MEMBERSHIP_REQUIRED'
+	| 'UNKNOWN';
+
+/**
  * Result of a mutation operation.
  */
 export interface MutationResult<T = unknown, TErrorCode extends string = string> {
@@ -118,6 +131,16 @@ export interface UpdateOrganizationMemberRoleInput {
 	role: 'admin' | 'member';
 }
 
+/**
+ * Input data for deleting a global user account.
+ */
+export interface DeleteGlobalUserInput {
+	/** Global user identifier to delete. */
+	userId: string;
+	/** Organization context for multi-organization sessions. */
+	organizationId?: string | null;
+}
+
 type ApiValidationDetail = {
 	summary?: string;
 };
@@ -161,6 +184,17 @@ const UPDATE_MEMBER_ROLE_ERROR_CODES = new Set<UpdateOrganizationMemberRoleError
 	'ORGANIZATION_ADMIN_REQUIRED',
 	'OWNER_ROLE_PROTECTED',
 	'MEMBER_NOT_FOUND',
+	'UNKNOWN',
+]);
+
+const DELETE_GLOBAL_USER_ERROR_CODES = new Set<DeleteGlobalUserErrorCode>([
+	'USER_ID_REQUIRED',
+	'USER_NOT_FOUND',
+	'LAST_ADMIN_OR_OWNER_PROTECTED',
+	'USER_DELETE_CROSS_ORG_DEPENDENCY',
+	'USER_DELETE_AUDIT_FALLBACK_REQUIRED',
+	'ORGANIZATION_ADMIN_REQUIRED',
+	'ORGANIZATION_MEMBERSHIP_REQUIRED',
 	'UNKNOWN',
 ]);
 
@@ -428,6 +462,26 @@ function resolveUpdateOrganizationMemberRoleErrorCode(
 }
 
 /**
+ * Resolves a delete-global-user error code from an API error payload.
+ *
+ * @param error - Error payload returned by the API client
+ * @returns Normalized error code or null when unavailable
+ */
+function resolveDeleteGlobalUserErrorCode(error: unknown): DeleteGlobalUserErrorCode | null {
+	const errorCode = extractApiErrorInfo(error).code;
+	if (!errorCode) {
+		return null;
+	}
+
+	const normalized = errorCode.trim().toUpperCase();
+	if (DELETE_GLOBAL_USER_ERROR_CODES.has(normalized as DeleteGlobalUserErrorCode)) {
+		return normalized as DeleteGlobalUserErrorCode;
+	}
+
+	return 'UNKNOWN';
+}
+
+/**
  * Creates a new user and assigns them to an organization.
  *
  * @param input - User details and organization assignment
@@ -546,12 +600,12 @@ export async function updateOrganizationMemberRole(
 ): Promise<
 	MutationResult<
 		{
-		member?: {
-			id: string;
-			organizationId: string;
-			role: string;
-			userId: string;
-		} | null;
+			member?: {
+				id: string;
+				organizationId: string;
+				role: string;
+				userId: string;
+			} | null;
 		},
 		UpdateOrganizationMemberRoleErrorCode
 	>
@@ -590,6 +644,70 @@ export async function updateOrganizationMemberRole(
 		return {
 			success: false,
 			error: 'No se pudo actualizar el rol',
+			errorCode: 'UNKNOWN',
+		};
+	}
+}
+
+/**
+ * Deletes a global user account while preserving related historical records.
+ *
+ * @param input - Target user deletion payload
+ * @returns Mutation result with impact summary when deletion succeeds
+ */
+export async function deleteGlobalUser(input: DeleteGlobalUserInput): Promise<
+	MutationResult<
+		{
+			removedMemberships: number;
+			unlinkedEmployees: number;
+			reassignedDeductions: number;
+			reassignedGratifications: number;
+		},
+		DeleteGlobalUserErrorCode
+	>
+> {
+	try {
+		if (!input.userId.trim()) {
+			return {
+				success: false,
+				error: 'No se recibió el usuario a eliminar',
+				errorCode: 'USER_ID_REQUIRED',
+			};
+		}
+
+		const requestHeaders = await headers();
+		const cookieHeader = requestHeaders.get('cookie') ?? '';
+		const api = createServerApiClient(cookieHeader);
+		const organizationId = input.organizationId?.trim() || null;
+		const response = await api.organization['delete-user-global'].post({
+			userId: input.userId,
+			...(organizationId ? { organizationId } : {}),
+		});
+
+		if (response.error) {
+			const errorInfo = extractApiErrorInfo(response.error);
+			return {
+				success: false,
+				error: errorInfo.message ?? 'No se pudo eliminar el usuario',
+				errorCode: resolveDeleteGlobalUserErrorCode(response.error) ?? 'UNKNOWN',
+			};
+		}
+
+		const payload = getApiResponseData(response);
+		return {
+			success: true,
+			data: {
+				removedMemberships: Number(payload?.data?.removedMemberships ?? 0),
+				unlinkedEmployees: Number(payload?.data?.unlinkedEmployees ?? 0),
+				reassignedDeductions: Number(payload?.data?.reassignedDeductions ?? 0),
+				reassignedGratifications: Number(payload?.data?.reassignedGratifications ?? 0),
+			},
+		};
+	} catch (error) {
+		console.error('Failed to delete global user:', error);
+		return {
+			success: false,
+			error: 'No se pudo eliminar el usuario',
 			errorCode: 'UNKNOWN',
 		};
 	}

@@ -253,6 +253,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 			statePayrollTaxRate: '0',
 			aguinaldoDays: '15',
 			vacationPremiumRate: '0.25',
+			realVacationPremiumRate: '0.25',
 			absorbImssEmployeeShare: false,
 			absorbIsr: false,
 			enableSeventhDayPay: false,
@@ -305,6 +306,10 @@ export function PayrollSettingsClient(): React.ReactElement {
 				min: 0.25,
 				max: 1,
 			});
+			const realVacationPremiumRate = parseNumberInput(value.realVacationPremiumRate, {
+				min: 0.25,
+				max: 1,
+			});
 			const lunchBreakMinutes = parseIntegerInput(value.lunchBreakMinutes, {
 				min: 15,
 				max: 120,
@@ -325,6 +330,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 				statePayrollTaxRate === null ||
 				aguinaldoDays === null ||
 				vacationPremiumRate === null ||
+				realVacationPremiumRate === null ||
 				(value.autoDeductLunchBreak &&
 					(lunchBreakMinutes === null || lunchBreakThresholdHours === null))
 			) {
@@ -345,6 +351,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 				absorbIsr: value.absorbIsr,
 				aguinaldoDays,
 				vacationPremiumRate,
+				realVacationPremiumRate,
 				enableSeventhDayPay: value.enableSeventhDayPay,
 				enableDualPayroll: value.enableDualPayroll,
 				countSaturdayAsWorkedForSeventhDay:
@@ -414,6 +421,12 @@ export function PayrollSettingsClient(): React.ReactElement {
 		if (data?.vacationPremiumRate !== undefined) {
 			form.setFieldValue('vacationPremiumRate', String(data.vacationPremiumRate));
 		}
+		if (data?.realVacationPremiumRate !== undefined) {
+			form.setFieldValue(
+				'realVacationPremiumRate',
+				String(data.realVacationPremiumRate),
+			);
+		}
 		if (data?.absorbImssEmployeeShare !== undefined) {
 			form.setFieldValue('absorbImssEmployeeShare', data.absorbImssEmployeeShare);
 		}
@@ -474,6 +487,7 @@ export function PayrollSettingsClient(): React.ReactElement {
 		data?.statePayrollTaxRate,
 		data?.aguinaldoDays,
 		data?.vacationPremiumRate,
+		data?.realVacationPremiumRate,
 		data?.absorbImssEmployeeShare,
 		data?.absorbIsr,
 		data?.enableSeventhDayPay,
@@ -667,6 +681,24 @@ export function PayrollSettingsClient(): React.ReactElement {
 									label={t('taxSettings.fields.vacationPremiumRate')}
 									placeholder={t('taxSettings.placeholders.rate')}
 									description={t('taxSettings.helpers.vacationPremiumRate')}
+									disabled={isFormDisabled}
+								/>
+							)}
+						</form.AppField>
+						<form.AppField
+							name="realVacationPremiumRate"
+							validators={{
+								onChange: ({ value }) =>
+									parseNumberInput(value, { min: 0.25, max: 1 }) === null
+										? t('validation.invalidNumber')
+										: undefined,
+							}}
+						>
+							{(field) => (
+								<field.TextField
+									label={t('taxSettings.fields.realVacationPremiumRate')}
+									placeholder={t('taxSettings.placeholders.rate')}
+									description={t('taxSettings.helpers.realVacationPremiumRate')}
 									disabled={isFormDisabled}
 								/>
 							)}

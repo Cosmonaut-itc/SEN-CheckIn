@@ -952,6 +952,7 @@ async function validateAndCalculateTerminationSettlement({
 		.select({
 			aguinaldoDays: payrollSetting.aguinaldoDays,
 			vacationPremiumRate: payrollSetting.vacationPremiumRate,
+			realVacationPremiumRate: payrollSetting.realVacationPremiumRate,
 		})
 		.from(payrollSetting)
 		.where(eq(payrollSetting.organizationId, employeeRecord.organizationId))
@@ -992,7 +993,11 @@ async function validateAndCalculateTerminationSettlement({
 		dailySalaryIndemnizacion: body.dailySalaryIndemnizacion ?? null,
 		locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
 		aguinaldoDaysPolicy,
-		vacationPremiumRatePolicy: Number(settingsRecord?.vacationPremiumRate ?? 0.25),
+		vacationPremiumRatePolicy: Number(
+			settingsRecord?.realVacationPremiumRate ??
+				settingsRecord?.vacationPremiumRate ??
+				0.25,
+		),
 	});
 
 	return { success: true, employeeRecord, calculation };

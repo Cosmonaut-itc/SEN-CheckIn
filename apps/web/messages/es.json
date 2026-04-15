@@ -86,6 +86,7 @@
 		"payrollSettings": "Configuración de Nómina",
 		"users": "Usuarios",
 		"organizations": "Organizaciones",
+		"gratifications": "Gratificaciones",
 		"signOut": "Cerrar Sesión",
 		"userAvatarAlt": "Foto de perfil de {name}",
 		"userAvatarAltFallback": "Foto de perfil del usuario",
@@ -512,12 +513,13 @@
 			"documents": "Documentos",
 			"disciplinary": "Medidas",
 			"deductions": "Descuentos",
+			"gratifications": "Gratificaciones",
 			"more": "Más",
 			"moreAriaLabel": "Abrir menú de más pestañas",
 			"info": "Info"
 		},
 		"summary": {
-			"availableDays": "Dias disponibles",
+			"availableDays": "Días disponibles del año vacacional",
 			"absences": "Ausencias injustificadas",
 			"leaves": "Ausencias justificadas (sin goce)",
 			"payrollRuns": "Corridas de nomina",
@@ -525,18 +527,18 @@
 			"last90Days": "Ultimos 90 dias",
 			"next90Days": "Proximos 90 dias",
 			"lastPayrollRuns": "Ultimas corridas",
-			"serviceYearShort": "Anio de servicio {number}"
+			"serviceYearShort": "Año vacacional {number}"
 		},
 		"vacationBalance": {
 			"tooltip": {
-				"title": "Calculo de dias disponibles",
-				"formula": "Disponibles = Devengados (redondeo hacia abajo) - Usados - Pendientes",
+				"title": "Cálculo del año vacacional",
+				"formula": "Disponibles = Devengados (redondeo hacia abajo) - Usados - Pendientes. El saldo se calcula por aniversario, no por año calendario.",
 				"entitled": "Asignados: {value}",
 				"accrued": "Devengados: {value}",
 				"used": "Usados: {value}",
 				"pending": "Pendientes: {value}",
 				"available": "Disponibles: {value}",
-				"serviceYear": "Anio {number}: {start} a {end}",
+				"serviceYear": "Año vacacional {number}: {start} a {end}",
 				"asOf": "Al corte: {date}"
 			}
 		},
@@ -905,6 +907,7 @@
 			"open": "Abrir menú",
 			"viewDetails": "Ver detalles",
 			"viewDeductions": "Abrir descuentos",
+			"viewGratifications": "Abrir gratificaciones",
 			"enrollFace": "Registrar rostro",
 			"reEnrollFace": "Volver a registrar rostro",
 			"removeFaceEnrollment": "Eliminar registro facial",
@@ -957,6 +960,9 @@
 		},
 		"deductions": {
 			"empty": "Selecciona un empleado para consultar sus descuentos."
+		},
+		"gratifications": {
+			"empty": "Selecciona un empleado para consultar sus gratificaciones."
 		},
 		"labels": {
 			"yes": "Sí",
@@ -1355,9 +1361,13 @@
 			"readOnly": "Solo lectura",
 			"noEmployeeName": "Empleado no disponible",
 			"reference": "Ref. {value}",
-			"installmentProgress": "{completed}/{total} cuotas · {remaining} restante",
+			"periodAmount": "Por periodo: {value}",
+			"totalAmount": "Monto total: {value}",
+			"noTotalAmount": "Monto total: no capturado",
 			"remainingAmount": "Saldo: {value}",
 			"noRemaining": "Sin saldo capturado",
+			"completedInstallments": "Cuotas completadas: {completed}/{total}",
+			"remainingInstallments": "Cuotas restantes: {count}",
 			"validityStart": "Inicio: {value}",
 			"validityEnd": "Fin: {value}",
 			"validityOpen": "Sin fecha de fin",
@@ -1425,6 +1435,135 @@
 			"RECURRING": "Recurrente",
 			"ONE_TIME": "Una sola vez",
 			"INSTALLMENTS": "Por cuotas"
+		}
+	},
+	"EmployeeGratifications": {
+		"hero": {
+			"badge": "Ingreso complementario",
+			"adminReady": "Control administrativo",
+			"readOnly": "Consulta",
+			"title": "Gratificaciones por empleado",
+			"employeeSubtitle": "Administra gratificaciones reales, no fiscales, para {name}.",
+			"employeeSubtitleFallback": "Consulta el estado actual de las gratificaciones del empleado.",
+			"organizationSubtitle": "Vista global para registrar cumpleaños, puntualidad y otros conceptos libres que impactan solo el salario real."
+		},
+		"summary": {
+			"activeGratifications": "Gratificaciones activas",
+			"activeGratificationsVisible": "Gratificaciones activas visibles",
+			"activeAmount": "Monto real activo",
+			"activeAmountVisible": "Monto real activo visible",
+			"automatic": "Automáticas activas",
+			"automaticVisible": "Automáticas activas visibles",
+			"manual": "Manuales activas",
+			"manualVisible": "Manuales activas visibles",
+			"visibleScope": "Calculado con los registros visibles en esta página.",
+			"countValue": "{count, plural, one {# registro} other {# registros}}"
+		},
+		"filters": {
+			"status": "Estatus",
+			"periodicity": "Periodicidad",
+			"applicationMode": "Aplicación",
+			"employee": "Empleado",
+			"allStatuses": "Todos los estatus",
+			"allPeriodicities": "Todas las periodicidades",
+			"allApplicationModes": "Todos los modos",
+			"allEmployees": "Todos los empleados"
+		},
+		"actions": {
+			"add": "Agregar gratificación",
+			"create": "Guardar gratificación",
+			"creating": "Guardando...",
+			"edit": "Editar",
+			"save": "Guardar cambios",
+			"updating": "Actualizando...",
+			"pause": "Pausar",
+			"resume": "Reactivar",
+			"cancel": "Cancelar"
+		},
+		"createDialog": {
+			"title": "Registrar gratificación",
+			"description": "Configura el concepto libre, su vigencia y cómo impacta el salario real."
+		},
+		"editDialog": {
+			"title": "Editar gratificación",
+			"description": "Actualiza el monto, vigencia o estatus operativo de la gratificación."
+		},
+		"cancelDialog": {
+			"title": "Confirmar cancelación",
+			"description": "¿Seguro que deseas cancelar \"{concept}\"? Esta acción no se puede deshacer desde esta pantalla.",
+			"confirm": "Sí, cancelar gratificación"
+		},
+		"form": {
+			"employee": "Empleado",
+			"employeePlaceholder": "Selecciona un empleado",
+			"concept": "Concepto",
+			"conceptPlaceholder": "Ej. Bono de cumpleaños",
+			"amount": "Monto",
+			"amountPlaceholder": "Ej. 500.00",
+			"applicationMode": "Modo de aplicación",
+			"periodicity": "Periodicidad",
+			"startDate": "Fecha de inicio",
+			"endDate": "Fecha de fin",
+			"notes": "Notas",
+			"notesPlaceholder": "Contexto operativo para RH o nómina."
+		},
+		"table": {
+			"title": "Listado de gratificaciones",
+			"description": "Monitorea gratificaciones reales vigentes por empleado y su estado operativo.",
+			"visibleCount": "{count, plural, one {# registro visible} other {# registros visibles}}",
+			"loading": "Cargando gratificaciones...",
+			"empty": "No hay gratificaciones para los filtros seleccionados.",
+			"readOnly": "Solo lectura",
+			"noEmployeeName": "Empleado no disponible",
+			"validityStart": "Inicio: {value}",
+			"validityEnd": "Fin: {value}",
+			"validityOpen": "Sin fecha de fin",
+			"columns": {
+				"employee": "Empleado",
+				"concept": "Concepto",
+				"amount": "Monto",
+				"schedule": "Aplicación",
+				"status": "Estatus",
+				"validity": "Vigencia",
+				"actions": "Acciones"
+			}
+		},
+		"pagination": {
+			"summary": "Página {current} de {total} · {count, plural, one {# registro} other {# registros}}"
+		},
+		"errors": {
+			"loadTitle": "No se pudieron cargar las gratificaciones",
+			"loadDescription": "Intenta de nuevo o ajusta los filtros para refrescar la vista."
+		},
+		"toast": {
+			"createSuccess": "Gratificación creada correctamente.",
+			"createError": "No se pudo crear la gratificación.",
+			"updateSuccess": "Gratificación actualizada correctamente.",
+			"updateError": "No se pudo actualizar la gratificación.",
+			"cancelSuccess": "Gratificación cancelada correctamente.",
+			"cancelError": "No se pudo cancelar la gratificación."
+		},
+		"validation": {
+			"employeeRequired": "Selecciona un empleado.",
+			"conceptRequired": "El concepto es obligatorio.",
+			"amountRequired": "Ingresa un monto mayor a cero.",
+			"startDateRequired": "La fecha de inicio es obligatoria.",
+			"endDateAfterStart": "La fecha fin debe ser igual o posterior a la fecha inicio.",
+			"manualOneTimeOnly": "Las gratificaciones manuales solo pueden ser de una sola ocasión."
+		},
+		"status": {
+			"ACTIVE": "Activa",
+			"PAUSED": "Pausada",
+			"COMPLETED": "Completada",
+			"CANCELLED": "Cancelada"
+		},
+		"periodicity": {
+			"ONE_TIME": "Una sola ocasión",
+			"RECURRING": "Recurrente"
+		},
+		"applicationMode": {
+			"MANUAL": "Manual",
+			"AUTOMATIC": "Automática"
 		}
 	},
 	"JobPositions": {
@@ -1861,6 +2000,8 @@
 				"incapacityDays": "Días de incapacidad",
 				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"lunchBreakDeduction": "Descuento comida",
+				"gratifications": "Gratificaciones",
+				"gratificationsBreakdown": "Ver desglose",
 				"deductions": "Descuentos",
 				"deductionsBreakdown": "Ver desglose",
 				"total": "Total",
@@ -1897,6 +2038,15 @@
 					"VSM_FACTOR": "Factor VSM"
 				}
 			},
+			"gratifications": {
+				"title": "Desglose de gratificaciones",
+				"description": "Conceptos libres aplicados al salario real sin afectar la base fiscal.",
+				"baseAmount": "Base: {value}",
+				"days": "{count, plural, one {# día aplicable} other {# días aplicables}}",
+				"status": "Estatus: {value}",
+				"periodicity": "Periodicidad: {value}",
+				"applicationMode": "Aplicación: {value}"
+			},
 			"footer": {
 				"totalsLabel": "Totales",
 				"dualPayrollLabel": "Resumen fiscal vs real"
@@ -1928,6 +2078,8 @@
 				"vacationDaysPaid": "dias_vacaciones_pagadas",
 				"vacationPayAmount": "pago_vacaciones",
 				"vacationPremiumAmount": "prima_vacacional",
+				"realVacationPayAmount": "pago_vacaciones_real",
+				"realVacationPremiumAmount": "prima_vacacional_real",
 				"seventhDayPay": "septimo_dia",
 				"lunchBreakAutoDeductedDays": "comida_descuento_dias",
 				"lunchBreakAutoDeductedMinutes": "comida_descuento_minutos",
@@ -1962,7 +2114,8 @@
 				"fiscalGrossPay": "pago_fiscal",
 				"fiscalDailyPay": "salario_diario_fiscal",
 				"complementPay": "complemento",
-				"totalRealPay": "total_real"
+				"totalRealPay": "total_real",
+				"totalGratifications": "gratificaciones"
 			}
 		},
 		"summary": {
@@ -1989,9 +2142,12 @@
 				"grossPay": "Percepciones (bruto)",
 				"vacationDays": "Días de vacaciones",
 				"vacationPay": "Pago de vacaciones",
+				"vacationPayReal": "Pago de vacaciones real",
 				"incapacityDays": "Días de incapacidad",
 				"incapacitySubsidy": "Subsidio IMSS esperado",
 				"vacationPremium": "Prima vacacional",
+				"vacationPremiumReal": "Prima vacacional real",
+				"gratifications": "Gratificaciones",
 				"employeeWithholdings": "Retenciones",
 				"netPay": "Neto",
 				"employerCosts": "Costos patrón",
@@ -2335,7 +2491,8 @@
 				"riskWorkRate": "Prima de riesgo de trabajo (RT)",
 				"statePayrollTaxRate": "Impuesto estatal sobre nóminas (ISN)",
 				"aguinaldoDays": "Días de aguinaldo",
-				"vacationPremiumRate": "Prima vacacional",
+				"vacationPremiumRate": "Prima vacacional fiscal",
+				"realVacationPremiumRate": "Prima vacacional real",
 				"absorbImssEmployeeShare": "Absorber IMSS obrero",
 				"absorbIsr": "Absorber ISR",
 				"enableSeventhDayPay": "Pagar séptimo día",
@@ -2349,11 +2506,12 @@
 			"helpers": {
 				"riskWorkRate": "Ingresa la tasa como decimal (ej. 0.06 = 6%).",
 				"statePayrollTaxRate": "Ingresa la tasa como decimal (ej. 0.02 = 2%).",
-				"vacationPremiumRate": "Ingresa la prima como decimal (ej. 0.25 = 25%).",
+				"vacationPremiumRate": "Define el porcentaje fiscal que se usa para integración y cálculo fiscal de la prima vacacional. Ingresa el decimal equivalente (ej. 0.25 = 25%).",
+				"realVacationPremiumRate": "Define el porcentaje aplicado al pago real de la prima vacacional. Ingresa el decimal equivalente (ej. 0.25 = 25%).",
 				"absorbImssEmployeeShare": "Si está activo, la empresa absorbe la cuota obrera.",
 				"absorbIsr": "Si está activo, la empresa absorbe el ISR retenido.",
-				"enableSeventhDayPay": "Aplica séptimo día solo en periodos semanales completos.",
-				"countSaturdayAsWorkedForSeventhDay": "Empleados con jornada L-V tendrán el sábado contado como trabajado.",
+				"enableSeventhDayPay": "Habilita el pago del séptimo día cuando el periodo semanal cumpla la regla de asistencia configurada.",
+				"countSaturdayAsWorkedForSeventhDay": "Si está activo, el sábado cuenta como asistido solo cuando no forma parte del horario laborable y únicamente para evaluar si corresponde pagar el séptimo día.",
 				"enableDualPayroll": "Usa un salario fiscal menor para IMSS/ISR y conserva el pago real del empleado como complemento."
 			},
 			"dualPayroll": {
@@ -3063,7 +3221,11 @@
 			"saveRole": "Guardar rol",
 			"savingRole": "Guardando...",
 			"changeRoleFor": "Cambiar rol de {user}",
-			"saveRoleFor": "Guardar rol de {user}"
+			"saveRoleFor": "Guardar rol de {user}",
+			"delete": "Borrar usuario",
+			"deleting": "Borrando...",
+			"deleteFor": "Borrar usuario {user}",
+			"currentUserProtected": "Tu cuenta actual no se borra desde aquí."
 		},
 		"dialog": {
 			"title": "Crear usuario",
@@ -3116,6 +3278,13 @@
 			"roleUpdateOrganizationMembershipRequired": "Debes pertenecer a la organización para actualizar miembros.",
 			"roleUpdateOrganizationAdminRequired": "Solo los administradores de la organización pueden actualizar roles.",
 			"roleUpdateMemberNotFound": "El miembro ya no existe en esta organización.",
+			"deleteUserRequired": "Selecciona un usuario válido para borrarlo.",
+			"deleteUserNotFound": "El usuario ya no existe o ya fue eliminado.",
+			"deleteLastAdminProtected": "No puedes borrar al último administrador o propietario activo.",
+			"deleteCrossOrgDependency": "Este usuario todavía pertenece a otras organizaciones y no se puede borrar desde este contexto.",
+			"deleteAuditFallbackRequired": "No se puede borrar el usuario porque no existe otra persona con acceso a todas las organizaciones necesarias para conservar el historial.",
+			"deleteRequiresAdmin": "Solo administradores autorizados pueden borrar usuarios.",
+			"deleteRequiresMembership": "Debes pertenecer a la organización para borrar este usuario.",
 			"createFailed": "No se pudo crear el usuario. Revisa los datos e intenta de nuevo.",
 			"addMemberFailed": "No se pudo asignar el usuario a la organización."
 		},
@@ -3133,11 +3302,18 @@
 				"member": "Miembro",
 				"email": "Correo",
 				"role": "Rol",
-				"joined": "Ingreso"
+				"joined": "Ingreso",
+				"actions": "Acciones"
 			},
 			"empty": "No se encontraron miembros.",
 			"emptyNoOrganization": "Selecciona una organización para ver miembros.",
 			"loadError": "No se pudieron cargar los miembros."
+		},
+		"dialogs": {
+			"delete": {
+				"title": "Borrar usuario",
+				"description": "¿Seguro que deseas borrar globalmente a {name}? Se eliminarán sus accesos y membresías, se conservará el empleado ligado y se preservará el historial operativo."
+			}
 		},
 		"roleEditor": {
 			"ownerProtected": "El rol de propietario se mantiene fuera de este flujo."
@@ -3151,6 +3327,8 @@
 			"assignError": "No se pudo asignar el usuario",
 			"roleUpdateSuccess": "Rol actualizado correctamente",
 			"roleUpdateError": "No se pudo actualizar el rol",
+			"deleteSuccess": "Usuario borrado correctamente",
+			"deleteError": "No se pudo borrar el usuario",
 			"loadOrganizationsError": "No se pudieron cargar las organizaciones",
 			"loadMembersError": "No se pudieron cargar los miembros",
 			"loadUsersError": "No se pudieron cargar los usuarios"

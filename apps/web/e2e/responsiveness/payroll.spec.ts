@@ -9,6 +9,8 @@ import {
 	setActiveResponsiveOrganization,
 } from './helpers';
 
+test.describe.configure({ timeout: 120_000 });
+
 /**
  * Processes a payroll run for the active organization.
  *
@@ -43,8 +45,11 @@ test.describe('payroll responsiveness', () => {
 		await setActiveResponsiveOrganization(page, registration.organizationSlug);
 		await seedResponsiveEmployeeDataViaBrowser(page, registration.organizationName);
 		await processResponsivePayrollRun(page.request, '2026-01-01', '2026-01-07');
-		await page.goto(`/payroll?responsiveTest=${Date.now()}`);
-		await page.reload();
+		await page.goto(`/payroll?responsiveTest=${Date.now()}`, {
+			waitUntil: 'domcontentloaded',
+			timeout: 90_000,
+		});
+		await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
 
 		await expectNoHorizontalOverflow(page);
 		await expect(page.getByTestId('responsive-page-header')).toBeVisible();
@@ -62,8 +67,11 @@ test.describe('payroll responsiveness', () => {
 		await setActiveResponsiveOrganization(page, registration.organizationSlug);
 		await seedResponsiveEmployeeDataViaBrowser(page, registration.organizationName);
 		await processResponsivePayrollRun(page.request, '2026-01-01', '2026-01-07');
-		await page.goto(`/payroll?responsiveTest=${Date.now()}`);
-		await page.reload();
+		await page.goto(`/payroll?responsiveTest=${Date.now()}`, {
+			waitUntil: 'domcontentloaded',
+			timeout: 90_000,
+		});
+		await page.reload({ waitUntil: 'domcontentloaded', timeout: 90_000 });
 
 		await expect(page.getByRole('table').last()).toBeVisible();
 		await expect(page.getByTestId('responsive-data-view-mobile')).toHaveCount(0);

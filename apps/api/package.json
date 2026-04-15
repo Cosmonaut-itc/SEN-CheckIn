@@ -19,6 +19,7 @@
 		"db:gen": "bunx --bun drizzle-kit generate --config drizzle.config.ts",
 		"db:seed": "bun run scripts/seed.ts",
 		"db:reset": "bun run scripts/seed.ts -- --reset",
+		"db:rollback-latest-payroll": "bun run scripts/rollback-latest-payroll.ts",
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
@@ -40,6 +41,7 @@
 		"drizzle-orm": "^0.45.0",
 		"drizzle-seed": "^0.3.1",
 		"elysia": "1.4.19",
+		"heic-convert": "^2.1.0",
 		"pdfjs-dist": "^5.6.205",
 		"pg": "^8.16.3",
 		"sharp": "^0.34.5",

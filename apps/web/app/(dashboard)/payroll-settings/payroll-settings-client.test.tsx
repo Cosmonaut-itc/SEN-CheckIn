@@ -283,6 +283,47 @@ describe('PayrollSettingsClient', () => {
 		});
 	});
 
+	it('submits separated fiscal and real vacation premium rates', async () => {
+		renderWithProviders();
+
+		const fiscalRateInput = await screen.findByLabelText(
+			'taxSettings.fields.vacationPremiumRate',
+		);
+		const realRateInput = screen.getByLabelText(
+			'taxSettings.fields.realVacationPremiumRate',
+		);
+
+		fireEvent.change(fiscalRateInput, { target: { value: '0.30' } });
+		fireEvent.change(realRateInput, { target: { value: '0.45' } });
+		fireEvent.click(screen.getByRole('button', { name: 'save' }));
+
+		await waitFor(() => {
+			expect(mockUpdatePayrollSettingsAction).toHaveBeenCalledWith(
+				expect.objectContaining({
+					vacationPremiumRate: 0.3,
+					realVacationPremiumRate: 0.45,
+				}),
+				expect.objectContaining({
+					mutationKey: ['payrollSettings', 'update'],
+				}),
+			);
+		});
+	});
+
+	it('explains seventh day pay separately from saturday counting', () => {
+		const payrollSettingsMessages = messages.PayrollSettings;
+
+		expect(payrollSettingsMessages.taxSettings.helpers.enableSeventhDayPay).toBe(
+			'Habilita el pago del séptimo día cuando el periodo semanal cumpla la regla de asistencia configurada.',
+		);
+		expect(payrollSettingsMessages.taxSettings.helpers.countSaturdayAsWorkedForSeventhDay).toBe(
+			'Si está activo, el sábado cuenta como asistido solo cuando no forma parte del horario laborable y únicamente para evaluar si corresponde pagar el séptimo día.',
+		);
+		expect(payrollSettingsMessages.taxSettings.helpers.countSaturdayAsWorkedForSeventhDay).not.toMatch(
+			/jornada L-V/i,
+		);
+	});
+
 	it('renders dual payroll explainer cards with theme-aware contrast classes', async () => {
 		renderWithProviders();
 

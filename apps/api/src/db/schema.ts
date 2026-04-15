@@ -557,6 +557,32 @@ export const deductionStatus = pgEnum('deduction_status', [
 ]);
 
 /**
+ * Enum for employee gratification recurrence rules.
+ */
+export const gratificationPeriodicity = pgEnum('gratification_periodicity', [
+	'ONE_TIME',
+	'RECURRING',
+]);
+
+/**
+ * Enum for employee gratification application modes.
+ */
+export const gratificationApplicationMode = pgEnum('gratification_application_mode', [
+	'MANUAL',
+	'AUTOMATIC',
+]);
+
+/**
+ * Enum for employee gratification lifecycle status.
+ */
+export const gratificationStatus = pgEnum('gratification_status', [
+	'ACTIVE',
+	'PAUSED',
+	'COMPLETED',
+	'CANCELLED',
+]);
+
+/**
  * Enum for payroll run status
  */
 export const payrollRunStatus = pgEnum('payroll_run_status', ['DRAFT', 'PROCESSED']);
@@ -1854,6 +1880,13 @@ export const payrollSetting = pgTable('payroll_setting', {
 	vacationPremiumRate: numeric('vacation_premium_rate', { precision: 6, scale: 4 })
 		.default('0.25')
 		.notNull(),
+	/** Real vacation premium rate applied to the employee payment surface. */
+	realVacationPremiumRate: numeric('real_vacation_premium_rate', {
+		precision: 6,
+		scale: 4,
+	})
+		.default('0.25')
+		.notNull(),
 	/** Enables the seventh day pay calculation */
 	enableSeventhDayPay: boolean('enable_seventh_day_pay').default(false).notNull(),
 	/** Enables fiscal/real dual payroll calculations for the organization. */
@@ -2516,6 +2549,67 @@ export const employeeDeductionRelations = relations(employeeDeduction, ({ one })
 		fields: [employeeDeduction.createdByUserId],
 		references: [user.id],
 		relationName: 'employeeDeductionCreatedBy',
+	}),
+}));
+
+/**
+ * Employee gratification records such as bonuses, awards, and recurring non-fiscal concepts.
+ */
+export const employeeGratification = pgTable(
+	'employee_gratification',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		concept: text('concept').notNull(),
+		amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
+		periodicity: gratificationPeriodicity('periodicity').notNull(),
+		applicationMode: gratificationApplicationMode('application_mode').notNull(),
+		status: gratificationStatus('status').default('ACTIVE').notNull(),
+		startDateKey: text('start_date_key').notNull(),
+		endDateKey: text('end_date_key'),
+		notes: text('notes'),
+		createdByUserId: text('created_by_user_id')
+			.notNull()
+			.references(() => user.id),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('employee_gratification_employee_status_idx').on(table.employeeId, table.status),
+		index('employee_gratification_org_status_idx').on(table.organizationId, table.status),
+		index('employee_gratification_employee_periodicity_idx').on(
+			table.employeeId,
+			table.periodicity,
+		),
+	],
+);
+
+/**
+ * Employee gratification relations.
+ */
+export const employeeGratificationRelations = relations(employeeGratification, ({ one }) => ({
+	organization: one(organization, {
+		fields: [employeeGratification.organizationId],
+		references: [organization.id],
+	}),
+	employee: one(employee, {
+		fields: [employeeGratification.employeeId],
+		references: [employee.id],
+	}),
+	createdByUser: one(user, {
+		fields: [employeeGratification.createdByUserId],
+		references: [user.id],
+		relationName: 'employeeGratificationCreatedBy',
 	}),
 }));
 

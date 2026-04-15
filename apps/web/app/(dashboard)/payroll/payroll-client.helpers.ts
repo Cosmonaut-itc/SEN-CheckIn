@@ -55,7 +55,7 @@ export function buildPayrollCsvEmployeeRow(args: {
 		fiscalGrossPay: row.fiscalGrossPay ?? row.grossPay ?? row.totalPay,
 		complementPay: row.complementPay ?? 0,
 		totalRealPay: row.totalRealPay ?? row.totalPay,
-		grossPay: row.grossPay ?? row.totalPay,
+		grossPay: row.fiscalGrossPay ?? row.grossPay ?? row.totalPay,
 		employeeWithholdingsTotal: row.employeeWithholdings?.total ?? 0,
 		employeeWithholdingsIsr: row.employeeWithholdings?.isrWithheld ?? 0,
 		employeeWithholdingsImssTotal: row.employeeWithholdings?.imssEmployee?.total ?? 0,

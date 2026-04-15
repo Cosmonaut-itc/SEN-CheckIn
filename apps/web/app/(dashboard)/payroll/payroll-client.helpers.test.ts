@@ -145,6 +145,26 @@ describe('buildPayrollCsvEmployeeRow', () => {
 		expect(row.totalRealPay).toBe(1080);
 	});
 
+	it('uses fiscalGrossPay as the gross pay column when dual payroll data exists', () => {
+		const row = buildPayrollCsvEmployeeRow({
+			row: buildEmployee({
+				totalPay: 1740,
+				grossPay: 1740,
+				fiscalGrossPay: 1320,
+				complementPay: 420,
+				totalRealPay: 1740,
+			}),
+			periodStartDateKey: '2026-03-09',
+			periodEndDateKey: '2026-03-15',
+			t,
+		});
+
+		expect(row.fiscalGrossPay).toBe(1320);
+		expect(row.complementPay).toBe(420);
+		expect(row.totalRealPay).toBe(1740);
+		expect(row.grossPay).toBe(1320);
+	});
+
 	it('exports real vacation amounts when dual payroll fields are available', () => {
 		const row = buildPayrollCsvEmployeeRow({
 			row: buildEmployee({

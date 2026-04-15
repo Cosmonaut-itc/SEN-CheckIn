@@ -52,6 +52,21 @@ describe('finiquito calculation', () => {
 		expect(result.totals.grossTotal).toBe(4533.22);
 	});
 
+	it('keeps the vacation balance at zero before the first service anniversary', () => {
+		const result = calculateEmployeeTerminationSettlement({
+			...BASE_INPUT,
+			hireDate: new Date('2025-06-15T00:00:00Z'),
+			terminationDateKey: '2026-06-14',
+			lastDayWorkedDateKey: '2026-06-14',
+			vacationUsedDays: 4,
+			vacationBalanceDays: null,
+		});
+
+		expect(result.inputsUsed.vacationBalanceDays).toBe(0);
+		expect(result.breakdown.finiquito.vacationPay).toBe(0);
+		expect(result.breakdown.finiquito.vacationPremium).toBe(0);
+	});
+
 	it('calculates indemnizations for unjustified dismissal on indefinite contracts', () => {
 		const result = calculateEmployeeTerminationSettlement({
 			...BASE_INPUT,

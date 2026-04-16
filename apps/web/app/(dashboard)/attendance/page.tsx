@@ -1,8 +1,10 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import { getQueryClient } from '@/lib/get-query-client';
 import { prefetchAttendanceRecords } from '@/lib/server-functions';
+import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import { AttendancePageClient, type AttendancePageInitialFilters } from './attendance-client';
 import { isValidIanaTimeZone, getUtcDayRangeFromDateKey, toDateKeyInTimeZone } from '@/lib/time-zone';
+import { headers } from 'next/headers';
 import React from 'react';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
 
@@ -115,6 +117,11 @@ export default async function AttendancePage({
 }: AttendancePageProps): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
 	const orgContext = await getActiveOrganizationContext();
+	const requestHeaders = await headers();
+	const cookieHeader = requestHeaders.get('cookie') ?? '';
+	const payrollSettings = orgContext.organizationId
+		? await fetchPayrollSettingsServer(cookieHeader, orgContext.organizationId)
+		: null;
 	const params = await searchParams;
 	const employeeId = resolveSearchParamValue(params.employeeId)?.trim() || undefined;
 	const fromDateKey = resolveDateKey(resolveSearchParamValue(params.from));
@@ -123,6 +130,7 @@ export default async function AttendancePage({
 	const returnEmployeeId = resolveSearchParamValue(params.returnEmployeeId);
 	const returnTab = resolveReturnTab(resolveSearchParamValue(params.returnTab));
 	const timeZone = resolveTimeZone(resolveSearchParamValue(params.timeZone));
+	const organizationTimeZone = resolveTimeZone(payrollSettings?.timeZone);
 	const initialFilters: AttendancePageInitialFilters = {
 		...(employeeId ? { employeeId } : {}),
 		...(fromDateKey ? { from: fromDateKey } : {}),
@@ -135,7 +143,7 @@ export default async function AttendancePage({
 
 	// Prefetch today's attendance records without await for streaming support
 	const now = new Date();
-	const resolvedTimeZone = timeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
+	const resolvedTimeZone = timeZone ?? organizationTimeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
 	const fallbackDateKey = toDateKeyInTimeZone(now, resolvedTimeZone);
 	const resolvedFromDate = getUtcDayRangeFromDateKey(
 		fromDateKey ?? fallbackDateKey,

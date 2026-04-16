@@ -5,6 +5,22 @@ export type CsvRow = Record<string, string | number | null | undefined>;
 type TranslateFn = (key: string) => string;
 
 /**
+ * Converts a CSV numeric value into integer cents for safe currency aggregation.
+ *
+ * @param value - CSV cell value to normalize
+ * @returns Integer cent amount
+ */
+function toCurrencyCents(value: CsvRow[string]): number {
+	const numericValue = typeof value === 'number' ? value : Number(value ?? 0);
+
+	if (!Number.isFinite(numericValue)) {
+		return 0;
+	}
+
+	return Math.round(numericValue * 100);
+}
+
+/**
  * Builds a CSV employee row from a payroll calculation row.
  *
  * @param args - Builder inputs
@@ -110,10 +126,10 @@ interface PayrollCsvSummaryArgs {
  * @returns CSV-safe summary row aligned with exported employee values
  */
 export function buildPayrollCsvSummaryRow(args: PayrollCsvSummaryArgs): CsvRow {
-	const grossPayTotal = args.employeeRows.reduce((total, row) => {
-		const grossPay = row.grossPay;
-		return total + (typeof grossPay === 'number' ? grossPay : Number(grossPay ?? 0));
+	const grossPayTotalInCents = args.employeeRows.reduce((total, row) => {
+		return total + toCurrencyCents(row.grossPay);
 	}, 0);
+	const grossPayTotal = grossPayTotalInCents / 100;
 
 	return {
 		rowType: args.t('csv.rowTypes.summary'),

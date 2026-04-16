@@ -245,4 +245,47 @@ describe('buildPayrollCsvSummaryRow', () => {
 
 		expect(row.grossPay).toBe(2400);
 	});
+
+	it('rounds summary gross pay totals to two decimals for cent-based employee rows', () => {
+		const employeeRows = [
+			buildPayrollCsvEmployeeRow({
+				row: buildEmployee({
+					employeeId: 'emp-1',
+					totalPay: 1740.1,
+					grossPay: 1740.1,
+					fiscalGrossPay: 1740.1,
+				}),
+				periodStartDateKey: '2026-03-09',
+				periodEndDateKey: '2026-03-15',
+				t,
+			}),
+			buildPayrollCsvEmployeeRow({
+				row: buildEmployee({
+					employeeId: 'emp-2',
+					totalPay: 494.2,
+					grossPay: 494.2,
+					fiscalGrossPay: 494.2,
+				}),
+				periodStartDateKey: '2026-03-09',
+				periodEndDateKey: '2026-03-15',
+				t,
+			}),
+		];
+
+		const row = buildPayrollCsvSummaryRow({
+			employeeRows,
+			paymentFrequency: 'WEEKLY',
+			periodStartDateKey: '2026-03-09',
+			periodEndDateKey: '2026-03-15',
+			t,
+			taxSummary: {
+				employeeWithholdingsTotal: 0,
+				employerCostsTotal: 0,
+				netPayTotal: 2234.3,
+				companyCostTotal: 2234.3,
+			},
+		});
+
+		expect(row.grossPay).toBe(2234.3);
+	});
 });

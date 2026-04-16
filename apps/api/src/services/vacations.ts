@@ -190,10 +190,19 @@ export function calculateVacationAccrual(args: {
 	}
 
 	const daysInServiceYear = getInclusiveDayCount(serviceYearStartDateKey, serviceYearEndDateKey);
+	if (asOfDateKey < serviceYearStartDateKey) {
+		return {
+			entitledDays,
+			accruedDays: 0,
+			serviceYearStartDateKey,
+			serviceYearEndDateKey,
+			daysElapsed: 0,
+			daysInServiceYear,
+		};
+	}
+
 	const clampedAsOfDateKey =
-		asOfDateKey < serviceYearStartDateKey
-			? serviceYearStartDateKey
-			: asOfDateKey > serviceYearEndDateKey
+		asOfDateKey > serviceYearEndDateKey
 				? serviceYearEndDateKey
 				: asOfDateKey;
 	const daysElapsed = getInclusiveDayCount(serviceYearStartDateKey, clampedAsOfDateKey);
@@ -204,6 +213,7 @@ export function calculateVacationAccrual(args: {
 		accruedDays,
 		serviceYearStartDateKey,
 		serviceYearEndDateKey,
+		// Keep period metrics available for callers that need service-year context.
 		daysElapsed,
 		daysInServiceYear,
 	};

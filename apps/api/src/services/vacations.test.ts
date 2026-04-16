@@ -53,7 +53,7 @@ describe('vacations accrual', () => {
 		expect(accrual.accruedDays).toBe(14);
 	});
 
-	it('clamps accrual to the service year start date when asOf precedes it', () => {
+	it('returns zero accrual before the service year starts', () => {
 		const accrual = calculateVacationAccrual({
 			hireDate,
 			serviceYearNumber: 1,
@@ -61,9 +61,9 @@ describe('vacations accrual', () => {
 		});
 
 		expect(accrual.serviceYearStartDateKey).toBe('2026-01-01');
-		expect(accrual.daysElapsed).toBe(1);
+		expect(accrual.daysElapsed).toBe(0);
 		expect(accrual.daysInServiceYear).toBe(365);
-		expect(accrual.accruedDays).toBe(12);
+		expect(accrual.accruedDays).toBe(0);
 	});
 
 	it('accrues full entitlement at the service year end date', () => {

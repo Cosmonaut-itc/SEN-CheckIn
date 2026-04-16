@@ -1170,6 +1170,10 @@ export function AttendancePageClient({
 				timeZone: attendanceExportTimeZone,
 			});
 
+			if (rows.length === 0) {
+				return;
+			}
+
 			const csv = buildCsvContent(columns, rows);
 			const fileName = t('csv.fileName', {
 				start: format(start, 'yyyyMMdd'),

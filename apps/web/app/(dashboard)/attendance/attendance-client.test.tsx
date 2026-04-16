@@ -461,11 +461,112 @@ describe('AttendancePageClient', () => {
 				toDate: Date;
 			},
 		];
-		const expectedStartRange = getUtcDayRangeFromDateKey('2026-04-09', 'America/Mexico_City');
-		const expectedEndRange = getUtcDayRangeFromDateKey('2026-04-11', 'America/Mexico_City');
 
 		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
 		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
 		expect(capturedBlob).not.toBeNull();
+	});
+
+	it('skips CSV download when spillover fetch has no rows inside the selected local range', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
+		const expectedStartRange = getUtcDayRangeFromDateKey('2026-04-09', 'America/Mexico_City');
+		const expectedEndRange = getUtcDayRangeFromDateKey('2026-04-11', 'America/Mexico_City');
+
+		mockFetchAttendanceRecords.mockImplementation(
+			async (params?: { fromDate?: Date; toDate?: Date; limit?: number }) => {
+				if (params?.limit === 100) {
+					const isExpandedRange =
+						params.fromDate?.toISOString() === expectedStartRange.startUtc.toISOString() &&
+						params.toDate?.toISOString() === expectedEndRange.endUtc.toISOString();
+
+					return {
+						data: isExpandedRange
+							? [
+									{
+										id: 'attendance-previous-in',
+										employeeId: 'EMP-000',
+										employeeName: 'Grace Hopper',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-10T05:00:00.000Z'),
+										type: 'CHECK_IN' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-10T05:00:00.000Z'),
+										updatedAt: new Date('2026-04-10T05:00:00.000Z'),
+									},
+									{
+										id: 'attendance-previous-out',
+										employeeId: 'EMP-000',
+										employeeName: 'Grace Hopper',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-10T13:00:00.000Z'),
+										type: 'CHECK_OUT' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-10T13:00:00.000Z'),
+										updatedAt: new Date('2026-04-10T13:00:00.000Z'),
+									},
+								]
+							: [],
+						pagination: { total: isExpandedRange ? 2 : 0, limit: 100, offset: 0 },
+					};
+				}
+
+				return {
+					data: [
+						{
+							id: 'attendance-initial-row',
+							employeeId: 'EMP-001',
+							employeeName: 'Ada Lovelace',
+							deviceId: 'device-1',
+							deviceLocationId: 'location-1',
+							deviceLocationName: 'Oficina principal',
+							timestamp: new Date('2026-04-10T15:00:00.000Z'),
+							type: 'CHECK_IN' as const,
+							metadata: null,
+							createdAt: new Date('2026-04-10T15:00:00.000Z'),
+							updatedAt: new Date('2026-04-10T15:00:00.000Z'),
+						},
+					],
+					pagination: { total: 1, limit: 10, offset: 0 },
+				};
+			},
+		);
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-10',
+				to: '2026-04-10',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(exportButton).toBeDisabled();
+		});
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		expect(createObjectURLMock).not.toHaveBeenCalled();
+		expect(anchorClickSpy).not.toHaveBeenCalled();
 	});
 });

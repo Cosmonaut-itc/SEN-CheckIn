@@ -30,16 +30,7 @@ import {
 	Trash2,
 	X,
 } from 'lucide-react';
-import {
-	format,
-	startOfDay,
-	endOfDay,
-	subDays,
-	startOfWeek,
-	endOfWeek,
-	startOfMonth,
-	endOfMonth,
-} from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
 	Select,
@@ -57,6 +48,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { queryKeys } from '@/lib/query-keys';
 import { useTour } from '@/hooks/use-tour';
 import {
+	aggregateAttendanceByPersonDay,
+	type AttendanceSummaryCsvRow,
+	type AttendanceSummaryLabels,
+} from './attendance-export-helpers';
+import {
 	createWorkOffsiteAttendance,
 	deleteWorkOffsiteAttendance,
 	fetchEmployeesList,
@@ -69,6 +65,12 @@ import {
 	updateWorkOffsiteAttendance,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
+import {
+	addDaysToDateKey,
+	getEndOfMonthDateKey,
+	getStartOfMonthDateKey,
+	getWeekStartDateKey,
+} from '@/lib/date-key';
 import { getUtcDayRangeFromDateKey, isValidIanaTimeZone, toDateKeyInTimeZone } from '@/lib/time-zone';
 import type {
 	ColumnDef,
@@ -86,6 +88,7 @@ const ALL_LOCATIONS_VALUE = '__all__';
 const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
 const EXPORT_PAGE_SIZE = 100;
 const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
+const DEFAULT_ATTENDANCE_TIME_ZONE = 'America/Mexico_City';
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
@@ -117,25 +120,10 @@ interface AttendancePageClientProps {
 }
 
 /**
- * CSV row shape for attendance exports.
- */
-type AttendanceCsvRow = {
-	employeeName: string;
-	employeeId: string;
-	deviceId: string;
-	deviceLocation: string;
-	type: string;
-	offsiteDayKind: string;
-	offsiteReason: string;
-	time: string;
-	date: string;
-};
-
-/**
  * CSV column definition for attendance exports.
  */
 type CsvColumn = {
-	key: keyof AttendanceCsvRow;
+	key: keyof AttendanceSummaryCsvRow;
 	label: string;
 };
 
@@ -230,16 +218,126 @@ function normalizeDateKeyString(value: string | undefined): string | null {
 }
 
 /**
+ * Formats a local date key as DD/MM/YYYY for attendance UI output.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Human-readable date string
+ */
+function formatAttendanceDateKey(dateKey: string): string {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+	if (!match) {
+		return dateKey;
+	}
+
+	const [, year, month, day] = match;
+	return `${day}/${month}/${year}`;
+}
+
+/**
+ * Formats an attendance timestamp in the provided timezone as HH:mm:ss.
+ *
+ * @param timestamp - UTC timestamp for the attendance event
+ * @param timeZone - Timezone used to render attendance rows
+ * @returns Time string in 24-hour format with seconds
+ * @throws {Error} If the formatted parts do not include hour, minute, or second
+ */
+function formatAttendanceTimeInTimeZone(timestamp: Date, timeZone: string): string {
+	const parts = new Intl.DateTimeFormat('es-MX', {
+		timeZone,
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hourCycle: 'h23',
+	}).formatToParts(timestamp);
+
+	const hour = parts.find((part) => part.type === 'hour')?.value;
+	const minute = parts.find((part) => part.type === 'minute')?.value;
+	const second = parts.find((part) => part.type === 'second')?.value;
+
+	if (!hour || !minute || !second) {
+		throw new Error(`Failed to format attendance timestamp in timezone "${timeZone}".`);
+	}
+
+	return `${hour}:${minute}:${second}`;
+}
+
+/**
+ * Formats an attendance timestamp in the provided timezone as DD/MM/YYYY.
+ *
+ * @param timestamp - UTC timestamp for the attendance event
+ * @param timeZone - Timezone used to render attendance rows
+ * @returns Human-readable local date string
+ */
+function formatAttendanceDateInTimeZone(timestamp: Date, timeZone: string): string {
+	return formatAttendanceDateKey(toDateKeyInTimeZone(timestamp, timeZone));
+}
+
+/**
  * Resolves an optional attendance timezone from initial filters.
  *
  * @param value - Candidate timezone
  * @returns Valid IANA timezone or undefined
  */
-function resolveAttendanceTimeZone(value: string | undefined): string | undefined {
+function resolveAttendanceTimeZone(value: string | null | undefined): string | undefined {
 	if (!value) {
 		return undefined;
 	}
 	return isValidIanaTimeZone(value) ? value : undefined;
+}
+
+interface PresetDateRangeKeysArgs {
+	preset: DatePreset;
+	now: Date;
+	timeZone: string;
+	startDate?: string;
+	endDate?: string;
+}
+
+interface PresetDateRangeKeys {
+	startDateKey: string;
+	endDateKey: string;
+}
+
+/**
+ * Builds local date keys for the selected preset in the provided timezone.
+ *
+ * `from`/`to` deep-links are generated with an explicit timezone contract, so the
+ * same timezone must be used when turning those date keys back into UTC bounds.
+ * Preset-derived keys also need to be constructed directly in that timezone
+ * instead of formatting UTC boundary dates in the browser timezone.
+ *
+ * @param args - Preset resolution inputs
+ * @returns Start/end date keys aligned with the target timezone
+ */
+export function getPresetDateRangeKeys(args: PresetDateRangeKeysArgs): PresetDateRangeKeys {
+	const fallbackDateKey = toDateKeyInTimeZone(args.now, args.timeZone);
+
+	switch (args.preset) {
+		case 'today':
+			return { startDateKey: fallbackDateKey, endDateKey: fallbackDateKey };
+		case 'yesterday': {
+			const yesterdayDateKey = addDaysToDateKey(fallbackDateKey, -1);
+			return { startDateKey: yesterdayDateKey, endDateKey: yesterdayDateKey };
+		}
+		case 'this_week': {
+			const startDateKey = getWeekStartDateKey(fallbackDateKey, 1);
+			return {
+				startDateKey,
+				endDateKey: addDaysToDateKey(startDateKey, 6),
+			};
+		}
+		case 'this_month':
+			return {
+				startDateKey: getStartOfMonthDateKey(fallbackDateKey),
+				endDateKey: getEndOfMonthDateKey(fallbackDateKey),
+			};
+		case 'custom':
+		default:
+			return {
+				startDateKey: normalizeDateKeyString(args.startDate) ?? fallbackDateKey,
+				endDateKey: normalizeDateKeyString(args.endDate) ?? fallbackDateKey,
+			};
+	}
 }
 
 /**
@@ -248,7 +346,7 @@ function resolveAttendanceTimeZone(value: string | undefined): string | undefine
  * @param value - CSV cell value
  * @returns Escaped CSV-safe string
  */
-function escapeCsvValue(value: AttendanceCsvRow[keyof AttendanceCsvRow]): string {
+function escapeCsvValue(value: AttendanceSummaryCsvRow[keyof AttendanceSummaryCsvRow]): string {
 	const rawValue = value ?? '';
 	const stringValue = String(rawValue);
 	const escaped = stringValue.replace(/"/g, '""');
@@ -263,7 +361,7 @@ function escapeCsvValue(value: AttendanceCsvRow[keyof AttendanceCsvRow]): string
  * @param rows - CSV rows
  * @returns CSV string content
  */
-function buildCsvContent(columns: CsvColumn[], rows: AttendanceCsvRow[]): string {
+function buildCsvContent(columns: CsvColumn[], rows: AttendanceSummaryCsvRow[]): string {
 	const header = columns.map((column) => escapeCsvValue(column.label)).join(',');
 	const lines = rows.map((row) =>
 		columns.map((column) => escapeCsvValue(row[column.key])).join(','),
@@ -331,17 +429,26 @@ async function fetchAllAttendanceRecords(
 export function AttendancePageClient({
 	initialFilters,
 }: AttendancePageClientProps): React.ReactElement {
-	const { organizationId, organizationRole } = useOrgContext();
+	const { organizationId, organizationRole, organizationTimeZone } = useOrgContext();
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
 	const t = useTranslations('Attendance');
 	useTour('attendance');
-	const initialStartDateKey =
-		normalizeDateKeyString(initialFilters?.from) ?? format(startOfDay(new Date()), 'yyyy-MM-dd');
-	const initialEndDateKey =
-		normalizeDateKeyString(initialFilters?.to) ?? format(endOfDay(new Date()), 'yyyy-MM-dd');
+	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
+	const validatedOrganizationTimeZone = resolveAttendanceTimeZone(organizationTimeZone);
+	const attendanceExportTimeZone =
+		deepLinkTimeZone ?? validatedOrganizationTimeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
+	const initialRangeKeys = getPresetDateRangeKeys({
+		preset: 'custom',
+		now: new Date(),
+		timeZone: attendanceExportTimeZone,
+		startDate: initialFilters?.from,
+		endDate: initialFilters?.to,
+	});
+	const initialStartDateKey = initialRangeKeys.startDateKey;
+	const initialEndDateKey = initialRangeKeys.endDateKey;
 	const initialDatePreset: DatePreset =
 		initialFilters?.from || initialFilters?.to ? 'custom' : 'today';
 	const initialEmployeeFilter = initialFilters?.employeeId?.trim() ?? '';
@@ -368,7 +475,6 @@ export function AttendancePageClient({
 	const navigationSource = initialFilters?.source ?? null;
 	const returnEmployeeId = initialFilters?.returnEmployeeId ?? null;
 	const returnTab = initialFilters?.returnTab ?? 'attendance';
-	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
 
 	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
@@ -433,50 +539,20 @@ export function AttendancePageClient({
 	 */
 	const getDateRange = useCallback(
 		(preset: DatePreset): { start: Date; end: Date } => {
-			const now = new Date();
-			let start: Date;
-			let end: Date;
+			const { startDateKey, endDateKey } = getPresetDateRangeKeys({
+				preset,
+				now: new Date(),
+				timeZone: attendanceExportTimeZone,
+				startDate,
+				endDate,
+			});
 
-			switch (preset) {
-				case 'today':
-					start = startOfDay(now);
-					end = endOfDay(now);
-					break;
-				case 'yesterday':
-					start = startOfDay(subDays(now, 1));
-					end = endOfDay(subDays(now, 1));
-					break;
-				case 'this_week':
-					start = startOfWeek(now, { weekStartsOn: 1 });
-					end = endOfWeek(now, { weekStartsOn: 1 });
-					break;
-				case 'this_month':
-					start = startOfMonth(now);
-					end = endOfMonth(now);
-					break;
-				case 'custom':
-				default:
-					if (deepLinkTimeZone) {
-						const fallbackDateKey = toDateKeyInTimeZone(now, deepLinkTimeZone);
-						const startKey = normalizeDateKeyString(startDate) ?? fallbackDateKey;
-						const endKey = normalizeDateKeyString(endDate) ?? fallbackDateKey;
-						start = getUtcDayRangeFromDateKey(startKey, deepLinkTimeZone).startUtc;
-						end = getUtcDayRangeFromDateKey(endKey, deepLinkTimeZone).endUtc;
-						break;
-					}
-
-					// Ensure we always have valid dates even if inputs are empty.
-					const parsedStartDate = normalizeDateKey(startDate) ?? undefined;
-					const parsedEndDate = normalizeDateKey(endDate) ?? undefined;
-
-					start = startOfDay(parsedStartDate ?? now);
-					end = endOfDay(parsedEndDate ?? now);
-					break;
-			}
-
-			return { start, end };
+			return {
+				start: getUtcDayRangeFromDateKey(startDateKey, attendanceExportTimeZone).startUtc,
+				end: getUtcDayRangeFromDateKey(endDateKey, attendanceExportTimeZone).endUtc,
+			};
 		},
-		[startDate, endDate, deepLinkTimeZone],
+		[startDate, endDate, attendanceExportTimeZone],
 	);
 
 	// Get the current date range for the query
@@ -664,9 +740,13 @@ export function AttendancePageClient({
 	const handlePresetChange = (preset: DatePreset): void => {
 		setDatePreset(preset);
 		if (preset !== 'custom') {
-			const { start: newStart, end: newEnd } = getDateRange(preset);
-			setStartDate(format(newStart, 'yyyy-MM-dd'));
-			setEndDate(format(newEnd, 'yyyy-MM-dd'));
+			const { startDateKey, endDateKey } = getPresetDateRangeKeys({
+				preset,
+				now: new Date(),
+				timeZone: attendanceExportTimeZone,
+			});
+			setStartDate(startDateKey);
+			setEndDate(endDateKey);
 		}
 		resetPagination();
 	};
@@ -971,14 +1051,22 @@ export function AttendancePageClient({
 				id: 'time',
 				accessorFn: (row) => row.timestamp,
 				header: t('table.headers.time'),
-				cell: ({ row }) => format(new Date(row.original.timestamp), 'HH:mm:ss'),
+				cell: ({ row }) =>
+					formatAttendanceTimeInTimeZone(
+						new Date(row.original.timestamp),
+						attendanceExportTimeZone,
+					),
 				enableGlobalFilter: false,
 			},
 			{
 				id: 'date',
 				accessorFn: (row) => row.timestamp,
 				header: t('table.headers.date'),
-				cell: ({ row }) => format(new Date(row.original.timestamp), t('dateFormat')),
+				cell: ({ row }) =>
+					formatAttendanceDateInTimeZone(
+						new Date(row.original.timestamp),
+						attendanceExportTimeZone,
+					),
 				enableGlobalFilter: false,
 			},
 			{
@@ -1019,6 +1107,7 @@ export function AttendancePageClient({
 			canManageOffsite,
 			deleteOffsiteMutation.isPending,
 			handleRequestDeleteOffsite,
+			attendanceExportTimeZone,
 			locationFallback,
 			openEditOffsiteDialog,
 			t,
@@ -1033,9 +1122,19 @@ export function AttendancePageClient({
 	const handleExportCsv = useCallback(async (): Promise<void> => {
 		setIsExporting(true);
 		try {
+			const exportStartDateKey = toDateKeyInTimeZone(start, attendanceExportTimeZone);
+			const exportEndDateKey = toDateKeyInTimeZone(end, attendanceExportTimeZone);
+			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
+			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
 			const exportRecords = await fetchAllAttendanceRecords({
-				fromDate: start,
-				toDate: end,
+				fromDate: getUtcDayRangeFromDateKey(
+					spilloverStartDateKey,
+					attendanceExportTimeZone,
+				).startUtc,
+				toDate: getUtcDayRangeFromDateKey(
+					spilloverEndDateKey,
+					attendanceExportTimeZone,
+				).endUtc,
 				organizationId,
 				...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
 				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
@@ -1048,29 +1147,32 @@ export function AttendancePageClient({
 				return;
 			}
 
+			const summaryLabels: AttendanceSummaryLabels = {
+				incomplete: t('csv.values.incomplete'),
+				noEntry: t('csv.values.noEntry'),
+				noExit: t('csv.values.noExit'),
+				workOffsite: t('csv.values.workOffsite'),
+			};
 			const columns: CsvColumn[] = [
-				{ key: 'employeeName', label: t('table.headers.employeeName') },
-				{ key: 'employeeId', label: t('table.headers.employeeId') },
-				{ key: 'deviceId', label: t('table.headers.deviceId') },
-				{ key: 'deviceLocation', label: t('table.headers.deviceLocation') },
-				{ key: 'type', label: t('table.headers.type') },
-				{ key: 'offsiteDayKind', label: t('table.headers.offsiteDayKind') },
-				{ key: 'offsiteReason', label: t('table.headers.offsiteReason') },
-				{ key: 'time', label: t('table.headers.time') },
-				{ key: 'date', label: t('table.headers.date') },
+				{ key: 'employeeName', label: t('csv.headers.employeeName') },
+				{ key: 'employeeId', label: t('csv.headers.employeeId') },
+				{ key: 'date', label: t('csv.headers.date') },
+				{ key: 'firstEntry', label: t('csv.headers.firstEntry') },
+				{ key: 'lastExit', label: t('csv.headers.lastExit') },
+				{ key: 'totalHours', label: t('csv.headers.totalHours') },
 			];
+			const rows = aggregateAttendanceByPersonDay(exportRecords, {
+				dateRange: {
+					startDateKey: exportStartDateKey,
+					endDateKey: exportEndDateKey,
+				},
+				labels: summaryLabels,
+				timeZone: attendanceExportTimeZone,
+			});
 
-			const rows: AttendanceCsvRow[] = exportRecords.map((record) => ({
-				employeeName: record.employeeName,
-				employeeId: record.employeeId,
-				deviceId: record.deviceId,
-				deviceLocation: record.deviceLocationName ?? locationFallback,
-				type: getAttendanceTypeLabel(t, record.type),
-				offsiteDayKind: getOffsiteDayKindLabel(t, record.offsiteDayKind ?? null),
-				offsiteReason: record.offsiteReason ?? '',
-				time: format(new Date(record.timestamp), 'HH:mm:ss'),
-				date: format(new Date(record.timestamp), t('dateFormat')),
-			}));
+			if (rows.length === 0) {
+				return;
+			}
 
 			const csv = buildCsvContent(columns, rows);
 			const fileName = t('csv.fileName', {
@@ -1088,9 +1190,9 @@ export function AttendancePageClient({
 		deviceLocationId,
 		employeeFilterId,
 		end,
-		locationFallback,
 		normalizedOffsiteDayKind,
 		normalizedSearch,
+		attendanceExportTimeZone,
 		organizationId,
 		start,
 		t,
@@ -1172,13 +1274,19 @@ export function AttendancePageClient({
 					<div className="flex items-center justify-between gap-3">
 						<span className="text-muted-foreground">{t('table.headers.time')}</span>
 						<span className="font-medium">
-							{format(new Date(record.timestamp), 'HH:mm:ss')}
+							{formatAttendanceTimeInTimeZone(
+								new Date(record.timestamp),
+								attendanceExportTimeZone,
+							)}
 						</span>
 					</div>
 					<div className="flex items-center justify-between gap-3">
 						<span className="text-muted-foreground">{t('table.headers.date')}</span>
 						<span className="text-right font-medium">
-							{format(new Date(record.timestamp), t('dateFormat'))}
+							{formatAttendanceDateInTimeZone(
+								new Date(record.timestamp),
+								attendanceExportTimeZone,
+							)}
 						</span>
 					</div>
 					<div className="space-y-2">

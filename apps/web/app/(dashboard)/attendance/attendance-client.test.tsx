@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OrgProvider } from '@/lib/org-client-context';
 import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
 
-import { AttendancePageClient } from './attendance-client';
+import { AttendancePageClient, getPresetDateRangeKeys } from './attendance-client';
 
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchLocationsList = vi.fn();
@@ -119,7 +119,33 @@ describe('AttendancePageClient', () => {
 		expect(format(firstCall[0].toDate, 'yyyy-MM-dd')).toBe('2026-03-01');
 	});
 
-	it('uses the organization timezone when fetching export records', async () => {
+	it('preserves the deep-link timezone when parsing URL date keys', async () => {
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Tijuana',
+			initialFilters: {
+				from: '2026-02-23',
+				to: '2026-02-23',
+				timeZone: 'America/Mexico_City',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const firstCall = mockFetchAttendanceRecords.mock.calls[0] as [
+			{
+				fromDate: Date;
+				toDate: Date;
+			},
+		];
+		const expectedRange = getUtcDayRangeFromDateKey('2026-02-23', 'America/Mexico_City');
+
+		expect(firstCall[0].fromDate.toISOString()).toBe(expectedRange.startUtc.toISOString());
+		expect(firstCall[0].toDate.toISOString()).toBe(expectedRange.endUtc.toISOString());
+	});
+
+	it('uses the organization timezone when fetching export records without a deep-link timezone', async () => {
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
 			pagination: { total: 1, limit: 100, offset: 0 },
@@ -130,7 +156,6 @@ describe('AttendancePageClient', () => {
 			initialFilters: {
 				from: '2026-02-23',
 				to: '2026-02-23',
-				timeZone: 'America/Mexico_City',
 			},
 		});
 
@@ -166,5 +191,16 @@ describe('AttendancePageClient', () => {
 
 		expect(exportCall[0].fromDate.toISOString()).toBe(expectedRange.startUtc.toISOString());
 		expect(exportCall[0].toDate.toISOString()).toBe(expectedRange.endUtc.toISOString());
+	});
+
+	it('builds preset date keys in the target timezone instead of the browser timezone', () => {
+		const result = getPresetDateRangeKeys({
+			preset: 'today',
+			now: new Date('2026-02-22T16:30:00.000Z'),
+			timeZone: 'Asia/Tokyo',
+		});
+
+		expect(result.startDateKey).toBe('2026-02-23');
+		expect(result.endDateKey).toBe('2026-02-23');
 	});
 });

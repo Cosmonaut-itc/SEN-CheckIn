@@ -30,11 +30,7 @@ import {
 	Trash2,
 	X,
 } from 'lucide-react';
-import {
-	format,
-	startOfDay,
-	endOfDay,
-} from 'date-fns';
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
 	Select,
@@ -227,11 +223,66 @@ function normalizeDateKeyString(value: string | undefined): string | null {
  * @param value - Candidate timezone
  * @returns Valid IANA timezone or undefined
  */
-function resolveAttendanceTimeZone(value: string | undefined): string | undefined {
+function resolveAttendanceTimeZone(value: string | null | undefined): string | undefined {
 	if (!value) {
 		return undefined;
 	}
 	return isValidIanaTimeZone(value) ? value : undefined;
+}
+
+interface PresetDateRangeKeysArgs {
+	preset: DatePreset;
+	now: Date;
+	timeZone: string;
+	startDate?: string;
+	endDate?: string;
+}
+
+interface PresetDateRangeKeys {
+	startDateKey: string;
+	endDateKey: string;
+}
+
+/**
+ * Builds local date keys for the selected preset in the provided timezone.
+ *
+ * `from`/`to` deep-links are generated with an explicit timezone contract, so the
+ * same timezone must be used when turning those date keys back into UTC bounds.
+ * Preset-derived keys also need to be constructed directly in that timezone
+ * instead of formatting UTC boundary dates in the browser timezone.
+ *
+ * @param args - Preset resolution inputs
+ * @returns Start/end date keys aligned with the target timezone
+ */
+export function getPresetDateRangeKeys(args: PresetDateRangeKeysArgs): PresetDateRangeKeys {
+	const fallbackDateKey = toDateKeyInTimeZone(args.now, args.timeZone);
+
+	switch (args.preset) {
+		case 'today':
+			return { startDateKey: fallbackDateKey, endDateKey: fallbackDateKey };
+		case 'yesterday': {
+			const yesterdayDateKey = addDaysToDateKey(fallbackDateKey, -1);
+			return { startDateKey: yesterdayDateKey, endDateKey: yesterdayDateKey };
+		}
+		case 'this_week': {
+			const startDateKey = getWeekStartDateKey(fallbackDateKey, 1);
+			return {
+				startDateKey,
+				endDateKey: addDaysToDateKey(startDateKey, 6),
+			};
+		}
+		case 'this_month':
+			return {
+				startDateKey: getStartOfMonthDateKey(fallbackDateKey),
+				endDateKey: getEndOfMonthDateKey(fallbackDateKey),
+			};
+		case 'custom':
+		default:
+			return {
+				startDateKey: normalizeDateKeyString(args.startDate) ?? fallbackDateKey,
+				endDateKey: normalizeDateKeyString(args.endDate) ?? fallbackDateKey,
+			};
+	}
 }
 
 /**
@@ -330,10 +381,19 @@ export function AttendancePageClient({
 	const searchParams = useSearchParams();
 	const t = useTranslations('Attendance');
 	useTour('attendance');
-	const initialStartDateKey =
-		normalizeDateKeyString(initialFilters?.from) ?? format(startOfDay(new Date()), 'yyyy-MM-dd');
-	const initialEndDateKey =
-		normalizeDateKeyString(initialFilters?.to) ?? format(endOfDay(new Date()), 'yyyy-MM-dd');
+	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
+	const validatedOrganizationTimeZone = resolveAttendanceTimeZone(organizationTimeZone);
+	const attendanceExportTimeZone =
+		deepLinkTimeZone ?? validatedOrganizationTimeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
+	const initialRangeKeys = getPresetDateRangeKeys({
+		preset: 'custom',
+		now: new Date(),
+		timeZone: attendanceExportTimeZone,
+		startDate: initialFilters?.from,
+		endDate: initialFilters?.to,
+	});
+	const initialStartDateKey = initialRangeKeys.startDateKey;
+	const initialEndDateKey = initialRangeKeys.endDateKey;
 	const initialDatePreset: DatePreset =
 		initialFilters?.from || initialFilters?.to ? 'custom' : 'today';
 	const initialEmployeeFilter = initialFilters?.employeeId?.trim() ?? '';
@@ -360,9 +420,6 @@ export function AttendancePageClient({
 	const navigationSource = initialFilters?.source ?? null;
 	const returnEmployeeId = initialFilters?.returnEmployeeId ?? null;
 	const returnTab = initialFilters?.returnTab ?? 'attendance';
-	const deepLinkTimeZone = resolveAttendanceTimeZone(initialFilters?.timeZone);
-	const attendanceExportTimeZone =
-		organizationTimeZone ?? deepLinkTimeZone ?? DEFAULT_ATTENDANCE_TIME_ZONE;
 
 	const canManageOffsite = organizationRole === 'admin' || organizationRole === 'owner';
 
@@ -427,34 +484,13 @@ export function AttendancePageClient({
 	 */
 	const getDateRange = useCallback(
 		(preset: DatePreset): { start: Date; end: Date } => {
-			const now = new Date();
-			const fallbackDateKey = toDateKeyInTimeZone(now, attendanceExportTimeZone);
-			let startDateKey: string;
-			let endDateKey: string;
-
-			switch (preset) {
-				case 'today':
-					startDateKey = fallbackDateKey;
-					endDateKey = fallbackDateKey;
-					break;
-				case 'yesterday':
-					startDateKey = addDaysToDateKey(fallbackDateKey, -1);
-					endDateKey = startDateKey;
-					break;
-				case 'this_week':
-					startDateKey = getWeekStartDateKey(fallbackDateKey, 1);
-					endDateKey = addDaysToDateKey(startDateKey, 6);
-					break;
-				case 'this_month':
-					startDateKey = getStartOfMonthDateKey(fallbackDateKey);
-					endDateKey = getEndOfMonthDateKey(fallbackDateKey);
-					break;
-				case 'custom':
-				default:
-					startDateKey = normalizeDateKeyString(startDate) ?? fallbackDateKey;
-					endDateKey = normalizeDateKeyString(endDate) ?? fallbackDateKey;
-					break;
-			}
+			const { startDateKey, endDateKey } = getPresetDateRangeKeys({
+				preset,
+				now: new Date(),
+				timeZone: attendanceExportTimeZone,
+				startDate,
+				endDate,
+			});
 
 			return {
 				start: getUtcDayRangeFromDateKey(startDateKey, attendanceExportTimeZone).startUtc,
@@ -649,9 +685,13 @@ export function AttendancePageClient({
 	const handlePresetChange = (preset: DatePreset): void => {
 		setDatePreset(preset);
 		if (preset !== 'custom') {
-			const { start: newStart, end: newEnd } = getDateRange(preset);
-			setStartDate(format(newStart, 'yyyy-MM-dd'));
-			setEndDate(format(newEnd, 'yyyy-MM-dd'));
+			const { startDateKey, endDateKey } = getPresetDateRangeKeys({
+				preset,
+				now: new Date(),
+				timeZone: attendanceExportTimeZone,
+			});
+			setStartDate(startDateKey);
+			setEndDate(endDateKey);
 		}
 		resetPagination();
 	};

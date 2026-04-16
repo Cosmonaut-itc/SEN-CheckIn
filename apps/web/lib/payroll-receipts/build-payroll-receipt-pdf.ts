@@ -348,7 +348,7 @@ export async function buildPayrollReceiptPdf(input: PayrollReceiptInput): Promis
 				},
 				{
 					label: input.t('summary.rows.fiscalGrossPay'),
-					value: toNumber(input.employee.fiscalGrossPay ?? grossPay),
+					value: toNumber(input.employee.fiscalGrossPay),
 					color: SUMMARY_COLOR_POSITIVE,
 				},
 				{

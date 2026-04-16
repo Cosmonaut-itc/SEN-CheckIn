@@ -82,3 +82,50 @@ export function buildPayrollCsvEmployeeRow(args: {
 		warnings,
 	};
 }
+
+interface PayrollCsvSummaryArgs {
+	employeeRows: readonly CsvRow[];
+	paymentFrequency: NonNullable<PayrollCalculationEmployee['paymentFrequency']>;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	t: TranslateFn;
+	taxSummary: {
+		employeeWithholdingsTotal: number;
+		employerCostsTotal: number;
+		netPayTotal: number;
+		companyCostTotal: number;
+	};
+}
+
+/**
+ * Builds the CSV summary row using the same employee-row values that will be exported.
+ *
+ * @param args - Summary row inputs
+ * @param args.employeeRows - Already-built employee CSV rows
+ * @param args.paymentFrequency - Payroll run payment frequency
+ * @param args.periodStartDateKey - Export period start date key
+ * @param args.periodEndDateKey - Export period end date key
+ * @param args.t - Translation function for static labels
+ * @param args.taxSummary - Aggregate withholding, net, and company-cost totals
+ * @returns CSV-safe summary row aligned with exported employee values
+ */
+export function buildPayrollCsvSummaryRow(args: PayrollCsvSummaryArgs): CsvRow {
+	const grossPayTotal = args.employeeRows.reduce((total, row) => {
+		const grossPay = row.grossPay;
+		return total + (typeof grossPay === 'number' ? grossPay : Number(grossPay ?? 0));
+	}, 0);
+
+	return {
+		rowType: args.t('csv.rowTypes.summary'),
+		employeeId: '',
+		employeeName: args.t('csv.summaryLabel'),
+		paymentFrequency: args.t(`paymentFrequency.${args.paymentFrequency}`),
+		periodStart: args.periodStartDateKey,
+		periodEnd: args.periodEndDateKey,
+		grossPay: grossPayTotal,
+		employeeWithholdingsTotal: args.taxSummary.employeeWithholdingsTotal,
+		employerCostsTotal: args.taxSummary.employerCostsTotal,
+		netPay: args.taxSummary.netPayTotal,
+		companyCost: args.taxSummary.companyCostTotal,
+	};
+}

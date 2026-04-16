@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PayrollCalculationEmployee } from '@/lib/client-functions';
 
-import { buildPayrollCsvEmployeeRow } from './payroll-client.helpers';
+import { buildPayrollCsvEmployeeRow, buildPayrollCsvSummaryRow } from './payroll-client.helpers';
 
 type TranslateFn = (key: string) => string;
 
@@ -193,5 +193,56 @@ describe('buildPayrollCsvEmployeeRow', () => {
 		});
 
 		expect(row.totalGratifications).toBe(750);
+	});
+});
+
+describe('buildPayrollCsvSummaryRow', () => {
+	const t: TranslateFn = (key) => key;
+
+	it('keeps summary gross pay aligned with the exported employee gross pay values', () => {
+		const employeeRows = [
+			buildPayrollCsvEmployeeRow({
+				row: buildEmployee({
+					employeeId: 'emp-1',
+					totalPay: 1740,
+					grossPay: 1740,
+					fiscalGrossPay: 1320,
+					complementPay: 420,
+					totalRealPay: 1740,
+				}),
+				periodStartDateKey: '2026-03-09',
+				periodEndDateKey: '2026-03-15',
+				t,
+			}),
+			buildPayrollCsvEmployeeRow({
+				row: buildEmployee({
+					employeeId: 'emp-2',
+					totalPay: 1080,
+					grossPay: 1080,
+					fiscalGrossPay: null,
+					complementPay: null,
+					totalRealPay: null,
+				}),
+				periodStartDateKey: '2026-03-09',
+				periodEndDateKey: '2026-03-15',
+				t,
+			}),
+		];
+
+		const row = buildPayrollCsvSummaryRow({
+			employeeRows,
+			paymentFrequency: 'WEEKLY',
+			periodStartDateKey: '2026-03-09',
+			periodEndDateKey: '2026-03-15',
+			t,
+			taxSummary: {
+				employeeWithholdingsTotal: 0,
+				employerCostsTotal: 0,
+				netPayTotal: 2820,
+				companyCostTotal: 2820,
+			},
+		});
+
+		expect(row.grossPay).toBe(2400);
 	});
 });

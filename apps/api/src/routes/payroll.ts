@@ -496,11 +496,34 @@ const calculatePayroll = async (args: {
 		vacationDayCounts[row.employeeId] = (vacationDayCounts[row.employeeId] ?? 0) + 1;
 	}
 
+	const payableVacationRequestRows =
+		employeeIds.length === 0 || !payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay
+			? []
+			: await db
+					.select({
+						requestId: vacationRequestDay.requestId,
+					})
+					.from(vacationRequestDay)
+					.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
+					.where(
+						and(
+							eq(vacationRequest.organizationId, organizationId),
+							inArray(vacationRequestDay.employeeId, employeeIds),
+							eq(vacationRequestDay.countsAsVacationDay, true),
+							eq(vacationRequest.status, 'APPROVED'),
+						),
+					);
+
+	const payableVacationRequestIds = new Set(
+		payableVacationRequestRows.map((row) => row.requestId),
+	);
+
 	const approvedVacationPeriodRows =
 		employeeIds.length === 0 || !payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay
 			? []
 			: await db
 					.select({
+						id: vacationRequest.id,
 						employeeId: vacationRequest.employeeId,
 						startDateKey: vacationRequest.startDateKey,
 						endDateKey: vacationRequest.endDateKey,
@@ -521,6 +544,10 @@ const calculatePayroll = async (args: {
 		Array<{ startDateKey: string; endDateKey: string }>
 	>();
 	for (const row of approvedVacationPeriodRows) {
+		if (!payableVacationRequestIds.has(row.id)) {
+			continue;
+		}
+
 		const current = approvedVacationPeriodsByEmployeeId.get(row.employeeId) ?? [];
 		current.push({
 			startDateKey: row.startDateKey,

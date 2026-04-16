@@ -208,6 +208,63 @@ describe('aggregateAttendanceByPersonDay', () => {
 		});
 	});
 
+	it('keeps WORK_OFFSITE precedence when a day also has check-in records', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04-10',
+					offsiteDayKind: 'LABORABLE',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T14:30:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T23:30:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toEqual({
+			employeeName: 'Juan',
+			employeeId: 'emp-1',
+			date: '10/04/2026',
+			firstEntry: 'Fuera de oficina',
+			lastExit: 'Fuera de oficina',
+			totalHours: 'Fuera de oficina',
+		});
+	});
+
+	it('preserves malformed offsite date keys instead of rendering undefined segments', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04',
+					offsiteDayKind: 'LABORABLE',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]?.date).toBe('2026-04');
+	});
+
 	it('sorts rows by employee name and then date', () => {
 		const rows = aggregateAttendanceByPersonDay(
 			[

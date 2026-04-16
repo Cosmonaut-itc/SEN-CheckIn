@@ -41,7 +41,12 @@ interface AttendanceSummaryResult {
  * @returns Human-readable date string for CSV output
  */
 function formatDateKey(dateKey: string): string {
-	const [year, month, day] = dateKey.split('-');
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+	if (!match) {
+		return dateKey;
+	}
+
+	const [, year, month, day] = match;
 	return `${day}/${month}/${year}`;
 }
 

@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { format } from 'date-fns';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
+import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
 
 import { AttendancePageClient } from './attendance-client';
 
@@ -36,9 +37,13 @@ vi.mock('@/lib/client-functions', async (importOriginal) => {
 /**
  * Renders the attendance client with required providers.
  *
+ * @param options - Optional overrides for org context and initial filters
  * @returns Render result
  */
-function renderAttendanceClient(): ReturnType<typeof render> {
+function renderAttendanceClient(options?: {
+	organizationTimeZone?: string | null;
+	initialFilters?: React.ComponentProps<typeof AttendancePageClient>['initialFilters'];
+}): ReturnType<typeof render> {
 	const queryClient = new QueryClient({
 		defaultOptions: {
 			queries: {
@@ -55,13 +60,16 @@ function renderAttendanceClient(): ReturnType<typeof render> {
 					organizationName: 'Org 1',
 					organizationSlug: 'org-1',
 					organizationRole: 'member',
+					organizationTimeZone: options?.organizationTimeZone ?? null,
 				}}
 			>
 				<AttendancePageClient
-					initialFilters={{
-						from: '2026-02-23',
-						to: '2026-03-01',
-					}}
+					initialFilters={
+						options?.initialFilters ?? {
+							from: '2026-02-23',
+							to: '2026-03-01',
+						}
+					}
 				/>
 			</OrgProvider>
 		</QueryClientProvider>,
@@ -109,5 +117,54 @@ describe('AttendancePageClient', () => {
 
 		expect(format(firstCall[0].fromDate, 'yyyy-MM-dd')).toBe('2026-02-23');
 		expect(format(firstCall[0].toDate, 'yyyy-MM-dd')).toBe('2026-03-01');
+	});
+
+	it('uses the organization timezone when fetching export records', async () => {
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Tijuana',
+			initialFilters: {
+				from: '2026-02-23',
+				to: '2026-02-23',
+				timeZone: 'America/Mexico_City',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(
+				mockFetchAttendanceRecords.mock.calls.some(
+					([params]) => (params as { limit?: number }).limit === 100,
+				),
+			).toBe(true);
+		});
+
+		const exportCall = mockFetchAttendanceRecords.mock.calls.find(
+			([params]) => (params as { limit?: number }).limit === 100,
+		) as [
+			{
+				fromDate: Date;
+				toDate: Date;
+			},
+		];
+		const expectedRange = getUtcDayRangeFromDateKey('2026-02-23', 'America/Tijuana');
+
+		expect(exportCall[0].fromDate.toISOString()).toBe(expectedRange.startUtc.toISOString());
+		expect(exportCall[0].toDate.toISOString()).toBe(expectedRange.endUtc.toISOString());
 	});
 });

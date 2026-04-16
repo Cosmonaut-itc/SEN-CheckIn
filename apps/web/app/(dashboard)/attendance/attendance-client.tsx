@@ -34,11 +34,6 @@ import {
 	format,
 	startOfDay,
 	endOfDay,
-	subDays,
-	startOfWeek,
-	endOfWeek,
-	startOfMonth,
-	endOfMonth,
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -74,6 +69,12 @@ import {
 	updateWorkOffsiteAttendance,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
+import {
+	addDaysToDateKey,
+	getEndOfMonthDateKey,
+	getStartOfMonthDateKey,
+	getWeekStartDateKey,
+} from '@/lib/date-key';
 import { getUtcDayRangeFromDateKey, isValidIanaTimeZone, toDateKeyInTimeZone } from '@/lib/time-zone';
 import type {
 	ColumnDef,
@@ -427,49 +428,40 @@ export function AttendancePageClient({
 	const getDateRange = useCallback(
 		(preset: DatePreset): { start: Date; end: Date } => {
 			const now = new Date();
-			let start: Date;
-			let end: Date;
+			const fallbackDateKey = toDateKeyInTimeZone(now, attendanceExportTimeZone);
+			let startDateKey: string;
+			let endDateKey: string;
 
 			switch (preset) {
 				case 'today':
-					start = startOfDay(now);
-					end = endOfDay(now);
+					startDateKey = fallbackDateKey;
+					endDateKey = fallbackDateKey;
 					break;
 				case 'yesterday':
-					start = startOfDay(subDays(now, 1));
-					end = endOfDay(subDays(now, 1));
+					startDateKey = addDaysToDateKey(fallbackDateKey, -1);
+					endDateKey = startDateKey;
 					break;
 				case 'this_week':
-					start = startOfWeek(now, { weekStartsOn: 1 });
-					end = endOfWeek(now, { weekStartsOn: 1 });
+					startDateKey = getWeekStartDateKey(fallbackDateKey, 1);
+					endDateKey = addDaysToDateKey(startDateKey, 6);
 					break;
 				case 'this_month':
-					start = startOfMonth(now);
-					end = endOfMonth(now);
+					startDateKey = getStartOfMonthDateKey(fallbackDateKey);
+					endDateKey = getEndOfMonthDateKey(fallbackDateKey);
 					break;
 				case 'custom':
 				default:
-					if (deepLinkTimeZone) {
-						const fallbackDateKey = toDateKeyInTimeZone(now, deepLinkTimeZone);
-						const startKey = normalizeDateKeyString(startDate) ?? fallbackDateKey;
-						const endKey = normalizeDateKeyString(endDate) ?? fallbackDateKey;
-						start = getUtcDayRangeFromDateKey(startKey, deepLinkTimeZone).startUtc;
-						end = getUtcDayRangeFromDateKey(endKey, deepLinkTimeZone).endUtc;
-						break;
-					}
-
-					// Ensure we always have valid dates even if inputs are empty.
-					const parsedStartDate = normalizeDateKey(startDate) ?? undefined;
-					const parsedEndDate = normalizeDateKey(endDate) ?? undefined;
-
-					start = startOfDay(parsedStartDate ?? now);
-					end = endOfDay(parsedEndDate ?? now);
+					startDateKey = normalizeDateKeyString(startDate) ?? fallbackDateKey;
+					endDateKey = normalizeDateKeyString(endDate) ?? fallbackDateKey;
 					break;
 			}
 
-			return { start, end };
+			return {
+				start: getUtcDayRangeFromDateKey(startDateKey, attendanceExportTimeZone).startUtc,
+				end: getUtcDayRangeFromDateKey(endDateKey, attendanceExportTimeZone).endUtc,
+			};
 		},
-		[startDate, endDate, deepLinkTimeZone],
+		[startDate, endDate, attendanceExportTimeZone],
 	);
 
 	// Get the current date range for the query

@@ -79,7 +79,11 @@ import { PayrollRunReceiptsDialog } from './payroll-run-receipts-dialog';
 import { PtuTab } from './ptu-tab';
 import { AguinaldoTab } from './aguinaldo-tab';
 import { PayrollHolidayNoticeCard } from './payroll-holiday-notice';
-import { buildPayrollCsvEmployeeRow, type CsvRow } from './payroll-client.helpers';
+import {
+	buildPayrollCsvEmployeeRow,
+	buildPayrollCsvSummaryRow,
+	type CsvRow,
+} from './payroll-client.helpers';
 import { PayrollOvertimeAlert } from '@/components/overtime/payroll-overtime-alert';
 
 const defaultFrequency: PayrollCalculateParams['paymentFrequency'] = 'WEEKLY';
@@ -589,10 +593,7 @@ export function PayrollPageClient(): React.ReactElement {
 	const activeTourId = getPayrollTourId(effectiveActiveTab);
 
 	useTour('payroll', effectiveActiveTab === 'payroll');
-	useTour(
-		'payroll-ptu',
-		effectiveActiveTab === 'ptu' && isPayrollTabEnabled('ptu', settings),
-	);
+	useTour('payroll-ptu', effectiveActiveTab === 'ptu' && isPayrollTabEnabled('ptu', settings));
 	useTour(
 		'payroll-aguinaldo',
 		effectiveActiveTab === 'aguinaldo' && isPayrollTabEnabled('aguinaldo', settings),
@@ -824,19 +825,16 @@ export function PayrollPageClient(): React.ReactElement {
 		);
 
 		if (taxSummary) {
-			rows.push({
-				rowType: t('csv.rowTypes.summary'),
-				employeeId: '',
-				employeeName: t('csv.summaryLabel'),
-				paymentFrequency: t(`paymentFrequency.${paymentFrequency}`),
-				periodStart: periodStartDateKey,
-				periodEnd: periodEndDateKey,
-				grossPay: taxSummary.grossTotal,
-				employeeWithholdingsTotal: taxSummary.employeeWithholdingsTotal,
-				employerCostsTotal: taxSummary.employerCostsTotal,
-				netPay: taxSummary.netPayTotal,
-				companyCost: taxSummary.companyCostTotal,
-			});
+			rows.push(
+				buildPayrollCsvSummaryRow({
+					employeeRows: [...rows],
+					paymentFrequency: paymentFrequency ?? 'WEEKLY',
+					periodStartDateKey,
+					periodEndDateKey,
+					t,
+					taxSummary,
+				}),
+			);
 		}
 
 		const csv = buildCsvContent(columns, rows);
@@ -1361,7 +1359,10 @@ export function PayrollPageClient(): React.ReactElement {
 									</PopoverContent>
 								</Popover>
 							</div>
-							<div className="flex flex-col justify-end gap-2" data-tour="payroll-process">
+							<div
+								className="flex flex-col justify-end gap-2"
+								data-tour="payroll-process"
+							>
 								<Button
 									className="min-h-11 w-full"
 									onClick={onProcess}

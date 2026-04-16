@@ -2209,6 +2209,9 @@
 				"rows": {
 					"companyCost": "Tu trabajo vale para la empresa",
 					"grossPay": "La empresa te paga",
+					"fiscalGrossPay": "Percepciones gravadas fiscales",
+					"complementPay": "Complemento",
+					"totalRealPay": "Total percepciones",
 					"employerCosts": "La empresa le paga al gobierno por tu cuenta",
 					"employeeWithholdings": "Después, el gobierno te quita",
 					"netPay": "Te quedan"

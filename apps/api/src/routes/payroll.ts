@@ -46,6 +46,7 @@ import {
 	type PayrollHolidayNotice,
 } from '../services/holidays.js';
 import type { IncapacityRecordInput } from '../services/incapacities.js';
+import { countSaturdayBonusDaysForPeriod } from '../services/vacations.js';
 import {
 	buildEmployeeAuditSnapshot,
 	createEmployeeAuditEvent,
@@ -495,6 +496,96 @@ const calculatePayroll = async (args: {
 		vacationDayCounts[row.employeeId] = (vacationDayCounts[row.employeeId] ?? 0) + 1;
 	}
 
+	const payableVacationRequestRows =
+		employeeIds.length === 0 || !payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay
+			? []
+			: await db
+					.select({
+						requestId: vacationRequestDay.requestId,
+					})
+					.from(vacationRequestDay)
+					.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
+					.where(
+						and(
+							eq(vacationRequest.organizationId, organizationId),
+							inArray(vacationRequestDay.employeeId, employeeIds),
+							eq(vacationRequestDay.countsAsVacationDay, true),
+							eq(vacationRequest.status, 'APPROVED'),
+							gte(vacationRequestDay.dateKey, periodStartDateKey),
+							lte(vacationRequestDay.dateKey, periodEndDateKey),
+						),
+					);
+
+	const payableVacationRequestIds = new Set(
+		payableVacationRequestRows.map((row) => row.requestId),
+	);
+
+	const approvedVacationPeriodRows =
+		employeeIds.length === 0 || !payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay
+			? []
+			: await db
+					.select({
+						id: vacationRequest.id,
+						employeeId: vacationRequest.employeeId,
+						startDateKey: vacationRequest.startDateKey,
+						endDateKey: vacationRequest.endDateKey,
+					})
+					.from(vacationRequest)
+					.where(
+						and(
+							eq(vacationRequest.organizationId, organizationId),
+							inArray(vacationRequest.employeeId, employeeIds),
+							eq(vacationRequest.status, 'APPROVED'),
+							lte(vacationRequest.startDateKey, periodEndDateKey),
+							gte(vacationRequest.endDateKey, periodStartDateKey),
+						),
+					);
+
+	const approvedVacationPeriodsByEmployeeId = new Map<
+		string,
+		Array<{ startDateKey: string; endDateKey: string }>
+	>();
+	for (const row of approvedVacationPeriodRows) {
+		if (!payableVacationRequestIds.has(row.id)) {
+			continue;
+		}
+
+		const current = approvedVacationPeriodsByEmployeeId.get(row.employeeId) ?? [];
+		current.push({
+			startDateKey: row.startDateKey,
+			endDateKey: row.endDateKey,
+		});
+		approvedVacationPeriodsByEmployeeId.set(row.employeeId, current);
+	}
+
+	const schedulesByEmployeeId = new Map<string, typeof schedules>();
+	for (const scheduleRow of schedules) {
+		const current = schedulesByEmployeeId.get(scheduleRow.employeeId) ?? [];
+		current.push(scheduleRow);
+		schedulesByEmployeeId.set(scheduleRow.employeeId, current);
+	}
+
+	const saturdayVacationBonusDays: Record<string, number> = {};
+	if (payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay) {
+		for (const employeeRow of filteredEmployees) {
+			const saturdayBonusDays = countSaturdayBonusDaysForPeriod({
+				countSaturdayAsWorkedForSeventhDay:
+					payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay,
+				periodStartDateKey,
+				periodEndDateKey,
+				scheduleDays: (schedulesByEmployeeId.get(employeeRow.id) ?? []).map((scheduleRow) => ({
+					dayOfWeek: scheduleRow.dayOfWeek,
+					isWorkingDay: scheduleRow.isWorkingDay,
+				})),
+				vacationPeriods: approvedVacationPeriodsByEmployeeId.get(employeeRow.id) ?? [],
+			});
+
+			if (saturdayBonusDays > 0) {
+				saturdayVacationBonusDays[employeeRow.id] = saturdayBonusDays;
+			}
+		}
+	}
+
 	const incapacityRows =
 		employeeIds.length === 0
 			? []
@@ -647,6 +738,7 @@ const calculatePayroll = async (args: {
 		defaultTimeZone: timeZone,
 		payrollSettings: payrollSettingsSnapshot,
 		vacationDayCounts,
+		saturdayVacationBonusDays,
 		incapacityRecordsByEmployee,
 	});
 

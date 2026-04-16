@@ -254,6 +254,7 @@ export interface CalculatePayrollFromDataArgs {
 		countSaturdayAsWorkedForSeventhDay?: boolean;
 	};
 	vacationDayCounts?: Record<string, number>;
+	saturdayVacationBonusDays?: Record<string, number>;
 	incapacityRecordsByEmployee?: Record<string, IncapacityRecordInput[]>;
 }
 
@@ -1441,6 +1442,14 @@ export function calculatePayrollFromData(
 		const vacationDaysPaid = Math.max(0, vacationDayCounts?.[emp.id] ?? 0);
 		const vacationPayAmount =
 			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * taxDailyPay) : 0;
+		const saturdayVacationBonusDaysPaid = Math.max(
+			0,
+			args.saturdayVacationBonusDays?.[emp.id] ?? 0,
+		);
+		const saturdayVacationBonusPay =
+			saturdayVacationBonusDaysPaid > 0
+				? roundCurrency(saturdayVacationBonusDaysPaid * taxDailyPay)
+				: 0;
 		const vacationPremiumAmount =
 			vacationPayAmount > 0
 				? roundCurrency(vacationPayAmount * resolvedTaxSettings.vacationPremiumRate)
@@ -1462,6 +1471,10 @@ export function calculatePayrollFromData(
 				: 0;
 		const realVacationPayAmount =
 			vacationDaysPaid > 0 ? roundCurrency(vacationDaysPaid * realDailyPay) : 0;
+		const realSaturdayVacationBonusPay =
+			saturdayVacationBonusDaysPaid > 0
+				? roundCurrency(saturdayVacationBonusDaysPaid * realDailyPay)
+				: 0;
 		const realVacationPremiumAmount =
 			realVacationPayAmount > 0
 				? roundCurrency(
@@ -1568,6 +1581,7 @@ export function calculatePayrollFromData(
 				sundayPremiumAmount +
 				mandatoryRestDayPremiumAmount +
 				seventhDayPay +
+				saturdayVacationBonusPay +
 				vacationPayAmount +
 				vacationPremiumAmount,
 		);
@@ -1578,6 +1592,7 @@ export function calculatePayrollFromData(
 				realSundayPremiumAmount +
 				realMandatoryRestDayPremiumAmount +
 				realSeventhDayPay +
+				realSaturdayVacationBonusPay +
 				realVacationPayAmount +
 				realVacationPremiumAmount +
 				totalGratifications,

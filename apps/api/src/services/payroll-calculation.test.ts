@@ -521,6 +521,76 @@ describe('payroll-calculation', () => {
 		expect(row?.grossPay).toBe(2000);
 	});
 
+	it('adds saturday vacation bonus pay without increasing vacation days paid', () => {
+		const periodStartDateKey = '2025-12-15';
+		const periodEndDateKey = '2025-12-21';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			attendanceRows: [],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			saturdayVacationBonusDays: {
+				[employeeId]: 1,
+			},
+		});
+
+		expect(employees).toHaveLength(1);
+		const row = employees[0];
+		expect(row?.vacationDaysPaid).toBe(0);
+		expect(row?.vacationPayAmount).toBe(0);
+		expect(row?.grossPay).toBe(800);
+		expect(row?.totalPay).toBe(800);
+	});
+
+	it('adds saturday vacation bonus pay to fiscal and real gross pay in dual payroll', () => {
+		const dualEmployeeId = 'emp-saturday-bonus-dual';
+		const periodStartDateKey = '2025-12-15';
+		const periodEndDateKey = '2025-12-21';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		const { employees } = calculatePayrollFromData({
+			...baseArgs,
+			employees: [
+				{
+					...defaultEmployee,
+					id: dualEmployeeId,
+					dailyPay: 800,
+					fiscalDailyPay: 500,
+				},
+			],
+			attendanceRows: [],
+			periodStartDateKey,
+			periodEndDateKey,
+			periodBounds,
+			payrollSettings: {
+				enableDualPayroll: true,
+			},
+			saturdayVacationBonusDays: {
+				[dualEmployeeId]: 2,
+			},
+		});
+
+		const row = requireDualPayrollRow(employees);
+		expect(row.vacationDaysPaid).toBe(0);
+		expect(row.vacationPayAmount).toBe(0);
+		expect(row.grossPay).toBe(1600);
+		expect(row.fiscalGrossPay).toBe(1000);
+		expect(row.complementPay).toBe(600);
+		expect(row.totalRealPay).toBe(1600);
+		expect(row.totalPay).toBe(1600);
+	});
+
 	it('splits cross-midnight work into local day keys (Sunday premium hours)', () => {
 		const periodStartDateKey = '2025-01-04';
 		const periodEndDateKey = '2025-01-05';

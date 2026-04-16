@@ -35,6 +35,11 @@ export interface VacationDayBreakdown {
 	vacationDaysByServiceYear: Map<number, number>;
 }
 
+export interface VacationPeriodRange {
+	startDateKey: string;
+	endDateKey: string;
+}
+
 /**
  * Computes completed years of service for a given date key.
  *
@@ -268,6 +273,29 @@ export const MAX_VACATION_RANGE_DAYS = 366;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
+ * Determines whether the provided schedule matches a classic Monday-to-Friday workweek.
+ *
+ * @param scheduleDays - Employee schedule rows keyed by weekday
+ * @returns True when only Monday-Friday are configured as working days
+ */
+function isClassicMondayToFridaySchedule(scheduleDays: VacationScheduleDay[]): boolean {
+	const workingDays = new Set(
+		scheduleDays.filter((day) => day.isWorkingDay).map((day) => day.dayOfWeek),
+	);
+
+	return (
+		workingDays.size === 5 &&
+		workingDays.has(1) &&
+		workingDays.has(2) &&
+		workingDays.has(3) &&
+		workingDays.has(4) &&
+		workingDays.has(5) &&
+		!workingDays.has(0) &&
+		!workingDays.has(6)
+	);
+}
+
+/**
  * Calculates the inclusive day span for a date-key range and validates limits.
  *
  * @param startDateKey - Range start in YYYY-MM-DD format
@@ -387,4 +415,73 @@ export function buildVacationDayBreakdown(args: {
 	}
 
 	return { days, vacationDays, vacationDaysByServiceYear };
+}
+
+/**
+ * Counts Saturday bonus days for approved vacation periods intersecting a payroll period.
+ *
+ * @param args - Payroll-period vacation span inputs
+ * @param args.countSaturdayAsWorkedForSeventhDay - Whether Saturday bonuses are enabled
+ * @param args.periodStartDateKey - Payroll period start date key
+ * @param args.periodEndDateKey - Payroll period end date key
+ * @param args.scheduleDays - Employee schedule rows
+ * @param args.vacationPeriods - Approved vacation request ranges for the employee
+ * @returns Number of Saturdays to pay as vacation bonus days
+ */
+export function countSaturdayBonusDaysForPeriod(args: {
+	countSaturdayAsWorkedForSeventhDay: boolean;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	scheduleDays: VacationScheduleDay[];
+	vacationPeriods: VacationPeriodRange[];
+}): number {
+	const {
+		countSaturdayAsWorkedForSeventhDay,
+		periodStartDateKey,
+		periodEndDateKey,
+		scheduleDays,
+		vacationPeriods,
+	} = args;
+
+	if (
+		!countSaturdayAsWorkedForSeventhDay ||
+		vacationPeriods.length === 0 ||
+		!isClassicMondayToFridaySchedule(scheduleDays)
+	) {
+		return 0;
+	}
+
+	const saturdayDateKeys = new Set<string>();
+
+	for (const vacationPeriod of vacationPeriods) {
+		const rangeStartDateKey =
+			vacationPeriod.startDateKey > periodStartDateKey
+				? vacationPeriod.startDateKey
+				: periodStartDateKey;
+		const rangeEndDateKey =
+			vacationPeriod.endDateKey < periodEndDateKey
+				? vacationPeriod.endDateKey
+				: periodEndDateKey;
+
+		if (rangeEndDateKey < rangeStartDateKey) {
+			continue;
+		}
+
+		const rangeDays = getValidatedRangeDays(rangeStartDateKey, rangeEndDateKey);
+		let cursor = rangeStartDateKey;
+
+		for (let index = 0; index < rangeDays; index += 1) {
+			if (new Date(`${cursor}T00:00:00Z`).getUTCDay() === 6) {
+				saturdayDateKeys.add(cursor);
+			}
+
+			if (cursor === rangeEndDateKey) {
+				break;
+			}
+
+			cursor = addDaysToDateKey(cursor, 1);
+		}
+	}
+
+	return saturdayDateKeys.size;
 }

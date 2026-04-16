@@ -153,7 +153,7 @@ function getInclusiveDayCount(startDateKey: string, endDateKey: string): number 
 }
 
 /**
- * Calculates accrued vacation days for a service year using linear accrual.
+ * Calculates accrued vacation days for a service year using full entitlement.
  *
  * @param args - Accrual inputs
  * @param args.hireDate - Employee hire date
@@ -190,21 +190,30 @@ export function calculateVacationAccrual(args: {
 	}
 
 	const daysInServiceYear = getInclusiveDayCount(serviceYearStartDateKey, serviceYearEndDateKey);
+	if (asOfDateKey < serviceYearStartDateKey) {
+		return {
+			entitledDays,
+			accruedDays: 0,
+			serviceYearStartDateKey,
+			serviceYearEndDateKey,
+			daysElapsed: 0,
+			daysInServiceYear,
+		};
+	}
+
 	const clampedAsOfDateKey =
-		asOfDateKey < serviceYearStartDateKey
-			? serviceYearStartDateKey
-			: asOfDateKey > serviceYearEndDateKey
+		asOfDateKey > serviceYearEndDateKey
 				? serviceYearEndDateKey
 				: asOfDateKey;
 	const daysElapsed = getInclusiveDayCount(serviceYearStartDateKey, clampedAsOfDateKey);
-	const accruedDays =
-		daysInServiceYear > 0 ? (entitledDays * daysElapsed) / daysInServiceYear : 0;
+	const accruedDays = entitledDays;
 
 	return {
 		entitledDays,
 		accruedDays,
 		serviceYearStartDateKey,
 		serviceYearEndDateKey,
+		// Keep period metrics available for callers that need service-year context.
 		daysElapsed,
 		daysInServiceYear,
 	};

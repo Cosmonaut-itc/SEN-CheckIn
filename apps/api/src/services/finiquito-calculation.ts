@@ -4,10 +4,10 @@ import type {
 	TerminationReason,
 } from '@sen-checkin/types';
 
-import { addDaysToDateKey, parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
+import { parseDateKey, toDateKeyUtc } from '../utils/date-key.js';
 import { roundCurrency, sumMoney } from '../utils/money.js';
 import { resolveMinimumWageDaily, type MinimumWageZone } from '../utils/minimum-wage.js';
-import { getSbcDaily, getVacationDaysForYears } from './mexico-payroll-taxes.js';
+import { getSbcDaily } from './mexico-payroll-taxes.js';
 import { calculateVacationAccrual, getServiceYearNumber } from './vacations.js';
 
 const DAYS_IN_MONTH_LFT = 30;
@@ -133,31 +133,9 @@ function buildDefaultVacationBalanceDays(args: {
 	usedDays: number;
 }): number {
 	const currentServiceYear = getServiceYearNumber(args.hireDate, args.asOfDateKey) ?? 0;
-	const normalizedUsedDays = clampNonNegative(args.usedDays);
 
 	if (currentServiceYear <= 0) {
-		const hireDateKey = toDateKeyUtc(args.hireDate);
-		const firstYearEndDateKey = addDaysToDateKey(
-			toDateKeyUtc(
-				new Date(
-					Date.UTC(
-						args.hireDate.getUTCFullYear() + 1,
-						args.hireDate.getUTCMonth(),
-						args.hireDate.getUTCDate(),
-					),
-				),
-			),
-			-1,
-		);
-		const daysInFirstYear = getInclusiveDayCount(hireDateKey, firstYearEndDateKey);
-		const daysElapsed = getInclusiveDayCount(
-			hireDateKey,
-			args.asOfDateKey < hireDateKey ? hireDateKey : args.asOfDateKey,
-		);
-		const entitledDays = getVacationDaysForYears(1);
-		const accruedDays =
-			daysInFirstYear > 0 ? (entitledDays * daysElapsed) / daysInFirstYear : 0;
-		return Math.max(0, accruedDays - normalizedUsedDays);
+		return 0;
 	}
 
 	const accrual = calculateVacationAccrual({
@@ -166,7 +144,7 @@ function buildDefaultVacationBalanceDays(args: {
 		asOfDateKey: args.asOfDateKey,
 	});
 
-	return Math.max(0, accrual.accruedDays - normalizedUsedDays);
+	return Math.max(0, accrual.accruedDays - clampNonNegative(args.usedDays));
 }
 
 /**

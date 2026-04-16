@@ -307,6 +307,36 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows).toEqual([]);
 	});
 
+	it('pairs overnight entry and exit under the check-in date key', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-11T05:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-11T13:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toEqual({
+			employeeName: 'Juan',
+			employeeId: 'emp-1',
+			date: '10/04/2026',
+			firstEntry: '23:00',
+			lastExit: '07:00',
+			totalHours: '08:00',
+		});
+	});
+
 	it('creates separate rows for two employees on the same day', () => {
 		const rows = aggregateAttendanceByPersonDay(
 			[

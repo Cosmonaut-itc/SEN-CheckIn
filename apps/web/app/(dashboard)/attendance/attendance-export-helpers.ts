@@ -34,6 +34,11 @@ interface AttendanceSummaryResult {
 	row: AttendanceSummaryCsvRow;
 }
 
+interface PendingEntryByEmployee {
+	employeeId: string;
+	record: AttendanceRecord;
+}
+
 /**
  * Formats a local date key as dd/MM/yyyy.
  *
@@ -104,7 +109,60 @@ function getAttendanceDateKey(record: AttendanceRecord, timeZone: string): strin
 }
 
 /**
- * Groups attendance records by employee and local date.
+ * Resolves or creates a grouped attendance bucket.
+ *
+ * @param groups - Existing grouped attendance buckets
+ * @param record - Attendance record to append
+ * @param dateKey - Local date key assigned to the record
+ * @returns Group for the employee/date combination
+ */
+function getOrCreateAttendanceGroup(
+	groups: Map<string, AttendanceSummaryGroup>,
+	record: AttendanceRecord,
+	dateKey: string,
+): AttendanceSummaryGroup {
+	const groupKey = `${record.employeeId}:${dateKey}`;
+	const currentGroup = groups.get(groupKey);
+
+	if (currentGroup) {
+		return currentGroup;
+	}
+
+	const nextGroup: AttendanceSummaryGroup = {
+		employeeId: record.employeeId,
+		employeeName: record.employeeName,
+		dateKey,
+		records: [],
+	};
+	groups.set(groupKey, nextGroup);
+	return nextGroup;
+}
+
+/**
+ * Appends an attendance record into the grouped bucket for the provided day key.
+ *
+ * @param groups - Existing grouped attendance buckets
+ * @param record - Attendance record to append
+ * @param dateKey - Local date key assigned to the record
+ * @returns void
+ */
+function appendRecordToGroup(
+	groups: Map<string, AttendanceSummaryGroup>,
+	record: AttendanceRecord,
+	dateKey: string,
+): void {
+	const group = getOrCreateAttendanceGroup(groups, record, dateKey);
+	group.records.push(record);
+}
+
+/**
+ * Groups attendance records by employee and export day.
+ *
+ * Regular attendance pairs are matched first per employee so overnight shifts can
+ * stay together even when the exit lands on the following local day. Once paired,
+ * the full span is attributed to the check-in local date, which keeps the export
+ * aligned with the shift start while preserving the current "one row per employee
+ * per day" shape of the CSV.
  *
  * @param records - Attendance records to group
  * @param timeZone - Organization timezone
@@ -115,23 +173,52 @@ function groupAttendanceRecords(
 	timeZone: string,
 ): Map<string, AttendanceSummaryGroup> {
 	const groups = new Map<string, AttendanceSummaryGroup>();
+	const openEntriesByEmployee = new Map<string, PendingEntryByEmployee[]>();
+	const sortedRecords = [...records].sort((left, right) => {
+		const employeeComparison = left.employeeId.localeCompare(right.employeeId, 'es-MX');
+		if (employeeComparison !== 0) {
+			return employeeComparison;
+		}
 
-	for (const record of records) {
-		const dateKey = getAttendanceDateKey(record, timeZone);
-		const groupKey = `${record.employeeId}:${dateKey}`;
-		const currentGroup = groups.get(groupKey);
+		return new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
+	});
 
-		if (currentGroup) {
-			currentGroup.records.push(record);
+	for (const record of sortedRecords) {
+		if (record.type === 'WORK_OFFSITE') {
+			appendRecordToGroup(groups, record, getAttendanceDateKey(record, timeZone));
 			continue;
 		}
 
-		groups.set(groupKey, {
-			employeeId: record.employeeId,
-			employeeName: record.employeeName,
-			dateKey,
-			records: [record],
-		});
+		if (record.type === 'CHECK_IN') {
+			const openEntries = openEntriesByEmployee.get(record.employeeId) ?? [];
+			openEntries.push({ employeeId: record.employeeId, record });
+			openEntriesByEmployee.set(record.employeeId, openEntries);
+			continue;
+		}
+
+		if (record.type === 'CHECK_OUT' || record.type === 'CHECK_OUT_AUTHORIZED') {
+			const openEntries = openEntriesByEmployee.get(record.employeeId);
+			const pendingEntry = openEntries?.shift();
+
+			if (!pendingEntry) {
+				appendRecordToGroup(groups, record, getAttendanceDateKey(record, timeZone));
+				continue;
+			}
+
+			if (openEntries && openEntries.length === 0) {
+				openEntriesByEmployee.delete(record.employeeId);
+			}
+
+			const entryDateKey = getAttendanceDateKey(pendingEntry.record, timeZone);
+			appendRecordToGroup(groups, pendingEntry.record, entryDateKey);
+			appendRecordToGroup(groups, record, entryDateKey);
+		}
+	}
+
+	for (const openEntries of openEntriesByEmployee.values()) {
+		for (const pendingEntry of openEntries) {
+			appendRecordToGroup(groups, pendingEntry.record, getAttendanceDateKey(pendingEntry.record, timeZone));
+		}
 	}
 
 	return groups;

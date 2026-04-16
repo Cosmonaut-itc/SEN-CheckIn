@@ -79,9 +79,15 @@ function renderAttendanceClient(options?: {
 
 describe('AttendancePageClient', () => {
 	const originalTimeZone = process.env.TZ;
+	let originalCreateObjectURL: typeof URL.createObjectURL;
+	let originalRevokeObjectURL: typeof URL.revokeObjectURL;
 
 	beforeEach(() => {
 		process.env.TZ = 'America/Mexico_City';
+		originalCreateObjectURL = URL.createObjectURL;
+		originalRevokeObjectURL = URL.revokeObjectURL;
+		URL.createObjectURL = vi.fn(() => 'blob:attendance-export');
+		URL.revokeObjectURL = vi.fn();
 		mockFetchAttendanceRecords.mockReset();
 		mockFetchLocationsList.mockReset();
 		mockFetchAttendanceRecords.mockResolvedValue({
@@ -97,9 +103,12 @@ describe('AttendancePageClient', () => {
 	afterEach(() => {
 		if (originalTimeZone === undefined) {
 			delete process.env.TZ;
-			return;
+		} else {
+			process.env.TZ = originalTimeZone;
 		}
-		process.env.TZ = originalTimeZone;
+		URL.createObjectURL = originalCreateObjectURL;
+		URL.revokeObjectURL = originalRevokeObjectURL;
+		vi.restoreAllMocks();
 	});
 
 	it('uses exact custom start/end dates when querying attendance records', async () => {
@@ -181,7 +190,7 @@ describe('AttendancePageClient', () => {
 		expect(screen.queryByText('22/02/2026')).not.toBeInTheDocument();
 	});
 
-	it('uses the organization timezone when fetching export records without a deep-link timezone', async () => {
+	it('uses the organization timezone when fetching spillover export records without a deep-link timezone', async () => {
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
 			pagination: { total: 1, limit: 100, offset: 0 },
@@ -223,10 +232,11 @@ describe('AttendancePageClient', () => {
 				toDate: Date;
 			},
 		];
-		const expectedRange = getUtcDayRangeFromDateKey('2026-02-23', 'America/Tijuana');
+		const expectedStartRange = getUtcDayRangeFromDateKey('2026-02-22', 'America/Tijuana');
+		const expectedEndRange = getUtcDayRangeFromDateKey('2026-02-24', 'America/Tijuana');
 
-		expect(exportCall[0].fromDate.toISOString()).toBe(expectedRange.startUtc.toISOString());
-		expect(exportCall[0].toDate.toISOString()).toBe(expectedRange.endUtc.toISOString());
+		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
+		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
 	});
 
 	it('builds preset date keys in the target timezone instead of the browser timezone', () => {
@@ -285,5 +295,177 @@ describe('AttendancePageClient', () => {
 		expect(screen.getAllByText('00:30:00').length).toBeGreaterThan(0);
 		expect(screen.queryByText('22/02/2026')).not.toBeInTheDocument();
 		expect(screen.queryByText('15:30:00')).not.toBeInTheDocument();
+	});
+
+	it('fetches overnight spillover records around the selected local day before export', async () => {
+		let capturedBlob: Blob | null = null;
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
+		createObjectURLMock.mockImplementation((blob: Blob | MediaSource) => {
+			if (blob instanceof Blob) {
+				capturedBlob = blob;
+			}
+			return 'blob:attendance-export';
+		});
+		const expectedStartRange = getUtcDayRangeFromDateKey('2026-04-09', 'America/Mexico_City');
+		const expectedEndRange = getUtcDayRangeFromDateKey('2026-04-11', 'America/Mexico_City');
+
+		mockFetchAttendanceRecords.mockImplementation(
+			async (params?: { fromDate?: Date; toDate?: Date; limit?: number }) => {
+				if (params?.limit === 100) {
+					const isExpandedRange =
+						params.fromDate?.toISOString() === expectedStartRange.startUtc.toISOString() &&
+						params.toDate?.toISOString() === expectedEndRange.endUtc.toISOString();
+
+					return {
+						data: isExpandedRange
+							? [
+									{
+										id: 'attendance-previous-in',
+										employeeId: 'EMP-000',
+										employeeName: 'Grace Hopper',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-10T05:00:00.000Z'),
+										type: 'CHECK_IN' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-10T05:00:00.000Z'),
+										updatedAt: new Date('2026-04-10T05:00:00.000Z'),
+									},
+									{
+										id: 'attendance-previous-out',
+										employeeId: 'EMP-000',
+										employeeName: 'Grace Hopper',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-10T13:00:00.000Z'),
+										type: 'CHECK_OUT' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-10T13:00:00.000Z'),
+										updatedAt: new Date('2026-04-10T13:00:00.000Z'),
+									},
+									{
+										id: 'attendance-selected-in',
+										employeeId: 'EMP-001',
+										employeeName: 'Ada Lovelace',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-11T05:00:00.000Z'),
+										type: 'CHECK_IN' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-11T05:00:00.000Z'),
+										updatedAt: new Date('2026-04-11T05:00:00.000Z'),
+									},
+									{
+										id: 'attendance-selected-out',
+										employeeId: 'EMP-001',
+										employeeName: 'Ada Lovelace',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-11T13:00:00.000Z'),
+										type: 'CHECK_OUT' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-11T13:00:00.000Z'),
+										updatedAt: new Date('2026-04-11T13:00:00.000Z'),
+									},
+								]
+							: [
+									{
+										id: 'attendance-previous-out',
+										employeeId: 'EMP-000',
+										employeeName: 'Grace Hopper',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-10T13:00:00.000Z'),
+										type: 'CHECK_OUT' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-10T13:00:00.000Z'),
+										updatedAt: new Date('2026-04-10T13:00:00.000Z'),
+									},
+									{
+										id: 'attendance-selected-in',
+										employeeId: 'EMP-001',
+										employeeName: 'Ada Lovelace',
+										deviceId: 'device-1',
+										deviceLocationId: 'location-1',
+										deviceLocationName: 'Oficina principal',
+										timestamp: new Date('2026-04-11T05:00:00.000Z'),
+										type: 'CHECK_IN' as const,
+										metadata: null,
+										createdAt: new Date('2026-04-11T05:00:00.000Z'),
+										updatedAt: new Date('2026-04-11T05:00:00.000Z'),
+									},
+								],
+						pagination: { total: isExpandedRange ? 4 : 2, limit: 100, offset: 0 },
+					};
+				}
+
+				return {
+					data: [
+						{
+							id: 'attendance-initial-row',
+							employeeId: 'EMP-001',
+							employeeName: 'Ada Lovelace',
+							deviceId: 'device-1',
+							deviceLocationId: 'location-1',
+							deviceLocationName: 'Oficina principal',
+							timestamp: new Date('2026-04-10T15:00:00.000Z'),
+							type: 'CHECK_IN' as const,
+							metadata: null,
+							createdAt: new Date('2026-04-10T15:00:00.000Z'),
+							updatedAt: new Date('2026-04-10T15:00:00.000Z'),
+						},
+					],
+					pagination: { total: 1, limit: 10, offset: 0 },
+				};
+			},
+		);
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-10',
+				to: '2026-04-10',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(anchorClickSpy).toHaveBeenCalled();
+			expect(capturedBlob).not.toBeNull();
+		});
+
+		const exportCall = mockFetchAttendanceRecords.mock.calls.find(
+			([params]) => (params as { limit?: number }).limit === 100,
+		) as [
+			{
+				fromDate: Date;
+				toDate: Date;
+			},
+		];
+		const expectedStartRange = getUtcDayRangeFromDateKey('2026-04-09', 'America/Mexico_City');
+		const expectedEndRange = getUtcDayRangeFromDateKey('2026-04-11', 'America/Mexico_City');
+
+		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
+		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
+		expect(capturedBlob).not.toBeNull();
 	});
 });

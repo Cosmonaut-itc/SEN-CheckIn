@@ -20,6 +20,10 @@ export interface AttendanceSummaryLabels {
 export interface AggregateAttendanceOptions {
 	timeZone: string;
 	labels: AttendanceSummaryLabels;
+	dateRange?: {
+		startDateKey: string;
+		endDateKey: string;
+	};
 }
 
 interface AttendanceSummaryGroup {
@@ -353,5 +357,16 @@ export function aggregateAttendanceByPersonDay(
 		return left.row.employeeId.localeCompare(right.row.employeeId, 'es-MX');
 	});
 
-	return results.map((result) => result.row);
+	return results
+		.filter((result) => {
+			if (!options.dateRange) {
+				return true;
+			}
+
+			return (
+				result.dateKey >= options.dateRange.startDateKey &&
+				result.dateKey <= options.dateRange.endDateKey
+			);
+		})
+		.map((result) => result.row);
 }

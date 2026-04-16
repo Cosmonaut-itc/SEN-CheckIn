@@ -1122,9 +1122,19 @@ export function AttendancePageClient({
 	const handleExportCsv = useCallback(async (): Promise<void> => {
 		setIsExporting(true);
 		try {
+			const exportStartDateKey = toDateKeyInTimeZone(start, attendanceExportTimeZone);
+			const exportEndDateKey = toDateKeyInTimeZone(end, attendanceExportTimeZone);
+			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
+			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
 			const exportRecords = await fetchAllAttendanceRecords({
-				fromDate: start,
-				toDate: end,
+				fromDate: getUtcDayRangeFromDateKey(
+					spilloverStartDateKey,
+					attendanceExportTimeZone,
+				).startUtc,
+				toDate: getUtcDayRangeFromDateKey(
+					spilloverEndDateKey,
+					attendanceExportTimeZone,
+				).endUtc,
 				organizationId,
 				...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
 				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
@@ -1152,6 +1162,10 @@ export function AttendancePageClient({
 				{ key: 'totalHours', label: t('csv.headers.totalHours') },
 			];
 			const rows = aggregateAttendanceByPersonDay(exportRecords, {
+				dateRange: {
+					startDateKey: exportStartDateKey,
+					endDateKey: exportEndDateKey,
+				},
 				labels: summaryLabels,
 				timeZone: attendanceExportTimeZone,
 			});

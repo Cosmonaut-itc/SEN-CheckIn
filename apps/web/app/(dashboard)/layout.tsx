@@ -59,6 +59,7 @@ export default async function DashboardLayout({
 						<OrgProvider
 							value={{
 								...organization,
+								organizationTimeZone: payrollSettings?.timeZone ?? null,
 								organizationRole,
 								userRole,
 							}}

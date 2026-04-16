@@ -218,6 +218,61 @@ function normalizeDateKeyString(value: string | undefined): string | null {
 }
 
 /**
+ * Formats a local date key as DD/MM/YYYY for attendance UI output.
+ *
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Human-readable date string
+ */
+function formatAttendanceDateKey(dateKey: string): string {
+	const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+	if (!match) {
+		return dateKey;
+	}
+
+	const [, year, month, day] = match;
+	return `${day}/${month}/${year}`;
+}
+
+/**
+ * Formats an attendance timestamp in the provided timezone as HH:mm:ss.
+ *
+ * @param timestamp - UTC timestamp for the attendance event
+ * @param timeZone - Timezone used to render attendance rows
+ * @returns Time string in 24-hour format with seconds
+ * @throws {Error} If the formatted parts do not include hour, minute, or second
+ */
+function formatAttendanceTimeInTimeZone(timestamp: Date, timeZone: string): string {
+	const parts = new Intl.DateTimeFormat('es-MX', {
+		timeZone,
+		hour: '2-digit',
+		minute: '2-digit',
+		second: '2-digit',
+		hourCycle: 'h23',
+	}).formatToParts(timestamp);
+
+	const hour = parts.find((part) => part.type === 'hour')?.value;
+	const minute = parts.find((part) => part.type === 'minute')?.value;
+	const second = parts.find((part) => part.type === 'second')?.value;
+
+	if (!hour || !minute || !second) {
+		throw new Error(`Failed to format attendance timestamp in timezone "${timeZone}".`);
+	}
+
+	return `${hour}:${minute}:${second}`;
+}
+
+/**
+ * Formats an attendance timestamp in the provided timezone as DD/MM/YYYY.
+ *
+ * @param timestamp - UTC timestamp for the attendance event
+ * @param timeZone - Timezone used to render attendance rows
+ * @returns Human-readable local date string
+ */
+function formatAttendanceDateInTimeZone(timestamp: Date, timeZone: string): string {
+	return formatAttendanceDateKey(toDateKeyInTimeZone(timestamp, timeZone));
+}
+
+/**
  * Resolves an optional attendance timezone from initial filters.
  *
  * @param value - Candidate timezone
@@ -996,14 +1051,22 @@ export function AttendancePageClient({
 				id: 'time',
 				accessorFn: (row) => row.timestamp,
 				header: t('table.headers.time'),
-				cell: ({ row }) => format(new Date(row.original.timestamp), 'HH:mm:ss'),
+				cell: ({ row }) =>
+					formatAttendanceTimeInTimeZone(
+						new Date(row.original.timestamp),
+						attendanceExportTimeZone,
+					),
 				enableGlobalFilter: false,
 			},
 			{
 				id: 'date',
 				accessorFn: (row) => row.timestamp,
 				header: t('table.headers.date'),
-				cell: ({ row }) => format(new Date(row.original.timestamp), t('dateFormat')),
+				cell: ({ row }) =>
+					formatAttendanceDateInTimeZone(
+						new Date(row.original.timestamp),
+						attendanceExportTimeZone,
+					),
 				enableGlobalFilter: false,
 			},
 			{
@@ -1044,6 +1107,7 @@ export function AttendancePageClient({
 			canManageOffsite,
 			deleteOffsiteMutation.isPending,
 			handleRequestDeleteOffsite,
+			attendanceExportTimeZone,
 			locationFallback,
 			openEditOffsiteDialog,
 			t,
@@ -1192,13 +1256,19 @@ export function AttendancePageClient({
 					<div className="flex items-center justify-between gap-3">
 						<span className="text-muted-foreground">{t('table.headers.time')}</span>
 						<span className="font-medium">
-							{format(new Date(record.timestamp), 'HH:mm:ss')}
+							{formatAttendanceTimeInTimeZone(
+								new Date(record.timestamp),
+								attendanceExportTimeZone,
+							)}
 						</span>
 					</div>
 					<div className="flex items-center justify-between gap-3">
 						<span className="text-muted-foreground">{t('table.headers.date')}</span>
 						<span className="text-right font-medium">
-							{format(new Date(record.timestamp), t('dateFormat'))}
+							{formatAttendanceDateInTimeZone(
+								new Date(record.timestamp),
+								attendanceExportTimeZone,
+							)}
 						</span>
 					</div>
 					<div className="space-y-2">

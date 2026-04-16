@@ -56,6 +56,7 @@ function formatDateKey(dateKey: string): string {
  * @param timestamp - UTC timestamp for the attendance event
  * @param timeZone - Organization timezone
  * @returns Localized time string using 24-hour format
+ * @throws {Error} If the formatted parts do not contain hour or minute values
  */
 function formatTimeInTimeZone(timestamp: Date, timeZone: string): string {
 	const parts = new Intl.DateTimeFormat('es-MX', {

@@ -511,6 +511,8 @@ const calculatePayroll = async (args: {
 							inArray(vacationRequestDay.employeeId, employeeIds),
 							eq(vacationRequestDay.countsAsVacationDay, true),
 							eq(vacationRequest.status, 'APPROVED'),
+							gte(vacationRequestDay.dateKey, periodStartDateKey),
+							lte(vacationRequestDay.dateKey, periodEndDateKey),
 						),
 					);
 

@@ -2186,6 +2186,108 @@ describe('payroll routes', () => {
 		expect(row?.grossPay).toBe(0);
 	});
 
+	it('does not add saturday vacation bonus pay when payable vacation days fall outside the payroll period', async () => {
+		dbState.organizationId = 'org-vac-saturday-outside-period';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				vacationPremiumRate: 0.25,
+				countSaturdayAsWorkedForSeventhDay: true,
+			},
+		];
+
+		const employeeId = 'emp-vac-saturday-outside-period';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+		dbState.schedules = [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+			employeeId,
+			dayOfWeek,
+			startTime: '09:00',
+			endTime: '17:00',
+			isWorkingDay: true,
+		}));
+
+		const requestId = 'vac-req-saturday-outside-period-1';
+		dbState.vacationRequests = [
+			{
+				id: requestId,
+				organizationId: dbState.organizationId,
+				employeeId,
+				status: 'APPROVED',
+				startDateKey: '2025-12-12',
+				endDateKey: '2025-12-21',
+			},
+		];
+		dbState.vacationRequestDays = [
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-12-12',
+				countsAsVacationDay: true,
+			},
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-12-20',
+				countsAsVacationDay: false,
+			},
+			{
+				requestId,
+				employeeId,
+				dateKey: '2025-12-21',
+				countsAsVacationDay: false,
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2025-12-15',
+				periodEndDateKey: '2025-12-21',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: {
+					employeeId: string;
+					vacationDaysPaid: number;
+					vacationPayAmount: number;
+					vacationPremiumAmount: number;
+					totalPay: number;
+					grossPay: number;
+				}[];
+			};
+		};
+
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.vacationDaysPaid).toBe(0);
+		expect(row?.vacationPayAmount).toBe(0);
+		expect(row?.vacationPremiumAmount).toBe(0);
+		expect(row?.totalPay).toBe(0);
+		expect(row?.grossPay).toBe(0);
+	});
+
 	it('persists separated fiscal and real vacation premium rates in dual payroll runs', async () => {
 		dbState.organizationId = 'org-vac-dual';
 		dbState.payrollSettings = [

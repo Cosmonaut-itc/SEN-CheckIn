@@ -295,6 +295,9 @@ describe('buildAttendanceReportPdf', () => {
 		expect(pageTexts.some((text) => text.includes('Horas trabajadas'))).toBe(true);
 		expect(pageTexts.some((text) => text.includes('Firma'))).toBe(true);
 		expect(pageTexts.filter((text) => text.includes('Día'))).toHaveLength(2);
+		expect(pageTexts[0] ?? '').not.toContain('28/04/2026 08:00 17:00 09:00');
+		expect(pageTexts[1] ?? '').toContain('28/04/2026 08:00 17:00 09:00');
+		expect(pageTexts[1] ?? '').toContain('Total');
 	});
 
 	it('moves a near-bottom block to the next page before its first row and total can split apart', async () => {

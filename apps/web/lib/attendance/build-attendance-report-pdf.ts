@@ -546,8 +546,13 @@ export async function buildAttendanceReportPdf(
 
 		cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
 
-		for (const row of group.rows) {
-			if (cursorY - TABLE_ROW_HEIGHT < PAGE_MARGIN) {
+		for (const [rowIndex, row] of group.rows.entries()) {
+			const isLastRow = rowIndex === group.rows.length - 1;
+			const minimumRowHeight = isLastRow
+				? TABLE_ROW_HEIGHT + TABLE_TOTAL_HEIGHT
+				: TABLE_ROW_HEIGHT;
+
+			if (cursorY - minimumRowHeight < PAGE_MARGIN) {
 				page = pdfDocument.addPage(PageSizes.Letter);
 				cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
 				cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);

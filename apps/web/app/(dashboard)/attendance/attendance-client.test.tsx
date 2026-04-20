@@ -15,6 +15,7 @@ vi.mock('next-intl', async () => {
 });
 
 const mockBuildAttendanceReportPdf = vi.fn();
+const mockLoadAttendanceReportPdfBuilder = vi.fn();
 const mockToastError = vi.fn();
 
 vi.mock('sonner', () => ({
@@ -23,13 +24,9 @@ vi.mock('sonner', () => ({
 	},
 }));
 
-vi.mock('@/lib/attendance/build-attendance-report-pdf', async (importOriginal) => {
-	const actual = await importOriginal<typeof import('@/lib/attendance/build-attendance-report-pdf')>();
-	return {
-		...actual,
-		buildAttendanceReportPdf: (...args: unknown[]) => mockBuildAttendanceReportPdf(...args),
-	};
-});
+vi.mock('./attendance-pdf-loader', () => ({
+	loadAttendanceReportPdfBuilder: (...args: unknown[]) => mockLoadAttendanceReportPdfBuilder(...args),
+}));
 
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchLocationsList = vi.fn();
@@ -135,6 +132,7 @@ describe('AttendancePageClient', () => {
 		mockFetchAttendanceRecords.mockReset();
 		mockFetchLocationsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
+		mockLoadAttendanceReportPdfBuilder.mockReset();
 		mockToastError.mockReset();
 		expectedPdfBytes = null;
 		mockBuildAttendanceReportPdf.mockImplementation(async () => {
@@ -144,6 +142,9 @@ describe('AttendancePageClient', () => {
 			const backingBytes = new Uint8Array(bytes.length + 16);
 			backingBytes.set(bytes, 16);
 			return backingBytes.subarray(16);
+		});
+		mockLoadAttendanceReportPdfBuilder.mockResolvedValue({
+			buildAttendanceReportPdf: (...args: unknown[]) => mockBuildAttendanceReportPdf(...args),
 		});
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
@@ -611,6 +612,52 @@ describe('AttendancePageClient', () => {
 		}
 
 		expect(appendedAnchor.download).toBe('asistencia_20260223_20260223.pdf');
+	});
+
+	it('lazy-loads the PDF builder only when export starts', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T15:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T15:30:00.000Z'),
+					updatedAt: new Date('2026-02-23T15:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		expect(mockLoadAttendanceReportPdfBuilder).not.toHaveBeenCalled();
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockLoadAttendanceReportPdfBuilder).toHaveBeenCalledTimes(1);
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
 	});
 
 	it('passes localized PDF labels to the builder during export', async () => {

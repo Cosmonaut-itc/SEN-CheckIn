@@ -52,7 +52,7 @@ import {
 	buildAttendanceEmployeePdfSummaryRows,
 	type AttendanceSummaryLabels,
 } from './attendance-export-helpers';
-import { buildAttendanceReportPdf } from '@/lib/attendance/build-attendance-report-pdf';
+import { loadAttendanceReportPdfBuilder } from './attendance-pdf-loader';
 import {
 	createWorkOffsiteAttendance,
 	deleteWorkOffsiteAttendance,
@@ -1135,6 +1135,7 @@ export function AttendancePageClient({
 				return;
 			}
 
+			const { buildAttendanceReportPdf } = await loadAttendanceReportPdfBuilder();
 			const pdfBytes = await buildAttendanceReportPdf({
 				title: t('pdf.title'),
 				dateRange: {

@@ -1,15 +1,81 @@
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { readFile } from 'node:fs/promises';
+import { sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import type { AttendanceEmployeePdfGroup } from '@/app/(dashboard)/attendance/attendance-export-helpers';
 
 import { buildAttendanceReportPdf } from './build-attendance-report-pdf';
 
-const PDFJS_STANDARD_FONT_DATA_URL = new URL(
+const PDFJS_STANDARD_FONT_DATA_PATH = new URL(
 	'../../../../node_modules/pdfjs-dist/standard_fonts/',
 	import.meta.url,
-).href.replace(/\/?$/, '/');
+).pathname.replace(/^\/@fs/, '').replace(/\/?$/, sep);
+
+type PdfjsBinaryDataKind = 'cMapUrl' | 'standardFontDataUrl' | 'wasmUrl';
+
+interface PdfjsBinaryDataFactoryInput {
+	cMapUrl?: string | null;
+	standardFontDataUrl?: string | null;
+	wasmUrl?: string | null;
+}
+
+interface PdfjsBinaryDataFetchRequest {
+	kind: PdfjsBinaryDataKind;
+	filename: string;
+}
+
+/**
+ * Loads pdf.js binary assets from the local filesystem.
+ */
+class FilesystemBinaryDataFactory {
+	cMapUrl: string | null;
+	standardFontDataUrl: string | null;
+	wasmUrl: string | null;
+
+	/**
+	 * Creates a filesystem-backed pdf.js asset loader.
+	 *
+	 * @param options - Asset base paths provided by pdf.js
+	 */
+	constructor(options: PdfjsBinaryDataFactoryInput) {
+		this.cMapUrl = options.cMapUrl ?? null;
+		this.standardFontDataUrl = options.standardFontDataUrl ?? null;
+		this.wasmUrl = options.wasmUrl ?? null;
+	}
+
+	/**
+	 * Reads a pdf.js binary asset from disk.
+	 *
+	 * @param request - Asset kind and filename
+	 * @returns Asset bytes
+	 * @throws {Error} When the asset base path is missing
+	 */
+	async fetch(request: PdfjsBinaryDataFetchRequest): Promise<Uint8Array> {
+		let basePath: string | null;
+
+		switch (request.kind) {
+			case 'cMapUrl':
+				basePath = this.cMapUrl;
+				break;
+			case 'standardFontDataUrl':
+				basePath = this.standardFontDataUrl;
+				break;
+			case 'wasmUrl':
+				basePath = this.wasmUrl;
+				break;
+			default:
+				basePath = null;
+		}
+
+		if (!basePath) {
+			throw new Error(`Ensure that the \`${request.kind}\` API parameter is provided.`);
+		}
+
+		return readFile(`${basePath}${request.filename}`);
+	}
+}
 
 /**
  * Converts PDF header bytes to string.
@@ -31,7 +97,8 @@ async function extractPdfPageTexts(bytes: Uint8Array): Promise<string[]> {
 	const pdfBytes = bytes.slice();
 	const loadingTask = pdfjsLib.getDocument({
 		data: pdfBytes,
-		standardFontDataUrl: PDFJS_STANDARD_FONT_DATA_URL,
+		standardFontDataUrl: PDFJS_STANDARD_FONT_DATA_PATH,
+		BinaryDataFactory: FilesystemBinaryDataFactory,
 		useWorkerFetch: false,
 		isEvalSupported: false,
 		disableFontFace: true,

@@ -87,8 +87,20 @@ function decodeAllFlateStreams(bytes: Uint8Array): string[] {
 function encodeTextToHex(value: string): string {
 	return Array.from(value)
 		.map((character) => character.charCodeAt(0).toString(16).padStart(2, '0'))
-		.join('')
-		.toUpperCase();
+	.join('')
+	.toUpperCase();
+}
+
+/**
+ * Checks whether any decoded PDF stream contains a text token.
+ *
+ * @param streams - Decoded PDF streams
+ * @param text - Human-readable text to search for
+ * @returns True when the token exists in at least one stream
+ */
+function streamContainsText(streams: readonly string[], text: string): boolean {
+	const encodedText = `<${encodeTextToHex(text)}>`;
+	return streams.some((stream) => stream.includes(encodedText));
 }
 
 /**
@@ -163,19 +175,17 @@ describe('buildAttendanceReportPdf', () => {
 		expect(readPdfHeader(pdfBytes)).toBe('%PDF-');
 		expect(pdfBytes.length).toBeGreaterThan(500);
 		expect(await getPdfPageCount(pdfBytes)).toBe(1);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Reporte de asistencia')}>`);
-		expect(streams.join('\n')).toContain(
-			`<${encodeTextToHex('Periodo: 10/04/2026 - 12/04/2026')}>`,
-		);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Ana López')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('ID: emp-1')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Día')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Entrada')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Salida')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Horas trabajadas')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Firma')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('Total')}>`);
-		expect(streams.join('\n')).toContain(`<${encodeTextToHex('09:30')}>`);
+		expect(streamContainsText(streams, 'Reporte de asistencia')).toBe(true);
+		expect(streamContainsText(streams, 'Periodo: 10/04/2026 - 12/04/2026')).toBe(true);
+		expect(streamContainsText(streams, 'Ana López')).toBe(true);
+		expect(streamContainsText(streams, 'ID: emp-1')).toBe(true);
+		expect(streamContainsText(streams, 'Día')).toBe(true);
+		expect(streamContainsText(streams, 'Entrada')).toBe(true);
+		expect(streamContainsText(streams, 'Salida')).toBe(true);
+		expect(streamContainsText(streams, 'Horas trabajadas')).toBe(true);
+		expect(streamContainsText(streams, 'Firma')).toBe(true);
+		expect(streamContainsText(streams, 'Total')).toBe(true);
+		expect(streamContainsText(streams, '09:30')).toBe(true);
 	});
 
 	it('creates repeated table headers when an employee block spans multiple pages', async () => {
@@ -204,13 +214,64 @@ describe('buildAttendanceReportPdf', () => {
 		});
 
 		const streams = decodeAllFlateStreams(pdfBytes);
-		const joinedStreams = streams.join('\n');
 
 		expect(await getPdfPageCount(pdfBytes)).toBeGreaterThan(1);
-		expect(joinedStreams.match(new RegExp(encodeTextToHex('Día'), 'g'))?.length).toBeGreaterThanOrEqual(2);
-		expect(joinedStreams.match(new RegExp(encodeTextToHex('Entrada'), 'g'))?.length).toBeGreaterThanOrEqual(2);
-		expect(joinedStreams.match(new RegExp(encodeTextToHex('Salida'), 'g'))?.length).toBeGreaterThanOrEqual(2);
-		expect(joinedStreams.match(new RegExp(encodeTextToHex('Horas trabajadas'), 'g'))?.length).toBeGreaterThanOrEqual(2);
-		expect(joinedStreams.match(new RegExp(encodeTextToHex('Firma'), 'g'))?.length).toBeGreaterThanOrEqual(2);
+		expect(streamContainsText(streams, 'Día')).toBe(true);
+		expect(streamContainsText(streams, 'Entrada')).toBe(true);
+		expect(streamContainsText(streams, 'Salida')).toBe(true);
+		expect(streamContainsText(streams, 'Horas trabajadas')).toBe(true);
+		expect(streamContainsText(streams, 'Firma')).toBe(true);
+		expect(streams.filter((stream) => stream.includes(`<${encodeTextToHex('Día')}>`))).toHaveLength(2);
+	});
+
+	it('moves a near-bottom block to the next page before its first row and total can split apart', async () => {
+		const firstGroupRows: AttendanceEmployeePdfGroup['rows'] = Array.from(
+			{ length: 22 },
+			(_, index) => ({
+				day: `${String(index + 1).padStart(2, '0')}/04/2026`,
+				firstEntry: '08:00',
+				lastExit: '17:00',
+				totalHours: '09:00',
+				workMinutes: 540,
+			}),
+		);
+
+		const pdfBytes = await buildAttendanceReportPdf({
+			title: 'Reporte de asistencia',
+			dateRange: {
+				startDateKey: '2026-04-01',
+				endDateKey: '2026-04-30',
+			},
+			groups: [
+				{
+					employeeId: 'emp-1',
+					employeeName: 'Ana López',
+					totalWorkedMinutes: 21 * 540,
+					rows: firstGroupRows,
+				},
+				{
+					employeeId: 'emp-2',
+					employeeName: 'Bruno Ruiz',
+					totalWorkedMinutes: 60,
+					rows: [
+						{
+							day: '23/04/2026',
+							firstEntry: '08:00',
+							lastExit: '09:00',
+							totalHours: '01:00',
+							workMinutes: 60,
+						},
+					],
+				},
+			],
+		});
+
+		const streams = decodeAllFlateStreams(pdfBytes);
+
+		expect(await getPdfPageCount(pdfBytes)).toBe(2);
+		expect(streamContainsText([streams[0] ?? ''], 'Bruno Ruiz')).toBe(false);
+		expect(streamContainsText([streams[0] ?? ''], '23/04/2026')).toBe(false);
+		expect(streamContainsText([streams[1] ?? ''], 'Bruno Ruiz')).toBe(true);
+		expect(streamContainsText([streams[1] ?? ''], '23/04/2026')).toBe(true);
 	});
 });

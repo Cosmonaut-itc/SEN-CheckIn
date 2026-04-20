@@ -41,6 +41,16 @@ const TABLE_ROW_HEIGHT = 20;
 const TABLE_HEADER_HEIGHT = 22;
 const TABLE_TOTAL_HEIGHT = 20;
 const SECTION_GAP = 14;
+const SECTION_HEADER_HEIGHT =
+	EMPLOYEE_FONT_SIZE +
+	6 +
+	META_FONT_SIZE +
+	5 +
+	META_FONT_SIZE +
+	BLOCK_HEADER_GAP +
+	TABLE_HEADER_HEIGHT;
+const MINIMUM_BLOCK_OPENING_HEIGHT =
+	SECTION_HEADER_HEIGHT + TABLE_ROW_HEIGHT + TABLE_TOTAL_HEIGHT + SECTION_GAP;
 const CELL_HORIZONTAL_PADDING = 6;
 const TABLE_BORDER_COLOR = rgb(0.83, 0.83, 0.83);
 const TABLE_HEADER_FILL_COLOR = rgb(0.96, 0.96, 0.96);
@@ -470,15 +480,7 @@ export async function buildAttendanceReportPdf(
 	let cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel);
 
 	for (const group of input.groups) {
-		const sectionMinimumHeight =
-			EMPLOYEE_FONT_SIZE +
-			META_FONT_SIZE * 2 +
-			TABLE_HEADER_HEIGHT +
-			TABLE_ROW_HEIGHT +
-			TABLE_TOTAL_HEIGHT +
-			SECTION_GAP;
-
-		if (cursorY - sectionMinimumHeight < PAGE_MARGIN) {
+		if (cursorY - MINIMUM_BLOCK_OPENING_HEIGHT < PAGE_MARGIN) {
 			page = pdfDocument.addPage(PageSizes.Letter);
 			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel);
 		}

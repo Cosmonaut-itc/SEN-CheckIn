@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { AttendanceRecord } from '@/lib/client-functions';
 
-import { aggregateAttendanceByPersonDay, type AttendanceSummaryLabels } from './attendance-export-helpers';
+import {
+	aggregateAttendanceByPersonDay,
+	buildAttendanceEmployeePdfGroups,
+	buildAttendanceEmployeePdfSummaryRows,
+	type AttendanceSummaryLabels,
+} from './attendance-export-helpers';
 
 const TEST_TIME_ZONE = 'America/Mexico_City';
 
@@ -390,5 +395,288 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows).toHaveLength(2);
 		expect(rows[0]?.employeeId).toBe('emp-1');
 		expect(rows[1]?.employeeId).toBe('emp-2');
+	});
+});
+
+describe('buildAttendanceEmployeePdfGroups', () => {
+	it('uses numeric work minutes instead of reparsing totalHours text', () => {
+		const groups = buildAttendanceEmployeePdfGroups([
+			{
+				employeeId: 'emp-1',
+				employeeName: 'Ana',
+				date: '10/04/2026',
+				firstEntry: '08:00',
+				lastExit: '16:00',
+				totalHours: 'Fuera de oficina',
+				workMinutes: 125,
+			},
+		]);
+
+		expect(groups).toEqual([
+			{
+				employeeId: 'emp-1',
+				employeeName: 'Ana',
+				totalWorkedMinutes: 125,
+				rows: [
+					{
+						day: '10/04/2026',
+						firstEntry: '08:00',
+						lastExit: '16:00',
+						totalHours: 'Fuera de oficina',
+						workMinutes: 125,
+					},
+				],
+			},
+		]);
+	});
+
+	it('builds summary rows with numeric work minutes from the attendance aggregation', () => {
+		const summaryRows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04-10',
+					offsiteDayKind: 'LABORABLE',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(summaryRows).toEqual([
+			{
+				employeeName: 'Ana',
+				employeeId: 'emp-1',
+				date: '10/04/2026',
+				firstEntry: '08:00',
+				lastExit: '16:00',
+				totalHours: '08:00',
+				workMinutes: 480,
+			},
+			{
+				employeeName: 'Bruno',
+				employeeId: 'emp-2',
+				date: '10/04/2026',
+				firstEntry: 'Fuera de oficina',
+				lastExit: 'Fuera de oficina',
+				totalHours: 'Fuera de oficina',
+				workMinutes: null,
+			},
+		]);
+	});
+
+	it('groups daily summaries by employee and keeps row order', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-11T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-11T22:30:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T15:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T18:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		const groups = buildAttendanceEmployeePdfGroups(rows);
+
+		expect(groups).toHaveLength(2);
+		expect(groups[0]).toEqual({
+			employeeId: 'emp-1',
+			employeeName: 'Ana',
+			totalWorkedMinutes: 990,
+			rows: [
+				{
+					day: '10/04/2026',
+					firstEntry: '08:00',
+					lastExit: '16:00',
+					totalHours: '08:00',
+					workMinutes: 480,
+				},
+				{
+					day: '11/04/2026',
+					firstEntry: '08:00',
+					lastExit: '16:30',
+					totalHours: '08:30',
+					workMinutes: 510,
+				},
+			],
+		});
+		expect(groups[1]).toEqual({
+			employeeId: 'emp-2',
+			employeeName: 'Bruno',
+			totalWorkedMinutes: 180,
+			rows: [
+				{
+					day: '10/04/2026',
+					firstEntry: '09:00',
+					lastExit: '12:00',
+					totalHours: '03:00',
+					workMinutes: 180,
+				},
+			],
+		});
+	});
+
+	it('keeps incomplete and offsite rows visible without adding them to totals', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04-10',
+					offsiteDayKind: 'LABORABLE',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-10',
+					endDateKey: '2026-04-10',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+			},
+			);
+
+		const groups = buildAttendanceEmployeePdfGroups(rows);
+
+		expect(groups).toHaveLength(2);
+		expect(groups[0]).toEqual({
+			employeeId: 'emp-1',
+			employeeName: 'Ana',
+			totalWorkedMinutes: 0,
+			rows: [
+				{
+					day: '10/04/2026',
+					firstEntry: '08:00',
+					lastExit: 'Sin salida',
+					totalHours: 'Incompleto',
+					workMinutes: null,
+				},
+			],
+		});
+		expect(groups[1]).toEqual({
+			employeeId: 'emp-2',
+			employeeName: 'Bruno',
+			totalWorkedMinutes: 0,
+			rows: [
+				{
+					day: '10/04/2026',
+					firstEntry: 'Fuera de oficina',
+					lastExit: 'Fuera de oficina',
+					totalHours: 'Fuera de oficina',
+					workMinutes: null,
+				},
+			],
+		});
+	});
+
+	it('excludes employees fully outside the filtered range', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-09T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-09T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-10',
+					endDateKey: '2026-04-10',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+			},
+		);
+
+		const groups = buildAttendanceEmployeePdfGroups(rows);
+
+		expect(groups).toHaveLength(1);
+		expect(groups[0]).toEqual({
+			employeeId: 'emp-2',
+			employeeName: 'Bruno',
+			totalWorkedMinutes: 480,
+			rows: [
+				{
+					day: '10/04/2026',
+					firstEntry: '08:00',
+					lastExit: '16:00',
+					totalHours: '08:00',
+					workMinutes: 480,
+				},
+			],
+		});
 	});
 });

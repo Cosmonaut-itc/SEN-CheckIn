@@ -10,6 +10,25 @@ export interface AttendanceSummaryCsvRow {
 	totalHours: string;
 }
 
+export interface AttendanceSummaryPdfRow extends AttendanceSummaryCsvRow {
+	workMinutes: number | null;
+}
+
+export interface AttendanceEmployeePdfRow {
+	day: string;
+	firstEntry: string;
+	lastExit: string;
+	totalHours: string;
+	workMinutes: number | null;
+}
+
+export interface AttendanceEmployeePdfGroup {
+	employeeId: string;
+	employeeName: string;
+	rows: AttendanceEmployeePdfRow[];
+	totalWorkedMinutes: number;
+}
+
 export interface AttendanceSummaryLabels {
 	incomplete: string;
 	noEntry: string;
@@ -35,7 +54,7 @@ interface AttendanceSummaryGroup {
 
 interface AttendanceSummaryResult {
 	dateKey: string;
-	row: AttendanceSummaryCsvRow;
+	row: AttendanceSummaryPdfRow;
 }
 
 interface PendingEntryByEmployee {
@@ -238,7 +257,7 @@ function groupAttendanceRecords(
 function buildOffsiteSummaryRow(
 	group: AttendanceSummaryGroup,
 	labels: AttendanceSummaryLabels,
-): AttendanceSummaryCsvRow {
+): AttendanceSummaryPdfRow {
 	return {
 		employeeName: group.employeeName,
 		employeeId: group.employeeId,
@@ -246,6 +265,7 @@ function buildOffsiteSummaryRow(
 		firstEntry: labels.workOffsite,
 		lastExit: labels.workOffsite,
 		totalHours: labels.workOffsite,
+		workMinutes: null,
 	};
 }
 
@@ -259,7 +279,7 @@ function buildOffsiteSummaryRow(
 function buildWorkedSummaryRow(
 	group: AttendanceSummaryGroup,
 	options: AggregateAttendanceOptions,
-): AttendanceSummaryCsvRow {
+): AttendanceSummaryPdfRow {
 	const sortedRecords = [...group.records].sort(
 		(left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
 	);
@@ -311,6 +331,7 @@ function buildWorkedSummaryRow(
 		totalHours: hasIncompletePair
 			? options.labels.incomplete
 			: formatWorkedMinutes(totalWorkedMinutes),
+		workMinutes: hasIncompletePair ? null : totalWorkedMinutes,
 	};
 }
 
@@ -319,12 +340,12 @@ function buildWorkedSummaryRow(
  *
  * @param records - Attendance records fetched for the CSV export
  * @param options - Aggregation options including timezone and localized labels
- * @returns CSV summary rows sorted by employee name and date
+ * @returns Detailed summary rows sorted by employee name and date
  */
-export function aggregateAttendanceByPersonDay(
+export function buildAttendanceEmployeePdfSummaryRows(
 	records: readonly AttendanceRecord[],
 	options: AggregateAttendanceOptions,
-): AttendanceSummaryCsvRow[] {
+): AttendanceSummaryPdfRow[] {
 	if (records.length === 0) {
 		return [];
 	}
@@ -369,4 +390,67 @@ export function aggregateAttendanceByPersonDay(
 			);
 		})
 		.map((result) => result.row);
+}
+
+/**
+ * Aggregates per-event attendance rows into one summary row per employee per local day.
+ *
+ * @param records - Attendance records fetched for the CSV export
+ * @param options - Aggregation options including timezone and localized labels
+ * @returns CSV summary rows sorted by employee name and date
+ */
+export function aggregateAttendanceByPersonDay(
+	records: readonly AttendanceRecord[],
+	options: AggregateAttendanceOptions,
+): AttendanceSummaryCsvRow[] {
+	return buildAttendanceEmployeePdfSummaryRows(records, options).map((row) => ({
+		employeeName: row.employeeName,
+		employeeId: row.employeeId,
+		date: row.date,
+		firstEntry: row.firstEntry,
+		lastExit: row.lastExit,
+		totalHours: row.totalHours,
+	}));
+}
+
+/**
+ * Groups attendance summary rows by employee for PDF export.
+ *
+ * @param rows - Daily attendance summary rows already sorted by employee and date
+ * @returns Per-employee PDF groups with daily rows and duration totals
+ */
+export function buildAttendanceEmployeePdfGroups(
+	rows: readonly AttendanceSummaryPdfRow[],
+): AttendanceEmployeePdfGroup[] {
+	const groups = new Map<string, AttendanceEmployeePdfGroup>();
+	const orderedGroups: AttendanceEmployeePdfGroup[] = [];
+
+	for (const row of rows) {
+		let group = groups.get(row.employeeId);
+
+		if (!group) {
+			group = {
+				employeeId: row.employeeId,
+				employeeName: row.employeeName,
+				rows: [],
+				totalWorkedMinutes: 0,
+			};
+			groups.set(row.employeeId, group);
+			orderedGroups.push(group);
+		}
+
+		group.rows.push({
+			day: row.date,
+			firstEntry: row.firstEntry,
+			lastExit: row.lastExit,
+			totalHours: row.totalHours,
+			workMinutes: row.workMinutes,
+		});
+
+		if (row.workMinutes !== null) {
+			group.totalWorkedMinutes += row.workMinutes;
+		}
+	}
+
+	return orderedGroups;
 }

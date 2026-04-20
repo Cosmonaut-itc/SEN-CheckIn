@@ -1,17 +1,58 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { format } from 'date-fns';
+import { PDFDocument } from 'pdf-lib';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
 import type { AttendanceRecord } from '@/lib/client-functions';
 import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
-
 import { AttendancePageClient, getPresetDateRangeKeys } from './attendance-client';
+
+vi.mock('next-intl', async () => {
+	return import('@/lib/test-utils/next-intl');
+});
+
+const mockBuildAttendanceReportPdf = vi.fn();
+const mockLoadAttendanceReportPdfBuilder = vi.fn();
+const mockToastError = vi.fn();
+
+vi.mock('sonner', () => ({
+	toast: {
+		error: (...args: unknown[]) => mockToastError(...args),
+	},
+}));
+
+vi.mock('./attendance-pdf-loader', () => ({
+	loadAttendanceReportPdfBuilder: (...args: unknown[]) => mockLoadAttendanceReportPdfBuilder(...args),
+}));
 
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchLocationsList = vi.fn();
+let expectedPdfBytes: Uint8Array | null = null;
+
+/**
+ * Reads a Blob into a byte array.
+ *
+ * @param blob - Blob to read
+ * @returns Blob bytes
+ */
+function readBlobBytes(blob: Blob): Promise<Uint8Array> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onerror = () => reject(reader.error);
+		reader.onload = () => {
+			const result = reader.result;
+			if (!(result instanceof ArrayBuffer)) {
+				reject(new Error('Expected blob bytes to resolve as an ArrayBuffer.'));
+				return;
+			}
+			resolve(new Uint8Array(result));
+		};
+		reader.readAsArrayBuffer(blob);
+	});
+}
 
 vi.mock('next/navigation', () => ({
 	useRouter: () => ({
@@ -90,6 +131,21 @@ describe('AttendancePageClient', () => {
 		URL.revokeObjectURL = vi.fn();
 		mockFetchAttendanceRecords.mockReset();
 		mockFetchLocationsList.mockReset();
+		mockBuildAttendanceReportPdf.mockReset();
+		mockLoadAttendanceReportPdfBuilder.mockReset();
+		mockToastError.mockReset();
+		expectedPdfBytes = null;
+		mockBuildAttendanceReportPdf.mockImplementation(async () => {
+			const pdfDocument = await PDFDocument.create();
+			const bytes = await pdfDocument.save();
+			expectedPdfBytes = bytes;
+			const backingBytes = new Uint8Array(bytes.length + 16);
+			backingBytes.set(bytes, 16);
+			return backingBytes.subarray(16);
+		});
+		mockLoadAttendanceReportPdfBuilder.mockResolvedValue({
+			buildAttendanceReportPdf: (...args: unknown[]) => mockBuildAttendanceReportPdf(...args),
+		});
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
 			pagination: { total: 0, limit: 10, offset: 0 },
@@ -208,7 +264,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
 		await waitFor(() => {
 			expect(exportButton).toBeEnabled();
@@ -297,11 +353,18 @@ describe('AttendancePageClient', () => {
 		expect(screen.queryByText('15:30:00')).not.toBeInTheDocument();
 	});
 
-	it('fetches overnight spillover records around the selected local day before export', async () => {
+	it('fetches overnight spillover records around the selected local day before PDF export', async () => {
 		let capturedBlob: Blob | null = null;
+		let revokeObservedAtMicrotask: boolean | null = null;
+		const appendChildSpy = vi.spyOn(document.body, 'appendChild');
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
-			.mockImplementation(() => undefined);
+			.mockImplementation(() => {
+				queueMicrotask(() => {
+					revokeObservedAtMicrotask = (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mock
+						.calls.length > 0;
+				});
+			});
 		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
 		createObjectURLMock.mockImplementation((blob: Blob | MediaSource) => {
 			if (blob instanceof Blob) {
@@ -440,7 +503,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
 		await waitFor(() => {
 			expect(exportButton).toBeEnabled();
@@ -452,6 +515,13 @@ describe('AttendancePageClient', () => {
 			expect(anchorClickSpy).toHaveBeenCalled();
 			expect(capturedBlob).not.toBeNull();
 		});
+
+		const appendedAnchor = appendChildSpy.mock.calls.find(
+			([node]) => node instanceof HTMLAnchorElement,
+		)?.[0];
+		if (!(appendedAnchor instanceof HTMLAnchorElement)) {
+			throw new Error('Expected the export flow to append an anchor element.');
+		}
 
 		const exportCall = mockFetchAttendanceRecords.mock.calls.find(
 			([params]) => (params as { limit?: number }).limit === 100,
@@ -465,9 +535,245 @@ describe('AttendancePageClient', () => {
 		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
 		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
 		expect(capturedBlob).not.toBeNull();
+		if (!capturedBlob) {
+			throw new Error('Expected a PDF blob to be created.');
+		}
+		const pdfBlob = capturedBlob as Blob;
+		expect(pdfBlob.type).toBe('application/pdf');
+		expect(expectedPdfBytes).not.toBeNull();
+		if (!expectedPdfBytes) {
+			throw new Error('Expected mock PDF bytes to be initialized.');
+		}
+		const downloadedBytes = await readBlobBytes(pdfBlob);
+		expect(downloadedBytes).toEqual(expectedPdfBytes);
+		await Promise.resolve();
+		expect(revokeObservedAtMicrotask).toBe(false);
+		expect(appendedAnchor.download.endsWith('.pdf')).toBe(true);
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
 	});
 
-	it('skips CSV download when spillover fetch has no rows inside the selected local range', async () => {
+	it('uses the export timezone date keys in the PDF filename', async () => {
+		const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
+		createObjectURLMock.mockReturnValue('blob:attendance-export');
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-22T16:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-22T16:30:00.000Z'),
+					updatedAt: new Date('2026-02-22T16:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-02-23',
+				to: '2026-02-23',
+				timeZone: 'Asia/Tokyo',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
+
+		const appendedAnchor = appendChildSpy.mock.calls.find(
+			([node]) => node instanceof HTMLAnchorElement,
+		)?.[0];
+		if (!(appendedAnchor instanceof HTMLAnchorElement)) {
+			throw new Error('Expected the export flow to append an anchor element.');
+		}
+
+		expect(appendedAnchor.download).toBe('asistencia_20260223_20260223.pdf');
+	});
+
+	it('lazy-loads the PDF builder only when export starts', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T15:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T15:30:00.000Z'),
+					updatedAt: new Date('2026-02-23T15:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		expect(mockLoadAttendanceReportPdfBuilder).not.toHaveBeenCalled();
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockLoadAttendanceReportPdfBuilder).toHaveBeenCalledTimes(1);
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
+	});
+
+	it('passes localized PDF labels to the builder during export', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T15:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T15:30:00.000Z'),
+					updatedAt: new Date('2026-02-23T15:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(anchorClickSpy).toHaveBeenCalled();
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				labels: {
+					periodPrefix: 'Periodo',
+					employeeIdPrefix: 'ID',
+					missingEmployeeName: 'Sin nombre',
+					missingEmployeeId: 'Sin ID',
+					tableHeaders: {
+						day: 'Día',
+						entry: 'Entrada',
+						exit: 'Salida',
+						workHours: 'Horas trabajadas',
+						signature: 'Firma',
+					},
+					totalLabel: 'Total',
+				},
+			}),
+		);
+	});
+
+	it('shows a localized toast when PDF export fails', async () => {
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T15:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T15:30:00.000Z'),
+					updatedAt: new Date('2026-02-23T15:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockBuildAttendanceReportPdf.mockRejectedValueOnce(new Error('pdf boom'));
+
+		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				'Failed to export attendance PDF:',
+				expect.any(Error),
+			);
+		});
+
+		expect(mockToastError).toHaveBeenCalledWith('No se pudo exportar el PDF.');
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+	});
+
+	it('skips PDF download when spillover fetch has no rows inside the selected local range', async () => {
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
 			.mockImplementation(() => undefined);
@@ -550,7 +856,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
 		await waitFor(() => {
 			expect(exportButton).toBeEnabled();

@@ -48,10 +48,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { queryKeys } from '@/lib/query-keys';
 import { useTour } from '@/hooks/use-tour';
 import {
-	aggregateAttendanceByPersonDay,
-	type AttendanceSummaryCsvRow,
+	buildAttendanceEmployeePdfGroups,
+	buildAttendanceEmployeePdfSummaryRows,
 	type AttendanceSummaryLabels,
 } from './attendance-export-helpers';
+import { loadAttendanceReportPdfBuilder } from './attendance-pdf-loader';
 import {
 	createWorkOffsiteAttendance,
 	deleteWorkOffsiteAttendance,
@@ -118,14 +119,6 @@ export interface AttendancePageInitialFilters {
 interface AttendancePageClientProps {
 	initialFilters?: AttendancePageInitialFilters;
 }
-
-/**
- * CSV column definition for attendance exports.
- */
-type CsvColumn = {
-	key: keyof AttendanceSummaryCsvRow;
-	label: string;
-};
 
 /**
  * Type badge variant mapping.
@@ -341,43 +334,15 @@ export function getPresetDateRangeKeys(args: PresetDateRangeKeysArgs): PresetDat
 }
 
 /**
- * Escapes a value for CSV output.
+ * Triggers a PDF file download in the browser.
  *
- * @param value - CSV cell value
- * @returns Escaped CSV-safe string
- */
-function escapeCsvValue(value: AttendanceSummaryCsvRow[keyof AttendanceSummaryCsvRow]): string {
-	const rawValue = value ?? '';
-	const stringValue = String(rawValue);
-	const escaped = stringValue.replace(/"/g, '""');
-	const needsQuotes = /[",\n]/.test(escaped);
-	return needsQuotes ? `"${escaped}"` : escaped;
-}
-
-/**
- * Builds a CSV document string from column definitions and rows.
- *
- * @param columns - Ordered CSV columns
- * @param rows - CSV rows
- * @returns CSV string content
- */
-function buildCsvContent(columns: CsvColumn[], rows: AttendanceSummaryCsvRow[]): string {
-	const header = columns.map((column) => escapeCsvValue(column.label)).join(',');
-	const lines = rows.map((row) =>
-		columns.map((column) => escapeCsvValue(row[column.key])).join(','),
-	);
-	return [header, ...lines].join('\n');
-}
-
-/**
- * Triggers a CSV file download in the browser.
- *
- * @param csv - CSV content string
- * @param fileName - File name for the downloaded CSV
+ * @param pdfBytes - PDF content bytes
+ * @param fileName - File name for the downloaded PDF
  * @returns void
  */
-function downloadCsvFile(csv: string, fileName: string): void {
-	const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+function downloadPdfFile(pdfBytes: Uint8Array, fileName: string): void {
+	const blobPart = pdfBytes as unknown as BlobPart;
+	const blob = new Blob([blobPart], { type: 'application/pdf' });
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement('a');
 	link.href = url;
@@ -385,7 +350,9 @@ function downloadCsvFile(csv: string, fileName: string): void {
 	document.body.appendChild(link);
 	link.click();
 	link.remove();
-	URL.revokeObjectURL(url);
+	setTimeout(() => {
+		URL.revokeObjectURL(url);
+	}, 0);
 }
 
 /**
@@ -1115,11 +1082,11 @@ export function AttendancePageClient({
 	);
 
 	/**
-	 * Exports the filtered attendance records to CSV.
+	 * Exports the filtered attendance records to PDF.
 	 *
-	 * @returns Promise resolving when the CSV export completes
+	 * @returns Promise resolving when the PDF export completes
 	 */
-	const handleExportCsv = useCallback(async (): Promise<void> => {
+	const handleExportPdf = useCallback(async (): Promise<void> => {
 		setIsExporting(true);
 		try {
 			const exportStartDateKey = toDateKeyInTimeZone(start, attendanceExportTimeZone);
@@ -1148,20 +1115,12 @@ export function AttendancePageClient({
 			}
 
 			const summaryLabels: AttendanceSummaryLabels = {
-				incomplete: t('csv.values.incomplete'),
-				noEntry: t('csv.values.noEntry'),
-				noExit: t('csv.values.noExit'),
-				workOffsite: t('csv.values.workOffsite'),
+				incomplete: t('pdf.values.incomplete'),
+				noEntry: t('pdf.values.noEntry'),
+				noExit: t('pdf.values.noExit'),
+				workOffsite: t('pdf.values.workOffsite'),
 			};
-			const columns: CsvColumn[] = [
-				{ key: 'employeeName', label: t('csv.headers.employeeName') },
-				{ key: 'employeeId', label: t('csv.headers.employeeId') },
-				{ key: 'date', label: t('csv.headers.date') },
-				{ key: 'firstEntry', label: t('csv.headers.firstEntry') },
-				{ key: 'lastExit', label: t('csv.headers.lastExit') },
-				{ key: 'totalHours', label: t('csv.headers.totalHours') },
-			];
-			const rows = aggregateAttendanceByPersonDay(exportRecords, {
+			const summaryRows = buildAttendanceEmployeePdfSummaryRows(exportRecords, {
 				dateRange: {
 					startDateKey: exportStartDateKey,
 					endDateKey: exportEndDateKey,
@@ -1170,19 +1129,44 @@ export function AttendancePageClient({
 				timeZone: attendanceExportTimeZone,
 			});
 
-			if (rows.length === 0) {
+			const groups = buildAttendanceEmployeePdfGroups(summaryRows);
+
+			if (groups.length === 0) {
 				return;
 			}
 
-			const csv = buildCsvContent(columns, rows);
-			const fileName = t('csv.fileName', {
-				start: format(start, 'yyyyMMdd'),
-				end: format(end, 'yyyyMMdd'),
+			const { buildAttendanceReportPdf } = await loadAttendanceReportPdfBuilder();
+			const pdfBytes = await buildAttendanceReportPdf({
+				title: t('pdf.title'),
+				dateRange: {
+					startDateKey: exportStartDateKey,
+					endDateKey: exportEndDateKey,
+				},
+				groups,
+				labels: {
+					periodPrefix: t('pdf.labels.periodPrefix'),
+					employeeIdPrefix: t('pdf.labels.employeeIdPrefix'),
+					missingEmployeeName: t('pdf.labels.missingEmployeeName'),
+					missingEmployeeId: t('pdf.labels.missingEmployeeId'),
+					tableHeaders: {
+						day: t('pdf.headers.date'),
+						entry: t('pdf.headers.firstEntry'),
+						exit: t('pdf.headers.lastExit'),
+						workHours: t('pdf.headers.totalHours'),
+						signature: t('pdf.headers.signature'),
+					},
+					totalLabel: t('pdf.labels.totalLabel'),
+				},
+			});
+			const fileName = t('pdf.fileName', {
+				start: exportStartDateKey.replace(/-/g, ''),
+				end: exportEndDateKey.replace(/-/g, ''),
 			});
 
-			downloadCsvFile(csv, fileName);
+			downloadPdfFile(pdfBytes, fileName);
 		} catch (error) {
-			console.error('Failed to export attendance CSV:', error);
+			console.error('Failed to export attendance PDF:', error);
+			toast.error(t('pdf.exportError'));
 		} finally {
 			setIsExporting(false);
 		}
@@ -1322,12 +1306,12 @@ export function AttendancePageClient({
 							{t('actions.refresh')}
 						</Button>
 						<Button
-							onClick={handleExportCsv}
+							onClick={handleExportPdf}
 							variant="outline"
 							disabled={isFetching || isExporting || totalRows === 0}
 						>
 							<Download className="mr-2 h-4 w-4" />
-							{t('actions.exportCsv')}
+							{t('actions.exportPdf')}
 						</Button>
 					</div>
 				}

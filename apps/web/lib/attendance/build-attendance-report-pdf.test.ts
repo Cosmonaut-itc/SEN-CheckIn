@@ -175,6 +175,58 @@ async function getPdfPageCount(bytes: Uint8Array): Promise<number> {
 }
 
 describe('buildAttendanceReportPdf', () => {
+	it('renders injected labels and fallback strings from the caller', async () => {
+		const customLabels = {
+			periodPrefix: 'Rango',
+			employeeIdPrefix: 'Código',
+			missingEmployeeName: 'Empleado sin nombre',
+			missingEmployeeId: 'Sin código',
+			tableHeaders: {
+				day: 'Fecha',
+				entry: 'Entrada',
+				exit: 'Salida',
+				workHours: 'Horas',
+				signature: 'Firma',
+			},
+			totalLabel: 'Suma',
+		};
+
+		const pdfBytes = await buildAttendanceReportPdf({
+			title: 'Reporte personalizado',
+			dateRange: {
+				startDateKey: '2026-04-10',
+				endDateKey: '2026-04-12',
+			},
+			labels: customLabels,
+			groups: [
+				buildAttendanceGroup({
+					employeeId: '',
+					employeeName: '',
+				}),
+			],
+		});
+
+		const pageTexts = await extractPdfPageTexts(pdfBytes);
+		const documentText = pageTexts.join(' ');
+
+		expect(documentText).toContain('Reporte personalizado');
+		expect(documentText).toContain('Rango: 10/04/2026 - 12/04/2026');
+		expect(documentText).toContain('Empleado sin nombre');
+		expect(documentText).toContain('Código: Sin código');
+		expect(documentText).toContain('Fecha');
+		expect(documentText).toContain('Entrada');
+		expect(documentText).toContain('Salida');
+		expect(documentText).toContain('Horas');
+		expect(documentText).toContain('Firma');
+		expect(documentText).toContain('Suma');
+		expect(documentText).not.toContain('Periodo:');
+		expect(documentText).not.toContain('Sin nombre');
+		expect(documentText).not.toContain('Sin ID');
+		expect(documentText).not.toContain('Día');
+		expect(documentText).not.toContain('Horas trabajadas');
+		expect(documentText).not.toContain('Total');
+	});
+
 	it('builds a valid PDF with the title, range, employee block, headers, and total row', async () => {
 		const pdfBytes = await buildAttendanceReportPdf({
 			title: 'Reporte de asistencia',

@@ -16,10 +16,28 @@ interface AttendanceReportDateRange {
 	endDateKey: string;
 }
 
+export interface AttendanceReportTableLabels {
+	day: string;
+	entry: string;
+	exit: string;
+	workHours: string;
+	signature: string;
+}
+
+export interface AttendanceReportLabels {
+	periodPrefix: string;
+	employeeIdPrefix: string;
+	missingEmployeeName: string;
+	missingEmployeeId: string;
+	tableHeaders: AttendanceReportTableLabels;
+	totalLabel: string;
+}
+
 export interface BuildAttendanceReportPdfInput {
 	title: string;
 	dateRange: AttendanceReportDateRange;
 	groups: AttendanceEmployeePdfGroup[];
+	labels?: AttendanceReportLabels;
 }
 
 interface AttendanceTableColumn {
@@ -58,13 +76,20 @@ const TABLE_TOTAL_FILL_COLOR = rgb(0.98, 0.98, 0.98);
 const TEXT_COLOR = rgb(0.12, 0.12, 0.12);
 const MUTED_TEXT_COLOR = rgb(0.35, 0.35, 0.35);
 
-const TABLE_COLUMNS: AttendanceTableColumn[] = [
-	{ label: 'Día', width: 88, alignment: 'left' },
-	{ label: 'Entrada', width: 86, alignment: 'left' },
-	{ label: 'Salida', width: 86, alignment: 'left' },
-	{ label: 'Horas trabajadas', width: 116, alignment: 'center' },
-	{ label: 'Firma', width: 140, alignment: 'center' },
-];
+const DEFAULT_ATTENDANCE_REPORT_LABELS: AttendanceReportLabels = {
+	periodPrefix: 'Periodo',
+	employeeIdPrefix: 'ID',
+	missingEmployeeName: 'Sin nombre',
+	missingEmployeeId: 'Sin ID',
+	tableHeaders: {
+		day: 'Día',
+		entry: 'Entrada',
+		exit: 'Salida',
+		workHours: 'Horas trabajadas',
+		signature: 'Firma',
+	},
+	totalLabel: 'Total',
+};
 
 /**
  * Formats a local date key into dd/MM/yyyy.
@@ -127,6 +152,22 @@ function fitTextToWidth(text: string, font: PDFFont, fontSize: number, maxWidth:
 	}
 
 	return `${text.slice(0, low)}${ellipsis}`;
+}
+
+/**
+ * Builds the attendance table columns for the given labels.
+ *
+ * @param labels - Localized table labels
+ * @returns Table column definitions
+ */
+function getAttendanceTableColumns(labels: AttendanceReportLabels): AttendanceTableColumn[] {
+	return [
+		{ label: labels.tableHeaders.day, width: 88, alignment: 'left' },
+		{ label: labels.tableHeaders.entry, width: 86, alignment: 'left' },
+		{ label: labels.tableHeaders.exit, width: 86, alignment: 'left' },
+		{ label: labels.tableHeaders.workHours, width: 116, alignment: 'center' },
+		{ label: labels.tableHeaders.signature, width: 140, alignment: 'center' },
+	];
 }
 
 /**
@@ -254,6 +295,7 @@ function drawCell(
  * @param fontBold - Bold font
  * @param title - Report title
  * @param periodLabel - Selected date range label
+ * @param labels - Localized report copy
  * @returns Cursor Y after rendering the title block
  */
 function drawReportHeader(
@@ -262,6 +304,7 @@ function drawReportHeader(
 	fontBold: PDFFont,
 	title: string,
 	periodLabel: string,
+	labels: AttendanceReportLabels,
 ): number {
 	const { height, width } = page.getSize();
 	const contentWidth = width - PAGE_MARGIN * 2;
@@ -282,7 +325,7 @@ function drawReportHeader(
 		x: PAGE_MARGIN,
 		y: cursorY - PERIOD_FONT_SIZE,
 		width: contentWidth,
-		text: `Periodo: ${periodLabel}`,
+		text: `${labels.periodPrefix}: ${periodLabel}`,
 		font,
 		fontSize: PERIOD_FONT_SIZE,
 		alignment: 'left',
@@ -300,6 +343,7 @@ function drawReportHeader(
  * @param fontBold - Bold font
  * @param group - Employee PDF group
  * @param periodLabel - Selected date range label
+ * @param labels - Localized report copy
  * @param cursorY - Current top cursor position
  * @returns Updated cursor Y after the block header
  */
@@ -309,12 +353,14 @@ function drawEmployeeSectionHeader(
 	fontBold: PDFFont,
 	group: AttendanceEmployeePdfGroup,
 	periodLabel: string,
+	labels: AttendanceReportLabels,
 	cursorY: number,
 ): number {
 	const { width } = page.getSize();
 	const contentWidth = width - PAGE_MARGIN * 2;
-	const employeeName = group.employeeName.trim().length > 0 ? group.employeeName : 'Sin nombre';
-	const employeeId = group.employeeId.trim().length > 0 ? group.employeeId : 'Sin ID';
+	const employeeName =
+		group.employeeName.trim().length > 0 ? group.employeeName : labels.missingEmployeeName;
+	const employeeId = group.employeeId.trim().length > 0 ? group.employeeId : labels.missingEmployeeId;
 
 	drawTextLine(page, {
 		x: PAGE_MARGIN,
@@ -331,7 +377,7 @@ function drawEmployeeSectionHeader(
 		x: PAGE_MARGIN,
 		y: cursorY - META_FONT_SIZE,
 		width: contentWidth,
-		text: `ID: ${employeeId}`,
+		text: `${labels.employeeIdPrefix}: ${employeeId}`,
 		font,
 		fontSize: META_FONT_SIZE,
 		alignment: 'left',
@@ -343,7 +389,7 @@ function drawEmployeeSectionHeader(
 		x: PAGE_MARGIN,
 		y: cursorY - META_FONT_SIZE,
 		width: contentWidth,
-		text: `Periodo: ${periodLabel}`,
+		text: `${labels.periodPrefix}: ${periodLabel}`,
 		font,
 		fontSize: META_FONT_SIZE,
 		alignment: 'left',
@@ -351,7 +397,7 @@ function drawEmployeeSectionHeader(
 	});
 	cursorY -= META_FONT_SIZE + BLOCK_HEADER_GAP;
 
-	return drawTableHeader(page, fontBold, cursorY);
+	return drawTableHeader(page, fontBold, labels, cursorY);
 }
 
 /**
@@ -359,12 +405,18 @@ function drawEmployeeSectionHeader(
  *
  * @param page - PDF page to render on
  * @param fontBold - Bold font
+ * @param labels - Localized report copy
  * @param cursorY - Current top cursor position
  * @returns Updated cursor Y after the header row
  */
-function drawTableHeader(page: PDFPage, fontBold: PDFFont, cursorY: number): number {
+function drawTableHeader(
+	page: PDFPage,
+	fontBold: PDFFont,
+	labels: AttendanceReportLabels,
+	cursorY: number,
+): number {
 	let columnX = PAGE_MARGIN;
-	for (const column of TABLE_COLUMNS) {
+	for (const column of getAttendanceTableColumns(labels)) {
 		drawCell(page, {
 			x: columnX,
 			y: cursorY - TABLE_HEADER_HEIGHT,
@@ -388,6 +440,7 @@ function drawTableHeader(page: PDFPage, fontBold: PDFFont, cursorY: number): num
  * @param page - PDF page to render on
  * @param font - Regular font
  * @param row - Daily attendance row
+ * @param labels - Localized report copy
  * @param cursorY - Current top cursor position
  * @returns Updated cursor Y after the row
  */
@@ -395,15 +448,17 @@ function drawAttendanceRow(
 	page: PDFPage,
 	font: PDFFont,
 	row: AttendanceEmployeePdfGroup['rows'][number],
+	labels: AttendanceReportLabels,
 	cursorY: number,
 ): number {
 	let columnX = PAGE_MARGIN;
+	const tableColumns = getAttendanceTableColumns(labels);
 	const values = [row.day, row.firstEntry, row.lastExit, row.totalHours, ''];
 
-	for (let index = 0; index < TABLE_COLUMNS.length; index += 1) {
-		const column = TABLE_COLUMNS[index];
+	for (let index = 0; index < tableColumns.length; index += 1) {
+		const column = tableColumns[index];
 		const value = values[index];
-		const isSignatureColumn = index === TABLE_COLUMNS.length - 1;
+		const isSignatureColumn = index === tableColumns.length - 1;
 		drawCell(page, {
 			x: columnX,
 			y: cursorY - TABLE_ROW_HEIGHT,
@@ -426,6 +481,7 @@ function drawAttendanceRow(
  * @param page - PDF page to render on
  * @param fontBold - Bold font
  * @param totalWorkedMinutes - Accumulated worked minutes
+ * @param labels - Localized report copy
  * @param cursorY - Current top cursor position
  * @returns Updated cursor Y after the total row
  */
@@ -433,15 +489,17 @@ function drawTotalRow(
 	page: PDFPage,
 	fontBold: PDFFont,
 	totalWorkedMinutes: number,
+	labels: AttendanceReportLabels,
 	cursorY: number,
 ): number {
 	let columnX = PAGE_MARGIN;
-	const values = ['Total', '', '', formatWorkedMinutes(totalWorkedMinutes), ''];
+	const tableColumns = getAttendanceTableColumns(labels);
+	const values = [labels.totalLabel, '', '', formatWorkedMinutes(totalWorkedMinutes), ''];
 
-	for (let index = 0; index < TABLE_COLUMNS.length; index += 1) {
-		const column = TABLE_COLUMNS[index];
+	for (let index = 0; index < tableColumns.length; index += 1) {
+		const column = tableColumns[index];
 		const value = values[index];
-		const isSignatureColumn = index === TABLE_COLUMNS.length - 1;
+		const isSignatureColumn = index === tableColumns.length - 1;
 		drawCell(page, {
 			x: columnX,
 			y: cursorY - TABLE_TOTAL_HEIGHT,
@@ -472,38 +530,39 @@ export async function buildAttendanceReportPdf(
 	const pdfDocument = await PDFDocument.create();
 	const font = await pdfDocument.embedFont(StandardFonts.Helvetica);
 	const fontBold = await pdfDocument.embedFont(StandardFonts.HelveticaBold);
+	const labels = input.labels ?? DEFAULT_ATTENDANCE_REPORT_LABELS;
 	const periodLabel = `${formatDateKey(input.dateRange.startDateKey)} - ${formatDateKey(
 		input.dateRange.endDateKey,
 	)}`;
 
 	let page = pdfDocument.addPage(PageSizes.Letter);
-	let cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel);
+	let cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
 
 	for (const group of input.groups) {
 		if (cursorY - MINIMUM_BLOCK_OPENING_HEIGHT < PAGE_MARGIN) {
 			page = pdfDocument.addPage(PageSizes.Letter);
-			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel);
+			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
 		}
 
-		cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, cursorY);
+		cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
 
 		for (const row of group.rows) {
 			if (cursorY - TABLE_ROW_HEIGHT < PAGE_MARGIN) {
 				page = pdfDocument.addPage(PageSizes.Letter);
-				cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel);
-				cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, cursorY);
+				cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
+				cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
 			}
 
-			cursorY = drawAttendanceRow(page, font, row, cursorY);
+			cursorY = drawAttendanceRow(page, font, row, labels, cursorY);
 		}
 
 		if (cursorY - TABLE_TOTAL_HEIGHT < PAGE_MARGIN) {
 			page = pdfDocument.addPage(PageSizes.Letter);
-			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel);
-			cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, cursorY);
+			cursorY = drawReportHeader(page, font, fontBold, input.title, periodLabel, labels);
+			cursorY = drawEmployeeSectionHeader(page, font, fontBold, group, periodLabel, labels, cursorY);
 		}
 
-		cursorY = drawTotalRow(page, fontBold, group.totalWorkedMinutes, cursorY);
+		cursorY = drawTotalRow(page, fontBold, group.totalWorkedMinutes, labels, cursorY);
 		cursorY -= SECTION_GAP;
 	}
 

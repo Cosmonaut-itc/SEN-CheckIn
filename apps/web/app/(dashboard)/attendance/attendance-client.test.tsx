@@ -10,6 +10,10 @@ import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
 
 import { AttendancePageClient, getPresetDateRangeKeys } from './attendance-client';
 
+vi.mock('next-intl', async () => {
+	return import('@/lib/test-utils/next-intl');
+});
+
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchLocationsList = vi.fn();
 
@@ -208,7 +212,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
 		await waitFor(() => {
 			expect(exportButton).toBeEnabled();
@@ -297,8 +301,9 @@ describe('AttendancePageClient', () => {
 		expect(screen.queryByText('15:30:00')).not.toBeInTheDocument();
 	});
 
-	it('fetches overnight spillover records around the selected local day before export', async () => {
+	it('fetches overnight spillover records around the selected local day before PDF export', async () => {
 		let capturedBlob: Blob | null = null;
+		const appendChildSpy = vi.spyOn(document.body, 'appendChild');
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
 			.mockImplementation(() => undefined);
@@ -440,7 +445,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
 		await waitFor(() => {
 			expect(exportButton).toBeEnabled();
@@ -452,6 +457,13 @@ describe('AttendancePageClient', () => {
 			expect(anchorClickSpy).toHaveBeenCalled();
 			expect(capturedBlob).not.toBeNull();
 		});
+
+		const appendedAnchor = appendChildSpy.mock.calls.find(
+			([node]) => node instanceof HTMLAnchorElement,
+		)?.[0];
+		if (!(appendedAnchor instanceof HTMLAnchorElement)) {
+			throw new Error('Expected the export flow to append an anchor element.');
+		}
 
 		const exportCall = mockFetchAttendanceRecords.mock.calls.find(
 			([params]) => (params as { limit?: number }).limit === 100,
@@ -465,9 +477,15 @@ describe('AttendancePageClient', () => {
 		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
 		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
 		expect(capturedBlob).not.toBeNull();
+		if (!capturedBlob) {
+			throw new Error('Expected a PDF blob to be created.');
+		}
+		const pdfBlob = capturedBlob as Blob;
+		expect(pdfBlob.type).toBe('application/pdf');
+		expect(appendedAnchor.download.endsWith('.pdf')).toBe(true);
 	});
 
-	it('skips CSV download when spillover fetch has no rows inside the selected local range', async () => {
+	it('skips PDF download when spillover fetch has no rows inside the selected local range', async () => {
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
 			.mockImplementation(() => undefined);
@@ -550,7 +568,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		const exportButton = screen.getByRole('button', { name: 'actions.exportCsv' });
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
 		await waitFor(() => {
 			expect(exportButton).toBeEnabled();

@@ -1,10 +1,16 @@
 import { PDFDocument } from 'pdf-lib';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { inflateSync } from 'node:zlib';
 
 import type { AttendanceEmployeePdfGroup } from '@/app/(dashboard)/attendance/attendance-export-helpers';
 
 import { buildAttendanceReportPdf } from './build-attendance-report-pdf';
+
+const PDFJS_STANDARD_FONT_DATA_URL = `${pathToFileURL(
+	resolve(process.cwd(), '../../node_modules/pdfjs-dist/standard_fonts/'),
+).href}`.replace(/\/?$/, '/');
 
 /**
  * Converts PDF header bytes to string.
@@ -17,90 +23,38 @@ function readPdfHeader(bytes: Uint8Array): string {
 }
 
 /**
- * Finds the first index of a token inside a byte array.
- *
- * @param bytes - Source byte array
- * @param token - Byte token to search
- * @returns Index or -1 when not found
- */
-function findTokenIndex(bytes: Uint8Array, token: Uint8Array): number {
-	for (let index = 0; index <= bytes.length - token.length; index += 1) {
-		let matched = true;
-		for (let tokenIndex = 0; tokenIndex < token.length; tokenIndex += 1) {
-			if (bytes[index + tokenIndex] !== token[tokenIndex]) {
-				matched = false;
-				break;
-			}
-		}
-		if (matched) {
-			return index;
-		}
-	}
-	return -1;
-}
-
-/**
- * Extracts every Flate-compressed PDF stream.
+ * Extracts text content from each rendered PDF page.
  *
  * @param bytes - PDF byte array
- * @returns Decoded stream texts
+ * @returns Extracted page texts in order
  */
-function decodeAllFlateStreams(bytes: Uint8Array): string[] {
-	const streamToken = new TextEncoder().encode('stream\n');
-	const endStreamToken = new TextEncoder().encode('\nendstream');
-	const streamTexts: string[] = [];
-	let searchIndex = 0;
+async function extractPdfPageTexts(bytes: Uint8Array): Promise<string[]> {
+	const pdfBytes = bytes.slice();
+	const loadingTask = pdfjsLib.getDocument({
+		data: pdfBytes,
+		standardFontDataUrl: PDFJS_STANDARD_FONT_DATA_URL,
+		useWorkerFetch: false,
+		isEvalSupported: false,
+		disableFontFace: true,
+		disableStream: true,
+		disableAutoFetch: true,
+	});
+	const pdfDocument = await loadingTask.promise;
+	const pageTexts: string[] = [];
 
-	while (searchIndex < bytes.length) {
-		const streamIndex = findTokenIndex(bytes.slice(searchIndex), streamToken);
-		if (streamIndex === -1) {
-			break;
-		}
-
-		const absoluteStreamIndex = searchIndex + streamIndex;
-		const streamStart = absoluteStreamIndex + streamToken.length;
-		const streamEnd = findTokenIndex(bytes.slice(streamStart), endStreamToken);
-		if (streamEnd === -1) {
-			break;
-		}
-
-		const compressed = bytes.slice(streamStart, streamStart + streamEnd);
-		try {
-			const inflated = inflateSync(compressed);
-			streamTexts.push(new TextDecoder('latin1').decode(inflated));
-		} catch {
-			// Ignore streams that are not Flate-compressed.
-		}
-
-		searchIndex = streamStart + streamEnd + endStreamToken.length;
+	for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+		const page = await pdfDocument.getPage(pageNumber);
+		const textContent = await page.getTextContent();
+		const text = textContent.items
+			.map((item) => ('str' in item ? item.str : ''))
+			.join(' ')
+			.replace(/\s+/g, ' ')
+			.trim();
+		pageTexts.push(text);
 	}
 
-	return streamTexts;
-}
-
-/**
- * Encodes plain text into uppercase hexadecimal representation.
- *
- * @param value - Plain text
- * @returns Hexadecimal text
- */
-function encodeTextToHex(value: string): string {
-	return Array.from(value)
-		.map((character) => character.charCodeAt(0).toString(16).padStart(2, '0'))
-	.join('')
-	.toUpperCase();
-}
-
-/**
- * Checks whether any decoded PDF stream contains a text token.
- *
- * @param streams - Decoded PDF streams
- * @param text - Human-readable text to search for
- * @returns True when the token exists in at least one stream
- */
-function streamContainsText(streams: readonly string[], text: string): boolean {
-	const encodedText = `<${encodeTextToHex(text)}>`;
-	return streams.some((stream) => stream.includes(encodedText));
+	await loadingTask.destroy();
+	return pageTexts;
 }
 
 /**
@@ -170,22 +124,23 @@ describe('buildAttendanceReportPdf', () => {
 			],
 		});
 
-		const streams = decodeAllFlateStreams(pdfBytes);
+		const pageTexts = await extractPdfPageTexts(pdfBytes);
+		const documentText = pageTexts.join(' ');
 
 		expect(readPdfHeader(pdfBytes)).toBe('%PDF-');
 		expect(pdfBytes.length).toBeGreaterThan(500);
 		expect(await getPdfPageCount(pdfBytes)).toBe(1);
-		expect(streamContainsText(streams, 'Reporte de asistencia')).toBe(true);
-		expect(streamContainsText(streams, 'Periodo: 10/04/2026 - 12/04/2026')).toBe(true);
-		expect(streamContainsText(streams, 'Ana López')).toBe(true);
-		expect(streamContainsText(streams, 'ID: emp-1')).toBe(true);
-		expect(streamContainsText(streams, 'Día')).toBe(true);
-		expect(streamContainsText(streams, 'Entrada')).toBe(true);
-		expect(streamContainsText(streams, 'Salida')).toBe(true);
-		expect(streamContainsText(streams, 'Horas trabajadas')).toBe(true);
-		expect(streamContainsText(streams, 'Firma')).toBe(true);
-		expect(streamContainsText(streams, 'Total')).toBe(true);
-		expect(streamContainsText(streams, '09:30')).toBe(true);
+		expect(documentText).toContain('Reporte de asistencia');
+		expect(documentText).toContain('Periodo: 10/04/2026 - 12/04/2026');
+		expect(documentText).toContain('Ana López');
+		expect(documentText).toContain('ID: emp-1');
+		expect(documentText).toContain('Día');
+		expect(documentText).toContain('Entrada');
+		expect(documentText).toContain('Salida');
+		expect(documentText).toContain('Horas trabajadas');
+		expect(documentText).toContain('Firma');
+		expect(documentText).toContain('Total');
+		expect(documentText).toContain('09:30');
 	});
 
 	it('creates repeated table headers when an employee block spans multiple pages', async () => {
@@ -213,15 +168,15 @@ describe('buildAttendanceReportPdf', () => {
 			],
 		});
 
-		const streams = decodeAllFlateStreams(pdfBytes);
+		const pageTexts = await extractPdfPageTexts(pdfBytes);
 
 		expect(await getPdfPageCount(pdfBytes)).toBeGreaterThan(1);
-		expect(streamContainsText(streams, 'Día')).toBe(true);
-		expect(streamContainsText(streams, 'Entrada')).toBe(true);
-		expect(streamContainsText(streams, 'Salida')).toBe(true);
-		expect(streamContainsText(streams, 'Horas trabajadas')).toBe(true);
-		expect(streamContainsText(streams, 'Firma')).toBe(true);
-		expect(streams.filter((stream) => stream.includes(`<${encodeTextToHex('Día')}>`))).toHaveLength(2);
+		expect(pageTexts.some((text) => text.includes('Día'))).toBe(true);
+		expect(pageTexts.some((text) => text.includes('Entrada'))).toBe(true);
+		expect(pageTexts.some((text) => text.includes('Salida'))).toBe(true);
+		expect(pageTexts.some((text) => text.includes('Horas trabajadas'))).toBe(true);
+		expect(pageTexts.some((text) => text.includes('Firma'))).toBe(true);
+		expect(pageTexts.filter((text) => text.includes('Día'))).toHaveLength(2);
 	});
 
 	it('moves a near-bottom block to the next page before its first row and total can split apart', async () => {
@@ -266,12 +221,12 @@ describe('buildAttendanceReportPdf', () => {
 			],
 		});
 
-		const streams = decodeAllFlateStreams(pdfBytes);
+		const pageTexts = await extractPdfPageTexts(pdfBytes);
 
 		expect(await getPdfPageCount(pdfBytes)).toBe(2);
-		expect(streamContainsText([streams[0] ?? ''], 'Bruno Ruiz')).toBe(false);
-		expect(streamContainsText([streams[0] ?? ''], '23/04/2026')).toBe(false);
-		expect(streamContainsText([streams[1] ?? ''], 'Bruno Ruiz')).toBe(true);
-		expect(streamContainsText([streams[1] ?? ''], '23/04/2026')).toBe(true);
+		expect(pageTexts[0] ?? '').not.toContain('Bruno Ruiz');
+		expect(pageTexts[0] ?? '').not.toContain('23/04/2026');
+		expect(pageTexts[1] ?? '').toContain('Bruno Ruiz');
+		expect(pageTexts[1] ?? '').toContain('23/04/2026');
 	});
 });

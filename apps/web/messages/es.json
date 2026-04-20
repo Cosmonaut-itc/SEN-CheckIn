@@ -1898,13 +1898,22 @@
 		"pdf": {
 			"title": "Reporte de asistencia",
 			"fileName": "asistencia_{start}_{end}.pdf",
+			"exportError": "No se pudo exportar el PDF.",
 			"headers": {
 				"employeeName": "Empleado",
 				"employeeId": "ID de empleado",
-				"date": "Fecha",
-				"firstEntry": "Primera entrada",
-				"lastExit": "Última salida",
-				"totalHours": "Horas trabajadas"
+				"date": "Día",
+				"firstEntry": "Entrada",
+				"lastExit": "Salida",
+				"totalHours": "Horas trabajadas",
+				"signature": "Firma"
+			},
+			"labels": {
+				"periodPrefix": "Periodo",
+				"employeeIdPrefix": "ID",
+				"missingEmployeeName": "Sin nombre",
+				"missingEmployeeId": "Sin ID",
+				"totalLabel": "Total"
 			},
 			"values": {
 				"incomplete": "Incompleto",

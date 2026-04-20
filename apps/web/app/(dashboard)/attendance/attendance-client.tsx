@@ -1142,6 +1142,20 @@ export function AttendancePageClient({
 					endDateKey: exportEndDateKey,
 				},
 				groups,
+				labels: {
+					periodPrefix: t('pdf.labels.periodPrefix'),
+					employeeIdPrefix: t('pdf.labels.employeeIdPrefix'),
+					missingEmployeeName: t('pdf.labels.missingEmployeeName'),
+					missingEmployeeId: t('pdf.labels.missingEmployeeId'),
+					tableHeaders: {
+						day: t('pdf.headers.date'),
+						entry: t('pdf.headers.firstEntry'),
+						exit: t('pdf.headers.lastExit'),
+						workHours: t('pdf.headers.totalHours'),
+						signature: t('pdf.headers.signature'),
+					},
+					totalLabel: t('pdf.labels.totalLabel'),
+				},
 			});
 			const fileName = t('pdf.fileName', {
 				start: exportStartDateKey.replace(/-/g, ''),
@@ -1151,6 +1165,7 @@ export function AttendancePageClient({
 			downloadPdfFile(pdfBytes, fileName);
 		} catch (error) {
 			console.error('Failed to export attendance PDF:', error);
+			toast.error(t('pdf.exportError'));
 		} finally {
 			setIsExporting(false);
 		}

@@ -426,22 +426,17 @@ export function buildAttendanceEmployeePdfGroups(
 	const orderedGroups: AttendanceEmployeePdfGroup[] = [];
 
 	for (const row of rows) {
-		const currentGroup = groups.get(row.employeeId);
+		let group = groups.get(row.employeeId);
 
-		if (!currentGroup) {
-			const nextGroup: AttendanceEmployeePdfGroup = {
+		if (!group) {
+			group = {
 				employeeId: row.employeeId,
 				employeeName: row.employeeName,
 				rows: [],
 				totalWorkedMinutes: 0,
 			};
-			groups.set(row.employeeId, nextGroup);
-			orderedGroups.push(nextGroup);
-		}
-
-		const group = groups.get(row.employeeId);
-		if (!group) {
-			continue;
+			groups.set(row.employeeId, group);
+			orderedGroups.push(group);
 		}
 
 		group.rows.push({

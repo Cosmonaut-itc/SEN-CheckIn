@@ -15,6 +15,13 @@ vi.mock('next-intl', async () => {
 });
 
 const mockBuildAttendanceReportPdf = vi.fn();
+const mockToastError = vi.fn();
+
+vi.mock('sonner', () => ({
+	toast: {
+		error: (...args: unknown[]) => mockToastError(...args),
+	},
+}));
 
 vi.mock('@/lib/attendance/build-attendance-report-pdf', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('@/lib/attendance/build-attendance-report-pdf')>();
@@ -128,6 +135,7 @@ describe('AttendancePageClient', () => {
 		mockFetchAttendanceRecords.mockReset();
 		mockFetchLocationsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
+		mockToastError.mockReset();
 		expectedPdfBytes = null;
 		mockBuildAttendanceReportPdf.mockImplementation(async () => {
 			const pdfDocument = await PDFDocument.create();
@@ -603,6 +611,119 @@ describe('AttendancePageClient', () => {
 		}
 
 		expect(appendedAnchor.download).toBe('asistencia_20260223_20260223.pdf');
+	});
+
+	it('passes localized PDF labels to the builder during export', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T15:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T15:30:00.000Z'),
+					updatedAt: new Date('2026-02-23T15:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(anchorClickSpy).toHaveBeenCalled();
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				labels: {
+					periodPrefix: 'Periodo',
+					employeeIdPrefix: 'ID',
+					missingEmployeeName: 'Sin nombre',
+					missingEmployeeId: 'Sin ID',
+					tableHeaders: {
+						day: 'Día',
+						entry: 'Entrada',
+						exit: 'Salida',
+						workHours: 'Horas trabajadas',
+						signature: 'Firma',
+					},
+					totalLabel: 'Total',
+				},
+			}),
+		);
+	});
+
+	it('shows a localized toast when PDF export fails', async () => {
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-23T15:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-23T15:30:00.000Z'),
+					updatedAt: new Date('2026-02-23T15:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockBuildAttendanceReportPdf.mockRejectedValueOnce(new Error('pdf boom'));
+
+		const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+		renderAttendanceClient();
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(consoleErrorSpy).toHaveBeenCalledWith(
+				'Failed to export attendance PDF:',
+				expect.any(Error),
+			);
+		});
+
+		expect(mockToastError).toHaveBeenCalledWith('No se pudo exportar el PDF.');
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
 	});
 
 	it('skips PDF download when spillover fetch has no rows inside the selected local range', async () => {

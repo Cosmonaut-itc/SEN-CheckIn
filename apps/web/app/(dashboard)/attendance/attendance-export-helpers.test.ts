@@ -5,6 +5,7 @@ import type { AttendanceRecord } from '@/lib/client-functions';
 import {
 	aggregateAttendanceByPersonDay,
 	buildAttendanceEmployeePdfGroups,
+	buildAttendanceEmployeePdfSummaryRows,
 	type AttendanceSummaryLabels,
 } from './attendance-export-helpers';
 
@@ -398,8 +399,88 @@ describe('aggregateAttendanceByPersonDay', () => {
 });
 
 describe('buildAttendanceEmployeePdfGroups', () => {
+	it('uses numeric work minutes instead of reparsing totalHours text', () => {
+		const groups = buildAttendanceEmployeePdfGroups([
+			{
+				employeeId: 'emp-1',
+				employeeName: 'Ana',
+				date: '10/04/2026',
+				firstEntry: '08:00',
+				lastExit: '16:00',
+				totalHours: 'Fuera de oficina',
+				workMinutes: 125,
+			},
+		]);
+
+		expect(groups).toEqual([
+			{
+				employeeId: 'emp-1',
+				employeeName: 'Ana',
+				totalWorkedMinutes: 125,
+				rows: [
+					{
+						day: '10/04/2026',
+						firstEntry: '08:00',
+						lastExit: '16:00',
+						totalHours: 'Fuera de oficina',
+						workMinutes: 125,
+					},
+				],
+			},
+		]);
+	});
+
+	it('builds summary rows with numeric work minutes from the attendance aggregation', () => {
+		const summaryRows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-2',
+					employeeName: 'Bruno',
+					timestamp: '2026-04-10T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04-10',
+					offsiteDayKind: 'LABORABLE',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(summaryRows).toEqual([
+			{
+				employeeName: 'Ana',
+				employeeId: 'emp-1',
+				date: '10/04/2026',
+				firstEntry: '08:00',
+				lastExit: '16:00',
+				totalHours: '08:00',
+				workMinutes: 480,
+			},
+			{
+				employeeName: 'Bruno',
+				employeeId: 'emp-2',
+				date: '10/04/2026',
+				firstEntry: 'Fuera de oficina',
+				lastExit: 'Fuera de oficina',
+				totalHours: 'Fuera de oficina',
+				workMinutes: null,
+			},
+		]);
+	});
+
 	it('groups daily summaries by employee and keeps row order', () => {
-		const rows = aggregateAttendanceByPersonDay(
+		const rows = buildAttendanceEmployeePdfSummaryRows(
 			[
 				buildAttendanceRecord({
 					employeeId: 'emp-1',
@@ -482,7 +563,7 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 	});
 
 	it('keeps incomplete and offsite rows visible without adding them to totals', () => {
-		const rows = aggregateAttendanceByPersonDay(
+		const rows = buildAttendanceEmployeePdfSummaryRows(
 			[
 				buildAttendanceRecord({
 					employeeId: 'emp-1',
@@ -507,7 +588,7 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 				labels: TEST_LABELS,
 				timeZone: TEST_TIME_ZONE,
 			},
-		);
+			);
 
 		const groups = buildAttendanceEmployeePdfGroups(rows);
 
@@ -543,7 +624,7 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 	});
 
 	it('excludes employees fully outside the filtered range', () => {
-		const rows = aggregateAttendanceByPersonDay(
+		const rows = buildAttendanceEmployeePdfSummaryRows(
 			[
 				buildAttendanceRecord({
 					employeeId: 'emp-1',

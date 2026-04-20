@@ -543,6 +543,68 @@ describe('AttendancePageClient', () => {
 		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
 	});
 
+	it('uses the export timezone date keys in the PDF filename', async () => {
+		const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
+		createObjectURLMock.mockReturnValue('blob:attendance-export');
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-02-22T16:30:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-02-22T16:30:00.000Z'),
+					updatedAt: new Date('2026-02-22T16:30:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-02-23',
+				to: '2026-02-23',
+				timeZone: 'Asia/Tokyo',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
+
+		const appendedAnchor = appendChildSpy.mock.calls.find(
+			([node]) => node instanceof HTMLAnchorElement,
+		)?.[0];
+		if (!(appendedAnchor instanceof HTMLAnchorElement)) {
+			throw new Error('Expected the export flow to append an anchor element.');
+		}
+
+		expect(appendedAnchor.download).toBe('asistencia_20260223_20260223.pdf');
+	});
+
 	it('skips PDF download when spillover fetch has no rows inside the selected local range', async () => {
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')

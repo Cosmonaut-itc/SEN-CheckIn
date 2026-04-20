@@ -1144,8 +1144,8 @@ export function AttendancePageClient({
 				groups,
 			});
 			const fileName = t('pdf.fileName', {
-				start: format(start, 'yyyyMMdd'),
-				end: format(end, 'yyyyMMdd'),
+				start: exportStartDateKey.replace(/-/g, ''),
+				end: exportEndDateKey.replace(/-/g, ''),
 			});
 
 			downloadPdfFile(pdfBytes, fileName);

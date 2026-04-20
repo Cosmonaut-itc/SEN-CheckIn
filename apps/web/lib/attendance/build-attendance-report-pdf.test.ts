@@ -1,16 +1,15 @@
 import { PDFDocument } from 'pdf-lib';
 import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import type { AttendanceEmployeePdfGroup } from '@/app/(dashboard)/attendance/attendance-export-helpers';
 
 import { buildAttendanceReportPdf } from './build-attendance-report-pdf';
 
-const PDFJS_STANDARD_FONT_DATA_URL = `${pathToFileURL(
-	resolve(process.cwd(), '../../node_modules/pdfjs-dist/standard_fonts/'),
-).href}`.replace(/\/?$/, '/');
+const PDFJS_STANDARD_FONT_DATA_URL = new URL(
+	'../../../../node_modules/pdfjs-dist/standard_fonts/',
+	import.meta.url,
+).href.replace(/\/?$/, '/');
 
 /**
  * Converts PDF header bytes to string.

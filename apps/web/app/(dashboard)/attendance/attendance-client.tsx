@@ -341,7 +341,8 @@ export function getPresetDateRangeKeys(args: PresetDateRangeKeysArgs): PresetDat
  * @returns void
  */
 function downloadPdfFile(pdfBytes: Uint8Array, fileName: string): void {
-	const blob = new Blob([pdfBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+	const blobPart = pdfBytes as unknown as BlobPart;
+	const blob = new Blob([blobPart], { type: 'application/pdf' });
 	const url = URL.createObjectURL(blob);
 	const link = document.createElement('a');
 	link.href = url;
@@ -349,7 +350,9 @@ function downloadPdfFile(pdfBytes: Uint8Array, fileName: string): void {
 	document.body.appendChild(link);
 	link.click();
 	link.remove();
-	URL.revokeObjectURL(url);
+	setTimeout(() => {
+		URL.revokeObjectURL(url);
+	}, 0);
 }
 
 /**

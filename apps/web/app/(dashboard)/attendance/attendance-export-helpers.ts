@@ -403,9 +403,14 @@ export function aggregateAttendanceByPersonDay(
 	records: readonly AttendanceRecord[],
 	options: AggregateAttendanceOptions,
 ): AttendanceSummaryCsvRow[] {
-	return buildAttendanceEmployeePdfSummaryRows(records, options).map(
-		({ workMinutes: _workMinutes, ...row }) => row,
-	);
+	return buildAttendanceEmployeePdfSummaryRows(records, options).map((row) => ({
+		employeeName: row.employeeName,
+		employeeId: row.employeeId,
+		date: row.date,
+		firstEntry: row.firstEntry,
+		lastExit: row.lastExit,
+		totalHours: row.totalHours,
+	}));
 }
 
 /**

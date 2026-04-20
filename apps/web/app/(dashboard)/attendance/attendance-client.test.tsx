@@ -1,21 +1,54 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { format } from 'date-fns';
+import { PDFDocument } from 'pdf-lib';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
 import type { AttendanceRecord } from '@/lib/client-functions';
 import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
-
 import { AttendancePageClient, getPresetDateRangeKeys } from './attendance-client';
 
 vi.mock('next-intl', async () => {
 	return import('@/lib/test-utils/next-intl');
 });
 
+const mockBuildAttendanceReportPdf = vi.fn();
+
+vi.mock('@/lib/attendance/build-attendance-report-pdf', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('@/lib/attendance/build-attendance-report-pdf')>();
+	return {
+		...actual,
+		buildAttendanceReportPdf: (...args: unknown[]) => mockBuildAttendanceReportPdf(...args),
+	};
+});
+
 const mockFetchAttendanceRecords = vi.fn();
 const mockFetchLocationsList = vi.fn();
+let expectedPdfBytes: Uint8Array | null = null;
+
+/**
+ * Reads a Blob into a byte array.
+ *
+ * @param blob - Blob to read
+ * @returns Blob bytes
+ */
+function readBlobBytes(blob: Blob): Promise<Uint8Array> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onerror = () => reject(reader.error);
+		reader.onload = () => {
+			const result = reader.result;
+			if (!(result instanceof ArrayBuffer)) {
+				reject(new Error('Expected blob bytes to resolve as an ArrayBuffer.'));
+				return;
+			}
+			resolve(new Uint8Array(result));
+		};
+		reader.readAsArrayBuffer(blob);
+	});
+}
 
 vi.mock('next/navigation', () => ({
 	useRouter: () => ({
@@ -94,6 +127,16 @@ describe('AttendancePageClient', () => {
 		URL.revokeObjectURL = vi.fn();
 		mockFetchAttendanceRecords.mockReset();
 		mockFetchLocationsList.mockReset();
+		mockBuildAttendanceReportPdf.mockReset();
+		expectedPdfBytes = null;
+		mockBuildAttendanceReportPdf.mockImplementation(async () => {
+			const pdfDocument = await PDFDocument.create();
+			const bytes = await pdfDocument.save();
+			expectedPdfBytes = bytes;
+			const backingBytes = new Uint8Array(bytes.length + 16);
+			backingBytes.set(bytes, 16);
+			return backingBytes.subarray(16);
+		});
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
 			pagination: { total: 0, limit: 10, offset: 0 },
@@ -303,10 +346,16 @@ describe('AttendancePageClient', () => {
 
 	it('fetches overnight spillover records around the selected local day before PDF export', async () => {
 		let capturedBlob: Blob | null = null;
+		let revokeObservedAtMicrotask: boolean | null = null;
 		const appendChildSpy = vi.spyOn(document.body, 'appendChild');
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
-			.mockImplementation(() => undefined);
+			.mockImplementation(() => {
+				queueMicrotask(() => {
+					revokeObservedAtMicrotask = (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mock
+						.calls.length > 0;
+				});
+			});
 		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
 		createObjectURLMock.mockImplementation((blob: Blob | MediaSource) => {
 			if (blob instanceof Blob) {
@@ -482,7 +531,16 @@ describe('AttendancePageClient', () => {
 		}
 		const pdfBlob = capturedBlob as Blob;
 		expect(pdfBlob.type).toBe('application/pdf');
+		expect(expectedPdfBytes).not.toBeNull();
+		if (!expectedPdfBytes) {
+			throw new Error('Expected mock PDF bytes to be initialized.');
+		}
+		const downloadedBytes = await readBlobBytes(pdfBlob);
+		expect(downloadedBytes).toEqual(expectedPdfBytes);
+		await Promise.resolve();
+		expect(revokeObservedAtMicrotask).toBe(false);
 		expect(appendedAnchor.download.endsWith('.pdf')).toBe(true);
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
 	});
 
 	it('skips PDF download when spillover fetch has no rows inside the selected local range', async () => {

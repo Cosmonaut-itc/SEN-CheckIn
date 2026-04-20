@@ -1797,7 +1797,6 @@
 		"noOrganization": "Selecciona una organización activa para ver registros de asistencia.",
 		"actions": {
 			"refresh": "Actualizar",
-			"exportCsv": "Descargar CSV",
 			"exportPdf": "Descargar PDF",
 			"registerOffsite": "Registrar fuera de oficina",
 			"returnToEmployee": "Volver al empleado"
@@ -1899,23 +1898,6 @@
 		"pdf": {
 			"title": "Reporte de asistencia",
 			"fileName": "asistencia_{start}_{end}.pdf",
-			"headers": {
-				"employeeName": "Empleado",
-				"employeeId": "ID de empleado",
-				"date": "Fecha",
-				"firstEntry": "Primera entrada",
-				"lastExit": "Última salida",
-				"totalHours": "Horas trabajadas"
-			},
-			"values": {
-				"incomplete": "Incompleto",
-				"noEntry": "Sin entrada",
-				"noExit": "Sin salida",
-				"workOffsite": "Fuera de oficina"
-			}
-		},
-		"csv": {
-			"fileName": "asistencia_{start}_{end}.csv",
 			"headers": {
 				"employeeName": "Empleado",
 				"employeeId": "ID de empleado",

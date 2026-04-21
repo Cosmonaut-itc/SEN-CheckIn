@@ -232,8 +232,14 @@ describe('document-ai service', () => {
 				employees?: {
 					items?: {
 						properties?: {
-							firstName?: { type?: string | string[] };
-							lastName?: { type?: string | string[] };
+							firstName?: {
+								type?: string | string[];
+								anyOf?: Array<{ type?: string }>;
+							};
+							lastName?: {
+								type?: string | string[];
+								anyOf?: Array<{ type?: string }>;
+							};
 						};
 						required?: string[];
 					};
@@ -244,8 +250,18 @@ describe('document-ai service', () => {
 		const requiredFields = Array.isArray(employeeItemSchema?.required)
 			? employeeItemSchema.required
 			: [];
-		const firstNameTypes = employeeItemSchema?.properties?.firstName?.type;
-		const lastNameTypes = employeeItemSchema?.properties?.lastName?.type;
+		const firstNameSchema = employeeItemSchema?.properties?.firstName;
+		const lastNameSchema = employeeItemSchema?.properties?.lastName;
+		const firstNameTypes = Array.isArray(firstNameSchema?.type)
+			? firstNameSchema.type
+			: firstNameSchema?.type
+				? [firstNameSchema.type]
+				: (firstNameSchema?.anyOf ?? []).flatMap((entry) => (entry.type ? [entry.type] : []));
+		const lastNameTypes = Array.isArray(lastNameSchema?.type)
+			? lastNameSchema.type
+			: lastNameSchema?.type
+				? [lastNameSchema.type]
+				: (lastNameSchema?.anyOf ?? []).flatMap((entry) => (entry.type ? [entry.type] : []));
 
 		expect(requiredFields).toContain('firstName');
 		expect(requiredFields).toContain('lastName');

@@ -14,8 +14,8 @@
 		"web": "expo start --web",
 		"lint": "expo lint",
 		"check-types": "tsc --noEmit",
-		"test": "jest",
-		"test:watch": "jest --watch"
+		"test": "../../scripts/run-with-node.sh ../../node_modules/jest/bin/jest.js",
+		"test:watch": "../../scripts/run-with-node.sh ../../node_modules/jest/bin/jest.js --watch"
 	},
 	"dependencies": {
 		"@better-auth/expo": "^1.4.4",

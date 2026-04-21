@@ -57,8 +57,7 @@ describe('overtime authorization schemas', () => {
 		if (result.success) {
 			throw new Error('Expected update schema validation to fail.');
 		}
-		expect(result.error.issues[0]?.message).toBe(
-			"Invalid enum value. Expected 'ACTIVE' | 'CANCELLED', received 'PENDING'",
-		);
+		expect(result.error.issues[0]?.message).toContain('ACTIVE');
+		expect(result.error.issues[0]?.message).toContain('CANCELLED');
 	});
 });

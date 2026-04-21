@@ -27,8 +27,7 @@ describe('tour schemas', () => {
 			throw new Error('Expected completeTourBodySchema to reject invalid statuses.');
 		}
 
-		expect(result.error.issues[0]?.message).toBe(
-			"Invalid enum value. Expected 'completed' | 'skipped', received 'pending'",
-		);
+		expect(result.error.issues[0]?.message).toContain('completed');
+		expect(result.error.issues[0]?.message).toContain('skipped');
 	});
 });

@@ -83,6 +83,40 @@ export interface AttendanceOffsiteTodayQueryParams extends Record<string, unknow
 }
 
 /**
+ * Query parameters for dashboard timeline activity.
+ */
+export interface DashboardTimelineQueryParams extends Record<string, unknown> {
+	organizationId?: string | null;
+	fromDate?: Date;
+	toDate?: Date;
+	kind?: 'in' | 'late' | 'offsite';
+	limit?: number;
+	offset?: number;
+}
+
+/**
+ * Query parameters for dashboard hourly activity.
+ */
+export interface DashboardHourlyQueryParams extends Record<string, unknown> {
+	organizationId?: string | null;
+	date?: string;
+}
+
+/**
+ * Query parameters for dashboard device status summary.
+ */
+export interface DashboardDeviceStatusQueryParams extends Record<string, unknown> {
+	organizationId?: string | null;
+}
+
+/**
+ * Query parameters for dashboard weather summary.
+ */
+export interface DashboardWeatherQueryParams extends Record<string, unknown> {
+	organizationId?: string | null;
+}
+
+/**
  * Query parameters for job positions list.
  */
 export interface JobPositionQueryParams extends ListQueryParams {
@@ -549,6 +583,30 @@ export const queryKeys = {
 			queryKeyConstructor(['dashboard', 'counts'] as const, {
 				organizationId: organizationId ?? undefined,
 			}),
+		/**
+		 * Generates a query key for dashboard timeline activity.
+		 * @param params - Optional dashboard timeline filters
+		 */
+		timeline: (params?: DashboardTimelineQueryParams) =>
+			queryKeyConstructor(['dashboard', 'timeline'] as const, params),
+		/**
+		 * Generates a query key for dashboard hourly activity.
+		 * @param params - Optional hourly activity filters
+		 */
+		hourly: (params?: DashboardHourlyQueryParams) =>
+			queryKeyConstructor(['dashboard', 'hourly'] as const, params),
+		/**
+		 * Generates a query key for dashboard device status summary.
+		 * @param params - Optional device status filters
+		 */
+		deviceStatus: (params?: DashboardDeviceStatusQueryParams) =>
+			queryKeyConstructor(['dashboard', 'deviceStatus'] as const, params),
+		/**
+		 * Generates a query key for dashboard weather summary.
+		 * @param params - Optional weather filters
+		 */
+		weather: (params?: DashboardWeatherQueryParams) =>
+			queryKeyConstructor(['dashboard', 'weather'] as const, params),
 	},
 
 	/**

@@ -46,10 +46,10 @@
 	--color-info: var(--status-info);
 	--color-info-bg: var(--status-info-bg);
 	--color-error-bg: var(--status-error-bg);
-	--radius-sm: calc(var(--radius) - 4px);
-	--radius-md: calc(var(--radius) - 2px);
-	--radius-lg: var(--radius);
-	--radius-xl: calc(var(--radius) + 4px);
+	--radius-sm: 6px;
+	--radius-md: 10px;
+	--radius-lg: 14px;
+	--radius-xl: 20px;
 }
 
 @keyframes marquee {

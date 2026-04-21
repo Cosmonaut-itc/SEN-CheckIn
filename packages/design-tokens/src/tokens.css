@@ -61,7 +61,6 @@
 	--font-code: var(--font-jetbrains-mono);
 
 	/* shadcn token mapping */
-	--radius: 0.625rem;
 	--background: var(--bg-primary);
 	--foreground: var(--text-primary);
 	--card: var(--bg-secondary);

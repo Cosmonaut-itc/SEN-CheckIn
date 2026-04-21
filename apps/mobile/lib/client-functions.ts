@@ -518,6 +518,8 @@ export async function updateDeviceSettings(
 export interface FaceEnrollmentEmployeesParams extends FaceEnrollmentEmployeeListQueryParams {
 	/** Status filter for employee search. Defaults to ACTIVE */
 	status?: 'ACTIVE';
+	/** Optional location filter to scope employees to the current device branch */
+	locationId?: string | null;
 }
 
 /**
@@ -545,6 +547,7 @@ export async function fetchFaceEnrollmentEmployees(
 			offset: number;
 			status: 'ACTIVE';
 			organizationId?: string;
+			locationId?: string;
 		} = {
 			limit: Math.min(apiPageLimit, requestedLimit - employees.length),
 			offset,
@@ -553,6 +556,10 @@ export async function fetchFaceEnrollmentEmployees(
 
 		if (params?.organizationId) {
 			query.organizationId = params.organizationId;
+		}
+
+		if (params?.locationId) {
+			query.locationId = params.locationId;
 		}
 
 		const response = await api.employees.get({ $query: query });

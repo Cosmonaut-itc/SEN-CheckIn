@@ -267,7 +267,7 @@ describe('FaceEnrollmentScreen', () => {
 		mockIsFaceEnrollmentApiError.mockReturnValue(false);
 	});
 
-	it('requests employees using organization context from device settings', async () => {
+	it('requests employees using organization and location context from device settings', async () => {
 		render(<FaceEnrollmentScreen />);
 
 		const queryOptions = mockUseQuery.mock.calls[0]?.[0] as
@@ -282,6 +282,7 @@ describe('FaceEnrollmentScreen', () => {
 			queryKeys.faceEnrollment.employees({
 				limit: 200,
 				organizationId: 'org-1',
+				locationId: 'location-1',
 			}),
 		);
 
@@ -289,6 +290,7 @@ describe('FaceEnrollmentScreen', () => {
 		expect(mockFetchFaceEnrollmentEmployees).toHaveBeenCalledWith({
 			limit: 200,
 			organizationId: 'org-1',
+			locationId: 'location-1',
 		});
 	});
 

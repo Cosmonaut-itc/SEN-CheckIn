@@ -17,6 +17,7 @@ export interface AttendanceQueryParams extends ListQueryParams {
 
 export interface FaceEnrollmentEmployeeListQueryParams {
 	organizationId?: string | null;
+	locationId?: string | null;
 	limit?: number;
 	[key: string]: unknown;
 }

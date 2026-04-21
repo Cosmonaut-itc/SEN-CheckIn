@@ -137,6 +137,7 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 	const [submissionError, setSubmissionError] = useState<string | null>(null);
 	const { settings } = useDeviceContext();
 	const organizationId = settings?.organizationId ?? null;
+	const locationId = settings?.locationId ?? null;
 	const isDeviceLinked = Boolean(settings?.deviceId);
 	const hasLocationConfigured = Boolean(settings?.locationId);
 	const hasDeviceConfig = isDeviceLinked && hasLocationConfigured;
@@ -145,8 +146,9 @@ export default function FaceEnrollmentScreen(): JSX.Element {
 		() => ({
 			limit: EMPLOYEE_FETCH_LIMIT,
 			organizationId,
+			locationId,
 		}),
-		[organizationId],
+		[organizationId, locationId],
 	);
 
 	const employeesQuery = useQuery({

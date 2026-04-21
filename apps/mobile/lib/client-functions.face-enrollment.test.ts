@@ -252,6 +252,34 @@ describe('fetchFaceEnrollmentEmployees', () => {
 		});
 	});
 
+	it('forwards locationId when provided for branch-scoped employee fetching', async () => {
+		mockEmployeesGet.mockResolvedValueOnce({
+			status: 200,
+			error: null,
+			data: {
+				data: [],
+				pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
+			},
+		});
+
+		await fetchFaceEnrollmentEmployees({
+			limit: 50,
+			organizationId: 'org-1',
+			locationId: 'location-1',
+		});
+
+		expect(mockEmployeesGet).toHaveBeenCalledTimes(1);
+		expect(mockEmployeesGet).toHaveBeenCalledWith({
+			$query: {
+				limit: 50,
+				offset: 0,
+				status: 'ACTIVE',
+				organizationId: 'org-1',
+				locationId: 'location-1',
+			},
+		});
+	});
+
 	it('still fetches employees when organizationId is null to allow session org resolution', async () => {
 		mockEmployeesGet.mockResolvedValueOnce({
 			status: 200,

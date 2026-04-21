@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import React from 'react';
 import { Animated } from 'react-native';
 
@@ -303,6 +303,50 @@ describe('ScannerScreen device linking state', () => {
 		render(<ScannerScreen />);
 
 		expect(mockReplace).toHaveBeenCalledWith('/(auth)/device-setup');
+	});
+
+	it('shows the live clock when the device is linked', () => {
+		jest.spyOn(Date.prototype, 'toLocaleTimeString').mockReturnValue('08:15:30');
+		mockDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: 'location-1',
+				name: 'Terminal A',
+			},
+			clearSettings: mockClearSettings,
+		});
+
+		render(<ScannerScreen />);
+
+		expect(screen.getByText('08:15:30')).toBeOnTheScreen();
+	});
+
+	it('updates the live clock every second when the device is linked', () => {
+		jest.useFakeTimers();
+		let clockCallCount = 0;
+		jest.spyOn(Date.prototype, 'toLocaleTimeString').mockImplementation(() => {
+			clockCallCount += 1;
+			return clockCallCount === 1 ? '08:15:30' : '08:15:31';
+		});
+		mockDeviceContext.mockReturnValue({
+			settings: {
+				deviceId: 'device-1',
+				locationId: 'location-1',
+				name: 'Terminal A',
+			},
+			clearSettings: mockClearSettings,
+		});
+
+		render(<ScannerScreen />);
+
+		expect(screen.getByText('08:15:30')).toBeOnTheScreen();
+
+		act(() => {
+			jest.advanceTimersByTime(1000);
+		});
+
+		expect(screen.getByText('08:15:31')).toBeOnTheScreen();
+		jest.useRealTimers();
 	});
 
 	it('locks auth state before routing to login when sign out fails', async () => {

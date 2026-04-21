@@ -331,6 +331,13 @@ export default function ScannerScreen(): JSX.Element {
 	const [isCheckOutReasonSheetOpen, setIsCheckOutReasonSheetOpen] = useState(false);
 	const [isProcessing, setIsProcessing] = useState(false);
 	const [isOffline, setIsOffline] = useState(false);
+	const [currentTime, setCurrentTime] = useState(() =>
+		new Date().toLocaleTimeString([], {
+			hour: '2-digit',
+			minute: '2-digit',
+			second: '2-digit',
+		}),
+	);
 	const captureLockRef = useRef(false);
 	const [scanStatus, setScanStatus] = useState<ScanStatus>({
 		state: 'idle',
@@ -534,6 +541,20 @@ export default function ScannerScreen(): JSX.Element {
 			isMounted = false;
 			unsubscribe();
 		};
+	}, []);
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			setCurrentTime(
+				new Date().toLocaleTimeString([], {
+					hour: '2-digit',
+					minute: '2-digit',
+					second: '2-digit',
+				}),
+			);
+		}, 1000);
+
+		return () => clearInterval(timer);
 	}, []);
 
 	// Reset camera state when screen comes into focus
@@ -1064,6 +1085,10 @@ export default function ScannerScreen(): JSX.Element {
 									) : null}
 								</View>
 							</View>
+
+							<Text className="text-center text-3xl font-bold text-foreground tracking-wide">
+								{currentTime}
+							</Text>
 
 							{/* Scan button */}
 							<Button

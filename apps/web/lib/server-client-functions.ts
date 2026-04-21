@@ -14,6 +14,7 @@ import { getApiResponseData } from '@/lib/api-response';
 import {
 	ApiKey,
 	AttendanceRecord,
+	DeviceStatusRecord,
 	AttendanceType,
 	DisciplinaryMeasureRecord,
 	DashboardCounts,
@@ -36,9 +37,12 @@ import {
 	PayrollSettings,
 	PtuRun,
 	PtuRunEmployee,
+	HourlyActivity,
 	AguinaldoRun,
 	AguinaldoRunEmployee,
+	TimelineEvent,
 	VacationRequest,
+	WeatherRecord,
 	CalendarEmployee,
 	ScheduleException,
 	ScheduleTemplate,
@@ -51,6 +55,10 @@ import {
 import { normalizeUserCode } from '@/lib/device-code-utils';
 import type {
 	AttendanceQueryParams,
+	DashboardDeviceStatusQueryParams,
+	DashboardHourlyQueryParams,
+	DashboardTimelineQueryParams,
+	DashboardWeatherQueryParams,
 	CalendarQueryParams,
 	DisciplinaryKpisQueryParams,
 	DisciplinaryMeasuresQueryParams,
@@ -83,6 +91,36 @@ const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost
 const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
 	? AUTH_ORIGIN
 	: `${AUTH_ORIGIN}/api/auth`;
+
+/**
+ * Resolves the active organization for server-side dashboard fetches.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param organizationId - Optional explicit organization override
+ * @returns Organization identifier or null when unavailable
+ */
+async function resolveServerOrganizationId(
+	cookieHeader: string,
+	organizationId?: string | null,
+): Promise<string | null> {
+	if (organizationId !== undefined && organizationId !== null) {
+		return organizationId;
+	}
+
+	if (!cookieHeader) {
+		return null;
+	}
+
+	const session = await serverAuthClient.getSession(undefined, {
+		headers: new Headers({ cookie: cookieHeader }),
+	});
+
+	if (session.error) {
+		return null;
+	}
+
+	return session.data?.session?.activeOrganizationId ?? null;
+}
 
 // ============================================================================
 // Employee Functions
@@ -748,6 +786,176 @@ export async function fetchDashboardCountsServer(
 		locations: locationsPayload?.pagination?.total ?? 0,
 		organizations: organizationsPayload?.length ?? 0,
 		attendance: attendancePayload?.pagination?.total ?? 0,
+	};
+}
+
+/**
+ * Fetches dashboard timeline activity on the server.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param params - Optional timeline filters
+ * @returns Timeline events for the dashboard
+ * @throws Error when the API call fails
+ */
+export async function fetchAttendanceTimelineServer(
+	cookieHeader: string,
+	params?: DashboardTimelineQueryParams,
+): Promise<TimelineEvent[]> {
+	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
+	if (!organizationId) {
+		return [];
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const query: {
+		limit: number;
+		offset: number;
+		fromDate?: Date;
+		toDate?: Date;
+		kind?: 'in' | 'late' | 'offsite';
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.fromDate) {
+		query.fromDate = params.fromDate;
+	}
+
+	if (params?.toDate) {
+		query.toDate = params.toDate;
+	}
+
+	if (params?.kind) {
+		query.kind = params.kind;
+	}
+
+	const response = await api.attendance.timeline.get({ $query: query });
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch attendance timeline:', response.error);
+		throw new Error('Failed to fetch attendance timeline');
+	}
+
+	const payload = getApiResponseData(response);
+	const events = (payload?.data ?? []) as Array<
+		Omit<TimelineEvent, 'timestamp'> & {
+			timestamp: Date | string;
+		}
+	>;
+	return events.map((event) => ({
+		...event,
+		timestamp: String(event.timestamp),
+	}));
+}
+
+/**
+ * Fetches dashboard hourly attendance activity on the server.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param params - Optional hourly filters
+ * @returns Hourly activity payload
+ * @throws Error when the API call fails
+ */
+export async function fetchAttendanceHourlyServer(
+	cookieHeader: string,
+	params?: DashboardHourlyQueryParams,
+): Promise<{ data: HourlyActivity[]; date: string }> {
+	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
+	if (!organizationId) {
+		return {
+			data: [],
+			date: params?.date ?? '',
+		};
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.attendance.hourly.get({
+		$query: {
+			date: params?.date,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch hourly attendance activity:', response.error);
+		throw new Error('Failed to fetch hourly attendance activity');
+	}
+
+	const payload = getApiResponseData(response);
+	return {
+		data: (payload?.data ?? []) as HourlyActivity[],
+		date: String(payload?.date ?? params?.date ?? ''),
+	};
+}
+
+/**
+ * Fetches dashboard device status summary on the server.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param params - Optional organization filter
+ * @returns Device status summary rows
+ * @throws Error when the API call fails
+ */
+export async function fetchDeviceStatusSummaryServer(
+	cookieHeader: string,
+	params?: DashboardDeviceStatusQueryParams,
+): Promise<DeviceStatusRecord[]> {
+	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
+	if (!organizationId) {
+		return [];
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.devices['status-summary'].get({
+		$query: {
+			organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch device status summary:', response.error);
+		throw new Error('Failed to fetch device status summary');
+	}
+
+	const payload = getApiResponseData(response);
+	return ((payload?.data ?? []) as DeviceStatusRecord[]).map((record) => ({
+		...record,
+		lastHeartbeat: record.lastHeartbeat ? String(record.lastHeartbeat) : null,
+	}));
+}
+
+/**
+ * Fetches dashboard weather data on the server.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param params - Optional organization filter
+ * @returns Weather payload for dashboard cards
+ * @throws Error when the API call fails
+ */
+export async function fetchWeatherServer(
+	cookieHeader: string,
+	params?: DashboardWeatherQueryParams,
+): Promise<{ data: WeatherRecord[]; cachedAt: string | null }> {
+	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
+	if (!organizationId) {
+		return {
+			data: [],
+			cachedAt: null,
+		};
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.weather.get({});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch weather summary:', response.error);
+		throw new Error('Failed to fetch weather summary');
+	}
+
+	const payload = getApiResponseData(response);
+	return {
+		data: (payload?.data ?? []) as WeatherRecord[],
+		cachedAt: payload?.cachedAt ? String(payload.cachedAt) : null,
 	};
 }
 

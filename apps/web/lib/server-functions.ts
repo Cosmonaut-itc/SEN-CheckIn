@@ -20,6 +20,10 @@ import { cache } from 'react';
 
 import {
 	type AttendanceQueryParams,
+	type DashboardDeviceStatusQueryParams,
+	type DashboardHourlyQueryParams,
+	type DashboardTimelineQueryParams,
+	type DashboardWeatherQueryParams,
 	type CalendarQueryParams,
 	type DisciplinaryKpisQueryParams,
 	type DisciplinaryMeasuresQueryParams,
@@ -41,7 +45,10 @@ import {
 import {
 	fetchApiKeysServer,
 	fetchAttendanceRecordsServer,
+	fetchAttendanceHourlyServer,
+	fetchAttendanceTimelineServer,
 	fetchDashboardCountsServer,
+	fetchDeviceStatusSummaryServer,
 	fetchDevicesListServer,
 	fetchDisciplinaryKpisServer,
 	fetchDisciplinaryMeasuresServer,
@@ -65,6 +72,7 @@ import {
 	fetchCalendarServer,
 	fetchVacationRequestsListServer,
 	fetchUsersServer,
+	fetchWeatherServer,
 } from '@/lib/server-client-functions';
 
 // ============================================================================
@@ -500,6 +508,86 @@ export function prefetchDashboardCounts(
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDashboardCountsServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchDashboardCountsServer(cookieHeader, params?.organizationId);
+		},
+	});
+}
+
+/**
+ * Prefetches dashboard timeline activity for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional timeline filters
+ * @returns Nothing
+ */
+export function prefetchDashboardTimeline(
+	queryClient: QueryClient,
+	params?: DashboardTimelineQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.dashboard.timeline(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchAttendanceTimelineServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchAttendanceTimelineServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches dashboard hourly activity for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional hourly filters
+ * @returns Nothing
+ */
+export function prefetchDashboardHourly(
+	queryClient: QueryClient,
+	params?: DashboardHourlyQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.dashboard.hourly(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchAttendanceHourlyServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchAttendanceHourlyServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches dashboard device status summary for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional organization filter
+ * @returns Nothing
+ */
+export function prefetchDashboardDeviceStatus(
+	queryClient: QueryClient,
+	params?: DashboardDeviceStatusQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.dashboard.deviceStatus(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchDeviceStatusSummaryServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchDeviceStatusSummaryServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches dashboard weather summary for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional organization filter
+ * @returns Nothing
+ */
+export function prefetchDashboardWeather(
+	queryClient: QueryClient,
+	params?: DashboardWeatherQueryParams,
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.dashboard.weather(params),
+		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchWeatherServer>>> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchWeatherServer(cookieHeader, params);
 		},
 	});
 }

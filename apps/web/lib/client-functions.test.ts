@@ -1,8 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { mockEmployeesListGet, mockEmployeeDetailGet } = vi.hoisted(() => ({
+const {
+	mockEmployeesListGet,
+	mockEmployeeDetailGet,
+	mockAttendanceTimelineGet,
+	mockAttendanceHourlyGet,
+	mockDevicesStatusSummaryGet,
+	mockWeatherGet,
+} = vi.hoisted(() => ({
 	mockEmployeesListGet: vi.fn(),
 	mockEmployeeDetailGet: vi.fn(),
+	mockAttendanceTimelineGet: vi.fn(),
+	mockAttendanceHourlyGet: vi.fn(),
+	mockDevicesStatusSummaryGet: vi.fn(),
+	mockWeatherGet: vi.fn(),
 }));
 
 vi.mock('@/lib/api', () => {
@@ -21,10 +32,28 @@ vi.mock('@/lib/api', () => {
 		},
 	);
 
+	const devicesResource = new Proxy<Record<string | symbol, unknown>>(
+		{},
+		{
+			get: (_target, property: string | symbol): unknown => {
+				if (property === 'status-summary') {
+					return { get: mockDevicesStatusSummaryGet };
+				}
+				return undefined;
+			},
+		},
+	);
+
 	return {
 		API_BASE_URL: 'http://localhost:3000',
 		api: {
 			employees: employeesResource,
+			attendance: {
+				timeline: { get: mockAttendanceTimelineGet },
+				hourly: { get: mockAttendanceHourlyGet },
+			},
+			devices: devicesResource,
+			weather: { get: mockWeatherGet },
 		},
 	};
 });
@@ -33,8 +62,21 @@ vi.mock('@/lib/auth-client', () => ({
 	authClient: {},
 }));
 
-import type { Employee } from '@/lib/client-functions';
-import { fetchEmployeeById, fetchEmployeesList } from '@/lib/client-functions';
+import type {
+	AttendanceType,
+	DeviceStatusRecord,
+	Employee,
+	TimelineEvent,
+	WeatherRecord,
+} from '@/lib/client-functions';
+import {
+	fetchAttendanceHourly,
+	fetchAttendanceTimeline,
+	fetchDeviceStatusSummary,
+	fetchEmployeeById,
+	fetchEmployeesList,
+	fetchWeather,
+} from '@/lib/client-functions';
 
 type EmployeeApiPayload = Omit<
 	Employee,
@@ -121,10 +163,76 @@ function expectNormalizedEmployeeDates(employee: Employee): void {
 	expect(employee.lastPayrollDate?.toISOString()).toBe('2024-01-15T00:00:00.000Z');
 }
 
+/**
+ * Builds a dashboard timeline event payload fixture.
+ *
+ * @param overrides - Partial payload overrides
+ * @returns Timeline event fixture
+ */
+function createTimelineEventFixture(overrides: Partial<TimelineEvent> = {}): TimelineEvent {
+	return {
+		id: 'attendance-1',
+		employeeId: 'employee-1',
+		employeeName: 'Ana Pérez',
+		employeeCode: 'EMP-0001',
+		locationId: 'location-1',
+		locationName: 'Sucursal Centro',
+		timestamp: '2026-04-21T14:05:00.000Z',
+		type: 'CHECK_IN' as AttendanceType,
+		isLate: false,
+		...overrides,
+	};
+}
+
+/**
+ * Builds a device status summary payload fixture.
+ *
+ * @param overrides - Partial payload overrides
+ * @returns Device status fixture
+ */
+function createDeviceStatusFixture(
+	overrides: Partial<DeviceStatusRecord> = {},
+): DeviceStatusRecord {
+	return {
+		id: 'device-1',
+		code: 'DEV-001',
+		name: 'Kiosco centro',
+		status: 'ONLINE',
+		batteryLevel: 82,
+		lastHeartbeat: '2026-04-21T15:10:00.000Z',
+		locationId: 'location-1',
+		locationName: 'Sucursal Centro',
+		...overrides,
+	};
+}
+
+/**
+ * Builds a weather payload fixture.
+ *
+ * @param overrides - Partial payload overrides
+ * @returns Weather fixture
+ */
+function createWeatherFixture(overrides: Partial<WeatherRecord> = {}): WeatherRecord {
+	return {
+		locationId: 'location-1',
+		locationName: 'Sucursal Centro',
+		temperature: 28,
+		condition: 'cielo claro',
+		high: 31,
+		low: 22,
+		humidity: 54,
+		...overrides,
+	};
+}
+
 describe('employee client functions', () => {
 	beforeEach(() => {
 		mockEmployeesListGet.mockReset();
 		mockEmployeeDetailGet.mockReset();
+		mockAttendanceTimelineGet.mockReset();
+		mockAttendanceHourlyGet.mockReset();
+		mockDevicesStatusSummaryGet.mockReset();
+		mockWeatherGet.mockReset();
 	});
 
 	it('normalizes serialized employee dates in list responses', async () => {
@@ -156,5 +264,125 @@ describe('employee client functions', () => {
 
 		expect(employee).not.toBeNull();
 		expectNormalizedEmployeeDates(employee as Employee);
+	});
+});
+
+describe('dashboard v2 client functions', () => {
+	beforeEach(() => {
+		mockAttendanceTimelineGet.mockReset();
+		mockAttendanceHourlyGet.mockReset();
+		mockDevicesStatusSummaryGet.mockReset();
+		mockWeatherGet.mockReset();
+	});
+
+	it('returns an empty timeline when organizationId is null', async () => {
+		const response = await fetchAttendanceTimeline({
+			organizationId: null,
+		});
+
+		expect(response).toEqual([]);
+		expect(mockAttendanceTimelineGet).not.toHaveBeenCalled();
+	});
+
+	it('fetches attendance timeline from the API', async () => {
+		mockAttendanceTimelineGet.mockResolvedValue({
+			data: {
+				data: [createTimelineEventFixture()],
+				pagination: { total: 1, limit: 50, offset: 0, hasMore: false },
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendanceTimeline({
+			organizationId: 'org-1',
+			kind: 'late',
+			limit: 50,
+			offset: 0,
+		});
+
+		expect(response).toEqual([createTimelineEventFixture()]);
+		expect(mockAttendanceTimelineGet).toHaveBeenCalledWith({
+			$query: {
+				kind: 'late',
+				limit: 50,
+				offset: 0,
+			},
+		});
+	});
+
+	it('fetches hourly attendance buckets from the API', async () => {
+		mockAttendanceHourlyGet.mockResolvedValue({
+			data: {
+				data: [
+					{ hour: 8, count: 4 },
+					{ hour: 9, count: 7 },
+				],
+				date: '2026-04-21',
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendanceHourly({
+			organizationId: 'org-1',
+			date: '2026-04-21',
+		});
+
+		expect(response).toEqual({
+			data: [
+				{ hour: 8, count: 4 },
+				{ hour: 9, count: 7 },
+			],
+			date: '2026-04-21',
+		});
+		expect(mockAttendanceHourlyGet).toHaveBeenCalledWith({
+			$query: {
+				date: '2026-04-21',
+			},
+		});
+	});
+
+	it('fetches device status summary from the API', async () => {
+		mockDevicesStatusSummaryGet.mockResolvedValue({
+			data: {
+				data: [createDeviceStatusFixture()],
+				total: 1,
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchDeviceStatusSummary({
+			organizationId: 'org-1',
+		});
+
+		expect(response).toEqual([createDeviceStatusFixture()]);
+		expect(mockDevicesStatusSummaryGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+			},
+		});
+	});
+
+	it('fetches weather data from the API', async () => {
+		mockWeatherGet.mockResolvedValue({
+			data: {
+				data: [createWeatherFixture()],
+				cachedAt: '2026-04-21T15:30:00.000Z',
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchWeather({
+			organizationId: 'org-1',
+		});
+
+		expect(response).toEqual({
+			data: [createWeatherFixture()],
+			cachedAt: '2026-04-21T15:30:00.000Z',
+		});
+		expect(mockWeatherGet).toHaveBeenCalledWith({});
 	});
 });

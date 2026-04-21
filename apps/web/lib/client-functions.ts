@@ -238,6 +238,56 @@ export interface AttendancePresentRecord {
 }
 
 /**
+ * Timeline event record used by the dashboard editorial layout.
+ */
+export interface TimelineEvent {
+	id: string;
+	employeeId: string;
+	employeeName: string;
+	employeeCode: string;
+	locationId: string | null;
+	locationName: string | null;
+	timestamp: string;
+	type: AttendanceType;
+	isLate: boolean;
+}
+
+/**
+ * Hourly attendance aggregation for dashboard activity charts.
+ */
+export interface HourlyActivity {
+	hour: number;
+	count: number;
+}
+
+/**
+ * Device summary record used by the dashboard status card.
+ */
+export interface DeviceStatusRecord {
+	id: string;
+	code: string;
+	name: string | null;
+	status: DeviceStatus;
+	batteryLevel: number | null;
+	lastHeartbeat: string | null;
+	locationId: string | null;
+	locationName: string | null;
+}
+
+/**
+ * Weather snapshot for a single location.
+ */
+export interface WeatherRecord {
+	locationId: string;
+	locationName: string;
+	temperature: number;
+	condition: string;
+	high: number;
+	low: number;
+	humidity: number;
+}
+
+/**
  * Vacation request status values.
  */
 export type VacationRequestStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
@@ -2248,6 +2298,102 @@ export async function fetchAttendancePresent(
 }
 
 /**
+ * Fetches dashboard timeline events for attendance activity.
+ *
+ * @param params - Optional organization guard and timeline filters
+ * @returns Timeline events ordered by the API
+ * @throws Error when the API call fails
+ */
+export async function fetchAttendanceTimeline(params?: {
+	organizationId?: string | null;
+	fromDate?: Date;
+	toDate?: Date;
+	limit?: number;
+	offset?: number;
+	kind?: 'in' | 'late' | 'offsite';
+}): Promise<TimelineEvent[]> {
+	if (params?.organizationId === null) {
+		return [];
+	}
+
+	const query: {
+		limit: number;
+		offset: number;
+		fromDate?: Date;
+		toDate?: Date;
+		kind?: 'in' | 'late' | 'offsite';
+	} = {
+		limit: params?.limit ?? 50,
+		offset: params?.offset ?? 0,
+	};
+
+	if (params?.fromDate) {
+		query.fromDate = params.fromDate;
+	}
+
+	if (params?.toDate) {
+		query.toDate = params.toDate;
+	}
+
+	if (params?.kind) {
+		query.kind = params.kind;
+	}
+
+	const response = await api.attendance.timeline.get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch attendance timeline');
+	}
+
+	const payload = getApiResponseData(response);
+	const events = (payload?.data ?? []) as Array<
+		Omit<TimelineEvent, 'timestamp'> & {
+			timestamp: Date | string;
+		}
+	>;
+	return events.map((event) => ({
+		...event,
+		timestamp: String(event.timestamp),
+	}));
+}
+
+/**
+ * Fetches hourly attendance aggregation for the dashboard heatmap.
+ *
+ * @param params - Optional organization guard and date filter
+ * @returns Hourly activity buckets and resolved date key
+ * @throws Error when the API call fails
+ */
+export async function fetchAttendanceHourly(params?: {
+	organizationId?: string | null;
+	date?: string;
+}): Promise<{ data: HourlyActivity[]; date: string }> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			date: params?.date ?? '',
+		};
+	}
+
+	const query: { date?: string } = {};
+	if (params?.date) {
+		query.date = params.date;
+	}
+
+	const response = await api.attendance.hourly.get({ $query: query });
+
+	if (response.error) {
+		throw new Error('Failed to fetch hourly attendance activity');
+	}
+
+	const payload = getApiResponseData(response);
+	return {
+		data: (payload?.data ?? []) as HourlyActivity[],
+		date: String(payload?.date ?? params?.date ?? ''),
+	};
+}
+
+/**
  * Fetches today's WORK_OFFSITE records for dashboard visibility.
  *
  * @param params - Optional organization context
@@ -2280,6 +2426,67 @@ export async function fetchAttendanceOffsiteToday(params?: {
 		dateKey: String(payload?.dateKey ?? ''),
 		count: Number(payload?.count ?? 0),
 		data: (payload?.data ?? []) as AttendanceRecord[],
+	};
+}
+
+/**
+ * Fetches summarized device status rows for the dashboard.
+ *
+ * @param params - Optional organization guard
+ * @returns Device status summary rows
+ * @throws Error when the API call fails
+ */
+export async function fetchDeviceStatusSummary(params?: {
+	organizationId?: string | null;
+}): Promise<DeviceStatusRecord[]> {
+	if (params?.organizationId === null) {
+		return [];
+	}
+
+	const response = await api.devices['status-summary'].get({
+		$query: {
+			organizationId: params?.organizationId ?? undefined,
+		},
+	});
+
+	if (response.error) {
+		throw new Error('Failed to fetch device status summary');
+	}
+
+	const payload = getApiResponseData(response);
+	return ((payload?.data ?? []) as DeviceStatusRecord[]).map((record) => ({
+		...record,
+		lastHeartbeat: record.lastHeartbeat ? String(record.lastHeartbeat) : null,
+	}));
+}
+
+/**
+ * Fetches organization weather snapshots for dashboard cards.
+ *
+ * @param params - Optional organization guard
+ * @returns Weather rows and cache timestamp
+ * @throws Error when the API call fails
+ */
+export async function fetchWeather(params?: {
+	organizationId?: string | null;
+}): Promise<{ data: WeatherRecord[]; cachedAt: string | null }> {
+	if (params?.organizationId === null) {
+		return {
+			data: [],
+			cachedAt: null,
+		};
+	}
+
+	const response = await api.weather.get({});
+
+	if (response.error) {
+		throw new Error('Failed to fetch weather data');
+	}
+
+	const payload = getApiResponseData(response);
+	return {
+		data: (payload?.data ?? []) as WeatherRecord[],
+		cachedAt: payload?.cachedAt ? String(payload.cachedAt) : null,
 	};
 }
 

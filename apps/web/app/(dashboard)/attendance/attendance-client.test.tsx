@@ -15,7 +15,6 @@ vi.mock('next-intl', async () => {
 });
 
 const mockBuildAttendanceReportPdf = vi.fn();
-const mockLoadAttendanceReportPdfBuilder = vi.fn();
 const mockToastError = vi.fn();
 
 vi.mock('sonner', () => ({
@@ -24,9 +23,8 @@ vi.mock('sonner', () => ({
 	},
 }));
 
-vi.mock('./attendance-pdf-loader', () => ({
-	loadAttendanceReportPdfBuilder: (...args: unknown[]) =>
-		mockLoadAttendanceReportPdfBuilder(...args),
+vi.mock('@/lib/attendance/build-attendance-report-pdf', () => ({
+	buildAttendanceReportPdf: (...args: unknown[]) => mockBuildAttendanceReportPdf(...args),
 }));
 
 const mockFetchAttendanceRecords = vi.fn();
@@ -123,17 +121,19 @@ describe('AttendancePageClient', () => {
 	const originalTimeZone = process.env.TZ;
 	let originalCreateObjectURL: typeof URL.createObjectURL;
 	let originalRevokeObjectURL: typeof URL.revokeObjectURL;
+	let originalAnchorClick: typeof HTMLAnchorElement.prototype.click;
 
 	beforeEach(() => {
 		process.env.TZ = 'America/Mexico_City';
 		originalCreateObjectURL = URL.createObjectURL;
 		originalRevokeObjectURL = URL.revokeObjectURL;
+		originalAnchorClick = HTMLAnchorElement.prototype.click;
 		URL.createObjectURL = vi.fn(() => 'blob:attendance-export');
 		URL.revokeObjectURL = vi.fn();
+		HTMLAnchorElement.prototype.click = vi.fn();
 		mockFetchAttendanceRecords.mockReset();
 		mockFetchLocationsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
-		mockLoadAttendanceReportPdfBuilder.mockReset();
 		mockToastError.mockReset();
 		expectedPdfBytes = null;
 		mockBuildAttendanceReportPdf.mockImplementation(async () => {
@@ -143,9 +143,6 @@ describe('AttendancePageClient', () => {
 			const backingBytes = new Uint8Array(bytes.length + 16);
 			backingBytes.set(bytes, 16);
 			return backingBytes.subarray(16);
-		});
-		mockLoadAttendanceReportPdfBuilder.mockResolvedValue({
-			buildAttendanceReportPdf: (...args: unknown[]) => mockBuildAttendanceReportPdf(...args),
 		});
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
@@ -165,6 +162,7 @@ describe('AttendancePageClient', () => {
 		}
 		URL.createObjectURL = originalCreateObjectURL;
 		URL.revokeObjectURL = originalRevokeObjectURL;
+		HTMLAnchorElement.prototype.click = originalAnchorClick;
 		vi.restoreAllMocks();
 	});
 
@@ -662,7 +660,7 @@ describe('AttendancePageClient', () => {
 			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
 		});
 
-		expect(mockLoadAttendanceReportPdfBuilder).not.toHaveBeenCalled();
+		expect(mockBuildAttendanceReportPdf).not.toHaveBeenCalled();
 
 		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
 
@@ -673,7 +671,7 @@ describe('AttendancePageClient', () => {
 		fireEvent.click(exportButton);
 
 		await waitFor(() => {
-			expect(mockLoadAttendanceReportPdfBuilder).toHaveBeenCalledTimes(1);
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
 			expect(anchorClickSpy).toHaveBeenCalled();
 		});
 	});

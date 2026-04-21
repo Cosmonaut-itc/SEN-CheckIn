@@ -45,6 +45,17 @@ describe('Michoacan theme tokens', () => {
 		expect(darkSection.toLowerCase()).not.toContain('--warning: #c85a8a');
 	});
 
+	it('keeps dark semantic status tokens aligned with the shared Michoacan palette', () => {
+		const darkSection = cssContent.split('@variant dark')[1] ?? '';
+
+		expect(darkSection).toContain('/* #7FB573 */');
+		expect(darkSection).toContain('rgba(127, 181, 115, 0.16)');
+		expect(darkSection).toContain('/* #D4685E */');
+		expect(darkSection).toContain('rgba(212, 104, 94, 0.16)');
+		expect(darkSection).toContain('/* #5A9AD4 */');
+		expect(darkSection).toContain('rgba(90, 154, 212, 0.16)');
+	});
+
 	it('contains all required semantic tokens for both light and dark modes', () => {
 		const requiredTokens = [
 			'--background',

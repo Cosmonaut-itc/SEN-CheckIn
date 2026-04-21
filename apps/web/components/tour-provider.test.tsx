@@ -65,7 +65,10 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('@/components/tour-help-button', async () => {
-	const actual = await vi.importActual<typeof import('./tour-provider')>('./tour-provider');
+	const actual =
+		await vi.importActual<typeof import('@/components/tour-provider')>(
+			'@/components/tour-provider',
+		);
 
 	return {
 		TourHelpButton: ({ tourId }: { tourId: string }): React.ReactElement => {

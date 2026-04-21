@@ -39,6 +39,7 @@ import { schedulingRoutes } from './routes/scheduling.js';
 import { tourRoutes } from './routes/tours.js';
 import { vacationRoutes } from './routes/vacations.js';
 import { internalHolidayRoutes } from './routes/internal-holidays.js';
+import { weatherRoutes } from './routes/weather.js';
 /**
  * BetterAuth view handler for authentication endpoints.
  * Handles GET, POST, and OPTIONS requests for authentication routes.
@@ -93,6 +94,7 @@ const createProtectedRoutes = () => {
 			.use(vacationRoutes)
 			.use(incapacityRoutes)
 			.use(tourRoutes)
+			.use(weatherRoutes)
 	);
 };
 

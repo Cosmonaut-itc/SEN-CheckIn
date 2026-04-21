@@ -351,6 +351,13 @@
       "when": 1776182637793,
       "tag": "0049_absurd_jazinda",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1776206400000,
+      "tag": "0050_payroll_setting_real_vacation_repair",
+      "breakpoints": true
     }
   ]
 }

@@ -1,13 +1,15 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { eq, and, gte, ilike, lte, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { eq, and, desc, gte, ilike, inArray, lte, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
+import { z } from 'zod';
 
 import db from '../db/index.js';
 import {
 	attendanceRecord,
 	device,
 	employee,
+	employeeSchedule,
 	employeeIncapacity,
 	location,
 	member,
@@ -130,6 +132,151 @@ function buildUtcBoundsForDateKey(
 	const startUtc = getUtcDateForZonedMidnight(dateKey, timeZone);
 	const endExclusiveUtc = getUtcDateForZonedMidnight(addDaysToDateKey(dateKey, 1), timeZone);
 	return { startUtc, endExclusiveUtc };
+}
+
+const attendanceTimelineQuerySchema = z.object({
+	fromDate: z.coerce.date().optional(),
+	toDate: z.coerce.date().optional(),
+	limit: z.coerce.number().int().min(1).max(200).default(50),
+	offset: z.coerce.number().int().min(0).default(0),
+	kind: z.enum(['in', 'late', 'offsite']).optional(),
+});
+
+const WEEKDAY_INDEX_BY_SHORT_NAME: Record<string, number> = {
+	Sun: 0,
+	Mon: 1,
+	Tue: 2,
+	Wed: 3,
+	Thu: 4,
+	Fri: 5,
+	Sat: 6,
+};
+
+type TimelineKind = z.infer<typeof attendanceTimelineQuerySchema>['kind'];
+
+type TimelineScheduleEntry = {
+	dayOfWeek: number;
+	startTime: string;
+	isWorkingDay: boolean;
+};
+
+/**
+ * Resolves the default UTC range for the organization's current local day.
+ *
+ * @param timeZone - Organization IANA timezone
+ * @returns Inclusive start and exclusive end bounds
+ */
+function buildDefaultTodayBounds(timeZone: string): { startUtc: Date; endExclusiveUtc: Date } {
+	const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+	return buildUtcBoundsForDateKey(todayDateKey, timeZone);
+}
+
+/**
+ * Extracts local weekday and time parts for a UTC instant in an organization timezone.
+ *
+ * @param timestamp - UTC instant
+ * @param timeZone - IANA timezone
+ * @returns Local weekday/hour/minute tuple
+ */
+function getLocalTimeParts(
+	timestamp: Date,
+	timeZone: string,
+): { dayOfWeek: number; hour: number; minute: number } {
+	const parts = new Intl.DateTimeFormat('en-US', {
+		timeZone,
+		weekday: 'short',
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23',
+	}).formatToParts(timestamp);
+	const weekday = parts.find((part) => part.type === 'weekday')?.value;
+	const hour = parts.find((part) => part.type === 'hour')?.value;
+	const minute = parts.find((part) => part.type === 'minute')?.value;
+
+	if (!weekday || !hour || !minute) {
+		throw new Error(`Failed to resolve local time parts for timezone "${timeZone}".`);
+	}
+	const dayOfWeek = WEEKDAY_INDEX_BY_SHORT_NAME[weekday];
+	if (dayOfWeek === undefined) {
+		throw new Error(`Unsupported weekday token "${weekday}" for timezone "${timeZone}".`);
+	}
+
+	return {
+		dayOfWeek,
+		hour: Number(hour),
+		minute: Number(minute),
+	};
+}
+
+/**
+ * Converts an HH:MM[:SS] time string into minutes since midnight.
+ *
+ * @param timeValue - Time string from the schedule tables
+ * @returns Minutes since midnight
+ */
+function toMinutesSinceMidnight(timeValue: string): number {
+	const [hourPart, minutePart] = timeValue.split(':');
+	if (hourPart === undefined || minutePart === undefined) {
+		throw new Error(`Invalid time value "${timeValue}".`);
+	}
+
+	const hour = Number(hourPart);
+	const minute = Number(minutePart);
+	return hour * 60 + minute;
+}
+
+/**
+ * Determines whether a CHECK_IN event is late relative to the employee schedule.
+ *
+ * @param args - Attendance event context and schedule map
+ * @returns True when the event is late, otherwise false
+ */
+function resolveIsLate(args: {
+	employeeId: string;
+	timestamp: Date;
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	timeZone: string;
+	scheduleEntriesByEmployeeId: Map<string, Map<number, TimelineScheduleEntry>>;
+}): boolean {
+	if (args.type !== 'CHECK_IN') {
+		return false;
+	}
+
+	const localTimeParts = getLocalTimeParts(args.timestamp, args.timeZone);
+	const scheduleEntry = args.scheduleEntriesByEmployeeId
+		.get(args.employeeId)
+		?.get(localTimeParts.dayOfWeek);
+	if (!scheduleEntry || !scheduleEntry.isWorkingDay) {
+		return false;
+	}
+
+	const actualMinutes =
+		localTimeParts.hour * 60 + localTimeParts.minute;
+	const scheduledMinutes = toMinutesSinceMidnight(scheduleEntry.startTime);
+	return actualMinutes > scheduledMinutes;
+}
+
+/**
+ * Applies the dashboard timeline kind filter to an enriched attendance event.
+ *
+ * @param args - Event kind filter context
+ * @returns True when the event should be included
+ */
+function matchesTimelineKind(args: {
+	kind: TimelineKind;
+	type: 'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE';
+	isLate: boolean;
+}): boolean {
+	switch (args.kind) {
+		case 'in':
+			return args.type === 'CHECK_IN';
+		case 'late':
+			return args.isLate;
+		case 'offsite':
+			return args.type === 'WORK_OFFSITE';
+		default:
+			return true;
+	}
 }
 
 /**
@@ -783,6 +930,156 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 		},
 		{
 			query: attendancePresentQuerySchema,
+		},
+	)
+
+	/**
+	 * Returns a real-time timeline of attendance activity for the dashboard.
+	 *
+	 * @route GET /attendance/timeline
+	 * @param query.fromDate - Optional UTC lower bound
+	 * @param query.toDate - Optional UTC upper bound
+	 * @param query.limit - Maximum records after filtering
+	 * @param query.offset - Offset after filtering
+	 * @param query.kind - Optional dashboard filter kind
+	 * @returns Timeline rows plus pagination metadata
+	 */
+	.get(
+		'/timeline',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { fromDate, toDate, limit, offset, kind } = query;
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(organizationId);
+			const defaultBounds = buildDefaultTodayBounds(timeZone);
+			const startBound = fromDate ?? defaultBounds.startUtc;
+			const endBound = toDate ?? new Date(defaultBounds.endExclusiveUtc.getTime() - 1);
+
+			const rows = await db
+				.select({
+					id: attendanceRecord.id,
+					employeeId: attendanceRecord.employeeId,
+					employeeFirstName: employee.firstName,
+					employeeLastName: employee.lastName,
+					employeeCode: employee.code,
+					locationId: employee.locationId,
+					locationName: location.name,
+					timestamp: attendanceRecord.timestamp,
+					type: attendanceRecord.type,
+				})
+				.from(attendanceRecord)
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.leftJoin(location, eq(employee.locationId, location.id))
+				.where(
+					and(
+						eq(employee.organizationId, organizationId),
+						gte(attendanceRecord.timestamp, startBound),
+						lte(attendanceRecord.timestamp, endBound),
+					),
+				)
+				.orderBy(desc(attendanceRecord.timestamp));
+
+			const employeeIds = Array.from(
+				new Set(rows.map((row) => row.employeeId)),
+			);
+			const scheduleRows =
+				employeeIds.length > 0
+					? await db
+							.select({
+								employeeId: employeeSchedule.employeeId,
+								dayOfWeek: employeeSchedule.dayOfWeek,
+								startTime: employeeSchedule.startTime,
+								isWorkingDay: employeeSchedule.isWorkingDay,
+							})
+							.from(employeeSchedule)
+							.where(inArray(employeeSchedule.employeeId, employeeIds))
+					: [];
+
+			const scheduleEntriesByEmployeeId = new Map<
+				string,
+				Map<number, TimelineScheduleEntry>
+			>();
+			for (const row of scheduleRows) {
+				const scheduleByDay =
+					scheduleEntriesByEmployeeId.get(row.employeeId) ??
+					new Map<number, TimelineScheduleEntry>();
+				scheduleByDay.set(row.dayOfWeek, {
+					dayOfWeek: row.dayOfWeek,
+					startTime: row.startTime,
+					isWorkingDay: row.isWorkingDay,
+				});
+				scheduleEntriesByEmployeeId.set(row.employeeId, scheduleByDay);
+			}
+
+			const filteredRows = rows
+				.map((row) => {
+					const employeeName = `${row.employeeFirstName ?? ''} ${row.employeeLastName ?? ''}`
+						.trim()
+						.replace(/\s+/g, ' ');
+					const isLate = resolveIsLate({
+						employeeId: row.employeeId,
+						timestamp: row.timestamp,
+						type: row.type,
+						timeZone,
+						scheduleEntriesByEmployeeId,
+					});
+
+					return {
+						id: row.id,
+						employeeId: row.employeeId,
+						employeeName,
+						employeeCode: row.employeeCode,
+						locationId: row.locationId,
+						locationName: row.locationName,
+						timestamp: row.timestamp,
+						type: row.type,
+						isLate,
+					};
+				})
+				.filter((row) =>
+					matchesTimelineKind({
+						kind,
+						type: row.type,
+						isLate: row.isLate,
+					}),
+				);
+
+			const paginatedRows = filteredRows.slice(offset, offset + limit);
+
+			return {
+				data: paginatedRows,
+				pagination: {
+					total: filteredRows.length,
+					limit,
+					offset,
+					hasMore: offset + paginatedRows.length < filteredRows.length,
+				},
+			};
+		},
+		{
+			query: attendanceTimelineQuerySchema,
 		},
 	)
 

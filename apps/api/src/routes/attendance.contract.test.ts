@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
 import { addDaysToDateKey } from '../utils/date-key.js';
+import { getUtcDateForZonedMidnight } from '../utils/time-zone.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -28,6 +29,7 @@ type OffsiteCreateResult =
 
 const PAYROLL_LOCK_ERROR_MESSAGE =
 	'Cannot register offsite attendance for a processed payroll period';
+const DEFAULT_TEST_TIME_ZONE = 'America/Mexico_City';
 
 describe('attendance routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -108,6 +110,22 @@ describe('attendance routes (contract)', () => {
 		);
 	}
 
+	/**
+	 * Builds UTC day bounds for a local date key in the default test timezone.
+	 *
+	 * @param dateKey - Local date key in YYYY-MM-DD format
+	 * @returns Inclusive start and exclusive end UTC bounds
+	 */
+	function buildUtcRangeForDateKey(dateKey: string): { fromDate: Date; toDate: Date } {
+		return {
+			fromDate: getUtcDateForZonedMidnight(dateKey, DEFAULT_TEST_TIME_ZONE),
+			toDate: getUtcDateForZonedMidnight(
+				addDaysToDateKey(dateKey, 1),
+				DEFAULT_TEST_TIME_ZONE,
+			),
+		};
+	}
+
 	beforeAll(async () => {
 		client = createTestClient();
 		adminSession = await getAdminSession();
@@ -164,6 +182,132 @@ describe('attendance routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
+	it('returns attendance timeline entries with descending pagination', async () => {
+		const olderTimestamp = new Date();
+		olderTimestamp.setMinutes(olderTimestamp.getMinutes() - 10);
+		const newerTimestamp = new Date();
+		newerTimestamp.setMinutes(newerTimestamp.getMinutes() - 5);
+
+		const olderResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: olderTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(olderResponse.status).toBe(201);
+
+		const newerResponse = await client.attendance.post({
+			employeeId: activeEmployeeId,
+			deviceId: seed.deviceId,
+			timestamp: newerTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(newerResponse.status).toBe(201);
+		const newerPayload = requireResponseData(newerResponse);
+		const newerRecordId = newerPayload.data?.id;
+		if (!newerRecordId) {
+			throw new Error('Expected attendance record ID for timeline pagination test.');
+		}
+
+		const response = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 1,
+				offset: 0,
+				kind: 'in',
+				fromDate: new Date(olderTimestamp.getTime() - 60_000),
+				toDate: new Date(newerTimestamp.getTime() + 60_000),
+			},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+		expect(payload.data.length).toBe(1);
+		expect(payload.pagination.limit).toBe(1);
+		expect(payload.pagination.offset).toBe(0);
+		expect(payload.pagination.total).toBeGreaterThanOrEqual(2);
+		expect(payload.pagination.hasMore).toBe(true);
+		expect(payload.data[0]?.type).toBe('CHECK_IN');
+		expect(payload.data[0]?.employeeId).toBe(activeEmployeeId);
+		expect(payload.data[0]?.id).toBe(newerRecordId);
+		expect(typeof payload.data[0]?.employeeCode).toBe('string');
+		expect(typeof payload.data[0]?.isLate).toBe('boolean');
+	});
+
+	it('filters attendance timeline entries by offsite kind', async () => {
+		const offsiteResponse = await client.attendance.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 1, offset: 0, type: 'WORK_OFFSITE' },
+		});
+		expect(offsiteResponse.status).toBe(200);
+		const offsitePayload = requireResponseData(offsiteResponse);
+		const offsiteRecord = offsitePayload.data?.[0];
+		if (!offsiteRecord?.timestamp) {
+			throw new Error('Expected seeded WORK_OFFSITE record for timeline filter test.');
+		}
+		const offsiteTimestamp = new Date(offsiteRecord.timestamp);
+
+		const response = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 50,
+				offset: 0,
+				kind: 'offsite',
+				fromDate: new Date(offsiteTimestamp.getTime() - 60_000),
+				toDate: new Date(offsiteTimestamp.getTime() + 60_000),
+			},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.data.length).toBeGreaterThan(0);
+		for (const row of payload.data) {
+			expect(row.type).toBe('WORK_OFFSITE');
+		}
+	});
+
+	it('filters attendance timeline entries by explicit date range', async () => {
+		const targetDateKey = addDaysToDateKey(
+			new Date().toISOString().slice(0, 10),
+			-6,
+		);
+		const targetTimestamp = getUtcDateForZonedMidnight(
+			targetDateKey,
+			DEFAULT_TEST_TIME_ZONE,
+		);
+		targetTimestamp.setUTCHours(targetTimestamp.getUTCHours() + 15);
+
+		const createResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: targetTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const createdPayload = requireResponseData(createResponse);
+		const createdRecord = createdPayload.data;
+		if (!createdRecord?.id) {
+			throw new Error('Expected attendance record ID for timeline date range test.');
+		}
+
+		const response = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 50,
+				offset: 0,
+				...buildUtcRangeForDateKey(targetDateKey),
+			},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.data.some((row) => row.id === createdRecord.id)).toBe(true);
 	});
 
 	it('creates and fetches an attendance record', async () => {

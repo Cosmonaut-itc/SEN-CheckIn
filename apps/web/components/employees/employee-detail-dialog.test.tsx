@@ -32,11 +32,9 @@ vi.mock('@/components/ui/dialog', async (importOriginal) => {
 		DialogTitle: ({ children }: { children: React.ReactNode }): React.ReactElement => (
 			<div>{children}</div>
 		),
-		DialogDescription: ({
-			children,
-		}: {
-			children: React.ReactNode;
-		}): React.ReactElement => <div>{children}</div>,
+		DialogDescription: ({ children }: { children: React.ReactNode }): React.ReactElement => (
+			<div>{children}</div>
+		),
 		DialogFooter: ({ children }: { children: React.ReactNode }): React.ReactElement => (
 			<div>{children}</div>
 		),
@@ -78,11 +76,15 @@ describe('EmployeePageActions', () => {
 		render(<EmployeePageActions onCreateNew={vi.fn()} />);
 
 		expect(screen.getByTestId('employees-add-button')).toBeInTheDocument();
+		expect(screen.getByTestId('employees-import-button')).toBeInTheDocument();
 		expect(screen.getByTestId('employees-add-menu-button')).toBeInTheDocument();
 
-		fireEvent.click(screen.getByText('Importar desde documento'));
-
+		fireEvent.click(screen.getByTestId('employees-import-button'));
 		expect(mockPush).toHaveBeenCalledWith('/employees/import');
+
+		fireEvent.click(screen.getAllByText('Importar desde documento')[1]);
+
+		expect(mockPush).toHaveBeenCalledTimes(2);
 	});
 });
 

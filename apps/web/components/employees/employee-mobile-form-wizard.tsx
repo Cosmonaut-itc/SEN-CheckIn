@@ -266,7 +266,10 @@ export function EmployeeMobileFormWizard({
 	};
 
 	return (
-		<div className="relative flex min-h-0 flex-1 flex-col">
+		<div
+			data-testid="employee-mobile-wizard"
+			className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+		>
 			<div className="shrink-0 border-b bg-background px-4 py-3">
 				<div className="flex items-center justify-between gap-3">
 					<h2 className="text-lg font-semibold text-foreground">{title}</h2>
@@ -309,7 +312,12 @@ export function EmployeeMobileFormWizard({
 									aria-label={stepLabel}
 									aria-current={isCurrentStep ? 'step' : undefined}
 								>
-									{renderStepIcon(index, currentStepIndex, visitedSteps, errorStepSet)}
+									{renderStepIcon(
+										index,
+										currentStepIndex,
+										visitedSteps,
+										errorStepSet,
+									)}
 								</Button>
 							);
 						})}
@@ -317,9 +325,17 @@ export function EmployeeMobileFormWizard({
 				</nav>
 			</div>
 
-			<div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{currentStep.content}</div>
+			<div
+				data-testid="employee-mobile-wizard-content"
+				className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+			>
+				{currentStep.content}
+			</div>
 
-			<div className="shrink-0 border-t bg-background px-4 py-3">
+			<div
+				data-testid="employee-mobile-wizard-footer"
+				className="shrink-0 border-t bg-background px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]"
+			>
 				<div className="flex items-center gap-3">
 					{currentStepIndex > 0 ? (
 						<Button

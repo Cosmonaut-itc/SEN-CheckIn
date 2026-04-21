@@ -189,6 +189,20 @@ describe('EmployeeMobileFormWizard', () => {
 		expect(screen.getByRole('button', { name: 'Guardar' })).toBeDisabled();
 	});
 
+	it('renders dedicated scroll and footer regions for constrained mobile dialogs', () => {
+		renderWizard();
+
+		expect(screen.getByTestId('employee-mobile-wizard')).toHaveClass(
+			'h-full',
+			'overflow-hidden',
+		);
+		expect(screen.getByTestId('employee-mobile-wizard-content')).toHaveClass(
+			'overflow-y-auto',
+			'overscroll-contain',
+		);
+		expect(screen.getByTestId('employee-mobile-wizard-footer')).toHaveClass('shrink-0');
+	});
+
 	it('renders destructive step icons for steps with validation errors', () => {
 		renderWizard({
 			errorStepIndexes: [0, 2],

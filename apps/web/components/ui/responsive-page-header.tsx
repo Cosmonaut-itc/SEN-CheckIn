@@ -46,10 +46,10 @@ export function ResponsivePageHeader({
 					data-testid="responsive-page-header-actions"
 					className={cn(
 						'flex w-full flex-col gap-2',
-						'[&_a]:inline-flex [&_a]:min-h-11 [&_a]:w-full [&_a]:items-center [&_a]:justify-center',
-						'[&_button]:min-h-11 [&_button]:w-full',
+						'[&>:where(a,button)]:inline-flex [&>:where(a,button)]:min-h-11 [&>:where(a,button)]:w-full [&>:where(a,button)]:items-center [&>:where(a,button)]:justify-center',
+						'[&>div]:min-w-0 [&>div]:w-full',
 						'min-[1025px]:w-auto min-[1025px]:flex-row min-[1025px]:items-start min-[1025px]:justify-end',
-						'min-[1025px]:[&_a]:w-auto min-[1025px]:[&_button]:w-auto',
+						'min-[1025px]:[&>:where(a,button)]:w-auto min-[1025px]:[&>div]:w-auto',
 					)}
 				>
 					{actions}

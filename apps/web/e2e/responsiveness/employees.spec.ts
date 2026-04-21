@@ -52,19 +52,26 @@ test.describe('employees responsiveness', () => {
 		await expect(page.getByTestId('responsive-data-view-mobile')).toBeVisible();
 		await expect(page.getByTestId('responsive-data-card').first()).toBeVisible();
 
-		const actionsBox = await page
-			.getByTestId('responsive-page-header-actions')
-			.boundingBox();
+		const actionsBox = await page.getByTestId('responsive-page-header-actions').boundingBox();
 		const addButton = page.getByTestId('employees-add-button');
-		const importButton = page.getByTestId('employees-add-menu-button');
+		const importButton = page.getByTestId('employees-import-button');
 		const addButtonBox = await addButton.boundingBox();
 		const importButtonBox = await importButton.boundingBox();
+
+		await expect(addButton).toBeVisible();
+		await expect(importButton).toBeVisible();
+		await expect(page.getByTestId('employees-add-menu-button')).toBeHidden();
 
 		expect(actionsBox).not.toBeNull();
 		expect(addButtonBox).not.toBeNull();
 		expect(importButtonBox).not.toBeNull();
-		expect((addButtonBox?.width ?? 0) + (importButtonBox?.width ?? 0)).toBeGreaterThanOrEqual(
-			(actionsBox?.width ?? 0) - 8,
+		expect(addButtonBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+		expect(importButtonBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+		expect((addButtonBox?.x ?? 0) + (addButtonBox?.width ?? 0)).toBeLessThanOrEqual(
+			(actionsBox?.x ?? 0) + (actionsBox?.width ?? 0) + 1,
+		);
+		expect((importButtonBox?.x ?? 0) + (importButtonBox?.width ?? 0)).toBeLessThanOrEqual(
+			(actionsBox?.x ?? 0) + (actionsBox?.width ?? 0) + 1,
 		);
 	});
 
@@ -100,7 +107,7 @@ test.describe('employees responsiveness', () => {
 	test('uses a five-step wizard for editing employees on mobile', async ({ page }) => {
 		await page.setViewportSize({
 			width: RESPONSIVE_VIEWPORTS.mobile.width,
-			height: 812,
+			height: 740,
 		});
 
 		await openResponsiveEmployeeDetail(page);
@@ -118,8 +125,12 @@ test.describe('employees responsiveness', () => {
 		];
 
 		await expect(wizardDialog.getByText(stepLabels[0], { exact: true })).toBeVisible();
+		await expect(wizardDialog.getByTestId('employee-mobile-wizard-footer')).toBeVisible();
+		await expect(wizardDialog.getByRole('button', { name: 'Siguiente' })).toBeVisible();
 
 		for (let index = 0; index < 4; index += 1) {
+			await expect(wizardDialog.getByTestId('employee-mobile-wizard-footer')).toBeVisible();
+			await expect(wizardDialog.getByRole('button', { name: 'Siguiente' })).toBeVisible();
 			await wizardDialog.getByRole('button', { name: 'Siguiente' }).click();
 			await expect(
 				wizardDialog.getByText(stepLabels[index + 1], { exact: true }),

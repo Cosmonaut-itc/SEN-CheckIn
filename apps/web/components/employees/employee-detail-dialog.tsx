@@ -303,24 +303,34 @@ export function EmployeePageActions({ onCreateNew }: EmployeePageActionsProps): 
 	const router = useRouter();
 
 	return (
-		<div className="flex w-full items-center gap-1 min-[1025px]:w-auto">
+		<div className="flex w-full min-w-0 flex-wrap items-center gap-2 min-[1025px]:w-auto min-[1025px]:flex-nowrap min-[1025px]:gap-1">
 			<TourHelpButton tourId="employees" />
 			<DialogTrigger asChild>
 				<Button
 					data-testid="employees-add-button"
 					onClick={onCreateNew}
-					className="min-w-0 flex-1 rounded-r-none min-[1025px]:flex-none"
+					className="min-w-0 flex-1 min-[1025px]:rounded-r-none min-[1025px]:flex-none"
 				>
 					<Plus className="mr-2 h-4 w-4" />
 					{t('actions.addEmployee')}
 				</Button>
 			</DialogTrigger>
+			<Button
+				type="button"
+				variant="outline"
+				data-testid="employees-import-button"
+				onClick={() => router.push('/employees/import')}
+				className="min-h-11 w-full justify-center min-[480px]:flex-1 min-[1025px]:hidden"
+			>
+				<Upload className="mr-2 h-4 w-4" />
+				{t('actions.importFromDocument')}
+			</Button>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
 						data-testid="employees-add-menu-button"
 						aria-label={t('actions.importFromDocument')}
-						className="w-12 rounded-l-none border-l border-l-primary-foreground/20 px-2 min-[1025px]:w-10"
+						className="hidden w-12 rounded-l-none border-l border-l-primary-foreground/20 px-2 min-[1025px]:inline-flex min-[1025px]:w-10"
 					>
 						<ChevronDown className="h-4 w-4" />
 					</Button>
@@ -646,7 +656,7 @@ export function EmployeeDetailDialog({
 			/>
 			<DialogContent
 				showCloseButton={!isMobile}
-				className="flex h-[100dvh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 min-[1025px]:h-[calc(100dvh-2rem)] min-[1025px]:max-h-[calc(100dvh-2rem)] min-[1025px]:w-[min(96vw,96rem)] min-[1025px]:max-w-[calc(100vw-2rem)] min-[1025px]:rounded-lg min-[1025px]:border min-[1025px]:p-0"
+				className="flex h-[100svh] max-h-[100svh] w-screen max-w-none flex-col overflow-hidden rounded-none border-0 p-0 pb-[env(safe-area-inset-bottom)] min-[1025px]:h-[calc(100dvh-2rem)] min-[1025px]:max-h-[calc(100dvh-2rem)] min-[1025px]:w-[min(96vw,96rem)] min-[1025px]:max-w-[calc(100vw-2rem)] min-[1025px]:rounded-lg min-[1025px]:border min-[1025px]:p-0"
 			>
 				<DialogHeader className="hidden shrink-0 border-b px-6 py-4 min-[1025px]:flex">
 					<DialogTitle>

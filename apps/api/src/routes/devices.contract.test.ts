@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
+import db from '../db/index.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -9,6 +10,7 @@ import {
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
+import { device, member, organization } from '../db/schema.js';
 
 describe('device routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -30,6 +32,93 @@ describe('device routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
+	it('returns a status summary for devices in the organization', async () => {
+		const otherOrganizationId = randomUUID();
+		await db.insert(organization).values({
+			id: otherOrganizationId,
+			name: `Organización ${otherOrganizationId.slice(0, 8)}`,
+			slug: `organizacion-${otherOrganizationId.slice(0, 8)}`,
+			logo: null,
+			metadata: null,
+		});
+		await db.insert(member).values({
+			id: randomUUID(),
+			organizationId: otherOrganizationId,
+			userId: adminSession.userId,
+			role: 'admin',
+		});
+
+		const deviceCode = `SUMMARY-${randomUUID().slice(0, 8)}`;
+		const createResponse = await client.devices.post({
+			code: deviceCode,
+			name: 'Kiosco resumen',
+			deviceType: 'KIOSK',
+			status: 'OFFLINE',
+			locationId: seed.locationId,
+			organizationId: seed.organizationId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+
+		const foreignDeviceCode = `SUMMARY-${randomUUID().slice(0, 8)}`;
+		await db.insert(device).values({
+			id: randomUUID(),
+			code: foreignDeviceCode,
+			name: 'Kiosco otro org',
+			deviceType: 'KIOSK',
+			status: 'OFFLINE',
+			organizationId: otherOrganizationId,
+		});
+		const createPayload = requireResponseData(createResponse);
+		const createdDevice = createPayload.data;
+		if (!createdDevice?.id) {
+			throw new Error('Expected device ID in create response.');
+		}
+
+		const deviceRoutes = requireRoute(client.devices[createdDevice.id], 'Device route');
+		const heartbeatResponse = await deviceRoutes.heartbeat.post({
+			batteryLevel: 55,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(heartbeatResponse.status).toBe(200);
+
+		const summaryRoute = requireRoute(
+			client.devices['status-summary'],
+			'Device status summary route',
+		);
+		const summaryResponse = await summaryRoute.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				organizationId: seed.organizationId,
+			},
+		});
+
+		expect(summaryResponse.status).toBe(200);
+		const summaryPayload = requireResponseData(summaryResponse);
+		expect(Array.isArray(summaryPayload.data)).toBe(true);
+		expect(typeof summaryPayload.total).toBe('number');
+
+		const summaryRecord = summaryPayload.data.find(
+			(record: { code: string }) => record.code === deviceCode,
+		);
+		expect(summaryRecord).toBeDefined();
+		expect(summaryRecord).toMatchObject({
+			code: deviceCode,
+			name: 'Kiosco resumen',
+			status: 'ONLINE',
+			batteryLevel: 55,
+			locationId: seed.locationId,
+		});
+		expect(typeof summaryRecord?.id).toBe('string');
+		expect(typeof summaryRecord?.locationName).toBe('string');
+		expect(summaryRecord?.lastHeartbeat).not.toBeNull();
+		expect(
+			summaryPayload.data.some((record: { code: string }) => record.code === foreignDeviceCode),
+		).toBe(false);
 	});
 
 	it('creates, updates, heartbeats, and deletes a device', async () => {

@@ -1,5 +1,5 @@
 import { type SQL, and, eq, ilike, or } from 'drizzle-orm';
-import { Elysia } from 'elysia';
+import { Elysia, t } from 'elysia';
 import crypto from 'node:crypto';
 
 import db from '../db/index.js';
@@ -28,6 +28,68 @@ import { hasOrganizationAccess, resolveOrganizationId } from '../utils/organizat
  */
 export const deviceRoutes = new Elysia({ prefix: '/devices' })
 	.use(combinedAuthPlugin)
+	/**
+	 * Returns a status summary for devices in the resolved organization.
+	 *
+	 * @route GET /devices/status-summary
+	 * @returns Device summary rows with related location names
+	 */
+	.get(
+		'/status-summary',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: query.organizationId ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const results = await db
+				.select({
+					id: device.id,
+					code: device.code,
+					name: device.name,
+					status: device.status,
+					batteryLevel: device.batteryLevel,
+					lastHeartbeat: device.lastHeartbeat,
+					locationId: device.locationId,
+					locationName: location.name,
+				})
+				.from(device)
+				.leftJoin(
+					location,
+					and(eq(device.locationId, location.id), eq(location.organizationId, organizationId)),
+				)
+				.where(eq(device.organizationId, organizationId))
+				.orderBy(device.name, device.code);
+
+			return {
+				data: results,
+				total: results.length,
+			};
+		},
+		{
+			query: t.Object({
+				organizationId: t.Optional(t.String()),
+			}),
+		},
+	)
 	/**
 	 * List all devices with pagination and optional filters.
 	 *

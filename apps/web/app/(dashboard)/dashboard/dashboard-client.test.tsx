@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { endOfDay, startOfDay } from 'date-fns';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -296,5 +296,30 @@ describe('DashboardPageClient', () => {
 		const weatherCard = screen.getByText('weather.title').closest('[data-slot="card"]');
 		expect(weatherCard).not.toBeNull();
 		expect(weatherCard?.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+	});
+
+	it('collapses the location rail on mobile and expands it on demand', () => {
+		useIsMobileMock.mockReturnValue(true);
+		const queryResults = createQueryResults();
+		let queryCallIndex = 0;
+
+		useQueryMock.mockImplementation(() => {
+			const result = queryResults[queryCallIndex % queryResults.length];
+			queryCallIndex += 1;
+			return result;
+		});
+
+		render(<DashboardPageClient />);
+
+		const railToggle = screen.getByRole('button', { name: 'Por sucursal' });
+
+		expect(screen.getByTestId('dashboard-v2-map-stage')).toHaveClass('h-[60vh]');
+		expect(railToggle).toHaveAttribute('aria-expanded', 'false');
+		expect(screen.queryByTestId('location-rail')).not.toBeInTheDocument();
+
+		fireEvent.click(railToggle);
+
+		expect(railToggle).toHaveAttribute('aria-expanded', 'true');
+		expect(screen.getByTestId('location-rail')).toBeInTheDocument();
 	});
 });

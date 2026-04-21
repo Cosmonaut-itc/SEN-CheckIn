@@ -4,11 +4,12 @@ import React, { useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { endOfDay, format, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MapPin, Users } from 'lucide-react';
+import { ChevronDown, MapPin, Users } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
 import { ThemeModeToggle } from '@/components/theme-mode-toggle';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -233,6 +234,7 @@ export function DashboardPageClient(): React.ReactElement {
 	const [timelineFilter, setTimelineFilter] = useState<'all' | 'in' | 'late' | 'offsite'>(
 		'all',
 	);
+	const [isMobileRailOpen, setIsMobileRailOpen] = useState<boolean>(false);
 
 	useTour('dashboard');
 
@@ -415,7 +417,10 @@ export function DashboardPageClient(): React.ReactElement {
 							<Badge variant="secondary">{t('mapCard.legend.recent')}</Badge>
 						</div>
 					</CardHeader>
-					<CardContent className="relative h-[32rem] p-0">
+					<CardContent
+						className={`relative p-0 ${isMobile ? 'h-[60vh]' : 'h-[32rem]'}`}
+						data-testid="dashboard-v2-map-stage"
+					>
 						<div className="absolute inset-0">
 							<DashboardMap
 								locations={mapLocations}
@@ -437,20 +442,53 @@ export function DashboardPageClient(): React.ReactElement {
 				</Card>
 
 				<div data-testid="dashboard-v2-location-rail">
-					<LocationRail
-						locations={locationRows}
-						activeLocationId={activeLocationId}
-						hoveredLocationId={hoveredLocationId}
-						onLocationClick={(locationId: string) => {
-							setActiveLocationId((currentLocationId) =>
-								currentLocationId === locationId ? null : locationId,
-							);
-						}}
-						onLocationHover={setHoveredLocationId}
-						isLoading={isLocationsFetching || isEmployeeCountsFetching}
-						search={locationSearch}
-						onSearchChange={setLocationSearch}
-					/>
+					{isMobile ? (
+						<div className="space-y-3">
+							<Button
+								type="button"
+								variant="outline"
+								className="w-full justify-between rounded-2xl"
+								aria-expanded={isMobileRailOpen}
+								onClick={() => setIsMobileRailOpen((currentValue) => !currentValue)}
+							>
+								<span>{t('locationRail.title')}</span>
+								<ChevronDown
+									className={`h-4 w-4 transition-transform ${isMobileRailOpen ? 'rotate-180' : ''}`}
+								/>
+							</Button>
+							{isMobileRailOpen ? (
+								<LocationRail
+									locations={locationRows}
+									activeLocationId={activeLocationId}
+									hoveredLocationId={hoveredLocationId}
+									onLocationClick={(locationId: string) => {
+										setActiveLocationId((currentLocationId) =>
+											currentLocationId === locationId ? null : locationId,
+										);
+									}}
+									onLocationHover={setHoveredLocationId}
+									isLoading={isLocationsFetching || isEmployeeCountsFetching}
+									search={locationSearch}
+									onSearchChange={setLocationSearch}
+								/>
+							) : null}
+						</div>
+					) : (
+						<LocationRail
+							locations={locationRows}
+							activeLocationId={activeLocationId}
+							hoveredLocationId={hoveredLocationId}
+							onLocationClick={(locationId: string) => {
+								setActiveLocationId((currentLocationId) =>
+									currentLocationId === locationId ? null : locationId,
+								);
+							}}
+							onLocationHover={setHoveredLocationId}
+							isLoading={isLocationsFetching || isEmployeeCountsFetching}
+							search={locationSearch}
+							onSearchChange={setLocationSearch}
+						/>
+					)}
 				</div>
 
 				<div data-testid="dashboard-v2-timeline">

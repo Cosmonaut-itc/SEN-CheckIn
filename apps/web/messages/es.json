@@ -125,6 +125,69 @@
 	"Dashboard": {
 		"title": "Panel de Control",
 		"subtitle": "Bienvenido al portal de administración de jale. by SEN",
+		"hero": {
+			"eyebrow": "· {date} · {time} ·",
+			"title": "Todo el <em>jale</em>,\nen un vistazo.",
+			"subtitle": "Visibilidad en tiempo real de {locations} ubicaciones y {employees} empleados.",
+			"onTime": "a tiempo hoy",
+			"late": "{count} retardo",
+			"lateP": "{count} retardos",
+			"absent": "{count} falta",
+			"absentP": "{count} faltas",
+			"offsite": "{count} en campo"
+		},
+		"timeline": {
+			"eyebrow": "ACTIVIDAD EN VIVO",
+			"title": "Timeline de hoy",
+			"filters": {
+				"all": "Todos",
+				"checkIn": "Entradas",
+				"late": "Retardos",
+				"offsite": "En campo"
+			},
+			"event": {
+				"checkIn": "Entrada",
+				"late": "Retardo",
+				"offsite": "En campo"
+			},
+			"empty": "Sin actividad reciente."
+		},
+		"hourly": {
+			"title": "Actividad por hora",
+			"empty": "Sin datos de actividad."
+		},
+		"devices": {
+			"eyebrow": "DISPOSITIVOS",
+			"title": "Estado y bateria",
+			"battery": "Bateria",
+			"lastSync": "Sincronizado hace {time}",
+			"noBattery": "N/D",
+			"empty": "No hay dispositivos registrados."
+		},
+		"weather": {
+			"eyebrow": "CLIMA",
+			"title": "Por ubicacion",
+			"high": "Max",
+			"low": "Min",
+			"empty": "Datos de clima no disponibles."
+		},
+		"locationRail": {
+			"eyebrow": "UBICACIONES",
+			"title": "Por sucursal",
+			"searchPlaceholder": "Buscar...",
+			"active": "activa",
+			"idle": "sin actividad",
+			"capacity": "{present}/{total}"
+		},
+		"mapCard": {
+			"eyebrow": "MAPA OPERATIVO",
+			"title": "Presencia en vivo",
+			"legend": {
+				"active": "Activa",
+				"idle": "Sin actividad",
+				"recent": "Checada reciente"
+			}
+		},
 		"cards": {
 			"employees": {
 				"title": "Empleados",

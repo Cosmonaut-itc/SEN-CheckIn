@@ -176,6 +176,10 @@ function createQueryResults(): Array<Record<string, unknown>> {
 			},
 			isFetching: false,
 		},
+		{
+			data: new Map<string, number>([['location-1', 3]]),
+			isFetching: false,
+		},
 	];
 }
 
@@ -206,7 +210,8 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce(createQueryResults()[3])
 			.mockReturnValueOnce(createQueryResults()[4])
 			.mockReturnValueOnce(createQueryResults()[5])
-			.mockReturnValueOnce(createQueryResults()[6]);
+			.mockReturnValueOnce(createQueryResults()[6])
+			.mockReturnValueOnce(createQueryResults()[7]);
 
 		render(<DashboardPageClient />);
 
@@ -228,7 +233,8 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce(createQueryResults()[3])
 			.mockReturnValueOnce(createQueryResults()[4])
 			.mockReturnValueOnce(createQueryResults()[5])
-			.mockReturnValueOnce(createQueryResults()[6]);
+			.mockReturnValueOnce(createQueryResults()[6])
+			.mockReturnValueOnce(createQueryResults()[7]);
 
 		render(<DashboardPageClient />);
 
@@ -276,7 +282,8 @@ describe('DashboardPageClient', () => {
 			.mockReturnValueOnce({ data: [], isFetching: true })
 			.mockReturnValueOnce({ data: { data: [], date: '2026-04-21' }, isFetching: true })
 			.mockReturnValueOnce({ data: [], isFetching: true })
-			.mockReturnValueOnce({ data: { data: [], cachedAt: null }, isFetching: true });
+			.mockReturnValueOnce({ data: { data: [], cachedAt: null }, isFetching: true })
+			.mockReturnValueOnce({ data: new Map<string, number>(), isFetching: true });
 
 		render(<DashboardPageClient />);
 

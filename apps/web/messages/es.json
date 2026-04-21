@@ -250,7 +250,12 @@
 				"presentCount": "Presentes: {count}",
 				"empty": "Sin personal presente en este momento.",
 				"fallbackInitials": "NA",
-				"timeAgo": "hace {time}"
+				"timeAgo": "hace {time}",
+				"lastCheckIn": "Última checada {time}",
+				"lastCheckInEmpty": "Sin checadas hoy.",
+				"capacityLabel": "Capacidad asignada",
+				"capacity": "{present}/{total} presentes",
+				"capacityPresentOnly": "{present} presentes"
 			},
 			"panel": {
 				"title": "Ubicaciones",

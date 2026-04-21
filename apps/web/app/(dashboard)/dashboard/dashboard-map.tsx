@@ -33,6 +33,8 @@ export interface DashboardMapProps {
 	focusedLocation: Location | null;
 	/** Attendance records grouped by location id. */
 	presentByLocationId: Map<string, AttendancePresentRecord[]>;
+	/** Active employee counts grouped by location id. */
+	employeeCountByLocation?: Map<string, number>;
 	/** Indicates when the map is rendered in the mobile hero layout. */
 	isMobileLayout?: boolean;
 }
@@ -52,6 +54,39 @@ function getEmployeeInitials(name: string): string {
 	const first = parts[0]?.[0] ?? '';
 	const second = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
 	return `${first}${second}`.toUpperCase();
+}
+
+/**
+ * Returns the latest check-in date from the current presence records.
+ *
+ * @param presentRecords - Presence records for a location
+ * @returns Latest check-in date or null when no records exist
+ */
+function getLatestCheckInAt(presentRecords: AttendancePresentRecord[]): Date | null {
+	let latestCheckInAt: Date | null = null;
+
+	for (const record of presentRecords) {
+		if (!latestCheckInAt || record.checkedInAt > latestCheckInAt) {
+			latestCheckInAt = record.checkedInAt;
+		}
+	}
+
+	return latestCheckInAt;
+}
+
+/**
+ * Calculates the presence percentage against assigned capacity.
+ *
+ * @param presentCount - Employees currently present
+ * @param employeeCount - Employees assigned to the location
+ * @returns Percentage clamped between 0 and 100
+ */
+function getCapacityPercent(presentCount: number, employeeCount: number): number {
+	if (employeeCount <= 0) {
+		return 0;
+	}
+
+	return Math.min(100, Math.max(0, (presentCount / employeeCount) * 100));
 }
 
 /**
@@ -181,6 +216,7 @@ export function DashboardMap({
 	locations,
 	focusedLocation,
 	presentByLocationId,
+	employeeCountByLocation = new Map<string, number>(),
 	isMobileLayout = false,
 }: DashboardMapProps): React.ReactElement {
 	const t = useTranslations('Dashboard');
@@ -198,6 +234,26 @@ export function DashboardMap({
 					}
 					const present = presentByLocationId.get(location.id) ?? [];
 					const presentCount = present.length;
+					const employeeCount = employeeCountByLocation.get(location.id) ?? 0;
+					const latestCheckInAt = getLatestCheckInAt(present);
+					const capacityPercent = getCapacityPercent(presentCount, employeeCount);
+					const capacityLabel =
+						employeeCount > 0
+							? t('map.popup.capacity', {
+									present: presentCount,
+									total: employeeCount,
+								})
+							: t('map.popup.capacityPresentOnly', {
+									present: presentCount,
+								});
+					const latestCheckInLabel = latestCheckInAt
+						? t('map.popup.lastCheckIn', {
+								time: formatDistanceToNowStrict(latestCheckInAt, {
+									addSuffix: true,
+									locale: es,
+								}),
+							})
+						: t('map.popup.lastCheckInEmpty');
 					return (
 						<MapMarker
 							key={location.id}
@@ -213,11 +269,46 @@ export function DashboardMap({
 							<MarkerTooltip>
 								{t('map.tooltip', { count: presentCount })}
 							</MarkerTooltip>
-							<MarkerPopup className="p-0 w-72">
-								<Card className="border-0 shadow-none">
-									<CardContent className="space-y-3 p-3">
-										<div>
-											<p className="text-sm font-semibold">{location.name}</p>
+							<MarkerPopup className="w-80 rounded-xl p-0 shadow-lg">
+								<Card className="overflow-hidden border-[color:var(--border-subtle)] shadow-none">
+									<CardContent className="space-y-4 p-4">
+										<div className="space-y-3">
+											<div className="flex items-start justify-between gap-3">
+												<div className="min-w-0">
+													<p className="truncate text-sm font-semibold">{location.name}</p>
+													<p className="mt-1 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
+														{location.code}
+													</p>
+												</div>
+												<span className="rounded-full border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] px-2.5 py-1 text-[11px] font-medium text-foreground">
+													{capacityLabel}
+												</span>
+											</div>
+											{employeeCount > 0 ? (
+												<div className="space-y-2">
+													<div className="flex items-center justify-between text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+														<span>{t('map.popup.capacityLabel')}</span>
+														<span>{capacityLabel}</span>
+													</div>
+													<div
+														role="progressbar"
+														aria-label={t('map.popup.capacityLabel')}
+														aria-valuemin={0}
+														aria-valuenow={presentCount}
+														aria-valuemax={employeeCount}
+														data-testid={`dashboard-map-capacity-progress-${location.id}`}
+														className="h-2 overflow-hidden rounded-full bg-[color:var(--bg-tertiary)]"
+													>
+														<div
+															className="h-full rounded-full bg-[color:var(--accent-primary)] transition-[width]"
+															style={{ width: `${capacityPercent}%` }}
+														/>
+													</div>
+												</div>
+											) : null}
+											<p className="text-xs text-muted-foreground">
+												{latestCheckInLabel}
+											</p>
 											<p className="text-xs text-muted-foreground">
 												{t('map.popup.presentCount', {
 													count: presentCount,

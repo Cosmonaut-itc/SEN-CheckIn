@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTour } from '@/hooks/use-tour';
+import { fetchAllEmployeesPages } from '@/lib/fetch-all-employees';
 import {
 	fetchAttendanceHourly,
 	fetchAttendanceOffsiteToday,
@@ -20,6 +21,7 @@ import {
 	fetchAttendanceTimeline,
 	fetchDashboardCounts,
 	fetchDeviceStatusSummary,
+	fetchEmployeesList,
 	fetchLocationsAll,
 	fetchWeather,
 	type AttendancePresentRecord,
@@ -104,20 +106,52 @@ function buildPresentByLocationId(
 function buildLocationPresenceRows(
 	locations: Location[],
 	presentByLocationId: Map<string, AttendancePresentRecord[]>,
+	employeeCountByLocation: Map<string, number>,
 ): LocationWithPresence[] {
 	return [...locations]
 		.sort((left, right) => left.name.localeCompare(right.name, 'es'))
 		.map((location) => {
 			const presentCount = presentByLocationId.get(location.id)?.length ?? 0;
-			const employeeCount =
-				(location as Location & { employeeCount?: number }).employeeCount ?? presentCount;
+			const employeeCount = employeeCountByLocation.get(location.id) ?? 0;
 
 			return {
 				...location,
-				employeeCount: Math.max(employeeCount, presentCount),
+				employeeCount,
 				presentCount,
 			};
 		});
+}
+
+/**
+ * Loads active employees and groups them by assigned location.
+ *
+ * @param organizationId - Active organization id
+ * @returns Counts of active employees keyed by location id
+ */
+async function fetchActiveEmployeeCountsByLocation(
+	organizationId: string | null,
+): Promise<Map<string, number>> {
+	if (!organizationId) {
+		return new Map<string, number>();
+	}
+
+	const activeEmployees = await fetchAllEmployeesPages({
+		fetchEmployees: fetchEmployeesList,
+		params: {
+			organizationId,
+			status: 'ACTIVE' as const,
+		},
+	});
+
+	return activeEmployees.reduce((countsByLocation, employee) => {
+		if (!employee.locationId) {
+			return countsByLocation;
+		}
+
+		const currentCount = countsByLocation.get(employee.locationId) ?? 0;
+		countsByLocation.set(employee.locationId, currentCount + 1);
+		return countsByLocation;
+	}, new Map<string, number>());
 }
 
 /**
@@ -283,14 +317,19 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchWeather({ organizationId: organizationId ?? null }),
 		enabled: Boolean(organizationId),
 	});
+	const { data: employeeCountByLocation = new Map<string, number>(), isFetching: isEmployeeCountsFetching } = useQuery({
+		queryKey: ['dashboard', 'location-capacity', organizationId ?? null] as const,
+		queryFn: () => fetchActiveEmployeeCountsByLocation(organizationId ?? null),
+		enabled: Boolean(organizationId),
+	});
 
 	const presentByLocationId = useMemo(
 		() => buildPresentByLocationId(presentRecords),
 		[presentRecords],
 	);
 	const locationRows = useMemo(
-		() => buildLocationPresenceRows(locations, presentByLocationId),
-		[locations, presentByLocationId],
+		() => buildLocationPresenceRows(locations, presentByLocationId, employeeCountByLocation),
+		[employeeCountByLocation, locations, presentByLocationId],
 	);
 	const activeLocation = useMemo(
 		() => locationRows.find((location) => location.id === activeLocationId) ?? null,
@@ -382,6 +421,7 @@ export function DashboardPageClient(): React.ReactElement {
 								locations={mapLocations}
 								focusedLocation={activeLocation}
 								presentByLocationId={presentByLocationId}
+								employeeCountByLocation={employeeCountByLocation}
 								isMobileLayout={isMobile}
 							/>
 						</div>
@@ -407,7 +447,7 @@ export function DashboardPageClient(): React.ReactElement {
 							);
 						}}
 						onLocationHover={setHoveredLocationId}
-						isLoading={isLocationsFetching}
+						isLoading={isLocationsFetching || isEmployeeCountsFetching}
 						search={locationSearch}
 						onSearchChange={setLocationSearch}
 					/>

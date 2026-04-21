@@ -8,6 +8,7 @@ import { combinedAuthPlugin } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import {
 	createDeviceSchema,
+	deviceHeartbeatSchema,
 	deviceQuerySchema,
 	idParamSchema,
 	registerDeviceSchema,
@@ -576,6 +577,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 		'/:id/heartbeat',
 		async ({
 			params,
+			body,
 			set,
 			authType,
 			session,
@@ -613,13 +615,17 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			}
 
 			const now = new Date();
+			const updatePayload: Partial<typeof device.$inferInsert> = {
+				lastHeartbeat: now,
+				status: 'ONLINE',
+			};
+			if (body.batteryLevel !== undefined) {
+				updatePayload.batteryLevel = body.batteryLevel;
+			}
 
 			await db
 				.update(device)
-				.set({
-					lastHeartbeat: now,
-					status: 'ONLINE',
-				})
+				.set(updatePayload)
 				.where(eq(device.id, id));
 
 			// Fetch updated record
@@ -628,6 +634,7 @@ export const deviceRoutes = new Elysia({ prefix: '/devices' })
 			return { data: updated[0] };
 		},
 		{
+			body: deviceHeartbeatSchema,
 			params: idParamSchema,
 		},
 	);

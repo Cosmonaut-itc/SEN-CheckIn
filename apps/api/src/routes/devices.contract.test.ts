@@ -69,6 +69,7 @@ describe('device routes (contract)', () => {
 		expect(updatedDevice.name).toBe('Kiosco actualizado');
 
 		const heartbeatResponse = await deviceRoutes.heartbeat.post({
+			batteryLevel: 84,
 			$headers: { cookie: adminSession.cookieHeader },
 		});
 
@@ -79,6 +80,19 @@ describe('device routes (contract)', () => {
 			throw new Error('Expected device record in heartbeat response.');
 		}
 		expect(heartbeatDevice.status).toBe('ONLINE');
+		expect(heartbeatDevice.batteryLevel).toBe(84);
+
+		const refreshedResponse = await deviceRoutes.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(refreshedResponse.status).toBe(200);
+		const refreshedPayload = requireResponseData(refreshedResponse);
+		const refreshedDevice = refreshedPayload.data;
+		if (!refreshedDevice) {
+			throw new Error('Expected refreshed device record after heartbeat.');
+		}
+		expect(refreshedDevice.batteryLevel).toBe(84);
 
 		const deleteResponse = await deviceRoutes.delete({
 			$headers: { cookie: adminSession.cookieHeader },
@@ -162,5 +176,39 @@ describe('device routes (contract)', () => {
 		const errorPayload = requireErrorResponse(response, 'unknown device heartbeat');
 		expect(errorPayload.error.message).toBe('Device not found');
 		expect(errorPayload.error.code).toBe('DEVICE_NOT_FOUND');
+	});
+
+	it('rejects heartbeat battery levels outside the 0 to 100 range', async () => {
+		const deviceCode = `KIOSK-${randomUUID().slice(0, 8)}`;
+		const createResponse = await client.devices.post({
+			code: deviceCode,
+			name: 'Kiosco bateria invalida',
+			deviceType: 'KIOSK',
+			status: 'OFFLINE',
+			locationId: seed.locationId,
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createResponse.status).toBe(201);
+		const createPayload = requireResponseData(createResponse);
+		const createdDevice = createPayload.data;
+		if (!createdDevice?.id) {
+			throw new Error('Expected device ID in create response.');
+		}
+
+		const deviceRoutes = requireRoute(client.devices[createdDevice.id], 'Device route');
+		for (const batteryLevel of [101, -1, 84.5]) {
+			const response = await deviceRoutes.heartbeat.post({
+				batteryLevel,
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			expect(response.status).toBe(400);
+			const errorPayload = requireErrorResponse(
+				response,
+				`invalid heartbeat battery level ${batteryLevel}`,
+			);
+			expect(errorPayload.error.code).toBe('VALIDATION_ERROR');
+		}
 	});
 });

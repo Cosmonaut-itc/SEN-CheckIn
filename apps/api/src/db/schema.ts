@@ -1,5 +1,6 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
+	check,
 	boolean,
 	doublePrecision,
 	index,
@@ -1043,30 +1044,41 @@ export const employeeTerminationSettlement = pgTable(
 /**
  * Device table - stores kiosk/device information
  */
-export const device = pgTable('device', {
-	id: text('id').primaryKey(),
-	/** Unique device code */
-	code: text('code').notNull().unique(),
-	/** Device name/label */
-	name: text('name'),
-	/** Type of device (TABLET, KIOSK, MOBILE) */
-	deviceType: text('device_type'),
-	/** Device status (ONLINE, OFFLINE, MAINTENANCE) */
-	status: deviceStatus('status').default('OFFLINE').notNull(),
-	/** Last time device sent a heartbeat */
-	lastHeartbeat: timestamp('last_heartbeat'),
-	/** Location where device is installed */
-	locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
-	/** Organization that owns the device */
-	organizationId: text('organization_id').references(() => organization.id, {
-		onDelete: 'cascade',
-	}),
-	createdAt: timestamp('created_at').defaultNow().notNull(),
-	updatedAt: timestamp('updated_at')
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
+export const device = pgTable(
+	'device',
+	{
+		id: text('id').primaryKey(),
+		/** Unique device code */
+		code: text('code').notNull().unique(),
+		/** Device name/label */
+		name: text('name'),
+		/** Type of device (TABLET, KIOSK, MOBILE) */
+		deviceType: text('device_type'),
+		/** Device status (ONLINE, OFFLINE, MAINTENANCE) */
+		status: deviceStatus('status').default('OFFLINE').notNull(),
+		/** Last time device sent a heartbeat */
+		lastHeartbeat: timestamp('last_heartbeat'),
+		/** Device battery level percentage reported by heartbeat */
+		batteryLevel: integer('battery_level'),
+		/** Location where device is installed */
+		locationId: text('location_id').references(() => location.id, { onDelete: 'set null' }),
+		/** Organization that owns the device */
+		organizationId: text('organization_id').references(() => organization.id, {
+			onDelete: 'cascade',
+		}),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		check(
+			'device_battery_level_range',
+			sql`${table.batteryLevel} >= 0 AND ${table.batteryLevel} <= 100`,
+		),
+	],
+);
 
 /**
  * AttendanceRecord table - stores attendance check-in/check-out records

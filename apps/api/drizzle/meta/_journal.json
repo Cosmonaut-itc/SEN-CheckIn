@@ -358,6 +358,13 @@
       "when": 1776206400000,
       "tag": "0050_payroll_setting_real_vacation_repair",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1776809218794,
+      "tag": "0051_outgoing_shadowcat",
+      "breakpoints": true
     }
   ]
 }

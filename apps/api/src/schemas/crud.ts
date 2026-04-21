@@ -348,6 +348,13 @@ export const registerDeviceSchema = z.object({
 	organizationId: z.string().optional(),
 });
 
+/**
+ * Schema for device heartbeat updates.
+ */
+export const deviceHeartbeatSchema = z.object({
+	batteryLevel: z.number().int().min(0).max(100).optional(),
+}).default({});
+
 // ============================================================================
 // Organization Member Schemas
 // ============================================================================

@@ -42,6 +42,7 @@ describe('Toaster', () => {
 	});
 
 	it('uses a radius token that exists in the web theme contract', () => {
+		expect(globalsCssContent).toContain('--radius: 14px;');
 		expect(globalsCssContent).toContain('--radius-lg: 14px;');
 	});
 });

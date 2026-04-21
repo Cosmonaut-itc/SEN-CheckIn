@@ -142,6 +142,21 @@ const attendanceTimelineQuerySchema = z.object({
 	kind: z.enum(['in', 'late', 'offsite']).optional(),
 });
 
+const attendanceHourlyQuerySchema = z.object({
+	date: z
+		.string()
+		.regex(/^\d{4}-\d{2}-\d{2}$/)
+		.refine((value) => {
+			try {
+				parseDateKey(value);
+				return true;
+			} catch {
+				return false;
+			}
+		}, 'Invalid date key')
+		.optional(),
+});
+
 const WEEKDAY_INDEX_BY_SHORT_NAME: Record<string, number> = {
 	Sun: 0,
 	Mon: 1,
@@ -1080,6 +1095,85 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 		},
 		{
 			query: attendanceTimelineQuerySchema,
+		},
+	)
+
+	/**
+	 * Returns check-in counts bucketed by local hour for a dashboard date.
+	 *
+	 * @route GET /attendance/hourly
+	 * @param query.date - Local date key (YYYY-MM-DD)
+	 * @returns Hour buckets from 0 to 23
+	 */
+	.get(
+		'/hourly',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const { date } = query;
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const timeZone = await resolveOrganizationTimeZone(organizationId);
+			const dateKey = date ?? toDateKeyInTimeZone(new Date(), timeZone);
+			const { startUtc, endExclusiveUtc } = buildUtcBoundsForDateKey(dateKey, timeZone);
+
+			const localHourSql = sql<number>`CAST(EXTRACT(HOUR FROM (${attendanceRecord.timestamp} AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone}) AS integer)`;
+			const aggregatedRows = await db
+				.select({
+					hour: localHourSql,
+					count: sql<number>`CAST(COUNT(*) AS integer)`,
+				})
+				.from(attendanceRecord)
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.where(
+					and(
+						eq(employee.organizationId, organizationId),
+						eq(attendanceRecord.type, 'CHECK_IN'),
+						gte(attendanceRecord.timestamp, startUtc),
+						lt(attendanceRecord.timestamp, endExclusiveUtc),
+					),
+				)
+				.groupBy(sql.raw('1'))
+				.orderBy(sql.raw('1'));
+
+			const buckets = Array.from({ length: 24 }, (_, hour) => ({
+				hour,
+				count: 0,
+			}));
+
+			for (const row of aggregatedRows) {
+				if (row.hour >= 0 && row.hour <= 23) {
+					buckets[row.hour]!.count = row.count;
+				}
+			}
+
+			return {
+				data: buckets,
+				date: dateKey,
+			};
+		},
+		{
+			query: attendanceHourlyQuerySchema,
 		},
 	)
 

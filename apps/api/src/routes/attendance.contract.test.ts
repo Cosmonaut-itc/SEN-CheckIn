@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 
 import { addDaysToDateKey } from '../utils/date-key.js';
-import { getUtcDateForZonedMidnight } from '../utils/time-zone.js';
+import { getUtcDateForZonedMidnight, toDateKeyInTimeZone } from '../utils/time-zone.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -308,6 +308,46 @@ describe('attendance routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data.some((row) => row.id === createdRecord.id)).toBe(true);
+	});
+
+	it('returns attendance hourly buckets for the requested date', async () => {
+		const dateKey = toDateKeyInTimeZone(new Date(), DEFAULT_TEST_TIME_ZONE);
+		const eightAmTimestamp = getUtcDateForZonedMidnight(dateKey, DEFAULT_TEST_TIME_ZONE);
+		eightAmTimestamp.setUTCHours(eightAmTimestamp.getUTCHours() + 8);
+		const tenAmTimestamp = getUtcDateForZonedMidnight(dateKey, DEFAULT_TEST_TIME_ZONE);
+		tenAmTimestamp.setUTCHours(tenAmTimestamp.getUTCHours() + 10);
+
+		const firstResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: eightAmTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(firstResponse.status).toBe(201);
+
+		const secondResponse = await client.attendance.post({
+			employeeId: activeEmployeeId,
+			deviceId: seed.deviceId,
+			timestamp: tenAmTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(secondResponse.status).toBe(201);
+
+		const response = await client.attendance.hourly.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { date: dateKey },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.date).toBe(dateKey);
+		expect(payload.data).toHaveLength(24);
+		const eightAmBucket = payload.data.find((row) => row.hour === 8);
+		const tenAmBucket = payload.data.find((row) => row.hour === 10);
+		expect(eightAmBucket?.count).toBeGreaterThanOrEqual(1);
+		expect(tenAmBucket?.count).toBeGreaterThanOrEqual(1);
 	});
 
 	it('creates and fetches an attendance record', async () => {

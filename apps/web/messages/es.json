@@ -1803,11 +1803,14 @@
 			"returnToEmployee": "Volver al empleado"
 		},
 		"search": {
+			"label": "Buscar empleado",
 			"placeholder": "Buscar por ID de empleado..."
 		},
 		"dateRange": {
+			"label": "Periodo",
 			"placeholder": "Rango de fechas",
-			"to": "a",
+			"startLabel": "Fecha de inicio",
+			"endLabel": "Fecha de fin",
 			"selectDate": "Selecciona una fecha",
 			"presets": {
 				"today": "Hoy",
@@ -1818,6 +1821,7 @@
 			}
 		},
 		"typeFilter": {
+			"label": "Tipo de registro",
 			"placeholder": "Tipo",
 			"both": "Entradas/Salidas",
 			"checkIn": "Entrada",
@@ -1827,6 +1831,7 @@
 		},
 		"offsite": {
 			"filter": {
+				"label": "Clasificación RH",
 				"placeholder": "Clasificación RH",
 				"all": "Todas las clasificaciones"
 			},
@@ -1873,7 +1878,8 @@
 			}
 		},
 		"locationFilter": {
-			"placeholder": "Ubicacion",
+			"label": "Ubicación",
+			"placeholder": "Ubicación",
 			"all": "Todas las ubicaciones"
 		},
 		"table": {

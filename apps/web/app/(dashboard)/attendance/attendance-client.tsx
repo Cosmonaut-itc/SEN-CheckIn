@@ -72,7 +72,11 @@ import {
 	getStartOfMonthDateKey,
 	getWeekStartDateKey,
 } from '@/lib/date-key';
-import { getUtcDayRangeFromDateKey, isValidIanaTimeZone, toDateKeyInTimeZone } from '@/lib/time-zone';
+import {
+	getUtcDayRangeFromDateKey,
+	isValidIanaTimeZone,
+	toDateKeyInTimeZone,
+} from '@/lib/time-zone';
 import type {
 	ColumnDef,
 	ColumnFiltersState,
@@ -1094,14 +1098,10 @@ export function AttendancePageClient({
 			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
 			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
 			const exportRecords = await fetchAllAttendanceRecords({
-				fromDate: getUtcDayRangeFromDateKey(
-					spilloverStartDateKey,
-					attendanceExportTimeZone,
-				).startUtc,
-				toDate: getUtcDayRangeFromDateKey(
-					spilloverEndDateKey,
-					attendanceExportTimeZone,
-				).endUtc,
+				fromDate: getUtcDayRangeFromDateKey(spilloverStartDateKey, attendanceExportTimeZone)
+					.startUtc,
+				toDate: getUtcDayRangeFromDateKey(spilloverEndDateKey, attendanceExportTimeZone)
+					.endUtc,
 				organizationId,
 				...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
 				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
@@ -1240,8 +1240,12 @@ export function AttendancePageClient({
 			<div className="space-y-4">
 				<div className="flex items-start justify-between gap-3">
 					<div className="min-w-0 space-y-1">
-						<p className="text-base font-semibold leading-tight">{record.employeeName}</p>
-						<p className="font-mono text-xs text-muted-foreground">{record.employeeId}</p>
+						<p className="text-base font-semibold leading-tight">
+							{record.employeeName}
+						</p>
+						<p className="font-mono text-xs text-muted-foreground">
+							{record.employeeId}
+						</p>
 					</div>
 					<Badge variant={typeVariants[record.type]}>
 						{getAttendanceTypeLabel(t, record.type)}
@@ -1250,7 +1254,9 @@ export function AttendancePageClient({
 
 				<div className="grid gap-3 text-sm">
 					<div className="flex items-center justify-between gap-3">
-						<span className="text-muted-foreground">{t('table.headers.offsiteDayKind')}</span>
+						<span className="text-muted-foreground">
+							{t('table.headers.offsiteDayKind')}
+						</span>
 						<span className="text-right font-medium">
 							{getOffsiteDayKindLabel(t, record.offsiteDayKind ?? null)}
 						</span>
@@ -1275,7 +1281,11 @@ export function AttendancePageClient({
 					</div>
 					<div className="space-y-2">
 						<span className="text-muted-foreground">{t('table.headers.actions')}</span>
-						{actions ? actions : <p className="text-sm font-medium text-muted-foreground">-</p>}
+						{actions ? (
+							actions
+						) : (
+							<p className="text-sm font-medium text-muted-foreground">-</p>
+						)}
 					</div>
 				</div>
 			</div>
@@ -1317,7 +1327,10 @@ export function AttendancePageClient({
 				}
 			/>
 
-			<div data-tour="attendance-filters" className="grid gap-3 min-[1025px]:grid-cols-2 xl:grid-cols-5">
+			<div
+				data-tour="attendance-filters"
+				className="grid gap-4 min-[1025px]:grid-cols-2 xl:grid-cols-5"
+			>
 				{employeeFilterId && employeeFilterLabel ? (
 					<Badge
 						variant="secondary"
@@ -1335,20 +1348,25 @@ export function AttendancePageClient({
 					</Badge>
 				) : null}
 
-				<div className="relative min-w-0 xl:col-span-2">
-					<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-					<Input
-						placeholder={t('search.placeholder')}
-						value={globalFilter}
-						onChange={(e) => handleGlobalFilterChange(e.target.value)}
-						className="min-h-11 pl-9"
-					/>
+				<div className="min-w-0 space-y-2 xl:col-span-2">
+					<Label htmlFor="attendance-search">{t('search.label')}</Label>
+					<div className="relative min-w-0">
+						<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+						<Input
+							id="attendance-search"
+							placeholder={t('search.placeholder')}
+							value={globalFilter}
+							onChange={(e) => handleGlobalFilterChange(e.target.value)}
+							className="min-h-11 pl-9"
+						/>
+					</div>
 				</div>
 
-				<div className="grid gap-2">
-					<CalendarIcon className="h-4 w-4 text-muted-foreground" />
+				<div className="space-y-2">
+					<Label htmlFor="attendance-date-preset">{t('dateRange.label')}</Label>
 					<Select value={datePreset} onValueChange={handlePresetChange}>
-						<SelectTrigger className="min-h-11 w-full">
+						<SelectTrigger id="attendance-date-preset" className="min-h-11 w-full">
+							<CalendarIcon className="h-4 w-4 text-muted-foreground" />
 							<SelectValue placeholder={t('dateRange.placeholder')} />
 						</SelectTrigger>
 						<SelectContent>
@@ -1368,106 +1386,131 @@ export function AttendancePageClient({
 				</div>
 
 				{datePreset === 'custom' ? (
-					<div className="grid gap-3 min-[1025px]:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:col-span-2">
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button
-									variant="outline"
-									data-empty={!startDateValue}
-									className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
-								>
-									<CalendarIcon className="mr-2 h-4 w-4" />
-									{startDateValue ? (
-										format(startDateValue, 'P', { locale: es })
-									) : (
-										<span>{t('dateRange.selectDate')}</span>
-									)}
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent className="w-auto p-0" align="start">
-								<Calendar
-									mode="single"
-									selected={startDateValue}
-									onSelect={handleStartDateSelect}
-									initialFocus
-								/>
-							</PopoverContent>
-						</Popover>
-						<span className="hidden self-center text-center text-sm text-muted-foreground min-[1025px]:block">
-							{t('dateRange.to')}
-						</span>
-						<Popover>
-							<PopoverTrigger asChild>
-								<Button
-									variant="outline"
-									data-empty={!endDateValue}
-									className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
-								>
-									<CalendarIcon className="mr-2 h-4 w-4" />
-									{endDateValue ? (
-										format(endDateValue, 'P', { locale: es })
-									) : (
-										<span>{t('dateRange.selectDate')}</span>
-									)}
-								</Button>
-							</PopoverTrigger>
-							<PopoverContent className="w-auto p-0" align="start">
-								<Calendar
-									mode="single"
-									selected={endDateValue}
-									onSelect={handleEndDateSelect}
-									initialFocus
-								/>
-							</PopoverContent>
-						</Popover>
+					<div className="grid gap-3 min-[1025px]:grid-cols-2 xl:col-span-2">
+						<div className="space-y-2">
+							<Label htmlFor="attendance-start-date">
+								{t('dateRange.startLabel')}
+							</Label>
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										id="attendance-start-date"
+										variant="outline"
+										data-empty={!startDateValue}
+										className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
+									>
+										<CalendarIcon className="mr-2 h-4 w-4" />
+										{startDateValue ? (
+											format(startDateValue, 'P', { locale: es })
+										) : (
+											<span>{t('dateRange.selectDate')}</span>
+										)}
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="w-auto p-0" align="start">
+									<Calendar
+										mode="single"
+										selected={startDateValue}
+										onSelect={handleStartDateSelect}
+										initialFocus
+									/>
+								</PopoverContent>
+							</Popover>
+						</div>
+						<div className="space-y-2">
+							<Label htmlFor="attendance-end-date">{t('dateRange.endLabel')}</Label>
+							<Popover>
+								<PopoverTrigger asChild>
+									<Button
+										id="attendance-end-date"
+										variant="outline"
+										data-empty={!endDateValue}
+										className="data-[empty=true]:text-muted-foreground min-h-11 w-full justify-start text-left font-normal"
+									>
+										<CalendarIcon className="mr-2 h-4 w-4" />
+										{endDateValue ? (
+											format(endDateValue, 'P', { locale: es })
+										) : (
+											<span>{t('dateRange.selectDate')}</span>
+										)}
+									</Button>
+								</PopoverTrigger>
+								<PopoverContent className="w-auto p-0" align="start">
+									<Calendar
+										mode="single"
+										selected={endDateValue}
+										onSelect={handleEndDateSelect}
+										initialFocus
+									/>
+								</PopoverContent>
+							</Popover>
+						</div>
 					</div>
 				) : null}
 
-				<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
-					<SelectTrigger className="min-h-11 w-full">
-						<SelectValue placeholder={t('typeFilter.placeholder')} />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
-						<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
-						<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
-						<SelectItem value="CHECK_OUT_AUTHORIZED">
-							{t('typeFilter.checkOutAuthorized')}
-						</SelectItem>
-						<SelectItem value="WORK_OFFSITE">{t('typeFilter.workOffsite')}</SelectItem>
-					</SelectContent>
-				</Select>
-
-				<Select
-					value={offsiteDayKindFilter}
-					onValueChange={handleOffsiteDayKindFilterChange}
-				>
-					<SelectTrigger className="min-h-11 w-full">
-						<SelectValue placeholder={t('offsite.filter.placeholder')} />
-					</SelectTrigger>
-					<SelectContent>
-						<SelectItem value={ALL_OFFSITE_DAY_KIND_VALUE}>
-							{t('offsite.filter.all')}
-						</SelectItem>
-						<SelectItem value="LABORABLE">{t('offsite.dayKind.laborable')}</SelectItem>
-						<SelectItem value="NO_LABORABLE">
-							{t('offsite.dayKind.noLaborable')}
-						</SelectItem>
-					</SelectContent>
-				</Select>
-
-				<Select value={locationFilterValue} onValueChange={handleLocationFilterChange}>
-					<SelectTrigger className="min-h-11 w-full">
-						<SelectValue placeholder={t('locationFilter.placeholder')} />
-					</SelectTrigger>
-					<SelectContent>
-						{locationOptions.map((option) => (
-							<SelectItem key={option.value} value={option.value}>
-								{option.label}
+				<div className="space-y-2">
+					<Label htmlFor="attendance-type-filter">{t('typeFilter.label')}</Label>
+					<Select value={typeFilter} onValueChange={handleTypeFilterChange}>
+						<SelectTrigger id="attendance-type-filter" className="min-h-11 w-full">
+							<SelectValue placeholder={t('typeFilter.placeholder')} />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="both">{t('typeFilter.both')}</SelectItem>
+							<SelectItem value="CHECK_IN">{t('typeFilter.checkIn')}</SelectItem>
+							<SelectItem value="CHECK_OUT">{t('typeFilter.checkOut')}</SelectItem>
+							<SelectItem value="CHECK_OUT_AUTHORIZED">
+								{t('typeFilter.checkOutAuthorized')}
 							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
+							<SelectItem value="WORK_OFFSITE">
+								{t('typeFilter.workOffsite')}
+							</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
+				<div className="space-y-2">
+					<Label htmlFor="attendance-classification-filter">
+						{t('offsite.filter.label')}
+					</Label>
+					<Select
+						value={offsiteDayKindFilter}
+						onValueChange={handleOffsiteDayKindFilterChange}
+					>
+						<SelectTrigger
+							id="attendance-classification-filter"
+							className="min-h-11 w-full"
+						>
+							<SelectValue placeholder={t('offsite.filter.placeholder')} />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value={ALL_OFFSITE_DAY_KIND_VALUE}>
+								{t('offsite.filter.all')}
+							</SelectItem>
+							<SelectItem value="LABORABLE">
+								{t('offsite.dayKind.laborable')}
+							</SelectItem>
+							<SelectItem value="NO_LABORABLE">
+								{t('offsite.dayKind.noLaborable')}
+							</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+
+				<div className="space-y-2">
+					<Label htmlFor="attendance-location-filter">{t('locationFilter.label')}</Label>
+					<Select value={locationFilterValue} onValueChange={handleLocationFilterChange}>
+						<SelectTrigger id="attendance-location-filter" className="min-h-11 w-full">
+							<SelectValue placeholder={t('locationFilter.placeholder')} />
+						</SelectTrigger>
+						<SelectContent>
+							{locationOptions.map((option) => (
+								<SelectItem key={option.value} value={option.value}>
+									{option.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
 			</div>
 
 			<div data-tour="attendance-list">

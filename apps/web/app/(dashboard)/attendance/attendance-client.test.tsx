@@ -25,7 +25,8 @@ vi.mock('sonner', () => ({
 }));
 
 vi.mock('./attendance-pdf-loader', () => ({
-	loadAttendanceReportPdfBuilder: (...args: unknown[]) => mockLoadAttendanceReportPdfBuilder(...args),
+	loadAttendanceReportPdfBuilder: (...args: unknown[]) =>
+		mockLoadAttendanceReportPdfBuilder(...args),
 }));
 
 const mockFetchAttendanceRecords = vi.fn();
@@ -246,6 +247,18 @@ describe('AttendancePageClient', () => {
 		expect(screen.queryByText('22/02/2026')).not.toBeInTheDocument();
 	});
 
+	it('renders aligned filter labels for search, preset, and custom date range controls', () => {
+		renderAttendanceClient();
+
+		expect(screen.getByLabelText('Buscar empleado')).toBeInTheDocument();
+		expect(screen.getByLabelText('Periodo')).toBeInTheDocument();
+		expect(screen.getByLabelText('Fecha de inicio')).toBeInTheDocument();
+		expect(screen.getByLabelText('Fecha de fin')).toBeInTheDocument();
+		expect(screen.getByLabelText('Tipo de registro')).toBeInTheDocument();
+		expect(screen.getByLabelText('Clasificación RH')).toBeInTheDocument();
+		expect(screen.getByLabelText('Ubicación')).toBeInTheDocument();
+	});
+
 	it('uses the organization timezone when fetching spillover export records without a deep-link timezone', async () => {
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [],
@@ -291,7 +304,9 @@ describe('AttendancePageClient', () => {
 		const expectedStartRange = getUtcDayRangeFromDateKey('2026-02-22', 'America/Tijuana');
 		const expectedEndRange = getUtcDayRangeFromDateKey('2026-02-24', 'America/Tijuana');
 
-		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
+		expect(exportCall[0].fromDate.toISOString()).toBe(
+			expectedStartRange.startUtc.toISOString(),
+		);
 		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
 	});
 
@@ -361,8 +376,8 @@ describe('AttendancePageClient', () => {
 			.spyOn(HTMLAnchorElement.prototype, 'click')
 			.mockImplementation(() => {
 				queueMicrotask(() => {
-					revokeObservedAtMicrotask = (URL.revokeObjectURL as ReturnType<typeof vi.fn>).mock
-						.calls.length > 0;
+					revokeObservedAtMicrotask =
+						(URL.revokeObjectURL as ReturnType<typeof vi.fn>).mock.calls.length > 0;
 				});
 			});
 		const createObjectURLMock = URL.createObjectURL as ReturnType<typeof vi.fn>;
@@ -379,7 +394,8 @@ describe('AttendancePageClient', () => {
 			async (params?: { fromDate?: Date; toDate?: Date; limit?: number }) => {
 				if (params?.limit === 100) {
 					const isExpandedRange =
-						params.fromDate?.toISOString() === expectedStartRange.startUtc.toISOString() &&
+						params.fromDate?.toISOString() ===
+							expectedStartRange.startUtc.toISOString() &&
 						params.toDate?.toISOString() === expectedEndRange.endUtc.toISOString();
 
 					return {
@@ -532,7 +548,9 @@ describe('AttendancePageClient', () => {
 			},
 		];
 
-		expect(exportCall[0].fromDate.toISOString()).toBe(expectedStartRange.startUtc.toISOString());
+		expect(exportCall[0].fromDate.toISOString()).toBe(
+			expectedStartRange.startUtc.toISOString(),
+		);
 		expect(exportCall[0].toDate.toISOString()).toBe(expectedEndRange.endUtc.toISOString());
 		expect(capturedBlob).not.toBeNull();
 		if (!capturedBlob) {
@@ -785,7 +803,8 @@ describe('AttendancePageClient', () => {
 			async (params?: { fromDate?: Date; toDate?: Date; limit?: number }) => {
 				if (params?.limit === 100) {
 					const isExpandedRange =
-						params.fromDate?.toISOString() === expectedStartRange.startUtc.toISOString() &&
+						params.fromDate?.toISOString() ===
+							expectedStartRange.startUtc.toISOString() &&
 						params.toDate?.toISOString() === expectedEndRange.endUtc.toISOString();
 
 					return {

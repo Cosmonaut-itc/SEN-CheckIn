@@ -13,6 +13,8 @@ import { signOut, useSession } from '@/lib/auth-client';
 const push = vi.fn();
 const refresh = vi.fn();
 let mockPathname = '/dashboard';
+const documentationUrl =
+	'https://www.notion.so/Documentaci-n-34830502557e81bdad7fcd4fe21ddb64?source=copy_link';
 
 interface SidebarMenuButtonStubProps extends React.HTMLAttributes<HTMLDivElement> {
 	/** Whether the component should render as child */
@@ -197,5 +199,32 @@ describe('AppSidebar', () => {
 		);
 
 		expect(screen.queryByText('disciplinaryMeasures')).toBeNull();
+	});
+
+	it('shows the documentation link above the user info in the footer', () => {
+		renderWithIntl(
+			<AppSidebar
+				isSuperUser={false}
+				organizationRole="member"
+				enableDisciplinaryMeasures={false}
+			/>,
+		);
+
+		const documentationLink = screen
+			.getAllByRole('link')
+			.find((link) => link.getAttribute('href') === documentationUrl);
+		const userName = screen.getByText('Usuario');
+
+		expect(documentationLink).toBeDefined();
+		if (!documentationLink) {
+			throw new Error('Documentation link was not rendered');
+		}
+		expect(documentationLink).toHaveAttribute('href', documentationUrl);
+		expect(documentationLink).toHaveAttribute('target', '_blank');
+		expect(documentationLink).toHaveAttribute('rel', 'noreferrer');
+		expect(
+			documentationLink.compareDocumentPosition(userName) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 	});
 });

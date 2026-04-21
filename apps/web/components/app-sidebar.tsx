@@ -135,6 +135,9 @@ const sharedNavItems: NavItem[] = [
 	},
 ];
 
+const documentationUrl =
+	'https://www.notion.so/Documentaci-n-34830502557e81bdad7fcd4fe21ddb64?source=copy_link';
+
 /**
  * Admin navigation items.
  */
@@ -330,6 +333,13 @@ export function AppSidebar({
 			</SidebarContent>
 
 			<SidebarFooter className="border-t border-sidebar-border">
+				<div className="px-2 py-2">
+					<Button asChild variant="ghost" className="w-full justify-start gap-2 px-3">
+						<a href={documentationUrl} target="_blank" rel="noreferrer">
+							<span>{tSidebar('documentation')}</span>
+						</a>
+					</Button>
+				</div>
 				<div className="flex items-center gap-3 px-2 py-2">
 					{isPending ? (
 						<>

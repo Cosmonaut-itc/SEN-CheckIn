@@ -237,6 +237,10 @@ export interface AttendancePresentRecord {
 	checkedInAt: Date;
 }
 
+type AttendancePresentRecordApiPayload = Omit<AttendancePresentRecord, 'checkedInAt'> & {
+	checkedInAt: string | Date;
+};
+
 /**
  * Timeline event record used by the dashboard editorial layout.
  */
@@ -2307,7 +2311,12 @@ export async function fetchAttendancePresent(
 	}
 
 	const payload = getApiResponseData(response);
-	return (payload?.data ?? []) as AttendancePresentRecord[];
+	const records = (payload?.data ?? []) as AttendancePresentRecordApiPayload[];
+
+	return records.map((record) => ({
+		...record,
+		checkedInAt: new Date(record.checkedInAt),
+	}));
 }
 
 /**

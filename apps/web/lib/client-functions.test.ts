@@ -4,6 +4,7 @@ const {
 	mockEmployeesListGet,
 	mockEmployeeDetailGet,
 	mockEmployeesActiveCountsByLocationGet,
+	mockAttendancePresentGet,
 	mockAttendanceTimelineGet,
 	mockAttendanceHourlyGet,
 	mockDevicesStatusSummaryGet,
@@ -12,6 +13,7 @@ const {
 	mockEmployeesListGet: vi.fn(),
 	mockEmployeeDetailGet: vi.fn(),
 	mockEmployeesActiveCountsByLocationGet: vi.fn(),
+	mockAttendancePresentGet: vi.fn(),
 	mockAttendanceTimelineGet: vi.fn(),
 	mockAttendanceHourlyGet: vi.fn(),
 	mockDevicesStatusSummaryGet: vi.fn(),
@@ -54,6 +56,7 @@ vi.mock('@/lib/api', () => {
 		api: {
 			employees: employeesResource,
 			attendance: {
+				present: { get: mockAttendancePresentGet },
 				timeline: { get: mockAttendanceTimelineGet },
 				hourly: { get: mockAttendanceHourlyGet },
 			},
@@ -75,6 +78,7 @@ import type {
 	WeatherRecord,
 } from '@/lib/client-functions';
 import {
+	fetchAttendancePresent,
 	fetchAttendanceHourly,
 	fetchAttendanceTimeline,
 	fetchDashboardLocationCapacity,
@@ -236,6 +240,7 @@ describe('employee client functions', () => {
 		mockEmployeesListGet.mockReset();
 		mockEmployeeDetailGet.mockReset();
 		mockEmployeesActiveCountsByLocationGet.mockReset();
+		mockAttendancePresentGet.mockReset();
 		mockAttendanceTimelineGet.mockReset();
 		mockAttendanceHourlyGet.mockReset();
 		mockDevicesStatusSummaryGet.mockReset();
@@ -293,6 +298,43 @@ describe('dashboard v2 client functions', () => {
 			lateTotal: 0,
 		});
 		expect(mockAttendanceTimelineGet).not.toHaveBeenCalled();
+	});
+
+	it('normalizes serialized attendance present timestamps into Date instances', async () => {
+		mockAttendancePresentGet.mockResolvedValue({
+			data: {
+				data: [
+					{
+						employeeId: 'employee-1',
+						employeeName: 'Ana Pérez',
+						employeeCode: 'EMP-0001',
+						deviceId: 'device-1',
+						locationId: 'location-1',
+						locationName: 'Sucursal Centro',
+						checkedInAt: '2026-04-21T14:05:00.000Z',
+					},
+				],
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendancePresent({
+			organizationId: 'org-1',
+			fromDate: new Date('2026-04-21T00:00:00.000Z'),
+			toDate: new Date('2026-04-21T23:59:59.999Z'),
+		});
+
+		expect(response).toHaveLength(1);
+		expect(response[0]?.checkedInAt).toBeInstanceOf(Date);
+		expect(response[0]?.checkedInAt.toISOString()).toBe('2026-04-21T14:05:00.000Z');
+		expect(mockAttendancePresentGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+				fromDate: new Date('2026-04-21T00:00:00.000Z'),
+				toDate: new Date('2026-04-21T23:59:59.999Z'),
+			},
+		});
 	});
 
 	it('fetches attendance timeline from the API', async () => {

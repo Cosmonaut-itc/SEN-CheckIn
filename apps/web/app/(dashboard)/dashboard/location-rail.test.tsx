@@ -118,6 +118,53 @@ describe('LocationRail', () => {
 		expect(handleLocationHover).toHaveBeenNthCalledWith(2, null);
 	});
 
+	it('keeps hover focus while keyboard navigation moves between location cards', () => {
+		const handleLocationHover = vi.fn();
+
+		renderLocationRail({
+			activeLocationId: null,
+			onLocationHover: handleLocationHover,
+		});
+
+		const firstLocationCard = screen.getByTestId('location-rail-item-loc-1');
+		const secondLocationCard = screen.getByTestId('location-rail-item-loc-2');
+
+		fireEvent.focus(firstLocationCard);
+		fireEvent.blur(firstLocationCard, { relatedTarget: secondLocationCard });
+		fireEvent.focus(secondLocationCard);
+
+		expect(handleLocationHover.mock.calls).toEqual([['loc-1'], ['loc-2']]);
+	});
+
+	it('keeps mouse hover focus while moving between location cards', () => {
+		const handleLocationHover = vi.fn();
+
+		renderLocationRail({
+			activeLocationId: null,
+			onLocationHover: handleLocationHover,
+		});
+
+		const firstLocationCard = screen.getByTestId('location-rail-item-loc-1');
+		const secondLocationCard = screen.getByTestId('location-rail-item-loc-2');
+		const nestedTarget = secondLocationCard.querySelector('p');
+
+		expect(nestedTarget).not.toBeNull();
+
+		fireEvent.mouseEnter(firstLocationCard);
+		fireEvent.mouseLeave(firstLocationCard, { relatedTarget: nestedTarget });
+		fireEvent.mouseEnter(secondLocationCard);
+		fireEvent.mouseLeave(secondLocationCard);
+
+		expect(handleLocationHover.mock.calls[0]).toEqual(['loc-1']);
+		expect(handleLocationHover.mock.calls[1]).toEqual(['loc-2']);
+		expect(
+			handleLocationHover.mock.calls.some(
+				(call, index) => call[0] === null && index < handleLocationHover.mock.calls.length - 1,
+			),
+		).toBe(false);
+		expect(handleLocationHover.mock.calls.at(-1)).toEqual([null]);
+	});
+
 	it('renders loading skeleton and empty state', () => {
 		const { rerender } = renderLocationRail({
 			locations: [],
@@ -138,5 +185,26 @@ describe('LocationRail', () => {
 
 		expect(screen.queryByTestId('location-rail-loading')).not.toBeInTheDocument();
 		expect(screen.getByTestId('location-rail-empty')).toBeInTheDocument();
+	});
+
+	it('stretches inside constrained layouts and keeps the list scrollable', () => {
+		const { container } = renderLocationRail({
+			className: 'h-full min-h-0',
+			locations: Array.from({ length: 8 }).map((_, index) => ({
+				id: `loc-${index + 1}`,
+				name: `Sucursal ${index + 1}`,
+				code: `COD-${index + 1}`,
+				latitude: null,
+				longitude: null,
+				presentCount: index,
+				employeeCount: index + 10,
+			})),
+		});
+
+		const card = container.querySelector('[data-slot="card"]');
+		expect(card).not.toBeNull();
+		expect(card).toHaveClass('h-full');
+		expect(card).toHaveClass('min-h-0');
+		expect(screen.getByText('Sucursal 8')).toBeInTheDocument();
 	});
 });

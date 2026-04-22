@@ -17,6 +17,7 @@ type WeatherIconComponent = React.ComponentType<{ className?: string }>;
 interface WeatherCardProps {
 	weather: WeatherRecord[];
 	isLoading: boolean;
+	className?: string;
 }
 
 /**
@@ -45,6 +46,8 @@ const SUN_PATTERNS: readonly string[] = ['sol', 'sun'];
 const CLEAR_PATTERNS: readonly string[] = ['cielo claro', 'despej', 'solead', 'sunny', 'clear'];
 
 const CLOUD_PATTERNS: readonly string[] = ['nubl', 'cloud', 'nube'];
+const WEATHER_CARD_CLASS_NAME = 'flex min-h-0 flex-col gap-4 overflow-hidden py-0';
+const WEATHER_CARD_CONTENT_CLASS_NAME = 'min-h-0 flex-1 overflow-y-auto px-5 pb-5';
 
 /**
  * Normalizes a weather condition string for matching.
@@ -146,18 +149,28 @@ function formatWeatherRange(low: number, high: number): string {
  * @param props - Weather card props
  * @returns Rendered weather card
  */
-export function WeatherCard({ weather, isLoading }: WeatherCardProps): React.ReactElement {
+export function WeatherCard({
+	weather,
+	isLoading,
+	className,
+}: WeatherCardProps): React.ReactElement {
 	const t = useTranslations('Dashboard');
 
 	return (
-		<Card className="gap-4 border-[color:var(--border-subtle)] py-0">
+		<Card
+			className={cn(
+				WEATHER_CARD_CLASS_NAME,
+				'border-[color:var(--border-subtle)]',
+				className,
+			)}
+		>
 			<CardHeader className="gap-1 px-5 pt-5">
 				<p className="text-[0.72rem] font-semibold tracking-[0.24em] text-muted-foreground uppercase">
 					{t('weather.eyebrow')}
 				</p>
 				<CardTitle>{t('weather.title')}</CardTitle>
 			</CardHeader>
-			<CardContent className="px-5 pb-5">
+			<CardContent className={WEATHER_CARD_CONTENT_CLASS_NAME}>
 				{isLoading ? (
 					<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
 						{Array.from({ length: 3 }).map((_, index) => (
@@ -174,45 +187,50 @@ export function WeatherCard({ weather, isLoading }: WeatherCardProps): React.Rea
 						{t('weather.empty')}
 					</div>
 				) : (
-					<ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
-						{weather.map((record) => {
-							const iconConfig = getWeatherIconConfig(record.condition);
-							const Icon = iconConfig.icon;
+					<div
+						data-testid="weather-card-scroll-region"
+						className="min-h-0 overflow-y-auto"
+					>
+						<ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="list">
+							{weather.map((record) => {
+								const iconConfig = getWeatherIconConfig(record.condition);
+								const Icon = iconConfig.icon;
 
-							return (
-								<li
-									key={record.locationId}
-									className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] p-4 shadow-[var(--shadow-sm)]"
-								>
-									<div className="flex items-start gap-3">
-										<span
-											data-testid={iconConfig.testId}
-											className={cn(
-												'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--bg-tertiary)]',
-												iconConfig.iconClassName,
-											)}
-										>
-											<Icon
-												data-testid={`${iconConfig.testId}-svg`}
-												className="h-5 w-5"
-											/>
-										</span>
-										<div className="min-w-0 flex-1">
-											<p className="truncate text-sm font-medium text-foreground">
-												{record.locationName}
-											</p>
-											<p className="mt-1 font-mono text-xs text-muted-foreground">
-											{formatWeatherRange(record.low, record.high)}
+								return (
+									<li
+										key={record.locationId}
+										className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] p-4 shadow-[var(--shadow-sm)]"
+									>
+										<div className="flex items-start gap-3">
+											<span
+												data-testid={iconConfig.testId}
+												className={cn(
+													'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[color:var(--bg-tertiary)]',
+													iconConfig.iconClassName,
+												)}
+											>
+												<Icon
+													data-testid={`${iconConfig.testId}-svg`}
+													className="h-5 w-5"
+												/>
+											</span>
+											<div className="min-w-0 flex-1">
+												<p className="truncate text-sm font-medium text-foreground">
+													{record.locationName}
+												</p>
+												<p className="mt-1 font-mono text-xs text-muted-foreground">
+													{formatWeatherRange(record.low, record.high)}
+												</p>
+											</div>
+											<p className="font-mono text-[16px] font-medium leading-none tabular-nums text-foreground">
+												{record.temperature}°C
 											</p>
 										</div>
-										<p className="font-mono text-[16px] font-medium leading-none tabular-nums text-foreground">
-											{record.temperature}°C
-										</p>
-									</div>
-								</li>
-							);
-						})}
-					</ul>
+									</li>
+								);
+							})}
+						</ul>
+					</div>
 				)}
 			</CardContent>
 		</Card>

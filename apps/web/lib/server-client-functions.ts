@@ -935,6 +935,12 @@ export async function fetchDeviceStatusSummaryServer(
 	const payload = getApiResponseData(response);
 	return ((payload?.data ?? []) as DeviceStatusRecord[]).map((record) => ({
 		...record,
+		batteryLevel:
+			record.batteryLevel === null || record.batteryLevel === undefined
+				? null
+				: Number.isFinite(Number(record.batteryLevel))
+					? Math.min(100, Math.max(0, Number(record.batteryLevel)))
+					: null,
 		lastHeartbeat: record.lastHeartbeat ? String(record.lastHeartbeat) : null,
 	}));
 }

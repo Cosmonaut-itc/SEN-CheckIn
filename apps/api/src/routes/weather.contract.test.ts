@@ -10,18 +10,22 @@ import {
 } from '../test-utils/contract-helpers.js';
 
 type MockWeatherApiResponse = {
-	weather?: Array<{
-		description?: string;
-	}>;
-	main?: {
+	current?: {
 		temp?: number;
-		temp_max?: number;
-		temp_min?: number;
 		humidity?: number;
+		weather?: Array<{
+			description?: string;
+		}>;
 	};
+	daily?: Array<{
+		temp?: {
+			max?: number;
+			min?: number;
+		};
+	}>;
 };
 
-const OPEN_WEATHER_PATH = '/data/2.5/weather';
+const OPEN_WEATHER_PATH = '/data/3.0/onecall';
 
 /**
  * Builds a mocked OpenWeatherMap response payload.
@@ -33,13 +37,12 @@ function createMockWeatherResponse(
 	overrides: MockWeatherApiResponse = {},
 ): MockWeatherApiResponse {
 	return {
-		weather: [{ description: 'cielo claro' }],
-		main: {
+		current: {
 			temp: 27.4,
-			temp_max: 31.2,
-			temp_min: 22.1,
 			humidity: 56,
+			weather: [{ description: 'cielo claro' }],
 		},
+		daily: [{ temp: { max: 31.2, min: 22.1 } }],
 		...overrides,
 	};
 }
@@ -88,6 +91,7 @@ describe('weather route (contract)', () => {
 			expect(parsedUrl.searchParams.get('appid')).toBe('test-openweathermap-key');
 			expect(parsedUrl.searchParams.get('units')).toBe('metric');
 			expect(parsedUrl.searchParams.get('lang')).toBe('es');
+			expect(parsedUrl.searchParams.get('exclude')).toBe('minutely,hourly,alerts');
 			expect(parsedUrl.searchParams.get('lat')).not.toBeNull();
 			expect(parsedUrl.searchParams.get('lon')).not.toBeNull();
 

@@ -119,4 +119,29 @@ describe('WeatherCard', () => {
 
 		expect(screen.getByText('Datos de clima no disponibles.')).toBeInTheDocument();
 	});
+
+	it('caps the desktop height and keeps the weather grid scrollable', () => {
+		const { container } = renderWeatherCard({
+			isLoading: false,
+			className: 'h-full min-h-0',
+			weather: Array.from({ length: 8 }).map((_, index) =>
+				createWeatherFixture({
+					locationId: `location-${index + 1}`,
+					locationName: `Sucursal ${index + 1}`,
+				}),
+			),
+		});
+
+		expect(screen.getByText('Sucursal 1')).toBeInTheDocument();
+		expect(screen.getByText('Sucursal 8')).toBeInTheDocument();
+		const card = container.querySelector('[data-slot="card"]');
+		const content = container.querySelector('[data-slot="card-content"]');
+		expect(card).not.toBeNull();
+		expect(content).not.toBeNull();
+		expect(card).toHaveClass('h-full');
+		expect(card).toHaveClass('min-h-0');
+		expect(card).toHaveClass('overflow-hidden');
+		expect(content).toHaveClass('overflow-y-auto');
+		expect(screen.getByTestId('weather-card-scroll-region')).toHaveClass('overflow-y-auto');
+	});
 });

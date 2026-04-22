@@ -14,6 +14,7 @@ import type {
 	Location,
 	UserCreationResult,
 } from '@sen-checkin/types';
+import * as Battery from 'expo-battery';
 
 import { API_BASE_URL, api, authedFetchForEden } from './api';
 import { getAccessToken } from './auth-client';
@@ -775,6 +776,25 @@ export function isHeartbeatError(error: unknown): error is HeartbeatError {
 }
 
 /**
+ * Reads the current device battery level as an integer percentage when available.
+ *
+ * @returns Battery percentage in the 0-100 range, or undefined when unavailable
+ */
+async function getHeartbeatBatteryLevel(): Promise<number | undefined> {
+	try {
+		const level = await Battery.getBatteryLevelAsync();
+
+		if (!Number.isFinite(level) || level < 0) {
+			return undefined;
+		}
+
+		return Math.round(Math.min(1, Math.max(0, level)) * 100);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * Send a heartbeat to mark the device as online.
  * Updates the device's lastHeartbeat timestamp and sets status to ONLINE.
  *
@@ -796,8 +816,18 @@ export async function sendDeviceHeartbeat(deviceId: string): Promise<DeviceDetai
 		return null;
 	}
 
+	const batteryLevel = await getHeartbeatBatteryLevel();
 	const response = await authedFetchForEden(`${API_BASE_URL}/devices/${deviceId}/heartbeat`, {
 		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+		},
+		body:
+			batteryLevel === undefined
+				? undefined
+				: JSON.stringify({
+						batteryLevel,
+					}),
 	});
 
 	if (!response.ok) {

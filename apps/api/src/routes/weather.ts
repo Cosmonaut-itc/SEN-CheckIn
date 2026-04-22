@@ -8,7 +8,7 @@ import { combinedAuthPlugin } from '../plugins/auth.js';
 import { buildErrorResponse } from '../utils/error-response.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 
-const OPEN_WEATHER_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
+const OPEN_WEATHER_BASE_URL = 'https://api.openweathermap.org/data/3.0/onecall';
 const WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
 const PARTIAL_WEATHER_CACHE_TTL_MS = 60 * 1000;
 const WEATHER_FETCH_TIMEOUT_MS = 5_000;
@@ -34,24 +34,43 @@ type WeatherCacheEntry = {
 };
 
 type OpenWeatherResponse = {
-	weather?: Array<{
-		description?: string;
-	}>;
-	main?: {
+	current?: {
 		temp?: number;
-		temp_max?: number;
-		temp_min?: number;
 		humidity?: number;
+		weather?: Array<{
+			description?: string;
+		}>;
 	};
+	daily?: Array<{
+		temp?: {
+			max?: number;
+			min?: number;
+		};
+	}>;
 };
 
 type ValidOpenWeatherResponse = OpenWeatherResponse & {
-	main: {
+	current: {
 		temp: number;
-		temp_max: number;
-		temp_min: number;
 		humidity: number;
+		weather?: Array<{
+			description?: string;
+		}>;
 	};
+	daily: [
+		{
+			temp: {
+				max: number;
+				min: number;
+			};
+		},
+		...Array<{
+			temp?: {
+				max?: number;
+				min?: number;
+			};
+		}>,
+	];
 };
 
 const weatherQuerySchema = z.object({
@@ -176,10 +195,12 @@ function setPartialWeatherCache(
  */
 function hasValidWeatherPayload(payload: OpenWeatherResponse): payload is ValidOpenWeatherResponse {
 	return (
-		typeof payload.main?.temp === 'number' &&
-		typeof payload.main?.temp_max === 'number' &&
-		typeof payload.main?.temp_min === 'number' &&
-		typeof payload.main?.humidity === 'number'
+		typeof payload.current?.temp === 'number' &&
+		typeof payload.current?.humidity === 'number' &&
+		Array.isArray(payload.daily) &&
+		payload.daily.length > 0 &&
+		typeof payload.daily[0]?.temp?.max === 'number' &&
+		typeof payload.daily[0]?.temp?.min === 'number'
 	);
 }
 
@@ -200,6 +221,7 @@ async function fetchLocationWeather(args: {
 	const url = new URL(OPEN_WEATHER_BASE_URL);
 	url.searchParams.set('lat', String(args.latitude));
 	url.searchParams.set('lon', String(args.longitude));
+	url.searchParams.set('exclude', 'minutely,hourly,alerts');
 	url.searchParams.set('appid', args.apiKey);
 	url.searchParams.set('units', 'metric');
 	url.searchParams.set('lang', 'es');
@@ -215,16 +237,17 @@ async function fetchLocationWeather(args: {
 	if (!hasValidWeatherPayload(payload)) {
 		throw new Error('Weather provider returned an invalid payload');
 	}
-	const main = payload.main;
+	const current = payload.current;
+	const today = payload.daily[0];
 
 	return {
 		locationId: args.locationId,
 		locationName: args.locationName,
-		temperature: main.temp,
-		condition: payload.weather?.[0]?.description ?? '',
-		high: main.temp_max,
-		low: main.temp_min,
-		humidity: main.humidity,
+		temperature: current.temp,
+		condition: current.weather?.[0]?.description ?? '',
+		high: today.temp.max,
+		low: today.temp.min,
+		humidity: current.humidity,
 	};
 }
 

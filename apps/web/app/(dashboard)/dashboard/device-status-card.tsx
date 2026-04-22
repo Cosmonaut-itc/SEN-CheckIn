@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { DeviceStatusRecord } from '@/lib/client-functions';
+import { cn } from '@/lib/utils';
 
 /**
  * Props for the DeviceStatusCard component.
@@ -18,6 +19,8 @@ export interface DeviceStatusCardProps {
 	devices: DeviceStatusRecord[];
 	/** Indicates whether the device summary is loading. */
 	isLoading: boolean;
+	/** Optional card class overrides for parent layouts. */
+	className?: string;
 }
 
 /**
@@ -55,6 +58,8 @@ const BATTERY_TONE_CLASSES: Record<BatteryTone, BatteryToneConfig> = {
 } as const;
 
 const SKELETON_ROW_INDICES = [0, 1, 2] as const;
+const DEVICE_STATUS_CARD_CLASS_NAME = 'flex min-h-0 flex-col gap-0 overflow-hidden py-0';
+const DEVICE_STATUS_CARD_CONTENT_CLASS_NAME = 'min-h-0 flex-1 overflow-y-auto px-6 pb-6 pt-0';
 
 /**
  * Returns the battery tone for a battery percentage.
@@ -249,6 +254,7 @@ function renderSkeletonRow(index: number): React.ReactElement {
 export function DeviceStatusCard({
 	devices,
 	isLoading,
+	className,
 }: DeviceStatusCardProps): React.ReactElement {
 	const t = useTranslations('Dashboard');
 	const tCommon = useTranslations('Common');
@@ -262,14 +268,17 @@ export function DeviceStatusCard({
 	);
 
 	return (
-		<Card data-testid="device-status-card" className="gap-0 overflow-hidden">
-			<CardHeader className="gap-1 px-6 pb-4">
+		<Card
+			data-testid="device-status-card"
+			className={cn(DEVICE_STATUS_CARD_CLASS_NAME, className)}
+		>
+			<CardHeader className="gap-1 px-6 pb-4 pt-6">
 				<p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
 					{t('devices.eyebrow')}
 				</p>
 				<CardTitle>{t('devices.title')}</CardTitle>
 			</CardHeader>
-			<CardContent className="px-6 pb-6 pt-0">
+			<CardContent className={DEVICE_STATUS_CARD_CONTENT_CLASS_NAME}>
 				{isLoading ? (
 					<ul
 						aria-label={t('devices.title')}
@@ -294,9 +303,14 @@ export function DeviceStatusCard({
 						</div>
 					</div>
 				) : (
-					<ul aria-label={t('devices.title')} className="space-y-3">
-						{devices.map(renderDeviceRow)}
-					</ul>
+					<div
+						data-testid="device-status-card-scroll-region"
+						className="min-h-0 overflow-y-auto"
+					>
+						<ul aria-label={t('devices.title')} className="space-y-3 pr-1">
+							{devices.map(renderDeviceRow)}
+						</ul>
+					</div>
 				)}
 			</CardContent>
 		</Card>

@@ -405,7 +405,11 @@ describe('dashboard v2 client functions', () => {
 	it('fetches device status summary from the API', async () => {
 		mockDevicesStatusSummaryGet.mockResolvedValue({
 			data: {
-				data: [createDeviceStatusFixture()],
+				data: [
+					createDeviceStatusFixture({
+						batteryLevel: '82.5' as unknown as number,
+					}),
+				],
 				total: 1,
 			},
 			error: null,
@@ -416,7 +420,11 @@ describe('dashboard v2 client functions', () => {
 			organizationId: 'org-1',
 		});
 
-		expect(response).toEqual([createDeviceStatusFixture()]);
+		expect(response).toEqual([
+			createDeviceStatusFixture({
+				batteryLevel: 82.5,
+			}),
+		]);
 		expect(mockDevicesStatusSummaryGet).toHaveBeenCalledWith({
 			$query: {
 				organizationId: 'org-1',

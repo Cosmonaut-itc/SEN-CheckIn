@@ -35,6 +35,7 @@ export interface LocationRailProps {
 	isLoading: boolean;
 	search: string;
 	onSearchChange: (value: string) => void;
+	className?: string;
 }
 
 /**
@@ -82,6 +83,19 @@ function isLocationHovered(hoveredLocationId: string | null, locationId: string)
 }
 
 /**
+ * Determines whether a blur event is moving focus to another location card.
+ *
+ * @param nextFocusedElement - Related target from the blur event.
+ * @returns True when the next focused element is another rail item.
+ */
+function shouldKeepHoveredLocation(nextFocusedElement: EventTarget | null): boolean {
+	return (
+		nextFocusedElement instanceof HTMLElement &&
+		nextFocusedElement.closest('[data-location-rail-item="true"]') !== null
+	);
+}
+
+/**
  * Dashboard location rail with search, scrollable cards and selection state.
  *
  * @param props - Component props.
@@ -96,6 +110,7 @@ export function LocationRail({
 	isLoading,
 	search,
 	onSearchChange,
+	className,
 }: LocationRailProps): React.ReactElement {
 	const t = useTranslations('Dashboard');
 	const tCommon = useTranslations('Common');
@@ -111,7 +126,10 @@ export function LocationRail({
 	return (
 		<Card
 			data-testid="location-rail"
-			className="flex min-h-0 flex-col overflow-hidden border-[color:var(--border-subtle)] bg-[linear-gradient(180deg,var(--bg-primary)_0%,var(--bg-secondary)_100%)] py-0 shadow-[var(--shadow-sm)]"
+			className={cn(
+				'flex min-h-0 flex-col overflow-hidden border-[color:var(--border-subtle)] bg-[linear-gradient(180deg,var(--bg-primary)_0%,var(--bg-secondary)_100%)] py-0 shadow-[var(--shadow-sm)]',
+				className,
+			)}
 		>
 			<CardHeader className="space-y-4 border-b border-[color:var(--border-subtle)] px-5 py-5">
 				<div className="space-y-1">
@@ -189,12 +207,25 @@ export function LocationRail({
 											<button
 												type="button"
 												data-testid={`location-rail-item-${location.id}`}
+												data-location-rail-item="true"
 												aria-pressed={isActive}
 												onClick={() => onLocationClick(location.id)}
 												onMouseEnter={() => onLocationHover(location.id)}
-												onMouseLeave={() => onLocationHover(null)}
+												onMouseLeave={(event) => {
+													if (shouldKeepHoveredLocation(event.relatedTarget)) {
+														return;
+													}
+
+													onLocationHover(null);
+												}}
 												onFocus={() => onLocationHover(location.id)}
-												onBlur={() => onLocationHover(null)}
+												onBlur={(event) => {
+													if (shouldKeepHoveredLocation(event.relatedTarget)) {
+														return;
+													}
+
+													onLocationHover(null);
+												}}
 												className={cn(
 													'group w-full rounded-2xl border border-[color:var(--border-subtle)] bg-background/80 p-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-primary)]/30',
 													!isActive &&

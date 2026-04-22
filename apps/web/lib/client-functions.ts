@@ -287,6 +287,26 @@ export interface DeviceStatusRecord {
 }
 
 /**
+ * Normalizes battery payloads into a nullable integer percentage.
+ *
+ * @param batteryLevel - Raw battery value returned by the API.
+ * @returns A clamped integer battery percentage or null.
+ */
+function normalizeDeviceBatteryLevel(batteryLevel: unknown): number | null {
+	if (batteryLevel === null || batteryLevel === undefined) {
+		return null;
+	}
+
+	const normalizedLevel = Number(batteryLevel);
+
+	if (!Number.isFinite(normalizedLevel)) {
+		return null;
+	}
+
+	return Math.min(100, Math.max(0, normalizedLevel));
+}
+
+/**
  * Weather snapshot for a single location.
  */
 export interface WeatherRecord {
@@ -2492,6 +2512,7 @@ export async function fetchDeviceStatusSummary(params?: {
 	const payload = getApiResponseData(response);
 	return ((payload?.data ?? []) as DeviceStatusRecord[]).map((record) => ({
 		...record,
+		batteryLevel: normalizeDeviceBatteryLevel(record.batteryLevel),
 		lastHeartbeat: record.lastHeartbeat ? String(record.lastHeartbeat) : null,
 	}));
 }

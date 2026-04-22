@@ -45,6 +45,7 @@ function renderDeviceStatusCard(
 		<DeviceStatusCard
 			devices={overrides.devices ?? []}
 			isLoading={overrides.isLoading ?? false}
+			className={overrides.className}
 		/>,
 	);
 }
@@ -173,5 +174,30 @@ describe('DeviceStatusCard', () => {
 
 		expect(screen.getByTestId('device-status-card-empty')).toBeInTheDocument();
 		expect(screen.getByText('No hay dispositivos registrados.')).toBeInTheDocument();
+	});
+
+	it('stretches inside constrained layouts and keeps the device list scrollable', () => {
+		const { container } = renderDeviceStatusCard({
+			className: 'h-full min-h-0',
+			devices: Array.from({ length: 8 }).map((_, index) =>
+				buildDeviceStatusRecord({
+					id: `device-${index + 1}`,
+					code: `DEV-${String(index + 1).padStart(3, '0')}`,
+					name: `Terminal ${index + 1}`,
+					lastHeartbeat: '2026-04-21T15:55:00.000Z',
+				}),
+			),
+		});
+
+		const card = container.querySelector('[data-slot="card"]');
+		const content = container.querySelector('[data-slot="card-content"]');
+		expect(card).not.toBeNull();
+		expect(content).not.toBeNull();
+		expect(card).toHaveClass('h-full');
+		expect(card).toHaveClass('min-h-0');
+		expect(card).toHaveClass('overflow-hidden');
+		expect(content).toHaveClass('overflow-y-auto');
+		expect(screen.getByTestId('device-status-card-scroll-region')).toHaveClass('overflow-y-auto');
+		expect(screen.queryByTestId('device-status-card-loading')).not.toBeInTheDocument();
 	});
 });

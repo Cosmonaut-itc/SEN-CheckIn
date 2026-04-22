@@ -25,6 +25,8 @@ interface ActivityTimelineProps {
 	filter: ActivityTimelineFilter;
 	timeZone: string;
 	onFilterChange: (filter: ActivityTimelineFilter) => void;
+	/** Optional card class overrides for parent layouts. */
+	className?: string;
 }
 
 /**
@@ -451,6 +453,7 @@ function ActivityTimeline({
 	filter,
 	timeZone,
 	onFilterChange,
+	className,
 }: ActivityTimelineProps): React.ReactElement {
 	const t = useTranslations('Dashboard.timeline');
 	const renderableEvents = useMemo(
@@ -495,8 +498,13 @@ function ActivityTimeline({
 	}
 
 	return (
-		<Card className="overflow-hidden border-[color:var(--border-subtle)] bg-card shadow-sm">
-			<CardContent className="space-y-5 p-4 sm:p-6">
+		<Card
+			className={cn(
+				'overflow-hidden border-[color:var(--border-subtle)] bg-card shadow-sm',
+				className,
+			)}
+		>
+			<CardContent className="flex min-h-0 flex-1 flex-col gap-5 p-4 sm:p-6">
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<div className="space-y-1">
 						<p className="text-sm font-semibold uppercase tracking-[0.28em] text-muted-foreground">
@@ -521,7 +529,7 @@ function ActivityTimeline({
 				</div>
 
 				{hasVisibleEvents ? (
-					<ScrollArea className="w-full rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50">
+					<ScrollArea className="w-full min-h-0 flex-1 rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50">
 						<div className="min-w-[780px] p-4">
 							<div className="relative h-10">
 								<div className="absolute left-0 right-0 top-5 h-px bg-border/70" />
@@ -604,7 +612,7 @@ function ActivityTimeline({
 						</div>
 					</ScrollArea>
 				) : (
-					<div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-dashed border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50 px-6 text-center">
+					<div className="flex min-h-[220px] flex-1 items-center justify-center rounded-2xl border border-dashed border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50 px-6 text-center">
 						<div className="max-w-sm space-y-2">
 							<p className="text-base font-semibold text-foreground">{t('empty')}</p>
 						</div>

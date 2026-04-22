@@ -394,7 +394,7 @@ export function DashboardPageClient(): React.ReactElement {
 			</header>
 
 			<div
-				className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-[minmax(0,2.25fr)_minmax(320px,1fr)]'}`}
+				className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-[minmax(0,2.25fr)_minmax(320px,1fr)] grid-rows-[auto_28rem]'}`}
 				data-testid="dashboard-v2-grid"
 			>
 				<Card
@@ -438,7 +438,10 @@ export function DashboardPageClient(): React.ReactElement {
 					</CardContent>
 				</Card>
 
-				<div data-testid="dashboard-v2-location-rail">
+				<div
+					className={isMobile ? 'space-y-4' : 'grid h-full min-h-0 gap-4 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]'}
+					data-testid="dashboard-v2-right-top-stack"
+				>
 					{isMobile ? (
 						<div className="space-y-3">
 							<Button
@@ -467,6 +470,7 @@ export function DashboardPageClient(): React.ReactElement {
 									isLoading={isLocationsFetching || isEmployeeCountsFetching}
 									search={locationSearch}
 									onSearchChange={setLocationSearch}
+									className="min-h-0"
 								/>
 							) : null}
 						</div>
@@ -484,25 +488,39 @@ export function DashboardPageClient(): React.ReactElement {
 							isLoading={isLocationsFetching || isEmployeeCountsFetching}
 							search={locationSearch}
 							onSearchChange={setLocationSearch}
+							className="h-full min-h-0"
 						/>
 					)}
+
+					<WeatherCard
+						weather={weatherPayload?.data ?? []}
+						isLoading={isWeatherFetching}
+						className={isMobile ? undefined : 'h-full min-h-0'}
+					/>
 				</div>
 
-				<div data-testid="dashboard-v2-timeline">
+				<div
+					className={isMobile ? undefined : 'h-full min-h-0 overflow-hidden'}
+					data-testid="dashboard-v2-timeline"
+				>
 					<ActivityTimeline
 						events={timelineEvents}
 						isLoading={isTimelineFetching}
 						filter={timelineFilter}
 						timeZone={dashboardTimeZone}
 						onFilterChange={setTimelineFilter}
+						className={isMobile ? undefined : 'h-full min-h-0'}
 					/>
 				</div>
 
-				<div className="grid gap-4" data-testid="dashboard-v2-aux">
-					<DeviceStatusCard devices={deviceStatus} isLoading={isDeviceStatusFetching} />
-					<WeatherCard
-						weather={weatherPayload?.data ?? []}
-						isLoading={isWeatherFetching}
+				<div
+					className={isMobile ? 'min-h-0' : 'h-full min-h-0 overflow-hidden'}
+					data-testid="dashboard-v2-aux"
+				>
+					<DeviceStatusCard
+						devices={deviceStatus}
+						isLoading={isDeviceStatusFetching}
+						className={isMobile ? undefined : 'h-full min-h-0'}
 					/>
 				</div>
 			</div>

@@ -253,6 +253,12 @@ describe('DashboardPageClient', () => {
 
 		expect(screen.getByTestId('dashboard-v2-hero')).toBeInTheDocument();
 		expect(screen.getByTestId('dashboard-v2-map-card')).toBeInTheDocument();
+		expect(screen.getByTestId('dashboard-v2-right-top-stack')).toHaveClass(
+			'h-full',
+			'grid-rows-[minmax(0,1fr)_minmax(0,1fr)]',
+		);
+		expect(screen.getByTestId('dashboard-v2-aux')).toHaveClass('h-full');
+		expect(screen.getByTestId('dashboard-v2-aux')).toHaveClass('overflow-hidden');
 		expect(screen.getByTestId('location-rail')).toBeInTheDocument();
 		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(1);
 		expect(screen.getByTestId('device-status-card')).toBeInTheDocument();
@@ -414,11 +420,13 @@ describe('DashboardPageClient', () => {
 
 		expect(railToggle).toHaveAttribute('aria-expanded', 'true');
 		expect(screen.getByTestId('location-rail')).toBeInTheDocument();
-	});
+	}, 15_000);
 
 	it('refreshes the hero eyebrow clock while the dashboard stays open', () => {
 		const queryResults = createQueryResults();
 		let queryCallIndex = 0;
+		const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+		const setIntervalSpy = vi.spyOn(window, 'setInterval');
 
 		useQueryMock.mockImplementation(() => {
 			const result = queryResults[queryCallIndex % queryResults.length];
@@ -430,10 +438,18 @@ describe('DashboardPageClient', () => {
 
 		expect(screen.getByText(/06:00/)).toBeInTheDocument();
 
+		const timeoutCallback = setTimeoutSpy.mock.calls[0]?.[0];
+		expect(typeof timeoutCallback).toBe('function');
+
+		vi.setSystemTime(new Date('2026-04-21T12:01:00.000Z'));
+
 		act(() => {
-			vi.advanceTimersByTime(60_000);
+			if (typeof timeoutCallback === 'function') {
+				timeoutCallback();
+			}
 		});
 
+		expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000);
 		expect(screen.getByText(/06:01/)).toBeInTheDocument();
 	});
 

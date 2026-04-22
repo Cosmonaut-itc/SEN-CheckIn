@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { ChevronDown, MapPin, Users } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -243,8 +243,27 @@ export function DashboardPageClient(): React.ReactElement {
 
 	useTour('dashboard');
 
-	const now = useMemo(() => new Date(), []);
+	const [now, setNow] = useState<Date>(() => new Date());
 	const dashboardTimeZone = organizationTimeZone ?? DEFAULT_DASHBOARD_TIME_ZONE;
+
+	useEffect(() => {
+		let intervalId: number | null = null;
+		const updateNow = (): void => {
+			setNow(new Date());
+		};
+		const timeoutDelayMs = 60_000 - (Date.now() % 60_000);
+		const timeoutId = window.setTimeout(() => {
+			updateNow();
+			intervalId = window.setInterval(updateNow, 60_000);
+		}, timeoutDelayMs);
+
+		return () => {
+			window.clearTimeout(timeoutId);
+			if (intervalId !== null) {
+				window.clearInterval(intervalId);
+			}
+		};
+	}, []);
 	const todayDateKey = useMemo(
 		() => toDateKeyInTimeZone(now, dashboardTimeZone),
 		[dashboardTimeZone, now],
@@ -285,17 +304,20 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchLocationsAll({ organizationId }),
 		enabled: Boolean(organizationId),
 	});
+	const timelineQueryKind = timelineFilter === 'all' ? undefined : timelineFilter;
 	const { data: timelinePayload, isFetching: isTimelineFetching } = useQuery({
 		queryKey: queryKeys.dashboard.timeline({
 			organizationId: organizationId ?? undefined,
 			fromDate: todayRange.startUtc,
 			toDate: todayRange.endUtc,
+			kind: timelineQueryKind,
 		}),
 		queryFn: () =>
 			fetchAttendanceTimeline({
 				organizationId: organizationId ?? null,
 				fromDate: todayRange.startUtc,
 				toDate: todayRange.endUtc,
+				kind: timelineQueryKind,
 			}),
 		enabled: Boolean(organizationId),
 	});
@@ -326,7 +348,7 @@ export function DashboardPageClient(): React.ReactElement {
 		enabled: Boolean(organizationId),
 	});
 	const { data: employeeCountByLocation = new Map<string, number>(), isFetching: isEmployeeCountsFetching } = useQuery({
-		queryKey: ['dashboard', 'location-capacity', organizationId ?? null] as const,
+		queryKey: queryKeys.dashboard.locationCapacity(organizationId),
 		queryFn: () => fetchActiveEmployeeCountsByLocation(organizationId ?? null),
 		enabled: Boolean(organizationId),
 	});

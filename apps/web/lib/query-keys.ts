@@ -117,6 +117,13 @@ export interface DashboardWeatherQueryParams extends Record<string, unknown> {
 }
 
 /**
+ * Query parameters for dashboard location capacity summaries.
+ */
+export interface DashboardLocationCapacityQueryParams extends Record<string, unknown> {
+	organizationId?: string | null;
+}
+
+/**
  * Query parameters for job positions list.
  */
 export interface JobPositionQueryParams extends ListQueryParams {
@@ -607,6 +614,14 @@ export const queryKeys = {
 		 */
 		weather: (params?: DashboardWeatherQueryParams) =>
 			queryKeyConstructor(['dashboard', 'weather'] as const, params),
+		/**
+		 * Generates a query key for dashboard location capacity summaries.
+		 * @param organizationId - Optional organization filter
+		 */
+		locationCapacity: (organizationId?: string | null) =>
+			queryKeyConstructor(['dashboard', 'locationCapacity'] as const, {
+				organizationId: organizationId ?? undefined,
+			}),
 	},
 
 	/**

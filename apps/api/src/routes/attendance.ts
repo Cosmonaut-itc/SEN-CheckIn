@@ -991,11 +991,12 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const startBound = fromDate ?? defaultBounds.startUtc;
 			const endBound = toDate ?? new Date(defaultBounds.endExclusiveUtc.getTime() - 1);
 
-			const timelineConditions: SQL<unknown>[] = [
+			const baseTimelineConditions: SQL<unknown>[] = [
 				eq(employee.organizationId, organizationId),
 				gte(attendanceRecord.timestamp, startBound),
 				lte(attendanceRecord.timestamp, endBound),
 			];
+			const timelineConditions: SQL<unknown>[] = [...baseTimelineConditions];
 			timelineConditions.push(buildTimelineTypeCondition(kind));
 
 			const selectTimelineRows = db
@@ -1023,6 +1024,12 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				eq(employeeSchedule.isWorkingDay, true),
 				sql`${lateActualMinutesSql} > ${lateScheduledMinutesSql}`,
 			];
+			const lateSummaryConditions: SQL<unknown>[] = [
+				...baseTimelineConditions,
+				eq(attendanceRecord.type, 'CHECK_IN'),
+				eq(employeeSchedule.isWorkingDay, true),
+				sql`${lateActualMinutesSql} > ${lateScheduledMinutesSql}`,
+			];
 			const isLateQuery = kind === 'late';
 
 			const rows = isLateQuery
@@ -1040,31 +1047,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 						.orderBy(desc(attendanceRecord.timestamp))
 						.limit(limit)
 						.offset(offset);
-			const lateCountRows = isLateQuery
-				? []
-				: await db
-						.select({
-							employeeId: attendanceRecord.employeeId,
-							timestamp: attendanceRecord.timestamp,
-							type: attendanceRecord.type,
-						})
-						.from(attendanceRecord)
-						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-						.where(
-							and(
-								eq(employee.organizationId, organizationId),
-								gte(attendanceRecord.timestamp, startBound),
-								lte(attendanceRecord.timestamp, endBound),
-								eq(attendanceRecord.type, 'CHECK_IN'),
-							),
-						);
-
-			const employeeIds = Array.from(
-				new Set([
-					...rows.map((row) => row.employeeId),
-					...lateCountRows.map((row) => row.employeeId),
-				]),
-			);
+			const employeeIds = Array.from(new Set(rows.map((row) => row.employeeId)));
 			const scheduleRows =
 				!isLateQuery && employeeIds.length > 0
 					? await db
@@ -1120,32 +1103,22 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					isLate,
 				};
 			});
+			const lateTotal = (await db
+				.select({ count: count() })
+				.from(attendanceRecord)
+				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+				.innerJoin(
+					employeeSchedule,
+					sql`${employeeSchedule.employeeId} = ${attendanceRecord.employeeId} AND ${employeeSchedule.dayOfWeek} = ${lateLocalDayOfWeekSql}`,
+				)
+				.where(and(...lateSummaryConditions)))[0]?.count ?? 0;
 			const totalCount = isLateQuery
-				? (await db
-						.select({ count: count() })
-						.from(attendanceRecord)
-						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-						.innerJoin(
-							employeeSchedule,
-							sql`${employeeSchedule.employeeId} = ${attendanceRecord.employeeId} AND ${employeeSchedule.dayOfWeek} = ${lateLocalDayOfWeekSql}`,
-						)
-						.where(and(...lateTimelineConditions)))[0]?.count ?? 0
+				? lateTotal
 				: (await db
 						.select({ count: count() })
 						.from(attendanceRecord)
 						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
 						.where(and(...timelineConditions)))[0]?.count ?? 0;
-			const lateTotal = isLateQuery
-				? totalCount
-				: lateCountRows.filter((row) =>
-						resolveIsLate({
-							employeeId: row.employeeId,
-							timestamp: row.timestamp,
-							type: row.type,
-							timeZone,
-							scheduleEntriesByEmployeeId,
-						}),
-					).length;
 
 			return {
 				data: enrichedRows,

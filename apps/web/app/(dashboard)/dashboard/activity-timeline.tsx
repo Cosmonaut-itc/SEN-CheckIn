@@ -147,6 +147,10 @@ function filterTimelineEvents(
 		return events;
 	}
 
+	if (filter === 'in') {
+		return events.filter((event) => event.type === 'CHECK_IN');
+	}
+
 	return events.filter((event) => resolveEventCategory(event) === filter);
 }
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryKeys } from '@/lib/query-keys';
@@ -13,6 +13,7 @@ const useSuspenseQueryMock = vi.fn();
 const useOrgContextMock = vi.fn();
 const useIsMobileMock = vi.fn();
 const useTourMock = vi.fn();
+const fetchAttendanceTimelineMock = vi.fn();
 
 vi.mock('@tanstack/react-query', () => ({
 	useQuery: (options: unknown) => useQueryMock(options),
@@ -69,6 +70,24 @@ vi.mock('@/hooks/use-mobile', () => ({
 vi.mock('@/hooks/use-tour', () => ({
 	useTour: (tourId: string) => useTourMock(tourId),
 }));
+
+vi.mock('@/lib/client-functions', async () => {
+	const actual = await vi.importActual<typeof import('@/lib/client-functions')>(
+		'@/lib/client-functions',
+	);
+
+	return {
+		...actual,
+		fetchAttendanceTimeline: (params?: {
+			organizationId?: string | null;
+			fromDate?: Date;
+			toDate?: Date;
+			limit?: number;
+			offset?: number;
+			kind?: 'in' | 'late' | 'offsite';
+		}) => fetchAttendanceTimelineMock(params),
+	};
+});
 
 vi.mock('@/components/theme-mode-toggle', () => ({
 	ThemeModeToggle: () => <div data-testid="theme-mode-toggle" />,
@@ -206,6 +225,11 @@ describe('DashboardPageClient', () => {
 			isFetching: false,
 		});
 		useQueryMock.mockReset();
+		fetchAttendanceTimelineMock.mockReset();
+		fetchAttendanceTimelineMock.mockResolvedValue({
+			data: [],
+			lateTotal: 0,
+		});
 	});
 
 	it('renders the editorial dashboard sections', () => {
@@ -281,6 +305,12 @@ describe('DashboardPageClient', () => {
 					date: '2026-04-21',
 					organizationId: 'org-1',
 				}),
+			}),
+		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			8,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.locationCapacity('org-1'),
 			}),
 		);
 	});
@@ -382,5 +412,95 @@ describe('DashboardPageClient', () => {
 
 		expect(railToggle).toHaveAttribute('aria-expanded', 'true');
 		expect(screen.getByTestId('location-rail')).toBeInTheDocument();
+	});
+
+	it('refreshes the hero eyebrow clock while the dashboard stays open', () => {
+		const queryResults = createQueryResults();
+		let queryCallIndex = 0;
+
+		useQueryMock.mockImplementation(() => {
+			const result = queryResults[queryCallIndex % queryResults.length];
+			queryCallIndex += 1;
+			return result;
+		});
+
+		render(<DashboardPageClient />);
+
+		expect(screen.getByText(/06:00/)).toBeInTheDocument();
+
+		act(() => {
+			vi.advanceTimersByTime(60_000);
+		});
+
+		expect(screen.getByText(/06:01/)).toBeInTheDocument();
+	});
+
+	it('refetches the dashboard timeline with the selected activity filter', async () => {
+		const queryResults = createQueryResults();
+		let queryCallIndex = 0;
+
+		useQueryMock.mockImplementation(() => {
+			const result = queryResults[queryCallIndex % queryResults.length];
+			queryCallIndex += 1;
+			return result;
+		});
+
+		render(<DashboardPageClient />);
+
+		fireEvent.click(screen.getByRole('button', { name: 'filters.late' }));
+
+		const { startUtc, endUtc } = getUtcDayRangeFromDateKey(
+			'2026-04-21',
+			'America/Mexico_City',
+		);
+		const lateTimelineQuery = useQueryMock.mock.calls
+			.map(([options]) => options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> })
+			.find(
+				(options) =>
+					JSON.stringify(options.queryKey) ===
+					JSON.stringify(
+						queryKeys.dashboard.timeline({
+							organizationId: 'org-1',
+							fromDate: startUtc,
+							toDate: endUtc,
+							kind: 'late',
+						}),
+					),
+			);
+
+		expect(lateTimelineQuery).toBeDefined();
+		await lateTimelineQuery?.queryFn?.();
+		expect(fetchAttendanceTimelineMock).toHaveBeenCalledWith({
+			organizationId: 'org-1',
+			fromDate: startUtc,
+			toDate: endUtc,
+			kind: 'late',
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'filters.checkIn' }));
+
+		const inTimelineQuery = useQueryMock.mock.calls
+			.map(([options]) => options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> })
+			.find(
+				(options) =>
+					JSON.stringify(options.queryKey) ===
+					JSON.stringify(
+						queryKeys.dashboard.timeline({
+							organizationId: 'org-1',
+							fromDate: startUtc,
+							toDate: endUtc,
+							kind: 'in',
+						}),
+					),
+			);
+
+		expect(inTimelineQuery).toBeDefined();
+		await inTimelineQuery?.queryFn?.();
+		expect(fetchAttendanceTimelineMock).toHaveBeenCalledWith({
+			organizationId: 'org-1',
+			fromDate: startUtc,
+			toDate: endUtc,
+			kind: 'in',
+		});
 	});
 });

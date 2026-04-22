@@ -159,7 +159,7 @@ describe('ActivityTimeline', () => {
 		expect(screen.getByText('2 entradas 1 retardo 1 en campo')).toBeInTheDocument();
 	});
 
-	it('excludes checkout events from entry counts and filters', () => {
+	it('excludes checkout events from entry counts while keeping all check-ins under the entry filter', () => {
 		renderActivityTimeline({
 			filter: 'in',
 			events: [
@@ -173,8 +173,8 @@ describe('ActivityTimeline', () => {
 			],
 		});
 
-		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(1);
-		expect(screen.getByText('1 entrada 0 retardos 0 en campo')).toBeInTheDocument();
+		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(2);
+		expect(screen.getByText('2 entradas 1 retardo 0 en campo')).toBeInTheDocument();
 	});
 
 	it('renders a loading skeleton when isLoading is true', () => {

@@ -54,7 +54,7 @@ export async function signInToSeededDashboard(page: Page): Promise<void> {
  * @returns Promise that resolves after the route is installed
  */
 export async function mockDashboardWeather(page: Page): Promise<void> {
-	await page.route('**://localhost:3000/weather*', async (route) => {
+	await page.route('**/api/weather*', async (route) => {
 		await route.fulfill({
 			contentType: 'application/json',
 			body: JSON.stringify({

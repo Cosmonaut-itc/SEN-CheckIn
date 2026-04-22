@@ -466,6 +466,19 @@ describe('attendance routes (contract)', () => {
 			expect(row.isLate).toBe(true);
 			expect(row.type).toBe('CHECK_IN');
 		}
+
+		const summaryResponse = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 10,
+				offset: 0,
+				fromDate: new Date(lateTimestamp.getTime() - 60_000),
+				toDate: new Date(lateTimestamp.getTime() + 60_000),
+			},
+		});
+		expect(summaryResponse.status).toBe(200);
+		const summaryPayload = requireResponseData(summaryResponse);
+		expect(summaryPayload.summary.lateTotal).toBe(payload.pagination.total);
 	});
 
 	it('applies pagination after filtering late timeline entries', async () => {

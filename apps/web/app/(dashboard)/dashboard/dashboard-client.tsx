@@ -12,15 +12,14 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTour } from '@/hooks/use-tour';
-import { fetchAllEmployeesPages } from '@/lib/fetch-all-employees';
 import {
 	fetchAttendanceHourly,
 	fetchAttendanceOffsiteToday,
 	fetchAttendancePresent,
 	fetchAttendanceTimeline,
 	fetchDashboardCounts,
+	fetchDashboardLocationCapacity,
 	fetchDeviceStatusSummary,
-	fetchEmployeesList,
 	fetchLocationsAll,
 	fetchWeather,
 	type AttendancePresentRecord,
@@ -120,39 +119,7 @@ function buildLocationPresenceRows(
 				employeeCount,
 				presentCount,
 			};
-		});
-}
-
-/**
- * Loads active employees and groups them by assigned location.
- *
- * @param organizationId - Active organization id
- * @returns Counts of active employees keyed by location id
- */
-async function fetchActiveEmployeeCountsByLocation(
-	organizationId: string | null,
-): Promise<Map<string, number>> {
-	if (!organizationId) {
-		return new Map<string, number>();
-	}
-
-	const activeEmployees = await fetchAllEmployeesPages({
-		fetchEmployees: fetchEmployeesList,
-		params: {
-			organizationId,
-			status: 'ACTIVE' as const,
-		},
 	});
-
-	return activeEmployees.reduce((countsByLocation, employee) => {
-		if (!employee.locationId) {
-			return countsByLocation;
-		}
-
-		const currentCount = countsByLocation.get(employee.locationId) ?? 0;
-		countsByLocation.set(employee.locationId, currentCount + 1);
-		return countsByLocation;
-	}, new Map<string, number>());
 }
 
 /**
@@ -347,11 +314,12 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchWeather({ organizationId: organizationId ?? null }),
 		enabled: Boolean(organizationId),
 	});
-	const { data: employeeCountByLocation = new Map<string, number>(), isFetching: isEmployeeCountsFetching } = useQuery({
-		queryKey: queryKeys.dashboard.locationCapacity(organizationId),
-		queryFn: () => fetchActiveEmployeeCountsByLocation(organizationId ?? null),
-		enabled: Boolean(organizationId),
-	});
+	const { data: employeeCountByLocation = new Map<string, number>(), isFetching: isEmployeeCountsFetching } =
+		useQuery({
+			queryKey: queryKeys.dashboard.locationCapacity(organizationId),
+			queryFn: () => fetchDashboardLocationCapacity({ organizationId: organizationId ?? null }),
+			enabled: Boolean(organizationId),
+		});
 
 	const presentByLocationId = useMemo(
 		() => buildPresentByLocationId(presentRecords),

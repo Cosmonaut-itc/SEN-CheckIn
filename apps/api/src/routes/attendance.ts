@@ -135,6 +135,7 @@ function buildUtcBoundsForDateKey(
 }
 
 const attendanceTimelineQuerySchema = z.object({
+	organizationId: z.string().optional(),
 	fromDate: z.coerce.date().optional(),
 	toDate: z.coerce.date().optional(),
 	limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -143,6 +144,7 @@ const attendanceTimelineQuerySchema = z.object({
 });
 
 const attendanceHourlyQuerySchema = z.object({
+	organizationId: z.string().optional(),
 	date: z
 		.string()
 		.regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -969,7 +971,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { fromDate, toDate, limit, offset, kind } = query;
+			const { fromDate, toDate, limit, offset, kind, organizationId: requestedOrganizationId } =
+				query;
 
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -977,7 +980,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
-				requestedOrganizationId: null,
+				requestedOrganizationId: requestedOrganizationId ?? null,
 			});
 
 			if (!organizationId) {
@@ -1156,7 +1159,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { date } = query;
+			const { date, organizationId: requestedOrganizationId } = query;
 
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -1164,7 +1167,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				sessionOrganizationIds,
 				apiKeyOrganizationId,
 				apiKeyOrganizationIds,
-				requestedOrganizationId: null,
+				requestedOrganizationId: requestedOrganizationId ?? null,
 			});
 
 			if (!organizationId) {

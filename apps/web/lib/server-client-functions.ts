@@ -814,6 +814,7 @@ export async function fetchAttendanceTimelineServer(
 
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 	const query: {
+		organizationId?: string;
 		limit: number;
 		offset: number;
 		fromDate?: Date;
@@ -823,6 +824,10 @@ export async function fetchAttendanceTimelineServer(
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,
 	};
+
+	if (organizationId) {
+		query.organizationId = organizationId;
+	}
 
 	if (params?.fromDate) {
 		query.fromDate = params.fromDate;
@@ -881,6 +886,7 @@ export async function fetchAttendanceHourlyServer(
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
 	const response = await api.attendance.hourly.get({
 		$query: {
+			organizationId,
 			date: params?.date,
 		},
 	});
@@ -954,7 +960,11 @@ export async function fetchWeatherServer(
 	}
 
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
-	const response = await api.weather.get({});
+	const response = await api.weather.get({
+		$query: {
+			organizationId,
+		},
+	});
 
 	if (response.error) {
 		console.error('[Server] Failed to fetch weather summary:', response.error);

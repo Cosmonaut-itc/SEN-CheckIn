@@ -199,6 +199,25 @@ describe('employee routes (contract)', () => {
 		}
 	});
 
+	it('returns active employee counts grouped by location', async () => {
+		const response = await client.employees['active-counts-by-location'].get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				organizationId: seed.organizationId,
+			},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+		expect(
+			payload.data.some(
+				(row: { locationId: string | null; count: number }) =>
+					row.locationId === seed.locationId && row.count >= 1,
+			),
+		).toBe(true);
+	});
+
 	it('returns employee detail with schedule', async () => {
 		const employeeRoutes = requireRoute(client.employees[baseEmployeeId], 'Employee route');
 		const response = await employeeRoutes.get({

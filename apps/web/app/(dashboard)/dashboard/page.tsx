@@ -1,11 +1,9 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { headers } from 'next/headers';
 import React from 'react';
 
 import { getQueryClient } from '@/lib/get-query-client';
+import { getDashboardOrganizationContext } from '@/lib/dashboard-organization-context';
 import { DashboardPageClient } from './dashboard-client';
-import { getActiveOrganizationContext } from '@/lib/organization-context';
-import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import {
 	prefetchDashboardCounts,
 	prefetchDashboardDeviceStatus,
@@ -34,13 +32,8 @@ export const dynamic = 'force-dynamic';
  */
 export default async function DashboardPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
-	const orgContext = await getActiveOrganizationContext();
-	const requestHeaders = await headers();
-	const cookieHeader = requestHeaders.get('cookie') ?? '';
-	const payrollSettings = orgContext.organizationId
-		? await fetchPayrollSettingsServer(cookieHeader, orgContext.organizationId)
-		: null;
-	const dashboardTimeZone = payrollSettings?.timeZone ?? DEFAULT_DASHBOARD_TIME_ZONE;
+	const orgContext = await getDashboardOrganizationContext();
+	const dashboardTimeZone = orgContext.organizationTimeZone ?? DEFAULT_DASHBOARD_TIME_ZONE;
 	const todayDateKey = toDateKeyInTimeZone(new Date(), dashboardTimeZone);
 	const todayRange = getUtcDayRangeFromDateKey(todayDateKey, dashboardTimeZone);
 

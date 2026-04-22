@@ -52,36 +52,31 @@ vi.mock('@/lib/org-client-context', () => ({
 	OrgProvider: mockOrgProvider,
 }));
 
+vi.mock('@/lib/dashboard-organization-context', () => ({
+	getDashboardOrganizationContext: vi.fn(),
+}));
+
 vi.mock('@/lib/organization-context', () => ({
 	getAdminAccessContext: vi.fn(),
-}));
-
-vi.mock('@/lib/server-client-functions', () => ({
-	fetchPayrollSettingsServer: vi.fn(),
-}));
-
-vi.mock('next/headers', () => ({
-	headers: vi.fn(),
 }));
 
 describe('DashboardLayout', () => {
 	beforeEach(async () => {
 		mockOrgProvider.mockClear();
 
+		const dashboardOrganizationContextModule = await import(
+			'@/lib/dashboard-organization-context'
+		);
 		const organizationContextModule = await import('@/lib/organization-context');
-		const serverClientFunctionsModule = await import('@/lib/server-client-functions');
-		const nextHeadersModule = await import('next/headers');
-		const getAdminAccessContext =
-			organizationContextModule.getAdminAccessContext as unknown as ReturnType<typeof vi.fn>;
-		const fetchPayrollSettingsServer =
-			serverClientFunctionsModule.fetchPayrollSettingsServer as unknown as ReturnType<
+		const getDashboardOrganizationContext =
+			dashboardOrganizationContextModule.getDashboardOrganizationContext as unknown as ReturnType<
 				typeof vi.fn
 			>;
-		const headers = nextHeadersModule.headers as unknown as ReturnType<typeof vi.fn>;
+		const getAdminAccessContext =
+			organizationContextModule.getAdminAccessContext as unknown as ReturnType<typeof vi.fn>;
 
+		getDashboardOrganizationContext.mockReset();
 		getAdminAccessContext.mockReset();
-		fetchPayrollSettingsServer.mockReset();
-		headers.mockReset();
 
 		getAdminAccessContext.mockResolvedValue({
 			organization: {
@@ -94,15 +89,13 @@ describe('DashboardLayout', () => {
 			isSuperUser: false,
 			canAccessAdminRoutes: true,
 		} satisfies AdminAccessContext);
-		fetchPayrollSettingsServer.mockResolvedValue({
+		getDashboardOrganizationContext.mockResolvedValue({
+			organizationId: 'org-1',
+			organizationSlug: 'org-1',
+			organizationName: 'Org 1',
+			organizationTimeZone: 'America/Tijuana',
 			enableDisciplinaryMeasures: false,
-			timeZone: 'America/Tijuana',
 		});
-		headers.mockResolvedValue(
-			new Headers({
-				cookie: 'session=abc123',
-			}),
-		);
 	});
 
 	it('passes the payroll settings timezone into the org client context', async () => {

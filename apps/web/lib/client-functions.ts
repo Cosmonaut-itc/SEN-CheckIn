@@ -468,6 +468,11 @@ export interface DashboardCounts {
 	attendance: number;
 }
 
+interface DashboardLocationCapacityRecord {
+	locationId: string;
+	count: number;
+}
+
 /**
  * Device authorization status values.
  */
@@ -2328,6 +2333,7 @@ export async function fetchAttendanceTimeline(params?: {
 	}
 
 	const query: {
+		organizationId?: string;
 		limit: number;
 		offset: number;
 		fromDate?: Date;
@@ -2337,6 +2343,10 @@ export async function fetchAttendanceTimeline(params?: {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,
 	};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
 
 	if (params?.fromDate) {
 		query.fromDate = params.fromDate;
@@ -2389,7 +2399,10 @@ export async function fetchAttendanceHourly(params?: {
 		};
 	}
 
-	const query: { date?: string } = {};
+	const query: { organizationId?: string; date?: string } = {};
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
 	if (params?.date) {
 		query.date = params.date;
 	}
@@ -2491,7 +2504,11 @@ export async function fetchWeather(params?: {
 		};
 	}
 
-	const response = await api.weather.get({});
+	const response = await api.weather.get({
+		$query: {
+			organizationId: params?.organizationId ?? undefined,
+		},
+	});
 
 	if (response.error) {
 		throw new Error('Failed to fetch weather data');
@@ -5508,6 +5525,39 @@ export async function fetchDashboardCounts(params?: {
 		organizations: organizationsPayload?.length ?? 0,
 		attendance: attendancePayload?.pagination?.total ?? 0,
 	};
+}
+
+/**
+ * Fetches active employee counts grouped by assigned location for the dashboard rail.
+ *
+ * @param params - Optional organization guard
+ * @returns Counts keyed by location identifier
+ * @throws Error when the API call fails
+ */
+export async function fetchDashboardLocationCapacity(params?: {
+	organizationId?: string | null;
+}): Promise<Map<string, number>> {
+	if (params?.organizationId === null) {
+		return new Map<string, number>();
+	}
+
+	const response = await api.employees['active-counts-by-location'].get({
+		$query: {
+			organizationId: params?.organizationId ?? undefined,
+		},
+	});
+
+	if (response.error) {
+		throw new Error('Failed to fetch dashboard location capacity');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data ?? []) as DashboardLocationCapacityRecord[];
+
+	return rows.reduce((countsByLocation, row) => {
+		countsByLocation.set(row.locationId, row.count);
+		return countsByLocation;
+	}, new Map<string, number>());
 }
 
 // ============================================================================

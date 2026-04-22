@@ -3,10 +3,9 @@ import { OrganizationGate } from '@/components/organization-gate';
 import { ThemeModeToggle } from '@/components/theme-mode-toggle';
 import { Separator } from '@/components/ui/separator';
 import { SidebarInset, SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
+import { getDashboardOrganizationContext } from '@/lib/dashboard-organization-context';
 import { OrgProvider } from '@/lib/org-client-context';
 import { getAdminAccessContext } from '@/lib/organization-context';
-import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
-import { headers } from 'next/headers';
 import React, { type ReactNode } from 'react';
 
 /**
@@ -27,20 +26,20 @@ interface DashboardLayoutProps {
 export default async function DashboardLayout({
 	children,
 }: DashboardLayoutProps): Promise<React.ReactElement> {
-	const { organization, userRole, isSuperUser, organizationRole } = await getAdminAccessContext();
-	const requestHeaders = await headers();
-	const cookieHeader = requestHeaders.get('cookie') ?? '';
-	const payrollSettings = organization.organizationId
-		? await fetchPayrollSettingsServer(cookieHeader, organization.organizationId)
-		: null;
-	const enableDisciplinaryMeasures = Boolean(payrollSettings?.enableDisciplinaryMeasures);
+	const [
+		{ userRole, isSuperUser, organizationRole },
+		dashboardOrganization,
+	] = await Promise.all([
+		getAdminAccessContext(),
+		getDashboardOrganizationContext(),
+	]);
 
 	return (
 		<SidebarProvider>
 			<AppSidebar
 				isSuperUser={isSuperUser}
 				organizationRole={organizationRole}
-				enableDisciplinaryMeasures={enableDisciplinaryMeasures}
+				enableDisciplinaryMeasures={dashboardOrganization.enableDisciplinaryMeasures}
 			/>
 			<SidebarInset>
 				<header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
@@ -54,12 +53,11 @@ export default async function DashboardLayout({
 					<OrganizationGate
 						role={userRole}
 						organizationRole={organizationRole}
-						hasOrganization={organization.organizationId !== null}
+						hasOrganization={dashboardOrganization.organizationId !== null}
 					>
 						<OrgProvider
 							value={{
-								...organization,
-								organizationTimeZone: payrollSettings?.timeZone ?? null,
+								...dashboardOrganization,
 								organizationRole,
 								userRole,
 							}}

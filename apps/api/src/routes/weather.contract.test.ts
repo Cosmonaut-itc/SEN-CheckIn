@@ -99,6 +99,7 @@ describe('weather route (contract)', () => {
 
 		const response = await client.weather.get({
 			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
 		});
 
 		expect(response.status).toBe(200);
@@ -131,6 +132,7 @@ describe('weather route (contract)', () => {
 
 		const response = await client.weather.get({
 			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
 		});
 
 		expect(response.status).toBe(200);
@@ -176,6 +178,7 @@ describe('weather route (contract)', () => {
 
 		const response = await client.weather.get({
 			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
 		});
 
 		expect(response.status).toBe(200);
@@ -200,6 +203,7 @@ describe('weather route (contract)', () => {
 
 		const cachedResponse = await client.weather.get({
 			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
 		});
 
 		expect(cachedResponse.status).toBe(200);

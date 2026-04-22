@@ -1,7 +1,8 @@
-import { and, desc, eq, gte, ilike, isNull, lt, or, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { inArray } from 'drizzle-orm/sql';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
+import { z } from 'zod';
 
 import db from '../db/index.js';
 import {
@@ -81,6 +82,10 @@ import type {
 	EmployeeScheduleExceptionSummary,
 	EmployeeVacationRequestSummary,
 } from '@sen-checkin/types';
+
+const employeeLocationCountQuerySchema = z.object({
+	organizationId: z.string().optional(),
+});
 
 /**
  * Employee routes for CRUD operations and face recognition enrollment.
@@ -1012,6 +1017,67 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 	// =========================================================================
 	// CRUD Operations
 	// =========================================================================
+
+	/**
+	 * Returns active employee counts grouped by assigned location.
+	 *
+	 * @route GET /employees/active-counts-by-location
+	 * @param query.organizationId - Optional organization filter for API key callers
+	 * @returns Active employee counts keyed by location identifier
+	 */
+	.get(
+		'/active-counts-by-location',
+		async ({
+			query,
+			authType,
+			session,
+			sessionOrganizationIds,
+			set,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+		}) => {
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: query.organizationId ?? null,
+			});
+
+			if (!organizationId) {
+				const status = authType === 'apiKey' ? 403 : 400;
+				set.status = status;
+				return buildErrorResponse('Organization is required or not permitted', status);
+			}
+
+			const rows = await db
+				.select({
+					locationId: employee.locationId,
+					count: sql<number>`CAST(COUNT(*) AS integer)`,
+				})
+				.from(employee)
+				.where(
+					and(
+						eq(employee.organizationId, organizationId),
+						eq(employee.status, 'ACTIVE'),
+						isNotNull(employee.locationId),
+					),
+				)
+				.groupBy(employee.locationId)
+				.orderBy(employee.locationId);
+
+			return {
+				data: rows.map((row) => ({
+					locationId: row.locationId,
+					count: row.count,
+				})),
+			};
+		},
+		{
+			query: employeeLocationCountQuerySchema,
+		},
+	)
 
 	/**
 	 * List all employees with pagination and optional filters.

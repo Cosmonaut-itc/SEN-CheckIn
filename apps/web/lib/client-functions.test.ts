@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
 	mockEmployeesListGet,
 	mockEmployeeDetailGet,
+	mockEmployeesActiveCountsByLocationGet,
 	mockAttendanceTimelineGet,
 	mockAttendanceHourlyGet,
 	mockDevicesStatusSummaryGet,
@@ -10,6 +11,7 @@ const {
 } = vi.hoisted(() => ({
 	mockEmployeesListGet: vi.fn(),
 	mockEmployeeDetailGet: vi.fn(),
+	mockEmployeesActiveCountsByLocationGet: vi.fn(),
 	mockAttendanceTimelineGet: vi.fn(),
 	mockAttendanceHourlyGet: vi.fn(),
 	mockDevicesStatusSummaryGet: vi.fn(),
@@ -23,6 +25,9 @@ vi.mock('@/lib/api', () => {
 			get: (_target, property: string | symbol): unknown => {
 				if (property === 'get') {
 					return mockEmployeesListGet;
+				}
+				if (property === 'active-counts-by-location') {
+					return { get: mockEmployeesActiveCountsByLocationGet };
 				}
 				if (typeof property === 'string') {
 					return { get: mockEmployeeDetailGet };
@@ -72,6 +77,7 @@ import type {
 import {
 	fetchAttendanceHourly,
 	fetchAttendanceTimeline,
+	fetchDashboardLocationCapacity,
 	fetchDeviceStatusSummary,
 	fetchEmployeeById,
 	fetchEmployeesList,
@@ -229,6 +235,7 @@ describe('employee client functions', () => {
 	beforeEach(() => {
 		mockEmployeesListGet.mockReset();
 		mockEmployeeDetailGet.mockReset();
+		mockEmployeesActiveCountsByLocationGet.mockReset();
 		mockAttendanceTimelineGet.mockReset();
 		mockAttendanceHourlyGet.mockReset();
 		mockDevicesStatusSummaryGet.mockReset();
@@ -269,6 +276,7 @@ describe('employee client functions', () => {
 
 describe('dashboard v2 client functions', () => {
 	beforeEach(() => {
+		mockEmployeesActiveCountsByLocationGet.mockReset();
 		mockAttendanceTimelineGet.mockReset();
 		mockAttendanceHourlyGet.mockReset();
 		mockDevicesStatusSummaryGet.mockReset();
@@ -311,6 +319,7 @@ describe('dashboard v2 client functions', () => {
 		});
 		expect(mockAttendanceTimelineGet).toHaveBeenCalledWith({
 			$query: {
+				organizationId: 'org-1',
 				kind: 'late',
 				limit: 50,
 				offset: 0,
@@ -345,6 +354,7 @@ describe('dashboard v2 client functions', () => {
 		});
 		expect(mockAttendanceHourlyGet).toHaveBeenCalledWith({
 			$query: {
+				organizationId: 'org-1',
 				date: '2026-04-21',
 			},
 		});
@@ -390,6 +400,39 @@ describe('dashboard v2 client functions', () => {
 			data: [createWeatherFixture()],
 			cachedAt: '2026-04-21T15:30:00.000Z',
 		});
-		expect(mockWeatherGet).toHaveBeenCalledWith({});
+		expect(mockWeatherGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+			},
+		});
+	});
+
+	it('fetches aggregated dashboard location capacity in a single API call', async () => {
+		mockEmployeesActiveCountsByLocationGet.mockResolvedValue({
+			data: {
+				data: [
+					{ locationId: 'location-1', count: 3 },
+					{ locationId: 'location-2', count: 7 },
+				],
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchDashboardLocationCapacity({
+			organizationId: 'org-1',
+		});
+
+		expect(mockEmployeesActiveCountsByLocationGet).toHaveBeenCalledWith({
+			$query: {
+				organizationId: 'org-1',
+			},
+		});
+		expect(response).toEqual(
+			new Map<string, number>([
+				['location-1', 3],
+				['location-2', 7],
+			]),
+		);
 	});
 });

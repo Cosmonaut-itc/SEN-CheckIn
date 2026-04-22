@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { Elysia } from 'elysia';
+import { z } from 'zod';
 
 import db from '../db/index.js';
 import { location } from '../db/schema.js';
@@ -52,6 +53,10 @@ type ValidOpenWeatherResponse = OpenWeatherResponse & {
 		humidity: number;
 	};
 };
+
+const weatherQuerySchema = z.object({
+	organizationId: z.string().optional(),
+});
 
 /**
  * Process-local TTL cache for weather snapshots, including partial snapshots.
@@ -259,6 +264,7 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 	 * @returns Weather rows and cache timestamp, or an empty payload when the provider fails
 	 */
 	.get('/', async ({
+		query,
 		authType,
 		session,
 		sessionOrganizationIds,
@@ -272,7 +278,7 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 			sessionOrganizationIds,
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
-			requestedOrganizationId: null,
+			requestedOrganizationId: query.organizationId ?? null,
 		});
 
 		if (!organizationId) {
@@ -347,4 +353,6 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 			weatherCache.delete(organizationId);
 			return buildEmptyWeatherResponse();
 		}
+	}, {
+		query: weatherQuerySchema,
 	});

@@ -157,6 +157,18 @@ function filterTimelineEvents(
  * @returns Parsed date key and clock parts.
  */
 function parseTimestampParts(timestamp: string, timeZone: string): ParsedTimestampParts {
+	const wallClockMatch = timestamp.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+	const hasExplicitTimeZone = /(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp);
+
+	if (wallClockMatch && !hasExplicitTimeZone) {
+		const [, year, month, day, hours, minutes] = wallClockMatch;
+		return {
+			dateKey: `${year}-${month}-${day}`,
+			hours: Number(hours),
+			minutes: Number(minutes),
+		};
+	}
+
 	const parsedDate = new Date(timestamp);
 	if (Number.isNaN(parsedDate.getTime())) {
 		throw new Error(`Invalid timeline timestamp "${timestamp}".`);

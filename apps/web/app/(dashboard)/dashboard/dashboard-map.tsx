@@ -22,6 +22,7 @@ import type { AttendancePresentRecord, Location } from '@/lib/client-functions';
 const DEFAULT_MAP_CENTER: [number, number] = [-99.1332, 19.4326];
 const DEFAULT_MAP_ZOOM = 10;
 const FOCUS_MAP_ZOOM = 14;
+const MAP_FIT_OPTIONS = { padding: 80, maxZoom: 15, duration: 800 } as const;
 
 /**
  * Props for the dashboard map component.
@@ -75,6 +76,20 @@ function getLatestCheckInAt(presentRecords: AttendancePresentRecord[]): Date | n
 }
 
 /**
+ * Returns a copy of the presence records sorted from newest to oldest check-in.
+ *
+ * @param presentRecords - Presence records for a location
+ * @returns Presence records ordered by most recent activity first
+ */
+function getPresentRecordsNewestFirst(
+	presentRecords: AttendancePresentRecord[],
+): AttendancePresentRecord[] {
+	return [...presentRecords].sort(
+		(left, right) => right.checkedInAt.getTime() - left.checkedInAt.getTime(),
+	);
+}
+
+/**
  * Calculates the presence percentage against assigned capacity.
  *
  * @param presentCount - Employees currently present
@@ -87,6 +102,53 @@ function getCapacityPercent(presentCount: number, employeeCount: number): number
 	}
 
 	return Math.min(100, Math.max(0, (presentCount / employeeCount) * 100));
+}
+
+/**
+ * Fits the map viewport to the provided location coordinates.
+ *
+ * @param map - Map instance from the map hook
+ * @param locations - Locations with potential coordinates
+ * @returns Whether the fit operation was applied
+ */
+function fitMapToLocations(
+	map: {
+		fitBounds: (
+			bounds: [[number, number], [number, number]],
+			options: typeof MAP_FIT_OPTIONS,
+		) => void;
+	},
+	locations: Location[],
+): boolean {
+	let minLng = Number.POSITIVE_INFINITY;
+	let maxLng = Number.NEGATIVE_INFINITY;
+	let minLat = Number.POSITIVE_INFINITY;
+	let maxLat = Number.NEGATIVE_INFINITY;
+
+	for (const location of locations) {
+		if (location.latitude === null || location.longitude === null) {
+			continue;
+		}
+
+		minLng = Math.min(minLng, location.longitude);
+		maxLng = Math.max(maxLng, location.longitude);
+		minLat = Math.min(minLat, location.latitude);
+		maxLat = Math.max(maxLat, location.latitude);
+	}
+
+	if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) {
+		return false;
+	}
+
+	map.fitBounds(
+		[
+			[minLng, minLat],
+			[maxLng, maxLat],
+		],
+		MAP_FIT_OPTIONS,
+	);
+
+	return true;
 }
 
 /**
@@ -108,31 +170,7 @@ function MapAutoFit({ locations }: { locations: Location[] }): null {
 			return;
 		}
 
-		let minLng = Number.POSITIVE_INFINITY;
-		let maxLng = Number.NEGATIVE_INFINITY;
-		let minLat = Number.POSITIVE_INFINITY;
-		let maxLat = Number.NEGATIVE_INFINITY;
-
-		locations.forEach((location) => {
-			if (location.latitude === null || location.longitude === null) return;
-			minLng = Math.min(minLng, location.longitude);
-			maxLng = Math.max(maxLng, location.longitude);
-			minLat = Math.min(minLat, location.latitude);
-			maxLat = Math.max(maxLat, location.latitude);
-		});
-
-		if (!Number.isFinite(minLng) || !Number.isFinite(minLat)) {
-			return;
-		}
-
-		map.fitBounds(
-			[
-				[minLng, minLat],
-				[maxLng, maxLat],
-			],
-			{ padding: 80, maxZoom: 15, duration: 800 },
-		);
-		hasFitRef.current = true;
+		hasFitRef.current = fitMapToLocations(map, locations);
 	}, [map, isLoaded, locations]);
 
 	return null;
@@ -144,14 +182,38 @@ function MapAutoFit({ locations }: { locations: Location[] }): null {
  * @param props - Component props with the focused location.
  * @returns Null (binds to the map instance).
  */
-function MapFocus({ location }: { location: Location | null }): null {
+function MapFocus({
+	location,
+	locations,
+}: {
+	location: Location | null;
+	locations: Location[];
+}): null {
 	const { map, isLoaded } = useMap();
 	const lastLocationRef = useRef<string | null>(null);
 
 	useEffect(() => {
-		if (!map || !isLoaded || !location) return;
-		if (location.latitude === null || location.longitude === null) return;
-		if (lastLocationRef.current === location.id) return;
+		if (!map || !isLoaded) {
+			return;
+		}
+
+		if (!location) {
+			if (lastLocationRef.current === null) {
+				return;
+			}
+
+			const didRefit = fitMapToLocations(map, locations);
+			lastLocationRef.current = didRefit ? null : lastLocationRef.current;
+			return;
+		}
+
+		if (location.latitude === null || location.longitude === null) {
+			return;
+		}
+
+		if (lastLocationRef.current === location.id) {
+			return;
+		}
 
 		map.easeTo({
 			center: [location.longitude, location.latitude],
@@ -159,7 +221,7 @@ function MapFocus({ location }: { location: Location | null }): null {
 			duration: 700,
 		});
 		lastLocationRef.current = location.id;
-	}, [map, isLoaded, location]);
+	}, [map, isLoaded, location, locations]);
 
 	return null;
 }
@@ -225,7 +287,7 @@ export function DashboardMap({
 		<div className="absolute inset-0">
 			<MapCanvas center={DEFAULT_MAP_CENTER} zoom={DEFAULT_MAP_ZOOM}>
 				<MapAutoFit locations={locations} />
-				<MapFocus location={focusedLocation} />
+				<MapFocus location={focusedLocation} locations={locations} />
 				<MapResizeController isMobileLayout={isMobileLayout} />
 				{locations.map((location) => {
 					// Skip rendering if coordinates are missing (defensive check)
@@ -233,6 +295,7 @@ export function DashboardMap({
 						return null;
 					}
 					const present = presentByLocationId.get(location.id) ?? [];
+					const sortedPresent = getPresentRecordsNewestFirst(present);
 					const presentCount = present.length;
 					const employeeCount = employeeCountByLocation.get(location.id) ?? 0;
 					const latestCheckInAt = getLatestCheckInAt(present);
@@ -275,7 +338,9 @@ export function DashboardMap({
 										<div className="space-y-3">
 											<div className="flex items-start justify-between gap-3">
 												<div className="min-w-0">
-													<p className="truncate text-sm font-semibold">{location.name}</p>
+													<p className="truncate text-sm font-semibold">
+														{location.name}
+													</p>
 													<p className="mt-1 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
 														{location.code}
 													</p>
@@ -322,7 +387,7 @@ export function DashboardMap({
 										) : (
 											<ScrollArea className="max-h-48">
 												<div className="space-y-3">
-													{present.map((record) => {
+													{sortedPresent.map((record) => {
 														const displayName =
 															record.employeeName ||
 															record.employeeCode;

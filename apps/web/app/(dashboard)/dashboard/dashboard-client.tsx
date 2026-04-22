@@ -118,7 +118,7 @@ function buildLocationPresenceRows(
 				employeeCount,
 				presentCount,
 			};
-	});
+		});
 }
 
 /**
@@ -202,9 +202,7 @@ export function DashboardPageClient(): React.ReactElement {
 	const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
 	const [hoveredLocationId, setHoveredLocationId] = useState<string | null>(null);
 	const [locationSearch, setLocationSearch] = useState<string>('');
-	const [timelineFilter, setTimelineFilter] = useState<'all' | 'in' | 'late' | 'offsite'>(
-		'all',
-	);
+	const [timelineFilter, setTimelineFilter] = useState<'all' | 'in' | 'late' | 'offsite'>('all');
 	const [isMobileRailOpen, setIsMobileRailOpen] = useState<boolean>(false);
 
 	useTour('dashboard');
@@ -313,12 +311,14 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchWeather({ organizationId: organizationId ?? null }),
 		enabled: Boolean(organizationId),
 	});
-	const { data: employeeCountByLocation = new Map<string, number>(), isFetching: isEmployeeCountsFetching } =
-		useQuery({
-			queryKey: queryKeys.dashboard.locationCapacity(organizationId),
-			queryFn: () => fetchDashboardLocationCapacity({ organizationId: organizationId ?? null }),
-			enabled: Boolean(organizationId),
-		});
+	const {
+		data: employeeCountByLocation = new Map<string, number>(),
+		isFetching: isEmployeeCountsFetching,
+	} = useQuery({
+		queryKey: queryKeys.dashboard.locationCapacity(organizationId),
+		queryFn: () => fetchDashboardLocationCapacity({ organizationId: organizationId ?? null }),
+		enabled: Boolean(organizationId),
+	});
 
 	const presentByLocationId = useMemo(
 		() => buildPresentByLocationId(presentRecords),
@@ -334,6 +334,11 @@ export function DashboardPageClient(): React.ReactElement {
 		() => locationRows.find((location) => location.id === activeLocationId) ?? null,
 		[activeLocationId, locationRows],
 	);
+	const hoveredLocation = useMemo(
+		() => locationRows.find((location) => location.id === hoveredLocationId) ?? null,
+		[hoveredLocationId, locationRows],
+	);
+	const focusedLocation = activeLocation ?? hoveredLocation;
 	const offsiteCount = offsiteTodayData?.count ?? 0;
 	const heroStats = useMemo(
 		() => buildHeroStats(counts, presentRecords.length, lateCount, offsiteCount),
@@ -349,10 +354,7 @@ export function DashboardPageClient(): React.ReactElement {
 	const hasLocationSelection = activeLocationId !== null;
 
 	return (
-		<div
-			className="space-y-5 overflow-y-auto px-6 pb-8 pt-6"
-			data-testid="dashboard-v2-layout"
-		>
+		<div className="space-y-5 overflow-y-auto px-6 pb-8 pt-6" data-testid="dashboard-v2-layout">
 			<header
 				className={`grid gap-5 border-b border-[color:var(--border-subtle)] pb-5 ${isMobile ? 'grid-cols-1' : 'grid-cols-[minmax(0,1fr)_auto]'}`}
 				data-testid="dashboard-v2-hero"
@@ -366,7 +368,11 @@ export function DashboardPageClient(): React.ReactElement {
 					</p>
 					<h1 className="max-w-3xl whitespace-pre-line font-[var(--font-display)] text-[2.9rem] leading-none tracking-[-0.04em] sm:text-[3.5rem]">
 						{t.rich('hero.title', {
-							em: (chunks) => <em className="text-[color:var(--accent-primary)] italic">{chunks}</em>,
+							em: (chunks) => (
+								<em className="text-[color:var(--accent-primary)] italic">
+									{chunks}
+								</em>
+							),
 						})}
 					</h1>
 					<p className="max-w-2xl text-sm text-muted-foreground">
@@ -383,11 +389,7 @@ export function DashboardPageClient(): React.ReactElement {
 						late={heroStats.late}
 						absent={heroStats.absent}
 						offsite={heroStats.offsite}
-						isLoading={
-							isPresentFetching ||
-							isOffsiteFetching ||
-							isTimelineFetching
-						}
+						isLoading={isPresentFetching || isOffsiteFetching || isTimelineFetching}
 					/>
 					<ThemeModeToggle />
 				</div>
@@ -421,7 +423,7 @@ export function DashboardPageClient(): React.ReactElement {
 						<div className="absolute inset-0">
 							<DashboardMap
 								locations={mapLocations}
-								focusedLocation={activeLocation}
+								focusedLocation={focusedLocation}
 								presentByLocationId={presentByLocationId}
 								employeeCountByLocation={employeeCountByLocation}
 								isMobileLayout={isMobile}
@@ -499,10 +501,7 @@ export function DashboardPageClient(): React.ReactElement {
 				</div>
 
 				<div className="grid gap-4" data-testid="dashboard-v2-aux">
-					<DeviceStatusCard
-						devices={deviceStatus}
-						isLoading={isDeviceStatusFetching}
-					/>
+					<DeviceStatusCard devices={deviceStatus} isLoading={isDeviceStatusFetching} />
 					<WeatherCard
 						weather={weatherPayload?.data ?? []}
 						isLoading={isWeatherFetching}

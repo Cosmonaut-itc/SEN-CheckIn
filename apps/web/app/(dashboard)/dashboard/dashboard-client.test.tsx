@@ -14,6 +14,7 @@ const useOrgContextMock = vi.fn();
 const useIsMobileMock = vi.fn();
 const useTourMock = vi.fn();
 const fetchAttendanceTimelineMock = vi.fn();
+const dashboardMapPropsSpy = vi.fn();
 
 vi.mock('@tanstack/react-query', () => ({
 	useQuery: (options: unknown) => useQueryMock(options),
@@ -22,8 +23,16 @@ vi.mock('@tanstack/react-query', () => ({
 
 vi.mock('next/dynamic', () => ({
 	default: () =>
-		function MockDashboardMap(): React.ReactElement {
-			return <div data-testid="dashboard-map" />;
+		function MockDashboardMap(props: {
+			focusedLocation?: { id: string } | null;
+		}): React.ReactElement {
+			dashboardMapPropsSpy(props);
+			return (
+				<div
+					data-testid="dashboard-map"
+					data-focused-location-id={props.focusedLocation?.id ?? ''}
+				/>
+			);
 		},
 }));
 
@@ -44,7 +53,10 @@ vi.mock('next-intl', () => ({
 
 			return key;
 		}) as ((key: string, values?: Record<string, unknown>) => string) & {
-			rich: (key: string, values: { em: (chunks: React.ReactNode) => React.ReactNode }) => React.ReactElement;
+			rich: (
+				key: string,
+				values: { em: (chunks: React.ReactNode) => React.ReactNode },
+			) => React.ReactElement;
 		};
 
 		translate.rich = (_key, values) => (
@@ -72,9 +84,8 @@ vi.mock('@/hooks/use-tour', () => ({
 }));
 
 vi.mock('@/lib/client-functions', async () => {
-	const actual = await vi.importActual<typeof import('@/lib/client-functions')>(
-		'@/lib/client-functions',
-	);
+	const actual =
+		await vi.importActual<typeof import('@/lib/client-functions')>('@/lib/client-functions');
 
 	return {
 		...actual,
@@ -159,9 +170,7 @@ function createQueryResults(): Array<Record<string, unknown>> {
 		},
 		{
 			data: {
-				data: [
-					{ hour: 8, count: 1 },
-				],
+				data: [{ hour: 8, count: 1 }],
 				date: '2026-04-21',
 			},
 			isFetching: false,
@@ -226,6 +235,7 @@ describe('DashboardPageClient', () => {
 		});
 		useQueryMock.mockReset();
 		fetchAttendanceTimelineMock.mockReset();
+		dashboardMapPropsSpy.mockReset();
 		fetchAttendanceTimelineMock.mockResolvedValue({
 			data: [],
 			lateTotal: 0,
@@ -268,10 +278,7 @@ describe('DashboardPageClient', () => {
 
 		render(<DashboardPageClient />);
 
-		const { startUtc, endUtc } = getUtcDayRangeFromDateKey(
-			'2026-04-21',
-			'America/Mexico_City',
-		);
+		const { startUtc, endUtc } = getUtcDayRangeFromDateKey('2026-04-21', 'America/Mexico_City');
 
 		expect(useSuspenseQueryMock).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -329,10 +336,7 @@ describe('DashboardPageClient', () => {
 
 		render(<DashboardPageClient />);
 
-		const { startUtc, endUtc } = getUtcDayRangeFromDateKey(
-			'2026-04-20',
-			'America/Mexico_City',
-		);
+		const { startUtc, endUtc } = getUtcDayRangeFromDateKey('2026-04-20', 'America/Mexico_City');
 
 		expect(useQueryMock).toHaveBeenNthCalledWith(
 			1,
@@ -368,7 +372,10 @@ describe('DashboardPageClient', () => {
 	it('propagates loading states to child cards', () => {
 		useQueryMock
 			.mockReturnValueOnce({ data: [], isFetching: true })
-			.mockReturnValueOnce({ data: { count: 0, data: [], dateKey: '2026-04-21' }, isFetching: true })
+			.mockReturnValueOnce({
+				data: { count: 0, data: [], dateKey: '2026-04-21' },
+				isFetching: true,
+			})
 			.mockReturnValueOnce({ data: [], isFetching: true })
 			.mockReturnValueOnce({ data: { data: [], lateTotal: 0 }, isFetching: true })
 			.mockReturnValueOnce({ data: { data: [], date: '2026-04-21' }, isFetching: true })
@@ -435,6 +442,63 @@ describe('DashboardPageClient', () => {
 		expect(screen.getByText(/06:01/)).toBeInTheDocument();
 	});
 
+	it('uses rail hover as the map focus fallback without overriding click selection', () => {
+		const queryResults = createQueryResults();
+		queryResults[2] = {
+			data: [
+				...(queryResults[2]?.data as Array<Record<string, unknown>>),
+				{
+					...(queryResults[2]?.data as Array<Record<string, unknown>>)[0],
+					id: 'location-2',
+					name: 'Sucursal Norte',
+					code: 'NOR',
+					latitude: 25.6866,
+					longitude: -100.3161,
+				},
+			],
+			isFetching: false,
+		};
+		queryResults[7] = {
+			data: new Map<string, number>([
+				['location-1', 3],
+				['location-2', 5],
+			]),
+			isFetching: false,
+		};
+
+		let queryCallIndex = 0;
+
+		useQueryMock.mockImplementation(() => {
+			const result = queryResults[queryCallIndex % queryResults.length];
+			queryCallIndex += 1;
+			return result;
+		});
+
+		render(<DashboardPageClient />);
+
+		const map = screen.getByTestId('dashboard-map');
+		const hoveredLocation = screen.getByTestId('location-rail-item-location-2');
+		const selectedLocation = screen.getByTestId('location-rail-item-location-1');
+
+		expect(map).toHaveAttribute('data-focused-location-id', '');
+
+		fireEvent.mouseEnter(hoveredLocation);
+
+		expect(map).toHaveAttribute('data-focused-location-id', 'location-2');
+
+		fireEvent.mouseLeave(hoveredLocation);
+
+		expect(map).toHaveAttribute('data-focused-location-id', '');
+
+		fireEvent.click(selectedLocation);
+
+		expect(map).toHaveAttribute('data-focused-location-id', 'location-1');
+
+		fireEvent.mouseEnter(hoveredLocation);
+
+		expect(map).toHaveAttribute('data-focused-location-id', 'location-1');
+	});
+
 	it('refetches the dashboard timeline with the selected activity filter', async () => {
 		const queryResults = createQueryResults();
 		let queryCallIndex = 0;
@@ -449,12 +513,12 @@ describe('DashboardPageClient', () => {
 
 		fireEvent.click(screen.getByRole('button', { name: 'filters.late' }));
 
-		const { startUtc, endUtc } = getUtcDayRangeFromDateKey(
-			'2026-04-21',
-			'America/Mexico_City',
-		);
+		const { startUtc, endUtc } = getUtcDayRangeFromDateKey('2026-04-21', 'America/Mexico_City');
 		const lateTimelineQuery = useQueryMock.mock.calls
-			.map(([options]) => options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> })
+			.map(
+				([options]) =>
+					options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> },
+			)
 			.find(
 				(options) =>
 					JSON.stringify(options.queryKey) ===
@@ -480,7 +544,10 @@ describe('DashboardPageClient', () => {
 		fireEvent.click(screen.getByRole('button', { name: 'filters.checkIn' }));
 
 		const inTimelineQuery = useQueryMock.mock.calls
-			.map(([options]) => options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> })
+			.map(
+				([options]) =>
+					options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> },
+			)
 			.find(
 				(options) =>
 					JSON.stringify(options.queryKey) ===

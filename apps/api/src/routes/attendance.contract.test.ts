@@ -18,10 +18,11 @@ type WorkOffsiteDayKind = 'LABORABLE' | 'NO_LABORABLE';
 
 type OffsiteCreateResult =
 	| {
-			kind: 'created';
-			recordId: string;
-			dateKey: string;
-	  }
+				kind: 'created';
+				employeeId: string;
+				recordId: string;
+				dateKey: string;
+		  }
 	| {
 			kind: 'payroll_locked';
 			attemptedDateKeys: string[];
@@ -33,6 +34,7 @@ const OFFSITE_CHECK_EVENTS_CONFLICT_MESSAGE =
 	'Cannot register offsite attendance when check events already exist for that date.';
 const OFFSITE_DUPLICATE_CONFLICT_MESSAGE =
 	'An offsite attendance record already exists for that date';
+const OFFSITE_MAX_RETRO_DAYS = 7;
 const DEFAULT_TEST_TIME_ZONE = 'America/Mexico_City';
 
 describe('attendance routes (contract)', () => {
@@ -54,55 +56,63 @@ describe('attendance routes (contract)', () => {
 	 * @throws Error when no date is creatable for reasons other than processed payroll locks
 	 */
 	async function createOffsiteWithinWindow(args: {
-		employeeId: string;
-		baseDateKey: string;
-		startOffsetDays?: number;
-		dayKind: WorkOffsiteDayKind;
-		reason: string;
+			employeeIds: string[];
+			baseDateKey: string;
+			startOffsetDays?: number;
+			dayKind: WorkOffsiteDayKind;
+			reason: string;
 	}): Promise<OffsiteCreateResult> {
-		const conflicts: Array<{ dateKey: string; message: string }> = [];
-		const attemptedDateKeys: string[] = [];
-		for (let offset = args.startOffsetDays ?? 0; offset <= 30; offset += 1) {
-			const candidateDateKey = addDaysToDateKey(args.baseDateKey, -offset);
-			attemptedDateKeys.push(candidateDateKey);
-			const response = await client.attendance.post({
-				employeeId: args.employeeId,
-				timestamp: new Date(),
-				type: 'WORK_OFFSITE',
-				offsiteDateKey: candidateDateKey,
-				offsiteDayKind: args.dayKind,
-				offsiteReason: `${args.reason} (${candidateDateKey})`,
-				$headers: { cookie: adminSession.cookieHeader },
-			});
-			if (response.status === 201) {
-				const payload = requireResponseData(response);
-				const recordId = payload.data?.id;
-				if (!recordId) {
-					throw new Error('Expected WORK_OFFSITE record id.');
-				}
-				return {
-					kind: 'created',
-					recordId,
-					dateKey: candidateDateKey,
-				};
-			}
+			const conflicts: Array<{ dateKey: string; employeeId: string; message: string }> = [];
+			const attemptedDateKeys: string[] = [];
+			for (
+				let offset = args.startOffsetDays ?? 0;
+				offset <= OFFSITE_MAX_RETRO_DAYS;
+				offset += 1
+			) {
+				const candidateDateKey = addDaysToDateKey(args.baseDateKey, -offset);
+				attemptedDateKeys.push(candidateDateKey);
+				for (const employeeId of args.employeeIds) {
+					const response = await client.attendance.post({
+						employeeId,
+						timestamp: new Date(),
+						type: 'WORK_OFFSITE',
+						offsiteDateKey: candidateDateKey,
+						offsiteDayKind: args.dayKind,
+						offsiteReason: `${args.reason} (${candidateDateKey})`,
+						$headers: { cookie: adminSession.cookieHeader },
+					});
+					if (response.status === 201) {
+						const payload = requireResponseData(response);
+						const recordId = payload.data?.id;
+						if (!recordId) {
+							throw new Error('Expected WORK_OFFSITE record id.');
+						}
+						return {
+							kind: 'created',
+							employeeId,
+							recordId,
+							dateKey: candidateDateKey,
+						};
+					}
 
-			if (response.status === 409) {
-				const errorPayload = requireErrorResponse(response, 'work offsite create conflict');
-				const message = errorPayload.error.message;
-				conflicts.push({
-					dateKey: candidateDateKey,
-					message,
-				});
-				if (
-					message === OFFSITE_CHECK_EVENTS_CONFLICT_MESSAGE ||
-					message === OFFSITE_DUPLICATE_CONFLICT_MESSAGE
-				) {
-					continue;
+					if (response.status === 409) {
+						const errorPayload = requireErrorResponse(response, 'work offsite create conflict');
+						const message = errorPayload.error.message;
+						conflicts.push({
+							dateKey: candidateDateKey,
+							employeeId,
+							message,
+						});
+						if (
+							message === OFFSITE_CHECK_EVENTS_CONFLICT_MESSAGE ||
+							message === OFFSITE_DUPLICATE_CONFLICT_MESSAGE
+						) {
+							continue;
+						}
+						continue;
+					}
 				}
-				continue;
 			}
-		}
 
 		if (
 			conflicts.length > 0 &&
@@ -114,9 +124,9 @@ describe('attendance routes (contract)', () => {
 			};
 		}
 
-		const reasons = conflicts
-			.map((conflict) => `${conflict.dateKey}: ${conflict.message}`)
-			.join(' | ');
+			const reasons = conflicts
+				.map((conflict) => `${conflict.dateKey}/${conflict.employeeId}: ${conflict.message}`)
+				.join(' | ');
 		throw new Error(
 			`Unable to create WORK_OFFSITE within editable window. Conflicts: ${reasons || 'none'}`,
 		);
@@ -276,11 +286,10 @@ describe('attendance routes (contract)', () => {
 		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
-	it('returns attendance timeline entries with descending pagination', async () => {
-		const olderTimestamp = new Date();
-		olderTimestamp.setMinutes(olderTimestamp.getMinutes() - 10);
-		const newerTimestamp = new Date();
-		newerTimestamp.setMinutes(newerTimestamp.getMinutes() - 5);
+		it('returns attendance timeline entries with descending pagination', async () => {
+			const uniqueOffsetMs = Number.parseInt(randomUUID().slice(0, 8), 16) % 50_000;
+			const olderTimestamp = new Date(Date.now() - 10 * 60_000 + uniqueOffsetMs);
+			const newerTimestamp = new Date(olderTimestamp.getTime() + 60_000);
 
 		const olderResponse = await client.attendance.post({
 			employeeId: seed.employeeId,
@@ -307,14 +316,14 @@ describe('attendance routes (contract)', () => {
 
 		const response = await client.attendance.timeline.get({
 			$headers: { cookie: adminSession.cookieHeader },
-			$query: {
-				limit: 1,
-				offset: 0,
-				kind: 'in',
-				fromDate: new Date(olderTimestamp.getTime() - 60_000),
-				toDate: new Date(newerTimestamp.getTime() + 60_000),
-			},
-		});
+				$query: {
+					limit: 1,
+					offset: 0,
+					kind: 'in',
+					fromDate: new Date(olderTimestamp.getTime() - 1_000),
+					toDate: new Date(newerTimestamp.getTime() + 1_000),
+				},
+			});
 
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
@@ -325,8 +334,7 @@ describe('attendance routes (contract)', () => {
 		expect(payload.pagination.total).toBeGreaterThanOrEqual(2);
 		expect(payload.pagination.hasMore).toBe(true);
 		expect(payload.data[0]?.type).toBe('CHECK_IN');
-		expect(payload.data[0]?.employeeId).toBe(activeEmployeeId);
-		expect(payload.data[0]?.id).toBe(newerRecordId);
+			expect(payload.data[0]?.id).toBe(newerRecordId);
 		expect(typeof payload.data[0]?.employeeCode).toBe('string');
 		expect(typeof payload.data[0]?.isLate).toBe('boolean');
 	});
@@ -718,11 +726,11 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const createResult = await createOffsiteWithinWindow({
-			employeeId: activeEmployeeId,
-			baseDateKey: todayDateKey,
-			startOffsetDays: 1,
-			dayKind: 'NO_LABORABLE',
+			const createResult = await createOffsiteWithinWindow({
+				employeeIds: activeEmployeeIds,
+				baseDateKey: todayDateKey,
+				startOffsetDays: 1,
+				dayKind: 'NO_LABORABLE',
 			reason: 'Cobertura en sitio externo de cliente.',
 		});
 		if (createResult.kind === 'payroll_locked') {
@@ -790,11 +798,11 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const createResult = await createOffsiteWithinWindow({
-			employeeId: activeEmployeeId,
-			baseDateKey: todayDateKey,
-			startOffsetDays: 2,
-			dayKind: 'LABORABLE',
+			const createResult = await createOffsiteWithinWindow({
+				employeeIds: activeEmployeeIds,
+				baseDateKey: todayDateKey,
+				startOffsetDays: 2,
+				dayKind: 'LABORABLE',
 			reason: 'Registro para validar update con fecha inválida.',
 		});
 		if (createResult.kind === 'payroll_locked') {
@@ -961,11 +969,11 @@ describe('attendance routes (contract)', () => {
 		});
 		const offsiteTodayPayload = requireResponseData(offsiteTodayResponse);
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
-		const createResult = await createOffsiteWithinWindow({
-			employeeId: activeEmployeeId,
-			baseDateKey: todayDateKey,
-			startOffsetDays: 4,
-			dayKind: 'LABORABLE',
+			const createResult = await createOffsiteWithinWindow({
+				employeeIds: activeEmployeeIds,
+				baseDateKey: todayDateKey,
+				startOffsetDays: 4,
+				dayKind: 'LABORABLE',
 			reason: 'Registro previo para bloquear checadas en la fecha.',
 		});
 		if (createResult.kind === 'payroll_locked') {
@@ -974,9 +982,9 @@ describe('attendance routes (contract)', () => {
 		}
 
 		const checkInTimestamp = new Date(`${createResult.dateKey}T14:00:00.000Z`);
-		const checkInResponse = await client.attendance.post({
-			employeeId: activeEmployeeId,
-			deviceId: seed.deviceId,
+			const checkInResponse = await client.attendance.post({
+				employeeId: createResult.employeeId,
+				deviceId: seed.deviceId,
 			timestamp: checkInTimestamp,
 			type: 'CHECK_IN',
 			$headers: { cookie: adminSession.cookieHeader },

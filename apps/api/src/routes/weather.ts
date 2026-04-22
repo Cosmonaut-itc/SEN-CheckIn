@@ -9,6 +9,7 @@ import { resolveOrganizationId } from '../utils/organization.js';
 
 const OPEN_WEATHER_BASE_URL = 'https://api.openweathermap.org/data/2.5/weather';
 const WEATHER_CACHE_TTL_MS = 10 * 60 * 1000;
+const PARTIAL_WEATHER_CACHE_TTL_MS = 60 * 1000;
 const WEATHER_FETCH_TIMEOUT_MS = 5_000;
 
 type WeatherResponseItem = {
@@ -106,12 +107,17 @@ function getFreshWeatherCache(organizationId: string): WeatherRouteResponse | nu
  *
  * @param organizationId - Organization identifier used as cache key
  * @param response - Weather payload to cache
+ * @param ttlMs - Cache lifetime for the payload
  * @returns Nothing
  */
-function storeWeatherCache(organizationId: string, response: WeatherRouteResponse): void {
+function storeWeatherCache(
+	organizationId: string,
+	response: WeatherRouteResponse,
+	ttlMs: number = WEATHER_CACHE_TTL_MS,
+): void {
 	weatherCache.set(organizationId, {
 		response,
-		expiresAt: Date.now() + WEATHER_CACHE_TTL_MS,
+		expiresAt: Date.now() + ttlMs,
 	});
 }
 
@@ -137,7 +143,9 @@ function setWeatherCache(
 
 /**
  * Stores a partial weather payload in the cache while preserving the public
- * `cachedAt: null` contract for incomplete responses.
+ * `cachedAt: null` contract for incomplete responses. Partial snapshots use a
+ * short TTL so the API avoids tight retry loops without pinning missing
+ * locations for the full weather cache window.
  *
  * @param organizationId - Organization identifier used as cache key
  * @param data - Partial weather rows to cache
@@ -151,7 +159,7 @@ function setPartialWeatherCache(
 		data,
 		cachedAt: null,
 	};
-	storeWeatherCache(organizationId, response);
+	storeWeatherCache(organizationId, response, PARTIAL_WEATHER_CACHE_TTL_MS);
 	return response;
 }
 

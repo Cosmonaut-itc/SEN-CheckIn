@@ -60,6 +60,7 @@ function renderActivityTimeline(
 			events={overrides.events ?? defaultEvents}
 			isLoading={overrides.isLoading ?? false}
 			filter={overrides.filter ?? 'all'}
+			timeZone={overrides.timeZone ?? 'America/Mexico_City'}
 			onFilterChange={overrides.onFilterChange ?? vi.fn()}
 		/>,
 	);
@@ -93,12 +94,12 @@ describe('ActivityTimeline', () => {
 				{
 					...defaultEvents[0]!,
 					id: 'event-cross-day-1',
-					timestamp: '2026-04-21T23:45:00-06:00',
+					timestamp: '2026-04-22T05:45:00.000Z',
 				},
 				{
 					...defaultEvents[1]!,
 					id: 'event-cross-day-2',
-					timestamp: '2026-04-22T00:15:00-06:00',
+					timestamp: '2026-04-22T06:15:00.000Z',
 				},
 			],
 		});
@@ -107,6 +108,33 @@ describe('ActivityTimeline', () => {
 
 		expect(within(firstPill as HTMLElement).getByText('23:45')).toBeInTheDocument();
 		expect(within(secondPill as HTMLElement).getByText('00:15')).toBeInTheDocument();
+		expect(Number.parseFloat((firstPill as HTMLElement).style.left)).toBeLessThan(
+			Number.parseFloat((secondPill as HTMLElement).style.left),
+		);
+	});
+
+	it('formats UTC timestamps in the provided organization timezone', () => {
+		renderActivityTimeline({
+			timeZone: 'America/Mexico_City',
+			events: [
+				{
+					...defaultEvents[0]!,
+					id: 'event-utc-1',
+					timestamp: '2026-04-21T14:00:00.000Z',
+				},
+				{
+					...defaultEvents[1]!,
+					id: 'event-utc-2',
+					timestamp: '2026-04-21T16:00:00.000Z',
+					isLate: false,
+				},
+			],
+		});
+
+		const [firstPill, secondPill] = screen.getAllByTestId('activity-timeline-pill');
+
+		expect(within(firstPill as HTMLElement).getByText('08:00')).toBeInTheDocument();
+		expect(within(secondPill as HTMLElement).getByText('10:00')).toBeInTheDocument();
 		expect(Number.parseFloat((firstPill as HTMLElement).style.left)).toBeLessThan(
 			Number.parseFloat((secondPill as HTMLElement).style.left),
 		);
@@ -128,6 +156,24 @@ describe('ActivityTimeline', () => {
 		renderActivityTimeline();
 
 		expect(screen.getByText('2 entradas 1 retardo 1 en campo')).toBeInTheDocument();
+	});
+
+	it('excludes checkout events from entry counts and filters', () => {
+		renderActivityTimeline({
+			filter: 'in',
+			events: [
+				...defaultEvents,
+				{
+					...defaultEvents[0]!,
+					id: 'event-checkout',
+					timestamp: '2026-04-21T15:15:00.000Z',
+					type: 'CHECK_OUT',
+				},
+			],
+		});
+
+		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(1);
+		expect(screen.getByText('1 entrada 0 retardos 0 en campo')).toBeInTheDocument();
 	});
 
 	it('renders a loading skeleton when isLoading is true', () => {

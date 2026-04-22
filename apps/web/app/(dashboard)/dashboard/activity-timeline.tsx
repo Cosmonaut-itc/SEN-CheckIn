@@ -22,6 +22,7 @@ interface ActivityTimelineProps {
 	events: TimelineEvent[];
 	isLoading: boolean;
 	filter: ActivityTimelineFilter;
+	timeZone: string;
 	onFilterChange: (filter: ActivityTimelineFilter) => void;
 }
 
@@ -103,6 +104,16 @@ function countActivityEvents(events: TimelineEvent[]): Record<Exclude<ActivityTi
 }
 
 /**
+ * Determines whether an attendance event should render in the dashboard timeline.
+ *
+ * @param event - Timeline event to inspect
+ * @returns True when the event belongs to the dashboard timeline
+ */
+function isRenderableTimelineEvent(event: TimelineEvent): boolean {
+	return event.type === 'CHECK_IN' || event.type === 'WORK_OFFSITE';
+}
+
+/**
  * Determines the category for an attendance event.
  *
  * @param event - Timeline event to classify.
@@ -142,25 +153,38 @@ function filterTimelineEvents(
  * Extracts deterministic date and time parts from an ISO timestamp.
  *
  * @param timestamp - Event timestamp string.
+ * @param timeZone - Organization timezone used for display.
  * @returns Parsed date key and clock parts.
  */
-function parseTimestampParts(timestamp: string): ParsedTimestampParts {
-	const match = timestamp.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
-
-	if (match) {
-		const [, year, month, day, hours, minutes] = match;
-		return {
-			dateKey: `${year}-${month}-${day}`,
-			hours: Number(hours),
-			minutes: Number(minutes),
-		};
+function parseTimestampParts(timestamp: string, timeZone: string): ParsedTimestampParts {
+	const parsedDate = new Date(timestamp);
+	if (Number.isNaN(parsedDate.getTime())) {
+		throw new Error(`Invalid timeline timestamp "${timestamp}".`);
 	}
 
-	const fallbackDate = new Date(timestamp);
+	const parts = new Intl.DateTimeFormat('en-CA', {
+		timeZone,
+		year: 'numeric',
+		month: '2-digit',
+		day: '2-digit',
+		hour: '2-digit',
+		minute: '2-digit',
+		hourCycle: 'h23',
+	}).formatToParts(parsedDate);
+	const year = parts.find((part) => part.type === 'year')?.value;
+	const month = parts.find((part) => part.type === 'month')?.value;
+	const day = parts.find((part) => part.type === 'day')?.value;
+	const hours = parts.find((part) => part.type === 'hour')?.value;
+	const minutes = parts.find((part) => part.type === 'minute')?.value;
+
+	if (!year || !month || !day || !hours || !minutes) {
+		throw new Error(`Failed to resolve timeline time parts for timezone "${timeZone}".`);
+	}
+
 	return {
-		dateKey: `${fallbackDate.getUTCFullYear()}-${String(fallbackDate.getUTCMonth() + 1).padStart(2, '0')}-${String(fallbackDate.getUTCDate()).padStart(2, '0')}`,
-		hours: fallbackDate.getUTCHours(),
-		minutes: fallbackDate.getUTCMinutes(),
+		dateKey: `${year}-${month}-${day}`,
+		hours: Number(hours),
+		minutes: Number(minutes),
 	};
 }
 
@@ -168,10 +192,11 @@ function parseTimestampParts(timestamp: string): ParsedTimestampParts {
  * Parses an ISO timestamp and returns the absolute minute value.
  *
  * @param timestamp - Event timestamp string.
+ * @param timeZone - Organization timezone used for display.
  * @returns Minute value since the Unix epoch.
  */
-function getTimelineMinute(timestamp: string): number {
-	const { dateKey, hours, minutes } = parseTimestampParts(timestamp);
+function getTimelineMinute(timestamp: string, timeZone: string): number {
+	const { dateKey, hours, minutes } = parseTimestampParts(timestamp, timeZone);
 	const [year, month, day] = dateKey.split('-').map(Number);
 	const epochDay = Math.floor(Date.UTC(year!, month! - 1, day!) / 86_400_000);
 
@@ -182,10 +207,11 @@ function getTimelineMinute(timestamp: string): number {
  * Formats a timestamp in 24-hour clock notation.
  *
  * @param timestamp - Event timestamp string.
+ * @param timeZone - Organization timezone used for display.
  * @returns Clock label such as 07:00.
  */
-function formatClock(timestamp: string): string {
-	const { hours, minutes } = parseTimestampParts(timestamp);
+function formatClock(timestamp: string, timeZone: string): string {
+	const { hours, minutes } = parseTimestampParts(timestamp, timeZone);
 	return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }
 
@@ -266,9 +292,10 @@ function estimatePillWidthMinutes(event: TimelineEvent): number {
  * Resolves the time axis range for the current data set.
  *
  * @param events - Visible timeline events.
+ * @param timeZone - Organization timezone used for display.
  * @returns Axis start, end, and tick labels.
  */
-function resolveAxisRange(events: TimelineEvent[]): {
+function resolveAxisRange(events: TimelineEvent[], timeZone: string): {
 	endMinutes: number;
 	startMinutes: number;
 	ticks: number[];
@@ -294,7 +321,7 @@ function resolveAxisRange(events: TimelineEvent[]): {
 		};
 	}
 
-	const minutes = events.map((event) => getTimelineMinute(event.timestamp));
+	const minutes = events.map((event) => getTimelineMinute(event.timestamp, timeZone));
 	const earliest = Math.min(...minutes);
 	const latest = Math.max(...minutes);
 	const startMinutes = Math.floor(earliest / 60) * 60;
@@ -317,22 +344,23 @@ function resolveAxisRange(events: TimelineEvent[]): {
  * Packs timeline events into rows using a greedy overlap-avoidance algorithm.
  *
  * @param events - Visible and already filtered timeline events.
+ * @param timeZone - Organization timezone used for display.
  * @returns Positioned events with left offsets and lane indexes.
  */
-function layoutTimelineEvents(events: TimelineEvent[]): PositionedTimelineEvent[] {
+function layoutTimelineEvents(events: TimelineEvent[], timeZone: string): PositionedTimelineEvent[] {
 	if (events.length === 0) {
 		return [];
 	}
 
 	const sortedEvents = [...events].sort((left, right) => {
-		return getTimelineMinute(left.timestamp) - getTimelineMinute(right.timestamp);
+		return getTimelineMinute(left.timestamp, timeZone) - getTimelineMinute(right.timestamp, timeZone);
 	});
-	const { startMinutes, endMinutes } = resolveAxisRange(sortedEvents);
+	const { startMinutes, endMinutes } = resolveAxisRange(sortedEvents, timeZone);
 	const spanMinutes = Math.max(endMinutes - startMinutes, 1);
 	const laneAvailability: number[] = [];
 
 	return sortedEvents.map((event) => {
-		const minuteOfDay = getTimelineMinute(event.timestamp);
+		const minuteOfDay = getTimelineMinute(event.timestamp, timeZone);
 		const estimatedWidthMinutes = estimatePillWidthMinutes(event);
 		const laneIndex = laneAvailability.findIndex((availableMinute) => minuteOfDay >= availableMinute);
 		const resolvedLaneIndex = laneIndex === -1 ? laneAvailability.length : laneIndex;
@@ -346,7 +374,7 @@ function layoutTimelineEvents(events: TimelineEvent[]): PositionedTimelineEvent[
 			leftPercent: ((minuteOfDay - startMinutes) / spanMinutes) * 100,
 			laneIndex: resolvedLaneIndex,
 			shortName: abbreviateName(event.employeeName),
-			timeLabel: formatClock(event.timestamp),
+			timeLabel: formatClock(event.timestamp, timeZone),
 		};
 	});
 }
@@ -399,18 +427,24 @@ function ActivityTimelineSkeleton(): React.ReactElement {
  * Activity timeline component used on the dashboard.
  *
  * @param props - Timeline events, loading flag, and current filter state.
+ * @param timeZone - Organization timezone used for display.
  * @returns Rendered activity timeline.
  */
 function ActivityTimeline({
 	events,
 	isLoading,
 	filter,
+	timeZone,
 	onFilterChange,
 }: ActivityTimelineProps): React.ReactElement {
 	const t = useTranslations('Dashboard.timeline');
+	const renderableEvents = useMemo(
+		() => events.filter(isRenderableTimelineEvent),
+		[events],
+	);
 	const visibleEvents = useMemo(
-		() => filterTimelineEvents(events, filter),
-		[events, filter],
+		() => filterTimelineEvents(renderableEvents, filter),
+		[filter, renderableEvents],
 	);
 	const filterOptions = useMemo<Array<{ label: string; value: ActivityTimelineFilter }>>(
 		() => [
@@ -422,10 +456,10 @@ function ActivityTimeline({
 		[t],
 	);
 	const counts = useMemo(() => countActivityEvents(visibleEvents), [visibleEvents]);
-	const axisRange = useMemo(() => resolveAxisRange(visibleEvents), [visibleEvents]);
+	const axisRange = useMemo(() => resolveAxisRange(visibleEvents, timeZone), [timeZone, visibleEvents]);
 	const positionedEvents = useMemo(
-		() => layoutTimelineEvents(visibleEvents),
-		[visibleEvents],
+		() => layoutTimelineEvents(visibleEvents, timeZone),
+		[timeZone, visibleEvents],
 	);
 	const summaryText = useMemo(
 		() => {

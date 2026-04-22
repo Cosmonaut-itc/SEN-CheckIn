@@ -271,6 +271,48 @@ describe('attendance routes (contract)', () => {
 		}
 	});
 
+	it('filters attendance timeline entries by late kind after schedule enrichment', async () => {
+		const discoveryResponse = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 200,
+				offset: 0,
+				fromDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+				toDate: new Date(),
+			},
+		});
+
+		expect(discoveryResponse.status).toBe(200);
+		const discoveryPayload = requireResponseData(discoveryResponse);
+		const lateSample = discoveryPayload.data.find((row) => row.isLate);
+		if (!lateSample?.timestamp) {
+			throw new Error('Expected at least one late attendance record for timeline late filter test.');
+		}
+		const lateTimestamp = new Date(lateSample.timestamp);
+
+		const response = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 1,
+				offset: 0,
+				kind: 'late',
+				fromDate: new Date(lateTimestamp.getTime() - 60_000),
+				toDate: new Date(lateTimestamp.getTime() + 60_000),
+			},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.data.length).toBeGreaterThan(0);
+		expect(payload.data[0]?.id).toBe(lateSample.id);
+		expect(payload.pagination.total).toBeGreaterThanOrEqual(1);
+		expect(typeof payload.pagination.hasMore).toBe('boolean');
+		for (const row of payload.data) {
+			expect(row.isLate).toBe(true);
+			expect(row.type).toBe('CHECK_IN');
+		}
+	});
+
 	it('filters attendance timeline entries by explicit date range', async () => {
 		const targetDateKey = addDaysToDateKey(
 			new Date().toISOString().slice(0, 10),

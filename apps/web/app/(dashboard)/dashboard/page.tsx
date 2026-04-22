@@ -1,10 +1,11 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
-import { endOfDay, format, startOfDay } from 'date-fns';
+import { headers } from 'next/headers';
 import React from 'react';
 
 import { getQueryClient } from '@/lib/get-query-client';
 import { DashboardPageClient } from './dashboard-client';
 import { getActiveOrganizationContext } from '@/lib/organization-context';
+import { fetchPayrollSettingsServer } from '@/lib/server-client-functions';
 import {
 	prefetchDashboardCounts,
 	prefetchDashboardDeviceStatus,
@@ -12,6 +13,9 @@ import {
 	prefetchDashboardTimeline,
 	prefetchDashboardWeather,
 } from '@/lib/server-functions';
+import { getUtcDayRangeFromDateKey, toDateKeyInTimeZone } from '@/lib/time-zone';
+
+const DEFAULT_DASHBOARD_TIME_ZONE = 'America/Mexico_City';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.
@@ -31,21 +35,25 @@ export const dynamic = 'force-dynamic';
 export default async function DashboardPage(): Promise<React.ReactElement> {
 	const queryClient = getQueryClient();
 	const orgContext = await getActiveOrganizationContext();
-	const now = new Date();
-	const fromDate = startOfDay(now);
-	const toDate = endOfDay(now);
-	const hourlyDate = format(now, 'yyyy-MM-dd');
+	const requestHeaders = await headers();
+	const cookieHeader = requestHeaders.get('cookie') ?? '';
+	const payrollSettings = orgContext.organizationId
+		? await fetchPayrollSettingsServer(cookieHeader, orgContext.organizationId)
+		: null;
+	const dashboardTimeZone = payrollSettings?.timeZone ?? DEFAULT_DASHBOARD_TIME_ZONE;
+	const todayDateKey = toDateKeyInTimeZone(new Date(), dashboardTimeZone);
+	const todayRange = getUtcDayRangeFromDateKey(todayDateKey, dashboardTimeZone);
 
 	// Prefetch without await for streaming support
 	prefetchDashboardCounts(queryClient, { organizationId: orgContext.organizationId });
 	prefetchDashboardTimeline(queryClient, {
 		organizationId: orgContext.organizationId,
-		fromDate,
-		toDate,
+		fromDate: todayRange.startUtc,
+		toDate: todayRange.endUtc,
 	});
 	prefetchDashboardHourly(queryClient, {
 		organizationId: orgContext.organizationId,
-		date: hourlyDate,
+		date: todayDateKey,
 	});
 	prefetchDashboardDeviceStatus(queryClient, {
 		organizationId: orgContext.organizationId,

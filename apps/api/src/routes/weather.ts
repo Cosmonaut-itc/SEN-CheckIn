@@ -53,6 +53,12 @@ type ValidOpenWeatherResponse = OpenWeatherResponse & {
 	};
 };
 
+/**
+ * Process-local TTL cache for weather snapshots.
+ *
+ * This reduces duplicate provider calls on a single replica, but the cache
+ * resets on restart and is not shared across horizontally scaled instances.
+ */
 const weatherCache = new Map<string, WeatherCacheEntry>();
 
 /**

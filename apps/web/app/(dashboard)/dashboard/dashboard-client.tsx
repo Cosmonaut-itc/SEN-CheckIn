@@ -2,8 +2,6 @@
 
 import React, { useMemo, useState } from 'react';
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
-import { endOfDay, format, startOfDay } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { ChevronDown, MapPin, Users } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
@@ -28,10 +26,10 @@ import {
 	type AttendancePresentRecord,
 	type DashboardCounts,
 	type Location,
-	type TimelineEvent,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 import { queryKeys } from '@/lib/query-keys';
+import { getUtcDayRangeFromDateKey, toDateKeyInTimeZone } from '@/lib/time-zone';
 import type { DashboardMapProps } from './dashboard-map';
 import { ActivityTimeline } from './activity-timeline';
 import { DeviceStatusCard } from './device-status-card';
@@ -65,6 +63,8 @@ const DashboardMap = dynamic<DashboardMapProps>(loadDashboardMap, {
 	ssr: false,
 	loading: DashboardMapFallback,
 });
+
+const DEFAULT_DASHBOARD_TIME_ZONE = 'America/Mexico_City';
 
 interface LocationWithPresence extends Location {
 	employeeCount: number;
@@ -156,16 +156,6 @@ async function fetchActiveEmployeeCountsByLocation(
 }
 
 /**
- * Counts late check-ins inside the timeline payload.
- *
- * @param timelineEvents - Timeline events returned by the API
- * @returns Number of late check-in events
- */
-function countLateTimelineEvents(timelineEvents: TimelineEvent[]): number {
-	return timelineEvents.filter((event) => event.type === 'CHECK_IN' && event.isLate).length;
-}
-
-/**
  * Computes hero metrics from dashboard data sets.
  *
  * @param counts - Dashboard aggregate counters
@@ -203,20 +193,35 @@ function buildHeroStats(
  * Builds the hero eyebrow date string in Spanish.
  *
  * @param now - Current client date
+ * @param timeZone - Organization timezone
  * @returns Formatted date label
  */
-function formatHeroDate(now: Date): string {
-	return format(now, "d 'de' MMMM", { locale: es });
+function formatHeroDate(now: Date, timeZone: string): string {
+	return new Intl.DateTimeFormat('es-MX', {
+		timeZone,
+		day: 'numeric',
+		month: 'long',
+	})
+		.format(now)
+		.replace(',', '');
 }
 
 /**
  * Builds the hero eyebrow time string in 24-hour format.
  *
  * @param now - Current client date
+ * @param timeZone - Organization timezone
  * @returns Formatted time label
  */
-function formatHeroTime(now: Date): string {
-	return format(now, 'HH:mm');
+function formatHeroTime(now: Date, timeZone: string): string {
+	return new Intl.DateTimeFormat('es-MX', {
+		timeZone,
+		hour: '2-digit',
+		minute: '2-digit',
+		hour12: false,
+	})
+		.format(now)
+		.replace('.', ':');
 }
 
 /**
@@ -225,7 +230,7 @@ function formatHeroTime(now: Date): string {
  * @returns The redesigned dashboard page
  */
 export function DashboardPageClient(): React.ReactElement {
-	const { organizationId } = useOrgContext();
+	const { organizationId, organizationTimeZone } = useOrgContext();
 	const t = useTranslations('Dashboard');
 	const isMobile = useIsMobile();
 	const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
@@ -239,14 +244,15 @@ export function DashboardPageClient(): React.ReactElement {
 	useTour('dashboard');
 
 	const now = useMemo(() => new Date(), []);
-	const todayRange = useMemo(
-		() => ({
-			fromDate: startOfDay(now),
-			toDate: endOfDay(now),
-		}),
-		[now],
+	const dashboardTimeZone = organizationTimeZone ?? DEFAULT_DASHBOARD_TIME_ZONE;
+	const todayDateKey = useMemo(
+		() => toDateKeyInTimeZone(now, dashboardTimeZone),
+		[dashboardTimeZone, now],
 	);
-	const hourlyDate = useMemo(() => format(now, 'yyyy-MM-dd'), [now]);
+	const todayRange = useMemo(
+		() => getUtcDayRangeFromDateKey(todayDateKey, dashboardTimeZone),
+		[dashboardTimeZone, todayDateKey],
+	);
 
 	const { data: counts } = useSuspenseQuery({
 		queryKey: queryKeys.dashboard.counts(organizationId),
@@ -255,14 +261,14 @@ export function DashboardPageClient(): React.ReactElement {
 
 	const { data: presentRecords = [], isFetching: isPresentFetching } = useQuery({
 		queryKey: queryKeys.attendance.present({
-			fromDate: todayRange.fromDate,
-			toDate: todayRange.toDate,
+			fromDate: todayRange.startUtc,
+			toDate: todayRange.endUtc,
 			organizationId: organizationId ?? undefined,
 		}),
 		queryFn: () =>
 			fetchAttendancePresent({
-				fromDate: todayRange.fromDate,
-				toDate: todayRange.toDate,
+				fromDate: todayRange.startUtc,
+				toDate: todayRange.endUtc,
 				organizationId: organizationId ?? null,
 			}),
 		enabled: Boolean(organizationId),
@@ -279,29 +285,29 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchLocationsAll({ organizationId }),
 		enabled: Boolean(organizationId),
 	});
-	const { data: timelineEvents = [], isFetching: isTimelineFetching } = useQuery({
+	const { data: timelinePayload, isFetching: isTimelineFetching } = useQuery({
 		queryKey: queryKeys.dashboard.timeline({
 			organizationId: organizationId ?? undefined,
-			fromDate: todayRange.fromDate,
-			toDate: todayRange.toDate,
+			fromDate: todayRange.startUtc,
+			toDate: todayRange.endUtc,
 		}),
 		queryFn: () =>
 			fetchAttendanceTimeline({
 				organizationId: organizationId ?? null,
-				fromDate: todayRange.fromDate,
-				toDate: todayRange.toDate,
+				fromDate: todayRange.startUtc,
+				toDate: todayRange.endUtc,
 			}),
 		enabled: Boolean(organizationId),
 	});
 	const { data: hourlyPayload, isFetching: isHourlyFetching } = useQuery({
 		queryKey: queryKeys.dashboard.hourly({
 			organizationId: organizationId ?? undefined,
-			date: hourlyDate,
+			date: todayDateKey,
 		}),
 		queryFn: () =>
 			fetchAttendanceHourly({
 				organizationId: organizationId ?? null,
-				date: hourlyDate,
+				date: todayDateKey,
 			}),
 		enabled: Boolean(organizationId),
 	});
@@ -329,6 +335,8 @@ export function DashboardPageClient(): React.ReactElement {
 		() => buildPresentByLocationId(presentRecords),
 		[presentRecords],
 	);
+	const timelineEvents = timelinePayload?.data ?? [];
+	const lateCount = timelinePayload?.lateTotal ?? 0;
 	const locationRows = useMemo(
 		() => buildLocationPresenceRows(locations, presentByLocationId, employeeCountByLocation),
 		[employeeCountByLocation, locations, presentByLocationId],
@@ -336,10 +344,6 @@ export function DashboardPageClient(): React.ReactElement {
 	const activeLocation = useMemo(
 		() => locationRows.find((location) => location.id === activeLocationId) ?? null,
 		[activeLocationId, locationRows],
-	);
-	const lateCount = useMemo(
-		() => countLateTimelineEvents(timelineEvents),
-		[timelineEvents],
 	);
 	const offsiteCount = offsiteTodayData?.count ?? 0;
 	const heroStats = useMemo(
@@ -367,8 +371,8 @@ export function DashboardPageClient(): React.ReactElement {
 				<div className="space-y-3">
 					<p className="text-xs font-semibold uppercase tracking-[0.28em] text-muted-foreground">
 						{t('hero.eyebrow', {
-							date: formatHeroDate(now),
-							time: formatHeroTime(now),
+							date: formatHeroDate(now, dashboardTimeZone),
+							time: formatHeroTime(now, dashboardTimeZone),
 						})}
 					</p>
 					<h1 className="max-w-3xl whitespace-pre-line font-[var(--font-display)] text-[2.9rem] leading-none tracking-[-0.04em] sm:text-[3.5rem]">
@@ -390,7 +394,11 @@ export function DashboardPageClient(): React.ReactElement {
 						late={heroStats.late}
 						absent={heroStats.absent}
 						offsite={heroStats.offsite}
-						isLoading={isPresentFetching || isOffsiteFetching || isTimelineFetching}
+						isLoading={
+							isPresentFetching ||
+							isOffsiteFetching ||
+							isTimelineFetching
+						}
 					/>
 					<ThemeModeToggle />
 				</div>
@@ -496,6 +504,7 @@ export function DashboardPageClient(): React.ReactElement {
 						events={timelineEvents}
 						isLoading={isTimelineFetching}
 						filter={timelineFilter}
+						timeZone={dashboardTimeZone}
 						onFilterChange={setTimelineFilter}
 					/>
 				</div>

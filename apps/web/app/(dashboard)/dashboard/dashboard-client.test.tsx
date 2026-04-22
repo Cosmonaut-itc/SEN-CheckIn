@@ -2,10 +2,10 @@
 
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { endOfDay, startOfDay } from 'date-fns';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryKeys } from '@/lib/query-keys';
+import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
 import { DashboardPageClient } from './dashboard-client';
 
 const useQueryMock = vi.fn();
@@ -120,19 +120,22 @@ function createQueryResults(): Array<Record<string, unknown>> {
 			isFetching: false,
 		},
 		{
-			data: [
-				{
-					id: 'timeline-1',
-					employeeId: 'emp-1',
-					employeeName: 'Ada Lovelace',
-					employeeCode: 'A001',
-					locationId: 'location-1',
-					locationName: 'Matriz',
-					timestamp: '2026-04-21T08:00:00.000Z',
-					type: 'CHECK_IN',
-					isLate: false,
-				},
-			],
+			data: {
+				data: [
+					{
+						id: 'timeline-1',
+						employeeId: 'emp-1',
+						employeeName: 'Ada Lovelace',
+						employeeCode: 'A001',
+						locationId: 'location-1',
+						locationName: 'Matriz',
+						timestamp: '2026-04-21T08:00:00.000Z',
+						type: 'CHECK_IN',
+						isLate: false,
+					},
+				],
+				lateTotal: 1,
+			},
 			isFetching: false,
 		},
 		{
@@ -187,7 +190,10 @@ describe('DashboardPageClient', () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(now);
-		useOrgContextMock.mockReturnValue({ organizationId: 'org-1' });
+		useOrgContextMock.mockReturnValue({
+			organizationId: 'org-1',
+			organizationTimeZone: 'America/Mexico_City',
+		});
 		useIsMobileMock.mockReturnValue(false);
 		useSuspenseQueryMock.mockReturnValue({
 			data: {
@@ -238,6 +244,11 @@ describe('DashboardPageClient', () => {
 
 		render(<DashboardPageClient />);
 
+		const { startUtc, endUtc } = getUtcDayRangeFromDateKey(
+			'2026-04-21',
+			'America/Mexico_City',
+		);
+
 		expect(useSuspenseQueryMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				queryKey: queryKeys.dashboard.counts('org-1'),
@@ -247,8 +258,8 @@ describe('DashboardPageClient', () => {
 			1,
 			expect.objectContaining({
 				queryKey: queryKeys.attendance.present({
-					fromDate: startOfDay(now),
-					toDate: endOfDay(now),
+					fromDate: startUtc,
+					toDate: endUtc,
 					organizationId: 'org-1',
 				}),
 			}),
@@ -258,8 +269,8 @@ describe('DashboardPageClient', () => {
 			expect.objectContaining({
 				queryKey: queryKeys.dashboard.timeline({
 					organizationId: 'org-1',
-					fromDate: startOfDay(now),
-					toDate: endOfDay(now),
+					fromDate: startUtc,
+					toDate: endUtc,
 				}),
 			}),
 		);
@@ -274,12 +285,62 @@ describe('DashboardPageClient', () => {
 		);
 	});
 
+	it('uses the organization timezone for dashboard day-scoped queries', () => {
+		vi.setSystemTime(new Date('2026-04-21T02:30:00.000Z'));
+		useQueryMock
+			.mockReturnValueOnce(createQueryResults()[0])
+			.mockReturnValueOnce(createQueryResults()[1])
+			.mockReturnValueOnce(createQueryResults()[2])
+			.mockReturnValueOnce(createQueryResults()[3])
+			.mockReturnValueOnce(createQueryResults()[4])
+			.mockReturnValueOnce(createQueryResults()[5])
+			.mockReturnValueOnce(createQueryResults()[6])
+			.mockReturnValueOnce(createQueryResults()[7]);
+
+		render(<DashboardPageClient />);
+
+		const { startUtc, endUtc } = getUtcDayRangeFromDateKey(
+			'2026-04-20',
+			'America/Mexico_City',
+		);
+
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				queryKey: queryKeys.attendance.present({
+					fromDate: startUtc,
+					toDate: endUtc,
+					organizationId: 'org-1',
+				}),
+			}),
+		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			4,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.timeline({
+					organizationId: 'org-1',
+					fromDate: startUtc,
+					toDate: endUtc,
+				}),
+			}),
+		);
+		expect(useQueryMock).toHaveBeenNthCalledWith(
+			5,
+			expect.objectContaining({
+				queryKey: queryKeys.dashboard.hourly({
+					date: '2026-04-20',
+					organizationId: 'org-1',
+				}),
+			}),
+		);
+	});
+
 	it('propagates loading states to child cards', () => {
 		useQueryMock
 			.mockReturnValueOnce({ data: [], isFetching: true })
 			.mockReturnValueOnce({ data: { count: 0, data: [], dateKey: '2026-04-21' }, isFetching: true })
 			.mockReturnValueOnce({ data: [], isFetching: true })
-			.mockReturnValueOnce({ data: [], isFetching: true })
+			.mockReturnValueOnce({ data: { data: [], lateTotal: 0 }, isFetching: true })
 			.mockReturnValueOnce({ data: { data: [], date: '2026-04-21' }, isFetching: true })
 			.mockReturnValueOnce({ data: [], isFetching: true })
 			.mockReturnValueOnce({ data: { data: [], cachedAt: null }, isFetching: true })

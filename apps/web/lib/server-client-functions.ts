@@ -800,10 +800,16 @@ export async function fetchDashboardCountsServer(
 export async function fetchAttendanceTimelineServer(
 	cookieHeader: string,
 	params?: DashboardTimelineQueryParams,
-): Promise<TimelineEvent[]> {
+): Promise<{
+	data: TimelineEvent[];
+	lateTotal: number;
+}> {
 	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
 	if (!organizationId) {
-		return [];
+		return {
+			data: [],
+			lateTotal: 0,
+		};
 	}
 
 	const api: ServerApiClient = createServerApiClient(cookieHeader);
@@ -843,10 +849,13 @@ export async function fetchAttendanceTimelineServer(
 			timestamp: Date | string;
 		}
 	>;
-	return events.map((event) => ({
-		...event,
-		timestamp: String(event.timestamp),
-	}));
+	return {
+		data: events.map((event) => ({
+			...event,
+			timestamp: String(event.timestamp),
+		})),
+		lateTotal: payload?.summary?.lateTotal ?? 0,
+	};
 }
 
 /**

@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { eq, and, desc, gte, ilike, inArray, lte, lt, ne, sql, type SQL } from 'drizzle-orm';
+import { eq, and, count, desc, gte, ilike, inArray, lte, lt, ne, sql, type SQL } from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
 
@@ -291,6 +291,24 @@ function matchesTimelineKind(args: {
 			return args.type === 'WORK_OFFSITE';
 		default:
 			return true;
+	}
+}
+
+/**
+ * Pushes timeline type filtering into SQL when the filter does not depend on schedule enrichment.
+ *
+ * @param kind - Requested timeline filter
+ * @returns SQL condition for attendance type when applicable
+ */
+function buildTimelineTypeCondition(kind: TimelineKind): SQL<unknown> | undefined {
+	switch (kind) {
+		case 'in':
+		case 'late':
+			return eq(attendanceRecord.type, 'CHECK_IN');
+		case 'offsite':
+			return eq(attendanceRecord.type, 'WORK_OFFSITE');
+		default:
+			return undefined;
 	}
 }
 
@@ -992,32 +1010,78 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			const startBound = fromDate ?? defaultBounds.startUtc;
 			const endBound = toDate ?? new Date(defaultBounds.endExclusiveUtc.getTime() - 1);
 
-			const rows = await db
-				.select({
-					id: attendanceRecord.id,
-					employeeId: attendanceRecord.employeeId,
-					employeeFirstName: employee.firstName,
-					employeeLastName: employee.lastName,
-					employeeCode: employee.code,
-					locationId: employee.locationId,
-					locationName: location.name,
-					timestamp: attendanceRecord.timestamp,
-					type: attendanceRecord.type,
-				})
-				.from(attendanceRecord)
-				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-				.leftJoin(location, eq(employee.locationId, location.id))
-				.where(
-					and(
-						eq(employee.organizationId, organizationId),
-						gte(attendanceRecord.timestamp, startBound),
-						lte(attendanceRecord.timestamp, endBound),
-					),
-				)
-				.orderBy(desc(attendanceRecord.timestamp));
+			const timelineConditions: SQL<unknown>[] = [
+				eq(employee.organizationId, organizationId),
+				gte(attendanceRecord.timestamp, startBound),
+				lte(attendanceRecord.timestamp, endBound),
+			];
+			const timelineTypeCondition = buildTimelineTypeCondition(kind);
+			if (timelineTypeCondition) {
+				timelineConditions.push(timelineTypeCondition);
+			}
+			const shouldPaginateInSql = kind !== 'late';
+
+			const rows = shouldPaginateInSql
+				? await db
+						.select({
+							id: attendanceRecord.id,
+							employeeId: attendanceRecord.employeeId,
+							employeeFirstName: employee.firstName,
+							employeeLastName: employee.lastName,
+							employeeCode: employee.code,
+							locationId: employee.locationId,
+							locationName: location.name,
+							timestamp: attendanceRecord.timestamp,
+							type: attendanceRecord.type,
+						})
+						.from(attendanceRecord)
+						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+						.leftJoin(location, eq(employee.locationId, location.id))
+						.where(and(...timelineConditions))
+						.orderBy(desc(attendanceRecord.timestamp))
+						.limit(limit)
+						.offset(offset)
+				: await db
+						.select({
+							id: attendanceRecord.id,
+							employeeId: attendanceRecord.employeeId,
+							employeeFirstName: employee.firstName,
+							employeeLastName: employee.lastName,
+							employeeCode: employee.code,
+							locationId: employee.locationId,
+							locationName: location.name,
+							timestamp: attendanceRecord.timestamp,
+							type: attendanceRecord.type,
+						})
+						.from(attendanceRecord)
+						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+						.leftJoin(location, eq(employee.locationId, location.id))
+						.where(and(...timelineConditions))
+						.orderBy(desc(attendanceRecord.timestamp));
+			const lateCountRows = shouldPaginateInSql
+				? await db
+						.select({
+							employeeId: attendanceRecord.employeeId,
+							timestamp: attendanceRecord.timestamp,
+							type: attendanceRecord.type,
+						})
+						.from(attendanceRecord)
+						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+						.where(
+							and(
+								eq(employee.organizationId, organizationId),
+								gte(attendanceRecord.timestamp, startBound),
+								lte(attendanceRecord.timestamp, endBound),
+								eq(attendanceRecord.type, 'CHECK_IN'),
+							),
+						)
+				: rows;
 
 			const employeeIds = Array.from(
-				new Set(rows.map((row) => row.employeeId)),
+				new Set([
+					...rows.map((row) => row.employeeId),
+					...lateCountRows.map((row) => row.employeeId),
+				]),
 			);
 			const scheduleRows =
 				employeeIds.length > 0
@@ -1048,7 +1112,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				scheduleEntriesByEmployeeId.set(row.employeeId, scheduleByDay);
 			}
 
-			const filteredRows = rows
+			const enrichedRows = rows
 				.map((row) => {
 					const employeeName = `${row.employeeFirstName ?? ''} ${row.employeeLastName ?? ''}`
 						.trim()
@@ -1074,22 +1138,46 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					};
 				})
 				.filter((row) =>
-					matchesTimelineKind({
-						kind,
-						type: row.type,
-						isLate: row.isLate,
-					}),
+					shouldPaginateInSql
+						? true
+						: matchesTimelineKind({
+								kind,
+								type: row.type,
+								isLate: row.isLate,
+							}),
 				);
-
-			const paginatedRows = filteredRows.slice(offset, offset + limit);
+			const totalCount = shouldPaginateInSql
+				? (await db
+						.select({ count: count() })
+						.from(attendanceRecord)
+						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+						.where(and(...timelineConditions)))[0]?.count ?? 0
+				: enrichedRows.length;
+			const lateTotal = shouldPaginateInSql
+				? lateCountRows.filter((row) =>
+						resolveIsLate({
+							employeeId: row.employeeId,
+							timestamp: row.timestamp,
+							type: row.type,
+							timeZone,
+							scheduleEntriesByEmployeeId,
+						}),
+					).length
+				: totalCount;
+			const paginatedRows = shouldPaginateInSql
+				? enrichedRows
+				: enrichedRows.slice(offset, offset + limit);
 
 			return {
 				data: paginatedRows,
 				pagination: {
-					total: filteredRows.length,
+					total: totalCount,
 					limit,
 					offset,
-					hasMore: offset + paginatedRows.length < filteredRows.length,
+					hasMore: offset + paginatedRows.length < totalCount,
+				},
+				summary: {
+					lateTotal,
 				},
 			};
 		},

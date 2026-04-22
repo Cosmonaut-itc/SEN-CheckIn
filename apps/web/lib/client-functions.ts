@@ -253,6 +253,14 @@ export interface TimelineEvent {
 }
 
 /**
+ * Timeline payload used by the dashboard activity view.
+ */
+export interface DashboardTimelinePayload {
+	data: TimelineEvent[];
+	lateTotal: number;
+}
+
+/**
  * Hourly attendance aggregation for dashboard activity charts.
  */
 export interface HourlyActivity {
@@ -2311,9 +2319,12 @@ export async function fetchAttendanceTimeline(params?: {
 	limit?: number;
 	offset?: number;
 	kind?: 'in' | 'late' | 'offsite';
-}): Promise<TimelineEvent[]> {
+}): Promise<DashboardTimelinePayload> {
 	if (params?.organizationId === null) {
-		return [];
+		return {
+			data: [],
+			lateTotal: 0,
+		};
 	}
 
 	const query: {
@@ -2351,10 +2362,13 @@ export async function fetchAttendanceTimeline(params?: {
 			timestamp: Date | string;
 		}
 	>;
-	return events.map((event) => ({
-		...event,
-		timestamp: String(event.timestamp),
-	}));
+	return {
+		data: events.map((event) => ({
+			...event,
+			timestamp: String(event.timestamp),
+		})),
+		lateTotal: payload?.summary?.lateTotal ?? 0,
+	};
 }
 
 /**

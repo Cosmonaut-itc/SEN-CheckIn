@@ -280,7 +280,10 @@ describe('dashboard v2 client functions', () => {
 			organizationId: null,
 		});
 
-		expect(response).toEqual([]);
+		expect(response).toEqual({
+			data: [],
+			lateTotal: 0,
+		});
 		expect(mockAttendanceTimelineGet).not.toHaveBeenCalled();
 	});
 
@@ -289,6 +292,7 @@ describe('dashboard v2 client functions', () => {
 			data: {
 				data: [createTimelineEventFixture()],
 				pagination: { total: 1, limit: 50, offset: 0, hasMore: false },
+				summary: { lateTotal: 1 },
 			},
 			error: null,
 			status: 200,
@@ -301,7 +305,10 @@ describe('dashboard v2 client functions', () => {
 			offset: 0,
 		});
 
-		expect(response).toEqual([createTimelineEventFixture()]);
+		expect(response).toEqual({
+			data: [createTimelineEventFixture()],
+			lateTotal: 1,
+		});
 		expect(mockAttendanceTimelineGet).toHaveBeenCalledWith({
 			$query: {
 				kind: 'late',

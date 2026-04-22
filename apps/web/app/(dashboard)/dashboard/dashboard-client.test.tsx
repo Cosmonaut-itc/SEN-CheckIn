@@ -100,10 +100,6 @@ vi.mock('@/lib/client-functions', async () => {
 	};
 });
 
-vi.mock('@/components/theme-mode-toggle', () => ({
-	ThemeModeToggle: () => <div data-testid="theme-mode-toggle" />,
-}));
-
 const now = new Date('2026-04-21T12:00:00.000Z');
 
 /**
@@ -261,7 +257,6 @@ describe('DashboardPageClient', () => {
 		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(1);
 		expect(screen.getByTestId('device-status-card')).toBeInTheDocument();
 		expect(screen.getByTestId('weather-icon-cielo-claro')).toBeInTheDocument();
-		expect(screen.getByTestId('theme-mode-toggle')).toBeInTheDocument();
 		expect(useTourMock).toHaveBeenCalledWith('dashboard');
 	});
 

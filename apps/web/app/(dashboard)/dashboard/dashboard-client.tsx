@@ -6,7 +6,6 @@ import { ChevronDown, MapPin, Users } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useTranslations } from 'next-intl';
 
-import { ThemeModeToggle } from '@/components/theme-mode-toggle';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -382,7 +381,7 @@ export function DashboardPageClient(): React.ReactElement {
 						})}
 					</p>
 				</div>
-				<div className={`flex gap-3 ${isMobile ? 'flex-col' : 'items-start'}`}>
+				<div>
 					<HeroStatCard
 						onTime={heroStats.onTime}
 						total={heroStats.total}
@@ -391,7 +390,6 @@ export function DashboardPageClient(): React.ReactElement {
 						offsite={heroStats.offsite}
 						isLoading={isPresentFetching || isOffsiteFetching || isTimelineFetching}
 					/>
-					<ThemeModeToggle />
 				</div>
 			</header>
 

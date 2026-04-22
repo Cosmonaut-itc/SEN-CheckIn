@@ -28,6 +28,7 @@ import {
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 import { queryKeys } from '@/lib/query-keys';
+import { DEFAULT_DASHBOARD_TIME_ZONE } from '@/lib/dashboard-time-zone';
 import { getUtcDayRangeFromDateKey, toDateKeyInTimeZone } from '@/lib/time-zone';
 import type { DashboardMapProps } from './dashboard-map';
 import { ActivityTimeline } from './activity-timeline';
@@ -62,8 +63,6 @@ const DashboardMap = dynamic<DashboardMapProps>(loadDashboardMap, {
 	ssr: false,
 	loading: DashboardMapFallback,
 });
-
-const DEFAULT_DASHBOARD_TIME_ZONE = 'America/Mexico_City';
 
 interface LocationWithPresence extends Location {
 	employeeCount: number;

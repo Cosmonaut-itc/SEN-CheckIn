@@ -141,6 +141,77 @@ describe('weather route (contract)', () => {
 			data: [],
 			cachedAt: null,
 		});
+
+		globalThis.fetch = (async (input, init) => {
+			const url =
+				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+			if (!url.includes(OPEN_WEATHER_PATH)) {
+				return originalFetch(input as RequestInfo | URL, init);
+			}
+
+			throw new Error('Weather provider should not be called again after a failed-all-locations cache fill');
+		}) as typeof fetch;
+
+		const cachedResponse = await client.weather.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
+		});
+
+		expect(cachedResponse.status).toBe(200);
+		const cachedPayload = requireResponseData(cachedResponse);
+		expect(cachedPayload).toEqual({
+			data: [],
+			cachedAt: null,
+		});
+	});
+
+	it('returns a cached empty payload when the weather API key is temporarily unavailable', async () => {
+		const currentApiKey = process.env.OPENWEATHERMAP_API_KEY;
+		delete process.env.OPENWEATHERMAP_API_KEY;
+
+		try {
+			const response = await client.weather.get({
+				$headers: { cookie: adminSession.cookieHeader },
+				$query: {},
+			});
+
+			expect(response.status).toBe(200);
+			const payload = requireResponseData(response);
+			expect(payload).toEqual({
+				data: [],
+				cachedAt: null,
+			});
+
+			process.env.OPENWEATHERMAP_API_KEY = currentApiKey;
+			globalThis.fetch = (async (input, init) => {
+				const url =
+					typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+				if (!url.includes(OPEN_WEATHER_PATH)) {
+					return originalFetch(input as RequestInfo | URL, init);
+				}
+
+				return new Response(JSON.stringify(createMockWeatherResponse()), {
+					status: 200,
+					headers: { 'content-type': 'application/json' },
+				});
+			}) as typeof fetch;
+
+			const cachedResponse = await client.weather.get({
+				$headers: { cookie: adminSession.cookieHeader },
+				$query: {},
+			});
+
+			expect(cachedResponse.status).toBe(200);
+			const cachedPayload = requireResponseData(cachedResponse);
+			expect(cachedPayload).toEqual({
+				data: [],
+				cachedAt: null,
+			});
+		} finally {
+			process.env.OPENWEATHERMAP_API_KEY = currentApiKey;
+		}
 	});
 
 	it('returns partial weather results when one location provider call fails', async () => {

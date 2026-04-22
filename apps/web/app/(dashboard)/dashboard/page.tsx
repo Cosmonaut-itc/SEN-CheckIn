@@ -1,9 +1,9 @@
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query';
 import React from 'react';
 
-import { getQueryClient } from '@/lib/get-query-client';
 import { getDashboardOrganizationContext } from '@/lib/dashboard-organization-context';
-import { DashboardPageClient } from './dashboard-client';
+import { DEFAULT_DASHBOARD_TIME_ZONE } from '@/lib/dashboard-time-zone';
+import { getQueryClient } from '@/lib/get-query-client';
 import {
 	prefetchDashboardCounts,
 	prefetchDashboardDeviceStatus,
@@ -12,8 +12,7 @@ import {
 	prefetchDashboardWeather,
 } from '@/lib/server-functions';
 import { getUtcDayRangeFromDateKey, toDateKeyInTimeZone } from '@/lib/time-zone';
-
-const DEFAULT_DASHBOARD_TIME_ZONE = 'America/Mexico_City';
+import { DashboardPageClient } from './dashboard-client';
 
 /**
  * Force dynamic rendering to ensure fresh data on each request.

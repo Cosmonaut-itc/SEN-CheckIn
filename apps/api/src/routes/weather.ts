@@ -147,10 +147,10 @@ function setWeatherCache(
 }
 
 /**
- * Stores a partial weather payload in the cache while preserving the public
- * `cachedAt: null` contract for incomplete responses. Partial snapshots use a
- * short TTL so the API avoids tight retry loops without pinning missing
- * locations for the full weather cache window.
+ * Stores a partial or empty weather payload in the cache while preserving the
+ * public `cachedAt: null` contract for incomplete responses. Partial snapshots
+ * use a short TTL so the API avoids tight retry loops without pinning missing
+ * locations or complete provider failures for the full weather cache window.
  *
  * @param organizationId - Organization identifier used as cache key
  * @param data - Partial weather rows to cache
@@ -294,7 +294,7 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 
 		const apiKey = process.env.OPENWEATHERMAP_API_KEY;
 		if (!apiKey) {
-			return buildEmptyWeatherResponse();
+			return setPartialWeatherCache(organizationId, []);
 		}
 
 		try {
@@ -339,8 +339,7 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 			const hadPartialFailures = weatherRows.length !== locationsWithCoordinates.length;
 
 			if (weatherRows.length === 0) {
-				weatherCache.delete(organizationId);
-				return buildEmptyWeatherResponse();
+				return setPartialWeatherCache(organizationId, []);
 			}
 
 			if (hadPartialFailures) {
@@ -350,7 +349,8 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 			return setWeatherCache(organizationId, weatherRows);
 		} catch (error) {
 			console.error('[weather] Failed to build weather summary', { organizationId, error });
-			weatherCache.delete(organizationId);
+			// Keep unexpected internal failures uncached so recovery is immediate
+			// once the underlying DB/query issue clears.
 			return buildEmptyWeatherResponse();
 		}
 	}, {

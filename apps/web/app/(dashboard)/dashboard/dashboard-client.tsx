@@ -418,7 +418,7 @@ export function DashboardPageClient(): React.ReactElement {
 						</div>
 					</CardHeader>
 					<CardContent
-						className={`relative p-0 ${isMobile ? 'h-[60vh]' : 'h-[32rem]'}`}
+						className={`relative p-0 ${isMobile ? 'h-[60vh] min-h-[28rem]' : 'h-[32rem]'}`}
 						data-testid="dashboard-v2-map-stage"
 					>
 						<div className="absolute inset-0">
@@ -447,7 +447,7 @@ export function DashboardPageClient(): React.ReactElement {
 							<Button
 								type="button"
 								variant="outline"
-								className="w-full justify-between rounded-2xl"
+								className="w-full justify-between rounded-2xl bg-[color:var(--bg-elevated)] shadow-[var(--shadow-sm)]"
 								aria-expanded={isMobileRailOpen}
 								onClick={() => setIsMobileRailOpen((currentValue) => !currentValue)}
 							>
@@ -513,7 +513,10 @@ export function DashboardPageClient(): React.ReactElement {
 			</div>
 
 			{!hasLocationSelection ? (
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
+				<div
+					className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+					data-testid="dashboard-v2-location-summary"
+				>
 					<MapPin className="h-4 w-4" />
 					<span>{t('locationRail.title')}</span>
 					<Badge variant="outline">
@@ -524,7 +527,10 @@ export function DashboardPageClient(): React.ReactElement {
 					</Badge>
 				</div>
 			) : (
-				<div className="flex items-center gap-2 text-sm text-muted-foreground">
+				<div
+					className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground"
+					data-testid="dashboard-v2-location-summary"
+				>
 					<Users className="h-4 w-4" />
 					<span>{activeLocation?.name}</span>
 					<Badge variant="outline">

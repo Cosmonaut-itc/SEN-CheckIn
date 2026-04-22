@@ -27,8 +27,7 @@ type WeatherRouteResponse = {
 };
 
 type WeatherCacheEntry = {
-	data: WeatherResponseItem[];
-	cachedAt: string;
+	response: WeatherRouteResponse;
 	expiresAt: number;
 };
 
@@ -54,7 +53,7 @@ type ValidOpenWeatherResponse = OpenWeatherResponse & {
 };
 
 /**
- * Process-local TTL cache for weather snapshots.
+ * Process-local TTL cache for weather snapshots, including partial snapshots.
  *
  * This reduces duplicate provider calls on a single replica, but the cache
  * resets on restart and is not shared across horizontally scaled instances.
@@ -99,10 +98,21 @@ function getFreshWeatherCache(organizationId: string): WeatherRouteResponse | nu
 		return null;
 	}
 
-	return {
-		data: cachedEntry.data,
-		cachedAt: cachedEntry.cachedAt,
-	};
+	return cachedEntry.response;
+}
+
+/**
+ * Stores a weather payload in the cache.
+ *
+ * @param organizationId - Organization identifier used as cache key
+ * @param response - Weather payload to cache
+ * @returns Nothing
+ */
+function storeWeatherCache(organizationId: string, response: WeatherRouteResponse): void {
+	weatherCache.set(organizationId, {
+		response,
+		expiresAt: Date.now() + WEATHER_CACHE_TTL_MS,
+	});
 }
 
 /**
@@ -117,17 +127,32 @@ function setWeatherCache(
 	data: WeatherResponseItem[],
 ): WeatherRouteResponse {
 	const cachedAt = new Date().toISOString();
-
-	weatherCache.set(organizationId, {
-		data,
-		cachedAt,
-		expiresAt: Date.now() + WEATHER_CACHE_TTL_MS,
-	});
-
-	return {
+	const response = {
 		data,
 		cachedAt,
 	};
+	storeWeatherCache(organizationId, response);
+	return response;
+}
+
+/**
+ * Stores a partial weather payload in the cache while preserving the public
+ * `cachedAt: null` contract for incomplete responses.
+ *
+ * @param organizationId - Organization identifier used as cache key
+ * @param data - Partial weather rows to cache
+ * @returns Cached partial response
+ */
+function setPartialWeatherCache(
+	organizationId: string,
+	data: WeatherResponseItem[],
+): WeatherRouteResponse {
+	const response = {
+		data,
+		cachedAt: null,
+	};
+	storeWeatherCache(organizationId, response);
+	return response;
 }
 
 /**
@@ -305,11 +330,7 @@ export const weatherRoutes = new Elysia({ prefix: '/weather' })
 			}
 
 			if (hadPartialFailures) {
-				weatherCache.delete(organizationId);
-				return {
-					data: weatherRows,
-					cachedAt: null,
-				};
+				return setPartialWeatherCache(organizationId, weatherRows);
 			}
 
 			return setWeatherCache(organizationId, weatherRows);

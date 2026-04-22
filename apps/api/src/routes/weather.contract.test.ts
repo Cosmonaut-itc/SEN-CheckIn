@@ -186,6 +186,25 @@ describe('weather route (contract)', () => {
 			payload.data.some((record: { locationId: string }) => record.locationId === extraLocationId),
 		).toBe(false);
 		expect(payload.cachedAt).toBeNull();
+
+		globalThis.fetch = (async (input, init) => {
+			const url =
+				typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+
+			if (!url.includes(OPEN_WEATHER_PATH)) {
+				return originalFetch(input as RequestInfo | URL, init);
+			}
+
+			throw new Error('Weather provider should not be called again after a partial cache fill');
+		}) as typeof fetch;
+
+		const cachedResponse = await client.weather.get({
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(cachedResponse.status).toBe(200);
+		const cachedPayload = requireResponseData(cachedResponse);
+		expect(cachedPayload).toEqual(payload);
 	});
 
 	afterEach(async () => {

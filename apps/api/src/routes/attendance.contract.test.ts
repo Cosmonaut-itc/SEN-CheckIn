@@ -29,6 +29,10 @@ type OffsiteCreateResult =
 
 const PAYROLL_LOCK_ERROR_MESSAGE =
 	'Cannot register offsite attendance for a processed payroll period';
+const OFFSITE_CHECK_EVENTS_CONFLICT_MESSAGE =
+	'Cannot register offsite attendance when check events already exist for that date.';
+const OFFSITE_DUPLICATE_CONFLICT_MESSAGE =
+	'An offsite attendance record already exists for that date';
 const DEFAULT_TEST_TIME_ZONE = 'America/Mexico_City';
 
 describe('attendance routes (contract)', () => {
@@ -38,6 +42,7 @@ describe('attendance routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 	let apiKey: string;
 	let activeEmployeeId: string;
+	let activeEmployeeIds: string[];
 
 	/**
 	 * Tries to create a WORK_OFFSITE record in a bounded retroactive window.
@@ -57,7 +62,7 @@ describe('attendance routes (contract)', () => {
 	}): Promise<OffsiteCreateResult> {
 		const conflicts: Array<{ dateKey: string; message: string }> = [];
 		const attemptedDateKeys: string[] = [];
-		for (let offset = args.startOffsetDays ?? 0; offset <= 7; offset += 1) {
+		for (let offset = args.startOffsetDays ?? 0; offset <= 30; offset += 1) {
 			const candidateDateKey = addDaysToDateKey(args.baseDateKey, -offset);
 			attemptedDateKeys.push(candidateDateKey);
 			const response = await client.attendance.post({
@@ -84,10 +89,17 @@ describe('attendance routes (contract)', () => {
 
 			if (response.status === 409) {
 				const errorPayload = requireErrorResponse(response, 'work offsite create conflict');
+				const message = errorPayload.error.message;
 				conflicts.push({
 					dateKey: candidateDateKey,
-					message: errorPayload.error.message,
+					message,
 				});
+				if (
+					message === OFFSITE_CHECK_EVENTS_CONFLICT_MESSAGE ||
+					message === OFFSITE_DUPLICATE_CONFLICT_MESSAGE
+				) {
+					continue;
+				}
 				continue;
 			}
 		}
@@ -126,6 +138,82 @@ describe('attendance routes (contract)', () => {
 		};
 	}
 
+	/**
+	 * Creates a WORK_OFFSITE record for the first active employee that is
+	 * actually eligible on the provided date.
+	 *
+	 * @param dateKey - Local organization date key returned by /attendance/offsite/today
+	 * @returns Created record id or a payroll-locked fallback
+	 * @throws Error when every active employee conflicts for reasons other than payroll lock
+	 */
+	async function createTodayOffsiteForAnyActiveEmployee(dateKey: string): Promise<
+		| {
+				kind: 'created';
+				recordId: string;
+		  }
+		| {
+				kind: 'payroll_locked';
+		  }
+	> {
+		const conflictReasons: Array<{ employeeId: string; message: string }> = [];
+
+		for (const employeeId of activeEmployeeIds) {
+			const createResponse = await client.attendance.post({
+				employeeId,
+				timestamp: new Date(),
+				type: 'WORK_OFFSITE',
+				offsiteDateKey: dateKey,
+				offsiteDayKind: 'LABORABLE',
+				offsiteReason: 'Trabajo fuera por visita operativa.',
+				$headers: { cookie: adminSession.cookieHeader },
+			});
+
+			if (createResponse.status === 201) {
+				const createPayload = requireResponseData(createResponse);
+				const recordId = createPayload.data?.id;
+				if (!recordId) {
+					throw new Error('Expected WORK_OFFSITE record id.');
+				}
+
+				return {
+					kind: 'created',
+					recordId,
+				};
+			}
+
+			if (createResponse.status !== 409) {
+				throw new Error(
+					`Unexpected WORK_OFFSITE status ${createResponse.status} for employee ${employeeId}.`,
+				);
+			}
+
+			const errorPayload = requireErrorResponse(createResponse, 'offsite create conflict');
+			const message = errorPayload.error.message;
+			if (message === PAYROLL_LOCK_ERROR_MESSAGE) {
+				return { kind: 'payroll_locked' };
+			}
+
+			if (
+				message === OFFSITE_CHECK_EVENTS_CONFLICT_MESSAGE ||
+				message === OFFSITE_DUPLICATE_CONFLICT_MESSAGE
+			) {
+				conflictReasons.push({ employeeId, message });
+				continue;
+			}
+
+			throw new Error(
+				`Unexpected WORK_OFFSITE conflict for employee ${employeeId}: ${message}`,
+			);
+		}
+
+		const formattedConflicts = conflictReasons
+			.map((conflict) => `${conflict.employeeId}: ${conflict.message}`)
+			.join(' | ');
+		throw new Error(
+			`Unable to create WORK_OFFSITE for any active employee on ${dateKey}. Conflicts: ${formattedConflicts || 'none'}`,
+		);
+	}
+
 	beforeAll(async () => {
 		client = createTestClient();
 		adminSession = await getAdminSession();
@@ -134,10 +222,14 @@ describe('attendance routes (contract)', () => {
 		apiKey = await getTestApiKey();
 		const activeEmployeesResponse = await client.employees.get({
 			$headers: { cookie: adminSession.cookieHeader },
-			$query: { limit: 1, offset: 0, status: 'ACTIVE' },
+			$query: { limit: 25, offset: 0, status: 'ACTIVE' },
 		});
 		const activeEmployeesPayload = requireResponseData(activeEmployeesResponse);
-		const activeEmployee = activeEmployeesPayload.data?.[0];
+		const activeEmployees = activeEmployeesPayload.data ?? [];
+		activeEmployeeIds = activeEmployees
+			.map((employee: { id?: string }) => employee.id)
+			.filter((employeeId): employeeId is string => typeof employeeId === 'string');
+		const activeEmployee = activeEmployees[0];
 		if (!activeEmployee?.id) {
 			throw new Error('Expected at least one active employee for offsite tests.');
 		}
@@ -239,6 +331,62 @@ describe('attendance routes (contract)', () => {
 		expect(typeof payload.data[0]?.isLate).toBe('boolean');
 	});
 
+	it('excludes checkout records from the default dashboard timeline window', async () => {
+		const checkInTimestamp = new Date();
+		checkInTimestamp.setMinutes(checkInTimestamp.getMinutes() - 10);
+		const checkOutTimestamp = new Date();
+		checkOutTimestamp.setMinutes(checkOutTimestamp.getMinutes() - 5);
+
+		const checkInResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: checkInTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(checkInResponse.status).toBe(201);
+		const checkInPayload = requireResponseData(checkInResponse);
+		const checkInRecordId = checkInPayload.data?.id;
+		if (!checkInRecordId) {
+			throw new Error('Expected attendance record ID for default dashboard timeline test.');
+		}
+
+		const checkOutResponse = await client.attendance.post({
+			employeeId: seed.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: checkOutTimestamp,
+			type: 'CHECK_OUT',
+			checkOutReason: 'REGULAR',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(checkOutResponse.status).toBe(201);
+		const checkOutPayload = requireResponseData(checkOutResponse);
+		const checkOutRecordId = checkOutPayload.data?.id;
+		if (!checkOutRecordId) {
+			throw new Error('Expected checkout record ID for default dashboard timeline test.');
+		}
+
+		const response = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 10,
+				offset: 0,
+				fromDate: new Date(checkInTimestamp.getTime() - 60_000),
+				toDate: new Date(checkOutTimestamp.getTime() + 60_000),
+			},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(payload.data.length).toBeGreaterThan(0);
+		expect(payload.data.some((row) => row.id === checkInRecordId)).toBe(true);
+		expect(payload.data.some((row) => row.id === checkOutRecordId)).toBe(false);
+		for (const row of payload.data) {
+			expect(row.type === 'CHECK_IN' || row.type === 'WORK_OFFSITE').toBe(true);
+		}
+		expect(payload.summary.lateTotal).toBeGreaterThanOrEqual(0);
+	});
+
 	it('filters attendance timeline entries by offsite kind', async () => {
 		const offsiteResponse = await client.attendance.get({
 			$headers: { cookie: adminSession.cookieHeader },
@@ -304,13 +452,90 @@ describe('attendance routes (contract)', () => {
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
 		expect(payload.data.length).toBeGreaterThan(0);
-		expect(payload.data[0]?.id).toBe(lateSample.id);
 		expect(payload.pagination.total).toBeGreaterThanOrEqual(1);
 		expect(typeof payload.pagination.hasMore).toBe('boolean');
 		for (const row of payload.data) {
 			expect(row.isLate).toBe(true);
 			expect(row.type).toBe('CHECK_IN');
 		}
+	});
+
+	it('applies pagination after filtering late timeline entries', async () => {
+		const discoveryResponse = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 200,
+				offset: 0,
+				fromDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000),
+				toDate: new Date(),
+			},
+		});
+
+		expect(discoveryResponse.status).toBe(200);
+		const discoveryPayload = requireResponseData(discoveryResponse);
+		const lateSample = discoveryPayload.data.find((row) => row.isLate);
+		if (!lateSample?.timestamp) {
+			throw new Error('Expected at least one late attendance record for late pagination test.');
+		}
+
+		const baseLateTimestamp = new Date(lateSample.timestamp);
+		const insertedLateTimestamp = new Date(baseLateTimestamp.getTime() + 60_000);
+		const createResponse = await client.attendance.post({
+			employeeId: lateSample.employeeId,
+			deviceId: seed.deviceId,
+			timestamp: insertedLateTimestamp,
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+		expect(createResponse.status).toBe(201);
+		const createdPayload = requireResponseData(createResponse);
+		const createdLateRecordId = createdPayload.data?.id;
+		if (!createdLateRecordId) {
+			throw new Error('Expected created late attendance record id for late pagination test.');
+		}
+
+		const firstPageResponse = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 1,
+				offset: 0,
+				kind: 'late',
+				fromDate: new Date(baseLateTimestamp.getTime() - 60_000),
+				toDate: new Date(insertedLateTimestamp.getTime() + 60_000),
+			},
+		});
+		expect(firstPageResponse.status).toBe(200);
+		const firstPagePayload = requireResponseData(firstPageResponse);
+		expect(firstPagePayload.data.length).toBe(1);
+		expect(firstPagePayload.data[0]?.id).toBe(createdLateRecordId);
+		expect(firstPagePayload.data[0]?.isLate).toBe(true);
+
+		const secondPageResponse = await client.attendance.timeline.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {
+				limit: 1,
+				offset: 1,
+				kind: 'late',
+				fromDate: new Date(baseLateTimestamp.getTime() - 60_000),
+				toDate: new Date(insertedLateTimestamp.getTime() + 60_000),
+			},
+		});
+
+		expect(secondPageResponse.status).toBe(200);
+		const secondPagePayload = requireResponseData(secondPageResponse);
+		expect(secondPagePayload.pagination.total).toBeGreaterThanOrEqual(2);
+		expect(secondPagePayload.pagination.total).toBe(firstPagePayload.pagination.total);
+		expect(secondPagePayload.pagination.hasMore).toBe(
+			secondPagePayload.pagination.total > 2,
+		);
+		expect(secondPagePayload.summary.lateTotal).toBe(
+			secondPagePayload.pagination.total,
+		);
+		expect(secondPagePayload.data.length).toBe(1);
+		expect(secondPagePayload.data[0]?.id).not.toBe(createdLateRecordId);
+		expect(secondPagePayload.data[0]?.id).not.toBe(firstPagePayload.data[0]?.id);
+		expect(secondPagePayload.data[0]?.isLate).toBe(true);
+		expect(secondPagePayload.data[0]?.type).toBe('CHECK_IN');
 	});
 
 	it('filters attendance timeline entries by explicit date range', async () => {
@@ -471,25 +696,9 @@ describe('attendance routes (contract)', () => {
 		const todayDateKey = String(offsiteTodayPayload.dateKey);
 		expect(todayDateKey).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 
-		const createResponse = await client.attendance.post({
-			employeeId: activeEmployeeId,
-			timestamp: new Date(),
-			type: 'WORK_OFFSITE',
-			offsiteDateKey: todayDateKey,
-			offsiteDayKind: 'LABORABLE',
-			offsiteReason: 'Trabajo fuera por visita operativa.',
-			$headers: { cookie: adminSession.cookieHeader },
-		});
-		if (createResponse.status === 409) {
-			const errorPayload = requireErrorResponse(createResponse, 'offsite payroll lock');
-			expect(errorPayload.error.message).toBe(PAYROLL_LOCK_ERROR_MESSAGE);
+		const createResult = await createTodayOffsiteForAnyActiveEmployee(todayDateKey);
+		if (createResult.kind === 'payroll_locked') {
 			return;
-		}
-		expect(createResponse.status).toBe(201);
-		const createPayload = requireResponseData(createResponse);
-		const recordId = createPayload.data?.id;
-		if (!recordId) {
-			throw new Error('Expected WORK_OFFSITE record id.');
 		}
 
 		const getResponse = await client.attendance.offsite.today.get({
@@ -499,7 +708,7 @@ describe('attendance routes (contract)', () => {
 		expect(getResponse.status).toBe(200);
 		const payload = requireResponseData(getResponse);
 		const records = payload.data ?? [];
-		expect(records.some((row: { id: string }) => row.id === recordId)).toBe(true);
+		expect(records.some((row: { id: string }) => row.id === createResult.recordId)).toBe(true);
 	});
 
 	it('updates and deletes a WORK_OFFSITE record', async () => {

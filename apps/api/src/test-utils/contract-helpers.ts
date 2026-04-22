@@ -1,5 +1,5 @@
 import { edenTreaty } from '@elysiajs/eden';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { parseSetCookieHeader } from 'better-auth/cookies';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -56,6 +56,7 @@ let cachedAdminSession: SessionContext | null = null;
 let cachedUserSession: SessionContext | null = null;
 let cachedApiKey: string | null = null;
 let cachedBootstrapPromise: Promise<void> | null = null;
+let cachedMigrationPromise: Promise<void> | null = null;
 type TestApiClient = ReturnType<typeof edenTreaty<App>>;
 
 /**
@@ -212,6 +213,150 @@ async function ensureBootstrappedTestDatabase(): Promise<void> {
 	}
 
 	return cachedBootstrapPromise;
+}
+
+/**
+ * Applies pending Drizzle migrations to the reusable test database without
+ * resetting its seeded data.
+ *
+ * @returns Promise that resolves after migrations finish
+ */
+async function ensureMigratedTestDatabase(): Promise<void> {
+	if (!cachedMigrationPromise) {
+		cachedMigrationPromise = (async () => {
+			const connectionString = await ensureReachableTestDatabaseUrl();
+			const child = Bun.spawn(['bun', 'run', 'db:mig'], {
+				cwd: resolve(dirname(fileURLToPath(import.meta.url)), '../..'),
+				env: {
+					...process.env,
+					SEN_DB_URL: connectionString,
+				},
+				stdio: ['ignore', 'inherit', 'inherit'],
+			});
+			const exitCode = await child.exited;
+			if (exitCode !== 0) {
+				throw new Error(`Contract test migration failed with exit code ${exitCode}.`);
+			}
+			resetContractTestCaches();
+		})().finally(() => {
+			cachedMigrationPromise = null;
+		});
+	}
+
+	return cachedMigrationPromise;
+}
+
+/**
+ * Verifies that the reusable contract-test database still has the schema,
+ * seed data, and auth fixtures expected by direct contract test runs.
+ *
+ * @returns Promise that resolves when the database state is compatible
+ * @throws Error when required schema objects or seeded records are missing
+ */
+async function assertBootstrappedContractState(): Promise<void> {
+	const { db, schema } = await loadDatabase();
+	const {
+		organization,
+		location,
+		jobPosition,
+		employee,
+		device,
+		scheduleTemplate,
+		user,
+		member,
+	} = schema;
+	const organizationRow = (
+		await db.select().from(organization).where(eq(organization.slug, 'sen-checkin')).limit(1)
+	)[0];
+
+	if (!organizationRow) {
+		throw new Error('Seed organization "sen-checkin" was not found.');
+	}
+
+	const [locationRow, jobPositionRow, employeeRow, deviceRow, templateRow, adminUser, memberUser] =
+		await Promise.all([
+			db.select().from(location).where(eq(location.organizationId, organizationRow.id)).limit(1),
+			db
+				.select()
+				.from(jobPosition)
+				.where(eq(jobPosition.organizationId, organizationRow.id))
+				.limit(1),
+			db.select().from(employee).where(eq(employee.organizationId, organizationRow.id)).limit(1),
+			db.select().from(device).where(eq(device.organizationId, organizationRow.id)).limit(1),
+			db
+				.select()
+				.from(scheduleTemplate)
+				.where(eq(scheduleTemplate.organizationId, organizationRow.id))
+				.limit(1),
+			db.select().from(user).where(eq(user.email, ADMIN_CREDENTIALS.email)).limit(1),
+			db.select().from(user).where(eq(user.email, USER_CREDENTIALS.email)).limit(1),
+		]);
+
+	if (
+		!locationRow[0] ||
+		!jobPositionRow[0] ||
+		!employeeRow[0] ||
+		!deviceRow[0] ||
+		!templateRow[0] ||
+		!adminUser[0] ||
+		!memberUser[0]
+	) {
+		throw new Error('Contract test database is missing required seed data.');
+	}
+
+	const [adminMembership, memberMembership] = await Promise.all([
+		db
+			.select()
+			.from(member)
+			.where(
+				and(
+					eq(member.organizationId, organizationRow.id),
+					eq(member.userId, adminUser[0].id),
+				),
+			)
+			.limit(1),
+		db
+			.select()
+			.from(member)
+			.where(
+				and(
+					eq(member.organizationId, organizationRow.id),
+					eq(member.userId, memberUser[0].id),
+				),
+			)
+			.limit(1),
+	]);
+
+	if (!adminMembership[0] || !memberMembership[0]) {
+		throw new Error('Contract test database is missing required auth memberships.');
+	}
+}
+
+/**
+ * Verifies that the reusable contract-test database still matches the schema
+ * expected by the current route code before reusing its seed data.
+ *
+ * @returns Promise that resolves once the database is ready for contract tests
+ */
+async function ensureContractDatabaseReady(): Promise<void> {
+	const connectionString = await ensureReachableTestDatabaseUrl();
+	if (!(await canConnectToDatabase(connectionString))) {
+		await ensureBootstrappedTestDatabase();
+		return;
+	}
+
+	try {
+		await assertBootstrappedContractState();
+		return;
+	} catch {
+		await ensureMigratedTestDatabase();
+	}
+
+	try {
+		await assertBootstrappedContractState();
+	} catch {
+		await ensureBootstrappedTestDatabase();
+	}
 }
 
 /**
@@ -461,6 +606,8 @@ export async function getSeedData(): Promise<SeedData> {
 		return cachedSeedData;
 	}
 
+	await ensureContractDatabaseReady();
+
 	const { db, schema } = await loadDatabase();
 	const {
 		organization,
@@ -479,18 +626,7 @@ export async function getSeedData(): Promise<SeedData> {
 		.where(eq(organization.slug, 'sen-checkin'))
 		.limit(1);
 
-	let organizationRow = orgRows[0];
-	if (!organizationRow) {
-		await ensureBootstrappedTestDatabase();
-		const retryRows = await db
-			.select({
-				id: organization.id,
-			})
-			.from(organization)
-			.where(eq(organization.slug, 'sen-checkin'))
-			.limit(1);
-		organizationRow = retryRows[0];
-	}
+	const organizationRow = orgRows[0];
 	if (!organizationRow) {
 		throw new Error('Seed organization "sen-checkin" was not found.');
 	}

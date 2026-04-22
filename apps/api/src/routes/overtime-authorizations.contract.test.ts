@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'bun:test';
 
 import { addDaysToDateKey, toDateKeyUtc } from '../utils/date-key.js';
+import { toDateKeyInTimeZone } from '../utils/time-zone.js';
 import {
 	createTestClient,
 	getAdminSession,
@@ -10,6 +11,8 @@ import {
 	requireResponseData,
 	requireRoute,
 } from '../test-utils/contract-helpers.js';
+
+const DEFAULT_TEST_TIME_ZONE = 'America/Mexico_City';
 
 describe('overtime authorizations routes (contract)', () => {
 	let client: Awaited<ReturnType<typeof createTestClient>>;
@@ -202,7 +205,10 @@ describe('overtime authorizations routes (contract)', () => {
 
 		const response = await organizationRoute.post({
 			employeeId: seed.employeeId,
-			dateKey: addDaysToDateKey(toDateKeyUtc(new Date()), -1),
+			dateKey: addDaysToDateKey(
+				toDateKeyInTimeZone(new Date(), DEFAULT_TEST_TIME_ZONE),
+				-1,
+			),
 			authorizedHours: 2,
 			$headers: { cookie: adminSession.cookieHeader },
 		});

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TimelineEvent } from '@/lib/client-functions';
+import * as timeZone from '@/lib/time-zone';
 
 import { ActivityTimeline } from './activity-timeline';
 
@@ -186,6 +187,20 @@ describe('ActivityTimeline', () => {
 		renderActivityTimeline({ events: [] });
 
 		expect(screen.getByText('Sin actividad reciente.')).toBeInTheDocument();
+	});
+
+	it('uses the organization timezone when it builds the empty-state axis window', () => {
+		const timeZoneSpy = vi.spyOn(timeZone, 'toDateKeyInTimeZone');
+
+		renderActivityTimeline({
+			events: [],
+			timeZone: 'Asia/Tokyo',
+		});
+
+		expect(timeZoneSpy).toHaveBeenCalledTimes(1);
+		expect(timeZoneSpy).toHaveBeenCalledWith(expect.any(Date), 'Asia/Tokyo');
+
+		timeZoneSpy.mockRestore();
 	});
 
 	it('calls onFilterChange when a filter chip is clicked', () => {

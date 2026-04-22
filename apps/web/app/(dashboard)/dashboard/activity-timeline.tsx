@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { toDateKeyInTimeZone } from '@/lib/time-zone';
 import type { TimelineEvent } from '@/lib/client-functions';
 
 /**
@@ -313,13 +314,11 @@ function resolveAxisRange(events: TimelineEvent[], timeZone: string): {
 	ticks: number[];
 } {
 	if (events.length === 0) {
-		const now = new Date();
-		const startDate = new Date(now);
-		startDate.setHours(7, 0, 0, 0);
-		const endDate = new Date(now);
-		endDate.setHours(10, 0, 0, 0);
-		const startMinutes = Math.floor(startDate.getTime() / 60_000);
-		const endMinutes = Math.floor(endDate.getTime() / 60_000);
+		const todayDateKey = toDateKeyInTimeZone(new Date(), timeZone);
+		const [year, month, day] = todayDateKey.split('-').map(Number);
+		const epochDay = Math.floor(Date.UTC(year!, month! - 1, day!) / 86_400_000);
+		const startMinutes = epochDay * 1_440 + 7 * 60;
+		const endMinutes = epochDay * 1_440 + 10 * 60;
 		const ticks = [
 			startMinutes,
 			startMinutes + 60,

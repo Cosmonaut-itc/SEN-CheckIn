@@ -12,6 +12,11 @@ import {
 	AET_P10_TDD_LISTA_RAYA_EXPECTED,
 	buildAetP10PayrollArgs,
 } from '../services/payroll-real-fixtures.test-data.js';
+import {
+	calculateFiscalVoucherDeductions,
+	expectCurrencyClose,
+	sumCurrency,
+} from '../test-utils/payroll-currency-helpers.js';
 import { roundCurrency } from '../utils/money.js';
 import { getUtcDateForZonedMidnight } from '../utils/time-zone.js';
 
@@ -390,39 +395,16 @@ type PersistedPayrollRunEmployee = {
 };
 
 /**
- * Sums numeric values and rounds to currency precision.
- *
- * @param values - Numeric values to sum
- * @returns Rounded currency sum
- */
-function sumCurrency(values: number[]): number {
-	return roundCurrency(values.reduce((total, value) => total + value, 0));
-}
-
-/**
- * Asserts currency values with a small tolerance for third-party rounding drift.
- *
- * @param actual - Actual amount
- * @param expected - Expected amount
- * @param tolerance - Accepted absolute difference
- * @returns Nothing
- */
-function expectCurrencyClose(actual: number, expected: number, tolerance = 0.02): void {
-	expect(Math.abs(roundCurrency(actual - expected))).toBeLessThanOrEqual(tolerance);
-}
-
-/**
  * Sums fiscal voucher deductions from a persisted payroll row.
  *
  * @param row - Persisted payroll employee row
  * @returns ISR/IMSS plus SAT-coded deductions
  */
 function calculatePersistedFiscalVoucherDeductions(row: PersistedPayrollRunEmployee): number {
-	const satCodedDeductions = row.deductionsBreakdown
-		.filter((deduction) => deduction.satDeductionCode !== null)
-		.map((deduction) => deduction.appliedAmount);
-
-	return sumCurrency([row.taxBreakdown.employeeWithholdings.total, ...satCodedDeductions]);
+	return calculateFiscalVoucherDeductions(
+		row.taxBreakdown.employeeWithholdings.total,
+		row.deductionsBreakdown,
+	);
 }
 
 /**

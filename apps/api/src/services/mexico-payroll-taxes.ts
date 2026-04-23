@@ -700,10 +700,12 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 
 	const absorbImssEmployeeShare =
 		settings.absorbImssEmployeeShare || minimumWageFiscalPayroll;
-	const withholdIsr = !settings.absorbIsr && !minimumWageFiscalPayroll;
+	const minimumWageIsrExempt =
+		minimumWageFiscalPayroll &&
+		isrBase <= roundCurrency(minimumWageDaily * daysInPeriod);
+	const withholdIsr = !settings.absorbIsr && !minimumWageIsrExempt;
 	const absorbedImssEmployeeShare = absorbImssEmployeeShare ? imssEmployee.total : 0;
-	const absorbedIsr =
-		settings.absorbIsr && !minimumWageFiscalPayroll ? isrWithheldCalculated : 0;
+	const absorbedIsr = settings.absorbIsr && !minimumWageIsrExempt ? isrWithheldCalculated : 0;
 
 	const imssEmployer: ImssEmployerBreakdown = absorbImssEmployeeShare
 		? {

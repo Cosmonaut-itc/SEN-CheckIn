@@ -3655,6 +3655,10 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(dualEnabled.complementPay).toBe(0);
 			expect(dualEnabled.totalRealPay).toBe(2500);
 			expect(dualEnabled.fiscalGrossPay).toBe(2500);
+			expect(dualEnabled.employeeWithholdings.total).toBeGreaterThan(0);
+			expect(dualEnabled.netPay).toBe(
+				Number((dualEnabled.grossPay - dualEnabled.employeeWithholdings.total).toFixed(2)),
+			);
 		});
 
 		it('reports hourly pay using the real daily pay when dual payroll is enabled', () => {

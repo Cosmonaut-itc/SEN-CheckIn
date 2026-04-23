@@ -1669,7 +1669,8 @@ export function calculatePayrollFromData(
 		const fiscalNetPay = roundCurrency(
 			Math.max(0, taxableGrossPay - taxBreakdown.employeeWithholdings.total),
 		);
-		const netPay = dualPayrollApplied
+		const hasDualPayrollComplement = dualPayrollApplied && (complementPay ?? 0) > 0;
+		const netPay = hasDualPayrollComplement
 			? grossPay
 			: roundCurrency(grossPay - taxBreakdown.employeeWithholdings.total);
 		const companyCost = roundCurrency(grossPay + taxBreakdown.employerCosts.total);

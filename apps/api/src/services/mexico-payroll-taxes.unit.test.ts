@@ -125,4 +125,45 @@ describe('mexico-payroll-taxes minimum wage parity', () => {
 		expect(absorbed.employerCosts.absorbedIsr).toBe(retained.employeeWithholdings.isrWithheld);
 		expect(absorbed.netPay).toBe(baseInput.grossPay);
 	});
+
+	it('keeps positive ISR accountable for minimum-wage employees with extra taxable pay', () => {
+		const baseInput = {
+			dailyPay: 315.04,
+			grossPay: 7000,
+			paymentFrequency: 'WEEKLY' as const,
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			hireDate: new Date('2018-01-08T00:00:00.000Z'),
+			sbcDailyOverride: 332.73,
+			locationGeographicZone: 'GENERAL' as const,
+			settings: {
+				...buildBaseSettings(),
+				riskWorkRate: 0.06,
+				statePayrollTaxRate: 0.02,
+			},
+		};
+
+		const retained = calculateMexicoPayrollTaxes(baseInput);
+		const absorbed = calculateMexicoPayrollTaxes({
+			...baseInput,
+			settings: {
+				...baseInput.settings,
+				absorbIsr: true,
+			},
+		});
+
+		expect(retained.employeeWithholdings.imssEmployee.total).toBe(0);
+		expect(retained.employerCosts.absorbedImssEmployeeShare).toBeGreaterThan(0);
+		expect(retained.informationalLines.isrBeforeSubsidy).toBeGreaterThan(
+			retained.informationalLines.subsidyApplied,
+		);
+		expect(retained.employeeWithholdings.isrWithheld).toBeGreaterThan(0);
+		expect(retained.employerCosts.absorbedIsr).toBe(0);
+
+		expect(absorbed.employeeWithholdings.isrWithheld).toBe(0);
+		expect(absorbed.employeeWithholdings.total).toBe(0);
+		expect(absorbed.employerCosts.absorbedIsr).toBe(
+			retained.employeeWithholdings.isrWithheld,
+		);
+	});
 });

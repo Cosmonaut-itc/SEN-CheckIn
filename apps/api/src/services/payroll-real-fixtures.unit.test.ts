@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
 
+import {
+	calculateFiscalVoucherDeductions,
+	expectCurrencyClose,
+	sumCurrency,
+} from '../test-utils/payroll-currency-helpers.js';
 import { roundCurrency } from '../utils/money.js';
 import { calculatePayrollFromData, type PayrollCalculationRow } from './payroll-calculation.js';
 import {
@@ -9,28 +14,6 @@ import {
 	getAetP10EmployeeFixtures,
 	type AetP10EmployeeFixture,
 } from './payroll-real-fixtures.test-data.js';
-
-/**
- * Sums numeric values and rounds to currency precision.
- *
- * @param values - Numeric values to sum
- * @returns Rounded sum
- */
-function sumCurrency(values: number[]): number {
-	return roundCurrency(values.reduce((total, value) => total + value, 0));
-}
-
-/**
- * Asserts currency values with a narrow tolerance for third-party rounding drift.
- *
- * @param actual - Actual amount
- * @param expected - Expected amount
- * @param tolerance - Accepted absolute difference
- * @returns Nothing
- */
-function expectCurrencyClose(actual: number, expected: number, tolerance = 0.02): void {
-	expect(Math.abs(roundCurrency(actual - expected))).toBeLessThanOrEqual(tolerance);
-}
 
 /**
  * Returns the row for a fixture employee.
@@ -52,20 +35,6 @@ function requireFixtureRow(
 }
 
 /**
- * Calculates the deductions that should appear in the fiscal lista de raya.
- *
- * @param row - Payroll calculation row
- * @returns Fiscal voucher deductions including ISR/IMSS and SAT-coded deductions
- */
-function calculateFiscalVoucherDeductions(row: PayrollCalculationRow): number {
-	const satCodedDeductions = row.deductionsBreakdown
-		.filter((deduction) => deduction.satDeductionCode !== null)
-		.map((deduction) => deduction.appliedAmount);
-
-	return sumCurrency([row.employeeWithholdings.total, ...satCodedDeductions]);
-}
-
-/**
  * Resolves the fiscal gross pay from a payroll row.
  *
  * @param row - Payroll calculation row
@@ -84,7 +53,12 @@ describe('payroll real CONTPAQi fixtures', () => {
 
 		const fiscalGrossTotal = sumCurrency(calculation.employees.map(getFiscalGrossPay));
 		const fiscalVoucherDeductionsTotal = sumCurrency(
-			calculation.employees.map(calculateFiscalVoucherDeductions),
+			calculation.employees.map((row) =>
+				calculateFiscalVoucherDeductions(
+					row.employeeWithholdings.total,
+					row.deductionsBreakdown,
+				),
+			),
 		);
 		const fiscalNetPayTotal = roundCurrency(
 			fiscalGrossTotal - fiscalVoucherDeductionsTotal,
@@ -118,7 +92,10 @@ describe('payroll real CONTPAQi fixtures', () => {
 		for (const fixture of fixtures) {
 			const row = requireFixtureRow(calculation.employees, fixture);
 			const fiscalGrossPay = getFiscalGrossPay(row);
-			const fiscalVoucherDeductions = calculateFiscalVoucherDeductions(row);
+			const fiscalVoucherDeductions = calculateFiscalVoucherDeductions(
+				row.employeeWithholdings.total,
+				row.deductionsBreakdown,
+			);
 
 			expectCurrencyClose(fiscalGrossPay, fixture.expectedFiscalGrossPay, 0.01);
 			expectCurrencyClose(
@@ -144,7 +121,12 @@ describe('payroll real CONTPAQi fixtures', () => {
 
 		const fiscalGrossTotal = sumCurrency(calculation.employees.map(getFiscalGrossPay));
 		const fiscalVoucherDeductionsTotal = sumCurrency(
-			calculation.employees.map(calculateFiscalVoucherDeductions),
+			calculation.employees.map((row) =>
+				calculateFiscalVoucherDeductions(
+					row.employeeWithholdings.total,
+					row.deductionsBreakdown,
+				),
+			),
 		);
 		const fiscalNetPayTotal = roundCurrency(
 			fiscalGrossTotal - fiscalVoucherDeductionsTotal,

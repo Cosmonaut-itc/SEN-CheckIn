@@ -2352,7 +2352,7 @@ export async function fetchAttendanceTimeline(params?: {
 	toDate?: Date;
 	limit?: number;
 	offset?: number;
-	kind?: 'in' | 'late' | 'offsite';
+	kind?: 'in' | 'out' | 'late' | 'offsite';
 }): Promise<DashboardTimelinePayload> {
 	if (params?.organizationId === null) {
 		return {
@@ -2367,7 +2367,7 @@ export async function fetchAttendanceTimeline(params?: {
 		offset: number;
 		fromDate?: Date;
 		toDate?: Date;
-		kind?: 'in' | 'late' | 'offsite';
+		kind?: 'in' | 'out' | 'late' | 'offsite';
 	} = {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,

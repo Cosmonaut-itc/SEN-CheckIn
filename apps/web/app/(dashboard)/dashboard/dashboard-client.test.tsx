@@ -95,7 +95,7 @@ vi.mock('@/lib/client-functions', async () => {
 			toDate?: Date;
 			limit?: number;
 			offset?: number;
-			kind?: 'in' | 'late' | 'offsite';
+			kind?: 'in' | 'out' | 'late' | 'offsite';
 		}) => fetchAttendanceTimelineMock(params),
 	};
 });
@@ -579,6 +579,35 @@ describe('DashboardPageClient', () => {
 			fromDate: startUtc,
 			toDate: endUtc,
 			kind: 'in',
+		});
+
+		fireEvent.click(screen.getByRole('button', { name: 'filters.checkOut' }));
+
+		const outTimelineQuery = useQueryMock.mock.calls
+			.map(
+				([options]) =>
+					options as { queryKey?: unknown[]; queryFn?: () => Promise<unknown> },
+			)
+			.find(
+				(options) =>
+					JSON.stringify(options.queryKey) ===
+					JSON.stringify(
+						queryKeys.dashboard.timeline({
+							organizationId: 'org-1',
+							fromDate: startUtc,
+							toDate: endUtc,
+							kind: 'out',
+						}),
+					),
+			);
+
+		expect(outTimelineQuery).toBeDefined();
+		await outTimelineQuery?.queryFn?.();
+		expect(fetchAttendanceTimelineMock).toHaveBeenCalledWith({
+			organizationId: 'org-1',
+			fromDate: startUtc,
+			toDate: endUtc,
+			kind: 'out',
 		});
 	});
 });

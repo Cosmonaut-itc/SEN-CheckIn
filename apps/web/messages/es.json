@@ -142,11 +142,15 @@
 			"filters": {
 				"all": "Todos",
 				"checkIn": "Entradas",
+				"checkOut": "Salidas",
+				"checkOutAuthorized": "Salidas autorizadas",
 				"late": "Retardos",
 				"offsite": "En campo"
 			},
 			"event": {
 				"checkIn": "Entrada",
+				"checkOut": "Salida",
+				"checkOutAuthorized": "Salida autorizada",
 				"late": "Retardo",
 				"offsite": "En campo"
 			},

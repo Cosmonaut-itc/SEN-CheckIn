@@ -156,7 +156,50 @@ describe('ActivityTimeline', () => {
 	it('renders the summary footer with correct counts', () => {
 		renderActivityTimeline();
 
-		expect(screen.getByText('2 entradas 1 retardo 1 en campo')).toBeInTheDocument();
+		expect(
+			screen.getByText('2 entradas 0 salidas 0 salidas autorizadas 1 retardo 1 en campo'),
+		).toBeInTheDocument();
+	});
+
+	it('renders checkout and authorized checkout events under the all filter with distinct audit styles', () => {
+		renderActivityTimeline({
+			events: [
+				...defaultEvents,
+				{
+					...defaultEvents[0]!,
+					id: 'event-checkout',
+					employeeName: 'Katherine Johnson',
+					timestamp: '2026-04-21T11:15:00.000Z',
+					type: 'CHECK_OUT',
+				},
+				{
+					...defaultEvents[0]!,
+					id: 'event-authorized-checkout',
+					employeeName: 'Dorothy Vaughan',
+					timestamp: '2026-04-21T11:45:00.000Z',
+					type: 'CHECK_OUT_AUTHORIZED',
+				},
+			],
+		});
+
+		const pills = screen.getAllByTestId('activity-timeline-pill');
+		const regularCheckoutPill = screen
+			.getByText('Katherine Joh.')
+			.closest<HTMLElement>('[data-testid="activity-timeline-pill"]');
+		const authorizedCheckoutPill = screen
+			.getByText('Dorothy Vau.')
+			.closest<HTMLElement>('[data-testid="activity-timeline-pill"]');
+		if (!regularCheckoutPill || !authorizedCheckoutPill) {
+			throw new Error('Expected checkout pills to render.');
+		}
+
+		expect(pills).toHaveLength(5);
+		expect(within(regularCheckoutPill).getByText('Salida')).toBeInTheDocument();
+		expect(within(authorizedCheckoutPill).getByText('Salida autorizada')).toBeInTheDocument();
+		expect(regularCheckoutPill.className).not.toBe(authorizedCheckoutPill.className);
+		expect(
+			screen.getByText('2 entradas 1 salida 1 salida autorizada 1 retardo 1 en campo'),
+		).toBeInTheDocument();
 	});
 
 	it('excludes checkout events from entry counts while keeping all check-ins under the entry filter', () => {
@@ -174,7 +217,43 @@ describe('ActivityTimeline', () => {
 		});
 
 		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(2);
-		expect(screen.getByText('2 entradas 1 retardo 0 en campo')).toBeInTheDocument();
+		expect(
+			screen.getByText('2 entradas 0 salidas 0 salidas autorizadas 1 retardo 0 en campo'),
+		).toBeInTheDocument();
+	});
+
+	it('filters checkout and authorized checkout events under the salida filter', () => {
+		const onFilterChange = vi.fn();
+		renderActivityTimeline({
+			filter: 'out',
+			onFilterChange,
+			events: [
+				...defaultEvents,
+				{
+					...defaultEvents[0]!,
+					id: 'event-checkout',
+					employeeName: 'Katherine Johnson',
+					timestamp: '2026-04-21T11:15:00.000Z',
+					type: 'CHECK_OUT',
+				},
+				{
+					...defaultEvents[0]!,
+					id: 'event-authorized-checkout',
+					employeeName: 'Dorothy Vaughan',
+					timestamp: '2026-04-21T11:45:00.000Z',
+					type: 'CHECK_OUT_AUTHORIZED',
+				},
+			],
+		});
+
+		expect(screen.getAllByTestId('activity-timeline-pill')).toHaveLength(2);
+		expect(screen.getByRole('button', { name: 'Salidas' })).toHaveAttribute(
+			'aria-pressed',
+			'true',
+		);
+		expect(
+			screen.getByText('0 entradas 1 salida 1 salida autorizada 0 retardos 0 en campo'),
+		).toBeInTheDocument();
 	});
 
 	it('renders a loading skeleton when isLoading is true', () => {
@@ -211,5 +290,15 @@ describe('ActivityTimeline', () => {
 
 		expect(onFilterChange).toHaveBeenCalledTimes(1);
 		expect(onFilterChange).toHaveBeenCalledWith('offsite');
+	});
+
+	it('calls onFilterChange when the checkout filter chip is clicked', () => {
+		const onFilterChange = vi.fn();
+		renderActivityTimeline({ onFilterChange });
+
+		fireEvent.click(screen.getByRole('button', { name: 'Salidas' }));
+
+		expect(onFilterChange).toHaveBeenCalledTimes(1);
+		expect(onFilterChange).toHaveBeenCalledWith('out');
 	});
 });

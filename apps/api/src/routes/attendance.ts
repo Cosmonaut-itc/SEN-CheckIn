@@ -140,7 +140,7 @@ const attendanceTimelineQuerySchema = z.object({
 	toDate: z.coerce.date().optional(),
 	limit: z.coerce.number().int().min(1).max(200).default(50),
 	offset: z.coerce.number().int().min(0).default(0),
-	kind: z.enum(['in', 'late', 'offsite']).optional(),
+	kind: z.enum(['in', 'out', 'late', 'offsite']).optional(),
 });
 
 const attendanceHourlyQuerySchema = z.object({
@@ -178,8 +178,8 @@ type TimelineScheduleEntry = {
 };
 
 const DASHBOARD_RENDERABLE_ATTENDANCE_TYPES: Array<
-	'CHECK_IN' | 'WORK_OFFSITE'
-> = ['CHECK_IN', 'WORK_OFFSITE'];
+	'CHECK_IN' | 'CHECK_OUT' | 'CHECK_OUT_AUTHORIZED' | 'WORK_OFFSITE'
+> = ['CHECK_IN', 'CHECK_OUT', 'CHECK_OUT_AUTHORIZED', 'WORK_OFFSITE'];
 
 /**
  * Resolves the default UTC range for the organization's current local day.
@@ -271,8 +271,7 @@ function resolveIsLate(args: {
 		return false;
 	}
 
-	const actualMinutes =
-		localTimeParts.hour * 60 + localTimeParts.minute;
+	const actualMinutes = localTimeParts.hour * 60 + localTimeParts.minute;
 	const scheduledMinutes = toMinutesSinceMidnight(scheduleEntry.startTime);
 	return actualMinutes > scheduledMinutes;
 }
@@ -288,6 +287,8 @@ function buildTimelineTypeCondition(kind: TimelineKind): SQL<unknown> {
 		case 'in':
 		case 'late':
 			return eq(attendanceRecord.type, 'CHECK_IN');
+		case 'out':
+			return inArray(attendanceRecord.type, ['CHECK_OUT', 'CHECK_OUT_AUTHORIZED']);
 		case 'offsite':
 			return eq(attendanceRecord.type, 'WORK_OFFSITE');
 		default:
@@ -971,8 +972,14 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			apiKeyOrganizationId,
 			apiKeyOrganizationIds,
 		}) => {
-			const { fromDate, toDate, limit, offset, kind, organizationId: requestedOrganizationId } =
-				query;
+			const {
+				fromDate,
+				toDate,
+				limit,
+				offset,
+				kind,
+				organizationId: requestedOrganizationId,
+			} = query;
 
 			const organizationId = resolveOrganizationId({
 				authType,
@@ -1106,22 +1113,27 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					isLate,
 				};
 			});
-			const lateTotal = (await db
-				.select({ count: count() })
-				.from(attendanceRecord)
-				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-				.innerJoin(
-					employeeSchedule,
-					sql`${employeeSchedule.employeeId} = ${attendanceRecord.employeeId} AND ${employeeSchedule.dayOfWeek} = ${lateLocalDayOfWeekSql}`,
-				)
-				.where(and(...lateSummaryConditions)))[0]?.count ?? 0;
-			const totalCount = isLateQuery
-				? lateTotal
-				: (await db
+			const lateTotal =
+				(
+					await db
 						.select({ count: count() })
 						.from(attendanceRecord)
 						.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-						.where(and(...timelineConditions)))[0]?.count ?? 0;
+						.innerJoin(
+							employeeSchedule,
+							sql`${employeeSchedule.employeeId} = ${attendanceRecord.employeeId} AND ${employeeSchedule.dayOfWeek} = ${lateLocalDayOfWeekSql}`,
+						)
+						.where(and(...lateSummaryConditions))
+				)[0]?.count ?? 0;
+			const totalCount = isLateQuery
+				? lateTotal
+				: ((
+						await db
+							.select({ count: count() })
+							.from(attendanceRecord)
+							.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
+							.where(and(...timelineConditions))
+					)[0]?.count ?? 0);
 
 			return {
 				data: enrichedRows,

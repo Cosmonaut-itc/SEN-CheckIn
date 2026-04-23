@@ -14,7 +14,12 @@ import type { TimelineEvent } from '@/lib/client-functions';
 /**
  * Allowed filter values for the activity timeline.
  */
-type ActivityTimelineFilter = 'all' | 'in' | 'late' | 'offsite';
+type ActivityTimelineFilter = 'all' | 'in' | 'out' | 'late' | 'offsite';
+
+/**
+ * Display categories used by timeline pills.
+ */
+type ActivityTimelineCategory = 'in' | 'out' | 'authorizedOut' | 'late' | 'offsite';
 
 /**
  * Props for the activity timeline component.
@@ -43,7 +48,8 @@ interface ActivityStyleConfig {
  */
 interface PositionedTimelineEvent {
 	event: TimelineEvent;
-	category: Exclude<ActivityTimelineFilter, 'all'>;
+	category: ActivityTimelineCategory;
+	eventLabel: string | null;
 	initials: string;
 	leftPercent: number;
 	laneIndex: number;
@@ -65,11 +71,21 @@ const LANE_GAP = 14;
 const MIN_PILL_WIDTH_MINUTES = 30;
 const MAX_PILL_WIDTH_MINUTES = 54;
 
-const STYLE_BY_CATEGORY: Record<Exclude<ActivityTimelineFilter, 'all'>, ActivityStyleConfig> = {
+const STYLE_BY_CATEGORY: Record<ActivityTimelineCategory, ActivityStyleConfig> = {
 	in: {
 		indicatorClassName: 'bg-success ring-1 ring-inset ring-success/20',
 		initialsClassName: 'text-success',
 		pillClassName: 'border-success/20 bg-success-bg/90 text-success shadow-sm',
+	},
+	out: {
+		indicatorClassName: 'bg-destructive ring-1 ring-inset ring-destructive/20',
+		initialsClassName: 'text-destructive',
+		pillClassName: 'border-destructive/20 bg-destructive/10 text-destructive shadow-sm',
+	},
+	authorizedOut: {
+		indicatorClassName: 'bg-primary ring-1 ring-inset ring-primary/20',
+		initialsClassName: 'text-primary',
+		pillClassName: 'border-primary/25 bg-primary/10 text-primary shadow-sm',
 	},
 	late: {
 		indicatorClassName: 'bg-warning ring-1 ring-inset ring-warning/20',
@@ -89,11 +105,15 @@ const STYLE_BY_CATEGORY: Record<Exclude<ActivityTimelineFilter, 'all'>, Activity
  * @param events - Visible timeline events.
  * @returns Category counters for the summary footer.
  */
-function countActivityEvents(events: TimelineEvent[]): Record<Exclude<ActivityTimelineFilter, 'all'>, number> {
+function countActivityEvents(events: TimelineEvent[]): Record<ActivityTimelineCategory, number> {
 	return events.reduce(
 		(accumulator, event) => {
 			if (event.type === 'WORK_OFFSITE') {
 				accumulator.offsite += 1;
+			} else if (event.type === 'CHECK_OUT_AUTHORIZED') {
+				accumulator.authorizedOut += 1;
+			} else if (event.type === 'CHECK_OUT') {
+				accumulator.out += 1;
 			} else {
 				accumulator.in += 1;
 				if (event.isLate) {
@@ -102,7 +122,7 @@ function countActivityEvents(events: TimelineEvent[]): Record<Exclude<ActivityTi
 			}
 			return accumulator;
 		},
-		{ in: 0, late: 0, offsite: 0 },
+		{ in: 0, out: 0, authorizedOut: 0, late: 0, offsite: 0 },
 	);
 }
 
@@ -113,7 +133,12 @@ function countActivityEvents(events: TimelineEvent[]): Record<Exclude<ActivityTi
  * @returns True when the event belongs to the dashboard timeline
  */
 function isRenderableTimelineEvent(event: TimelineEvent): boolean {
-	return event.type === 'CHECK_IN' || event.type === 'WORK_OFFSITE';
+	return (
+		event.type === 'CHECK_IN' ||
+		event.type === 'CHECK_OUT' ||
+		event.type === 'CHECK_OUT_AUTHORIZED' ||
+		event.type === 'WORK_OFFSITE'
+	);
 }
 
 /**
@@ -122,9 +147,17 @@ function isRenderableTimelineEvent(event: TimelineEvent): boolean {
  * @param event - Timeline event to classify.
  * @returns The display category for the event.
  */
-function resolveEventCategory(event: TimelineEvent): Exclude<ActivityTimelineFilter, 'all'> {
+function resolveEventCategory(event: TimelineEvent): ActivityTimelineCategory {
 	if (event.type === 'WORK_OFFSITE') {
 		return 'offsite';
+	}
+
+	if (event.type === 'CHECK_OUT_AUTHORIZED') {
+		return 'authorizedOut';
+	}
+
+	if (event.type === 'CHECK_OUT') {
+		return 'out';
 	}
 
 	if (event.isLate) {
@@ -132,6 +165,28 @@ function resolveEventCategory(event: TimelineEvent): Exclude<ActivityTimelineFil
 	}
 
 	return 'in';
+}
+
+/**
+ * Resolves the optional event label shown on audit-sensitive timeline pills.
+ *
+ * @param category - Timeline display category
+ * @param t - Translation helper for the dashboard timeline namespace
+ * @returns Label text for checkout categories, otherwise null
+ */
+function resolveTimelineEventLabel(
+	category: ActivityTimelineCategory,
+	t: (key: string) => string,
+): string | null {
+	if (category === 'out') {
+		return t('event.checkOut');
+	}
+
+	if (category === 'authorizedOut') {
+		return t('event.checkOutAuthorized');
+	}
+
+	return null;
 }
 
 /**
@@ -151,6 +206,12 @@ function filterTimelineEvents(
 
 	if (filter === 'in') {
 		return events.filter((event) => event.type === 'CHECK_IN');
+	}
+
+	if (filter === 'out') {
+		return events.filter(
+			(event) => event.type === 'CHECK_OUT' || event.type === 'CHECK_OUT_AUTHORIZED',
+		);
 	}
 
 	return events.filter((event) => resolveEventCategory(event) === filter);
@@ -255,17 +316,14 @@ function formatAxisTickLabel(timelineMinute: number): string {
  * @returns Uppercase initials.
  */
 function getInitials(name: string): string {
-	const parts = name
-		.trim()
-		.split(/\s+/)
-		.filter(Boolean);
+	const parts = name.trim().split(/\s+/).filter(Boolean);
 
 	if (parts.length === 0) {
 		return '';
 	}
 
 	const firstInitial = parts[0]?.[0] ?? '';
-	const lastInitial = parts.length > 1 ? parts[parts.length - 1]?.[0] ?? '' : '';
+	const lastInitial = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
 
 	return `${firstInitial}${lastInitial}`.toUpperCase();
 }
@@ -277,10 +335,7 @@ function getInitials(name: string): string {
  * @returns Compact name string.
  */
 function abbreviateName(name: string): string {
-	const parts = name
-		.trim()
-		.split(/\s+/)
-		.filter(Boolean);
+	const parts = name.trim().split(/\s+/).filter(Boolean);
 
 	if (parts.length === 0) {
 		return '';
@@ -304,7 +359,10 @@ function abbreviateName(name: string): string {
  */
 function estimatePillWidthMinutes(event: TimelineEvent): number {
 	const estimated = 20 + event.employeeName.trim().length * 1.3;
-	return Math.max(MIN_PILL_WIDTH_MINUTES, Math.min(MAX_PILL_WIDTH_MINUTES, Math.round(estimated)));
+	return Math.max(
+		MIN_PILL_WIDTH_MINUTES,
+		Math.min(MAX_PILL_WIDTH_MINUTES, Math.round(estimated)),
+	);
 }
 
 /**
@@ -314,7 +372,10 @@ function estimatePillWidthMinutes(event: TimelineEvent): number {
  * @param timeZone - Organization timezone used for display.
  * @returns Axis start, end, and tick labels.
  */
-function resolveAxisRange(events: TimelineEvent[], timeZone: string): {
+function resolveAxisRange(
+	events: TimelineEvent[],
+	timeZone: string,
+): {
 	endMinutes: number;
 	startMinutes: number;
 	ticks: number[];
@@ -325,12 +386,7 @@ function resolveAxisRange(events: TimelineEvent[], timeZone: string): {
 		const epochDay = Math.floor(Date.UTC(year!, month! - 1, day!) / 86_400_000);
 		const startMinutes = epochDay * 1_440 + 7 * 60;
 		const endMinutes = epochDay * 1_440 + 10 * 60;
-		const ticks = [
-			startMinutes,
-			startMinutes + 60,
-			startMinutes + 120,
-			endMinutes,
-		];
+		const ticks = [startMinutes, startMinutes + 60, startMinutes + 120, endMinutes];
 		return {
 			startMinutes,
 			endMinutes,
@@ -346,7 +402,11 @@ function resolveAxisRange(events: TimelineEvent[], timeZone: string): {
 	const normalizedEndMinutes = endMinutes <= startMinutes ? startMinutes + 60 : endMinutes;
 	const ticks: number[] = [];
 
-	for (let currentMinute = startMinutes; currentMinute <= normalizedEndMinutes; currentMinute += 60) {
+	for (
+		let currentMinute = startMinutes;
+		currentMinute <= normalizedEndMinutes;
+		currentMinute += 60
+	) {
 		ticks.push(currentMinute);
 	}
 
@@ -364,29 +424,40 @@ function resolveAxisRange(events: TimelineEvent[], timeZone: string): {
  * @param timeZone - Organization timezone used for display.
  * @returns Positioned events with left offsets and lane indexes.
  */
-function layoutTimelineEvents(events: TimelineEvent[], timeZone: string): PositionedTimelineEvent[] {
+function layoutTimelineEvents(
+	events: TimelineEvent[],
+	timeZone: string,
+	t: (key: string) => string,
+): PositionedTimelineEvent[] {
 	if (events.length === 0) {
 		return [];
 	}
 
 	const sortedEvents = [...events].sort((left, right) => {
-		return getTimelineMinute(left.timestamp, timeZone) - getTimelineMinute(right.timestamp, timeZone);
+		return (
+			getTimelineMinute(left.timestamp, timeZone) -
+			getTimelineMinute(right.timestamp, timeZone)
+		);
 	});
 	const { startMinutes, endMinutes } = resolveAxisRange(sortedEvents, timeZone);
 	const spanMinutes = Math.max(endMinutes - startMinutes, 1);
 	const laneAvailability: number[] = [];
 
 	return sortedEvents.map((event) => {
+		const category = resolveEventCategory(event);
 		const minuteOfDay = getTimelineMinute(event.timestamp, timeZone);
 		const estimatedWidthMinutes = estimatePillWidthMinutes(event);
-		const laneIndex = laneAvailability.findIndex((availableMinute) => minuteOfDay >= availableMinute);
+		const laneIndex = laneAvailability.findIndex(
+			(availableMinute) => minuteOfDay >= availableMinute,
+		);
 		const resolvedLaneIndex = laneIndex === -1 ? laneAvailability.length : laneIndex;
 
 		laneAvailability[resolvedLaneIndex] = minuteOfDay + estimatedWidthMinutes + LANE_GAP;
 
 		return {
 			event,
-			category: resolveEventCategory(event),
+			category,
+			eventLabel: resolveTimelineEventLabel(category, t),
 			initials: getInitials(event.employeeName),
 			leftPercent: ((minuteOfDay - startMinutes) / spanMinutes) * 100,
 			laneIndex: resolvedLaneIndex,
@@ -424,11 +495,15 @@ function ActivityTimelineSkeleton(): React.ReactElement {
 				<Skeleton className="h-10 w-24 rounded-full" />
 				<Skeleton className="h-10 w-24 rounded-full" />
 				<Skeleton className="h-10 w-24 rounded-full" />
+				<Skeleton className="h-10 w-24 rounded-full" />
 			</div>
 			<div className="space-y-3 rounded-2xl border border-[color:var(--border-subtle)] bg-background/60 p-4">
 				{Array.from({ length: 4 }, (_, index) => (
 					<div key={`timeline-skeleton-${index}`} className="flex items-center gap-3">
-						<Skeleton data-testid="activity-timeline-skeleton" className="h-10 w-10 rounded-full" />
+						<Skeleton
+							data-testid="activity-timeline-skeleton"
+							className="h-10 w-10 rounded-full"
+						/>
 						<div className="min-w-0 flex-1 space-y-2">
 							<Skeleton className="h-4 w-36" />
 							<Skeleton className="h-3 w-24" />
@@ -456,10 +531,7 @@ function ActivityTimeline({
 	className,
 }: ActivityTimelineProps): React.ReactElement {
 	const t = useTranslations('Dashboard.timeline');
-	const renderableEvents = useMemo(
-		() => events.filter(isRenderableTimelineEvent),
-		[events],
-	);
+	const renderableEvents = useMemo(() => events.filter(isRenderableTimelineEvent), [events]);
 	const visibleEvents = useMemo(
 		() => filterTimelineEvents(renderableEvents, filter),
 		[filter, renderableEvents],
@@ -468,29 +540,39 @@ function ActivityTimeline({
 		() => [
 			{ value: 'all', label: t('filters.all') },
 			{ value: 'in', label: t('filters.checkIn') },
+			{ value: 'out', label: t('filters.checkOut') },
 			{ value: 'late', label: t('filters.late') },
 			{ value: 'offsite', label: t('filters.offsite') },
 		],
 		[t],
 	);
 	const counts = useMemo(() => countActivityEvents(visibleEvents), [visibleEvents]);
-	const axisRange = useMemo(() => resolveAxisRange(visibleEvents, timeZone), [timeZone, visibleEvents]);
-	const positionedEvents = useMemo(
-		() => layoutTimelineEvents(visibleEvents, timeZone),
+	const axisRange = useMemo(
+		() => resolveAxisRange(visibleEvents, timeZone),
 		[timeZone, visibleEvents],
 	);
-	const summaryText = useMemo(
-		() => {
-			const checkInLabel = counts.in === 1 ? t('event.checkIn') : t('filters.checkIn');
-			const lateLabel = counts.late === 1 ? t('event.late') : t('filters.late');
-			const offsiteLabel =
-				counts.offsite === 1 ? t('event.offsite') : t('filters.offsite');
-
-			return `${counts.in} ${checkInLabel.toLowerCase()} ${counts.late} ${lateLabel.toLowerCase()} ${counts.offsite} ${offsiteLabel.toLowerCase()}`;
-		},
-		[counts, t],
+	const positionedEvents = useMemo(
+		() => layoutTimelineEvents(visibleEvents, timeZone, t),
+		[t, timeZone, visibleEvents],
 	);
-	const trackHeight = Math.max(164, positionedEvents.reduce((maxLane, event) => Math.max(maxLane, event.laneIndex), 0) * LANE_HEIGHT + 96);
+	const summaryText = useMemo(() => {
+		const checkInLabel = counts.in === 1 ? t('event.checkIn') : t('filters.checkIn');
+		const checkOutLabel = counts.out === 1 ? t('event.checkOut') : t('filters.checkOut');
+		const authorizedCheckOutLabel =
+			counts.authorizedOut === 1
+				? t('event.checkOutAuthorized')
+				: t('filters.checkOutAuthorized');
+		const lateLabel = counts.late === 1 ? t('event.late') : t('filters.late');
+		const offsiteLabel = counts.offsite === 1 ? t('event.offsite') : t('filters.offsite');
+
+		return `${counts.in} ${checkInLabel.toLowerCase()} ${counts.out} ${checkOutLabel.toLowerCase()} ${counts.authorizedOut} ${authorizedCheckOutLabel.toLowerCase()} ${counts.late} ${lateLabel.toLowerCase()} ${counts.offsite} ${offsiteLabel.toLowerCase()}`;
+	}, [counts, t]);
+	const trackHeight = Math.max(
+		164,
+		positionedEvents.reduce((maxLane, event) => Math.max(maxLane, event.laneIndex), 0) *
+			LANE_HEIGHT +
+			96,
+	);
 	const hasVisibleEvents = visibleEvents.length > 0;
 
 	if (isLoading) {
@@ -536,7 +618,10 @@ function ActivityTimeline({
 								{axisRange.ticks.map((minute, tickIndex) => {
 									const tickPercent =
 										((minute - axisRange.startMinutes) /
-											Math.max(axisRange.endMinutes - axisRange.startMinutes, 1)) *
+											Math.max(
+												axisRange.endMinutes - axisRange.startMinutes,
+												1,
+											)) *
 										100;
 									const isFirstTick = tickIndex === 0;
 									const isLastTick = tickIndex === axisRange.ticks.length - 1;
@@ -563,7 +648,13 @@ function ActivityTimeline({
 
 							<div className="relative mt-2" style={{ height: `${trackHeight}px` }}>
 								{Array.from(
-									{ length: Math.max(...positionedEvents.map((event) => event.laneIndex), 0) + 1 },
+									{
+										length:
+											Math.max(
+												...positionedEvents.map((event) => event.laneIndex),
+												0,
+											) + 1,
+									},
 									(_, laneIndex) => (
 										<div
 											key={`lane-${laneIndex}`}
@@ -582,6 +673,7 @@ function ActivityTimeline({
 										<div
 											key={item.event.id}
 											data-testid="activity-timeline-pill"
+											data-attendance-type={item.event.type}
 											className={cn(
 												'absolute z-10 flex w-[13.5rem] -translate-x-1/2 items-center gap-2 rounded-2xl border px-3 py-2.5 backdrop-blur-sm',
 												styleConfig.pillClassName,
@@ -611,8 +703,13 @@ function ActivityTimeline({
 												<p className="truncate text-sm font-semibold leading-tight">
 													{item.shortName}
 												</p>
-												<p className="mt-1 font-mono text-[11px] uppercase tracking-[0.3em] text-current/70">
-													{item.timeLabel}
+												<p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] leading-tight text-current/70">
+													<span className="font-mono">
+														{item.timeLabel}
+													</span>
+													{item.eventLabel ? (
+														<span>{item.eventLabel}</span>
+													) : null}
 												</p>
 											</div>
 										</div>

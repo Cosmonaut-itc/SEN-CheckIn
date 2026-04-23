@@ -89,7 +89,7 @@ export interface DashboardTimelineQueryParams extends Record<string, unknown> {
 	organizationId?: string | null;
 	fromDate?: Date;
 	toDate?: Date;
-	kind?: 'in' | 'late' | 'offsite';
+	kind?: 'in' | 'out' | 'late' | 'offsite';
 	limit?: number;
 	offset?: number;
 }

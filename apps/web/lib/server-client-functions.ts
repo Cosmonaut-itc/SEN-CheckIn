@@ -819,7 +819,7 @@ export async function fetchAttendanceTimelineServer(
 		offset: number;
 		fromDate?: Date;
 		toDate?: Date;
-		kind?: 'in' | 'late' | 'offsite';
+		kind?: 'in' | 'out' | 'late' | 'offsite';
 	} = {
 		limit: params?.limit ?? 50,
 		offset: params?.offset ?? 0,

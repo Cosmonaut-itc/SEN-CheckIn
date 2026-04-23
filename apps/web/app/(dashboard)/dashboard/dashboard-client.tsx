@@ -38,6 +38,7 @@ import { LocationRail } from './location-rail';
 import { WeatherCard } from './weather-card';
 
 const UNASSIGNED_LOCATION_KEY = 'unassigned';
+type DashboardTimelineFilter = 'all' | 'in' | 'out' | 'late' | 'offsite';
 
 /**
  * Loads the dashboard map component lazily.
@@ -201,7 +202,7 @@ export function DashboardPageClient(): React.ReactElement {
 	const [activeLocationId, setActiveLocationId] = useState<string | null>(null);
 	const [hoveredLocationId, setHoveredLocationId] = useState<string | null>(null);
 	const [locationSearch, setLocationSearch] = useState<string>('');
-	const [timelineFilter, setTimelineFilter] = useState<'all' | 'in' | 'late' | 'offsite'>('all');
+	const [timelineFilter, setTimelineFilter] = useState<DashboardTimelineFilter>('all');
 	const [isMobileRailOpen, setIsMobileRailOpen] = useState<boolean>(false);
 
 	useTour('dashboard');
@@ -439,7 +440,11 @@ export function DashboardPageClient(): React.ReactElement {
 				</Card>
 
 				<div
-					className={isMobile ? 'space-y-4' : 'grid h-full min-h-0 gap-4 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]'}
+					className={
+						isMobile
+							? 'space-y-4'
+							: 'grid h-full min-h-0 gap-4 grid-rows-[minmax(0,1fr)_minmax(0,1fr)]'
+					}
 					data-testid="dashboard-v2-right-top-stack"
 				>
 					{isMobile ? (

@@ -129,9 +129,11 @@ type PayrollSettingRow = typeof payrollSetting.$inferInsert;
 type OrganizationLegalBrandingRow = typeof organizationLegalBranding.$inferInsert;
 type OrganizationLegalTemplateRow = typeof organizationLegalTemplate.$inferInsert;
 type EmployeeLegalGenerationRow = typeof employeeLegalGeneration.$inferInsert;
-type OrganizationDisciplinaryFolioCounterRow = typeof organizationDisciplinaryFolioCounter.$inferInsert;
+type OrganizationDisciplinaryFolioCounterRow =
+	typeof organizationDisciplinaryFolioCounter.$inferInsert;
 type EmployeeDisciplinaryMeasureRow = typeof employeeDisciplinaryMeasure.$inferInsert;
-type EmployeeDisciplinaryDocumentVersionRow = typeof employeeDisciplinaryDocumentVersion.$inferInsert;
+type EmployeeDisciplinaryDocumentVersionRow =
+	typeof employeeDisciplinaryDocumentVersion.$inferInsert;
 type EmployeeDisciplinaryAttachmentRow = typeof employeeDisciplinaryAttachment.$inferInsert;
 type EmployeeTerminationDraftRow = typeof employeeTerminationDraft.$inferInsert;
 type VacationRequestRow = typeof vacationRequest.$inferInsert;
@@ -144,10 +146,10 @@ type DisciplinarySignatureStatusValue = NonNullable<
 	EmployeeDisciplinaryMeasureRow['signatureStatus']
 >;
 type EmployeeDocumentRequirementKeyValue = NonNullable<
-	typeof organizationDocumentRequirement.$inferInsert['requirementKey']
+	(typeof organizationDocumentRequirement.$inferInsert)['requirementKey']
 >;
 type DocumentRequirementActivationStageValue = NonNullable<
-	typeof organizationDocumentRequirement.$inferInsert['activationStage']
+	(typeof organizationDocumentRequirement.$inferInsert)['activationStage']
 >;
 
 type VacationSeedTemplate = {
@@ -263,8 +265,7 @@ const OFFSITE_VIRTUAL_DEVICE_PREFIX = 'VIRTUAL-RH-OFFSITE';
 const DEFAULT_ORGANIZATION_TIME_ZONE = 'America/Mexico_City';
 
 const LEGAL_TEMPLATE_HTML_BY_KIND: Readonly<Record<LegalDocumentKindValue, string>> = {
-	CONTRACT:
-		'<h1>Contrato Individual de Trabajo</h1><p>Empleado: {{employee.fullName}}</p>',
+	CONTRACT: '<h1>Contrato Individual de Trabajo</h1><p>Empleado: {{employee.fullName}}</p>',
 	NDA: '<h1>Convenio de Confidencialidad</h1><p>Empleado: {{employee.fullName}}</p>',
 	ACTA_ADMINISTRATIVA: `<div class="acta-admin" style="font-family: Arial, sans-serif; font-size: 16px; line-height: 1.2; color: #000; width: 100%; margin: 0 auto;">
   <p style="margin: 0 0 66px 0; text-align: center; font-weight: 700; font-size: 16px;">ACTA ADMINISTRATIVA</p>
@@ -715,7 +716,7 @@ async function insertDocumentWorkflowBaseline(args: {
 				organizationDocumentRequirement.organizationId,
 				organizationDocumentRequirement.requirementKey,
 			],
-			});
+		});
 }
 
 /**
@@ -782,15 +783,15 @@ async function insertLegalDocumentBaseline(args: {
 				status: 'PUBLISHED',
 				htmlContent: LEGAL_TEMPLATE_HTML_BY_KIND[kind],
 				variablesSchemaSnapshot: {},
-					brandingSnapshot: {
-						displayName: org.name,
-						headerText: `Documentación legal de ${org.name}`,
-						actaState: 'Estado de México',
-						actaEmployerTreatment: 'Lic.',
-						actaEmployerName: `Representante de ${org.name}`,
-						actaEmployerPosition: 'Gerente de Recursos Humanos',
-						actaEmployeeTreatment: 'C.',
-					},
+				brandingSnapshot: {
+					displayName: org.name,
+					headerText: `Documentación legal de ${org.name}`,
+					actaState: 'Estado de México',
+					actaEmployerTreatment: 'Lic.',
+					actaEmployerName: `Representante de ${org.name}`,
+					actaEmployerPosition: 'Gerente de Recursos Humanos',
+					actaEmployeeTreatment: 'C.',
+				},
 				createdByUserId: null,
 				publishedByUserId: null,
 				publishedAt: new Date(),
@@ -863,7 +864,10 @@ async function insertDisciplinaryDemoData(args: {
 
 		const closedSignatureStatus: DisciplinarySignatureStatusValue =
 			orgIndex % 2 === 0 ? 'signed_physical' : 'refused_to_sign';
-		const generatedMeasureId = deterministicUuid(seedNumber, `disciplinary-measure:${org.id}:2`);
+		const generatedMeasureId = deterministicUuid(
+			seedNumber,
+			`disciplinary-measure:${org.id}:2`,
+		);
 		const closedMeasureId = deterministicUuid(seedNumber, `disciplinary-measure:${org.id}:3`);
 		const generatedActaGenerationId = deterministicUuid(
 			seedNumber,
@@ -1518,7 +1522,10 @@ async function insertHolidayBaseline(args: {
 		const providerPendingDateKey = addDaysToDateKey(todayDateKey, 10);
 		const customApprovedDateKey = addDaysToDateKey(todayDateKey, -2);
 
-		const syncRunId = deterministicUuid(seedNumber, `holiday-sync-run:${org.id}:${currentYear}`);
+		const syncRunId = deterministicUuid(
+			seedNumber,
+			`holiday-sync-run:${org.id}:${currentYear}`,
+		);
 		const syncStartedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
 		const syncFinishedAt = new Date(Date.now() - 60 * 60 * 1000);
 
@@ -1669,7 +1676,10 @@ async function insertHolidayBaseline(args: {
 				createdAt: syncFinishedAt,
 			},
 			{
-				id: deterministicUuid(seedNumber, `holiday-audit:custom:${org.id}:${customEntryId}`),
+				id: deterministicUuid(
+					seedNumber,
+					`holiday-audit:custom:${org.id}:${customEntryId}`,
+				),
 				organizationId: org.id,
 				holidayEntryId: customEntryId,
 				syncRunId: null,
@@ -1950,8 +1960,13 @@ async function insertEmployeeDocumentDemoData(args: {
 	organizationUsers: Map<string, SeedOrganizationUsers>;
 	legalTemplatesByOrganization: Map<string, Map<LegalDocumentKindValue, LegalTemplateSeedInfo>>;
 }): Promise<EmployeeDocumentDemoSeedTotals> {
-	const { seedNumber, organizations, employees, organizationUsers, legalTemplatesByOrganization } =
-		args;
+	const {
+		seedNumber,
+		organizations,
+		employees,
+		organizationUsers,
+		legalTemplatesByOrganization,
+	} = args;
 	const generationRows: EmployeeLegalGenerationRow[] = [];
 	const documentRows: EmployeeDocumentVersionRow[] = [];
 	const reviewedAt = new Date();
@@ -2027,7 +2042,10 @@ async function insertEmployeeDocumentDemoData(args: {
 
 		documentRows.push(
 			{
-				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:identification:v1`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:identification:v1`,
+				),
 				organizationId: org.id,
 				employeeId: primaryEmployee.id,
 				requirementKey: 'IDENTIFICATION',
@@ -2057,7 +2075,10 @@ async function insertEmployeeDocumentDemoData(args: {
 				},
 			},
 			{
-				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:tax-constancy:v1`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:tax-constancy:v1`,
+				),
 				organizationId: org.id,
 				employeeId: primaryEmployee.id,
 				requirementKey: 'TAX_CONSTANCY',
@@ -2111,7 +2132,9 @@ async function insertEmployeeDocumentDemoData(args: {
 				fileName: `comprobante-domicilio-${primaryEmployee.code}.pdf`,
 				contentType: 'application/pdf',
 				sizeBytes: 65_536,
-				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:proof-of-address:v1`),
+				sha256: sha256Hex(
+					`seed:employee-document:${primaryEmployee.id}:proof-of-address:v1`,
+				),
 				uploadedByUserId: reviewerUserId,
 				uploadedAt: reviewedAt,
 				metadata: {
@@ -2179,7 +2202,9 @@ async function insertEmployeeDocumentDemoData(args: {
 				fileName: `curriculum-${primaryEmployee.code}.pdf`,
 				contentType: 'application/pdf',
 				sizeBytes: 94_208,
-				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:employment-profile:v1`),
+				sha256: sha256Hex(
+					`seed:employee-document:${primaryEmployee.id}:employment-profile:v1`,
+				),
 				uploadedByUserId: reviewerUserId,
 				uploadedAt: reviewedAt,
 				metadata: {
@@ -2188,7 +2213,10 @@ async function insertEmployeeDocumentDemoData(args: {
 				},
 			},
 			{
-				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:signed-contract:v1`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:signed-contract:v1`,
+				),
 				organizationId: org.id,
 				employeeId: primaryEmployee.id,
 				requirementKey: 'SIGNED_CONTRACT',
@@ -2209,7 +2237,9 @@ async function insertEmployeeDocumentDemoData(args: {
 				fileName: `contrato-firmado-${primaryEmployee.code}.pdf`,
 				contentType: 'application/pdf',
 				sizeBytes: 129_024,
-				sha256: sha256Hex(`seed:employee-document:${primaryEmployee.id}:signed-contract:v1`),
+				sha256: sha256Hex(
+					`seed:employee-document:${primaryEmployee.id}:signed-contract:v1`,
+				),
 				uploadedByUserId: reviewerUserId,
 				uploadedAt: reviewedAt,
 				metadata: {
@@ -2218,7 +2248,10 @@ async function insertEmployeeDocumentDemoData(args: {
 				},
 			},
 			{
-				id: deterministicUuid(seedNumber, `employee-document:${primaryEmployee.id}:signed-nda:v1`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-document:${primaryEmployee.id}:signed-nda:v1`,
+				),
 				organizationId: org.id,
 				employeeId: primaryEmployee.id,
 				requirementKey: 'SIGNED_NDA',
@@ -2443,7 +2476,8 @@ async function applyDualPayrollDemoOverrides(args: {
 					fullName: `${employeeRow.firstName} ${employeeRow.lastName}`,
 					dailyPay: String(employeeRow.dailyPay ?? override.dailyPay),
 					fiscalDailyPay:
-						employeeRow.fiscalDailyPay === null || employeeRow.fiscalDailyPay === undefined
+						employeeRow.fiscalDailyPay === null ||
+						employeeRow.fiscalDailyPay === undefined
 							? null
 							: String(employeeRow.fiscalDailyPay),
 					scenarioLabel: override.scenarioLabel,
@@ -2480,17 +2514,15 @@ async function insertEmployeeDeductions(args: {
 			continue;
 		}
 
-		const [
-			infonavitEmployee,
-			loanEmployee,
-			alimonyEmployee,
-			pausedEmployee,
-			advanceEmployee,
-		] = orgEmployees;
+		const [infonavitEmployee, loanEmployee, alimonyEmployee, pausedEmployee, advanceEmployee] =
+			orgEmployees;
 
 		if (infonavitEmployee) {
 			deductionRows.push({
-				id: deterministicUuid(seedNumber, `employee-deduction:${org.id}:${infonavitEmployee.id}:infonavit`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-deduction:${org.id}:${infonavitEmployee.id}:infonavit`,
+				),
 				organizationId: org.id,
 				employeeId: infonavitEmployee.id,
 				type: 'INFONAVIT',
@@ -2515,7 +2547,10 @@ async function insertEmployeeDeductions(args: {
 
 		if (loanEmployee) {
 			deductionRows.push({
-				id: deterministicUuid(seedNumber, `employee-deduction:${org.id}:${loanEmployee.id}:loan`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-deduction:${org.id}:${loanEmployee.id}:loan`,
+				),
 				organizationId: org.id,
 				employeeId: loanEmployee.id,
 				type: 'LOAN',
@@ -3230,9 +3265,9 @@ async function insertAttendance(args: {
 }
 
 /**
- * Inserts CHECK_IN records for the current local day per location.
+ * Inserts current-day attendance records per location.
  *
- * These records are used to validate the "present" dashboard UI.
+ * These records are used to validate the dashboard timeline and present UI.
  *
  * @param args - Inputs
  * @returns Promise<void>
@@ -3283,7 +3318,7 @@ async function insertTodayPresenceAttendance(args: {
 		const baseMidnightUtc = getUtcDateForZonedMidnight(todayKey, timeZone);
 
 		const candidates = [...locationEmployees];
-		const takeCount = Math.min(2, candidates.length);
+		const takeCount = Math.min(3, candidates.length);
 
 		for (let index = 0; index < takeCount; index += 1) {
 			const selectedIndex = Math.floor(rng() * candidates.length);
@@ -3309,6 +3344,76 @@ async function insertTodayPresenceAttendance(args: {
 				type: 'CHECK_IN',
 				metadata: null,
 			});
+
+			if (index === 0) {
+				const checkOut = new Date(checkIn.getTime() + 4 * 60 * 60_000);
+
+				attendanceRows.push({
+					id: deterministicUuid(
+						seedNumber,
+						`attendance:today:${selected.id}:${todayKey}:${deviceId}:out:regular`,
+					),
+					employeeId: selected.id,
+					deviceId,
+					timestamp: checkOut,
+					type: 'CHECK_OUT',
+					checkOutReason: 'REGULAR',
+					metadata: {
+						source: 'seed',
+						entryKind: 'DASHBOARD_TIMELINE_CHECK_OUT',
+					},
+				});
+
+				attendanceRows.push({
+					id: deterministicUuid(
+						seedNumber,
+						`attendance:today:${selected.id}:${todayKey}:${deviceId}:reentry:regular`,
+					),
+					employeeId: selected.id,
+					deviceId,
+					timestamp: new Date(checkOut.getTime() + 30 * 60_000),
+					type: 'CHECK_IN',
+					metadata: {
+						source: 'seed',
+						entryKind: 'DASHBOARD_TIMELINE_REENTRY_AFTER_CHECK_OUT',
+					},
+				});
+			}
+
+			if (index === 1) {
+				const authorizedCheckOut = new Date(checkIn.getTime() + 90 * 60_000);
+
+				attendanceRows.push({
+					id: deterministicUuid(
+						seedNumber,
+						`attendance:today:${selected.id}:${todayKey}:${deviceId}:out:authorized`,
+					),
+					employeeId: selected.id,
+					deviceId,
+					timestamp: authorizedCheckOut,
+					type: 'CHECK_OUT_AUTHORIZED',
+					checkOutReason: 'PERSONAL',
+					metadata: {
+						source: 'seed',
+						entryKind: 'DASHBOARD_TIMELINE_AUTHORIZED_CHECK_OUT',
+					},
+				});
+
+				attendanceRows.push({
+					id: deterministicUuid(
+						seedNumber,
+						`attendance:today:${selected.id}:${todayKey}:${deviceId}:reentry:authorized`,
+					),
+					employeeId: selected.id,
+					deviceId,
+					timestamp: new Date(authorizedCheckOut.getTime() + 30 * 60_000),
+					type: 'CHECK_IN',
+					metadata: {
+						source: 'seed',
+						entryKind: 'DASHBOARD_TIMELINE_REENTRY_AFTER_AUTHORIZED_CHECK_OUT',
+					},
+				});
+			}
 		}
 	}
 
@@ -3364,7 +3469,8 @@ async function insertWorkOffsiteAttendance(args: {
 		const orgEmployees = employees
 			.filter(
 				(employeeRow) =>
-					employeeRow.organizationId === organizationRow.id && employeeRow.status === 'ACTIVE',
+					employeeRow.organizationId === organizationRow.id &&
+					employeeRow.status === 'ACTIVE',
 			)
 			.sort((a, b) => a.code.localeCompare(b.code))
 			.slice(0, 2);
@@ -3468,7 +3574,10 @@ async function insertEmployeeLifecycleDemoData(args: {
 
 		if (auditedEmployee) {
 			auditRows.push({
-				id: deterministicUuid(seedNumber, `employee-audit:${org.id}:${auditedEmployee.id}:1`),
+				id: deterministicUuid(
+					seedNumber,
+					`employee-audit:${org.id}:${auditedEmployee.id}:1`,
+				),
 				employeeId: auditedEmployee.id,
 				organizationId: org.id,
 				action: 'seed.employee.created',
@@ -3516,10 +3625,7 @@ async function insertEmployeeLifecycleDemoData(args: {
 			});
 
 			incapacityDocumentRows.push({
-				id: deterministicUuid(
-					seedNumber,
-					`employee-incapacity-document:${incapacityId}`,
-				),
+				id: deterministicUuid(seedNumber, `employee-incapacity-document:${incapacityId}`),
 				incapacityId,
 				bucket: SEED_BUCKET_NAME,
 				objectKey: `org/${org.id}/employees/${incapacitatedEmployee.id}/incapacities/${incapacityId}/documento-imss.pdf`,
@@ -3853,15 +3959,15 @@ async function insertPayrollRuns(args: {
 				employeeIndex % 4 === 0 ? 45 : employeeIndex % 4 === 1 ? 60 : 0;
 			const lunchBreakAutoDeductedDays = lunchBreakAutoDeductedMinutes > 0 ? 1 : 0;
 			const paidNormalHours = Math.max(
-				rawHoursWorked -
-					overtimeDoubleHours -
-					lunchBreakAutoDeductedMinutes / 60,
+				rawHoursWorked - overtimeDoubleHours - lunchBreakAutoDeductedMinutes / 60,
 				0,
 			);
 			const seededCompensation = buildSeedPayrollRunCompensation({
 				dailyPay,
 				fiscalDailyPay:
-					dualPayrollEnabled && emp.fiscalDailyPay !== null && emp.fiscalDailyPay !== undefined
+					dualPayrollEnabled &&
+					emp.fiscalDailyPay !== null &&
+					emp.fiscalDailyPay !== undefined
 						? Number(emp.fiscalDailyPay)
 						: null,
 				authorizedOvertimeHours,
@@ -3936,8 +4042,7 @@ async function insertPayrollRuns(args: {
 
 		const estimatedMandatoryPremiumTotal = roundCurrency(
 			lineItems.reduce(
-				(total, lineItem) =>
-					total + Number(lineItem.mandatoryRestDayPremiumAmount ?? 0),
+				(total, lineItem) => total + Number(lineItem.mandatoryRestDayPremiumAmount ?? 0),
 				0,
 			),
 		);
@@ -4004,7 +4109,10 @@ async function insertPtuHistoryEntries(args: {
 	const historyRows: PtuHistoryRow[] = [];
 
 	for (const org of organizations) {
-		const eligibleEmployees = resolveExtraPaymentEligibleEmployees(employees, org.id).slice(0, 15);
+		const eligibleEmployees = resolveExtraPaymentEligibleEmployees(employees, org.id).slice(
+			0,
+			15,
+		);
 		for (const employeeRow of eligibleEmployees) {
 			const dailyPay = Number(employeeRow.dailyPay ?? 0);
 
@@ -4012,10 +4120,7 @@ async function insertPtuHistoryEntries(args: {
 				const year = fiscalYear - yearsAgo;
 				const baseAmount = roundCurrency(dailyPay * (5 + yearsAgo));
 				historyRows.push({
-					id: deterministicUuid(
-						seedNumber,
-						`ptu-history:${employeeRow.id}:${year}`,
-					),
+					id: deterministicUuid(seedNumber, `ptu-history:${employeeRow.id}:${year}`),
 					organizationId: org.id,
 					employeeId: employeeRow.id,
 					fiscalYear: year,
@@ -4369,13 +4474,6 @@ async function main(): Promise<void> {
 		devices,
 	});
 
-	await insertTodayPresenceAttendance({
-		seedNumber: args.seed,
-		employees,
-		locations: baseline.locations,
-		devices,
-	});
-
 	const offsiteSeedTotals = await insertWorkOffsiteAttendance({
 		seedNumber: args.seed,
 		organizations,
@@ -4398,6 +4496,13 @@ async function main(): Promise<void> {
 		seedNumber: args.seed,
 		organizations,
 		employees,
+	});
+
+	await insertTodayPresenceAttendance({
+		seedNumber: args.seed,
+		employees,
+		locations: baseline.locations,
+		devices,
 	});
 
 	const currentYear = new Date().getUTCFullYear();
@@ -4456,16 +4561,10 @@ async function main(): Promise<void> {
 		employeeLifecycleSeedTotals.terminationSettlements,
 	);
 	console.log('Employee incapacities:', employeeLifecycleSeedTotals.incapacities);
-	console.log(
-		'Employee incapacity documents:',
-		employeeLifecycleSeedTotals.incapacityDocuments,
-	);
+	console.log('Employee incapacity documents:', employeeLifecycleSeedTotals.incapacityDocuments);
 	console.log('Employee legal generations:', employeeDocumentSeedTotals.generations);
 	console.log('Employee document versions:', employeeDocumentSeedTotals.documents);
-	console.log(
-		'Overtime authorizations:',
-		overtimeAuthorizationSeedTotals.authorizations,
-	);
+	console.log('Overtime authorizations:', overtimeAuthorizationSeedTotals.authorizations);
 	console.log('Employee deductions:', employeeDeductionSeedTotals.deductions);
 	console.log('PTU history rows:', ptuHistoryCount);
 	console.log('PTU runs:', ptuSeedTotals.runs, 'line items:', ptuSeedTotals.lineItems);

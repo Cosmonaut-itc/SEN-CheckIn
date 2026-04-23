@@ -153,6 +153,21 @@ describe('ActivityTimeline', () => {
 		expect(within(firstPill as HTMLElement).getByText('07:00')).toBeInTheDocument();
 	});
 
+	it('shows employee, activity type, and time in a tooltip when a pill is hovered', async () => {
+		renderActivityTimeline();
+
+		const firstPill = screen.getAllByTestId('activity-timeline-pill')[0];
+		if (!firstPill) {
+			throw new Error('Expected at least one timeline pill.');
+		}
+
+		fireEvent.pointerMove(firstPill, { pointerType: 'mouse' });
+		fireEvent.focus(firstPill);
+
+		expect((await screen.findAllByText('Ada Lovelace')).length).toBeGreaterThan(0);
+		expect((await screen.findAllByText('Entrada - 07:00')).length).toBeGreaterThan(0);
+	});
+
 	it('renders the summary footer with correct counts', () => {
 		renderActivityTimeline();
 

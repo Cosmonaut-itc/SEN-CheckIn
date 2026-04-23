@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
 import type { TimelineEvent } from '@/lib/client-functions';
@@ -48,6 +49,7 @@ interface ActivityStyleConfig {
  */
 interface PositionedTimelineEvent {
 	event: TimelineEvent;
+	activityLabel: string;
 	category: ActivityTimelineCategory;
 	eventLabel: string | null;
 	initials: string;
@@ -165,6 +167,36 @@ function resolveEventCategory(event: TimelineEvent): ActivityTimelineCategory {
 	}
 
 	return 'in';
+}
+
+/**
+ * Resolves the activity label shown in timeline tooltips.
+ *
+ * @param category - Timeline display category
+ * @param t - Translation helper for the dashboard timeline namespace
+ * @returns Localized activity label
+ */
+function resolveTimelineActivityLabel(
+	category: ActivityTimelineCategory,
+	t: (key: string) => string,
+): string {
+	if (category === 'in') {
+		return t('event.checkIn');
+	}
+
+	if (category === 'out') {
+		return t('event.checkOut');
+	}
+
+	if (category === 'authorizedOut') {
+		return t('event.checkOutAuthorized');
+	}
+
+	if (category === 'late') {
+		return t('event.late');
+	}
+
+	return t('event.offsite');
 }
 
 /**
@@ -456,6 +488,7 @@ function layoutTimelineEvents(
 
 		return {
 			event,
+			activityLabel: resolveTimelineActivityLabel(category, t),
 			category,
 			eventLabel: resolveTimelineEventLabel(category, t),
 			initials: getInitials(event.employeeName),
@@ -670,49 +703,66 @@ function ActivityTimeline({
 									const styleConfig = STYLE_BY_CATEGORY[item.category];
 
 									return (
-										<div
-											key={item.event.id}
-											data-testid="activity-timeline-pill"
-											data-attendance-type={item.event.type}
-											className={cn(
-												'absolute z-10 flex w-[13.5rem] -translate-x-1/2 items-center gap-2 rounded-2xl border px-3 py-2.5 backdrop-blur-sm',
-												styleConfig.pillClassName,
-											)}
-											style={{
-												left: `${item.leftPercent}%`,
-												top: `${item.laneIndex * LANE_HEIGHT + 8}px`,
-											}}
-										>
-											<div className="flex shrink-0 items-center gap-1.5">
-												<span
+										<Tooltip key={item.event.id}>
+											<TooltipTrigger asChild>
+												<div
+													tabIndex={0}
+													aria-label={`${item.event.employeeName} ${item.activityLabel} ${item.timeLabel}`}
+													data-testid="activity-timeline-pill"
+													data-attendance-type={item.event.type}
 													className={cn(
-														'inline-flex size-4 shrink-0 rounded-full',
-														styleConfig.indicatorClassName,
+														'absolute z-10 flex w-[13.5rem] -translate-x-1/2 items-center gap-2 rounded-2xl border px-3 py-2.5 backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-primary)] focus-visible:ring-offset-2',
+														styleConfig.pillClassName,
 													)}
-												/>
-												<span
-													className={cn(
-														'text-[0.72rem] font-semibold uppercase tracking-[0.16em]',
-														styleConfig.initialsClassName,
-													)}
+													style={{
+														left: `${item.leftPercent}%`,
+														top: `${item.laneIndex * LANE_HEIGHT + 8}px`,
+													}}
 												>
-													{item.initials}
-												</span>
-											</div>
-											<div className="min-w-0 flex-1">
-												<p className="truncate text-sm font-semibold leading-tight">
-													{item.shortName}
-												</p>
-												<p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] leading-tight text-current/70">
-													<span className="font-mono">
-														{item.timeLabel}
-													</span>
-													{item.eventLabel ? (
-														<span>{item.eventLabel}</span>
-													) : null}
-												</p>
-											</div>
-										</div>
+													<div className="flex shrink-0 items-center gap-1.5">
+														<span
+															className={cn(
+																'inline-flex size-4 shrink-0 rounded-full',
+																styleConfig.indicatorClassName,
+															)}
+														/>
+														<span
+															className={cn(
+																'text-[0.72rem] font-semibold uppercase tracking-[0.16em]',
+																styleConfig.initialsClassName,
+															)}
+														>
+															{item.initials}
+														</span>
+													</div>
+													<div className="min-w-0 flex-1">
+														<p className="truncate text-sm font-semibold leading-tight">
+															{item.shortName}
+														</p>
+														<p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] leading-tight text-current/70">
+															<span className="font-mono">
+																{item.timeLabel}
+															</span>
+															{item.eventLabel ? (
+																<span>{item.eventLabel}</span>
+															) : null}
+														</p>
+													</div>
+												</div>
+											</TooltipTrigger>
+											<TooltipContent
+												side="top"
+												sideOffset={8}
+												className="max-w-[16rem] text-sm font-semibold"
+											>
+												<div className="space-y-1">
+													<p>{item.event.employeeName}</p>
+													<p className="text-xs font-medium text-muted-foreground">
+														{item.activityLabel} - {item.timeLabel}
+													</p>
+												</div>
+											</TooltipContent>
+										</Tooltip>
 									);
 								})}
 							</div>

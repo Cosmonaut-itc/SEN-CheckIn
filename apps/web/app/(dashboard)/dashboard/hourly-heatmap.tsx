@@ -4,6 +4,7 @@ import React from 'react';
 import { useTranslations } from 'next-intl';
 
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { HourlyActivity } from '@/lib/client-functions';
 
 const HOURS = Array.from({ length: 15 }, (_, index) => index + 6);
@@ -39,9 +40,11 @@ function HourlyHeatmapHeader({
 	title,
 }: HourlyHeatmapHeaderProps): React.ReactElement {
 	return (
-		<header className="space-y-1">
-			<h3 className="text-sm font-semibold text-foreground">{title}</h3>
-			<p className="text-xs text-muted-foreground">{rangeLabel}</p>
+		<header className="flex items-baseline justify-between gap-2">
+			<h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-foreground/80">
+				{title}
+			</h3>
+			<p className="text-[10px] text-muted-foreground">{rangeLabel}</p>
 		</header>
 	);
 }
@@ -112,16 +115,21 @@ export function HourlyHeatmap({ data, isLoading }: HourlyHeatmapProps): React.Re
 
 	if (isLoading) {
 		return (
-			<section aria-busy="true" aria-live="polite" className="space-y-4" data-testid="hourly-heatmap">
+			<section
+				aria-busy="true"
+				aria-live="polite"
+				className="space-y-1.5"
+				data-testid="hourly-heatmap"
+			>
 				<HourlyHeatmapHeader rangeLabel={rangeLabel} title={t('hourly.title')} />
 				<div
-					className="grid grid-cols-[repeat(15,minmax(0,1fr))] items-end gap-1 rounded-2xl border border-border/60 bg-[color:var(--bg-secondary)]/70 p-4"
+					className="grid h-8 grid-cols-[repeat(15,minmax(0,1fr))] items-end gap-[3px]"
 					data-testid="hourly-heatmap-loading"
 				>
 					{HOURS.map((hour) => (
-						<div key={hour} className="flex h-40 items-end">
+						<div key={hour} className="flex h-full items-end">
 							<Skeleton
-								className="h-8 w-full rounded-t-md"
+								className="h-3 w-full rounded-sm"
 								data-testid="hourly-heatmap-loading-bar"
 							/>
 						</div>
@@ -133,39 +141,45 @@ export function HourlyHeatmap({ data, isLoading }: HourlyHeatmapProps): React.Re
 
 	if (!hasVisibleData) {
 		return (
-			<section className="space-y-4" data-testid="hourly-heatmap">
+			<section className="space-y-1" data-testid="hourly-heatmap">
 				<HourlyHeatmapHeader rangeLabel={rangeLabel} title={t('hourly.title')} />
-				<div
-					className="flex min-h-40 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-[color:var(--bg-secondary)]/60 px-4 py-8 text-center"
+				<p
+					className="text-[10px] text-muted-foreground"
 					data-testid="hourly-heatmap-empty"
 				>
-					<p className="text-sm text-muted-foreground">{t('hourly.empty')}</p>
-				</div>
+					{t('hourly.empty')}
+				</p>
 			</section>
 		);
 	}
 
 	return (
-		<section className="space-y-4" data-testid="hourly-heatmap">
+		<section className="space-y-1.5" data-testid="hourly-heatmap">
 			<HourlyHeatmapHeader rangeLabel={rangeLabel} title={t('hourly.title')} />
-			<div className="space-y-3 rounded-2xl border border-border/60 bg-[color:var(--bg-secondary)]/70 p-4">
-				<ul className="sr-only" aria-label={t('hourly.title')}>
-					{slots.map((slot) => (
-						<li key={`hourly-heatmap-summary-${slot.hour}`}>
-							{`${formatAxisLabel(slot.hour)}: ${slot.count}`}
-						</li>
-					))}
-				</ul>
-				<div
-					className="grid grid-cols-[repeat(15,minmax(0,1fr))] items-end gap-1"
-					data-testid="hourly-heatmap-chart"
-				>
-					{slots.map((slot) => (
-						<div key={slot.hour} className="flex h-40 items-end">
-							<div className="flex h-full w-full items-end">
+			<ul className="sr-only" aria-label={t('hourly.title')}>
+				{slots.map((slot) => (
+					<li key={`hourly-heatmap-summary-${slot.hour}`}>
+						{`${formatAxisLabel(slot.hour)}: ${slot.count}`}
+					</li>
+				))}
+			</ul>
+			<div
+				className="grid h-8 grid-cols-[repeat(15,minmax(0,1fr))] items-end gap-[3px]"
+				data-testid="hourly-heatmap-chart"
+			>
+				{slots.map((slot) => (
+					<Tooltip key={slot.hour}>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								aria-label={`${formatAxisLabel(slot.hour)}: ${t('hourly.entries', {
+									count: slot.count,
+								})}`}
+								className="group flex h-full w-full items-end rounded-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--accent-primary)]"
+							>
 								<div
 									aria-hidden="true"
-									className="w-full rounded-t-md bg-[color:var(--accent-primary)] transition-[height,opacity] duration-300 motion-reduce:transition-none"
+									className="w-full rounded-t-sm bg-[color:var(--accent-primary)] transition-[height,opacity] duration-300 group-hover:opacity-100 motion-reduce:transition-none"
 									data-count={slot.count}
 									data-testid={`hourly-heatmap-bar-${slot.hour}`}
 									style={{
@@ -173,17 +187,20 @@ export function HourlyHeatmap({ data, isLoading }: HourlyHeatmapProps): React.Re
 										opacity: slot.opacity,
 									}}
 								/>
+							</button>
+						</TooltipTrigger>
+						<TooltipContent side="top" sideOffset={6}>
+							<div className="space-y-0.5 text-center">
+								<p className="text-xs font-semibold leading-none">
+									{formatAxisLabel(slot.hour)}
+								</p>
+								<p className="text-[10px] leading-none text-muted-foreground">
+									{t('hourly.entries', { count: slot.count })}
+								</p>
 							</div>
-						</div>
-					))}
-				</div>
-				<div className="grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1 text-[11px] font-medium text-muted-foreground">
-					{HOURS.map((hour) => (
-						<div key={hour} className="text-center" data-testid={`hourly-heatmap-axis-${hour}`}>
-							{hour === 6 || hour === 12 || hour === 18 ? formatAxisLabel(hour) : ''}
-						</div>
-					))}
-				</div>
+						</TooltipContent>
+					</Tooltip>
+				))}
 			</div>
 		</section>
 	);

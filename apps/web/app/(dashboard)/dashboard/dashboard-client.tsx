@@ -428,7 +428,7 @@ export function DashboardPageClient(): React.ReactElement {
 							/>
 						</div>
 						<div className="pointer-events-none absolute inset-x-4 bottom-4">
-							<div className="pointer-events-auto rounded-[1rem] border border-[color:var(--border-subtle)] bg-background/90 p-4 backdrop-blur">
+							<div className="pointer-events-auto rounded-[0.75rem] border border-[color:var(--border-subtle)] bg-background/85 px-3 py-2 backdrop-blur">
 								<HourlyHeatmap
 									data={hourlyPayload?.data ?? []}
 									isLoading={isHourlyFetching}

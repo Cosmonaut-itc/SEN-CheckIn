@@ -154,7 +154,8 @@
 		},
 		"hourly": {
 			"title": "Actividad por hora",
-			"empty": "Sin datos de actividad."
+			"empty": "Sin datos de actividad.",
+			"entries": "{count, plural, =0 {Sin entradas} =1 {1 entrada} other {# entradas}}"
 		},
 		"devices": {
 			"eyebrow": "DISPOSITIVOS",

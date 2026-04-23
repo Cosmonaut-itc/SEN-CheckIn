@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
@@ -530,19 +530,29 @@ function ActivityTimeline({
 
 				{hasVisibleEvents ? (
 					<ScrollArea className="w-full min-h-0 flex-1 rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50">
-						<div className="min-w-[780px] p-4">
+						<div className="min-w-[780px] px-4 pt-4 pb-6">
 							<div className="relative h-10">
 								<div className="absolute left-0 right-0 top-5 h-px bg-border/70" />
-								{axisRange.ticks.map((minute) => {
+								{axisRange.ticks.map((minute, tickIndex) => {
 									const tickPercent =
 										((minute - axisRange.startMinutes) /
 											Math.max(axisRange.endMinutes - axisRange.startMinutes, 1)) *
 										100;
+									const isFirstTick = tickIndex === 0;
+									const isLastTick = tickIndex === axisRange.ticks.length - 1;
+									const tickAlignmentClassName = isFirstTick
+										? 'translate-x-0'
+										: isLastTick
+											? '-translate-x-full'
+											: '-translate-x-1/2';
 
 									return (
 										<div
 											key={`tick-${minute}`}
-											className="absolute top-0 -translate-x-1/2 text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground"
+											className={cn(
+												'absolute top-0 text-[11px] font-medium uppercase tracking-[0.28em] text-muted-foreground',
+												tickAlignmentClassName,
+											)}
 											style={{ left: `${tickPercent}%` }}
 										>
 											{formatAxisTickLabel(minute)}
@@ -610,6 +620,7 @@ function ActivityTimeline({
 								})}
 							</div>
 						</div>
+						<ScrollBar orientation="horizontal" />
 					</ScrollArea>
 				) : (
 					<div className="flex min-h-[220px] flex-1 items-center justify-center rounded-2xl border border-dashed border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50 px-6 text-center">

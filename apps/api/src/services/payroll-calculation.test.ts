@@ -2707,7 +2707,7 @@ describe('payroll-calculation mexico taxes', () => {
 		expect(taxSummary.netPayTotal).toBe(3903.2);
 	});
 
-	it('matches the reference report without absorption', () => {
+	it('keeps minimum-wage payroll protected without explicit absorption settings', () => {
 		const { employees: results, taxSummary } = calculatePayrollFromData({
 			...baseArgs,
 			payrollSettings: {
@@ -2719,20 +2719,22 @@ describe('payroll-calculation mexico taxes', () => {
 
 		const emp002 = results.find((row) => row.employeeId === 'emp-002');
 		const emp003 = results.find((row) => row.employeeId === 'emp-003');
-		expect(emp002?.employeeWithholdings.isrWithheld).toBe(29.94);
-		expect(emp003?.employeeWithholdings.isrWithheld).toBe(29.94);
-		expect(emp002?.employeeWithholdings.imssEmployee.total).toBe(48.89);
-		expect(emp003?.employeeWithholdings.imssEmployee.total).toBe(48.76);
-		expect(emp002?.netPay).toBe(1872.77);
-		expect(emp003?.netPay).toBe(1872.9);
+		expect(emp002?.employeeWithholdings.isrWithheld).toBe(0);
+		expect(emp003?.employeeWithholdings.isrWithheld).toBe(0);
+		expect(emp002?.employeeWithholdings.imssEmployee.total).toBe(0);
+		expect(emp003?.employeeWithholdings.imssEmployee.total).toBe(0);
+		expect(emp002?.employerCosts.absorbedImssEmployeeShare).toBe(48.89);
+		expect(emp003?.employerCosts.absorbedImssEmployeeShare).toBe(48.76);
+		expect(emp002?.netPay).toBe(1951.6);
+		expect(emp003?.netPay).toBe(1951.6);
 
 		const imssEmployerTotal = sumRounded(
 			results.map((row) => row.employerCosts.imssEmployer.total),
 		);
-		expect(imssEmployerTotal).toBe(685.25);
+		expect(imssEmployerTotal).toBe(782.9);
 
 		expect(taxSummary.grossTotal).toBe(3903.2);
-		expect(taxSummary.netPayTotal).toBe(3745.67);
+		expect(taxSummary.netPayTotal).toBe(3903.2);
 	});
 
 	it('applies SBC override over automatic calculation', () => {
@@ -3870,13 +3872,7 @@ describe('payroll-calculation mexico taxes', () => {
 			const expectedFiscalNet = Number(
 				(dualEnabled.fiscalGrossPay - dualEnabled.employeeWithholdings.total).toFixed(2),
 			);
-			const expectedNetPay = Number(
-				(
-					dualEnabled.totalRealPay -
-					dualEnabled.employeeWithholdings.total -
-					expectedFiscalNet
-				).toFixed(2),
-			);
+			const expectedNetPay = Number((dualEnabled.totalRealPay - expectedFiscalNet).toFixed(2));
 
 			expect(dualEnabled.deductionsBreakdown[0]).toMatchObject({
 				calculationMethod: 'FIXED_AMOUNT',
@@ -3946,11 +3942,7 @@ describe('payroll-calculation mexico taxes', () => {
 			const expectedFiscalBase = Number((expectedFiscalSbcDaily * 5).toFixed(2));
 			const expectedFiscalAmount = Number((expectedFiscalBase * 0.1).toFixed(2));
 			const expectedNetPay = Number(
-				(
-					dualEnabled.totalRealPay -
-					dualEnabled.employeeWithholdings.total -
-					expectedFiscalAmount
-				).toFixed(2),
+				(dualEnabled.totalRealPay - expectedFiscalAmount).toFixed(2),
 			);
 
 			expect(standard.deductionsBreakdown[0]?.appliedAmount).toBeGreaterThan(

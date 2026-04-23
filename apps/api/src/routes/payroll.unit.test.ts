@@ -6,6 +6,13 @@ import {
 	type AttendanceRow,
 	type PayrollEmployeeRow,
 } from '../services/payroll-calculation.js';
+import {
+	AET_P10_2026_PAYROLL_SETTINGS,
+	AET_P10_2026_PERIOD,
+	AET_P10_TDD_LISTA_RAYA_EXPECTED,
+	buildAetP10PayrollArgs,
+} from '../services/payroll-real-fixtures.test-data.js';
+import { roundCurrency } from '../utils/money.js';
 import { getUtcDateForZonedMidnight } from '../utils/time-zone.js';
 
 mock.restore();
@@ -286,6 +293,136 @@ function seedWeeklyProcessScenario(args: {
 			getUtcDateForZonedTime('2025-03-08', 17, 0, args.timeZone),
 		),
 	];
+}
+
+/**
+ * Converts a fixture deduction row into the route fake-DB row shape.
+ *
+ * @param deduction - Payroll calculation deduction row
+ * @param organizationId - Organization identifier
+ * @returns Fake database deduction row
+ */
+function buildFakeDeductionFromFixture(
+	deduction: NonNullable<ReturnType<typeof buildAetP10PayrollArgs>['employeeDeductions']>[number],
+	organizationId: string,
+): FakeEmployeeDeductionRow {
+	const totalAmount =
+		deduction.totalAmount === null || deduction.totalAmount === undefined
+			? null
+			: Number(deduction.totalAmount).toFixed(2);
+	const remainingAmount =
+		deduction.remainingAmount === null || deduction.remainingAmount === undefined
+			? null
+			: Number(deduction.remainingAmount).toFixed(2);
+
+	return {
+		id: deduction.id,
+		organizationId,
+		employeeId: deduction.employeeId,
+		type: deduction.type,
+		label: deduction.label,
+		calculationMethod: deduction.calculationMethod,
+		value: Number(deduction.value).toFixed(2),
+		frequency: deduction.frequency,
+		totalInstallments: deduction.totalInstallments,
+		completedInstallments: deduction.completedInstallments,
+		totalAmount,
+		remainingAmount,
+		status: deduction.status,
+		startDateKey: deduction.startDateKey,
+		endDateKey: deduction.endDateKey,
+		referenceNumber: deduction.referenceNumber ?? null,
+		satDeductionCode: deduction.satDeductionCode ?? null,
+		notes: deduction.notes ?? null,
+		createdAt: deduction.createdAt ?? new Date('2026-02-27T00:00:00.000Z'),
+	};
+}
+
+/**
+ * Seeds the AET period-10 route fixture from derived CONTPAQi/workbook data.
+ *
+ * @returns Nothing
+ */
+function seedAetP10ProcessScenario(): void {
+	const organizationId = 'org-aet-p10-2026';
+	const args = buildAetP10PayrollArgs({ scope: 'TDD' });
+
+	dbState.organizationId = organizationId;
+	dbState.payrollSettings = [
+		{
+			organizationId,
+			overtimeEnforcement: 'WARN',
+			weekStartDay: 1,
+			additionalMandatoryRestDays: [],
+			timeZone: AET_P10_2026_PERIOD.timeZone,
+			...AET_P10_2026_PAYROLL_SETTINGS,
+		},
+	];
+	dbState.employees = args.employees.map((employee) => ({
+		...employee,
+		organizationId,
+		lastPayrollDate: null,
+	}));
+	dbState.schedules = args.schedules;
+	dbState.attendanceRecords = args.attendanceRows;
+	dbState.employeeDeductions = (args.employeeDeductions ?? []).map((deduction) =>
+		buildFakeDeductionFromFixture(deduction, organizationId),
+	);
+}
+
+type PersistedPayrollDeductionBreakdown = {
+	appliedAmount: number;
+	satDeductionCode: string | null;
+};
+
+type PersistedPayrollRunEmployee = {
+	deductionsBreakdown: PersistedPayrollDeductionBreakdown[];
+	taxBreakdown: {
+		grossPay: number;
+		employeeWithholdings: {
+			total: number;
+		};
+		employerCosts: {
+			total: number;
+		};
+		netPay: number;
+	};
+};
+
+/**
+ * Sums numeric values and rounds to currency precision.
+ *
+ * @param values - Numeric values to sum
+ * @returns Rounded currency sum
+ */
+function sumCurrency(values: number[]): number {
+	return roundCurrency(values.reduce((total, value) => total + value, 0));
+}
+
+/**
+ * Asserts currency values with a small tolerance for third-party rounding drift.
+ *
+ * @param actual - Actual amount
+ * @param expected - Expected amount
+ * @param tolerance - Accepted absolute difference
+ * @returns Nothing
+ */
+function expectCurrencyClose(actual: number, expected: number, tolerance = 0.02): void {
+	expect(Math.abs(roundCurrency(actual - expected))).toBeLessThanOrEqual(tolerance);
+}
+
+/**
+ * Sums fiscal voucher deductions from a persisted payroll row.
+ *
+ * @param row - Persisted payroll employee row
+ * @returns ISR/IMSS plus SAT-coded deductions
+ */
+function calculatePersistedFiscalVoucherDeductions(row: PersistedPayrollRunEmployee): number {
+	const satCodedDeductions = row.deductionsBreakdown
+		.filter((deduction) => deduction.satDeductionCode !== null)
+		.map((deduction) => deduction.appliedAmount);
+
+	return sumCurrency([row.taxBreakdown.employeeWithholdings.total, ...satCodedDeductions]);
 }
 
 /**
@@ -1788,6 +1925,57 @@ describe('payroll routes', () => {
 		expect(employeeAfter?.lastPayrollDate?.getTime()).toBe(
 			periodBounds.periodEndInclusiveUtc.getTime(),
 		);
+	});
+
+	it('persists enough period-10 data to validate the AET TDD lista de raya', async () => {
+		seedAetP10ProcessScenario();
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(dbState.payrollRunEmployees).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+
+		const persistedRows = dbState.payrollRunEmployees as PersistedPayrollRunEmployee[];
+		const fiscalGrossTotal = sumCurrency(
+			persistedRows.map((row) => row.taxBreakdown.grossPay),
+		);
+		const fiscalVoucherDeductionsTotal = sumCurrency(
+			persistedRows.map(calculatePersistedFiscalVoucherDeductions),
+		);
+		const fiscalNetPayTotal = roundCurrency(
+			fiscalGrossTotal - fiscalVoucherDeductionsTotal,
+		);
+		const employerCostsTotal = sumCurrency(
+			persistedRows.map((row) => row.taxBreakdown.employerCosts.total),
+		);
+		const realNetPayTotal = sumCurrency(persistedRows.map((row) => row.taxBreakdown.netPay));
+
+		expectCurrencyClose(
+			fiscalGrossTotal,
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalGrossTotal,
+			0.01,
+		);
+		expectCurrencyClose(
+			fiscalVoucherDeductionsTotal,
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalVoucherDeductionsTotal,
+		);
+		expectCurrencyClose(fiscalNetPayTotal, AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalNetPayTotal);
+		expectCurrencyClose(
+			employerCostsTotal,
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employerCostsTotal,
+			0.01,
+		);
+		expectCurrencyClose(realNetPayTotal, AET_P10_TDD_LISTA_RAYA_EXPECTED.realNetPayTotal);
 	});
 
 	it('processes payroll including WORK_OFFSITE and preserves CHECK_OUT_AUTHORIZED paid span behavior', async () => {

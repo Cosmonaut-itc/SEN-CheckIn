@@ -587,6 +587,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		dateKey: periodEndDateKey,
 		zone,
 	});
+	const minimumWageFiscalPayroll = roundCurrency(dailyPay) <= minimumWageDaily;
 
 	const sbcDaily = getSbcDaily({
 		dailyPay,
@@ -697,10 +698,14 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		total: roundCurrency(imssEmployerTotalRaw),
 	};
 
-	const absorbedImssEmployeeShare = settings.absorbImssEmployeeShare ? imssEmployee.total : 0;
-	const absorbedIsr = settings.absorbIsr ? isrWithheldCalculated : 0;
+	const absorbImssEmployeeShare =
+		settings.absorbImssEmployeeShare || minimumWageFiscalPayroll;
+	const withholdIsr = !settings.absorbIsr && !minimumWageFiscalPayroll;
+	const absorbedImssEmployeeShare = absorbImssEmployeeShare ? imssEmployee.total : 0;
+	const absorbedIsr =
+		settings.absorbIsr && !minimumWageFiscalPayroll ? isrWithheldCalculated : 0;
 
-	const imssEmployer: ImssEmployerBreakdown = settings.absorbImssEmployeeShare
+	const imssEmployer: ImssEmployerBreakdown = absorbImssEmployeeShare
 		? {
 				...imssEmployerBase,
 				emExcess: emExcessCombined,
@@ -713,7 +718,7 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 		: imssEmployerBase;
 
 	const employeeWithholdings: PayrollEmployeeWithholdings = {
-		imssEmployee: settings.absorbImssEmployeeShare
+		imssEmployee: absorbImssEmployeeShare
 			? {
 					emExcess: 0,
 					pd: 0,
@@ -723,11 +728,11 @@ export function calculateMexicoPayrollTaxes(input: MexicoPayrollTaxInput): Mexic
 					total: 0,
 				}
 			: imssEmployee,
-		isrWithheld: settings.absorbIsr ? 0 : isrWithheldCalculated,
+		isrWithheld: withholdIsr ? isrWithheldCalculated : 0,
 		infonavitCredit: 0,
 		total: sumMoney([
-			settings.absorbImssEmployeeShare ? 0 : imssEmployee.total,
-			settings.absorbIsr ? 0 : isrWithheldCalculated,
+			absorbImssEmployeeShare ? 0 : imssEmployee.total,
+			withholdIsr ? isrWithheldCalculated : 0,
 		]),
 	};
 

@@ -87,6 +87,23 @@ function createJsonRequest(method: string, path: string, body?: unknown): Reques
 }
 
 /**
+ * Mock implementation of drizzle's sql template tag.
+ *
+ * @param strings - Template string segments
+ * @param values - Interpolated values
+ * @returns Simplified SQL payload
+ */
+function sqlTag(
+	strings: TemplateStringsArray,
+	...values: unknown[]
+): { text: string; values: unknown[] } {
+	return {
+		text: strings.join('?'),
+		values,
+	};
+}
+
+/**
  * Extracts a Drizzle column name from a column-like object.
  *
  * @param column - Column-like object
@@ -261,6 +278,7 @@ mock.module('drizzle-orm', () => ({
 	and: (...conditions: DrizzleCondition[]) => ({ kind: 'and' as const, conditions }),
 	eq: (column: unknown, value: unknown) => ({ kind: 'eq' as const, column, value }),
 	relations: () => ({}),
+	sql: sqlTag,
 }));
 
 mock.module('../db/index.js', () => ({ default: fakeDb }));

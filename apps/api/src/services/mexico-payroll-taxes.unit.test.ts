@@ -81,4 +81,48 @@ describe('mexico-payroll-taxes minimum wage parity', () => {
 		expect(result.employerCosts.total).toBe(814.9);
 		expect(result.netPay).toBe(2205.28);
 	});
+
+	it('respects absorption settings for fiscal payroll above minimum wage', () => {
+		const baseInput = {
+			dailyPay: 1000,
+			grossPay: 7000,
+			paymentFrequency: 'WEEKLY' as const,
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			hireDate: new Date('2018-01-08T00:00:00.000Z'),
+			sbcDailyOverride: 1000,
+			locationGeographicZone: 'GENERAL' as const,
+			settings: {
+				...buildBaseSettings(),
+				riskWorkRate: 0.06,
+				statePayrollTaxRate: 0.02,
+			},
+		};
+
+		const retained = calculateMexicoPayrollTaxes(baseInput);
+		const absorbed = calculateMexicoPayrollTaxes({
+			...baseInput,
+			settings: {
+				...baseInput.settings,
+				absorbImssEmployeeShare: true,
+				absorbIsr: true,
+			},
+		});
+
+		expect(retained.bases.minimumWageDaily).toBe(315.04);
+		expect(retained.employeeWithholdings.imssEmployee.total).toBeGreaterThan(0);
+		expect(retained.employeeWithholdings.isrWithheld).toBeGreaterThan(0);
+		expect(retained.employeeWithholdings.total).toBeGreaterThan(0);
+		expect(retained.employerCosts.absorbedImssEmployeeShare).toBe(0);
+		expect(retained.employerCosts.absorbedIsr).toBe(0);
+
+		expect(absorbed.employeeWithholdings.imssEmployee.total).toBe(0);
+		expect(absorbed.employeeWithholdings.isrWithheld).toBe(0);
+		expect(absorbed.employeeWithholdings.total).toBe(0);
+		expect(absorbed.employerCosts.absorbedImssEmployeeShare).toBe(
+			retained.employeeWithholdings.imssEmployee.total,
+		);
+		expect(absorbed.employerCosts.absorbedIsr).toBe(retained.employeeWithholdings.isrWithheld);
+		expect(absorbed.netPay).toBe(baseInput.grossPay);
+	});
 });

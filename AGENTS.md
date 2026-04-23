@@ -70,6 +70,13 @@
 - **Web testing**: Unit tests use Vitest; e2e uses Playwright with `apps/web/e2e` and `bun run test:web:e2e` (spins up API + web via `test:e2e:servers`).
 - **Test structure**: Group tests by feature/functionality using `describe` blocks. Use clear, descriptive test names that explain the behavior being tested.
 
+## Agent Workflow Expectations
+
+- **Mandatory TDD skill for implementation work**: Use the `test-driven-development` skill for new features, bug fixes, refactors, and behavior changes. Write the focused failing test first, verify it fails for the expected reason, implement the minimum code to pass, then refactor only while tests stay green. Documentation-only and configuration-only edits may skip TDD unless they change runtime behavior.
+- **Mandatory subagent workflow for larger features**: Use the `subagent-driven-development` skill when work is extensive enough to have an implementation plan with mostly independent tasks. Dispatch focused subagents for implementation and review loops as appropriate. Small, tightly coupled, or single-file changes do not need the full subagent workflow.
+- **Branching for larger features**: Create a dedicated branch before starting broader feature work, using the `codex/` prefix unless the user requests a different branch or explicitly asks to work on the current branch/main. Do not create branch churn for small documentation, configuration, or narrowly scoped fixes.
+- **Atomic commits when scope warrants it**: For larger features or multi-fix work, split changes into atomic commits where each commit represents one coherent behavior, fix, or refactor. For small isolated edits, a single focused commit is enough. Stage only the intended files and preserve unrelated local changes.
+
 ## Database & Migration Guidelines
 
 - **Drizzle ORM**: All database operations use Drizzle with PostgreSQL.
@@ -112,10 +119,10 @@
 ## Release 13 Compliance (Actas Administrativas)
 
 - For Release 13 frontend and data-flow tasks, the following skills are **mandatory**:
-  - `next-best-practices`
-  - `nextjs-data-fetching`
-  - `vercel-react-best-practices`
-  - `frontend-design`
-  - `ui-ux-pro-max`
+    - `next-best-practices`
+    - `nextjs-data-fetching`
+    - `vercel-react-best-practices`
+    - `frontend-design`
+    - `ui-ux-pro-max`
 - When external framework/library references are needed, agents must use **Context7 MCP** (`resolve-library-id` + `query-docs`) before responding.
 - Do not cite framework behavior for Release 13 from memory alone; document lookups must be explicit and reproducible.

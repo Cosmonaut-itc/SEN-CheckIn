@@ -1789,7 +1789,7 @@ describe('AttendancePageClient', () => {
 		});
 	});
 
-	it('skips PDF download when spillover fetch has no rows inside the selected local range', async () => {
+	it('exports same-day incomplete rows for spillover exits without same-day entries', async () => {
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
 			.mockImplementation(() => undefined);
@@ -1889,7 +1889,24 @@ describe('AttendancePageClient', () => {
 			expect(exportButton).toBeEnabled();
 		});
 
-		expect(createObjectURLMock).not.toHaveBeenCalled();
-		expect(anchorClickSpy).not.toHaveBeenCalled();
+		expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+		expect(anchorClickSpy).toHaveBeenCalledTimes(1);
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						employeeName: 'Grace Hopper',
+						rows: [
+							expect.objectContaining({
+								day: '10/04/2026',
+								firstEntry: 'Sin entrada',
+								lastExit: '07:00',
+								totalHours: 'Incompleto',
+							}),
+						],
+					}),
+				],
+			}),
+		);
 	});
 });

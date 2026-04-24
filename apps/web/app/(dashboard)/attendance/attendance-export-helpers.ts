@@ -2,6 +2,7 @@ import type { AttendanceRecord } from '@/lib/client-functions';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
 
 const WORK_OFFSITE_STANDARD_MINUTES = 480;
+const MAX_WORKED_SPAN_MINUTES = 16 * 60;
 
 export interface AttendanceSummaryCsvRow {
 	employeeName: string;
@@ -55,6 +56,7 @@ export interface AggregateAttendanceOptions {
 		startDateKey: string;
 		endDateKey: string;
 	};
+	overnightEligibleEmployeeIds?: ReadonlySet<string>;
 	virtualDays?: AttendanceVirtualDay[];
 }
 
@@ -202,7 +204,7 @@ function appendRecordToGroup(
  */
 function groupAttendanceRecords(
 	records: readonly AttendanceRecord[],
-	timeZone: string,
+	options: AggregateAttendanceOptions,
 ): Map<string, AttendanceSummaryGroup> {
 	const groups = new Map<string, AttendanceSummaryGroup>();
 	const openEntriesByEmployee = new Map<string, AttendanceRecord>();
@@ -219,18 +221,22 @@ function groupAttendanceRecords(
 		if (record.type === 'WORK_OFFSITE') {
 			const openEntry = openEntriesByEmployee.get(record.employeeId);
 			if (openEntry) {
-				appendRecordToGroup(groups, openEntry, getAttendanceDateKey(openEntry, timeZone));
+				appendRecordToGroup(
+					groups,
+					openEntry,
+					getAttendanceDateKey(openEntry, options.timeZone),
+				);
 				openEntriesByEmployee.delete(record.employeeId);
 			}
-			appendRecordToGroup(groups, record, getAttendanceDateKey(record, timeZone));
+			appendRecordToGroup(groups, record, getAttendanceDateKey(record, options.timeZone));
 			continue;
 		}
 
 		if (record.type === 'CHECK_IN') {
 			const openEntry = openEntriesByEmployee.get(record.employeeId);
 			if (openEntry) {
-				const openEntryDateKey = getAttendanceDateKey(openEntry, timeZone);
-				const currentEntryDateKey = getAttendanceDateKey(record, timeZone);
+				const openEntryDateKey = getAttendanceDateKey(openEntry, options.timeZone);
+				const currentEntryDateKey = getAttendanceDateKey(record, options.timeZone);
 				if (openEntryDateKey === currentEntryDateKey) {
 					appendRecordToGroup(groups, record, currentEntryDateKey);
 					continue;
@@ -245,8 +251,8 @@ function groupAttendanceRecords(
 		if (record.type === 'CHECK_OUT_AUTHORIZED') {
 			const pendingEntry = openEntriesByEmployee.get(record.employeeId);
 			const dateKey = pendingEntry
-				? getAttendanceDateKey(pendingEntry, timeZone)
-				: getAttendanceDateKey(record, timeZone);
+				? getAttendanceDateKey(pendingEntry, options.timeZone)
+				: getAttendanceDateKey(record, options.timeZone);
 			appendRecordToGroup(groups, record, dateKey);
 			continue;
 		}
@@ -255,19 +261,33 @@ function groupAttendanceRecords(
 			const pendingEntry = openEntriesByEmployee.get(record.employeeId);
 
 			if (!pendingEntry) {
-				appendRecordToGroup(groups, record, getAttendanceDateKey(record, timeZone));
+				appendRecordToGroup(groups, record, getAttendanceDateKey(record, options.timeZone));
 				continue;
 			}
 
 			openEntriesByEmployee.delete(record.employeeId);
-			const entryDateKey = getAttendanceDateKey(pendingEntry, timeZone);
+			const entryDateKey = getAttendanceDateKey(pendingEntry, options.timeZone);
+			const exitDateKey = getAttendanceDateKey(record, options.timeZone);
+			if (
+				entryDateKey !== exitDateKey &&
+				!options.overnightEligibleEmployeeIds?.has(record.employeeId)
+			) {
+				appendRecordToGroup(groups, pendingEntry, entryDateKey);
+				appendRecordToGroup(groups, record, exitDateKey);
+				continue;
+			}
+
 			appendRecordToGroup(groups, pendingEntry, entryDateKey);
 			appendRecordToGroup(groups, record, entryDateKey);
 		}
 	}
 
 	for (const pendingEntry of openEntriesByEmployee.values()) {
-		appendRecordToGroup(groups, pendingEntry, getAttendanceDateKey(pendingEntry, timeZone));
+		appendRecordToGroup(
+			groups,
+			pendingEntry,
+			getAttendanceDateKey(pendingEntry, options.timeZone),
+		);
 	}
 
 	return groups;
@@ -343,10 +363,17 @@ function buildWorkedSummaryRow(
 				continue;
 			}
 
-			totalWorkedMinutes += Math.max(
+			const workedMinutes = Math.max(
 				0,
 				Math.round((timestamp.getTime() - openEntryAt.getTime()) / 60_000),
 			);
+			if (workedMinutes > MAX_WORKED_SPAN_MINUTES) {
+				hasIncompletePair = true;
+				openEntryAt = null;
+				continue;
+			}
+
+			totalWorkedMinutes += workedMinutes;
 			openEntryAt = null;
 		}
 	}
@@ -433,7 +460,7 @@ export function buildAttendanceEmployeePdfSummaryRows(
 		return [];
 	}
 
-	const groupedRecords = groupAttendanceRecords(records, options.timeZone);
+	const groupedRecords = groupAttendanceRecords(records, options);
 	const resultsByKey = new Map<string, AttendanceSummaryResult>();
 
 	for (const group of groupedRecords.values()) {

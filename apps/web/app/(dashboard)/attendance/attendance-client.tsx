@@ -488,6 +488,33 @@ function resolvePayrollCutoffWorkMinutes(employee: Employee, dateKey: string): n
 }
 
 /**
+ * Builds the set of employees whose schedule can legitimately cross midnight.
+ *
+ * @param employees - Employees loaded for the export, including schedules
+ * @returns Employee IDs with at least one overnight working schedule
+ */
+function getOvernightEligibleEmployeeIds(employees: Employee[]): Set<string> {
+	const employeeIds = new Set<string>();
+	for (const employee of employees) {
+		const hasOvernightSchedule = (employee.schedule ?? []).some((entry) => {
+			if (!entry.isWorkingDay) {
+				return false;
+			}
+
+			const startMinutes = parseScheduleTimeToMinutes(entry.startTime);
+			const endMinutes = parseScheduleTimeToMinutes(entry.endTime);
+			return endMinutes < startMinutes;
+		});
+
+		if (hasOvernightSchedule) {
+			employeeIds.add(employee.id);
+		}
+	}
+
+	return employeeIds;
+}
+
+/**
  * Checks whether an employee matches the attendance export search term.
  *
  * @param employee - Employee record from the export list
@@ -1496,6 +1523,7 @@ export function AttendancePageClient({
 					endDateKey: exportEndDateKey,
 				},
 				labels: summaryLabels,
+				overnightEligibleEmployeeIds: getOvernightEligibleEmployeeIds(exportEmployees),
 				timeZone: attendanceExportTimeZone,
 				virtualDays,
 			});

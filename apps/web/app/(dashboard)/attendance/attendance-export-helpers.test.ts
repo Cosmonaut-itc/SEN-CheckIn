@@ -392,7 +392,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows).toEqual([]);
 	});
 
-	it('pairs overnight entry and exit under the check-in date key', () => {
+	it('does not pair overnight entry and exit unless the employee is overnight eligible', () => {
 		const rows = aggregateAttendanceByPersonDay(
 			[
 				buildAttendanceRecord({
@@ -411,15 +411,94 @@ describe('aggregateAttendanceByPersonDay', () => {
 			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
 		);
 
-		expect(rows).toHaveLength(1);
-		expect(rows[0]).toEqual({
-			employeeName: 'Juan',
-			employeeId: 'emp-1',
-			date: '10/04/2026',
-			firstEntry: '23:00',
-			lastExit: '07:00',
-			totalHours: '08:00',
-		});
+		expect(rows).toEqual([
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '10/04/2026',
+				firstEntry: '23:00',
+				lastExit: 'Sin salida',
+				totalHours: 'Incompleto',
+			},
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '11/04/2026',
+				firstEntry: 'Sin entrada',
+				lastExit: '07:00',
+				totalHours: 'Incompleto',
+			},
+		]);
+	});
+
+	it('pairs overnight entry and exit for employees with overnight schedules', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-11T05:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-11T13:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{
+				labels: TEST_LABELS,
+				overnightEligibleEmployeeIds: new Set(['emp-1']),
+				timeZone: TEST_TIME_ZONE,
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '10/04/2026',
+				firstEntry: '23:00',
+				lastExit: '07:00',
+				totalHours: '08:00',
+			},
+		]);
+	});
+
+	it('marks overnight-eligible spans above the defensive maximum as incomplete', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-16T15:21:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-17T16:22:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{
+				labels: TEST_LABELS,
+				overnightEligibleEmployeeIds: new Set(['emp-1']),
+				timeZone: TEST_TIME_ZONE,
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '16/04/2026',
+				firstEntry: '09:21',
+				lastExit: '10:22',
+				totalHours: 'Incompleto',
+			},
+		]);
 	});
 
 	it('filters overnight spillover rows back to the selected local date range', () => {
@@ -444,6 +523,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 					endDateKey: '2026-04-10',
 				},
 				labels: TEST_LABELS,
+				overnightEligibleEmployeeIds: new Set(['emp-1']),
 				timeZone: TEST_TIME_ZONE,
 			},
 		);

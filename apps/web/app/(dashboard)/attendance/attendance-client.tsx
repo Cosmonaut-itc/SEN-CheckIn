@@ -61,6 +61,7 @@ import {
 	fetchEmployeesList,
 	fetchAttendanceRecords,
 	fetchLocationsList,
+	fetchServerTime,
 	fetchVacationRequestsList,
 	type AttendanceRecord,
 	type AttendanceType,
@@ -1374,7 +1375,7 @@ export function AttendancePageClient({
 			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
 			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
 			const includeVirtualDays = typeFilter === 'both' && !normalizedOffsiteDayKind;
-			const [exportRecords, exportEmployees, vacationRequests] = await Promise.all([
+			const [exportRecords, exportEmployees, vacationRequests, serverTime] = await Promise.all([
 				fetchAllAttendanceRecords({
 					fromDate: getUtcDayRangeFromDateKey(
 						spilloverStartDateKey,
@@ -1407,11 +1408,12 @@ export function AttendancePageClient({
 							employeeId: employeeFilterId,
 						})
 					: Promise.resolve([]),
+				includeVirtualDays ? fetchServerTime() : Promise.resolve(null),
 			]);
 
 			const payrollCutoffDateKeys = includeVirtualDays
 				? resolvePayrollCutoffAssumedDateKeys({
-						now: new Date(),
+						now: serverTime ?? new Date(),
 						periodStartDateKey: exportStartDateKey,
 						periodEndDateKey: exportEndDateKey,
 						timeZone: attendanceExportTimeZone,

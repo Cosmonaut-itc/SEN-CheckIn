@@ -31,6 +31,7 @@ const mockFetchAttendanceRecords = vi.fn();
 const mockFetchEmployeeById = vi.fn();
 const mockFetchEmployeesList = vi.fn();
 const mockFetchLocationsList = vi.fn();
+const mockFetchServerTime = vi.fn();
 const mockFetchVacationRequestsList = vi.fn();
 let expectedPdfBytes: Uint8Array | null = null;
 
@@ -144,6 +145,7 @@ vi.mock('@/lib/client-functions', async (importOriginal) => {
 		fetchEmployeeById: (...args: unknown[]) => mockFetchEmployeeById(...args),
 		fetchEmployeesList: (...args: unknown[]) => mockFetchEmployeesList(...args),
 		fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
+		fetchServerTime: (...args: unknown[]) => mockFetchServerTime(...args),
 		fetchVacationRequestsList: (...args: unknown[]) => mockFetchVacationRequestsList(...args),
 	};
 });
@@ -208,6 +210,7 @@ describe('AttendancePageClient', () => {
 		mockFetchEmployeeById.mockReset();
 		mockFetchEmployeesList.mockReset();
 		mockFetchLocationsList.mockReset();
+		mockFetchServerTime.mockReset();
 		mockFetchVacationRequestsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
 		mockToastError.mockReset();
@@ -233,6 +236,7 @@ describe('AttendancePageClient', () => {
 			pagination: { total: 0, limit: 100, offset: 0 },
 		});
 		mockFetchEmployeeById.mockResolvedValue(null);
+		mockFetchServerTime.mockResolvedValue(new Date('2026-04-24T16:30:00.000Z'));
 		mockFetchVacationRequestsList.mockResolvedValue({
 			data: [],
 			pagination: { total: 0, limit: 100, offset: 0 },
@@ -918,6 +922,84 @@ describe('AttendancePageClient', () => {
 						rows: [
 							expect.objectContaining({
 								day: '24/04/2026',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('resolves payroll cutoff virtual rows with server time instead of browser time', async () => {
+		freezeDate('2026-04-24T15:30:00.000Z');
+		mockFetchServerTime.mockResolvedValue(new Date('2026-04-24T16:30:00.000Z'));
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [
+						{
+							dayOfWeek: 5,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: true,
+						},
+					],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-24',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockFetchServerTime).toHaveBeenCalledTimes(1);
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								day: '24/04/2026',
+								lastExit: 'Asistencia por nómina',
 								totalHours: '08:00',
 							}),
 						],

@@ -90,12 +90,7 @@ import {
 
 type EmployeeApiPayload = Omit<
 	Employee,
-	| 'dailyPay'
-	| 'platformHoursYear'
-	| 'hireDate'
-	| 'createdAt'
-	| 'updatedAt'
-	| 'lastPayrollDate'
+	'dailyPay' | 'platformHoursYear' | 'hireDate' | 'createdAt' | 'updatedAt' | 'lastPayrollDate'
 > & {
 	dailyPay: number | string;
 	platformHoursYear: number | string | null;
@@ -337,6 +332,25 @@ describe('dashboard v2 client functions', () => {
 		});
 	});
 
+	it('fetches attendance present with no explicit date range', async () => {
+		mockAttendancePresentGet.mockResolvedValue({
+			data: {
+				data: [],
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendancePresent();
+
+		expect(response).toEqual([]);
+		expect(mockAttendancePresentGet).toHaveBeenCalledWith({
+			$query: {},
+		});
+		const query = mockAttendancePresentGet.mock.calls[0]?.[0]?.$query;
+		expect(Object.hasOwn(query ?? {}, 'organizationId')).toBe(false);
+	});
+
 	it('fetches attendance timeline from the API', async () => {
 		mockAttendanceTimelineGet.mockResolvedValue({
 			data: {
@@ -367,6 +381,208 @@ describe('dashboard v2 client functions', () => {
 				offset: 0,
 			},
 		});
+	});
+
+	it('fetches every attendance timeline page while preserving late totals', async () => {
+		mockAttendanceTimelineGet
+			.mockResolvedValueOnce({
+				data: {
+					data: [createTimelineEventFixture()],
+					pagination: { total: 2, limit: 1, offset: 0, hasMore: true },
+					summary: { lateTotal: 2 },
+				},
+				error: null,
+				status: 200,
+			})
+			.mockResolvedValueOnce({
+				data: {
+					data: [
+						createTimelineEventFixture({
+							id: 'attendance-2',
+						}),
+					],
+					pagination: { total: 2, limit: 1, offset: 1, hasMore: false },
+					summary: { lateTotal: 2 },
+				},
+				error: null,
+				status: 200,
+			});
+
+		const response = await fetchAttendanceTimeline({
+			organizationId: 'org-1',
+			limit: 1,
+		});
+
+		expect(response).toEqual({
+			data: [
+				createTimelineEventFixture(),
+				createTimelineEventFixture({
+					id: 'attendance-2',
+				}),
+			],
+			lateTotal: 2,
+		});
+		expect(mockAttendanceTimelineGet).toHaveBeenNthCalledWith(1, {
+			$query: {
+				organizationId: 'org-1',
+				limit: 1,
+				offset: 0,
+			},
+		});
+		expect(mockAttendanceTimelineGet).toHaveBeenNthCalledWith(2, {
+			$query: {
+				organizationId: 'org-1',
+				limit: 1,
+				offset: 1,
+			},
+		});
+	});
+
+	it('uses a positive timeline page size when the requested limit is zero', async () => {
+		mockAttendanceTimelineGet
+			.mockResolvedValueOnce({
+				data: {
+					data: [createTimelineEventFixture()],
+					pagination: { total: 2, offset: 0, hasMore: true },
+					summary: { lateTotal: 2 },
+				},
+				error: null,
+				status: 200,
+			})
+			.mockResolvedValueOnce({
+				data: {
+					data: [
+						createTimelineEventFixture({
+							id: 'attendance-2',
+						}),
+					],
+					pagination: { total: 2, offset: 1, hasMore: false },
+					summary: { lateTotal: 2 },
+				},
+				error: null,
+				status: 200,
+			});
+
+		const response = await fetchAttendanceTimeline({
+			organizationId: 'org-1',
+			limit: 0,
+		});
+
+		expect(response.data).toHaveLength(2);
+		expect(mockAttendanceTimelineGet).toHaveBeenNthCalledWith(1, {
+			$query: {
+				organizationId: 'org-1',
+				limit: 1,
+				offset: 0,
+			},
+		});
+		expect(mockAttendanceTimelineGet).toHaveBeenNthCalledWith(2, {
+			$query: {
+				organizationId: 'org-1',
+				limit: 1,
+				offset: 1,
+			},
+		});
+	});
+
+	it('continues timeline pagination past the defensive page budget when total is known', async () => {
+		mockAttendanceTimelineGet.mockImplementation(() => {
+			const pageIndex = mockAttendanceTimelineGet.mock.calls.length - 1;
+
+			return Promise.resolve({
+				data: {
+					data: [
+						createTimelineEventFixture({
+							id: `attendance-${pageIndex + 1}`,
+						}),
+					],
+					pagination: { total: 21, limit: 1, offset: pageIndex, hasMore: pageIndex < 20 },
+					summary: { lateTotal: 1 },
+				},
+				error: null,
+				status: 200,
+			});
+		});
+
+		const response = await fetchAttendanceTimeline({
+			organizationId: 'org-1',
+			limit: 1,
+		});
+
+		expect(response.data).toHaveLength(21);
+		expect(mockAttendanceTimelineGet).toHaveBeenCalledTimes(21);
+		expect(mockAttendanceTimelineGet).toHaveBeenLastCalledWith({
+			$query: {
+				organizationId: 'org-1',
+				limit: 1,
+				offset: 20,
+			},
+		});
+	});
+
+	it('stops timeline pagination at the known total when starting from a non-zero offset', async () => {
+		mockAttendanceTimelineGet.mockResolvedValue({
+			data: {
+				data: [
+					createTimelineEventFixture({
+						id: 'attendance-21',
+					}),
+				],
+				pagination: { total: 21, limit: 1, offset: 20, hasMore: true },
+				summary: { lateTotal: 1 },
+			},
+			error: null,
+			status: 200,
+		});
+
+		const response = await fetchAttendanceTimeline({
+			organizationId: 'org-1',
+			limit: 1,
+			offset: 20,
+		});
+
+		expect(response.data).toHaveLength(1);
+		expect(mockAttendanceTimelineGet).toHaveBeenCalledTimes(1);
+	});
+
+	it('throws when timeline pagination cannot establish a bounded total', async () => {
+		mockAttendanceTimelineGet.mockResolvedValue({
+			data: {
+				data: [createTimelineEventFixture()],
+				pagination: { limit: 1, hasMore: true },
+				summary: { lateTotal: 1 },
+			},
+			error: null,
+			status: 200,
+		});
+
+		await expect(
+			fetchAttendanceTimeline({
+				organizationId: 'org-1',
+				limit: 1,
+			}),
+		).rejects.toThrow('Failed to fetch a bounded attendance timeline');
+		expect(mockAttendanceTimelineGet).toHaveBeenCalledTimes(20);
+	});
+
+	it('throws when a timeline page is empty while the API still reports more data', async () => {
+		mockAttendanceTimelineGet.mockResolvedValue({
+			data: {
+				data: [],
+				pagination: { total: 2, limit: 1, offset: 0, hasMore: true },
+				summary: { lateTotal: 1 },
+			},
+			error: null,
+			status: 200,
+		});
+
+		await expect(
+			fetchAttendanceTimeline({
+				organizationId: 'org-1',
+				limit: 1,
+			}),
+		).rejects.toThrow('Failed to fetch a bounded attendance timeline');
+		expect(mockAttendanceTimelineGet).toHaveBeenCalledTimes(1);
 	});
 
 	it('fetches hourly attendance buckets from the API', async () => {
@@ -463,6 +679,7 @@ describe('dashboard v2 client functions', () => {
 				data: [
 					{ locationId: 'location-1', count: 3 },
 					{ locationId: 'location-2', count: 7 },
+					{ locationId: null, count: 2 },
 				],
 			},
 			error: null,
@@ -482,6 +699,7 @@ describe('dashboard v2 client functions', () => {
 			new Map<string, number>([
 				['location-1', 3],
 				['location-2', 7],
+				['unassigned', 2],
 			]),
 		);
 	});

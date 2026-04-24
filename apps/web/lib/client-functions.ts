@@ -264,6 +264,8 @@ export interface DashboardTimelinePayload {
 	lateTotal: number;
 }
 
+const MAX_ATTENDANCE_TIMELINE_PAGES = 20;
+
 /**
  * Hourly attendance aggregation for dashboard activity charts.
  */
@@ -493,7 +495,7 @@ export interface DashboardCounts {
 }
 
 interface DashboardLocationCapacityRecord {
-	locationId: string;
+	locationId: string | null;
 	count: number;
 }
 
@@ -2305,24 +2307,36 @@ export async function deleteWorkOffsiteAttendance(input: { id: string }): Promis
 }
 
 /**
- * Fetches the latest attendance event per employee within a date range.
+ * Fetches the latest attendance event per employee within an optional date range.
  *
- * @param params - Required date range and optional organization context
+ * @param params - Optional date range and organization context
  * @returns A promise resolving to the list of present employees
  * @throws Error if the API request fails
  */
 export async function fetchAttendancePresent(
-	params: AttendancePresentQueryParams,
+	params?: AttendancePresentQueryParams,
 ): Promise<AttendancePresentRecord[]> {
-	if (params.organizationId === null) {
+	if (params?.organizationId === null) {
 		return [];
 	}
 
-	const query = {
-		fromDate: params.fromDate,
-		toDate: params.toDate,
-		organizationId: params.organizationId ?? undefined,
-	};
+	const query: {
+		fromDate?: Date;
+		toDate?: Date;
+		organizationId?: string;
+	} = {};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
+
+	if (params?.fromDate) {
+		query.fromDate = params.fromDate;
+	}
+
+	if (params?.toDate) {
+		query.toDate = params.toDate;
+	}
 
 	const response = await api.attendance.present.get({ $query: query });
 
@@ -2369,8 +2383,8 @@ export async function fetchAttendanceTimeline(params?: {
 		toDate?: Date;
 		kind?: 'in' | 'out' | 'late' | 'offsite';
 	} = {
-		limit: params?.limit ?? 50,
-		offset: params?.offset ?? 0,
+		limit: clampPaginationLimit(params?.limit, 50),
+		offset: clampPaginationOffset(params?.offset),
 	};
 
 	if (params?.organizationId) {
@@ -2389,24 +2403,65 @@ export async function fetchAttendanceTimeline(params?: {
 		query.kind = params.kind;
 	}
 
-	const response = await api.attendance.timeline.get({ $query: query });
+	const events: TimelineEvent[] = [];
+	let currentOffset = query.offset;
+	let lateTotal = 0;
+	let hasMore = true;
+	let pageCount = 0;
+	let snapshotTotal: number | null = null;
 
-	if (response.error) {
-		throw new Error('Failed to fetch attendance timeline');
+	while (hasMore) {
+		const response = await api.attendance.timeline.get({
+			$query: {
+				...query,
+				offset: currentOffset,
+			},
+		});
+
+		if (response.error) {
+			throw new Error('Failed to fetch attendance timeline');
+		}
+
+		const payload = getApiResponseData(response);
+		const pageEvents = (payload?.data ?? []) as Array<
+			Omit<TimelineEvent, 'timestamp'> & {
+				timestamp: Date | string;
+			}
+		>;
+		const paginationTotal = payload?.pagination?.total;
+
+		if (snapshotTotal === null && Number.isFinite(paginationTotal)) {
+			snapshotTotal = Math.max(0, Math.floor(paginationTotal as number));
+		}
+
+		if ((payload?.pagination?.hasMore ?? false) && pageEvents.length === 0) {
+			throw new Error('Failed to fetch a bounded attendance timeline');
+		}
+
+		events.push(
+			...pageEvents.map((event) => ({
+				...event,
+				timestamp: String(event.timestamp),
+			})),
+		);
+		lateTotal = payload?.summary?.lateTotal ?? lateTotal;
+		pageCount += 1;
+		const reachedSnapshotTotal =
+			snapshotTotal !== null && currentOffset + pageEvents.length >= snapshotTotal;
+		hasMore =
+			(payload?.pagination?.hasMore ?? false) &&
+			pageEvents.length > 0 &&
+			!reachedSnapshotTotal;
+		currentOffset += clampPaginationLimit(payload?.pagination?.limit, query.limit);
+
+		if (hasMore && snapshotTotal === null && pageCount >= MAX_ATTENDANCE_TIMELINE_PAGES) {
+			throw new Error('Failed to fetch a bounded attendance timeline');
+		}
 	}
 
-	const payload = getApiResponseData(response);
-	const events = (payload?.data ?? []) as Array<
-		Omit<TimelineEvent, 'timestamp'> & {
-			timestamp: Date | string;
-		}
-	>;
 	return {
-		data: events.map((event) => ({
-			...event,
-			timestamp: String(event.timestamp),
-		})),
-		lateTotal: payload?.summary?.lateTotal ?? 0,
+		data: events,
+		lateTotal,
 	};
 }
 
@@ -5585,7 +5640,7 @@ export async function fetchDashboardLocationCapacity(params?: {
 	const rows = (payload?.data ?? []) as DashboardLocationCapacityRecord[];
 
 	return rows.reduce((countsByLocation, row) => {
-		countsByLocation.set(row.locationId, row.count);
+		countsByLocation.set(row.locationId ?? 'unassigned', row.count);
 		return countsByLocation;
 	}, new Map<string, number>());
 }

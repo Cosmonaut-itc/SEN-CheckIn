@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, ilike, isNotNull, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { inArray } from 'drizzle-orm/sql';
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
@@ -1058,11 +1058,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				})
 				.from(employee)
 				.where(
-					and(
-						eq(employee.organizationId, organizationId),
-						eq(employee.status, 'ACTIVE'),
-						isNotNull(employee.locationId),
-					),
+					and(eq(employee.organizationId, organizationId), eq(employee.status, 'ACTIVE')),
 				)
 				.groupBy(employee.locationId)
 				.orderBy(employee.locationId);

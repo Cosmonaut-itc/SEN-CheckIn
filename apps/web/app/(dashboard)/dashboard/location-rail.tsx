@@ -21,6 +21,7 @@ interface LocationRailLocation {
 	longitude: number | null;
 	presentCount: number;
 	employeeCount: number;
+	selectionDisabled?: boolean;
 }
 
 /**
@@ -45,7 +46,10 @@ export interface LocationRailProps {
  * @param search - Raw search input value.
  * @returns Filtered location list.
  */
-function filterLocations(locations: LocationRailLocation[], search: string): LocationRailLocation[] {
+function filterLocations(
+	locations: LocationRailLocation[],
+	search: string,
+): LocationRailLocation[] {
 	const normalizedSearch = search.trim().toLowerCase();
 
 	if (!normalizedSearch) {
@@ -96,6 +100,31 @@ function shouldKeepHoveredLocation(nextFocusedElement: EventTarget | null): bool
 }
 
 /**
+ * Formats the presence summary shown on each location card.
+ *
+ * @param t - Dashboard translation function
+ * @param presentCount - Employees currently present
+ * @param employeeCount - Employees assigned to the location
+ * @returns Localized count or ratio label
+ */
+function formatLocationCapacity(
+	t: ReturnType<typeof useTranslations>,
+	presentCount: number,
+	employeeCount: number,
+): string {
+	if (employeeCount <= 0) {
+		return t('locationRail.capacityPresentOnly', {
+			present: presentCount,
+		});
+	}
+
+	return t('locationRail.capacity', {
+		present: presentCount,
+		total: employeeCount,
+	});
+}
+
+/**
  * Dashboard location rail with search, scrollable cards and selection state.
  *
  * @param props - Component props.
@@ -143,6 +172,7 @@ export function LocationRail({
 					<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						aria-label={tCommon('search')}
+						data-testid="location-rail-search"
 						placeholder={t('locationRail.searchPlaceholder')}
 						value={search}
 						onChange={(event) => onSearchChange(event.target.value)}
@@ -190,13 +220,22 @@ export function LocationRail({
 								data-testid="location-rail-empty"
 								className="flex min-h-[12rem] items-center justify-center rounded-2xl border border-dashed border-[color:var(--border-subtle)] bg-[color:var(--bg-secondary)]/50 p-6 text-center"
 							>
-								<p className="text-sm text-muted-foreground">{tDataTable('empty')}</p>
+								<p className="text-sm text-muted-foreground">
+									{tDataTable('empty')}
+								</p>
 							</div>
 						) : (
 							<ul className="space-y-3">
 								{filteredLocations.map((location) => {
-									const isActive = isLocationActive(activeLocationId, location.id);
-									const isHovered = isLocationHovered(hoveredLocationId, location.id);
+									const isActive = isLocationActive(
+										activeLocationId,
+										location.id,
+									);
+									const isHovered = isLocationHovered(
+										hoveredLocationId,
+										location.id,
+									);
+									const isSelectionDisabled = location.selectionDisabled ?? false;
 									const statusLabel =
 										location.presentCount > 0
 											? t('locationRail.active')
@@ -209,10 +248,15 @@ export function LocationRail({
 												data-testid={`location-rail-item-${location.id}`}
 												data-location-rail-item="true"
 												aria-pressed={isActive}
+												disabled={isSelectionDisabled}
 												onClick={() => onLocationClick(location.id)}
 												onMouseEnter={() => onLocationHover(location.id)}
 												onMouseLeave={(event) => {
-													if (shouldKeepHoveredLocation(event.relatedTarget)) {
+													if (
+														shouldKeepHoveredLocation(
+															event.relatedTarget,
+														)
+													) {
 														return;
 													}
 
@@ -220,18 +264,24 @@ export function LocationRail({
 												}}
 												onFocus={() => onLocationHover(location.id)}
 												onBlur={(event) => {
-													if (shouldKeepHoveredLocation(event.relatedTarget)) {
+													if (
+														shouldKeepHoveredLocation(
+															event.relatedTarget,
+														)
+													) {
 														return;
 													}
 
 													onLocationHover(null);
 												}}
 												className={cn(
-													'group w-full rounded-2xl border border-[color:var(--border-subtle)] bg-background/80 p-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-primary)]/30',
+													'group w-full rounded-2xl border border-[color:var(--border-subtle)] bg-background/80 p-4 text-left transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent-primary)]/30 disabled:cursor-not-allowed disabled:opacity-70',
 													!isActive &&
 														!isHovered &&
+														!isSelectionDisabled &&
 														'hover:-translate-y-0.5 hover:bg-[color:var(--bg-secondary)] hover:shadow-[var(--shadow-sm)]',
 													isHovered &&
+														!isSelectionDisabled &&
 														'bg-[color:var(--bg-secondary)] shadow-[var(--shadow-sm)]',
 													isActive &&
 														'border-[color:var(--accent-primary)]/35 bg-[var(--accent-primary-bg)] shadow-[var(--shadow-sm)]',
@@ -240,10 +290,11 @@ export function LocationRail({
 												<div className="flex items-start gap-4">
 													<div className="min-w-[5.5rem] space-y-1">
 														<p className="text-3xl font-semibold leading-none tabular-nums text-foreground">
-															{t('locationRail.capacity', {
-																present: location.presentCount,
-																total: location.employeeCount,
-															})}
+															{formatLocationCapacity(
+																t,
+																location.presentCount,
+																location.employeeCount,
+															)}
 														</p>
 													</div>
 
@@ -253,12 +304,14 @@ export function LocationRail({
 																<p className="truncate text-base font-semibold">
 																	{location.name}
 																</p>
-																<Badge
-																	variant="outline"
-																	className="w-fit"
-																>
-																	{location.code}
-																</Badge>
+																{location.code ? (
+																	<Badge
+																		variant="outline"
+																		className="w-fit"
+																	>
+																		{location.code}
+																	</Badge>
+																) : null}
 															</div>
 
 															<Badge
@@ -273,7 +326,9 @@ export function LocationRail({
 														</div>
 													</div>
 
-													<ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+													{!isSelectionDisabled ? (
+														<ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+													) : null}
 												</div>
 											</button>
 										</li>

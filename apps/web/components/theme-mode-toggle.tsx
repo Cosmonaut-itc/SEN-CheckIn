@@ -43,6 +43,7 @@ export function ThemeModeToggle(): React.ReactElement {
 			size="icon"
 			className={buttonClassName}
 			aria-label={t('toggleAriaLabel')}
+			data-testid="theme-mode-toggle"
 			disabled={!mounted}
 		>
 			<Sun className="h-4 w-4 rotate-0 scale-100 transition-transform dark:-rotate-90 dark:scale-0" />
@@ -73,6 +74,7 @@ export function ThemeModeToggle(): React.ReactElement {
 					{themeOptions.map(({ label, value, icon: Icon }) => (
 						<DropdownMenuRadioItem
 							key={value}
+							data-testid={`theme-mode-option-${value}`}
 							value={value}
 							className="rounded-md py-2"
 						>

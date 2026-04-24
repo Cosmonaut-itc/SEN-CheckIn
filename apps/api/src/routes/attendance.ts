@@ -855,8 +855,8 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * filtered to only those whose latest event is CHECK_IN.
 	 *
 	 * @route GET /attendance/present
-	 * @param query.fromDate - Start date for filtering records (required)
-	 * @param query.toDate - End date for filtering records (required)
+	 * @param query.fromDate - Optional UTC lower bound
+	 * @param query.toDate - Optional UTC upper bound
 	 * @param query.organizationId - Filter by organization ID (optional)
 	 * @returns Array of present attendance entries grouped by employee
 	 */
@@ -888,10 +888,16 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				return buildErrorResponse('Organization is required or not permitted', status);
 			}
 
+			const timeZone = await resolveOrganizationTimeZone(organizationId);
+			const defaultBounds = buildDefaultTodayBounds(timeZone);
+			const startBound = fromDate ?? defaultBounds.startUtc;
+			const endBound = toDate ?? new Date(defaultBounds.endExclusiveUtc.getTime() - 1);
+
 			const rangeConditions: SQL<unknown>[] = [
 				eq(employee.organizationId, organizationId),
-				gte(attendanceRecord.timestamp, fromDate),
-				lte(attendanceRecord.timestamp, toDate),
+				eq(employee.status, 'ACTIVE'),
+				gte(attendanceRecord.timestamp, startBound),
+				lte(attendanceRecord.timestamp, endBound),
 			];
 
 			const latestAttendance = db
@@ -929,7 +935,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
 				.innerJoin(device, eq(attendanceRecord.deviceId, device.id))
 				.leftJoin(location, eq(device.locationId, location.id))
-				.where(eq(attendanceRecord.type, 'CHECK_IN'))
+				.where(and(eq(employee.status, 'ACTIVE'), eq(attendanceRecord.type, 'CHECK_IN')))
 				.orderBy(attendanceRecord.timestamp);
 
 			const formattedResults = results.map(
@@ -1003,6 +1009,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 
 			const baseTimelineConditions: SQL<unknown>[] = [
 				eq(employee.organizationId, organizationId),
+				eq(employee.status, 'ACTIVE'),
 				gte(attendanceRecord.timestamp, startBound),
 				lte(attendanceRecord.timestamp, endBound),
 			];
@@ -1016,14 +1023,15 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 					employeeFirstName: employee.firstName,
 					employeeLastName: employee.lastName,
 					employeeCode: employee.code,
-					locationId: employee.locationId,
+					locationId: device.locationId,
 					locationName: location.name,
 					timestamp: attendanceRecord.timestamp,
 					type: attendanceRecord.type,
 				})
 				.from(attendanceRecord)
 				.innerJoin(employee, eq(attendanceRecord.employeeId, employee.id))
-				.leftJoin(location, eq(employee.locationId, location.id));
+				.leftJoin(device, eq(attendanceRecord.deviceId, device.id))
+				.leftJoin(location, eq(device.locationId, location.id));
 
 			const lateLocalTimestampSql = sql`((${attendanceRecord.timestamp} AT TIME ZONE 'UTC') AT TIME ZONE ${timeZone})`;
 			const lateLocalDayOfWeekSql = sql<number>`CAST(EXTRACT(DOW FROM ${lateLocalTimestampSql}) AS integer)`;
@@ -1203,6 +1211,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 				.where(
 					and(
 						eq(employee.organizationId, organizationId),
+						eq(employee.status, 'ACTIVE'),
 						eq(attendanceRecord.type, 'CHECK_IN'),
 						gte(attendanceRecord.timestamp, startUtc),
 						lt(attendanceRecord.timestamp, endExclusiveUtc),

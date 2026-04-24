@@ -12,6 +12,7 @@ const dehydrateMock = vi.fn((client: unknown) => {
 const prefetchDashboardCountsMock = vi.fn();
 const prefetchDashboardTimelineMock = vi.fn();
 const prefetchDashboardHourlyMock = vi.fn();
+const prefetchDashboardLocationCapacityMock = vi.fn();
 const prefetchDashboardDeviceStatusMock = vi.fn();
 const prefetchDashboardWeatherMock = vi.fn();
 const getDashboardOrganizationContextMock = vi.fn();
@@ -27,6 +28,8 @@ vi.mock('@/lib/server-functions', () => ({
 		prefetchDashboardTimelineMock(client, params),
 	prefetchDashboardHourly: (client: unknown, params?: unknown) =>
 		prefetchDashboardHourlyMock(client, params),
+	prefetchDashboardLocationCapacity: (client: unknown, params?: unknown) =>
+		prefetchDashboardLocationCapacityMock(client, params),
 	prefetchDashboardDeviceStatus: (client: unknown, params?: unknown) =>
 		prefetchDashboardDeviceStatusMock(client, params),
 	prefetchDashboardWeather: (client: unknown, params?: unknown) =>
@@ -56,6 +59,7 @@ describe('Dashboard page server component', () => {
 		prefetchDashboardCountsMock.mockClear();
 		prefetchDashboardTimelineMock.mockClear();
 		prefetchDashboardHourlyMock.mockClear();
+		prefetchDashboardLocationCapacityMock.mockClear();
 		prefetchDashboardDeviceStatusMock.mockClear();
 		prefetchDashboardWeatherMock.mockClear();
 		getDashboardOrganizationContextMock.mockResolvedValue({
@@ -82,6 +86,9 @@ describe('Dashboard page server component', () => {
 		});
 		expect(prefetchDashboardHourlyMock).toHaveBeenCalledWith(queryClient, {
 			date: '2026-04-21',
+			organizationId: 'org-1',
+		});
+		expect(prefetchDashboardLocationCapacityMock).toHaveBeenCalledWith(queryClient, {
 			organizationId: 'org-1',
 		});
 		expect(prefetchDashboardDeviceStatusMock).toHaveBeenCalledTimes(1);

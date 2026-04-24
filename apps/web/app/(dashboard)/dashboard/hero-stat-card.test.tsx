@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next-intl', async () => import('@/lib/test-utils/next-intl'));
@@ -10,8 +10,6 @@ import { HeroStatCard } from './hero-stat-card';
 
 describe('HeroStatCard', () => {
 	it('renders the dashboard summary values', () => {
-		const expectedValues = ['a tiempo hoy', '12', '/ 20', '3 retardos', '1 falta', '4 en campo'];
-
 		render(
 			<HeroStatCard
 				onTime={12}
@@ -23,9 +21,12 @@ describe('HeroStatCard', () => {
 			/>,
 		);
 
-		for (const value of expectedValues) {
-			expect(screen.getByText(value)).toBeVisible();
-		}
+		expect(screen.getByText('12')).toBeVisible();
+		expect(screen.getByText('/ 20')).toBeVisible();
+		expect(screen.getByTestId('hero-stat-on-time')).toBeVisible();
+		expect(within(screen.getByTestId('hero-stat-chip-late')).getByText(/^3\b/)).toBeVisible();
+		expect(within(screen.getByTestId('hero-stat-chip-absent')).getByText(/^1\b/)).toBeVisible();
+		expect(within(screen.getByTestId('hero-stat-chip-offsite')).getByText(/^4\b/)).toBeVisible();
 	});
 
 	it('renders a loading skeleton', () => {
@@ -40,12 +41,12 @@ describe('HeroStatCard', () => {
 			/>,
 		);
 
-		expect(screen.queryByText('a tiempo hoy')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('hero-stat-on-time')).not.toBeInTheDocument();
 		expect(screen.queryByText('0')).not.toBeInTheDocument();
 		expect(screen.queryByText('/ 0')).not.toBeInTheDocument();
-		expect(screen.queryByText('0 retardos')).not.toBeInTheDocument();
-		expect(screen.queryByText('0 falta')).not.toBeInTheDocument();
-		expect(screen.queryByText('0 en campo')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('hero-stat-chip-late')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('hero-stat-chip-absent')).not.toBeInTheDocument();
+		expect(screen.queryByTestId('hero-stat-chip-offsite')).not.toBeInTheDocument();
 		expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(5);
 	});
 });

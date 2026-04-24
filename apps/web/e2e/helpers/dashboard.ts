@@ -35,7 +35,92 @@ export async function waitForDashboardV2(page: Page): Promise<void> {
 }
 
 /**
- * Provisions a fresh organization, signs in, and opens the dashboard.
+ * Waits for seeded dashboard data to replace loading states before assertions.
+ *
+ * @param page - Playwright page instance
+ * @returns Promise that resolves once the seeded dashboard sections are visible
+ */
+export async function waitForDashboardSeededData(page: Page): Promise<void> {
+	const viewportWidth = page.viewportSize()?.width ?? 1440;
+	const isMobileViewport = viewportWidth <= 1024;
+
+	await page.locator('.maplibregl-canvas').first().waitFor({
+		state: 'visible',
+		timeout: 30_000,
+	});
+	await page.getByTestId('map-loader').waitFor({
+		state: 'detached',
+		timeout: 30_000,
+	});
+	await page.getByTestId('activity-timeline-pill').first().waitFor({
+		state: 'visible',
+		timeout: 30_000,
+	});
+	await page.locator('[data-testid^="weather-card-item-"]').first().waitFor({
+		state: 'visible',
+		timeout: 30_000,
+	});
+	await page.getByTestId('hero-stat-on-time').waitFor({
+		state: 'visible',
+		timeout: 30_000,
+	});
+
+	const railLoading = page.getByTestId('location-rail-loading');
+	if ((await railLoading.count()) > 0) {
+		await railLoading.waitFor({
+			state: 'detached',
+			timeout: 30_000,
+		});
+	}
+
+	const railItems = page.locator('[data-testid^="location-rail-item-"]');
+	const mobileRailToggle = page.getByTestId('location-rail-mobile-toggle');
+
+	if (isMobileViewport) {
+		await mobileRailToggle.waitFor({
+			state: 'visible',
+			timeout: 30_000,
+		});
+		const wasCollapsed = (await mobileRailToggle.getAttribute('aria-expanded')) !== 'true';
+
+		if (wasCollapsed) {
+			await mobileRailToggle.click();
+		}
+
+		await railItems.first().waitFor({
+			state: 'visible',
+			timeout: 30_000,
+		});
+
+		if (wasCollapsed) {
+			await mobileRailToggle.click();
+			await page.waitForFunction(
+				() => {
+					const toggle = document.querySelector(
+						'[data-testid="location-rail-mobile-toggle"]',
+					);
+					return toggle?.getAttribute('aria-expanded') === 'false';
+				},
+				undefined,
+				{ timeout: 30_000 },
+			);
+		}
+
+		return;
+	}
+
+	await page.getByTestId('location-rail').waitFor({
+		state: 'visible',
+		timeout: 30_000,
+	});
+	await railItems.first().waitFor({
+		state: 'visible',
+		timeout: 30_000,
+	});
+}
+
+/**
+ * Provisions a fresh organization, signs in, and prepares the dashboard session.
  *
  * @param page - Playwright page instance
  * @returns Promise that resolves after the dashboard loads
@@ -43,7 +128,7 @@ export async function waitForDashboardV2(page: Page): Promise<void> {
 export async function signInToSeededDashboard(page: Page): Promise<void> {
 	const registration = await provisionResponsiveUser(page);
 	await setActiveResponsiveOrganization(page, registration.organizationSlug);
-	await page.goto('/dashboard');
+	await page.goto(`/dashboard?e2e=bootstrap-${Date.now()}`);
 	await waitForDashboardV2(page);
 }
 
@@ -85,6 +170,26 @@ export async function mockDashboardWeather(page: Page): Promise<void> {
 }
 
 /**
+ * Mocks the remote Carto basemap style so dashboard screenshots do not rely on external CDNs.
+ *
+ * @param page - Playwright page instance
+ * @returns Promise that resolves after the route is installed
+ */
+export async function mockDashboardMapStyle(page: Page): Promise<void> {
+	await page.route('**/basemaps.cartocdn.com/**/style.json*', async (route) => {
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({
+				version: 8,
+				name: 'dashboard-test-style',
+				sources: {},
+				layers: [],
+			}),
+		});
+	});
+}
+
+/**
  * Seeds a stable two-location dashboard scenario through authenticated browser requests.
  *
  * @param page - Authenticated Playwright page instance
@@ -99,9 +204,7 @@ export async function seedDashboardScenario(page: Page): Promise<SeededDashboard
 		 * @returns Parsed payload with an optional `data.id`
 		 * @throws {Error} When the response is not OK
 		 */
-		const assertOk = async (
-			response: Response,
-		): Promise<{ data?: { id?: string } }> => {
+		const assertOk = async (response: Response): Promise<{ data?: { id?: string } }> => {
 			if (!response.ok) {
 				throw new Error(
 					`Request failed (${response.status}) at ${response.url}: ${await response.text()}`,
@@ -111,13 +214,14 @@ export async function seedDashboardScenario(page: Page): Promise<SeededDashboard
 			return response.json() as Promise<{ data?: { id?: string } }>;
 		};
 
-		const suffix = String(Date.now()).slice(-6);
-		const today = new Date();
-		const todayDateKey = [
-			today.getFullYear(),
-			String(today.getMonth() + 1).padStart(2, '0'),
-			String(today.getDate()).padStart(2, '0'),
-		].join('-');
+		const suffix = globalThis.crypto.randomUUID().slice(0, 8);
+		const mexicoDateFormatter = new Intl.DateTimeFormat('en-CA', {
+			timeZone: 'America/Mexico_City',
+			year: 'numeric',
+			month: '2-digit',
+			day: '2-digit',
+		});
+		const todayDateKey = mexicoDateFormatter.format(new Date());
 
 		const primaryLocationName = 'Matriz Centro';
 		const secondaryLocationName = 'Sucursal Sur';
@@ -302,15 +406,13 @@ export async function seedDashboardScenario(page: Page): Promise<SeededDashboard
  * @param theme - Requested theme name
  * @returns Promise that resolves once the dashboard is visible again
  */
-export async function setDashboardTheme(
-	page: Page,
-	theme: 'light' | 'dark',
-): Promise<void> {
+export async function setDashboardTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
 	await page.evaluate((nextTheme) => {
 		window.localStorage.setItem('theme', nextTheme);
 	}, theme);
-	await page.goto(`/dashboard?theme=${theme}&ts=${Date.now()}`);
+	await page.goto(`/dashboard?theme=${theme}&e2e=theme-${Date.now()}`);
 	await waitForDashboardV2(page);
+	await waitForDashboardSeededData(page);
 }
 
 /**
@@ -320,10 +422,7 @@ export async function setDashboardTheme(
  * @param filename - Screenshot filename
  * @returns Promise that resolves after the file is written
  */
-export async function captureDashboardScreenshot(
-	page: Page,
-	filename: string,
-): Promise<void> {
+export async function captureDashboardScreenshot(page: Page, filename: string): Promise<void> {
 	await mkdir(DASHBOARD_SCREENSHOT_DIR, { recursive: true });
 	await page.screenshot({
 		path: path.join(DASHBOARD_SCREENSHOT_DIR, filename),

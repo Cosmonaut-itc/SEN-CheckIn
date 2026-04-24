@@ -91,6 +91,7 @@ const AUTH_ORIGIN: string = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost
 const AUTH_BASE_URL: string = AUTH_ORIGIN.endsWith('/api/auth')
 	? AUTH_ORIGIN
 	: `${AUTH_ORIGIN}/api/auth`;
+const MAX_ATTENDANCE_TIMELINE_PAGES = 20;
 
 /**
  * Resolves the active organization for server-side dashboard fetches.
@@ -821,8 +822,8 @@ export async function fetchAttendanceTimelineServer(
 		toDate?: Date;
 		kind?: 'in' | 'out' | 'late' | 'offsite';
 	} = {
-		limit: params?.limit ?? 50,
-		offset: params?.offset ?? 0,
+		limit: clampPaginationLimit(params?.limit, 50),
+		offset: clampPaginationOffset(params?.offset),
 	};
 
 	if (organizationId) {
@@ -841,25 +842,66 @@ export async function fetchAttendanceTimelineServer(
 		query.kind = params.kind;
 	}
 
-	const response = await api.attendance.timeline.get({ $query: query });
+	const events: TimelineEvent[] = [];
+	let currentOffset = query.offset;
+	let lateTotal = 0;
+	let hasMore = true;
+	let pageCount = 0;
+	let snapshotTotal: number | null = null;
 
-	if (response.error) {
-		console.error('[Server] Failed to fetch attendance timeline:', response.error);
-		throw new Error('Failed to fetch attendance timeline');
+	while (hasMore) {
+		const response = await api.attendance.timeline.get({
+			$query: {
+				...query,
+				offset: currentOffset,
+			},
+		});
+
+		if (response.error) {
+			console.error('[Server] Failed to fetch attendance timeline:', response.error);
+			throw new Error('Failed to fetch attendance timeline');
+		}
+
+		const payload = getApiResponseData(response);
+		const pageEvents = (payload?.data ?? []) as Array<
+			Omit<TimelineEvent, 'timestamp'> & {
+				timestamp: Date | string;
+			}
+		>;
+		const paginationTotal = payload?.pagination?.total;
+
+		if (snapshotTotal === null && Number.isFinite(paginationTotal)) {
+			snapshotTotal = Math.max(0, Math.floor(paginationTotal as number));
+		}
+
+		if ((payload?.pagination?.hasMore ?? false) && pageEvents.length === 0) {
+			throw new Error('Failed to fetch a bounded attendance timeline');
+		}
+
+		events.push(
+			...pageEvents.map((event) => ({
+				...event,
+				timestamp: String(event.timestamp),
+			})),
+		);
+		lateTotal = payload?.summary?.lateTotal ?? lateTotal;
+		pageCount += 1;
+		const reachedSnapshotTotal =
+			snapshotTotal !== null && currentOffset + pageEvents.length >= snapshotTotal;
+		hasMore =
+			(payload?.pagination?.hasMore ?? false) &&
+			pageEvents.length > 0 &&
+			!reachedSnapshotTotal;
+		currentOffset += clampPaginationLimit(payload?.pagination?.limit, query.limit);
+
+		if (hasMore && snapshotTotal === null && pageCount >= MAX_ATTENDANCE_TIMELINE_PAGES) {
+			throw new Error('Failed to fetch a bounded attendance timeline');
+		}
 	}
 
-	const payload = getApiResponseData(response);
-	const events = (payload?.data ?? []) as Array<
-		Omit<TimelineEvent, 'timestamp'> & {
-			timestamp: Date | string;
-		}
-	>;
 	return {
-		data: events.map((event) => ({
-			...event,
-			timestamp: String(event.timestamp),
-		})),
-		lateTotal: payload?.summary?.lateTotal ?? 0,
+		data: events,
+		lateTotal,
 	};
 }
 
@@ -901,6 +943,44 @@ export async function fetchAttendanceHourlyServer(
 		data: (payload?.data ?? []) as HourlyActivity[],
 		date: String(payload?.date ?? params?.date ?? ''),
 	};
+}
+
+/**
+ * Fetches active employee counts grouped by assigned location on the server.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param params - Optional organization filter
+ * @returns Counts keyed by location identifier, including unassigned employees
+ * @throws Error when the API call fails
+ */
+export async function fetchDashboardLocationCapacityServer(
+	cookieHeader: string,
+	params?: { organizationId?: string | null },
+): Promise<Map<string, number>> {
+	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
+	if (!organizationId) {
+		return new Map<string, number>();
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.employees['active-counts-by-location'].get({
+		$query: {
+			organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch dashboard location capacity:', response.error);
+		throw new Error('Failed to fetch dashboard location capacity');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data ?? []) as Array<{ locationId: string | null; count: number }>;
+
+	return rows.reduce((countsByLocation, row) => {
+		countsByLocation.set(row.locationId ?? 'unassigned', row.count);
+		return countsByLocation;
+	}, new Map<string, number>());
 }
 
 /**

@@ -1266,6 +1266,85 @@ describe('AttendancePageClient', () => {
 		);
 	});
 
+	it('does not create cutoff virtual rows for inactive employees without real attendance', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-active',
+					employeeId: 'EMP-ACTIVE',
+					employeeName: 'Ada Activa',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					id: 'EMP-INACTIVE',
+					firstName: 'Tomas',
+					lastName: 'Terminado',
+					status: 'INACTIVE',
+					schedule: [
+						{
+							dayOfWeek: 5,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: true,
+						},
+					],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: expect.not.arrayContaining([
+					expect.objectContaining({
+						employeeId: 'EMP-INACTIVE',
+					}),
+				]),
+			}),
+		);
+		expect(anchorClickSpy).toHaveBeenCalled();
+	});
+
 	it('keeps approved vacation virtual rows when an employee has no schedule', async () => {
 		mockFetchAttendanceRecords.mockResolvedValue({
 			data: [
@@ -1288,6 +1367,7 @@ describe('AttendancePageClient', () => {
 		mockFetchEmployeesList.mockResolvedValue({
 			data: [
 				buildEmployee({
+					status: 'INACTIVE',
 					schedule: [],
 				}),
 			],

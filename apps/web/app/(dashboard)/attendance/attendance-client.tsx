@@ -639,6 +639,10 @@ function buildAttendanceVirtualDays(args: {
 	}
 
 	for (const employee of args.employees) {
+		if (employee.status !== 'ACTIVE') {
+			continue;
+		}
+
 		for (const dateKey of args.payrollCutoffDateKeys) {
 			const key = `${employee.id}:${dateKey}`;
 			if (virtualDaysByKey.has(key)) {

@@ -22,7 +22,8 @@ describe('app CORS configuration', () => {
 				headers: {
 					origin: 'http://localhost:3000',
 					'access-control-request-method': 'POST',
-					'access-control-request-headers': 'content-type, x-client-platform, x-client-network-type',
+					'access-control-request-headers':
+						'content-type, x-client-platform, x-client-network-type',
 				},
 			}),
 		);
@@ -54,12 +55,13 @@ describe('app server time route', () => {
 
 		const response = await serverTimeRoutes.handle(new Request('http://localhost/server-time'));
 		const after = Date.now();
-		const payload = (await response.json()) as { data?: { now?: unknown } };
+		const payload = (await response.json()) as { data?: { now?: unknown; timeZone?: unknown } };
 		const parsedNow =
 			typeof payload.data?.now === 'string' ? Date.parse(payload.data.now) : Number.NaN;
 
 		expect(response.status).toBe(200);
 		expect(typeof payload.data?.now).toBe('string');
+		expect(payload.data?.timeZone).toBe('America/Mexico_City');
 		expect(Number.isNaN(parsedNow)).toBe(false);
 		expect(parsedNow).toBeGreaterThanOrEqual(before);
 		expect(parsedNow).toBeLessThanOrEqual(after);

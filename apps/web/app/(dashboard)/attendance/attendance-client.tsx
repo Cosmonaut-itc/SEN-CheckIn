@@ -100,12 +100,28 @@ const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
 const EXPORT_PAGE_SIZE = 100;
 const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
 const DEFAULT_ATTENDANCE_TIME_ZONE = 'America/Mexico_City';
+const SERVER_TIME_ZONE = 'America/Mexico_City';
 const DEFAULT_VIRTUAL_WORK_MINUTES = 8 * 60;
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
 	'limit' | 'offset'
 >;
+
+/**
+ * Fetches server time for attendance exports, falling back to the browser clock
+ * when the server-time route is unavailable so PDF generation can continue.
+ *
+ * @returns Server time when available, otherwise current browser time
+ */
+async function fetchAttendanceExportServerTime(): Promise<Date> {
+	try {
+		return await fetchServerTime();
+	} catch (error: unknown) {
+		console.error('Failed to fetch server time for attendance export:', error);
+		return new Date();
+	}
+}
 
 /**
  * Initial URL filters resolved on the server page.
@@ -1375,48 +1391,51 @@ export function AttendancePageClient({
 			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
 			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
 			const includeVirtualDays = typeFilter === 'both' && !normalizedOffsiteDayKind;
-			const [exportRecords, exportEmployees, vacationRequests, serverTime] = await Promise.all([
-				fetchAllAttendanceRecords({
-					fromDate: getUtcDayRangeFromDateKey(
-						spilloverStartDateKey,
-						attendanceExportTimeZone,
-					).startUtc,
-					toDate: getUtcDayRangeFromDateKey(spilloverEndDateKey, attendanceExportTimeZone)
-						.endUtc,
-					organizationId,
-					...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
-					...(typeFilter !== 'both' ? { type: typeFilter } : {}),
-					...(normalizedOffsiteDayKind
-						? { offsiteDayKind: normalizedOffsiteDayKind }
-						: {}),
-					...(normalizedSearch ? { search: normalizedSearch } : {}),
-					...(deviceLocationId ? { deviceLocationId } : {}),
-				}),
-				includeVirtualDays
-					? fetchAttendanceExportEmployees({
-							organizationId,
-							employeeFilterId,
-							deviceLocationId,
-							search: normalizedSearch || undefined,
-						})
-					: Promise.resolve([]),
-				includeVirtualDays
-					? fetchApprovedVacationRequestsForExport({
-							organizationId,
-							startDateKey: exportStartDateKey,
-							endDateKey: exportEndDateKey,
-							employeeId: employeeFilterId,
-						})
-					: Promise.resolve([]),
-				includeVirtualDays ? fetchServerTime() : Promise.resolve(null),
-			]);
+			const [exportRecords, exportEmployees, vacationRequests, serverTime] =
+				await Promise.all([
+					fetchAllAttendanceRecords({
+						fromDate: getUtcDayRangeFromDateKey(
+							spilloverStartDateKey,
+							attendanceExportTimeZone,
+						).startUtc,
+						toDate: getUtcDayRangeFromDateKey(
+							spilloverEndDateKey,
+							attendanceExportTimeZone,
+						).endUtc,
+						organizationId,
+						...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
+						...(typeFilter !== 'both' ? { type: typeFilter } : {}),
+						...(normalizedOffsiteDayKind
+							? { offsiteDayKind: normalizedOffsiteDayKind }
+							: {}),
+						...(normalizedSearch ? { search: normalizedSearch } : {}),
+						...(deviceLocationId ? { deviceLocationId } : {}),
+					}),
+					includeVirtualDays
+						? fetchAttendanceExportEmployees({
+								organizationId,
+								employeeFilterId,
+								deviceLocationId,
+								search: normalizedSearch || undefined,
+							})
+						: Promise.resolve([]),
+					includeVirtualDays
+						? fetchApprovedVacationRequestsForExport({
+								organizationId,
+								startDateKey: exportStartDateKey,
+								endDateKey: exportEndDateKey,
+								employeeId: employeeFilterId,
+							})
+						: Promise.resolve([]),
+					includeVirtualDays ? fetchAttendanceExportServerTime() : Promise.resolve(null),
+				]);
 
 			const payrollCutoffDateKeys = includeVirtualDays
 				? resolvePayrollCutoffAssumedDateKeys({
 						now: serverTime ?? new Date(),
 						periodStartDateKey: exportStartDateKey,
 						periodEndDateKey: exportEndDateKey,
-						timeZone: attendanceExportTimeZone,
+						timeZone: SERVER_TIME_ZONE,
 					})
 				: [];
 			const virtualDays = includeVirtualDays

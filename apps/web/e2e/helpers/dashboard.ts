@@ -56,7 +56,7 @@ export async function waitForDashboardSeededData(page: Page): Promise<void> {
 		state: 'visible',
 		timeout: 30_000,
 	});
-	await page.getByTestId('weather-icon-cielo-claro').waitFor({
+	await page.locator('[data-testid^="weather-card-item-"]').first().waitFor({
 		state: 'visible',
 		timeout: 30_000,
 	});

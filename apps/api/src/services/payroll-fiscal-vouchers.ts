@@ -88,6 +88,13 @@ export interface PayrollFiscalDeductionLine {
 	amount: number;
 }
 
+export interface PayrollFiscalUnmappedDeductionLine {
+	internalType: PayrollFiscalDeductionInternalType;
+	internalCode: string;
+	description: string;
+	amount: number;
+}
+
 export interface PayrollFiscalOtherPaymentLine {
 	internalType: 'SUBSIDY_APPLIED';
 	satTypeCode: string;
@@ -116,6 +123,7 @@ export interface PayrollFiscalVoucher {
 	paymentDateKey: string | null;
 	perceptions: PayrollFiscalPerceptionLine[];
 	deductions: PayrollFiscalDeductionLine[];
+	unmappedDeductions: PayrollFiscalUnmappedDeductionLine[];
 	otherPayments: PayrollFiscalOtherPaymentLine[];
 	totals: PayrollFiscalVoucherTotals;
 	employeeWithholdings: PayrollEmployeeWithholdings;
@@ -248,6 +256,25 @@ function buildConfiguredDeductionLines(
 }
 
 /**
+ * Captures applied deductions that must be mapped before a voucher can be stamped.
+ *
+ * @param deductionsBreakdown - Payroll deduction calculation rows
+ * @returns Applied deduction lines without SAT codes
+ */
+function buildUnmappedDeductionLines(
+	deductionsBreakdown: PayrollDeductionBreakdownItem[],
+): PayrollFiscalUnmappedDeductionLine[] {
+	return deductionsBreakdown
+		.filter((deduction) => deduction.appliedAmount > 0 && !hasText(deduction.satDeductionCode))
+		.map((deduction) => ({
+			internalType: deduction.type,
+			internalCode: deduction.deductionId,
+			description: deduction.label,
+			amount: roundCurrency(deduction.appliedAmount),
+		}));
+}
+
+/**
  * Builds SAT other-payment lines from informational payroll values.
  *
  * @returns Fiscal other-payment lines
@@ -271,6 +298,7 @@ export function buildPayrollFiscalVoucherFromCalculationRow(
 		...buildWithholdingDeductionLines(args.row.employeeWithholdings),
 		...buildConfiguredDeductionLines(args.row.deductionsBreakdown),
 	];
+	const unmappedDeductions = buildUnmappedDeductionLines(args.row.deductionsBreakdown);
 	const otherPayments = buildOtherPaymentLines();
 	const totalPerceptions = sumMoney(perceptions.map((line) => line.totalAmount));
 	const totalDeductions = sumMoney(deductions.map((line) => line.amount));
@@ -289,6 +317,7 @@ export function buildPayrollFiscalVoucherFromCalculationRow(
 		paymentDateKey: args.paymentDateKey,
 		perceptions,
 		deductions,
+		unmappedDeductions,
 		otherPayments,
 		totals: {
 			totalPerceptions,
@@ -422,6 +451,16 @@ export function validatePayrollFiscalVoucher(
 				),
 			);
 		}
+	}
+
+	for (const [index] of voucher.unmappedDeductions.entries()) {
+		errors.push(
+			createIssue(
+				'DEDUCTION_SAT_CODE_REQUIRED',
+				`unmappedDeductions.${index}.satTypeCode`,
+				'Applied deduction SAT code is required.',
+			),
+		);
 	}
 
 	const expectedNetPay = roundCurrency(

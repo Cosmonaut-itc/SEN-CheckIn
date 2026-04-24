@@ -187,6 +187,63 @@ describe('payroll fiscal vouchers', () => {
 		]);
 	});
 
+	it('blocks applied payroll deductions that do not have SAT deduction codes', () => {
+		const calculation = calculatePayrollFromData(
+			buildAetP10PayrollArgs({
+				scope: 'TDD',
+				includeWorkbookInternalDeductions: true,
+			}),
+		);
+		const row = calculation.employees.find((entry) =>
+			entry.deductionsBreakdown.some((deduction) => deduction.satDeductionCode === null),
+		);
+
+		if (!row) {
+			throw new Error('Expected a payroll row with an internal non-SAT deduction.');
+		}
+
+		const voucher = buildPayrollFiscalVoucherFromCalculationRow({
+			row,
+			payrollRunId: 'run-aet-p10',
+			payrollRunEmployeeId: `line-${row.employeeId}`,
+			organizationId: 'org-aet',
+			issuer: {
+				name: 'AET',
+				rfc: 'AET010101AAA',
+				fiscalRegime: '601',
+				expeditionPostalCode: '64000',
+			},
+			receiver: {
+				name: row.name,
+				rfc: 'XAXX010101000',
+				curp: 'XAXX010101HNEXXXA4',
+				nss: '12345678901',
+				fiscalRegime: '605',
+				fiscalPostalCode: '64000',
+				contractType: '01',
+				workdayType: '01',
+			},
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			paymentDateKey: '2026-03-08',
+		});
+
+		const result = validatePayrollFiscalVoucher(voucher);
+		const unmappedDeduction = row.deductionsBreakdown.find(
+			(deduction) => deduction.satDeductionCode === null,
+		);
+
+		if (!unmappedDeduction) {
+			throw new Error('Expected an unmapped deduction.');
+		}
+
+		expect(result.status).toBe('BLOCKED');
+		expect(result.errors.map((error) => error.code)).toContain('DEDUCTION_SAT_CODE_REQUIRED');
+		expect(voucher.unmappedDeductions.map((deduction) => deduction.amount)).toContain(
+			unmappedDeduction.appliedAmount,
+		);
+	});
+
 	it('blocks vouchers whose totals drift from perception minus deduction arithmetic', () => {
 		const calculation = calculatePayrollFromData(buildAetP10PayrollArgs({ scope: 'TDD' }));
 		const row = calculation.employees[0];

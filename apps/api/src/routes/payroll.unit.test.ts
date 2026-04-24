@@ -143,6 +143,7 @@ interface FakePendingDeductionMutation {
 
 interface FakeDbState {
 	organizationId: string;
+	sessionRole: 'owner' | 'admin' | 'member' | null;
 	payrollSettings: FakePayrollSettingRow[];
 	employees: FakeEmployeeRow[];
 	schedules: FakeEmployeeScheduleRow[];
@@ -205,6 +206,40 @@ function createJsonPostRequest(path: string, body: unknown): Request {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body),
+	});
+}
+
+/**
+ * Creates an API-key flavored JSON POST request for auth-sensitive unit tests.
+ *
+ * @param path - Request path
+ * @param body - JSON body
+ * @returns Request instance
+ */
+function createApiKeyJsonPostRequest(path: string, body: unknown): Request {
+	return new Request(`http://localhost${path}`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+			'x-test-auth-type': 'apiKey',
+		},
+		body: JSON.stringify(body),
+	});
+}
+
+/**
+ * Creates an API-key flavored GET request for auth-sensitive unit tests.
+ *
+ * @param path - Request path
+ * @returns Request instance
+ */
+function createApiKeyJsonGetRequest(path: string): Request {
+	return new Request(`http://localhost${path}`, {
+		method: 'GET',
+		headers: {
+			accept: 'application/json',
+			'x-test-auth-type': 'apiKey',
+		},
 	});
 }
 
@@ -919,6 +954,18 @@ function createFakeDb(state: FakeDbState): {
 				return this.limitCount ? rows.slice(0, this.limitCount) : rows;
 			}
 
+			if (tableName === 'member') {
+				return state.sessionRole
+					? [
+							{
+								userId: 'test-user',
+								organizationId: state.organizationId,
+								role: state.sessionRole,
+							},
+						]
+					: [];
+			}
+
 			if (tableName === 'employee') {
 				const rows = state.employees.filter(
 					(row) => row.organizationId === state.organizationId,
@@ -1141,7 +1188,9 @@ function createFakeDb(state: FakeDbState): {
 	 */
 	const createTransaction = (): {
 		insert: (table: unknown) => {
-			values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void>;
+			values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> & {
+				onConflictDoNothing: () => Promise<void>;
+			};
 		};
 		update: (table: unknown) => {
 			set: (values: Record<string, unknown>) => {
@@ -1170,17 +1219,23 @@ function createFakeDb(state: FakeDbState): {
 			 * @param values - Row object or list of rows
 			 * @returns Nothing
 			 */
-			const valuesFn = async (
+			const valuesFn = (
 				values: Record<string, unknown> | Record<string, unknown>[],
-			): Promise<void> => {
+			): Promise<void> & {
+				onConflictDoNothing: () => Promise<void>;
+			} => {
 				const rows = Array.isArray(values) ? values : [values];
 				if (tableName === 'payroll_run') {
 					state.payrollRuns.push(...rows);
-					return;
+					return Object.assign(Promise.resolve(), {
+						onConflictDoNothing: async () => undefined,
+					});
 				}
 				if (tableName === 'payroll_run_employee') {
 					state.payrollRunEmployees.push(...rows);
-					return;
+					return Object.assign(Promise.resolve(), {
+						onConflictDoNothing: async () => undefined,
+					});
 				}
 				if (tableName === 'payroll_fiscal_voucher') {
 					state.payrollFiscalVouchers.push(
@@ -1197,6 +1252,9 @@ function createFakeDb(state: FakeDbState): {
 						})),
 					);
 				}
+				return Object.assign(Promise.resolve(), {
+					onConflictDoNothing: async () => undefined,
+				});
 			};
 
 			return { values: valuesFn };
@@ -1402,6 +1460,7 @@ function createFakeDb(state: FakeDbState): {
 
 const dbState: FakeDbState = {
 	organizationId: 'org-test',
+	sessionRole: null,
 	payrollSettings: [],
 	employees: [],
 	schedules: [],
@@ -1475,7 +1534,19 @@ mock.module('drizzle-orm/sql', () => {
 
 mock.module('../db/index.js', () => ({ default: fakeDb }));
 mock.module('../plugins/auth.js', () => ({
-	combinedAuthPlugin: new Elysia({ name: 'mock-auth-plugin' }),
+	combinedAuthPlugin: new Elysia({ name: 'mock-auth-plugin' }).derive(
+		{ as: 'scoped' },
+		({ request }) => {
+			const authTypeHeader = request.headers.get('x-test-auth-type');
+			return {
+				authType: authTypeHeader === 'apiKey' ? ('apiKey' as const) : ('session' as const),
+				session: { userId: 'test-user' },
+				sessionOrganizationIds: [dbState.organizationId],
+				apiKeyOrganizationId: dbState.organizationId,
+				apiKeyOrganizationIds: [dbState.organizationId],
+			};
+		},
+	),
 }));
 mock.module('../utils/organization.js', () => ({
 	resolveOrganizationId: () => dbState.organizationId,
@@ -1486,6 +1557,7 @@ describe('payroll routes', () => {
 
 	beforeEach(() => {
 		dbState.organizationId = 'org-test';
+		dbState.sessionRole = null;
 		dbState.payrollSettings = [];
 		dbState.employees = [];
 		dbState.schedules = [];
@@ -2004,6 +2076,7 @@ describe('payroll routes', () => {
 
 	it('prepares fiscal vouchers from processed payroll rows and lists readiness issues', async () => {
 		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
 
 		const { payrollRoutes } = await import('./payroll.js');
 		const processResponse = await payrollRoutes.handle(
@@ -2022,7 +2095,7 @@ describe('payroll routes', () => {
 		}
 
 		const prepareResponse = await payrollRoutes.handle(
-			createJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {}),
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {}),
 		);
 		expect(prepareResponse.status).toBe(200);
 		const prepareJson = (await prepareResponse.json()) as {
@@ -2088,7 +2161,7 @@ describe('payroll routes', () => {
 		);
 
 		const listResponse = await payrollRoutes.handle(
-			createJsonGetRequest(`/payroll/runs/${runId}/fiscal-vouchers`),
+			createApiKeyJsonGetRequest(`/payroll/runs/${runId}/fiscal-vouchers`),
 		);
 		const listJson = (await listResponse.json()) as {
 			data?: {
@@ -2109,6 +2182,52 @@ describe('payroll routes', () => {
 			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
 		);
 		expect(listJson.data?.statusSummary).toEqual(prepareJson.data?.statusSummary);
+	});
+
+	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {
+		dbState.sessionRole = 'admin';
+		dbState.payrollRuns = [
+			{
+				id: 'draft-run-1',
+				organizationId: dbState.organizationId,
+				status: 'DRAFT',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-03-02T00:00:00.000Z'),
+				periodEnd: new Date('2026-03-08T00:00:00.000Z'),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest('/payroll/runs/draft-run-1/fiscal-vouchers/prepare', {}),
+		);
+		const json = (await response.json()) as { error?: { message?: string } };
+
+		expect(response.status).toBe(409);
+		expect(json.error?.message).toBe('Payroll run must be processed before preparing fiscal vouchers');
+		expect(dbState.payrollFiscalVouchers).toHaveLength(0);
+	});
+
+	it('blocks fiscal voucher access for members without dual-payroll visibility', async () => {
+		dbState.payrollRuns = [
+			{
+				id: 'processed-run-1',
+				organizationId: dbState.organizationId,
+				status: 'PROCESSED',
+				paymentFrequency: 'WEEKLY',
+				periodStart: new Date('2026-03-02T00:00:00.000Z'),
+				periodEnd: new Date('2026-03-08T00:00:00.000Z'),
+			},
+		];
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonGetRequest('/payroll/runs/processed-run-1/fiscal-vouchers'),
+		);
+		const json = (await response.json()) as { error?: { message?: string } };
+
+		expect(response.status).toBe(403);
+		expect(json.error?.message).toBe('You do not have access to payroll fiscal vouchers');
 	});
 
 	it('processes payroll including WORK_OFFSITE and preserves CHECK_OUT_AUTHORIZED paid span behavior', async () => {

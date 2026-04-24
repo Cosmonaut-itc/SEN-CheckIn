@@ -1750,6 +1750,27 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				return buildErrorResponse('You do not have access to this payroll run', 403);
 			}
 
+			if (run.status !== 'PROCESSED') {
+				set.status = 409;
+				return buildErrorResponse(
+					'Payroll run must be processed before preparing fiscal vouchers',
+					409,
+				);
+			}
+
+			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalVouchers) {
+				set.status = 403;
+				return buildErrorResponse(
+					'You do not have access to payroll fiscal vouchers',
+					403,
+				);
+			}
+
 			const existingRows = (await db
 				.select()
 				.from(payrollFiscalVoucher)
@@ -1822,7 +1843,12 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 
 			const insertedRows = await db.transaction(async (tx) => {
 				if (preparedRows.length > 0) {
-					await tx.insert(payrollFiscalVoucher).values(preparedRows);
+					await tx
+						.insert(payrollFiscalVoucher)
+						.values(preparedRows)
+						.onConflictDoNothing({
+							target: payrollFiscalVoucher.payrollRunEmployeeId,
+						});
 				}
 
 				return (await tx
@@ -1869,6 +1895,19 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			if (!organizationId || organizationId !== run.organizationId) {
 				set.status = 403;
 				return buildErrorResponse('You do not have access to this payroll run', 403);
+			}
+
+			const canAccessFiscalVouchers = await canViewDualPayrollCompensation({
+				authType,
+				organizationId: run.organizationId,
+				session: session ?? null,
+			});
+			if (!canAccessFiscalVouchers) {
+				set.status = 403;
+				return buildErrorResponse(
+					'You do not have access to payroll fiscal vouchers',
+					403,
+				);
 			}
 
 			const rows = (await db

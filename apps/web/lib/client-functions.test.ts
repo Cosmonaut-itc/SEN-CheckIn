@@ -347,6 +347,8 @@ describe('dashboard v2 client functions', () => {
 		expect(mockAttendancePresentGet).toHaveBeenCalledWith({
 			$query: {},
 		});
+		const query = mockAttendancePresentGet.mock.calls[0]?.[0]?.$query;
+		expect(Object.hasOwn(query ?? {}, 'organizationId')).toBe(false);
 	});
 
 	it('fetches attendance timeline from the API', async () => {

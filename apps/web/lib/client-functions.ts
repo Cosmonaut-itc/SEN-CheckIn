@@ -2324,9 +2324,11 @@ export async function fetchAttendancePresent(
 		fromDate?: Date;
 		toDate?: Date;
 		organizationId?: string;
-	} = {
-		organizationId: params?.organizationId ?? undefined,
-	};
+	} = {};
+
+	if (params?.organizationId) {
+		query.organizationId = params.organizationId;
+	}
 
 	if (params?.fromDate) {
 		query.fromDate = params.fromDate;

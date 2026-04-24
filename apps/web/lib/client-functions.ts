@@ -756,6 +756,7 @@ export async function fetchEmployeesList(
 		locationId?: string;
 		jobPositionId?: string;
 		status?: EmployeeStatus;
+		includeSchedule?: boolean;
 	},
 ): Promise<PaginatedResponse<Employee>> {
 	const limit = clampPaginationLimit(params?.limit);
@@ -782,6 +783,7 @@ export async function fetchEmployeesList(
 		locationId?: string;
 		jobPositionId?: string;
 		status?: EmployeeStatus;
+		includeSchedule?: boolean;
 	} = {
 		limit,
 		offset,
@@ -806,6 +808,10 @@ export async function fetchEmployeesList(
 
 	if (params?.organizationId) {
 		query.organizationId = params.organizationId;
+	}
+
+	if (params?.includeSchedule) {
+		query.includeSchedule = true;
 	}
 
 	const response = await api.employees.get({ $query: query });

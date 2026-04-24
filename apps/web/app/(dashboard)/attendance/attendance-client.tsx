@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EmployeeDetailTab } from '@sen-checkin/types';
+import { resolvePayrollCutoffAssumedDateKeys, type EmployeeDetailTab } from '@sen-checkin/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -100,7 +100,6 @@ const EXPORT_PAGE_SIZE = 100;
 const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
 const DEFAULT_ATTENDANCE_TIME_ZONE = 'America/Mexico_City';
 const DEFAULT_VIRTUAL_WORK_MINUTES = 8 * 60;
-const PAYROLL_CUTOFF_HOUR = 10;
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
@@ -440,55 +439,6 @@ function resolveEmployeeScheduledMinutes(employee: Employee, dateKey: string): n
 }
 
 /**
- * Resolves Friday/Saturday keys assumed attended after payroll cutoff for the selected range.
- *
- * @param args - Cutoff inputs
- * @returns Date keys that should be shown as payroll-assumed attendance
- */
-function resolveAttendancePayrollCutoffDateKeys(args: {
-	now: Date;
-	startDateKey: string;
-	endDateKey: string;
-	timeZone: string;
-}): string[] {
-	const currentDateKey = toDateKeyInTimeZone(args.now, args.timeZone);
-	if (currentDateKey < args.startDateKey || currentDateKey > args.endDateKey) {
-		return [];
-	}
-
-	let fridayDateKey: string | null = null;
-	let cursor = args.startDateKey;
-	for (let index = 0; index < 400 && cursor <= args.endDateKey; index += 1) {
-		if (new Date(`${cursor}T00:00:00Z`).getUTCDay() === 5) {
-			fridayDateKey = cursor;
-			break;
-		}
-		cursor = addDaysToDateKey(cursor, 1);
-	}
-	if (!fridayDateKey || currentDateKey < fridayDateKey) {
-		return [];
-	}
-
-	if (currentDateKey === fridayDateKey) {
-		const parts = new Intl.DateTimeFormat('es-MX', {
-			timeZone: args.timeZone,
-			hour: '2-digit',
-			minute: '2-digit',
-			hourCycle: 'h23',
-		}).formatToParts(args.now);
-		const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
-		if (hour < PAYROLL_CUTOFF_HOUR) {
-			return [];
-		}
-	}
-
-	const saturdayDateKey = addDaysToDateKey(fridayDateKey, 1);
-	return [fridayDateKey, saturdayDateKey].filter(
-		(dateKey) => dateKey >= args.startDateKey && dateKey <= args.endDateKey,
-	);
-}
-
-/**
  * Fetches every active employee matching the export-level filters.
  *
  * @param args - Export employee filters
@@ -519,6 +469,7 @@ async function fetchAttendanceExportEmployees(args: {
 		const response = (await fetchEmployeesList({
 			organizationId: args.organizationId,
 			status: 'ACTIVE',
+			includeSchedule: true,
 			limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
 			offset,
 		})) as Awaited<ReturnType<typeof fetchEmployeesList>> | undefined;
@@ -539,15 +490,7 @@ async function fetchAttendanceExportEmployees(args: {
 		)
 		.filter((employee) => (args.search ? employee.id.includes(args.search) : true));
 
-	return Promise.all(
-		filteredEmployees.map(async (employee) => {
-			const employeeDetail = (await fetchEmployeeById(employee.id)) as
-				| Employee
-				| null
-				| undefined;
-			return employeeDetail ?? employee;
-		}),
-	);
+	return filteredEmployees;
 }
 
 /**
@@ -1407,10 +1350,10 @@ export function AttendancePageClient({
 			]);
 
 			const payrollCutoffDateKeys = includeVirtualDays
-				? resolveAttendancePayrollCutoffDateKeys({
+				? resolvePayrollCutoffAssumedDateKeys({
 						now: new Date(),
-						startDateKey: exportStartDateKey,
-						endDateKey: exportEndDateKey,
+						periodStartDateKey: exportStartDateKey,
+						periodEndDateKey: exportEndDateKey,
 						timeZone: attendanceExportTimeZone,
 					})
 				: [];

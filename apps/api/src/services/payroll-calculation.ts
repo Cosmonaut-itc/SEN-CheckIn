@@ -1,4 +1,5 @@
 import { differenceInMinutes, isAfter, isBefore } from 'date-fns';
+import { resolvePayrollCutoffAssumedDateKeys } from '@sen-checkin/types';
 
 import {
 	MINIMUM_WAGES,
@@ -27,7 +28,7 @@ import {
 	type IncapacitySummary,
 } from './incapacities.js';
 
-const PAYROLL_CUTOFF_HOUR = 10;
+export { resolvePayrollCutoffAssumedDateKeys };
 
 export type AttendanceRow = {
 	employeeId: string;
@@ -741,58 +742,6 @@ function getDateKeyForDayOfWeekInPeriod(args: {
 }
 
 /**
- * Resolves Friday/Saturday date keys that should be assumed attended after payroll cutoff.
- *
- * @param args - Cutoff resolution inputs
- * @param args.now - Current instant used to decide whether cutoff has passed
- * @param args.periodStartDateKey - Payroll period start key
- * @param args.periodEndDateKey - Payroll period end key
- * @param args.timeZone - Organization payroll timezone
- * @returns Date keys for Friday and Saturday when the current period is past Friday 10:00
- */
-export function resolvePayrollCutoffAssumedDateKeys(args: {
-	now: Date;
-	periodStartDateKey: string;
-	periodEndDateKey: string;
-	timeZone: string;
-}): string[] {
-	const resolvedTimeZone = isValidIanaTimeZone(args.timeZone)
-		? args.timeZone
-		: 'America/Mexico_City';
-	const currentDateKey = toDateKeyInTimeZone(args.now, resolvedTimeZone);
-	if (currentDateKey < args.periodStartDateKey || currentDateKey > args.periodEndDateKey) {
-		return [];
-	}
-
-	const fridayDateKey = getDateKeyForDayOfWeekInPeriod({
-		periodStartDateKey: args.periodStartDateKey,
-		periodEndDateKey: args.periodEndDateKey,
-		targetDayOfWeek: 5,
-	});
-	if (!fridayDateKey || currentDateKey < fridayDateKey) {
-		return [];
-	}
-
-	if (currentDateKey === fridayDateKey) {
-		const parts = new Intl.DateTimeFormat('es-MX', {
-			timeZone: resolvedTimeZone,
-			hour: '2-digit',
-			minute: '2-digit',
-			hourCycle: 'h23',
-		}).formatToParts(args.now);
-		const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
-		if (hour < PAYROLL_CUTOFF_HOUR) {
-			return [];
-		}
-	}
-
-	const saturdayDateKey = addDaysToDateKey(fridayDateKey, 1);
-	return [fridayDateKey, saturdayDateKey].filter(
-		(dateKey) => dateKey >= args.periodStartDateKey && dateKey <= args.periodEndDateKey,
-	);
-}
-
-/**
  * Adds worked minutes from a UTC segment into a map grouped by local calendar day (YYYY-MM-DD).
  *
  * @param dayMinutes - Map of date key string to worked minutes
@@ -1066,6 +1015,7 @@ export function calculatePayrollFromData(
 			spansTouchedDateKeys: boolean;
 		} | null = null;
 		const offsiteDateKeys = new Set<string>();
+		const completeRealAttendanceDateKeys = new Set<string>();
 		const assumedAttendanceDateKeys: string[] = [];
 		const vacationDateKeySet = new Set(vacationDateKeysByEmployee?.[emp.id] ?? []);
 		const explicitUnpaidBreakDateKeys = new Set<string>();
@@ -1078,9 +1028,14 @@ export function calculatePayrollFromData(
 		 *
 		 * @param segmentStart - Segment start timestamp
 		 * @param segmentEnd - Segment end timestamp
+		 * @param marksCompleteRealAttendance - Whether this segment came from a completed real check pair
 		 * @returns void
 		 */
-		const applyPaidSegment = (segmentStart: Date, segmentEnd: Date): void => {
+		const applyPaidSegment = (
+			segmentStart: Date,
+			segmentEnd: Date,
+			marksCompleteRealAttendance = false,
+		): void => {
 			const clippedStart = isBefore(segmentStart, periodBounds.periodStartUtc)
 				? periodBounds.periodStartUtc
 				: segmentStart;
@@ -1106,6 +1061,9 @@ export function calculatePayrollFromData(
 				}
 				const current = calendarDayMinutes.get(dateKey) ?? 0;
 				calendarDayMinutes.set(dateKey, current + minutes);
+				if (marksCompleteRealAttendance) {
+					completeRealAttendanceDateKeys.add(dateKey);
+				}
 			}
 		};
 
@@ -1212,7 +1170,7 @@ export function calculatePayrollFromData(
 					continue;
 				}
 
-				applyPaidSegment(checkIn, checkOutAuthorized);
+				applyPaidSegment(checkIn, checkOutAuthorized, true);
 				paidExitStart = record.timestamp;
 				continue;
 			}
@@ -1229,7 +1187,7 @@ export function calculatePayrollFromData(
 				continue;
 			}
 
-			applyPaidSegment(checkIn, checkOut);
+			applyPaidSegment(checkIn, checkOut, true);
 			pendingUnpaidBreak = {
 				start: checkOut,
 				checkOutDateKey: toDateKeyInTimeZone(checkOut, employeeTimeZone),
@@ -1247,6 +1205,7 @@ export function calculatePayrollFromData(
 				dateKey < periodStartDateKey ||
 				dateKey > periodEndDateKey ||
 				offsiteDateKeys.has(dateKey) ||
+				completeRealAttendanceDateKeys.has(dateKey) ||
 				vacationDateKeySet.has(dateKey)
 			) {
 				continue;
@@ -1260,10 +1219,12 @@ export function calculatePayrollFromData(
 				continue;
 			}
 
-			calendarDayMinutes.set(
-				dateKey,
-				Math.max(calendarDayMinutes.get(dateKey) ?? 0, scheduledMinutes),
-			);
+			const existingDayMinutes = calendarDayMinutes.get(dateKey) ?? 0;
+			if (scheduledMinutes <= existingDayMinutes) {
+				continue;
+			}
+
+			calendarDayMinutes.set(dateKey, scheduledMinutes);
 			assumedAttendanceDateKeys.push(dateKey);
 		}
 

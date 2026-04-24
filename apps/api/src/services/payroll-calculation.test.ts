@@ -3036,6 +3036,7 @@ describe('payroll-calculation mexico taxes', () => {
 			expect(row?.vacationPayAmount).toBe(800);
 			expect(row?.assumedAttendanceDateKeys).toEqual(['2026-04-25']);
 		});
+
 	});
 
 	it('ensures fiscal invariants are preserved', () => {

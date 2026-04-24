@@ -18,10 +18,7 @@ import { isValidIanaTimeZone } from '../utils/time-zone.js';
  */
 const uuidLikeStringSchema = z
 	.string()
-	.regex(
-		/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-		'Invalid ID format',
-	);
+	.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Invalid ID format');
 
 /**
  * Schema for UUID path parameter validation.
@@ -37,6 +34,10 @@ export const paginationSchema = z.object({
 	limit: z.coerce.number().int().min(1).max(100).default(50),
 	offset: z.coerce.number().int().min(0).default(0),
 });
+
+const booleanQuerySchema = z
+	.union([z.boolean(), z.enum(['true', 'false']).transform((value) => value === 'true')])
+	.optional();
 
 /**
  * Shift type enumeration (LFT)
@@ -290,6 +291,7 @@ export const employeeQuerySchema = paginationSchema.extend({
 	jobPositionId: z.string().uuid().optional(),
 	status: employeeStatusEnum.optional(),
 	search: z.string().optional(),
+	includeSchedule: booleanQuerySchema,
 	// BetterAuth organization IDs are text (not UUID)
 	organizationId: z.string().optional(),
 });
@@ -351,9 +353,11 @@ export const registerDeviceSchema = z.object({
 /**
  * Schema for device heartbeat updates.
  */
-export const deviceHeartbeatSchema = z.object({
-	batteryLevel: z.number().int().min(0).max(100).optional(),
-}).default({});
+export const deviceHeartbeatSchema = z
+	.object({
+		batteryLevel: z.number().int().min(0).max(100).optional(),
+	})
+	.default({});
 
 // ============================================================================
 // Organization Member Schemas
@@ -412,7 +416,10 @@ export const createAttendanceSchema = z
 		type: attendanceTypeEnum,
 		checkOutReason: checkOutReasonEnum.optional(),
 		metadata: z.record(z.string(), z.unknown()).optional(),
-		offsiteDateKey: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key').optional(),
+		offsiteDateKey: z
+			.string()
+			.regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid offsite date key')
+			.optional(),
 		offsiteDayKind: offsiteDayKindEnum.optional(),
 		offsiteReason: z.string().min(10).max(500).optional(),
 	})

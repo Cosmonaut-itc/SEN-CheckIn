@@ -973,9 +973,7 @@ async function validateAndCalculateTerminationSettlement({
 	});
 
 	const aguinaldoDaysPolicy = Number(
-		employeeRecord.aguinaldoDaysOverride ??
-			settingsRecord?.aguinaldoDays ??
-			15,
+		employeeRecord.aguinaldoDaysOverride ?? settingsRecord?.aguinaldoDays ?? 15,
 	);
 
 	const calculation = calculateEmployeeTerminationSettlement({
@@ -999,9 +997,7 @@ async function validateAndCalculateTerminationSettlement({
 		locationZone: (locationRecord?.geographicZone as MinimumWageZone | undefined) ?? 'GENERAL',
 		aguinaldoDaysPolicy,
 		vacationPremiumRatePolicy: Number(
-			settingsRecord?.realVacationPremiumRate ??
-				settingsRecord?.vacationPremiumRate ??
-				0.25,
+			settingsRecord?.realVacationPremiumRate ?? settingsRecord?.vacationPremiumRate ?? 0.25,
 		),
 	});
 
@@ -1109,6 +1105,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				jobPositionId,
 				status,
 				search,
+				includeSchedule,
 				organizationId: organizationIdQuery,
 			} = query;
 
@@ -1212,10 +1209,25 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				results.map((row) => row.id),
 			);
 			const employeeIds = results.map((row) => row.id);
-			const disciplinaryCountByEmployee = new Map<
-				string,
-				{ total: number; open: number }
-			>();
+			const scheduleByEmployee = new Map<string, (typeof employeeSchedule.$inferSelect)[]>();
+			if (includeSchedule && employeeIds.length > 0) {
+				const scheduleRows = await db
+					.select()
+					.from(employeeSchedule)
+					.where(inArray(employeeSchedule.employeeId, employeeIds))
+					.orderBy(
+						employeeSchedule.employeeId,
+						employeeSchedule.dayOfWeek,
+						employeeSchedule.startTime,
+					);
+
+				for (const scheduleRow of scheduleRows) {
+					const current = scheduleByEmployee.get(scheduleRow.employeeId) ?? [];
+					current.push(scheduleRow);
+					scheduleByEmployee.set(scheduleRow.employeeId, current);
+				}
+			}
+			const disciplinaryCountByEmployee = new Map<string, { total: number; open: number }>();
 			if (employeeIds.length > 0) {
 				const disciplinaryRows = await db
 					.select({
@@ -1253,6 +1265,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 					documentWorkflowStatus: progress?.documentWorkflowStatus ?? 'INCOMPLETE',
 					disciplinaryMeasuresCount: disciplinaryCounts?.total ?? 0,
 					disciplinaryOpenMeasuresCount: disciplinaryCounts?.open ?? 0,
+					...(includeSchedule ? { schedule: scheduleByEmployee.get(row.id) ?? [] } : {}),
 				};
 				if (canViewFiscalDailyPay) {
 					return enrichedRow;
@@ -1585,7 +1598,9 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						}),
 					]);
 					const chunkLeaveDateKeySet = new Set(
-						chunkLeaveRows.map((item) => toDateKeyInTimeZone(item.exceptionDate, timeZone)),
+						chunkLeaveRows.map((item) =>
+							toDateKeyInTimeZone(item.exceptionDate, timeZone),
+						),
 					);
 					const chunkUnjustifiedAbsentDateKeySet = new Set(
 						chunkAttendanceSummary.absentDateKeys.filter(
@@ -1782,14 +1797,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 				});
 			}
 
-				const { employeeRecord, calculation } = validationResult;
-				if (!employeeRecord.organizationId) {
-					set.status = 400;
-					return buildErrorResponse('Employee organization is required', 400);
-				}
-				const employeeOrganizationId = employeeRecord.organizationId;
-				const resolvedLastDayWorkedDateKey =
-					body.lastDayWorkedDateKey ?? body.terminationDateKey;
+			const { employeeRecord, calculation } = validationResult;
+			if (!employeeRecord.organizationId) {
+				set.status = 400;
+				return buildErrorResponse('Employee organization is required', 400);
+			}
+			const employeeOrganizationId = employeeRecord.organizationId;
+			const resolvedLastDayWorkedDateKey =
+				body.lastDayWorkedDateKey ?? body.terminationDateKey;
 
 			const auditActor = resolveEmployeeAuditActor(authType, session);
 			const beforeSnapshot = buildEmployeeAuditSnapshot(employeeRecord);
@@ -1856,10 +1871,7 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 						.where(
 							and(
 								eq(employeeTerminationDraft.employeeId, id),
-								eq(
-									employeeTerminationDraft.organizationId,
-									employeeOrganizationId,
-								),
+								eq(employeeTerminationDraft.organizationId, employeeOrganizationId),
 								eq(employeeTerminationDraft.status, 'ACTIVE'),
 							),
 						);
@@ -3138,41 +3150,45 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			const isDualPayrollEnabled = Boolean(payrollSettingsRow?.enableDualPayroll);
 
 			const nextDailyPay = Number(
-				dailyPayInput !== undefined ? dailyPayInput : existingRecord.dailyPay ?? 0,
+				dailyPayInput !== undefined ? dailyPayInput : (existingRecord.dailyPay ?? 0),
 			);
 			const existingFiscalDailyPay =
 				existingRecord.fiscalDailyPay === null ||
 				existingRecord.fiscalDailyPay === undefined
 					? null
 					: Number(existingRecord.fiscalDailyPay);
-				const shouldClearHiddenFiscalDailyPay =
-					fiscalDailyPay === undefined &&
-					dailyPayInput !== undefined &&
-					existingFiscalDailyPay !== null &&
-					existingFiscalDailyPay >= nextDailyPay &&
-					canManageFiscalDailyPay &&
-					!isDualPayrollEnabled;
-				const nextFiscalDailyPay =
-					shouldClearHiddenFiscalDailyPay
-						? null
-						: (fiscalDailyPay !== undefined ? fiscalDailyPay : existingFiscalDailyPay);
+			const shouldClearHiddenFiscalDailyPay =
+				fiscalDailyPay === undefined &&
+				dailyPayInput !== undefined &&
+				existingFiscalDailyPay !== null &&
+				existingFiscalDailyPay >= nextDailyPay &&
+				canManageFiscalDailyPay &&
+				!isDualPayrollEnabled;
+			const nextFiscalDailyPay = shouldClearHiddenFiscalDailyPay
+				? null
+				: fiscalDailyPay !== undefined
+					? fiscalDailyPay
+					: existingFiscalDailyPay;
 
-				if (
-					!canManageFiscalDailyPay &&
-					fiscalDailyPay === undefined &&
-					dailyPayInput !== undefined &&
-					existingFiscalDailyPay !== null &&
-					existingFiscalDailyPay >= nextDailyPay
-				) {
-					set.status = 403;
-					return buildErrorResponse('Only organization admins can manage fiscalDailyPay', 403);
-				}
+			if (
+				!canManageFiscalDailyPay &&
+				fiscalDailyPay === undefined &&
+				dailyPayInput !== undefined &&
+				existingFiscalDailyPay !== null &&
+				existingFiscalDailyPay >= nextDailyPay
+			) {
+				set.status = 403;
+				return buildErrorResponse(
+					'Only organization admins can manage fiscalDailyPay',
+					403,
+				);
+			}
 
-				if (
-					nextFiscalDailyPay !== null &&
-					nextFiscalDailyPay !== undefined &&
-					Number(nextFiscalDailyPay) >= nextDailyPay
-				) {
+			if (
+				nextFiscalDailyPay !== null &&
+				nextFiscalDailyPay !== undefined &&
+				Number(nextFiscalDailyPay) >= nextDailyPay
+			) {
 				set.status = 400;
 				return buildErrorResponse('Fiscal daily pay must be lower than dailyPay', 400);
 			}
@@ -3357,11 +3373,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 							schedule: typeof result.updatedSchedule;
 					  });
 				warnings?: Array<{ code: 'BELOW_MINIMUM_WAGE'; details: Record<string, unknown> }>;
-				} = {
-					data: canViewFiscalDailyPay
-						? { ...result.updatedRecord, schedule: result.updatedSchedule }
-						: { ...omitFiscalDailyPay(result.updatedRecord), schedule: result.updatedSchedule },
-				};
+			} = {
+				data: canViewFiscalDailyPay
+					? { ...result.updatedRecord, schedule: result.updatedSchedule }
+					: {
+							...omitFiscalDailyPay(result.updatedRecord),
+							schedule: result.updatedSchedule,
+						},
+			};
 
 			if (minWageValidation.warnings) {
 				response.warnings = minWageValidation.warnings;

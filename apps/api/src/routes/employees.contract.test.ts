@@ -199,6 +199,45 @@ describe('employee routes (contract)', () => {
 		}
 	});
 
+	it('lists employees with schedules when requested', async () => {
+		const response = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 5, offset: 0, includeSchedule: true },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data.find(
+			(row: { id?: string }) => row.id === baseEmployeeId,
+		);
+			if (!employeeRecord) {
+				throw new Error('Expected seeded employee in list response.');
+			}
+			const schedule = employeeRecord.schedule;
+			expect(Array.isArray(schedule)).toBe(true);
+			if (!schedule) {
+				throw new Error('Expected seeded employee schedule in list response.');
+			}
+			expect(schedule.length).toBeGreaterThan(0);
+	});
+
+	it('omits schedules from employee list when includeSchedule is false', async () => {
+		const response = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 5, offset: 0, includeSchedule: false },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data.find(
+			(row: { id?: string }) => row.id === baseEmployeeId,
+		);
+		if (!employeeRecord) {
+			throw new Error('Expected seeded employee in list response.');
+		}
+		expect(employeeRecord.schedule).toBeUndefined();
+	});
+
 	it('returns active employee counts grouped by location', async () => {
 		const response = await client.employees['active-counts-by-location'].get({
 			$headers: { cookie: adminSession.cookieHeader },
@@ -292,7 +331,9 @@ describe('employee routes (contract)', () => {
 
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
-		const employeeRecord = payload.data as { fiscalDailyPay?: number | string | null } | undefined;
+		const employeeRecord = payload.data as
+			| { fiscalDailyPay?: number | string | null }
+			| undefined;
 		expect(Number(employeeRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
 
 		const [{ default: db }, { employeeAuditEvent }] = await Promise.all([
@@ -308,7 +349,10 @@ describe('employee routes (contract)', () => {
 		const latestAudit = auditRows[0];
 		expect(latestAudit?.changedFields).toContain('fiscalDailyPay');
 
-		const auditAfter = latestAudit?.after as { fiscalDailyPay?: string | null } | null | undefined;
+		const auditAfter = latestAudit?.after as
+			| { fiscalDailyPay?: string | null }
+			| null
+			| undefined;
 		expect(Number(auditAfter?.fiscalDailyPay ?? 0)).toBe(320.25);
 	});
 

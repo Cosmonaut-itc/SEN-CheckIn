@@ -816,4 +816,96 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 			},
 		]);
 	});
+
+	it('preserves complete real Friday attendance when payroll cutoff virtual attendance exists', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-cutoff',
+					employeeName: 'Carlos Corte',
+					timestamp: '2026-04-24T13:15:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-cutoff',
+					employeeName: 'Carlos Corte',
+					timestamp: '2026-04-24T21:15:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-20',
+					endDateKey: '2026-04-26',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+				virtualDays: [
+					{
+						employeeId: 'emp-cutoff',
+						employeeName: 'Carlos Corte',
+						dateKey: '2026-04-24',
+						kind: 'PAYROLL_CUTOFF_ASSUMED',
+						workMinutes: 480,
+					},
+				],
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Carlos Corte',
+				employeeId: 'emp-cutoff',
+				date: '24/04/2026',
+				firstEntry: '07:15',
+				lastExit: '15:15',
+				totalHours: '08:00',
+				workMinutes: 480,
+			},
+		]);
+	});
+
+	it('preserves work offsite rows when payroll cutoff virtual attendance exists', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-offsite',
+					employeeName: 'Olivia Oficina',
+					timestamp: '2026-04-24T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04-24',
+					offsiteDayKind: 'LABORABLE',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-20',
+					endDateKey: '2026-04-26',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+				virtualDays: [
+					{
+						employeeId: 'emp-offsite',
+						employeeName: 'Olivia Oficina',
+						dateKey: '2026-04-24',
+						kind: 'PAYROLL_CUTOFF_ASSUMED',
+						workMinutes: 480,
+					},
+				],
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Olivia Oficina',
+				employeeId: 'emp-offsite',
+				date: '24/04/2026',
+				firstEntry: 'Fuera de oficina',
+				lastExit: 'Fuera de oficina',
+				totalHours: 'Fuera de oficina',
+				workMinutes: null,
+			},
+		]);
+	});
 });

@@ -81,6 +81,7 @@ export {
 	buildDefaultLegalTemplateHtml,
 	type DefaultLegalTemplateKind,
 } from './legal-template-defaults';
+export { resolvePayrollCutoffAssumedDateKeys } from './payroll-cutoff';
 
 /**
  * Matched user information from a face search operation.

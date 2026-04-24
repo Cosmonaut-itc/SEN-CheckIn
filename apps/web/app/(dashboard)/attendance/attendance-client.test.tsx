@@ -6,7 +6,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
-import type { AttendanceRecord } from '@/lib/client-functions';
+import type { AttendanceRecord, Employee } from '@/lib/client-functions';
 import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
 import { AttendancePageClient, getPresetDateRangeKeys } from './attendance-client';
 
@@ -54,6 +54,60 @@ function readBlobBytes(blob: Blob): Promise<Uint8Array> {
 		};
 		reader.readAsArrayBuffer(blob);
 	});
+}
+
+/**
+ * Builds a test employee record with an optional schedule.
+ *
+ * @param overrides - Employee fields to override for the scenario
+ * @returns Fully-typed employee record
+ */
+function buildEmployee(overrides: Partial<Employee> = {}): Employee {
+	const timestamp = new Date('2026-01-01T00:00:00.000Z');
+
+	return {
+		id: 'EMP-001',
+		code: 'EMP-001',
+		firstName: 'Ada',
+		lastName: 'Lovelace',
+		nss: null,
+		rfc: null,
+		email: null,
+		phone: null,
+		jobPositionId: null,
+		jobPositionName: null,
+		department: null,
+		status: 'ACTIVE',
+		hireDate: null,
+		dailyPay: 500,
+		fiscalDailyPay: null,
+		paymentFrequency: 'WEEKLY',
+		employmentType: 'PERMANENT',
+		isTrustEmployee: false,
+		isDirectorAdminGeneralManager: false,
+		isDomesticWorker: false,
+		isPlatformWorker: false,
+		platformHoursYear: 0,
+		ptuEligibilityOverride: 'DEFAULT',
+		aguinaldoDaysOverride: null,
+		sbcDailyOverride: null,
+		locationId: 'location-1',
+		organizationId: 'org-1',
+		userId: null,
+		rekognitionUserId: null,
+		schedule: [
+			{
+				dayOfWeek: 5,
+				startTime: '08:00',
+				endTime: '16:00',
+				isWorkingDay: true,
+			},
+		],
+		shiftType: 'DIURNA',
+		createdAt: timestamp,
+		updatedAt: timestamp,
+		...overrides,
+	};
 }
 
 vi.mock('next/navigation', () => ({
@@ -749,6 +803,102 @@ describe('AttendancePageClient', () => {
 					},
 					totalLabel: 'Total',
 				},
+			}),
+		);
+	});
+
+	it('uses bulk list schedules during export without fetching every employee detail', async () => {
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [
+						{
+							dayOfWeek: 5,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: true,
+						},
+						{
+							dayOfWeek: 6,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: false,
+						},
+					],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
+
+		expect(mockFetchEmployeesList).toHaveBeenCalledWith(
+			expect.objectContaining({
+				organizationId: 'org-1',
+				status: 'ACTIVE',
+				includeSchedule: true,
+				limit: 100,
+				offset: 0,
+			}),
+		);
+		expect(mockFetchEmployeeById).not.toHaveBeenCalled();
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								day: '24/04/2026',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
 			}),
 		);
 	});

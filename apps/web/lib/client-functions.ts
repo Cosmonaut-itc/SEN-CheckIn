@@ -493,7 +493,7 @@ export interface DashboardCounts {
 }
 
 interface DashboardLocationCapacityRecord {
-	locationId: string;
+	locationId: string | null;
 	count: number;
 }
 
@@ -2305,24 +2305,34 @@ export async function deleteWorkOffsiteAttendance(input: { id: string }): Promis
 }
 
 /**
- * Fetches the latest attendance event per employee within a date range.
+ * Fetches the latest attendance event per employee within an optional date range.
  *
- * @param params - Required date range and optional organization context
+ * @param params - Optional date range and organization context
  * @returns A promise resolving to the list of present employees
  * @throws Error if the API request fails
  */
 export async function fetchAttendancePresent(
-	params: AttendancePresentQueryParams,
+	params?: AttendancePresentQueryParams,
 ): Promise<AttendancePresentRecord[]> {
-	if (params.organizationId === null) {
+	if (params?.organizationId === null) {
 		return [];
 	}
 
-	const query = {
-		fromDate: params.fromDate,
-		toDate: params.toDate,
-		organizationId: params.organizationId ?? undefined,
+	const query: {
+		fromDate?: Date;
+		toDate?: Date;
+		organizationId?: string;
+	} = {
+		organizationId: params?.organizationId ?? undefined,
 	};
+
+	if (params?.fromDate) {
+		query.fromDate = params.fromDate;
+	}
+
+	if (params?.toDate) {
+		query.toDate = params.toDate;
+	}
 
 	const response = await api.attendance.present.get({ $query: query });
 
@@ -2389,24 +2399,44 @@ export async function fetchAttendanceTimeline(params?: {
 		query.kind = params.kind;
 	}
 
-	const response = await api.attendance.timeline.get({ $query: query });
+	const events: TimelineEvent[] = [];
+	let currentOffset = query.offset;
+	let lateTotal = 0;
+	let hasMore = true;
 
-	if (response.error) {
-		throw new Error('Failed to fetch attendance timeline');
+	while (hasMore) {
+		const response = await api.attendance.timeline.get({
+			$query: {
+				...query,
+				offset: currentOffset,
+			},
+		});
+
+		if (response.error) {
+			throw new Error('Failed to fetch attendance timeline');
+		}
+
+		const payload = getApiResponseData(response);
+		const pageEvents = (payload?.data ?? []) as Array<
+			Omit<TimelineEvent, 'timestamp'> & {
+				timestamp: Date | string;
+			}
+		>;
+
+		events.push(
+			...pageEvents.map((event) => ({
+				...event,
+				timestamp: String(event.timestamp),
+			})),
+		);
+		lateTotal = payload?.summary?.lateTotal ?? lateTotal;
+		hasMore = payload?.pagination?.hasMore ?? false;
+		currentOffset += payload?.pagination?.limit ?? query.limit;
 	}
 
-	const payload = getApiResponseData(response);
-	const events = (payload?.data ?? []) as Array<
-		Omit<TimelineEvent, 'timestamp'> & {
-			timestamp: Date | string;
-		}
-	>;
 	return {
-		data: events.map((event) => ({
-			...event,
-			timestamp: String(event.timestamp),
-		})),
-		lateTotal: payload?.summary?.lateTotal ?? 0,
+		data: events,
+		lateTotal,
 	};
 }
 
@@ -5585,7 +5615,7 @@ export async function fetchDashboardLocationCapacity(params?: {
 	const rows = (payload?.data ?? []) as DashboardLocationCapacityRecord[];
 
 	return rows.reduce((countsByLocation, row) => {
-		countsByLocation.set(row.locationId, row.count);
+		countsByLocation.set(row.locationId ?? 'unassigned', row.count);
 		return countsByLocation;
 	}, new Map<string, number>());
 }

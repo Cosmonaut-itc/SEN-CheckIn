@@ -238,4 +238,42 @@ describe('DashboardMap', () => {
 
 		expect(fitBoundsMock).toHaveBeenCalledTimes(1);
 	});
+
+	it('does not auto-fit again when only non-coordinate dashboard data refreshes', () => {
+		const location: Location = {
+			id: 'location-1',
+			name: 'Matriz',
+			code: 'MTZ',
+			address: null,
+			latitude: 19.4326,
+			longitude: -99.1332,
+			organizationId: 'org-1',
+			geographicZone: 'GENERAL',
+			timeZone: 'America/Mexico_City',
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		};
+
+		const { rerender } = render(
+			<DashboardMap
+				locations={[location]}
+				focusedLocation={null}
+				presentByLocationId={new Map<string, AttendancePresentRecord[]>()}
+				isMobileLayout={false}
+			/>,
+		);
+
+		fitBoundsMock.mockClear();
+
+		rerender(
+			<DashboardMap
+				locations={[{ ...location, name: 'Matriz actualizada' }]}
+				focusedLocation={null}
+				presentByLocationId={new Map<string, AttendancePresentRecord[]>()}
+				isMobileLayout={false}
+			/>,
+		);
+
+		expect(fitBoundsMock).not.toHaveBeenCalled();
+	});
 });

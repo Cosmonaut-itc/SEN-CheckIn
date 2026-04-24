@@ -48,6 +48,7 @@ import {
 	fetchAttendanceHourlyServer,
 	fetchAttendanceTimelineServer,
 	fetchDashboardCountsServer,
+	fetchDashboardLocationCapacityServer,
 	fetchDeviceStatusSummaryServer,
 	fetchDevicesListServer,
 	fetchDisciplinaryKpisServer,
@@ -548,6 +549,28 @@ export function prefetchDashboardHourly(
 		queryFn: async (): Promise<Awaited<ReturnType<typeof fetchAttendanceHourlyServer>>> => {
 			const cookieHeader: string = await getCookieHeader();
 			return fetchAttendanceHourlyServer(cookieHeader, params);
+		},
+	});
+}
+
+/**
+ * Prefetches dashboard location capacity for server-side streaming.
+ *
+ * @param queryClient - The QueryClient instance from getQueryClient()
+ * @param params - Optional organization filter
+ * @returns Nothing
+ */
+export function prefetchDashboardLocationCapacity(
+	queryClient: QueryClient,
+	params?: { organizationId?: string | null },
+): void {
+	queryClient.prefetchQuery({
+		queryKey: queryKeys.dashboard.locationCapacity(params?.organizationId),
+		queryFn: async (): Promise<
+			Awaited<ReturnType<typeof fetchDashboardLocationCapacityServer>>
+		> => {
+			const cookieHeader: string = await getCookieHeader();
+			return fetchDashboardLocationCapacityServer(cookieHeader, params);
 		},
 	});
 }

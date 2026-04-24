@@ -30,9 +30,11 @@ interface WeatherIconConfig {
 }
 
 const PARTLY_CLOUDY_PATTERNS: readonly string[] = [
+	'few clouds',
 	'parcial',
 	'interval',
 	'mezcl',
+	'nubes dispers',
 	'nubes y sol',
 	'clouds and sun',
 	'sun and clouds',
@@ -83,7 +85,9 @@ function getWeatherIconConfig(condition: string): WeatherIconConfig {
 
 	if (
 		normalizedCondition.includes('lluv') ||
+		normalizedCondition.includes('lloviz') ||
 		normalizedCondition.includes('rain') ||
+		normalizedCondition.includes('drizzle') ||
 		normalizedCondition.includes('chubasc')
 	) {
 		return {
@@ -101,7 +105,10 @@ function getWeatherIconConfig(condition: string): WeatherIconConfig {
 		};
 	}
 
-	if ((hasSunTerms && hasCloudTerms) || (includesAnyPattern(normalizedCondition, CLEAR_PATTERNS) && hasCloudTerms)) {
+	if (
+		(hasSunTerms && hasCloudTerms) ||
+		(includesAnyPattern(normalizedCondition, CLEAR_PATTERNS) && hasCloudTerms)
+	) {
 		return {
 			icon: CloudSun,
 			iconClassName: 'text-amber-500',
@@ -140,7 +147,17 @@ function getWeatherIconConfig(condition: string): WeatherIconConfig {
  * @returns Human-readable min-max range
  */
 function formatWeatherRange(low: number, high: number): string {
-	return `${low}° - ${high}°`;
+	return `${Math.round(low)}° - ${Math.round(high)}°`;
+}
+
+/**
+ * Formats the current temperature with rounded values for compact cards.
+ *
+ * @param temperature - Current temperature in Celsius
+ * @returns Rounded temperature label
+ */
+function formatTemperature(temperature: number): string {
+	return `${Math.round(temperature)}°C`;
 }
 
 /**
@@ -199,6 +216,7 @@ export function WeatherCard({
 								return (
 									<li
 										key={record.locationId}
+										data-testid={`weather-card-item-${record.locationId}`}
 										className="rounded-2xl border border-[color:var(--border-subtle)] bg-[color:var(--bg-elevated)] p-4 shadow-[var(--shadow-sm)]"
 									>
 										<div className="flex items-start gap-3">
@@ -223,7 +241,7 @@ export function WeatherCard({
 												</p>
 											</div>
 											<p className="font-mono text-[16px] font-medium leading-none tabular-nums text-foreground">
-												{record.temperature}°C
+												{formatTemperature(record.temperature)}
 											</p>
 										</div>
 									</li>

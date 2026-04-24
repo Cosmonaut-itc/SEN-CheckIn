@@ -160,10 +160,16 @@ function fitMapToLocations(
 function MapAutoFit({ locations }: { locations: Location[] }): null {
 	const { map, isLoaded } = useMap();
 	const hasFitRef = useRef(false);
+	const locationSignature = locations
+		.map((location) => {
+			return `${location.id}:${location.latitude ?? 'null'}:${location.longitude ?? 'null'}`;
+		})
+		.sort()
+		.join('|');
 
 	useEffect(() => {
 		hasFitRef.current = false;
-	}, [locations]);
+	}, [locationSignature]);
 
 	useEffect(() => {
 		if (!map || !isLoaded || hasFitRef.current || locations.length === 0) {
@@ -171,7 +177,7 @@ function MapAutoFit({ locations }: { locations: Location[] }): null {
 		}
 
 		hasFitRef.current = fitMapToLocations(map, locations);
-	}, [map, isLoaded, locations]);
+	}, [isLoaded, locationSignature, locations, map]);
 
 	return null;
 }

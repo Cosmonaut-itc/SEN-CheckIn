@@ -492,8 +492,8 @@ export const attendanceQuerySchema = paginationSchema.extend({
  * Schema for attendance presence queries (latest event per employee).
  */
 export const attendancePresentQuerySchema = z.object({
-	fromDate: z.coerce.date(),
-	toDate: z.coerce.date(),
+	fromDate: z.coerce.date().optional(),
+	toDate: z.coerce.date().optional(),
 	// BetterAuth organization IDs are text (not UUID)
 	organizationId: z.string().optional(),
 });

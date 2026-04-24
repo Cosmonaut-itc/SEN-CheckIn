@@ -289,6 +289,17 @@ describe('attendance routes (contract)', () => {
 		expect(Array.isArray(payload.data)).toBe(true);
 	});
 
+	it('returns present attendance entries for the organization local day by default', async () => {
+		const response = await client.attendance.present.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: {},
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		expect(Array.isArray(payload.data)).toBe(true);
+	});
+
 	it('returns attendance timeline entries with descending pagination', async () => {
 		const uniqueOffsetMs = Number.parseInt(randomUUID().slice(0, 8), 16) % 50_000;
 		const olderTimestamp = new Date(Date.now() - 10 * 60_000 + uniqueOffsetMs);

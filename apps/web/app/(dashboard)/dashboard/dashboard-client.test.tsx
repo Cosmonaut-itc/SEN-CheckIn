@@ -51,6 +51,18 @@ vi.mock('next-intl', () => ({
 				return 'Por sucursal';
 			}
 
+			if (key === 'locationRail.unassigned') {
+				return 'Sin ubicación asignada';
+			}
+
+			if (key === 'locationRail.capacity') {
+				return `${values?.present ?? 0}/${values?.total ?? 0}`;
+			}
+
+			if (key === 'locationRail.capacityPresentOnly') {
+				return `${values?.present ?? 0}`;
+			}
+
 			return key;
 		}) as ((key: string, values?: Record<string, unknown>) => string) & {
 			rich: (
@@ -208,6 +220,22 @@ function createQueryResults(): Array<Record<string, unknown>> {
 			isFetching: false,
 		},
 	];
+}
+
+/**
+ * Configures useQuery to recycle a fixed result set across re-renders.
+ *
+ * @param queryResults - Ordered query payloads for one component render cycle
+ * @returns Nothing
+ */
+function mockQueryResults(queryResults: Array<Record<string, unknown>>): void {
+	let queryCallIndex = 0;
+
+	useQueryMock.mockImplementation(() => {
+		const result = queryResults[queryCallIndex % queryResults.length];
+		queryCallIndex += 1;
+		return result;
+	});
 }
 
 describe('DashboardPageClient', () => {
@@ -400,13 +428,7 @@ describe('DashboardPageClient', () => {
 	it('collapses the location rail on mobile and expands it on demand', () => {
 		useIsMobileMock.mockReturnValue(true);
 		const queryResults = createQueryResults();
-		let queryCallIndex = 0;
-
-		useQueryMock.mockImplementation(() => {
-			const result = queryResults[queryCallIndex % queryResults.length];
-			queryCallIndex += 1;
-			return result;
-		});
+		mockQueryResults(queryResults);
 
 		render(<DashboardPageClient />);
 
@@ -422,17 +444,71 @@ describe('DashboardPageClient', () => {
 		expect(screen.getByTestId('location-rail')).toBeInTheDocument();
 	}, 15_000);
 
+	it('renders a disabled unassigned location row with derived capacity', () => {
+		const queryResults = createQueryResults();
+		queryResults[0] = {
+			data: [
+				{
+					employeeId: 'emp-1',
+					employeeName: 'Ada Lovelace',
+					employeeCode: 'A001',
+					deviceId: 'device-1',
+					locationId: 'location-1',
+					locationName: 'Matriz',
+					checkedInAt: new Date('2026-04-21T08:00:00.000Z'),
+				},
+				{
+					employeeId: 'emp-2',
+					employeeName: 'Grace Hopper',
+					employeeCode: 'A002',
+					deviceId: 'device-2',
+					locationId: null,
+					locationName: null,
+					checkedInAt: new Date('2026-04-21T08:15:00.000Z'),
+				},
+			],
+			isFetching: false,
+		};
+		queryResults[7] = {
+			data: new Map<string, number>([
+				['location-1', 3],
+				['unassigned', 2],
+			]),
+			isFetching: false,
+		};
+		mockQueryResults(queryResults);
+
+		render(<DashboardPageClient />);
+
+		const unassignedLocationRow = screen.getByTestId('location-rail-item-unassigned');
+		expect(unassignedLocationRow).toBeDisabled();
+		expect(unassignedLocationRow).toHaveTextContent('Sin ubicación asignada');
+		expect(unassignedLocationRow).toHaveTextContent('1/2');
+	});
+
+	it('keeps the hero card loading until active employee capacity is available', () => {
+		const queryResults = createQueryResults();
+		queryResults[7] = {
+			data: undefined,
+			isFetching: false,
+		};
+		mockQueryResults(queryResults);
+
+		render(<DashboardPageClient />);
+
+		const heroSection = screen.getByTestId('dashboard-v2-hero');
+		expect(heroSection.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+		expect(heroSection).toHaveTextContent(
+			'Visibilidad en tiempo real de 1 ubicaciones y 0 empleados.',
+		);
+	});
+
 	it('refreshes the hero eyebrow clock while the dashboard stays open', () => {
 		const queryResults = createQueryResults();
-		let queryCallIndex = 0;
 		const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
 		const setIntervalSpy = vi.spyOn(window, 'setInterval');
 
-		useQueryMock.mockImplementation(() => {
-			const result = queryResults[queryCallIndex % queryResults.length];
-			queryCallIndex += 1;
-			return result;
-		});
+		mockQueryResults(queryResults);
 
 		render(<DashboardPageClient />);
 

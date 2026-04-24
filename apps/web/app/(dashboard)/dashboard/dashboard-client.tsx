@@ -22,7 +22,6 @@ import {
 	fetchLocationsAll,
 	fetchWeather,
 	type AttendancePresentRecord,
-	type DashboardCounts,
 	type Location,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
@@ -67,6 +66,7 @@ const DashboardMap = dynamic<DashboardMapProps>(loadDashboardMap, {
 interface LocationWithPresence extends Location {
 	employeeCount: number;
 	presentCount: number;
+	selectionDisabled: boolean;
 }
 
 /**
@@ -100,14 +100,17 @@ function buildPresentByLocationId(
  *
  * @param locations - Available organization locations
  * @param presentByLocationId - Present records grouped by location
+ * @param employeeCountByLocation - Active employee counts grouped by location
+ * @param unassignedLocationLabel - Localized label for employees without location
  * @returns Locations augmented with dashboard summary counts
  */
 function buildLocationPresenceRows(
 	locations: Location[],
 	presentByLocationId: Map<string, AttendancePresentRecord[]>,
 	employeeCountByLocation: Map<string, number>,
+	unassignedLocationLabel: string,
 ): LocationWithPresence[] {
-	return [...locations]
+	const rows = [...locations]
 		.sort((left, right) => left.name.localeCompare(right.name, 'es'))
 		.map((location) => {
 			const presentCount = presentByLocationId.get(location.id)?.length ?? 0;
@@ -117,21 +120,48 @@ function buildLocationPresenceRows(
 				...location,
 				employeeCount,
 				presentCount,
+				selectionDisabled: false,
 			};
 		});
+
+	const unassignedPresentCount = presentByLocationId.get(UNASSIGNED_LOCATION_KEY)?.length ?? 0;
+	const unassignedEmployeeCount = employeeCountByLocation.get(UNASSIGNED_LOCATION_KEY) ?? 0;
+
+	if (unassignedPresentCount === 0 && unassignedEmployeeCount === 0) {
+		return rows;
+	}
+
+	rows.push({
+		id: UNASSIGNED_LOCATION_KEY,
+		name: unassignedLocationLabel,
+		code: '',
+		address: null,
+		latitude: null,
+		longitude: null,
+		organizationId: null,
+		geographicZone: 'GENERAL',
+		timeZone: DEFAULT_DASHBOARD_TIME_ZONE,
+		createdAt: new Date(0),
+		updatedAt: new Date(0),
+		employeeCount: unassignedEmployeeCount,
+		presentCount: unassignedPresentCount,
+		selectionDisabled: true,
+	});
+
+	return rows;
 }
 
 /**
  * Computes hero metrics from dashboard data sets.
  *
- * @param counts - Dashboard aggregate counters
+ * @param totalEmployees - Active employee total for the organization
  * @param presentCount - Employees currently present on-site
  * @param lateCount - Employees flagged as late today
  * @param offsiteCount - Employees working off-site today
  * @returns Hero summary counts for the editorial header
  */
 function buildHeroStats(
-	counts: DashboardCounts,
+	totalEmployees: number,
 	presentCount: number,
 	lateCount: number,
 	offsiteCount: number,
@@ -142,7 +172,6 @@ function buildHeroStats(
 	onTime: number;
 	total: number;
 } {
-	const totalEmployees = counts.employees ?? 0;
 	const onTime = Math.max(presentCount - lateCount, 0);
 	const absent = Math.max(totalEmployees - presentCount - offsiteCount, 0);
 
@@ -311,14 +340,16 @@ export function DashboardPageClient(): React.ReactElement {
 		queryFn: () => fetchWeather({ organizationId: organizationId ?? null }),
 		enabled: Boolean(organizationId),
 	});
-	const {
-		data: employeeCountByLocation = new Map<string, number>(),
-		isFetching: isEmployeeCountsFetching,
-	} = useQuery({
+	const { data: employeeCountByLocationData, isFetching: isEmployeeCountsFetching } = useQuery({
 		queryKey: queryKeys.dashboard.locationCapacity(organizationId),
 		queryFn: () => fetchDashboardLocationCapacity({ organizationId: organizationId ?? null }),
 		enabled: Boolean(organizationId),
 	});
+	const employeeCountByLocation = useMemo(
+		() => employeeCountByLocationData ?? new Map<string, number>(),
+		[employeeCountByLocationData],
+	);
+	const hasEmployeeCountsLoaded = employeeCountByLocationData !== undefined;
 
 	const presentByLocationId = useMemo(
 		() => buildPresentByLocationId(presentRecords),
@@ -327,8 +358,14 @@ export function DashboardPageClient(): React.ReactElement {
 	const timelineEvents = timelinePayload?.data ?? [];
 	const lateCount = timelinePayload?.lateTotal ?? 0;
 	const locationRows = useMemo(
-		() => buildLocationPresenceRows(locations, presentByLocationId, employeeCountByLocation),
-		[employeeCountByLocation, locations, presentByLocationId],
+		() =>
+			buildLocationPresenceRows(
+				locations,
+				presentByLocationId,
+				employeeCountByLocation,
+				t('locationRail.unassigned'),
+			),
+		[employeeCountByLocation, locations, presentByLocationId, t],
 	);
 	const activeLocation = useMemo(
 		() => locationRows.find((location) => location.id === activeLocationId) ?? null,
@@ -340,9 +377,15 @@ export function DashboardPageClient(): React.ReactElement {
 	);
 	const focusedLocation = activeLocation ?? hoveredLocation;
 	const offsiteCount = offsiteTodayData?.count ?? 0;
+	const activeEmployeeTotal = useMemo(() => {
+		return Array.from(employeeCountByLocation.values()).reduce(
+			(total, value) => total + value,
+			0,
+		);
+	}, [employeeCountByLocation]);
 	const heroStats = useMemo(
-		() => buildHeroStats(counts, presentRecords.length, lateCount, offsiteCount),
-		[counts, lateCount, offsiteCount, presentRecords.length],
+		() => buildHeroStats(activeEmployeeTotal, presentRecords.length, lateCount, offsiteCount),
+		[activeEmployeeTotal, lateCount, offsiteCount, presentRecords.length],
 	);
 	const mapLocations = useMemo(
 		() =>
@@ -351,7 +394,7 @@ export function DashboardPageClient(): React.ReactElement {
 			),
 		[locationRows],
 	);
-	const hasLocationSelection = activeLocationId !== null;
+	const hasLocationSelection = activeLocation !== null;
 
 	return (
 		<div className="space-y-5 overflow-y-auto px-6 pb-8 pt-6" data-testid="dashboard-v2-layout">
@@ -377,8 +420,8 @@ export function DashboardPageClient(): React.ReactElement {
 					</h1>
 					<p className="max-w-2xl text-sm text-muted-foreground">
 						{t('hero.subtitle', {
-							employees: counts.employees ?? 0,
-							locations: counts.locations ?? locationRows.length,
+							employees: activeEmployeeTotal,
+							locations: counts.locations ?? locations.length,
 						})}
 					</p>
 				</div>
@@ -389,7 +432,12 @@ export function DashboardPageClient(): React.ReactElement {
 						late={heroStats.late}
 						absent={heroStats.absent}
 						offsite={heroStats.offsite}
-						isLoading={isPresentFetching || isOffsiteFetching || isTimelineFetching}
+						isLoading={
+							isPresentFetching ||
+							isOffsiteFetching ||
+							isTimelineFetching ||
+							!hasEmployeeCountsLoaded
+						}
 					/>
 				</div>
 			</header>
@@ -540,7 +588,7 @@ export function DashboardPageClient(): React.ReactElement {
 					<Badge variant="outline">
 						{t('hero.subtitle', {
 							employees: counts.employees ?? 0,
-							locations: locationRows.length,
+							locations: counts.locations ?? locations.length,
 						})}
 					</Badge>
 				</div>
@@ -552,7 +600,9 @@ export function DashboardPageClient(): React.ReactElement {
 					<Users className="h-4 w-4" />
 					<span>{activeLocation?.name}</span>
 					<Badge variant="outline">
-						{`${activeLocation?.presentCount ?? 0}/${activeLocation?.employeeCount ?? 0}`}
+						{(activeLocation?.employeeCount ?? 0) > 0
+							? `${activeLocation?.presentCount ?? 0}/${activeLocation?.employeeCount ?? 0}`
+							: `${activeLocation?.presentCount ?? 0}`}
 					</Badge>
 				</div>
 			)}

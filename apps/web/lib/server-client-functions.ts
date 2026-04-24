@@ -841,25 +841,45 @@ export async function fetchAttendanceTimelineServer(
 		query.kind = params.kind;
 	}
 
-	const response = await api.attendance.timeline.get({ $query: query });
+	const events: TimelineEvent[] = [];
+	let currentOffset = query.offset;
+	let lateTotal = 0;
+	let hasMore = true;
 
-	if (response.error) {
-		console.error('[Server] Failed to fetch attendance timeline:', response.error);
-		throw new Error('Failed to fetch attendance timeline');
+	while (hasMore) {
+		const response = await api.attendance.timeline.get({
+			$query: {
+				...query,
+				offset: currentOffset,
+			},
+		});
+
+		if (response.error) {
+			console.error('[Server] Failed to fetch attendance timeline:', response.error);
+			throw new Error('Failed to fetch attendance timeline');
+		}
+
+		const payload = getApiResponseData(response);
+		const pageEvents = (payload?.data ?? []) as Array<
+			Omit<TimelineEvent, 'timestamp'> & {
+				timestamp: Date | string;
+			}
+		>;
+
+		events.push(
+			...pageEvents.map((event) => ({
+				...event,
+				timestamp: String(event.timestamp),
+			})),
+		);
+		lateTotal = payload?.summary?.lateTotal ?? lateTotal;
+		hasMore = payload?.pagination?.hasMore ?? false;
+		currentOffset += payload?.pagination?.limit ?? query.limit;
 	}
 
-	const payload = getApiResponseData(response);
-	const events = (payload?.data ?? []) as Array<
-		Omit<TimelineEvent, 'timestamp'> & {
-			timestamp: Date | string;
-		}
-	>;
 	return {
-		data: events.map((event) => ({
-			...event,
-			timestamp: String(event.timestamp),
-		})),
-		lateTotal: payload?.summary?.lateTotal ?? 0,
+		data: events,
+		lateTotal,
 	};
 }
 
@@ -901,6 +921,44 @@ export async function fetchAttendanceHourlyServer(
 		data: (payload?.data ?? []) as HourlyActivity[],
 		date: String(payload?.date ?? params?.date ?? ''),
 	};
+}
+
+/**
+ * Fetches active employee counts grouped by assigned location on the server.
+ *
+ * @param cookieHeader - Forwarded request cookie header
+ * @param params - Optional organization filter
+ * @returns Counts keyed by location identifier, including unassigned employees
+ * @throws Error when the API call fails
+ */
+export async function fetchDashboardLocationCapacityServer(
+	cookieHeader: string,
+	params?: { organizationId?: string | null },
+): Promise<Map<string, number>> {
+	const organizationId = await resolveServerOrganizationId(cookieHeader, params?.organizationId);
+	if (!organizationId) {
+		return new Map<string, number>();
+	}
+
+	const api: ServerApiClient = createServerApiClient(cookieHeader);
+	const response = await api.employees['active-counts-by-location'].get({
+		$query: {
+			organizationId,
+		},
+	});
+
+	if (response.error) {
+		console.error('[Server] Failed to fetch dashboard location capacity:', response.error);
+		throw new Error('Failed to fetch dashboard location capacity');
+	}
+
+	const payload = getApiResponseData(response);
+	const rows = (payload?.data ?? []) as Array<{ locationId: string | null; count: number }>;
+
+	return rows.reduce((countsByLocation, row) => {
+		countsByLocation.set(row.locationId ?? 'unassigned', row.count);
+		return countsByLocation;
+	}, new Map<string, number>());
 }
 
 /**

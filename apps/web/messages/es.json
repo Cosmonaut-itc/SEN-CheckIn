@@ -182,7 +182,9 @@
 			"searchPlaceholder": "Buscar...",
 			"active": "activa",
 			"idle": "sin actividad",
-			"capacity": "{present}/{total}"
+			"capacity": "{present}/{total}",
+			"capacityPresentOnly": "{present}",
+			"unassigned": "Sin ubicación asignada"
 		},
 		"mapCard": {
 			"eyebrow": "MAPA OPERATIVO",

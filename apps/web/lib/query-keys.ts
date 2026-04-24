@@ -67,9 +67,9 @@ export interface AttendanceQueryParams extends ListQueryParams {
  */
 export interface AttendancePresentQueryParams extends Record<string, unknown> {
 	/** Start date for filtering records */
-	fromDate: Date;
+	fromDate?: Date;
 	/** End date for filtering records */
-	toDate: Date;
+	toDate?: Date;
 	/** Optional organization filter */
 	organizationId?: string | null;
 }

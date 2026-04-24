@@ -131,6 +131,8 @@ describe('employee routes (contract)', () => {
 	let seed: Awaited<ReturnType<typeof getSeedData>>;
 	let apiKey: string;
 	let baseEmployeeId: string;
+	let baseEmployeeFirstName: string;
+	let baseEmployeeLastName: string;
 
 	beforeAll(async () => {
 		client = createTestClient();
@@ -138,11 +140,14 @@ describe('employee routes (contract)', () => {
 		memberSession = await getUserSession();
 		seed = await getSeedData();
 		apiKey = await getTestApiKey();
+		const uniqueEmployeeSuffix = randomUUID().slice(0, 8);
+		baseEmployeeFirstName = `Empleado${uniqueEmployeeSuffix}`;
+		baseEmployeeLastName = `Contrato${uniqueEmployeeSuffix}`;
 
 		const createResponse = await client.employees.post({
 			code: `EMP-${randomUUID().slice(0, 8)}`,
-			firstName: 'Empleado',
-			lastName: 'Contrato',
+			firstName: baseEmployeeFirstName,
+			lastName: baseEmployeeLastName,
 			nss: '12345678901',
 			rfc: 'CONM901211ABC',
 			email: `empleado.${Date.now()}@example.com`,
@@ -196,6 +201,60 @@ describe('employee routes (contract)', () => {
 			expect(first.documentWorkflowStatus).toBeDefined();
 			expect(typeof first.disciplinaryMeasuresCount).toBe('number');
 			expect(typeof first.disciplinaryOpenMeasuresCount).toBe('number');
+		}
+	});
+
+	it('lists employees with schedules when requested', async () => {
+		const response = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 5, offset: 0, includeSchedule: true, search: baseEmployeeId },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data.find(
+			(row: { id?: string }) => row.id === baseEmployeeId,
+		);
+		if (!employeeRecord) {
+			throw new Error('Expected seeded employee in list response.');
+		}
+		const schedule = employeeRecord.schedule;
+		expect(Array.isArray(schedule)).toBe(true);
+		if (!schedule) {
+			throw new Error('Expected seeded employee schedule in list response.');
+		}
+		expect(schedule.length).toBeGreaterThan(0);
+	});
+
+	it('omits schedules from employee list when includeSchedule is false', async () => {
+		const response = await client.employees.get({
+			$headers: { cookie: adminSession.cookieHeader },
+			$query: { limit: 5, offset: 0, includeSchedule: false, search: baseEmployeeId },
+		});
+
+		expect(response.status).toBe(200);
+		const payload = requireResponseData(response);
+		const employeeRecord = payload.data.find(
+			(row: { id?: string }) => row.id === baseEmployeeId,
+		);
+		if (!employeeRecord) {
+			throw new Error('Expected seeded employee in list response.');
+		}
+		expect(employeeRecord.schedule).toBeUndefined();
+	});
+
+	it('searches employees by full name and id', async () => {
+		for (const search of [`${baseEmployeeFirstName} ${baseEmployeeLastName}`, baseEmployeeId]) {
+			const response = await client.employees.get({
+				$headers: { cookie: adminSession.cookieHeader },
+				$query: { limit: 10, offset: 0, search },
+			});
+
+			expect(response.status).toBe(200);
+			const payload = requireResponseData(response);
+			expect(
+				payload.data.map((employeeRecord: { id?: string }) => employeeRecord.id),
+			).toEqual([baseEmployeeId]);
 		}
 	});
 
@@ -292,7 +351,9 @@ describe('employee routes (contract)', () => {
 
 		expect(response.status).toBe(200);
 		const payload = requireResponseData(response);
-		const employeeRecord = payload.data as { fiscalDailyPay?: number | string | null } | undefined;
+		const employeeRecord = payload.data as
+			| { fiscalDailyPay?: number | string | null }
+			| undefined;
 		expect(Number(employeeRecord?.fiscalDailyPay ?? 0)).toBe(320.25);
 
 		const [{ default: db }, { employeeAuditEvent }] = await Promise.all([
@@ -308,7 +369,10 @@ describe('employee routes (contract)', () => {
 		const latestAudit = auditRows[0];
 		expect(latestAudit?.changedFields).toContain('fiscalDailyPay');
 
-		const auditAfter = latestAudit?.after as { fiscalDailyPay?: string | null } | null | undefined;
+		const auditAfter = latestAudit?.after as
+			| { fiscalDailyPay?: string | null }
+			| null
+			| undefined;
 		expect(Number(auditAfter?.fiscalDailyPay ?? 0)).toBe(320.25);
 	});
 

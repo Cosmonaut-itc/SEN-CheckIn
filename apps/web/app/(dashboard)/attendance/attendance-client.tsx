@@ -2,7 +2,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { EmployeeDetailTab } from '@sen-checkin/types';
+import { resolvePayrollCutoffAssumedDateKeys, type EmployeeDetailTab } from '@sen-checkin/types';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -51,19 +51,25 @@ import {
 	buildAttendanceEmployeePdfGroups,
 	buildAttendanceEmployeePdfSummaryRows,
 	type AttendanceSummaryLabels,
+	type AttendanceVirtualDay,
 } from './attendance-export-helpers';
 import { loadAttendanceReportPdfBuilder } from './attendance-pdf-loader';
 import {
 	createWorkOffsiteAttendance,
 	deleteWorkOffsiteAttendance,
+	fetchEmployeeById,
 	fetchEmployeesList,
 	fetchAttendanceRecords,
 	fetchLocationsList,
+	fetchServerTime,
+	fetchVacationRequestsList,
 	type AttendanceRecord,
 	type AttendanceType,
+	type Employee,
 	type Location,
 	type OffsiteDayKind,
 	updateWorkOffsiteAttendance,
+	type VacationRequest,
 } from '@/lib/client-functions';
 import { useOrgContext } from '@/lib/org-client-context';
 import {
@@ -94,6 +100,7 @@ const ALL_OFFSITE_DAY_KIND_VALUE = '__all_offsite_day_kind__';
 const EXPORT_PAGE_SIZE = 100;
 const ACTIVE_EMPLOYEES_PAGE_SIZE = 100;
 const DEFAULT_ATTENDANCE_TIME_ZONE = 'America/Mexico_City';
+const DEFAULT_VIRTUAL_WORK_MINUTES = 8 * 60;
 
 type AttendanceExportParams = Omit<
 	NonNullable<Parameters<typeof fetchAttendanceRecords>[0]>,
@@ -389,6 +396,276 @@ async function fetchAllAttendanceRecords(
 	} while (offset < total);
 
 	return records;
+}
+
+/**
+ * Parses an HH:mm or HH:mm:ss time string into minutes since midnight.
+ *
+ * @param timeValue - Schedule time value
+ * @returns Minutes since midnight
+ */
+function parseScheduleTimeToMinutes(timeValue: string): number {
+	const [hours = 0, minutes = 0] = timeValue.split(':').map(Number);
+	return hours * 60 + minutes;
+}
+
+/**
+ * Resolves scheduled work minutes for an employee on a local date key.
+ *
+ * @param employee - Employee with optional schedule detail
+ * @param dateKey - Local date key in YYYY-MM-DD format
+ * @param options - Optional fallback controls
+ * @returns Scheduled minutes, or the configured fallback when no schedule is available
+ */
+function resolveEmployeeScheduledMinutes(
+	employee: Employee,
+	dateKey: string,
+	options?: { missingScheduleMinutes?: number },
+): number {
+	const schedule = employee.schedule ?? [];
+	if (schedule.length === 0) {
+		return options?.missingScheduleMinutes ?? 0;
+	}
+
+	const dayOfWeek = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
+	const scheduleEntry = schedule.find((entry) => entry.dayOfWeek === dayOfWeek);
+	if (!scheduleEntry || !scheduleEntry.isWorkingDay) {
+		return 0;
+	}
+
+	const startMinutes = parseScheduleTimeToMinutes(scheduleEntry.startTime);
+	const endMinutes = parseScheduleTimeToMinutes(scheduleEntry.endTime);
+	if (endMinutes > startMinutes) {
+		return endMinutes - startMinutes;
+	}
+	if (endMinutes < startMinutes) {
+		return 24 * 60 - startMinutes + endMinutes;
+	}
+	return 0;
+}
+
+/**
+ * Checks whether an employee matches the attendance export search term.
+ *
+ * @param employee - Employee record from the export list
+ * @param search - Free-text search term
+ * @returns True when the employee name, code, or id matches the term
+ */
+function employeeMatchesExportSearch(employee: Employee, search: string | undefined): boolean {
+	const normalizedSearch = search?.trim().toLowerCase();
+	if (!normalizedSearch) {
+		return true;
+	}
+
+	return [`${employee.firstName} ${employee.lastName}`.trim(), employee.code, employee.id].some(
+		(value) => value?.toLowerCase().includes(normalizedSearch),
+	);
+}
+
+/**
+ * Fetches employees matching the export-level filters.
+ *
+ * @param args - Export employee filters
+ * @returns Employee detail records including schedules when available
+ */
+async function fetchAttendanceExportEmployees(args: {
+	organizationId: string | null | undefined;
+	employeeFilterId?: string;
+	deviceLocationId?: string;
+	search?: string;
+}): Promise<Employee[]> {
+	if (!args.organizationId) {
+		return [];
+	}
+
+	if (args.employeeFilterId) {
+		const employee = (await fetchEmployeeById(args.employeeFilterId)) as
+			| Employee
+			| null
+			| undefined;
+		if (!employee) {
+			return [];
+		}
+		return employeeMatchesExportSearch(employee, args.search) ? [employee] : [];
+	}
+
+	const employees: Employee[] = [];
+	let offset = 0;
+	let total = 0;
+	do {
+		const response = (await fetchEmployeesList({
+			organizationId: args.organizationId,
+			includeSchedule: true,
+			search: args.search,
+			limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
+			offset,
+		})) as Awaited<ReturnType<typeof fetchEmployeesList>> | undefined;
+		if (!response) {
+			break;
+		}
+		employees.push(...response.data);
+		total = response.pagination.total;
+		offset += response.data.length;
+		if (response.data.length === 0) {
+			break;
+		}
+	} while (employees.length < total);
+
+	const filteredEmployees = employees.filter((employee) =>
+		employeeMatchesExportSearch(employee, args.search),
+	);
+
+	return filteredEmployees;
+}
+
+/**
+ * Restricts virtual-day candidates to employees with exported device-location rows.
+ *
+ * @param args - Employee and attendance export data
+ * @returns Employees eligible for virtual rows under the active location filter
+ */
+function filterVirtualEmployeesForDeviceLocation(args: {
+	employees: Employee[];
+	records: AttendanceRecord[];
+	deviceLocationId?: string;
+	startDateKey: string;
+	endDateKey: string;
+	timeZone: string;
+}): Employee[] {
+	if (!args.deviceLocationId) {
+		return args.employees;
+	}
+
+	const exportedEmployeeIds = new Set<string>();
+	for (const record of args.records) {
+		const recordDateKey =
+			record.offsiteDateKey ?? toDateKeyInTimeZone(new Date(record.timestamp), args.timeZone);
+		if (recordDateKey >= args.startDateKey && recordDateKey <= args.endDateKey) {
+			exportedEmployeeIds.add(record.employeeId);
+		}
+	}
+
+	return args.employees.filter((employee) => exportedEmployeeIds.has(employee.id));
+}
+
+/**
+ * Fetches all approved vacation requests overlapping the export date range.
+ *
+ * @param args - Vacation query inputs
+ * @returns Approved vacation requests in the range
+ */
+async function fetchApprovedVacationRequestsForExport(args: {
+	organizationId: string | null | undefined;
+	startDateKey: string;
+	endDateKey: string;
+	employeeId?: string;
+}): Promise<VacationRequest[]> {
+	if (!args.organizationId) {
+		return [];
+	}
+
+	const requests: VacationRequest[] = [];
+	let offset = 0;
+	let total = 0;
+	do {
+		const response = (await fetchVacationRequestsList({
+			organizationId: args.organizationId,
+			status: 'APPROVED',
+			from: args.startDateKey,
+			to: args.endDateKey,
+			employeeId: args.employeeId,
+			limit: EXPORT_PAGE_SIZE,
+			offset,
+		})) as Awaited<ReturnType<typeof fetchVacationRequestsList>> | undefined;
+		if (!response) {
+			break;
+		}
+		requests.push(...response.data);
+		total = response.pagination.total;
+		offset += response.data.length;
+		if (response.data.length === 0) {
+			break;
+		}
+	} while (requests.length < total);
+
+	return requests;
+}
+
+/**
+ * Builds virtual attendance rows for vacations and payroll cutoff assumptions.
+ *
+ * @param args - Virtual attendance source data
+ * @returns Virtual attendance days for the PDF summary
+ */
+function buildAttendanceVirtualDays(args: {
+	employees: Employee[];
+	vacationRequests: VacationRequest[];
+	payrollCutoffDateKeys: string[];
+	startDateKey: string;
+	endDateKey: string;
+}): AttendanceVirtualDay[] {
+	const employeesById = new Map(args.employees.map((employee) => [employee.id, employee]));
+	const virtualDaysByKey = new Map<string, AttendanceVirtualDay>();
+
+	for (const request of args.vacationRequests) {
+		const employee = employeesById.get(request.employeeId);
+		if (!employee) {
+			continue;
+		}
+
+		for (const day of request.days) {
+			if (
+				!day.countsAsVacationDay ||
+				day.dateKey < args.startDateKey ||
+				day.dateKey > args.endDateKey
+			) {
+				continue;
+			}
+
+			const workMinutes = resolveEmployeeScheduledMinutes(employee, day.dateKey, {
+				missingScheduleMinutes: DEFAULT_VIRTUAL_WORK_MINUTES,
+			});
+			if (workMinutes <= 0) {
+				continue;
+			}
+
+			virtualDaysByKey.set(`${employee.id}:${day.dateKey}`, {
+				employeeId: employee.id,
+				employeeName: `${employee.firstName} ${employee.lastName}`.trim(),
+				dateKey: day.dateKey,
+				kind: 'VACATION',
+				workMinutes,
+			});
+		}
+	}
+
+	for (const employee of args.employees) {
+		if (employee.status !== 'ACTIVE') {
+			continue;
+		}
+
+		for (const dateKey of args.payrollCutoffDateKeys) {
+			const key = `${employee.id}:${dateKey}`;
+			if (virtualDaysByKey.has(key)) {
+				continue;
+			}
+
+			const workMinutes = resolveEmployeeScheduledMinutes(employee, dateKey);
+			if (workMinutes <= 0) {
+				continue;
+			}
+
+			virtualDaysByKey.set(key, {
+				employeeId: employee.id,
+				employeeName: `${employee.firstName} ${employee.lastName}`.trim(),
+				dateKey,
+				kind: 'PAYROLL_CUTOFF_ASSUMED',
+				workMinutes,
+			});
+		}
+	}
+
+	return Array.from(virtualDaysByKey.values());
 }
 
 /**
@@ -1097,27 +1374,74 @@ export function AttendancePageClient({
 			const exportEndDateKey = toDateKeyInTimeZone(end, attendanceExportTimeZone);
 			const spilloverStartDateKey = addDaysToDateKey(exportStartDateKey, -1);
 			const spilloverEndDateKey = addDaysToDateKey(exportEndDateKey, 1);
-			const exportRecords = await fetchAllAttendanceRecords({
-				fromDate: getUtcDayRangeFromDateKey(spilloverStartDateKey, attendanceExportTimeZone)
-					.startUtc,
-				toDate: getUtcDayRangeFromDateKey(spilloverEndDateKey, attendanceExportTimeZone)
-					.endUtc,
-				organizationId,
-				...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
-				...(typeFilter !== 'both' ? { type: typeFilter } : {}),
-				...(normalizedOffsiteDayKind ? { offsiteDayKind: normalizedOffsiteDayKind } : {}),
-				...(normalizedSearch ? { search: normalizedSearch } : {}),
-				...(deviceLocationId ? { deviceLocationId } : {}),
-			});
+			const includeVirtualDays = typeFilter === 'both' && !normalizedOffsiteDayKind;
+			const [exportRecords, exportEmployees, vacationRequests, serverTime] = await Promise.all([
+				fetchAllAttendanceRecords({
+					fromDate: getUtcDayRangeFromDateKey(
+						spilloverStartDateKey,
+						attendanceExportTimeZone,
+					).startUtc,
+					toDate: getUtcDayRangeFromDateKey(spilloverEndDateKey, attendanceExportTimeZone)
+						.endUtc,
+					organizationId,
+					...(employeeFilterId ? { employeeId: employeeFilterId } : {}),
+					...(typeFilter !== 'both' ? { type: typeFilter } : {}),
+					...(normalizedOffsiteDayKind
+						? { offsiteDayKind: normalizedOffsiteDayKind }
+						: {}),
+					...(normalizedSearch ? { search: normalizedSearch } : {}),
+					...(deviceLocationId ? { deviceLocationId } : {}),
+				}),
+				includeVirtualDays
+					? fetchAttendanceExportEmployees({
+							organizationId,
+							employeeFilterId,
+							deviceLocationId,
+							search: normalizedSearch || undefined,
+						})
+					: Promise.resolve([]),
+				includeVirtualDays
+					? fetchApprovedVacationRequestsForExport({
+							organizationId,
+							startDateKey: exportStartDateKey,
+							endDateKey: exportEndDateKey,
+							employeeId: employeeFilterId,
+						})
+					: Promise.resolve([]),
+				includeVirtualDays ? fetchServerTime() : Promise.resolve(null),
+			]);
 
-			if (exportRecords.length === 0) {
-				return;
-			}
+			const payrollCutoffDateKeys = includeVirtualDays
+				? resolvePayrollCutoffAssumedDateKeys({
+						now: serverTime ?? new Date(),
+						periodStartDateKey: exportStartDateKey,
+						periodEndDateKey: exportEndDateKey,
+						timeZone: attendanceExportTimeZone,
+					})
+				: [];
+			const virtualDays = includeVirtualDays
+				? buildAttendanceVirtualDays({
+						employees: filterVirtualEmployeesForDeviceLocation({
+							employees: exportEmployees,
+							records: exportRecords,
+							deviceLocationId,
+							startDateKey: exportStartDateKey,
+							endDateKey: exportEndDateKey,
+							timeZone: attendanceExportTimeZone,
+						}),
+						vacationRequests,
+						payrollCutoffDateKeys,
+						startDateKey: exportStartDateKey,
+						endDateKey: exportEndDateKey,
+					})
+				: [];
 
 			const summaryLabels: AttendanceSummaryLabels = {
 				incomplete: t('pdf.values.incomplete'),
 				noEntry: t('pdf.values.noEntry'),
 				noExit: t('pdf.values.noExit'),
+				payrollCutoffAssumed: t('pdf.values.payrollCutoffAssumed'),
+				vacation: t('pdf.values.vacation'),
 				workOffsite: t('pdf.values.workOffsite'),
 			};
 			const summaryRows = buildAttendanceEmployeePdfSummaryRows(exportRecords, {
@@ -1127,6 +1451,7 @@ export function AttendancePageClient({
 				},
 				labels: summaryLabels,
 				timeZone: attendanceExportTimeZone,
+				virtualDays,
 			});
 
 			const groups = buildAttendanceEmployeePdfGroups(summaryRows);

@@ -758,6 +758,7 @@ export async function fetchEmployeesList(
 		locationId?: string;
 		jobPositionId?: string;
 		status?: EmployeeStatus;
+		includeSchedule?: boolean;
 	},
 ): Promise<PaginatedResponse<Employee>> {
 	const limit = clampPaginationLimit(params?.limit);
@@ -784,6 +785,7 @@ export async function fetchEmployeesList(
 		locationId?: string;
 		jobPositionId?: string;
 		status?: EmployeeStatus;
+		includeSchedule?: boolean;
 	} = {
 		limit,
 		offset,
@@ -808,6 +810,10 @@ export async function fetchEmployeesList(
 
 	if (params?.organizationId) {
 		query.organizationId = params.organizationId;
+	}
+
+	if (params?.includeSchedule) {
+		query.includeSchedule = true;
 	}
 
 	const response = await api.employees.get({ $query: query });
@@ -2210,6 +2216,33 @@ export async function fetchAttendanceRecords(
 }
 
 /**
+ * Fetches the API server clock for client workflows that must match backend time.
+ *
+ * @returns Current API server timestamp
+ * @throws Error when the server-time endpoint fails or returns an invalid timestamp
+ */
+export async function fetchServerTime(): Promise<Date> {
+	const response = await api['server-time'].get();
+
+	if (response.error) {
+		throw new Error('Failed to fetch server time');
+	}
+
+	const payload = getApiResponseData(response);
+	const now = (payload?.data as { now?: unknown } | undefined)?.now;
+	if (typeof now !== 'string') {
+		throw new Error('Invalid server time response');
+	}
+
+	const serverTime = normalizeRequiredDate(now);
+	if (Number.isNaN(serverTime.getTime())) {
+		throw new Error('Invalid server time response');
+	}
+
+	return serverTime;
+}
+
+/**
  * Creates a manual WORK_OFFSITE attendance record.
  *
  * @param input - Offsite record input payload
@@ -3117,6 +3150,7 @@ export interface PayrollCalculationEmployee {
 	vacationPremiumAmount: number;
 	realVacationPayAmount?: number | null;
 	realVacationPremiumAmount?: number | null;
+	assumedAttendanceDateKeys?: string[];
 	gratificationsBreakdown: PayrollGratificationBreakdownItem[];
 	totalGratifications: number;
 	deductionsBreakdown: PayrollDeductionBreakdownItem[];

@@ -1,6 +1,20 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { eq, and, count, desc, gte, ilike, inArray, lte, lt, ne, sql, type SQL } from 'drizzle-orm';
+import {
+	eq,
+	and,
+	count,
+	desc,
+	gte,
+	ilike,
+	inArray,
+	lte,
+	lt,
+	ne,
+	or,
+	sql,
+	type SQL,
+} from 'drizzle-orm';
 import { startOfDay, endOfDay } from 'date-fns';
 import { z } from 'zod';
 
@@ -610,7 +624,7 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 	 * @param query.type - Filter by attendance type (optional)
 	 * @param query.fromDate - Filter records from this date (optional)
 	 * @param query.toDate - Filter records until this date (optional)
-	 * @param query.search - Search by employee ID (optional)
+	 * @param query.search - Search by employee ID, name, or code (optional)
 	 * @param query.deviceLocationId - Filter by device location ID (optional)
 	 * @returns Array of attendance records with pagination info
 	 */
@@ -679,7 +693,20 @@ export const attendanceRoutes = new Elysia({ prefix: '/attendance' })
 			}
 			const normalizedSearch = search?.trim();
 			if (normalizedSearch) {
-				conditions.push(ilike(attendanceRecord.employeeId, `%${normalizedSearch}%`));
+				const searchPattern = `%${normalizedSearch}%`;
+				const searchCondition = or(
+					ilike(attendanceRecord.employeeId, searchPattern),
+					ilike(employee.firstName, searchPattern),
+					ilike(employee.lastName, searchPattern),
+					ilike(employee.code, searchPattern),
+					ilike(
+						sql<string>`concat_ws(' ', ${employee.firstName}, ${employee.lastName})`,
+						searchPattern,
+					),
+				);
+				if (searchCondition) {
+					conditions.push(searchCondition);
+				}
 			}
 
 			let baseQuery = db

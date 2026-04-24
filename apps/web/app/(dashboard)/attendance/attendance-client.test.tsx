@@ -6,7 +6,7 @@ import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OrgProvider } from '@/lib/org-client-context';
-import type { AttendanceRecord } from '@/lib/client-functions';
+import type { AttendanceRecord, Employee } from '@/lib/client-functions';
 import { getUtcDayRangeFromDateKey } from '@/lib/time-zone';
 import { AttendancePageClient, getPresetDateRangeKeys } from './attendance-client';
 
@@ -28,8 +28,29 @@ vi.mock('@/lib/attendance/build-attendance-report-pdf', () => ({
 }));
 
 const mockFetchAttendanceRecords = vi.fn();
+const mockFetchEmployeeById = vi.fn();
+const mockFetchEmployeesList = vi.fn();
 const mockFetchLocationsList = vi.fn();
+const mockFetchServerTime = vi.fn();
+const mockFetchVacationRequestsList = vi.fn();
 let expectedPdfBytes: Uint8Array | null = null;
+
+/**
+ * Freezes Date reads without replacing async timers used by React tests.
+ *
+ * @param timestamp - Current instant exposed to code under test
+ */
+function freezeDate(timestamp: string): void {
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date(timestamp));
+}
+
+/**
+ * Restores real Date reads after a frozen-time test.
+ */
+function restoreDate(): void {
+	vi.useRealTimers();
+}
 
 /**
  * Reads a Blob into a byte array.
@@ -53,6 +74,60 @@ function readBlobBytes(blob: Blob): Promise<Uint8Array> {
 	});
 }
 
+/**
+ * Builds a test employee record with an optional schedule.
+ *
+ * @param overrides - Employee fields to override for the scenario
+ * @returns Fully-typed employee record
+ */
+function buildEmployee(overrides: Partial<Employee> = {}): Employee {
+	const timestamp = new Date('2026-01-01T00:00:00.000Z');
+
+	return {
+		id: 'EMP-001',
+		code: 'EMP-001',
+		firstName: 'Ada',
+		lastName: 'Lovelace',
+		nss: null,
+		rfc: null,
+		email: null,
+		phone: null,
+		jobPositionId: null,
+		jobPositionName: null,
+		department: null,
+		status: 'ACTIVE',
+		hireDate: null,
+		dailyPay: 500,
+		fiscalDailyPay: null,
+		paymentFrequency: 'WEEKLY',
+		employmentType: 'PERMANENT',
+		isTrustEmployee: false,
+		isDirectorAdminGeneralManager: false,
+		isDomesticWorker: false,
+		isPlatformWorker: false,
+		platformHoursYear: 0,
+		ptuEligibilityOverride: 'DEFAULT',
+		aguinaldoDaysOverride: null,
+		sbcDailyOverride: null,
+		locationId: 'location-1',
+		organizationId: 'org-1',
+		userId: null,
+		rekognitionUserId: null,
+		schedule: [
+			{
+				dayOfWeek: 5,
+				startTime: '08:00',
+				endTime: '16:00',
+				isWorkingDay: true,
+			},
+		],
+		shiftType: 'DIURNA',
+		createdAt: timestamp,
+		updatedAt: timestamp,
+		...overrides,
+	};
+}
+
 vi.mock('next/navigation', () => ({
 	useRouter: () => ({
 		push: vi.fn(),
@@ -67,11 +142,11 @@ vi.mock('@/lib/client-functions', async (importOriginal) => {
 	return {
 		...actual,
 		fetchAttendanceRecords: (...args: unknown[]) => mockFetchAttendanceRecords(...args),
+		fetchEmployeeById: (...args: unknown[]) => mockFetchEmployeeById(...args),
+		fetchEmployeesList: (...args: unknown[]) => mockFetchEmployeesList(...args),
 		fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
-		fetchEmployeesList: vi.fn().mockResolvedValue({
-			data: [],
-			pagination: { total: 0, limit: 100, offset: 0 },
-		}),
+		fetchServerTime: (...args: unknown[]) => mockFetchServerTime(...args),
+		fetchVacationRequestsList: (...args: unknown[]) => mockFetchVacationRequestsList(...args),
 	};
 });
 
@@ -132,7 +207,11 @@ describe('AttendancePageClient', () => {
 		URL.revokeObjectURL = vi.fn();
 		HTMLAnchorElement.prototype.click = vi.fn();
 		mockFetchAttendanceRecords.mockReset();
+		mockFetchEmployeeById.mockReset();
+		mockFetchEmployeesList.mockReset();
 		mockFetchLocationsList.mockReset();
+		mockFetchServerTime.mockReset();
+		mockFetchVacationRequestsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
 		mockToastError.mockReset();
 		expectedPdfBytes = null;
@@ -152,6 +231,16 @@ describe('AttendancePageClient', () => {
 			data: [],
 			pagination: { total: 0, limit: 100, offset: 0 },
 		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [],
+			pagination: { total: 0, limit: 100, offset: 0 },
+		});
+		mockFetchEmployeeById.mockResolvedValue(null);
+		mockFetchServerTime.mockResolvedValue(new Date('2026-04-24T16:30:00.000Z'));
+		mockFetchVacationRequestsList.mockResolvedValue({
+			data: [],
+			pagination: { total: 0, limit: 100, offset: 0 },
+		});
 	});
 
 	afterEach(() => {
@@ -163,6 +252,7 @@ describe('AttendancePageClient', () => {
 		URL.createObjectURL = originalCreateObjectURL;
 		URL.revokeObjectURL = originalRevokeObjectURL;
 		HTMLAnchorElement.prototype.click = originalAnchorClick;
+		restoreDate();
 		vi.restoreAllMocks();
 	});
 
@@ -735,6 +825,711 @@ describe('AttendancePageClient', () => {
 					},
 					totalLabel: 'Total',
 				},
+			}),
+		);
+	});
+
+	it('uses bulk list schedules during export without fetching every employee detail', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [
+						{
+							dayOfWeek: 5,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: true,
+						},
+						{
+							dayOfWeek: 6,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: false,
+						},
+					],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+			expect(anchorClickSpy).toHaveBeenCalled();
+		});
+
+		expect(mockFetchEmployeesList).toHaveBeenCalledWith(
+			expect.objectContaining({
+				organizationId: 'org-1',
+				includeSchedule: true,
+				limit: 100,
+				offset: 0,
+			}),
+		);
+		expect(mockFetchEmployeesList).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: 'ACTIVE',
+				includeSchedule: true,
+			}),
+		);
+		expect(mockFetchEmployeeById).not.toHaveBeenCalled();
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								day: '24/04/2026',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('resolves payroll cutoff virtual rows with server time instead of browser time', async () => {
+		freezeDate('2026-04-24T15:30:00.000Z');
+		mockFetchServerTime.mockResolvedValue(new Date('2026-04-24T16:30:00.000Z'));
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [
+						{
+							dayOfWeek: 5,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: true,
+						},
+					],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-24',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockFetchServerTime).toHaveBeenCalledTimes(1);
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								day: '24/04/2026',
+								lastExit: 'Asistencia por nómina',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('keeps virtual rows under a device-location export when the employee is assigned elsewhere', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+		HTMLElement.prototype.scrollIntoView = vi.fn();
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchLocationsList.mockResolvedValue({
+			data: [
+				{
+					id: 'location-1',
+					name: 'Oficina principal',
+					code: 'HQ',
+					address: null,
+					latitude: null,
+					longitude: null,
+					organizationId: 'org-1',
+					geographicZone: 'GENERAL',
+					timeZone: 'America/Mexico_City',
+					createdAt: new Date('2026-01-01T00:00:00.000Z'),
+					updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					id: 'EMP-001',
+					locationId: 'location-2',
+				}),
+				buildEmployee({
+					id: 'EMP-002',
+					code: 'EMP-002',
+					firstName: 'Grace',
+					lastName: 'Hopper',
+					locationId: 'location-2',
+				}),
+			],
+			pagination: { total: 2, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Ubicación' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Oficina principal' }));
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					deviceLocationId: 'location-1',
+				}),
+			);
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						employeeName: 'Ada Lovelace',
+						rows: [
+							expect.objectContaining({
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it.each([
+		{ searchTerm: 'ada', label: 'name' },
+		{ searchTerm: 'SEN-104', label: 'code' },
+	])(
+		'keeps virtual export rows when a search matches the employee $label',
+		async ({ searchTerm }) => {
+			freezeDate('2026-04-24T16:30:00.000Z');
+			mockFetchAttendanceRecords.mockResolvedValue({
+				data: [
+					{
+						id: 'attendance-1',
+						employeeId: 'employee-uuid-1',
+						employeeName: 'Ada Lovelace',
+						deviceId: 'device-1',
+						deviceLocationId: 'location-1',
+						deviceLocationName: 'Oficina principal',
+						timestamp: new Date('2026-04-24T15:00:00.000Z'),
+						type: 'CHECK_IN' as const,
+						metadata: null,
+						createdAt: new Date('2026-04-24T15:00:00.000Z'),
+						updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+					},
+				],
+				pagination: { total: 1, limit: 10, offset: 0 },
+			});
+			mockFetchEmployeesList.mockResolvedValue({
+				data: [
+					buildEmployee({
+						id: 'employee-uuid-1',
+						code: 'SEN-104',
+						firstName: 'Ada',
+						lastName: 'Lovelace',
+					}),
+					buildEmployee({
+						id: 'employee-uuid-2',
+						code: 'SEN-205',
+						firstName: 'Grace',
+						lastName: 'Hopper',
+					}),
+				],
+				pagination: { total: 2, limit: 100, offset: 0 },
+			});
+
+			renderAttendanceClient({
+				organizationTimeZone: 'America/Mexico_City',
+				initialFilters: {
+					from: '2026-04-24',
+					to: '2026-04-25',
+				},
+			});
+
+			await waitFor(() => {
+				expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+			});
+
+			fireEvent.change(screen.getByLabelText('Buscar empleado'), {
+				target: { value: searchTerm },
+			});
+
+			const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+			await waitFor(() => {
+				expect(exportButton).toBeEnabled();
+			});
+
+			fireEvent.click(exportButton);
+
+			await waitFor(() => {
+				expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+			});
+
+			expect(mockFetchEmployeesList).toHaveBeenCalledWith(
+				expect.objectContaining({
+					search: searchTerm,
+				}),
+			);
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+				expect.objectContaining({
+					groups: [
+						expect.objectContaining({
+							employeeName: 'Ada Lovelace',
+							rows: [
+								expect.objectContaining({
+									totalHours: '08:00',
+								}),
+							],
+						}),
+					],
+				}),
+			);
+		},
+	);
+
+	it('does not create selected-employee virtual rows when search does not match the employee', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'employee-uuid-1',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeeById.mockResolvedValue(
+			buildEmployee({
+				id: 'employee-uuid-1',
+				code: 'SEN-104',
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+			}),
+		);
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+				employeeId: 'employee-uuid-1',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		fireEvent.change(screen.getByLabelText('Buscar empleado'), {
+			target: { value: 'grace' },
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						employeeName: 'Ada Lovelace',
+						rows: [
+							expect.objectContaining({
+								totalHours: 'Incompleto',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('does not create cutoff virtual rows when an employee has no schedule', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								totalHours: 'Incompleto',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('does not create cutoff virtual rows for inactive employees without real attendance', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		const anchorClickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, 'click')
+			.mockImplementation(() => undefined);
+
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-active',
+					employeeId: 'EMP-ACTIVE',
+					employeeName: 'Ada Activa',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					id: 'EMP-INACTIVE',
+					firstName: 'Tomas',
+					lastName: 'Terminado',
+					status: 'INACTIVE',
+					schedule: [
+						{
+							dayOfWeek: 5,
+							startTime: '08:00',
+							endTime: '16:00',
+							isWorkingDay: true,
+						},
+					],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: expect.not.arrayContaining([
+					expect.objectContaining({
+						employeeId: 'EMP-INACTIVE',
+					}),
+				]),
+			}),
+		);
+		expect(anchorClickSpy).toHaveBeenCalled();
+	});
+
+	it('keeps approved vacation virtual rows when an employee has no schedule', async () => {
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					status: 'INACTIVE',
+					schedule: [],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+		mockFetchVacationRequestsList.mockResolvedValue({
+			data: [
+				{
+					id: 'vacation-1',
+					organizationId: 'org-1',
+					employeeId: 'EMP-001',
+					requestedByUserId: null,
+					status: 'APPROVED',
+					startDateKey: '2026-04-24',
+					endDateKey: '2026-04-24',
+					requestedNotes: null,
+					decisionNotes: null,
+					approvedByUserId: 'user-1',
+					approvedAt: new Date('2026-04-20T15:00:00.000Z'),
+					rejectedByUserId: null,
+					rejectedAt: null,
+					cancelledByUserId: null,
+					cancelledAt: null,
+					createdAt: new Date('2026-04-20T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-20T15:00:00.000Z'),
+					employeeName: 'Ada',
+					employeeLastName: 'Lovelace',
+					days: [
+						{
+							dateKey: '2026-04-24',
+							countsAsVacationDay: true,
+							dayType: 'SCHEDULED_WORKDAY',
+							serviceYearNumber: 1,
+						},
+					],
+					summary: {
+						totalDays: 1,
+						vacationDays: 1,
+					},
+				},
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-24',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								firstEntry: 'Vacaciones',
+								lastExit: 'Vacaciones',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
 			}),
 		);
 	});

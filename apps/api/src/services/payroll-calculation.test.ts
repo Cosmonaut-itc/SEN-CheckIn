@@ -11,6 +11,7 @@ import {
 import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
+	resolvePayrollCutoffAssumedDateKeys,
 	type AttendanceRow,
 	type CalculatePayrollFromDataArgs,
 	type OvertimeAuthorizationRow,
@@ -2952,6 +2953,92 @@ describe('payroll-calculation mexico taxes', () => {
 		});
 	});
 
+	describe('payroll cutoff assumed attendance', () => {
+		const employeeId = 'emp-cutoff-1';
+		const employee: PayrollEmployeeRow = {
+			id: employeeId,
+			firstName: 'Carlos',
+			lastName: 'Corte',
+			dailyPay: 800,
+			paymentFrequency: 'WEEKLY',
+			shiftType: 'DIURNA',
+			locationGeographicZone: 'GENERAL',
+			locationTimeZone: timeZone,
+		};
+		const periodStartDateKey = '2026-04-20';
+		const periodEndDateKey = '2026-04-26';
+		const periodBounds = getPayrollPeriodBounds({
+			periodStartDateKey,
+			periodEndDateKey,
+			timeZone,
+		});
+
+		it('resolves Friday and Saturday only after the Friday 10:00 payroll cutoff inside the current period', () => {
+			expect(
+				resolvePayrollCutoffAssumedDateKeys({
+					now: getUtcDateForZonedTime('2026-04-24', 9, 59, timeZone),
+					periodStartDateKey,
+					periodEndDateKey,
+					timeZone,
+				}),
+			).toEqual([]);
+
+			expect(
+				resolvePayrollCutoffAssumedDateKeys({
+					now: getUtcDateForZonedTime('2026-04-24', 10, 0, timeZone),
+					periodStartDateKey,
+					periodEndDateKey,
+					timeZone,
+				}),
+			).toEqual(['2026-04-24', '2026-04-25']);
+
+			expect(
+				resolvePayrollCutoffAssumedDateKeys({
+					now: getUtcDateForZonedTime('2026-05-01', 10, 0, timeZone),
+					periodStartDateKey,
+					periodEndDateKey,
+					timeZone,
+				}),
+			).toEqual([]);
+		});
+
+		it('adds assumed Friday and Saturday hours without duplicating vacation days', () => {
+			const { employees: results } = calculatePayrollFromData({
+				employees: [employee],
+				schedules: buildScheduleForWorkingDays(employeeId, [1, 2, 3, 4, 5, 6]),
+				attendanceRows: buildAttendanceForDateKeys(
+					employeeId,
+					['2026-04-20', '2026-04-21', '2026-04-22', '2026-04-23'],
+					timeZone,
+				),
+				periodStartDateKey,
+				periodEndDateKey,
+				periodBounds,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				defaultTimeZone: timeZone,
+				assumedAttendanceDateKeys: {
+					[employeeId]: ['2026-04-24', '2026-04-25'],
+				},
+				vacationDateKeysByEmployee: {
+					[employeeId]: ['2026-04-24'],
+				},
+				vacationDayCounts: {
+					[employeeId]: 1,
+				},
+			});
+
+			const row = results[0];
+			expect(row?.hoursWorked).toBe(40);
+			expect(row?.normalHours).toBe(40);
+			expect(row?.vacationDaysPaid).toBe(1);
+			expect(row?.vacationPayAmount).toBe(800);
+			expect(row?.assumedAttendanceDateKeys).toEqual(['2026-04-25']);
+		});
+
+	});
+
 	it('ensures fiscal invariants are preserved', () => {
 		const { employees: results } = calculatePayrollFromData({
 			...baseArgs,
@@ -3876,7 +3963,9 @@ describe('payroll-calculation mexico taxes', () => {
 			const expectedFiscalNet = Number(
 				(dualEnabled.fiscalGrossPay - dualEnabled.employeeWithholdings.total).toFixed(2),
 			);
-			const expectedNetPay = Number((dualEnabled.totalRealPay - expectedFiscalNet).toFixed(2));
+			const expectedNetPay = Number(
+				(dualEnabled.totalRealPay - expectedFiscalNet).toFixed(2),
+			);
 
 			expect(dualEnabled.deductionsBreakdown[0]).toMatchObject({
 				calculationMethod: 'FIXED_AMOUNT',

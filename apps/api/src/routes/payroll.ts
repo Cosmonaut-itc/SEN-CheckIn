@@ -35,6 +35,7 @@ import {
 	type EmployeeDeductionRow,
 	type EmployeeGratificationRow,
 	getPayrollPeriodBounds,
+	resolvePayrollCutoffAssumedDateKeys,
 	type AttendanceRow,
 	type OvertimeAuthorizationRow,
 	type PayrollCalculationRow,
@@ -95,9 +96,7 @@ const PAYROLL_GRATIFICATION_STATE_CONFLICT_ERROR = 'PAYROLL_GRATIFICATION_STATE_
  * @param value - Remaining amount from the calculation or database row
  * @returns Comparable persisted string value
  */
-function normalizeDeductionAmount(
-	value: number | string | null | undefined,
-): string | null {
+function normalizeDeductionAmount(value: number | string | null | undefined): string | null {
 	if (value === null || value === undefined) {
 		return null;
 	}
@@ -112,9 +111,7 @@ function normalizeDeductionAmount(
  * @param value - Gratification amount from the calculation or database row
  * @returns Comparable persisted string value
  */
-function normalizeGratificationAmount(
-	value: number | string | null | undefined,
-): string | null {
+function normalizeGratificationAmount(value: number | string | null | undefined): string | null {
 	if (value === null || value === undefined) {
 		return null;
 	}
@@ -215,15 +212,16 @@ function sanitizeDualPayrollEmployees<T extends DualPayrollCompensationShape>(
 	employees: T[],
 	includeDualPayrollCompensation: boolean,
 ): Array<
-	T | Omit<
-		T,
-		| 'fiscalDailyPay'
-		| 'fiscalGrossPay'
-		| 'complementPay'
-		| 'totalRealPay'
-		| 'realVacationPayAmount'
-		| 'realVacationPremiumAmount'
-	>
+	| T
+	| Omit<
+			T,
+			| 'fiscalDailyPay'
+			| 'fiscalGrossPay'
+			| 'complementPay'
+			| 'totalRealPay'
+			| 'realVacationPayAmount'
+			| 'realVacationPremiumAmount'
+	  >
 > {
 	return includeDualPayrollCompensation
 		? employees
@@ -379,9 +377,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		realVacationPremiumRate: Number(
-			orgSettings[0]?.realVacationPremiumRate ??
-				orgSettings[0]?.vacationPremiumRate ??
-				0.25,
+			orgSettings[0]?.realVacationPremiumRate ?? orgSettings[0]?.vacationPremiumRate ?? 0.25,
 		),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
 		enableDualPayroll: Boolean(orgSettings[0]?.enableDualPayroll ?? false),
@@ -414,6 +410,7 @@ const calculatePayroll = async (args: {
 			jobPositionId: employee.jobPositionId,
 			lastPayrollDate: employee.lastPayrollDate,
 			hireDate: employee.hireDate,
+			status: employee.status,
 			sbcDailyOverride: employee.sbcDailyOverride,
 			aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 			dailyPay: employee.dailyPay,
@@ -477,6 +474,7 @@ const calculatePayroll = async (args: {
 			: await db
 					.select({
 						employeeId: vacationRequestDay.employeeId,
+						dateKey: vacationRequestDay.dateKey,
 					})
 					.from(vacationRequestDay)
 					.leftJoin(vacationRequest, eq(vacationRequestDay.requestId, vacationRequest.id))
@@ -492,9 +490,27 @@ const calculatePayroll = async (args: {
 					);
 
 	const vacationDayCounts: Record<string, number> = {};
+	const vacationDateKeysByEmployee: Record<string, string[]> = {};
 	for (const row of vacationDayRows) {
 		vacationDayCounts[row.employeeId] = (vacationDayCounts[row.employeeId] ?? 0) + 1;
+		vacationDateKeysByEmployee[row.employeeId] = [
+			...(vacationDateKeysByEmployee[row.employeeId] ?? []),
+			row.dateKey,
+		];
 	}
+
+	const payrollCutoffDateKeys = resolvePayrollCutoffAssumedDateKeys({
+		now: new Date(),
+		periodStartDateKey,
+		periodEndDateKey,
+		timeZone,
+	});
+	const assumedAttendanceDateKeys = Object.fromEntries(
+		filteredEmployees.map((employeeRow) => [
+			employeeRow.id,
+			employeeRow.status === 'ACTIVE' ? payrollCutoffDateKeys : [],
+		]),
+	);
 
 	const payableVacationRequestRows =
 		employeeIds.length === 0 || !payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay
@@ -573,10 +589,12 @@ const calculatePayroll = async (args: {
 					payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay,
 				periodStartDateKey,
 				periodEndDateKey,
-				scheduleDays: (schedulesByEmployeeId.get(employeeRow.id) ?? []).map((scheduleRow) => ({
-					dayOfWeek: scheduleRow.dayOfWeek,
-					isWorkingDay: scheduleRow.isWorkingDay,
-				})),
+				scheduleDays: (schedulesByEmployeeId.get(employeeRow.id) ?? []).map(
+					(scheduleRow) => ({
+						dayOfWeek: scheduleRow.dayOfWeek,
+						isWorkingDay: scheduleRow.isWorkingDay,
+					}),
+				),
 				vacationPeriods: approvedVacationPeriodsByEmployeeId.get(employeeRow.id) ?? [],
 			});
 
@@ -684,8 +702,8 @@ const calculatePayroll = async (args: {
 								isNull(employeeDeduction.endDateKey),
 								gte(employeeDeduction.endDateKey, periodStartDateKey),
 							),
-					),
-			);
+						),
+					);
 
 	const employeeGratificationRows: EmployeeGratificationRow[] =
 		employeeIds.length === 0
@@ -738,6 +756,8 @@ const calculatePayroll = async (args: {
 		defaultTimeZone: timeZone,
 		payrollSettings: payrollSettingsSnapshot,
 		vacationDayCounts,
+		vacationDateKeysByEmployee,
+		assumedAttendanceDateKeys,
 		saturdayVacationBonusDays,
 		incapacityRecordsByEmployee,
 	});
@@ -885,21 +905,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
-				const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
-					authType,
-					organizationId,
-					session: session ?? null,
-				});
-				const sanitizedCalculation = {
-					...calculation,
-					employees: sanitizeDualPayrollEmployees(
-						calculation.employees,
-						includeDualPayrollCompensation,
-					),
-					payrollSettingsSnapshot: includeDualPayrollCompensation
-						? calculation.payrollSettingsSnapshot
-						: sanitizeDualPayrollSettingsSnapshot(calculation.payrollSettingsSnapshot),
-				};
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
+			const sanitizedCalculation = {
+				...calculation,
+				employees: sanitizeDualPayrollEmployees(
+					calculation.employees,
+					includeDualPayrollCompensation,
+				),
+				payrollSettingsSnapshot: includeDualPayrollCompensation
+					? calculation.payrollSettingsSnapshot
+					: sanitizeDualPayrollSettingsSnapshot(calculation.payrollSettingsSnapshot),
+			};
 
 			const hasBlockingWarnings =
 				calculation.overtimeEnforcement === 'BLOCK' &&
@@ -916,15 +936,16 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 			}
 
-			const deductionUpdates: PendingPayrollDeductionUpdate[] =
-				calculation.employees.flatMap((row) =>
+			const deductionUpdates: PendingPayrollDeductionUpdate[] = calculation.employees.flatMap(
+				(row) =>
 					row.deductionsBreakdown
 						.filter((item) => item.appliedAmount > 0)
 						.map((item) => ({
 							deductionId: item.deductionId,
 							shouldPersistStateChange:
 								item.statusAfter !== item.statusBefore ||
-								item.completedInstallmentsAfter !== item.completedInstallmentsBefore ||
+								item.completedInstallmentsAfter !==
+									item.completedInstallmentsBefore ||
 								item.remainingAmountAfter !== item.remainingAmountBefore,
 							status: item.statusAfter,
 							completedInstallments: item.completedInstallmentsAfter,
@@ -942,7 +963,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							previousStartDateKey: item.sourceStartDateKey,
 							previousEndDateKey: item.sourceEndDateKey,
 						})),
-				);
+			);
 			const gratificationUpdates: PendingPayrollGratificationUpdate[] =
 				calculation.employees.flatMap((row) =>
 					row.gratificationsBreakdown
@@ -952,7 +973,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							shouldPersistStateChange: item.statusAfter !== item.statusBefore,
 							status: item.statusAfter,
 							previousStatus: item.statusBefore,
-							previousAmount: normalizeGratificationAmount(item.sourceAmount) ?? '0.00',
+							previousAmount:
+								normalizeGratificationAmount(item.sourceAmount) ?? '0.00',
 							previousPeriodicity: item.periodicity,
 							previousApplicationMode: item.applicationMode,
 							previousStartDateKey: item.sourceStartDateKey,
@@ -1038,7 +1060,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 									eq(employeeGratification.organizationId, organizationId),
 									inArray(
 										employeeGratification.id,
-										gratificationUpdates.map((update) => update.gratificationId),
+										gratificationUpdates.map(
+											(update) => update.gratificationId,
+										),
 									),
 								),
 							);
@@ -1058,7 +1082,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								normalizeGratificationAmount(currentGratification.amount) !==
 									update.previousAmount ||
 								currentGratification.periodicity !== update.previousPeriodicity ||
-								currentGratification.applicationMode !== update.previousApplicationMode ||
+								currentGratification.applicationMode !==
+									update.previousApplicationMode ||
 								currentGratification.startDateKey !== update.previousStartDateKey ||
 								currentGratification.endDateKey !== update.previousEndDateKey
 							);
@@ -1130,7 +1155,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							taxBreakdown: {
 								grossPay:
 									row.fiscalGrossPay === null
-										? roundCurrency(Math.max(row.grossPay - row.totalGratifications, 0))
+										? roundCurrency(
+												Math.max(row.grossPay - row.totalGratifications, 0),
+											)
 										: row.fiscalGrossPay,
 								seventhDayPay: row.seventhDayPay,
 								realCompensation: {
@@ -1184,7 +1211,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 											employeeDeduction.totalAmount,
 											deductionUpdate.previousTotalAmount,
 										),
-								eq(employeeDeduction.startDateKey, deductionUpdate.previousStartDateKey),
+								eq(
+									employeeDeduction.startDateKey,
+									deductionUpdate.previousStartDateKey,
+								),
 								deductionUpdate.previousEndDateKey === null
 									? isNull(employeeDeduction.endDateKey)
 									: eq(
@@ -1196,8 +1226,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								.update(employeeDeduction)
 								.set({
 									status: deductionUpdate.status,
-									completedInstallments:
-										deductionUpdate.completedInstallments,
+									completedInstallments: deductionUpdate.completedInstallments,
 									remainingAmount: deductionUpdate.remainingAmount,
 								})
 								.where(
@@ -1217,8 +1246,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							(update) => update.shouldPersistStateChange,
 						)) {
 							const previousStateConditions = [
-								eq(employeeGratification.status, gratificationUpdate.previousStatus),
-								eq(employeeGratification.amount, gratificationUpdate.previousAmount),
+								eq(
+									employeeGratification.status,
+									gratificationUpdate.previousStatus,
+								),
+								eq(
+									employeeGratification.amount,
+									gratificationUpdate.previousAmount,
+								),
 								eq(
 									employeeGratification.periodicity,
 									gratificationUpdate.previousPeriodicity,
@@ -1245,7 +1280,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								})
 								.where(
 									and(
-										eq(employeeGratification.id, gratificationUpdate.gratificationId),
+										eq(
+											employeeGratification.id,
+											gratificationUpdate.gratificationId,
+										),
 										eq(employeeGratification.organizationId, organizationId),
 										...previousStateConditions,
 									),
@@ -1322,21 +1360,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				throw error;
 			}
 
-				const sanitizedRun =
-					includeDualPayrollCompensation || !runResult
-						? runResult
-						: sanitizeDualPayrollRun(
-								runResult as typeof runResult & {
-									taxSummary?: Record<string, unknown> | null;
-								},
-							);
+			const sanitizedRun =
+				includeDualPayrollCompensation || !runResult
+					? runResult
+					: sanitizeDualPayrollRun(
+							runResult as typeof runResult & {
+								taxSummary?: Record<string, unknown> | null;
+							},
+						);
 
-				return { data: { run: sanitizedRun, calculation: sanitizedCalculation } };
-			},
-			{
-				body: payrollProcessSchema,
-			},
-		)
+			return { data: { run: sanitizedRun, calculation: sanitizedCalculation } };
+		},
+		{
+			body: payrollProcessSchema,
+		},
+	)
 	/**
 	 * List payroll runs.
 	 */
@@ -1569,5 +1607,5 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					employees,
 				},
 			};
-			},
-		);
+		},
+	);

@@ -39,6 +39,7 @@ import { schedulingRoutes } from './routes/scheduling.js';
 import { tourRoutes } from './routes/tours.js';
 import { vacationRoutes } from './routes/vacations.js';
 import { internalHolidayRoutes } from './routes/internal-holidays.js';
+import { serverTimeRoutes } from './routes/server-time.js';
 import { weatherRoutes } from './routes/weather.js';
 /**
  * BetterAuth view handler for authentication endpoints.
@@ -146,6 +147,7 @@ export const createApp = () => {
 			// Public authentication routes (sign-in, sign-up, etc.)
 			.all('/api/auth/*', betterAuthView)
 			.use(internalHolidayRoutes)
+			.use(serverTimeRoutes)
 			.use(recognitionRoutes)
 			// All protected routes (require authentication)
 			.use(createProtectedRoutes())

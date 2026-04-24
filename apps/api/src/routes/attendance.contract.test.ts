@@ -275,6 +275,58 @@ describe('attendance routes (contract)', () => {
 		}
 	});
 
+	it('searches attendance records by employee name and code', async () => {
+		const uniqueSuffix = randomUUID().slice(0, 8);
+		const employeeCode = `ATT-${uniqueSuffix}`;
+		const createEmployeeResponse = await client.employees.post({
+			code: employeeCode,
+			firstName: 'Busqueda',
+			lastName: 'Asistencia',
+			email: `busqueda.asistencia.${uniqueSuffix}@example.com`,
+			phone: '+52 55 0000 0001',
+			jobPositionId: seed.jobPositionId,
+			locationId: seed.locationId,
+			organizationId: seed.organizationId,
+			scheduleTemplateId: seed.scheduleTemplateId,
+			status: 'ACTIVE',
+			dailyPay: 500,
+			paymentFrequency: 'BIWEEKLY',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createEmployeeResponse.status).toBe(201);
+		const createEmployeePayload = requireResponseData(createEmployeeResponse);
+		const createdEmployee = createEmployeePayload.data;
+		if (!createdEmployee?.id) {
+			throw new Error('Expected employee record in create response.');
+		}
+
+		const createAttendanceResponse = await client.attendance.post({
+			employeeId: createdEmployee.id,
+			deviceId: seed.deviceId,
+			timestamp: new Date(),
+			type: 'CHECK_IN',
+			$headers: { cookie: adminSession.cookieHeader },
+		});
+
+		expect(createAttendanceResponse.status).toBe(201);
+
+		for (const searchTerm of ['busqueda', employeeCode.toLowerCase()]) {
+			const response = await client.attendance.get({
+				$headers: { cookie: adminSession.cookieHeader },
+				$query: { limit: 50, offset: 0, search: searchTerm },
+			});
+
+			expect(response.status).toBe(200);
+			const payload = requireResponseData(response);
+			expect(
+				(payload.data as Array<{ employeeId?: string }>).some(
+					(row) => row.employeeId === createdEmployee.id,
+				),
+			).toBe(true);
+		}
+	});
+
 	it('returns present attendance entries for a date range', async () => {
 		const response = await client.attendance.present.get({
 			$headers: { cookie: adminSession.cookieHeader },

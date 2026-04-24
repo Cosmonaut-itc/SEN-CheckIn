@@ -194,6 +194,19 @@ describe('buildPayrollCsvEmployeeRow', () => {
 
 		expect(row.totalGratifications).toBe(750);
 	});
+
+	it('exports assumed attendance date keys for payroll cutoff audit', () => {
+		const row = buildPayrollCsvEmployeeRow({
+			row: buildEmployee({
+				assumedAttendanceDateKeys: ['2026-04-24', '2026-04-25'],
+			}),
+			periodStartDateKey: '2026-04-20',
+			periodEndDateKey: '2026-04-26',
+			t,
+		});
+
+		expect(row.assumedAttendanceDateKeys).toBe('2026-04-24 | 2026-04-25');
+	});
 });
 
 describe('buildPayrollCsvSummaryRow', () => {

@@ -46,3 +46,22 @@ describe('app CORS configuration', () => {
 		expect(exposeHeaders.toLowerCase()).toContain('server-timing');
 	});
 });
+
+describe('app server time route', () => {
+	it('returns the API server clock as an ISO timestamp', async () => {
+		const { serverTimeRoutes } = await import('./routes/server-time.js');
+		const before = Date.now();
+
+		const response = await serverTimeRoutes.handle(new Request('http://localhost/server-time'));
+		const after = Date.now();
+		const payload = (await response.json()) as { data?: { now?: unknown } };
+		const parsedNow =
+			typeof payload.data?.now === 'string' ? Date.parse(payload.data.now) : Number.NaN;
+
+		expect(response.status).toBe(200);
+		expect(typeof payload.data?.now).toBe('string');
+		expect(Number.isNaN(parsedNow)).toBe(false);
+		expect(parsedNow).toBeGreaterThanOrEqual(before);
+		expect(parsedNow).toBeLessThanOrEqual(after);
+	});
+});

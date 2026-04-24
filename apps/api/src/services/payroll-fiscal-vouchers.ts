@@ -8,6 +8,10 @@ import type {
 	PayrollInformationalLines,
 } from './mexico-payroll-taxes.js';
 
+/**
+ * `READY_TO_STAMP` only means the internal pre-stamping checks passed. It does
+ * not mean a CFDI XML was generated, sealed, validated, or accepted by PAC/SAT.
+ */
 export type PayrollFiscalVoucherValidationStatus = 'READY_TO_STAMP' | 'BLOCKED';
 
 export type PayrollFiscalVoucherValidationIssueCode =
@@ -25,6 +29,8 @@ export type PayrollFiscalVoucherValidationIssueCode =
 	| 'PERCEPTION_SAT_CODE_REQUIRED'
 	| 'PERCEPTION_AMOUNT_INVALID'
 	| 'DEDUCTION_SAT_CODE_REQUIRED'
+	| 'INFORMATIONAL_LINES_INVALID'
+	| 'DEDUCTION_BREAKDOWN_INVALID'
 	| 'NET_PAY_TOTAL_MISMATCH';
 
 export interface PayrollFiscalVoucherValidationIssue {
@@ -132,6 +138,11 @@ export interface PayrollFiscalVoucher {
 	realPayrollComplementPay: number | null;
 }
 
+export type PayrollFiscalVoucherForStamping = Omit<
+	PayrollFiscalVoucher,
+	'realPayrollComplementPay'
+>;
+
 export interface BuildPayrollFiscalVoucherArgs {
 	row: PayrollCalculationRow;
 	payrollRunId: string;
@@ -148,7 +159,7 @@ const SAT_PERCEPTION_SALARY_CODE = '001';
 const SAT_DEDUCTION_IMSS_CODE = '001';
 const SAT_DEDUCTION_ISR_CODE = '002';
 const SAT_OTHER_PAYMENT_SUBSIDY_CODE = '002';
-const SAT_SUBSIDY_EMPLOYMENT_TECHNICAL_AMOUNT = 0.01;
+const SAT_OTHER_PAYMENT_SUBSIDY_AMOUNT = 0;
 
 /**
  * Checks whether a value has non-whitespace text.
@@ -193,6 +204,8 @@ function resolveFiscalGrossPay(row: PayrollCalculationRow): number {
  * @returns Fiscal perception line
  */
 function buildFiscalGrossPerception(amount: number): PayrollFiscalPerceptionLine {
+	// Temporary pre-stamping aggregate. Do not use this as the final CFDI XML
+	// perception source. Phase 3 must preserve employer Clave/Concepto detail.
 	return {
 		internalType: 'FISCAL_GROSS_PAY',
 		satTypeCode: SAT_PERCEPTION_SALARY_CODE,
@@ -287,9 +300,7 @@ function buildUnmappedDeductionLines(
 function buildOtherPaymentLines(
 	informationalLines: PayrollInformationalLines,
 ): PayrollFiscalOtherPaymentLine[] {
-	const subsidyCaused = roundCurrency(
-		informationalLines.subsidyCaused ?? informationalLines.subsidyApplied,
-	);
+	const subsidyCaused = roundCurrency(informationalLines.subsidyCaused);
 	if (subsidyCaused <= 0) {
 		return [];
 	}
@@ -300,11 +311,26 @@ function buildOtherPaymentLines(
 			satTypeCode: SAT_OTHER_PAYMENT_SUBSIDY_CODE,
 			internalCode: 'SUBSIDY_APPLIED',
 			description:
-				'Subsidio para el empleo del Decreto que otorga el subsidio para el empleo',
-			amount: SAT_SUBSIDY_EMPLOYMENT_TECHNICAL_AMOUNT,
+				'Subsidio para el empleo del Decreto que otorga el subsidio para el empleo (DOF 1 de mayo de 2024)',
+			amount: SAT_OTHER_PAYMENT_SUBSIDY_AMOUNT,
 			subsidyCausedAmount: subsidyCaused,
 		},
 	];
+}
+
+/**
+ * Removes internal dual-payroll audit fields before a voucher is used as a
+ * fiscal stamping payload.
+ *
+ * @param voucher - Full internal fiscal voucher snapshot
+ * @returns Voucher payload without real-payroll complement fields
+ */
+export function toFiscalStampingPayload(
+	voucher: PayrollFiscalVoucher,
+): PayrollFiscalVoucherForStamping {
+	return Object.fromEntries(
+		Object.entries(voucher).filter(([key]) => key !== 'realPayrollComplementPay'),
+	) as PayrollFiscalVoucherForStamping;
 }
 
 /**
@@ -388,7 +414,9 @@ export function validatePayrollFiscalVoucher(
 		);
 	}
 	if (!hasText(voucher.receiver.rfc)) {
-		errors.push(createIssue('RECEIVER_RFC_REQUIRED', 'receiver.rfc', 'Receiver RFC is required.'));
+		errors.push(
+			createIssue('RECEIVER_RFC_REQUIRED', 'receiver.rfc', 'Receiver RFC is required.'),
+		);
 	}
 	if (!hasText(voucher.receiver.curp)) {
 		errors.push(
@@ -396,7 +424,9 @@ export function validatePayrollFiscalVoucher(
 		);
 	}
 	if (!hasText(voucher.receiver.nss)) {
-		errors.push(createIssue('RECEIVER_NSS_REQUIRED', 'receiver.nss', 'Receiver NSS is required.'));
+		errors.push(
+			createIssue('RECEIVER_NSS_REQUIRED', 'receiver.nss', 'Receiver NSS is required.'),
+		);
 	}
 	if (!hasText(voucher.receiver.fiscalRegime)) {
 		errors.push(

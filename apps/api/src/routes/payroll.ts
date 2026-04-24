@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia';
 import crypto from 'node:crypto';
-import { and, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNull, lte, or, sql } from 'drizzle-orm';
 import { addDays, isBefore } from 'date-fns';
 
 import db from '../db/index.js';
@@ -53,7 +53,7 @@ import { countSaturdayBonusDaysForPeriod } from '../services/vacations.js';
 import {
 	buildPayrollFiscalVoucherFromCalculationRow,
 	validatePayrollFiscalVoucher,
-	type PayrollFiscalVoucher,
+	type PayrollFiscalVoucherValidationIssue,
 	type PayrollFiscalVoucherValidationStatus,
 } from '../services/payroll-fiscal-vouchers.js';
 import type {
@@ -355,9 +355,13 @@ type PayrollRunEmployeeFiscalSource = {
 	totalPay: string | number;
 	fiscalGrossPay: string | number | null;
 	complementPay: string | number | null;
-	deductionsBreakdown: Record<string, unknown>[];
+	deductionsBreakdown: unknown;
 	taxBreakdown: Record<string, unknown> | null;
 };
+
+type PayrollFiscalVoucherSourceParseResult<TValue> =
+	| { ok: true; value: TValue; issues: [] }
+	| { ok: false; value: TValue; issues: PayrollFiscalVoucherValidationIssue[] };
 
 const ZERO_EMPLOYEE_WITHHOLDINGS: PayrollEmployeeWithholdings = {
 	imssEmployee: {
@@ -401,6 +405,32 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 function toFiniteNumber(value: unknown, fallback = 0): number {
 	const numericValue = Number(value);
 	return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+/**
+ * Reads a finite number without coercing invalid values into usable data.
+ *
+ * @param value - Unknown persisted value
+ * @returns Finite numeric value or null
+ */
+function readFiniteNumber(value: unknown): number | null {
+	return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * Creates a validation issue object for fiscal voucher source parsing.
+ *
+ * @param code - Stable issue code
+ * @param field - Field path associated with the issue
+ * @param message - Human-readable issue description
+ * @returns Validation issue
+ */
+function createFiscalVoucherSourceIssue(
+	code: PayrollFiscalVoucherValidationIssue['code'],
+	field: string,
+	message: string,
+): PayrollFiscalVoucherValidationIssue {
+	return { code, field, message };
 }
 
 /**
@@ -465,18 +495,234 @@ function resolveEmployeeWithholdings(
  */
 function resolveInformationalLines(
 	taxBreakdown: Record<string, unknown> | null,
-): PayrollInformationalLines {
+): PayrollFiscalVoucherSourceParseResult<PayrollInformationalLines> {
 	const informationalLines = asRecord(taxBreakdown?.informationalLines);
 	if (!informationalLines) {
-		return ZERO_INFORMATIONAL_LINES;
+		return { ok: true, value: ZERO_INFORMATIONAL_LINES, issues: [] };
 	}
 
-	const subsidyApplied = toFiniteNumber(informationalLines.subsidyApplied);
+	const subsidyApplied = readFiniteNumber(informationalLines.subsidyApplied);
+	const subsidyCaused = readFiniteNumber(informationalLines.subsidyCaused);
+	const isrBeforeSubsidy = readFiniteNumber(informationalLines.isrBeforeSubsidy) ?? 0;
+	if (subsidyCaused === null && subsidyApplied === null) {
+		return {
+			ok: false,
+			value: ZERO_INFORMATIONAL_LINES,
+			issues: [
+				createFiscalVoucherSourceIssue(
+					'INFORMATIONAL_LINES_INVALID',
+					'taxBreakdown.informationalLines',
+					'Persisted informational payroll tax lines are invalid.',
+				),
+			],
+		};
+	}
+
 	return {
-		isrBeforeSubsidy: toFiniteNumber(informationalLines.isrBeforeSubsidy),
-		subsidyApplied,
-		subsidyCaused: toFiniteNumber(informationalLines.subsidyCaused, subsidyApplied),
+		ok: true,
+		value: {
+			isrBeforeSubsidy,
+			subsidyApplied: subsidyApplied ?? 0,
+			subsidyCaused: subsidyCaused ?? subsidyApplied ?? 0,
+		},
+		issues: [],
 	};
+}
+
+/**
+ * Checks whether a persisted deduction type is supported by the payroll engine.
+ *
+ * @param value - Candidate deduction type
+ * @returns True when the value is a supported deduction type
+ */
+function isPayrollDeductionType(value: unknown): value is PayrollDeductionBreakdownItem['type'] {
+	return (
+		value === 'INFONAVIT' ||
+		value === 'ALIMONY' ||
+		value === 'FONACOT' ||
+		value === 'LOAN' ||
+		value === 'UNION_FEE' ||
+		value === 'ADVANCE' ||
+		value === 'OTHER'
+	);
+}
+
+/**
+ * Checks whether a persisted deduction calculation method is supported.
+ *
+ * @param value - Candidate calculation method
+ * @returns True when the value is a supported calculation method
+ */
+function isPayrollDeductionCalculationMethod(
+	value: unknown,
+): value is PayrollDeductionBreakdownItem['calculationMethod'] {
+	return (
+		value === 'PERCENTAGE_SBC' ||
+		value === 'PERCENTAGE_NET' ||
+		value === 'PERCENTAGE_GROSS' ||
+		value === 'FIXED_AMOUNT' ||
+		value === 'VSM_FACTOR'
+	);
+}
+
+/**
+ * Checks whether a persisted deduction frequency is supported.
+ *
+ * @param value - Candidate deduction frequency
+ * @returns True when the value is a supported frequency
+ */
+function isPayrollDeductionFrequency(
+	value: unknown,
+): value is PayrollDeductionBreakdownItem['frequency'] {
+	return value === 'RECURRING' || value === 'ONE_TIME' || value === 'INSTALLMENTS';
+}
+
+/**
+ * Checks whether a persisted deduction status is supported.
+ *
+ * @param value - Candidate deduction status
+ * @returns True when the value is a supported status
+ */
+function isPayrollDeductionStatus(
+	value: unknown,
+): value is PayrollDeductionBreakdownItem['statusBefore'] {
+	return (
+		value === 'ACTIVE' || value === 'PAUSED' || value === 'COMPLETED' || value === 'CANCELLED'
+	);
+}
+
+/**
+ * Reads a string or null from a persisted JSON object field.
+ *
+ * @param value - Persisted field value
+ * @returns Trimmed string or null
+ */
+function readStringOrNull(value: unknown): string | null {
+	return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
+}
+
+/**
+ * Reads a number or string source value with a numeric fallback.
+ *
+ * @param value - Persisted field value
+ * @param fallback - Numeric fallback value
+ * @returns Number/string value accepted by payroll source fields
+ */
+function readSourceNumberOrString(value: unknown, fallback: number): number | string {
+	return typeof value === 'number' || typeof value === 'string' ? value : fallback;
+}
+
+/**
+ * Reads a number, string, or null source total amount.
+ *
+ * @param value - Persisted field value
+ * @returns Persisted source total amount or null
+ */
+function readSourceTotalAmount(value: unknown): number | string | null {
+	return typeof value === 'number' || typeof value === 'string' ? value : null;
+}
+
+/**
+ * Parses persisted deduction JSONB before it is used by the fiscal mapper.
+ *
+ * @param raw - Persisted deductionsBreakdown JSONB value
+ * @returns Parsed deduction rows or a blocking validation issue
+ */
+function parsePayrollDeductionBreakdown(
+	raw: unknown,
+): PayrollFiscalVoucherSourceParseResult<PayrollDeductionBreakdownItem[]> {
+	if (!Array.isArray(raw)) {
+		return {
+			ok: false,
+			value: [],
+			issues: [
+				createFiscalVoucherSourceIssue(
+					'DEDUCTION_BREAKDOWN_INVALID',
+					'deductionsBreakdown',
+					'Persisted payroll deduction breakdown must be an array.',
+				),
+			],
+		};
+	}
+
+	const parsedItems: PayrollDeductionBreakdownItem[] = [];
+	for (const [index, rawItem] of raw.entries()) {
+		const item = asRecord(rawItem);
+		const deductionId = item?.deductionId;
+		const label = item?.label;
+		const type = item?.type;
+		const appliedAmount = item?.appliedAmount;
+		const satDeductionCode = item?.satDeductionCode;
+		const hasValidSatDeductionCode =
+			satDeductionCode === null ||
+			(typeof satDeductionCode === 'string' && satDeductionCode.trim().length > 0);
+
+		if (
+			!item ||
+			typeof deductionId !== 'string' ||
+			deductionId.trim().length === 0 ||
+			typeof label !== 'string' ||
+			label.trim().length === 0 ||
+			!isPayrollDeductionType(type) ||
+			typeof appliedAmount !== 'number' ||
+			!Number.isFinite(appliedAmount) ||
+			appliedAmount < 0 ||
+			!hasValidSatDeductionCode
+		) {
+			return {
+				ok: false,
+				value: [],
+				issues: [
+					createFiscalVoucherSourceIssue(
+						'DEDUCTION_BREAKDOWN_INVALID',
+						`deductionsBreakdown.${index}`,
+						'Persisted payroll deduction breakdown item is invalid.',
+					),
+				],
+			};
+		}
+
+		const calculationMethod = isPayrollDeductionCalculationMethod(item.calculationMethod)
+			? item.calculationMethod
+			: 'FIXED_AMOUNT';
+		const frequency = isPayrollDeductionFrequency(item.frequency) ? item.frequency : 'ONE_TIME';
+		const statusBefore = isPayrollDeductionStatus(item.statusBefore)
+			? item.statusBefore
+			: 'ACTIVE';
+		const statusAfter = isPayrollDeductionStatus(item.statusAfter)
+			? item.statusAfter
+			: statusBefore;
+
+		parsedItems.push({
+			deductionId: deductionId.trim(),
+			type,
+			label: label.trim(),
+			calculationMethod,
+			frequency,
+			configuredValue: readFiniteNumber(item.configuredValue) ?? appliedAmount,
+			sourceValue: readSourceNumberOrString(item.sourceValue, appliedAmount),
+			baseAmount: readFiniteNumber(item.baseAmount) ?? 0,
+			calculatedAmount: readFiniteNumber(item.calculatedAmount) ?? appliedAmount,
+			appliedAmount,
+			applicableDays: readFiniteNumber(item.applicableDays) ?? 0,
+			totalInstallments: readFiniteNumber(item.totalInstallments),
+			sourceTotalInstallments: readFiniteNumber(item.sourceTotalInstallments),
+			completedInstallmentsBefore: readFiniteNumber(item.completedInstallmentsBefore) ?? 0,
+			completedInstallmentsAfter: readFiniteNumber(item.completedInstallmentsAfter) ?? 0,
+			remainingAmountBefore: readFiniteNumber(item.remainingAmountBefore),
+			remainingAmountAfter: readFiniteNumber(item.remainingAmountAfter),
+			sourceTotalAmount: readSourceTotalAmount(item.sourceTotalAmount),
+			statusBefore,
+			statusAfter,
+			cappedByNetPay: item.cappedByNetPay === true,
+			sourceStartDateKey: readStringOrNull(item.sourceStartDateKey) ?? '',
+			sourceEndDateKey: readStringOrNull(item.sourceEndDateKey),
+			referenceNumber: readStringOrNull(item.referenceNumber),
+			satDeductionCode: typeof satDeductionCode === 'string' ? satDeductionCode.trim() : null,
+		});
+	}
+
+	return { ok: true, value: parsedItems, issues: [] };
 }
 
 /**
@@ -535,8 +781,13 @@ function buildFiscalVoucherCalculationRow(args: {
 	run: { paymentFrequency: PayrollCalculationRow['paymentFrequency'] };
 	line: PayrollRunEmployeeFiscalSource;
 	employeeName: string;
-}): PayrollCalculationRow {
+}): {
+	row: PayrollCalculationRow;
+	issues: PayrollFiscalVoucherValidationIssue[];
+} {
 	const taxBreakdown = asRecord(args.line.taxBreakdown);
+	const deductionsBreakdown = parsePayrollDeductionBreakdown(args.line.deductionsBreakdown);
+	const informationalLines = resolveInformationalLines(taxBreakdown);
 	const fiscalGrossPay =
 		args.line.fiscalGrossPay === null
 			? null
@@ -546,20 +797,22 @@ function buildFiscalVoucherCalculationRow(args: {
 	);
 
 	return {
-		employeeId: args.line.employeeId,
-		name: args.employeeName,
-		paymentFrequency: args.run.paymentFrequency,
-		fiscalGrossPay,
-		grossPay,
-		complementPay:
-			args.line.complementPay === null
-				? null
-				: roundCurrency(toFiniteNumber(args.line.complementPay)),
-		deductionsBreakdown:
-			args.line.deductionsBreakdown as unknown as PayrollDeductionBreakdownItem[],
-		employeeWithholdings: resolveEmployeeWithholdings(taxBreakdown),
-		informationalLines: resolveInformationalLines(taxBreakdown),
-	} as unknown as PayrollCalculationRow;
+		row: {
+			employeeId: args.line.employeeId,
+			name: args.employeeName,
+			paymentFrequency: args.run.paymentFrequency,
+			fiscalGrossPay,
+			grossPay,
+			complementPay:
+				args.line.complementPay === null
+					? null
+					: roundCurrency(toFiniteNumber(args.line.complementPay)),
+			deductionsBreakdown: deductionsBreakdown.value,
+			employeeWithholdings: resolveEmployeeWithholdings(taxBreakdown),
+			informationalLines: informationalLines.value,
+		} as unknown as PayrollCalculationRow,
+		issues: [...deductionsBreakdown.issues, ...informationalLines.issues],
+	};
 }
 
 /**
@@ -587,12 +840,13 @@ function buildPreparedFiscalVoucherRow(args: {
 		nss: string | null;
 	};
 }): Omit<PayrollFiscalVoucherDbRow, 'id' | 'createdAt' | 'updatedAt'> {
+	const calculationRow = buildFiscalVoucherCalculationRow({
+		run: args.run,
+		line: args.line,
+		employeeName: args.employeeProfile.name,
+	});
 	const voucher = buildPayrollFiscalVoucherFromCalculationRow({
-		row: buildFiscalVoucherCalculationRow({
-			run: args.run,
-			line: args.line,
-			employeeName: args.employeeProfile.name,
-		}),
+		row: calculationRow.row,
 		payrollRunId: args.run.id,
 		payrollRunEmployeeId: args.line.id,
 		organizationId: args.run.organizationId,
@@ -624,15 +878,16 @@ function buildPreparedFiscalVoucherRow(args: {
 		paymentDateKey: args.paymentDateKey,
 	});
 	const validation = validatePayrollFiscalVoucher(voucher);
+	const validationErrors = [...calculationRow.issues, ...validation.errors];
 
 	return {
 		payrollRunId: args.run.id,
 		payrollRunEmployeeId: args.line.id,
 		organizationId: args.run.organizationId,
 		employeeId: args.line.employeeId,
-		status: validation.status,
+		status: validationErrors.length > 0 ? 'BLOCKED' : validation.status,
 		voucher: voucher as unknown as Record<string, unknown>,
-		validationErrors: validation.errors as unknown as Record<string, unknown>[],
+		validationErrors: validationErrors as unknown as Record<string, unknown>[],
 		validationWarnings: validation.warnings as unknown as Record<string, unknown>[],
 		uuid: null,
 		stampedXml: null,
@@ -645,33 +900,24 @@ function buildPreparedFiscalVoucherRow(args: {
 }
 
 /**
- * Revalidates an existing prepared fiscal voucher with a new payment date.
+ * Builds one SQL update payload for changing the fiscal payment date on many
+ * unstamped vouchers.
  *
- * @param row - Persisted fiscal voucher row
  * @param paymentDateKey - Fiscal payment date key to apply
- * @returns Updated voucher snapshot and validation fields
+ * @returns Column updates for the bulk payment-date reconciliation
  */
-function buildFiscalVoucherPaymentDateUpdate(
-	row: PayrollFiscalVoucherDbRow,
-	paymentDateKey: string,
-): {
-	status: PayrollFiscalVoucherValidationStatus;
-	voucher: Record<string, unknown>;
-	validationErrors: Record<string, unknown>[];
-	validationWarnings: Record<string, unknown>[];
+function buildFiscalVoucherPaymentDateBulkUpdate(paymentDateKey: string): {
+	status: PayrollFiscalVoucherValidationStatus | ReturnType<typeof sql>;
+	voucher: ReturnType<typeof sql>;
+	validationErrors: ReturnType<typeof sql>;
 	updatedAt: Date;
 } {
-	const voucher = {
-		...(row.voucher as unknown as PayrollFiscalVoucher),
-		paymentDateKey,
-	};
-	const validation = validatePayrollFiscalVoucher(voucher);
+	const validationErrorsWithoutPaymentDate = sql`coalesce((select jsonb_agg(error_item) from jsonb_array_elements(${payrollFiscalVoucher.validationErrors}) as error_item where error_item->>'code' <> 'PAYMENT_DATE_REQUIRED'), '[]'::jsonb)`;
 
 	return {
-		status: validation.status,
-		voucher: voucher as unknown as Record<string, unknown>,
-		validationErrors: validation.errors as unknown as Record<string, unknown>[],
-		validationWarnings: validation.warnings as unknown as Record<string, unknown>[],
+		status: sql`case when jsonb_array_length(${validationErrorsWithoutPaymentDate}) = 0 then 'READY_TO_STAMP' else ${payrollFiscalVoucher.status} end`,
+		voucher: sql`jsonb_set(${payrollFiscalVoucher.voucher}, '{paymentDateKey}', to_jsonb(${paymentDateKey}::text), true)`,
+		validationErrors: validationErrorsWithoutPaymentDate,
 		updatedAt: new Date(),
 	};
 }
@@ -741,9 +987,7 @@ const calculatePayroll = async (args: {
 		aguinaldoDays: Number(orgSettings[0]?.aguinaldoDays ?? 15),
 		vacationPremiumRate: Number(orgSettings[0]?.vacationPremiumRate ?? 0.25),
 		realVacationPremiumRate: Number(
-			orgSettings[0]?.realVacationPremiumRate ??
-				orgSettings[0]?.vacationPremiumRate ??
-				0.25,
+			orgSettings[0]?.realVacationPremiumRate ?? orgSettings[0]?.vacationPremiumRate ?? 0.25,
 		),
 		enableSeventhDayPay: Boolean(orgSettings[0]?.enableSeventhDayPay ?? false),
 		enableDualPayroll: Boolean(orgSettings[0]?.enableDualPayroll ?? false),
@@ -935,10 +1179,12 @@ const calculatePayroll = async (args: {
 					payrollSettingsSnapshot.countSaturdayAsWorkedForSeventhDay,
 				periodStartDateKey,
 				periodEndDateKey,
-				scheduleDays: (schedulesByEmployeeId.get(employeeRow.id) ?? []).map((scheduleRow) => ({
-					dayOfWeek: scheduleRow.dayOfWeek,
-					isWorkingDay: scheduleRow.isWorkingDay,
-				})),
+				scheduleDays: (schedulesByEmployeeId.get(employeeRow.id) ?? []).map(
+					(scheduleRow) => ({
+						dayOfWeek: scheduleRow.dayOfWeek,
+						isWorkingDay: scheduleRow.isWorkingDay,
+					}),
+				),
 				vacationPeriods: approvedVacationPeriodsByEmployeeId.get(employeeRow.id) ?? [],
 			});
 
@@ -1046,8 +1292,8 @@ const calculatePayroll = async (args: {
 								isNull(employeeDeduction.endDateKey),
 								gte(employeeDeduction.endDateKey, periodStartDateKey),
 							),
-					),
-			);
+						),
+					);
 
 	const employeeGratificationRows: EmployeeGratificationRow[] =
 		employeeIds.length === 0
@@ -1247,21 +1493,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				periodEndDateKey: body.periodEndDateKey,
 				paymentFrequency: body.paymentFrequency,
 			});
-				const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
-					authType,
-					organizationId,
-					session: session ?? null,
-				});
-				const sanitizedCalculation = {
-					...calculation,
-					employees: sanitizeDualPayrollEmployees(
-						calculation.employees,
-						includeDualPayrollCompensation,
-					),
-					payrollSettingsSnapshot: includeDualPayrollCompensation
-						? calculation.payrollSettingsSnapshot
-						: sanitizeDualPayrollSettingsSnapshot(calculation.payrollSettingsSnapshot),
-				};
+			const includeDualPayrollCompensation = await canViewDualPayrollCompensation({
+				authType,
+				organizationId,
+				session: session ?? null,
+			});
+			const sanitizedCalculation = {
+				...calculation,
+				employees: sanitizeDualPayrollEmployees(
+					calculation.employees,
+					includeDualPayrollCompensation,
+				),
+				payrollSettingsSnapshot: includeDualPayrollCompensation
+					? calculation.payrollSettingsSnapshot
+					: sanitizeDualPayrollSettingsSnapshot(calculation.payrollSettingsSnapshot),
+			};
 
 			const hasBlockingWarnings =
 				calculation.overtimeEnforcement === 'BLOCK' &&
@@ -1278,15 +1524,16 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 			}
 
-			const deductionUpdates: PendingPayrollDeductionUpdate[] =
-				calculation.employees.flatMap((row) =>
+			const deductionUpdates: PendingPayrollDeductionUpdate[] = calculation.employees.flatMap(
+				(row) =>
 					row.deductionsBreakdown
 						.filter((item) => item.appliedAmount > 0)
 						.map((item) => ({
 							deductionId: item.deductionId,
 							shouldPersistStateChange:
 								item.statusAfter !== item.statusBefore ||
-								item.completedInstallmentsAfter !== item.completedInstallmentsBefore ||
+								item.completedInstallmentsAfter !==
+									item.completedInstallmentsBefore ||
 								item.remainingAmountAfter !== item.remainingAmountBefore,
 							status: item.statusAfter,
 							completedInstallments: item.completedInstallmentsAfter,
@@ -1304,7 +1551,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							previousStartDateKey: item.sourceStartDateKey,
 							previousEndDateKey: item.sourceEndDateKey,
 						})),
-				);
+			);
 			const gratificationUpdates: PendingPayrollGratificationUpdate[] =
 				calculation.employees.flatMap((row) =>
 					row.gratificationsBreakdown
@@ -1314,7 +1561,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							shouldPersistStateChange: item.statusAfter !== item.statusBefore,
 							status: item.statusAfter,
 							previousStatus: item.statusBefore,
-							previousAmount: normalizeGratificationAmount(item.sourceAmount) ?? '0.00',
+							previousAmount:
+								normalizeGratificationAmount(item.sourceAmount) ?? '0.00',
 							previousPeriodicity: item.periodicity,
 							previousApplicationMode: item.applicationMode,
 							previousStartDateKey: item.sourceStartDateKey,
@@ -1400,7 +1648,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 									eq(employeeGratification.organizationId, organizationId),
 									inArray(
 										employeeGratification.id,
-										gratificationUpdates.map((update) => update.gratificationId),
+										gratificationUpdates.map(
+											(update) => update.gratificationId,
+										),
 									),
 								),
 							);
@@ -1420,7 +1670,8 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								normalizeGratificationAmount(currentGratification.amount) !==
 									update.previousAmount ||
 								currentGratification.periodicity !== update.previousPeriodicity ||
-								currentGratification.applicationMode !== update.previousApplicationMode ||
+								currentGratification.applicationMode !==
+									update.previousApplicationMode ||
 								currentGratification.startDateKey !== update.previousStartDateKey ||
 								currentGratification.endDateKey !== update.previousEndDateKey
 							);
@@ -1492,7 +1743,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							taxBreakdown: {
 								grossPay:
 									row.fiscalGrossPay === null
-										? roundCurrency(Math.max(row.grossPay - row.totalGratifications, 0))
+										? roundCurrency(
+												Math.max(row.grossPay - row.totalGratifications, 0),
+											)
 										: row.fiscalGrossPay,
 								seventhDayPay: row.seventhDayPay,
 								realCompensation: {
@@ -1546,7 +1799,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 											employeeDeduction.totalAmount,
 											deductionUpdate.previousTotalAmount,
 										),
-								eq(employeeDeduction.startDateKey, deductionUpdate.previousStartDateKey),
+								eq(
+									employeeDeduction.startDateKey,
+									deductionUpdate.previousStartDateKey,
+								),
 								deductionUpdate.previousEndDateKey === null
 									? isNull(employeeDeduction.endDateKey)
 									: eq(
@@ -1558,8 +1814,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								.update(employeeDeduction)
 								.set({
 									status: deductionUpdate.status,
-									completedInstallments:
-										deductionUpdate.completedInstallments,
+									completedInstallments: deductionUpdate.completedInstallments,
 									remainingAmount: deductionUpdate.remainingAmount,
 								})
 								.where(
@@ -1579,8 +1834,14 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							(update) => update.shouldPersistStateChange,
 						)) {
 							const previousStateConditions = [
-								eq(employeeGratification.status, gratificationUpdate.previousStatus),
-								eq(employeeGratification.amount, gratificationUpdate.previousAmount),
+								eq(
+									employeeGratification.status,
+									gratificationUpdate.previousStatus,
+								),
+								eq(
+									employeeGratification.amount,
+									gratificationUpdate.previousAmount,
+								),
 								eq(
 									employeeGratification.periodicity,
 									gratificationUpdate.previousPeriodicity,
@@ -1607,7 +1868,10 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 								})
 								.where(
 									and(
-										eq(employeeGratification.id, gratificationUpdate.gratificationId),
+										eq(
+											employeeGratification.id,
+											gratificationUpdate.gratificationId,
+										),
 										eq(employeeGratification.organizationId, organizationId),
 										...previousStateConditions,
 									),
@@ -1684,21 +1948,21 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				throw error;
 			}
 
-				const sanitizedRun =
-					includeDualPayrollCompensation || !runResult
-						? runResult
-						: sanitizeDualPayrollRun(
-								runResult as typeof runResult & {
-									taxSummary?: Record<string, unknown> | null;
-								},
-							);
+			const sanitizedRun =
+				includeDualPayrollCompensation || !runResult
+					? runResult
+					: sanitizeDualPayrollRun(
+							runResult as typeof runResult & {
+								taxSummary?: Record<string, unknown> | null;
+							},
+						);
 
-				return { data: { run: sanitizedRun, calculation: sanitizedCalculation } };
-			},
-			{
-				body: payrollProcessSchema,
-			},
-		)
+			return { data: { run: sanitizedRun, calculation: sanitizedCalculation } };
+		},
+		{
+			body: payrollProcessSchema,
+		},
+	)
 	/**
 	 * List payroll runs.
 	 */
@@ -1773,7 +2037,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			set,
 		}) => {
 			const { id } = params;
-			const runRows = await db.select().from(payrollRun).where(eq(payrollRun.id, id)).limit(1);
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, id))
+				.limit(1);
 			const run = runRows[0];
 
 			if (!run) {
@@ -1810,10 +2078,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			});
 			if (!canAccessFiscalVouchers) {
 				set.status = 403;
-				return buildErrorResponse(
-					'You do not have access to payroll fiscal vouchers',
-					403,
-				);
+				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
 			}
 
 			const payrollSettingRows = await db
@@ -1843,34 +2108,39 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 							row.stampedAt === null &&
 							row.voucher.paymentDateKey !== paymentDateKey,
 					);
+					const idsToUpdate = rowsNeedingPaymentDateUpdate.map((row) => row.id);
 
-					for (const existingRow of rowsNeedingPaymentDateUpdate) {
+					if (idsToUpdate.length > 0) {
 						await tx
 							.update(payrollFiscalVoucher)
-							.set(buildFiscalVoucherPaymentDateUpdate(existingRow, paymentDateKey))
+							.set(buildFiscalVoucherPaymentDateBulkUpdate(paymentDateKey))
 							.where(
 								and(
-									eq(payrollFiscalVoucher.id, existingRow.id),
+									inArray(payrollFiscalVoucher.id, idsToUpdate),
 									isNull(payrollFiscalVoucher.uuid),
 									isNull(payrollFiscalVoucher.stampedAt),
 								),
 							);
 					}
 
-					if (rowsNeedingPaymentDateUpdate.length === 0) {
+					if (idsToUpdate.length === 0) {
 						return rows;
 					}
 
 					return (await tx
 						.select()
 						.from(payrollFiscalVoucher)
-						.where(eq(payrollFiscalVoucher.payrollRunId, id))) as PayrollFiscalVoucherDbRow[];
+						.where(
+							eq(payrollFiscalVoucher.payrollRunId, id),
+						)) as PayrollFiscalVoucherDbRow[];
 				};
 
 				const existingRows = (await tx
 					.select()
 					.from(payrollFiscalVoucher)
-					.where(eq(payrollFiscalVoucher.payrollRunId, id))) as PayrollFiscalVoucherDbRow[];
+					.where(
+						eq(payrollFiscalVoucher.payrollRunId, id),
+					)) as PayrollFiscalVoucherDbRow[];
 				if (existingRows.length > 0) {
 					return reconcilePaymentDate(existingRows);
 				}
@@ -1878,7 +2148,9 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				const lines = (await tx
 					.select()
 					.from(payrollRunEmployee)
-					.where(eq(payrollRunEmployee.payrollRunId, id))) as PayrollRunEmployeeFiscalSource[];
+					.where(
+						eq(payrollRunEmployee.payrollRunId, id),
+					)) as PayrollRunEmployeeFiscalSource[];
 
 				const organizationRows = await tx
 					.select({
@@ -1940,18 +2212,17 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 				);
 
 				if (preparedRows.length > 0) {
-					await tx
-						.insert(payrollFiscalVoucher)
-						.values(preparedRows)
-						.onConflictDoNothing({
-							target: payrollFiscalVoucher.payrollRunEmployeeId,
-						});
+					await tx.insert(payrollFiscalVoucher).values(preparedRows).onConflictDoNothing({
+						target: payrollFiscalVoucher.payrollRunEmployeeId,
+					});
 				}
 
 				const rowsAfterInsert = (await tx
 					.select()
 					.from(payrollFiscalVoucher)
-					.where(eq(payrollFiscalVoucher.payrollRunId, id))) as PayrollFiscalVoucherDbRow[];
+					.where(
+						eq(payrollFiscalVoucher.payrollRunId, id),
+					)) as PayrollFiscalVoucherDbRow[];
 				return reconcilePaymentDate(rowsAfterInsert);
 			});
 
@@ -1976,7 +2247,11 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			set,
 		}) => {
 			const { id } = params;
-			const runRows = await db.select().from(payrollRun).where(eq(payrollRun.id, id)).limit(1);
+			const runRows = await db
+				.select()
+				.from(payrollRun)
+				.where(eq(payrollRun.id, id))
+				.limit(1);
 			const run = runRows[0];
 
 			if (!run) {
@@ -2005,10 +2280,7 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 			});
 			if (!canAccessFiscalVouchers) {
 				set.status = 403;
-				return buildErrorResponse(
-					'You do not have access to payroll fiscal vouchers',
-					403,
-				);
+				return buildErrorResponse('You do not have access to payroll fiscal vouchers', 403);
 			}
 
 			const rows = (await db
@@ -2193,5 +2465,5 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 					employees,
 				},
 			};
-			},
-		);
+		},
+	);

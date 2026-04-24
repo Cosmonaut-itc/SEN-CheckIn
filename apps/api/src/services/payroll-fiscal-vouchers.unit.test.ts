@@ -6,10 +6,7 @@ import {
 	sumCurrency,
 } from '../test-utils/payroll-currency-helpers.js';
 import { roundCurrency } from '../utils/money.js';
-import {
-	calculatePayrollFromData,
-	type PayrollCalculationRow,
-} from './payroll-calculation.js';
+import { calculatePayrollFromData, type PayrollCalculationRow } from './payroll-calculation.js';
 import {
 	AET_P10_TDD_LISTA_RAYA_EXPECTED,
 	buildAetP10PayrollArgs,
@@ -17,6 +14,7 @@ import {
 } from './payroll-real-fixtures.test-data.js';
 import {
 	buildPayrollFiscalVoucherFromCalculationRow,
+	toFiscalStampingPayload,
 	validatePayrollFiscalVoucher,
 } from './payroll-fiscal-vouchers.js';
 
@@ -158,7 +156,7 @@ describe('payroll fiscal vouchers', () => {
 		);
 	});
 
-	it('maps caused employment subsidy with the SAT 0.01 technical other-payment amount', () => {
+	it('maps caused employment subsidy with a zero SAT other-payment amount', () => {
 		const row = {
 			employeeId: 'emp-subsidy',
 			name: 'Subsidio Aplicado',
@@ -182,8 +180,8 @@ describe('payroll fiscal vouchers', () => {
 			},
 			informationalLines: {
 				isrBeforeSubsidy: 125,
-				subsidyApplied: 25,
-				subsidyCaused: 100,
+				subsidyApplied: 0,
+				subsidyCaused: 123.34,
 			},
 		} as unknown as PayrollCalculationRow;
 
@@ -219,17 +217,120 @@ describe('payroll fiscal vouchers', () => {
 				satTypeCode: '002',
 				internalCode: 'SUBSIDY_APPLIED',
 				description:
-					'Subsidio para el empleo del Decreto que otorga el subsidio para el empleo',
-				amount: 0.01,
-				subsidyCausedAmount: 100,
+					'Subsidio para el empleo del Decreto que otorga el subsidio para el empleo (DOF 1 de mayo de 2024)',
+				amount: 0,
+				subsidyCausedAmount: 123.34,
 			},
 		]);
-		expect(voucher.deductions.find((deduction) => deduction.internalType === 'ISR')).toMatchObject({
+		expect(
+			voucher.deductions.find((deduction) => deduction.internalType === 'ISR'),
+		).toMatchObject({
 			amount: 25,
 			satTypeCode: '002',
 		});
-		expect(voucher.totals.totalOtherPayments).toBe(0.01);
-		expect(voucher.totals.netPay).toBe(975.01);
+		expect(voucher.totals.totalOtherPayments).toBe(0);
+		expect(voucher.totals.netPay).toBe(975);
+	});
+
+	it('does not create an other-payment line when no employment subsidy was caused', () => {
+		const row = {
+			employeeId: 'emp-no-subsidy',
+			name: 'Sin Subsidio',
+			paymentFrequency: 'WEEKLY',
+			grossPay: 1000,
+			fiscalGrossPay: 1000,
+			complementPay: null,
+			deductionsBreakdown: [],
+			employeeWithholdings: {
+				imssEmployee: {
+					emExcess: 0,
+					pd: 0,
+					gmp: 0,
+					iv: 0,
+					cv: 0,
+					total: 0,
+				},
+				isrWithheld: 25,
+				infonavitCredit: 0,
+				total: 25,
+			},
+			informationalLines: {
+				isrBeforeSubsidy: 125,
+				subsidyApplied: 0,
+				subsidyCaused: 0,
+			},
+		} as unknown as PayrollCalculationRow;
+
+		const voucher = buildPayrollFiscalVoucherFromCalculationRow({
+			row,
+			payrollRunId: 'run-no-subsidy',
+			payrollRunEmployeeId: 'line-no-subsidy',
+			organizationId: 'org-subsidy',
+			issuer: {
+				name: 'AET',
+				rfc: 'AET010101AAA',
+				fiscalRegime: '601',
+				expeditionPostalCode: '64000',
+			},
+			receiver: {
+				name: row.name,
+				rfc: 'XAXX010101000',
+				curp: 'XAXX010101HNEXXXA4',
+				nss: '12345678901',
+				fiscalRegime: '605',
+				fiscalPostalCode: '64000',
+				contractType: '01',
+				workdayType: '01',
+			},
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			paymentDateKey: '2026-03-08',
+		});
+
+		expect(voucher.otherPayments).toHaveLength(0);
+		expect(JSON.stringify(voucher)).not.toContain('0.01');
+	});
+
+	it('removes dual-payroll real complement fields from the fiscal stamping payload', () => {
+		const calculation = calculatePayrollFromData(buildAetP10PayrollArgs({ scope: 'TDD' }));
+		const row = calculation.employees.find((entry) => entry.complementPay !== null);
+
+		if (!row) {
+			throw new Error('Expected a dual payroll row with complement pay.');
+		}
+
+		const voucher = buildPayrollFiscalVoucherFromCalculationRow({
+			row,
+			payrollRunId: 'run-aet-p10',
+			payrollRunEmployeeId: `line-${row.employeeId}`,
+			organizationId: 'org-aet',
+			issuer: {
+				name: 'AET',
+				rfc: 'AET010101AAA',
+				fiscalRegime: '601',
+				expeditionPostalCode: '64000',
+			},
+			receiver: {
+				name: row.name,
+				rfc: 'XAXX010101000',
+				curp: 'XAXX010101HNEXXXA4',
+				nss: '12345678901',
+				fiscalRegime: '605',
+				fiscalPostalCode: '64000',
+				contractType: '01',
+				workdayType: '01',
+			},
+			periodStartDateKey: '2026-03-02',
+			periodEndDateKey: '2026-03-08',
+			paymentDateKey: '2026-03-08',
+		});
+
+		const payload = toFiscalStampingPayload(voucher);
+		const payloadJson = JSON.stringify(payload);
+
+		expect(payloadJson).not.toContain('realPayrollComplementPay');
+		expect(payloadJson).not.toContain('complementPay');
+		expect(payloadJson).not.toContain('totalRealPay');
 	});
 
 	it('validates missing SAT-required fiscal data before stamping', () => {

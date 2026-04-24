@@ -154,6 +154,7 @@ interface FakeDbState {
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
 	payrollFiscalVouchers: Record<string, unknown>[];
+	payrollFiscalVoucherUpdateCount: number;
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
 	pendingDeductionMutationBeforeTransaction: FakePendingDeductionMutation | null;
@@ -684,6 +685,10 @@ function matchesFakeRowCondition(
 		return readFakeRowColumn(row, columnName) === null;
 	}
 
+	if (condition.kind === 'inArray') {
+		return condition.values.includes(readFakeRowColumn(row, columnName));
+	}
+
 	return false;
 }
 
@@ -902,6 +907,61 @@ function applyPendingDeductionMutation(
 	}
 	if (mutation.endDateKey !== undefined) {
 		deduction.endDateKey = mutation.endDateKey;
+	}
+}
+
+/**
+ * Detects the mocked SQL object emitted by the payment-date bulk update.
+ *
+ * @param value - Candidate update value
+ * @returns True when the value is the mocked jsonb_set voucher update
+ */
+function isMockedPaymentDateVoucherSql(
+	value: unknown,
+): value is { text: string; values: unknown[] } {
+	return (
+		!!value &&
+		typeof value === 'object' &&
+		typeof (value as { text?: unknown }).text === 'string' &&
+		Array.isArray((value as { values?: unknown }).values) &&
+		(value as { text: string }).text.includes('jsonb_set')
+	);
+}
+
+/**
+ * Applies the route's mocked bulk payment-date SQL update to an in-memory row.
+ *
+ * @param voucher - In-memory fiscal voucher row
+ * @param values - Update values passed to the fake DB
+ */
+function applyMockedPaymentDateBulkUpdate(
+	voucher: Record<string, unknown>,
+	values: Record<string, unknown>,
+): void {
+	if (!isMockedPaymentDateVoucherSql(values.voucher)) {
+		Object.assign(voucher, values);
+		return;
+	}
+
+	const paymentDateKey = values.voucher.values.find(
+		(value): value is string => typeof value === 'string',
+	);
+	const voucherSnapshot = (voucher.voucher ?? {}) as Record<string, unknown>;
+	const validationErrors = Array.isArray(voucher.validationErrors)
+		? voucher.validationErrors.filter((error) => {
+				const issue = error as { code?: unknown };
+				return issue.code !== 'PAYMENT_DATE_REQUIRED';
+			})
+		: [];
+
+	voucher.voucher = {
+		...voucherSnapshot,
+		paymentDateKey,
+	};
+	voucher.validationErrors = validationErrors;
+	voucher.status = validationErrors.length === 0 ? 'READY_TO_STAMP' : voucher.status;
+	if (values.updatedAt instanceof Date) {
+		voucher.updatedAt = values.updatedAt;
 	}
 }
 
@@ -1250,7 +1310,9 @@ function createFakeDb(state: FakeDbState): {
 	 */
 	const createTransaction = (): {
 		insert: (table: unknown) => {
-			values: (values: Record<string, unknown> | Record<string, unknown>[]) => Promise<void> & {
+			values: (
+				values: Record<string, unknown> | Record<string, unknown>[],
+			) => Promise<void> & {
 				onConflictDoNothing: () => Promise<void>;
 			};
 		};
@@ -1332,7 +1394,8 @@ function createFakeDb(state: FakeDbState): {
 								(row) =>
 									!state.payrollFiscalVouchers.some(
 										(existing) =>
-											existing.payrollRunEmployeeId === row.payrollRunEmployeeId,
+											existing.payrollRunEmployeeId ===
+											row.payrollRunEmployeeId,
 									),
 							)
 							.map((row, index) => ({
@@ -1449,14 +1512,24 @@ function createFakeDb(state: FakeDbState): {
 							condition,
 							(value) => typeof value === 'string',
 						);
+						const voucherIds =
+							extractInArrayValuesForColumn(condition, 'id')?.filter(
+								(value): value is string => typeof value === 'string',
+							) ?? [];
+						state.payrollFiscalVoucherUpdateCount += 1;
 						if (state.pendingFiscalVoucherStampBeforeUpdate) {
 							for (const voucher of state.payrollFiscalVouchers) {
-								if (voucher.id !== voucherId) {
+								const shouldStamp =
+									voucher.id === voucherId ||
+									(voucherId === null &&
+										voucherIds.includes(voucher.id as string));
+								if (!shouldStamp) {
 									continue;
 								}
 								voucher.uuid = 'concurrent-stamp-uuid';
 								voucher.stampedAt = new Date('2026-03-09T00:00:00.000Z');
 								voucher.status = 'STAMPED';
+								break;
 							}
 							state.pendingFiscalVoucherStampBeforeUpdate = false;
 						}
@@ -1466,7 +1539,7 @@ function createFakeDb(state: FakeDbState): {
 							if (!matchesFakeRowCondition(voucher, condition)) {
 								continue;
 							}
-							Object.assign(voucher, values);
+							applyMockedPaymentDateBulkUpdate(voucher, values);
 							updatedRows.push({ id: voucher.id });
 						}
 
@@ -1596,6 +1669,7 @@ const dbState: FakeDbState = {
 	payrollRuns: [],
 	payrollRunEmployees: [],
 	payrollFiscalVouchers: [],
+	payrollFiscalVoucherUpdateCount: 0,
 	transactionCalled: false,
 	deductionUpdateConditions: [],
 	pendingDeductionMutationBeforeTransaction: null,
@@ -1695,6 +1769,7 @@ describe('payroll routes', () => {
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
 		dbState.payrollFiscalVouchers = [];
+		dbState.payrollFiscalVoucherUpdateCount = 0;
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
 		dbState.pendingDeductionMutationBeforeTransaction = null;
@@ -2171,15 +2246,11 @@ describe('payroll routes', () => {
 		);
 
 		const persistedRows = dbState.payrollRunEmployees as PersistedPayrollRunEmployee[];
-		const fiscalGrossTotal = sumCurrency(
-			persistedRows.map((row) => row.taxBreakdown.grossPay),
-		);
+		const fiscalGrossTotal = sumCurrency(persistedRows.map((row) => row.taxBreakdown.grossPay));
 		const fiscalVoucherDeductionsTotal = sumCurrency(
 			persistedRows.map(calculatePersistedFiscalVoucherDeductions),
 		);
-		const fiscalNetPayTotal = roundCurrency(
-			fiscalGrossTotal - fiscalVoucherDeductionsTotal,
-		);
+		const fiscalNetPayTotal = roundCurrency(fiscalGrossTotal - fiscalVoucherDeductionsTotal);
 		const employerCostsTotal = sumCurrency(
 			persistedRows.map((row) => row.taxBreakdown.employerCosts.total),
 		);
@@ -2273,9 +2344,7 @@ describe('payroll routes', () => {
 		expect(vouchers[0]?.voucher.periodStartDateKey).toBe(
 			AET_P10_2026_PERIOD.periodStartDateKey,
 		);
-		expect(vouchers[0]?.voucher.periodEndDateKey).toBe(
-			AET_P10_2026_PERIOD.periodEndDateKey,
-		);
+		expect(vouchers[0]?.voucher.periodEndDateKey).toBe(AET_P10_2026_PERIOD.periodEndDateKey);
 		expect(vouchers[0]?.voucher.paymentDateKey).toBe(AET_P10_2026_PERIOD.periodEndDateKey);
 		const fiscalGrossTotal = sumCurrency(
 			vouchers.map((row) => row.voucher.totals.totalPerceptions),
@@ -2336,9 +2405,7 @@ describe('payroll routes', () => {
 		};
 
 		expect(listResponse.status).toBe(200);
-		expect(listJson.data?.vouchers).toHaveLength(
-			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
-		);
+		expect(listJson.data?.vouchers).toHaveLength(AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount);
 		expect(listJson.data?.statusSummary).toEqual(prepareJson.data?.statusSummary);
 
 		dbState.transactionCalled = false;
@@ -2486,6 +2553,42 @@ describe('payroll routes', () => {
 		);
 	});
 
+	it('updates payment date for existing fiscal vouchers with one bulk update', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		const initialResponse = await payrollRoutes.handle(
+			createApiKeyEmptyPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`),
+		);
+		expect(initialResponse.status).toBe(200);
+		dbState.payrollFiscalVoucherUpdateCount = 0;
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(dbState.payrollFiscalVoucherUpdateCount).toBe(1);
+	});
+
 	it('updates payment date when a concurrent bodyless prepare wins the insert race', async () => {
 		seedAetP10ProcessScenario();
 		dbState.sessionRole = 'admin';
@@ -2584,6 +2687,173 @@ describe('payroll routes', () => {
 		);
 	});
 
+	it('normalizes legacy informational lines before building fiscal vouchers', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		const payrollRunEmployee = dbState.payrollRunEmployees[0];
+		if (typeof runId !== 'string' || !payrollRunEmployee) {
+			throw new Error('Expected persisted payroll data.');
+		}
+
+		const taxBreakdown = payrollRunEmployee.taxBreakdown as Record<string, unknown>;
+		taxBreakdown.informationalLines = {
+			isrBeforeSubsidy: 123.34,
+			subsidyApplied: 123.34,
+		};
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					voucher: {
+						otherPayments: Array<{
+							amount: number;
+							subsidyCausedAmount: number;
+						}>;
+					};
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.voucher.otherPayments[0]).toMatchObject({
+			amount: 0,
+			subsidyCausedAmount: 123.34,
+		});
+	});
+
+	it('blocks fiscal vouchers when informational lines cannot be normalized', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		const payrollRunEmployee = dbState.payrollRunEmployees[0];
+		if (typeof runId !== 'string' || !payrollRunEmployee) {
+			throw new Error('Expected persisted payroll data.');
+		}
+
+		const taxBreakdown = payrollRunEmployee.taxBreakdown as Record<string, unknown>;
+		taxBreakdown.informationalLines = {
+			isrBeforeSubsidy: 123.34,
+			subsidyApplied: 'invalid',
+		};
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					status: string;
+					validationErrors: Array<{ code: string }>;
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.status).toBe('BLOCKED');
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'INFORMATIONAL_LINES_INVALID',
+		);
+	});
+
+	it('blocks fiscal vouchers when persisted deduction JSONB is corrupt', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		const payrollRunEmployee = dbState.payrollRunEmployees[0];
+		if (typeof runId !== 'string' || !payrollRunEmployee) {
+			throw new Error('Expected persisted payroll data.');
+		}
+
+		payrollRunEmployee.deductionsBreakdown = [
+			{
+				deductionId: 'deduction-valid',
+				type: 'LOAN',
+				label: 'Prestamo interno',
+				appliedAmount: 10,
+				satDeductionCode: '004',
+			},
+			{
+				deductionId: 'deduction-corrupt',
+				type: 'LOAN',
+				label: 'Prestamo corrupto',
+				appliedAmount: 'not-a-number',
+				satDeductionCode: '004',
+			},
+		];
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					status: string;
+					validationErrors: Array<{ code: string }>;
+					voucher: {
+						deductions: Array<{ internalCode: string }>;
+						unmappedDeductions: Array<{ internalCode: string }>;
+					};
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.status).toBe('BLOCKED');
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'DEDUCTION_BREAKDOWN_INVALID',
+		);
+		expect(
+			json.data?.vouchers?.[0]?.voucher.deductions.map((deduction) => deduction.internalCode),
+		).not.toContain('deduction-valid');
+		expect(json.data?.vouchers?.[0]?.voucher.unmappedDeductions).toHaveLength(0);
+	});
+
 	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {
 		dbState.sessionRole = 'admin';
 		dbState.payrollRuns = [
@@ -2604,7 +2874,9 @@ describe('payroll routes', () => {
 		const json = (await response.json()) as { error?: { message?: string } };
 
 		expect(response.status).toBe(409);
-		expect(json.error?.message).toBe('Payroll run must be processed before preparing fiscal vouchers');
+		expect(json.error?.message).toBe(
+			'Payroll run must be processed before preparing fiscal vouchers',
+		);
 		expect(dbState.payrollFiscalVouchers).toHaveLength(0);
 	});
 

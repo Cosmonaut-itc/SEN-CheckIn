@@ -211,7 +211,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 			date: '10/04/2026',
 			firstEntry: 'Fuera de oficina',
 			lastExit: 'Fuera de oficina',
-			totalHours: 'Fuera de oficina',
+			totalHours: '08:00',
 		});
 	});
 
@@ -249,7 +249,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 			date: '10/04/2026',
 			firstEntry: 'Fuera de oficina',
 			lastExit: 'Fuera de oficina',
-			totalHours: 'Fuera de oficina',
+			totalHours: '08:00',
 		});
 	});
 
@@ -520,8 +520,8 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 				date: '10/04/2026',
 				firstEntry: 'Fuera de oficina',
 				lastExit: 'Fuera de oficina',
-				totalHours: 'Fuera de oficina',
-				workMinutes: null,
+				totalHours: '08:00',
+				workMinutes: 480,
 			},
 		]);
 	});
@@ -609,7 +609,7 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 		});
 	});
 
-	it('keeps incomplete and offsite rows visible without adding them to totals', () => {
+	it('keeps incomplete rows visible and counts offsite rows in totals', () => {
 		const rows = buildAttendanceEmployeePdfSummaryRows(
 			[
 				buildAttendanceRecord({
@@ -657,17 +657,59 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 		expect(groups[1]).toEqual({
 			employeeId: 'emp-2',
 			employeeName: 'Bruno',
-			totalWorkedMinutes: 0,
+			totalWorkedMinutes: 480,
 			rows: [
 				{
 					day: '10/04/2026',
 					firstEntry: 'Fuera de oficina',
 					lastExit: 'Fuera de oficina',
-					totalHours: 'Fuera de oficina',
-					workMinutes: null,
+					totalHours: '08:00',
+					workMinutes: 480,
 				},
 			],
 		});
+	});
+
+	it('counts WORK_OFFSITE rows as eight worked hours in employee PDF groups', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Ana',
+					timestamp: '2026-04-10T06:00:00.000Z',
+					type: 'WORK_OFFSITE',
+					offsiteDateKey: '2026-04-10',
+					offsiteDayKind: 'LABORABLE',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-10',
+					endDateKey: '2026-04-10',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+			},
+		);
+
+		const groups = buildAttendanceEmployeePdfGroups(rows);
+
+		expect(groups).toEqual([
+			{
+				employeeId: 'emp-1',
+				employeeName: 'Ana',
+				totalWorkedMinutes: 480,
+				rows: [
+					{
+						day: '10/04/2026',
+						firstEntry: 'Fuera de oficina',
+						lastExit: 'Fuera de oficina',
+						totalHours: '08:00',
+						workMinutes: 480,
+					},
+				],
+			},
+		]);
 	});
 
 	it('excludes employees fully outside the filtered range', () => {
@@ -951,8 +993,8 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 				date: '24/04/2026',
 				firstEntry: 'Fuera de oficina',
 				lastExit: 'Fuera de oficina',
-				totalHours: 'Fuera de oficina',
-				workMinutes: null,
+				totalHours: '08:00',
+				workMinutes: 480,
 			},
 		]);
 	});

@@ -11,7 +11,9 @@ import { buildAttendanceReportPdf } from './build-attendance-report-pdf';
 const PDFJS_STANDARD_FONT_DATA_PATH = new URL(
 	'../../../../node_modules/pdfjs-dist/standard_fonts/',
 	import.meta.url,
-).pathname.replace(/^\/@fs/, '').replace(/\/?$/, sep);
+).pathname
+	.replace(/^\/@fs/, '')
+	.replace(/\/?$/, sep);
 
 type PdfjsBinaryDataKind = 'cMapUrl' | 'standardFontDataUrl' | 'wasmUrl';
 
@@ -135,7 +137,7 @@ function buildAttendanceGroup(
 	return {
 		employeeId: 'emp-1',
 		employeeName: 'Ana López',
-		totalWorkedMinutes: 570,
+		totalWorkedMinutes: 1050,
 		rows: [
 			{
 				day: '10/04/2026',
@@ -155,8 +157,8 @@ function buildAttendanceGroup(
 				day: '12/04/2026',
 				firstEntry: 'Fuera de oficina',
 				lastExit: 'Fuera de oficina',
-				totalHours: 'Fuera de oficina',
-				workMinutes: null,
+				totalHours: '08:00',
+				workMinutes: 480,
 			},
 		],
 		...overrides,
@@ -258,17 +260,20 @@ describe('buildAttendanceReportPdf', () => {
 		expect(documentText).toContain('Horas trabajadas');
 		expect(documentText).toContain('Firma');
 		expect(documentText).toContain('Total');
-		expect(documentText).toContain('09:30');
+		expect(documentText).toContain('17:30');
 	});
 
 	it('creates repeated table headers when an employee block spans multiple pages', async () => {
-		const longRows: AttendanceEmployeePdfGroup['rows'] = Array.from({ length: 28 }, (_, index) => ({
-			day: `${String(index + 1).padStart(2, '0')}/04/2026`,
-			firstEntry: '08:00',
-			lastExit: '17:00',
-			totalHours: '09:00',
-			workMinutes: 540,
-		}));
+		const longRows: AttendanceEmployeePdfGroup['rows'] = Array.from(
+			{ length: 28 },
+			(_, index) => ({
+				day: `${String(index + 1).padStart(2, '0')}/04/2026`,
+				firstEntry: '08:00',
+				lastExit: '17:00',
+				totalHours: '09:00',
+				workMinutes: 540,
+			}),
+		);
 
 		const pdfBytes = await buildAttendanceReportPdf({
 			title: 'Reporte de asistencia',

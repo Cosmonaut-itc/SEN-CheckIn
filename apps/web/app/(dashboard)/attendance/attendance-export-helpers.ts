@@ -1,6 +1,8 @@
 import type { AttendanceRecord } from '@/lib/client-functions';
 import { toDateKeyInTimeZone } from '@/lib/time-zone';
 
+const WORK_OFFSITE_STANDARD_MINUTES = 480;
+
 export interface AttendanceSummaryCsvRow {
 	employeeName: string;
 	employeeId: string;
@@ -272,8 +274,8 @@ function buildOffsiteSummaryRow(
 		date: formatDateKey(group.dateKey),
 		firstEntry: labels.workOffsite,
 		lastExit: labels.workOffsite,
-		totalHours: labels.workOffsite,
-		workMinutes: null,
+		totalHours: formatWorkedMinutes(WORK_OFFSITE_STANDARD_MINUTES),
+		workMinutes: WORK_OFFSITE_STANDARD_MINUTES,
 	};
 }
 

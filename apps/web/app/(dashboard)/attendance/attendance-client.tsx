@@ -461,6 +461,33 @@ function resolveEmployeeScheduledMinutes(
 }
 
 /**
+ * Resolves payroll-cutoff work minutes for a virtual attendance date.
+ *
+ * Friday uses the employee's configured schedule. Saturday payroll-cutoff rows
+ * default to eight hours when the employee has any schedule configured, because
+ * the cutoff assumption intentionally adds Saturday attendance even when the
+ * weekly template does not list Saturday as a working day.
+ *
+ * @param employee - Employee with optional schedule detail
+ * @param dateKey - Payroll-cutoff date key in YYYY-MM-DD format
+ * @returns Work minutes for the virtual payroll-cutoff row
+ */
+function resolvePayrollCutoffWorkMinutes(employee: Employee, dateKey: string): number {
+	const scheduledMinutes = resolveEmployeeScheduledMinutes(employee, dateKey);
+	if (scheduledMinutes > 0) {
+		return scheduledMinutes;
+	}
+
+	const schedule = employee.schedule ?? [];
+	const dayOfWeek = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
+	if (schedule.length > 0 && dayOfWeek === 6) {
+		return DEFAULT_VIRTUAL_WORK_MINUTES;
+	}
+
+	return 0;
+}
+
+/**
  * Checks whether an employee matches the attendance export search term.
  *
  * @param employee - Employee record from the export list
@@ -666,7 +693,7 @@ function buildAttendanceVirtualDays(args: {
 				continue;
 			}
 
-			const workMinutes = resolveEmployeeScheduledMinutes(employee, dateKey);
+			const workMinutes = resolvePayrollCutoffWorkMinutes(employee, dateKey);
 			if (workMinutes <= 0) {
 				continue;
 			}

@@ -172,6 +172,7 @@ export function LocationRail({
 					<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
 					<Input
 						aria-label={tCommon('search')}
+						data-testid="location-rail-search"
 						placeholder={t('locationRail.searchPlaceholder')}
 						value={search}
 						onChange={(event) => onSearchChange(event.target.value)}

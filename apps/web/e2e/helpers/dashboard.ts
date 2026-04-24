@@ -60,7 +60,7 @@ export async function waitForDashboardSeededData(page: Page): Promise<void> {
 		state: 'visible',
 		timeout: 30_000,
 	});
-	await page.getByText(/a tiempo hoy/i).waitFor({
+	await page.getByTestId('hero-stat-on-time').waitFor({
 		state: 'visible',
 		timeout: 30_000,
 	});

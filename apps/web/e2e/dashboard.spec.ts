@@ -40,9 +40,10 @@ test.describe('dashboard v2', () => {
 	});
 
 	test('loads the dashboard with hero header and stat card', async ({ page }) => {
-		await expect(page.getByTestId('dashboard-v2-hero')).toBeVisible();
-		await expect(page.getByRole('heading', { name: /Todo el/i })).toBeVisible();
-		await expect(page.getByText(/a tiempo hoy/i)).toBeVisible();
+		const hero = page.getByTestId('dashboard-v2-hero');
+		await expect(hero).toBeVisible();
+		await expect(hero.getByRole('heading')).toBeVisible();
+		await expect(page.getByTestId('hero-stat-on-time')).toBeVisible();
 	});
 
 	test('shows the editorial grid with map, rail, timeline and auxiliary cards', async ({
@@ -90,7 +91,7 @@ test.describe('dashboard v2', () => {
 	});
 
 	test('filters locations from the search input', async ({ page }) => {
-		const searchInput = page.getByPlaceholder('Buscar...');
+		const searchInput = page.getByTestId('location-rail-search');
 
 		await searchInput.fill('Sur');
 
@@ -103,8 +104,8 @@ test.describe('dashboard v2', () => {
 	});
 
 	test('changes the dashboard theme from the theme toggle', async ({ page }) => {
-		await page.getByLabel('Cambiar tema').click();
-		await page.getByRole('menuitemradio', { name: 'Oscuro' }).click();
+		await page.getByTestId('theme-mode-toggle').click();
+		await page.getByTestId('theme-mode-option-dark').click();
 
 		await expect(page.locator('html')).toHaveClass(/dark/);
 	});

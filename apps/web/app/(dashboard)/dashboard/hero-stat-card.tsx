@@ -119,7 +119,9 @@ export function HeroStatCard({
 		<Card className="overflow-hidden border-foreground/10 bg-foreground text-background shadow-[var(--shadow-lg)]">
 			<CardContent className="space-y-5 p-5 sm:p-6">
 				<div className="space-y-2">
-					<p className="text-sm font-medium text-background/75">{t('onTime')}</p>
+					<p className="text-sm font-medium text-background/75" data-testid="hero-stat-on-time">
+						{t('onTime')}
+					</p>
 					<div className="flex flex-wrap items-end gap-2 leading-none">
 						<span className="text-5xl font-semibold tracking-tight sm:text-6xl">
 							{formatCount(onTime)}
@@ -135,6 +137,7 @@ export function HeroStatCard({
 						<span
 							key={chip.key}
 							className="inline-flex items-center gap-2 rounded-full border border-background/15 bg-background/10 px-3 py-1 text-sm font-medium text-background/90"
+							data-testid={`hero-stat-chip-${chip.key}`}
 						>
 							<span className={`size-2 rounded-full ${chip.dotClassName}`} />
 							<span>{chip.label}</span>

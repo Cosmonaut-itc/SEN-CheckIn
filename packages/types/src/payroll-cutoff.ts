@@ -115,7 +115,7 @@ export function resolvePayrollCutoffAssumedDateKeys(args: {
 	}
 
 	if (currentDateKey === fridayDateKey) {
-		const parts = new Intl.DateTimeFormat('es-MX', {
+		const parts = new Intl.DateTimeFormat('en-US', {
 			timeZone: resolvedTimeZone,
 			hour: '2-digit',
 			minute: '2-digit',

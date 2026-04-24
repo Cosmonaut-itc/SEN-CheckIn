@@ -430,7 +430,7 @@ export function buildAttendanceEmployeePdfSummaryRows(
 			continue;
 		}
 		if (
-			virtualDay.kind === 'PAYROLL_CUTOFF_ASSUMED' &&
+			(virtualDay.kind === 'PAYROLL_CUTOFF_ASSUMED' || virtualDay.kind === 'VACATION') &&
 			existing &&
 			existing.virtualKind === undefined &&
 			existing.row.totalHours !== options.labels.incomplete

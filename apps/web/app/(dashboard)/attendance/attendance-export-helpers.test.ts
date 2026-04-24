@@ -865,6 +865,54 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 		]);
 	});
 
+	it('preserves complete real attendance when a vacation virtual day exists', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-vacation-real',
+					employeeName: 'Valeria Real',
+					timestamp: '2026-04-24T13:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-vacation-real',
+					employeeName: 'Valeria Real',
+					timestamp: '2026-04-24T21:30:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-20',
+					endDateKey: '2026-04-26',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+				virtualDays: [
+					{
+						employeeId: 'emp-vacation-real',
+						employeeName: 'Valeria Real',
+						dateKey: '2026-04-24',
+						kind: 'VACATION',
+						workMinutes: 480,
+					},
+				],
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Valeria Real',
+				employeeId: 'emp-vacation-real',
+				date: '24/04/2026',
+				firstEntry: '07:00',
+				lastExit: '15:30',
+				totalHours: '08:30',
+				workMinutes: 510,
+			},
+		]);
+	});
+
 	it('preserves work offsite rows when payroll cutoff virtual attendance exists', () => {
 		const rows = buildAttendanceEmployeePdfSummaryRows(
 			[

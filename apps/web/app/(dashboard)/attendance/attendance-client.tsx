@@ -462,7 +462,7 @@ function employeeMatchesExportSearch(employee: Employee, search: string | undefi
 }
 
 /**
- * Fetches every active employee matching the export-level filters.
+ * Fetches employees matching the export-level filters.
  *
  * @param args - Export employee filters
  * @returns Employee detail records including schedules when available
@@ -485,9 +485,6 @@ async function fetchAttendanceExportEmployees(args: {
 		if (!employee) {
 			return [];
 		}
-		if (args.deviceLocationId && employee.locationId !== args.deviceLocationId) {
-			return [];
-		}
 		return employeeMatchesExportSearch(employee, args.search) ? [employee] : [];
 	}
 
@@ -497,7 +494,6 @@ async function fetchAttendanceExportEmployees(args: {
 	do {
 		const response = (await fetchEmployeesList({
 			organizationId: args.organizationId,
-			status: 'ACTIVE',
 			includeSchedule: true,
 			limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
 			offset,
@@ -513,13 +509,41 @@ async function fetchAttendanceExportEmployees(args: {
 		}
 	} while (employees.length < total);
 
-	const filteredEmployees = employees
-		.filter((employee) =>
-			args.deviceLocationId ? employee.locationId === args.deviceLocationId : true,
-		)
-		.filter((employee) => employeeMatchesExportSearch(employee, args.search));
+	const filteredEmployees = employees.filter((employee) =>
+		employeeMatchesExportSearch(employee, args.search),
+	);
 
 	return filteredEmployees;
+}
+
+/**
+ * Restricts virtual-day candidates to employees with exported device-location rows.
+ *
+ * @param args - Employee and attendance export data
+ * @returns Employees eligible for virtual rows under the active location filter
+ */
+function filterVirtualEmployeesForDeviceLocation(args: {
+	employees: Employee[];
+	records: AttendanceRecord[];
+	deviceLocationId?: string;
+	startDateKey: string;
+	endDateKey: string;
+	timeZone: string;
+}): Employee[] {
+	if (!args.deviceLocationId) {
+		return args.employees;
+	}
+
+	const exportedEmployeeIds = new Set<string>();
+	for (const record of args.records) {
+		const recordDateKey =
+			record.offsiteDateKey ?? toDateKeyInTimeZone(new Date(record.timestamp), args.timeZone);
+		if (recordDateKey >= args.startDateKey && recordDateKey <= args.endDateKey) {
+			exportedEmployeeIds.add(record.employeeId);
+		}
+	}
+
+	return args.employees.filter((employee) => exportedEmployeeIds.has(employee.id));
 }
 
 /**
@@ -1390,7 +1414,14 @@ export function AttendancePageClient({
 				: [];
 			const virtualDays = includeVirtualDays
 				? buildAttendanceVirtualDays({
-						employees: exportEmployees,
+						employees: filterVirtualEmployeesForDeviceLocation({
+							employees: exportEmployees,
+							records: exportRecords,
+							deviceLocationId,
+							startDateKey: exportStartDateKey,
+							endDateKey: exportEndDateKey,
+							timeZone: attendanceExportTimeZone,
+						}),
 						vacationRequests,
 						payrollCutoffDateKeys,
 						startDateKey: exportStartDateKey,

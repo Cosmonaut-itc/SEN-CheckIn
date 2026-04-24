@@ -899,10 +899,15 @@ describe('AttendancePageClient', () => {
 		expect(mockFetchEmployeesList).toHaveBeenCalledWith(
 			expect.objectContaining({
 				organizationId: 'org-1',
-				status: 'ACTIVE',
 				includeSchedule: true,
 				limit: 100,
 				offset: 0,
+			}),
+		);
+		expect(mockFetchEmployeesList).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				status: 'ACTIVE',
+				includeSchedule: true,
 			}),
 		);
 		expect(mockFetchEmployeeById).not.toHaveBeenCalled();
@@ -913,6 +918,113 @@ describe('AttendancePageClient', () => {
 						rows: [
 							expect.objectContaining({
 								day: '24/04/2026',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('keeps virtual rows under a device-location export when the employee is assigned elsewhere', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
+		HTMLElement.prototype.scrollIntoView = vi.fn();
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchLocationsList.mockResolvedValue({
+			data: [
+				{
+					id: 'location-1',
+					name: 'Oficina principal',
+					code: 'HQ',
+					address: null,
+					latitude: null,
+					longitude: null,
+					organizationId: 'org-1',
+					geographicZone: 'GENERAL',
+					timeZone: 'America/Mexico_City',
+					createdAt: new Date('2026-01-01T00:00:00.000Z'),
+					updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					id: 'EMP-001',
+					locationId: 'location-2',
+				}),
+				buildEmployee({
+					id: 'EMP-002',
+					code: 'EMP-002',
+					firstName: 'Grace',
+					lastName: 'Hopper',
+					locationId: 'location-2',
+				}),
+			],
+			pagination: { total: 2, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		fireEvent.click(screen.getByRole('combobox', { name: 'Ubicación' }));
+		fireEvent.click(await screen.findByRole('option', { name: 'Oficina principal' }));
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					deviceLocationId: 'location-1',
+				}),
+			);
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						employeeName: 'Ada Lovelace',
+						rows: [
+							expect.objectContaining({
 								totalHours: '08:00',
 							}),
 						],

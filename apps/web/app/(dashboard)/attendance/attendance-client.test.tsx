@@ -1104,6 +1104,11 @@ describe('AttendancePageClient', () => {
 				expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
 			});
 
+			expect(mockFetchEmployeesList).toHaveBeenCalledWith(
+				expect.objectContaining({
+					search: searchTerm,
+				}),
+			);
 			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
 				expect.objectContaining({
 					groups: [

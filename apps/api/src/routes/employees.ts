@@ -1144,9 +1144,14 @@ export const employeeRoutes = new Elysia({ prefix: '/employees' })
 			}
 			if (search) {
 				const searchClause = or(
+					ilike(employee.id, `%${search}%`),
 					ilike(employee.firstName, `%${search}%`),
 					ilike(employee.lastName, `%${search}%`),
 					ilike(employee.code, `%${search}%`),
+					ilike(
+						sql<string>`concat_ws(' ', ${employee.firstName}, ${employee.lastName})`,
+						`%${search}%`,
+					),
 				)!;
 				conditions.push(searchClause);
 			}

@@ -35,8 +35,8 @@ export interface AttendanceSummaryLabels {
 	incomplete: string;
 	noEntry: string;
 	noExit: string;
-	payrollCutoffAssumed?: string;
-	vacation?: string;
+	payrollCutoffAssumed: string;
+	vacation: string;
 	workOffsite: string;
 }
 
@@ -362,8 +362,8 @@ function buildVirtualSummaryRow(
 ): AttendanceSummaryPdfRow {
 	const fallbackLabel =
 		virtualDay.kind === 'VACATION'
-			? (options.labels.vacation ?? 'Vacaciones')
-			: (options.labels.payrollCutoffAssumed ?? 'Asistencia por nómina');
+			? options.labels.vacation
+			: options.labels.payrollCutoffAssumed;
 	const firstEntry =
 		virtualDay.kind === 'PAYROLL_CUTOFF_ASSUMED' &&
 		existingRow &&

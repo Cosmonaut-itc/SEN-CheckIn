@@ -495,6 +495,7 @@ async function fetchAttendanceExportEmployees(args: {
 		const response = (await fetchEmployeesList({
 			organizationId: args.organizationId,
 			includeSchedule: true,
+			search: args.search,
 			limit: ACTIVE_EMPLOYEES_PAGE_SIZE,
 			offset,
 		})) as Awaited<ReturnType<typeof fetchEmployeesList>> | undefined;

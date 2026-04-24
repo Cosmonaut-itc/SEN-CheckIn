@@ -338,10 +338,10 @@ export function DashboardMap({
 							<MarkerTooltip>
 								{t('map.tooltip', { count: presentCount })}
 							</MarkerTooltip>
-							<MarkerPopup className="w-80 rounded-xl p-0 shadow-lg">
+							<MarkerPopup className="w-72 max-w-[calc(100vw-2rem)] rounded-lg p-0 shadow-lg">
 								<Card className="overflow-hidden border-[color:var(--border-subtle)] shadow-none">
-									<CardContent className="space-y-4 p-4">
-										<div className="space-y-3">
+									<CardContent className="space-y-3 p-3">
+										<div className="space-y-2.5">
 											<div className="flex items-start justify-between gap-3">
 												<div className="min-w-0">
 													<p className="truncate text-sm font-semibold">
@@ -391,8 +391,11 @@ export function DashboardMap({
 												{t('map.popup.empty')}
 											</p>
 										) : (
-											<ScrollArea className="max-h-48">
-												<div className="space-y-3">
+											<ScrollArea
+												data-testid={`dashboard-map-employee-scroll-${location.id}`}
+												className="h-[min(10rem,32vh)] pr-3"
+											>
+												<div className="space-y-2.5">
 													{sortedPresent.map((record) => {
 														const displayName =
 															record.employeeName ||
@@ -410,10 +413,10 @@ export function DashboardMap({
 														return (
 															<div
 																key={`${record.employeeId}-${record.checkedInAt}`}
-																className="flex items-center justify-between"
+																className="flex items-center justify-between gap-3"
 															>
-																<div className="flex items-center gap-3">
-																	<Avatar className="h-8 w-8">
+																<div className="flex min-w-0 items-center gap-2.5">
+																	<Avatar className="h-7 w-7">
 																		<AvatarFallback>
 																			{initials ||
 																				t(
@@ -421,8 +424,8 @@ export function DashboardMap({
 																				)}
 																		</AvatarFallback>
 																	</Avatar>
-																	<div>
-																		<p className="text-sm font-medium">
+																	<div className="min-w-0">
+																		<p className="truncate text-sm font-medium leading-tight">
 																			{displayName}
 																		</p>
 																		<p className="text-xs text-muted-foreground">
@@ -430,7 +433,7 @@ export function DashboardMap({
 																		</p>
 																	</div>
 																</div>
-																<span className="text-xs text-muted-foreground">
+																<span className="shrink-0 text-right text-xs text-muted-foreground">
 																	{t('map.popup.timeAgo', {
 																		time: relativeTime,
 																	})}

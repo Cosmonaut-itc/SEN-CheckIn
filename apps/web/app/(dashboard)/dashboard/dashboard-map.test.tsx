@@ -180,6 +180,49 @@ describe('DashboardMap', () => {
 		expect(employeeNames).toEqual(['Grace Hopper', 'Ada Lovelace']);
 	});
 
+	it('constrains the popup employee list to a scrollable viewport', () => {
+		const location: Location = {
+			id: 'location-1',
+			name: 'Matriz',
+			code: 'MTZ',
+			address: null,
+			latitude: 19.4326,
+			longitude: -99.1332,
+			organizationId: 'org-1',
+			geographicZone: 'GENERAL',
+			timeZone: 'America/Mexico_City',
+			createdAt: new Date('2026-01-01T00:00:00.000Z'),
+			updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+		};
+		const presentRecords: AttendancePresentRecord[] = Array.from({ length: 9 }, (_, index) => ({
+			employeeId: `employee-${index + 1}`,
+			employeeName: `Empleado ${index + 1}`,
+			employeeCode: `EMP-${index + 1}`,
+			deviceId: `device-${index + 1}`,
+			locationId: 'location-1',
+			locationName: 'Matriz',
+			checkedInAt: new Date(`2026-04-21T11:${50 - index}:00.000Z`),
+		}));
+
+		render(
+			<DashboardMap
+				locations={[location]}
+				focusedLocation={location}
+				presentByLocationId={
+					new Map<string, AttendancePresentRecord[]>([['location-1', presentRecords]])
+				}
+				isMobileLayout={false}
+			/>,
+		);
+
+		expect(screen.getByTestId('dashboard-map-popup')).toHaveClass('w-72');
+		expect(screen.getByTestId('dashboard-map-employee-scroll-location-1')).toHaveClass(
+			'h-[min(10rem,32vh)]',
+			'pr-3',
+		);
+		expect(screen.getByText('Empleado 9')).toBeInTheDocument();
+	});
+
 	it('refits the map to the overview when hover focus clears', () => {
 		const locations: Location[] = [
 			{

@@ -201,7 +201,7 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows[0]?.totalHours).toBe('Incompleto');
 	});
 
-	it('treats CHECK_OUT_AUTHORIZED as a valid exit', () => {
+	it('keeps an authorized check-out visible without closing worked hours', () => {
 		const rows = aggregateAttendanceByPersonDay(
 			[
 				buildAttendanceRecord({
@@ -222,7 +222,49 @@ describe('aggregateAttendanceByPersonDay', () => {
 
 		expect(rows).toHaveLength(1);
 		expect(rows[0]?.lastExit).toBe('14:00');
-		expect(rows[0]?.totalHours).toBe('05:30');
+		expect(rows[0]?.totalHours).toBe('Incompleto');
+	});
+
+	it('keeps counting worked hours through an authorized check-out until the normal exit', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T13:13:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T13:32:00.000Z',
+					type: 'CHECK_OUT_AUTHORIZED',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T17:54:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-10T23:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toEqual({
+			employeeName: 'Juan',
+			employeeId: 'emp-1',
+			date: '10/04/2026',
+			firstEntry: '07:13',
+			lastExit: '17:00',
+			totalHours: '09:47',
+		});
 	});
 
 	it('shows WORK_OFFSITE rows as offsite summaries', () => {

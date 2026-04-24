@@ -229,13 +229,29 @@ function groupAttendanceRecords(
 		if (record.type === 'CHECK_IN') {
 			const openEntry = openEntriesByEmployee.get(record.employeeId);
 			if (openEntry) {
-				appendRecordToGroup(groups, openEntry, getAttendanceDateKey(openEntry, timeZone));
+				const openEntryDateKey = getAttendanceDateKey(openEntry, timeZone);
+				const currentEntryDateKey = getAttendanceDateKey(record, timeZone);
+				if (openEntryDateKey === currentEntryDateKey) {
+					appendRecordToGroup(groups, record, currentEntryDateKey);
+					continue;
+				}
+
+				appendRecordToGroup(groups, openEntry, openEntryDateKey);
 			}
 			openEntriesByEmployee.set(record.employeeId, record);
 			continue;
 		}
 
-		if (record.type === 'CHECK_OUT' || record.type === 'CHECK_OUT_AUTHORIZED') {
+		if (record.type === 'CHECK_OUT_AUTHORIZED') {
+			const pendingEntry = openEntriesByEmployee.get(record.employeeId);
+			const dateKey = pendingEntry
+				? getAttendanceDateKey(pendingEntry, timeZone)
+				: getAttendanceDateKey(record, timeZone);
+			appendRecordToGroup(groups, record, dateKey);
+			continue;
+		}
+
+		if (record.type === 'CHECK_OUT') {
 			const pendingEntry = openEntriesByEmployee.get(record.employeeId);
 
 			if (!pendingEntry) {
@@ -312,7 +328,12 @@ function buildWorkedSummaryRow(
 			continue;
 		}
 
-		if (record.type === 'CHECK_OUT' || record.type === 'CHECK_OUT_AUTHORIZED') {
+		if (record.type === 'CHECK_OUT_AUTHORIZED') {
+			lastExitAt = timestamp;
+			continue;
+		}
+
+		if (record.type === 'CHECK_OUT') {
 			lastExitAt = timestamp;
 
 			if (!openEntryAt) {

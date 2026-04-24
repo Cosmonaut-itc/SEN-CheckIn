@@ -57,27 +57,28 @@ function addDaysToDateKey(dateKey: string, days: number): string {
 }
 
 /**
- * Finds the first target day-of-week inside an inclusive date-key period.
+ * Finds the latest target day-of-week inside an inclusive date-key period.
  *
  * @param args - Period and target day inputs
  * @returns Matching date key, or null when the day is not in the period
  */
-function getDateKeyForDayOfWeekInPeriod(args: {
+function getLatestDateKeyForDayOfWeekInPeriod(args: {
 	periodStartDateKey: string;
 	periodEndDateKey: string;
 	targetDayOfWeek: number;
 }): string | null {
 	let currentKey = args.periodStartDateKey;
+	let matchingDateKey: string | null = null;
 	for (let index = 0; index < 400 && currentKey <= args.periodEndDateKey; index += 1) {
 		if (new Date(`${currentKey}T00:00:00Z`).getUTCDay() === args.targetDayOfWeek) {
-			return currentKey;
+			matchingDateKey = currentKey;
 		}
 		if (currentKey === args.periodEndDateKey) {
 			break;
 		}
 		currentKey = addDaysToDateKey(currentKey, 1);
 	}
-	return null;
+	return matchingDateKey;
 }
 
 /**
@@ -104,7 +105,7 @@ export function resolvePayrollCutoffAssumedDateKeys(args: {
 		return [];
 	}
 
-	const fridayDateKey = getDateKeyForDayOfWeekInPeriod({
+	const fridayDateKey = getLatestDateKeyForDayOfWeekInPeriod({
 		periodStartDateKey: args.periodStartDateKey,
 		periodEndDateKey: args.periodEndDateKey,
 		targetDayOfWeek: 5,

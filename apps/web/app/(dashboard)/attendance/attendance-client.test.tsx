@@ -35,6 +35,23 @@ const mockFetchVacationRequestsList = vi.fn();
 let expectedPdfBytes: Uint8Array | null = null;
 
 /**
+ * Freezes Date reads without replacing async timers used by React tests.
+ *
+ * @param timestamp - Current instant exposed to code under test
+ */
+function freezeDate(timestamp: string): void {
+	vi.useFakeTimers({ toFake: ['Date'] });
+	vi.setSystemTime(new Date(timestamp));
+}
+
+/**
+ * Restores real Date reads after a frozen-time test.
+ */
+function restoreDate(): void {
+	vi.useRealTimers();
+}
+
+/**
  * Reads a Blob into a byte array.
  *
  * @param blob - Blob to read
@@ -231,6 +248,7 @@ describe('AttendancePageClient', () => {
 		URL.createObjectURL = originalCreateObjectURL;
 		URL.revokeObjectURL = originalRevokeObjectURL;
 		HTMLAnchorElement.prototype.click = originalAnchorClick;
+		restoreDate();
 		vi.restoreAllMocks();
 	});
 
@@ -808,6 +826,7 @@ describe('AttendancePageClient', () => {
 	});
 
 	it('uses bulk list schedules during export without fetching every employee detail', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
 		const anchorClickSpy = vi
 			.spyOn(HTMLAnchorElement.prototype, 'click')
 			.mockImplementation(() => undefined);
@@ -894,6 +913,339 @@ describe('AttendancePageClient', () => {
 						rows: [
 							expect.objectContaining({
 								day: '24/04/2026',
+								totalHours: '08:00',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it.each([
+		{ searchTerm: 'ada', label: 'name' },
+		{ searchTerm: 'SEN-104', label: 'code' },
+	])(
+		'keeps virtual export rows when a search matches the employee $label',
+		async ({ searchTerm }) => {
+			freezeDate('2026-04-24T16:30:00.000Z');
+			mockFetchAttendanceRecords.mockResolvedValue({
+				data: [
+					{
+						id: 'attendance-1',
+						employeeId: 'employee-uuid-1',
+						employeeName: 'Ada Lovelace',
+						deviceId: 'device-1',
+						deviceLocationId: 'location-1',
+						deviceLocationName: 'Oficina principal',
+						timestamp: new Date('2026-04-24T15:00:00.000Z'),
+						type: 'CHECK_IN' as const,
+						metadata: null,
+						createdAt: new Date('2026-04-24T15:00:00.000Z'),
+						updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+					},
+				],
+				pagination: { total: 1, limit: 10, offset: 0 },
+			});
+			mockFetchEmployeesList.mockResolvedValue({
+				data: [
+					buildEmployee({
+						id: 'employee-uuid-1',
+						code: 'SEN-104',
+						firstName: 'Ada',
+						lastName: 'Lovelace',
+					}),
+					buildEmployee({
+						id: 'employee-uuid-2',
+						code: 'SEN-205',
+						firstName: 'Grace',
+						lastName: 'Hopper',
+					}),
+				],
+				pagination: { total: 2, limit: 100, offset: 0 },
+			});
+
+			renderAttendanceClient({
+				organizationTimeZone: 'America/Mexico_City',
+				initialFilters: {
+					from: '2026-04-24',
+					to: '2026-04-25',
+				},
+			});
+
+			await waitFor(() => {
+				expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+			});
+
+			fireEvent.change(screen.getByLabelText('Buscar empleado'), {
+				target: { value: searchTerm },
+			});
+
+			const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+			await waitFor(() => {
+				expect(exportButton).toBeEnabled();
+			});
+
+			fireEvent.click(exportButton);
+
+			await waitFor(() => {
+				expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+			});
+
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+				expect.objectContaining({
+					groups: [
+						expect.objectContaining({
+							employeeName: 'Ada Lovelace',
+							rows: [
+								expect.objectContaining({
+									totalHours: '08:00',
+								}),
+							],
+						}),
+					],
+				}),
+			);
+		},
+	);
+
+	it('does not create selected-employee virtual rows when search does not match the employee', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'employee-uuid-1',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeeById.mockResolvedValue(
+			buildEmployee({
+				id: 'employee-uuid-1',
+				code: 'SEN-104',
+				firstName: 'Ada',
+				lastName: 'Lovelace',
+			}),
+		);
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+				employeeId: 'employee-uuid-1',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		fireEvent.change(screen.getByLabelText('Buscar empleado'), {
+			target: { value: 'grace' },
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						employeeName: 'Ada Lovelace',
+						rows: [
+							expect.objectContaining({
+								totalHours: 'Incompleto',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('does not create cutoff virtual rows when an employee has no schedule', async () => {
+		freezeDate('2026-04-24T16:30:00.000Z');
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-25',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								totalHours: 'Incompleto',
+							}),
+						],
+					}),
+				],
+			}),
+		);
+	});
+
+	it('keeps approved vacation virtual rows when an employee has no schedule', async () => {
+		mockFetchAttendanceRecords.mockResolvedValue({
+			data: [
+				{
+					id: 'attendance-1',
+					employeeId: 'EMP-001',
+					employeeName: 'Ada Lovelace',
+					deviceId: 'device-1',
+					deviceLocationId: 'location-1',
+					deviceLocationName: 'Oficina principal',
+					timestamp: new Date('2026-04-24T15:00:00.000Z'),
+					type: 'CHECK_IN' as const,
+					metadata: null,
+					createdAt: new Date('2026-04-24T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-24T15:00:00.000Z'),
+				},
+			],
+			pagination: { total: 1, limit: 10, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [
+				buildEmployee({
+					schedule: [],
+				}),
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+		mockFetchVacationRequestsList.mockResolvedValue({
+			data: [
+				{
+					id: 'vacation-1',
+					organizationId: 'org-1',
+					employeeId: 'EMP-001',
+					requestedByUserId: null,
+					status: 'APPROVED',
+					startDateKey: '2026-04-24',
+					endDateKey: '2026-04-24',
+					requestedNotes: null,
+					decisionNotes: null,
+					approvedByUserId: 'user-1',
+					approvedAt: new Date('2026-04-20T15:00:00.000Z'),
+					rejectedByUserId: null,
+					rejectedAt: null,
+					cancelledByUserId: null,
+					cancelledAt: null,
+					createdAt: new Date('2026-04-20T15:00:00.000Z'),
+					updatedAt: new Date('2026-04-20T15:00:00.000Z'),
+					employeeName: 'Ada',
+					employeeLastName: 'Lovelace',
+					days: [
+						{
+							dateKey: '2026-04-24',
+							countsAsVacationDay: true,
+							dayType: 'SCHEDULED_WORKDAY',
+							serviceYearNumber: 1,
+						},
+					],
+					summary: {
+						totalDays: 1,
+						vacationDays: 1,
+					},
+				},
+			],
+			pagination: { total: 1, limit: 100, offset: 0 },
+		});
+
+		renderAttendanceClient({
+			organizationTimeZone: 'America/Mexico_City',
+			initialFilters: {
+				from: '2026-04-24',
+				to: '2026-04-24',
+			},
+		});
+
+		await waitFor(() => {
+			expect(mockFetchAttendanceRecords).toHaveBeenCalled();
+		});
+
+		const exportButton = screen.getByRole('button', { name: 'Descargar PDF' });
+		await waitFor(() => {
+			expect(exportButton).toBeEnabled();
+		});
+
+		fireEvent.click(exportButton);
+
+		await waitFor(() => {
+			expect(mockBuildAttendanceReportPdf).toHaveBeenCalledTimes(1);
+		});
+
+		expect(mockBuildAttendanceReportPdf).toHaveBeenCalledWith(
+			expect.objectContaining({
+				groups: [
+					expect.objectContaining({
+						rows: [
+							expect.objectContaining({
+								firstEntry: 'Vacaciones',
+								lastExit: 'Vacaciones',
 								totalHours: '08:00',
 							}),
 						],

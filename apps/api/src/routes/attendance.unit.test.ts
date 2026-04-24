@@ -179,6 +179,7 @@ mock.module('drizzle-orm', () => ({
 	lt: (column: unknown, value: unknown) => ({ kind: 'lt' as const, column, value }),
 	lte: (column: unknown, value: unknown) => ({ kind: 'lte' as const, column, value }),
 	ne: (column: unknown, value: unknown) => ({ kind: 'ne' as const, column, value }),
+	or: (...conditions: unknown[]) => ({ kind: 'or' as const, conditions }),
 	relations: () => ({}),
 	sql: Object.assign(sqlTag, {
 		raw: (value: string) => ({ raw: value }),
@@ -187,16 +188,13 @@ mock.module('drizzle-orm', () => ({
 
 mock.module('../db/index.js', () => ({ default: fakeDb }));
 mock.module('../plugins/auth.js', () => ({
-	combinedAuthPlugin: new Elysia({ name: 'mock-auth-plugin' }).derive(
-		{ as: 'scoped' },
-		() => ({
-			authType: authState.authType,
-			session: authState.session,
-			sessionOrganizationIds: authState.sessionOrganizationIds,
-			apiKeyOrganizationId: authState.apiKeyOrganizationId,
-			apiKeyOrganizationIds: authState.apiKeyOrganizationIds,
-		}),
-	),
+	combinedAuthPlugin: new Elysia({ name: 'mock-auth-plugin' }).derive({ as: 'scoped' }, () => ({
+		authType: authState.authType,
+		session: authState.session,
+		sessionOrganizationIds: authState.sessionOrganizationIds,
+		apiKeyOrganizationId: authState.apiKeyOrganizationId,
+		apiKeyOrganizationIds: authState.apiKeyOrganizationIds,
+	})),
 }));
 mock.module('../utils/error-response.js', () => ({
 	buildErrorResponse: (message: string, status: number) => ({
@@ -258,10 +256,7 @@ describe('attendance dashboard routes', () => {
 	});
 
 	it('allows multi-org api keys to disambiguate organization on hourly requests', async () => {
-		dbState.selectResults = [
-			[{ timeZone: 'America/Mexico_City' }],
-			[],
-		];
+		dbState.selectResults = [[{ timeZone: 'America/Mexico_City' }], []];
 
 		const { attendanceRoutes } = await import('./attendance.js');
 		const response = await attendanceRoutes.handle(

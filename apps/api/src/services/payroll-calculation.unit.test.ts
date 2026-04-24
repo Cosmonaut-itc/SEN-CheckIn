@@ -3,6 +3,7 @@ import { describe, expect, it } from 'bun:test';
 import {
 	calculatePayrollFromData,
 	getPayrollPeriodBounds,
+	resolvePayrollCutoffAssumedDateKeys,
 	type AttendanceRow,
 	type PayrollEmployeeRow,
 	type ScheduleRow,
@@ -28,6 +29,28 @@ function getMexicoCityInstant(dateKey: string, hour: number, minute: number): Da
 }
 
 describe('payroll cutoff assumed attendance', () => {
+	it('uses the latest Friday cutoff inside a multi-week current period', () => {
+		const assumedDateKeys = resolvePayrollCutoffAssumedDateKeys({
+			now: getMexicoCityInstant('2026-04-24', 10, 30),
+			periodStartDateKey: '2026-04-13',
+			periodEndDateKey: '2026-04-26',
+			timeZone: TEST_TIME_ZONE,
+		});
+
+		expect(assumedDateKeys).toEqual(['2026-04-24', '2026-04-25']);
+	});
+
+	it('does not use an earlier Friday before the latest multi-week cutoff has passed', () => {
+		const assumedDateKeys = resolvePayrollCutoffAssumedDateKeys({
+			now: getMexicoCityInstant('2026-04-23', 10, 30),
+			periodStartDateKey: '2026-04-13',
+			periodEndDateKey: '2026-04-26',
+			timeZone: TEST_TIME_ZONE,
+		});
+
+		expect(assumedDateKeys).toEqual([]);
+	});
+
 	it('does not inject or audit assumed hours over a complete short real attendance day', () => {
 		const employeeId = 'emp-short-real-attendance';
 		const periodStartDateKey = '2026-04-24';

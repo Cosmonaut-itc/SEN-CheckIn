@@ -413,12 +413,17 @@ function parseScheduleTimeToMinutes(timeValue: string): number {
  *
  * @param employee - Employee with optional schedule detail
  * @param dateKey - Local date key in YYYY-MM-DD format
- * @returns Scheduled minutes, falling back to a standard shift when schedule detail is missing
+ * @param options - Optional fallback controls
+ * @returns Scheduled minutes, or the configured fallback when no schedule is available
  */
-function resolveEmployeeScheduledMinutes(employee: Employee, dateKey: string): number {
+function resolveEmployeeScheduledMinutes(
+	employee: Employee,
+	dateKey: string,
+	options?: { missingScheduleMinutes?: number },
+): number {
 	const schedule = employee.schedule ?? [];
 	if (schedule.length === 0) {
-		return DEFAULT_VIRTUAL_WORK_MINUTES;
+		return options?.missingScheduleMinutes ?? 0;
 	}
 
 	const dayOfWeek = new Date(`${dateKey}T00:00:00Z`).getUTCDay();
@@ -436,6 +441,24 @@ function resolveEmployeeScheduledMinutes(employee: Employee, dateKey: string): n
 		return 24 * 60 - startMinutes + endMinutes;
 	}
 	return 0;
+}
+
+/**
+ * Checks whether an employee matches the attendance export search term.
+ *
+ * @param employee - Employee record from the export list
+ * @param search - Free-text search term
+ * @returns True when the employee name, code, or id matches the term
+ */
+function employeeMatchesExportSearch(employee: Employee, search: string | undefined): boolean {
+	const normalizedSearch = search?.trim().toLowerCase();
+	if (!normalizedSearch) {
+		return true;
+	}
+
+	return [`${employee.firstName} ${employee.lastName}`.trim(), employee.code, employee.id].some(
+		(value) => value?.toLowerCase().includes(normalizedSearch),
+	);
 }
 
 /**
@@ -459,7 +482,13 @@ async function fetchAttendanceExportEmployees(args: {
 			| Employee
 			| null
 			| undefined;
-		return employee ? [employee] : [];
+		if (!employee) {
+			return [];
+		}
+		if (args.deviceLocationId && employee.locationId !== args.deviceLocationId) {
+			return [];
+		}
+		return employeeMatchesExportSearch(employee, args.search) ? [employee] : [];
 	}
 
 	const employees: Employee[] = [];
@@ -488,7 +517,7 @@ async function fetchAttendanceExportEmployees(args: {
 		.filter((employee) =>
 			args.deviceLocationId ? employee.locationId === args.deviceLocationId : true,
 		)
-		.filter((employee) => (args.search ? employee.id.includes(args.search) : true));
+		.filter((employee) => employeeMatchesExportSearch(employee, args.search));
 
 	return filteredEmployees;
 }
@@ -567,7 +596,9 @@ function buildAttendanceVirtualDays(args: {
 				continue;
 			}
 
-			const workMinutes = resolveEmployeeScheduledMinutes(employee, day.dateKey);
+			const workMinutes = resolveEmployeeScheduledMinutes(employee, day.dateKey, {
+				missingScheduleMinutes: DEFAULT_VIRTUAL_WORK_MINUTES,
+			});
 			if (workMinutes <= 0) {
 				continue;
 			}

@@ -264,6 +264,8 @@ export interface DashboardTimelinePayload {
 	lateTotal: number;
 }
 
+const MAX_ATTENDANCE_TIMELINE_PAGES = 20;
+
 /**
  * Hourly attendance aggregation for dashboard activity charts.
  */
@@ -2379,8 +2381,8 @@ export async function fetchAttendanceTimeline(params?: {
 		toDate?: Date;
 		kind?: 'in' | 'out' | 'late' | 'offsite';
 	} = {
-		limit: params?.limit ?? 50,
-		offset: params?.offset ?? 0,
+		limit: clampPaginationLimit(params?.limit, 50),
+		offset: clampPaginationOffset(params?.offset),
 	};
 
 	if (params?.organizationId) {
@@ -2403,6 +2405,8 @@ export async function fetchAttendanceTimeline(params?: {
 	let currentOffset = query.offset;
 	let lateTotal = 0;
 	let hasMore = true;
+	let pageCount = 0;
+	let snapshotTotal: number | null = null;
 
 	while (hasMore) {
 		const response = await api.attendance.timeline.get({
@@ -2422,6 +2426,15 @@ export async function fetchAttendanceTimeline(params?: {
 				timestamp: Date | string;
 			}
 		>;
+		const paginationTotal = payload?.pagination?.total;
+
+		if (snapshotTotal === null && Number.isFinite(paginationTotal)) {
+			snapshotTotal = Math.max(0, Math.floor(paginationTotal as number));
+		}
+
+		if ((payload?.pagination?.hasMore ?? false) && pageEvents.length === 0) {
+			throw new Error('Failed to fetch a bounded attendance timeline');
+		}
 
 		events.push(
 			...pageEvents.map((event) => ({
@@ -2430,8 +2443,18 @@ export async function fetchAttendanceTimeline(params?: {
 			})),
 		);
 		lateTotal = payload?.summary?.lateTotal ?? lateTotal;
-		hasMore = payload?.pagination?.hasMore ?? false;
-		currentOffset += payload?.pagination?.limit ?? query.limit;
+		pageCount += 1;
+		const reachedSnapshotTotal =
+			snapshotTotal !== null && currentOffset + pageEvents.length >= snapshotTotal;
+		hasMore =
+			(payload?.pagination?.hasMore ?? false) &&
+			pageEvents.length > 0 &&
+			!reachedSnapshotTotal;
+		currentOffset += clampPaginationLimit(payload?.pagination?.limit, query.limit);
+
+		if (hasMore && snapshotTotal === null && pageCount >= MAX_ATTENDANCE_TIMELINE_PAGES) {
+			throw new Error('Failed to fetch a bounded attendance timeline');
+		}
 	}
 
 	return {

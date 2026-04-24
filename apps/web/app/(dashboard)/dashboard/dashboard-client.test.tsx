@@ -486,18 +486,34 @@ describe('DashboardPageClient', () => {
 		expect(unassignedLocationRow).toHaveTextContent('1/2');
 	});
 
-	it('keeps the hero card loading until active employee capacity is available', () => {
+	it('uses the active employee total in the hero subtitle and location summary badge', () => {
+		const queryResults = createQueryResults();
+		mockQueryResults(queryResults);
+
+		render(<DashboardPageClient />);
+
+		expect(
+			screen.getAllByText('Visibilidad en tiempo real de 1 ubicaciones y 3 empleados.'),
+		).toHaveLength(2);
+		expect(
+			screen.queryByText('Visibilidad en tiempo real de 1 ubicaciones y 12 empleados.'),
+		).not.toBeInTheDocument();
+	});
+
+	it('stops the hero card loading when active employee capacity has no fallback data', () => {
 		const queryResults = createQueryResults();
 		queryResults[7] = {
 			data: undefined,
 			isFetching: false,
+			isError: true,
 		};
 		mockQueryResults(queryResults);
 
 		render(<DashboardPageClient />);
 
 		const heroSection = screen.getByTestId('dashboard-v2-hero');
-		expect(heroSection.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
+		expect(heroSection.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(0);
+		expect(heroSection).toHaveTextContent('/ 0');
 		expect(heroSection).toHaveTextContent(
 			'Visibilidad en tiempo real de 1 ubicaciones y 0 empleados.',
 		);

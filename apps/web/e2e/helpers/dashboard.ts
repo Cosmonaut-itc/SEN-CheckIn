@@ -56,10 +56,6 @@ export async function waitForDashboardSeededData(page: Page): Promise<void> {
 		state: 'visible',
 		timeout: 30_000,
 	});
-	await page.getByText('Kiosco principal').waitFor({
-		state: 'visible',
-		timeout: 30_000,
-	});
 	await page.getByTestId('weather-icon-cielo-claro').waitFor({
 		state: 'visible',
 		timeout: 30_000,
@@ -78,7 +74,7 @@ export async function waitForDashboardSeededData(page: Page): Promise<void> {
 	}
 
 	const railItems = page.locator('[data-testid^="location-rail-item-"]');
-	const mobileRailToggle = page.getByRole('button', { name: 'Por sucursal' });
+	const mobileRailToggle = page.getByTestId('location-rail-mobile-toggle');
 
 	if (isMobileViewport) {
 		await mobileRailToggle.waitFor({
@@ -100,8 +96,8 @@ export async function waitForDashboardSeededData(page: Page): Promise<void> {
 			await mobileRailToggle.click();
 			await page.waitForFunction(
 				() => {
-					const toggle = Array.from(document.querySelectorAll('button')).find(
-						(button) => button.textContent?.trim() === 'Por sucursal',
+					const toggle = document.querySelector(
+						'[data-testid="location-rail-mobile-toggle"]',
 					);
 					return toggle?.getAttribute('aria-expanded') === 'false';
 				},

@@ -349,7 +349,6 @@ export function DashboardPageClient(): React.ReactElement {
 		() => employeeCountByLocationData ?? new Map<string, number>(),
 		[employeeCountByLocationData],
 	);
-	const hasEmployeeCountsLoaded = employeeCountByLocationData !== undefined;
 
 	const presentByLocationId = useMemo(
 		() => buildPresentByLocationId(presentRecords),
@@ -436,7 +435,7 @@ export function DashboardPageClient(): React.ReactElement {
 							isPresentFetching ||
 							isOffsiteFetching ||
 							isTimelineFetching ||
-							!hasEmployeeCountsLoaded
+							isEmployeeCountsFetching
 						}
 					/>
 				</div>
@@ -501,6 +500,7 @@ export function DashboardPageClient(): React.ReactElement {
 								type="button"
 								variant="outline"
 								className="w-full justify-between rounded-2xl bg-[color:var(--bg-elevated)] shadow-[var(--shadow-sm)]"
+								data-testid="location-rail-mobile-toggle"
 								aria-expanded={isMobileRailOpen}
 								onClick={() => setIsMobileRailOpen((currentValue) => !currentValue)}
 							>
@@ -587,7 +587,7 @@ export function DashboardPageClient(): React.ReactElement {
 					<span>{t('locationRail.title')}</span>
 					<Badge variant="outline">
 						{t('hero.subtitle', {
-							employees: counts.employees ?? 0,
+							employees: activeEmployeeTotal,
 							locations: counts.locations ?? locations.length,
 						})}
 					</Badge>

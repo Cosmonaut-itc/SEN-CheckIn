@@ -2735,6 +2735,59 @@ export const payrollRunEmployee = pgTable('payroll_run_employee', {
 });
 
 /**
+ * Fiscal voucher snapshots prepared from processed payroll rows before PAC stamping.
+ */
+export const payrollFiscalVoucher = pgTable(
+	'payroll_fiscal_voucher',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => randomUUID()),
+		payrollRunId: text('payroll_run_id')
+			.notNull()
+			.references(() => payrollRun.id, { onDelete: 'cascade' }),
+		payrollRunEmployeeId: text('payroll_run_employee_id')
+			.notNull()
+			.references(() => payrollRunEmployee.id, { onDelete: 'cascade' }),
+		organizationId: text('organization_id')
+			.notNull()
+			.references(() => organization.id, { onDelete: 'cascade' }),
+		employeeId: text('employee_id')
+			.notNull()
+			.references(() => employee.id, { onDelete: 'cascade' }),
+		status: text('status').default('BLOCKED').notNull(),
+		voucher: jsonb('voucher').$type<Record<string, unknown>>().notNull(),
+		validationErrors: jsonb('validation_errors')
+			.$type<Record<string, unknown>[]>()
+			.default([])
+			.notNull(),
+		validationWarnings: jsonb('validation_warnings')
+			.$type<Record<string, unknown>[]>()
+			.default([])
+			.notNull(),
+		uuid: text('uuid'),
+		stampedXml: text('stamped_xml'),
+		pacProvider: text('pac_provider'),
+		stampedAt: timestamp('stamped_at'),
+		cancellationReason: text('cancellation_reason'),
+		replacementUuid: text('replacement_uuid'),
+		preparedAt: timestamp('prepared_at').defaultNow().notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull(),
+		updatedAt: timestamp('updated_at')
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index('payroll_fiscal_voucher_run_idx').on(table.payrollRunId),
+		index('payroll_fiscal_voucher_employee_idx').on(table.employeeId),
+		uniqueIndex('payroll_fiscal_voucher_run_employee_uniq').on(
+			table.payrollRunEmployeeId,
+		),
+	],
+);
+
+/**
  * PTU run header table.
  */
 export const ptuRun = pgTable(

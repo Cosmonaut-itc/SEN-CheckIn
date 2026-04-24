@@ -15,6 +15,7 @@ import {
 	member,
 	organization,
 	overtimeAuthorization,
+	payrollFiscalVoucher,
 	payrollRun,
 	payrollRunEmployee,
 	payrollSetting,
@@ -24,6 +25,7 @@ import {
 import { combinedAuthPlugin } from '../plugins/auth.js';
 import { resolveOrganizationId } from '../utils/organization.js';
 import { roundCurrency } from '../utils/money.js';
+import { toDateKeyUtc } from '../utils/date-key.js';
 import {
 	payrollCalculateSchema,
 	payrollProcessSchema,
@@ -38,6 +40,7 @@ import {
 	type AttendanceRow,
 	type OvertimeAuthorizationRow,
 	type PayrollCalculationRow,
+	type PayrollDeductionBreakdownItem,
 } from '../services/payroll-calculation.js';
 import {
 	resolveAdditionalMandatoryRestDaysForPeriod,
@@ -47,6 +50,15 @@ import {
 } from '../services/holidays.js';
 import type { IncapacityRecordInput } from '../services/incapacities.js';
 import { countSaturdayBonusDaysForPeriod } from '../services/vacations.js';
+import {
+	buildPayrollFiscalVoucherFromCalculationRow,
+	validatePayrollFiscalVoucher,
+	type PayrollFiscalVoucherValidationStatus,
+} from '../services/payroll-fiscal-vouchers.js';
+import type {
+	PayrollEmployeeWithholdings,
+	PayrollInformationalLines,
+} from '../services/mexico-payroll-taxes.js';
 import {
 	buildEmployeeAuditSnapshot,
 	createEmployeeAuditEvent,
@@ -312,6 +324,312 @@ function sanitizeDualPayrollRun<T extends DualPayrollRunShape>(run: T): T {
 
 	sanitizedRun.taxSummary = sanitizeDualPayrollTaxSummary(sanitizedRun.taxSummary);
 	return sanitizedRun;
+}
+
+type PayrollFiscalVoucherDbRow = {
+	id: string;
+	payrollRunId: string;
+	payrollRunEmployeeId: string;
+	organizationId: string;
+	employeeId: string;
+	status: string;
+	voucher: Record<string, unknown>;
+	validationErrors: Record<string, unknown>[];
+	validationWarnings: Record<string, unknown>[];
+	uuid: string | null;
+	stampedXml: string | null;
+	pacProvider: string | null;
+	stampedAt: Date | null;
+	cancellationReason: string | null;
+	replacementUuid: string | null;
+	preparedAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
+};
+
+type PayrollRunEmployeeFiscalSource = {
+	id: string;
+	payrollRunId: string;
+	employeeId: string;
+	totalPay: string | number;
+	fiscalGrossPay: string | number | null;
+	complementPay: string | number | null;
+	deductionsBreakdown: Record<string, unknown>[];
+	taxBreakdown: Record<string, unknown> | null;
+};
+
+const ZERO_EMPLOYEE_WITHHOLDINGS: PayrollEmployeeWithholdings = {
+	imssEmployee: {
+		emExcess: 0,
+		pd: 0,
+		gmp: 0,
+		iv: 0,
+		cv: 0,
+		total: 0,
+	},
+	isrWithheld: 0,
+	infonavitCredit: 0,
+	total: 0,
+};
+
+const ZERO_INFORMATIONAL_LINES: PayrollInformationalLines = {
+	isrBeforeSubsidy: 0,
+	subsidyApplied: 0,
+};
+
+/**
+ * Converts an unknown JSON value into an object when possible.
+ *
+ * @param value - Unknown JSON value
+ * @returns Record value or null
+ */
+function asRecord(value: unknown): Record<string, unknown> | null {
+	return value && typeof value === 'object' && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+}
+
+/**
+ * Converts a numeric database value to a number.
+ *
+ * @param value - Numeric-like database value
+ * @param fallback - Value used when the input is not finite
+ * @returns Parsed number
+ */
+function toFiniteNumber(value: unknown, fallback = 0): number {
+	const numericValue = Number(value);
+	return Number.isFinite(numericValue) ? numericValue : fallback;
+}
+
+/**
+ * Reads an optional string from a JSON object.
+ *
+ * @param source - Source JSON record
+ * @param keys - Candidate property names in priority order
+ * @returns String value or null
+ */
+function readStringField(source: Record<string, unknown> | null, keys: string[]): string | null {
+	if (!source) {
+		return null;
+	}
+
+	for (const key of keys) {
+		const value = source[key];
+		if (typeof value === 'string' && value.trim().length > 0) {
+			return value.trim();
+		}
+	}
+
+	return null;
+}
+
+/**
+ * Parses organization metadata for fiscal pre-stamping fields.
+ *
+ * @param metadata - Better Auth organization metadata string
+ * @returns Parsed JSON object or null
+ */
+function parseOrganizationMetadata(metadata: string | null | undefined): Record<string, unknown> | null {
+	if (!metadata) {
+		return null;
+	}
+
+	try {
+		return asRecord(JSON.parse(metadata));
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Extracts employee withholdings from a persisted tax breakdown snapshot.
+ *
+ * @param taxBreakdown - Persisted tax breakdown object
+ * @returns Employee withholding breakdown
+ */
+function resolveEmployeeWithholdings(
+	taxBreakdown: Record<string, unknown> | null,
+): PayrollEmployeeWithholdings {
+	return (
+		asRecord(taxBreakdown?.employeeWithholdings) as PayrollEmployeeWithholdings | null
+	) ?? ZERO_EMPLOYEE_WITHHOLDINGS;
+}
+
+/**
+ * Extracts informational tax lines from a persisted tax breakdown snapshot.
+ *
+ * @param taxBreakdown - Persisted tax breakdown object
+ * @returns Payroll informational tax lines
+ */
+function resolveInformationalLines(
+	taxBreakdown: Record<string, unknown> | null,
+): PayrollInformationalLines {
+	return (
+		asRecord(taxBreakdown?.informationalLines) as PayrollInformationalLines | null
+	) ?? ZERO_INFORMATIONAL_LINES;
+}
+
+/**
+ * Creates the route response summary for prepared fiscal vouchers.
+ *
+ * @param rows - Persisted fiscal voucher rows
+ * @returns Status counts
+ */
+function summarizeFiscalVoucherStatuses(rows: PayrollFiscalVoucherDbRow[]): {
+	total: number;
+	blocked: number;
+	ready: number;
+	stamped: number;
+	failed: number;
+	cancelled: number;
+} {
+	return rows.reduce(
+		(summary, row) => {
+			const status = row.status as PayrollFiscalVoucherValidationStatus | string;
+			return {
+				total: summary.total + 1,
+				blocked: summary.blocked + (status === 'BLOCKED' ? 1 : 0),
+				ready: summary.ready + (status === 'READY_TO_STAMP' ? 1 : 0),
+				stamped: summary.stamped + (status === 'STAMPED' ? 1 : 0),
+				failed: summary.failed + (status === 'STAMPING_FAILED' ? 1 : 0),
+				cancelled: summary.cancelled + (status === 'CANCELLED' ? 1 : 0),
+			};
+		},
+		{ total: 0, blocked: 0, ready: 0, stamped: 0, failed: 0, cancelled: 0 },
+	);
+}
+
+/**
+ * Builds a route response payload for fiscal voucher rows.
+ *
+ * @param rows - Fiscal voucher database rows
+ * @returns API response payload
+ */
+function buildFiscalVoucherListPayload(rows: PayrollFiscalVoucherDbRow[]): {
+	statusSummary: ReturnType<typeof summarizeFiscalVoucherStatuses>;
+	vouchers: PayrollFiscalVoucherDbRow[];
+} {
+	return {
+		statusSummary: summarizeFiscalVoucherStatuses(rows),
+		vouchers: rows,
+	};
+}
+
+/**
+ * Converts a persisted payroll row into a fiscal voucher source row.
+ *
+ * @param args - Conversion arguments
+ * @returns Minimal payroll calculation row accepted by the voucher mapper
+ */
+function buildFiscalVoucherCalculationRow(args: {
+	run: { paymentFrequency: PayrollCalculationRow['paymentFrequency'] };
+	line: PayrollRunEmployeeFiscalSource;
+	employeeName: string;
+}): PayrollCalculationRow {
+	const taxBreakdown = asRecord(args.line.taxBreakdown);
+	const fiscalGrossPay =
+		args.line.fiscalGrossPay === null
+			? null
+			: roundCurrency(toFiniteNumber(args.line.fiscalGrossPay));
+	const grossPay = roundCurrency(
+		toFiniteNumber(taxBreakdown?.grossPay, toFiniteNumber(args.line.totalPay)),
+	);
+
+	return {
+		employeeId: args.line.employeeId,
+		name: args.employeeName,
+		paymentFrequency: args.run.paymentFrequency,
+		fiscalGrossPay,
+		grossPay,
+		complementPay:
+			args.line.complementPay === null
+				? null
+				: roundCurrency(toFiniteNumber(args.line.complementPay)),
+		deductionsBreakdown:
+			args.line.deductionsBreakdown as unknown as PayrollDeductionBreakdownItem[],
+		employeeWithholdings: resolveEmployeeWithholdings(taxBreakdown),
+		informationalLines: resolveInformationalLines(taxBreakdown),
+	} as unknown as PayrollCalculationRow;
+}
+
+/**
+ * Builds a fiscal voucher row ready for insertion.
+ *
+ * @param args - Source payroll, organization and employee data
+ * @returns Insertable fiscal voucher row
+ */
+function buildPreparedFiscalVoucherRow(args: {
+	run: {
+		id: string;
+		organizationId: string;
+		paymentFrequency: PayrollCalculationRow['paymentFrequency'];
+		periodStart: Date;
+		periodEnd: Date;
+	};
+	line: PayrollRunEmployeeFiscalSource;
+	organizationName: string | null;
+	organizationMetadata: Record<string, unknown> | null;
+	employeeProfile: {
+		name: string;
+		rfc: string | null;
+		nss: string | null;
+	};
+}): Omit<PayrollFiscalVoucherDbRow, 'id' | 'createdAt' | 'updatedAt'> {
+	const voucher = buildPayrollFiscalVoucherFromCalculationRow({
+		row: buildFiscalVoucherCalculationRow({
+			run: args.run,
+			line: args.line,
+			employeeName: args.employeeProfile.name,
+		}),
+		payrollRunId: args.run.id,
+		payrollRunEmployeeId: args.line.id,
+		organizationId: args.run.organizationId,
+		issuer: {
+			name: args.organizationName,
+			rfc: readStringField(args.organizationMetadata, ['rfc', 'fiscalRfc']),
+			fiscalRegime: readStringField(args.organizationMetadata, [
+				'fiscalRegime',
+				'regimenFiscal',
+			]),
+			expeditionPostalCode: readStringField(args.organizationMetadata, [
+				'expeditionPostalCode',
+				'lugarExpedicion',
+				'postalCode',
+			]),
+		},
+		receiver: {
+			name: args.employeeProfile.name,
+			rfc: args.employeeProfile.rfc,
+			curp: null,
+			nss: args.employeeProfile.nss,
+			fiscalRegime: null,
+			fiscalPostalCode: null,
+			contractType: null,
+			workdayType: null,
+		},
+		periodStartDateKey: toDateKeyUtc(args.run.periodStart),
+		periodEndDateKey: toDateKeyUtc(args.run.periodEnd),
+		paymentDateKey: toDateKeyUtc(args.run.periodEnd),
+	});
+	const validation = validatePayrollFiscalVoucher(voucher);
+
+	return {
+		payrollRunId: args.run.id,
+		payrollRunEmployeeId: args.line.id,
+		organizationId: args.run.organizationId,
+		employeeId: args.line.employeeId,
+		status: validation.status,
+		voucher: voucher as unknown as Record<string, unknown>,
+		validationErrors: validation.errors as unknown as Record<string, unknown>[],
+		validationWarnings: validation.warnings as unknown as Record<string, unknown>[],
+		uuid: null,
+		stampedXml: null,
+		pacProvider: null,
+		stampedAt: null,
+		cancellationReason: null,
+		replacementUuid: null,
+		preparedAt: new Date(),
+	};
 }
 
 /**
@@ -1393,6 +1711,172 @@ export const payrollRoutes = new Elysia({ prefix: '/payroll' })
 		},
 		{
 			query: payrollRunQuerySchema,
+		},
+	)
+	/**
+	 * Prepare fiscal vouchers for a processed payroll run.
+	 */
+	.post(
+		'/runs/:id/fiscal-vouchers/prepare',
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id } = params;
+			const runRows = await db.select().from(payrollRun).where(eq(payrollRun.id, id)).limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this payroll run', 403);
+			}
+
+			const existingRows = (await db
+				.select()
+				.from(payrollFiscalVoucher)
+				.where(eq(payrollFiscalVoucher.payrollRunId, id))) as PayrollFiscalVoucherDbRow[];
+			if (existingRows.length > 0) {
+				return { data: buildFiscalVoucherListPayload(existingRows) };
+			}
+
+			const lines = (await db
+				.select()
+				.from(payrollRunEmployee)
+				.where(eq(payrollRunEmployee.payrollRunId, id))) as PayrollRunEmployeeFiscalSource[];
+
+			const organizationRows = await db
+				.select({
+					name: organization.name,
+					metadata: organization.metadata,
+				})
+				.from(organization)
+				.where(eq(organization.id, run.organizationId))
+				.limit(1);
+			const organizationRow = organizationRows[0] as
+				| { name?: string | null; metadata?: string | null }
+				| undefined;
+
+			const employeeIds = lines.map((line) => line.employeeId);
+			const employeeRows =
+				employeeIds.length === 0
+					? []
+					: await db
+							.select({
+								id: employee.id,
+								firstName: employee.firstName,
+								lastName: employee.lastName,
+								rfc: employee.rfc,
+								nss: employee.nss,
+							})
+							.from(employee)
+							.where(inArray(employee.id, employeeIds));
+			const employeesById = new Map(
+				employeeRows.map((row) => [
+					row.id,
+					{
+						name: `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim(),
+						rfc: row.rfc ?? null,
+						nss: row.nss ?? null,
+					},
+				]),
+			);
+
+			const preparedRows = lines.map((line) =>
+				buildPreparedFiscalVoucherRow({
+					run: {
+						id: run.id,
+						organizationId: run.organizationId,
+						paymentFrequency: run.paymentFrequency,
+						periodStart: run.periodStart,
+						periodEnd: run.periodEnd,
+					},
+					line,
+					organizationName: organizationRow?.name ?? null,
+					organizationMetadata: parseOrganizationMetadata(organizationRow?.metadata),
+					employeeProfile: employeesById.get(line.employeeId) ?? {
+						name: line.employeeId,
+						rfc: null,
+						nss: null,
+					},
+				}),
+			);
+
+			const insertedRows = await db.transaction(async (tx) => {
+				if (preparedRows.length > 0) {
+					await tx.insert(payrollFiscalVoucher).values(preparedRows);
+				}
+
+				return (await tx
+					.select()
+					.from(payrollFiscalVoucher)
+					.where(eq(payrollFiscalVoucher.payrollRunId, id))) as PayrollFiscalVoucherDbRow[];
+			});
+
+			return { data: buildFiscalVoucherListPayload(insertedRows) };
+		},
+	)
+	/**
+	 * List prepared fiscal vouchers for a payroll run.
+	 */
+	.get(
+		'/runs/:id/fiscal-vouchers',
+		async ({
+			params,
+			authType,
+			session,
+			sessionOrganizationIds,
+			apiKeyOrganizationId,
+			apiKeyOrganizationIds,
+			set,
+		}) => {
+			const { id } = params;
+			const runRows = await db.select().from(payrollRun).where(eq(payrollRun.id, id)).limit(1);
+			const run = runRows[0];
+
+			if (!run) {
+				set.status = 404;
+				return buildErrorResponse('Payroll run not found', 404);
+			}
+
+			const organizationId = resolveOrganizationId({
+				authType,
+				session,
+				sessionOrganizationIds,
+				apiKeyOrganizationId,
+				apiKeyOrganizationIds,
+				requestedOrganizationId: run.organizationId,
+			});
+
+			if (!organizationId || organizationId !== run.organizationId) {
+				set.status = 403;
+				return buildErrorResponse('You do not have access to this payroll run', 403);
+			}
+
+			const rows = (await db
+				.select()
+				.from(payrollFiscalVoucher)
+				.where(eq(payrollFiscalVoucher.payrollRunId, id))) as PayrollFiscalVoucherDbRow[];
+
+			return { data: buildFiscalVoucherListPayload(rows) };
 		},
 	)
 	/**

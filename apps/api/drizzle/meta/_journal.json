@@ -365,6 +365,13 @@
       "when": 1776809218794,
       "tag": "0051_outgoing_shadowcat",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1776902400000,
+      "tag": "0052_payroll_fiscal_vouchers",
+      "breakpoints": true
     }
   ]
 }

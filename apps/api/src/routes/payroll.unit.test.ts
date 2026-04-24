@@ -152,6 +152,7 @@ interface FakeDbState {
 	employeeDeductions: FakeEmployeeDeductionRow[];
 	payrollRuns: Record<string, unknown>[];
 	payrollRunEmployees: Record<string, unknown>[];
+	payrollFiscalVouchers: Record<string, unknown>[];
 	transactionCalled: boolean;
 	deductionUpdateConditions: DrizzleCondition[];
 	pendingDeductionMutationBeforeTransaction: FakePendingDeductionMutation | null;
@@ -204,6 +205,19 @@ function createJsonPostRequest(path: string, body: unknown): Request {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify(body),
+	});
+}
+
+/**
+ * Creates a JSON GET request.
+ *
+ * @param path - Request path
+ * @returns Request instance
+ */
+function createJsonGetRequest(path: string): Request {
+	return new Request(`http://localhost${path}`, {
+		method: 'GET',
+		headers: { accept: 'application/json' },
 	});
 }
 
@@ -1091,6 +1105,14 @@ function createFakeDb(state: FakeDbState): {
 					: state.payrollRunEmployees.filter((row) => row.payrollRunId === runId);
 			}
 
+			if (tableName === 'payroll_fiscal_voucher') {
+				const whereEq = this.whereCondition?.kind === 'eq' ? this.whereCondition : null;
+				const runId = typeof whereEq?.value === 'string' ? whereEq.value : null;
+				return runId === null
+					? state.payrollFiscalVouchers
+					: state.payrollFiscalVouchers.filter((row) => row.payrollRunId === runId);
+			}
+
 			return [];
 		}
 
@@ -1158,6 +1180,22 @@ function createFakeDb(state: FakeDbState): {
 				}
 				if (tableName === 'payroll_run_employee') {
 					state.payrollRunEmployees.push(...rows);
+					return;
+				}
+				if (tableName === 'payroll_fiscal_voucher') {
+					state.payrollFiscalVouchers.push(
+						...rows.map((row, index) => ({
+							id:
+								typeof row.id === 'string'
+									? row.id
+									: `fiscal-voucher-${
+											state.payrollFiscalVouchers.length + index + 1
+										}`,
+							createdAt: new Date(),
+							updatedAt: new Date(),
+							...row,
+						})),
+					);
 				}
 			};
 
@@ -1341,6 +1379,7 @@ function createFakeDb(state: FakeDbState): {
 			employeeDeductions: state.employeeDeductions,
 			payrollRuns: state.payrollRuns,
 			payrollRunEmployees: state.payrollRunEmployees,
+			payrollFiscalVouchers: state.payrollFiscalVouchers,
 		});
 
 		try {
@@ -1350,6 +1389,7 @@ function createFakeDb(state: FakeDbState): {
 			state.employeeDeductions = snapshot.employeeDeductions;
 			state.payrollRuns = snapshot.payrollRuns;
 			state.payrollRunEmployees = snapshot.payrollRunEmployees;
+			state.payrollFiscalVouchers = snapshot.payrollFiscalVouchers;
 			throw error;
 		}
 	};
@@ -1371,6 +1411,7 @@ const dbState: FakeDbState = {
 	employeeDeductions: [],
 	payrollRuns: [],
 	payrollRunEmployees: [],
+	payrollFiscalVouchers: [],
 	transactionCalled: false,
 	deductionUpdateConditions: [],
 	pendingDeductionMutationBeforeTransaction: null,
@@ -1454,6 +1495,7 @@ describe('payroll routes', () => {
 		dbState.employeeDeductions = [];
 		dbState.payrollRuns = [];
 		dbState.payrollRunEmployees = [];
+		dbState.payrollFiscalVouchers = [];
 		dbState.transactionCalled = false;
 		dbState.deductionUpdateConditions = [];
 		dbState.pendingDeductionMutationBeforeTransaction = null;
@@ -1958,6 +2000,115 @@ describe('payroll routes', () => {
 			0.01,
 		);
 		expectCurrencyClose(realNetPayTotal, AET_P10_TDD_LISTA_RAYA_EXPECTED.realNetPayTotal);
+	});
+
+	it('prepares fiscal vouchers from processed payroll rows and lists readiness issues', async () => {
+		seedAetP10ProcessScenario();
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		if (typeof runId !== 'string') {
+			throw new Error('Expected persisted payroll run id.');
+		}
+
+		const prepareResponse = await payrollRoutes.handle(
+			createJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {}),
+		);
+		expect(prepareResponse.status).toBe(200);
+		const prepareJson = (await prepareResponse.json()) as {
+			data?: {
+				statusSummary?: {
+					total: number;
+					blocked: number;
+					ready: number;
+					stamped: number;
+					failed: number;
+					cancelled: number;
+				};
+				vouchers?: Array<{
+					status: string;
+					voucher: {
+						totals: {
+							totalPerceptions: number;
+							totalDeductions: number;
+							netPay: number;
+						};
+					};
+					validationErrors: Array<{ code: string }>;
+				}>;
+			};
+		};
+
+		expect(prepareJson.data?.statusSummary).toEqual({
+			total: AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+			blocked: AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+			ready: 0,
+			stamped: 0,
+			failed: 0,
+			cancelled: 0,
+		});
+		expect(dbState.payrollFiscalVouchers).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+
+		const vouchers = prepareJson.data?.vouchers ?? [];
+		const fiscalGrossTotal = sumCurrency(
+			vouchers.map((row) => row.voucher.totals.totalPerceptions),
+		);
+		const fiscalDeductionsTotal = sumCurrency(
+			vouchers.map((row) => row.voucher.totals.totalDeductions),
+		);
+		const fiscalNetPayTotal = sumCurrency(vouchers.map((row) => row.voucher.totals.netPay));
+
+		expectCurrencyClose(
+			fiscalGrossTotal,
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalGrossTotal,
+			0.01,
+		);
+		expectCurrencyClose(
+			fiscalDeductionsTotal,
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalVoucherDeductionsTotal,
+		);
+		expectCurrencyClose(fiscalNetPayTotal, AET_P10_TDD_LISTA_RAYA_EXPECTED.fiscalNetPayTotal);
+		expect(vouchers[0]?.validationErrors.map((error) => error.code)).toContain(
+			'ISSUER_RFC_REQUIRED',
+		);
+		expect(vouchers[0]?.validationErrors.map((error) => error.code)).toContain(
+			'RECEIVER_CURP_REQUIRED',
+		);
+
+		const listResponse = await payrollRoutes.handle(
+			createJsonGetRequest(`/payroll/runs/${runId}/fiscal-vouchers`),
+		);
+		const listJson = (await listResponse.json()) as {
+			data?: {
+				statusSummary?: {
+					total: number;
+					blocked: number;
+					ready: number;
+					stamped: number;
+					failed: number;
+					cancelled: number;
+				};
+				vouchers?: unknown[];
+			};
+		};
+
+		expect(listResponse.status).toBe(200);
+		expect(listJson.data?.vouchers).toHaveLength(
+			AET_P10_TDD_LISTA_RAYA_EXPECTED.employeeCount,
+		);
+		expect(listJson.data?.statusSummary).toEqual(prepareJson.data?.statusSummary);
 	});
 
 	it('processes payroll including WORK_OFFSITE and preserves CHECK_OUT_AUTHORIZED paid span behavior', async () => {

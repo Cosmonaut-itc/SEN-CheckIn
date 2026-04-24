@@ -15,6 +15,8 @@ const TEST_LABELS: AttendanceSummaryLabels = {
 	incomplete: 'Incompleto',
 	noEntry: 'Sin entrada',
 	noExit: 'Sin salida',
+	payrollCutoffAssumed: 'Asistencia por nómina',
+	vacation: 'Vacaciones',
 	workOffsite: 'Fuera de oficina',
 };
 
@@ -396,6 +398,51 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows[0]?.employeeId).toBe('emp-1');
 		expect(rows[1]?.employeeId).toBe('emp-2');
 	});
+
+	it('does not pair a previous-day open entry with the next worked day exit', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-24T13:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-25T14:00:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-25T22:00:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '24/04/2026',
+				firstEntry: '07:00',
+				lastExit: 'Sin salida',
+				totalHours: 'Incompleto',
+			},
+			{
+				employeeName: 'Juan',
+				employeeId: 'emp-1',
+				date: '25/04/2026',
+				firstEntry: '08:00',
+				lastExit: '16:00',
+				totalHours: '08:00',
+			},
+		]);
+	});
 });
 
 describe('buildAttendanceEmployeePdfGroups', () => {
@@ -588,7 +635,7 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 				labels: TEST_LABELS,
 				timeZone: TEST_TIME_ZONE,
 			},
-			);
+		);
 
 		const groups = buildAttendanceEmployeePdfGroups(rows);
 
@@ -678,5 +725,95 @@ describe('buildAttendanceEmployeePdfGroups', () => {
 				},
 			],
 		});
+	});
+
+	it('renders approved vacations as worked virtual days in attendance summaries', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows([], {
+			dateRange: {
+				startDateKey: '2026-04-20',
+				endDateKey: '2026-04-26',
+			},
+			labels: TEST_LABELS,
+			timeZone: TEST_TIME_ZONE,
+			virtualDays: [
+				{
+					employeeId: 'emp-vac',
+					employeeName: 'María Vacaciones',
+					dateKey: '2026-04-23',
+					kind: 'VACATION',
+					workMinutes: 480,
+				},
+			],
+		});
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'María Vacaciones',
+				employeeId: 'emp-vac',
+				date: '23/04/2026',
+				firstEntry: 'Vacaciones',
+				lastExit: 'Vacaciones',
+				totalHours: '08:00',
+				workMinutes: 480,
+			},
+		]);
+	});
+
+	it('uses payroll cutoff virtual days to complete Friday and add Saturday attendance', () => {
+		const rows = buildAttendanceEmployeePdfSummaryRows(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-cutoff',
+					employeeName: 'Carlos Corte',
+					timestamp: '2026-04-24T13:15:00.000Z',
+					type: 'CHECK_IN',
+				}),
+			],
+			{
+				dateRange: {
+					startDateKey: '2026-04-20',
+					endDateKey: '2026-04-26',
+				},
+				labels: TEST_LABELS,
+				timeZone: TEST_TIME_ZONE,
+				virtualDays: [
+					{
+						employeeId: 'emp-cutoff',
+						employeeName: 'Carlos Corte',
+						dateKey: '2026-04-24',
+						kind: 'PAYROLL_CUTOFF_ASSUMED',
+						workMinutes: 480,
+					},
+					{
+						employeeId: 'emp-cutoff',
+						employeeName: 'Carlos Corte',
+						dateKey: '2026-04-25',
+						kind: 'PAYROLL_CUTOFF_ASSUMED',
+						workMinutes: 480,
+					},
+				],
+			},
+		);
+
+		expect(rows).toEqual([
+			{
+				employeeName: 'Carlos Corte',
+				employeeId: 'emp-cutoff',
+				date: '24/04/2026',
+				firstEntry: '07:15',
+				lastExit: 'Asistencia por nómina',
+				totalHours: '08:00',
+				workMinutes: 480,
+			},
+			{
+				employeeName: 'Carlos Corte',
+				employeeId: 'emp-cutoff',
+				date: '25/04/2026',
+				firstEntry: 'Asistencia por nómina',
+				lastExit: 'Asistencia por nómina',
+				totalHours: '08:00',
+				workMinutes: 480,
+			},
+		]);
 	});
 });

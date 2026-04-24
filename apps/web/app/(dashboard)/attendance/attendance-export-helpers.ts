@@ -33,7 +33,17 @@ export interface AttendanceSummaryLabels {
 	incomplete: string;
 	noEntry: string;
 	noExit: string;
+	payrollCutoffAssumed?: string;
+	vacation?: string;
 	workOffsite: string;
+}
+
+export interface AttendanceVirtualDay {
+	employeeId: string;
+	employeeName: string;
+	dateKey: string;
+	kind: 'VACATION' | 'PAYROLL_CUTOFF_ASSUMED';
+	workMinutes: number;
 }
 
 export interface AggregateAttendanceOptions {
@@ -43,6 +53,7 @@ export interface AggregateAttendanceOptions {
 		startDateKey: string;
 		endDateKey: string;
 	};
+	virtualDays?: AttendanceVirtualDay[];
 }
 
 interface AttendanceSummaryGroup {
@@ -55,11 +66,7 @@ interface AttendanceSummaryGroup {
 interface AttendanceSummaryResult {
 	dateKey: string;
 	row: AttendanceSummaryPdfRow;
-}
-
-interface PendingEntryByEmployee {
-	employeeId: string;
-	record: AttendanceRecord;
+	virtualKind?: AttendanceVirtualDay['kind'];
 }
 
 /**
@@ -196,7 +203,7 @@ function groupAttendanceRecords(
 	timeZone: string,
 ): Map<string, AttendanceSummaryGroup> {
 	const groups = new Map<string, AttendanceSummaryGroup>();
-	const openEntriesByEmployee = new Map<string, PendingEntryByEmployee[]>();
+	const openEntriesByEmployee = new Map<string, AttendanceRecord>();
 	const sortedRecords = [...records].sort((left, right) => {
 		const employeeComparison = left.employeeId.localeCompare(right.employeeId, 'es-MX');
 		if (employeeComparison !== 0) {
@@ -208,40 +215,41 @@ function groupAttendanceRecords(
 
 	for (const record of sortedRecords) {
 		if (record.type === 'WORK_OFFSITE') {
+			const openEntry = openEntriesByEmployee.get(record.employeeId);
+			if (openEntry) {
+				appendRecordToGroup(groups, openEntry, getAttendanceDateKey(openEntry, timeZone));
+				openEntriesByEmployee.delete(record.employeeId);
+			}
 			appendRecordToGroup(groups, record, getAttendanceDateKey(record, timeZone));
 			continue;
 		}
 
 		if (record.type === 'CHECK_IN') {
-			const openEntries = openEntriesByEmployee.get(record.employeeId) ?? [];
-			openEntries.push({ employeeId: record.employeeId, record });
-			openEntriesByEmployee.set(record.employeeId, openEntries);
+			const openEntry = openEntriesByEmployee.get(record.employeeId);
+			if (openEntry) {
+				appendRecordToGroup(groups, openEntry, getAttendanceDateKey(openEntry, timeZone));
+			}
+			openEntriesByEmployee.set(record.employeeId, record);
 			continue;
 		}
 
 		if (record.type === 'CHECK_OUT' || record.type === 'CHECK_OUT_AUTHORIZED') {
-			const openEntries = openEntriesByEmployee.get(record.employeeId);
-			const pendingEntry = openEntries?.shift();
+			const pendingEntry = openEntriesByEmployee.get(record.employeeId);
 
 			if (!pendingEntry) {
 				appendRecordToGroup(groups, record, getAttendanceDateKey(record, timeZone));
 				continue;
 			}
 
-			if (openEntries && openEntries.length === 0) {
-				openEntriesByEmployee.delete(record.employeeId);
-			}
-
-			const entryDateKey = getAttendanceDateKey(pendingEntry.record, timeZone);
-			appendRecordToGroup(groups, pendingEntry.record, entryDateKey);
+			openEntriesByEmployee.delete(record.employeeId);
+			const entryDateKey = getAttendanceDateKey(pendingEntry, timeZone);
+			appendRecordToGroup(groups, pendingEntry, entryDateKey);
 			appendRecordToGroup(groups, record, entryDateKey);
 		}
 	}
 
-	for (const openEntries of openEntriesByEmployee.values()) {
-		for (const pendingEntry of openEntries) {
-			appendRecordToGroup(groups, pendingEntry.record, getAttendanceDateKey(pendingEntry.record, timeZone));
-		}
+	for (const pendingEntry of openEntriesByEmployee.values()) {
+		appendRecordToGroup(groups, pendingEntry, getAttendanceDateKey(pendingEntry, timeZone));
 	}
 
 	return groups;
@@ -327,12 +335,60 @@ function buildWorkedSummaryRow(
 		firstEntry: firstEntryAt
 			? formatTimeInTimeZone(firstEntryAt, options.timeZone)
 			: options.labels.noEntry,
-		lastExit: lastExitAt ? formatTimeInTimeZone(lastExitAt, options.timeZone) : options.labels.noExit,
+		lastExit: lastExitAt
+			? formatTimeInTimeZone(lastExitAt, options.timeZone)
+			: options.labels.noExit,
 		totalHours: hasIncompletePair
 			? options.labels.incomplete
 			: formatWorkedMinutes(totalWorkedMinutes),
 		workMinutes: hasIncompletePair ? null : totalWorkedMinutes,
 	};
+}
+
+/**
+ * Builds a worked summary row from a virtual attendance day.
+ *
+ * @param virtualDay - Virtual attendance day to render
+ * @param options - Aggregation options including labels
+ * @param existingRow - Existing real attendance row for the same employee/date
+ * @returns Summary row representing the virtual day
+ */
+function buildVirtualSummaryRow(
+	virtualDay: AttendanceVirtualDay,
+	options: AggregateAttendanceOptions,
+	existingRow?: AttendanceSummaryPdfRow,
+): AttendanceSummaryPdfRow {
+	const fallbackLabel =
+		virtualDay.kind === 'VACATION'
+			? (options.labels.vacation ?? 'Vacaciones')
+			: (options.labels.payrollCutoffAssumed ?? 'Asistencia por nómina');
+	const firstEntry =
+		virtualDay.kind === 'PAYROLL_CUTOFF_ASSUMED' &&
+		existingRow &&
+		existingRow.firstEntry !== options.labels.noEntry
+			? existingRow.firstEntry
+			: fallbackLabel;
+
+	return {
+		employeeName: virtualDay.employeeName,
+		employeeId: virtualDay.employeeId,
+		date: formatDateKey(virtualDay.dateKey),
+		firstEntry,
+		lastExit: fallbackLabel,
+		totalHours: formatWorkedMinutes(virtualDay.workMinutes),
+		workMinutes: virtualDay.workMinutes,
+	};
+}
+
+/**
+ * Resolves a stable map key for employee/date summary rows.
+ *
+ * @param employeeId - Employee identifier
+ * @param dateKey - Date key in YYYY-MM-DD format
+ * @returns Composite key
+ */
+function getSummaryResultKey(employeeId: string, dateKey: string): string {
+	return `${employeeId}:${dateKey}`;
 }
 
 /**
@@ -346,26 +402,48 @@ export function buildAttendanceEmployeePdfSummaryRows(
 	records: readonly AttendanceRecord[],
 	options: AggregateAttendanceOptions,
 ): AttendanceSummaryPdfRow[] {
-	if (records.length === 0) {
+	if (records.length === 0 && (!options.virtualDays || options.virtualDays.length === 0)) {
 		return [];
 	}
 
 	const groupedRecords = groupAttendanceRecords(records, options.timeZone);
-	const results: AttendanceSummaryResult[] = [];
+	const resultsByKey = new Map<string, AttendanceSummaryResult>();
 
 	for (const group of groupedRecords.values()) {
 		const row = group.records.some((record) => record.type === 'WORK_OFFSITE')
 			? buildOffsiteSummaryRow(group, options.labels)
 			: buildWorkedSummaryRow(group, options);
 
-		results.push({
+		resultsByKey.set(getSummaryResultKey(group.employeeId, group.dateKey), {
 			dateKey: group.dateKey,
 			row,
 		});
 	}
 
+	for (const virtualDay of options.virtualDays ?? []) {
+		const key = getSummaryResultKey(virtualDay.employeeId, virtualDay.dateKey);
+		const existing = resultsByKey.get(key);
+		if (existing?.virtualKind === 'VACATION') {
+			continue;
+		}
+		if (existing?.virtualKind === 'PAYROLL_CUTOFF_ASSUMED' && virtualDay.kind !== 'VACATION') {
+			continue;
+		}
+
+		resultsByKey.set(key, {
+			dateKey: virtualDay.dateKey,
+			row: buildVirtualSummaryRow(virtualDay, options, existing?.row),
+			virtualKind: virtualDay.kind,
+		});
+	}
+
+	const results = Array.from(resultsByKey.values());
+
 	results.sort((left, right) => {
-		const employeeNameComparison = left.row.employeeName.localeCompare(right.row.employeeName, 'es-MX');
+		const employeeNameComparison = left.row.employeeName.localeCompare(
+			right.row.employeeName,
+			'es-MX',
+		);
 		if (employeeNameComparison !== 0) {
 			return employeeNameComparison;
 		}

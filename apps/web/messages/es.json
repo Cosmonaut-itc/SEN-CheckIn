@@ -1999,6 +1999,8 @@
 				"incomplete": "Incompleto",
 				"noEntry": "Sin entrada",
 				"noExit": "Sin salida",
+				"payrollCutoffAssumed": "Asistencia por nómina",
+				"vacation": "Vacaciones",
 				"workOffsite": "Fuera de oficina"
 			}
 		},
@@ -2184,6 +2186,7 @@
 				"vacationPremiumAmount": "prima_vacacional",
 				"realVacationPayAmount": "pago_vacaciones_real",
 				"realVacationPremiumAmount": "prima_vacacional_real",
+				"assumedAttendanceDateKeys": "asistencia_asumida_nomina",
 				"seventhDayPay": "septimo_dia",
 				"lunchBreakAutoDeductedDays": "comida_descuento_dias",
 				"lunchBreakAutoDeductedMinutes": "comida_descuento_minutos",

@@ -27,6 +27,8 @@ import {
 	type IncapacitySummary,
 } from './incapacities.js';
 
+const PAYROLL_CUTOFF_HOUR = 10;
+
 export type AttendanceRow = {
 	employeeId: string;
 	timestamp: Date;
@@ -83,6 +85,7 @@ export type PayrollCalculationRow = {
 	vacationPremiumAmount: number;
 	realVacationPayAmount: number | null;
 	realVacationPremiumAmount: number | null;
+	assumedAttendanceDateKeys: string[];
 	gratificationsBreakdown: PayrollGratificationBreakdownItem[];
 	totalGratifications: number;
 	lunchBreakAutoDeductedDays: number;
@@ -254,6 +257,8 @@ export interface CalculatePayrollFromDataArgs {
 		countSaturdayAsWorkedForSeventhDay?: boolean;
 	};
 	vacationDayCounts?: Record<string, number>;
+	vacationDateKeysByEmployee?: Record<string, string[]>;
+	assumedAttendanceDateKeys?: Record<string, string[]>;
 	saturdayVacationBonusDays?: Record<string, number>;
 	incapacityRecordsByEmployee?: Record<string, IncapacityRecordInput[]>;
 }
@@ -362,6 +367,35 @@ function resolveDualPayrollPay(args: {
 function parseTimeToMinutes(timeString: string): number {
 	const [hours = 0, minutes = 0] = timeString.split(':').map(Number);
 	return hours * 60 + minutes;
+}
+
+/**
+ * Calculates scheduled minutes for a single local date key.
+ *
+ * @param schedule - Weekly schedule entries
+ * @param dateKey - Local date key in YYYY-MM-DD format
+ * @returns Scheduled minutes for the date, or zero when it is not a working day
+ */
+function calculateScheduledMinutesForDateKey(
+	schedule: Omit<ScheduleRow, 'employeeId'>[],
+	dateKey: string,
+): number {
+	const dayDate = new Date(`${dateKey}T00:00:00Z`);
+	const dayOfWeek = dayDate.getUTCDay();
+	const entry = schedule.find((scheduleEntry) => scheduleEntry.dayOfWeek === dayOfWeek);
+	if (!entry || !entry.isWorkingDay) {
+		return 0;
+	}
+
+	const startMinutes = parseTimeToMinutes(entry.startTime);
+	const endMinutes = parseTimeToMinutes(entry.endTime);
+	if (endMinutes > startMinutes) {
+		return endMinutes - startMinutes;
+	}
+	if (endMinutes < startMinutes) {
+		return 24 * 60 - startMinutes + endMinutes;
+	}
+	return 0;
 }
 
 /**
@@ -607,9 +641,7 @@ function getScheduledWorkingDateKeys(
  * @param schedule - Weekly schedule entries
  * @returns True when Monday through Friday are working days and Saturday/Sunday are not
  */
-function isClassicMondayToFridaySchedule(
-	schedule: Omit<ScheduleRow, 'employeeId'>[],
-): boolean {
+function isClassicMondayToFridaySchedule(schedule: Omit<ScheduleRow, 'employeeId'>[]): boolean {
 	const workingDays = new Set(
 		schedule.filter((entry) => entry.isWorkingDay).map((entry) => entry.dayOfWeek),
 	);
@@ -678,9 +710,7 @@ function calculateSeventhDayPay(args: {
 	) {
 		return roundCurrency(dailyPay);
 	}
-	const completedAllScheduledDays = scheduledKeys.every((key) =>
-		resolvedWorkedDayKeys.has(key),
-	);
+	const completedAllScheduledDays = scheduledKeys.every((key) => resolvedWorkedDayKeys.has(key));
 	return completedAllScheduledDays ? roundCurrency(dailyPay) : 0;
 }
 
@@ -708,6 +738,58 @@ function getDateKeyForDayOfWeekInPeriod(args: {
 		currentKey = addDaysToDateKey(currentKey, 1);
 	}
 	return null;
+}
+
+/**
+ * Resolves Friday/Saturday date keys that should be assumed attended after payroll cutoff.
+ *
+ * @param args - Cutoff resolution inputs
+ * @param args.now - Current instant used to decide whether cutoff has passed
+ * @param args.periodStartDateKey - Payroll period start key
+ * @param args.periodEndDateKey - Payroll period end key
+ * @param args.timeZone - Organization payroll timezone
+ * @returns Date keys for Friday and Saturday when the current period is past Friday 10:00
+ */
+export function resolvePayrollCutoffAssumedDateKeys(args: {
+	now: Date;
+	periodStartDateKey: string;
+	periodEndDateKey: string;
+	timeZone: string;
+}): string[] {
+	const resolvedTimeZone = isValidIanaTimeZone(args.timeZone)
+		? args.timeZone
+		: 'America/Mexico_City';
+	const currentDateKey = toDateKeyInTimeZone(args.now, resolvedTimeZone);
+	if (currentDateKey < args.periodStartDateKey || currentDateKey > args.periodEndDateKey) {
+		return [];
+	}
+
+	const fridayDateKey = getDateKeyForDayOfWeekInPeriod({
+		periodStartDateKey: args.periodStartDateKey,
+		periodEndDateKey: args.periodEndDateKey,
+		targetDayOfWeek: 5,
+	});
+	if (!fridayDateKey || currentDateKey < fridayDateKey) {
+		return [];
+	}
+
+	if (currentDateKey === fridayDateKey) {
+		const parts = new Intl.DateTimeFormat('es-MX', {
+			timeZone: resolvedTimeZone,
+			hour: '2-digit',
+			minute: '2-digit',
+			hourCycle: 'h23',
+		}).formatToParts(args.now);
+		const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+		if (hour < PAYROLL_CUTOFF_HOUR) {
+			return [];
+		}
+	}
+
+	const saturdayDateKey = addDaysToDateKey(fridayDateKey, 1);
+	return [fridayDateKey, saturdayDateKey].filter(
+		(dateKey) => dateKey >= args.periodStartDateKey && dateKey <= args.periodEndDateKey,
+	);
 }
 
 /**
@@ -828,6 +910,7 @@ export function calculatePayrollFromData(
 		defaultTimeZone,
 		payrollSettings,
 		vacationDayCounts,
+		vacationDateKeysByEmployee,
 	} = args;
 
 	const resolvedTaxSettings = {
@@ -983,6 +1066,8 @@ export function calculatePayrollFromData(
 			spansTouchedDateKeys: boolean;
 		} | null = null;
 		const offsiteDateKeys = new Set<string>();
+		const assumedAttendanceDateKeys: string[] = [];
+		const vacationDateKeySet = new Set(vacationDateKeysByEmployee?.[emp.id] ?? []);
 		const explicitUnpaidBreakDateKeys = new Set<string>();
 		const lunchBreakCheckoutDateKeys = new Set<string>();
 		const forcedMandatoryRestDayDateKeys = new Set<string>();
@@ -1155,6 +1240,31 @@ export function calculatePayrollFromData(
 					record.checkOutReason == null || record.checkOutReason === 'LUNCH_BREAK',
 				spansTouchedDateKeys: record.checkOutReason === 'LUNCH_BREAK',
 			};
+		}
+
+		for (const dateKey of args.assumedAttendanceDateKeys?.[emp.id] ?? []) {
+			if (
+				dateKey < periodStartDateKey ||
+				dateKey > periodEndDateKey ||
+				offsiteDateKeys.has(dateKey) ||
+				vacationDateKeySet.has(dateKey)
+			) {
+				continue;
+			}
+
+			const scheduledMinutes = calculateScheduledMinutesForDateKey(
+				scheduleMap.get(emp.id) ?? [],
+				dateKey,
+			);
+			if (scheduledMinutes <= 0) {
+				continue;
+			}
+
+			calendarDayMinutes.set(
+				dateKey,
+				Math.max(calendarDayMinutes.get(dateKey) ?? 0, scheduledMinutes),
+			);
+			assumedAttendanceDateKeys.push(dateKey);
 		}
 
 		const overtimeAuthorizationMinutesByDate =
@@ -1861,6 +1971,7 @@ export function calculatePayrollFromData(
 			vacationPremiumAmount,
 			realVacationPayAmount,
 			realVacationPremiumAmount,
+			assumedAttendanceDateKeys: assumedAttendanceDateKeys.sort((a, b) => a.localeCompare(b)),
 			lunchBreakAutoDeductedDays,
 			lunchBreakAutoDeductedMinutes,
 			gratificationsBreakdown,

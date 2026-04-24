@@ -28,7 +28,10 @@ vi.mock('@/lib/attendance/build-attendance-report-pdf', () => ({
 }));
 
 const mockFetchAttendanceRecords = vi.fn();
+const mockFetchEmployeeById = vi.fn();
+const mockFetchEmployeesList = vi.fn();
 const mockFetchLocationsList = vi.fn();
+const mockFetchVacationRequestsList = vi.fn();
 let expectedPdfBytes: Uint8Array | null = null;
 
 /**
@@ -67,11 +70,10 @@ vi.mock('@/lib/client-functions', async (importOriginal) => {
 	return {
 		...actual,
 		fetchAttendanceRecords: (...args: unknown[]) => mockFetchAttendanceRecords(...args),
+		fetchEmployeeById: (...args: unknown[]) => mockFetchEmployeeById(...args),
+		fetchEmployeesList: (...args: unknown[]) => mockFetchEmployeesList(...args),
 		fetchLocationsList: (...args: unknown[]) => mockFetchLocationsList(...args),
-		fetchEmployeesList: vi.fn().mockResolvedValue({
-			data: [],
-			pagination: { total: 0, limit: 100, offset: 0 },
-		}),
+		fetchVacationRequestsList: (...args: unknown[]) => mockFetchVacationRequestsList(...args),
 	};
 });
 
@@ -132,7 +134,10 @@ describe('AttendancePageClient', () => {
 		URL.revokeObjectURL = vi.fn();
 		HTMLAnchorElement.prototype.click = vi.fn();
 		mockFetchAttendanceRecords.mockReset();
+		mockFetchEmployeeById.mockReset();
+		mockFetchEmployeesList.mockReset();
 		mockFetchLocationsList.mockReset();
+		mockFetchVacationRequestsList.mockReset();
 		mockBuildAttendanceReportPdf.mockReset();
 		mockToastError.mockReset();
 		expectedPdfBytes = null;
@@ -149,6 +154,15 @@ describe('AttendancePageClient', () => {
 			pagination: { total: 0, limit: 10, offset: 0 },
 		});
 		mockFetchLocationsList.mockResolvedValue({
+			data: [],
+			pagination: { total: 0, limit: 100, offset: 0 },
+		});
+		mockFetchEmployeesList.mockResolvedValue({
+			data: [],
+			pagination: { total: 0, limit: 100, offset: 0 },
+		});
+		mockFetchEmployeeById.mockResolvedValue(null);
+		mockFetchVacationRequestsList.mockResolvedValue({
 			data: [],
 			pagination: { total: 0, limit: 100, offset: 0 },
 		});

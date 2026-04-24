@@ -63,6 +63,7 @@ export function buildPayrollCsvEmployeeRow(args: {
 		vacationPremiumAmount: row.vacationPremiumAmount ?? 0,
 		realVacationPayAmount: row.realVacationPayAmount ?? 0,
 		realVacationPremiumAmount: row.realVacationPremiumAmount ?? 0,
+		assumedAttendanceDateKeys: (row.assumedAttendanceDateKeys ?? []).join(' | '),
 		totalGratifications: row.totalGratifications ?? 0,
 		incapacityDays: row.incapacitySummary?.daysIncapacityTotal ?? 0,
 		incapacitySubsidy: row.incapacitySummary?.expectedImssSubsidyAmount ?? 0,

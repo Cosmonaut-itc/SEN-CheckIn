@@ -1,4 +1,13 @@
-import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
+import {
+	afterAll,
+	afterEach,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	mock,
+	setSystemTime,
+} from 'bun:test';
 import { Elysia } from 'elysia';
 
 import {
@@ -190,6 +199,28 @@ function createAttendancePair(employeeId: string, checkIn: Date, checkOut: Date)
 		{ employeeId, timestamp: checkIn, type: 'CHECK_IN' },
 		{ employeeId, timestamp: checkOut, type: 'CHECK_OUT' },
 	];
+}
+
+/**
+ * Creates standard 09:00-17:00 attendance pairs for local date keys.
+ *
+ * @param employeeId - Employee identifier
+ * @param dateKeys - Local date keys to mark as worked
+ * @param timeZone - IANA timezone identifier
+ * @returns Attendance rows for all requested dates
+ */
+function buildAttendanceRowsForDateKeys(
+	employeeId: string,
+	dateKeys: string[],
+	timeZone: string,
+): AttendanceRow[] {
+	return dateKeys.flatMap((dateKey) =>
+		createAttendancePair(
+			employeeId,
+			getUtcDateForZonedTime(dateKey, 9, 0, timeZone),
+			getUtcDateForZonedTime(dateKey, 17, 0, timeZone),
+		),
+	);
 }
 
 /**
@@ -1460,6 +1491,10 @@ describe('payroll routes', () => {
 		dbState.pendingDeductionMutationBeforeUpdate = null;
 	});
 
+	afterEach(() => {
+		setSystemTime();
+	});
+
 	afterAll(() => {
 		mock.restore();
 	});
@@ -1928,15 +1963,11 @@ describe('payroll routes', () => {
 		);
 
 		const persistedRows = dbState.payrollRunEmployees as PersistedPayrollRunEmployee[];
-		const fiscalGrossTotal = sumCurrency(
-			persistedRows.map((row) => row.taxBreakdown.grossPay),
-		);
+		const fiscalGrossTotal = sumCurrency(persistedRows.map((row) => row.taxBreakdown.grossPay));
 		const fiscalVoucherDeductionsTotal = sumCurrency(
 			persistedRows.map(calculatePersistedFiscalVoucherDeductions),
 		);
-		const fiscalNetPayTotal = roundCurrency(
-			fiscalGrossTotal - fiscalVoucherDeductionsTotal,
-		);
+		const fiscalNetPayTotal = roundCurrency(fiscalGrossTotal - fiscalVoucherDeductionsTotal);
 		const employerCostsTotal = sumCurrency(
 			persistedRows.map((row) => row.taxBreakdown.employerCosts.total),
 		);
@@ -2258,6 +2289,77 @@ describe('payroll routes', () => {
 		expect(row?.vacationPremiumAmount).toBe(200);
 		expect(row?.totalPay).toBe(1800);
 		expect(row?.grossPay).toBe(1800);
+	});
+
+	it('exposes assumed attendance date keys after the Friday payroll cutoff in /payroll/calculate', async () => {
+		setSystemTime(new Date('2026-04-24T16:00:00.000Z'));
+		dbState.organizationId = 'org-cutoff-assumed';
+		dbState.payrollSettings = [
+			{
+				organizationId: dbState.organizationId,
+				overtimeEnforcement: 'WARN',
+				weekStartDay: 1,
+				additionalMandatoryRestDays: [],
+				timeZone,
+				vacationPremiumRate: 0.25,
+			},
+		];
+
+		const employeeId = 'emp-cutoff-assumed';
+		dbState.employees = [
+			{
+				id: employeeId,
+				firstName: 'Carlos',
+				lastName: 'Corte',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+			},
+		];
+		dbState.schedules = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+			employeeId,
+			dayOfWeek,
+			startTime: '09:00',
+			endTime: '17:00',
+			isWorkingDay: true,
+		}));
+		dbState.attendanceRecords = buildAttendanceRowsForDateKeys(
+			employeeId,
+			['2026-04-20', '2026-04-21', '2026-04-22', '2026-04-23'],
+			timeZone,
+		);
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const response = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/calculate', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: '2026-04-20',
+				periodEndDateKey: '2026-04-26',
+				paymentFrequency: 'WEEKLY',
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as {
+			data: {
+				employees: {
+					employeeId: string;
+					assumedAttendanceDateKeys: string[];
+					hoursWorked: number;
+					normalHours: number;
+				}[];
+			};
+		};
+
+		const row = json.data.employees[0];
+		expect(row?.employeeId).toBe(employeeId);
+		expect(row?.assumedAttendanceDateKeys).toEqual(['2026-04-24', '2026-04-25']);
+		expect(row?.hoursWorked).toBe(48);
+		expect(row?.normalHours).toBe(48);
 	});
 
 	it('does not add saturday vacation bonus pay when the approved request has no payable vacation days', async () => {

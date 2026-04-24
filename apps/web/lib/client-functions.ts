@@ -3062,6 +3062,7 @@ export interface PayrollCalculationEmployee {
 	vacationPremiumAmount: number;
 	realVacationPayAmount?: number | null;
 	realVacationPremiumAmount?: number | null;
+	assumedAttendanceDateKeys?: string[];
 	gratificationsBreakdown: PayrollGratificationBreakdownItem[];
 	totalGratifications: number;
 	deductionsBreakdown: PayrollDeductionBreakdownItem[];

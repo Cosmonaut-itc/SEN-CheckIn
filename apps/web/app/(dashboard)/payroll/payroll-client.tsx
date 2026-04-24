@@ -735,6 +735,10 @@ export function PayrollPageClient(): React.ReactElement {
 				label: t('csv.headers.realVacationPremiumAmount'),
 			},
 			{
+				key: 'assumedAttendanceDateKeys',
+				label: t('csv.headers.assumedAttendanceDateKeys'),
+			},
+			{
 				key: 'totalGratifications',
 				label: t('csv.headers.totalGratifications'),
 			},

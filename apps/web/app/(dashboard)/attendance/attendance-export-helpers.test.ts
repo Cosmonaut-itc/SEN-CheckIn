@@ -127,6 +127,42 @@ describe('aggregateAttendanceByPersonDay', () => {
 		expect(rows[0]?.totalHours).toBe('08:00');
 	});
 
+	it('ignores duplicate check-ins between the first entry and the final exit', () => {
+		const rows = aggregateAttendanceByPersonDay(
+			[
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-21T15:56:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-21T16:05:00.000Z',
+					type: 'CHECK_IN',
+				}),
+				buildAttendanceRecord({
+					employeeId: 'emp-1',
+					employeeName: 'Juan',
+					timestamp: '2026-04-22T00:47:00.000Z',
+					type: 'CHECK_OUT',
+				}),
+			],
+			{ labels: TEST_LABELS, timeZone: TEST_TIME_ZONE },
+		);
+
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toEqual({
+			employeeName: 'Juan',
+			employeeId: 'emp-1',
+			date: '21/04/2026',
+			firstEntry: '09:56',
+			lastExit: '18:47',
+			totalHours: '08:51',
+		});
+	});
+
 	it('shows a missing exit as incomplete', () => {
 		const rows = aggregateAttendanceByPersonDay(
 			[

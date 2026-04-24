@@ -293,7 +293,7 @@ function buildWorkedSummaryRow(
 	const sortedRecords = [...group.records].sort(
 		(left, right) => new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime(),
 	);
-	const openEntries: Date[] = [];
+	let openEntryAt: Date | null = null;
 	let firstEntryAt: Date | null = null;
 	let lastExitAt: Date | null = null;
 	let totalWorkedMinutes = 0;
@@ -306,27 +306,31 @@ function buildWorkedSummaryRow(
 			if (!firstEntryAt) {
 				firstEntryAt = timestamp;
 			}
-			openEntries.push(timestamp);
+			if (!openEntryAt) {
+				openEntryAt = timestamp;
+			}
 			continue;
 		}
 
 		if (record.type === 'CHECK_OUT' || record.type === 'CHECK_OUT_AUTHORIZED') {
 			lastExitAt = timestamp;
 
-			const entryTimestamp = openEntries.shift();
-			if (!entryTimestamp) {
-				hasIncompletePair = true;
+			if (!openEntryAt) {
+				if (!firstEntryAt && totalWorkedMinutes === 0) {
+					hasIncompletePair = true;
+				}
 				continue;
 			}
 
 			totalWorkedMinutes += Math.max(
 				0,
-				Math.round((timestamp.getTime() - entryTimestamp.getTime()) / 60_000),
+				Math.round((timestamp.getTime() - openEntryAt.getTime()) / 60_000),
 			);
+			openEntryAt = null;
 		}
 	}
 
-	if (openEntries.length > 0) {
+	if (openEntryAt) {
 		hasIncompletePair = true;
 	}
 

@@ -2854,6 +2854,96 @@ describe('payroll routes', () => {
 		expect(json.data?.vouchers?.[0]?.voucher.unmappedDeductions).toHaveLength(0);
 	});
 
+	it('blocks fiscal vouchers when persisted employee withholdings JSONB is corrupt', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		const payrollRunEmployee = dbState.payrollRunEmployees[0];
+		if (typeof runId !== 'string' || !payrollRunEmployee) {
+			throw new Error('Expected persisted payroll data.');
+		}
+
+		const taxBreakdown = payrollRunEmployee.taxBreakdown as Record<string, unknown>;
+		taxBreakdown.employeeWithholdings = {};
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					status: string;
+					validationErrors: Array<{ code: string }>;
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.status).toBe('BLOCKED');
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'EMPLOYEE_WITHHOLDINGS_INVALID',
+		);
+	});
+
+	it('blocks fiscal vouchers when persisted employee withholdings JSONB is not an object', async () => {
+		seedAetP10ProcessScenario();
+		dbState.sessionRole = 'admin';
+
+		const { payrollRoutes } = await import('./payroll.js');
+		const processResponse = await payrollRoutes.handle(
+			createJsonPostRequest('/payroll/process', {
+				organizationId: dbState.organizationId,
+				periodStartDateKey: AET_P10_2026_PERIOD.periodStartDateKey,
+				periodEndDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+				paymentFrequency: AET_P10_2026_PERIOD.paymentFrequency,
+			}),
+		);
+		expect(processResponse.status).toBe(200);
+
+		const runId = dbState.payrollRuns[0]?.id;
+		const payrollRunEmployee = dbState.payrollRunEmployees[0];
+		if (typeof runId !== 'string' || !payrollRunEmployee) {
+			throw new Error('Expected persisted payroll data.');
+		}
+
+		const taxBreakdown = payrollRunEmployee.taxBreakdown as Record<string, unknown>;
+		taxBreakdown.employeeWithholdings = [];
+
+		const response = await payrollRoutes.handle(
+			createApiKeyJsonPostRequest(`/payroll/runs/${runId}/fiscal-vouchers/prepare`, {
+				paymentDateKey: AET_P10_2026_PERIOD.periodEndDateKey,
+			}),
+		);
+		const json = (await response.json()) as {
+			data?: {
+				vouchers?: Array<{
+					status: string;
+					validationErrors: Array<{ code: string }>;
+				}>;
+			};
+		};
+
+		expect(response.status).toBe(200);
+		expect(json.data?.vouchers?.[0]?.status).toBe('BLOCKED');
+		expect(json.data?.vouchers?.[0]?.validationErrors.map((error) => error.code)).toContain(
+			'EMPLOYEE_WITHHOLDINGS_INVALID',
+		);
+	});
+
 	it('rejects fiscal voucher preparation for payroll runs that are not processed', async () => {
 		dbState.sessionRole = 'admin';
 		dbState.payrollRuns = [

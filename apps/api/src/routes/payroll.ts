@@ -108,9 +108,7 @@ const PAYROLL_GRATIFICATION_STATE_CONFLICT_ERROR = 'PAYROLL_GRATIFICATION_STATE_
  * @param value - Remaining amount from the calculation or database row
  * @returns Comparable persisted string value
  */
-function normalizeDeductionAmount(
-	value: number | string | null | undefined,
-): string | null {
+function normalizeDeductionAmount(value: number | string | null | undefined): string | null {
 	if (value === null || value === undefined) {
 		return null;
 	}
@@ -125,9 +123,7 @@ function normalizeDeductionAmount(
  * @param value - Gratification amount from the calculation or database row
  * @returns Comparable persisted string value
  */
-function normalizeGratificationAmount(
-	value: number | string | null | undefined,
-): string | null {
+function normalizeGratificationAmount(value: number | string | null | undefined): string | null {
 	if (value === null || value === undefined) {
 		return null;
 	}
@@ -228,15 +224,16 @@ function sanitizeDualPayrollEmployees<T extends DualPayrollCompensationShape>(
 	employees: T[],
 	includeDualPayrollCompensation: boolean,
 ): Array<
-	T | Omit<
-		T,
-		| 'fiscalDailyPay'
-		| 'fiscalGrossPay'
-		| 'complementPay'
-		| 'totalRealPay'
-		| 'realVacationPayAmount'
-		| 'realVacationPremiumAmount'
-	>
+	| T
+	| Omit<
+			T,
+			| 'fiscalDailyPay'
+			| 'fiscalGrossPay'
+			| 'complementPay'
+			| 'totalRealPay'
+			| 'realVacationPayAmount'
+			| 'realVacationPremiumAmount'
+	  >
 > {
 	return includeDualPayrollCompensation
 		? employees
@@ -461,7 +458,9 @@ function readStringField(source: Record<string, unknown> | null, keys: string[])
  * @param metadata - Better Auth organization metadata string
  * @returns Parsed JSON object or null
  */
-function parseOrganizationMetadata(metadata: string | null | undefined): Record<string, unknown> | null {
+function parseOrganizationMetadata(
+	metadata: string | null | undefined,
+): Record<string, unknown> | null {
 	if (!metadata) {
 		return null;
 	}
@@ -477,14 +476,84 @@ function parseOrganizationMetadata(metadata: string | null | undefined): Record<
  * Extracts employee withholdings from a persisted tax breakdown snapshot.
  *
  * @param taxBreakdown - Persisted tax breakdown object
- * @returns Employee withholding breakdown
+ * @returns Employee withholding breakdown or a blocking validation issue
  */
 function resolveEmployeeWithholdings(
 	taxBreakdown: Record<string, unknown> | null,
-): PayrollEmployeeWithholdings {
-	return (
-		asRecord(taxBreakdown?.employeeWithholdings) as PayrollEmployeeWithholdings | null
-	) ?? ZERO_EMPLOYEE_WITHHOLDINGS;
+): PayrollFiscalVoucherSourceParseResult<PayrollEmployeeWithholdings> {
+	const rawEmployeeWithholdings = taxBreakdown?.employeeWithholdings;
+	const employeeWithholdings = asRecord(rawEmployeeWithholdings);
+	if (!employeeWithholdings) {
+		if (rawEmployeeWithholdings !== undefined) {
+			return {
+				ok: false,
+				value: ZERO_EMPLOYEE_WITHHOLDINGS,
+				issues: [
+					createFiscalVoucherSourceIssue(
+						'EMPLOYEE_WITHHOLDINGS_INVALID',
+						'taxBreakdown.employeeWithholdings',
+						'Persisted employee withholding payroll tax lines are invalid.',
+					),
+				],
+			};
+		}
+
+		return { ok: true, value: ZERO_EMPLOYEE_WITHHOLDINGS, issues: [] };
+	}
+
+	const imssEmployee = asRecord(employeeWithholdings.imssEmployee);
+	const emExcess = readFiniteNumber(imssEmployee?.emExcess);
+	const pd = readFiniteNumber(imssEmployee?.pd);
+	const gmp = readFiniteNumber(imssEmployee?.gmp);
+	const iv = readFiniteNumber(imssEmployee?.iv);
+	const cv = readFiniteNumber(imssEmployee?.cv);
+	const imssTotal = readFiniteNumber(imssEmployee?.total);
+	const isrWithheld = readFiniteNumber(employeeWithholdings.isrWithheld);
+	const infonavitCredit = readFiniteNumber(employeeWithholdings.infonavitCredit);
+	const total = readFiniteNumber(employeeWithholdings.total);
+
+	if (
+		!imssEmployee ||
+		emExcess === null ||
+		pd === null ||
+		gmp === null ||
+		iv === null ||
+		cv === null ||
+		imssTotal === null ||
+		isrWithheld === null ||
+		infonavitCredit === null ||
+		total === null
+	) {
+		return {
+			ok: false,
+			value: ZERO_EMPLOYEE_WITHHOLDINGS,
+			issues: [
+				createFiscalVoucherSourceIssue(
+					'EMPLOYEE_WITHHOLDINGS_INVALID',
+					'taxBreakdown.employeeWithholdings',
+					'Persisted employee withholding payroll tax lines are invalid.',
+				),
+			],
+		};
+	}
+
+	return {
+		ok: true,
+		value: {
+			imssEmployee: {
+				emExcess,
+				pd,
+				gmp,
+				iv,
+				cv,
+				total: imssTotal,
+			},
+			isrWithheld,
+			infonavitCredit,
+			total,
+		},
+		issues: [],
+	};
 }
 
 /**
@@ -787,6 +856,7 @@ function buildFiscalVoucherCalculationRow(args: {
 } {
 	const taxBreakdown = asRecord(args.line.taxBreakdown);
 	const deductionsBreakdown = parsePayrollDeductionBreakdown(args.line.deductionsBreakdown);
+	const employeeWithholdings = resolveEmployeeWithholdings(taxBreakdown);
 	const informationalLines = resolveInformationalLines(taxBreakdown);
 	const fiscalGrossPay =
 		args.line.fiscalGrossPay === null
@@ -808,10 +878,14 @@ function buildFiscalVoucherCalculationRow(args: {
 					? null
 					: roundCurrency(toFiniteNumber(args.line.complementPay)),
 			deductionsBreakdown: deductionsBreakdown.value,
-			employeeWithholdings: resolveEmployeeWithholdings(taxBreakdown),
+			employeeWithholdings: employeeWithholdings.value,
 			informationalLines: informationalLines.value,
 		} as unknown as PayrollCalculationRow,
-		issues: [...deductionsBreakdown.issues, ...informationalLines.issues],
+		issues: [
+			...deductionsBreakdown.issues,
+			...employeeWithholdings.issues,
+			...informationalLines.issues,
+		],
 	};
 }
 

@@ -83,6 +83,7 @@ interface FakePayrollSettingRow {
 type FakeEmployeeRow = PayrollEmployeeRow & {
 	organizationId: string;
 	lastPayrollDate: Date | null;
+	status?: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE';
 };
 
 interface FakeEmployeeScheduleRow {
@@ -2306,6 +2307,7 @@ describe('payroll routes', () => {
 		];
 
 		const employeeId = 'emp-cutoff-assumed';
+		const inactiveEmployeeId = 'emp-cutoff-inactive';
 		dbState.employees = [
 			{
 				id: employeeId,
@@ -2318,15 +2320,31 @@ describe('payroll routes', () => {
 				locationTimeZone: timeZone,
 				organizationId: dbState.organizationId,
 				lastPayrollDate: null,
+				status: 'ACTIVE',
+			},
+			{
+				id: inactiveEmployeeId,
+				firstName: 'Iris',
+				lastName: 'Inactiva',
+				dailyPay: 800,
+				paymentFrequency: 'WEEKLY',
+				shiftType: 'DIURNA',
+				locationGeographicZone: 'GENERAL',
+				locationTimeZone: timeZone,
+				organizationId: dbState.organizationId,
+				lastPayrollDate: null,
+				status: 'INACTIVE',
 			},
 		];
-		dbState.schedules = [1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
-			employeeId,
-			dayOfWeek,
-			startTime: '09:00',
-			endTime: '17:00',
-			isWorkingDay: true,
-		}));
+		dbState.schedules = [employeeId, inactiveEmployeeId].flatMap((scheduledEmployeeId) =>
+			[1, 2, 3, 4, 5, 6].map((dayOfWeek) => ({
+				employeeId: scheduledEmployeeId,
+				dayOfWeek,
+				startTime: '09:00',
+				endTime: '17:00',
+				isWorkingDay: true,
+			})),
+		);
 		dbState.attendanceRecords = buildAttendanceRowsForDateKeys(
 			employeeId,
 			['2026-04-20', '2026-04-21', '2026-04-22', '2026-04-23'],
@@ -2360,6 +2378,12 @@ describe('payroll routes', () => {
 		expect(row?.assumedAttendanceDateKeys).toEqual(['2026-04-24', '2026-04-25']);
 		expect(row?.hoursWorked).toBe(48);
 		expect(row?.normalHours).toBe(48);
+		const inactiveRow = json.data.employees.find(
+			(employeeRow) => employeeRow.employeeId === inactiveEmployeeId,
+		);
+		expect(inactiveRow?.assumedAttendanceDateKeys).toEqual([]);
+		expect(inactiveRow?.hoursWorked).toBe(0);
+		expect(inactiveRow?.normalHours).toBe(0);
 	});
 
 	it('does not add saturday vacation bonus pay when the approved request has no payable vacation days', async () => {

@@ -410,6 +410,7 @@ const calculatePayroll = async (args: {
 			jobPositionId: employee.jobPositionId,
 			lastPayrollDate: employee.lastPayrollDate,
 			hireDate: employee.hireDate,
+			status: employee.status,
 			sbcDailyOverride: employee.sbcDailyOverride,
 			aguinaldoDaysOverride: employee.aguinaldoDaysOverride,
 			dailyPay: employee.dailyPay,
@@ -505,7 +506,10 @@ const calculatePayroll = async (args: {
 		timeZone,
 	});
 	const assumedAttendanceDateKeys = Object.fromEntries(
-		filteredEmployees.map((employeeRow) => [employeeRow.id, payrollCutoffDateKeys]),
+		filteredEmployees.map((employeeRow) => [
+			employeeRow.id,
+			employeeRow.status === 'ACTIVE' ? payrollCutoffDateKeys : [],
+		]),
 	);
 
 	const payableVacationRequestRows =
